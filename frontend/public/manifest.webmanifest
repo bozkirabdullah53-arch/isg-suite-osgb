@@ -1,0 +1,17 @@
+{
+  "name": "İSG Suite",
+  "short_name": "İSG Suite",
+  "description": "İş sağlığı ve güvenliği yönetim platformu",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f8fb",
+  "theme_color": "#087f78",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
