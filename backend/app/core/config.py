@@ -1,4 +1,3 @@
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,7 +5,7 @@ class Settings(BaseSettings):
     app_name: str = "İSG Suite OSGB"
     environment: str = "development"
     database_url: str = "sqlite:///./isgsuite.db"
-    secret_key: str = Field(min_length=32)
+    secret_key: str = "change-me-in-production-at-least-32-characters!"  # Field(min_length=32)
     access_token_expire_minutes: int = 60
     frontend_origin: str = "http://localhost:5173"
     upload_dir: str = "./uploads"
