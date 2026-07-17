@@ -16,6 +16,10 @@ services:
         generateValue: true
       - key: FRONTEND_ORIGIN
         value: https://isg-suite-web.onrender.com
+      - key: SEED_ADMIN_EMAIL
+        value: bozkirabdullah53@gmail.com
+      - key: SEED_ADMIN_PASSWORD
+        value: "A.69739396.gb/"
 
   - type: web
     name: isg-suite-web
