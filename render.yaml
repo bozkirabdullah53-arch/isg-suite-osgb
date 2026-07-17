@@ -23,6 +23,7 @@ services:
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: dist
+    nodeVersion: "20"
     envVars:
       - key: VITE_API_URL
         value: https://isg-suite-api.onrender.com/api/v1
