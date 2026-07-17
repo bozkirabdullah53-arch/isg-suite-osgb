@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1";
+const API_URL = import.meta.env.VITE_API_URL || "https://isg-suite-api-1u9t.onrender.com/api/v1";
 
 export async function api(path, options = {}) {
   const token = localStorage.getItem("isg_token");
