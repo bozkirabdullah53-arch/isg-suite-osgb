@@ -14,7 +14,7 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg://isgsuite:isgsuite_dev_password@db:5432/isgsuite
-      SECRET_KEY: change-this-in-production
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in your environment}
       FRONTEND_ORIGIN: http://localhost:5173
     ports:
       - "8000:8000"

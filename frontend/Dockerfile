@@ -1,7 +1,8 @@
-FROM node:22-alpine AS build
+FROM node:20.18.0-alpine AS build
 WORKDIR /app
-COPY package.json .
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm install --global npm@10.8.2 --no-audit --no-fund \
+    && npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build
 

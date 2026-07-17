@@ -3,11 +3,12 @@ services:
     name: isg-suite-api
     runtime: python
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: sh start.sh
+    healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
-        value: 3.13.14
+        value: 3.11.11
       - key: DATABASE_URL
         fromDatabase:
           name: isg-suite-db
@@ -25,14 +26,17 @@ services:
     name: isg-suite-web
     runtime: static
     rootDir: frontend
-    buildCommand: npm ci --no-audit --no-fund && npm run build
+    buildCommand: npm install --global npm@10.8.2 --no-audit --no-fund && npm ci --no-audit --no-fund && npm run build
     staticPublishPath: dist
-    nodeVersion: "20.18.0"
     envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
       - key: VITE_API_URL
         value: https://isg-suite-api-1u9t.onrender.com/api/v1
-      - key: NODE_VERSION
-        value: "20.18.0"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
 
 databases:
   - name: isg-suite-db
