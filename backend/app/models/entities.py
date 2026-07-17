@@ -340,6 +340,54 @@ class VisitStatus(str, enum.Enum):
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 
+class TrainingStatus(str, enum.Enum):
+    PLANNED = "planned"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class TrainingSession(Base):
+    __tablename__ = "training_sessions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(220), index=True)
+    training_type: Mapped[str] = mapped_column(String(80), default="Temel İSG Eğitimi")
+    delivery_method: Mapped[str] = mapped_column(String(40), default="Yüz yüze")
+    location: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    start_date: Mapped[date] = mapped_column(Date, index=True)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    next_training_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    duration_hours: Mapped[int] = mapped_column(default=0)
+    renewal_years: Mapped[int] = mapped_column(default=0)
+    hazard_class: Mapped[str] = mapped_column(String(40))
+    sector: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    instructor_name: Mapped[str] = mapped_column(String(160))
+    instructor_qualification: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    evaluation_method: Mapped[str] = mapped_column(String(80), default="Sınav")
+    passing_score: Mapped[int | None] = mapped_column(nullable=True)
+    attendance_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    success_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    verification_code: Mapped[str | None] = mapped_column(String(30), nullable=True, unique=True)
+    status: Mapped[TrainingStatus] = mapped_column(Enum(TrainingStatus), default=TrainingStatus.PLANNED, index=True)
+    notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    participants: Mapped[list["TrainingParticipant"]] = relationship(back_populates="training", cascade="all, delete-orphan")
+
+
+class TrainingParticipant(Base):
+    __tablename__ = "training_participants"
+    __table_args__ = (UniqueConstraint("training_id", "employee_id", name="uq_training_employee"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    training_id: Mapped[int] = mapped_column(ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    attended: Mapped[bool] = mapped_column(Boolean, default=False)
+    score: Mapped[int | None] = mapped_column(nullable=True)
+    successful: Mapped[bool | None] = mapped_column(nullable=True)
+    certificate_number: Mapped[str | None] = mapped_column(String(30), nullable=True, unique=True)
+    training: Mapped["TrainingSession"] = relationship(back_populates="participants")
+
 class ServiceVisit(Base):
     __tablename__ = "service_visits"
     id: Mapped[int] = mapped_column(primary_key=True)
