@@ -21,12 +21,14 @@ services:
     name: isg-suite-web
     runtime: static
     rootDir: frontend
-    buildCommand: npm install && npm run build
+    buildCommand: npm ci --no-audit --no-fund && npm run build
     staticPublishPath: dist
-    nodeVersion: "20"
+    nodeVersion: "20.18.0"
     envVars:
       - key: VITE_API_URL
         value: https://isg-suite-api.onrender.com/api/v1
+      - key: NODE_VERSION
+        value: "20.18.0"
 
 databases:
   - name: isg-suite-db
