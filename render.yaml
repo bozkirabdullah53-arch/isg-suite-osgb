@@ -15,7 +15,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: FRONTEND_ORIGIN
-        value: https://isg-suite-web.onrender.com
+        value: https://isg-suite-web-1u9t.onrender.com
       - key: SEED_ADMIN_EMAIL
         value: bozkirabdullah53@gmail.com
       - key: SEED_ADMIN_PASSWORD
@@ -30,7 +30,7 @@ services:
     nodeVersion: "20.18.0"
     envVars:
       - key: VITE_API_URL
-        value: https://isg-suite-api.onrender.com/api/v1
+        value: https://isg-suite-api-1u9t.onrender.com/api/v1
       - key: NODE_VERSION
         value: "20.18.0"
 
