@@ -8,7 +8,13 @@ from app.core.database import Base
 from app.models import entities  # noqa: F401
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+
+# Ensure psycopg (v3) is used with PostgreSQL URLs
+_db_url = settings.database_url
+if _db_url.startswith("postgresql://") and "+psycopg" not in _db_url:
+    _db_url = _db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+
+config.set_main_option("sqlalchemy.url", _db_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -18,7 +24,7 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=settings.database_url,
+        url=_db_url,
         target_metadata=target_metadata,
         literal_binds=True,
         compare_type=True,
