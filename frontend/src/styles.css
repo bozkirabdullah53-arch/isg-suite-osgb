@@ -72,7 +72,8 @@ aside {
   display: flex;
   flex-direction: column;
 }
-.logo { display: flex; align-items: center; gap: 11px; padding: 8px 10px 24px; color: #0f766e; font-size: 21px; font-weight: 800; }
+.logo { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 10px 20px; }
+.sidebar-logo { width: 100%; max-width: 180px; height: auto; }
 nav { display: grid; gap: 7px; }
 nav button, .logout {
   display: flex;
