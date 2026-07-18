@@ -1,4 +1,12 @@
-const API_URL = import.meta.env.VITE_API_URL || "https://isg-suite-api-1u9t.onrender.com/api/v1";
+const isLocalHost =
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (isLocalHost
+    ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
+    : "https://isg-suite-api-1u9t.onrender.com/api/v1");
 
 export async function api(path, options = {}) {
   const token = localStorage.getItem("isg_token");

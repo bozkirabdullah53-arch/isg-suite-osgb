@@ -19,7 +19,15 @@ async def lifespan(_:FastAPI):
     yield
 app=FastAPI(title=settings.app_name,version='0.9.0',lifespan=lifespan)
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(CORSMiddleware,allow_origins=[settings.frontend_origin,"https://isg-suite-web-1u9t.onrender.com","https://www.isgsuite.tr","https://isgsuite.tr"],allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
+_cors_origins=list(dict.fromkeys([
+    settings.frontend_origin,
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'https://isg-suite-web-1u9t.onrender.com',
+    'https://www.isgsuite.tr',
+    'https://isgsuite.tr',
+]))
+app.add_middleware(CORSMiddleware,allow_origins=_cors_origins,allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
 for r in (auth.router,companies.router,branches.router,users.router,employees.router,isg_records.router,health.router,documents.router,annual_plans.router,reports.router,security.router,files.router,exports.router,subscriptions.router,notifications.router,system.router,dashboard.router,osgb.router,operations.router,trainings.router): app.include_router(r,prefix='/api/v1')
 @app.get('/health')
 def health(): return {'status':'ok','service':settings.app_name,'version':'0.9.0'}

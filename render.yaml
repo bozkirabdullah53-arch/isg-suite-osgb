@@ -17,10 +17,11 @@ services:
         generateValue: true
       - key: FRONTEND_ORIGIN
         value: https://isg-suite-web-1u9t.onrender.com
+      # Seed admin yalnızca ilk kurulumda; secret'ları VCS'e yazmayın — Render Dashboard'dan sync edin
       - key: SEED_ADMIN_EMAIL
-        value: bozkirabdullah53@gmail.com
+        sync: false
       - key: SEED_ADMIN_PASSWORD
-        value: "A.69739396.gb/"
+        sync: false
 
   - type: web
     name: isg-suite-web
