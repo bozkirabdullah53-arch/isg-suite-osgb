@@ -1,0 +1,122 @@
+from datetime import date, datetime
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class RiskCalculateRequest(BaseModel):
+    probability: int = Field(ge=1, le=5)
+    severity: int = Field(ge=1, le=5)
+    term_override_days: int | None = Field(default=None, ge=0, le=365)
+
+
+class RiskCreate(BaseModel):
+    company_id: int
+    branch_id: int | None = None
+    hazard_id: int
+    department_name: str | None = Field(default=None, max_length=200)
+    activity: str = Field(min_length=2, max_length=500)
+    risk_definition: str = Field(min_length=3, max_length=2000)
+    affected_people: str | None = Field(default=None, max_length=500)
+    affected_group: str | None = Field(default=None, max_length=100)
+    existing_measures: str | None = Field(default=None, max_length=2000)
+    additional_measures: str | None = Field(default=None, max_length=2000)
+    probability: int = Field(ge=1, le=5)
+    severity: int = Field(ge=1, le=5)
+    term_override_days: int | None = Field(default=None, ge=0, le=365)
+    status: str = Field(default="Açık", max_length=50)
+
+
+class RiskUpdate(BaseModel):
+    branch_id: int | None = None
+    hazard_id: int | None = None
+    department_name: str | None = Field(default=None, max_length=200)
+    activity: str | None = Field(default=None, min_length=2, max_length=500)
+    risk_definition: str | None = Field(default=None, min_length=3, max_length=2000)
+    affected_people: str | None = Field(default=None, max_length=500)
+    affected_group: str | None = Field(default=None, max_length=100)
+    existing_measures: str | None = Field(default=None, max_length=2000)
+    additional_measures: str | None = Field(default=None, max_length=2000)
+    probability: int | None = Field(default=None, ge=1, le=5)
+    severity: int | None = Field(default=None, ge=1, le=5)
+    term_override_days: int | None = Field(default=None, ge=0, le=365)
+    status: str | None = Field(default=None, max_length=50)
+
+
+class RiskDofCreate(BaseModel):
+    description: str = Field(min_length=3, max_length=2000)
+    responsible_person: str | None = Field(default=None, max_length=150)
+    responsible_department: str | None = Field(default=None, max_length=150)
+    term_date: date | None = None
+    cost_estimate: int | None = Field(default=None, ge=0)
+
+
+class RiskDofResponse(BaseModel):
+    id: int
+    dof_code: str
+    risk_id: int
+    description: str
+    responsible_person: str | None
+    responsible_department: str | None
+    term_date: date | None
+    completion_date: date | None
+    cost_estimate: int | None
+    currency: str
+    status: str
+    completion_note: str | None
+    is_completed: bool
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RiskResponse(BaseModel):
+    id: int
+    risk_code: str
+    company_id: int
+    branch_id: int | None
+    hazard_id: int
+    hazard_code: str | None = None
+    hazard_name: str | None = None
+    category_name: str | None = None
+    department_name: str | None
+    activity: str
+    risk_definition: str
+    affected_people: str | None
+    affected_group: str | None
+    existing_measures: str | None
+    additional_measures: str | None
+    probability: int
+    severity: int
+    risk_score: int
+    risk_level: str
+    term_days: int | None
+    term_date: date | None
+    term_suggested: int | None
+    term_overridden: bool
+    status: str
+    revision_no: int
+    created_by_id: int
+    created_at: datetime
+    updated_at: datetime
+    dofs: list[RiskDofResponse] = []
+    model_config = ConfigDict(from_attributes=True)
+
+
+class HazardCategoryResponse(BaseModel):
+    id: int
+    name: str
+    icon: str | None
+    sort_order: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class HazardResponse(BaseModel):
+    id: int
+    category_id: int
+    code: str
+    name: str
+    description: str | None
+    risk_source: str | None
+    default_probability: int | None
+    default_severity: int | None
+    regulations: list[str] = []
+    is_active: bool
+    model_config = ConfigDict(from_attributes=True)

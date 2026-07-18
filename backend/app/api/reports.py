@@ -13,7 +13,7 @@ from app.models.entities import (
     HealthRecord,
     IsgModule,
     IsgRecord,
-    RecordStatus,
+    RiskAssessment,
     User,
     UserRole,
 )
@@ -32,10 +32,10 @@ def report_summary(
     employee_count = db.scalar(select(func.count()).select_from(Employee).where(*filters)) or 0
 
     isg_filter = [] if not effective_company else [IsgRecord.company_id == effective_company]
-    open_risks = db.scalar(select(func.count()).select_from(IsgRecord).where(
-        IsgRecord.module == IsgModule.RISK,
-        IsgRecord.status != RecordStatus.COMPLETED,
-        *isg_filter,
+    risk_filter = [] if not effective_company else [RiskAssessment.company_id == effective_company]
+    open_risks = db.scalar(select(func.count()).select_from(RiskAssessment).where(
+        RiskAssessment.status == "Açık",
+        *risk_filter,
     )) or 0
     accidents = db.scalar(select(func.count()).select_from(IsgRecord).where(
         IsgRecord.module == IsgModule.ACCIDENT,

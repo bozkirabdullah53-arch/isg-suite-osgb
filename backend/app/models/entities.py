@@ -432,3 +432,92 @@ class FinanceTransaction(Base):
     status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# --- Risk değerlendirme (İSG PRO 2026 risk modülünden) ---
+
+
+class HazardCategory(Base):
+    __tablename__ = "hazard_categories"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(150), unique=True, index=True)
+    icon: Mapped[str | None] = mapped_column(String(50), nullable=True, default="bi-exclamation-triangle")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    hazards: Mapped[list["Hazard"]] = relationship(back_populates="category")
+
+
+class Hazard(Base):
+    __tablename__ = "hazards"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("hazard_categories.id"), index=True)
+    code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(250), index=True)
+    description: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    risk_source: Mapped[str | None] = mapped_column(String(250), nullable=True)
+    regulations: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    ai_suggestions: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    default_probability: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    default_severity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    category: Mapped[HazardCategory] = relationship(back_populates="hazards")
+
+
+class RiskAssessmentStatus(str, enum.Enum):
+    OPEN = "Açık"
+    COMPLETED = "Tamamlandı"
+    CANCELLED = "İptal"
+    REVISED = "Revize"
+
+
+class RiskAssessment(Base):
+    """Firma bazlı risk kaydı — generic IsgRecord(module=risk) yerine."""
+
+    __tablename__ = "risk_assessments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    risk_code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id"), nullable=True, index=True)
+    hazard_id: Mapped[int] = mapped_column(ForeignKey("hazards.id"), index=True)
+    department_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    activity: Mapped[str] = mapped_column(String(500))
+    risk_definition: Mapped[str] = mapped_column(String(2000))
+    affected_people: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    affected_group: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    existing_measures: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    additional_measures: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    probability: Mapped[int] = mapped_column(Integer)
+    severity: Mapped[int] = mapped_column(Integer)
+    risk_score: Mapped[int] = mapped_column(Integer, index=True)
+    risk_level: Mapped[str] = mapped_column(String(50), index=True)
+    term_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    term_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    term_suggested: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    term_overridden: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(50), default="Açık", index=True)
+    revision_no: Mapped[int] = mapped_column(Integer, default=0)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    dofs: Mapped[list["RiskDof"]] = relationship(back_populates="risk", cascade="all, delete-orphan")
+
+
+class RiskDof(Base):
+    __tablename__ = "risk_dofs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dof_code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    risk_id: Mapped[int] = mapped_column(ForeignKey("risk_assessments.id", ondelete="CASCADE"), index=True)
+    description: Mapped[str] = mapped_column(String(2000))
+    responsible_person: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    responsible_department: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    term_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    completion_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    cost_estimate: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    currency: Mapped[str] = mapped_column(String(10), default="TRY")
+    status: Mapped[str] = mapped_column(String(50), default="Açık", index=True)
+    completion_note: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    is_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    risk: Mapped[RiskAssessment] = relationship(back_populates="dofs")

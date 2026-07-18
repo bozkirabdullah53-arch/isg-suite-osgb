@@ -1,0 +1,381 @@
+import React, {useEffect, useMemo, useState} from 'react';
+import {Plus, Search, X} from 'lucide-react';
+import {api} from './api';
+
+const LEVEL_COLORS = {
+  'Kabul Edilebilir': '#95a5a6',
+  'Düşük': '#2ecc71',
+  'Orta': '#f1c40f',
+  'Yüksek': '#f39c12',
+  'Çok Yüksek': '#e74c3c',
+};
+
+function Modal({title, close, children}) {
+  return (
+    <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <section className="modal" style={{maxWidth: 960}}>
+        <header>
+          <h3>{title}</h3>
+          <button className="icon" type="button" onClick={close}><X /></button>
+        </header>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+function Field({label, ...p}) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <input {...p} />
+    </label>
+  );
+}
+
+function Select({label, children, ...p}) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <select {...p}>{children}</select>
+    </label>
+  );
+}
+
+function TextArea({label, ...p}) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <textarea rows={3} {...p} />
+    </label>
+  );
+}
+
+function LevelBadge({level, score}) {
+  const color = LEVEL_COLORS[level] || '#888';
+  return (
+    <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
+      <span style={{width: 10, height: 10, borderRadius: 99, background: color}} />
+      {level || '—'}{score != null ? ` (${score})` : ''}
+    </span>
+  );
+}
+
+export function RiskPage({user}) {
+  const canEdit = ['global_admin', 'company_admin', 'safety_specialist'].includes(user.role);
+  const empty = {
+    company_id: user.company_id || '',
+    branch_id: '',
+    category_id: '',
+    hazard_id: '',
+    department_name: '',
+    activity: '',
+    risk_definition: '',
+    affected_people: '',
+    affected_group: 'Çalışan',
+    existing_measures: '',
+    additional_measures: '',
+    probability: 3,
+    severity: 3,
+  };
+
+  const [companies, setCompanies] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [hazards, setHazards] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [meta, setMeta] = useState(null);
+  const [calc, setCalc] = useState(null);
+  const [suggestions, setSuggestions] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState(null);
+  const [q, setQ] = useState('');
+  const [levelFilter, setLevelFilter] = useState('');
+  const [form, setForm] = useState(empty);
+  const [err, setErr] = useState('');
+  const [dofText, setDofText] = useState('');
+
+  const load = () => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    if (levelFilter) params.set('level', levelFilter);
+    const qs = params.toString() ? `?${params}` : '';
+    return Promise.all([
+      api('/companies'),
+      api('/branches'),
+      api('/risks/categories'),
+      api('/risks/meta'),
+      api(`/risks${qs}`),
+    ]).then(([c, b, cats, m, risks]) => {
+      setCompanies(c);
+      setBranches(b);
+      setCategories(cats);
+      setMeta(m);
+      setRows(risks);
+    });
+  };
+
+  useEffect(() => { load().catch((e) => setErr(e.message)); }, []);
+
+  useEffect(() => {
+    if (!form.category_id) { setHazards([]); return; }
+    api(`/risks/hazards?category_id=${form.category_id}`).then(setHazards).catch(() => setHazards([]));
+  }, [form.category_id]);
+
+  useEffect(() => {
+    const p = Number(form.probability);
+    const s = Number(form.severity);
+    if (!p || !s) return;
+    api('/risks/calculate', {method: 'POST', body: JSON.stringify({probability: p, severity: s})})
+      .then(setCalc)
+      .catch(() => setCalc(null));
+  }, [form.probability, form.severity]);
+
+  async function onHazardPick(hazardId) {
+    setForm((f) => ({...f, hazard_id: hazardId}));
+    if (!hazardId) { setSuggestions(null); return; }
+    try {
+      const d = await api(`/risks/hazards/${hazardId}`);
+      setSuggestions(d.suggestions || null);
+      const h = d.hazard;
+      setForm((f) => ({
+        ...f,
+        hazard_id: hazardId,
+        risk_definition: f.risk_definition || h.description || h.name,
+        probability: h.default_probability || f.probability,
+        severity: h.default_severity || f.severity,
+      }));
+    } catch (_) { setSuggestions(null); }
+  }
+
+  async function save(e) {
+    e.preventDefault();
+    setErr('');
+    try {
+      await api('/risks', {
+        method: 'POST',
+        body: JSON.stringify({
+          company_id: Number(form.company_id),
+          branch_id: form.branch_id ? Number(form.branch_id) : null,
+          hazard_id: Number(form.hazard_id),
+          department_name: form.department_name || null,
+          activity: form.activity,
+          risk_definition: form.risk_definition,
+          affected_people: form.affected_people || null,
+          affected_group: form.affected_group || null,
+          existing_measures: form.existing_measures || null,
+          additional_measures: form.additional_measures || null,
+          probability: Number(form.probability),
+          severity: Number(form.severity),
+        }),
+      });
+      setOpen(false);
+      setForm(empty);
+      setSuggestions(null);
+      load();
+    } catch (x) {
+      setErr(x.message);
+    }
+  }
+
+  async function complete(id) {
+    await api(`/risks/${id}`, {method: 'PATCH', body: JSON.stringify({status: 'Tamamlandı'})});
+    load();
+  }
+
+  async function openDetail(id) {
+    const r = await api(`/risks/${id}`);
+    setDetail(r);
+    setDofText('');
+  }
+
+  async function addDof(e) {
+    e.preventDefault();
+    if (!detail || !dofText.trim()) return;
+    await api(`/risks/${detail.id}/dofs`, {
+      method: 'POST',
+      body: JSON.stringify({description: dofText.trim()}),
+    });
+    openDetail(detail.id);
+    load();
+  }
+
+  async function completeDof(dofId) {
+    await api(`/risks/${detail.id}/dofs/${dofId}/complete`, {method: 'POST'});
+    openDetail(detail.id);
+    load();
+  }
+
+  const companyBranches = useMemo(
+    () => branches.filter((b) => String(b.company_id) === String(form.company_id)),
+    [branches, form.company_id],
+  );
+
+  return (
+    <>
+      <div className="page-title">
+        <h3>Risk Analizi</h3>
+        {canEdit && (
+          <button type="button" onClick={() => { setForm({...empty, company_id: user.company_id || companies[0]?.id || ''}); setOpen(true); setErr(''); }}>
+            <Plus /> Yeni Risk
+          </button>
+        )}
+      </div>
+      <section className="panel">
+        <div className="search" style={{marginBottom: 12}}>
+          <Search size={19} />
+          <input placeholder="Faaliyet, kod veya tanım ara..." value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && load()} />
+          <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} style={{minWidth: 160}}>
+            <option value="">Tüm seviyeler</option>
+            {(meta?.statuses ? Object.keys(LEVEL_COLORS) : Object.keys(LEVEL_COLORS)).map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+          <button className="secondary" type="button" onClick={load}>Ara</button>
+        </div>
+        {err && <div className="error">{err}</div>}
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Kod</th>
+                <th>Faaliyet</th>
+                <th>Tehlike</th>
+                <th>Seviye</th>
+                <th>Termin</th>
+                <th>Durum</th>
+                <th>İşlem</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length ? rows.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.risk_code}</td>
+                  <td>{r.activity}</td>
+                  <td>{r.hazard_code ? `${r.hazard_code} — ${r.hazard_name}` : r.hazard_id}</td>
+                  <td><LevelBadge level={r.risk_level} score={r.risk_score} /></td>
+                  <td>{r.term_date || '—'}</td>
+                  <td>{r.status}</td>
+                  <td>
+                    <button className="mini" type="button" onClick={() => openDetail(r.id)}>Detay</button>
+                    {canEdit && r.status === 'Açık' && (
+                      <button className="mini" type="button" onClick={() => complete(r.id)}>Tamamla</button>
+                    )}
+                  </td>
+                </tr>
+              )) : (
+                <tr><td colSpan={7} className="empty">Risk kaydı yok. Tehlike kütüphanesinden yeni kayıt ekleyin.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {open && (
+        <Modal title="Yeni Risk Değerlendirmesi" close={() => setOpen(false)}>
+          <form className="form-grid" onSubmit={save}>
+            <Select label="Firma" required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value, branch_id: ''})}>
+              <option value="">Seçiniz</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+            <Select label="Şube" value={form.branch_id} onChange={(e) => setForm({...form, branch_id: e.target.value})}>
+              <option value="">Şube seçilmedi</option>
+              {companyBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </Select>
+            <Field label="Bölüm / Departman" value={form.department_name} onChange={(e) => setForm({...form, department_name: e.target.value})} />
+            <Select label="Tehlike kategorisi" required value={form.category_id} onChange={(e) => setForm({...form, category_id: e.target.value, hazard_id: ''})}>
+              <option value="">Seçiniz</option>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+            <Select label="Tehlike" required value={form.hazard_id} onChange={(e) => onHazardPick(e.target.value)}>
+              <option value="">Seçiniz</option>
+              {hazards.map((h) => <option key={h.id} value={h.id}>{h.code} — {h.name}</option>)}
+            </Select>
+            <Field label="Faaliyet" required value={form.activity} onChange={(e) => setForm({...form, activity: e.target.value})} />
+            <TextArea label="Risk tanımı" required value={form.risk_definition} onChange={(e) => setForm({...form, risk_definition: e.target.value})} />
+            <Field label="Etkilenen kişiler" value={form.affected_people} onChange={(e) => setForm({...form, affected_people: e.target.value})} />
+            <Select label="Etkilenen grup" value={form.affected_group} onChange={(e) => setForm({...form, affected_group: e.target.value})}>
+              {(meta?.affected_groups || ['Çalışan', 'Ziyaretçi', 'Müteahhit', 'Çevre']).map((g) => <option key={g}>{g}</option>)}
+            </Select>
+            <TextArea label="Mevcut önlemler" value={form.existing_measures} onChange={(e) => setForm({...form, existing_measures: e.target.value})} />
+            <TextArea label="Ek önlemler" value={form.additional_measures} onChange={(e) => setForm({...form, additional_measures: e.target.value})} />
+            <Select label="Olasılık (1-5)" value={form.probability} onChange={(e) => setForm({...form, probability: e.target.value})}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <option key={n} value={n}>{n} — {(meta?.probability_labels || {})[n] || n}</option>
+              ))}
+            </Select>
+            <Select label="Şiddet (1-5)" value={form.severity} onChange={(e) => setForm({...form, severity: e.target.value})}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <option key={n} value={n}>{n} — {(meta?.severity_labels || {})[n] || n}</option>
+              ))}
+            </Select>
+            {calc && (
+              <div className="field" style={{gridColumn: '1 / -1'}}>
+                <span>Hesaplanan risk</span>
+                <div style={{display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap'}}>
+                  <LevelBadge level={calc.risk_level} score={calc.risk_score} />
+                  <span>Termin: {calc.term_label} ({calc.term_date})</span>
+                </div>
+              </div>
+            )}
+            {suggestions && (
+              <div className="field" style={{gridColumn: '1 / -1'}}>
+                <span>Öneri motoru (kategori)</span>
+                <ul style={{margin: 0, paddingLeft: 18, fontSize: 13}}>
+                  {(suggestions.ppe || []).slice(0, 3).map((x) => <li key={x}>KKD: {x}</li>)}
+                  {(suggestions.engineering_measures || []).slice(0, 2).map((x) => <li key={x}>Müh.: {x}</li>)}
+                </ul>
+              </div>
+            )}
+            {err && <div className="error" style={{gridColumn: '1 / -1'}}>{err}</div>}
+            <div className="form-actions" style={{gridColumn: '1 / -1'}}>
+              <button type="submit">Kaydet</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {detail && (
+        <Modal title={`${detail.risk_code} — Detay`} close={() => setDetail(null)}>
+          <div className="form-grid">
+            <div className="field"><span>Faaliyet</span><strong>{detail.activity}</strong></div>
+            <div className="field"><span>Tehlike</span><strong>{detail.hazard_code} — {detail.hazard_name}</strong></div>
+            <div className="field"><span>Seviye</span><LevelBadge level={detail.risk_level} score={detail.risk_score} /></div>
+            <div className="field"><span>Termin</span><strong>{detail.term_date || '—'}</strong></div>
+            <div className="field" style={{gridColumn: '1 / -1'}}><span>Tanım</span><p>{detail.risk_definition}</p></div>
+            <div className="field" style={{gridColumn: '1 / -1'}}><span>Mevcut önlemler</span><p>{detail.existing_measures || '—'}</p></div>
+            <div className="field" style={{gridColumn: '1 / -1'}}><span>Ek önlemler</span><p>{detail.additional_measures || '—'}</p></div>
+          </div>
+          <h4 style={{marginTop: 16}}>DÖF kayıtları</h4>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Kod</th><th>Açıklama</th><th>Durum</th><th></th></tr></thead>
+              <tbody>
+                {(detail.dofs || []).length ? detail.dofs.map((d) => (
+                  <tr key={d.id}>
+                    <td>{d.dof_code}</td>
+                    <td>{d.description}</td>
+                    <td>{d.status}</td>
+                    <td>
+                      {canEdit && !d.is_completed && (
+                        <button className="mini" type="button" onClick={() => completeDof(d.id)}>Tamamla</button>
+                      )}
+                    </td>
+                  </tr>
+                )) : (
+                  <tr><td colSpan={4} className="empty">DÖF yok</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {canEdit && (
+            <form className="form-grid" onSubmit={addDof} style={{marginTop: 12}}>
+              <TextArea label="Yeni DÖF" required value={dofText} onChange={(e) => setDofText(e.target.value)} />
+              <div className="form-actions"><button type="submit">DÖF Ekle</button></div>
+            </form>
+          )}
+        </Modal>
+      )}
+    </>
+  );
+}
