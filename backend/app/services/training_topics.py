@@ -44,8 +44,11 @@ _SECTOR_RAW: list[tuple[str, str, str, list[str]]] = [
         "Pres ve el aleti", "Yangın ve temizlik",
     ]),
     ("aku_uretimi", "Akü Üretimi", "Çok Tehlikeli", [
-        "Kurşun ve bileşikleri", "Sülfürik asit sıçraması", "Hidrojen gazı / patlama",
-        "Kimyasal dökülme", "Havalandırma ve KKD",
+        "Kurşun ve bileşikleriyle çalışma",
+        "Sülfürik asit ve sıçrama riski",
+        "Hidrojen gazı ve patlama riski",
+        "Kimyasal dökülme/acil müdahale",
+        "Havalandırma, hijyen ve KKD kullanımı",
     ]),
     ("asansor_montaj", "Asansör / Montaj-Bakım", "Çok Tehlikeli", [
         "Yüksekte çalışma", "Kuyu ve makine dairesi", "Elektrik enerjisi", "Kaldırma ekipmanı", "Kilitleme-etiketleme",

@@ -410,6 +410,7 @@ def build_certificates_pdf(*, company_name: str, training, employees: dict) -> b
             bugun=bugun,
             egitim_tarihi=egitim_tarihi,
             kural=kural,
+            sektor=sektor,
             sol=sol,
             sag=sag,
         )
@@ -419,7 +420,7 @@ def build_certificates_pdf(*, company_name: str, training, employees: dict) -> b
     return buf.read()
 
 
-def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_no, bugun, egitim_tarihi, kural, sol, sag):
+def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_no, bugun, egitim_tarihi, kural, sektor, sol, sag):
     ml, mr = 8 * mm, 8 * mm
     uw = w - ml - mr
 
@@ -444,8 +445,8 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
     c.drawString(ml, h - 34 * mm, f"Belge No: {belge_no}")
     c.drawRightString(w - mr, h - 34 * mm, f"Düzenleme Tarihi: {bugun}")
     meta = (
-        f"Süre: {kural['sure']}  │  Tür: {training.training_type}  │  "
-        f"Şekil: {training.delivery_method}  │  Doğrulama: {training.verification_code or ''}"
+        f"Süre: {kural['sure']}  │  Tehlike: {training.hazard_class}  │  "
+        f"Sektör: {sektor_adi(sektor)}  │  Doğrulama: {training.verification_code or ''}"
     )
     c.setFillColorRGB(0.2, 0.2, 0.2)
     c.drawCentredString(w / 2, h - 39 * mm, _fit(c, meta, uw, _FONT, 7))
@@ -485,14 +486,14 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
     cert_signers = (
         ("Eğitim Veren", training.instructor_name or "", training.instructor_qualification or "İSG Uzmanı"),
         (
-            "Eğitim Veren",
+            "İşyeri Hekimi",
             (getattr(training, "workplace_physician", None) or "").strip(),
             "İşyeri Hekimi",
         ),
         (
-            "Onaylayan",
-            (getattr(training, "employer_representative", None) or "").strip(),
             "İşveren Vekili",
+            (getattr(training, "employer_representative", None) or "").strip(),
+            "İşveren / Vekili",
         ),
     )
     for i, (role, person, unvan) in enumerate(cert_signers):

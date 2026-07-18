@@ -223,7 +223,16 @@ export function TrainingPage({user}) {
     try {
       await downloadFile(`/trainings/${id}/certificates.pdf`, `egitim-${id}-katilim-belgeleri.pdf`);
     } catch (x) {
-      alert('Katılım belgesi PDF indirilemedi:\n' + x.message);
+      const msg = x.message || '';
+      if (/not found/i.test(msg) || msg === 'Not Found') {
+        alert(
+          'Katılım belgesi PDF indirilemedi: API sürümü eski (certificates.pdf yok).\n\n'
+          + 'Render’da isg-suite-api için Clear build cache & Deploy yapın.\n'
+          + 'Deploy sonrası tehlike sınıfı + sektör seçimine göre 4. bölüm konuları belgede basılır.',
+        );
+      } else {
+        alert('Katılım belgesi PDF indirilemedi:\n' + msg);
+      }
     } finally {
       setDlBusy('');
     }
