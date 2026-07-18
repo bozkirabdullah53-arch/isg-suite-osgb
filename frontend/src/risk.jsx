@@ -124,27 +124,39 @@ export function RiskPage({user}) {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (levelFilter) params.set('level', levelFilter);
-    const qs = params.toString() ? `?${params}` : '';
-    const [c, b, cats, m, risks] = await Promise.all([
+    const [c, b, cats, m] = await Promise.all([
       api('/companies'),
       api('/branches'),
       api('/risks/categories'),
       api('/risks/meta'),
-      api(`/risks${qs}`),
     ]);
     setCompanies(c);
     setBranches(b);
     setCategories(cats);
     setMeta(m);
-    setRows(risks);
-    const cid = user.company_id || c[0]?.id;
-    if (cid) {
-      await loadDepartments(cid);
-      if (!reportCompanyId) setReportCompanyId(cid);
+    const cid = reportCompanyId || user.company_id || c[0]?.id;
+    if (cid && !reportCompanyId) setReportCompanyId(cid);
+    if (!cid && user.role === 'global_admin') {
+      setRows([]);
+      setErr('Risk listesi için firma seçiniz.');
+      return;
     }
+    if (cid) params.set('company_id', String(cid));
+    const qs = params.toString() ? `?${params}` : '';
+    const risks = await api(`/risks${qs}`);
+    setRows(risks);
+    setErr('');
+    if (cid) await loadDepartments(cid);
   };
 
-  useEffect(() => { load().catch((e) => setErr(e.message)); }, []);
+  useEffect(() => {
+    if (!user.company_id && !reportCompanyId) {
+      // global admin: companies yüklenene kadar bekle
+      load().catch((e) => setErr(e.message));
+      return;
+    }
+    load().catch((e) => setErr(e.message));
+  }, [reportCompanyId, levelFilter]);
 
   useEffect(() => {
     if (!form.company_id) { setDepartments([]); return; }
@@ -354,7 +366,7 @@ export function RiskPage({user}) {
           )}
         </div>
       </div>
-      <section className="panel">
+      <section className="panel" style={detail ? {display: 'none'} : undefined}>
         <div style={{marginBottom: 12, padding: '10px 12px', background: '#eef5fb', borderRadius: 10, fontSize: 14}}>
           Risk kaydı için <strong>tehlike kategorisi → tehlike</strong> seçimi zorunludur.
           İşyeri bölümlerini listeden seçin veya <strong>yeni bölüm</strong> yazarak kaydedin.
@@ -373,8 +385,14 @@ export function RiskPage({user}) {
             ))}
           </select>
           {!user.company_id && (
-            <select value={reportCompanyId} onChange={(e) => setReportCompanyId(e.target.value)} style={{minWidth: 180}}>
-              <option value="">Rapor firması</option>
+            <select
+              value={reportCompanyId}
+              onChange={(e) => {
+                setReportCompanyId(e.target.value);
+              }}
+              style={{minWidth: 180}}
+            >
+              <option value="">Firma seçiniz</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
@@ -613,7 +631,16 @@ export function RiskPage({user}) {
       )}
 
       {detail && (
-        <Modal title={`${detail.risk_code} — Detay`} close={() => setDetail(null)}>
+        <section className="panel doc-workspace">
+          <div className="doc-head">
+            <div>
+              <h3>{detail.risk_code} — Risk Detayı / DÖF</h3>
+              <p style={{margin: '6px 0 0', color: '#64748b', fontSize: 14}}>
+                Uygulama içinde kalın · DÖF ekle / tamamla
+              </p>
+            </div>
+            <button type="button" className="secondary" onClick={() => setDetail(null)}>Listeye dön</button>
+          </div>
           <div className="form-grid">
             <div className="field"><span>Bölüm</span><strong>{detail.department_name || '—'}</strong></div>
             <div className="field"><span>Faaliyet</span><strong>{detail.activity}</strong></div>
@@ -706,7 +733,7 @@ export function RiskPage({user}) {
               </div>
             </form>
           )}
-        </Modal>
+        </section>
       )}
     </>
   );

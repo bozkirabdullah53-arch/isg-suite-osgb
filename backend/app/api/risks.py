@@ -313,9 +313,15 @@ def list_risks(
     user: User = Depends(get_current_user),
 ):
     stmt = select(RiskAssessment).options(selectinload(RiskAssessment.dofs)).order_by(RiskAssessment.created_at.desc())
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if effective:
-        stmt = stmt.where(RiskAssessment.company_id == effective)
+    if user.role == UserRole.GLOBAL_ADMIN:
+        effective = company_id
+        if not effective:
+            raise HTTPException(422, "Global yönetici için company_id zorunludur.")
+    else:
+        if not user.company_id:
+            raise HTTPException(403, "Firma atanmamış kullanıcı risk listesini göremez.")
+        effective = user.company_id
+    stmt = stmt.where(RiskAssessment.company_id == effective)
     if level:
         stmt = stmt.where(RiskAssessment.risk_level == level)
     if status:
@@ -386,11 +392,13 @@ def risk_report_pdf(
     company, risks, hazard_map = _load_company_risks(db, user, company_id, level, status)
     if not risks:
         raise HTTPException(422, "Bu filtreyle raporlanacak risk kaydı yok.")
+    branch = db.scalar(select(Branch).where(Branch.company_id == company.id).order_by(Branch.id.asc()))
     pdf = build_risk_pdf(
         company=company,
         risks=risks,
         hazard_map=hazard_map,
         prepared_by=user.full_name,
+        sgk_no=branch.sgk_registry_no if branch else None,
     )
     return StreamingResponse(
         BytesIO(pdf),

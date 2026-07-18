@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class RiskCalculateRequest(BaseModel):
@@ -24,6 +24,12 @@ class RiskCreate(BaseModel):
     severity: int = Field(ge=1, le=5)
     term_override_days: int | None = Field(default=None, ge=0, le=365)
     status: str = Field(default="Açık", max_length=50)
+
+    @model_validator(mode="after")
+    def department_required(self):
+        if not self.department_id and not (self.department_name or "").strip():
+            raise ValueError("Bölüm seçiniz veya yeni bölüm adı giriniz.")
+        return self
 
 
 class RiskUpdate(BaseModel):

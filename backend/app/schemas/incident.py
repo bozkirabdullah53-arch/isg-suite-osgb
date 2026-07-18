@@ -6,11 +6,11 @@ class IncidentCreate(BaseModel):
     company_id: int
     branch_id: int | None = None
     event_type: str = Field(min_length=3, max_length=40)
-    short_summary: str = Field(min_length=5, max_length=500)
+    short_summary: str = Field(min_length=20, max_length=500)
     event_date: date
     event_time: str | None = Field(default=None, max_length=10)
     department: str | None = Field(default=None, max_length=160)
-    location: str | None = Field(default=None, max_length=220)
+    location: str = Field(min_length=2, max_length=220)
     area: str | None = Field(default=None, max_length=160)
     work_being_done: str | None = Field(default=None, max_length=500)
     related_people: str | None = Field(default=None, max_length=2000)
@@ -18,8 +18,8 @@ class IncidentCreate(BaseModel):
     witness_names: str | None = Field(default=None, max_length=2000)
     equipment_used: str | None = Field(default=None, max_length=500)
     chemical_used: str | None = Field(default=None, max_length=500)
-    detail: str | None = Field(default=None, max_length=4000)
-    classification: str | None = Field(default=None, max_length=160)
+    detail: str = Field(min_length=30, max_length=4000)
+    classification: str = Field(min_length=2, max_length=160)
     injury_occurred: bool = False
     health_complaint: bool = False
     medical_intervention: bool = False
@@ -110,12 +110,12 @@ class RootCauseUpsert(BaseModel):
 
 
 class IncidentDofCreate(BaseModel):
-    finding: str = Field(min_length=3, max_length=2000)
+    finding: str = Field(min_length=10, max_length=2000)
     root_cause: str | None = Field(default=None, max_length=2000)
-    corrective_action: str | None = Field(default=None, max_length=2000)
-    preventive_action: str | None = Field(default=None, max_length=2000)
-    responsible_person: str | None = Field(default=None, max_length=160)
-    term_date: date | None = None
+    corrective_action: str = Field(min_length=10, max_length=2000)
+    preventive_action: str = Field(min_length=10, max_length=2000)
+    responsible_person: str = Field(min_length=2, max_length=160)
+    term_date: date
     priority: str = Field(default="Orta", max_length=30)
 
 

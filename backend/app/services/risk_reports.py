@@ -108,7 +108,16 @@ def _add_pdf_footer(canvas, doc):
     canvas.restoreState()
 
 
-def build_risk_pdf(*, company, risks, hazard_map: dict | None = None, prepared_by: str | None = None) -> bytes:
+def build_risk_pdf(
+    *,
+    company,
+    risks,
+    hazard_map: dict | None = None,
+    prepared_by: str | None = None,
+    sgk_no: str | None = None,
+    workplace_physician: str | None = None,
+    employer_representative: str | None = None,
+) -> bytes:
     """Firma risk değerlendirme PDF raporu."""
     hazard_map = hazard_map or {}
     buf = BytesIO()
@@ -155,13 +164,15 @@ def build_risk_pdf(*, company, risks, hazard_map: dict | None = None, prepared_b
         Paragraph(f"Program: {CREATOR_LINE}", subtitle),
         Spacer(1, 8 * mm),
         Paragraph(f"<b>Firma Adı:</b> {company.name}", info),
+        Paragraph(f"<b>SGK Sicil No:</b> {sgk_no or '—'}", info),
         Paragraph(f"<b>Vergi No:</b> {getattr(company, 'tax_number', None) or '—'}", info),
         Paragraph(f"<b>NACE Kodu:</b> {getattr(company, 'nace_code', None) or '—'}", info),
         Paragraph(f"<b>Tehlike Sınıfı:</b> {getattr(company, 'hazard_class', None) or '—'}", info),
+        Paragraph(f"<b>İSG Uzmanı / Hazırlayan:</b> {prepared_by or '—'}", info),
+        Paragraph(f"<b>İşyeri Hekimi:</b> {workplace_physician or '—'}", info),
+        Paragraph(f"<b>İşveren / Vekili:</b> {employer_representative or '—'}", info),
+        Spacer(1, 5 * mm),
     ]
-    if prepared_by:
-        elements.append(Paragraph(f"<b>Hazırlayan:</b> {prepared_by}", info))
-    elements.append(Spacer(1, 5 * mm))
 
     total = len(risks)
     risk_levels: dict[str, int] = {}
@@ -283,6 +294,31 @@ def build_risk_pdf(*, company, risks, hazard_map: dict | None = None, prepared_b
             elements.append(dof_table)
 
         elements.append(Spacer(1, 6 * mm))
+
+    elements.append(PageBreak())
+    elements.append(Paragraph("<b>İMZA / ONAY ALANLARI</b>", section))
+    elements.append(Spacer(1, 4 * mm))
+    sign_data = [
+        ["İSG Uzmanı / Hazırlayan", prepared_by or " ", "Kaşe / İmza"],
+        ["İşyeri Hekimi", workplace_physician or " ", "Kaşe / İmza"],
+        ["İşveren / Vekili", employer_representative or " ", "Kaşe / İmza"],
+    ]
+    sign_table = Table([["Unvan", "Ad Soyad", "Onay"]] + sign_data, colWidths=[160, 180, 130])
+    sign_table.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
+                ("FONTNAME", (0, 0), (-1, 0), PDF_FONT_BOLD),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a5276")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 1), (-1, -1), 14),
+                ("BOTTOMPADDING", (0, 1), (-1, -1), 14),
+            ]
+        )
+    )
+    elements.append(sign_table)
 
     doc.build(elements, onFirstPage=_add_pdf_footer, onLaterPages=_add_pdf_footer)
     buf.seek(0)

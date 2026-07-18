@@ -1,9 +1,11 @@
 """Olay kayıtları API — ramak kala / iş kazası / kök neden / olay DÖF."""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -26,6 +28,7 @@ from app.services.incident_meta import (
     meta_payload,
     risk_level_for,
 )
+from app.services.incident_reports import build_incident_pdf
 
 router = APIRouter(prefix="/incidents", tags=["Olay / Ramak Kala"])
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)
@@ -104,9 +107,15 @@ def list_incidents(
         .options(selectinload(IncidentEvent.root_cause), selectinload(IncidentEvent.dofs))
         .order_by(IncidentEvent.event_date.desc(), IncidentEvent.id.desc())
     )
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if effective:
-        stmt = stmt.where(IncidentEvent.company_id == effective)
+    if user.role == UserRole.GLOBAL_ADMIN:
+        effective = company_id
+        # Admin tüm firmaları görebilir; company_id verilirse filtrele
+        if effective:
+            stmt = stmt.where(IncidentEvent.company_id == effective)
+    else:
+        if not user.company_id:
+            raise HTTPException(403, "Firma atanmamış kullanıcı olay listesini göremez.")
+        stmt = stmt.where(IncidentEvent.company_id == user.company_id)
     if event_type:
         stmt = stmt.where(IncidentEvent.event_type == event_type)
     if status:
@@ -135,10 +144,11 @@ def create_incident(
     if not db.get(Company, payload.company_id):
         raise HTTPException(404, "Firma bulunamadı.")
     values = payload.model_dump()
+    recorded = values.pop("recorded_by_name", None) or user.full_name
     row = IncidentEvent(
         **values,
         form_no=_next_form_no(db, payload.event_type),
-        recorded_by_name=payload.recorded_by_name or user.full_name,
+        recorded_by_name=recorded,
         created_by_id=user.id,
     )
     _apply_scoring(row)
@@ -172,6 +182,31 @@ def update_incident(
     _apply_scoring(row)
     db.commit()
     return _load(db, incident_id)
+
+
+@router.get("/{incident_id}/report.pdf")
+def incident_report_pdf(
+    incident_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    row = _load(db, incident_id)
+    ensure_access(user, row.company_id)
+    company = db.get(Company, row.company_id)
+    try:
+        pdf = build_incident_pdf(
+            company_name=company.name if company else str(row.company_id),
+            incident=row,
+            root_cause=row.root_cause,
+            dofs=row.dofs or [],
+        )
+    except RuntimeError as exc:
+        raise HTTPException(500, str(exc)) from exc
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="olay-{row.form_no}.pdf"'},
+    )
 
 
 @router.put("/{incident_id}/root-cause", response_model=RootCauseResponse)

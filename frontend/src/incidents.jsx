@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Plus, Search, X} from 'lucide-react';
-import {api} from './api';
+import {Download, Plus, Search, X} from 'lucide-react';
+import {api, downloadFile} from './api';
 
 const TYPE_DEFAULT = {
   near_miss: 'ramak_kala',
@@ -126,6 +126,7 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
     responsible_person: '', term_date: '', priority: 'Orta',
   });
   const [tab, setTab] = useState('olay');
+  const [dlBusy, setDlBusy] = useState(false);
 
   useEffect(() => {
     setTypeFilter(defaultType);
@@ -255,164 +256,41 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
     load();
   }
 
-  return (
-    <>
-      <div className="page-title">
-        <h3>{pageTitle}</h3>
-        {canEdit && (
-          <button type="button" onClick={() => {
-            setForm(emptyForm(user, typeFilter || defaultType));
-            setErr('');
-            setOpen(true);
-          }}>
-            <Plus /> Yeni Olay Kaydı
-          </button>
-        )}
-      </div>
-      <section className="panel">
-        <div style={{marginBottom: 12, padding: '10px 12px', background: '#eef5fb', borderRadius: 10, fontSize: 14, lineHeight: 1.5}}>
-          PRO uyumlu olay kaydı: sınıflandırma, otomatik uyarı, <strong>5N kök neden</strong> ve <strong>olay DÖF</strong>.
-          İş kazasında SGK / kolluk bildirim alanları görünür.
+  async function downloadPdf() {
+    if (!detail) return;
+    setDlBusy(true);
+    setErr('');
+    try {
+      await downloadFile(`/incidents/${detail.id}/report.pdf`, `olay-${detail.form_no}.pdf`);
+    } catch (x) {
+      setErr(x.message || 'PDF indirilemedi.');
+    } finally {
+      setDlBusy(false);
+    }
+  }
+
+  if (detail) {
+    return (
+      <>
+        <div className="page-title">
+          <h3>{pageTitle}</h3>
         </div>
-        <div className="search" style={{marginBottom: 12, flexWrap: 'wrap'}}>
-          <Search size={19} />
-          <input
-            placeholder="Form no, özet, yer, bölüm ara..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && load()}
-          />
-          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{minWidth: 200}}>
-            {(meta?.event_types || [
-              {code: 'ramak_kala', label: 'Ramak Kala'},
-              {code: 'is_kazasi', label: 'İş Kazası'},
-            ]).map((t) => (
-              <option key={t.code} value={t.code}>{t.label}</option>
-            ))}
-            <option value="">Tüm tipler</option>
-          </select>
-          <button className="secondary" type="button" onClick={() => load().catch((e) => setErr(e.message))}>Ara</button>
-        </div>
-        {err && <div className="error">{err}</div>}
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Form No</th>
-                <th>Tip</th>
-                <th>Tarih</th>
-                <th>Özet</th>
-                <th>Sınıf</th>
-                <th>Risk</th>
-                <th>Durum</th>
-                <th>İşlem</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length ? rows.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.form_no}</td>
-                  <td>{typeLabel(r.event_type)}</td>
-                  <td>{r.event_date}</td>
-                  <td>{r.short_summary}</td>
-                  <td>{r.classification || '—'}</td>
-                  <td>{r.risk_level ? `${r.risk_level} (${r.risk_score})` : '—'}</td>
-                  <td>
-                    <span className={'badge ' + (r.status === 'Kapalı' ? 'ok' : 'off')}>{r.status}</span>
-                  </td>
-                  <td>
-                    <button className="mini" type="button" onClick={() => openDetail(r.id)}>Detay</button>
-                  </td>
-                </tr>
-              )) : (
-                <tr><td colSpan={8} className="empty">Olay kaydı yok. Yeni kayıt ekleyin.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {open && (
-        <Modal title="Yeni Olay Kaydı" close={() => setOpen(false)} wide>
-          <form className="form-grid" onSubmit={save}>
-            <Select label="Firma" required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value, branch_id: ''})}>
-              <option value="">Seçiniz</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-            <Select label="Olay tipi" required value={form.event_type} onChange={(e) => setForm({...form, event_type: e.target.value})}>
-              {(meta?.event_types || []).map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
-            </Select>
-            <Select label="Şube" value={form.branch_id} onChange={(e) => setForm({...form, branch_id: e.target.value})}>
-              <option value="">Şube seçilmedi</option>
-              {companyBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </Select>
-            <Field label="Olay tarihi" type="date" required value={form.event_date} onChange={(e) => setForm({...form, event_date: e.target.value})} />
-            <Field label="Saat" value={form.event_time} onChange={(e) => setForm({...form, event_time: e.target.value})} placeholder="14:30" />
-            <Field label="Departman / Bölüm" value={form.department} onChange={(e) => setForm({...form, department: e.target.value})} />
-            <Field label="Olay yeri" value={form.location} onChange={(e) => setForm({...form, location: e.target.value})} />
-            <Field label="Alan" value={form.area} onChange={(e) => setForm({...form, area: e.target.value})} />
-            <Select label="Sınıflandırma" value={form.classification} onChange={(e) => setForm({...form, classification: e.target.value})}>
-              <option value="">Seçiniz</option>
-              {(meta?.classifications || []).map((c) => <option key={c} value={c}>{c}</option>)}
-            </Select>
-            <Field label="Yapılan iş" value={form.work_being_done} onChange={(e) => setForm({...form, work_being_done: e.target.value})} style={{gridColumn: '1 / -1'}} />
-            <TextArea label="Kısa özet" required value={form.short_summary} onChange={(e) => setForm({...form, short_summary: e.target.value})} />
-            <TextArea label="Detay" value={form.detail} onChange={(e) => setForm({...form, detail: e.target.value})} />
-            <Field label="İlgili kişiler" value={form.related_people} onChange={(e) => setForm({...form, related_people: e.target.value})} />
-            <Check label="Şahit var" checked={form.has_witness} onChange={(v) => setForm({...form, has_witness: v})} />
-            {form.has_witness && (
-              <Field label="Şahit isimleri" value={form.witness_names} onChange={(e) => setForm({...form, witness_names: e.target.value})} />
-            )}
-            <Field label="Ekipman" value={form.equipment_used} onChange={(e) => setForm({...form, equipment_used: e.target.value})} />
-            <Field label="Kimyasal" value={form.chemical_used} onChange={(e) => setForm({...form, chemical_used: e.target.value})} />
-
-            <Check label="Yaralanma oldu" checked={form.injury_occurred} onChange={(v) => setForm({...form, injury_occurred: v})} />
-            <Check label="Sağlık şikayeti" checked={form.health_complaint} onChange={(v) => setForm({...form, health_complaint: v})} />
-            <Check label="Tıbbi müdahale" checked={form.medical_intervention} onChange={(v) => setForm({...form, medical_intervention: v})} />
-            <Check label="İş göremezlik raporu" checked={form.work_incapacity_report} onChange={(v) => setForm({...form, work_incapacity_report: v})} />
-            <Check label="Ekipman hasarı" checked={form.equipment_damage} onChange={(v) => setForm({...form, equipment_damage: v})} />
-            <Check label="Farklı gelse yaralanma olurdu" checked={form.would_have_injured} onChange={(v) => setForm({...form, would_have_injured: v})} />
-
-            <Field label="Olasılık (0-5)" type="number" min="0" max="5" value={form.probability} onChange={(e) => setForm({...form, probability: e.target.value})} />
-            <Field label="Şiddet (0-5)" type="number" min="0" max="5" value={form.severity} onChange={(e) => setForm({...form, severity: e.target.value})} />
-            <Select label="Risk analizinde var mı?" value={form.risk_analysis_status} onChange={(e) => setForm({...form, risk_analysis_status: e.target.value})}>
-              <option value="">Seçiniz</option>
-              {(meta?.risk_analysis_options || []).map((o) => <option key={o.code} value={o.code}>{o.label}</option>)}
-            </Select>
-            <Select label="Acil durum ilişkisi" value={form.emergency_relation} onChange={(e) => setForm({...form, emergency_relation: e.target.value})}>
-              <option value="">Seçiniz</option>
-              {(meta?.emergency_options || []).map((o) => <option key={o} value={o}>{o}</option>)}
-            </Select>
-
-            {form.event_type === 'is_kazasi' && (
-              <>
-                <Select label="Kaza türü" value={form.accident_type} onChange={(e) => setForm({...form, accident_type: e.target.value})}>
-                  <option value="">Seçiniz</option>
-                  {(meta?.accident_types || []).map((o) => <option key={o} value={o}>{o}</option>)}
-                </Select>
-                <Field label="Yaralanma türü" value={form.injury_type} onChange={(e) => setForm({...form, injury_type: e.target.value})} />
-                <Check label="SGK bildirildi" checked={form.sgk_reported} onChange={(v) => setForm({...form, sgk_reported: v})} />
-                <Field label="SGK bildirim tarihi" type="date" value={form.sgk_report_date} onChange={(e) => setForm({...form, sgk_report_date: e.target.value})} />
-                <Check label="Kolluk bildirildi" checked={form.police_reported} onChange={(v) => setForm({...form, police_reported: v})} />
-                <Field label="Rapor süresi (gün)" type="number" min="0" value={form.report_days} onChange={(e) => setForm({...form, report_days: e.target.value})} />
-                <TextArea label="Müdahale detayı" value={form.intervention_detail} onChange={(e) => setForm({...form, intervention_detail: e.target.value})} />
-              </>
-            )}
-
-            <Field label="İSG uzmanı" value={form.safety_specialist} onChange={(e) => setForm({...form, safety_specialist: e.target.value})} />
-            <Field label="İşyeri hekimi" value={form.workplace_physician} onChange={(e) => setForm({...form, workplace_physician: e.target.value})} />
-            <Field label="İşveren / vekili" value={form.employer_representative} onChange={(e) => setForm({...form, employer_representative: e.target.value})} />
-
-            {err && <div className="error" style={{gridColumn: '1 / -1'}}>{err}</div>}
-            <div className="form-actions" style={{gridColumn: '1 / -1'}}>
-              <button type="submit">Kaydet</button>
+        <section className="panel doc-workspace">
+          <div className="doc-head">
+            <div>
+              <h3>{detail.form_no} — {typeLabel(detail.event_type)}</h3>
+              <p style={{margin: '6px 0 0', color: '#64748b', fontSize: 14}}>
+                Uygulama içinde kalın · kök neden (5N) · olay DÖF · PDF rapor
+              </p>
             </div>
-          </form>
-        </Modal>
-      )}
+            <div className="actions">
+              <button type="button" className="secondary" disabled={dlBusy} onClick={downloadPdf}>
+                <Download size={16} /> {dlBusy ? 'PDF…' : 'Olay PDF'}
+              </button>
+              <button type="button" className="secondary" onClick={() => setDetail(null)}>Listeye dön</button>
+            </div>
+          </div>
 
-      {detail && (
-        <Modal title={`${detail.form_no} — ${typeLabel(detail.event_type)}`} close={() => setDetail(null)} wide>
           <div style={{display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap'}}>
             {['olay', 'kok', 'dof'].map((t) => (
               <button
@@ -429,6 +307,7 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
             )}
           </div>
 
+          {err && <div className="error" style={{marginBottom: 12}}>{err}</div>}
           {detail.auto_warning && (
             <div className="error" style={{whiteSpace: 'pre-wrap', marginBottom: 12}}>{detail.auto_warning}</div>
           )}
@@ -516,12 +395,12 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
               </div>
               {canEdit && (
                 <form className="form-grid" onSubmit={addDof}>
-                  <TextArea label="Tespit edilen uygunsuzluk" required value={dofForm.finding} onChange={(e) => setDofForm({...dofForm, finding: e.target.value})} />
+                  <TextArea label="Tespit edilen uygunsuzluk (min. 10 karakter)" required value={dofForm.finding} onChange={(e) => setDofForm({...dofForm, finding: e.target.value})} />
                   <TextArea label="Kök neden" value={dofForm.root_cause} onChange={(e) => setDofForm({...dofForm, root_cause: e.target.value})} />
-                  <TextArea label="Düzeltici faaliyet" value={dofForm.corrective_action} onChange={(e) => setDofForm({...dofForm, corrective_action: e.target.value})} />
-                  <TextArea label="Önleyici faaliyet" value={dofForm.preventive_action} onChange={(e) => setDofForm({...dofForm, preventive_action: e.target.value})} />
-                  <Field label="Sorumlu" value={dofForm.responsible_person} onChange={(e) => setDofForm({...dofForm, responsible_person: e.target.value})} />
-                  <Field label="Termin" type="date" value={dofForm.term_date} onChange={(e) => setDofForm({...dofForm, term_date: e.target.value})} />
+                  <TextArea label="Düzeltici faaliyet" required value={dofForm.corrective_action} onChange={(e) => setDofForm({...dofForm, corrective_action: e.target.value})} />
+                  <TextArea label="Önleyici faaliyet" required value={dofForm.preventive_action} onChange={(e) => setDofForm({...dofForm, preventive_action: e.target.value})} />
+                  <Field label="Sorumlu" required value={dofForm.responsible_person} onChange={(e) => setDofForm({...dofForm, responsible_person: e.target.value})} />
+                  <Field label="Termin" type="date" required value={dofForm.term_date} onChange={(e) => setDofForm({...dofForm, term_date: e.target.value})} />
                   <Select label="Öncelik" value={dofForm.priority} onChange={(e) => setDofForm({...dofForm, priority: e.target.value})}>
                     <option>Düşük</option>
                     <option>Orta</option>
@@ -535,8 +414,318 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
               )}
             </div>
           )}
+        </section>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="page-title">
+        <h3>{pageTitle}</h3>
+        {canEdit && (
+          <button type="button" onClick={() => {
+            setForm(emptyForm(user, typeFilter || defaultType));
+            setErr('');
+            setOpen(true);
+          }}>
+            <Plus /> Yeni Olay Kaydı
+          </button>
+        )}
+      </div>
+      <section className="panel">
+        <div style={{marginBottom: 12, padding: '10px 12px', background: '#eef5fb', borderRadius: 10, fontSize: 14, lineHeight: 1.5}}>
+          PRO uyumlu olay kaydı: sınıflandırma, otomatik uyarı, <strong>5N kök neden</strong> ve <strong>olay DÖF</strong>.
+          Detay satırından PDF indirilir. İş kazasında SGK / kolluk alanları görünür.
+        </div>
+        <div className="search" style={{marginBottom: 12, flexWrap: 'wrap'}}>
+          <Search size={19} />
+          <input
+            placeholder="Form no, özet, yer, bölüm ara..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && load()}
+          />
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{minWidth: 200}}>
+            {(meta?.event_types || [
+              {code: 'ramak_kala', label: 'Ramak Kala'},
+              {code: 'is_kazasi', label: 'İş Kazası'},
+            ]).map((t) => (
+              <option key={t.code} value={t.code}>{t.label}</option>
+            ))}
+            <option value="">Tüm tipler</option>
+          </select>
+          <button className="secondary" type="button" onClick={() => load().catch((e) => setErr(e.message))}>Ara</button>
+        </div>
+        {err && <div className="error">{err}</div>}
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Form No</th>
+                <th>Tip</th>
+                <th>Tarih</th>
+                <th>Özet</th>
+                <th>Sınıf</th>
+                <th>Risk</th>
+                <th>Durum</th>
+                <th>İşlem</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.length ? rows.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.form_no}</td>
+                  <td>{typeLabel(r.event_type)}</td>
+                  <td>{r.event_date}</td>
+                  <td>{r.short_summary}</td>
+                  <td>{r.classification || '—'}</td>
+                  <td>{r.risk_level ? `${r.risk_level} (${r.risk_score})` : '—'}</td>
+                  <td>
+                    <span className={'badge ' + (r.status === 'Kapalı' ? 'ok' : 'off')}>{r.status}</span>
+                  </td>
+                  <td>
+                    <button className="mini" type="button" onClick={() => openDetail(r.id)}>Detay</button>
+                  </td>
+                </tr>
+              )) : (
+                <tr><td colSpan={8} className="empty">Olay kaydı yok. Yeni kayıt ekleyin.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {open && (
+        <Modal title="Yeni Olay Kaydı" close={() => setOpen(false)} wide>
+          <form className="form-grid" onSubmit={save}>
+            <Select label="Firma" required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value, branch_id: ''})}>
+              <option value="">Seçiniz</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+            <Select label="Olay tipi" required value={form.event_type} onChange={(e) => setForm({...form, event_type: e.target.value})}>
+              {(meta?.event_types || []).map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
+            </Select>
+            <Select label="Şube" value={form.branch_id} onChange={(e) => setForm({...form, branch_id: e.target.value})}>
+              <option value="">Şube seçilmedi</option>
+              {companyBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </Select>
+            <Field label="Olay tarihi" type="date" required value={form.event_date} onChange={(e) => setForm({...form, event_date: e.target.value})} />
+            <Field label="Saat" value={form.event_time} onChange={(e) => setForm({...form, event_time: e.target.value})} placeholder="14:30" />
+            <Field label="Departman / Bölüm" value={form.department} onChange={(e) => setForm({...form, department: e.target.value})} />
+            <Field label="Olay yeri" required value={form.location} onChange={(e) => setForm({...form, location: e.target.value})} />
+            <Field label="Alan" value={form.area} onChange={(e) => setForm({...form, area: e.target.value})} />
+            <Select label="Sınıflandırma" required value={form.classification} onChange={(e) => setForm({...form, classification: e.target.value})}>
+              <option value="">Seçiniz</option>
+              {(meta?.classifications || []).map((c) => <option key={c} value={c}>{c}</option>)}
+            </Select>
+            <Field label="Yapılan iş" value={form.work_being_done} onChange={(e) => setForm({...form, work_being_done: e.target.value})} style={{gridColumn: '1 / -1'}} />
+            <TextArea label="Kısa özet (min. 20 karakter)" required value={form.short_summary} onChange={(e) => setForm({...form, short_summary: e.target.value})} />
+            <TextArea label="Detay (min. 30 karakter)" required value={form.detail} onChange={(e) => setForm({...form, detail: e.target.value})} />
+            <Field label="İlgili kişiler" value={form.related_people} onChange={(e) => setForm({...form, related_people: e.target.value})} />
+            <Check label="Şahit var" checked={form.has_witness} onChange={(v) => setForm({...form, has_witness: v})} />
+            {form.has_witness && (
+              <Field label="Şahit isimleri" value={form.witness_names} onChange={(e) => setForm({...form, witness_names: e.target.value})} />
+            )}
+            <Field label="Ekipman" value={form.equipment_used} onChange={(e) => setForm({...form, equipment_used: e.target.value})} />
+            <Field label="Kimyasal" value={form.chemical_used} onChange={(e) => setForm({...form, chemical_used: e.target.value})} />
+
+            <Check label="Yaralanma oldu" checked={form.injury_occurred} onChange={(v) => setForm({...form, injury_occurred: v})} />
+            <Check label="Sağlık şikayeti" checked={form.health_complaint} onChange={(v) => setForm({...form, health_complaint: v})} />
+            <Check label="Tıbbi müdahale" checked={form.medical_intervention} onChange={(v) => setForm({...form, medical_intervention: v})} />
+            <Check label="İş göremezlik raporu" checked={form.work_incapacity_report} onChange={(v) => setForm({...form, work_incapacity_report: v})} />
+            <Check label="Ekipman hasarı" checked={form.equipment_damage} onChange={(v) => setForm({...form, equipment_damage: v})} />
+            <Check label="Farklı gelse yaralanma olurdu" checked={form.would_have_injured} onChange={(v) => setForm({...form, would_have_injured: v})} />
+
+            <Field label="Olasılık (0-5)" type="number" min="0" max="5" value={form.probability} onChange={(e) => setForm({...form, probability: e.target.value})} />
+            <Field label="Şiddet (0-5)" type="number" min="0" max="5" value={form.severity} onChange={(e) => setForm({...form, severity: e.target.value})} />
+            <Select label="Risk analizinde var mı?" value={form.risk_analysis_status} onChange={(e) => setForm({...form, risk_analysis_status: e.target.value})}>
+              <option value="">Seçiniz</option>
+              {(meta?.risk_analysis_options || []).map((o) => <option key={o.code} value={o.code}>{o.label}</option>)}
+            </Select>
+            <Select label="Acil durum ilişkisi" value={form.emergency_relation} onChange={(e) => setForm({...form, emergency_relation: e.target.value})}>
+              <option value="">Seçiniz</option>
+              {(meta?.emergency_options || []).map((o) => <option key={o} value={o}>{o}</option>)}
+            </Select>
+
+            {form.event_type === 'is_kazasi' && (
+              <>
+                <Select label="Kaza türü" value={form.accident_type} onChange={(e) => setForm({...form, accident_type: e.target.value})}>
+                  <option value="">Seçiniz</option>
+                  {(meta?.accident_types || []).map((o) => <option key={o} value={o}>{o}</option>)}
+                </Select>
+                <Field label="Yaralanma türü" value={form.injury_type} onChange={(e) => setForm({...form, injury_type: e.target.value})} />
+                <Check label="SGK bildirildi" checked={form.sgk_reported} onChange={(v) => setForm({...form, sgk_reported: v})} />
+                <Field label="SGK bildirim tarihi" type="date" value={form.sgk_report_date} onChange={(e) => setForm({...form, sgk_report_date: e.target.value})} />
+                <Check label="Kolluk bildirildi" checked={form.police_reported} onChange={(v) => setForm({...form, police_reported: v})} />
+                <Field label="Rapor süresi (gün)" type="number" min="0" value={form.report_days} onChange={(e) => setForm({...form, report_days: e.target.value})} />
+                <TextArea label="Müdahale detayı" value={form.intervention_detail} onChange={(e) => setForm({...form, intervention_detail: e.target.value})} />
+              </>
+            )}
+
+            <Field label="İSG uzmanı" value={form.safety_specialist} onChange={(e) => setForm({...form, safety_specialist: e.target.value})} />
+            <Field label="İşyeri hekimi" value={form.workplace_physician} onChange={(e) => setForm({...form, workplace_physician: e.target.value})} />
+            <Field label="İşveren / vekili" value={form.employer_representative} onChange={(e) => setForm({...form, employer_representative: e.target.value})} />
+
+            {err && <div className="error" style={{gridColumn: '1 / -1'}}>{err}</div>}
+            <div className="form-actions" style={{gridColumn: '1 / -1'}}>
+              <button type="submit">Kaydet</button>
+            </div>
+          </form>
         </Modal>
       )}
     </>
   );
 }
+
+/** DÖF merkezi — olay + risk açık DÖF’lerini tek listede toplar (stub isg-records yerine). */
+export function CapaPage({user}) {
+  const [rows, setRows] = useState([]);
+  const [err, setErr] = useState('');
+  const [q, setQ] = useState('');
+  const [companies, setCompanies] = useState([]);
+  const [companyId, setCompanyId] = useState(user.company_id || '');
+
+  const load = async () => {
+    setErr('');
+    const companiesList = await api('/companies');
+    setCompanies(companiesList);
+    const cid = companyId || user.company_id || companiesList[0]?.id;
+    if (!cid && user.role === 'global_admin') {
+      setErr('DÖF listesi için firma seçiniz.');
+      setRows([]);
+      return;
+    }
+    if (cid && !companyId) setCompanyId(cid);
+
+    const riskQs = new URLSearchParams();
+    if (cid) riskQs.set('company_id', String(cid));
+    const [incidents, risks] = await Promise.all([
+      api('/incidents'),
+      api(`/risks?${riskQs}`).catch(() => []),
+    ]);
+
+    const incidentDofs = [];
+    for (const inc of incidents) {
+      for (const d of (inc.dofs || [])) {
+        incidentDofs.push({
+          key: `i-${d.id}`,
+          source: 'Olay',
+          code: d.dof_no,
+          title: d.finding,
+          action: d.corrective_action,
+          responsible: d.responsible_person,
+          term: d.term_date,
+          status: d.status,
+          priority: d.priority,
+          parent: inc.form_no,
+          parentSummary: inc.short_summary,
+        });
+      }
+    }
+    const riskDofs = [];
+    for (const r of risks) {
+      for (const d of (r.dofs || [])) {
+        riskDofs.push({
+          key: `r-${d.id}`,
+          source: 'Risk',
+          code: d.dof_code,
+          title: d.description,
+          action: d.description,
+          responsible: d.responsible_person,
+          term: d.term_date,
+          status: d.is_completed ? 'Tamamlandı' : (d.status || 'Açık'),
+          priority: '—',
+          parent: r.risk_code,
+          parentSummary: r.activity,
+        });
+      }
+    }
+    setRows([...incidentDofs, ...riskDofs]);
+  };
+
+  useEffect(() => {
+    load().catch((e) => setErr(e.message));
+  }, [companyId]);
+
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return rows;
+    return rows.filter((r) =>
+      [r.code, r.title, r.responsible, r.parent, r.parentSummary, r.source]
+        .filter(Boolean)
+        .some((x) => String(x).toLowerCase().includes(s)),
+    );
+  }, [rows, q]);
+
+  const openCount = filtered.filter((r) => r.status !== 'Tamamlandı').length;
+
+  return (
+    <>
+      <div className="page-title">
+        <h3>DÖF Yönetimi</h3>
+      </div>
+      <section className="panel">
+        <div style={{marginBottom: 12, padding: '10px 12px', background: '#eef5fb', borderRadius: 10, fontSize: 14, lineHeight: 1.5}}>
+          Açık düzeltici faaliyetler <strong>olay</strong> ve <strong>risk</strong> kayıtlarından birleştirilir.
+          Yeni DÖF eklemek için ilgili olay veya risk detayına gidin.
+        </div>
+        <div className="search" style={{marginBottom: 12, flexWrap: 'wrap'}}>
+          <Search size={19} />
+          <input
+            placeholder="DÖF no, tespit, sorumlu ara..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          {!user.company_id && (
+            <select value={companyId} onChange={(e) => setCompanyId(e.target.value)} style={{minWidth: 180}}>
+              <option value="">Firma (risk DÖF)</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+          <button className="secondary" type="button" onClick={() => load().catch((e) => setErr(e.message))}>Yenile</button>
+        </div>
+        {err && <div className="error">{err}</div>}
+        <p style={{fontSize: 14, color: '#64748b', marginBottom: 10}}>
+          Toplam {filtered.length} DÖF · açık {openCount}
+        </p>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Kaynak</th>
+                <th>DÖF No</th>
+                <th>Bağlı kayıt</th>
+                <th>Tespit / iş</th>
+                <th>Sorumlu</th>
+                <th>Termin</th>
+                <th>Durum</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length ? filtered.map((r) => (
+                <tr key={r.key}>
+                  <td>{r.source}</td>
+                  <td>{r.code}</td>
+                  <td>
+                    <div>{r.parent}</div>
+                    <div style={{fontSize: 12, color: '#64748b'}}>{r.parentSummary}</div>
+                  </td>
+                  <td>{r.title}</td>
+                  <td>{r.responsible || '—'}</td>
+                  <td>{r.term || '—'}</td>
+                  <td>
+                    <span className={'badge ' + (r.status === 'Tamamlandı' ? 'ok' : 'off')}>{r.status}</span>
+                  </td>
+                </tr>
+              )) : (
+                <tr><td colSpan={7} className="empty">Açık veya kayıtlı DÖF yok. Olay / Risk detayından ekleyin.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  );
+}
+
