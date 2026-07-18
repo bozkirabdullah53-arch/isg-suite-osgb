@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Download, Plus, Search, X} from 'lucide-react';
-import {api, downloadFile} from './api';
+import {Download, Plus, Search, Upload, X} from 'lucide-react';
+import {api, downloadFile, uploadFile} from './api';
 
 const HAZARD_HINT = {
   'Az Tehlikeli': '8 ders saati · 3 yılda bir yenilenir',
@@ -42,10 +42,6 @@ function Select({label, children, ...p}) {
   );
 }
 
-/**
- * Eğitim Yönetimi — /api/v1/trainings
- * Generic IsgRecord eğitim ekranının yerine geçer; diğer modüllere dokunmaz.
- */
 export function TrainingPage({user}) {
   const canEdit = ['global_admin', 'company_admin', 'safety_specialist'].includes(user.role);
   const empty = {
@@ -56,7 +52,7 @@ export function TrainingPage({user}) {
     location: '',
     start_date: '',
     hazard_class: 'Çok Tehlikeli',
-    sector: '',
+    sector: 'genel_uretim',
     instructor_name: '',
     instructor_qualification: '',
     evaluation_method: 'Sınav',
@@ -69,12 +65,14 @@ export function TrainingPage({user}) {
 
   const [companies, setCompanies] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [sectors, setSectors] = useState([]);
   const [rows, setRows] = useState([]);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [form, setForm] = useState(empty);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [excelInfo, setExcelInfo] = useState('');
 
   const companyEmployees = useMemo(
     () => employees.filter((e) => String(e.company_id) === String(form.company_id) && e.is_active !== false),
@@ -86,10 +84,12 @@ export function TrainingPage({user}) {
       api('/companies'),
       api('/employees'),
       api('/trainings' + (q ? `?q=${encodeURIComponent(q)}` : '')),
-    ]).then(([c, e, t]) => {
+      api('/trainings/meta'),
+    ]).then(([c, e, t, meta]) => {
       setCompanies(c);
       setEmployees(e);
       setRows(t);
+      setSectors(meta.sectors || []);
     });
 
   useEffect(() => {
@@ -99,6 +99,10 @@ export function TrainingPage({user}) {
   async function save(e) {
     e.preventDefault();
     setErr('');
+    if (!form.participant_ids.length) {
+      setErr('En az bir katılımcı seçin veya Excel yükleyin.');
+      return;
+    }
     setBusy(true);
     try {
       const payload = {
@@ -109,7 +113,7 @@ export function TrainingPage({user}) {
         location: form.location || null,
         start_date: form.start_date,
         hazard_class: form.hazard_class,
-        sector: form.sector || null,
+        sector: form.sector || 'genel_uretim',
         instructor_name: form.instructor_name.trim(),
         instructor_qualification: form.instructor_qualification || null,
         evaluation_method: form.evaluation_method,
@@ -121,6 +125,7 @@ export function TrainingPage({user}) {
       };
       await api('/trainings', {method: 'POST', body: JSON.stringify(payload)});
       setOpen(false);
+      setExcelInfo('');
       setForm({...empty, company_id: form.company_id || user.company_id || ''});
       await load();
     } catch (x) {
@@ -150,6 +155,41 @@ export function TrainingPage({user}) {
     }
   }
 
+  async function downloadCertificates(id) {
+    try {
+      await downloadFile(`/trainings/${id}/certificates.pdf`, `egitim-${id}-katilim-belgeleri.pdf`);
+    } catch (x) {
+      alert(x.message);
+    }
+  }
+
+  async function onExcel(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!form.company_id) {
+      setErr('Önce firma seçiniz.');
+      return;
+    }
+    setErr('');
+    setBusy(true);
+    try {
+      const out = await uploadFile(
+        `/trainings/parse-excel?company_id=${Number(form.company_id)}&create_missing=true`,
+        file,
+      );
+      setEmployees(await api('/employees'));
+      setForm((f) => ({...f, participant_ids: out.participant_ids || []}));
+      setExcelInfo(
+        `${out.count} kişi okundu · ${out.matched - (out.created || 0)} eşleşti · ${out.created || 0} yeni personel eklendi`,
+      );
+    } catch (x) {
+      setErr(x.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function toggleParticipant(id) {
     const n = Number(id);
     setForm((f) => ({
@@ -167,6 +207,7 @@ export function TrainingPage({user}) {
     {key: 'company_id', label: 'Firma', render: (r) => companyName(r.company_id)},
     {key: 'start_date', label: 'Tarih'},
     {key: 'hazard_class', label: 'Tehlike'},
+    {key: 'sector', label: 'Sektör'},
     {key: 'duration_hours', label: 'Süre (saat)'},
     {key: 'instructor_name', label: 'Eğitici'},
     {
@@ -188,8 +229,11 @@ export function TrainingPage({user}) {
       label: 'İşlem',
       render: (r) => (
         <div className="actions">
-          <button className="mini" type="button" onClick={() => downloadAttendance(r.id)}>
+          <button className="mini" type="button" onClick={() => downloadAttendance(r.id)} title="İmza listesi">
             <Download size={14} /> İmza PDF
+          </button>
+          <button className="mini" type="button" onClick={() => downloadCertificates(r.id)} title="Katılım belgeleri">
+            <Download size={14} /> Belge PDF
           </button>
           {canEdit && r.status !== 'completed' && (
             <button className="mini" type="button" onClick={() => complete(r.id)}>
@@ -206,7 +250,14 @@ export function TrainingPage({user}) {
       <div className="page-title">
         <h3>Eğitim Yönetimi</h3>
         {canEdit && (
-          <button type="button" onClick={() => { setErr(''); setOpen(true); }}>
+          <button
+            type="button"
+            onClick={() => {
+              setErr('');
+              setExcelInfo('');
+              setOpen(true);
+            }}
+          >
             <Plus /> Yeni Eğitim
           </button>
         )}
@@ -312,12 +363,15 @@ export function TrainingPage({user}) {
               <span>Süre / Yenileme (otomatik)</span>
               <input readOnly value={HAZARD_HINT[form.hazard_class] || ''} />
             </label>
-            <Field
-              label="Sektör / İş Kolu"
+            <Select
+              label="Sektör / İş Kolu (belge konuları)"
               value={form.sector}
               onChange={(e) => setForm({...form, sector: e.target.value})}
-              placeholder="Örn: İnşaat / Şantiye"
-            />
+            >
+              {(sectors.length ? sectors : [{code: 'genel_uretim', label: 'Genel Fabrika / Üretim'}]).map((s) => (
+                <option key={s.code} value={s.code}>{s.label}</option>
+              ))}
+            </Select>
             <Field
               label="Eğitici Ad Soyad"
               required
@@ -348,6 +402,16 @@ export function TrainingPage({user}) {
               value={form.passing_score}
               onChange={(e) => setForm({...form, passing_score: e.target.value})}
             />
+
+            <label className="field" style={{gridColumn: '1 / -1'}}>
+              <span>Excel çalışan listesi (.xlsx)</span>
+              <label className="button secondary" style={{display: 'inline-flex', width: 'fit-content', marginTop: 8}}>
+                <Upload size={16} /> Excel Yükle
+                <input type="file" accept=".xlsx,.xlsm" hidden onChange={onExcel} disabled={busy || !form.company_id} />
+              </label>
+              {excelInfo && <div className="form-text" style={{marginTop: 8}}>{excelInfo}</div>}
+            </label>
+
             <label className="field" style={{gridColumn: '1 / -1'}}>
               <span>Katılımcılar ({form.participant_ids.length} seçili)</span>
               <div className="check-grid" style={{maxHeight: 160, overflow: 'auto', marginTop: 8}}>
@@ -363,7 +427,7 @@ export function TrainingPage({user}) {
                     </label>
                   ))
                 ) : (
-                  <span className="empty">Bu firmada aktif personel yok. Önce Personel ekleyin.</span>
+                  <span className="empty">Personel yok — Excel yükleyin veya Personel menüsünden ekleyin.</span>
                 )}
               </div>
             </label>
