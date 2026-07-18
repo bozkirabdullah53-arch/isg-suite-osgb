@@ -1,0 +1,14 @@
+{
+  "source": "İSG PRO 2026",
+  "target": "isg-suite-osgb",
+  "priority_order": [
+    {"id": "EGT-PARITY", "title": "Eğitim belge parity (logo, hekim, işveren, verify)", "status": "done"},
+    {"id": "RSK-REPORTS", "title": "Risk PDF/Excel raporları + DÖF UI", "status": "done"},
+    {"id": "RSK-MEDIA-REV", "title": "Risk medya + revizyon log", "status": "prep"},
+    {"id": "RAMAK", "title": "Ramak kala / kaza / kök neden / olay DÖF", "status": "prep"},
+    {"id": "KKD", "title": "KKD zimmet (runtime native)", "status": "prep"},
+    {"id": "ACIL", "title": "Acil durum + ekipler", "status": "prep"},
+    {"id": "SAGLIK", "title": "Sağlık derinleştirme", "status": "prep"}
+  ],
+  "do_not_port": ["ISG_SUITE_LAUNCH_TOKEN", "isg_sso", "single_company_assumption", "personal_stamp", "iyzico_desktop_license"]
+}

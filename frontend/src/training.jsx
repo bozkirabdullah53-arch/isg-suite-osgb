@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Download, Plus, Search, Upload, Users, X} from 'lucide-react';
+import {Download, Plus, Search, ShieldCheck, Upload, Users, X} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 
 const HAZARD_HINT = {
@@ -85,6 +85,9 @@ export function TrainingPage({user}) {
     sector: 'genel_uretim',
     instructor_name: '',
     instructor_qualification: '',
+    workplace_physician: '',
+    employer_representative: '',
+    stamp_text: 'İSG Suite OSGB · 6331 kapsamında düzenlenmiştir',
     evaluation_method: 'Sınav',
     passing_score: '',
     attendance_verified: true,
@@ -105,6 +108,8 @@ export function TrainingPage({user}) {
   const [excelInfo, setExcelInfo] = useState('');
   const [detail, setDetail] = useState(null);
   const [dlBusy, setDlBusy] = useState('');
+  const [docForm, setDocForm] = useState({workplace_physician: '', employer_representative: '', stamp_text: ''});
+  const [verifyPreview, setVerifyPreview] = useState(null);
 
   const companyEmployees = useMemo(
     () => employees.filter((e) => String(e.company_id) === String(form.company_id) && e.is_active !== false),
@@ -168,6 +173,9 @@ export function TrainingPage({user}) {
           sector: form.sector || 'genel_uretim',
           instructor_name: form.instructor_name.trim(),
           instructor_qualification: form.instructor_qualification || null,
+          workplace_physician: form.workplace_physician.trim() || null,
+          employer_representative: form.employer_representative.trim() || null,
+          stamp_text: form.stamp_text.trim() || null,
           evaluation_method: form.evaluation_method,
           passing_score: form.passing_score === '' ? null : Number(form.passing_score),
           attendance_verified: !!form.attendance_verified,
@@ -223,6 +231,76 @@ export function TrainingPage({user}) {
 
   function openDetail(row) {
     setDetail(row);
+    setDocForm({
+      workplace_physician: row.workplace_physician || '',
+      employer_representative: row.employer_representative || '',
+      stamp_text: row.stamp_text || 'İSG Suite OSGB · 6331 kapsamında düzenlenmiştir',
+    });
+    setVerifyPreview(null);
+  }
+
+  function verifyUrl(code) {
+    if (!code) return '';
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${origin}/?egitim-dogrula=${encodeURIComponent(code)}`;
+  }
+
+  async function saveDocFields() {
+    if (!detail) return;
+    setBusy(true);
+    setErr('');
+    try {
+      const updated = await api(`/trainings/${detail.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          workplace_physician: docForm.workplace_physician.trim() || null,
+          employer_representative: docForm.employer_representative.trim() || null,
+          stamp_text: docForm.stamp_text.trim() || null,
+        }),
+      });
+      setDetail(updated);
+      setRows((list) => list.map((r) => (r.id === updated.id ? updated : r)));
+    } catch (x) {
+      setErr(x.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onLogo(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !detail) return;
+    setBusy(true);
+    try {
+      const updated = await uploadFile(`/trainings/${detail.id}/logo`, file);
+      setDetail(updated);
+      setRows((list) => list.map((r) => (r.id === updated.id ? updated : r)));
+    } catch (x) {
+      alert('Logo yüklenemedi:\n' + x.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function checkVerify() {
+    if (!detail?.verification_code) return;
+    setBusy(true);
+    try {
+      const host =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const base =
+        import.meta.env.VITE_API_URL ||
+        (host ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1` : 'https://isg-suite-api-1u9t.onrender.com/api/v1');
+      const r = await fetch(`${base}/trainings/verify/${detail.verification_code}`);
+      const data = await r.json();
+      setVerifyPreview(data);
+    } catch (x) {
+      setVerifyPreview({valid: false, message: x.message});
+    } finally {
+      setBusy(false);
+    }
   }
 
   function participantRows(training) {
@@ -384,6 +462,58 @@ export function TrainingPage({user}) {
               <div><span style={{color: '#64748b'}}>Katılımcı sayısı</span><div><strong>{detail.participants?.length || 0}</strong></div></div>
             </div>
 
+            {canEdit && (
+              <div style={{padding: 12, background: '#f8fafc', borderRadius: 10, display: 'grid', gap: 10}}>
+                <strong style={{fontSize: 14}}>Belge imza / kaşe alanları</strong>
+                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
+                  <Field label="İşyeri Hekimi" value={docForm.workplace_physician} onChange={(e) => setDocForm({...docForm, workplace_physician: e.target.value})} />
+                  <Field label="İşveren / Vekili" value={docForm.employer_representative} onChange={(e) => setDocForm({...docForm, employer_representative: e.target.value})} />
+                </div>
+                <label className="field">
+                  <span>OSGB kaşe metni</span>
+                  <input value={docForm.stamp_text} onChange={(e) => setDocForm({...docForm, stamp_text: e.target.value})} />
+                </label>
+                <div style={{display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center'}}>
+                  <button type="button" className="secondary" disabled={busy} onClick={saveDocFields}>
+                    {busy ? 'Kaydediliyor…' : 'İmza alanlarını kaydet'}
+                  </button>
+                  <label className="button secondary" style={{display: 'inline-flex'}}>
+                    <Upload size={16} /> {detail.logo_path ? 'Logoyu değiştir' : 'Logo yükle (PNG/JPG)'}
+                    <input type="file" accept=".png,.jpg,.jpeg,.webp" hidden onChange={onLogo} disabled={busy} />
+                  </label>
+                  {detail.logo_path && <span style={{fontSize: 12, color: '#087b67'}}>Logo kayıtlı — PDF’e basılır</span>}
+                </div>
+              </div>
+            )}
+
+            {detail.verification_code && (
+              <div style={{padding: 12, background: '#eef5fb', borderRadius: 10, fontSize: 13, lineHeight: 1.55}}>
+                <strong>Kamuya açık doğrulama:</strong>{' '}
+                <code style={{userSelect: 'all'}}>{verifyUrl(detail.verification_code)}</code>
+                <div style={{marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                  <button type="button" className="secondary" onClick={() => navigator.clipboard?.writeText(verifyUrl(detail.verification_code))}>
+                    Linki kopyala
+                  </button>
+                  <button type="button" className="secondary" disabled={busy} onClick={checkVerify}>
+                    Doğrulamayı test et
+                  </button>
+                </div>
+                {verifyPreview && (
+                  <div style={{marginTop: 10, padding: 10, background: '#fff', borderRadius: 8}}>
+                    {verifyPreview.valid ? (
+                      <>
+                        <div style={{color: '#087b67', fontWeight: 600}}>✓ {verifyPreview.message}</div>
+                        <div>{verifyPreview.company_name} · {verifyPreview.title}</div>
+                        <div>{verifyPreview.participant_count} katılımcı · {verifyPreview.start_date}</div>
+                      </>
+                    ) : (
+                      <div className="error">{verifyPreview.message || 'Doğrulanamadı'}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {!(detail.participants?.length) && (
               <div className="error">
                 Bu eğitimde katılımcı yok. Belge üretilemez. Yeni eğitim oluştururken Excel veya personel listesinden katılımcı seçin.
@@ -494,6 +624,12 @@ export function TrainingPage({user}) {
             </label>
             <Field label="Eğitici Ad Soyad" required minLength={3} value={form.instructor_name} onChange={(e) => setForm({...form, instructor_name: e.target.value})} />
             <Field label="Eğitici Yeterlilik / Unvan" value={form.instructor_qualification} onChange={(e) => setForm({...form, instructor_qualification: e.target.value})} />
+            <Field label="İşyeri Hekimi (belge imza)" value={form.workplace_physician} onChange={(e) => setForm({...form, workplace_physician: e.target.value})} placeholder="Ad Soyad" />
+            <Field label="İşveren / Vekili (belge imza)" value={form.employer_representative} onChange={(e) => setForm({...form, employer_representative: e.target.value})} placeholder="Ad Soyad" />
+            <label className="field" style={{gridColumn: '1 / -1'}}>
+              <span>OSGB kaşe metni</span>
+              <input value={form.stamp_text} onChange={(e) => setForm({...form, stamp_text: e.target.value})} />
+            </label>
             <Select label="Başarı Değerlendirme" value={form.evaluation_method} onChange={(e) => setForm({...form, evaluation_method: e.target.value})}>
               <option>Sınav</option>
               <option>Uygulama</option>
@@ -540,5 +676,77 @@ export function TrainingPage({user}) {
         </Modal>
       )}
     </>
+  );
+}
+
+/** Kamuya açık eğitim belgesi doğrulama sayfası (?egitim-dogrula=KOD) */
+export function TrainingVerifyPage({code, onClose}) {
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState('');
+  const [input, setInput] = useState(code || '');
+
+  async function run(c) {
+    const clean = (c || input || '').trim().toUpperCase();
+    if (!clean) {
+      setErr('Doğrulama kodu girin.');
+      return;
+    }
+    setErr('');
+    setData(null);
+    try {
+      const host =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const base =
+        import.meta.env.VITE_API_URL ||
+        (host ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1` : 'https://isg-suite-api-1u9t.onrender.com/api/v1');
+      const r = await fetch(`${base}/trainings/verify/${encodeURIComponent(clean)}`);
+      const json = await r.json();
+      setData(json);
+    } catch (x) {
+      setErr(x.message || 'Doğrulama yapılamadı.');
+    }
+  }
+
+  useEffect(() => {
+    if (code) run(code);
+  }, [code]);
+
+  return (
+    <main className="login-shell">
+      <section className="login-card" style={{maxWidth: 520, textAlign: 'left'}}>
+        <div className="brand-mark" style={{marginBottom: 8}}><ShieldCheck size={34} /></div>
+        <h1 style={{fontSize: 22}}>Eğitim Belgesi Doğrulama</h1>
+        <p style={{marginBottom: 16, color: '#64748b'}}>İSG Suite — kamuya açık doğrulama (giriş gerekmez)</p>
+        <label className="field">
+          <span>Doğrulama kodu</span>
+          <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Örn. A1B2C3D4E5F6G7H8" />
+        </label>
+        <div style={{display: 'flex', gap: 8, marginTop: 12}}>
+          <button type="button" onClick={() => run()}>Doğrula</button>
+          {onClose && <button type="button" className="secondary" onClick={onClose}>Kapat</button>}
+        </div>
+        {err && <div className="error" style={{marginTop: 12}}>{err}</div>}
+        {data && (
+          <div style={{marginTop: 16, padding: 14, background: data.valid ? '#ecfdf5' : '#fef2f2', borderRadius: 12}}>
+            <strong style={{color: data.valid ? '#087b67' : '#b91c1c'}}>
+              {data.valid ? '✓ Belge doğrulandı' : '✗ Belge bulunamadı'}
+            </strong>
+            <p style={{margin: '8px 0 0', fontSize: 14}}>{data.message}</p>
+            {data.valid && (
+              <ul style={{margin: '12px 0 0', paddingLeft: 18, fontSize: 14, lineHeight: 1.6}}>
+                <li><strong>Firma:</strong> {data.company_name}</li>
+                <li><strong>Eğitim:</strong> {data.title}</li>
+                <li><strong>Tarih:</strong> {data.start_date} · {data.duration_hours} saat · {data.hazard_class}</li>
+                <li><strong>Eğitici:</strong> {data.instructor_name}</li>
+                {data.workplace_physician && <li><strong>İşyeri Hekimi:</strong> {data.workplace_physician}</li>}
+                {data.employer_representative && <li><strong>İşveren:</strong> {data.employer_representative}</li>}
+                <li><strong>Katılımcı:</strong> {data.participant_count}</li>
+              </ul>
+            )}
+          </div>
+        )}
+      </section>
+    </main>
   );
 }

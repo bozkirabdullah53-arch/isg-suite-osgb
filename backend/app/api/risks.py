@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -28,12 +30,15 @@ from app.schemas.risk import (
     HazardResponse,
     RiskCalculateRequest,
     RiskCreate,
+    RiskDofComplete,
     RiskDofCreate,
     RiskDofResponse,
+    RiskDofUpdate,
     RiskResponse,
     RiskUpdate,
 )
 from app.services.hazard_seed import seed_hazard_library
+from app.services.risk_reports import build_risk_excel, build_risk_pdf
 from app.services.risk_scoring import evaluate, meta_payload
 from app.services.risk_suggestions import get_suggestions
 
@@ -337,6 +342,83 @@ def list_risks(
     return out
 
 
+def _load_company_risks(
+    db: Session,
+    user: User,
+    company_id: int | None,
+    level: str | None = None,
+    status: str | None = None,
+) -> tuple[Company, list[RiskAssessment], dict[int, Hazard]]:
+    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
+    if not effective:
+        raise HTTPException(422, "Firma seçiniz.")
+    ensure_access(user, effective)
+    company = db.get(Company, effective)
+    if not company:
+        raise HTTPException(404, "Firma bulunamadı.")
+    stmt = (
+        select(RiskAssessment)
+        .options(selectinload(RiskAssessment.dofs))
+        .where(RiskAssessment.company_id == effective)
+        .order_by(RiskAssessment.risk_score.desc(), RiskAssessment.id.asc())
+    )
+    if level:
+        stmt = stmt.where(RiskAssessment.risk_level == level)
+    if status:
+        stmt = stmt.where(RiskAssessment.status == status)
+    risks = list(db.scalars(stmt).unique().all())
+    hids = {r.hazard_id for r in risks}
+    hazard_map = {}
+    if hids:
+        hazard_map = {h.id: h for h in db.scalars(select(Hazard).where(Hazard.id.in_(hids))).all()}
+    return company, risks, hazard_map
+
+
+@router.get("/report.pdf")
+def risk_report_pdf(
+    company_id: int | None = None,
+    level: str | None = None,
+    status: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Firma risk değerlendirme PDF raporu."""
+    company, risks, hazard_map = _load_company_risks(db, user, company_id, level, status)
+    if not risks:
+        raise HTTPException(422, "Bu filtreyle raporlanacak risk kaydı yok.")
+    pdf = build_risk_pdf(
+        company=company,
+        risks=risks,
+        hazard_map=hazard_map,
+        prepared_by=user.full_name,
+    )
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="risk-raporu-{company.id}.pdf"'},
+    )
+
+
+@router.get("/report.xlsx")
+def risk_report_excel(
+    company_id: int | None = None,
+    level: str | None = None,
+    status: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Firma risk değerlendirme Excel raporu (risk + DÖF + istatistik)."""
+    company, risks, hazard_map = _load_company_risks(db, user, company_id, level, status)
+    if not risks:
+        raise HTTPException(422, "Bu filtreyle raporlanacak risk kaydı yok.")
+    xlsx = build_risk_excel(company=company, risks=risks, hazard_map=hazard_map)
+    return StreamingResponse(
+        BytesIO(xlsx),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="risk-raporu-{company.id}.xlsx"'},
+    )
+
+
 @router.get("/{risk_id}", response_model=RiskResponse)
 def get_risk(risk_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     row = _load_risk(db, risk_id)
@@ -466,10 +548,31 @@ def add_dof(
     return dof
 
 
+@router.patch("/{risk_id}/dofs/{dof_id}", response_model=RiskDofResponse)
+def update_dof(
+    risk_id: int,
+    dof_id: int,
+    payload: RiskDofUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    row = _load_risk(db, risk_id)
+    ensure_access(user, row.company_id)
+    dof = db.get(RiskDof, dof_id)
+    if not dof or dof.risk_id != risk_id:
+        raise HTTPException(404, "DÖF bulunamadı.")
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(dof, k, v)
+    db.commit()
+    db.refresh(dof)
+    return dof
+
+
 @router.post("/{risk_id}/dofs/{dof_id}/complete", response_model=RiskDofResponse)
 def complete_dof(
     risk_id: int,
     dof_id: int,
+    payload: RiskDofComplete = RiskDofComplete(),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -481,6 +584,8 @@ def complete_dof(
     dof.is_completed = True
     dof.status = "Tamamlandı"
     dof.completion_date = date.today()
+    if payload.completion_note:
+        dof.completion_note = payload.completion_note
     db.commit()
     db.refresh(dof)
     return dof

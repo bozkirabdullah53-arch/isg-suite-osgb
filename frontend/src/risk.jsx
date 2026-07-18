@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {BookOpen, Plus, Search, X} from 'lucide-react';
-import {api} from './api';
+import {BookOpen, Download, Plus, Search, X} from 'lucide-react';
+import {api, downloadFile} from './api';
 
 const LEVEL_COLORS = {
   'Kabul Edilebilir': '#95a5a6',
@@ -99,8 +99,16 @@ export function RiskPage({user}) {
   const [form, setForm] = useState(empty);
   const [err, setErr] = useState('');
   const [libMsg, setLibMsg] = useState('');
-  const [dofText, setDofText] = useState('');
+  const [dofForm, setDofForm] = useState({
+    description: '',
+    responsible_person: '',
+    responsible_department: '',
+    term_date: '',
+    cost_estimate: '',
+  });
   const [busy, setBusy] = useState(false);
+  const [dlBusy, setDlBusy] = useState('');
+  const [reportCompanyId, setReportCompanyId] = useState(user.company_id || '');
 
   const loadDepartments = async (companyId) => {
     if (!companyId) { setDepartments([]); return; }
@@ -130,7 +138,10 @@ export function RiskPage({user}) {
     setMeta(m);
     setRows(risks);
     const cid = user.company_id || c[0]?.id;
-    if (cid) await loadDepartments(cid);
+    if (cid) {
+      await loadDepartments(cid);
+      if (!reportCompanyId) setReportCompanyId(cid);
+    }
   };
 
   useEffect(() => { load().catch((e) => setErr(e.message)); }, []);
@@ -255,24 +266,59 @@ export function RiskPage({user}) {
   async function openDetail(id) {
     const r = await api(`/risks/${id}`);
     setDetail(r);
-    setDofText('');
+    setDofForm({
+      description: '',
+      responsible_person: '',
+      responsible_department: r.department_name || '',
+      term_date: r.term_date || '',
+      cost_estimate: '',
+    });
   }
 
   async function addDof(e) {
     e.preventDefault();
-    if (!detail || !dofText.trim()) return;
+    if (!detail || !dofForm.description.trim()) return;
     await api(`/risks/${detail.id}/dofs`, {
       method: 'POST',
-      body: JSON.stringify({description: dofText.trim()}),
+      body: JSON.stringify({
+        description: dofForm.description.trim(),
+        responsible_person: dofForm.responsible_person.trim() || null,
+        responsible_department: dofForm.responsible_department.trim() || null,
+        term_date: dofForm.term_date || null,
+        cost_estimate: dofForm.cost_estimate === '' ? null : Number(dofForm.cost_estimate),
+      }),
     });
     openDetail(detail.id);
     load();
   }
 
   async function completeDof(dofId) {
-    await api(`/risks/${detail.id}/dofs/${dofId}/complete`, {method: 'POST'});
+    const note = window.prompt('Tamamlanma notu (isteğe bağlı):', '') || null;
+    await api(`/risks/${detail.id}/dofs/${dofId}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({completion_note: note}),
+    });
     openDetail(detail.id);
     load();
+  }
+
+  async function downloadReport(kind) {
+    const cid = reportCompanyId || user.company_id || companies[0]?.id;
+    if (!cid) {
+      alert('Rapor için firma seçiniz.');
+      return;
+    }
+    const params = new URLSearchParams({company_id: String(cid)});
+    if (levelFilter) params.set('level', levelFilter);
+    setDlBusy(kind);
+    try {
+      const ext = kind === 'pdf' ? 'pdf' : 'xlsx';
+      await downloadFile(`/risks/report.${ext}?${params}`, `risk-raporu-${cid}.${ext}`);
+    } catch (x) {
+      alert((kind === 'pdf' ? 'PDF' : 'Excel') + ' indirilemedi:\n' + x.message);
+    } finally {
+      setDlBusy('');
+    }
   }
 
   const companyBranches = useMemo(
@@ -291,6 +337,12 @@ export function RiskPage({user}) {
           <button className="secondary" type="button" onClick={() => setLibOpen(true)}>
             <BookOpen size={16} /> Tehlike Kütüphanesi ({categories.length} kategori)
           </button>
+          <button className="secondary" type="button" disabled={!!dlBusy} onClick={() => downloadReport('pdf')}>
+            <Download size={16} /> {dlBusy === 'pdf' ? 'PDF…' : 'PDF Rapor'}
+          </button>
+          <button className="secondary" type="button" disabled={!!dlBusy} onClick={() => downloadReport('xlsx')}>
+            <Download size={16} /> {dlBusy === 'xlsx' ? 'Excel…' : 'Excel Rapor'}
+          </button>
           {canEdit && (
             <button type="button" onClick={() => {
               setForm({...empty, company_id: user.company_id || companies[0]?.id || ''});
@@ -306,11 +358,12 @@ export function RiskPage({user}) {
         <div style={{marginBottom: 12, padding: '10px 12px', background: '#eef5fb', borderRadius: 10, fontSize: 14}}>
           Risk kaydı için <strong>tehlike kategorisi → tehlike</strong> seçimi zorunludur.
           İşyeri bölümlerini listeden seçin veya <strong>yeni bölüm</strong> yazarak kaydedin.
+          PDF/Excel raporları seçili firmadaki (ve seviye filtresindeki) riskleri + DÖF’leri içerir.
           {categories.length === 0 && (
             <span> Kütüphane boş görünüyorsa “Tehlike Kütüphanesi”nden yükleyin.</span>
           )}
         </div>
-        <div className="search" style={{marginBottom: 12}}>
+        <div className="search" style={{marginBottom: 12, flexWrap: 'wrap'}}>
           <Search size={19} />
           <input placeholder="Faaliyet, kod veya tanım ara..." value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && load()} />
           <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} style={{minWidth: 160}}>
@@ -319,6 +372,12 @@ export function RiskPage({user}) {
               <option key={l} value={l}>{l}</option>
             ))}
           </select>
+          {!user.company_id && (
+            <select value={reportCompanyId} onChange={(e) => setReportCompanyId(e.target.value)} style={{minWidth: 180}}>
+              <option value="">Rapor firması</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
           <button className="secondary" type="button" onClick={() => load().catch((e) => setErr(e.message))}>Ara</button>
         </div>
         {err && <div className="error">{err}</div>}
@@ -568,12 +627,35 @@ export function RiskPage({user}) {
           <h4 style={{marginTop: 16}}>DÖF kayıtları</h4>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Kod</th><th>Açıklama</th><th>Durum</th><th></th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Kod</th>
+                  <th>Yapılacak iş</th>
+                  <th>Sorumlu</th>
+                  <th>Termin</th>
+                  <th>Maliyet</th>
+                  <th>Durum</th>
+                  <th></th>
+                </tr>
+              </thead>
               <tbody>
                 {(detail.dofs || []).length ? detail.dofs.map((d) => (
                   <tr key={d.id}>
                     <td>{d.dof_code}</td>
-                    <td>{d.description}</td>
+                    <td>
+                      <div>{d.description}</div>
+                      {d.completion_note && (
+                        <div style={{fontSize: 12, color: '#64748b', marginTop: 4}}>Not: {d.completion_note}</div>
+                      )}
+                    </td>
+                    <td>
+                      {d.responsible_person || '—'}
+                      {d.responsible_department ? (
+                        <div style={{fontSize: 12, color: '#64748b'}}>{d.responsible_department}</div>
+                      ) : null}
+                    </td>
+                    <td>{d.term_date || '—'}</td>
+                    <td>{d.cost_estimate != null ? `${d.cost_estimate} ${d.currency || 'TRY'}` : '—'}</td>
                     <td>{d.status}</td>
                     <td>
                       {canEdit && !d.is_completed && (
@@ -582,15 +664,46 @@ export function RiskPage({user}) {
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={4} className="empty">DÖF yok</td></tr>
+                  <tr><td colSpan={7} className="empty">DÖF yok</td></tr>
                 )}
               </tbody>
             </table>
           </div>
           {canEdit && (
             <form className="form-grid" onSubmit={addDof} style={{marginTop: 12}}>
-              <TextArea label="Yeni DÖF" required value={dofText} onChange={(e) => setDofText(e.target.value)} />
-              <div className="form-actions"><button type="submit">DÖF Ekle</button></div>
+              <TextArea
+                label="Yapılacak iş / DÖF açıklaması"
+                required
+                value={dofForm.description}
+                onChange={(e) => setDofForm({...dofForm, description: e.target.value})}
+                style={{gridColumn: '1 / -1'}}
+              />
+              <Field
+                label="Sorumlu kişi"
+                value={dofForm.responsible_person}
+                onChange={(e) => setDofForm({...dofForm, responsible_person: e.target.value})}
+              />
+              <Field
+                label="Sorumlu bölüm"
+                value={dofForm.responsible_department}
+                onChange={(e) => setDofForm({...dofForm, responsible_department: e.target.value})}
+              />
+              <Field
+                label="Termin tarihi"
+                type="date"
+                value={dofForm.term_date}
+                onChange={(e) => setDofForm({...dofForm, term_date: e.target.value})}
+              />
+              <Field
+                label="Maliyet tahmini (TRY)"
+                type="number"
+                min="0"
+                value={dofForm.cost_estimate}
+                onChange={(e) => setDofForm({...dofForm, cost_estimate: e.target.value})}
+              />
+              <div className="form-actions" style={{gridColumn: '1 / -1'}}>
+                <button type="submit">DÖF Ekle</button>
+              </div>
             </form>
           )}
         </Modal>

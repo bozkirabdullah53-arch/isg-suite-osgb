@@ -24,6 +24,21 @@ async def lifespan(_:FastAPI):
             if "department_id" not in cols:
                 with engine.begin() as conn:
                     conn.execute(text("ALTER TABLE risk_assessments ADD COLUMN department_id INTEGER"))
+        if "training_sessions" in insp.get_table_names():
+            tcols = {c["name"] for c in insp.get_columns("training_sessions")}
+            alters = []
+            for col, sqltype in (
+                ("workplace_physician", "VARCHAR(160)"),
+                ("employer_representative", "VARCHAR(160)"),
+                ("logo_path", "VARCHAR(500)"),
+                ("stamp_text", "VARCHAR(220)"),
+            ):
+                if col not in tcols:
+                    alters.append(f"ALTER TABLE training_sessions ADD COLUMN {col} {sqltype}")
+            if alters:
+                with engine.begin() as conn:
+                    for stmt in alters:
+                        conn.execute(text(stmt))
     except Exception:
         pass
     with SessionLocal() as db:

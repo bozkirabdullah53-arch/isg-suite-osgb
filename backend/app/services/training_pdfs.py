@@ -1,17 +1,18 @@
 """Eğitim katılım belgesi ve imza listesi PDF — bakanlık denetimine uygun yatay A4."""
 from __future__ import annotations
 
-import os
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
+from app.core.config import settings
 from app.services.training_topics import (
     egitim_konularini_hazirla,
     katilim_formu_konu_ozeti,
@@ -23,6 +24,7 @@ from app.services.training_topics import (
 _FONT = "Helvetica"
 _FONT_B = "Helvetica-Bold"
 _ASSETS = Path(__file__).resolve().parent.parent / "assets" / "fonts"
+_DEFAULT_STAMP = "İSG Suite OSGB · 6331 kapsamında düzenlenmiştir"
 
 
 def _register_fonts() -> None:
@@ -95,6 +97,51 @@ def _fmt_date(d) -> str:
     return s
 
 
+def _resolve_logo(training) -> Path | None:
+    rel = getattr(training, "logo_path", None) or ""
+    if not rel:
+        return None
+    root = Path(settings.upload_dir).resolve()
+    path = (root / rel).resolve()
+    if root not in path.parents and path != root:
+        return None
+    return path if path.is_file() else None
+
+
+def _draw_logo(c: canvas.Canvas, training, *, x: float, y: float, max_w: float, max_h: float) -> None:
+    path = _resolve_logo(training)
+    if not path:
+        return
+    try:
+        img = ImageReader(str(path))
+        iw, ih = img.getSize()
+        if not iw or not ih:
+            return
+        scale = min(max_w / iw, max_h / ih)
+        dw, dh = iw * scale, ih * scale
+        c.drawImage(img, x, y + (max_h - dh) / 2, width=dw, height=dh, mask="auto")
+    except Exception:
+        return
+
+
+def _stamp_text(training) -> str:
+    return (getattr(training, "stamp_text", None) or "").strip() or _DEFAULT_STAMP
+
+
+def _signers(training) -> tuple[tuple[str, str, str], ...]:
+    physician = (getattr(training, "workplace_physician", None) or "").strip()
+    employer = (getattr(training, "employer_representative", None) or "").strip()
+    return (
+        (
+            "Eğitimi Veren (İSG)",
+            training.instructor_name or "",
+            training.instructor_qualification or "İSG Uzmanı",
+        ),
+        ("İşyeri Hekimi", physician, "İşyeri Hekimi"),
+        ("İşveren / Vekili", employer, "İşveren Vekili"),
+    )
+
+
 def build_attendance_pdf(*, company_name: str, training, employees: dict) -> bytes:
     """Katılımcı imza / yoklama formu (İSG-EĞT-KF-01)."""
     participants = list(training.participants or [])
@@ -146,6 +193,7 @@ def _draw_attendance_page(
 
     c.setFillColorRGB(0.89, 0.92, 0.96)
     c.rect(ml, h - 28 * mm, uw, 16 * mm, fill=1, stroke=0)
+    _draw_logo(c, training, x=ml + 1 * mm, y=h - 27 * mm, max_w=28 * mm, max_h=14 * mm)
     c.setFillColorRGB(0.08, 0.14, 0.2)
     c.setFont(_FONT_B, 12)
     c.drawCentredString(w / 2, h - 15 * mm, "İŞ SAĞLIĞI VE GÜVENLİĞİ TEMEL EĞİTİMİ")
@@ -156,7 +204,7 @@ def _draw_attendance_page(
     c.drawRightString(w - mr, h - 13 * mm, "Form No: İSG-EĞT-KF-01")
     c.drawRightString(w - mr, h - 17 * mm, f"Sayfa: {page_no}/{total_pages}")
     c.drawRightString(w - mr, h - 21 * mm, f"Düzenleme: {bugun}")
-    c.drawString(ml, h - 21 * mm, f"Doğrulama: {training.verification_code or '—'}")
+    c.drawString(ml + (30 * mm if _resolve_logo(training) else 0), h - 21 * mm, f"Doğrulama: {training.verification_code or '—'}")
 
     info = [
         ("Firma", company_name),
@@ -273,12 +321,7 @@ def _draw_attendance_page(
     iy = 12 * mm
     ih = 22 * mm
     box_w = uw / 3
-    labels = (
-        ("Eğitimi Veren (İSG)", training.instructor_name or "", training.instructor_qualification or "İSG Uzmanı"),
-        ("İşyeri Hekimi", "", "İşyeri Hekimi"),
-        ("İşveren / Vekili", "", "İşveren Vekili"),
-    )
-    for i, (title, name, role) in enumerate(labels):
+    for i, (title, name, role) in enumerate(_signers(training)):
         x = ml + i * box_w
         c.setStrokeColorRGB(0.63, 0.7, 0.78)
         c.setFillColorRGB(0.97, 0.98, 0.99)
@@ -286,20 +329,20 @@ def _draw_attendance_page(
         c.setFillColorRGB(0.08, 0.14, 0.2)
         c.setFont(_FONT_B, 7)
         c.drawCentredString(x + box_w / 2, iy + ih - 5 * mm, title)
-        c.setFont(_FONT, 7)
-        c.drawCentredString(x + box_w / 2, iy + ih - 10 * mm, name or role)
+        c.setFont(_FONT_B if name else _FONT, 7)
+        c.drawCentredString(x + box_w / 2, iy + ih - 10 * mm, _fit(c, name or " ", box_w - 4 * mm, _FONT, 7))
         c.setStrokeColorRGB(0.35, 0.35, 0.35)
         c.line(x + 8 * mm, iy + 7 * mm, x + box_w - 8 * mm, iy + 7 * mm)
         c.setFont(_FONT, 6)
         c.setFillColorRGB(0.4, 0.4, 0.4)
-        c.drawCentredString(x + box_w / 2, iy + 3 * mm, "Kaşe / İmza")
+        c.drawCentredString(x + box_w / 2, iy + 3 * mm, role if name else "Kaşe / İmza")
 
     c.setFont(_FONT, 5.5)
     c.setFillColorRGB(0.45, 0.45, 0.45)
     c.drawCentredString(
         w / 2,
         9.5 * mm,
-        "Bu formdaki imzalar, belirtilen tarihte eğitimin verildiğini ve ilgili kişilerin katıldığını belgeler.",
+        _fit(c, _stamp_text(training), uw - 10 * mm, _FONT, 5.5),
     )
 
 
@@ -353,6 +396,10 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
 
     c.setFillColorRGB(0.05, 0.43, 0.99)
     c.rect(5 * mm, h - 28 * mm, w - 10 * mm, 23 * mm, fill=1, stroke=0)
+    if _resolve_logo(training):
+        c.setFillColorRGB(1, 1, 1)
+        c.roundRect(ml - 1 * mm, h - 26.5 * mm, 28 * mm, 17 * mm, 2 * mm, fill=1, stroke=0)
+        _draw_logo(c, training, x=ml, y=h - 26 * mm, max_w=26 * mm, max_h=16 * mm)
     c.setFillColorRGB(1, 1, 1)
     c.setFont(_FONT_B, 11)
     c.drawCentredString(w / 2, h - 14 * mm, "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ")
@@ -402,12 +449,20 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
     gap = 5 * mm
     bh = 24 * mm
     iy = y - 4 * mm - bh
-    titles = [
+    cert_signers = (
         ("Eğitim Veren", training.instructor_name or "", training.instructor_qualification or "İSG Uzmanı"),
-        ("Eğitim Veren", "", "İşyeri Hekimi"),
-        ("Onaylayan", "", "İşveren Vekili"),
-    ]
-    for i, (role, person, unvan) in enumerate(titles):
+        (
+            "Eğitim Veren",
+            (getattr(training, "workplace_physician", None) or "").strip(),
+            "İşyeri Hekimi",
+        ),
+        (
+            "Onaylayan",
+            (getattr(training, "employer_representative", None) or "").strip(),
+            "İşveren Vekili",
+        ),
+    )
+    for i, (role, person, unvan) in enumerate(cert_signers):
         x = ml + i * (box_w + gap)
         c.setFillColorRGB(0.97, 0.98, 1)
         c.setStrokeColorRGB(0.82, 0.86, 0.94)
@@ -419,7 +474,7 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
         c.drawCentredString(x + box_w / 2, iy + bh - 6 * mm, role)
         c.setFillColorRGB(0.1, 0.1, 0.1)
         c.setFont(_FONT_B, 8)
-        c.drawCentredString(x + box_w / 2, iy + bh - 12 * mm, person or " ")
+        c.drawCentredString(x + box_w / 2, iy + bh - 12 * mm, _fit(c, person or " ", box_w - 4 * mm, _FONT_B, 8))
         c.setStrokeColorRGB(0.4, 0.4, 0.4)
         c.line(x + 5 * mm, iy + 8 * mm, x + box_w - 5 * mm, iy + 8 * mm)
         c.setFillColorRGB(0.45, 0.45, 0.45)
@@ -462,5 +517,5 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
     c.drawCentredString(
         w / 2,
         6.5 * mm,
-        "6331 Sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yönetmelik kapsamında düzenlenmiştir.",
+        _fit(c, _stamp_text(training), uw - 20 * mm, _FONT, 5.5),
     )

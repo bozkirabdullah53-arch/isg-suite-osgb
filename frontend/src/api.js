@@ -45,11 +45,19 @@ export async function downloadFile(path, filename) {
   }
   const blob = await response.blob();
   if (!blob || blob.size < 100) {
-    throw new Error("PDF boş veya bozuk geldi. Katılımcı ekli mi ve API güncel mi kontrol edin.");
+    throw new Error("Dosya boş veya bozuk geldi. Kayıt ve API sürümünü kontrol edin.");
   }
   const type = (response.headers.get("content-type") || blob.type || "").toLowerCase();
-  if (type && !type.includes("pdf") && !type.includes("octet-stream")) {
-    throw new Error("Sunucu PDF yerine başka içerik döndürdü. API sürümünü kontrol edin.");
+  const okType =
+    !type ||
+    type.includes("pdf") ||
+    type.includes("octet-stream") ||
+    type.includes("spreadsheet") ||
+    type.includes("excel") ||
+    type.includes("ms-excel") ||
+    type.includes("zip");
+  if (!okType) {
+    throw new Error("Sunucu beklenen dosya türü yerine başka içerik döndürdü. API sürümünü kontrol edin.");
   }
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");

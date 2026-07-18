@@ -51,6 +51,20 @@ class RiskDofCreate(BaseModel):
     cost_estimate: int | None = Field(default=None, ge=0)
 
 
+class RiskDofComplete(BaseModel):
+    completion_note: str | None = Field(default=None, max_length=2000)
+
+
+class RiskDofUpdate(BaseModel):
+    description: str | None = Field(default=None, min_length=3, max_length=2000)
+    responsible_person: str | None = Field(default=None, max_length=150)
+    responsible_department: str | None = Field(default=None, max_length=150)
+    term_date: date | None = None
+    cost_estimate: int | None = Field(default=None, ge=0)
+    status: str | None = Field(default=None, max_length=50)
+    completion_note: str | None = Field(default=None, max_length=2000)
+
+
 class RiskDofResponse(BaseModel):
     id: int
     dof_code: str
