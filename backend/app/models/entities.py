@@ -539,3 +539,108 @@ class RiskDof(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     risk: Mapped[RiskAssessment] = relationship(back_populates="dofs")
+
+
+class IncidentEvent(Base):
+    """Ramak kala / iş kazası / tehlike / acil durum — PRO OlayKayit uyarlaması."""
+
+    __tablename__ = "incident_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    form_no: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id"), nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String(40), index=True)
+    status: Mapped[str] = mapped_column(String(40), default="Aktif", index=True)
+    recorded_by_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    safety_specialist: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    workplace_physician: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    employer_representative: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    department: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    event_date: Mapped[date] = mapped_column(Date, index=True)
+    event_time: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    area: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    work_being_done: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    related_people: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    has_witness: Mapped[bool] = mapped_column(Boolean, default=False)
+    witness_names: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    equipment_used: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    chemical_used: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    short_summary: Mapped[str] = mapped_column(String(500))
+    detail: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    classification: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    injury_occurred: Mapped[bool] = mapped_column(Boolean, default=False)
+    health_complaint: Mapped[bool] = mapped_column(Boolean, default=False)
+    medical_intervention: Mapped[bool] = mapped_column(Boolean, default=False)
+    work_incapacity_report: Mapped[bool] = mapped_column(Boolean, default=False)
+    equipment_damage: Mapped[bool] = mapped_column(Boolean, default=False)
+    would_have_injured: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_warning: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    probability: Mapped[int] = mapped_column(Integer, default=0)
+    severity: Mapped[int] = mapped_column(Integer, default=0)
+    risk_score: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    risk_level: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    risk_analysis_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    risk_analysis_note: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    emergency_relation: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    emergency_note: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    evaluation_text: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    sgk_reported: Mapped[bool] = mapped_column(Boolean, default=False)
+    sgk_report_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    police_reported: Mapped[bool] = mapped_column(Boolean, default=False)
+    accident_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    injury_type: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    intervention_detail: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    report_days: Mapped[int] = mapped_column(Integer, default=0)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    root_cause: Mapped["IncidentRootCause | None"] = relationship(
+        back_populates="incident", uselist=False, cascade="all, delete-orphan"
+    )
+    dofs: Mapped[list["IncidentDof"]] = relationship(
+        back_populates="incident", cascade="all, delete-orphan"
+    )
+
+
+class IncidentRootCause(Base):
+    __tablename__ = "incident_root_causes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    incident_id: Mapped[int] = mapped_column(
+        ForeignKey("incident_events.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    why_1: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    why_2: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    why_3: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    why_4: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    why_5: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    root_cause: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    root_cause_category: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    systemic_gap: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    incident: Mapped[IncidentEvent] = relationship(back_populates="root_cause")
+
+
+class IncidentDof(Base):
+    __tablename__ = "incident_dofs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    dof_no: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    incident_id: Mapped[int] = mapped_column(
+        ForeignKey("incident_events.id", ondelete="CASCADE"), index=True
+    )
+    finding: Mapped[str] = mapped_column(String(2000))
+    root_cause: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    corrective_action: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    preventive_action: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    responsible_person: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    term_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    priority: Mapped[str] = mapped_column(String(30), default="Orta")
+    status: Mapped[str] = mapped_column(String(40), default="Açık", index=True)
+    completion_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    effectiveness_note: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    close_approval: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    incident: Mapped[IncidentEvent] = relationship(back_populates="dofs")
