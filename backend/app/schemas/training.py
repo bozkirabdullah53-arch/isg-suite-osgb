@@ -18,7 +18,7 @@ class TrainingCreate(BaseModel):
     instructor_qualification: str | None = Field(default=None, max_length=220)
     workplace_physician: str | None = Field(default=None, max_length=160)
     employer_representative: str | None = Field(default=None, max_length=160)
-    stamp_text: str | None = Field(default=None, max_length=220)
+    stamp_text: str | None = Field(default=None, max_length=400)
     evaluation_method: str = Field(default="Sınav", max_length=80)
     passing_score: int | None = Field(default=None, ge=0, le=100)
     attendance_verified: bool = False
@@ -43,7 +43,7 @@ class TrainingUpdate(BaseModel):
     success_verified: bool | None = None
     workplace_physician: str | None = Field(default=None, max_length=160)
     employer_representative: str | None = Field(default=None, max_length=160)
-    stamp_text: str | None = Field(default=None, max_length=220)
+    stamp_text: str | None = Field(default=None, max_length=400)
     notes: str | None = Field(default=None, max_length=2000)
 
 

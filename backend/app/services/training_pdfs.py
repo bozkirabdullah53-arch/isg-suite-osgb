@@ -24,7 +24,12 @@ from app.services.training_topics import (
 _FONT = "Helvetica"
 _FONT_B = "Helvetica-Bold"
 _ASSETS = Path(__file__).resolve().parent.parent / "assets" / "fonts"
-_DEFAULT_STAMP = "İSG Suite OSGB · 6331 kapsamında düzenlenmiştir"
+_DEFAULT_STAMP = (
+    "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve "
+    "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik "
+    "kapsamında düzenlenmiştir."
+)
+
 
 
 def _register_fonts() -> None:

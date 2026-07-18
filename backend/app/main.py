@@ -31,14 +31,19 @@ async def lifespan(_:FastAPI):
                 ("workplace_physician", "VARCHAR(160)"),
                 ("employer_representative", "VARCHAR(160)"),
                 ("logo_path", "VARCHAR(500)"),
-                ("stamp_text", "VARCHAR(220)"),
+                ("stamp_text", "VARCHAR(400)"),
             ):
                 if col not in tcols:
                     alters.append(f"ALTER TABLE training_sessions ADD COLUMN {col} {sqltype}")
+            if "stamp_text" in tcols:
+                alters.append("ALTER TABLE training_sessions ALTER COLUMN stamp_text TYPE VARCHAR(400)")
             if alters:
                 with engine.begin() as conn:
                     for stmt in alters:
-                        conn.execute(text(stmt))
+                        try:
+                            conn.execute(text(stmt))
+                        except Exception:
+                            pass
     except Exception:
         pass
     with SessionLocal() as db:

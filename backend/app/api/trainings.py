@@ -251,7 +251,11 @@ def create_training(
     values = payload.model_dump(exclude={"participant_ids"})
     values["sector"] = kod
     if not (values.get("stamp_text") or "").strip():
-        values["stamp_text"] = "İSG Suite OSGB · 6331 kapsamında düzenlenmiştir"
+        values["stamp_text"] = (
+            "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve "
+            "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik "
+            "kapsamında düzenlenmiştir."
+        )
     row = TrainingSession(
         **values,
         duration_hours=hours,

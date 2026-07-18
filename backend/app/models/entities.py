@@ -367,7 +367,7 @@ class TrainingSession(Base):
     workplace_physician: Mapped[str | None] = mapped_column(String(160), nullable=True)
     employer_representative: Mapped[str | None] = mapped_column(String(160), nullable=True)
     logo_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    stamp_text: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    stamp_text: Mapped[str | None] = mapped_column(String(400), nullable=True)
     evaluation_method: Mapped[str] = mapped_column(String(80), default="Sınav")
     passing_score: Mapped[int | None] = mapped_column(nullable=True)
     attendance_verified: Mapped[bool] = mapped_column(Boolean, default=False)

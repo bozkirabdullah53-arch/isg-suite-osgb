@@ -87,7 +87,7 @@ export function TrainingPage({user}) {
     instructor_qualification: '',
     workplace_physician: '',
     employer_representative: '',
-    stamp_text: 'İSG Suite OSGB · 6331 kapsamında düzenlenmiştir',
+    stamp_text: '6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında düzenlenmiştir.',
     evaluation_method: 'Sınav',
     passing_score: '',
     attendance_verified: true,
@@ -243,7 +243,7 @@ export function TrainingPage({user}) {
     setDocForm({
       workplace_physician: row.workplace_physician || '',
       employer_representative: row.employer_representative || '',
-      stamp_text: row.stamp_text || 'İSG Suite OSGB · 6331 kapsamında düzenlenmiştir',
+      stamp_text: row.stamp_text || '6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında düzenlenmiştir.',
     });
     setVerifyPreview(null);
   }
@@ -464,7 +464,7 @@ export function TrainingPage({user}) {
                   <Field label="İşveren / Vekili" value={docForm.employer_representative} onChange={(e) => setDocForm({...docForm, employer_representative: e.target.value})} />
                 </div>
                 <label className="field">
-                  <span>OSGB kaşe metni</span>
+                  <span>Mevzuat dipnotu (kanun / yönetmelik)</span>
                   <input value={docForm.stamp_text} onChange={(e) => setDocForm({...docForm, stamp_text: e.target.value})} />
                 </label>
                 <div style={{display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center'}}>
@@ -685,7 +685,7 @@ export function TrainingPage({user}) {
             <Field label="İşyeri Hekimi (belge imza)" value={form.workplace_physician} onChange={(e) => setForm({...form, workplace_physician: e.target.value})} placeholder="Ad Soyad" />
             <Field label="İşveren / Vekili (belge imza)" value={form.employer_representative} onChange={(e) => setForm({...form, employer_representative: e.target.value})} placeholder="Ad Soyad" />
             <label className="field" style={{gridColumn: '1 / -1'}}>
-              <span>OSGB kaşe metni</span>
+              <span>Mevzuat dipnotu (kanun / yönetmelik)</span>
               <input value={form.stamp_text} onChange={(e) => setForm({...form, stamp_text: e.target.value})} />
             </label>
             <Select label="Başarı Değerlendirme" value={form.evaluation_method} onChange={(e) => setForm({...form, evaluation_method: e.target.value})}>
