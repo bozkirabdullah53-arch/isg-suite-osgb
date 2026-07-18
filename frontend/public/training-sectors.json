@@ -1,0 +1,665 @@
+[
+  {
+    "code": "ahsap_mobilya",
+    "name": "Ahşap / Mobilya",
+    "label": "Ahşap / Mobilya",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Kesici makineler ve koruyucular",
+      "Talaş/toz ve patlama",
+      "Vernik/boya/solvent",
+      "Pres ve el aleti",
+      "Yangın ve temizlik"
+    ]
+  },
+  {
+    "code": "aku_uretimi",
+    "name": "Akü Üretimi",
+    "label": "Akü Üretimi",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Kurşun ve bileşikleri",
+      "Sülfürik asit sıçraması",
+      "Hidrojen gazı / patlama",
+      "Kimyasal dökülme",
+      "Havalandırma ve KKD"
+    ]
+  },
+  {
+    "code": "asansor_montaj",
+    "name": "Asansör / Montaj-Bakım",
+    "label": "Asansör / Montaj-Bakım",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Yüksekte çalışma",
+      "Kuyu ve makine dairesi",
+      "Elektrik enerjisi",
+      "Kaldırma ekipmanı",
+      "Kilitleme-etiketleme"
+    ]
+  },
+  {
+    "code": "avcilik_balikcilik",
+    "name": "Avcılık / Balıkçılık",
+    "label": "Avcılık / Balıkçılık",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Deniz/göl çalışma",
+      "Soğuk ve kaygan zemin",
+      "Kesici aletler",
+      "Kimyasal koruma",
+      "Acil kurtarma"
+    ]
+  },
+  {
+    "code": "acik_maden",
+    "name": "Açık Maden / Taş Ocağı / Agrega",
+    "label": "Açık Maden / Taş Ocağı / Agrega",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Şev, kademe ve kaya düşmesi",
+      "Patlatma sahası emniyeti",
+      "Kırma-eleme güvenliği",
+      "Toz, gürültü, titreşim",
+      "Ocak içi trafik / iş makinesi"
+    ]
+  },
+  {
+    "code": "agac_ormancilik",
+    "name": "Ağaç İşleri / Ormancılık",
+    "label": "Ağaç İşleri / Ormancılık",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Kesici makineler",
+      "Zincirli testere",
+      "Devrilen ağaç riski",
+      "Toz ve gürültü",
+      "KKD kullanımı"
+    ]
+  },
+  {
+    "code": "bakim_onarim",
+    "name": "Bakım Onarım Atölyesi",
+    "label": "Bakım Onarım Atölyesi",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Kilitleme/etiketleme",
+      "El aletleri",
+      "Kaynak ve sıcak iş",
+      "Sıkışma-ezilme",
+      "Atık yağ/kimyasal"
+    ]
+  },
+  {
+    "code": "berber_kuafor",
+    "name": "Berber / Kuaför",
+    "label": "Berber / Kuaför",
+    "hazard_class": "Az Tehlikeli",
+    "topics": [
+      "Kimyasal boya/solüsyon",
+      "Kesici aletler",
+      "Ergonomi",
+      "Hijyen",
+      "Elektrikli ekipman"
+    ]
+  },
+  {
+    "code": "boya_kaplama",
+    "name": "Boya / Kaplama / Galvaniz",
+    "label": "Boya / Kaplama / Galvaniz",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Solvent buharı",
+      "Parlama-patlama",
+      "SDS okuma",
+      "Depolama uyumsuzluğu",
+      "Dökülme müdahalesi"
+    ]
+  },
+  {
+    "code": "cam_seramik",
+    "name": "Cam / Seramik / Porselen",
+    "label": "Cam / Seramik / Porselen",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Yüksek sıcaklık fırın",
+      "Kesici kırık malzeme",
+      "Toz maruziyeti",
+      "Ağır kaldırma",
+      "Göz koruması"
+    ]
+  },
+  {
+    "code": "demir_celik",
+    "name": "Demir-Çelik / Hadde",
+    "label": "Demir-Çelik / Hadde",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Sıcak metal",
+      "Vinç ve pota",
+      "Yanık/ısı stresi",
+      "Gaz ve duman",
+      "Sıkışma-ezilme"
+    ]
+  },
+  {
+    "code": "depo_lojistik",
+    "name": "Depo / Lojistik / Antrepo",
+    "label": "Depo / Lojistik / Antrepo",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Forklift-yaya trafiği",
+      "Raf devrilmesi",
+      "Rampa yükleme",
+      "Elle taşıma",
+      "Malzeme düşmesi"
+    ]
+  },
+  {
+    "code": "dokum_metal",
+    "name": "Döküm / Metal Dökümhane",
+    "label": "Döküm / Metal Dökümhane",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Ergitme ocağı",
+      "Sıcak metal sıçraması",
+      "Pota/vinç",
+      "Duman-toz-gaz",
+      "Kalıp bozma riski"
+    ]
+  },
+  {
+    "code": "elektrik_bakim",
+    "name": "Elektrik Bakım / Tesisat",
+    "label": "Elektrik Bakım / Tesisat",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Çarpılma / ark",
+      "Enerji kesme LOTO",
+      "Pano-kablo",
+      "İzole KKD",
+      "Çalışma izni"
+    ]
+  },
+  {
+    "code": "elektronik_imalat",
+    "name": "Elektronik İmalat",
+    "label": "Elektronik İmalat",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Lehim dumanı",
+      "Statik elektrik",
+      "Kimyasal temizleyici",
+      "Kesici delici",
+      "Ergonomi"
+    ]
+  },
+  {
+    "code": "enerji_uretim",
+    "name": "Enerji Üretim / Santral",
+    "label": "Enerji Üretim / Santral",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Yüksek gerilim",
+      "Basınçlı sistemler",
+      "Kapalı alan",
+      "Yangın-patlama",
+      "İzolasyon prosedürü"
+    ]
+  },
+  {
+    "code": "egitim_okul",
+    "name": "Eğitim / Okul / Kreş",
+    "label": "Eğitim / Okul / Kreş",
+    "hazard_class": "Az Tehlikeli",
+    "topics": [
+      "Yangın tahliye",
+      "Kayma-takılma",
+      "Kimyasal laboratuvar",
+      "Şiddet/güvenlik",
+      "İlk yardım"
+    ]
+  },
+  {
+    "code": "finans_ofis",
+    "name": "Finans / Banka / Ofis",
+    "label": "Finans / Banka / Ofis",
+    "hazard_class": "Az Tehlikeli",
+    "topics": [
+      "Ekranlı araç",
+      "Ergonomi",
+      "Yangın tahliye",
+      "Kayma-takılma",
+      "Psikososyal risk"
+    ]
+  },
+  {
+    "code": "genel_uretim",
+    "name": "Genel Fabrika / Üretim",
+    "label": "Genel Fabrika / Üretim",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Makine-ekipman",
+      "İç trafik",
+      "Elle taşıma",
+      "Yangın-tahliye",
+      "KKD ve düzen"
+    ]
+  },
+  {
+    "code": "guvenlik_ozel",
+    "name": "Güvenlik / Özel Güvenlik",
+    "label": "Güvenlik / Özel Güvenlik",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Şiddet riski",
+      "Gece çalışma",
+      "Acil müdahale",
+      "İletişim",
+      "KKD ve ekipman"
+    ]
+  },
+  {
+    "code": "gida_uretim",
+    "name": "Gıda Üretim / İşleme",
+    "label": "Gıda Üretim / İşleme",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Hijyen / çapraz bulaşma",
+      "Kaygan zemin",
+      "Kesici ekipman",
+      "Sıcak buhar/yanık",
+      "Soğuk oda"
+    ]
+  },
+  {
+    "code": "hazir_giyim",
+    "name": "Hazır Giyim / Tekstil Atölye",
+    "label": "Hazır Giyim / Tekstil Atölye",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Dikiş makineleri",
+      "Toz ve gürültü",
+      "Yangın",
+      "Ergonomi",
+      "Kimyasal boya"
+    ]
+  },
+  {
+    "code": "itim_matbaa",
+    "name": "İletişim / Matbaa / Baskı",
+    "label": "İletişim / Matbaa / Baskı",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Solvent mürekkep",
+      "Makine sıkışması",
+      "Gürültü",
+      "Kağıt kesici",
+      "Yangın"
+    ]
+  },
+  {
+    "code": "insaat",
+    "name": "İnşaat / Şantiye",
+    "label": "İnşaat / Şantiye",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Yüksekte çalışma / düşme",
+      "İskele-merdiven",
+      "Kazı-göçük",
+      "Vinç-kaldırma",
+      "Şantiye trafiği"
+    ]
+  },
+  {
+    "code": "kaynakli_imalat",
+    "name": "Kaynaklı İmalat",
+    "label": "Kaynaklı İmalat",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Kaynak ışını",
+      "Kaynak dumanı",
+      "Sıcak iş izni",
+      "Basınçlı gaz tüpleri",
+      "Kapalı alan kaynak"
+    ]
+  },
+  {
+    "code": "kagit_ambalaj",
+    "name": "Kağıt / Ambalaj",
+    "label": "Kağıt / Ambalaj",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Makine koruyucu",
+      "Kağıt kesici",
+      "Forklift",
+      "Toz",
+      "Yangın yükü"
+    ]
+  },
+  {
+    "code": "kimyasal_boya",
+    "name": "Kimyasal / Boya / İlaç",
+    "label": "Kimyasal / Boya / İlaç",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Etiketleme / SDS",
+      "Solvent buharı",
+      "Parlama-patlama",
+      "Uyumsuz madde depolama",
+      "Dökülme müdahalesi"
+    ]
+  },
+  {
+    "code": "konaklama_otel",
+    "name": "Konaklama / Otel / Restoran",
+    "label": "Konaklama / Otel / Restoran",
+    "hazard_class": "Az Tehlikeli",
+    "topics": [
+      "Mutfak yanık/kesik",
+      "Kaygan zemin",
+      "Kimyasal temizlik",
+      "Yangın tahliye",
+      "Ergonomi"
+    ]
+  },
+  {
+    "code": "kuyumculuk",
+    "name": "Kuyumculuk / Metal İşleme Küçük",
+    "label": "Kuyumculuk / Metal İşleme Küçük",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Asit/siyanür riski",
+      "Yüksek sıcaklık",
+      "Göz koruması",
+      "Havalandırma",
+      "Yangın"
+    ]
+  },
+  {
+    "code": "lastik_kaucuk",
+    "name": "Lastik / Kauçuk",
+    "label": "Lastik / Kauçuk",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Makine sıkışması",
+      "Kimyasal katkı",
+      "Yüksek sıcaklık",
+      "Toz-duman",
+      "Yangın"
+    ]
+  },
+  {
+    "code": "madencilik_yeralti",
+    "name": "Madencilik (Yeraltı)",
+    "label": "Madencilik (Yeraltı)",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Göçük / tahkimat",
+      "Gaz ölçümü",
+      "Patlatma",
+      "Nakliye",
+      "Acil kaçış"
+    ]
+  },
+  {
+    "code": "makine_imalat",
+    "name": "Makine İmalat / Montaj",
+    "label": "Makine İmalat / Montaj",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Makine koruyucuları",
+      "Sıkışma-kesilme",
+      "LOTO bakım",
+      "Taşlama-kesme",
+      "Kaldırma-ergonomi"
+    ]
+  },
+  {
+    "code": "mobilya_dekorasyon",
+    "name": "Mobilya / Dekorasyon Montaj",
+    "label": "Mobilya / Dekorasyon Montaj",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "El aletleri",
+      "Yüksekte montaj",
+      "Toz",
+      "Kimyasal tutkal",
+      "Elektrik"
+    ]
+  },
+  {
+    "code": "ofis",
+    "name": "Ofis / İdari İşler",
+    "label": "Ofis / İdari İşler",
+    "hazard_class": "Az Tehlikeli",
+    "topics": [
+      "Ekranlı araç / ergonomi",
+      "Elektrikli ekipman",
+      "Yangın-tahliye",
+      "Kayma-takılma",
+      "Psikososyal risk"
+    ]
+  },
+  {
+    "code": "otomotiv",
+    "name": "Otomotiv / Yedek Parça",
+    "label": "Otomotiv / Yedek Parça",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Pres hatları",
+      "Kaynak robotları",
+      "Kimyasal",
+      "Ergonomi",
+      "İç lojistik"
+    ]
+  },
+  {
+    "code": "petrol_dogalgaz",
+    "name": "Petrol / Doğalgaz / Rafineri",
+    "label": "Petrol / Doğalgaz / Rafineri",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Patlayıcı atmosfer",
+      "Yangın",
+      "Basınçlı ekipman",
+      "Zehirli gaz",
+      "İzinli çalışma"
+    ]
+  },
+  {
+    "code": "plastik_enjeksiyon",
+    "name": "Plastik / Enjeksiyon",
+    "label": "Plastik / Enjeksiyon",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Sıcak kalıp",
+      "Makine koruyucu",
+      "Duman-gaz",
+      "Ezilme",
+      "Yangın"
+    ]
+  },
+  {
+    "code": "saglik",
+    "name": "Sağlık Sektörü / Hastane",
+    "label": "Sağlık Sektörü / Hastane",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Biyolojik risk",
+      "Kesici-delici yaralanma",
+      "Hasta taşıma",
+      "Dezenfektan",
+      "Şiddet / acil"
+    ]
+  },
+  {
+    "code": "soguk_hava",
+    "name": "Soğuk Hava Deposu",
+    "label": "Soğuk Hava Deposu",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Soğuk stres",
+      "Kaygan zemin",
+      "Forklift",
+      "Kapalı alan",
+      "Acil çıkış"
+    ]
+  },
+  {
+    "code": "tarim",
+    "name": "Tarım / Hayvancılık",
+    "label": "Tarım / Hayvancılık",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "İş makinesi",
+      "Pestisit",
+      "Hayvan yaralanması",
+      "Güneş/ısı",
+      "Elle kaldırma"
+    ]
+  },
+  {
+    "code": "tasimacilik",
+    "name": "Taşımacılık / Şoförlük",
+    "label": "Taşımacılık / Şoförlük",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Trafik güvenliği",
+      "Yük bağlama",
+      "Yorgunluk",
+      "Elle taşıma",
+      "Acil durum"
+    ]
+  },
+  {
+    "code": "tekstil",
+    "name": "Tekstil / Dokuma / Boyahane",
+    "label": "Tekstil / Dokuma / Boyahane",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Makine sıkışması",
+      "Kimyasal boya",
+      "Gürültü",
+      "Toz",
+      "Yangın"
+    ]
+  },
+  {
+    "code": "telekom",
+    "name": "Telekomünikasyon / Anten",
+    "label": "Telekomünikasyon / Anten",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Yüksekte çalışma",
+      "RF maruziyet",
+      "Elektrik",
+      "Çatı/kule",
+      "Hava koşulları"
+    ]
+  },
+  {
+    "code": "temizlik",
+    "name": "Temizlik İşleri",
+    "label": "Temizlik İşleri",
+    "hazard_class": "Tehlikeli",
+    "topics": [
+      "Temizlik kimyasalları",
+      "Islak zemin",
+      "Biyolojik atık",
+      "Yüksek alan temizliği",
+      "Kesici atık"
+    ]
+  },
+  {
+    "code": "ticaret_perakende",
+    "name": "Ticaret / Perakende / Market",
+    "label": "Ticaret / Perakende / Market",
+    "hazard_class": "Az Tehlikeli",
+    "topics": [
+      "Kayma-takılma",
+      "Elle taşıma",
+      "Yangın tahliye",
+      "Şiddet",
+      "Depo forklift"
+    ]
+  },
+  {
+    "code": "turizm_seyahat",
+    "name": "Turizm / Seyahat Acentesi",
+    "label": "Turizm / Seyahat Acentesi",
+    "hazard_class": "Az Tehlikeli",
+    "topics": [
+      "Ekranlı araç",
+      "Yangın",
+      "Ergonomi",
+      "Acil tahliye",
+      "Psikososyal"
+    ]
+  },
+  {
+    "code": "yapi_denetim",
+    "name": "Yapı Denetim / Mühendislik Ofisi",
+    "label": "Yapı Denetim / Mühendislik Ofisi",
+    "hazard_class": "Az Tehlikeli",
+    "topics": [
+      "Saha ziyareti riski",
+      "PPE",
+      "Ekranlı araç",
+      "Araç kullanımı",
+      "Yangın"
+    ]
+  },
+  {
+    "code": "yol_asfalt",
+    "name": "Yol / Asfalt / Altyapı",
+    "label": "Yol / Asfalt / Altyapı",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Sıcak asfalt yanığı",
+      "Trafik altında çalışma",
+      "İş makineleri",
+      "Bitüm buharı",
+      "Gece görünürlük"
+    ]
+  },
+  {
+    "code": "yuksekte_calisma",
+    "name": "Yüksekte Çalışma Hizmetleri",
+    "label": "Yüksekte Çalışma Hizmetleri",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Düşme önleme sistemleri",
+      "İskele/platform",
+      "Rüzgar etkisi",
+      "Malzeme düşmesi",
+      "Kurtarma planı"
+    ]
+  },
+  {
+    "code": "cati_isleri",
+    "name": "Çatı İşleri",
+    "label": "Çatı İşleri",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Düşme önleme",
+      "İskele/platform",
+      "Hava koşulları",
+      "Malzeme düşmesi",
+      "Elektrik hattı mesafesi"
+    ]
+  },
+  {
+    "code": "cimento_beton",
+    "name": "Çimento / Beton / Hazır Beton",
+    "label": "Çimento / Beton / Hazır Beton",
+    "hazard_class": "Çok Tehlikeli",
+    "topics": [
+      "Toz (silika)",
+      "Mikser ve pompa",
+      "Kimyasal yanık",
+      "Ağır taşıma",
+      "Trafik ve yaya yolları"
+    ]
+  }
+]

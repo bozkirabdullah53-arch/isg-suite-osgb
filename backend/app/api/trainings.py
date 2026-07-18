@@ -13,7 +13,8 @@ from app.models.entities import Company, Employee, TrainingParticipant, Training
 from app.schemas.training import TrainingCreate, TrainingResponse, TrainingUpdate
 from app.services.training_excel import parse_employees_xlsx
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
-from app.services.training_topics import meta_payload, sektor_adi, sektor_kodu_cozumle
+from app.services.training_topics import meta_payload, sektor_kodu_cozumle, sectors_list_for_api
+
 
 router = APIRouter(prefix="/trainings", tags=["Eğitim Yönetimi"])
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)
@@ -49,6 +50,25 @@ def _employees_map(db: Session, training: TrainingSession) -> dict:
     if not ids:
         return {}
     return {e.id: e for e in db.scalars(select(Employee).where(Employee.id.in_(ids))).all()}
+
+
+def _err_detail(data) -> str:
+    detail = data if not isinstance(data, dict) else data.get("detail", data)
+    if isinstance(detail, list):
+        parts = []
+        for item in detail:
+            if isinstance(item, dict):
+                parts.append(str(item.get("msg") or item))
+            else:
+                parts.append(str(item))
+        return "; ".join(parts) or "İşlem tamamlanamadı."
+    return str(detail or "İşlem tamamlanamadı.")
+
+
+@router.get("/sectors")
+def list_sectors():
+    """Canlı uyumlu sektör listesi (auth zorunlu değil)."""
+    return sectors_list_for_api()
 
 
 @router.get("/meta")
@@ -175,13 +195,11 @@ def create_training(
         if len(employees) != len(set(payload.participant_ids)):
             raise HTTPException(422, "Katılımcılardan biri firmaya ait değil veya pasif.")
     hours, years = RULES[payload.hazard_class]
-    # sektör kodunu normalize et; görünen adı sakla (okunabilirlik)
     kod = sektor_kodu_cozumle(payload.sector)
-    sector_label = sektor_adi(kod)
     raw = f"{payload.company_id}|{payload.title}|{payload.start_date.isoformat()}|{user.id}"
     code = hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
     values = payload.model_dump(exclude={"participant_ids"})
-    values["sector"] = sector_label
+    values["sector"] = kod
     row = TrainingSession(
         **values,
         duration_hours=hours,
@@ -190,8 +208,6 @@ def create_training(
         verification_code=code,
         created_by_id=user.id,
     )
-    # PDF motoru kod ister; notes içine kod gömmek yerine sector alanında ad tutuyoruz.
-    # Kod çözümlemesi ad üzerinden çalışır (sektor_kodu_cozumle).
     db.add(row)
     db.flush()
     for eid in sorted(set(payload.participant_ids)):
@@ -208,6 +224,74 @@ def create_training(
         .options(selectinload(TrainingSession.participants))
         .where(TrainingSession.id == row.id)
     )
+
+
+@router.post("/{training_id}/upload-participants")
+async def upload_participants(
+    training_id: int,
+    file: UploadFile = File(...),
+    create_missing: bool = Query(True),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Canlı API uyumu: eğitim kaydına Excel ile katılımcı ekler."""
+    row = _load_training(db, training_id)
+    ensure_access(user, row.company_id)
+    name = (file.filename or "").lower()
+    if not name.endswith((".xlsx", ".xlsm")):
+        raise HTTPException(422, "Yalnızca .xlsx / .xlsm dosyaları kabul edilir.")
+    content = await file.read()
+    try:
+        parsed = parse_employees_xlsx(content)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    if not parsed:
+        raise HTTPException(422, "Excel dosyasında katılımcı bulunamadı.")
+
+    existing = list(
+        db.scalars(
+            select(Employee).where(Employee.company_id == row.company_id, Employee.is_active.is_(True))
+        ).all()
+    )
+    by_name = {e.full_name.strip().casefold(): e for e in existing if e.full_name}
+    existing_ids = {p.employee_id for p in row.participants}
+    added = 0
+    created = 0
+    for item in parsed:
+        key = item["full_name"].strip().casefold()
+        emp = by_name.get(key)
+        if not emp and create_missing:
+            emp = Employee(
+                company_id=row.company_id,
+                full_name=item["full_name"].strip(),
+                national_id_masked=item.get("national_id_masked") or None,
+                job_title=item.get("job_title") or None,
+                department=item.get("department") or None,
+                is_active=True,
+            )
+            db.add(emp)
+            db.flush()
+            by_name[key] = emp
+            created += 1
+        if not emp or emp.id in existing_ids:
+            continue
+        db.add(
+            TrainingParticipant(
+                training_id=row.id,
+                employee_id=emp.id,
+                certificate_number=f"EGT-{row.id:06d}-{emp.id:06d}",
+            )
+        )
+        existing_ids.add(emp.id)
+        added += 1
+    db.commit()
+    refreshed = _load_training(db, training_id)
+    return {
+        "added": added,
+        "created_employees": created,
+        "participant_count": len(refreshed.participants),
+        "training": TrainingResponse.model_validate(refreshed),
+    }
 
 
 @router.patch("/{training_id}", response_model=TrainingResponse)

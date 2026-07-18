@@ -1,6 +1,6 @@
-"""İSG temel eğitim konu motoru — Çalışma Bakanlığı belgesinde basılacak müfredat.
+"""İSG temel eğitim — 6331 kapsamı sektör kataloğu ve belge konuları.
 
-Kaynak: İSG PRO 2026 egitim modülü (tehlike sınıfı süreleri + sektörel konular).
+Belgede basılan müfredat: genel + teknik + sağlık + işyerine özgü (sektör) konular.
 """
 from __future__ import annotations
 
@@ -30,139 +30,177 @@ TEHLIKE_EGITIM_KURALLARI = {
     },
 }
 
-SEKTOR_SECENEKLERI = [
-    ("aku_uretimi", "Akü Üretimi"),
-    ("insaat", "İnşaat / Şantiye"),
-    ("yol_asfalt", "Yol / Asfalt"),
-    ("acik_maden", "Açık Maden / Taş Ocağı / Agrega"),
-    ("kimyasal_boya", "Kimyasal / Boya"),
-    ("dokum_metal", "Döküm / Metal"),
-    ("makine_imalat", "Makine İmalat / Montaj"),
-    ("kaynakli_imalat", "Kaynaklı İmalat"),
-    ("ahsap_mobilya", "Ahşap / Mobilya"),
-    ("gida_uretim", "Gıda Üretim"),
-    ("depo_lojistik", "Depo / Lojistik"),
-    ("elektrik_bakim", "Elektrik Bakım"),
-    ("ofis", "Ofis / İdari İşler"),
-    ("saglik", "Sağlık Sektörü"),
-    ("temizlik", "Temizlik İşleri"),
-    ("genel_uretim", "Genel Fabrika / Üretim"),
+# (kod, ad, tehlike_sinifi, 5 sektörel konu) — A→Z Türkçe ada göre sıralı
+_SECTOR_RAW: list[tuple[str, str, str, list[str]]] = [
+    ("acik_maden", "Açık Maden / Taş Ocağı / Agrega", "Çok Tehlikeli", [
+        "Şev, kademe ve kaya düşmesi", "Patlatma sahası emniyeti", "Kırma-eleme güvenliği",
+        "Toz, gürültü, titreşim", "Ocak içi trafik / iş makinesi",
+    ]),
+    ("agac_ormancilik", "Ağaç İşleri / Ormancılık", "Tehlikeli", [
+        "Kesici makineler", "Zincirli testere", "Devrilen ağaç riski", "Toz ve gürültü", "KKD kullanımı",
+    ]),
+    ("ahsap_mobilya", "Ahşap / Mobilya", "Tehlikeli", [
+        "Kesici makineler ve koruyucular", "Talaş/toz ve patlama", "Vernik/boya/solvent",
+        "Pres ve el aleti", "Yangın ve temizlik",
+    ]),
+    ("aku_uretimi", "Akü Üretimi", "Çok Tehlikeli", [
+        "Kurşun ve bileşikleri", "Sülfürik asit sıçraması", "Hidrojen gazı / patlama",
+        "Kimyasal dökülme", "Havalandırma ve KKD",
+    ]),
+    ("asansor_montaj", "Asansör / Montaj-Bakım", "Çok Tehlikeli", [
+        "Yüksekte çalışma", "Kuyu ve makine dairesi", "Elektrik enerjisi", "Kaldırma ekipmanı", "Kilitleme-etiketleme",
+    ]),
+    ("avcilik_balikcilik", "Avcılık / Balıkçılık", "Tehlikeli", [
+        "Deniz/göl çalışma", "Soğuk ve kaygan zemin", "Kesici aletler", "Kimyasal koruma", "Acil kurtarma",
+    ]),
+    ("bakim_onarim", "Bakım Onarım Atölyesi", "Tehlikeli", [
+        "Kilitleme/etiketleme", "El aletleri", "Kaynak ve sıcak iş", "Sıkışma-ezilme", "Atık yağ/kimyasal",
+    ]),
+    ("berber_kuafor", "Berber / Kuaför", "Az Tehlikeli", [
+        "Kimyasal boya/solüsyon", "Kesici aletler", "Ergonomi", "Hijyen", "Elektrikli ekipman",
+    ]),
+    ("boya_kaplama", "Boya / Kaplama / Galvaniz", "Çok Tehlikeli", [
+        "Solvent buharı", "Parlama-patlama", "SDS okuma", "Depolama uyumsuzluğu", "Dökülme müdahalesi",
+    ]),
+    ("cam_seramik", "Cam / Seramik / Porselen", "Tehlikeli", [
+        "Yüksek sıcaklık fırın", "Kesici kırık malzeme", "Toz maruziyeti", "Ağır kaldırma", "Göz koruması",
+    ]),
+    ("cati_isleri", "Çatı İşleri", "Çok Tehlikeli", [
+        "Düşme önleme", "İskele/platform", "Hava koşulları", "Malzeme düşmesi", "Elektrik hattı mesafesi",
+    ]),
+    ("cimento_beton", "Çimento / Beton / Hazır Beton", "Çok Tehlikeli", [
+        "Toz (silika)", "Mikser ve pompa", "Kimyasal yanık", "Ağır taşıma", "Trafik ve yaya yolları",
+    ]),
+    ("demir_celik", "Demir-Çelik / Hadde", "Çok Tehlikeli", [
+        "Sıcak metal", "Vinç ve pota", "Yanık/ısı stresi", "Gaz ve duman", "Sıkışma-ezilme",
+    ]),
+    ("depo_lojistik", "Depo / Lojistik / Antrepo", "Tehlikeli", [
+        "Forklift-yaya trafiği", "Raf devrilmesi", "Rampa yükleme", "Elle taşıma", "Malzeme düşmesi",
+    ]),
+    ("dokum_metal", "Döküm / Metal Dökümhane", "Çok Tehlikeli", [
+        "Ergitme ocağı", "Sıcak metal sıçraması", "Pota/vinç", "Duman-toz-gaz", "Kalıp bozma riski",
+    ]),
+    ("egitim_okul", "Eğitim / Okul / Kreş", "Az Tehlikeli", [
+        "Yangın tahliye", "Kayma-takılma", "Kimyasal laboratuvar", "Şiddet/güvenlik", "İlk yardım",
+    ]),
+    ("elektrik_bakim", "Elektrik Bakım / Tesisat", "Çok Tehlikeli", [
+        "Çarpılma / ark", "Enerji kesme LOTO", "Pano-kablo", "İzole KKD", "Çalışma izni",
+    ]),
+    ("elektronik_imalat", "Elektronik İmalat", "Tehlikeli", [
+        "Lehim dumanı", "Statik elektrik", "Kimyasal temizleyici", "Kesici delici", "Ergonomi",
+    ]),
+    ("enerji_uretim", "Enerji Üretim / Santral", "Çok Tehlikeli", [
+        "Yüksek gerilim", "Basınçlı sistemler", "Kapalı alan", "Yangın-patlama", "İzolasyon prosedürü",
+    ]),
+    ("finans_ofis", "Finans / Banka / Ofis", "Az Tehlikeli", [
+        "Ekranlı araç", "Ergonomi", "Yangın tahliye", "Kayma-takılma", "Psikososyal risk",
+    ]),
+    ("gida_uretim", "Gıda Üretim / İşleme", "Tehlikeli", [
+        "Hijyen / çapraz bulaşma", "Kaygan zemin", "Kesici ekipman", "Sıcak buhar/yanık", "Soğuk oda",
+    ]),
+    ("guvenlik_ozel", "Güvenlik / Özel Güvenlik", "Tehlikeli", [
+        "Şiddet riski", "Gece çalışma", "Acil müdahale", "İletişim", "KKD ve ekipman",
+    ]),
+    ("hazir_giyim", "Hazır Giyim / Tekstil Atölye", "Tehlikeli", [
+        "Dikiş makineleri", "Toz ve gürültü", "Yangın", "Ergonomi", "Kimyasal boya",
+    ]),
+    ("insaat", "İnşaat / Şantiye", "Çok Tehlikeli", [
+        "Yüksekte çalışma / düşme", "İskele-merdiven", "Kazı-göçük", "Vinç-kaldırma", "Şantiye trafiği",
+    ]),
+    ("itim_matbaa", "İletişim / Matbaa / Baskı", "Tehlikeli", [
+        "Solvent mürekkep", "Makine sıkışması", "Gürültü", "Kağıt kesici", "Yangın",
+    ]),
+    ("kagit_ambalaj", "Kağıt / Ambalaj", "Tehlikeli", [
+        "Makine koruyucu", "Kağıt kesici", "Forklift", "Toz", "Yangın yükü",
+    ]),
+    ("kaynakli_imalat", "Kaynaklı İmalat", "Çok Tehlikeli", [
+        "Kaynak ışını", "Kaynak dumanı", "Sıcak iş izni", "Basınçlı gaz tüpleri", "Kapalı alan kaynak",
+    ]),
+    ("kimyasal_boya", "Kimyasal / Boya / İlaç", "Çok Tehlikeli", [
+        "Etiketleme / SDS", "Solvent buharı", "Parlama-patlama", "Uyumsuz madde depolama", "Dökülme müdahalesi",
+    ]),
+    ("konaklama_otel", "Konaklama / Otel / Restoran", "Az Tehlikeli", [
+        "Mutfak yanık/kesik", "Kaygan zemin", "Kimyasal temizlik", "Yangın tahliye", "Ergonomi",
+    ]),
+    ("kuyumculuk", "Kuyumculuk / Metal İşleme Küçük", "Tehlikeli", [
+        "Asit/siyanür riski", "Yüksek sıcaklık", "Göz koruması", "Havalandırma", "Yangın",
+    ]),
+    ("lastik_kaucuk", "Lastik / Kauçuk", "Çok Tehlikeli", [
+        "Makine sıkışması", "Kimyasal katkı", "Yüksek sıcaklık", "Toz-duman", "Yangın",
+    ]),
+    ("madencilik_yeralti", "Madencilik (Yeraltı)", "Çok Tehlikeli", [
+        "Göçük / tahkimat", "Gaz ölçümü", "Patlatma", "Nakliye", "Acil kaçış",
+    ]),
+    ("makine_imalat", "Makine İmalat / Montaj", "Tehlikeli", [
+        "Makine koruyucuları", "Sıkışma-kesilme", "LOTO bakım", "Taşlama-kesme", "Kaldırma-ergonomi",
+    ]),
+    ("mobilya_dekorasyon", "Mobilya / Dekorasyon Montaj", "Tehlikeli", [
+        "El aletleri", "Yüksekte montaj", "Toz", "Kimyasal tutkal", "Elektrik",
+    ]),
+    ("otomotiv", "Otomotiv / Yedek Parça", "Tehlikeli", [
+        "Pres hatları", "Kaynak robotları", "Kimyasal", "Ergonomi", "İç lojistik",
+    ]),
+    ("petrol_dogalgaz", "Petrol / Doğalgaz / Rafineri", "Çok Tehlikeli", [
+        "Patlayıcı atmosfer", "Yangın", "Basınçlı ekipman", "Zehirli gaz", "İzinli çalışma",
+    ]),
+    ("plastik_enjeksiyon", "Plastik / Enjeksiyon", "Tehlikeli", [
+        "Sıcak kalıp", "Makine koruyucu", "Duman-gaz", "Ezilme", "Yangın",
+    ]),
+    ("saglik", "Sağlık Sektörü / Hastane", "Tehlikeli", [
+        "Biyolojik risk", "Kesici-delici yaralanma", "Hasta taşıma", "Dezenfektan", "Şiddet / acil",
+    ]),
+    ("soguk_hava", "Soğuk Hava Deposu", "Tehlikeli", [
+        "Soğuk stres", "Kaygan zemin", "Forklift", "Kapalı alan", "Acil çıkış",
+    ]),
+    ("tarim", "Tarım / Hayvancılık", "Tehlikeli", [
+        "İş makinesi", "Pestisit", "Hayvan yaralanması", "Güneş/ısı", "Elle kaldırma",
+    ]),
+    ("tasimacilik", "Taşımacılık / Şoförlük", "Tehlikeli", [
+        "Trafik güvenliği", "Yük bağlama", "Yorgunluk", "Elle taşıma", "Acil durum",
+    ]),
+    ("telekom", "Telekomünikasyon / Anten", "Çok Tehlikeli", [
+        "Yüksekte çalışma", "RF maruziyet", "Elektrik", "Çatı/kule", "Hava koşulları",
+    ]),
+    ("temizlik", "Temizlik İşleri", "Tehlikeli", [
+        "Temizlik kimyasalları", "Islak zemin", "Biyolojik atık", "Yüksek alan temizliği", "Kesici atık",
+    ]),
+    ("tekstil", "Tekstil / Dokuma / Boyahane", "Tehlikeli", [
+        "Makine sıkışması", "Kimyasal boya", "Gürültü", "Toz", "Yangın",
+    ]),
+    ("ticaret_perakende", "Ticaret / Perakende / Market", "Az Tehlikeli", [
+        "Kayma-takılma", "Elle taşıma", "Yangın tahliye", "Şiddet", "Depo forklift",
+    ]),
+    ("turizm_seyahat", "Turizm / Seyahat Acentesi", "Az Tehlikeli", [
+        "Ekranlı araç", "Yangın", "Ergonomi", "Acil tahliye", "Psikososyal",
+    ]),
+    ("yapi_denetim", "Yapı Denetim / Mühendislik Ofisi", "Az Tehlikeli", [
+        "Saha ziyareti riski", "PPE", "Ekranlı araç", "Araç kullanımı", "Yangın",
+    ]),
+    ("yol_asfalt", "Yol / Asfalt / Altyapı", "Çok Tehlikeli", [
+        "Sıcak asfalt yanığı", "Trafik altında çalışma", "İş makineleri", "Bitüm buharı", "Gece görünürlük",
+    ]),
+    ("yuksekte_calisma", "Yüksekte Çalışma Hizmetleri", "Çok Tehlikeli", [
+        "Düşme önleme sistemleri", "İskele/platform", "Rüzgar etkisi", "Malzeme düşmesi", "Kurtarma planı",
+    ]),
+    ("genel_uretim", "Genel Fabrika / Üretim", "Tehlikeli", [
+        "Makine-ekipman", "İç trafik", "Elle taşıma", "Yangın-tahliye", "KKD ve düzen",
+    ]),
+    ("ofis", "Ofis / İdari İşler", "Az Tehlikeli", [
+        "Ekranlı araç / ergonomi", "Elektrikli ekipman", "Yangın-tahliye", "Kayma-takılma", "Psikososyal risk",
+    ]),
 ]
 
-SEKTOREL_EGITIM_KONULARI = {
-    "aku_uretimi": [
-        "Kurşun ve bileşikleriyle çalışma - 30 DK",
-        "Sülfürik asit ve sıçrama riski - 30 DK",
-        "Hidrojen gazı ve patlama riski - 30 DK",
-        "Kimyasal dökülme/acil müdahale - 30 DK",
-        "Havalandırma, hijyen ve KKD kullanımı - 30 DK",
-    ],
-    "insaat": [
-        "Yüksekte çalışma ve düşme riski - 30 DK",
-        "İskele, merdiven ve platform güvenliği - 30 DK",
-        "Kazı, göçük ve zemin emniyeti - 30 DK",
-        "Vinç, kaldırma ve malzeme düşmesi - 30 DK",
-        "Şantiye içi trafik ve iş makinesi riski - 30 DK",
-    ],
-    "yol_asfalt": [
-        "Sıcak asfalt ve yanık riskleri - 30 DK",
-        "Trafik altında çalışma güvenliği - 30 DK",
-        "İş makineleriyle güvenli çalışma - 30 DK",
-        "Bitüm, buhar ve kimyasal maruziyet - 30 DK",
-        "Gece çalışması, görünürlük ve işaretleme - 30 DK",
-    ],
-    "acik_maden": [
-        "Şev, kademe ve kaya düşmesi riskleri - 30 DK",
-        "Patlatma sahası ve emniyet mesafeleri - 30 DK",
-        "Kırma-eleme tesislerinde güvenli çalışma - 30 DK",
-        "Toz, gürültü ve titreşim maruziyeti - 30 DK",
-        "Ocak içi trafik ve iş makinesi güvenliği - 30 DK",
-    ],
-    "kimyasal_boya": [
-        "Kimyasal etiketleme ve SDS/MSDS okuma - 30 DK",
-        "Solvent ve buhar maruziyetinden korunma - 30 DK",
-        "Parlama, patlama ve statik elektrik riski - 30 DK",
-        "Kimyasal depolama ve uyumsuz maddeler - 30 DK",
-        "Dökülme, sızıntı ve acil müdahale - 30 DK",
-    ],
-    "dokum_metal": [
-        "Ergitme ocakları ve sıcak metal sıçraması - 30 DK",
-        "Pota, vinç ve kaldırma operasyonları - 30 DK",
-        "Yanık, ısı stresi ve termal riskler - 30 DK",
-        "Duman, toz ve gaz maruziyeti - 30 DK",
-        "Kalıp bozma ve sıkışma-ezilme riskleri - 30 DK",
-    ],
-    "makine_imalat": [
-        "Makine koruyucuları ve emniyet tertibatları - 30 DK",
-        "Sıkışma, ezilme ve kesilme riskleri - 30 DK",
-        "Bakım-onarımda kilitleme/etiketleme - 30 DK",
-        "Taşlama, kesme ve el aletleri güvenliği - 30 DK",
-        "Montajda kaldırma-taşıma ve ergonomi - 30 DK",
-    ],
-    "kaynakli_imalat": [
-        "Kaynak ışını ve göz-yüz koruması - 30 DK",
-        "Kaynak dumanı ve havalandırma - 30 DK",
-        "Sıcak çalışma izni ve yangın riski - 30 DK",
-        "Basınçlı gaz tüpleriyle güvenli çalışma - 30 DK",
-        "Kapalı alanda kaynak ve gaz ölçümü - 30 DK",
-    ],
-    "ahsap_mobilya": [
-        "Kesici makineler ve koruyucu sistemler - 30 DK",
-        "Talaş/toz maruziyeti ve patlama riski - 30 DK",
-        "Vernik, boya ve solvent kullanımı - 30 DK",
-        "Zımpara, pres ve el aleti güvenliği - 30 DK",
-        "Yangın riski ve düzenli temizlik - 30 DK",
-    ],
-    "gida_uretim": [
-        "Hijyen, çapraz bulaşma ve gıda güvenliği - 30 DK",
-        "Kaygan zemin ve düşme riskleri - 30 DK",
-        "Kesici-delici ekipmanlarla çalışma - 30 DK",
-        "Sıcak yüzey, buhar ve yanık riski - 30 DK",
-        "Soğuk oda ve ergonomik riskler - 30 DK",
-    ],
-    "depo_lojistik": [
-        "Forklift ve yaya trafiği güvenliği - 30 DK",
-        "Raf sistemleri ve devrilme riskleri - 30 DK",
-        "Yükleme-boşaltma rampalarında güvenlik - 30 DK",
-        "Elle taşıma, istifleme ve ergonomi - 30 DK",
-        "Malzeme düşmesi ve alan düzeni - 30 DK",
-    ],
-    "elektrik_bakim": [
-        "Elektrik çarpması ve ark parlaması - 30 DK",
-        "Enerji kesme, kilitleme ve etiketleme - 30 DK",
-        "Pano, kablo ve tesisat çalışmalarında güvenlik - 30 DK",
-        "İzole ekipman ve uygun KKD kullanımı - 30 DK",
-        "Yetkisiz müdahale ve çalışma izinleri - 30 DK",
-    ],
-    "ofis": [
-        "Ekranlı araçlarla çalışma ve ergonomi - 30 DK",
-        "Elektrikli ofis ekipmanlarının güvenli kullanımı - 30 DK",
-        "Yangın, tahliye ve toplanma alanı - 30 DK",
-        "Kayma, takılma ve düşme riskleri - 30 DK",
-        "Psikososyal riskler ve stres yönetimi - 30 DK",
-    ],
-    "saglik": [
-        "Biyolojik riskler ve enfeksiyon kontrolü - 30 DK",
-        "Kesici-delici alet yaralanmaları - 30 DK",
-        "Hasta taşıma ve ergonomik riskler - 30 DK",
-        "Dezenfektan ve kimyasal kullanımı - 30 DK",
-        "Şiddet, acil durum ve güvenli iletişim - 30 DK",
-    ],
-    "temizlik": [
-        "Temizlik kimyasallarıyla güvenli çalışma - 30 DK",
-        "Islak zemin, kayma ve düşme riskleri - 30 DK",
-        "Biyolojik riskler ve atıklarla çalışma - 30 DK",
-        "Yüksek alan temizliği ve merdiven güvenliği - 30 DK",
-        "Kesici-delici atık yaralanmaları - 30 DK",
-    ],
-    "genel_uretim": [
-        "Makine ve ekipmanlarla güvenli çalışma - 30 DK",
-        "İşyeri içi trafik ve yaya yolları - 30 DK",
-        "Elle taşıma, ergonomi ve istifleme - 30 DK",
-        "Yangın, acil durum ve tahliye uygulamaları - 30 DK",
-        "KKD kullanımı ve işyeri düzeni - 30 DK",
-    ],
+
+def _topics_with_dk(topics: list[str]) -> list[str]:
+    return [t if " DK" in t else f"{t} - 30 DK" for t in topics]
+
+
+# Build maps
+SEKTOR_SECENEKLERI: list[tuple[str, str]] = [(c, n) for c, n, _, _ in _SECTOR_RAW]
+SEKTOREL_EGITIM_KONULARI: dict[str, list[str]] = {
+    c: _topics_with_dk(topics) for c, _, _, topics in _SECTOR_RAW
 }
+SEKTOR_TEHLIKE: dict[str, str] = {c: h for c, _, h, _ in _SECTOR_RAW}
 
 
 def tehlike_kurali(tehlike_sinifi: str) -> dict:
@@ -176,7 +214,6 @@ def sektor_adi(sektor_kodu: str | None) -> str:
 
 
 def sektor_kodu_cozumle(sektor: str | None) -> str:
-    """UI'dan gelen kod veya görünen adı sektörel anahtara çevirir."""
     if not sektor:
         return "genel_uretim"
     raw = sektor.strip()
@@ -185,6 +222,9 @@ def sektor_kodu_cozumle(sektor: str | None) -> str:
     for kod, ad in SEKTOR_SECENEKLERI:
         if ad.casefold() == raw.casefold():
             return kod
+    # canlı API eski kodları (01-05) → genel
+    if raw in ("01", "02", "03", "04", "05"):
+        return "genel_uretim"
     return "genel_uretim"
 
 
@@ -211,17 +251,10 @@ def konu_dakikalarini_hedefe_esitle(konular: list[tuple[int, str]], hedef_dakika
         i += 1
     if kalan:
         dagitim[-1] += kalan
-    out = []
-    for (baslik_mi, metin), dk in zip(konular, dagitim):
-        out.append((baslik_mi, f"{sure_ekini_temizle(metin)} - {dk} DK"))
-    return out
+    return [(b, f"{sure_ekini_temizle(m)} - {dk} DK") for (b, m), dk in zip(konular, dagitim)]
 
 
 def egitim_konularini_hazirla(tehlike_sinifi: str, sektor: str | None = None):
-    """Belgede basılacak sol/sağ konu listelerini üretir.
-
-    Returns: (sol, sag, toplam_dakika, toplam_saat) where sol/sag are list of (is_heading, text)
-    """
     kural = tehlike_kurali(tehlike_sinifi)
     hedef_dakika = int(kural["dakika"])
     hedef_saat = int(kural["saat"])
@@ -281,14 +314,29 @@ def egitim_konularini_hazirla(tehlike_sinifi: str, sektor: str | None = None):
 
 def katilim_formu_konu_ozeti(tehlike_sinifi: str, sektor: str | None = None) -> str:
     sektorel = [sure_ekini_temizle(k) for k in sektorel_konular(sektor)[:5]]
-    ana = "1. Genel Konular / 2. Teknik Konular / 3. Sağlık Konuları / 4. İş ve İşyerine Özgü Riskler"
+    ana = "1. Genel / 2. Teknik / 3. Sağlık / 4. İşyerine Özgü Riskler"
     if sektorel:
-        return ana + " | Sektöre Özgü: " + "; ".join(sektorel)
+        return ana + " | Sektör: " + "; ".join(sektorel)
     return ana
+
+
+def sectors_list_for_api() -> list[dict]:
+    """Canlı uyumlu: code, name, topics + hazard_class, label."""
+    items = []
+    for code, name, hazard, topics in sorted(_SECTOR_RAW, key=lambda x: x[1].casefold()):
+        clean = [sure_ekini_temizle(t) for t in topics]
+        items.append({
+            "code": code,
+            "name": name,
+            "label": name,
+            "hazard_class": hazard,
+            "topics": clean,
+        })
+    return items
 
 
 def meta_payload() -> dict:
     return {
         "hazard_rules": TEHLIKE_EGITIM_KURALLARI,
-        "sectors": [{"code": c, "label": l} for c, l in SEKTOR_SECENEKLERI],
+        "sectors": sectors_list_for_api(),
     }

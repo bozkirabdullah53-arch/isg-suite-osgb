@@ -20,7 +20,11 @@ export async function api(path, options = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.detail || "İşlem tamamlanamadı.");
+    const detail = data.detail;
+    const message = Array.isArray(detail)
+      ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ")
+      : detail || "İşlem tamamlanamadı.";
+    throw new Error(message);
   }
   return data;
 }
@@ -54,6 +58,12 @@ export async function uploadFile(path, file) {
     body: formData,
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.detail || "Dosya yüklenemedi.");
+  if (!response.ok) {
+    const detail = data.detail;
+    const message = Array.isArray(detail)
+      ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ")
+      : detail || "Dosya yüklenemedi.";
+    throw new Error(message);
+  }
   return data;
 }
