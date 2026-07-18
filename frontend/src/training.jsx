@@ -9,10 +9,10 @@ const HAZARD_HINT = {
 };
 const STATUS = {planned: 'Planlandı', completed: 'Tamamlandı', cancelled: 'İptal'};
 
-function Modal({title, close, children}) {
+function Modal({title, close, children, wide}) {
   return (
     <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <section className="modal" style={{maxWidth: 920}}>
+      <section className="modal" style={{maxWidth: wide ? 1100 : 920}}>
         <header>
           <h3>{title}</h3>
           <button className="icon" type="button" onClick={close}><X /></button>
@@ -103,6 +103,8 @@ export function TrainingPage({user}) {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [excelInfo, setExcelInfo] = useState('');
+  const [detail, setDetail] = useState(null);
+  const [dlBusy, setDlBusy] = useState('');
 
   const companyEmployees = useMemo(
     () => employees.filter((e) => String(e.company_id) === String(form.company_id) && e.is_active !== false),
@@ -198,22 +200,44 @@ export function TrainingPage({user}) {
   }
 
   async function downloadAttendance(id) {
+    setDlBusy('attendance-' + id);
     try {
-      await downloadFile(`/trainings/${id}/attendance.pdf`, `egitim-${id}-imza-listesi.pdf`);
+      await downloadFile(`/trainings/${id}/attendance.pdf`, `egitim-${id}-katilimci-imza-formu.pdf`);
     } catch (x) {
-      alert(x.message);
+      alert('İmza / yoklama PDF indirilemedi:\n' + x.message);
+    } finally {
+      setDlBusy('');
     }
   }
 
   async function downloadCertificates(id) {
+    setDlBusy('certs-' + id);
     try {
       await downloadFile(`/trainings/${id}/certificates.pdf`, `egitim-${id}-katilim-belgeleri.pdf`);
     } catch (x) {
-      alert(
-        x.message +
-          '\n\nNot: Bu hata sürerse Render API’nin feature/training-ui-cors dalından yeniden deploy edildiğini kontrol edin.',
-      );
+      alert('Katılım belgesi PDF indirilemedi:\n' + x.message);
+    } finally {
+      setDlBusy('');
     }
+  }
+
+  function openDetail(row) {
+    setDetail(row);
+  }
+
+  function participantRows(training) {
+    const list = training?.participants || [];
+    return list.map((p, i) => {
+      const emp = employees.find((e) => e.id === p.employee_id);
+      return {
+        sira: i + 1,
+        name: emp?.full_name || `Personel #${p.employee_id}`,
+        tc: emp?.national_id_masked || '—',
+        job: emp?.job_title || '—',
+        dept: emp?.department || '—',
+        cert: p.certificate_number || '—',
+      };
+    });
   }
 
   async function onExcel(e) {
@@ -271,10 +295,9 @@ export function TrainingPage({user}) {
     {key: 'company_id', label: 'Firma', render: (r) => companyName(r.company_id)},
     {key: 'start_date', label: 'Tarih'},
     {key: 'hazard_class', label: 'Tehlike'},
-    {key: 'sector', label: 'Sektör', render: (r) => sectorLabel(sectors, r.sector)},
     {key: 'duration_hours', label: 'Saat'},
     {key: 'instructor_name', label: 'Eğitici'},
-    {key: 'participants', label: 'Kişi', render: (r) => r.participants?.length || 0},
+    {key: 'participants', label: 'Katılımcı', render: (r) => r.participants?.length || 0},
     {
       key: 'status',
       label: 'Durum',
@@ -286,14 +309,11 @@ export function TrainingPage({user}) {
     },
     {
       key: 'action',
-      label: 'Belgeler',
+      label: 'İşlem',
       render: (r) => (
         <div className="actions" style={{flexWrap: 'wrap'}}>
-          <button className="mini" type="button" onClick={() => downloadAttendance(r.id)}>
-            <Download size={14} /> İmza / Yoklama PDF
-          </button>
-          <button className="mini" type="button" onClick={() => downloadCertificates(r.id)}>
-            <Download size={14} /> Katılım Belgesi PDF
+          <button className="mini" type="button" onClick={() => openDetail(r)}>
+            Katılımcılar & Belgeler
           </button>
           {canEdit && r.status !== 'completed' && (
             <button className="mini" type="button" onClick={() => complete(r.id)}>Tamamla</button>
@@ -314,10 +334,13 @@ export function TrainingPage({user}) {
         )}
       </div>
       <section className="panel">
-        <p style={{marginBottom: 12, color: '#52677a', fontSize: 14}}>
-          6331 kapsamı: sektör seçin → Excel veya ortak personel listesinden katılımcı alın →
-          <strong> İmza/Yoklama PDF</strong> ve <strong>Katılım Belgesi PDF</strong> (eğitim konuları dahil) indirin.
-        </p>
+        <div style={{marginBottom: 14, padding: '12px 14px', background: '#eef5fb', borderRadius: 10, fontSize: 14, lineHeight: 1.55, color: '#243447'}}>
+          <strong>Bakanlık denetimi için zorunlu belgeler:</strong>{' '}
+          her eğitimde önce katılımcı ekleyin, sonra satırdan{' '}
+          <strong>Katılımcılar & Belgeler</strong> açın →{' '}
+          <strong>İmza / Yoklama Formu PDF</strong> ve <strong>Katılım Belgesi PDF</strong> indirin.
+          Katılım belgesinde eğitim konuları basılır.
+        </div>
         <div className="search">
           <Search size={19} />
           <input
@@ -342,12 +365,82 @@ export function TrainingPage({user}) {
                   ))}
                 </tr>
               )) : (
-                <tr><td colSpan={cols.length} className="empty">Henüz eğitim kaydı yok.</td></tr>
+                <tr><td colSpan={cols.length} className="empty">Henüz eğitim kaydı yok. Yeni Eğitim ile katılımcılı kayıt oluşturun.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </section>
+
+      {detail && (
+        <Modal title={`${detail.title} — Katılımcılar ve Belgeler`} close={() => setDetail(null)} wide>
+          <div style={{display: 'grid', gap: 14}}>
+            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 14}}>
+              <div><span style={{color: '#64748b'}}>Firma</span><div><strong>{companyName(detail.company_id)}</strong></div></div>
+              <div><span style={{color: '#64748b'}}>Tarih</span><div><strong>{detail.start_date}</strong></div></div>
+              <div><span style={{color: '#64748b'}}>Tehlike / Süre</span><div><strong>{detail.hazard_class} · {detail.duration_hours} saat</strong></div></div>
+              <div><span style={{color: '#64748b'}}>Eğitici</span><div><strong>{detail.instructor_name}</strong></div></div>
+              <div><span style={{color: '#64748b'}}>Doğrulama kodu</span><div><strong>{detail.verification_code || '—'}</strong></div></div>
+              <div><span style={{color: '#64748b'}}>Katılımcı sayısı</span><div><strong>{detail.participants?.length || 0}</strong></div></div>
+            </div>
+
+            {!(detail.participants?.length) && (
+              <div className="error">
+                Bu eğitimde katılımcı yok. Belge üretilemez. Yeni eğitim oluştururken Excel veya personel listesinden katılımcı seçin.
+              </div>
+            )}
+
+            <div style={{display: 'flex', gap: 10, flexWrap: 'wrap'}}>
+              <button
+                type="button"
+                disabled={!detail.participants?.length || !!dlBusy}
+                onClick={() => downloadAttendance(detail.id)}
+              >
+                <Download size={16} /> {dlBusy === 'attendance-' + detail.id ? 'İndiriliyor…' : 'İmza / Yoklama Formu PDF'}
+              </button>
+              <button
+                type="button"
+                disabled={!detail.participants?.length || !!dlBusy}
+                onClick={() => downloadCertificates(detail.id)}
+              >
+                <Download size={16} /> {dlBusy === 'certs-' + detail.id ? 'İndiriliyor…' : 'Katılım Belgesi PDF (konular dahil)'}
+              </button>
+            </div>
+
+            <div>
+              <h4 style={{margin: '4px 0 8px'}}>Katılımcı listesi</h4>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Sıra</th>
+                      <th>Ad Soyad</th>
+                      <th>T.C.</th>
+                      <th>Görev</th>
+                      <th>Bölüm</th>
+                      <th>Belge No</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {participantRows(detail).length ? participantRows(detail).map((p) => (
+                      <tr key={p.sira}>
+                        <td>{p.sira}</td>
+                        <td>{p.name}</td>
+                        <td>{p.tc}</td>
+                        <td>{p.job}</td>
+                        <td>{p.dept}</td>
+                        <td>{p.cert}</td>
+                      </tr>
+                    )) : (
+                      <tr><td colSpan={6} className="empty">Katılımcı yok</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {open && (
         <Modal title="Yeni Eğitim Oturumu" close={() => setOpen(false)}>

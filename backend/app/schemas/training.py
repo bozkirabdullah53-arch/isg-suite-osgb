@@ -25,6 +25,8 @@ class TrainingCreate(BaseModel):
     def dates_valid(self):
         if self.end_date and self.end_date < self.start_date:
             raise ValueError("Bitiş tarihi başlangıç tarihinden önce olamaz.")
+        if not self.participant_ids:
+            raise ValueError("En az bir katılımcı seçmelisiniz (Excel veya personel listesi). Belge/imza formu için zorunludur.")
         return self
 
 class TrainingUpdate(BaseModel):

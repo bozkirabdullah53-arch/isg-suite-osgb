@@ -37,15 +37,30 @@ export async function downloadFile(path, filename) {
   });
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.detail || "Dosya indirilemedi.");
+    const detail = data.detail;
+    const message = Array.isArray(detail)
+      ? detail.map((d) => (typeof d === "string" ? d : d.msg || JSON.stringify(d))).join("; ")
+      : detail || `Dosya indirilemedi (HTTP ${response.status}).`;
+    throw new Error(message);
   }
   const blob = await response.blob();
+  if (!blob || blob.size < 100) {
+    throw new Error("PDF boş veya bozuk geldi. Katılımcı ekli mi ve API güncel mi kontrol edin.");
+  }
+  const type = (response.headers.get("content-type") || blob.type || "").toLowerCase();
+  if (type && !type.includes("pdf") && !type.includes("octet-stream")) {
+    throw new Error("Sunucu PDF yerine başka içerik döndürdü. API sürümünü kontrol edin.");
+  }
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(anchor);
+  // Önizleme yedek: yeni sekmede aç
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 export async function uploadFile(path, file) {

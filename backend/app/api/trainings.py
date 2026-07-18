@@ -320,11 +320,14 @@ def attendance_pdf(
     ensure_access(user, row.company_id)
     company = db.get(Company, row.company_id)
     employees = _employees_map(db, row)
-    pdf_bytes = build_attendance_pdf(
-        company_name=company.name if company else str(row.company_id),
-        training=row,
-        employees=employees,
-    )
+    try:
+        pdf_bytes = build_attendance_pdf(
+            company_name=company.name if company else str(row.company_id),
+            training=row,
+            employees=employees,
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
