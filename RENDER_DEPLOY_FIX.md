@@ -14,8 +14,9 @@ Bu sürüm Render build hatası için hazırlanmıştır.
 ## Frontend beklenen ayarlar
 
 - Root Directory: `frontend`
-- Build Command: `npm install --global npm@10.8.2 --no-audit --no-fund && npm ci --no-audit --no-fund && npm run build`
+- Build Command: `npm ci --no-audit --no-fund && npm run build`
 - Publish Directory: `dist`
-- Node: `20.18.0`
+- Node: `20.18.0` (engines: `>=20 <21`)
+- Branch (canlı eğitim sürümü): `feature/training-ui-cors`
 
 Repo kökünde ve frontend klasöründe `.node-version` / `.nvmrc` dosyaları bulunmaktadır.

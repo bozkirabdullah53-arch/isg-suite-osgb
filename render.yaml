@@ -6,6 +6,7 @@ services:
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: sh start.sh
     healthCheckPath: /health
+    branch: feature/training-ui-cors
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
@@ -17,7 +18,7 @@ services:
         generateValue: true
       - key: FRONTEND_ORIGIN
         value: https://isg-suite-web-1u9t.onrender.com
-      # Seed admin yalnızca ilk kurulumda; secret'ları VCS'e yazmayın — Render Dashboard'dan sync edin
+      # Seed admin: Render Dashboard > Environment (sync: false)
       - key: SEED_ADMIN_EMAIL
         sync: false
       - key: SEED_ADMIN_PASSWORD
@@ -27,8 +28,10 @@ services:
     name: isg-suite-web
     runtime: static
     rootDir: frontend
-    buildCommand: npm install --global npm@10.8.2 --no-audit --no-fund && npm ci --no-audit --no-fund && npm run build
+    # Global npm pin Render'da sık kırılıyor; Node 20 + npm ci yeterli
+    buildCommand: npm ci --no-audit --no-fund && npm run build
     staticPublishPath: dist
+    branch: feature/training-ui-cors
     envVars:
       - key: NODE_VERSION
         value: 20.18.0
