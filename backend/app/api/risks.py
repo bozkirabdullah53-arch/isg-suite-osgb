@@ -19,8 +19,11 @@ from app.models.entities import (
     RiskDof,
     User,
     UserRole,
+    WorkplaceDepartment,
 )
 from app.schemas.risk import (
+    DepartmentCreate,
+    DepartmentResponse,
     HazardCategoryResponse,
     HazardResponse,
     RiskCalculateRequest,
@@ -64,6 +67,7 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
         risk_code=row.risk_code,
         company_id=row.company_id,
         branch_id=row.branch_id,
+        department_id=getattr(row, "department_id", None),
         hazard_id=row.hazard_id,
         hazard_code=hazard.code if hazard else None,
         hazard_name=hazard.name if hazard else None,
@@ -92,6 +96,45 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
     )
 
 
+def _resolve_department(
+    db: Session,
+    *,
+    company_id: int,
+    department_id: int | None,
+    department_name: str | None,
+) -> tuple[int | None, str | None]:
+    """Seçilen bölüm veya yeni ad ile bölüm oluştur/çöz."""
+    if department_id:
+        dep = db.get(WorkplaceDepartment, department_id)
+        if not dep or dep.company_id != company_id:
+            raise HTTPException(422, "Bölüm firma ile uyumlu değil.")
+        return dep.id, dep.name
+    name = (department_name or "").strip()
+    if not name:
+        return None, None
+    existing = db.scalar(
+        select(WorkplaceDepartment).where(
+            WorkplaceDepartment.company_id == company_id,
+            WorkplaceDepartment.name == name,
+        )
+    )
+    if existing:
+        if not existing.is_active:
+            existing.is_active = True
+            db.flush()
+        return existing.id, existing.name
+    dep = WorkplaceDepartment(company_id=company_id, name=name, is_active=True)
+    db.add(dep)
+    db.flush()
+    return dep.id, dep.name
+
+
+def _ensure_library(db: Session) -> None:
+    count = db.scalar(select(func.count()).select_from(HazardCategory)) or 0
+    if count == 0:
+        seed_hazard_library(db)
+
+
 def _load_risk(db: Session, risk_id: int) -> RiskAssessment:
     row = db.scalar(
         select(RiskAssessment)
@@ -116,18 +159,87 @@ def risk_calculate(payload: RiskCalculateRequest, user: User = Depends(get_curre
 @router.post("/seed-library")
 def seed_library(
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     return seed_hazard_library(db)
 
 
 @router.get("/categories", response_model=list[HazardCategoryResponse])
 def list_categories(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    _ensure_library(db)
     rows = list(db.scalars(select(HazardCategory).order_by(HazardCategory.sort_order, HazardCategory.name)).all())
-    if not rows:
-        seed_hazard_library(db)
-        rows = list(db.scalars(select(HazardCategory).order_by(HazardCategory.sort_order, HazardCategory.name)).all())
-    return rows
+    counts = dict(
+        db.execute(
+            select(Hazard.category_id, func.count())
+            .where(Hazard.is_active.is_(True))
+            .group_by(Hazard.category_id)
+        ).all()
+    )
+    return [
+        HazardCategoryResponse(
+            id=r.id,
+            name=r.name,
+            icon=r.icon,
+            sort_order=r.sort_order,
+            hazard_count=int(counts.get(r.id, 0)),
+        )
+        for r in rows
+    ]
+
+
+@router.get("/departments", response_model=list[DepartmentResponse])
+def list_departments(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
+    if not effective:
+        raise HTTPException(400, "Firma seçilmelidir.")
+    ensure_access(user, effective)
+    stmt = (
+        select(WorkplaceDepartment)
+        .where(WorkplaceDepartment.company_id == effective, WorkplaceDepartment.is_active.is_(True))
+        .order_by(WorkplaceDepartment.name)
+    )
+    return list(db.scalars(stmt).all())
+
+
+@router.post("/departments", response_model=DepartmentResponse)
+def create_department(
+    payload: DepartmentCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    ensure_access(user, payload.company_id)
+    if not db.get(Company, payload.company_id):
+        raise HTTPException(404, "Firma bulunamadı.")
+    name = payload.name.strip()
+    if len(name) < 2:
+        raise HTTPException(422, "Bölüm adı en az 2 karakter olmalıdır.")
+    existing = db.scalar(
+        select(WorkplaceDepartment).where(
+            WorkplaceDepartment.company_id == payload.company_id,
+            WorkplaceDepartment.name == name,
+        )
+    )
+    if existing:
+        if not existing.is_active:
+            existing.is_active = True
+            existing.description = payload.description or existing.description
+            db.commit()
+            db.refresh(existing)
+        return existing
+    dep = WorkplaceDepartment(
+        company_id=payload.company_id,
+        name=name,
+        description=payload.description,
+        is_active=True,
+    )
+    db.add(dep)
+    db.commit()
+    db.refresh(dep)
+    return dep
 
 
 @router.get("/hazards", response_model=list[HazardResponse])
@@ -137,8 +249,7 @@ def list_hazards(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if db.scalar(select(func.count()).select_from(Hazard)) == 0:
-        seed_hazard_library(db)
+    _ensure_library(db)
     stmt = select(Hazard).where(Hazard.is_active.is_(True)).order_by(Hazard.code)
     if category_id:
         stmt = stmt.where(Hazard.category_id == category_id)
@@ -250,7 +361,13 @@ def create_risk(
             raise HTTPException(422, "Şube firma ile uyumlu değil.")
     hazard = db.get(Hazard, payload.hazard_id)
     if not hazard or not hazard.is_active:
-        raise HTTPException(404, "Tehlike bulunamadı.")
+        raise HTTPException(404, "Tehlike bulunamadı. Tehlike kütüphanesinden seçim yapın.")
+    dep_id, dep_name = _resolve_department(
+        db,
+        company_id=payload.company_id,
+        department_id=payload.department_id,
+        department_name=payload.department_name,
+    )
     calc = evaluate(payload.probability, payload.severity, term_override_days=payload.term_override_days)
     code = _next_code(db, "RSK", RiskAssessment, RiskAssessment.risk_code)
     # uniqueness retry
@@ -260,8 +377,9 @@ def create_risk(
         risk_code=code,
         company_id=payload.company_id,
         branch_id=payload.branch_id,
+        department_id=dep_id,
         hazard_id=payload.hazard_id,
-        department_name=payload.department_name,
+        department_name=dep_name,
         activity=payload.activity,
         risk_definition=payload.risk_definition,
         affected_people=payload.affected_people,

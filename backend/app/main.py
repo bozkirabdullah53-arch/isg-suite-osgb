@@ -15,7 +15,27 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 @asynccontextmanager
 async def lifespan(_:FastAPI):
     Base.metadata.create_all(bind=engine)
-    with SessionLocal() as db: seed_admin(db)
+    # Mevcut DB'ye yeni kolon (create_all mevcut tabloyu değiştirmez)
+    try:
+        from sqlalchemy import inspect, text
+        insp = inspect(engine)
+        if "risk_assessments" in insp.get_table_names():
+            cols = {c["name"] for c in insp.get_columns("risk_assessments")}
+            if "department_id" not in cols:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE risk_assessments ADD COLUMN department_id INTEGER"))
+    except Exception:
+        pass
+    with SessionLocal() as db:
+        seed_admin(db)
+        try:
+            from sqlalchemy import func, select
+            from app.models.entities import HazardCategory
+            from app.services.hazard_seed import seed_hazard_library
+            if (db.scalar(select(func.count()).select_from(HazardCategory)) or 0) == 0:
+                seed_hazard_library(db)
+        except Exception:
+            pass
     yield
 app=FastAPI(title=settings.app_name,version='0.9.0',lifespan=lifespan)
 app.add_middleware(SecurityHeadersMiddleware)

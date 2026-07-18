@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Plus, Search, X} from 'lucide-react';
+import {BookOpen, Plus, Search, X} from 'lucide-react';
 import {api} from './api';
 
 const LEVEL_COLORS = {
@@ -10,10 +10,10 @@ const LEVEL_COLORS = {
   'Çok Yüksek': '#e74c3c',
 };
 
-function Modal({title, close, children}) {
+function Modal({title, close, children, wide}) {
   return (
     <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <section className="modal" style={{maxWidth: 960}}>
+      <section className="modal" style={{maxWidth: wide ? 1100 : 960}}>
         <header>
           <h3>{title}</h3>
           <button className="icon" type="button" onClick={close}><X /></button>
@@ -66,9 +66,12 @@ export function RiskPage({user}) {
   const empty = {
     company_id: user.company_id || '',
     branch_id: '',
+    department_id: '',
+    department_name: '',
+    new_department: '',
     category_id: '',
     hazard_id: '',
-    department_name: '',
+    hazard_q: '',
     activity: '',
     risk_definition: '',
     affected_people: '',
@@ -81,6 +84,7 @@ export function RiskPage({user}) {
 
   const [companies, setCompanies] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [categories, setCategories] = useState([]);
   const [hazards, setHazards] = useState([]);
   const [rows, setRows] = useState([]);
@@ -88,39 +92,62 @@ export function RiskPage({user}) {
   const [calc, setCalc] = useState(null);
   const [suggestions, setSuggestions] = useState(null);
   const [open, setOpen] = useState(false);
+  const [libOpen, setLibOpen] = useState(false);
   const [detail, setDetail] = useState(null);
   const [q, setQ] = useState('');
   const [levelFilter, setLevelFilter] = useState('');
   const [form, setForm] = useState(empty);
   const [err, setErr] = useState('');
+  const [libMsg, setLibMsg] = useState('');
   const [dofText, setDofText] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const load = () => {
+  const loadDepartments = async (companyId) => {
+    if (!companyId) { setDepartments([]); return; }
+    try {
+      const deps = await api(`/risks/departments?company_id=${companyId}`);
+      setDepartments(deps);
+    } catch (_) {
+      setDepartments([]);
+    }
+  };
+
+  const load = async () => {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (levelFilter) params.set('level', levelFilter);
     const qs = params.toString() ? `?${params}` : '';
-    return Promise.all([
+    const [c, b, cats, m, risks] = await Promise.all([
       api('/companies'),
       api('/branches'),
       api('/risks/categories'),
       api('/risks/meta'),
       api(`/risks${qs}`),
-    ]).then(([c, b, cats, m, risks]) => {
-      setCompanies(c);
-      setBranches(b);
-      setCategories(cats);
-      setMeta(m);
-      setRows(risks);
-    });
+    ]);
+    setCompanies(c);
+    setBranches(b);
+    setCategories(cats);
+    setMeta(m);
+    setRows(risks);
+    const cid = user.company_id || c[0]?.id;
+    if (cid) await loadDepartments(cid);
   };
 
   useEffect(() => { load().catch((e) => setErr(e.message)); }, []);
 
   useEffect(() => {
+    if (!form.company_id) { setDepartments([]); return; }
+    loadDepartments(form.company_id);
+  }, [form.company_id]);
+
+  useEffect(() => {
     if (!form.category_id) { setHazards([]); return; }
-    api(`/risks/hazards?category_id=${form.category_id}`).then(setHazards).catch(() => setHazards([]));
-  }, [form.category_id]);
+    const params = new URLSearchParams({category_id: String(form.category_id)});
+    if (form.hazard_q) params.set('q', form.hazard_q);
+    api(`/risks/hazards?${params}`)
+      .then(setHazards)
+      .catch(() => setHazards([]));
+  }, [form.category_id, form.hazard_q]);
 
   useEffect(() => {
     const p = Number(form.probability);
@@ -131,6 +158,21 @@ export function RiskPage({user}) {
       .catch(() => setCalc(null));
   }, [form.probability, form.severity]);
 
+  async function seedLibrary() {
+    setBusy(true);
+    setLibMsg('');
+    try {
+      const r = await api('/risks/seed-library', {method: 'POST'});
+      setLibMsg(`Kütüphane yüklendi: ${r.categories} kategori, ${r.hazards_total || r.hazards_created} tehlike`);
+      const cats = await api('/risks/categories');
+      setCategories(cats);
+    } catch (e) {
+      setLibMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onHazardPick(hazardId) {
     setForm((f) => ({...f, hazard_id: hazardId}));
     if (!hazardId) { setSuggestions(null); return; }
@@ -140,8 +182,9 @@ export function RiskPage({user}) {
       const h = d.hazard;
       setForm((f) => ({
         ...f,
-        hazard_id: hazardId,
-        risk_definition: f.risk_definition || h.description || h.name,
+        hazard_id: String(hazardId),
+        category_id: String(h.category_id),
+        risk_definition: h.description || h.name,
         probability: h.default_probability || f.probability,
         severity: h.default_severity || f.severity,
       }));
@@ -151,30 +194,56 @@ export function RiskPage({user}) {
   async function save(e) {
     e.preventDefault();
     setErr('');
+    if (!form.hazard_id) {
+      setErr('Tehlike kütüphanesinden bir tehlike seçmelisiniz.');
+      return;
+    }
+    const newDep = (form.new_department || '').trim();
+    const payload = {
+      company_id: Number(form.company_id),
+      branch_id: form.branch_id ? Number(form.branch_id) : null,
+      hazard_id: Number(form.hazard_id),
+      activity: form.activity,
+      risk_definition: form.risk_definition,
+      affected_people: form.affected_people || null,
+      affected_group: form.affected_group || null,
+      existing_measures: form.existing_measures || null,
+      additional_measures: form.additional_measures || null,
+      probability: Number(form.probability),
+      severity: Number(form.severity),
+    };
+    if (newDep) {
+      payload.department_name = newDep;
+      payload.department_id = null;
+    } else if (form.department_id) {
+      payload.department_id = Number(form.department_id);
+    }
     try {
-      await api('/risks', {
-        method: 'POST',
-        body: JSON.stringify({
-          company_id: Number(form.company_id),
-          branch_id: form.branch_id ? Number(form.branch_id) : null,
-          hazard_id: Number(form.hazard_id),
-          department_name: form.department_name || null,
-          activity: form.activity,
-          risk_definition: form.risk_definition,
-          affected_people: form.affected_people || null,
-          affected_group: form.affected_group || null,
-          existing_measures: form.existing_measures || null,
-          additional_measures: form.additional_measures || null,
-          probability: Number(form.probability),
-          severity: Number(form.severity),
-        }),
-      });
+      await api('/risks', {method: 'POST', body: JSON.stringify(payload)});
       setOpen(false);
       setForm(empty);
       setSuggestions(null);
       load();
     } catch (x) {
       setErr(x.message);
+    }
+  }
+
+  async function addDepartmentQuick() {
+    const name = (form.new_department || '').trim();
+    if (!name || !form.company_id) return;
+    setBusy(true);
+    try {
+      const dep = await api('/risks/departments', {
+        method: 'POST',
+        body: JSON.stringify({company_id: Number(form.company_id), name}),
+      });
+      await loadDepartments(form.company_id);
+      setForm((f) => ({...f, department_id: String(dep.id), new_department: '', department_name: dep.name}));
+    } catch (x) {
+      setErr(x.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -211,27 +280,46 @@ export function RiskPage({user}) {
     [branches, form.company_id],
   );
 
+  const selectedHazard = hazards.find((h) => String(h.id) === String(form.hazard_id));
+  const totalHazards = categories.reduce((s, c) => s + (c.hazard_count || 0), 0);
+
   return (
     <>
       <div className="page-title">
         <h3>Risk Analizi</h3>
-        {canEdit && (
-          <button type="button" onClick={() => { setForm({...empty, company_id: user.company_id || companies[0]?.id || ''}); setOpen(true); setErr(''); }}>
-            <Plus /> Yeni Risk
+        <div className="actions">
+          <button className="secondary" type="button" onClick={() => setLibOpen(true)}>
+            <BookOpen size={16} /> Tehlike Kütüphanesi ({categories.length} kategori)
           </button>
-        )}
+          {canEdit && (
+            <button type="button" onClick={() => {
+              setForm({...empty, company_id: user.company_id || companies[0]?.id || ''});
+              setOpen(true);
+              setErr('');
+            }}>
+              <Plus /> Yeni Risk
+            </button>
+          )}
+        </div>
       </div>
       <section className="panel">
+        <div style={{marginBottom: 12, padding: '10px 12px', background: '#eef5fb', borderRadius: 10, fontSize: 14}}>
+          Risk kaydı için <strong>tehlike kategorisi → tehlike</strong> seçimi zorunludur.
+          İşyeri bölümlerini listeden seçin veya <strong>yeni bölüm</strong> yazarak kaydedin.
+          {categories.length === 0 && (
+            <span> Kütüphane boş görünüyorsa “Tehlike Kütüphanesi”nden yükleyin.</span>
+          )}
+        </div>
         <div className="search" style={{marginBottom: 12}}>
           <Search size={19} />
           <input placeholder="Faaliyet, kod veya tanım ara..." value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && load()} />
           <select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} style={{minWidth: 160}}>
             <option value="">Tüm seviyeler</option>
-            {(meta?.statuses ? Object.keys(LEVEL_COLORS) : Object.keys(LEVEL_COLORS)).map((l) => (
+            {Object.keys(LEVEL_COLORS).map((l) => (
               <option key={l} value={l}>{l}</option>
             ))}
           </select>
-          <button className="secondary" type="button" onClick={load}>Ara</button>
+          <button className="secondary" type="button" onClick={() => load().catch((e) => setErr(e.message))}>Ara</button>
         </div>
         {err && <div className="error">{err}</div>}
         <div className="table-wrap">
@@ -239,6 +327,7 @@ export function RiskPage({user}) {
             <thead>
               <tr>
                 <th>Kod</th>
+                <th>Bölüm</th>
                 <th>Faaliyet</th>
                 <th>Tehlike</th>
                 <th>Seviye</th>
@@ -251,6 +340,7 @@ export function RiskPage({user}) {
               {rows.length ? rows.map((r) => (
                 <tr key={r.id}>
                   <td>{r.risk_code}</td>
+                  <td>{r.department_name || '—'}</td>
                   <td>{r.activity}</td>
                   <td>{r.hazard_code ? `${r.hazard_code} — ${r.hazard_name}` : r.hazard_id}</td>
                   <td><LevelBadge level={r.risk_level} score={r.risk_score} /></td>
@@ -264,17 +354,98 @@ export function RiskPage({user}) {
                   </td>
                 </tr>
               )) : (
-                <tr><td colSpan={7} className="empty">Risk kaydı yok. Tehlike kütüphanesinden yeni kayıt ekleyin.</td></tr>
+                <tr><td colSpan={8} className="empty">Risk kaydı yok. Tehlike kütüphanesinden seçerek yeni kayıt ekleyin.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </section>
 
+      {libOpen && (
+        <Modal title={`Tehlike Kütüphanesi — ${categories.length} kategori / ~${totalHazards} tehlike`} close={() => setLibOpen(false)} wide>
+          <div style={{display: 'grid', gap: 12}}>
+            <div style={{display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center'}}>
+              {canEdit && (
+                <button type="button" disabled={busy} onClick={seedLibrary}>
+                  {busy ? 'Yükleniyor…' : 'Kütüphaneyi Yenile / Yükle (552 tehlike)'}
+                </button>
+              )}
+              {libMsg && <span style={{fontSize: 13, color: '#087b67'}}>{libMsg}</span>}
+            </div>
+            <p style={{margin: 0, fontSize: 14, color: '#52677a'}}>
+              Kategoriye tıklayınca o kategorinin tehlikeleri listelenir. Bir tehlikeye tıklayınca yeni risk formuna aktarılır.
+            </p>
+            <div style={{display: 'grid', gridTemplateColumns: '280px 1fr', gap: 12, minHeight: 360}}>
+              <div style={{border: '1px solid #dbe4ee', borderRadius: 10, overflow: 'auto', maxHeight: 420}}>
+                {categories.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={String(form.category_id) === String(c.id) ? 'active' : ''}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px',
+                      border: 'none', borderBottom: '1px solid #eef2f6', background: String(form.category_id) === String(c.id) ? '#e8f1fb' : 'transparent', cursor: 'pointer',
+                    }}
+                    onClick={() => setForm((f) => ({...f, category_id: String(c.id), hazard_id: '', hazard_q: ''}))}
+                  >
+                    <strong style={{fontSize: 13}}>{c.name}</strong>
+                    <div style={{fontSize: 12, color: '#64748b'}}>{c.hazard_count || 0} tehlike</div>
+                  </button>
+                ))}
+                {!categories.length && <div className="empty" style={{padding: 16}}>Kategori yok — yükleyin.</div>}
+              </div>
+              <div>
+                <div className="search" style={{marginBottom: 8}}>
+                  <Search size={16} />
+                  <input
+                    placeholder="Kod veya tehlike adı ara (ör. FZK-001, gürültü)..."
+                    value={form.hazard_q}
+                    onChange={(e) => setForm({...form, hazard_q: e.target.value})}
+                    disabled={!form.category_id}
+                  />
+                </div>
+                <div className="table-wrap" style={{maxHeight: 360, overflow: 'auto'}}>
+                  <table>
+                    <thead>
+                      <tr><th>Kod</th><th>Tehlike</th><th>Varsayılan P/Ş</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      {hazards.length ? hazards.map((h) => (
+                        <tr key={h.id}>
+                          <td>{h.code}</td>
+                          <td>
+                            <strong>{h.name}</strong>
+                            <div style={{fontSize: 12, color: '#64748b'}}>{h.description?.slice(0, 120)}</div>
+                          </td>
+                          <td>{h.default_probability || '—'} / {h.default_severity || '—'}</td>
+                          <td>
+                            {canEdit && (
+                              <button className="mini" type="button" onClick={() => {
+                                onHazardPick(h.id);
+                                setLibOpen(false);
+                                setOpen(true);
+                              }}>
+                                Seç
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )) : (
+                        <tr><td colSpan={4} className="empty">{form.category_id ? 'Tehlike bulunamadı' : 'Soldan kategori seçin'}</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {open && (
-        <Modal title="Yeni Risk Değerlendirmesi" close={() => setOpen(false)}>
+        <Modal title="Yeni Risk Değerlendirmesi" close={() => setOpen(false)} wide>
           <form className="form-grid" onSubmit={save}>
-            <Select label="Firma" required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value, branch_id: ''})}>
+            <Select label="Firma / İşyeri" required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value, branch_id: '', department_id: '', new_department: ''})}>
               <option value="">Seçiniz</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
@@ -282,15 +453,62 @@ export function RiskPage({user}) {
               <option value="">Şube seçilmedi</option>
               {companyBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </Select>
-            <Field label="Bölüm / Departman" value={form.department_name} onChange={(e) => setForm({...form, department_name: e.target.value})} />
-            <Select label="Tehlike kategorisi" required value={form.category_id} onChange={(e) => setForm({...form, category_id: e.target.value, hazard_id: ''})}>
-              <option value="">Seçiniz</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+
+            <Select
+              label="İşyeri / Fabrika Bölümü"
+              value={form.department_id}
+              onChange={(e) => setForm({...form, department_id: e.target.value, new_department: ''})}
+            >
+              <option value="">Bölüm seçiniz</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
             </Select>
-            <Select label="Tehlike" required value={form.hazard_id} onChange={(e) => onHazardPick(e.target.value)}>
-              <option value="">Seçiniz</option>
+            <div className="field">
+              <span>Yeni bölüm (listede yoksa)</span>
+              <div style={{display: 'flex', gap: 8}}>
+                <input
+                  placeholder="Örn: Üretim, Bakım, Boyahane..."
+                  value={form.new_department}
+                  onChange={(e) => setForm({...form, new_department: e.target.value, department_id: ''})}
+                />
+                <button type="button" className="secondary" disabled={busy || !form.new_department.trim()} onClick={addDepartmentQuick}>
+                  Kaydet
+                </button>
+              </div>
+              <small style={{color: '#64748b'}}>Yeni adı yazıp Kaydet veya doğrudan risk kaydederken otomatik oluşturulur.</small>
+            </div>
+
+            <div className="field" style={{gridColumn: '1 / -1'}}>
+              <span>Tehlike kütüphanesi seçimi (zorunlu)</span>
+              <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6}}>
+                <button type="button" className="secondary" onClick={() => setLibOpen(true)}>
+                  <BookOpen size={16} /> Kütüphaneden Seç
+                </button>
+                {selectedHazard && (
+                  <span style={{alignSelf: 'center', fontSize: 14}}>
+                    Seçili: <strong>{selectedHazard.code} — {selectedHazard.name}</strong>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <Select label="Tehlike kategorisi" required value={form.category_id} onChange={(e) => setForm({...form, category_id: e.target.value, hazard_id: '', hazard_q: ''})}>
+              <option value="">Seçiniz ({categories.length} kategori)</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name} ({c.hazard_count || 0})</option>
+              ))}
+            </Select>
+            <Field
+              label="Tehlike ara"
+              placeholder="FZK-001 veya gürültü..."
+              value={form.hazard_q}
+              onChange={(e) => setForm({...form, hazard_q: e.target.value})}
+              disabled={!form.category_id}
+            />
+            <Select label="Tehlike" required value={form.hazard_id} onChange={(e) => onHazardPick(e.target.value)} style={{gridColumn: '1 / -1'}}>
+              <option value="">Kütüphaneden seçiniz ({hazards.length})</option>
               {hazards.map((h) => <option key={h.id} value={h.id}>{h.code} — {h.name}</option>)}
             </Select>
+
             <Field label="Faaliyet" required value={form.activity} onChange={(e) => setForm({...form, activity: e.target.value})} />
             <TextArea label="Risk tanımı" required value={form.risk_definition} onChange={(e) => setForm({...form, risk_definition: e.target.value})} />
             <Field label="Etkilenen kişiler" value={form.affected_people} onChange={(e) => setForm({...form, affected_people: e.target.value})} />
@@ -338,6 +556,7 @@ export function RiskPage({user}) {
       {detail && (
         <Modal title={`${detail.risk_code} — Detay`} close={() => setDetail(null)}>
           <div className="form-grid">
+            <div className="field"><span>Bölüm</span><strong>{detail.department_name || '—'}</strong></div>
             <div className="field"><span>Faaliyet</span><strong>{detail.activity}</strong></div>
             <div className="field"><span>Tehlike</span><strong>{detail.hazard_code} — {detail.hazard_name}</strong></div>
             <div className="field"><span>Seviye</span><LevelBadge level={detail.risk_level} score={detail.risk_score} /></div>

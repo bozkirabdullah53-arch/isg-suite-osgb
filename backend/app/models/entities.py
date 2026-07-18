@@ -463,6 +463,19 @@ class Hazard(Base):
     category: Mapped[HazardCategory] = relationship(back_populates="hazards")
 
 
+class WorkplaceDepartment(Base):
+    """İşyeri / fabrika bölümü (Üretim, Depo, Bakım vb.)."""
+
+    __tablename__ = "workplace_departments"
+    __table_args__ = (UniqueConstraint("company_id", "name", name="uq_workplace_department_company_name"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200), index=True)
+    description: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class RiskAssessmentStatus(str, enum.Enum):
     OPEN = "Açık"
     COMPLETED = "Tamamlandı"
@@ -478,6 +491,7 @@ class RiskAssessment(Base):
     risk_code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
     branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id"), nullable=True, index=True)
+    department_id: Mapped[int | None] = mapped_column(ForeignKey("workplace_departments.id"), nullable=True, index=True)
     hazard_id: Mapped[int] = mapped_column(ForeignKey("hazards.id"), index=True)
     department_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     activity: Mapped[str] = mapped_column(String(500))

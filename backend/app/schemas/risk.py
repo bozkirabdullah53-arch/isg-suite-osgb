@@ -11,8 +11,9 @@ class RiskCalculateRequest(BaseModel):
 class RiskCreate(BaseModel):
     company_id: int
     branch_id: int | None = None
-    hazard_id: int
+    department_id: int | None = None
     department_name: str | None = Field(default=None, max_length=200)
+    hazard_id: int
     activity: str = Field(min_length=2, max_length=500)
     risk_definition: str = Field(min_length=3, max_length=2000)
     affected_people: str | None = Field(default=None, max_length=500)
@@ -27,8 +28,9 @@ class RiskCreate(BaseModel):
 
 class RiskUpdate(BaseModel):
     branch_id: int | None = None
-    hazard_id: int | None = None
+    department_id: int | None = None
     department_name: str | None = Field(default=None, max_length=200)
+    hazard_id: int | None = None
     activity: str | None = Field(default=None, min_length=2, max_length=500)
     risk_definition: str | None = Field(default=None, min_length=3, max_length=2000)
     affected_people: str | None = Field(default=None, max_length=500)
@@ -72,6 +74,7 @@ class RiskResponse(BaseModel):
     risk_code: str
     company_id: int
     branch_id: int | None
+    department_id: int | None = None
     hazard_id: int
     hazard_code: str | None = None
     hazard_name: str | None = None
@@ -105,6 +108,7 @@ class HazardCategoryResponse(BaseModel):
     name: str
     icon: str | None
     sort_order: int
+    hazard_count: int = 0
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -119,4 +123,20 @@ class HazardResponse(BaseModel):
     default_severity: int | None
     regulations: list[str] = []
     is_active: bool
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DepartmentCreate(BaseModel):
+    company_id: int
+    name: str = Field(min_length=2, max_length=200)
+    description: str | None = Field(default=None, max_length=500)
+
+
+class DepartmentResponse(BaseModel):
+    id: int
+    company_id: int
+    name: str
+    description: str | None
+    is_active: bool
+    created_at: datetime
     model_config = ConfigDict(from_attributes=True)
