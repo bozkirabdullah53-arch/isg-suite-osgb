@@ -28,6 +28,7 @@ _DEFAULT_STAMP = "İSG Suite OSGB · 6331 kapsamında düzenlenmiştir"
 
 
 def _register_fonts() -> None:
+    """Türkçe glyph için TTF zorunlu. Helvetica'ya sessiz düşülmez."""
     global _FONT, _FONT_B
     candidates = [
         (_ASSETS / "DejaVuSans.ttf", _ASSETS / "DejaVuSans-Bold.ttf"),
@@ -37,18 +38,51 @@ def _register_fonts() -> None:
         (Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
          Path("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf")),
     ]
+    last_err: Exception | None = None
     for regular, bold in candidates:
-        if regular.exists():
+        if not regular.exists():
+            continue
+        try:
+            pdfmetrics.registerFont(TTFont("IsgSans", str(regular)))
+            pdfmetrics.registerFont(TTFont("IsgSans-Bold", str(bold if bold.exists() else regular)))
             try:
-                pdfmetrics.registerFont(TTFont("IsgSans", str(regular)))
-                pdfmetrics.registerFont(TTFont("IsgSans-Bold", str(bold if bold.exists() else regular)))
-                _FONT, _FONT_B = "IsgSans", "IsgSans-Bold"
+                from reportlab.pdfbase.pdfmetrics import registerFontFamily
+
+                registerFontFamily(
+                    "IsgSans",
+                    normal="IsgSans",
+                    bold="IsgSans-Bold",
+                    italic="IsgSans",
+                    boldItalic="IsgSans-Bold",
+                )
             except Exception:
-                continue
+                pass
+            _FONT, _FONT_B = "IsgSans", "IsgSans-Bold"
+            # Smoke: Türkçe glyph genişliği 0 olmamalı
+            from reportlab.pdfbase.pdfmetrics import stringWidth
+
+            if stringWidth("ğüşıİÖÇ", _FONT, 10) < 1:
+                raise RuntimeError("Font Türkçe glyph taşımıyor.")
             return
+        except Exception as exc:
+            last_err = exc
+            continue
+    raise RuntimeError(
+        "Eğitim PDF için Unicode font bulunamadı (DejaVu/Arial). "
+        f"Son hata: {last_err}"
+    )
 
 
-_register_fonts()
+try:
+    _register_fonts()
+except Exception:
+    # Import-time: API ayakta kalsın; PDF üretiminde tekrar dene
+    pass
+
+
+def _ensure_fonts() -> None:
+    if _FONT in ("Helvetica", "Helvetica-Bold") or not _FONT:
+        _register_fonts()
 
 
 def _fit(c: canvas.Canvas, text: str, width: float, font: str, size: float) -> str:
@@ -144,6 +178,7 @@ def _signers(training) -> tuple[tuple[str, str, str], ...]:
 
 def build_attendance_pdf(*, company_name: str, training, employees: dict) -> bytes:
     """Katılımcı imza / yoklama formu (İSG-EĞT-KF-01)."""
+    _ensure_fonts()
     participants = list(training.participants or [])
     if not participants:
         raise ValueError("İmza listesi için en az bir katılımcı gerekli. Eğitim kaydına personel ekleyin.")
@@ -348,6 +383,7 @@ def _draw_attendance_page(
 
 def build_certificates_pdf(*, company_name: str, training, employees: dict) -> bytes:
     """Kişi başı katılım belgesi — eğitim konuları zorunlu (Çalışma Bakanlığı)."""
+    _ensure_fonts()
     participants = list(training.participants or [])
     if not participants:
         raise ValueError("Katılım belgesi için en az bir katılımcı gerekli. Eğitim kaydına personel ekleyin.")
@@ -388,23 +424,20 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
     uw = w - ml - mr
 
     c.setStrokeColorRGB(0.05, 0.43, 0.99)
-    c.setLineWidth(1.5)
+    c.setLineWidth(1.4)
     c.rect(5 * mm, 5 * mm, w - 10 * mm, h - 10 * mm)
-    c.setLineWidth(0.6)
-    c.setStrokeColorRGB(0.78, 0.84, 0.94)
-    c.rect(7 * mm, 7 * mm, w - 14 * mm, h - 14 * mm)
 
     c.setFillColorRGB(0.05, 0.43, 0.99)
-    c.rect(5 * mm, h - 28 * mm, w - 10 * mm, 23 * mm, fill=1, stroke=0)
+    c.rect(5 * mm, h - 26 * mm, w - 10 * mm, 21 * mm, fill=1, stroke=0)
     if _resolve_logo(training):
         c.setFillColorRGB(1, 1, 1)
-        c.roundRect(ml - 1 * mm, h - 26.5 * mm, 28 * mm, 17 * mm, 2 * mm, fill=1, stroke=0)
-        _draw_logo(c, training, x=ml, y=h - 26 * mm, max_w=26 * mm, max_h=16 * mm)
+        c.roundRect(ml - 1 * mm, h - 24.5 * mm, 26 * mm, 15 * mm, 2 * mm, fill=1, stroke=0)
+        _draw_logo(c, training, x=ml, y=h - 24 * mm, max_w=24 * mm, max_h=14 * mm)
     c.setFillColorRGB(1, 1, 1)
     c.setFont(_FONT_B, 11)
-    c.drawCentredString(w / 2, h - 14 * mm, "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ")
+    c.drawCentredString(w / 2, h - 13 * mm, "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ")
     c.setFont(_FONT_B, 9)
-    c.drawCentredString(w / 2, h - 20 * mm, company_name or "")
+    c.drawCentredString(w / 2, h - 19 * mm, company_name or "")
 
     c.setFillColorRGB(0.4, 0.4, 0.4)
     c.setFont(_FONT, 7)
@@ -497,18 +530,18 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
     def draw_col(items, x, start_y, lh):
         yy = start_y
         for is_h, text in items:
-            if yy < 12 * mm:
+            if yy < 14 * mm:
                 break
-            c.setFillColorRGB(0, 0, 0) if is_h else c.setFillColorRGB(0.25, 0.25, 0.25)
+            c.setFillColorRGB(0.05, 0.2, 0.45) if is_h else c.setFillColorRGB(0.15, 0.15, 0.15)
             font = _FONT_B if is_h else _FONT
-            size = 7.2 if is_h else 6.5
+            size = 6.8 if is_h else 6.2
             c.setFont(font, size)
             c.drawString(x, yy, _fit(c, text, cw - 2 * mm, font, size))
             yy -= lh
         return yy
 
-    draw_col(sol, ml + 1 * mm, top, 3.8 * mm)
-    draw_col(sag, ml + cw + 7 * mm, top, 4.0 * mm)
+    draw_col(sol, ml + 1 * mm, top, 3.5 * mm)
+    draw_col(sag, ml + cw + 7 * mm, top, 3.5 * mm)
 
     c.setStrokeColorRGB(0.78, 0.84, 0.94)
     c.line(ml + 30 * mm, 9 * mm, w - mr - 30 * mm, 9 * mm)

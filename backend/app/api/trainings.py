@@ -408,6 +408,8 @@ def attendance_pdf(
         )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(500, str(exc)) from exc
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
@@ -435,6 +437,8 @@ def certificates_pdf(
         )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(500, str(exc)) from exc
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",

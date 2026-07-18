@@ -12,12 +12,12 @@ const STATUS = {planned: 'Planlandı', completed: 'Tamamlandı', cancelled: 'İp
 function Modal({title, close, children, wide}) {
   return (
     <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <section className="modal" style={{maxWidth: wide ? 1100 : 920}}>
+      <section className={'modal' + (wide ? ' wide' : '')}>
         <header>
           <h3>{title}</h3>
           <button className="icon" type="button" onClick={close}><X /></button>
         </header>
-        {children}
+        <div className="modal-body">{children}</div>
       </section>
     </div>
   );
@@ -391,7 +391,7 @@ export function TrainingPage({user}) {
       render: (r) => (
         <div className="actions" style={{flexWrap: 'wrap'}}>
           <button className="mini" type="button" onClick={() => openDetail(r)}>
-            Katılımcılar & Belgeler
+            Belgeler
           </button>
           {canEdit && r.status !== 'completed' && (
             <button className="mini" type="button" onClick={() => complete(r.id)}>Tamamla</button>
@@ -411,13 +411,183 @@ export function TrainingPage({user}) {
           </button>
         )}
       </div>
+      {detail ? (
+        <section className="panel doc-workspace">
+          <div className="doc-head">
+            <div>
+              <h3>{detail.title} — Belge Üretim Merkezi</h3>
+              <p style={{margin: '6px 0 0', color: '#64748b', fontSize: 14}}>
+                Uygulama içinde kalın · PRO uyumlu imza formu + katılım belgesi (konular dahil)
+              </p>
+            </div>
+            <button type="button" className="secondary" onClick={() => setDetail(null)}>Listeye dön</button>
+          </div>
+
+          <div style={{display: 'grid', gap: 14}}>
+            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, fontSize: 14}}>
+              <div><span style={{color: '#64748b'}}>Firma</span><div><strong>{companyName(detail.company_id)}</strong></div></div>
+              <div><span style={{color: '#64748b'}}>Tarih</span><div><strong>{detail.start_date}</strong></div></div>
+              <div><span style={{color: '#64748b'}}>Tehlike / Süre</span><div><strong>{detail.hazard_class} · {detail.duration_hours} saat</strong></div></div>
+              <div><span style={{color: '#64748b'}}>Eğitici</span><div><strong>{detail.instructor_name}</strong></div></div>
+              <div><span style={{color: '#64748b'}}>Sektör</span><div><strong>{sectorLabel(sectors, detail.sector)}</strong></div></div>
+              <div><span style={{color: '#64748b'}}>Doğrulama</span><div><strong>{detail.verification_code || '—'}</strong></div></div>
+            </div>
+
+            <div>
+              <strong style={{fontSize: 14}}>Belgede basılacak konular (4. bölüm — sektöre özgü)</strong>
+              <div className="doc-topics">
+                <div style={{marginBottom: 6, color: '#52677a'}}>
+                  1. Genel · 2. Teknik · 3. Sağlık (sabit) + aşağıdaki işyerine özgü konular
+                </div>
+                {(sectors.find((s) => s.code === detail.sector)?.topics || []).length
+                  ? (sectors.find((s) => s.code === detail.sector).topics).map((t, i) => (
+                    <div key={i}>• {t}</div>
+                  ))
+                  : <div>Sektör konuları yüklenemedi. Yeni eğitimde sektör seçimini kontrol edin.</div>}
+              </div>
+            </div>
+
+            {canEdit && (
+              <div style={{padding: 12, background: '#f8fafc', borderRadius: 10, display: 'grid', gap: 10}}>
+                <strong style={{fontSize: 14}}>Belge imza / kaşe alanları</strong>
+                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
+                  <Field label="İşyeri Hekimi" value={docForm.workplace_physician} onChange={(e) => setDocForm({...docForm, workplace_physician: e.target.value})} />
+                  <Field label="İşveren / Vekili" value={docForm.employer_representative} onChange={(e) => setDocForm({...docForm, employer_representative: e.target.value})} />
+                </div>
+                <label className="field">
+                  <span>OSGB kaşe metni</span>
+                  <input value={docForm.stamp_text} onChange={(e) => setDocForm({...docForm, stamp_text: e.target.value})} />
+                </label>
+                <div style={{display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center'}}>
+                  <button type="button" className="secondary" disabled={busy} onClick={saveDocFields}>
+                    {busy ? 'Kaydediliyor…' : 'İmza alanlarını kaydet'}
+                  </button>
+                  <label className="button secondary" style={{display: 'inline-flex'}}>
+                    <Upload size={16} /> {detail.logo_path ? 'Logoyu değiştir' : 'Logo yükle (PNG/JPG)'}
+                    <input type="file" accept=".png,.jpg,.jpeg,.webp" hidden onChange={onLogo} disabled={busy} />
+                  </label>
+                  <label className="button secondary" style={{display: 'inline-flex'}}>
+                    <Upload size={16} /> Excel ile katılımcı ekle
+                    <input
+                      type="file"
+                      accept=".xlsx,.xlsm"
+                      hidden
+                      disabled={busy}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!file) return;
+                        setBusy(true);
+                        try {
+                          await uploadFile(`/trainings/${detail.id}/upload-participants?create_missing=true`, file);
+                          setEmployees(await api('/employees'));
+                          const refreshed = await api('/trainings');
+                          setRows(refreshed);
+                          const row = refreshed.find((x) => x.id === detail.id);
+                          if (row) openDetail(row);
+                        } catch (x) {
+                          alert('Katılımcı yüklenemedi:\n' + x.message);
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    />
+                  </label>
+                  {detail.logo_path && <span style={{fontSize: 12, color: '#087b67'}}>Logo kayıtlı</span>}
+                </div>
+              </div>
+            )}
+
+            {detail.verification_code && (
+              <div style={{padding: 12, background: '#eef5fb', borderRadius: 10, fontSize: 13, lineHeight: 1.55}}>
+                <strong>Doğrulama linki (paylaşılabilir):</strong>{' '}
+                <code style={{userSelect: 'all'}}>{verifyUrl(detail.verification_code)}</code>
+                <div style={{marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                  <button type="button" className="secondary" onClick={() => navigator.clipboard?.writeText(verifyUrl(detail.verification_code))}>
+                    Linki kopyala
+                  </button>
+                  <button type="button" className="secondary" disabled={busy} onClick={checkVerify}>
+                    Doğrulamayı test et
+                  </button>
+                </div>
+                {verifyPreview && (
+                  <div style={{marginTop: 10, padding: 10, background: '#fff', borderRadius: 8}}>
+                    {verifyPreview.valid ? (
+                      <>
+                        <div style={{color: '#087b67', fontWeight: 600}}>✓ {verifyPreview.message}</div>
+                        <div>{verifyPreview.company_name} · {verifyPreview.title}</div>
+                        <div>{verifyPreview.participant_count} katılımcı · {verifyPreview.start_date}</div>
+                      </>
+                    ) : (
+                      <div className="error">{verifyPreview.message || 'Doğrulanamadı'}</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!(detail.participants?.length) && (
+              <div className="error">
+                Katılımcı yok. Yukarıdan Excel yükleyin veya yeni eğitim oluştururken personel seçin.
+              </div>
+            )}
+
+            <div style={{display: 'flex', gap: 10, flexWrap: 'wrap'}}>
+              <button
+                type="button"
+                disabled={!detail.participants?.length || !!dlBusy}
+                onClick={() => downloadAttendance(detail.id)}
+              >
+                <Download size={16} /> {dlBusy === 'attendance-' + detail.id ? 'İndiriliyor…' : 'İmza / Yoklama Formu PDF'}
+              </button>
+              <button
+                type="button"
+                disabled={!detail.participants?.length || !!dlBusy}
+                onClick={() => downloadCertificates(detail.id)}
+              >
+                <Download size={16} /> {dlBusy === 'certs-' + detail.id ? 'İndiriliyor…' : 'Katılım Belgesi PDF (konular dahil)'}
+              </button>
+            </div>
+
+            <div>
+              <h4 style={{margin: '4px 0 8px'}}>Katılımcı listesi ({detail.participants?.length || 0})</h4>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Sıra</th>
+                      <th>Ad Soyad</th>
+                      <th>T.C.</th>
+                      <th>Görev</th>
+                      <th>Bölüm</th>
+                      <th>Belge No</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {participantRows(detail).length ? participantRows(detail).map((p) => (
+                      <tr key={p.sira}>
+                        <td>{p.sira}</td>
+                        <td>{p.name}</td>
+                        <td>{p.tc}</td>
+                        <td>{p.job}</td>
+                        <td>{p.dept}</td>
+                        <td>{p.cert}</td>
+                      </tr>
+                    )) : (
+                      <tr><td colSpan={6} className="empty">Katılımcı yok</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : (
       <section className="panel">
         <div style={{marginBottom: 14, padding: '12px 14px', background: '#eef5fb', borderRadius: 10, fontSize: 14, lineHeight: 1.55, color: '#243447'}}>
           <strong>Bakanlık denetimi için zorunlu belgeler:</strong>{' '}
-          her eğitimde önce katılımcı ekleyin, sonra satırdan{' '}
-          <strong>Katılımcılar & Belgeler</strong> açın →{' '}
-          <strong>İmza / Yoklama Formu PDF</strong> ve <strong>Katılım Belgesi PDF</strong> indirin.
-          Katılım belgesinde eğitim konuları basılır.
+          satırdan <strong>Belgeler</strong> açın → imza formu ve katılım belgesi PDF indirin.
+          Belge ekranı uygulama içinde açılır; konular orada görünür.
         </div>
         <div className="search">
           <Search size={19} />
@@ -449,127 +619,6 @@ export function TrainingPage({user}) {
           </table>
         </div>
       </section>
-
-      {detail && (
-        <Modal title={`${detail.title} — Katılımcılar ve Belgeler`} close={() => setDetail(null)} wide>
-          <div style={{display: 'grid', gap: 14}}>
-            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 14}}>
-              <div><span style={{color: '#64748b'}}>Firma</span><div><strong>{companyName(detail.company_id)}</strong></div></div>
-              <div><span style={{color: '#64748b'}}>Tarih</span><div><strong>{detail.start_date}</strong></div></div>
-              <div><span style={{color: '#64748b'}}>Tehlike / Süre</span><div><strong>{detail.hazard_class} · {detail.duration_hours} saat</strong></div></div>
-              <div><span style={{color: '#64748b'}}>Eğitici</span><div><strong>{detail.instructor_name}</strong></div></div>
-              <div><span style={{color: '#64748b'}}>Doğrulama kodu</span><div><strong>{detail.verification_code || '—'}</strong></div></div>
-              <div><span style={{color: '#64748b'}}>Katılımcı sayısı</span><div><strong>{detail.participants?.length || 0}</strong></div></div>
-            </div>
-
-            {canEdit && (
-              <div style={{padding: 12, background: '#f8fafc', borderRadius: 10, display: 'grid', gap: 10}}>
-                <strong style={{fontSize: 14}}>Belge imza / kaşe alanları</strong>
-                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
-                  <Field label="İşyeri Hekimi" value={docForm.workplace_physician} onChange={(e) => setDocForm({...docForm, workplace_physician: e.target.value})} />
-                  <Field label="İşveren / Vekili" value={docForm.employer_representative} onChange={(e) => setDocForm({...docForm, employer_representative: e.target.value})} />
-                </div>
-                <label className="field">
-                  <span>OSGB kaşe metni</span>
-                  <input value={docForm.stamp_text} onChange={(e) => setDocForm({...docForm, stamp_text: e.target.value})} />
-                </label>
-                <div style={{display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center'}}>
-                  <button type="button" className="secondary" disabled={busy} onClick={saveDocFields}>
-                    {busy ? 'Kaydediliyor…' : 'İmza alanlarını kaydet'}
-                  </button>
-                  <label className="button secondary" style={{display: 'inline-flex'}}>
-                    <Upload size={16} /> {detail.logo_path ? 'Logoyu değiştir' : 'Logo yükle (PNG/JPG)'}
-                    <input type="file" accept=".png,.jpg,.jpeg,.webp" hidden onChange={onLogo} disabled={busy} />
-                  </label>
-                  {detail.logo_path && <span style={{fontSize: 12, color: '#087b67'}}>Logo kayıtlı — PDF’e basılır</span>}
-                </div>
-              </div>
-            )}
-
-            {detail.verification_code && (
-              <div style={{padding: 12, background: '#eef5fb', borderRadius: 10, fontSize: 13, lineHeight: 1.55}}>
-                <strong>Kamuya açık doğrulama:</strong>{' '}
-                <code style={{userSelect: 'all'}}>{verifyUrl(detail.verification_code)}</code>
-                <div style={{marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-                  <button type="button" className="secondary" onClick={() => navigator.clipboard?.writeText(verifyUrl(detail.verification_code))}>
-                    Linki kopyala
-                  </button>
-                  <button type="button" className="secondary" disabled={busy} onClick={checkVerify}>
-                    Doğrulamayı test et
-                  </button>
-                </div>
-                {verifyPreview && (
-                  <div style={{marginTop: 10, padding: 10, background: '#fff', borderRadius: 8}}>
-                    {verifyPreview.valid ? (
-                      <>
-                        <div style={{color: '#087b67', fontWeight: 600}}>✓ {verifyPreview.message}</div>
-                        <div>{verifyPreview.company_name} · {verifyPreview.title}</div>
-                        <div>{verifyPreview.participant_count} katılımcı · {verifyPreview.start_date}</div>
-                      </>
-                    ) : (
-                      <div className="error">{verifyPreview.message || 'Doğrulanamadı'}</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!(detail.participants?.length) && (
-              <div className="error">
-                Bu eğitimde katılımcı yok. Belge üretilemez. Yeni eğitim oluştururken Excel veya personel listesinden katılımcı seçin.
-              </div>
-            )}
-
-            <div style={{display: 'flex', gap: 10, flexWrap: 'wrap'}}>
-              <button
-                type="button"
-                disabled={!detail.participants?.length || !!dlBusy}
-                onClick={() => downloadAttendance(detail.id)}
-              >
-                <Download size={16} /> {dlBusy === 'attendance-' + detail.id ? 'İndiriliyor…' : 'İmza / Yoklama Formu PDF'}
-              </button>
-              <button
-                type="button"
-                disabled={!detail.participants?.length || !!dlBusy}
-                onClick={() => downloadCertificates(detail.id)}
-              >
-                <Download size={16} /> {dlBusy === 'certs-' + detail.id ? 'İndiriliyor…' : 'Katılım Belgesi PDF (konular dahil)'}
-              </button>
-            </div>
-
-            <div>
-              <h4 style={{margin: '4px 0 8px'}}>Katılımcı listesi</h4>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Sıra</th>
-                      <th>Ad Soyad</th>
-                      <th>T.C.</th>
-                      <th>Görev</th>
-                      <th>Bölüm</th>
-                      <th>Belge No</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {participantRows(detail).length ? participantRows(detail).map((p) => (
-                      <tr key={p.sira}>
-                        <td>{p.sira}</td>
-                        <td>{p.name}</td>
-                        <td>{p.tc}</td>
-                        <td>{p.job}</td>
-                        <td>{p.dept}</td>
-                        <td>{p.cert}</td>
-                      </tr>
-                    )) : (
-                      <tr><td colSpan={6} className="empty">Katılımcı yok</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </Modal>
       )}
 
       {open && (
