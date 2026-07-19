@@ -23,7 +23,78 @@ function Modal({title,close,children}){return <div className="modal-bg" onMouseD
 function Field({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
 function Table({cols,rows,empty='Kayıt bulunamadı.'}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
-function Companies({canEdit}){const[data,setData]=useState([]),[open,setOpen]=useState(false),[q,setQ]=useState(''),[form,setForm]=useState({name:'',tax_number:'',nace_code:'',hazard_class:'Az Tehlikeli'});const load=()=>api('/companies'+(q?`?q=${encodeURIComponent(q)}`:'')).then(setData);useEffect(()=>{void load()},[]);async function save(e){e.preventDefault();await api('/companies',{method:'POST',body:JSON.stringify(form)});setOpen(false);setForm({name:'',tax_number:'',nace_code:'',hazard_class:'Az Tehlikeli'});load()}return <Page title="Firma Yönetimi" action={canEdit&&<button onClick={()=>setOpen(true)}><Plus/>Firma Ekle</button>}><SearchBar q={q} setQ={setQ} go={load}/><Table cols={[{key:'name',label:'Firma'},{key:'tax_number',label:'Vergi No'},{key:'nace_code',label:'NACE'},{key:'hazard_class',label:'Tehlike Sınıfı'},{key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>}]} rows={data}/>{open&&<Modal title="Yeni Firma" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Field label="Firma Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/><Field label="Vergi No" value={form.tax_number} onChange={e=>setForm({...form,tax_number:e.target.value})}/><Field label="NACE Kodu" value={form.nace_code} onChange={e=>setForm({...form,nace_code:e.target.value})}/><Select label="Tehlike Sınıfı" value={form.hazard_class} onChange={e=>setForm({...form,hazard_class:e.target.value})}><option>Az Tehlikeli</option><option>Tehlikeli</option><option>Çok Tehlikeli</option></Select><Submit/></form></Modal>}</Page>}
+function Companies({canEdit}){
+  const[data,setData]=useState([]);
+  const[open,setOpen]=useState(false);
+  const[q,setQ]=useState('');
+  const[busy,setBusy]=useState(false);
+  const[err,setErr]=useState('');
+  const[form,setForm]=useState({name:'',tax_number:'',nace_code:'',hazard_class:'Az Tehlikeli'});
+  const load=()=>{
+    setErr('');
+    const p=new URLSearchParams();
+    if(q) p.set('q',q);
+    // Global yönetici aktif+pasif görsün (backend: active=None)
+    return api('/companies'+(p.toString()?`?${p}`:'')).then(setData).catch(e=>setErr(e.message));
+  };
+  useEffect(()=>{void load()},[]);
+  async function save(e){
+    e.preventDefault();setBusy(true);setErr('');
+    try{
+      await api('/companies',{method:'POST',body:JSON.stringify(form)});
+      setOpen(false);
+      setForm({name:'',tax_number:'',nace_code:'',hazard_class:'Az Tehlikeli'});
+      await load();
+    }catch(ex){setErr(ex.message)}
+    finally{setBusy(false)}
+  }
+  async function act(row,action){
+    const labels={deactivate:'pasife almak',activate:'yeniden aktifleştirmek',delete:'kalıcı silmek'};
+    if(!window.confirm(`“${row.name}” işyerini ${labels[action]||action} istiyor musunuz?`)) return;
+    setBusy(true);setErr('');
+    try{
+      if(action==='delete'){
+        const r=await api(`/companies/${row.id}`,{method:'DELETE'});
+        if(r.soft_deleted) window.alert(r.message||'Pasife alındı.');
+      }else{
+        await api(`/companies/${row.id}/${action}`,{method:'PATCH'});
+      }
+      await load();
+    }catch(ex){setErr(ex.message||'İşlem başarısız.')}
+    finally{setBusy(false)}
+  }
+  return <Page title="Firma Yönetimi" action={canEdit&&<button type="button" disabled={busy} onClick={()=>{setErr('');setOpen(true)}}><Plus/>Firma Ekle</button>}>
+    {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
+    <SearchBar q={q} setQ={setQ} go={load}/>
+    <Table cols={[
+      {key:'name',label:'Firma'},
+      {key:'tax_number',label:'Vergi No'},
+      {key:'nace_code',label:'NACE'},
+      {key:'hazard_class',label:'Tehlike Sınıfı'},
+      {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
+      ...(canEdit?[{key:'actions',label:'İşlem',render:r=>(
+        <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
+          {r.is_active
+            ? <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'deactivate')}>Pasife Al</button>
+            : <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>Aktifleştir</button>}
+          <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'delete')}>Sil</button>
+        </div>
+      )}]:[]),
+    ]} rows={data}/>
+    {open&&<Modal title="Yeni Firma" close={()=>setOpen(false)}>
+      <form className="form-grid" onSubmit={save}>
+        <Field label="Firma Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
+        <Field label="Vergi No" value={form.tax_number} onChange={e=>setForm({...form,tax_number:e.target.value})}/>
+        <Field label="NACE Kodu" value={form.nace_code} onChange={e=>setForm({...form,nace_code:e.target.value})}/>
+        <Select label="Tehlike Sınıfı" value={form.hazard_class} onChange={e=>setForm({...form,hazard_class:e.target.value})}>
+          <option>Az Tehlikeli</option><option>Tehlikeli</option><option>Çok Tehlikeli</option>
+        </Select>
+        {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
+        <div className="form-actions"><button type="submit" disabled={busy}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>
+      </form>
+    </Modal>}
+  </Page>;
+}
 function Branches({user}){const[companies,setCompanies]=useState([]),[data,setData]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState({company_id:user.company_id||'',name:'',sgk_registry_no:'',city:'',address:''});const load=()=>Promise.all([api('/companies'),api('/branches')]).then(([c,b])=>{setCompanies(c);setData(b)});useEffect(()=>{void load()},[]);async function save(e){e.preventDefault();await api('/branches',{method:'POST',body:JSON.stringify({...form,company_id:Number(form.company_id)})});setOpen(false);load()}return <Page title="Şube Yönetimi" action={<button onClick={()=>setOpen(true)}><Plus/>Şube Ekle</button>}><Table cols={[{key:'name',label:'Şube'},{key:'company_id',label:'Firma',render:r=>companies.find(c=>c.id===r.company_id)?.name||r.company_id},{key:'city',label:'Şehir'},{key:'sgk_registry_no',label:'SGK Sicil No'},{key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>}]} rows={data}/>{open&&<Modal title="Yeni Şube" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Field label="Şube Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/><Field label="Şehir" value={form.city} onChange={e=>setForm({...form,city:e.target.value})}/><Field label="SGK Sicil No" value={form.sgk_registry_no} onChange={e=>setForm({...form,sgk_registry_no:e.target.value})}/><Field label="Adres" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/><Submit/></form></Modal>}</Page>}
 function UserPage({user}){
   const[companies,setCompanies]=useState([]),[data,setData]=useState([]),[open,setOpen]=useState(false),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
