@@ -471,19 +471,21 @@ export function AssignmentsPage({user}){
 
 export function VisitsPage({user}){
  const isField=['safety_specialist','workplace_physician','other_health_personnel'].includes(user.role);
+ const isOsgb=['global_admin','company_admin'].includes(user.role);
  const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]);
  const[open,setOpen]=useState(false),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
  const[notebookFile,setNotebookFile]=useState(null);
  const[form,setForm]=useState({osgb_id:'',company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''});
- const load=async()=>{
+ const load=async(preferredOid)=>{
   const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);
-  const id=osgbId(user,o);
+  const id=preferredOid||osgbId(user,o);
   setOrgs(o);setCompanies(c);
-  setForm(x=>({...x,osgb_id:id}));
-  if(id){
+  setForm(x=>({...x,osgb_id:id||x.osgb_id}));
+  const oid=Number(preferredOid||id);
+  if(oid){
    const[p,v]=await Promise.all([
-    api(`/osgb/professionals?osgb_id=${id}`).catch(()=>[]),
-    api(`/operations/visits?osgb_id=${id}`),
+    api(`/osgb/professionals?osgb_id=${oid}`).catch(()=>[]),
+    api(`/operations/visits?osgb_id=${oid}`),
    ]);
    setPros(p);setRows(v);
   }
@@ -493,13 +495,17 @@ export function VisitsPage({user}){
   e.preventDefault();
   setErr('');setBusy(true);
   try{
+   if(!isField) throw new Error('Ziyaret kaydı yalnızca uzman / hekim / DSP tarafından yapılır.');
    if(!form.company_id) throw new Error('İşyeri seçiniz.');
    if(!form.visit_date) throw new Error('Tarih zorunlu.');
    if(!notebookFile) throw new Error('Tespit öneri defteri dosyası zorunlu (pdf/jpg/png).');
    const ext=(notebookFile.name||'').split('.').pop()?.toLowerCase();
    if(!['pdf','jpg','jpeg','png'].includes(ext||'')) throw new Error('Sadece pdf, jpg veya png yükleyin.');
+   const company=companies.find(x=>x.id===Number(form.company_id));
+   const oid=Number(company?.osgb_id||form.osgb_id||user.osgb_id||0);
+   if(!oid) throw new Error('İşyerinin OSGB bağlantısı yok. Önce işyerini OSGB’ye bağlayın.');
    const created=await api('/operations/visits',{method:'POST',body:JSON.stringify({
-    osgb_id:Number(form.osgb_id),
+    osgb_id:oid,
     company_id:Number(form.company_id),
     visit_date:form.visit_date,
     start_time:form.start_time||null,
@@ -512,19 +518,28 @@ export function VisitsPage({user}){
    setOpen(false);
    setNotebookFile(null);
    setForm(f=>({...f,company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''}));
-   await load();
+   await load(form.osgb_id);
   }catch(ex){setErr(ex.message||'Kayıt başarısız.')}
   finally{setBusy(false)}
  }
  async function done(id){
-  try{await api(`/operations/visits/${id}/complete`,{method:'PATCH'});await load()}
+  try{await api(`/operations/visits/${id}/complete`,{method:'PATCH'});await load(form.osgb_id)}
   catch(ex){setErr(ex.message||'Tamamlanamadı.')}
  }
  async function downloadNotebook(row){
   try{await downloadFile(`/operations/visits/${row.id}/notebook`,row.notebook_file_name||'tespit-oneri-defteri')}
   catch(ex){setErr(ex.message||'Dosya indirilemedi.')}
  }
- return <P title="Saha Ziyaret Takvimi" action={<button onClick={()=>{setErr('');setNotebookFile(null);setOpen(true)}}><Plus/>Ziyaret Planla</button>}>
+ return <P title={isOsgb?'Saha Ziyaretleri (OSGB İzleme)':'Saha Ziyaret Takvimi'} action={isField?<button onClick={()=>{setErr('');setNotebookFile(null);setOpen(true)}}><Plus/>Ziyaret Kaydet</button>:null}>
+  {isOsgb&&<p style={{margin:'0 0 12px',color:'#475569',fontSize:14}}>Uzman / hekim / DSP’nin kaydettiği saha ziyaretleri ve tespit öneri defteri burada izlenir.</p>}
+  {user.role==='global_admin'&&orgs.length>1&&(
+   <label className="field" style={{maxWidth:320,marginBottom:12}}>
+    <span>OSGB</span>
+    <select value={form.osgb_id} onChange={e=>load(e.target.value)}>
+     {orgs.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
+    </select>
+   </label>
+  )}
   {err&&!open&&<p style={{color:'#b91c1c'}}>{err}</p>}
   <T rows={rows} cols={[
    {k:'visit_date',l:'Tarih'},
@@ -534,9 +549,9 @@ export function VisitsPage({user}){
    {k:'notebook_file_name',l:'Tespit Defteri',f:r=>r.notebook_file_name?<button type="button" className="mini" onClick={()=>downloadNotebook(r)}>{r.notebook_file_name}</button>:'—'},
    {k:'duration_minutes',l:'Süre (dk.)'},
    {k:'status',l:'Durum'},
-   {k:'x',l:'İşlem',f:r=>r.status==='completed'?'Tamamlandı':<button className="mini" onClick={()=>done(r.id)}>Tamamla</button>}
+   ...(isField?[{k:'x',l:'İşlem',f:r=>r.status==='completed'?'Tamamlandı':<button className="mini" onClick={()=>done(r.id)}>Tamamla</button>}]:[])
   ]}/>
-  {open&&<M title="Yeni Saha Ziyareti" close={()=>setOpen(false)}>
+  {open&&isField&&<M title="Yeni Saha Ziyareti" close={()=>setOpen(false)}>
    <form className="form-grid" onSubmit={save}>
     <S label="İşyeri" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}>
      <option value="">Seçiniz</option>

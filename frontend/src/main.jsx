@@ -11,7 +11,7 @@ const roles={global_admin:'Global Yönetici',company_admin:'Firma Yöneticisi',s
 const roleModules={
   // OSGB global: profesyonel takip + denetim; saha operasyonu (eğitim/takvim/risk...) uzman-hekim-DSP’de
   global_admin:['osgb_dashboard','osgb_oversight','pro_performance','csgb_audit','professionals','assignments','crm','finance','companies','branches','reports','notifications','subscription','security','users'],
-  company_admin:['osgb_dashboard','professionals','assignments','visits','crm','finance','dashboard','companies','branches','employees','training','documents','reports','notifications','subscription','security','users'],
+  company_admin:['osgb_dashboard','osgb_oversight','pro_performance','csgb_audit','professionals','assignments','crm','finance','dashboard','companies','branches','employees','training','documents','reports','notifications','subscription','security','users'],
   safety_specialist:['dashboard','visits','risk','near_miss','accident','capa','ppe','training','documents','annual_plans'],
   workplace_physician:['dashboard','visits','health','employees','documents'],
   other_health_personnel:['dashboard','visits','health','employees'],

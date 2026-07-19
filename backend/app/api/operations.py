@@ -25,20 +25,38 @@ VISIT_ROLES = (
     UserRole.WORKPLACE_PHYSICIAN,
     UserRole.OTHER_HEALTH_PERSONNEL,
 )
-ALLOWED_NOTEBOOK = {".pdf", ".jpg", ".jpeg", ".png"}
-_FIELD_ROLES = {
+FIELD_VISIT_ROLES = (
     UserRole.SAFETY_SPECIALIST,
     UserRole.WORKPLACE_PHYSICIAN,
     UserRole.OTHER_HEALTH_PERSONNEL,
-}
+)
+ALLOWED_NOTEBOOK = {".pdf", ".jpg", ".jpeg", ".png"}
+_FIELD_ROLES = set(FIELD_VISIT_ROLES)
 
 
 def scope(user: User, osgb_id: int):
-    if user.role != UserRole.GLOBAL_ADMIN and user.osgb_id != osgb_id:
+    """OSGB kapsamı. Saha rolleri (uzman/hekim/DSP) işyeri görevlendirmesi ile doğrulanır."""
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return
+    if user.role in _FIELD_ROLES:
+        return
+    if user.osgb_id != osgb_id:
         raise HTTPException(403, "Bu OSGB verisine erişim yetkiniz yok.")
 
-def active_osgb(user: User, requested: int | None = None) -> int:
-    oid = requested if user.role == UserRole.GLOBAL_ADMIN else user.osgb_id
+
+def active_osgb(user: User, requested: int | None = None, db: Session | None = None) -> int:
+    if user.role == UserRole.GLOBAL_ADMIN:
+        oid = requested
+    elif user.role in _FIELD_ROLES:
+        oid = user.osgb_id
+        if not oid and db is not None:
+            pro = find_professional_for_user(db, user)
+            if pro:
+                oid = pro.osgb_id
+        if not oid:
+            oid = requested
+    else:
+        oid = user.osgb_id
     if not oid:
         raise HTTPException(400, "Kullanıcıya bağlı bir OSGB bulunamadı.")
     scope(user, oid)
@@ -95,7 +113,7 @@ def _get_visit(db: Session, visit_id: int, user: User) -> ServiceVisit:
 
 @router.get("/dashboard")
 def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    oid = active_osgb(user, osgb_id)
+    oid = active_osgb(user, osgb_id, db)
     today = date.today()
     soon = today + timedelta(days=30)
 
@@ -197,7 +215,7 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
 
 @router.get("/visits", response_model=list[VisitResponse])
 def visits(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    oid = active_osgb(user, osgb_id)
+    oid = active_osgb(user, osgb_id, db)
     stmt = select(ServiceVisit).where(ServiceVisit.osgb_id == oid)
     if user.role in _FIELD_ROLES:
         pro = find_professional_for_user(db, user)
@@ -208,13 +226,12 @@ def visits(osgb_id: int | None = None, db: Session = Depends(get_db), user: User
 
 
 @router.post("/visits", response_model=VisitResponse)
-def create_visit(payload: VisitCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*VISIT_ROLES))):
-    scope(user, payload.osgb_id)
-    if user.role in _FIELD_ROLES:
-        ensure_company_access(db, user, payload.company_id)
+def create_visit(payload: VisitCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*FIELD_VISIT_ROLES))):
     company = db.get(Company, payload.company_id)
-    if not company or company.osgb_id != payload.osgb_id:
-        raise HTTPException(400, "İşyeri OSGB ile eşleşmiyor.")
+    if not company or not company.osgb_id:
+        raise HTTPException(400, "İşyeri bir OSGB'ye bağlı değil.")
+    ensure_company_access(db, user, payload.company_id)
+    payload = payload.model_copy(update={"osgb_id": company.osgb_id})
     professional = _resolve_visit_professional(db, user, payload)
     data = payload.model_dump()
     data["professional_id"] = professional.id
@@ -230,7 +247,7 @@ async def upload_visit_notebook(
     visit_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VISIT_ROLES)),
+    user: User = Depends(require_roles(*FIELD_VISIT_ROLES)),
 ):
     obj = _get_visit(db, visit_id, user)
     name = file.filename or "tespit-oneri-defteri.pdf"
@@ -261,6 +278,7 @@ async def upload_visit_notebook(
         ".jpeg": "image/jpeg",
         ".png": "image/png",
     }.get(ext, "application/octet-stream")
+    obj.status = VisitStatus.COMPLETED
     db.commit()
     db.refresh(obj)
     return obj

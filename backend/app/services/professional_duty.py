@@ -186,7 +186,7 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
 
         if is_specialist:
             try:
-                checks = _eval_specialist_firm(db, company, assignment, month_start, month_end, year)
+                checks, _visits = _eval_specialist_firm(db, company, assignment, month_start, month_end, year)
             except Exception:
                 try:
                     db.rollback()
@@ -206,7 +206,7 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
                 )
         else:
             try:
-                checks = _eval_physician_firm(db, company, assignment, month_start, month_end)
+                checks, _visits = _eval_physician_firm(db, company, assignment, month_start, month_end)
             except Exception:
                 try:
                     db.rollback()

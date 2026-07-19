@@ -44,10 +44,11 @@ def create_osgb(payload: OsgbCreate, db: Session = Depends(get_db), _: User = De
 def osgb_oversight(
     osgb_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
-    """Yalnız global yönetici — profesyonel sorumluluk / 6331 hizmet denetimi."""
-    _ = user
+    """OSGB yönetimi — profesyonel sorumluluk / 6331 hizmet denetimi."""
+    if user.role != UserRole.GLOBAL_ADMIN:
+        osgb_id = user.osgb_id
     return build_oversight(db, osgb_id=osgb_id)
 
 
@@ -71,10 +72,11 @@ def osgb_oversight_seed_demo(
 def csgb_audit_pack(
     osgb_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
     """ÇSGB OSGB denetimi — müfettiş belge paketi hazırlık durumu."""
-    _ = user
+    if user.role != UserRole.GLOBAL_ADMIN:
+        osgb_id = user.osgb_id
     return build_csgb_audit_pack(db, osgb_id=osgb_id)
 
 
@@ -82,13 +84,14 @@ def csgb_audit_pack(
 def professional_performance(
     professional_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
     """Seçilen uzman/hekim/DSP için iş tamamlama / performans raporu."""
-    _ = user
     pro = db.get(IsgProfessional, professional_id)
     if not pro:
         raise HTTPException(404, "Profesyonel bulunamadı.")
+    if user.role != UserRole.GLOBAL_ADMIN and pro.osgb_id != user.osgb_id:
+        raise HTTPException(403, "Bu profesyonelin performansına erişim yetkiniz yok.")
     try:
         return build_professional_performance(db, professional_id)
     except ValueError as exc:

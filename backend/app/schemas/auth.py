@@ -17,3 +17,4 @@ class CurrentUserResponse(BaseModel):
     full_name: str
     role: str
     company_id: int | None
+    osgb_id: int | None = None

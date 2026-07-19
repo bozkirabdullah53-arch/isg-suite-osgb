@@ -142,20 +142,54 @@ def _check_result(code: str, title: str, legal: str, weight: int, passed: bool, 
     }
 
 
-def _visit_minutes(db: Session, professional_id: int, company_id: int, start: date, end: date) -> tuple[int, int]:
-    rows = list(
+def _list_firm_visits(
+    db: Session, professional_id: int, company_id: int, start: date, end: date
+) -> list[ServiceVisit]:
+    return list(
         db.scalars(
-            select(ServiceVisit).where(
+            select(ServiceVisit)
+            .where(
                 ServiceVisit.professional_id == professional_id,
                 ServiceVisit.company_id == company_id,
                 ServiceVisit.visit_date >= start,
                 ServiceVisit.visit_date <= end,
-                ServiceVisit.status == VisitStatus.COMPLETED,
             )
+            .order_by(ServiceVisit.visit_date.desc(), ServiceVisit.id.desc())
         ).all()
     )
-    minutes = sum(int(v.duration_minutes or 0) for v in rows)
-    return minutes, len(rows)
+
+
+def _visit_payload(rows: list[ServiceVisit]) -> list[dict]:
+    out = []
+    for v in rows:
+        out.append(
+            {
+                "id": v.id,
+                "visit_date": v.visit_date.isoformat() if v.visit_date else None,
+                "start_time": v.start_time,
+                "end_time": v.end_time,
+                "duration_minutes": int(v.duration_minutes or 0),
+                "subject": v.subject,
+                "notes": v.notes,
+                "status": v.status.value if hasattr(v.status, "value") else str(v.status),
+                "notebook_file_name": v.notebook_file_name,
+                "has_notebook": bool(v.notebook_storage_path),
+                "notebook_url": f"/operations/visits/{v.id}/notebook" if v.notebook_storage_path else None,
+            }
+        )
+    return out
+
+
+def _visit_minutes(db: Session, professional_id: int, company_id: int, start: date, end: date) -> tuple[int, int, list[dict]]:
+    """Tamamlanan veya tespit defteri yüklenmiş ziyaretler süreye sayılır."""
+    rows = _list_firm_visits(db, professional_id, company_id, start, end)
+    counted = [
+        v
+        for v in rows
+        if v.status == VisitStatus.COMPLETED or bool(v.notebook_storage_path)
+    ]
+    minutes = sum(int(v.duration_minutes or 0) for v in counted)
+    return minutes, len(counted), _visit_payload(rows)
 
 
 def _eval_specialist_firm(
@@ -165,14 +199,16 @@ def _eval_specialist_firm(
     month_start: date,
     month_end: date,
     year: int,
-) -> list[dict]:
+) -> tuple[list[dict], list[dict]]:
     cid = company.id
     required = int(assignment.required_minutes_monthly or 0)
-    visit_min, visit_count = _visit_minutes(db, assignment.professional_id, cid, month_start, month_end)
+    visit_min, visit_count, visits = _visit_minutes(db, assignment.professional_id, cid, month_start, month_end)
     # Manuel actual alanı yedek sinyal
     actual_fallback = int(assignment.actual_minutes_monthly or 0)
     effective_min = visit_min if visit_min > 0 else actual_fallback
+    notebook_count = sum(1 for v in visits if v.get("has_notebook"))
     time_ok = required <= 0 or effective_min >= required * 0.8
+    # notebook_ok unused — shown in metric / UI visits list
 
     risk_count = db.scalar(
         select(func.count()).select_from(RiskAssessment).where(RiskAssessment.company_id == cid)
@@ -241,8 +277,13 @@ def _eval_specialist_firm(
             "İSG Hizmetleri Yön. — işyerinde fiilen bulunma / hizmet süresi",
             2,
             time_ok,
-            f"Bu ay {effective_min} dk / zorunlu {required or '—'} dk ({visit_count} tamamlanan ziyaret)",
-            {"visit_minutes": visit_min, "required": required, "visits": visit_count},
+            f"Bu ay {effective_min} dk / zorunlu {required or '—'} dk ({visit_count} ziyaret, {notebook_count} tespit defteri)",
+            {
+                "visit_minutes": visit_min,
+                "required": required,
+                "visits": visit_count,
+                "notebooks": notebook_count,
+            },
         ),
         _check_result(
             "risk_degerlendirme",
@@ -289,7 +330,7 @@ def _eval_specialist_firm(
             f"Açık olay kaydı: {open_incidents}",
             {"open_incidents": open_incidents},
         ),
-    ]
+    ], visits
 
 
 def _eval_physician_firm(
@@ -298,12 +339,13 @@ def _eval_physician_firm(
     assignment: WorkplaceAssignment,
     month_start: date,
     month_end: date,
-) -> list[dict]:
+) -> tuple[list[dict], list[dict]]:
     cid = company.id
     required = int(assignment.required_minutes_monthly or 0)
-    visit_min, visit_count = _visit_minutes(db, assignment.professional_id, cid, month_start, month_end)
+    visit_min, visit_count, visits = _visit_minutes(db, assignment.professional_id, cid, month_start, month_end)
     actual_fallback = int(assignment.actual_minutes_monthly or 0)
     effective_min = visit_min if visit_min > 0 else actual_fallback
+    notebook_count = sum(1 for v in visits if v.get("has_notebook"))
     time_ok = required <= 0 or effective_min >= required * 0.8
 
     health_total = db.scalar(
@@ -356,8 +398,13 @@ def _eval_physician_firm(
             "İSG Hizmetleri Yön. — hekim/DSP işyerinde bulunma süresi",
             2,
             time_ok,
-            f"Bu ay {effective_min} dk / zorunlu {required or '—'} dk ({visit_count} ziyaret)",
-            {"visit_minutes": visit_min, "required": required, "visits": visit_count},
+            f"Bu ay {effective_min} dk / zorunlu {required or '—'} dk ({visit_count} ziyaret, {notebook_count} tespit defteri)",
+            {
+                "visit_minutes": visit_min,
+                "required": required,
+                "visits": visit_count,
+                "notebooks": notebook_count,
+            },
         ),
         _check_result(
             "saglik_gozetim",
@@ -386,7 +433,7 @@ def _eval_physician_firm(
             f"Kısıtlı/takip/uygun değil: {tracking}",
             {"tracking": tracking},
         ),
-    ]
+    ], visits
 
 
 def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
@@ -442,9 +489,9 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                 continue
             try:
                 if pro.professional_type == ProfessionalType.SAFETY_SPECIALIST:
-                    checks = _eval_specialist_firm(db, company, a, month_start, month_end, year)
+                    checks, visits = _eval_specialist_firm(db, company, a, month_start, month_end, year)
                 else:
-                    checks = _eval_physician_firm(db, company, a, month_start, month_end)
+                    checks, visits = _eval_physician_firm(db, company, a, month_start, month_end)
             except Exception:
                 try:
                     db.rollback()
@@ -460,6 +507,7 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                         "Bu işyeri için kontrol hesaplanamadı. Sağlık/saha verilerini kontrol edin veya Yenile’ye basın.",
                     )
                 ]
+                visits = []
 
             weight_total = sum(c["weight"] for c in checks) or 1
             weight_ok = sum(c["weight"] for c in checks if c["passed"])
@@ -477,6 +525,9 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                     "score": score,
                     "status": status,
                     "checks": checks,
+                    "visits": visits,
+                    "visit_count": len(visits),
+                    "notebook_count": sum(1 for v in visits if v.get("has_notebook")),
                     "failed_count": sum(1 for c in checks if not c["passed"]),
                 }
             )

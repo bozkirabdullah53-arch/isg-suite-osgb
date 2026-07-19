@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {AlertTriangle, CheckCircle2, ClipboardCheck, RefreshCw, ShieldAlert, Sparkles, Stethoscope} from 'lucide-react';
-import {api} from './api';
+import {api, downloadFile} from './api';
 
 const TYPE_LABELS = {
   safety_specialist: 'İş Güvenliği Uzmanı',
@@ -499,6 +499,51 @@ export function OsgbOversightPage({user, onNavigate}) {
                   +{personGaps.length - 12} kalem daha — tam liste Performans Raporu’nda.
                 </p>
               )}
+            </div>
+          )}
+
+          {(selected.firms || []).some((f) => (f.visits || []).length) && (
+            <div style={{marginTop: 16}}>
+              <h4 style={{margin: '0 0 8px', color: '#0f766e'}}>Saha ziyaretleri / tespit defteri</h4>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>İşyeri</th>
+                      <th>Tarih</th>
+                      <th>Süre</th>
+                      <th>Konu</th>
+                      <th>Defter</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(selected.firms || []).flatMap((f) =>
+                      (f.visits || []).map((v) => (
+                        <tr key={`${f.company_id}-${v.id}`}>
+                          <td>{f.company_name}</td>
+                          <td>{v.visit_date || '—'}</td>
+                          <td>{v.duration_minutes || 0} dk</td>
+                          <td style={{fontSize: 13}}>{v.subject || '—'}</td>
+                          <td>
+                            {v.has_notebook ? (
+                              <button
+                                type="button"
+                                className="mini"
+                                onClick={() => downloadFile(v.notebook_url, v.notebook_file_name || 'tespit-defteri').catch((e) => alert(e.message))}
+                              >
+                                {v.notebook_file_name || 'İndir'}
+                              </button>
+                            ) : '—'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <p style={{fontSize: 12, color: '#64748b', marginTop: 8}}>
+                Tam kontrol listesi ve tüm deliller için Performans Raporu’nu açın.
+              </p>
             </div>
           )}
         </section>

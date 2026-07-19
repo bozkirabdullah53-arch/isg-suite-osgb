@@ -28,4 +28,5 @@ def me(user: User = Depends(get_current_user)):
         full_name=user.full_name,
         role=user.role.value,
         company_id=user.company_id,
+        osgb_id=user.osgb_id,
     )

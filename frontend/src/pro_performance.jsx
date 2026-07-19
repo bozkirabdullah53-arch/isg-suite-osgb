@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {AlertTriangle, CheckCircle2, ClipboardList, Printer, RefreshCw, UserRound} from 'lucide-react';
-import {api} from './api';
+import {api, downloadFile} from './api';
 
 const TYPE_LABELS = {
   safety_specialist: 'İş Güvenliği Uzmanı',
@@ -439,6 +439,53 @@ export function ProPerformancePage({user}) {
                             </div>
                           </div>
                         ))}
+                      </div>
+                      <div style={{marginTop: 12, paddingTop: 12, borderTop: '1px solid #e2e8f0'}}>
+                        <div style={{fontSize: 12, fontWeight: 700, color: '#0f766e', marginBottom: 8}}>
+                          Saha ziyaretleri / tespit öneri defteri
+                          {' · '}{(f.visits || []).length} kayıt
+                          {' · '}{f.notebook_count || 0} defter
+                        </div>
+                        {(f.visits || []).length ? (
+                          <div className="table-wrap">
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>Tarih</th>
+                                  <th>Süre</th>
+                                  <th>Konu</th>
+                                  <th>Durum</th>
+                                  <th>Defter</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {(f.visits || []).map((v) => (
+                                  <tr key={v.id}>
+                                    <td>{v.visit_date || '—'}</td>
+                                    <td>{v.duration_minutes || 0} dk</td>
+                                    <td style={{fontSize: 13}}>{v.subject || '—'}</td>
+                                    <td>{v.status || '—'}</td>
+                                    <td>
+                                      {v.has_notebook ? (
+                                        <button
+                                          type="button"
+                                          className="mini"
+                                          onClick={() => downloadFile(v.notebook_url, v.notebook_file_name || 'tespit-defteri').catch((e) => alert(e.message))}
+                                        >
+                                          {v.notebook_file_name || 'İndir'}
+                                        </button>
+                                      ) : '—'}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <p style={{margin: 0, fontSize: 13, color: '#92400e'}}>
+                            Bu dönemde saha ziyareti / tespit defteri kaydı yok.
+                          </p>
+                        )}
                       </div>
                     </div>
                   ))}
