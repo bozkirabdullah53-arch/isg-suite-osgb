@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.models.entities import Branch, Employee, User, UserRole
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
 router=APIRouter(prefix="/employees",tags=["Personel"])
-EDIT_ROLES=(UserRole.GLOBAL_ADMIN,UserRole.COMPANY_ADMIN,UserRole.SAFETY_SPECIALIST)
+EDIT_ROLES=(UserRole.GLOBAL_ADMIN,UserRole.COMPANY_ADMIN,UserRole.SAFETY_SPECIALIST,UserRole.WORKPLACE_PHYSICIAN,UserRole.OTHER_HEALTH_PERSONNEL)
 
 def check_company(db:Session,user:User,cid:int):
     ensure_company_access(db,user,cid)

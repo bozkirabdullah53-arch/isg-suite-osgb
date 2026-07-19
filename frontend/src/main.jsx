@@ -14,8 +14,8 @@ const roleModules={
   // Firma/OSGB operasyon — denetim/performans/ÇSGB yalnızca global_admin
   company_admin:['osgb_dashboard','professionals','assignments','crm','finance','dashboard','companies','branches','employees','training','documents','reports','notifications','subscription','security','users'],
   safety_specialist:['dashboard','visits','risk','near_miss','accident','capa','ppe','training','documents','annual_plans'],
-  workplace_physician:['dashboard','visits','health','employees','documents'],
-  other_health_personnel:['dashboard','visits','health','employees'],
+  workplace_physician:['dashboard','visits','health','employees','documents','annual_plans'],
+  other_health_personnel:['dashboard','visits','health','employees','documents','annual_plans'],
   read_only:['dashboard']
 };
 function Login({done}){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[err,setErr]=useState('');async function submit(e){e.preventDefault();setErr('');try{const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});localStorage.setItem('isg_token',r.access_token);done()}catch(x){setErr(x.message)}}return <main className="login-shell"><section className="login-card"><div className="brand-mark"><ShieldCheck size={34}/></div><h1>İSG Suite</h1><p>İş Sağlığı ve Güvenliği Yönetim Sistemi</p><form onSubmit={submit}><label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email"/><label>Şifre</label><input value={password} onChange={e=>setPassword(e.target.value)} type="password"/>{err&&<div className="error">{err}</div>}<button>Giriş Yap</button></form></section></main>}

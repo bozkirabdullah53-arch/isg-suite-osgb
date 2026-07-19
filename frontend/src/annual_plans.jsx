@@ -97,8 +97,14 @@ function emptyForm(user, year) {
 
 export function AnnualPlansPage({user}) {
   const nowYear = new Date().getFullYear();
-  const canEdit = ['global_admin', 'company_admin', 'safety_specialist'].includes(user.role);
-  const isGlobal = user.role === 'global_admin';
+  const canEdit = [
+    'global_admin',
+    'company_admin',
+    'safety_specialist',
+    'workplace_physician',
+    'other_health_personnel',
+  ].includes(user.role);
+  const fieldRole = ['safety_specialist', 'workplace_physician', 'other_health_personnel'].includes(user.role);
 
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState(user.company_id ? String(user.company_id) : '');
@@ -124,38 +130,54 @@ export function AnnualPlansPage({user}) {
     return Object.entries(STATUS_FALLBACK).map(([code, label]) => ({code, label}));
   }, [statuses]);
 
-  const qs = useMemo(() => {
-    const p = new URLSearchParams();
-    p.set('year', String(year));
-    if (isGlobal && companyId) p.set('company_id', companyId);
-    return p.toString();
-  }, [year, companyId, isGlobal]);
+  function pickCompanyId(list, preferred) {
+    const ids = list.map((c) => String(c.id));
+    if (preferred && ids.includes(String(preferred))) return String(preferred);
+    if (user.company_id && ids.includes(String(user.company_id))) return String(user.company_id);
+    return ids[0] || '';
+  }
 
   async function load() {
     setMessage('');
     try {
-      const tasks = [
-        api('/companies'),
-        api(`/annual-plans?${qs}`),
-        api(`/annual-plans/summary?${qs}`),
-        api('/annual-plans/meta'),
-      ];
-      const [c, r, s, meta] = await Promise.all(tasks);
+      const c = await api('/companies');
       setCompanies(c);
+      const cid = pickCompanyId(c, companyId);
+      if (cid !== companyId) {
+        setCompanyId(cid);
+        return;
+      }
+      if (!cid) {
+        setMessage(
+          fieldRole
+            ? 'Atanmış firma yok. Görevlendirmeler’den işyeriniz bağlanmalı.'
+            : 'Önce firma seçiniz.',
+        );
+        setRows([]);
+        setSummary(null);
+        return;
+      }
+      const planQs = new URLSearchParams({year: String(year), company_id: cid});
+      const [r, s, meta] = await Promise.all([
+        api(`/annual-plans?${planQs}`),
+        api(`/annual-plans/summary?${planQs}`),
+        api('/annual-plans/meta'),
+      ]);
       setRows(r);
       setSummary(s);
       setCategories(meta.categories || []);
       setStatuses(meta.statuses || []);
-      if (!companyId && c.length) {
-        const preferred = user.company_id || c[0].id;
-        setCompanyId(String(preferred));
-      }
     } catch (e) {
-      setMessage(e.message || 'Yükleme başarısız.');
+      const msg = e.message || 'Yükleme başarısız.';
+      setMessage(
+        /Failed to fetch|NetworkError|bağlanılamadı/i.test(msg)
+          ? 'Sunucuya bağlanılamadı. API uyanıyor olabilir — 10–20 sn bekleyip Yenile’ye basın.'
+          : msg,
+      );
     }
   }
 
-  useEffect(() => { load(); }, [qs]);
+  useEffect(() => { load(); }, [year, companyId]);
 
   function openCreate() {
     const cid = companyId || user.company_id || '';
@@ -228,12 +250,23 @@ export function AnnualPlansPage({user}) {
   }
 
   async function generate() {
-    const cid = Number(companyId || user.company_id);
+    const cid = Number(pickCompanyId(companies, companyId) || companyId || user.company_id);
     if (!cid) {
-      setMessage('Önce firma seçiniz.');
+      setMessage(
+        fieldRole
+          ? 'Atanmış firma yok — Görevlendirmeler’den bağlanmalı, sonra Otomatik Plan Üret’e basın.'
+          : 'Önce firma seçiniz.',
+      );
       return;
     }
-    if (!window.confirm(`${year} yılı için PRO şablonundan otomatik yıllık plan üretmek istiyor musunuz?\nMevcut aynı maddeler atlanır.`)) {
+    if (!companyId || String(companyId) !== String(cid)) {
+      setCompanyId(String(cid));
+    }
+    if (!window.confirm(
+      `${year} yılı için otomatik yıllık plan üretmek istiyor musunuz?\n`
+      + 'Hedef tarihler hafta sonu ve resmi tatillere denk gelmeyecek şekilde iş gününe kaydırılır.\n'
+      + 'Mevcut aynı maddeler atlanır.',
+    )) {
       return;
     }
     setBusy(true);
@@ -243,10 +276,15 @@ export function AnnualPlansPage({user}) {
         method: 'POST',
         body: JSON.stringify({company_id: cid, year: Number(year)}),
       });
-      setMessage(`${r.created} madde eklendi, ${r.skipped_existing} mevcut atlandı.`);
+      setMessage(r.message || `${r.created} madde eklendi. Hedef tarihler iş gününe göre ayarlandı.`);
       await load();
     } catch (err) {
-      setMessage(err.message);
+      const msg = err.message || 'Üretim başarısız.';
+      setMessage(
+        /Failed to fetch|NetworkError|bağlanılamadı/i.test(msg)
+          ? 'Sunucuya bağlanılamadı. Birkaç saniye bekleyip tekrar “Otomatik Plan Üret”e basın.'
+          : msg,
+      );
     } finally {
       setBusy(false);
     }
@@ -254,13 +292,12 @@ export function AnnualPlansPage({user}) {
 
   async function exportTxt() {
     const cid = companyId || user.company_id;
-    if (!cid && isGlobal) {
+    if (!cid) {
       setMessage('Dışa aktarım için firma seçiniz.');
       return;
     }
     try {
-      const p = new URLSearchParams({year: String(year)});
-      if (isGlobal && cid) p.set('company_id', String(cid));
+      const p = new URLSearchParams({year: String(year), company_id: String(cid)});
       await downloadFile(`/annual-plans/export.txt?${p}`, `yillik-plan-${year}.txt`);
     } catch (err) {
       setMessage(err.message);
@@ -281,7 +318,7 @@ export function AnnualPlansPage({user}) {
             <Download size={16} /> TXT Aktar
           </button>
           {canEdit && (
-            <button type="button" className="secondary" onClick={generate} disabled={busy}>
+            <button type="button" className="secondary" onClick={generate} disabled={busy || !companyId}>
               <Sparkles size={16} /> Otomatik Plan Üret
             </button>
           )}
@@ -295,12 +332,10 @@ export function AnnualPlansPage({user}) {
 
       <section className="panel" style={{marginBottom: 16}}>
         <div className="form-grid" style={{gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', marginBottom: 0}}>
-          {isGlobal && (
-            <Select label="Firma" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+          <Select label="Firma" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
               <option value="">Seçiniz</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
-          )}
           <Field
             label="Yıl"
             type="number"
@@ -310,7 +345,15 @@ export function AnnualPlansPage({user}) {
             onChange={(e) => setYear(Number(e.target.value) || nowYear)}
           />
         </div>
-        {message && <p style={{marginTop: 12}}>{message}</p>}
+        {message && (
+          <p style={{
+            marginTop: 12,
+            color: /eklendi|ayarlandı/i.test(message) ? '#166534' : '#b91c1c',
+          }}
+          >
+            {message}
+          </p>
+        )}
       </section>
 
       <div className="cards" style={{marginBottom: 16}}>
