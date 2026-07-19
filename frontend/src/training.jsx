@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Download, Plus, Search, ShieldCheck, Upload, Users, X} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 
@@ -106,15 +106,47 @@ export function TrainingPage({user}) {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [excelInfo, setExcelInfo] = useState('');
+  const [excelPreview, setExcelPreview] = useState([]);
   const [detail, setDetail] = useState(null);
   const [dlBusy, setDlBusy] = useState('');
   const [docForm, setDocForm] = useState({workplace_physician: '', employer_representative: '', stamp_text: ''});
   const [verifyPreview, setVerifyPreview] = useState(null);
+  const excelInputRef = useRef(null);
 
   const companyEmployees = useMemo(
-    () => employees.filter((e) => String(e.company_id) === String(form.company_id) && e.is_active !== false),
+    () =>
+      employees.filter(
+        (e) =>
+          form.company_id &&
+          String(e.company_id) === String(form.company_id) &&
+          e.is_active !== false,
+      ),
     [employees, form.company_id],
   );
+
+  function defaultCompanyId(list = companies) {
+    if (user.company_id) return String(user.company_id);
+    if (list.length === 1) return String(list[0].id);
+    return '';
+  }
+
+  function openNewTraining() {
+    setErr('');
+    setExcelInfo('');
+    setExcelPreview([]);
+    setForm({...empty, company_id: defaultCompanyId()});
+    setOpen(true);
+  }
+
+  async function refreshEmployees(companyId) {
+    const cid = companyId || form.company_id;
+    const path = cid
+      ? `/employees?company_id=${Number(cid)}&active=true`
+      : '/employees';
+    const list = await api(path);
+    setEmployees(Array.isArray(list) ? list : []);
+    return Array.isArray(list) ? list : [];
+  }
 
   const filteredSectors = useMemo(() => {
     const list = [...sectors].sort((a, b) =>
@@ -186,7 +218,8 @@ export function TrainingPage({user}) {
       });
       setOpen(false);
       setExcelInfo('');
-      setForm({...empty, company_id: form.company_id || user.company_id || ''});
+      setExcelPreview([]);
+      setForm({...empty, company_id: form.company_id || defaultCompanyId()});
       await load();
     } catch (x) {
       setErr(x.message);
@@ -327,6 +360,15 @@ export function TrainingPage({user}) {
     });
   }
 
+  function pickExcel() {
+    setErr('');
+    if (!form.company_id) {
+      setErr('Excel yüklemek için önce Firma seçiniz.');
+      return;
+    }
+    excelInputRef.current?.click();
+  }
+
   async function onExcel(e) {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -335,24 +377,33 @@ export function TrainingPage({user}) {
       setErr('Önce firma seçiniz.');
       return;
     }
+    const name = (file.name || '').toLowerCase();
+    if (name.endsWith('.xls') && !name.endsWith('.xlsx') && !name.endsWith('.xlsm')) {
+      setErr('Eski .xls desteklenmez. Excel’de .xlsx olarak kaydedip tekrar yükleyin.');
+      return;
+    }
     setErr('');
     setBusy(true);
     try {
-      let out;
-      try {
-        out = await uploadFile(
-          `/trainings/parse-excel?company_id=${Number(form.company_id)}&create_missing=true`,
-          file,
-        );
-      } catch (first) {
-        // Eski canlı API: önce boş eğitim oluşturup upload-participants dene
-        throw first;
-      }
-      setEmployees(await api('/employees'));
-      setForm((f) => ({...f, participant_ids: out.participant_ids || []}));
-      setExcelInfo(
-        `Excel: ${out.count} kişi · ${out.created || 0} yeni personel · ${out.participant_ids?.length || 0} seçildi`,
+      const out = await uploadFile(
+        `/trainings/parse-excel?company_id=${Number(form.company_id)}&create_missing=true`,
+        file,
       );
+      const ids = (out.participant_ids || []).map(Number).filter(Boolean);
+      const preview = (out.participants || []).map((p) => ({
+        name: p.full_name || p.name || '—',
+        job: p.job_title || '',
+        matched: !!p.employee_id,
+      }));
+      setExcelPreview(preview);
+      await refreshEmployees(form.company_id);
+      setForm((f) => ({...f, participant_ids: ids}));
+      setExcelInfo(
+        `Excel: ${out.count || ids.length} kişi · ${out.created || 0} yeni personel · ${ids.length} seçildi`,
+      );
+      if (!ids.length) {
+        setErr('Excel okundu ama eşleşen personel yok. Sütunlar: Ad Soyad, TC Kimlik, Branş/Görev, Bölüm.');
+      }
     } catch (x) {
       setErr('Excel yüklenemedi: ' + x.message);
     } finally {
@@ -360,19 +411,46 @@ export function TrainingPage({user}) {
     }
   }
 
-  function selectAllEmployees() {
-    setForm((f) => ({...f, participant_ids: companyEmployees.map((e) => e.id)}));
-    setExcelInfo(`${companyEmployees.length} kişi ortak personel listesinden seçildi`);
+  async function selectAllEmployees() {
+    setErr('');
+    if (!form.company_id) {
+      setErr('Ortak personel listesi için önce Firma seçiniz.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const list = await refreshEmployees(form.company_id);
+      const active = list.filter(
+        (e) => String(e.company_id) === String(form.company_id) && e.is_active !== false,
+      );
+      if (!active.length) {
+        setExcelPreview([]);
+        setForm((f) => ({...f, participant_ids: []}));
+        setExcelInfo('');
+        setErr(
+          'Bu firmada aktif personel yok. PC’den Excel yükleyin veya Personel menüsünden ekleyin (PRO ortak liste gibi).',
+        );
+        return;
+      }
+      setExcelPreview([]);
+      setForm((f) => ({...f, participant_ids: active.map((e) => e.id)}));
+      setExcelInfo(`${active.length} kişi ortak personel listesinden seçildi`);
+    } catch (x) {
+      setErr('Personel listesi alınamadı: ' + x.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function toggleParticipant(id) {
     const n = Number(id);
-    setForm((f) => ({
-      ...f,
-      participant_ids: f.participant_ids.includes(n)
-        ? f.participant_ids.filter((x) => x !== n)
-        : [...f.participant_ids, n],
-    }));
+    setForm((f) => {
+      const ids = (f.participant_ids || []).map(Number);
+      return {
+        ...f,
+        participant_ids: ids.includes(n) ? ids.filter((x) => x !== n) : [...ids, n],
+      };
+    });
   }
 
   const companyName = (id) => companies.find((c) => c.id === id)?.name || id;
@@ -415,7 +493,7 @@ export function TrainingPage({user}) {
       <div className="page-title">
         <h3>Eğitim Yönetimi</h3>
         {canEdit && (
-          <button type="button" onClick={() => { setErr(''); setExcelInfo(''); setOpen(true); }}>
+          <button type="button" onClick={openNewTraining}>
             <Plus /> Yeni Eğitim
           </button>
         )}
@@ -643,7 +721,20 @@ export function TrainingPage({user}) {
       {open && (
         <Modal title="Yeni Eğitim Oturumu" close={() => setOpen(false)}>
           <form className="form-grid" onSubmit={save}>
-            <Select label="Firma" required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value, participant_ids: []})}>
+            <Select
+              label="Firma"
+              required
+              value={form.company_id}
+              onChange={(e) => {
+                setExcelPreview([]);
+                setExcelInfo('');
+                setErr('');
+                setForm({...form, company_id: e.target.value, participant_ids: []});
+                if (e.target.value) {
+                  refreshEmployees(e.target.value).catch((x) => setErr(x.message));
+                }
+              }}
+            >
               <option value="">Seçiniz</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
@@ -707,27 +798,73 @@ export function TrainingPage({user}) {
             </Select>
             <Field label="Geçme Puanı (0-100)" type="number" min="0" max="100" value={form.passing_score} onChange={(e) => setForm({...form, passing_score: e.target.value})} />
 
-            <div style={{gridColumn: '1 / -1', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center'}}>
-              <label className="button secondary" style={{display: 'inline-flex'}}>
-                <Upload size={16} /> PC’den Excel Yükle (.xlsx)
-                <input type="file" accept=".xlsx,.xlsm" hidden onChange={onExcel} disabled={busy || !form.company_id} />
-              </label>
-              <button type="button" className="secondary" disabled={!companyEmployees.length} onClick={selectAllEmployees}>
-                <Users size={16} /> Ortak personel listesinin tamamını seç ({companyEmployees.length})
-              </button>
-              {excelInfo && <span style={{fontSize: 13, color: '#087b67'}}>{excelInfo}</span>}
+            <div style={{gridColumn: '1 / -1', display: 'grid', gap: 12}}>
+              <div style={{fontWeight: 700, color: '#243447'}}>Katılımcı kaynağı (PRO 2026 gibi)</div>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={pickExcel}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && pickExcel()}
+                style={{
+                  border: '2px dashed #9bb8c2',
+                  borderRadius: 14,
+                  padding: '18px 16px',
+                  background: '#f7fbfc',
+                  cursor: busy ? 'wait' : 'pointer',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 700, color: '#0f766e'}}>
+                  <Upload size={20} /> PC’den Excel Yükle (.xlsx / .xlsm)
+                </div>
+                <div style={{marginTop: 6, fontSize: 13, color: '#5b7380'}}>
+                  Ad Soyad zorunlu · TC Kimlik, Branş/Görev, Bölüm önerilir
+                  {!form.company_id ? ' · önce Firma seçin' : ''}
+                </div>
+                <input
+                  ref={excelInputRef}
+                  type="file"
+                  accept=".xlsx,.xlsm"
+                  hidden
+                  onChange={onExcel}
+                />
+              </div>
+              <div style={{display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center'}}>
+                <button type="button" className="secondary" disabled={busy} onClick={selectAllEmployees}>
+                  <Users size={16} /> Ortak personel listesinin tamamını seç
+                  {form.company_id ? ` (${companyEmployees.length})` : ''}
+                </button>
+                {excelInfo && <span style={{fontSize: 13, color: '#087b67'}}>{excelInfo}</span>}
+              </div>
+              {!form.company_id && (
+                <div style={{fontSize: 13, color: '#9a3412', background: '#fff7ed', padding: '8px 10px', borderRadius: 8}}>
+                  Firma seçmeden Excel / ortak liste çalışmaz.
+                </div>
+              )}
             </div>
 
             <label className="field" style={{gridColumn: '1 / -1'}}>
               <span>Katılımcılar ({form.participant_ids.length} seçili)</span>
-              <div className="check-grid" style={{maxHeight: 180, overflow: 'auto', marginTop: 8}}>
+              <div className="check-grid" style={{maxHeight: 220, overflow: 'auto', marginTop: 8}}>
                 {companyEmployees.length ? companyEmployees.map((emp) => (
                   <label key={emp.id} style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-                    <input type="checkbox" checked={form.participant_ids.includes(emp.id)} onChange={() => toggleParticipant(emp.id)} />
+                    <input
+                      type="checkbox"
+                      checked={form.participant_ids.includes(emp.id) || form.participant_ids.includes(Number(emp.id))}
+                      onChange={() => toggleParticipant(emp.id)}
+                    />
                     <span>{emp.full_name}{emp.job_title ? ` — ${emp.job_title}` : ''}</span>
                   </label>
-                )) : (
-                  <span className="empty">Personel yok. Excel yükleyin veya Personel menüsünden ekleyin.</span>
+                )) : excelPreview.length ? (
+                  excelPreview.map((p, i) => (
+                    <div key={i} style={{fontSize: 13, color: '#334155'}}>
+                      • {p.name}{p.job ? ` — ${p.job}` : ''}
+                    </div>
+                  ))
+                ) : (
+                  <span className="empty">
+                    Personel yok. Excel yükleyin veya Ortak personel listesini kullanın (önce Personel menüsünden eklenmiş olmalı).
+                  </span>
                 )}
               </div>
             </label>
