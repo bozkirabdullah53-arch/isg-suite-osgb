@@ -291,6 +291,36 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
         )
     if professional.professional_type != payload.professional_type:
         payload = payload.model_copy(update={"professional_type": professional.professional_type})
+    existing = db.scalar(
+        select(WorkplaceAssignment).where(
+            WorkplaceAssignment.company_id == payload.company_id,
+            WorkplaceAssignment.professional_id == payload.professional_id,
+            WorkplaceAssignment.professional_type == payload.professional_type,
+        ).limit(1)
+    )
+    if existing:
+        if existing.status == AssignmentStatus.ACTIVE:
+            raise HTTPException(
+                409,
+                "Bu profesyonel bu işyerine aynı görev türüyle zaten atanmış. Mevcut kaydı kontrol edin.",
+            )
+        # Sonlanmış / askıdaki kaydı yeniden aktifleştir
+        data = payload.model_dump()
+        for k, v in data.items():
+            if k in ("company_id", "professional_id", "professional_type", "osgb_id"):
+                continue
+            setattr(existing, k, v)
+        existing.status = AssignmentStatus.ACTIVE
+        existing.end_date = payload.end_date
+        link_user_to_professional(db, professional)
+        db.commit()
+        try:
+            from app.api.company_access import sync_all_assigned_field_roles
+            sync_all_assigned_field_roles(db)
+        except Exception:
+            pass
+        db.refresh(existing)
+        return existing
     obj = WorkplaceAssignment(**payload.model_dump())
     db.add(obj)
     link_user_to_professional(db, professional)
@@ -369,6 +399,90 @@ def download_assignment_contract(
         media_type=obj.contract_content_type or "application/octet-stream",
         filename=obj.contract_file_name or path.name,
     )
+
+
+@router.patch("/assignments/{assignment_id}/suspend", response_model=AssignmentResponse)
+def suspend_assignment(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    obj = _get_assignment(db, assignment_id, user)
+    if obj.status == AssignmentStatus.ENDED:
+        raise HTTPException(400, "Sonlandırılmış görevlendirme askıya alınamaz. Yeniden aktifleştirin veya silin.")
+    obj.status = AssignmentStatus.SUSPENDED
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.patch("/assignments/{assignment_id}/activate", response_model=AssignmentResponse)
+def activate_assignment(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    obj = _get_assignment(db, assignment_id, user)
+    obj.status = AssignmentStatus.ACTIVE
+    if obj.end_date:
+        obj.end_date = None
+    db.commit()
+    db.refresh(obj)
+    try:
+        from app.api.company_access import sync_all_assigned_field_roles
+        sync_all_assigned_field_roles(db)
+    except Exception:
+        pass
+    return obj
+
+
+@router.patch("/assignments/{assignment_id}/end", response_model=AssignmentResponse)
+def end_assignment(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """Görevlendirmeyi sonlandır (bitiş tarihi bugün)."""
+    from datetime import date as date_cls
+
+    obj = _get_assignment(db, assignment_id, user)
+    obj.status = AssignmentStatus.ENDED
+    obj.end_date = date_cls.today()
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.delete("/assignments/{assignment_id}")
+def delete_assignment(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """Kalıcı sil. Bağlı kayıt varsa sonlandırır."""
+    from datetime import date as date_cls
+
+    obj = _get_assignment(db, assignment_id, user)
+    aid = obj.id
+    try:
+        db.delete(obj)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        obj = db.get(WorkplaceAssignment, aid)
+        if not obj:
+            raise HTTPException(404, "Görevlendirme bulunamadı.") from None
+        obj.status = AssignmentStatus.ENDED
+        obj.end_date = obj.end_date or date_cls.today()
+        db.commit()
+        return {
+            "ok": True,
+            "id": aid,
+            "status": obj.status.value,
+            "soft_ended": True,
+            "message": "Bağlı kayıtlar nedeniyle silinemedi; görevlendirme sonlandırıldı.",
+        }
+    return {"ok": True, "id": aid, "message": "Görevlendirme silindi."}
 
 
 @router.get("/contracts", response_model=list[ContractResponse])

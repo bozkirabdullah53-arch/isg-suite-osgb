@@ -361,24 +361,33 @@ export function AssignmentsPage({user}){
  const isGlobal=user.role==='global_admin';
  const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]);
  const[open,setOpen]=useState(false),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
+ const[statusFilter,setStatusFilter]=useState('active'); // active | suspended | ended | all
  const[contractFile,setContractFile]=useState(null);
  const[form,setForm]=useState({osgb_id:'',company_id:'',professional_id:'',professional_type:'safety_specialist',start_date:'',end_date:'',required_minutes_monthly:0,planned_minutes_monthly:0,actual_minutes_monthly:0,isg_katip_contract_number:''});
+ const statusLabel={active:'Aktif',suspended:'Askıda',ended:'Sonlandı'};
  const load=async(preferredOid)=>{
-  const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);
-  const id=preferredOid||osgbId(user,o);
-  setOrgs(o);setCompanies(c);
-  setForm(x=>({...x,osgb_id:id||x.osgb_id}));
-  const oid=Number(preferredOid||id);
-  if(oid){
-   const[p,a]=await Promise.all([api(`/osgb/professionals?osgb_id=${oid}`),api('/osgb/assignments')]);
-   setPros(p);setRows(a);
-  }
+  setErr('');
+  try{
+   const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);
+   const id=preferredOid||osgbId(user,o);
+   setOrgs(o);setCompanies(c);
+   setForm(x=>({...x,osgb_id:id||x.osgb_id}));
+   const oid=Number(preferredOid||id);
+   if(oid){
+    const[p,a]=await Promise.all([api(`/osgb/professionals?osgb_id=${oid}`),api('/osgb/assignments')]);
+    setPros(p);setRows(a);
+   }
+  }catch(ex){setErr(ex.message||'Liste yüklenemedi.')}
  };
  useEffect(()=>{load()},[]);
  const companyOpts=companies.filter(x=>{
   const oid=Number(form.osgb_id);
   if(!oid) return true;
   return !x.osgb_id || Number(x.osgb_id)===oid;
+ });
+ const filtered=rows.filter(r=>{
+  if(statusFilter==='all') return true;
+  return (r.status||'active')===statusFilter;
  });
  function resetFormExtras(){
   setContractFile(null);
@@ -426,17 +435,57 @@ export function AssignmentsPage({user}){
    await downloadFile(`/osgb/assignments/${row.id}/contract`,row.contract_file_name||'sozlesme');
   }catch(ex){setErr(ex.message||'Sözleşme indirilemedi.')}
  }
+ async function act(row,action){
+  const labels={end:'sonlandırmak',suspend:'askıya almak',activate:'yeniden aktifleştirmek',delete:'silmek'};
+  if(!window.confirm(`Bu görevlendirmeyi ${labels[action]||action} istiyor musunuz?`)) return;
+  setBusy(true);setErr('');
+  try{
+   if(action==='delete'){
+    const r=await api(`/osgb/assignments/${row.id}`,{method:'DELETE'});
+    if(r.soft_ended) window.alert(r.message||'Görevlendirme sonlandırıldı.');
+   }else{
+    await api(`/osgb/assignments/${row.id}/${action}`,{method:'PATCH'});
+   }
+   await load(form.osgb_id);
+  }catch(ex){setErr(ex.message||'İşlem başarısız.')}
+  finally{setBusy(false)}
+ }
  return <P title="İşyeri Görevlendirmeleri" action={<button onClick={()=>{setErr('');setContractFile(null);setOpen(true)}}><Plus/>Görevlendirme Yap</button>}>
   {err&&!open&&<p style={{color:'#b91c1c'}}>{err}</p>}
-  <T rows={rows} cols={[
+  <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:12,alignItems:'center'}}>
+   <label className="field" style={{margin:0,minWidth:180}}>
+    <span>Durum filtresi</span>
+    <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} disabled={busy}>
+     <option value="active">Aktif</option>
+     <option value="suspended">Askıda</option>
+     <option value="ended">Sonlandı</option>
+     <option value="all">Tümü</option>
+    </select>
+   </label>
+   <button type="button" className="secondary" disabled={busy} onClick={()=>load(form.osgb_id)}>Yenile</button>
+  </div>
+  <T rows={filtered} cols={[
    {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||r.company_id},
    {k:'professional_id',l:'Profesyonel',f:r=>pros.find(x=>x.id===r.professional_id)?.full_name||r.professional_id},
    {k:'professional_type',l:'Görev',f:r=>ptypes[r.professional_type]},
    {k:'isg_katip_contract_number',l:'İSG-KATİP No'},
    {k:'contract_file_name',l:'Sözleşme',f:r=>r.contract_file_name?<button type="button" className="mini" onClick={()=>downloadContract(r)}>{r.contract_file_name}</button>:'—'},
    {k:'start_date',l:'Başlangıç'},
+   {k:'end_date',l:'Bitiş',f:r=>r.end_date||'—'},
    {k:'required_minutes_monthly',l:'Zorunlu dk.'},
-   {k:'status',l:'Durum'}
+   {k:'status',l:'Durum',f:r=><span className={`badge ${r.status==='active'?'ok':'off'}`}>{statusLabel[r.status]||r.status}</span>},
+   {k:'actions',l:'İşlem',f:r=>(
+    <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
+     {r.status==='active'&&<>
+      <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'suspend')}>Askıya Al</button>
+      <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'end')}>Sonlandır</button>
+     </>}
+     {(r.status==='suspended'||r.status==='ended')&&(
+      <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>Aktifleştir</button>
+     )}
+     <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'delete')}>Sil</button>
+    </div>
+   )},
   ]}/>
   {open&&<M title="Yeni Görevlendirme" close={()=>setOpen(false)}>
    <form className="form-grid" onSubmit={save}>
