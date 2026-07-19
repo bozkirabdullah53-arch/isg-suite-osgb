@@ -1,6 +1,6 @@
 import React,{useEffect,useState} from 'react';
 import {api} from './api';
-import {Plus,CheckCircle2} from 'lucide-react';
+import {Plus} from 'lucide-react';
 
 const ptypes={safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli'};
 const stages={new:'Yeni',contacted:'Görüşüldü',proposal:'Teklif',negotiation:'Müzakere',won:'Kazanıldı',lost:'Kaybedildi'};
@@ -14,44 +14,125 @@ function osgbId(user,orgs){return user.osgb_id||orgs[0]?.id||''}
 
 export function OsgbDashboard({user}){
  const[orgs,setOrgs]=useState([]),[data,setData]=useState(null),[oid,setOid]=useState('');
- useEffect(()=>{api('/osgb').then(o=>{setOrgs(o);const id=String(osgbId(user,o)||'');setOid(id);if(id)api(`/operations/dashboard?osgb_id=${id}`).then(setData)})},[]);
- const ov=data?.oversight||{};
- const items=[
-  ['Müşteri İşyerleri',data?.workplaces],
-  ['İSG Profesyonelleri',data?.professionals],
-  ['Aktif Görevlendirme',data?.active_assignments],
-  ['Atanmamış Profesyonel',data?.unassigned_professionals],
-  ['Bugünkü Ziyaret',data?.visits_today],
-  ['Yaklaşan Sözleşme Bitişi',data?.upcoming_contract_expiries],
-  ['Bekleyen Alacak',money(data?.pending_receivables)],
-  ['Net Nakit',money(data?.net_cash)],
- ];
+ const[unassignedOpen,setUnassignedOpen]=useState(false);
+ const[unassignedType,setUnassignedType]=useState('safety_specialist');
+ const[contractsOpen,setContractsOpen]=useState(false);
+
+ async function load(id){
+  if(!id){setData(null);return}
+  setData(await api(`/operations/dashboard?osgb_id=${id}`));
+ }
+
+ useEffect(()=>{
+  api('/osgb').then(o=>{
+   setOrgs(o);
+   const id=String(osgbId(user,o)||'');
+   setOid(id);
+   if(id) load(id);
+  });
+ },[]);
+
+ const byType=data?.professionals_by_type||{};
+ const unBy=data?.unassigned_by_type||{};
+ const unSelected=unBy[unassignedType]||{count:0,items:[],label:ptypes[unassignedType]};
+ const contracts=data?.upcoming_contracts||[];
+
  return <>
-  <div className="welcome"><div><h3>OSGB Operasyon Merkezi</h3><p>İşyerlerini, profesyonelleri, saha ziyaretlerini ve hizmet denetimini tek ekrandan izleyin.</p></div></div>
+  <div className="welcome"><div>
+   <h3>OSGB Ana Panel</h3>
+   <p>Müşteri işyerleri, İSG kadrosu, atanmamış profesyoneller ve bitmesi yaklaşan sözleşmeler.</p>
+  </div></div>
+
   {orgs.length>1&&<section className="panel" style={{marginBottom:16}}>
    <label className="field"><span>OSGB</span>
-    <select value={oid} onChange={e=>{setOid(e.target.value);api(`/operations/dashboard?osgb_id=${e.target.value}`).then(setData)}}>
+    <select value={oid} onChange={e=>{const v=e.target.value;setOid(v);load(v)}}>
      {orgs.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
     </select>
    </label>
   </section>}
-  <div className="cards osgb-cards">{items.map(([t,v])=><article className="metric" key={t}><span>{t}</span><strong>{v??0}</strong></article>)}</div>
-  <section className="panel" style={{marginTop:16}}>
-   <h3 style={{marginTop:0}}>Hizmet Denetimi özeti (aynı veri kaynağı)</h3>
-   <p style={{color:'#64748b',marginTop:0}}>Detay ve profesyonel bazlı sütun grafikler için sol menüden <strong>Hizmet Denetimi</strong>’ne gidin.</p>
-   <div className="cards" style={{marginBottom:0}}>
-    <article className="metric"><span>Uygun</span><strong style={{color:'#166534'}}>{ov.ok??0}</strong></article>
-    <article className="metric"><span>İzlem</span><strong style={{color:'#92400e'}}>{ov.warning??0}</strong></article>
-    <article className="metric"><span>Kritik</span><strong style={{color:'#991b1b'}}>{ov.critical??0}</strong></article>
-    <article className="metric"><span>Müdahale kalemi</span><strong style={{color:'#b91c1c'}}>{ov.gap_count??0}</strong></article>
-   </div>
-  </section>
-  <section className="panel"><h3>Günlük kontrol listesi</h3><div className="check-grid">
-   <span><CheckCircle2/>Bugünkü saha ziyaretlerini doğrulayın</span>
-   <span><CheckCircle2/>Süresi yaklaşan sözleşmeleri kontrol edin</span>
-   <span><CheckCircle2/>Atanmamış uzman/hekim/DSP görevlendirmelerini tamamlayın ({data?.unassigned_professionals??0})</span>
-   <span><CheckCircle2/>Hizmet Denetimi’ndeki kritikleri kapatın ({ov.critical??0})</span>
-  </div></section>
+
+  <div className="cards osgb-cards" style={{marginBottom:16}}>
+   <article className="metric"><span>Müşteri İşyerleri</span><strong>{data?.workplaces??0}</strong></article>
+   <article className="metric"><span>İş Güvenliği Uzmanları</span><strong>{byType.safety_specialist?.count??0}</strong></article>
+   <article className="metric"><span>İşyeri Hekimleri</span><strong>{byType.workplace_physician?.count??0}</strong></article>
+   <article className="metric"><span>Diğer Sağlık Personeli</span><strong>{byType.other_health_personnel?.count??0}</strong></article>
+  </div>
+
+  <div className="cards osgb-cards" style={{marginBottom:16}}>
+   <article
+    className="metric"
+    style={{cursor:'pointer', outline: unassignedOpen ? '2px solid #0f766e' : undefined}}
+    onClick={()=>setUnassignedOpen(o=>!o)}
+    title="Tıklayınca atanmamış listesini açar"
+   >
+    <span>Ataması Yapılmamış</span>
+    <strong style={{color:(data?.unassigned_professionals||0)>0?'#b91c1c':undefined}}>
+      {data?.unassigned_professionals??0}
+    </strong>
+    <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>
+      Uzman {unBy.safety_specialist?.count??0} · Hekim {unBy.workplace_physician?.count??0} · DSP {unBy.other_health_personnel?.count??0}
+    </small>
+   </article>
+   <article
+    className="metric"
+    style={{cursor:'pointer', outline: contractsOpen ? '2px solid #0f766e' : undefined}}
+    onClick={()=>setContractsOpen(o=>!o)}
+    title="Tıklayınca sözleşme listesini açar"
+   >
+    <span>Bitmesi Yaklaşan Sözleşmeler</span>
+    <strong style={{color:(data?.upcoming_contract_expiries||0)>0?'#b45309':undefined}}>
+      {data?.upcoming_contract_expiries??0}
+    </strong>
+    <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>
+      Önümüzdeki {data?.period_days??30} gün
+    </small>
+   </article>
+  </div>
+
+  {unassignedOpen&&(
+   <section className="panel" style={{marginBottom:16}}>
+    <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center',marginBottom:12}}>
+     <h3 style={{margin:0}}>Ataması yapılmamış profesyoneller</h3>
+     <label className="field" style={{margin:0,minWidth:260}}>
+      <span>Rol seçin</span>
+      <select value={unassignedType} onChange={e=>setUnassignedType(e.target.value)}>
+       <option value="safety_specialist">İş Güvenliği Uzmanları ({unBy.safety_specialist?.count??0})</option>
+       <option value="workplace_physician">İşyeri Hekimleri ({unBy.workplace_physician?.count??0})</option>
+       <option value="other_health_personnel">Diğer Sağlık Personeli ({unBy.other_health_personnel?.count??0})</option>
+      </select>
+     </label>
+    </div>
+    <p style={{marginTop:0,color:'#64748b',fontSize:13}}>
+      Seçili: <strong>{unSelected.label||ptypes[unassignedType]}</strong> — {unSelected.count??0} kişi
+    </p>
+    <T
+     cols={[
+      {k:'full_name',l:'Ad Soyad'},
+      {k:'certificate_class',l:'Sınıf',f:r=>r.certificate_class||'—'},
+      {k:'certificate_number',l:'Belge No',f:r=>r.certificate_number||'—'},
+      {k:'email',l:'E-posta',f:r=>r.email||'—'},
+      {k:'phone',l:'Telefon',f:r=>r.phone||'—'},
+     ]}
+     rows={unSelected.items||[]}
+    />
+   </section>
+  )}
+
+  {contractsOpen&&(
+   <section className="panel">
+    <h3 style={{marginTop:0}}>Bitmesi yaklaşan sözleşmeler (30 gün)</h3>
+    <T
+     cols={[
+      {k:'company_name',l:'İşyeri'},
+      {k:'contract_number',l:'Sözleşme No'},
+      {k:'end_date',l:'Bitiş',f:r=>r.end_date||'—'},
+      {k:'days_left',l:'Kalan gün',f:r=>r.days_left==null?'—':`${r.days_left} gün`},
+      {k:'status',l:'Durum',f:r=>r.status||'—'},
+     ]}
+     rows={contracts}
+    />
+   </section>
+  )}
  </>
 }
 

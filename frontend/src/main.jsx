@@ -339,7 +339,7 @@ function App(){
   ].filter(([k])=>allowed.includes(k));
   const pages={
     osgb_dashboard:<OsgbDashboard user={user}/>,
-    osgb_oversight:<OsgbOversightPage user={user}/>,
+    osgb_oversight:<OsgbOversightPage user={user} onNavigate={goModule}/>,
     pro_performance:<ProPerformancePage user={user}/>,
     csgb_audit:<CsgbAuditPackPage user={user}/>,
     professionals:<ProfessionalsPage user={user}/>,

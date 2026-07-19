@@ -8,6 +8,12 @@ const TYPE_LABELS = {
   other_health_personnel: 'Diğer Sağlık Personeli',
 };
 
+const ROLE_TABS = [
+  {id: 'safety_specialist', short: 'Uzman', label: 'İş Güvenliği Uzmanları'},
+  {id: 'workplace_physician', short: 'Hekim', label: 'İşyeri Hekimleri'},
+  {id: 'other_health_personnel', short: 'DSP', label: 'Diğer Sağlık Personeli'},
+];
+
 const STATUS_LABELS = {
   ok: 'Uygun',
   warning: 'İzlem',
@@ -34,20 +40,21 @@ function StatusPill({status}) {
   );
 }
 
-function optionLabel(p) {
-  const role = TYPE_LABELS[p.professional_type] || p.professional_type;
-  const cls = p.certificate_class ? ` · Sınıf ${p.certificate_class}` : '';
-  const inactive = p.is_active === false ? ' (pasif)' : '';
-  return `${p.full_name} — ${role}${cls}${inactive}`;
+function periodText(period) {
+  if (!period) return '—';
+  if (period.label) return period.label;
+  if (period.month && period.year) return `${period.month}/${period.year}`;
+  return '—';
 }
 
 export function ProPerformancePage({user}) {
   const [orgs, setOrgs] = useState([]);
   const [osgbId, setOsgbId] = useState('');
   const [directory, setDirectory] = useState([]);
-  const [typeFilter, setTypeFilter] = useState('');
+  const [roleTab, setRoleTab] = useState('safety_specialist');
   const [selectedId, setSelectedId] = useState('');
   const [report, setReport] = useState(null);
+  const [section, setSection] = useState('incomplete'); // incomplete | completed | firms
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -83,7 +90,7 @@ export function ProPerformancePage({user}) {
     }
   }
 
-  async function loadReport(pid = selectedId) {
+  async function loadReport(pid) {
     if (!pid) {
       setReport(null);
       return;
@@ -93,6 +100,8 @@ export function ProPerformancePage({user}) {
     try {
       const r = await api(`/osgb/professionals/${pid}/performance`);
       setReport(r);
+      const gaps = (r.incomplete || []).length;
+      setSection(gaps > 0 ? 'incomplete' : ((r.firms || []).length ? 'firms' : 'completed'));
     } catch (e) {
       setReport(null);
       setError(e.message || 'Rapor yüklenemedi.');
@@ -103,14 +112,41 @@ export function ProPerformancePage({user}) {
 
   useEffect(() => { void loadDirectory(); }, []);
 
-  const filtered = useMemo(() => {
-    let rows = directory;
-    if (typeFilter) rows = rows.filter((p) => p.professional_type === typeFilter);
-    return rows;
-  }, [directory, typeFilter]);
+  useEffect(() => {
+    try {
+      const preset = sessionStorage.getItem('pro_performance_id');
+      if (!preset) return;
+      sessionStorage.removeItem('pro_performance_id');
+      setSelectedId(preset);
+      void loadReport(preset);
+    } catch (_) { /* ignore */ }
+  }, []);
+
+  // Preset seçilince rol sekmesini profesyonelin tipine hizala
+  useEffect(() => {
+    if (!selectedId || !directory.length) return;
+    const p = directory.find((x) => String(x.id) === String(selectedId));
+    if (p?.professional_type) setRoleTab(p.professional_type);
+  }, [selectedId, directory]);
+
+  const roleCounts = useMemo(() => {
+    const c = {safety_specialist: 0, workplace_physician: 0, other_health_personnel: 0};
+    for (const p of directory) {
+      if (c[p.professional_type] != null) c[p.professional_type] += 1;
+    }
+    return c;
+  }, [directory]);
+
+  const filtered = useMemo(
+    () => directory.filter((p) => p.professional_type === roleTab),
+    [directory, roleTab],
+  );
 
   const perf = report?.performance;
   const st = statusStyle(perf?.status);
+  const incomplete = report?.incomplete || [];
+  const completed = report?.completed || [];
+  const firms = report?.firms || [];
 
   return (
     <>
@@ -118,11 +154,16 @@ export function ProPerformancePage({user}) {
         <div>
           <h3>Performans / İş Tamamlama</h3>
           <p style={{margin: '4px 0 0', color: '#64748b', fontSize: 13}}>
-            Uzman, hekim veya DSP seçin — atanmış firmalardaki 6331 sorumluluk tamamlanma raporu.
+            Rol seçin → profesyoneli seçin → atanmış firmalardaki 6331 iş tamamlama raporu.
           </p>
         </div>
         <div style={{display: 'flex', gap: 8}}>
-          <button type="button" className="ghost" disabled={busy} onClick={() => { void loadDirectory(); if (selectedId) void loadReport(selectedId); }}>
+          <button
+            type="button"
+            className="ghost"
+            disabled={busy}
+            onClick={() => { void loadDirectory(); if (selectedId) void loadReport(selectedId); }}
+          >
             <RefreshCw size={16} /> Yenile
           </button>
           {report && (
@@ -136,55 +177,76 @@ export function ProPerformancePage({user}) {
       {error && <div className="error" style={{marginBottom: 12}}>{error}</div>}
 
       <section className="panel" style={{marginBottom: 16}}>
-        <div className="form-grid" style={{gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12}}>
-          {orgs.length > 1 && (
-            <label className="field">
-              <span>OSGB</span>
-              <select
-                value={osgbId}
-                onChange={(e) => {
-                  setOsgbId(e.target.value);
-                  setSelectedId('');
-                  setReport(null);
-                  void loadDirectory(e.target.value);
-                }}
-              >
-                {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-              </select>
-            </label>
-          )}
-          <label className="field">
-            <span>Rol filtresi</span>
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-              <option value="">Tümü</option>
-              <option value="safety_specialist">İş Güvenliği Uzmanı</option>
-              <option value="workplace_physician">İşyeri Hekimi</option>
-              <option value="other_health_personnel">DSP</option>
-            </select>
-          </label>
-          <label className="field" style={{gridColumn: 'span 2'}}>
-            <span>Profesyonel</span>
+        {orgs.length > 1 && (
+          <label className="field" style={{maxWidth: 360, marginBottom: 12}}>
+            <span>OSGB</span>
             <select
-              value={selectedId}
+              value={osgbId}
               onChange={(e) => {
-                const id = e.target.value;
-                setSelectedId(id);
-                void loadReport(id);
+                setOsgbId(e.target.value);
+                setSelectedId('');
+                setReport(null);
+                void loadDirectory(e.target.value);
               }}
             >
-              <option value="">Seçiniz…</option>
-              {filtered.map((p) => (
-                <option key={p.id} value={p.id}>{optionLabel(p)}</option>
-              ))}
+              {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
             </select>
           </label>
+        )}
+
+        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14}}>
+          {ROLE_TABS.map((t) => {
+            const active = roleTab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                className={active ? '' : 'secondary'}
+                onClick={() => {
+                  setRoleTab(t.id);
+                  setSelectedId('');
+                  setReport(null);
+                }}
+                style={active ? undefined : undefined}
+              >
+                {t.label} ({roleCounts[t.id] || 0})
+              </button>
+            );
+          })}
         </div>
+
+        <label className="field" style={{marginBottom: 0}}>
+          <span>{ROLE_TABS.find((t) => t.id === roleTab)?.label || 'Profesyonel'}</span>
+          <select
+            value={selectedId}
+            onChange={(e) => {
+              const id = e.target.value;
+              setSelectedId(id);
+              void loadReport(id);
+            }}
+            style={{fontWeight: 650}}
+          >
+            <option value="">Seçiniz…</option>
+            {filtered.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.full_name}
+                {p.certificate_class ? ` · Sınıf ${p.certificate_class}` : ''}
+                {p.is_active === false ? ' (pasif)' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        {!filtered.length && (
+          <p style={{margin: '10px 0 0', fontSize: 13, color: '#92400e'}}>
+            Bu rolde kayıtlı profesyonel yok. İSG Profesyonelleri menüsünden ekleyin.
+          </p>
+        )}
       </section>
 
       {!selectedId && (
         <section className="panel" style={{textAlign: 'center', padding: '40px 20px', color: '#64748b'}}>
           <UserRound size={36} style={{marginBottom: 8, opacity: 0.5}} />
-          <p>Rapor için listeden bir profesyonel seçin.</p>
+          <p style={{margin: 0}}>Önce rol, sonra profesyonel seçin.</p>
         </section>
       )}
 
@@ -193,7 +255,9 @@ export function ProPerformancePage({user}) {
           <section className="panel" style={{marginBottom: 16}}>
             <div style={{display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start'}}>
               <div>
-                <div style={{fontSize: 12, color: '#64748b', marginBottom: 4}}>İş Tamamlama / Performans Raporu</div>
+                <div style={{fontSize: 12, color: '#64748b', marginBottom: 4}}>
+                  {report.report_title || 'İş Tamamlama / Performans Raporu'}
+                </div>
                 <h2 style={{margin: 0, fontSize: 22}}>{report.professional?.full_name}</h2>
                 <p style={{margin: '6px 0 0', color: '#475569'}}>
                   {report.professional?.role_label}
@@ -202,7 +266,8 @@ export function ProPerformancePage({user}) {
                   {report.professional?.is_active === false ? ' · Pasif' : ''}
                 </p>
                 <p style={{margin: '4px 0 0', fontSize: 12, color: '#94a3b8'}}>
-                  Dönem: {report.period?.label || '—'} · Üretim: {report.generated_at}
+                  Dönem: {periodText(report.period)} · Üretim: {report.generated_at}
+                  {perf?.unassigned ? ' · Görevlendirme yok' : ''}
                 </p>
               </div>
               <div style={{
@@ -216,115 +281,176 @@ export function ProPerformancePage({user}) {
             </div>
 
             <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-              gap: 12, marginTop: 20,
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+              gap: 10, marginTop: 18,
             }}>
               {[
-                ['Firma', perf?.firm_count ?? 0],
-                ['Tamamlanan', perf?.completed_checks ?? 0],
-                ['Toplam kontrol', perf?.total_checks ?? 0],
+                ['İşyeri', perf?.firm_count ?? 0],
+                ['Tamamlanan', perf?.completed_checks ?? completed.length],
+                ['Eksik', perf?.gap_count ?? incomplete.length],
                 ['Tamamlanma', `%${perf?.completion_pct ?? 0}`],
-                ['Eksik', perf?.gap_count ?? 0],
               ].map(([label, val]) => (
                 <div key={label} style={{padding: '12px 14px', background: '#f8fafc', borderRadius: 10}}>
                   <div style={{fontSize: 11, color: '#64748b'}}>{label}</div>
-                  <div style={{fontSize: 20, fontWeight: 750, marginTop: 2}}>{val}</div>
+                  <div style={{
+                    fontSize: 20, fontWeight: 750, marginTop: 2,
+                    color: label === 'Eksik' && Number(val) > 0 ? '#b91c1c' : undefined,
+                  }}>{val}</div>
                 </div>
               ))}
             </div>
           </section>
 
-          {(report.incomplete || []).length > 0 && (
+          <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12}}>
+            <button
+              type="button"
+              className={section === 'incomplete' ? '' : 'secondary'}
+              onClick={() => setSection('incomplete')}
+            >
+              Eksikler ({incomplete.length})
+            </button>
+            <button
+              type="button"
+              className={section === 'completed' ? '' : 'secondary'}
+              onClick={() => setSection('completed')}
+            >
+              Tamamlanan ({completed.length})
+            </button>
+            <button
+              type="button"
+              className={section === 'firms' ? '' : 'secondary'}
+              onClick={() => setSection('firms')}
+            >
+              Firma checklist ({firms.length})
+            </button>
+          </div>
+
+          {section === 'incomplete' && (
             <section className="panel" style={{marginBottom: 16}}>
               <h3 style={{display: 'flex', alignItems: 'center', gap: 8, marginTop: 0}}>
-                <AlertTriangle size={18} color="#dc2626" /> Eksik / tamamlanmayan işler ({report.incomplete.length})
+                <AlertTriangle size={18} color="#dc2626" /> Eksik / tamamlanmayan işler
               </h3>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>İşyeri</th>
-                      <th>Kontrol</th>
-                      <th>Detay</th>
-                      <th>Dayanak</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.incomplete.map((g, i) => (
-                      <tr key={`inc-${i}`}>
-                        <td>{g.company_name || '—'}</td>
-                        <td><strong>{g.check_title}</strong></td>
-                        <td style={{fontSize: 13}}>{g.detail}</td>
-                        <td style={{fontSize: 12, color: '#64748b'}}>{g.legal || '—'}</td>
+              {incomplete.length ? (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>İşyeri</th>
+                        <th>Kontrol</th>
+                        <th>Detay</th>
+                        <th>Dayanak</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {incomplete.map((g, i) => (
+                        <tr key={`inc-${i}`}>
+                          <td>{i + 1}</td>
+                          <td>{g.company_name || '—'}</td>
+                          <td><strong>{g.check_title}</strong></td>
+                          <td style={{fontSize: 13}}>{g.detail}</td>
+                          <td style={{fontSize: 12, color: '#64748b'}}>{g.legal || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p style={{margin: 0, color: '#166534', display: 'flex', alignItems: 'center', gap: 8}}>
+                  <CheckCircle2 size={16} /> Eksik iş yok.
+                </p>
+              )}
             </section>
           )}
 
-          {(report.completed || []).length > 0 && (
+          {section === 'completed' && (
             <section className="panel" style={{marginBottom: 16}}>
               <h3 style={{display: 'flex', alignItems: 'center', gap: 8, marginTop: 0}}>
-                <CheckCircle2 size={18} color="#16a34a" /> Tamamlanan kontroller ({report.completed.length})
+                <CheckCircle2 size={18} color="#16a34a" /> Tamamlanan kontroller
               </h3>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>İşyeri</th>
-                      <th>Kontrol</th>
-                      <th>Detay</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.completed.map((g, i) => (
-                      <tr key={`ok-${i}`}>
-                        <td>{g.company_name || '—'}</td>
-                        <td>{g.check_title}</td>
-                        <td style={{fontSize: 13, color: '#475569'}}>{g.detail}</td>
+              {completed.length ? (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>İşyeri</th>
+                        <th>Kontrol</th>
+                        <th>Detay</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {completed.map((g, i) => (
+                        <tr key={`ok-${i}`}>
+                          <td>{g.company_name || '—'}</td>
+                          <td>{g.check_title}</td>
+                          <td style={{fontSize: 13, color: '#475569'}}>{g.detail}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p style={{margin: 0, color: '#64748b'}}>Tamamlanan kontrol kaydı yok.</p>
+              )}
             </section>
           )}
 
-          {(report.firms || []).length > 0 && (
+          {section === 'firms' && (
             <section className="panel">
               <h3 style={{display: 'flex', alignItems: 'center', gap: 8, marginTop: 0}}>
                 <ClipboardList size={18} /> Firma bazlı checklist
               </h3>
-              <div style={{display: 'flex', flexDirection: 'column', gap: 16}}>
-                {report.firms.map((f) => (
-                  <div key={f.company_id} style={{border: '1px solid #e2e8f0', borderRadius: 10, padding: 14}}>
-                    <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8}}>
-                      <strong>{f.company_name}</strong>
-                      <StatusPill status={f.status} />
-                    </div>
-                    <div style={{display: 'grid', gap: 6}}>
-                      {(f.checks || []).map((c) => (
-                        <div key={c.code} style={{
-                          display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13,
-                          padding: '6px 8px', borderRadius: 6,
-                          background: c.passed ? '#f0fdf4' : '#fef2f2',
-                        }}>
-                          {c.passed
-                            ? <CheckCircle2 size={15} color="#16a34a" style={{flexShrink: 0, marginTop: 2}} />
-                            : <AlertTriangle size={15} color="#dc2626" style={{flexShrink: 0, marginTop: 2}} />}
-                          <div>
-                            <strong>{c.title}</strong>
-                            <div style={{color: '#64748b'}}>{c.detail}</div>
-                          </div>
+              {!firms.length ? (
+                <p style={{margin: 0, color: '#92400e'}}>
+                  Atanmış işyeri yok. Önce <strong>Görevlendirmeler</strong> menüsünden atayın.
+                </p>
+              ) : (
+                <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
+                  {firms.map((f) => (
+                    <div key={f.company_id || f.assignment_id} style={{border: '1px solid #e2e8f0', borderRadius: 10, padding: 14}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8}}>
+                        <div>
+                          <strong>{f.company_name}</strong>
+                          {f.hazard_class && (
+                            <div style={{fontSize: 12, color: '#64748b'}}>{f.hazard_class}</div>
+                          )}
                         </div>
-                      ))}
+                        <div style={{textAlign: 'right'}}>
+                          <StatusPill status={f.status} />
+                          {f.score != null && <div style={{fontSize: 12, marginTop: 4}}>{f.score}%</div>}
+                        </div>
+                      </div>
+                      <div style={{display: 'grid', gap: 6}}>
+                        {(f.checks || []).map((c) => (
+                          <div
+                            key={c.code}
+                            style={{
+                              display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13,
+                              padding: '6px 8px', borderRadius: 6,
+                              background: c.passed ? '#f0fdf4' : '#fef2f2',
+                            }}
+                          >
+                            {c.passed
+                              ? <CheckCircle2 size={15} color="#16a34a" style={{flexShrink: 0, marginTop: 2}} />
+                              : <AlertTriangle size={15} color="#dc2626" style={{flexShrink: 0, marginTop: 2}} />}
+                            <div>
+                              <strong>{c.passed ? 'Yapıldı' : 'Yapılmadı'} — {c.title}</strong>
+                              <div style={{color: '#64748b'}}>{c.detail}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
+          )}
+
+          {(report.legal_basis || []).length > 0 && (
+            <p style={{marginTop: 12, fontSize: 11, color: '#94a3b8'}}>
+              Dayanak: {(report.legal_basis || []).join(' · ')}
+            </p>
           )}
         </div>
       )}

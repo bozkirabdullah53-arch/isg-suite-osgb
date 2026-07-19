@@ -27,16 +27,21 @@ def active_osgb(user: User, requested: int | None = None) -> int:
 @router.get("/dashboard")
 def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     oid = active_osgb(user, osgb_id)
-    today = date.today(); soon = today + timedelta(days=30)
-    def count(model, *where): return db.scalar(select(func.count()).select_from(model).where(*where)) or 0
-    income = db.scalar(select(func.coalesce(func.sum(FinanceTransaction.amount),0)).where(FinanceTransaction.osgb_id==oid, FinanceTransaction.transaction_type=="income", FinanceTransaction.status=="paid")) or 0
-    expense = db.scalar(select(func.coalesce(func.sum(FinanceTransaction.amount),0)).where(FinanceTransaction.osgb_id==oid, FinanceTransaction.transaction_type=="expense", FinanceTransaction.status=="paid")) or 0
+    today = date.today()
+    soon = today + timedelta(days=30)
 
-    professionals = count(IsgProfessional, IsgProfessional.osgb_id == oid, IsgProfessional.is_active == True)
-    active_assignments = count(
-        WorkplaceAssignment,
-        WorkplaceAssignment.osgb_id == oid,
-        WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+    def count(model, *where):
+        return db.scalar(select(func.count()).select_from(model).where(*where)) or 0
+
+    workplaces = count(Company, Company.osgb_id == oid, Company.is_active == True)
+
+    pros = list(
+        db.scalars(
+            select(IsgProfessional).where(
+                IsgProfessional.osgb_id == oid,
+                IsgProfessional.is_active == True,
+            ).order_by(IsgProfessional.full_name)
+        ).all()
     )
     assigned_pro_ids = set(
         db.scalars(
@@ -46,55 +51,79 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
             )
         ).all()
     )
-    unassigned_professionals = max(0, professionals - len(assigned_pro_ids))
 
-    oversight_summary = {
-        "ok": 0,
-        "warning": 0,
-        "critical": 0,
-        "unknown": 0,
-        "gap_count": 0,
-        "unassigned": unassigned_professionals,
-        "professionals_tracked": 0,
+    type_order = ("safety_specialist", "workplace_physician", "other_health_personnel")
+    type_labels = {
+        "safety_specialist": "İş Güvenliği Uzmanları",
+        "workplace_physician": "İşyeri Hekimleri",
+        "other_health_personnel": "Diğer Sağlık Personeli",
     }
-    try:
-        from app.services.osgb_oversight import build_oversight
-        ov = build_oversight(db, osgb_id=oid)
-        oversight_summary.update({
-            "ok": ov["summary"].get("ok", 0),
-            "warning": ov["summary"].get("warning", 0),
-            "critical": ov["summary"].get("critical", 0),
-            "unknown": ov["summary"].get("unknown", 0),
-            "gap_count": ov.get("gap_count", 0),
-            "unassigned": ov["summary"].get("unassigned", unassigned_professionals),
-            "professionals_tracked": ov["summary"].get("professionals", 0),
-        })
-    except Exception:
-        pass
+
+    by_type: dict[str, dict] = {}
+    unassigned_by_type: dict[str, dict] = {}
+    for t in type_order:
+        typed = [p for p in pros if p.professional_type.value == t]
+        unassigned = [p for p in typed if p.id not in assigned_pro_ids]
+        by_type[t] = {
+            "type": t,
+            "label": type_labels[t],
+            "count": len(typed),
+        }
+        unassigned_by_type[t] = {
+            "type": t,
+            "label": type_labels[t],
+            "count": len(unassigned),
+            "items": [
+                {
+                    "id": p.id,
+                    "full_name": p.full_name,
+                    "certificate_class": p.certificate_class,
+                    "certificate_number": p.certificate_number,
+                    "email": p.email,
+                    "phone": p.phone,
+                }
+                for p in unassigned
+            ],
+        }
+
+    companies = {
+        c.id: c.name
+        for c in db.scalars(select(Company).where(Company.osgb_id == oid)).all()
+    }
+    expiring = list(
+        db.scalars(
+            select(ServiceContract).where(
+                ServiceContract.osgb_id == oid,
+                ServiceContract.end_date.is_not(None),
+                ServiceContract.end_date.between(today, soon),
+            ).order_by(ServiceContract.end_date)
+        ).all()
+    )
+    upcoming_contracts = [
+        {
+            "id": c.id,
+            "contract_number": c.contract_number,
+            "company_id": c.company_id,
+            "company_name": companies.get(c.company_id, f"#{c.company_id}"),
+            "start_date": c.start_date.isoformat() if c.start_date else None,
+            "end_date": c.end_date.isoformat() if c.end_date else None,
+            "days_left": (c.end_date - today).days if c.end_date else None,
+            "status": c.status,
+            "monthly_fee": c.monthly_fee,
+        }
+        for c in expiring
+    ]
 
     return {
         "osgb_id": oid,
-        "workplaces": count(Company, Company.osgb_id == oid, Company.is_active == True),
-        "professionals": professionals,
-        "active_assignments": active_assignments,
-        "unassigned_professionals": unassigned_professionals,
-        "visits_today": count(ServiceVisit, ServiceVisit.osgb_id == oid, ServiceVisit.visit_date == today),
-        "upcoming_contract_expiries": count(
-            ServiceContract,
-            ServiceContract.osgb_id == oid,
-            ServiceContract.end_date != None,
-            ServiceContract.end_date.between(today, soon),
-        ),
-        "open_leads": count(CrmLead, CrmLead.osgb_id == oid, CrmLead.stage.notin_(["won", "lost"])),
-        "pending_receivables": db.scalar(
-            select(func.coalesce(func.sum(FinanceTransaction.amount), 0)).where(
-                FinanceTransaction.osgb_id == oid,
-                FinanceTransaction.transaction_type == "income",
-                FinanceTransaction.status == "pending",
-            )
-        ) or 0,
-        "net_cash": income - expense,
-        "oversight": oversight_summary,
+        "workplaces": workplaces,
+        "professionals_by_type": by_type,
+        "unassigned_by_type": unassigned_by_type,
+        "unassigned_professionals": sum(v["count"] for v in unassigned_by_type.values()),
+        "professionals": len(pros),
+        "upcoming_contract_expiries": len(upcoming_contracts),
+        "upcoming_contracts": upcoming_contracts,
+        "period_days": 30,
     }
 
 @router.get("/visits", response_model=list[VisitResponse])

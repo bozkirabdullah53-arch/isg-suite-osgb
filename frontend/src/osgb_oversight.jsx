@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {AlertTriangle, CheckCircle2, ClipboardCheck, RefreshCw, ShieldAlert, Sparkles, Stethoscope, UserRound} from 'lucide-react';
+import {AlertTriangle, CheckCircle2, ClipboardCheck, RefreshCw, ShieldAlert, Sparkles, Stethoscope} from 'lucide-react';
 import {api} from './api';
 
 const TYPE_LABELS = {
@@ -86,25 +86,6 @@ function ScoreBar({score, status}) {
   );
 }
 
-function goModuleHint(checkCode) {
-  if (['risk_degerlendirme', 'risk_dof'].includes(checkCode)) return 'Risk Analizi';
-  if (checkCode === 'yillik_plan') return 'Yıllık Plan';
-  if (checkCode === 'egitim') return 'Eğitimler';
-  if (checkCode === 'olay_takip') return 'Ramak Kala / İş Kazaları';
-  if (['saglik_gozetim', 'muayene_gecikme', 'uygunluk'].includes(checkCode)) return 'Sağlık';
-  if (checkCode === 'saha_sure') return 'Saha Takvimi';
-  if (checkCode === 'gorevlendirme') return 'Görevlendirmeler';
-  return 'İlgili modül';
-}
-
-function optionLabel(p) {
-  const role = TYPE_LABELS[p.professional_type] || p.professional_type;
-  const cls = p.certificate_class ? ` · Sınıf ${p.certificate_class}` : '';
-  const inactive = p.is_active === false ? ' (pasif)' : '';
-  return `${p.full_name} — ${role}${cls}${inactive}`;
-}
-
-/** Seçilen kişinin tüm eksikleri — firma checklist’inden türetilir (kesilmez). */
 function collectPersonGaps(person) {
   if (!person) return [];
   const out = [];
@@ -128,7 +109,7 @@ function collectPersonGaps(person) {
   return out;
 }
 
-export function OsgbOversightPage({user}) {
+export function OsgbOversightPage({user, onNavigate}) {
   const [orgs, setOrgs] = useState([]);
   const [osgbId, setOsgbId] = useState('');
   const [data, setData] = useState(null);
@@ -142,7 +123,7 @@ export function OsgbOversightPage({user}) {
   if (user.role !== 'global_admin') {
     return (
       <>
-        <div className="page-title"><h3>OSGB Hizmet Denetimi</h3></div>
+        <div className="page-title"><h3>Hizmet Denetimi</h3></div>
         <section className="panel">
           <p>Bu ekran yalnızca global yönetici tarafından görüntülenebilir.</p>
         </section>
@@ -215,7 +196,7 @@ export function OsgbOversightPage({user}) {
         }
       }
 
-      const merged = {
+      setData({
         ...r,
         directory,
         professionals: [...rowById.values()],
@@ -223,9 +204,7 @@ export function OsgbOversightPage({user}) {
           ...(r.summary || {}),
           professionals: Math.max(r.summary?.professionals || 0, directory.length),
         },
-      };
-      setData(merged);
-      // Açılışta genel görünüm: seçim zorunlu değil; önceki seçim varsa koru
+      });
       setSelectedId((prev) => {
         if (!prev) return '';
         if (rowById.has(Number(prev)) || rowById.has(prev)) return String(prev);
@@ -249,7 +228,7 @@ export function OsgbOversightPage({user}) {
       setStatusFilter('');
       setSeedMsg(
         `Test eklendi: ${(r.seeded?.professionals || []).map((p) => p.name).join(', ')}. `
-        + `İşyeri: ${r.seeded?.company_name || '—'}. Eksik: ${r.gap_count ?? '—'}.`,
+        + `Eksik: ${r.gap_count ?? '—'}.`,
       );
       if (r.seeded?.osgb_id) setOsgbId(String(r.seeded.osgb_id));
       await load(r.seeded?.osgb_id ? String(r.seeded.osgb_id) : osgbId);
@@ -260,7 +239,14 @@ export function OsgbOversightPage({user}) {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  function openPerformance(professionalId) {
+    try {
+      sessionStorage.setItem('pro_performance_id', String(professionalId));
+    } catch (_) { /* ignore */ }
+    if (typeof onNavigate === 'function') onNavigate('pro_performance');
+  }
+
+  useEffect(() => { void load(); }, []);
 
   const rows = useMemo(() => {
     let list = data?.professionals || [];
@@ -269,12 +255,6 @@ export function OsgbOversightPage({user}) {
     return list;
   }, [data, typeFilter, statusFilter]);
 
-  const directory = useMemo(() => {
-    let list = data?.directory || [];
-    if (typeFilter) list = list.filter((p) => p.professional_type === typeFilter);
-    return list;
-  }, [data, typeFilter]);
-
   const selected = useMemo(() => {
     if (!selectedId || !data?.professionals) return null;
     const idNum = Number(selectedId);
@@ -282,12 +262,6 @@ export function OsgbOversightPage({user}) {
   }, [data, selectedId]);
 
   const personGaps = useMemo(() => collectPersonGaps(selected), [selected]);
-
-  const roleCatalog = useMemo(() => {
-    if (!selected || !data?.check_catalog) return [];
-    return data.check_catalog[selected.professional_type] || [];
-  }, [selected, data]);
-
   const summary = data?.summary || {};
   const globalColumns = data?.check_columns || [];
   const globalGaps = useMemo(() => {
@@ -303,12 +277,12 @@ export function OsgbOversightPage({user}) {
   return (
     <>
       <div className="page-title">
-        <h3>OSGB Hizmet Denetimi</h3>
+        <h3>Hizmet Denetimi</h3>
         <div className="actions">
-          <button type="button" className="secondary" onClick={seedDemo} disabled={busy}>
-            <Sparkles size={16} /> Test Uzman/Hekim/DSP
+          <button type="button" className="secondary" onClick={seedDemo} disabled={busy} title="Demo veri">
+            <Sparkles size={16} /> Test verisi
           </button>
-          <button type="button" className="secondary" onClick={() => load()} disabled={busy}>
+          <button type="button" className="secondary" onClick={() => void load()} disabled={busy}>
             <RefreshCw size={16} /> Yenile
           </button>
         </div>
@@ -316,33 +290,34 @@ export function OsgbOversightPage({user}) {
 
       <section className="panel" style={{marginBottom: 16}}>
         <p style={{marginTop: 0, color: '#475569'}}>
-          <strong>1) Genel:</strong> Açılışta tüm personelin durum özeti, sütun grafikler ve OSGB geneli eksik listesi.
-          {' '}<strong>2) Personel:</strong> İsim seçince (ör. Abdullah BOZKIR) yalnızca o kişinin tüm 6331 eksikleri
-          ve firma bazlı görev durumu açılır — iş akışını buradan takip edin.
+          OSGB geneli 6331 hizmet uyumu: uzman / hekim / DSP’nin atanmış işyerlerindeki zorunlu işler.
+          Kişi bazlı iş tamamlama raporu için <strong>Performans Raporu</strong> menüsünü kullanın.
         </p>
         <div className="form-grid" style={{gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', marginBottom: 0}}>
+          {orgs.length > 1 && (
+            <label className="field">
+              <span>OSGB</span>
+              <select
+                value={osgbId}
+                onChange={(e) => {
+                  setOsgbId(e.target.value);
+                  setSelectedId('');
+                  void load(e.target.value);
+                }}
+              >
+                {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </label>
+          )}
           <label className="field">
-            <span>OSGB</span>
-            <select
-              value={osgbId}
-              onChange={(e) => {
-                setOsgbId(e.target.value);
-                setSelectedId('');
-                load(e.target.value);
-              }}
-            >
-              {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-            </select>
-          </label>
-          <label className="field">
-            <span>Meslek (genel filtre)</span>
+            <span>Rol</span>
             <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
               <option value="">Tümü</option>
               {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </label>
           <label className="field">
-            <span>Durum (genel filtre)</span>
+            <span>Durum</span>
             <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="">Tümü</option>
               {Object.entries(STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -352,40 +327,29 @@ export function OsgbOversightPage({user}) {
         {data?.period && (
           <p style={{marginBottom: 0, fontSize: 13, color: '#64748b'}}>
             Dönem: {data.period.month}/{data.period.year}
-            {' · '}Toplam müdahale kalemi: {globalGaps.length}
-            {directory.length ? ` · Personel: ${directory.length}` : ''}
+            {' · '}Müdahale kalemi: {globalGaps.length}
           </p>
         )}
         {seedMsg && <p style={{color: '#0f766e', marginBottom: 0}}>{seedMsg}</p>}
         {error && <p style={{color: '#b91c1c'}}>{error}</p>}
       </section>
 
-      {/* ——— GENEL: tüm personel ——— */}
-      <h3 style={{margin: '0 0 10px', fontSize: 16, color: '#0f766e'}}>Genel durum — tüm personel</h3>
-
       <div className="cards" style={{marginBottom: 16}}>
-        <article className="metric"><span>Profesyonel</span><strong>{summary.professionals ?? directory.length ?? 0}</strong></article>
+        <article className="metric"><span>Profesyonel</span><strong>{summary.professionals ?? 0}</strong></article>
         <article className="metric"><span>Görevlendirme</span><strong>{summary.assignments ?? 0}</strong></article>
         <article className="metric"><span>Uygun</span><strong style={{color: '#166534'}}>{summary.ok ?? 0}</strong></article>
         <article className="metric"><span>İzlem</span><strong style={{color: '#92400e'}}>{summary.warning ?? 0}</strong></article>
-        <article className="metric"><span>Kritik</span><strong style={{color: '#991b1c'}}>{summary.critical ?? 0}</strong></article>
+        <article className="metric"><span>Kritik</span><strong style={{color: '#991b1b'}}>{summary.critical ?? 0}</strong></article>
       </div>
 
       <section className="panel" style={{marginBottom: 16}}>
-        <ColumnChart
-          title="Sorumluluk alanları — OSGB geneli (uyum %)"
-          columns={globalColumns}
-          height={170}
-        />
+        <ColumnChart title="Sorumluluk alanları — OSGB geneli (uyum %)" columns={globalColumns} height={170} />
       </section>
 
       <section className="panel" style={{marginBottom: 16}}>
         <h3 style={{marginTop: 0, display: 'flex', alignItems: 'center', gap: 8}}>
-          <AlertTriangle size={18} color="#b91c1c" /> OSGB geneli — tüm eksikler ({globalGaps.length})
+          <AlertTriangle size={18} color="#b91c1c" /> OSGB geneli eksikler ({globalGaps.length})
         </h3>
-        <p style={{marginTop: 0, fontSize: 13, color: '#64748b'}}>
-          İsme tıklayınca aşağıda o personelin özel takip paneli açılır.
-        </p>
         {globalGaps.length ? (
           <div className="table-wrap">
             <table>
@@ -395,7 +359,6 @@ export function OsgbOversightPage({user}) {
                   <th>İşyeri</th>
                   <th>Eksik görev</th>
                   <th>Detay</th>
-                  <th>Modül</th>
                 </tr>
               </thead>
               <tbody>
@@ -405,12 +368,7 @@ export function OsgbOversightPage({user}) {
                       <button
                         type="button"
                         className="mini"
-                        onClick={() => {
-                          setSelectedId(String(g.professional_id));
-                          requestAnimationFrame(() => {
-                            document.getElementById('personel-takip')?.scrollIntoView({behavior: 'smooth', block: 'start'});
-                          });
-                        }}
+                        onClick={() => setSelectedId(String(g.professional_id))}
                       >
                         {g.full_name}
                       </button>
@@ -418,7 +376,6 @@ export function OsgbOversightPage({user}) {
                     <td>{g.company_name}</td>
                     <td><strong>{g.check_title}</strong></td>
                     <td style={{fontSize: 13}}>{g.detail}</td>
-                    <td style={{fontSize: 12, color: '#0f766e'}}>{goModuleHint(g.check_code)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -429,10 +386,13 @@ export function OsgbOversightPage({user}) {
         )}
       </section>
 
-      <section className="panel" style={{marginBottom: 24}}>
+      <section className="panel" style={{marginBottom: 16}}>
         <h3 style={{marginTop: 0, display: 'flex', alignItems: 'center', gap: 8}}>
-          <ClipboardCheck size={18} /> Tüm profesyoneller
+          <ClipboardCheck size={18} /> Profesyonel uyum tablosu
         </h3>
+        <p style={{marginTop: 0, fontSize: 13, color: '#64748b'}}>
+          Satıra tıklayınca kısa özet açılır. Tam rapor için Performans Raporu’na gidin.
+        </p>
         <div className="table-wrap">
           <table>
             <thead>
@@ -449,12 +409,7 @@ export function OsgbOversightPage({user}) {
               {rows.length ? rows.map((p) => (
                 <tr
                   key={p.professional_id}
-                  onClick={() => {
-                    setSelectedId(String(p.professional_id));
-                    requestAnimationFrame(() => {
-                      document.getElementById('personel-takip')?.scrollIntoView({behavior: 'smooth', block: 'start'});
-                    });
-                  }}
+                  onClick={() => setSelectedId(String(p.professional_id))}
                   style={{
                     cursor: 'pointer',
                     background: selected?.professional_id === p.professional_id ? '#f0fdfa' : undefined,
@@ -480,7 +435,7 @@ export function OsgbOversightPage({user}) {
               )) : (
                 <tr>
                   <td colSpan={6} className="empty">
-                    Kayıt yok. İSG Profesyonelleri’nden uzman ekleyin veya “Test Uzman/Hekim/DSP” ile örnek veri oluşturun.
+                    Kayıt yok. İSG Profesyonelleri’nden ekleyin veya test verisi oluşturun.
                   </td>
                 </tr>
               )}
@@ -489,189 +444,63 @@ export function OsgbOversightPage({user}) {
         </div>
       </section>
 
-      {/* ——— ÖZEL: seçilen personel ——— */}
-      <div id="personel-takip" style={{scrollMarginTop: 16}}>
-        <h3 style={{margin: '0 0 10px', fontSize: 16, color: '#0f766e'}}>
-          Personel takibi — seçilen kişinin tüm eksikleri
-        </h3>
-      </div>
-
-      <section className="panel" style={{marginBottom: 16, borderColor: '#99f6e4', background: '#f0fdfa'}}>
-        <h3 style={{marginTop: 0, display: 'flex', alignItems: 'center', gap: 8}}>
-          <UserRound size={18} /> Profesyonel seç
-        </h3>
-        <p style={{marginTop: 0, color: '#475569'}}>
-          Seçince yalnızca bu kişinin atanmış firmalarındaki 6331 görevlerinden yapılmayanların tamamı listelenir.
-        </p>
-        <label className="field" style={{maxWidth: 520, marginBottom: 0}}>
-          <span>Profesyonel (isim)</span>
-          <select
-            value={selectedId}
-            onChange={(e) => setSelectedId(e.target.value)}
-            style={{fontWeight: 650}}
-          >
-            <option value="">— Genel görünüm (henüz seçilmedi) —</option>
-            {directory.map((p) => (
-              <option key={p.professional_id} value={p.professional_id}>
-                {optionLabel(p)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </section>
-
-      {!selected && (
-        <section className="panel" style={{marginBottom: 16}}>
-          <p style={{margin: 0, color: '#64748b'}}>
-            Yukarıdaki genel özet tüm personeli gösterir. Belirli bir uzmanın iş akışını izlemek için isim seçin
-            veya genel eksik listesinden isme tıklayın.
-          </p>
-        </section>
-      )}
-
       {selected && (
-        <section className="panel" style={{marginBottom: 16}}>
-          <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap'}}>
+        <section className="panel" style={{borderColor: '#99f6e4', background: '#f0fdfa'}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start'}}>
             <div>
               <h3 style={{marginTop: 0, marginBottom: 4}}>{selected.full_name}</h3>
               <p style={{color: '#475569', margin: 0}}>
                 {TYPE_LABELS[selected.professional_type]}
                 {selected.certificate_class ? ` · Sınıf ${selected.certificate_class}` : ''}
                 {' · '}{selected.firm_count} işyeri · skor {selected.score}%
-                {selected.is_active === false ? ' · pasif' : ''}
               </p>
             </div>
-            <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+            <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
               <StatusPill status={selected.status} />
+              <button
+                type="button"
+                onClick={() => openPerformance(selected.professional_id)}
+              >
+                Performans raporunu aç
+              </button>
               <button type="button" className="mini" onClick={() => setSelectedId('')}>
-                Seçimi kaldır
+                Kapat
               </button>
             </div>
           </div>
 
-          <div style={{marginTop: 16}}>
-            <h4 style={{margin: '0 0 8px', color: personGaps.length ? '#991b1b' : '#166534', display: 'flex', alignItems: 'center', gap: 8}}>
-              {personGaps.length
-                ? <><AlertTriangle size={16} /> Bu personelin tüm eksikleri ({personGaps.length})</>
-                : <><CheckCircle2 size={16} /> Bu personelde eksik görev yok</>}
-            </h4>
-            {personGaps.length > 0 && (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>İşyeri / firma</th>
-                      <th>Eksik 6331 görevi</th>
-                      <th>Açıklama</th>
-                      <th>Yasal dayanak</th>
-                      <th>Modül</th>
+          <h4 style={{margin: '16px 0 8px', color: personGaps.length ? '#991b1b' : '#166534', display: 'flex', alignItems: 'center', gap: 8}}>
+            {personGaps.length
+              ? <><AlertTriangle size={16} /> Özet eksikler ({personGaps.length})</>
+              : <><CheckCircle2 size={16} /> Bu profesyonelde eksik yok</>}
+          </h4>
+          {personGaps.length > 0 && (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>İşyeri</th>
+                    <th>Eksik görev</th>
+                    <th>Detay</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {personGaps.slice(0, 12).map((g, i) => (
+                    <tr key={`${g.check_code}-${g.company_id}-${i}`}>
+                      <td>{g.company_name || '—'}</td>
+                      <td style={{color: '#991b1b', fontWeight: 700}}>{g.check_title}</td>
+                      <td style={{fontSize: 13}}>{g.detail}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {personGaps.map((g, i) => (
-                      <tr key={`${g.check_code}-${g.company_id}-${i}`}>
-                        <td>{i + 1}</td>
-                        <td><strong>{g.company_name || '—'}</strong></td>
-                        <td style={{color: '#991b1b', fontWeight: 700}}>{g.check_title}</td>
-                        <td style={{fontSize: 13}}>{g.detail}</td>
-                        <td style={{fontSize: 12, color: '#64748b'}}>{g.legal}</td>
-                        <td style={{fontSize: 12, color: '#0f766e'}}>{goModuleHint(g.check_code)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {roleCatalog.length > 0 && (
-            <div style={{marginTop: 18}}>
-              <h4 style={{margin: '0 0 8px'}}>
-                {TYPE_LABELS[selected.professional_type]} — kontrol edilen 6331 sorumluluklar
-              </h4>
-              <ul style={{margin: 0, paddingLeft: 18, fontSize: 13, color: '#334155'}}>
-                {roleCatalog.map((c) => (
-                  <li key={c.code} style={{marginBottom: 4}}>
-                    <strong>{c.title}</strong>
-                    <span style={{color: '#64748b'}}> — {c.legal}</span>
-                  </li>
-                ))}
-              </ul>
+                  ))}
+                </tbody>
+              </table>
+              {personGaps.length > 12 && (
+                <p style={{fontSize: 12, color: '#64748b'}}>
+                  +{personGaps.length - 12} kalem daha — tam liste Performans Raporu’nda.
+                </p>
+              )}
             </div>
           )}
-
-          <div style={{marginTop: 16, marginBottom: 8}}>
-            <ColumnChart
-              title="Sorumluluk alanları (bu personel)"
-              columns={selected.check_columns || []}
-              height={140}
-            />
-          </div>
-
-          <div style={{marginTop: 18}}>
-            <h4 style={{margin: '0 0 10px'}}>Firma bazlı görev durumu (yapıldı / yapılmadı)</h4>
-            {!selected.firms?.length ? (
-              <p style={{color: '#92400e', margin: 0}}>
-                Atanmış işyeri yok. Önce <strong>Görevlendirmeler</strong> menüsünden bu uzmana firma atayın.
-              </p>
-            ) : selected.firms.map((f) => (
-              <div
-                key={f.assignment_id}
-                style={{
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 12,
-                  padding: 14,
-                  marginBottom: 12,
-                }}
-              >
-                <div style={{display: 'flex', justifyContent: 'space-between', gap: 12}}>
-                  <div>
-                    <strong>{f.company_name}</strong>
-                    <div style={{fontSize: 12, color: '#64748b'}}>
-                      {f.hazard_class || '—'}
-                      {f.isg_katip_contract_number ? ` · ${f.isg_katip_contract_number}` : ''}
-                      {' · '}eksik: {f.failed_count ?? (f.checks || []).filter((c) => !c.passed).length}
-                    </div>
-                  </div>
-                  <div style={{textAlign: 'right'}}>
-                    <StatusPill status={f.status} />
-                    <div style={{fontSize: 12, marginTop: 6}}>{f.score}%</div>
-                  </div>
-                </div>
-                <div style={{marginTop: 10, display: 'grid', gap: 6}}>
-                  {f.checks.map((c) => (
-                    <div
-                      key={c.code}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '18px 1fr',
-                        gap: 8,
-                        padding: '6px 8px',
-                        borderRadius: 8,
-                        background: c.passed ? '#f0fdf4' : '#fff1f2',
-                      }}
-                    >
-                      {c.passed
-                        ? <CheckCircle2 size={15} color="#16a34a" />
-                        : <AlertTriangle size={15} color="#b91c1c" />}
-                      <div>
-                        <div style={{fontWeight: 650, fontSize: 13}}>
-                          {c.passed ? 'Yapıldı' : 'Yapılmadı'} — {c.title}
-                        </div>
-                        <div style={{fontSize: 12, color: '#64748b'}}>{c.detail}</div>
-                        {!c.passed && (
-                          <div style={{fontSize: 12, color: '#0f766e', marginTop: 2}}>
-                            Git → {goModuleHint(c.code)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
         </section>
       )}
     </>

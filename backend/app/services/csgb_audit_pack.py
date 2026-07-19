@@ -39,6 +39,8 @@ def _item(
     count: int = 0,
     detail: str = "",
     evidence: list[dict[str, Any]] | None = None,
+    group: str = "genel",
+    group_label: str = "Genel",
 ) -> dict[str, Any]:
     return {
         "code": code,
@@ -48,6 +50,8 @@ def _item(
         "count": count,
         "detail": detail,
         "evidence": evidence or [],
+        "group": group,
+        "group_label": group_label,
     }
 
 
@@ -120,6 +124,10 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
     )
 
     items: list[dict[str, Any]] = []
+    G_KURUM = ("kurumsal", "1. OSGB kurumsal")
+    G_KADRO = ("kadro", "2. Kadro ve görevlendirme")
+    G_SOZ = ("sozlesme", "3. Sözleşme ve süre")
+    G_SAHA = ("saha", "4. Saha / hizmet kayıtları")
 
     # 1) Yetki belgesi / kimlik
     auth_ok = bool(osgb.authorization_number)
@@ -136,6 +144,8 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
                 else "Yetki / ruhsat numarası sistemde tanımlı değil."
             ),
             evidence=[{"field": "authorization_number", "value": osgb.authorization_number}] if auth_ok else [],
+            group=G_KURUM[0],
+            group_label=G_KURUM[1],
         )
     )
 
@@ -159,6 +169,8 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             count=filled,
             detail=f"{filled}/{len(identity_fields)} alan dolu (unvan, vergi, sorumlu müdür, adres, e-posta, telefon).",
             evidence=[{"field": k, "value": v} for k, v in identity_fields if v],
+            group=G_KURUM[0],
+            group_label=G_KURUM[1],
         )
     )
 
@@ -190,6 +202,8 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
                 }
                 for p in active_pros[:40]
             ],
+            group=G_KADRO[0],
+            group_label=G_KADRO[1],
         )
     )
 
@@ -217,6 +231,8 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
                 {"id": c.id, "contract_number": c.contract_number, "company_id": c.company_id, "status": c.status}
                 for c in contracts[:40]
             ],
+            group=G_SOZ[0],
+            group_label=G_SOZ[1],
         )
     )
 
@@ -251,6 +267,8 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
                 }
                 for a in assignments[:40]
             ],
+            group=G_KADRO[0],
+            group_label=G_KADRO[1],
         )
     )
 
@@ -268,6 +286,8 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
                 if visit_n
                 else "Saha ziyareti / süre kaydı bulunamadı (müfettiş asgari süre kanıtı ister)."
             ),
+            group=G_SOZ[0],
+            group_label=G_SOZ[1],
         )
     )
 
@@ -278,7 +298,9 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             detail = "Bağlı işyeri yok; kayıt üretilemez."
         else:
             detail = ok_msg.format(n=n) if n else empty_msg
-        items.append(_item(code, title, legal, st, count=n, detail=detail))
+        items.append(
+            _item(code, title, legal, st, count=n, detail=detail, group=G_SAHA[0], group_label=G_SAHA[1])
+        )
 
     _mod(
         "risk_degerlendirme",
@@ -359,13 +381,23 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             count=len(docs),
             detail=doc_detail,
             evidence=[{"category": k, "count": v} for k, v in sorted(by_cat.items())],
+            group=G_SAHA[0],
+            group_label=G_SAHA[1],
         )
     )
 
     ready = sum(1 for i in items if i["status"] == "ready")
     partial = sum(1 for i in items if i["status"] == "partial")
     missing = sum(1 for i in items if i["status"] == "missing")
-    gaps = [f"{i['title']}: {i['detail']}" for i in items if i["status"] in ("missing", "partial")]
+    priority = [i for i in items if i["status"] in ("missing", "partial")]
+    gaps = [f"{i['title']}: {i['detail']}" for i in priority]
+
+    groups = []
+    seen = set()
+    for i in items:
+        if i["group"] not in seen:
+            seen.add(i["group"])
+            groups.append({"id": i["group"], "label": i["group_label"]})
 
     return {
         "osgb": {
@@ -374,6 +406,9 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             "authorization_number": osgb.authorization_number,
             "tax_number": osgb.tax_number,
             "responsible_manager": osgb.responsible_manager,
+            "address": osgb.address,
+            "email": osgb.email,
+            "phone": osgb.phone,
             "company_count": len(companies),
             "professional_count": len(active_pros),
             "assignment_count": len(assignments),
@@ -388,8 +423,10 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             "partial": partial,
             "missing": missing,
             "total": len(items),
+            "priority_count": len(priority),
             "readiness_pct": round(100 * (ready + 0.5 * partial) / len(items)) if items else 0,
         },
+        "groups": groups,
         "items": items,
         "gaps": gaps,
         "report_title": f"ÇSGB OSGB Denetim Belge Paketi — {osgb.name}",

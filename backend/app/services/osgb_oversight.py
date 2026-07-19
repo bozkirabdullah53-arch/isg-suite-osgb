@@ -702,7 +702,7 @@ def build_professional_performance(db: Session, professional_id: int) -> dict:
         }
 
     completed = []
-    incomplete = list(row.get("gaps") or [])
+    incomplete = []
     total_checks = 0
     passed_checks = 0
     for f in row.get("firms") or []:
@@ -719,11 +719,13 @@ def build_professional_performance(db: Session, professional_id: int) -> dict:
             if c.get("passed"):
                 passed_checks += 1
                 completed.append(item)
-            # incomplete already from gaps; avoid double if unassigned
+            else:
+                incomplete.append(item)
 
-    # Unassigned: firms empty, gaps has gorevlendirme
-    if row.get("unassigned") and not incomplete:
-        incomplete = list(row.get("gaps") or [])
+    # Unassigned: firms empty — use oversight gaps (görevlendirme)
+    if row.get("unassigned") or (not row.get("firms") and row.get("gaps")):
+        if not incomplete:
+            incomplete = list(row.get("gaps") or [])
 
     completion_pct = round(100 * passed_checks / total_checks) if total_checks else (0 if incomplete else 100)
 
