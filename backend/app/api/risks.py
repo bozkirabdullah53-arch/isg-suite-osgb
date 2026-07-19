@@ -33,6 +33,8 @@ from app.models.entities import (
 from app.schemas.risk import (
     DepartmentCreate,
     DepartmentResponse,
+    DepartmentUpdate,
+    RiskDofListItem,
     HazardCategoryResponse,
     HazardResponse,
     RiskCalculateRequest,
@@ -222,12 +224,30 @@ def list_departments(
     if not effective:
         raise HTTPException(400, "Firma seçilmelidir.")
     ensure_access(user, effective)
-    stmt = (
-        select(WorkplaceDepartment)
-        .where(WorkplaceDepartment.company_id == effective, WorkplaceDepartment.is_active.is_(True))
-        .order_by(WorkplaceDepartment.name)
+    deps = list(
+        db.scalars(
+            select(WorkplaceDepartment)
+            .where(WorkplaceDepartment.company_id == effective, WorkplaceDepartment.is_active.is_(True))
+            .order_by(WorkplaceDepartment.name)
+        ).all()
     )
-    return list(db.scalars(stmt).all())
+    out = []
+    for d in deps:
+        cnt = db.scalar(
+            select(func.count()).select_from(RiskAssessment).where(RiskAssessment.department_id == d.id)
+        ) or 0
+        out.append(
+            DepartmentResponse(
+                id=d.id,
+                company_id=d.company_id,
+                name=d.name,
+                description=d.description,
+                is_active=d.is_active,
+                created_at=d.created_at,
+                risk_count=int(cnt),
+            )
+        )
+    return out
 
 
 @router.post("/departments", response_model=DepartmentResponse)
@@ -265,6 +285,249 @@ def create_department(
     db.commit()
     db.refresh(dep)
     return dep
+
+
+
+SUGGESTED_DEPARTMENTS = [
+    "İdari Ofis", "Üretim", "Bakım", "Depo", "Sevkiyat", "Laboratuvar",
+    "Kimyasal Depo", "Elektrik Odası", "Kazan Dairesi", "Atölye",
+    "İnşaat Sahası", "Çatı", "Vinç Sahası",
+]
+
+
+def _dept_with_counts(db: Session, company_id: int) -> list[DepartmentResponse]:
+    deps = list(
+        db.scalars(
+            select(WorkplaceDepartment)
+            .where(WorkplaceDepartment.company_id == company_id, WorkplaceDepartment.is_active.is_(True))
+            .order_by(WorkplaceDepartment.name)
+        ).all()
+    )
+    out = []
+    for d in deps:
+        cnt = db.scalar(
+            select(func.count()).select_from(RiskAssessment).where(RiskAssessment.department_id == d.id)
+        ) or 0
+        out.append(
+            DepartmentResponse(
+                id=d.id,
+                company_id=d.company_id,
+                name=d.name,
+                description=d.description,
+                is_active=d.is_active,
+                created_at=d.created_at,
+                risk_count=int(cnt),
+            )
+        )
+    return out
+
+
+@router.get("/stats")
+def risk_stats(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """PRO /api/risk-istatistik parity + KPI sayaçları."""
+    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
+    if not effective:
+        raise HTTPException(400, "Firma seçilmelidir.")
+    ensure_access(user, effective)
+    today = date.today()
+    base = select(RiskAssessment).where(RiskAssessment.company_id == effective)
+    risks = list(db.scalars(base).all())
+    levels = ["Çok Yüksek", "Yüksek", "Orta", "Düşük", "Kabul Edilebilir"]
+    level_counts = {lv: 0 for lv in levels}
+    open_risks = 0
+    overdue_terms = 0
+    for r in risks:
+        if r.risk_level in level_counts:
+            level_counts[r.risk_level] += 1
+        if (r.status or "") == "Açık":
+            open_risks += 1
+            if r.term_date and r.term_date < today:
+                overdue_terms += 1
+
+    dofs = list(
+        db.scalars(
+            select(RiskDof).where(
+                RiskDof.risk_id.in_(select(RiskAssessment.id).where(RiskAssessment.company_id == effective))
+            )
+        ).all()
+    )
+    open_dofs = sum(1 for d in dofs if not d.is_completed)
+    overdue_dofs = sum(
+        1 for d in dofs if (not d.is_completed) and d.term_date and d.term_date < today
+    )
+    due_soon = sum(
+        1
+        for d in dofs
+        if (not d.is_completed)
+        and d.term_date
+        and today <= d.term_date <= date.fromordinal(today.toordinal() + 7)
+    )
+
+    dept_rows = (
+        db.execute(
+            select(WorkplaceDepartment.name, func.count(RiskAssessment.id))
+            .select_from(WorkplaceDepartment)
+            .outerjoin(RiskAssessment, RiskAssessment.department_id == WorkplaceDepartment.id)
+            .where(WorkplaceDepartment.company_id == effective, WorkplaceDepartment.is_active.is_(True))
+            .group_by(WorkplaceDepartment.name)
+            .order_by(func.count(RiskAssessment.id).desc())
+        ).all()
+    )
+
+    return {
+        "company_id": effective,
+        "total_risks": len(risks),
+        "open_risks": open_risks,
+        "very_high": level_counts.get("Çok Yüksek", 0),
+        "high": level_counts.get("Yüksek", 0),
+        "open_dofs": open_dofs,
+        "overdue_dofs": overdue_dofs,
+        "overdue_terms": overdue_terms,
+        "due_soon_dofs": due_soon,
+        "levels": level_counts,
+        "departments": [{"name": n or "—", "count": int(c)} for n, c in dept_rows],
+        "suggested_departments": SUGGESTED_DEPARTMENTS,
+    }
+
+
+@router.get("/dofs")
+def list_company_dofs(
+    company_id: int | None = None,
+    status: str | None = None,
+    overdue_only: bool = Query(False),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """PRO /dof/liste — firma geneli DÖF listesi."""
+    from app.schemas.risk import RiskDofListItem
+
+    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
+    if not effective:
+        raise HTTPException(400, "Firma seçilmelidir.")
+    ensure_access(user, effective)
+    today = date.today()
+    stmt = (
+        select(RiskDof, RiskAssessment)
+        .join(RiskAssessment, RiskAssessment.id == RiskDof.risk_id)
+        .where(RiskAssessment.company_id == effective)
+        .order_by(RiskDof.term_date.asc().nulls_last(), RiskDof.id.desc())
+    )
+    if status == "open":
+        stmt = stmt.where(RiskDof.is_completed.is_(False))
+    elif status == "done":
+        stmt = stmt.where(RiskDof.is_completed.is_(True))
+    rows = db.execute(stmt).all()
+    out = []
+    for dof, risk in rows:
+        is_overdue = (not dof.is_completed) and bool(dof.term_date) and dof.term_date < today
+        if overdue_only and not is_overdue:
+            continue
+        out.append(
+            RiskDofListItem(
+                id=dof.id,
+                dof_code=dof.dof_code,
+                risk_id=risk.id,
+                risk_code=risk.risk_code,
+                description=dof.description,
+                responsible_person=dof.responsible_person,
+                responsible_department=dof.responsible_department,
+                term_date=dof.term_date,
+                status=dof.status,
+                is_completed=dof.is_completed,
+                is_overdue=is_overdue,
+                cost_estimate=dof.cost_estimate,
+                currency=dof.currency,
+            )
+        )
+    return out
+
+
+@router.patch("/departments/{department_id}", response_model=DepartmentResponse)
+def update_department(
+    department_id: int,
+    payload: DepartmentUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    from app.schemas.risk import DepartmentUpdate
+
+    dep = db.get(WorkplaceDepartment, department_id)
+    if not dep:
+        raise HTTPException(404, "Bölüm bulunamadı.")
+    ensure_access(user, dep.company_id)
+    data = payload.model_dump(exclude_unset=True)
+    if "name" in data and data["name"]:
+        data["name"] = data["name"].strip()
+    for k, v in data.items():
+        setattr(dep, k, v)
+    db.commit()
+    db.refresh(dep)
+    cnt = db.scalar(
+        select(func.count()).select_from(RiskAssessment).where(RiskAssessment.department_id == dep.id)
+    ) or 0
+    return DepartmentResponse(
+        id=dep.id,
+        company_id=dep.company_id,
+        name=dep.name,
+        description=dep.description,
+        is_active=dep.is_active,
+        created_at=dep.created_at,
+        risk_count=int(cnt),
+    )
+
+
+@router.delete("/departments/{department_id}")
+def delete_department(
+    department_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    dep = db.get(WorkplaceDepartment, department_id)
+    if not dep:
+        raise HTTPException(404, "Bölüm bulunamadı.")
+    ensure_access(user, dep.company_id)
+    cnt = db.scalar(
+        select(func.count()).select_from(RiskAssessment).where(RiskAssessment.department_id == dep.id)
+    ) or 0
+    if cnt:
+        raise HTTPException(422, f"Bu bölüme ait {cnt} risk kaydı var. Önce riskleri taşıyın veya silin.")
+    dep.is_active = False
+    db.commit()
+    return {"ok": True, "id": department_id}
+
+
+@router.delete("/{risk_id}/dofs/{dof_id}")
+def delete_dof(
+    risk_id: int,
+    dof_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    row = _load_risk(db, risk_id)
+    ensure_access(user, row.company_id)
+    dof = db.get(RiskDof, dof_id)
+    if not dof or dof.risk_id != risk_id:
+        raise HTTPException(404, "DÖF bulunamadı.")
+    db.delete(dof)
+    db.commit()
+    return {"ok": True, "id": dof_id}
+
+
+@router.delete("/{risk_id}")
+def delete_risk(
+    risk_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    row = _load_risk(db, risk_id)
+    ensure_access(user, row.company_id)
+    db.delete(row)
+    db.commit()
+    return {"ok": True, "id": risk_id}
 
 
 @router.get("/hazards", response_model=list[HazardResponse])

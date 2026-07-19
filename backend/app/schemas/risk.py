@@ -169,4 +169,27 @@ class DepartmentResponse(BaseModel):
     description: str | None
     is_active: bool
     created_at: datetime
+    risk_count: int = 0
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DepartmentUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=200)
+    description: str | None = Field(default=None, max_length=500)
+
+
+class RiskDofListItem(BaseModel):
+    id: int
+    dof_code: str
+    risk_id: int
+    risk_code: str | None = None
+    description: str
+    responsible_person: str | None
+    responsible_department: str | None
+    term_date: date | None
+    status: str
+    is_completed: bool
+    is_overdue: bool = False
+    cost_estimate: int | None = None
+    currency: str | None = None
     model_config = ConfigDict(from_attributes=True)

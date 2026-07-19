@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {BookOpen, Download, Plus, Search, X} from 'lucide-react';
+import {AlertTriangle, BookOpen, Building2, ClipboardList, Download, LayoutDashboard, Plus, Search, X} from 'lucide-react';
 import {api, downloadFile, uploadFile, authBlobUrl} from './api';
 
 const LEVEL_COLORS = {
@@ -9,6 +9,35 @@ const LEVEL_COLORS = {
   'Yüksek': '#f39c12',
   'Çok Yüksek': '#e74c3c',
 };
+
+const SUGGESTED_FALLBACK = [
+  'İdari Ofis', 'Üretim', 'Bakım', 'Depo', 'Sevkiyat', 'Laboratuvar',
+  'Kimyasal Depo', 'Elektrik Odası', 'Kazan Dairesi', 'Atölye',
+  'İnşaat Sahası', 'Çatı', 'Vinç Sahası',
+];
+
+function isOverdueDate(d) {
+  if (!d) return false;
+  try {
+    const t = new Date(d);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return t < today;
+  } catch {
+    return false;
+  }
+}
+
+function OverdueBadge() {
+  return (
+    <span style={{
+      display: 'inline-block', marginLeft: 6, padding: '2px 8px', borderRadius: 999,
+      background: '#fee2e2', color: '#b91c1c', fontSize: 11, fontWeight: 800,
+    }}>
+      Gecikti
+    </span>
+  );
+}
 
 function Modal({title, close, children, wide}) {
   return (
@@ -142,7 +171,38 @@ export function RiskPage({user}) {
   const [busy, setBusy] = useState(false);
   const [dlBusy, setDlBusy] = useState('');
   const [reportCompanyId, setReportCompanyId] = useState(user.company_id || '');
+  const [tab, setTab] = useState('panel');
+  const [stats, setStats] = useState(null);
+  const [dofs, setDofs] = useState([]);
+  const [dofFilter, setDofFilter] = useState('open');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [depForm, setDepForm] = useState({name: '', description: ''});
 
+  const effectiveCompanyId = reportCompanyId || user.company_id || companies[0]?.id || '';
+
+  const loadStats = async (cid) => {
+    const id = cid || effectiveCompanyId;
+    if (!id) { setStats(null); return; }
+    try {
+      setStats(await api(`/risks/stats?company_id=${id}`));
+    } catch (_) {
+      setStats(null);
+    }
+  };
+
+  const loadDofs = async (cid) => {
+    const id = cid || effectiveCompanyId;
+    if (!id) { setDofs([]); return; }
+    const params = new URLSearchParams({company_id: String(id)});
+    if (dofFilter === 'open') params.set('status', 'open');
+    if (dofFilter === 'done') params.set('status', 'done');
+    if (dofFilter === 'overdue') params.set('overdue_only', 'true');
+    try {
+      setDofs(await api(`/risks/dofs?${params}`));
+    } catch (_) {
+      setDofs([]);
+    }
+  };
   const loadDepartments = async (companyId) => {
     if (!companyId) { setDepartments([]); return; }
     try {
@@ -179,7 +239,10 @@ export function RiskPage({user}) {
     const risks = await api(`/risks${qs}`);
     setRows(risks);
     setErr('');
-    if (cid) await loadDepartments(cid);
+    if (cid) {
+      await loadDepartments(cid);
+      await loadStats(cid);
+    }
   };
 
   useEffect(() => {
@@ -191,6 +254,11 @@ export function RiskPage({user}) {
     load().catch((e) => setErr(e.message));
   }, [reportCompanyId, levelFilter]);
 
+  useEffect(() => {
+    if (tab === 'dofs' || tab === 'panel') {
+      loadDofs().catch(() => {});
+    }
+  }, [tab, dofFilter, reportCompanyId, effectiveCompanyId]);
   useEffect(() => {
     if (!form.company_id) { setDepartments([]); return; }
     loadDepartments(form.company_id);
@@ -382,6 +450,7 @@ export function RiskPage({user}) {
   }
 
   async function openDetail(id) {
+    setTab('risks');
     const r = await api(`/risks/${id}`);
     setDetail(r);
     setDofForm({
@@ -442,6 +511,90 @@ export function RiskPage({user}) {
     }
   }
 
+  async function removeRisk(id) {
+    if (!window.confirm('Bu risk kaydını silmek istiyor musunuz?')) return;
+    try {
+      await api(`/risks/${id}`, {method: 'DELETE'});
+      setDetail(null);
+      await load();
+      await loadDofs();
+    } catch (x) {
+      alert(x.message);
+    }
+  }
+
+  async function removeDof(riskId, dofId) {
+    if (!window.confirm('Bu DÖF kaydını silmek istiyor musunuz?')) return;
+    try {
+      await api(`/risks/${riskId}/dofs/${dofId}`, {method: 'DELETE'});
+      if (detail?.id === riskId) await openDetail(riskId);
+      await loadDofs();
+      await loadStats();
+    } catch (x) {
+      alert(x.message);
+    }
+  }
+
+  async function saveDepartment(e) {
+    e?.preventDefault?.();
+    const name = (depForm.name || '').trim();
+    if (!name || !effectiveCompanyId) {
+      setErr('Bölüm adı ve firma gerekli.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api('/risks/departments', {
+        method: 'POST',
+        body: JSON.stringify({
+          company_id: Number(effectiveCompanyId),
+          name,
+          description: depForm.description || null,
+        }),
+      });
+      setDepForm({name: '', description: ''});
+      await loadDepartments(effectiveCompanyId);
+      await loadStats(effectiveCompanyId);
+    } catch (x) {
+      setErr(x.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addSuggestedDept(name) {
+    if (!effectiveCompanyId) return;
+    setBusy(true);
+    try {
+      await api('/risks/departments', {
+        method: 'POST',
+        body: JSON.stringify({company_id: Number(effectiveCompanyId), name}),
+      });
+      await loadDepartments(effectiveCompanyId);
+      await loadStats(effectiveCompanyId);
+    } catch (x) {
+      setErr(x.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deactivateDepartment(id) {
+    if (!window.confirm('Bölümü pasifleştirmek istiyor musunuz?')) return;
+    try {
+      await api(`/risks/departments/${id}`, {method: 'DELETE'});
+      await loadDepartments(effectiveCompanyId);
+      await loadStats(effectiveCompanyId);
+    } catch (x) {
+      alert(x.message);
+    }
+  }
+
+  const filteredRows = useMemo(() => {
+    if (!statusFilter) return rows;
+    return rows.filter((r) => (r.status || '') === statusFilter);
+  }, [rows, statusFilter]);
+
   async function downloadReport(kind) {
     const cid = reportCompanyId || user.company_id || companies[0]?.id;
     if (!cid) {
@@ -490,7 +643,202 @@ export function RiskPage({user}) {
           )}
         </div>
       </div>
-      <section className="panel" style={detail ? {display: 'none'} : undefined}>
+
+      <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14}}>
+        {[
+          ['panel', 'Ana Panel', LayoutDashboard],
+          ['risks', 'Riskler', AlertTriangle],
+          ['dofs', 'DÖF Listesi', ClipboardList],
+          ['departments', 'Bölümler', Building2],
+        ].map(([id, label, Icon]) => (
+          <button
+            key={id}
+            type="button"
+            className={tab === id ? '' : 'secondary'}
+            onClick={() => { setTab(id); setDetail(null); }}
+            style={{display: 'inline-flex', alignItems: 'center', gap: 8}}
+          >
+            <Icon size={16} /> {label}
+          </button>
+        ))}
+        {!user.company_id && (
+          <select
+            value={reportCompanyId}
+            onChange={(e) => setReportCompanyId(e.target.value)}
+            style={{minWidth: 180, marginLeft: 'auto', borderRadius: 10, padding: '8px 10px', border: '1px solid #cbdde1'}}
+          >
+            <option value="">Firma seçiniz</option>
+            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+      </div>
+
+      {tab === 'panel' && !detail && (
+        <section className="panel" style={{marginBottom: 16}}>
+          <div className="welcome" style={{marginBottom: 16}}>
+            <div>
+              <h3>Risk Değerlendirme Paneli</h3>
+              <p>PRO 2026 uyumlu özet: açık riskler, seviye dağılımı ve geciken DÖF kayıtları.</p>
+            </div>
+          </div>
+          <div className="cards">
+            <article className="metric"><span>Toplam Risk</span><strong>{stats?.total_risks ?? '—'}</strong></article>
+            <article className="metric"><span>Çok Yüksek</span><strong style={{color: '#e74c3c'}}>{stats?.very_high ?? '—'}</strong></article>
+            <article className="metric"><span>Açık DÖF</span><strong>{stats?.open_dofs ?? '—'}</strong></article>
+            <article className="metric"><span>Geciken DÖF</span><strong style={{color: '#b91c1c'}}>{stats?.overdue_dofs ?? '—'}</strong></article>
+          </div>
+          <div className="cards" style={{marginTop: 0}}>
+            <article className="metric"><span>Açık Risk</span><strong>{stats?.open_risks ?? '—'}</strong></article>
+            <article className="metric"><span>Yüksek</span><strong style={{color: '#f39c12'}}>{stats?.high ?? '—'}</strong></article>
+            <article className="metric"><span>Geciken Termin</span><strong>{stats?.overdue_terms ?? '—'}</strong></article>
+            <article className="metric"><span>7 Gün İçinde DÖF</span><strong>{stats?.due_soon_dofs ?? '—'}</strong></article>
+          </div>
+          {(stats?.departments || []).length > 0 && (
+            <div style={{marginTop: 8}}>
+              <h4 style={{marginTop: 0}}>Bölüm yoğunluğu</h4>
+              <div style={{display: 'flex', flexWrap: 'wrap', gap: 8}}>
+                {stats.departments.slice(0, 12).map((d) => (
+                  <span key={d.name} style={{padding: '6px 10px', background: '#f1f5f9', borderRadius: 999, fontSize: 13}}>
+                    {d.name}: <strong>{d.count}</strong>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {err && <div className="error" style={{marginTop: 12}}>{err}</div>}
+        </section>
+      )}
+
+      {tab === 'departments' && !detail && (
+        <section className="panel" style={{marginBottom: 16}}>
+          <h3 style={{marginTop: 0}}>Bölüm Yönetimi</h3>
+          <p style={{color: '#64748b', fontSize: 14}}>PRO gibi işyeri bölümlerini ekleyin, önerilenlerden tek tıkla oluşturun.</p>
+          <div style={{display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 16}}>
+            <form className="form-grid" onSubmit={saveDepartment} style={{alignContent: 'start'}}>
+              <Field label="Bölüm Adı" required value={depForm.name} onChange={(e) => setDepForm({...depForm, name: e.target.value})} placeholder="Üretim, Depo..." />
+              <Field label="Açıklama" value={depForm.description} onChange={(e) => setDepForm({...depForm, description: e.target.value})} />
+              <div className="form-actions" style={{gridColumn: '1 / -1'}}>
+                <button type="submit" disabled={busy}>Bölüm Ekle</button>
+              </div>
+              <div className="field" style={{gridColumn: '1 / -1'}}>
+                <span>Önerilen bölümler</span>
+                <div style={{display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6}}>
+                  {(stats?.suggested_departments || SUGGESTED_FALLBACK)
+                    .filter((n) => !departments.some((d) => d.name === n))
+                    .map((n) => (
+                      <button key={n} type="button" className="mini secondary" disabled={busy} onClick={() => addSuggestedDept(n)}>
+                        + {n}
+                      </button>
+                    ))}
+                </div>
+              </div>
+            </form>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>Bölüm</th><th>Açıklama</th><th>Risk</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {departments.length ? departments.map((d) => (
+                    <tr key={d.id}>
+                      <td>{d.name}</td>
+                      <td>{d.description || '—'}</td>
+                      <td>{d.risk_count ?? 0}</td>
+                      <td>
+                        {canEdit && (
+                          <button className="mini" type="button" onClick={() => deactivateDepartment(d.id)}>Pasifleştir</button>
+                        )}
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan={4} className="empty">Bölüm yok</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {err && <div className="error" style={{marginTop: 12}}>{err}</div>}
+        </section>
+      )}
+
+      {tab === 'dofs' && !detail && (
+        <section className="panel" style={{marginBottom: 16}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12}}>
+            <h3 style={{margin: 0}}>Firma Geneli DÖF Listesi</h3>
+            <select value={dofFilter} onChange={(e) => setDofFilter(e.target.value)}>
+              <option value="open">Açık</option>
+              <option value="overdue">Geciken</option>
+              <option value="done">Tamamlanan</option>
+              <option value="all">Tümü</option>
+            </select>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>DÖF</th>
+                  <th>Risk</th>
+                  <th>Açıklama</th>
+                  <th>Sorumlu</th>
+                  <th>Termin</th>
+                  <th>Durum</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {dofs.length ? dofs.map((d) => (
+                  <tr key={d.id}>
+                    <td>{d.dof_code}</td>
+                    <td>
+                      <button className="mini" type="button" onClick={() => { setTab('risks'); openDetail(d.risk_id); }}>
+                        {d.risk_code || d.risk_id}
+                      </button>
+                    </td>
+                    <td>{d.description}</td>
+                    <td>{d.responsible_person || '—'}</td>
+                    <td>
+                      {d.term_date || '—'}
+                      {(d.is_overdue || (!d.is_completed && isOverdueDate(d.term_date))) && <OverdueBadge />}
+                    </td>
+                    <td>{d.status}</td>
+                    <td>
+                      {canEdit && !d.is_completed && (
+                        <button
+                          className="mini"
+                          type="button"
+                          onClick={async () => {
+                            const note = window.prompt('Tamamlanma notu (isteğe bağlı):', '') || null;
+                            try {
+                              await api(`/risks/${d.risk_id}/dofs/${d.id}/complete`, {
+                                method: 'POST',
+                                body: JSON.stringify({completion_note: note}),
+                              });
+                              await loadDofs();
+                              await loadStats();
+                            } catch (x) {
+                              alert(x.message);
+                            }
+                          }}
+                        >
+                          Tamamla
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button className="mini" type="button" onClick={() => removeDof(d.risk_id, d.id)}>Sil</button>
+                      )}
+                    </td>
+                  </tr>
+                )) : (
+                  <tr><td colSpan={7} className="empty">DÖF kaydı yok</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {(tab === 'risks' || tab === 'panel') && (
+      <section className="panel" style={detail || tab === 'panel' ? {display: 'none'} : undefined}>
         <div style={{marginBottom: 12, padding: '10px 12px', background: '#eef5fb', borderRadius: 10, fontSize: 14}}>
           Risk kaydı için <strong>tehlike kategorisi → tehlike</strong> seçimi zorunludur.
           İşyeri bölümlerini listeden seçin veya <strong>yeni bölüm</strong> yazarak kaydedin.
@@ -508,18 +856,11 @@ export function RiskPage({user}) {
               <option key={l} value={l}>{l}</option>
             ))}
           </select>
-          {!user.company_id && (
-            <select
-              value={reportCompanyId}
-              onChange={(e) => {
-                setReportCompanyId(e.target.value);
-              }}
-              style={{minWidth: 180}}
-            >
-              <option value="">Firma seçiniz</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          )}
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{minWidth: 140}}>
+            <option value="">Tüm durumlar</option>
+            <option value="Açık">Açık</option>
+            <option value="Tamamlandı">Tamamlandı</option>
+          </select>
           <button className="secondary" type="button" onClick={() => load().catch((e) => setErr(e.message))}>Ara</button>
         </div>
         {err && <div className="error">{err}</div>}
@@ -531,21 +872,30 @@ export function RiskPage({user}) {
                 <th>Bölüm</th>
                 <th>Faaliyet</th>
                 <th>Tehlike</th>
+                <th>O</th>
+                <th>Ş</th>
                 <th>Seviye</th>
                 <th>Termin</th>
+                <th>DÖF</th>
                 <th>Durum</th>
                 <th>İşlem</th>
               </tr>
             </thead>
             <tbody>
-              {rows.length ? rows.map((r) => (
+              {filteredRows.length ? filteredRows.map((r) => (
                 <tr key={r.id}>
                   <td>{r.risk_code}</td>
                   <td>{r.department_name || '—'}</td>
                   <td>{r.activity}</td>
                   <td>{r.hazard_code ? `${r.hazard_code} — ${r.hazard_name}` : r.hazard_id}</td>
+                  <td>{r.probability}</td>
+                  <td>{r.severity}</td>
                   <td><LevelBadge level={r.risk_level} score={r.risk_score} /></td>
-                  <td>{r.term_date || '—'}</td>
+                  <td>
+                    {r.term_date || '—'}
+                    {r.status === 'Açık' && isOverdueDate(r.term_date) && <OverdueBadge />}
+                  </td>
+                  <td>{r.dofs?.length || 0}</td>
                   <td>{r.status}</td>
                   <td>
                     <button className="mini" type="button" onClick={() => openDetail(r.id)}>Detay</button>
@@ -555,15 +905,19 @@ export function RiskPage({user}) {
                     {canEdit && r.status === 'Açık' && (
                       <button className="mini" type="button" onClick={() => complete(r.id)}>Tamamla</button>
                     )}
+                    {canEdit && (
+                      <button className="mini" type="button" onClick={() => removeRisk(r.id)}>Sil</button>
+                    )}
                   </td>
                 </tr>
               )) : (
-                <tr><td colSpan={8} className="empty">Risk kaydı yok. Tehlike kütüphanesinden seçerek yeni kayıt ekleyin.</td></tr>
+                <tr><td colSpan={11} className="empty">Risk kaydı yok. Tehlike kütüphanesinden seçerek yeni kayıt ekleyin.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </section>
+      )}
 
       {libOpen && (
         <Modal title={`Tehlike Kütüphanesi — ${categories.length} kategori / ~${totalHazards} tehlike`} close={() => setLibOpen(false)} wide>
@@ -780,6 +1134,9 @@ export function RiskPage({user}) {
               {canEdit && (
                 <button type="button" onClick={() => openEdit(detail)}>Düzenle</button>
               )}
+              {canEdit && (
+                <button type="button" className="secondary" onClick={() => removeRisk(detail.id)}>Sil</button>
+              )}
               <button type="button" className="secondary" onClick={() => setDetail(null)}>Listeye dön</button>
             </div>
           </div>
@@ -856,6 +1213,9 @@ export function RiskPage({user}) {
                     <td>
                       {canEdit && !d.is_completed && (
                         <button className="mini" type="button" onClick={() => completeDof(d.id)}>Tamamla</button>
+                      )}
+                      {canEdit && (
+                        <button className="mini" type="button" onClick={() => removeDof(detail.id, d.id)}>Sil</button>
                       )}
                     </td>
                   </tr>
