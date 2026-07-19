@@ -16,7 +16,18 @@ export async function api(path, options = {}) {
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(`${API_URL}${path}`, { ...options, headers });
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, { ...options, headers });
+  } catch (e) {
+    const msg = String(e?.message || e || "");
+    if (msg.toLowerCase().includes("failed to fetch") || e instanceof TypeError) {
+      throw new Error(
+        "Sunucuya bağlanılamadı (Failed to fetch). API uyanıyor olabilir — birkaç saniye bekleyip Yenile’ye basın.",
+      );
+    }
+    throw e;
+  }
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {

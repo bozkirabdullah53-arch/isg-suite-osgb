@@ -104,10 +104,11 @@ export function DutyDashboard({user, summary, onNavigate}) {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, []);
 
   const sm = data?.summary || {};
   const alerts = data?.alerts || {overdue: [], due_soon: [], missing: []};
+  const boardError = data?.error || err;
 
   return (
     <>
@@ -129,13 +130,13 @@ export function DutyDashboard({user, summary, onNavigate}) {
           {typeof data?.workplace_count === 'number' ? ` · ${data.workplace_count} işyeri` : ''}
         </h3>
         <div className="actions">
-          <button type="button" className="secondary" disabled={busy} onClick={load}>
+          <button type="button" className="secondary" disabled={busy} onClick={() => void load()}>
             <RefreshCw size={16} /> Yenile
           </button>
         </div>
       </div>
 
-      {err && <div className="error" style={{marginBottom: 12}}>{err}</div>}
+      {boardError && <div className="error" style={{marginBottom: 12}}>{boardError}</div>}
 
       <div className="cards" style={{marginBottom: 16}}>
         <article className="metric" style={{borderTop: '3px solid #dc2626'}}>

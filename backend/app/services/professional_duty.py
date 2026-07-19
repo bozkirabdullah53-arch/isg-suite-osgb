@@ -50,6 +50,7 @@ MODULE_FOR_CHECK = {
     "muayene_gecikme": "health",
     "uygunluk": "health",
     "gorevlendirme": "assignments",
+    "sistem": "dashboard",
 }
 
 MODULE_LABEL = {
@@ -184,9 +185,45 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
             continue
 
         if is_specialist:
-            checks = _eval_specialist_firm(db, company, assignment, month_start, month_end, year)
+            try:
+                checks = _eval_specialist_firm(db, company, assignment, month_start, month_end, year)
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                checks = []
+                alerts.append(
+                    _alert(
+                        severity="missing",
+                        kind="duty",
+                        title="Kontrol hesaplanamadı",
+                        detail=f"{company.name} için uzman kontrolleri şu an hesaplanamadı. Yenile’yi deneyin.",
+                        company_id=cid,
+                        company_name=company.name,
+                        check_code="sistem",
+                    )
+                )
         else:
-            checks = _eval_physician_firm(db, company, assignment, month_start, month_end)
+            try:
+                checks = _eval_physician_firm(db, company, assignment, month_start, month_end)
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                checks = []
+                alerts.append(
+                    _alert(
+                        severity="missing",
+                        kind="duty",
+                        title="Kontrol hesaplanamadı",
+                        detail=f"{company.name} için sağlık kontrolleri şu an hesaplanamadı. Yenile’yi deneyin.",
+                        company_id=cid,
+                        company_name=company.name,
+                        check_code="saglik_gozetim",
+                    )
+                )
 
         for c in checks:
             if c["passed"]:
@@ -215,17 +252,24 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
 
         # --- Tarihli uyarılar (uzman) ---
         if is_specialist:
-            dofs = list(
-                db.scalars(
-                    select(RiskDof)
-                    .join(RiskAssessment, RiskDof.risk_id == RiskAssessment.id)
-                    .where(
-                        RiskAssessment.company_id == cid,
-                        RiskDof.is_completed.is_(False),
-                        RiskDof.term_date.is_not(None),
-                    )
-                ).all()
-            )
+            try:
+                dofs = list(
+                    db.scalars(
+                        select(RiskDof)
+                        .join(RiskAssessment, RiskDof.risk_id == RiskAssessment.id)
+                        .where(
+                            RiskAssessment.company_id == cid,
+                            RiskDof.is_completed.is_(False),
+                            RiskDof.term_date.is_not(None),
+                        )
+                    ).all()
+                )
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                dofs = []
             for d in dofs:
                 term = d.term_date
                 if not term:
@@ -250,18 +294,28 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
                     )
                 )
 
-            plans = list(
-                db.scalars(
-                    select(AnnualPlanItem).where(
-                        AnnualPlanItem.company_id == cid,
-                        AnnualPlanItem.year == year,
-                        AnnualPlanItem.deleted_at.is_(None),
-                        AnnualPlanItem.status.notin_(
-                            [AnnualPlanStatus.COMPLETED, AnnualPlanStatus.CANCELLED]
-                        ),
-                    )
-                ).all()
-            )
+            try:
+                plans = list(
+                    db.scalars(
+                        select(AnnualPlanItem).where(
+                            AnnualPlanItem.company_id == cid,
+                            AnnualPlanItem.year == year,
+                            AnnualPlanItem.deleted_at.is_(None),
+                            AnnualPlanItem.status.notin_(
+                                [
+                                    AnnualPlanStatus.COMPLETED.value,
+                                    AnnualPlanStatus.CANCELLED.value,
+                                ]
+                            ),
+                        )
+                    ).all()
+                )
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                plans = []
             for p in plans:
                 # Hedef tarih yoksa ay sonu varsay
                 if p.target_date:
@@ -295,15 +349,22 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
 
         # --- Tarihli uyarılar (hekim/DSP) ---
         if not is_specialist:
-            health_rows = list(
-                db.scalars(
-                    select(HealthRecord).where(
-                        HealthRecord.company_id == cid,
-                        HealthRecord.deleted_at.is_(None),
-                        HealthRecord.next_examination_date.is_not(None),
-                    )
-                ).all()
-            )
+            try:
+                health_rows = list(
+                    db.scalars(
+                        select(HealthRecord).where(
+                            HealthRecord.company_id == cid,
+                            HealthRecord.deleted_at.is_(None),
+                            HealthRecord.next_examination_date.is_not(None),
+                        )
+                    ).all()
+                )
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                health_rows = []
             for h in health_rows:
                 nxt = h.next_examination_date
                 if not nxt:

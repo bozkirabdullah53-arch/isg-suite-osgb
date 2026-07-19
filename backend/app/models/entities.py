@@ -299,7 +299,12 @@ class AnnualPlanItem(Base):
     responsible_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[AnnualPlanStatus] = mapped_column(
-        Enum(AnnualPlanStatus), default=AnnualPlanStatus.PLANNED
+        Enum(
+            AnnualPlanStatus,
+            name="annualplanstatus",
+            values_callable=lambda enum_cls: [item.value for item in enum_cls],
+        ),
+        default=AnnualPlanStatus.PLANNED,
     )
     completion_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str | None] = mapped_column(String(1500), nullable=True)

@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -150,4 +152,26 @@ def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user
 @router.get("/my-duties")
 def my_duties(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Uzman / hekim / DSP — kişisel sorumluluk uyarı paneli."""
-    return build_my_duty_board(db, user)
+    try:
+        return build_my_duty_board(db, user)
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        # Panel hiç açılmasın diye kontrollü boş cevap
+        return {
+            "supported": True,
+            "role": user.role.value,
+            "role_label": user.role.value,
+            "full_name": user.full_name,
+            "professional": None,
+            "period": {"today": date.today().isoformat(), "approaching_days": 14},
+            "workplace_count": 0,
+            "workplace_ids": [],
+            "check_catalog": [],
+            "summary": {"overdue": 0, "due_soon": 0, "missing": 0, "total": 0},
+            "alerts": {"overdue": [], "due_soon": [], "missing": [], "all": []},
+            "email_notifications": {"enabled": False, "planned": True, "note": ""},
+            "error": "Sorumluluk paneli yüklenirken hata oluştu. Yenile’ye basın; devam ederse OSGB yönetimine bildirin.",
+        }
