@@ -342,7 +342,7 @@ function App(){
     osgb_oversight:<OsgbOversightPage user={user} onNavigate={goModule}/>,
     pro_performance:<ProPerformancePage user={user}/>,
     csgb_audit:<CsgbAuditPackPage user={user}/>,
-    professionals:<ProfessionalsPage user={user}/>,
+    professionals:<ProfessionalsPage user={user} onNavigate={goModule}/>,
     assignments:<AssignmentsPage user={user}/>,
     visits:<VisitsPage user={user}/>,
     crm:<CrmPage user={user}/>,

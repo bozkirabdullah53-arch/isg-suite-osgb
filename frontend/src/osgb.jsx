@@ -1,4 +1,4 @@
-import React,{useEffect,useState} from 'react';
+import React,{useEffect,useMemo,useState} from 'react';
 import {api} from './api';
 import {Plus} from 'lucide-react';
 
@@ -136,75 +136,192 @@ export function OsgbDashboard({user}){
  </>
 }
 
-export function ProfessionalsPage({user}){
+export function ProfessionalsPage({user, onNavigate}){
  const tabs=[
   {id:'safety_specialist',label:'İş Güvenliği Uzmanları'},
   {id:'workplace_physician',label:'İşyeri Hekimleri'},
-  {id:'other_health_personnel',label:'DSP'},
+  {id:'other_health_personnel',label:'Diğer Sağlık Personeli'},
  ];
- const[orgs,setOrgs]=useState([]),[rows,setRows]=useState([]),[tab,setTab]=useState('safety_specialist');
- const[open,setOpen]=useState(false),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
- const[form,setForm]=useState({osgb_id:'',full_name:'',email:'',phone:'',professional_type:'safety_specialist',certificate_class:'',certificate_number:'',certificate_date:''});
- const load=async()=>{
+ const[orgs,setOrgs]=useState([]),[rows,setRows]=useState([]),[assignments,setAssignments]=useState([]);
+ const[oid,setOid]=useState('');
+ const[tab,setTab]=useState('safety_specialist');
+ const[q,setQ]=useState('');
+ const[statusFilter,setStatusFilter]=useState('active'); // active | suspended | all
+ const[open,setOpen]=useState(false);
+ const[editRow,setEditRow]=useState(null);
+ const[err,setErr]=useState('');
+ const[busy,setBusy]=useState(false);
+ const emptyForm={full_name:'',email:'',phone:'',professional_type:'safety_specialist',certificate_class:'',certificate_number:'',certificate_date:''};
+ const[form,setForm]=useState(emptyForm);
+
+ const load=async(preferredOid)=>{
   setErr('');
-  const o=await api('/osgb');
-  setOrgs(o);
-  const id=osgbId(user,o);
-  setForm(x=>({...x,osgb_id:id,professional_type:tab}));
-  if(id) setRows(await api(`/osgb/professionals?osgb_id=${id}`));
+  try{
+   const o=await api('/osgb');
+   setOrgs(o);
+   const id=String(preferredOid||oid||osgbId(user,o)||'');
+   if(id && !oid) setOid(id);
+   const useId=preferredOid||id;
+   if(!useId){setRows([]);setAssignments([]);return}
+   setOid(String(useId));
+   const[p,a]=await Promise.all([
+    api(`/osgb/professionals?osgb_id=${useId}`),
+    api('/osgb/assignments').catch(()=>[]),
+   ]);
+   setRows(p||[]);
+   setAssignments((a||[]).filter(x=>Number(x.osgb_id)===Number(useId)));
+  }catch(ex){setErr(ex.message||'Yükleme başarısız.')}
  };
- useEffect(()=>{load()},[]);
- useEffect(()=>{setForm(x=>({...x,professional_type:tab}))},[tab]);
- const filtered=rows.filter(r=>r.professional_type===tab);
- const counts=Object.fromEntries(tabs.map(t=>[t.id,rows.filter(r=>r.professional_type===t.id).length]));
+
+ useEffect(()=>{void load()},[]);
+ useEffect(()=>{setForm(f=>({...f,professional_type:tab}))},[tab]);
+
+ const assignedIds=useMemo(()=>{
+  const s=new Set();
+  for(const a of assignments){
+   if(a.status==='active' || a.status==='ACTIVE') s.add(Number(a.professional_id));
+  }
+  return s;
+ },[assignments]);
+
+ const counts=useMemo(()=>Object.fromEntries(tabs.map(t=>[t.id,rows.filter(r=>r.professional_type===t.id).length])),[rows]);
+
+ const filtered=useMemo(()=>{
+  let list=rows.filter(r=>r.professional_type===tab);
+  if(statusFilter==='active') list=list.filter(r=>r.is_active!==false);
+  if(statusFilter==='suspended') list=list.filter(r=>r.is_active===false);
+  const needle=q.trim().toLocaleLowerCase('tr');
+  if(needle){
+   list=list.filter(r=>[
+    r.full_name,r.email,r.phone,r.certificate_number,r.certificate_class,
+   ].some(v=>String(v||'').toLocaleLowerCase('tr').includes(needle)));
+  }
+  return list;
+ },[rows,tab,statusFilter,q]);
+
+ function openCreate(){
+  setErr('');
+  setEditRow(null);
+  setForm({...emptyForm,professional_type:tab,certificate_class:tab==='safety_specialist'?'A':''});
+  setOpen(true);
+ }
+ function openEdit(row){
+  setErr('');
+  setEditRow(row);
+  setForm({
+   full_name:row.full_name||'',
+   email:row.email||'',
+   phone:row.phone||'',
+   professional_type:row.professional_type||tab,
+   certificate_class:row.certificate_class||'',
+   certificate_number:row.certificate_number||'',
+   certificate_date:row.certificate_date||'',
+  });
+  setOpen(true);
+ }
+
  async function save(e){
   e.preventDefault();setErr('');setBusy(true);
   try{
-   await api('/osgb/professionals',{method:'POST',body:JSON.stringify({
-    ...form,
-    osgb_id:Number(form.osgb_id),
-    professional_type:form.professional_type||tab,
-    certificate_date:form.certificate_date||null,
+   const body={
+    full_name:form.full_name,
     email:form.email||null,
-   })});
-   setOpen(false);
-   setForm(f=>({...f,full_name:'',email:'',phone:'',certificate_class:'',certificate_number:'',certificate_date:'',professional_type:tab}));
-   await load();
+    phone:form.phone||null,
+    professional_type:form.professional_type||tab,
+    certificate_class:form.certificate_class||null,
+    certificate_number:form.certificate_number||null,
+    certificate_date:form.certificate_date||null,
+   };
+   if(editRow){
+    await api(`/osgb/professionals/${editRow.id}`,{method:'PATCH',body:JSON.stringify(body)});
+   }else{
+    await api('/osgb/professionals',{method:'POST',body:JSON.stringify({...body,osgb_id:Number(oid)})});
+   }
+   setOpen(false);setEditRow(null);
+   await load(oid);
   }catch(ex){setErr(ex.message)}
   finally{setBusy(false)}
  }
+
  async function suspend(row){
   if(!window.confirm(`${row.full_name} askıya alınsın mı?`)) return;
-  try{await api(`/osgb/professionals/${row.id}/suspend`,{method:'PATCH'});await load()}
+  try{await api(`/osgb/professionals/${row.id}/suspend`,{method:'PATCH'});await load(oid)}
   catch(ex){setErr(ex.message)}
  }
  async function activate(row){
-  try{await api(`/osgb/professionals/${row.id}/activate`,{method:'PATCH'});await load()}
+  try{await api(`/osgb/professionals/${row.id}/activate`,{method:'PATCH'});await load(oid)}
   catch(ex){setErr(ex.message)}
  }
  async function remove(row){
   if(!window.confirm(`${row.full_name} silinsin mi? Aktif görevlendirme varsa silinemez.`)) return;
-  try{await api(`/osgb/professionals/${row.id}`,{method:'DELETE'});await load()}
+  try{await api(`/osgb/professionals/${row.id}`,{method:'DELETE'});await load(oid)}
   catch(ex){setErr(ex.message)}
  }
- return <P title="İSG Profesyonelleri" action={<button onClick={()=>{setErr('');setForm(f=>({...f,professional_type:tab}));setOpen(true)}}><Plus/>Profesyonel Ekle</button>}>
-  <div className="actions" style={{marginBottom:14,gap:8,flexWrap:'wrap'}}>
+ function goPerformance(row){
+  try{sessionStorage.setItem('pro_performance_id',String(row.id))}catch(_){}
+  if(typeof onNavigate==='function') onNavigate('pro_performance');
+ }
+
+ return <P title="İSG Profesyonelleri" action={<button onClick={openCreate}><Plus/>Profesyonel Ekle</button>}>
+  <p style={{marginTop:0,color:'#64748b',fontSize:13}}>
+   OSGB kadrosu: uzman, hekim ve DSP kayıtları. Görevlendirme durumu ve performans raporu buradan takip edilir.
+  </p>
+
+  {orgs.length>1&&(
+   <label className="field" style={{maxWidth:360,marginBottom:12}}>
+    <span>OSGB</span>
+    <select value={oid} onChange={e=>{setOid(e.target.value);void load(e.target.value)}}>
+     {orgs.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
+    </select>
+   </label>
+  )}
+
+  <div className="actions" style={{marginBottom:12,gap:8,flexWrap:'wrap'}}>
    {tabs.map(t=>(
     <button key={t.id} type="button" className={tab===t.id?'':'secondary'} onClick={()=>setTab(t.id)}>
      {t.label} ({counts[t.id]||0})
     </button>
    ))}
   </div>
-  {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
+
+  <div className="form-grid" style={{gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',marginBottom:14}}>
+   <label className="field" style={{margin:0}}>
+    <span>Ara</span>
+    <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Ad, belge no, e-posta…"/>
+   </label>
+   <label className="field" style={{margin:0}}>
+    <span>Durum</span>
+    <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}>
+     <option value="active">Aktif</option>
+     <option value="suspended">Askıda</option>
+     <option value="all">Tümü</option>
+    </select>
+   </label>
+  </div>
+
+  {err&&!open&&<p style={{color:'#b91c1c'}}>{err}</p>}
+
   <T rows={filtered} cols={[
-   {k:'full_name',l:'Ad Soyad'},
-   {k:'certificate_class',l:'Sınıf'},
-   {k:'certificate_number',l:'Belge No'},
-   {k:'phone',l:'Telefon'},
-   {k:'email',l:'E-posta'},
+   {k:'full_name',l:'Ad Soyad',f:r=>(
+    <div>
+     <strong>{r.full_name}</strong>
+     {!assignedIds.has(Number(r.id))&&r.is_active!==false&&(
+      <div style={{fontSize:11,color:'#b91c1c',fontWeight:650}}>Atamasız</div>
+     )}
+    </div>
+   )},
+   {k:'certificate_class',l:'Sınıf',f:r=>r.certificate_class||'—'},
+   {k:'certificate_number',l:'Belge No',f:r=>r.certificate_number||'—'},
+   {k:'certificate_date',l:'Belge Tarihi',f:r=>r.certificate_date||'—'},
+   {k:'phone',l:'Telefon',f:r=>r.phone||'—'},
+   {k:'email',l:'E-posta',f:r=>r.email||'—'},
    {k:'is_active',l:'Durum',f:r=><span className={'badge '+(r.is_active?'ok':'off')}>{r.is_active?'Aktif':'Askıda'}</span>},
    {k:'x',l:'İşlem',f:r=>(
     <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
+     <button type="button" className="mini" onClick={()=>openEdit(r)}>Düzenle</button>
+     {user.role==='global_admin'&&(
+      <button type="button" className="mini" onClick={()=>goPerformance(r)}>Performans</button>
+     )}
      {r.is_active
       ? <button type="button" className="mini" onClick={()=>suspend(r)}>Askıya Al</button>
       : <button type="button" className="mini" onClick={()=>activate(r)}>Aktifleştir</button>}
@@ -212,7 +329,8 @@ export function ProfessionalsPage({user}){
     </div>
    )},
   ]}/>
-  {open&&<M title={`Yeni ${ptypes[tab]||'Profesyonel'}`} close={()=>setOpen(false)}>
+
+  {open&&<M title={editRow?`Düzenle — ${editRow.full_name}`:`Yeni ${ptypes[form.professional_type||tab]||'Profesyonel'}`} close={()=>{setOpen(false);setEditRow(null)}}>
    <form className="form-grid" onSubmit={save}>
     <F label="Ad Soyad" required value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})}/>
     <S label="Meslek" value={form.professional_type} onChange={e=>setForm({...form,professional_type:e.target.value})}>
@@ -220,11 +338,20 @@ export function ProfessionalsPage({user}){
     </S>
     <F label="E-posta" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/>
     <F label="Telefon" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
-    <F label="Belge Sınıfı" value={form.certificate_class} onChange={e=>setForm({...form,certificate_class:e.target.value})}/>
+    {form.professional_type==='safety_specialist'?(
+     <S label="Belge Sınıfı" value={form.certificate_class} onChange={e=>setForm({...form,certificate_class:e.target.value})}>
+      <option value="">Seçiniz</option>
+      <option value="A">A</option>
+      <option value="B">B</option>
+      <option value="C">C</option>
+     </S>
+    ):(
+     <F label="Belge Sınıfı" value={form.certificate_class} onChange={e=>setForm({...form,certificate_class:e.target.value})} placeholder="Varsa"/>
+    )}
     <F label="Belge No" value={form.certificate_number} onChange={e=>setForm({...form,certificate_number:e.target.value})}/>
     <F label="Belge Tarihi" type="date" value={form.certificate_date} onChange={e=>setForm({...form,certificate_date:e.target.value})}/>
     {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
-    <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>
+    <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':(editRow?'Güncelle':'Kaydet')}</button></div>
    </form>
   </M>}
  </P>
