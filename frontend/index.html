@@ -1,15 +1,82 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="tr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0f766e" />
-    <title>İSG Suite</title>
-    <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="theme-color" content="#087f78" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#073B66" />
+  <meta name="description" content="Kurumsal İş Sağlığı ve Güvenliği Yönetim Platformu" />
+  <title>İSG Suite | Yapım Aşamasındadır</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #062e52 0%, #073b66 30%, #0a4e88 60%, #0d5ead 100%);
+      color: #fff;
+      font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+      padding: 40px 20px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .bg-pattern {
+      position: absolute; inset: 0; opacity: 0.04;
+      background-image: radial-gradient(circle at 25% 25%, #fff 1px, transparent 1px),
+                        radial-gradient(circle at 75% 75%, #fff 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+    }
+    .content { position: relative; z-index: 1; max-width: 600px; }
+    .logo {
+      width: 100px; height: 100px; margin: 0 auto 32px; border-radius: 50%;
+      background: rgba(92,225,185,.15); display: flex; align-items: center;
+      justify-content: center; border: 2px solid rgba(92,225,185,.3);
+    }
+    .logo svg { width: 52px; height: 52px; }
+    h1 { font-size: clamp(28px, 5vw, 44px); font-weight: 800; margin: 0 0 8px; letter-spacing: -0.02em; line-height: 1.15; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 10px 24px; border-radius: 50px;
+      background: rgba(245,158,11,.15); border: 1px solid rgba(245,158,11,.3);
+      color: #fbbf24; font-weight: 600; font-size: 14px; margin-bottom: 24px;
+    }
+    p { font-size: 16px; line-height: 1.7; color: #c7e2f5; margin: 0 0 36px; max-width: 460px; margin-inline: auto; }
+    .status { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 40px; color: #8caac0; font-size: 13px; }
+    .contact {
+      padding: 20px 24px; border-radius: 16px; background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.08);
+    }
+    .contact p { margin: 0 0 6px; color: #b9d0e1; font-size: 13px; }
+    .contact a { color: #5ce1b9; font-weight: 700; font-size: 15px; text-decoration: none; transition: color .2s; }
+    .contact a:hover { color: #7ff0d0; }
+    .footer { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,.25); font-size: 11px; font-weight: 500; }
+    .spin { animation: spin 3s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
 </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<body>
+  <div class="bg-pattern"></div>
+  <div class="content">
+    <div class="logo">
+      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M32 3 57 12v19c0 15-10 25-25 31C17 56 7 46 7 31V12Z" fill="rgba(92,225,185,.2)" stroke="#5ce1b9" stroke-width="2.5"/>
+        <path d="m20 32 8 8 17-20" stroke="#5ce1b9" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h1>İSG Suite</h1>
+    <div class="badge">YAPIM AŞAMASINDADIR</div>
+    <p>Kurumsal İş Sağlığı ve Güvenliği Yönetim Platformumuz şu anda geliştirme aşamasındadır. Çalışmalarımız tamamlandığında sizlere en iyi hizmeti sunmak için yayında olacağız.</p>
+    <div class="status">
+      <span>Geliştirme çalışmaları devam ediyor...</span>
+    </div>
+    <div class="contact">
+      <p>Soru ve önerileriniz için:</p>
+      <a href="mailto:info@isgsuite.com.tr">info@isgsuite.com.tr</a>
+    </div>
+  </div>
+  <div class="footer">&copy; 2026 İSG Suite &mdash; Tüm hakları saklıdır.</div>
+</body>
 </html>
