@@ -97,6 +97,7 @@ class Company(Base):
     tax_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     nace_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
     hazard_class: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    sgk_registry_no: Mapped[str | None] = mapped_column(String(40), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     osgb_id: Mapped[int | None] = mapped_column(ForeignKey("osgb_organizations.id"), nullable=True, index=True)

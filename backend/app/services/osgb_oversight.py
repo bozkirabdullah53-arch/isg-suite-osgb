@@ -893,6 +893,7 @@ def seed_oversight_demo(db: Session, osgb_id: int | None = None) -> dict:
             tax_number=f"9{osgb.id:09d}"[:10],
             nace_code="25.11",
             hazard_class="Tehlikeli",
+            sgk_registry_no=f"DEMO-{osgb.id:06d}",
             is_active=True,
             osgb_id=osgb.id,
         )

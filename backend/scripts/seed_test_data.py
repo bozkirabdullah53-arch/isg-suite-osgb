@@ -148,6 +148,7 @@ def seed(db) -> dict:
             tax_number=f"999{abs(hash(name)) % 10000000:07d}"[:10],
             nace_code=nace,
             hazard_class=hazard,
+            sgk_registry_no=f"TEST-ISYERI-{abs(hash(name)) % 1000000:06d}",
             is_active=True,
             osgb_id=osgb.id,
         )

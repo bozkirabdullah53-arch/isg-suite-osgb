@@ -29,7 +29,8 @@ function Companies({canEdit}){
   const[q,setQ]=useState('');
   const[busy,setBusy]=useState(false);
   const[err,setErr]=useState('');
-  const[form,setForm]=useState({name:'',tax_number:'',nace_code:'',hazard_class:'Az Tehlikeli'});
+  const emptyForm={name:'',sgk_registry_no:'',tax_number:'',nace_code:'',hazard_class:'Az Tehlikeli'};
+  const[form,setForm]=useState(emptyForm);
   const load=()=>{
     setErr('');
     const p=new URLSearchParams();
@@ -40,10 +41,12 @@ function Companies({canEdit}){
   useEffect(()=>{void load()},[]);
   async function save(e){
     e.preventDefault();setBusy(true);setErr('');
+    const payload={...form,sgk_registry_no:(form.sgk_registry_no||'').trim()};
+    if(!payload.sgk_registry_no){setErr('İşyeri sicil numarası zorunludur.');setBusy(false);return}
     try{
-      await api('/companies',{method:'POST',body:JSON.stringify(form)});
+      await api('/companies',{method:'POST',body:JSON.stringify(payload)});
       setOpen(false);
-      setForm({name:'',tax_number:'',nace_code:'',hazard_class:'Az Tehlikeli'});
+      setForm(emptyForm);
       await load();
     }catch(ex){setErr(ex.message)}
     finally{setBusy(false)}
@@ -68,6 +71,7 @@ function Companies({canEdit}){
     <SearchBar q={q} setQ={setQ} go={load}/>
     <Table cols={[
       {key:'name',label:'Firma'},
+      {key:'sgk_registry_no',label:'İşyeri Sicil No'},
       {key:'tax_number',label:'Vergi No'},
       {key:'nace_code',label:'NACE'},
       {key:'hazard_class',label:'Tehlike Sınıfı'},
@@ -84,6 +88,7 @@ function Companies({canEdit}){
     {open&&<Modal title="Yeni Firma" close={()=>setOpen(false)}>
       <form className="form-grid" onSubmit={save}>
         <Field label="Firma Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
+        <Field label="İşyeri Sicil No" required value={form.sgk_registry_no} onChange={e=>setForm({...form,sgk_registry_no:e.target.value})}/>
         <Field label="Vergi No" value={form.tax_number} onChange={e=>setForm({...form,tax_number:e.target.value})}/>
         <Field label="NACE Kodu" value={form.nace_code} onChange={e=>setForm({...form,nace_code:e.target.value})}/>
         <Select label="Tehlike Sınıfı" value={form.hazard_class} onChange={e=>setForm({...form,hazard_class:e.target.value})}>
