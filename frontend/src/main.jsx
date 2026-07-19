@@ -52,13 +52,16 @@ function Companies({canEdit}){
     finally{setBusy(false)}
   }
   async function act(row,action){
-    const labels={deactivate:'pasife almak',activate:'yeniden aktifleştirmek',delete:'kalıcı silmek'};
-    if(!window.confirm(`“${row.name}” işyerini ${labels[action]||action} istiyor musunuz?`)) return;
+    if(action==='delete'){
+      if(!window.confirm(`“${row.name}” işyerini KALICI olarak silmek istiyor musunuz?\n\nPersonel, eğitim, risk, sağlık ve diğer bağlı kayıtlar da silinir. Bu işlem geri alınamaz.`)) return;
+    }else{
+      const labels={deactivate:'pasife almak',activate:'yeniden aktifleştirmek'};
+      if(!window.confirm(`“${row.name}” işyerini ${labels[action]||action} istiyor musunuz?`)) return;
+    }
     setBusy(true);setErr('');
     try{
       if(action==='delete'){
-        const r=await api(`/companies/${row.id}`,{method:'DELETE'});
-        if(r.soft_deleted) window.alert(r.message||'Pasife alındı.');
+        await api(`/companies/${row.id}`,{method:'DELETE'});
       }else{
         await api(`/companies/${row.id}/${action}`,{method:'PATCH'});
       }
