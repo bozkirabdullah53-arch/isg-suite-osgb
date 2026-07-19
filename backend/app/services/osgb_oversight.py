@@ -20,16 +20,21 @@ from app.models.entities import (
     AnnualPlanStatus,
     AssignmentStatus,
     Company,
+    Employee,
     HealthFitnessStatus,
     HealthRecord,
+    HealthRecordType,
     IncidentEvent,
     IsgProfessional,
+    OsgbOrganization,
     ProfessionalType,
     RiskAssessment,
     RiskDof,
     ServiceVisit,
     TrainingSession,
     TrainingStatus,
+    User,
+    UserRole,
     VisitStatus,
     WorkplaceAssignment,
 )
@@ -440,6 +445,41 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
         if not firms:
             continue
 
+        # Profesyonel düzeyinde sütun grafik verisi (sorumluluk alanları)
+        check_agg: dict[str, dict] = {}
+        gaps = []
+        for f in firms:
+            for c in f["checks"]:
+                bucket = check_agg.setdefault(
+                    c["code"],
+                    {"code": c["code"], "title": c["title"], "legal": c["legal"], "passed": 0, "total": 0},
+                )
+                bucket["total"] += 1
+                if c["passed"]:
+                    bucket["passed"] += 1
+                else:
+                    gaps.append(
+                        {
+                            "company_id": f["company_id"],
+                            "company_name": f["company_name"],
+                            "check_code": c["code"],
+                            "check_title": c["title"],
+                            "detail": c["detail"],
+                            "legal": c["legal"],
+                        }
+                    )
+        check_columns = []
+        for b in check_agg.values():
+            pct = round(100 * b["passed"] / b["total"]) if b["total"] else 0
+            check_columns.append(
+                {
+                    **b,
+                    "pct": pct,
+                    "failed": b["total"] - b["passed"],
+                    "status": "ok" if pct >= 85 else "warning" if pct >= 55 else "critical",
+                }
+            )
+
         # Profesyonel skoru: firma ortalaması; en kötü durum baskın
         avg_score = round(sum(f["score"] for f in firms) / len(firms))
         if "critical" in firm_statuses:
@@ -467,10 +507,40 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                 "score": avg_score,
                 "status": overall,
                 "firms": firms,
+                "check_columns": check_columns,
+                "gaps": gaps,
+                "gap_count": len(gaps),
             }
         )
 
     rows.sort(key=lambda r: (0 if r["status"] == "critical" else 1 if r["status"] == "warning" else 2, r["score"]))
+
+    # OSGB geneli sorumluluk sütunları
+    global_agg: dict[str, dict] = {}
+    global_gaps = []
+    for r in rows:
+        for c in r["check_columns"]:
+            g = global_agg.setdefault(
+                c["code"],
+                {"code": c["code"], "title": c["title"], "legal": c.get("legal", ""), "passed": 0, "total": 0},
+            )
+            g["passed"] += c["passed"]
+            g["total"] += c["total"]
+        for gap in r["gaps"]:
+            global_gaps.append({**gap, "professional_id": r["professional_id"], "full_name": r["full_name"], "professional_type": r["professional_type"]})
+
+    check_columns = []
+    for b in global_agg.values():
+        pct = round(100 * b["passed"] / b["total"]) if b["total"] else 0
+        check_columns.append(
+            {
+                **b,
+                "pct": pct,
+                "failed": b["total"] - b["passed"],
+                "status": "ok" if pct >= 85 else "warning" if pct >= 55 else "critical",
+            }
+        )
+    check_columns.sort(key=lambda x: x["pct"])
 
     return {
         "period": {
@@ -490,5 +560,196 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
             "other_health_personnel": PHYSICIAN_CHECKS,
         },
         "summary": summary,
+        "check_columns": check_columns,
+        "gaps": global_gaps[:80],
+        "gap_count": len(global_gaps),
         "professionals": rows,
+    }
+
+
+def seed_oversight_demo(db: Session, osgb_id: int | None = None) -> dict:
+    """Test uzman / hekim / DSP + kasıtlı eksiklikler (denetim paneli smoke)."""
+    osgb = None
+    if osgb_id:
+        osgb = db.get(OsgbOrganization, osgb_id)
+    if not osgb:
+        osgb = db.scalar(select(OsgbOrganization).order_by(OsgbOrganization.id).limit(1))
+    if not osgb:
+        osgb = OsgbOrganization(
+            name="Demo OSGB Denetim",
+            authorization_number="DEMO-OSGB-001",
+            tax_number="1111111111",
+            responsible_manager="Demo Yönetici",
+            email="demo.osgb@example.com",
+            is_active=True,
+        )
+        db.add(osgb)
+        db.flush()
+
+    company = db.scalar(
+        select(Company).where(Company.osgb_id == osgb.id, Company.name.like("%Denetim Demo%")).limit(1)
+    )
+    if not company:
+        company = Company(
+            name=f"Denetim Demo İşyeri ({osgb.id})",
+            tax_number=f"9{osgb.id:09d}"[:10],
+            nace_code="25.11",
+            hazard_class="Tehlikeli",
+            is_active=True,
+            osgb_id=osgb.id,
+        )
+        db.add(company)
+        db.flush()
+
+    admin = db.scalar(select(User).where(User.role == UserRole.GLOBAL_ADMIN).limit(1))
+    if not admin:
+        raise ValueError("Global yönetici kullanıcısı yok.")
+
+    specs = [
+        (ProfessionalType.SAFETY_SPECIALIST, "TEST Uzman — Denetim", "DENETIM-UZM-001", "A"),
+        (ProfessionalType.WORKPLACE_PHYSICIAN, "TEST Hekim — Denetim", "DENETIM-HEK-001", "A"),
+        (ProfessionalType.OTHER_HEALTH_PERSONNEL, "TEST DSP — Denetim", "DENETIM-DSP-001", "B"),
+    ]
+    created = []
+    for ptype, name, cert, cls in specs:
+        pro = db.scalar(
+            select(IsgProfessional).where(
+                IsgProfessional.osgb_id == osgb.id,
+                IsgProfessional.certificate_number == cert,
+            )
+        )
+        if not pro:
+            pro = IsgProfessional(
+                osgb_id=osgb.id,
+                full_name=name,
+                email=f"denetim.{ptype.value}@example.com",
+                phone="05551234567",
+                professional_type=ptype,
+                certificate_class=cls,
+                certificate_number=cert,
+                certificate_date=date(2022, 1, 1),
+                is_active=True,
+            )
+            db.add(pro)
+            db.flush()
+        else:
+            pro.full_name = name
+            pro.is_active = True
+
+        assign = db.scalar(
+            select(WorkplaceAssignment).where(
+                WorkplaceAssignment.company_id == company.id,
+                WorkplaceAssignment.professional_id == pro.id,
+            )
+        )
+        if not assign:
+            assign = WorkplaceAssignment(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                professional_id=pro.id,
+                professional_type=ptype,
+                start_date=date(2025, 1, 1),
+                required_minutes_monthly=480,
+                planned_minutes_monthly=480,
+                actual_minutes_monthly=60,
+                isg_katip_contract_number=f"DEMO-KATIP-{pro.id}",
+                status=AssignmentStatus.ACTIVE,
+            )
+            db.add(assign)
+        else:
+            assign.status = AssignmentStatus.ACTIVE
+            assign.required_minutes_monthly = 480
+            assign.actual_minutes_monthly = 60
+
+        created.append({"id": pro.id, "name": name, "type": ptype.value})
+
+    db.flush()
+    uzman = db.scalar(select(IsgProfessional).where(IsgProfessional.certificate_number == "DENETIM-UZM-001"))
+    hekim = db.scalar(select(IsgProfessional).where(IsgProfessional.certificate_number == "DENETIM-HEK-001"))
+
+    if uzman:
+        existing_v = db.scalar(
+            select(ServiceVisit).where(
+                ServiceVisit.professional_id == uzman.id,
+                ServiceVisit.company_id == company.id,
+                ServiceVisit.subject.like("%Denetim Demo%"),
+            )
+        )
+        if not existing_v:
+            db.add(
+                ServiceVisit(
+                    osgb_id=osgb.id,
+                    company_id=company.id,
+                    professional_id=uzman.id,
+                    visit_date=date.today(),
+                    start_time="09:00",
+                    end_time="10:00",
+                    duration_minutes=60,
+                    subject="Denetim Demo — yetersiz saha süresi",
+                    notes="Kasıtlı düşük dakika (test)",
+                    status=VisitStatus.COMPLETED,
+                )
+            )
+        plan = db.scalar(
+            select(AnnualPlanItem).where(
+                AnnualPlanItem.company_id == company.id,
+                AnnualPlanItem.activity.like("%Denetim Demo%"),
+            )
+        )
+        if not plan:
+            db.add(
+                AnnualPlanItem(
+                    company_id=company.id,
+                    year=date.today().year,
+                    month=date.today().month,
+                    category="yillik_calisma",
+                    activity="Denetim Demo — geciken plan maddesi",
+                    description="Test eksikliği",
+                    responsible_name="TEST Uzman",
+                    target_date=date.today() - timedelta(days=10),
+                    status=AnnualPlanStatus.DELAYED,
+                    created_by_id=admin.id,
+                )
+            )
+
+    if hekim:
+        emp = db.scalar(select(Employee).where(Employee.company_id == company.id).limit(1))
+        if not emp:
+            emp = Employee(
+                company_id=company.id,
+                full_name="Denetim Demo Çalışan",
+                job_title="Kaynakçı",
+                department="Üretim",
+                is_active=True,
+            )
+            db.add(emp)
+            db.flush()
+        hr = db.scalar(
+            select(HealthRecord).where(
+                HealthRecord.company_id == company.id,
+                HealthRecord.summary.like("%Denetim Demo%"),
+            )
+        )
+        if not hr:
+            db.add(
+                HealthRecord(
+                    company_id=company.id,
+                    employee_id=emp.id,
+                    record_type=HealthRecordType.PERIODIC_EXAM,
+                    examination_date=date.today() - timedelta(days=400),
+                    next_examination_date=date.today() - timedelta(days=30),
+                    fitness_status=HealthFitnessStatus.TRACKING,
+                    physician_name="TEST Hekim — Denetim",
+                    summary="Denetim Demo — geciken muayene",
+                    created_by_id=admin.id,
+                )
+            )
+
+    db.commit()
+    return {
+        "osgb_id": osgb.id,
+        "company_id": company.id,
+        "company_name": company.name,
+        "professionals": created,
+        "note": "Uzmanda düşük saha + geciken plan; hekimde geciken muayene — panoda kritik görünmeli.",
     }

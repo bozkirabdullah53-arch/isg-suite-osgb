@@ -8,7 +8,7 @@ from app.models.entities import (Company, IsgProfessional, OsgbOrganization, Ser
 from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCreate,
                               ContractResponse, OsgbCreate, OsgbResponse,
                               ProfessionalCreate, ProfessionalResponse)
-from app.services.osgb_oversight import build_oversight
+from app.services.osgb_oversight import build_oversight, seed_oversight_demo
 
 router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
 ADMIN_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
@@ -42,6 +42,22 @@ def osgb_oversight(
     """Yalnız global yönetici — profesyonel sorumluluk / 6331 hizmet denetimi."""
     _ = user
     return build_oversight(db, osgb_id=osgb_id)
+
+
+@router.post("/oversight/seed-demo")
+def osgb_oversight_seed_demo(
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """Test uzman / hekim / DSP + kasıtlı eksiklikler oluşturur."""
+    _ = user
+    try:
+        seeded = seed_oversight_demo(db, osgb_id=osgb_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    overview = build_oversight(db, osgb_id=seeded["osgb_id"])
+    return {"seeded": seeded, "oversight_summary": overview.get("summary"), "gap_count": overview.get("gap_count")}
 
 
 @router.get("/professionals", response_model=list[ProfessionalResponse])
