@@ -33,10 +33,52 @@ def update_user(user_id:int,payload:UserUpdate,db:Session=Depends(get_db),curren
     if password: obj.hashed_password=get_password_hash(password)
     db.commit();db.refresh(obj);return obj
 
+@router.patch("/{user_id}/suspend")
+def suspend_user(user_id: int, db: Session = Depends(get_db), current: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN))):
+    obj = db.get(User, user_id)
+    if not obj:
+        raise HTTPException(404, "Kullanıcı bulunamadı.")
+    if obj.id == current.id:
+        raise HTTPException(400, "Kendi hesabınızı askıya alamazsınız.")
+    if current.role != UserRole.GLOBAL_ADMIN and obj.company_id != current.company_id:
+        raise HTTPException(403, "Bu kullanıcıyı değiştiremezsiniz.")
+    if obj.role == UserRole.GLOBAL_ADMIN and current.role != UserRole.GLOBAL_ADMIN:
+        raise HTTPException(403, "Global yöneticiyi askıya alamazsınız.")
+    obj.is_active = False
+    db.commit()
+    return {"ok": True, "id": user_id, "is_active": False, "message": "Kullanıcı askıya alındı."}
+
+
+@router.patch("/{user_id}/activate")
+def activate_user(user_id: int, db: Session = Depends(get_db), current: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN))):
+    obj = db.get(User, user_id)
+    if not obj:
+        raise HTTPException(404, "Kullanıcı bulunamadı.")
+    if current.role != UserRole.GLOBAL_ADMIN and obj.company_id != current.company_id:
+        raise HTTPException(403, "Bu kullanıcıyı değiştiremezsiniz.")
+    obj.is_active = True
+    db.commit()
+    return {"ok": True, "id": user_id, "is_active": True, "message": "Kullanıcı yeniden aktifleştirildi."}
+
+
 @router.delete("/{user_id}")
-def deactivate_user(user_id:int,db:Session=Depends(get_db),current:User=Depends(require_roles(UserRole.GLOBAL_ADMIN,UserRole.COMPANY_ADMIN))):
-    obj=db.get(User,user_id)
-    if not obj: raise HTTPException(404,"Kullanıcı bulunamadı.")
-    if obj.id==current.id: raise HTTPException(400,"Kendi hesabınızı pasife alamazsınız.")
-    if current.role!=UserRole.GLOBAL_ADMIN and obj.company_id!=current.company_id: raise HTTPException(403,"Bu kullanıcıyı değiştiremezsiniz.")
-    obj.is_active=False;db.commit();return {"message":"Kullanıcı pasife alındı."}
+def delete_user(user_id: int, db: Session = Depends(get_db), current: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN))):
+    """Kalıcı silme. Kendi hesabı ve son global yönetici silinemez."""
+    obj = db.get(User, user_id)
+    if not obj:
+        raise HTTPException(404, "Kullanıcı bulunamadı.")
+    if obj.id == current.id:
+        raise HTTPException(400, "Kendi hesabınızı silemezsiniz.")
+    if current.role != UserRole.GLOBAL_ADMIN and obj.company_id != current.company_id:
+        raise HTTPException(403, "Bu kullanıcıyı silemezsiniz.")
+    if obj.role == UserRole.GLOBAL_ADMIN:
+        if current.role != UserRole.GLOBAL_ADMIN:
+            raise HTTPException(403, "Global yöneticiyi silemezsiniz.")
+        other_admins = db.scalar(
+            select(User).where(User.role == UserRole.GLOBAL_ADMIN, User.id != obj.id, User.is_active.is_(True)).limit(1)
+        )
+        if not other_admins:
+            raise HTTPException(400, "Sistemde en az bir aktif global yönetici kalmalıdır.")
+    db.delete(obj)
+    db.commit()
+    return {"ok": True, "id": user_id, "message": "Kullanıcı silindi."}
