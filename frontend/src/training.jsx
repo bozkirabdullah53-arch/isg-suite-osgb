@@ -515,10 +515,20 @@ export function TrainingPage({user}) {
                   <button type="button" className="secondary" onClick={() => navigator.clipboard?.writeText(verifyUrl(detail.verification_code))}>
                     Linki kopyala
                   </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => window.open(verifyUrl(detail.verification_code), '_blank', 'noopener,noreferrer')}
+                  >
+                    Yeni sekmede aç
+                  </button>
                   <button type="button" className="secondary" disabled={busy} onClick={checkVerify}>
                     Doğrulamayı test et
                   </button>
                 </div>
+                <p style={{margin: '8px 0 0', fontSize: 12, color: '#64748b'}}>
+                  Linki aynı sekmede açmayın — girişliyken sol menü bozulmasın diye paylaşım yeni sekmede / kopyala ile yapılır.
+                </p>
                 {verifyPreview && (
                   <div style={{marginTop: 10, padding: 10, background: '#fff', borderRadius: 8}}>
                     {verifyPreview.valid ? (
