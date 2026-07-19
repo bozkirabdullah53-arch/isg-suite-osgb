@@ -162,7 +162,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.48',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.49',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 _cors_origins=list(dict.fromkeys([
@@ -181,12 +181,12 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.48',
+        'version': '0.9.49',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'generate-wake-retry',
         'users_delete': 'reassign-fk-refs',
         'assignment_actions': 'end-suspend-delete',
-        'companies_actions': 'deactivate-activate-delete',
+        'companies_actions': 'deactivate-activate-hard-delete',
         'companies_sgk': 'required-on-create',
         'health': 'pro-saglik-hekim-personel-sec',
         'osgb_oversight': '6331-eval-error-detail',
