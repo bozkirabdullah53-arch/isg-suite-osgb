@@ -57,7 +57,8 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.0',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.1',lifespan=lifespan)
+
 app.add_middleware(SecurityHeadersMiddleware)
 _cors_origins=list(dict.fromkeys([
     settings.frontend_origin,
@@ -70,4 +71,13 @@ _cors_origins=list(dict.fromkeys([
 app.add_middleware(CORSMiddleware,allow_origins=_cors_origins,allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
 for r in (auth.router,companies.router,branches.router,users.router,employees.router,isg_records.router,health.router,documents.router,annual_plans.router,reports.router,security.router,files.router,exports.router,subscriptions.router,notifications.router,system.router,dashboard.router,osgb.router,operations.router,trainings.router,risks.router,incidents.router,ppe.router): app.include_router(r,prefix='/api/v1')
 @app.get('/health')
-def health(): return {'status':'ok','service':settings.app_name,'version':'0.9.0'}
+def health():
+    import os
+    return {
+        'status': 'ok',
+        'service': settings.app_name,
+        'version': '0.9.1',
+        'pdf_layout': 'pro-2026',
+        'git': os.environ.get('RENDER_GIT_COMMIT') or os.environ.get('GIT_COMMIT') or 'local',
+    }
+

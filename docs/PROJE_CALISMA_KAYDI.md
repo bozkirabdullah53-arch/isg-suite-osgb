@@ -134,4 +134,6 @@ Kullanıcı sırayı söyler. Backlog örnek: Risk (edit UI, medya canlı), Rama
 
 ## 8) Tek cümle durum
 
-**Kod (feature) hazır; canlı Render eski API yüzünden Eğitim PDF + verify hâlâ bozuk. Bir sonraki adım: Clear cache deploy + layout-info doğrulama; sonra Eğitim smoke.**
+**Web canlıda YENİ, API canlıda ESKİ** → Eğitim PDF kırık. GitHub güncel (`master`=`feature`).  
+**Çözüm:** API için Render **Clear build cache & Deploy** VEYA Deploy Hook’u GitHub secret’a ekle (`.github/workflows/render-deploy.yml`).  
+Kontrol: `/health` → `version: 0.9.1` ve `pdf_layout: pro-2026` olmalı.

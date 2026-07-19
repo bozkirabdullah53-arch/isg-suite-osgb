@@ -13,6 +13,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade():
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    if insp.has_table("risk_media"):
+        return
     op.create_table(
         "risk_media",
         sa.Column("id", sa.Integer(), primary_key=True),
