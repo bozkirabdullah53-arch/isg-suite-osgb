@@ -129,6 +129,14 @@ function App(){
     try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
   }
 
+  function goHome(){
+    const allowed=roleModules[user?.role]||[];
+    const home=allowed.includes('osgb_dashboard')
+      ? 'osgb_dashboard'
+      : (allowed.includes('dashboard') ? 'dashboard' : (allowed[0]||''));
+    if(home) goModule(home);
+  }
+
   useEffect(()=>{
     if(!logged) return;
     // Oturum açıkken ?egitim-dogrula=... sol menüyü / uygulamayı ASLA bozmasın
@@ -234,10 +242,10 @@ function App(){
   return (
     <div className="app-shell">
       <aside>
-        <div className="logo">
+        <button type="button" className="logo" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfaya dön">
           <img src="/logo.svg" alt="Yönetim Akademisi" className="sidebar-logo"/>
           <span>İSG Suite OSGB</span>
-        </div>
+        </button>
         <nav ref={navRef}>
           {menu.map(([id,l,I])=>(
             <button
