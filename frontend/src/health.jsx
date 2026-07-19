@@ -160,6 +160,7 @@ export function HealthPage({user}) {
 
   const [companies, setCompanies] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [physicians, setPhysicians] = useState([]);
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
   const [analysis, setAnalysis] = useState(null);
@@ -176,6 +177,7 @@ export function HealthPage({user}) {
   const [leadLive, setLeadLive] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [physicianCustom, setPhysicianCustom] = useState(false);
 
   const typeMap = useMemo(() => {
     const m = {...TYPE_FALLBACK};
@@ -207,7 +209,7 @@ export function HealthPage({user}) {
       if (isGlobal && companyId) sumQs.set('company_id', companyId);
       const [c, e, r, s, m, a] = await Promise.all([
         api('/companies'),
-        api('/employees'),
+        api('/employees?active=true'),
         api(`/health-records?${qs}`),
         api(`/health-records/summary?${sumQs}`),
         api('/health-records/meta'),
@@ -219,7 +221,24 @@ export function HealthPage({user}) {
       setSummary(s);
       setMeta(m);
       setAnalysis(a);
-      if (!companyId && c.length) setCompanyId(String(user.company_id || c[0].id));
+      const nextCid = companyId || String(user.company_id || c[0]?.id || '');
+      if (!companyId && nextCid) setCompanyId(nextCid);
+
+      // İşyeri hekimleri: OSGB profesyonelleri + personel listesi
+      let hekimler = [];
+      try {
+        const oid = user.osgb_id || c.find((x) => String(x.id) === String(nextCid))?.osgb_id;
+        const pros = oid
+          ? await api(`/osgb/professionals?osgb_id=${oid}`).catch(() => [])
+          : await api('/osgb/professionals').catch(() => []);
+        hekimler = (pros || []).filter(
+          (p) => p.is_active !== false && (
+            p.professional_type === 'workplace_physician'
+            || user.role === 'workplace_physician'
+          ),
+        );
+      } catch (_) { /* ignore */ }
+      setPhysicians(hekimler);
     } catch (err) {
       setMessage(err.message || 'Yükleme başarısız.');
     }
@@ -242,9 +261,26 @@ export function HealthPage({user}) {
   }, [form.blood_lead_value, form.blood_lead_ref]);
 
   const companyEmployees = useMemo(
-    () => employees.filter((x) => String(x.company_id) === String(form.company_id || companyId)),
+    () => employees.filter((x) => String(x.company_id) === String(form.company_id || companyId) && x.is_active !== false),
     [employees, form.company_id, companyId],
   );
+
+  const physicianOptions = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    const add = (name, note) => {
+      const n = (name || '').trim();
+      const key = n.toLocaleLowerCase('tr');
+      if (!n || seen.has(key)) return;
+      seen.add(key);
+      out.push({name: n, note});
+    };
+    for (const p of physicians) add(p.full_name, 'İşyeri hekimi');
+    if (user.role === 'workplace_physician' && user.full_name) add(user.full_name, 'Ben');
+    // Firma personel listesinden seçim (PRO parity)
+    for (const e of companyEmployees) add(e.full_name, e.job_title || 'Personel');
+    return out;
+  }, [physicians, companyEmployees, user]);
 
   async function applySuggest(empId, company) {
     const emp = employees.find((x) => String(x.id) === String(empId));
@@ -282,7 +318,14 @@ export function HealthPage({user}) {
     setEditing(null);
     setReportFile(null);
     setLeadLive(null);
-    setForm({...emptyForm(user), company_id: companyId || user.company_id || ''});
+    setPhysicianCustom(false);
+    const cid = companyId || user.company_id || '';
+    const base = {...emptyForm(user), company_id: cid};
+    // Hekim kendi adını listeden seçili getir
+    if (user.role === 'workplace_physician' && user.full_name) {
+      base.physician_name = user.full_name;
+    }
+    setForm(base);
     setOpen(true);
   }
 
@@ -292,6 +335,8 @@ export function HealthPage({user}) {
     const exp = row.exposures
       ? (Array.isArray(row.exposures) ? row.exposures : String(row.exposures).split(',').map((x) => x.trim()).filter(Boolean))
       : [];
+    const inList = physicianOptions.some((p) => p.name === (row.physician_name || ''));
+    setPhysicianCustom(!!(row.physician_name && !inList));
     setForm({
       company_id: row.company_id,
       employee_id: row.employee_id,
@@ -354,6 +399,14 @@ export function HealthPage({user}) {
 
   async function save(e) {
     e.preventDefault();
+    if (!form.employee_id && !editing) {
+      setMessage('Personeli listeden seçiniz.');
+      return;
+    }
+    if (!(form.physician_name || '').trim()) {
+      setMessage('İşyeri hekimini listeden seçiniz.');
+      return;
+    }
     setBusy(true);
     setMessage('');
     try {
@@ -591,18 +644,22 @@ export function HealthPage({user}) {
           <form className="form-grid" onSubmit={save}>
             {!editing && (
               <>
-                <Select label="Firma" required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value, employee_id: ''})}>
+                <Select label="Firma" required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value, employee_id: '', physician_name: form.physician_name})}>
                   <option value="">Seçiniz</option>
                   {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </Select>
                 <Select
-                  label="Personel"
+                  label="Personel (listeden seçin)"
                   required
                   value={form.employee_id}
                   onChange={(e) => applySuggest(e.target.value, form.company_id)}
                 >
-                  <option value="">Seçiniz</option>
-                  {companyEmployees.map((x) => <option key={x.id} value={x.id}>{x.full_name}</option>)}
+                  <option value="">{form.company_id ? (companyEmployees.length ? 'Seçiniz' : 'Bu firmada personel yok — Personel menüsünden ekleyin') : 'Önce firma seçin'}</option>
+                  {companyEmployees.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.full_name}{x.job_title ? ` — ${x.job_title}` : ''}
+                    </option>
+                  ))}
                 </Select>
               </>
             )}
@@ -620,7 +677,40 @@ export function HealthPage({user}) {
             <Select label="Uygunluk" value={form.fitness_status} onChange={(e) => setForm({...form, fitness_status: e.target.value})}>
               {fitnessOpts.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}
             </Select>
-            <Field label="İşyeri hekimi" value={form.physician_name} onChange={(e) => setForm({...form, physician_name: e.target.value})} />
+            {!physicianCustom ? (
+              <Select
+                label="İşyeri hekimi (listeden seçin)"
+                required
+                value={form.physician_name}
+                onChange={(e) => {
+                  if (e.target.value === '__custom__') {
+                    setPhysicianCustom(true);
+                    setForm({...form, physician_name: ''});
+                  } else {
+                    setForm({...form, physician_name: e.target.value});
+                  }
+                }}
+              >
+                <option value="">Seçiniz</option>
+                {physicianOptions.map((p) => (
+                  <option key={p.name} value={p.name}>{p.name}{p.note ? ` (${p.note})` : ''}</option>
+                ))}
+                <option value="__custom__">Listede yok — elle yaz…</option>
+              </Select>
+            ) : (
+              <Field
+                label="İşyeri hekimi (elle)"
+                required
+                value={form.physician_name}
+                onChange={(e) => setForm({...form, physician_name: e.target.value})}
+                placeholder="Ad Soyad"
+              />
+            )}
+            {physicianCustom && (
+              <button type="button" className="mini" style={{alignSelf: 'end'}} onClick={() => { setPhysicianCustom(false); setForm({...form, physician_name: ''}); }}>
+                Listeye dön
+              </button>
+            )}
             <TextArea label="Özet" value={form.summary} onChange={(e) => setForm({...form, summary: e.target.value})} />
             {isPhysician && (
               <TextArea label="Gizli hekim notu" value={form.confidential_note} onChange={(e) => setForm({...form, confidential_note: e.target.value})} />

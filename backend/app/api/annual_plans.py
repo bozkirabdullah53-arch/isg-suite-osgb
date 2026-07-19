@@ -18,6 +18,7 @@ from app.schemas.annual_plan import (
     AnnualPlanResponse,
     AnnualPlanUpdate,
 )
+from app.services.tr_calendar import plan_target_date
 
 router = APIRouter(prefix="/annual-plans", tags=["Yıllık Planlar"])
 
@@ -25,6 +26,8 @@ EDIT_ROLES = (
     UserRole.GLOBAL_ADMIN,
     UserRole.COMPANY_ADMIN,
     UserRole.SAFETY_SPECIALIST,
+    UserRole.WORKPLACE_PHYSICIAN,
+    UserRole.OTHER_HEALTH_PERSONNEL,
 )
 
 CATEGORIES = {
@@ -163,7 +166,7 @@ def create_plan_item(
         raise HTTPException(404, "Firma bulunamadı.")
     data = payload.model_dump()
     if not data.get("target_date"):
-        data["target_date"] = date(payload.year, payload.month, 15)
+        data["target_date"] = plan_target_date(payload.year, payload.month, 15)
     item = AnnualPlanItem(**data, created_by_id=user.id)
     db.add(item)
     db.commit()
@@ -178,9 +181,16 @@ def generate_template(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     """PRO /planlama/generate — aynı yıl için yoksa 6331 şablon maddelerini ekler."""
-    ensure_access(db, user, payload.company_id)
+    try:
+        ensure_access(db, user, payload.company_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(403, f"Firma erişimi doğrulanamadı: {exc}") from exc
     if not db.get(Company, payload.company_id):
         raise HTTPException(404, "Firma bulunamadı.")
+    if payload.year < 2020 or payload.year > 2100:
+        raise HTTPException(422, "Geçersiz yıl.")
     existing = list(
         db.scalars(
             _active_stmt().where(
@@ -191,33 +201,58 @@ def generate_template(
     )
     existing_keys = {(i.month, (i.activity or "").strip().casefold()) for i in existing}
     created = 0
-    for month, category, activity, description, responsible, notes in TEMPLATE:
-        key = (month, activity.strip().casefold())
-        if key in existing_keys:
-            continue
-        db.add(
-            AnnualPlanItem(
-                company_id=payload.company_id,
-                year=payload.year,
-                month=month,
-                category=category,
-                activity=activity,
-                description=description,
-                responsible_name=responsible,
-                target_date=date(payload.year, month, 15),
-                status=AnnualPlanStatus.PLANNED,
-                notes=notes,
-                created_by_id=user.id,
+    targets: list[str] = []
+    try:
+        for month, category, activity, description, responsible, notes in TEMPLATE:
+            key = (month, activity.strip().casefold())
+            if key in existing_keys:
+                continue
+            target = plan_target_date(payload.year, month, 15)
+            note_extra = notes or ""
+            if target.day != 15:
+                shift_note = (
+                    f"Hedef {target.strftime('%d.%m.%Y')} "
+                    "(hafta sonu/resmi tatil nedeniyle kaydırıldı)."
+                )
+                note_extra = f"{note_extra} {shift_note}".strip() if note_extra else shift_note
+            db.add(
+                AnnualPlanItem(
+                    company_id=payload.company_id,
+                    year=payload.year,
+                    month=month,
+                    category=category,
+                    activity=activity,
+                    description=description,
+                    responsible_name=responsible,
+                    target_date=target,
+                    status=AnnualPlanStatus.PLANNED,
+                    notes=(note_extra[:1500] if note_extra else None),
+                    created_by_id=user.id,
+                )
             )
-        )
-        created += 1
-    db.commit()
+            targets.append(target.isoformat())
+            created += 1
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            500,
+            f"Otomatik plan üretilemedi: {exc}. "
+            "Firma görevlendirmenizi ve API sürümünü kontrol edin.",
+        ) from exc
     return {
         "company_id": payload.company_id,
         "year": payload.year,
         "created": created,
         "skipped_existing": len(TEMPLATE) - created,
         "template_size": len(TEMPLATE),
+        "workday_adjusted": True,
+        "target_dates": targets,
+        "message": (
+            f"{created} madde eklendi."
+            if created
+            else "Tüm şablon maddeleri zaten mevcut — yeni kayıt eklenmedi."
+        ),
     }
 
 
