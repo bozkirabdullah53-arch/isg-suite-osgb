@@ -124,6 +124,8 @@ def list_professionals(osgb_id: int | None = None, db: Session = Depends(get_db)
         pro = find_professional_for_user(db, user)
         return [pro] if pro else []
     target = osgb_id if user.role == UserRole.GLOBAL_ADMIN else user.osgb_id
+    if not target and user.role == UserRole.GLOBAL_ADMIN:
+        target = db.scalar(select(OsgbOrganization.id).order_by(OsgbOrganization.id).limit(1))
     if not target:
         return []
     _scope_osgb(user, target)

@@ -35,9 +35,14 @@ from app.models.entities import (
     WorkplaceAssignment,
     WorkplaceDepartment,
 )
+from app.models.entities import OsgbOrganization
 from app.schemas.company import CompanyCreate, CompanyResponse, CompanyUpdate
 
 router = APIRouter(prefix="/companies", tags=["Firmalar"])
+
+
+def _default_osgb_id(db: Session) -> int | None:
+    return db.scalar(select(OsgbOrganization.id).order_by(OsgbOrganization.id).limit(1))
 
 
 def _ids(db: Session, model, company_id: int) -> list[int]:
@@ -133,7 +138,11 @@ def create_company(
 ):
     if db.scalar(select(Company).where(Company.name == payload.name)):
         raise HTTPException(409, "Bu firma zaten kayıtlı.")
-    obj = Company(**payload.model_dump())
+    data = payload.model_dump()
+    # osgb_id yazılmazsa İşyerleri’nde görünür ama ÇSGB / OSGB paneli 0 sayar
+    if not data.get("osgb_id"):
+        data["osgb_id"] = _default_osgb_id(db)
+    obj = Company(**data)
     db.add(obj)
     db.commit()
     db.refresh(obj)

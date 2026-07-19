@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.entities import (
@@ -55,6 +55,67 @@ def _item(
     }
 
 
+# Kurulum / demo placeholder’ları “hazır” sayılmamalı
+_PLACEHOLDER = {
+    "1234567890",
+    "1111111111",
+    "0000000000",
+    "9999999999",
+    "osgb 001",
+    "demo-osgb-001",
+    "test-osgb-001",
+    "global yönetici",
+    "demo yönetici",
+}
+
+
+def _is_real_value(v: Any) -> bool:
+    if v is None:
+        return False
+    s = str(v).strip()
+    if not s:
+        return False
+    low = s.casefold()
+    if low in _PLACEHOLDER:
+        return False
+    if low.startswith("demo") or low.startswith("test_") or low.startswith("test-"):
+        return False
+    return True
+
+
+def _heal_osgb_links(db: Session, oid: int) -> None:
+    """İşyerleri / profesyoneller / görevlendirmeler OSGB’ye bağlı değilse sayaçlar 0 kalır.
+
+    Tek OSGB kurulumunda (canlı) Firma Ekle osgb_id yazmadığı için veri vardır ama
+    paket ‘yok’ der. Mevcut kayıtları bu OSGB’ye bağlar.
+    """
+    osgb_n = db.scalar(select(func.count()).select_from(OsgbOrganization)) or 0
+    if osgb_n != 1:
+        # Çoklu OSGB: yalnız osgb_id boş işyerlerini ve görevlendirme ile bağlı olanları düzelt
+        for c in db.scalars(select(Company).where(Company.osgb_id.is_(None))).all():
+            c.osgb_id = oid
+        linked = list(
+            db.scalars(
+                select(WorkplaceAssignment.company_id).where(WorkplaceAssignment.osgb_id == oid).distinct()
+            ).all()
+        )
+        if linked:
+            for c in db.scalars(select(Company).where(Company.id.in_(linked), Company.osgb_id.is_(None))).all():
+                c.osgb_id = oid
+        db.commit()
+        return
+
+    for c in db.scalars(select(Company).where(or_(Company.osgb_id.is_(None), Company.osgb_id != oid))).all():
+        c.osgb_id = oid
+    for p in db.scalars(select(IsgProfessional).where(IsgProfessional.osgb_id != oid)).all():
+        p.osgb_id = oid
+    for a in db.scalars(select(WorkplaceAssignment).where(WorkplaceAssignment.osgb_id != oid)).all():
+        a.osgb_id = oid
+    for c in db.scalars(select(ServiceContract).where(ServiceContract.osgb_id != oid)).all():
+        c.osgb_id = oid
+    db.commit()
+
+
 def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, Any]:
     osgb = None
     if osgb_id:
@@ -80,18 +141,25 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
         }
 
     oid = osgb.id
+    _heal_osgb_links(db, oid)
+
     companies = list(
         db.scalars(select(Company).where(Company.osgb_id == oid, Company.is_active.is_(True))).all()
     )
     company_ids = [c.id for c in companies]
 
     pros = list(db.scalars(select(IsgProfessional).where(IsgProfessional.osgb_id == oid)).all())
-    active_pros = [p for p in pros if p.is_active]
+    active_pros = [p for p in pros if p.is_active is not False]
+    # Aktif görevlendirme: enum + string uyumu (PG/SQLite farkı)
     assignments = list(
         db.scalars(
             select(WorkplaceAssignment).where(
                 WorkplaceAssignment.osgb_id == oid,
-                WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+                or_(
+                    WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+                    WorkplaceAssignment.status == "active",
+                    WorkplaceAssignment.status == "ACTIVE",
+                ),
             )
         ).all()
     )
@@ -129,8 +197,8 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
     G_SOZ = ("sozlesme", "3. Sözleşme ve süre")
     G_SAHA = ("saha", "4. Saha / hizmet kayıtları")
 
-    # 1) Yetki belgesi / kimlik
-    auth_ok = bool(osgb.authorization_number)
+    # 1) Yetki belgesi / kimlik — placeholder (OSGB 001, 1234567890 vb.) hazır sayılmaz
+    auth_ok = _is_real_value(osgb.authorization_number)
     items.append(
         _item(
             "yetki_belgesi",
@@ -141,7 +209,7 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             detail=(
                 f"Yetki no: {osgb.authorization_number}"
                 if auth_ok
-                else "Yetki / ruhsat numarası sistemde tanımlı değil."
+                else "Gerçek yetki / ruhsat numarası tanımlı değil (placeholder veya boş)."
             ),
             evidence=[{"field": "authorization_number", "value": osgb.authorization_number}] if auth_ok else [],
             group=G_KURUM[0],
@@ -158,7 +226,7 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
         ("email", osgb.email),
         ("phone", osgb.phone),
     ]
-    filled = sum(1 for _, v in identity_fields if v)
+    filled = sum(1 for _, v in identity_fields if _is_real_value(v))
     id_status = "ready" if filled >= 5 else ("partial" if filled >= 2 else "missing")
     items.append(
         _item(
@@ -167,8 +235,8 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             "OSGB Yönetmeliği — kuruluş bilgileri",
             id_status,
             count=filled,
-            detail=f"{filled}/{len(identity_fields)} alan dolu (unvan, vergi, sorumlu müdür, adres, e-posta, telefon).",
-            evidence=[{"field": k, "value": v} for k, v in identity_fields if v],
+            detail=f"{filled}/{len(identity_fields)} gerçek alan dolu (placeholder sayılmaz: unvan, vergi, sorumlu müdür, adres, e-posta, telefon).",
+            evidence=[{"field": k, "value": v} for k, v in identity_fields if _is_real_value(v)],
             group=G_KURUM[0],
             group_label=G_KURUM[1],
         )
@@ -415,8 +483,10 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
         },
         "generated_at": date.today().isoformat(),
         "legal_note": (
-            "ÇSGB OSGB denetiminde müfettişin talep ettiği tipik belge/kayıt kalemleri. "
-            "Sistemdeki hazırlık durumunu gösterir; resmi evrak asılları ayrıca arşivlenmelidir."
+            "Sayaçlar yalnızca bu OSGB’ye bağlı kayıtlardan gelir: "
+            "İşyerleri (companies.osgb_id), İSG Profesyonelleri, Görevlendirmeler. "
+            "Bu sayfada veri girilmez; diğer menülerdeki gerçek kayıtlar okunur. "
+            "Placeholder yetki/VKN (ör. OSGB 001, 1234567890) hazır sayılmaz."
         ),
         "summary": {
             "ready": ready,
