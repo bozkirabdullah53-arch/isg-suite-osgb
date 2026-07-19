@@ -327,13 +327,35 @@ const planNames={demo:'Demo',starter:'Başlangıç',professional:'Profesyonel',e
 const subscriptionStatusNames={trial:'Deneme',active:'Aktif',past_due:'Ödeme Gecikmiş',suspended:'Askıda',cancelled:'İptal'};
 
 function NotificationsPage(){
-  const[rows,setRows]=useState([]),[message,setMessage]=useState('');
-  const load=()=>api('/notifications').then(setRows);
+  const[rows,setRows]=useState([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
+  const load=()=>api('/notifications').then(setRows).catch(e=>setMessage(e.message));
   useEffect(()=>{load()},[]);
-  async function refresh(){try{const r=await api('/notifications/refresh',{method:'POST'});setMessage(`${r.count} bildirim oluşturuldu.`);load()}catch(e){setMessage(e.message)}}
+  async function refresh(){
+    setBusy(true);setMessage('');
+    try{
+      const r=await api('/notifications/refresh',{method:'POST'});
+      setMessage(`${r.count} bildirim oluşturuldu. ${r.message||''}`);
+      await load();
+    }catch(e){setMessage(e.message)}
+    finally{setBusy(false)}
+  }
   async function read(id){await api(`/notifications/${id}/read`,{method:'PATCH'});load()}
-  const cols=[{key:'type',label:'Seviye',render:r=><span className={'notice '+r.type}>{notificationTypeNames[r.type]}</span>},{key:'title',label:'Başlık'},{key:'message',label:'Açıklama'},{key:'created_at',label:'Tarih'},{key:'action',label:'İşlem',render:r=>r.is_read?'Okundu':<button className="mini" onClick={()=>read(r.id)}>Okundu Yap</button>}];
-  return <Page title="Bildirim Merkezi" action={<button onClick={refresh}><RefreshCw/>Süreleri Kontrol Et</button>}>{message&&<p>{message}</p>}<Table cols={cols} rows={rows}/></Page>
+  const cols=[
+    {key:'type',label:'Seviye',render:r=><span className={'notice '+r.type}>{notificationTypeNames[r.type]}</span>},
+    {key:'title',label:'Başlık'},
+    {key:'message',label:'Açıklama'},
+    {key:'created_at',label:'Tarih',render:r=>String(r.created_at||'').slice(0,16).replace('T',' ')},
+    {key:'action',label:'İşlem',render:r=>r.is_read?'Okundu':<button type="button" className="mini" onClick={()=>read(r.id)}>Okundu Yap</button>},
+  ];
+  return <Page title="Bildirim Merkezi" action={<button type="button" disabled={busy} onClick={refresh}><RefreshCw/>{busy?'Taranıyor...':'Süreleri Kontrol Et'}</button>}>
+    <p style={{marginTop:0,color:'#64748b',fontSize:13,maxWidth:720}}>
+      Bu merkez otomatik süre uyarısı üretir: görevlendirme / sözleşme bitişi, KATİP no eksikliği,
+      atanmamış profesyonel, doküman geçerliliği, sağlık muayenesi ve geciken yıllık plan.
+      Liste boşsa «Süreleri Kontrol Et» ile tarayın; gerçek kayıt yoksa bilgi bildirimi gelir.
+    </p>
+    {message&&<p style={{color:message.includes('oluşturuldu')?'#166534':'#b91c1c'}}>{message}</p>}
+    <Table cols={cols} rows={rows} empty="Henüz bildirim yok. Süreleri Kontrol Et ile tarayın."/>
+  </Page>;
 }
 
 function SubscriptionPage({user}){
