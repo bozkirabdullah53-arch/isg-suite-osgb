@@ -61,24 +61,39 @@ _PLACEHOLDER = {
     "1111111111",
     "0000000000",
     "9999999999",
-    "osgb 001",
-    "demo-osgb-001",
-    "test-osgb-001",
-    "global yönetici",
-    "demo yönetici",
+    "osgb001",
+    "osgb1",
+    "demoosgb001",
+    "testosgb001",
+    "globalyönetici",
+    "global yonetici",
+    "demoyönetici",
+    "demo yonetici",
 }
+
+
+def _norm_token(v: Any) -> str:
+    s = str(v or "").strip().casefold()
+    # boşluk / tire / alt çizgi yok say
+    for ch in (" ", "-", "_", ".", "/"):
+        s = s.replace(ch, "")
+    return s
 
 
 def _is_real_value(v: Any) -> bool:
     if v is None:
         return False
-    s = str(v).strip()
-    if not s:
+    raw = str(v).strip()
+    if not raw:
         return False
-    low = s.casefold()
-    if low in _PLACEHOLDER:
+    low = raw.casefold()
+    token = _norm_token(raw)
+    if token in _PLACEHOLDER or low in _PLACEHOLDER:
         return False
-    if low.startswith("demo") or low.startswith("test_") or low.startswith("test-"):
+    if token.startswith("demo") or token.startswith("test"):
+        return False
+    # OSGB-001, OSGB 001, OSGB001 gibi sahte yetki no
+    if token.startswith("osgb") and token[4:].isdigit():
         return False
     return True
 
@@ -191,14 +206,17 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
         db.scalar(select(func.count()).select_from(ServiceVisit).where(ServiceVisit.osgb_id == oid)) or 0
     )
 
+    # Operasyonel faaliyet yoksa kurumsal karttan “% hazır” üretilmez
+    has_ops = bool(companies or active_pros or assignments or visit_n)
+
     items: list[dict[str, Any]] = []
     G_KURUM = ("kurumsal", "1. OSGB kurumsal")
     G_KADRO = ("kadro", "2. Kadro ve görevlendirme")
     G_SOZ = ("sozlesme", "3. Sözleşme ve süre")
     G_SAHA = ("saha", "4. Saha / hizmet kayıtları")
 
-    # 1) Yetki belgesi / kimlik — placeholder (OSGB 001, 1234567890 vb.) hazır sayılmaz
-    auth_ok = _is_real_value(osgb.authorization_number)
+    # 1) Yetki belgesi — placeholder (OSGB-001 vb.) ve faaliyet yokken hazır sayılmaz
+    auth_ok = has_ops and _is_real_value(osgb.authorization_number)
     items.append(
         _item(
             "yetki_belgesi",
@@ -209,7 +227,11 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             detail=(
                 f"Yetki no: {osgb.authorization_number}"
                 if auth_ok
-                else "Gerçek yetki / ruhsat numarası tanımlı değil (placeholder veya boş)."
+                else (
+                    "İşyeri / profesyonel / görevlendirme yok — yetki belgesi hazır sayılamaz."
+                    if not has_ops
+                    else "Gerçek yetki / ruhsat numarası tanımlı değil (placeholder veya boş)."
+                )
             ),
             evidence=[{"field": "authorization_number", "value": osgb.authorization_number}] if auth_ok else [],
             group=G_KURUM[0],
@@ -217,7 +239,7 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
         )
     )
 
-    # 2) OSGB kimlik kartı
+    # 2) OSGB kimlik kartı — yalnız gerçek alanlar; faaliyet yokken en fazla eksik
     identity_fields = [
         ("name", osgb.name),
         ("tax_number", osgb.tax_number),
@@ -227,16 +249,31 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
         ("phone", osgb.phone),
     ]
     filled = sum(1 for _, v in identity_fields if _is_real_value(v))
-    id_status = "ready" if filled >= 5 else ("partial" if filled >= 2 else "missing")
+    if not has_ops:
+        id_status = "missing"
+        id_detail = (
+            "Bağlı işyeri, profesyonel veya görevlendirme yok. "
+            "Kurumsal kart tek başına hazırlık üretmez (faaliyet gerekli)."
+        )
+    else:
+        id_status = "ready" if filled >= 5 else ("partial" if filled >= 2 else "missing")
+        id_detail = (
+            f"{filled}/{len(identity_fields)} gerçek alan dolu "
+            "(placeholder sayılmaz: unvan, vergi, sorumlu müdür, adres, e-posta, telefon)."
+        )
     items.append(
         _item(
             "osgb_kimlik",
             "OSGB kimlik ve iletişim bilgileri",
             "OSGB Yönetmeliği — kuruluş bilgileri",
             id_status,
-            count=filled,
-            detail=f"{filled}/{len(identity_fields)} gerçek alan dolu (placeholder sayılmaz: unvan, vergi, sorumlu müdür, adres, e-posta, telefon).",
-            evidence=[{"field": k, "value": v} for k, v in identity_fields if _is_real_value(v)],
+            count=filled if has_ops else 0,
+            detail=id_detail,
+            evidence=(
+                [{"field": k, "value": v} for k, v in identity_fields if _is_real_value(v)]
+                if has_ops
+                else []
+            ),
             group=G_KURUM[0],
             group_label=G_KURUM[1],
         )
@@ -460,6 +497,19 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
     priority = [i for i in items if i["status"] in ("missing", "partial")]
     gaps = [f"{i['title']}: {i['detail']}" for i in priority]
 
+    # Faaliyet yoksa yüzde her zaman 0 (kurumsal kart şişirmesin)
+    if not has_ops:
+        ready = 0
+        partial = 0
+        missing = len(items)
+        for i in items:
+            i["status"] = "missing"
+        priority = list(items)
+        gaps = [f"{i['title']}: {i['detail']}" for i in items]
+        readiness_pct = 0
+    else:
+        readiness_pct = round(100 * (ready + 0.5 * partial) / len(items)) if items else 0
+
     groups = []
     seen = set()
     for i in items:
@@ -482,11 +532,12 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             "assignment_count": len(assignments),
         },
         "generated_at": date.today().isoformat(),
+        "has_activity": has_ops,
         "legal_note": (
-            "Sayaçlar yalnızca bu OSGB’ye bağlı kayıtlardan gelir: "
-            "İşyerleri (companies.osgb_id), İSG Profesyonelleri, Görevlendirmeler. "
-            "Bu sayfada veri girilmez; diğer menülerdeki gerçek kayıtlar okunur. "
-            "Placeholder yetki/VKN (ör. OSGB 001, 1234567890) hazır sayılmaz."
+            "Hazır / kısmi / % hazırlık yalnızca bağlı işyeri, profesyonel, görevlendirme veya saha ziyareti varken hesaplanır. "
+            "İşyeri:0 · Profesyonel:0 · Görevlendirme:0 iken hazırlık her zaman %0’dır; "
+            "OSGB adı veya OSGB-001 / 1234567890 gibi alanlar tek başına faaliyet sayılmaz. "
+            "Kaynak: İşyerleri, İSG Profesyonelleri, Görevlendirmeler, Saha Takvimi."
         ),
         "summary": {
             "ready": ready,
@@ -494,7 +545,7 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             "missing": missing,
             "total": len(items),
             "priority_count": len(priority),
-            "readiness_pct": round(100 * (ready + 0.5 * partial) / len(items)) if items else 0,
+            "readiness_pct": readiness_pct,
         },
         "groups": groups,
         "items": items,
