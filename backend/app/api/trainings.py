@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.api.company_access import accessible_company_ids_or_empty, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.api.files import safe_upload_root
 from app.core.database import get_db
@@ -27,10 +28,8 @@ LOGO_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 LOGO_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
 
 
-def ensure_access(user: User, company_id: int):
-    if user.role != UserRole.GLOBAL_ADMIN and user.company_id != company_id:
-        raise HTTPException(403, "Bu firmanın eğitim kayıtlarına erişemezsiniz.")
-
+def ensure_access(db: Session, user: User, company_id: int):
+    ensure_company_access(db, user, company_id)
 
 def add_years(d: date, years: int) -> date:
     try:
@@ -148,7 +147,7 @@ async def parse_excel(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     """Excel çalışan listesini okur; isteğe bağlı eksik personeli oluşturur."""
-    ensure_access(user, company_id)
+    ensure_access(db, user, company_id)
     company = db.get(Company, company_id)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
@@ -218,9 +217,18 @@ def list_trainings(
         .options(selectinload(TrainingSession.participants))
         .order_by(TrainingSession.start_date.desc())
     )
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if effective:
-        query = query.where(TrainingSession.company_id == effective)
+    if user.role == UserRole.GLOBAL_ADMIN:
+        if company_id:
+            query = query.where(TrainingSession.company_id == company_id)
+    else:
+        allowed = accessible_company_ids_or_empty(db, user)
+        if not allowed:
+            return []
+        if company_id:
+            ensure_access(db, user, company_id)
+            query = query.where(TrainingSession.company_id == company_id)
+        else:
+            query = query.where(TrainingSession.company_id.in_(allowed))
     if q:
         p = f"%{q.strip()}%"
         query = query.where(
@@ -239,7 +247,7 @@ def create_training(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    ensure_access(user, payload.company_id)
+    ensure_access(db, user, payload.company_id)
     company = db.get(Company, payload.company_id)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
@@ -305,7 +313,7 @@ async def upload_participants(
 ):
     """Canlı API uyumu: eğitim kaydına Excel ile katılımcı ekler."""
     row = _load_training(db, training_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     name = (file.filename or "").lower()
     if not name.endswith((".xlsx", ".xlsm")):
         raise HTTPException(422, "Yalnızca .xlsx / .xlsm dosyaları kabul edilir.")
@@ -372,7 +380,7 @@ async def upload_training_logo(
 ):
     """Firma / eğitim logosu — PDF başlığına basılır."""
     row = _load_training(db, training_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     original = Path(file.filename or "logo.png")
     ext = original.suffix.lower()
     if ext not in LOGO_EXT or (file.content_type and file.content_type not in LOGO_MIME):
@@ -400,7 +408,7 @@ def update_training(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load_training(db, training_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(row, k, v)
     db.commit()
@@ -414,7 +422,7 @@ def attendance_pdf(
     user: User = Depends(get_current_user),
 ):
     row = _load_training(db, training_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     company = db.get(Company, row.company_id)
     employees = _employees_map(db, row)
     try:
@@ -441,7 +449,7 @@ def certificates_pdf(
     user: User = Depends(get_current_user),
 ):
     row = _load_training(db, training_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     if not row.participants:
         raise HTTPException(422, "Katılım belgesi için en az bir katılımcı gerekli.")
     company = db.get(Company, row.company_id)

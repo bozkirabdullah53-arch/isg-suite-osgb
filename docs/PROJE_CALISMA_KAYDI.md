@@ -8,7 +8,7 @@
 - [x] 6331 checklist: uzman (saha, risk, DÖF, yıllık plan, eğitim, olay) + hekim (saha, sağlık, muayene, uygunluk)
 - [x] Açılış = **genel** (KPI + grafik + tüm personel eksikleri, kesilmez)
 - [x] Personel seçince = o kişinin **tüm** 6331 eksikleri + firma checklist
-- [ ] Commit/push + Render (`0.9.11` / `6331-denetim-v4`)
+- [x] Commit/push + Render (`0.9.11` / `6331-denetim-v4`) — `54db0b2` feature+master
 
 ---
 

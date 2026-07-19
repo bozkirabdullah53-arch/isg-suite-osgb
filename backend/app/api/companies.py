@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
+from app.api.company_access import companies_query_for_user
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import Company, User, UserRole
@@ -9,8 +10,10 @@ router = APIRouter(prefix="/companies", tags=["Firmalar"])
 
 @router.get("", response_model=list[CompanyResponse])
 def list_companies(q: str | None = Query(None), db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    stmt = select(Company).order_by(Company.name)
-    if user.role != UserRole.GLOBAL_ADMIN: stmt = stmt.where(Company.id == user.company_id)
+    stmt = select(Company).where(Company.is_active.is_(True)).order_by(Company.name)
+    scope = companies_query_for_user(db, user)
+    if scope is not None:
+        stmt = stmt.where(scope)
     if q: stmt = stmt.where(or_(Company.name.ilike(f"%{q}%"), Company.nace_code.ilike(f"%{q}%")))
     return list(db.scalars(stmt).all())
 

@@ -722,22 +722,33 @@ export function TrainingPage({user}) {
         <Modal title="Yeni Eğitim Oturumu" close={() => setOpen(false)}>
           <form className="form-grid" onSubmit={save}>
             <Select
-              label="Firma"
+              label="Firma (görevlendirildiğiniz işyerleri)"
               required
               value={form.company_id}
               onChange={(e) => {
                 setExcelPreview([]);
                 setExcelInfo('');
                 setErr('');
-                setForm({...form, company_id: e.target.value, participant_ids: []});
-                if (e.target.value) {
-                  refreshEmployees(e.target.value).catch((x) => setErr(x.message));
+                const cid = e.target.value;
+                setForm({...form, company_id: cid, participant_ids: []});
+                if (cid) {
+                  refreshEmployees(cid).catch((x) =>
+                    setErr('Personel listesi alınamadı: ' + (x.message || x)),
+                  );
+                } else {
+                  setEmployees([]);
                 }
               }}
             >
               <option value="">Seçiniz</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
+            {!companies.length && (
+              <div style={{gridColumn: '1 / -1', fontSize: 13, color: '#9a3412', background: '#fff7ed', padding: '10px 12px', borderRadius: 8}}>
+                Listede işyeri yok. Global yönetici <strong>Görevlendirmeler</strong>’den size firma atamalı.
+                Ayrıca <strong>İSG Profesyonelleri</strong> kaydınızın e-postası, giriş yaptığınız kullanıcı e-postası ile aynı olmalı.
+              </div>
+            )}
             <Field label="Eğitim Adı" required minLength={3} value={form.title} onChange={(e) => setForm({...form, title: e.target.value})} />
             <Select label="Eğitim Türü" value={form.training_type} onChange={(e) => setForm({...form, training_type: e.target.value})}>
               <option>İlk Defa</option>
@@ -838,7 +849,7 @@ export function TrainingPage({user}) {
               </div>
               {!form.company_id && (
                 <div style={{fontSize: 13, color: '#9a3412', background: '#fff7ed', padding: '8px 10px', borderRadius: 8}}>
-                  Firma seçmeden Excel / ortak liste çalışmaz.
+                  Firma seçmeden Excel / ortak liste çalışmaz. Uzman yalnızca görevlendirildiği işyerlerini görür.
                 </div>
               )}
             </div>
