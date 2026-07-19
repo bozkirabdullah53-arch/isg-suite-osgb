@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.api.company_access import company_ids_for_query, effective_company_id, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
@@ -58,9 +59,8 @@ ALLOWED_PHOTO = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 LEGACY_TAG = "[ISG#"
 
 
-def ensure_access(user: User, company_id: int):
-    if user.role != UserRole.GLOBAL_ADMIN and user.company_id != company_id:
-        raise HTTPException(403, "Bu firmanın risk kayıtlarına erişemezsiniz.")
+def ensure_access(db: Session, user: User, company_id: int) -> None:
+    ensure_company_access(db, user, company_id)
 
 
 def _upload_root() -> Path:
@@ -220,10 +220,7 @@ def list_departments(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if not effective:
-        raise HTTPException(400, "Firma seçilmelidir.")
-    ensure_access(user, effective)
+    effective = effective_company_id(db, user, company_id)
     deps = list(
         db.scalars(
             select(WorkplaceDepartment)
@@ -256,7 +253,7 @@ def create_department(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    ensure_access(user, payload.company_id)
+    ensure_access(db, user, payload.company_id)
     if not db.get(Company, payload.company_id):
         raise HTTPException(404, "Firma bulunamadı.")
     name = payload.name.strip()
@@ -329,10 +326,7 @@ def risk_stats(
     user: User = Depends(get_current_user),
 ):
     """PRO /api/risk-istatistik parity + KPI sayaçları."""
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if not effective:
-        raise HTTPException(400, "Firma seçilmelidir.")
-    ensure_access(user, effective)
+    effective = effective_company_id(db, user, company_id)
     today = date.today()
     base = select(RiskAssessment).where(RiskAssessment.company_id == effective)
     risks = list(db.scalars(base).all())
@@ -405,10 +399,7 @@ def list_company_dofs(
     """PRO /dof/liste — firma geneli DÖF listesi."""
     from app.schemas.risk import RiskDofListItem
 
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if not effective:
-        raise HTTPException(400, "Firma seçilmelidir.")
-    ensure_access(user, effective)
+    effective = effective_company_id(db, user, company_id)
     today = date.today()
     stmt = (
         select(RiskDof, RiskAssessment)
@@ -458,7 +449,7 @@ def update_department(
     dep = db.get(WorkplaceDepartment, department_id)
     if not dep:
         raise HTTPException(404, "Bölüm bulunamadı.")
-    ensure_access(user, dep.company_id)
+    ensure_access(db, user, dep.company_id)
     data = payload.model_dump(exclude_unset=True)
     if "name" in data and data["name"]:
         data["name"] = data["name"].strip()
@@ -489,7 +480,7 @@ def delete_department(
     dep = db.get(WorkplaceDepartment, department_id)
     if not dep:
         raise HTTPException(404, "Bölüm bulunamadı.")
-    ensure_access(user, dep.company_id)
+    ensure_access(db, user, dep.company_id)
     cnt = db.scalar(
         select(func.count()).select_from(RiskAssessment).where(RiskAssessment.department_id == dep.id)
     ) or 0
@@ -508,7 +499,7 @@ def delete_dof(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load_risk(db, risk_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     dof = db.get(RiskDof, dof_id)
     if not dof or dof.risk_id != risk_id:
         raise HTTPException(404, "DÖF bulunamadı.")
@@ -524,7 +515,7 @@ def delete_risk(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load_risk(db, risk_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     db.delete(row)
     db.commit()
     return {"ok": True, "id": risk_id}
@@ -603,15 +594,11 @@ def list_risks(
         )
         .order_by(RiskAssessment.created_at.desc())
     )
-    if user.role == UserRole.GLOBAL_ADMIN:
-        effective = company_id
-        if not effective:
-            raise HTTPException(422, "Global yönetici için company_id zorunludur.")
-    else:
-        if not user.company_id:
-            raise HTTPException(403, "Firma atanmamış kullanıcı risk listesini göremez.")
-        effective = user.company_id
-    stmt = stmt.where(RiskAssessment.company_id == effective)
+    company_ids = company_ids_for_query(db, user, company_id)
+    if company_ids == []:
+        return []
+    if company_ids is not None:
+        stmt = stmt.where(RiskAssessment.company_id.in_(company_ids))
     if level:
         stmt = stmt.where(RiskAssessment.risk_level == level)
     if status:
@@ -645,10 +632,7 @@ def _load_company_risks(
     level: str | None = None,
     status: str | None = None,
 ) -> tuple[Company, list[RiskAssessment], dict[int, Hazard]]:
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if not effective:
-        raise HTTPException(422, "Firma seçiniz.")
-    ensure_access(user, effective)
+    effective = effective_company_id(db, user, company_id)
     company = db.get(Company, effective)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
@@ -737,10 +721,7 @@ def migrate_isg_records(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     """Eski IsgRecord(module=risk) satırlarını RiskAssessment'a aktarır."""
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if not effective:
-        raise HTTPException(422, "Firma seçiniz.")
-    ensure_access(user, effective)
+    effective = effective_company_id(db, user, company_id)
     _ensure_library(db)
     hazard = db.scalar(select(Hazard).where(Hazard.is_active.is_(True)).order_by(Hazard.id.asc()))
     if not hazard:
@@ -827,7 +808,7 @@ def migrate_isg_records(
 @router.get("/{risk_id}", response_model=RiskResponse)
 def get_risk(risk_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     row = _load_risk(db, risk_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     h = db.get(Hazard, row.hazard_id)
     c = db.get(HazardCategory, h.category_id) if h else None
     return _to_response(row, h, c)
@@ -839,7 +820,7 @@ def create_risk(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    ensure_access(user, payload.company_id)
+    ensure_access(db, user, payload.company_id)
     if not db.get(Company, payload.company_id):
         raise HTTPException(404, "Firma bulunamadı.")
     if payload.branch_id:
@@ -899,7 +880,7 @@ def update_risk(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load_risk(db, risk_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     data = payload.model_dump(exclude_unset=True)
     term_override = data.pop("term_override_days", None)
     has_dep_id = "department_id" in data
@@ -962,7 +943,7 @@ def add_dof(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load_risk(db, risk_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     code = _next_code(db, "DÖF", RiskDof, RiskDof.dof_code)
     while db.scalar(select(RiskDof).where(RiskDof.dof_code == code)):
         n = int("".join(ch for ch in code if ch.isdigit()) or "0") + 1
@@ -992,7 +973,7 @@ def update_dof(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load_risk(db, risk_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     dof = db.get(RiskDof, dof_id)
     if not dof or dof.risk_id != risk_id:
         raise HTTPException(404, "DÖF bulunamadı.")
@@ -1012,7 +993,7 @@ def complete_dof(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load_risk(db, risk_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     dof = db.get(RiskDof, dof_id)
     if not dof or dof.risk_id != risk_id:
         raise HTTPException(404, "DÖF bulunamadı.")
@@ -1034,7 +1015,7 @@ async def upload_risk_media(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load_risk(db, risk_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     name = file.filename or "photo.jpg"
     ext = Path(name).suffix.lower()
     if ext not in ALLOWED_PHOTO:
@@ -1067,7 +1048,7 @@ def get_risk_media(
     user: User = Depends(get_current_user),
 ):
     row = _load_risk(db, risk_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     media = next((m for m in (row.media_files or []) if m.id == media_id), None)
     if not media:
         raise HTTPException(404, "Medya bulunamadı.")
@@ -1089,7 +1070,7 @@ def delete_risk_media(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load_risk(db, risk_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     media = next((m for m in (row.media_files or []) if m.id == media_id), None)
     if not media:
         raise HTTPException(404, "Medya bulunamadı.")

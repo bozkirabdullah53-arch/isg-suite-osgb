@@ -153,3 +153,51 @@ def accessible_company_ids_or_empty(db: Session, user: User) -> list[int]:
     if user.role == UserRole.GLOBAL_ADMIN:
         return []
     return assigned_company_ids(db, user)
+
+
+def effective_company_id(db: Session, user: User, company_id: int | None = None) -> int:
+    """
+    Tek firma gerektiren endpointler için.
+    - global_admin: company_id zorunlu
+    - diğerleri: atanan firmalar; company_id yoksa tek atama varsa onu kullan
+    """
+    if user.role == UserRole.GLOBAL_ADMIN:
+        if not company_id:
+            raise HTTPException(422, "Global yönetici için company_id zorunludur.")
+        if not db.get(Company, company_id):
+            raise HTTPException(404, "Firma bulunamadı.")
+        return company_id
+
+    allowed = assigned_company_ids(db, user)
+    if not allowed:
+        raise HTTPException(
+            403,
+            "Size atanmış işyeri yok. Görevlendirmeler’den firma bağlanmalı.",
+        )
+    if company_id:
+        if company_id not in allowed:
+            raise HTTPException(403, "Bu firmaya erişemezsiniz — yalnızca görevlendirildiğiniz işyerleri.")
+        return company_id
+    if len(allowed) == 1:
+        return allowed[0]
+    raise HTTPException(422, "Birden fazla işyeriniz var; company_id seçin.")
+
+
+def company_ids_for_query(db: Session, user: User, company_id: int | None = None) -> list[int] | None:
+    """
+    Liste filtreleri için.
+    - None dönünce: global admin, tüm firmalar (filtre yok)
+    - [] : erişim yok
+    - [ids...] : IN filtresi
+    """
+    if user.role == UserRole.GLOBAL_ADMIN:
+        if company_id:
+            return [company_id]
+        return None
+    allowed = assigned_company_ids(db, user)
+    if not allowed:
+        return []
+    if company_id:
+        ensure_company_access(db, user, company_id)
+        return [company_id]
+    return allowed

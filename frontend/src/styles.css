@@ -138,6 +138,8 @@ header {
 }
 header h2 { margin: 0; font-size: 22px; }
 header p { margin: 4px 0 0; color: #6c7f87; }
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.header-icon { display: none; }
 .user-chip { text-align: right; display: grid; }
 .user-chip span { color: #6c7f87; font-size: 12px; margin-top: 3px; }
 
@@ -192,6 +194,21 @@ header p { margin: 4px 0 0; color: #6c7f87; }
     overflow: visible;
   }
   .logo, .logout { display: none; }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .header-icon {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0 !important;
+    border-radius: 10px;
+    background: #e8f3f5 !important;
+    color: #0f766e !important;
+    border: 0;
+    cursor: pointer;
+  }
+  .logout-mobile { color: #9f2d27 !important; background: #fde8e6 !important; }
   nav {
     display: grid;
     grid-template-columns: repeat(5, 1fr);

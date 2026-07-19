@@ -178,6 +178,27 @@ function Dashboard({summary, user, onNavigate}){
   return <AdminSummaryDashboard summary={summary}/>;
 }
 function Metric({title,value}){return <article className="metric"><span>{title}</span><strong>{value??'—'}</strong></article>}
+
+class ErrorBoundary extends React.Component{
+  constructor(props){super(props);this.state={err:null}}
+  static getDerivedStateFromError(err){return{err}}
+  componentDidCatch(err,info){console.error('UI ErrorBoundary',err,info)}
+  render(){
+    if(this.state.err){
+      return (
+        <section className="panel" style={{margin:16}}>
+          <h3 style={{marginTop:0,color:'#991b1b'}}>Sayfa yüklenemedi</h3>
+          <p style={{color:'#64748b'}}>{String(this.state.err?.message||this.state.err)}</p>
+          <div className="actions">
+            <button type="button" onClick={()=>{this.setState({err:null});this.props.onHome?.()}}>Ana panele dön</button>
+            <button type="button" className="secondary" onClick={()=>window.location.reload()}>Sayfayı yenile</button>
+          </div>
+        </section>
+      );
+    }
+    return this.props.children;
+  }
+}
 function App(){
   const[logged,setLogged]=useState(!!localStorage.getItem('isg_token'));
   const[user,setUser]=useState(null);
@@ -202,8 +223,28 @@ function App(){
   }
 
   function goModule(id){
+    const allowed=roleModules[user?.role]||[];
+    if(id && !allowed.includes(id)){
+      // Yetkisiz / menüde olmayan modül — ana panele düş
+      const home=allowed.includes('osgb_dashboard')
+        ? 'osgb_dashboard'
+        : (allowed.includes('dashboard') ? 'dashboard' : (allowed[0]||''));
+      if(home){
+        setActive(home);
+        try{sessionStorage.setItem('isg_active',home)}catch(_){ /* ignore */ }
+      }
+      return;
+    }
     setActive(id);
     try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
+  }
+
+  function logout(){
+    localStorage.removeItem('isg_token');
+    try{sessionStorage.removeItem('isg_active')}catch(_){ /* ignore */ }
+    setLogged(false);
+    setUser(null);
+    setActive('');
   }
 
   function goHome(){
@@ -339,7 +380,7 @@ function App(){
             </button>
           ))}
         </nav>
-        <button type="button" className="logout" onClick={()=>{localStorage.removeItem('isg_token');setLogged(false)}}>
+        <button type="button" className="logout" onClick={logout}>
           <LogOut size={19}/><span>Çıkış</span>
         </button>
       </aside>
@@ -349,12 +390,30 @@ function App(){
             <h2>İSG Suite OSGB</h2>
             <p>OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi</p>
           </div>
-          <div className="user-chip">
-            <strong>{user.full_name}</strong>
-            <span>{roles[user.role]}</span>
+          <div className="header-actions">
+            <button type="button" className="header-icon" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfa">
+              <LayoutDashboard size={18}/>
+            </button>
+            <div className="user-chip">
+              <strong>{user.full_name}</strong>
+              <span>{roles[user.role]}</span>
+            </div>
+            <button type="button" className="header-icon logout-mobile" onClick={logout} title="Çıkış" aria-label="Çıkış">
+              <LogOut size={18}/>
+            </button>
           </div>
         </header>
-        <main className="content">{pages[active]}</main>
+        <main className="content">
+          <ErrorBoundary onHome={goHome}>
+            {pages[active] || (
+              <section className="panel">
+                <h3 style={{marginTop:0}}>Modül bulunamadı</h3>
+                <p style={{color:'#64748b'}}>Bu sayfa rolünüz için tanımlı değil veya geçersiz.</p>
+                <button type="button" onClick={goHome}>Ana panele dön</button>
+              </section>
+            )}
+          </ErrorBoundary>
+        </main>
       </section>
     </div>
   );

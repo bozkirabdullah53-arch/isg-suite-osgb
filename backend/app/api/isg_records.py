@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.api.company_access import company_ids_for_query, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import IsgModule, IsgRecord, User, UserRole
@@ -16,9 +17,8 @@ EDIT_ROLES = (
 )
 
 
-def ensure_company_access(user: User, company_id: int) -> None:
-    if user.role != UserRole.GLOBAL_ADMIN and user.company_id != company_id:
-        raise HTTPException(status_code=403, detail="Bu firmanın kayıtlarına erişemezsiniz.")
+def ensure_access(db: Session, user: User, company_id: int) -> None:
+    ensure_company_access(db, user, company_id)
 
 
 @router.get("", response_model=list[IsgRecordResponse])
@@ -30,9 +30,11 @@ def list_records(
     user: User = Depends(get_current_user),
 ):
     query = select(IsgRecord).order_by(IsgRecord.created_at.desc())
-    effective_company = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if effective_company:
-        query = query.where(IsgRecord.company_id == effective_company)
+    company_ids = company_ids_for_query(db, user, company_id)
+    if company_ids == []:
+        return []
+    if company_ids is not None:
+        query = query.where(IsgRecord.company_id.in_(company_ids))
     if module:
         query = query.where(IsgRecord.module == module)
     if q:
@@ -47,7 +49,7 @@ def create_record(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    ensure_company_access(user, payload.company_id)
+    ensure_access(db, user, payload.company_id)
     values = payload.model_dump()
     if payload.module == IsgModule.RISK and payload.probability and payload.impact:
         values["risk_score"] = payload.probability * payload.impact
@@ -68,7 +70,7 @@ def update_record(
     record = db.get(IsgRecord, record_id)
     if not record:
         raise HTTPException(status_code=404, detail="Kayıt bulunamadı.")
-    ensure_company_access(user, record.company_id)
+    ensure_access(db, user, record.company_id)
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(record, key, value)
     db.commit()

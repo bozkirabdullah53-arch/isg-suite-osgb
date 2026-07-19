@@ -12,6 +12,7 @@ from openpyxl import Workbook
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.api.company_access import company_ids_for_query, effective_company_id, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
@@ -38,9 +39,8 @@ EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPE
 ALLOWED_PHOTO = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
-def ensure_access(user: User, company_id: int):
-    if user.role != UserRole.GLOBAL_ADMIN and user.company_id != company_id:
-        raise HTTPException(403, "Bu firmanın KKD kayıtlarına erişemezsiniz.")
+def ensure_access(db: Session, user: User, company_id: int) -> None:
+    ensure_company_access(db, user, company_id)
 
 
 def _upload_root() -> Path:
@@ -106,10 +106,7 @@ def due_summary(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if not effective:
-        raise HTTPException(422, "Firma seçiniz.")
-    ensure_access(user, effective)
+    effective = effective_company_id(db, user, company_id)
     today = date.today()
     soon = today + timedelta(days=days)
     rows = list(
@@ -145,22 +142,17 @@ def list_assignments(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if user.role == UserRole.GLOBAL_ADMIN:
-        effective = company_id
-        if not effective:
-            raise HTTPException(422, "Global yönetici için company_id zorunludur.")
-    else:
-        if not user.company_id:
-            raise HTTPException(403, "Firma atanmamış kullanıcı KKD listesini göremez.")
-        effective = user.company_id
-    ensure_access(user, effective)
-
     stmt = (
         select(PpeAssignment)
         .options(selectinload(PpeAssignment.photos))
-        .where(PpeAssignment.company_id == effective, PpeAssignment.deleted_at.is_(None))
+        .where(PpeAssignment.deleted_at.is_(None))
         .order_by(PpeAssignment.delivery_date.desc(), PpeAssignment.id.desc())
     )
+    company_ids = company_ids_for_query(db, user, company_id)
+    if company_ids == []:
+        return []
+    if company_ids is not None:
+        stmt = stmt.where(PpeAssignment.company_id.in_(company_ids))
     if employee_id:
         stmt = stmt.where(PpeAssignment.employee_id == employee_id)
     if status:
@@ -201,7 +193,7 @@ def create_assignment(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    ensure_access(user, payload.company_id)
+    ensure_access(db, user, payload.company_id)
     if not db.get(Company, payload.company_id):
         raise HTTPException(404, "Firma bulunamadı.")
     emp = db.get(Employee, payload.employee_id)
@@ -229,7 +221,7 @@ def get_assignment(
     user: User = Depends(get_current_user),
 ):
     row = _load(db, assignment_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     emp = db.get(Employee, row.employee_id)
     return _to_response(row, emp)
 
@@ -242,7 +234,7 @@ def update_assignment(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load(db, assignment_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     data = payload.model_dump(exclude_unset=True)
     if "status" in data and data["status"] and data["status"] not in ("teslim", "yenilenecek", "iade", "kayip"):
         raise HTTPException(422, "Geçersiz durum.")
@@ -261,7 +253,7 @@ def delete_assignment(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load(db, assignment_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     row.deleted_at = datetime.utcnow()
     db.commit()
     return {"ok": True, "id": assignment_id}
@@ -275,7 +267,7 @@ async def upload_photo(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load(db, assignment_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     name = file.filename or "photo.jpg"
     ext = Path(name).suffix.lower()
     if ext not in ALLOWED_PHOTO:
@@ -307,7 +299,7 @@ def get_photo(
     user: User = Depends(get_current_user),
 ):
     row = _load(db, assignment_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     photo = next((p for p in (row.photos or []) if p.id == photo_id), None)
     if not photo:
         raise HTTPException(404, "Fotoğraf bulunamadı.")
@@ -323,15 +315,7 @@ def export_assignments_excel(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if user.role == UserRole.GLOBAL_ADMIN:
-        effective = company_id
-        if not effective:
-            raise HTTPException(422, "Firma seçiniz.")
-    else:
-        effective = user.company_id
-        if not effective:
-            raise HTTPException(403, "Firma atanmamış.")
-    ensure_access(user, effective)
+    effective = effective_company_id(db, user, company_id)
     rows = list(
         db.scalars(
             select(PpeAssignment)

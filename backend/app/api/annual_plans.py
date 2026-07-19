@@ -8,6 +8,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.company_access import company_ids_for_query, effective_company_id, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import AnnualPlanItem, AnnualPlanStatus, Company, User, UserRole
@@ -54,9 +55,8 @@ TEMPLATE = [
 ]
 
 
-def ensure_access(user: User, company_id: int) -> None:
-    if user.role != UserRole.GLOBAL_ADMIN and user.company_id != company_id:
-        raise HTTPException(status_code=403, detail="Bu firmanın yıllık planına erişemezsiniz.")
+def ensure_access(db: Session, user: User, company_id: int) -> None:
+    ensure_company_access(db, user, company_id)
 
 
 def _active_stmt():
@@ -103,10 +103,7 @@ def annual_plan_summary(
     user: User = Depends(get_current_user),
 ):
     y = year or date.today().year
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if not effective:
-        raise HTTPException(400, "Firma seçiniz.")
-    ensure_access(user, effective)
+    effective = effective_company_id(db, user, company_id)
     items = list(
         db.scalars(
             _active_stmt().where(
@@ -143,10 +140,11 @@ def list_plan_items(
     user: User = Depends(get_current_user),
 ):
     query = _active_stmt().order_by(AnnualPlanItem.year.desc(), AnnualPlanItem.month, AnnualPlanItem.id)
-    effective_company = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if effective_company:
-        query = query.where(AnnualPlanItem.company_id == effective_company)
-        ensure_access(user, effective_company)
+    company_ids = company_ids_for_query(db, user, company_id)
+    if company_ids == []:
+        return []
+    if company_ids is not None:
+        query = query.where(AnnualPlanItem.company_id.in_(company_ids))
     if year:
         query = query.where(AnnualPlanItem.year == year)
     items = list(db.scalars(query).all())
@@ -160,7 +158,7 @@ def create_plan_item(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    ensure_access(user, payload.company_id)
+    ensure_access(db, user, payload.company_id)
     if not db.get(Company, payload.company_id):
         raise HTTPException(404, "Firma bulunamadı.")
     data = payload.model_dump()
@@ -180,7 +178,7 @@ def generate_template(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     """PRO /planlama/generate — aynı yıl için yoksa 6331 şablon maddelerini ekler."""
-    ensure_access(user, payload.company_id)
+    ensure_access(db, user, payload.company_id)
     if not db.get(Company, payload.company_id):
         raise HTTPException(404, "Firma bulunamadı.")
     existing = list(
@@ -231,10 +229,7 @@ def export_plan_txt(
     user: User = Depends(get_current_user),
 ):
     y = year or date.today().year
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if not effective:
-        raise HTTPException(400, "Firma seçiniz.")
-    ensure_access(user, effective)
+    effective = effective_company_id(db, user, company_id)
     company = db.get(Company, effective)
     items = list(
         db.scalars(
@@ -277,7 +272,7 @@ def update_plan_item(
     item = db.get(AnnualPlanItem, item_id)
     if not item or item.deleted_at:
         raise HTTPException(404, "Plan maddesi bulunamadı.")
-    ensure_access(user, item.company_id)
+    ensure_access(db, user, item.company_id)
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(item, k, v)
     db.commit()
@@ -294,7 +289,7 @@ def delete_plan_item(
     item = db.get(AnnualPlanItem, item_id)
     if not item or item.deleted_at:
         raise HTTPException(404, "Plan maddesi bulunamadı.")
-    ensure_access(user, item.company_id)
+    ensure_access(db, user, item.company_id)
     item.deleted_at = datetime.utcnow()
     db.commit()
     return {"ok": True, "id": item_id}

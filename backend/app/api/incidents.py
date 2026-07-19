@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.api.company_access import company_ids_for_query, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import Company, IncidentDof, IncidentEvent, IncidentRootCause, User, UserRole
@@ -34,9 +35,8 @@ router = APIRouter(prefix="/incidents", tags=["Olay / Ramak Kala"])
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)
 
 
-def ensure_access(user: User, company_id: int):
-    if user.role != UserRole.GLOBAL_ADMIN and user.company_id != company_id:
-        raise HTTPException(403, "Bu firmanın olay kayıtlarına erişemezsiniz.")
+def ensure_access(db: Session, user: User, company_id: int) -> None:
+    ensure_company_access(db, user, company_id)
 
 
 def _apply_scoring(row: IncidentEvent) -> None:
@@ -107,15 +107,11 @@ def list_incidents(
         .options(selectinload(IncidentEvent.root_cause), selectinload(IncidentEvent.dofs))
         .order_by(IncidentEvent.event_date.desc(), IncidentEvent.id.desc())
     )
-    if user.role == UserRole.GLOBAL_ADMIN:
-        effective = company_id
-        # Admin tüm firmaları görebilir; company_id verilirse filtrele
-        if effective:
-            stmt = stmt.where(IncidentEvent.company_id == effective)
-    else:
-        if not user.company_id:
-            raise HTTPException(403, "Firma atanmamış kullanıcı olay listesini göremez.")
-        stmt = stmt.where(IncidentEvent.company_id == user.company_id)
+    company_ids = company_ids_for_query(db, user, company_id)
+    if company_ids == []:
+        return []
+    if company_ids is not None:
+        stmt = stmt.where(IncidentEvent.company_id.in_(company_ids))
     if event_type:
         stmt = stmt.where(IncidentEvent.event_type == event_type)
     if status:
@@ -140,7 +136,7 @@ def create_incident(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    ensure_access(user, payload.company_id)
+    ensure_access(db, user, payload.company_id)
     if not db.get(Company, payload.company_id):
         raise HTTPException(404, "Firma bulunamadı.")
     values = payload.model_dump()
@@ -164,7 +160,7 @@ def get_incident(
     user: User = Depends(get_current_user),
 ):
     row = _load(db, incident_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     return row
 
 
@@ -176,7 +172,7 @@ def update_incident(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load(db, incident_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(row, k, v)
     _apply_scoring(row)
@@ -191,7 +187,7 @@ def incident_report_pdf(
     user: User = Depends(get_current_user),
 ):
     row = _load(db, incident_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     company = db.get(Company, row.company_id)
     try:
         pdf = build_incident_pdf(
@@ -217,7 +213,7 @@ def upsert_root_cause(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load(db, incident_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     if not payload.root_cause_category:
         raise HTTPException(422, "En az bir kök neden kategorisi seçilmelidir.")
     rc = row.root_cause
@@ -239,7 +235,7 @@ def add_incident_dof(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load(db, incident_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     dof = IncidentDof(
         dof_no=_next_dof_no(db),
         incident_id=row.id,
@@ -267,7 +263,7 @@ def complete_incident_dof(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     row = _load(db, incident_id)
-    ensure_access(user, row.company_id)
+    ensure_access(db, user, row.company_id)
     dof = db.get(IncidentDof, dof_id)
     if not dof or dof.incident_id != incident_id:
         raise HTTPException(404, "Olay DÖF kaydı bulunamadı.")

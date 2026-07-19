@@ -8,6 +8,7 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.company_access import company_ids_for_query, effective_company_id, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import Company, Employee, HealthFitnessStatus, HealthRecord, HealthRecordType, User, UserRole
@@ -56,9 +57,8 @@ FITNESS_LABELS = {
 }
 
 
-def ensure_access(user: User, company_id: int) -> None:
-    if user.role != UserRole.GLOBAL_ADMIN and user.company_id != company_id:
-        raise HTTPException(status_code=403, detail="Bu firmanın sağlık kayıtlarına erişemezsiniz.")
+def ensure_access(db: Session, user: User, company_id: int) -> None:
+    ensure_company_access(db, user, company_id)
 
 
 def _active():
@@ -120,10 +120,7 @@ def health_summary(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*HEALTH_ROLES)),
 ):
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if not effective:
-        raise HTTPException(400, "Firma seçiniz.")
-    ensure_access(user, effective)
+    effective = effective_company_id(db, user, company_id)
     today = date.today()
     soon = today + timedelta(days=30)
     items = list(
@@ -166,11 +163,12 @@ def list_health_records(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*HEALTH_ROLES)),
 ):
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
     query = _active().order_by(HealthRecord.examination_date.desc(), HealthRecord.id.desc())
-    if effective:
-        ensure_access(user, effective)
-        query = query.where(HealthRecord.company_id == effective)
+    company_ids = company_ids_for_query(db, user, company_id)
+    if company_ids == []:
+        return []
+    if company_ids is not None:
+        query = query.where(HealthRecord.company_id.in_(company_ids))
     if employee_id:
         query = query.where(HealthRecord.employee_id == employee_id)
     if record_type:
@@ -205,7 +203,7 @@ def create_health_record(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*HEALTH_ROLES)),
 ):
-    ensure_access(user, payload.company_id)
+    ensure_access(db, user, payload.company_id)
     employee = db.get(Employee, payload.employee_id)
     if not employee or employee.company_id != payload.company_id:
         raise HTTPException(status_code=400, detail="Personel ve firma eşleşmiyor.")
@@ -233,10 +231,7 @@ def export_health_txt(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*HEALTH_ROLES)),
 ):
-    effective = company_id if user.role == UserRole.GLOBAL_ADMIN else user.company_id
-    if not effective:
-        raise HTTPException(400, "Firma seçiniz.")
-    ensure_access(user, effective)
+    effective = effective_company_id(db, user, company_id)
     company = db.get(Company, effective)
     rows = list(
         db.scalars(
@@ -296,7 +291,7 @@ def update_health_record(
     record = db.get(HealthRecord, record_id)
     if not record or record.deleted_at:
         raise HTTPException(404, "Sağlık kaydı bulunamadı.")
-    ensure_access(user, record.company_id)
+    ensure_access(db, user, record.company_id)
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(record, k, v)
     _apply_lead_eval(record)
@@ -315,7 +310,7 @@ def delete_health_record(
     record = db.get(HealthRecord, record_id)
     if not record or record.deleted_at:
         raise HTTPException(404, "Sağlık kaydı bulunamadı.")
-    ensure_access(user, record.company_id)
+    ensure_access(db, user, record.company_id)
     record.deleted_at = datetime.utcnow()
     db.commit()
     return {"ok": True, "id": record_id}
