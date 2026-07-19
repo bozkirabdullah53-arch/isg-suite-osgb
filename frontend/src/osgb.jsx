@@ -13,10 +13,46 @@ function P({title,action,children}){return <><div className="page-title"><h3>{ti
 function osgbId(user,orgs){return user.osgb_id||orgs[0]?.id||''}
 
 export function OsgbDashboard({user}){
- const[orgs,setOrgs]=useState([]),[data,setData]=useState(null);
- useEffect(()=>{api('/osgb').then(o=>{setOrgs(o);const id=osgbId(user,o);if(id)api(`/operations/dashboard?osgb_id=${id}`).then(setData)})},[]);
- const items=[['Müşteri İşyerleri',data?.workplaces],['İSG Profesyonelleri',data?.professionals],['Aktif Görevlendirme',data?.active_assignments],['Bugünkü Ziyaret',data?.visits_today],['Yaklaşan Sözleşme Bitişi',data?.upcoming_contract_expiries],['Açık Fırsat',data?.open_leads],['Bekleyen Alacak',money(data?.pending_receivables)],['Net Nakit',money(data?.net_cash)]];
- return <><div className="welcome"><div><h3>OSGB Operasyon Merkezi</h3><p>İşyerlerini, profesyonelleri, saha ziyaretlerini, sözleşmeleri ve finansı tek ekrandan yönetin.</p></div></div><div className="cards osgb-cards">{items.map(([t,v])=><article className="metric" key={t}><span>{t}</span><strong>{v??0}</strong></article>)}</div><section className="panel"><h3>Günlük kontrol listesi</h3><div className="check-grid"><span><CheckCircle2/>Bugünkü saha ziyaretlerini doğrulayın</span><span><CheckCircle2/>Süresi yaklaşan sözleşmeleri kontrol edin</span><span><CheckCircle2/>Eksik uzman/hekim görevlendirmelerini tamamlayın</span><span><CheckCircle2/>Bekleyen tahsilatları gözden geçirin</span></div></section></>
+ const[orgs,setOrgs]=useState([]),[data,setData]=useState(null),[oid,setOid]=useState('');
+ useEffect(()=>{api('/osgb').then(o=>{setOrgs(o);const id=String(osgbId(user,o)||'');setOid(id);if(id)api(`/operations/dashboard?osgb_id=${id}`).then(setData)})},[]);
+ const ov=data?.oversight||{};
+ const items=[
+  ['Müşteri İşyerleri',data?.workplaces],
+  ['İSG Profesyonelleri',data?.professionals],
+  ['Aktif Görevlendirme',data?.active_assignments],
+  ['Atanmamış Profesyonel',data?.unassigned_professionals],
+  ['Bugünkü Ziyaret',data?.visits_today],
+  ['Yaklaşan Sözleşme Bitişi',data?.upcoming_contract_expiries],
+  ['Bekleyen Alacak',money(data?.pending_receivables)],
+  ['Net Nakit',money(data?.net_cash)],
+ ];
+ return <>
+  <div className="welcome"><div><h3>OSGB Operasyon Merkezi</h3><p>İşyerlerini, profesyonelleri, saha ziyaretlerini ve hizmet denetimini tek ekrandan izleyin.</p></div></div>
+  {orgs.length>1&&<section className="panel" style={{marginBottom:16}}>
+   <label className="field"><span>OSGB</span>
+    <select value={oid} onChange={e=>{setOid(e.target.value);api(`/operations/dashboard?osgb_id=${e.target.value}`).then(setData)}}>
+     {orgs.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
+    </select>
+   </label>
+  </section>}
+  <div className="cards osgb-cards">{items.map(([t,v])=><article className="metric" key={t}><span>{t}</span><strong>{v??0}</strong></article>)}</div>
+  <section className="panel" style={{marginTop:16}}>
+   <h3 style={{marginTop:0}}>Hizmet Denetimi özeti (aynı veri kaynağı)</h3>
+   <p style={{color:'#64748b',marginTop:0}}>Detay ve profesyonel bazlı sütun grafikler için sol menüden <strong>Hizmet Denetimi</strong>’ne gidin.</p>
+   <div className="cards" style={{marginBottom:0}}>
+    <article className="metric"><span>Uygun</span><strong style={{color:'#166534'}}>{ov.ok??0}</strong></article>
+    <article className="metric"><span>İzlem</span><strong style={{color:'#92400e'}}>{ov.warning??0}</strong></article>
+    <article className="metric"><span>Kritik</span><strong style={{color:'#991b1b'}}>{ov.critical??0}</strong></article>
+    <article className="metric"><span>Müdahale kalemi</span><strong style={{color:'#b91c1c'}}>{ov.gap_count??0}</strong></article>
+   </div>
+  </section>
+  <section className="panel"><h3>Günlük kontrol listesi</h3><div className="check-grid">
+   <span><CheckCircle2/>Bugünkü saha ziyaretlerini doğrulayın</span>
+   <span><CheckCircle2/>Süresi yaklaşan sözleşmeleri kontrol edin</span>
+   <span><CheckCircle2/>Atanmamış uzman/hekim/DSP görevlendirmelerini tamamlayın ({data?.unassigned_professionals??0})</span>
+   <span><CheckCircle2/>Hizmet Denetimi’ndeki kritikleri kapatın ({ov.critical??0})</span>
+  </div></section>
+ </>
 }
 
 export function ProfessionalsPage({user}){

@@ -408,7 +408,15 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
         by_pro.setdefault(a.professional_id, []).append(a)
 
     rows = []
-    summary = {"professionals": 0, "assignments": 0, "ok": 0, "warning": 0, "critical": 0, "unknown": 0}
+    summary = {
+        "professionals": 0,
+        "assignments": 0,
+        "ok": 0,
+        "warning": 0,
+        "critical": 0,
+        "unknown": 0,
+        "unassigned": 0,
+    }
 
     for pro in professionals:
         firms = []
@@ -442,7 +450,48 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                 }
             )
 
+        # Atanmamış profesyoneller de listede kalsın (kritik — görevlendirme eksik)
         if not firms:
+            summary["professionals"] += 1
+            summary["unassigned"] += 1
+            summary["critical"] += 1
+            unassigned_gap = {
+                "company_id": None,
+                "company_name": "—",
+                "check_code": "gorevlendirme",
+                "check_title": "İşyeri görevlendirmesi yok",
+                "detail": "Bu profesyonel henüz hiçbir işyerine atanmamış. Önce Görevlendirmeler’den atayın.",
+                "legal": "İSG Hizmetleri Yön. — işyerine uzman/hekim/DSP görevlendirme zorunluluğu",
+            }
+            rows.append(
+                {
+                    "professional_id": pro.id,
+                    "full_name": pro.full_name,
+                    "professional_type": pro.professional_type.value,
+                    "certificate_class": pro.certificate_class,
+                    "certificate_number": pro.certificate_number,
+                    "osgb_id": pro.osgb_id,
+                    "firm_count": 0,
+                    "score": 0,
+                    "status": "critical",
+                    "firms": [],
+                    "check_columns": [
+                        {
+                            "code": "gorevlendirme",
+                            "title": "Görevlendirme",
+                            "legal": unassigned_gap["legal"],
+                            "passed": 0,
+                            "total": 1,
+                            "pct": 0,
+                            "failed": 1,
+                            "status": "critical",
+                        }
+                    ],
+                    "gaps": [unassigned_gap],
+                    "gap_count": 1,
+                    "unassigned": True,
+                }
+            )
             continue
 
         # Profesyonel düzeyinde sütun grafik verisi (sorumluluk alanları)
@@ -480,7 +529,6 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                 }
             )
 
-        # Profesyonel skoru: firma ortalaması; en kötü durum baskın
         avg_score = round(sum(f["score"] for f in firms) / len(firms))
         if "critical" in firm_statuses:
             overall = "critical"
@@ -510,6 +558,7 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                 "check_columns": check_columns,
                 "gaps": gaps,
                 "gap_count": len(gaps),
+                "unassigned": False,
             }
         )
 
@@ -587,8 +636,18 @@ def seed_oversight_demo(db: Session, osgb_id: int | None = None) -> dict:
         db.flush()
 
     company = db.scalar(
-        select(Company).where(Company.osgb_id == osgb.id, Company.name.like("%Denetim Demo%")).limit(1)
+        select(Company).where(Company.osgb_id == osgb.id, Company.is_active.is_(True)).order_by(Company.id).limit(1)
     )
+    if not company:
+        company = db.scalar(
+            select(Company).where(Company.name.like("%Denetim Demo%")).limit(1)
+        )
+    if not company:
+        # OSGB'ye bağlı işyeri yoksa mevcut herhangi bir aktif işyeri bağla
+        company = db.scalar(select(Company).where(Company.is_active.is_(True)).order_by(Company.id).limit(1))
+        if company and company.osgb_id is None:
+            company.osgb_id = osgb.id
+            db.flush()
     if not company:
         company = Company(
             name=f"Denetim Demo İşyeri ({osgb.id})",
@@ -599,6 +658,9 @@ def seed_oversight_demo(db: Session, osgb_id: int | None = None) -> dict:
             osgb_id=osgb.id,
         )
         db.add(company)
+        db.flush()
+    elif company.osgb_id != osgb.id:
+        company.osgb_id = osgb.id
         db.flush()
 
     admin = db.scalar(select(User).where(User.role == UserRole.GLOBAL_ADMIN).limit(1))

@@ -4,7 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
-from app.models.entities import (Company, CrmLead, FinanceTransaction, IsgProfessional,
+from app.models.entities import (AssignmentStatus, Company, CrmLead, FinanceTransaction, IsgProfessional,
                                  OsgbOrganization, ServiceContract, ServiceVisit, User,
                                  UserRole, VisitStatus, WorkplaceAssignment)
 from app.schemas.operations import (FinanceCreate, FinanceResponse, LeadCreate, LeadResponse,
@@ -31,15 +31,70 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
     def count(model, *where): return db.scalar(select(func.count()).select_from(model).where(*where)) or 0
     income = db.scalar(select(func.coalesce(func.sum(FinanceTransaction.amount),0)).where(FinanceTransaction.osgb_id==oid, FinanceTransaction.transaction_type=="income", FinanceTransaction.status=="paid")) or 0
     expense = db.scalar(select(func.coalesce(func.sum(FinanceTransaction.amount),0)).where(FinanceTransaction.osgb_id==oid, FinanceTransaction.transaction_type=="expense", FinanceTransaction.status=="paid")) or 0
+
+    professionals = count(IsgProfessional, IsgProfessional.osgb_id == oid, IsgProfessional.is_active == True)
+    active_assignments = count(
+        WorkplaceAssignment,
+        WorkplaceAssignment.osgb_id == oid,
+        WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+    )
+    assigned_pro_ids = set(
+        db.scalars(
+            select(WorkplaceAssignment.professional_id).where(
+                WorkplaceAssignment.osgb_id == oid,
+                WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+            )
+        ).all()
+    )
+    unassigned_professionals = max(0, professionals - len(assigned_pro_ids))
+
+    oversight_summary = {
+        "ok": 0,
+        "warning": 0,
+        "critical": 0,
+        "unknown": 0,
+        "gap_count": 0,
+        "unassigned": unassigned_professionals,
+        "professionals_tracked": 0,
+    }
+    try:
+        from app.services.osgb_oversight import build_oversight
+        ov = build_oversight(db, osgb_id=oid)
+        oversight_summary.update({
+            "ok": ov["summary"].get("ok", 0),
+            "warning": ov["summary"].get("warning", 0),
+            "critical": ov["summary"].get("critical", 0),
+            "unknown": ov["summary"].get("unknown", 0),
+            "gap_count": ov.get("gap_count", 0),
+            "unassigned": ov["summary"].get("unassigned", unassigned_professionals),
+            "professionals_tracked": ov["summary"].get("professionals", 0),
+        })
+    except Exception:
+        pass
+
     return {
-        "workplaces": count(Company, Company.osgb_id==oid, Company.is_active==True),
-        "professionals": count(IsgProfessional, IsgProfessional.osgb_id==oid, IsgProfessional.is_active==True),
-        "active_assignments": count(WorkplaceAssignment, WorkplaceAssignment.osgb_id==oid, WorkplaceAssignment.status=="ACTIVE"),
-        "visits_today": count(ServiceVisit, ServiceVisit.osgb_id==oid, ServiceVisit.visit_date==today),
-        "upcoming_contract_expiries": count(ServiceContract, ServiceContract.osgb_id==oid, ServiceContract.end_date!=None, ServiceContract.end_date.between(today,soon)),
-        "open_leads": count(CrmLead, CrmLead.osgb_id==oid, CrmLead.stage.notin_(["won","lost"])),
-        "pending_receivables": db.scalar(select(func.coalesce(func.sum(FinanceTransaction.amount),0)).where(FinanceTransaction.osgb_id==oid, FinanceTransaction.transaction_type=="income", FinanceTransaction.status=="pending")) or 0,
-        "net_cash": income-expense,
+        "osgb_id": oid,
+        "workplaces": count(Company, Company.osgb_id == oid, Company.is_active == True),
+        "professionals": professionals,
+        "active_assignments": active_assignments,
+        "unassigned_professionals": unassigned_professionals,
+        "visits_today": count(ServiceVisit, ServiceVisit.osgb_id == oid, ServiceVisit.visit_date == today),
+        "upcoming_contract_expiries": count(
+            ServiceContract,
+            ServiceContract.osgb_id == oid,
+            ServiceContract.end_date != None,
+            ServiceContract.end_date.between(today, soon),
+        ),
+        "open_leads": count(CrmLead, CrmLead.osgb_id == oid, CrmLead.stage.notin_(["won", "lost"])),
+        "pending_receivables": db.scalar(
+            select(func.coalesce(func.sum(FinanceTransaction.amount), 0)).where(
+                FinanceTransaction.osgb_id == oid,
+                FinanceTransaction.transaction_type == "income",
+                FinanceTransaction.status == "pending",
+            )
+        ) or 0,
+        "net_cash": income - expense,
+        "oversight": oversight_summary,
     }
 
 @router.get("/visits", response_model=list[VisitResponse])

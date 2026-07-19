@@ -94,6 +94,7 @@ function goModuleHint(checkCode) {
   if (checkCode === 'olay_takip') return 'Ramak Kala / İş Kazaları';
   if (['saglik_gozetim', 'muayene_gecikme', 'uygunluk'].includes(checkCode)) return 'Sağlık';
   if (checkCode === 'saha_sure') return 'Saha Takvimi';
+  if (checkCode === 'gorevlendirme') return 'Görevlendirmeler';
   return 'İlgili modül';
 }
 
@@ -148,9 +149,12 @@ export function OsgbOversightPage({user}) {
     try {
       const q = osgbId ? `?osgb_id=${osgbId}` : '';
       const r = await api(`/osgb/oversight/seed-demo${q}`, {method: 'POST'});
+      setTypeFilter('');
+      setStatusFilter('');
       setSeedMsg(
         `Test eklendi: ${(r.seeded?.professionals || []).map((p) => p.name).join(', ')}. `
-        + `Eksik sayısı: ${r.gap_count ?? '—'}. ${r.seeded?.note || ''}`,
+        + `İşyeri: ${r.seeded?.company_name || '—'}. Eksik: ${r.gap_count ?? '—'}. `
+        + `${r.seeded?.note || ''} Filtreler temizlendi — listeyi aşağıda görün.`,
       );
       if (r.seeded?.osgb_id) setOsgbId(String(r.seeded.osgb_id));
       await load(r.seeded?.osgb_id ? String(r.seeded.osgb_id) : osgbId);
