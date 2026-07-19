@@ -21,7 +21,7 @@ def upgrade():
         op.create_table(
             "workplace_departments",
             sa.Column("id", sa.Integer(), primary_key=True),
-            sa.Column("company_id", sa.Integer(), sa.ForeignKey("companies.id"), nullable=False),
+            sa.Column("company_id", sa.Integer(), nullable=False),
             sa.Column("name", sa.String(200), nullable=False),
             sa.Column("description", sa.String(500), nullable=True),
             sa.Column("is_active", sa.Boolean(), server_default=sa.text("true")),
@@ -35,18 +35,6 @@ def upgrade():
         cols = {c["name"] for c in insp.get_columns("risk_assessments")}
         if "department_id" not in cols:
             op.add_column("risk_assessments", sa.Column("department_id", sa.Integer(), nullable=True))
-        fks = {fk["name"] for fk in insp.get_foreign_keys("risk_assessments")}
-        if "fk_risk_assessments_department_id" not in fks:
-            try:
-                op.create_foreign_key(
-                    "fk_risk_assessments_department_id",
-                    "risk_assessments",
-                    "workplace_departments",
-                    ["department_id"],
-                    ["id"],
-                )
-            except Exception:
-                pass
         indexes = {ix["name"] for ix in insp.get_indexes("risk_assessments")}
         if "ix_risk_assessments_department_id" not in indexes:
             try:

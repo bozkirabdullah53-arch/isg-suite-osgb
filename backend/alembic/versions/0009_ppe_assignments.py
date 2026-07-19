@@ -3,8 +3,9 @@ Revision ID: 0009
 Revises: 0008
 """
 from typing import Sequence, Union
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
 
 revision: str = "0009"
 down_revision: Union[str, None] = "0008"
@@ -20,9 +21,9 @@ def upgrade():
     op.create_table(
         "ppe_assignments",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("company_id", sa.Integer(), sa.ForeignKey("companies.id"), nullable=False),
-        sa.Column("branch_id", sa.Integer(), sa.ForeignKey("branches.id"), nullable=True),
-        sa.Column("employee_id", sa.Integer(), sa.ForeignKey("employees.id"), nullable=False),
+        sa.Column("company_id", sa.Integer(), nullable=False),
+        sa.Column("branch_id", sa.Integer(), nullable=True),
+        sa.Column("employee_id", sa.Integer(), nullable=False),
         sa.Column("delivery_date", sa.Date(), nullable=False),
         sa.Column("category", sa.String(120), nullable=False),
         sa.Column("item_type", sa.String(160), nullable=False),
@@ -39,7 +40,7 @@ def upgrade():
         sa.Column("delivered_by", sa.String(160), nullable=True),
         sa.Column("risk_note", sa.String(1000), nullable=True),
         sa.Column("notes", sa.String(2000), nullable=True),
-        sa.Column("created_by_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("created_by_id", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
         sa.Column("deleted_at", sa.DateTime(), nullable=True),
@@ -52,12 +53,7 @@ def upgrade():
     op.create_table(
         "ppe_assignment_photos",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column(
-            "assignment_id",
-            sa.Integer(),
-            sa.ForeignKey("ppe_assignments.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
+        sa.Column("assignment_id", sa.Integer(), nullable=False),
         sa.Column("storage_path", sa.String(500), nullable=False),
         sa.Column("original_name", sa.String(255), nullable=True),
         sa.Column("content_type", sa.String(120), nullable=True),

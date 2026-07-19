@@ -3,8 +3,9 @@ Revision ID: 0008
 Revises: 0007
 """
 from typing import Sequence, Union
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
 
 revision: str = "0008"
 down_revision: Union[str, None] = "0007"
@@ -17,12 +18,13 @@ def upgrade():
     insp = sa.inspect(bind)
     if insp.has_table("incident_events"):
         return
+    # No inline ForeignKey() — avoids SQLAlchemy f405 on Render alembic runs.
     op.create_table(
         "incident_events",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("form_no", sa.String(40), nullable=False),
-        sa.Column("company_id", sa.Integer(), sa.ForeignKey("companies.id"), nullable=False),
-        sa.Column("branch_id", sa.Integer(), sa.ForeignKey("branches.id"), nullable=True),
+        sa.Column("company_id", sa.Integer(), nullable=False),
+        sa.Column("branch_id", sa.Integer(), nullable=True),
         sa.Column("event_type", sa.String(40), nullable=False),
         sa.Column("status", sa.String(40), server_default="Aktif"),
         sa.Column("recorded_by_name", sa.String(160), nullable=True),
@@ -36,19 +38,19 @@ def upgrade():
         sa.Column("area", sa.String(160), nullable=True),
         sa.Column("work_being_done", sa.String(500), nullable=True),
         sa.Column("related_people", sa.String(2000), nullable=True),
-        sa.Column("has_witness", sa.Boolean(), server_default=sa.text("0")),
+        sa.Column("has_witness", sa.Boolean(), server_default=sa.text("false")),
         sa.Column("witness_names", sa.String(2000), nullable=True),
         sa.Column("equipment_used", sa.String(500), nullable=True),
         sa.Column("chemical_used", sa.String(500), nullable=True),
         sa.Column("short_summary", sa.String(500), nullable=False),
         sa.Column("detail", sa.String(4000), nullable=True),
         sa.Column("classification", sa.String(160), nullable=True),
-        sa.Column("injury_occurred", sa.Boolean(), server_default=sa.text("0")),
-        sa.Column("health_complaint", sa.Boolean(), server_default=sa.text("0")),
-        sa.Column("medical_intervention", sa.Boolean(), server_default=sa.text("0")),
-        sa.Column("work_incapacity_report", sa.Boolean(), server_default=sa.text("0")),
-        sa.Column("equipment_damage", sa.Boolean(), server_default=sa.text("0")),
-        sa.Column("would_have_injured", sa.Boolean(), server_default=sa.text("0")),
+        sa.Column("injury_occurred", sa.Boolean(), server_default=sa.text("false")),
+        sa.Column("health_complaint", sa.Boolean(), server_default=sa.text("false")),
+        sa.Column("medical_intervention", sa.Boolean(), server_default=sa.text("false")),
+        sa.Column("work_incapacity_report", sa.Boolean(), server_default=sa.text("false")),
+        sa.Column("equipment_damage", sa.Boolean(), server_default=sa.text("false")),
+        sa.Column("would_have_injured", sa.Boolean(), server_default=sa.text("false")),
         sa.Column("auto_warning", sa.String(2000), nullable=True),
         sa.Column("probability", sa.Integer(), server_default="0"),
         sa.Column("severity", sa.Integer(), server_default="0"),
@@ -59,14 +61,14 @@ def upgrade():
         sa.Column("emergency_relation", sa.String(160), nullable=True),
         sa.Column("emergency_note", sa.String(2000), nullable=True),
         sa.Column("evaluation_text", sa.String(4000), nullable=True),
-        sa.Column("sgk_reported", sa.Boolean(), server_default=sa.text("0")),
+        sa.Column("sgk_reported", sa.Boolean(), server_default=sa.text("false")),
         sa.Column("sgk_report_date", sa.Date(), nullable=True),
-        sa.Column("police_reported", sa.Boolean(), server_default=sa.text("0")),
+        sa.Column("police_reported", sa.Boolean(), server_default=sa.text("false")),
         sa.Column("accident_type", sa.String(120), nullable=True),
         sa.Column("injury_type", sa.String(220), nullable=True),
         sa.Column("intervention_detail", sa.String(2000), nullable=True),
         sa.Column("report_days", sa.Integer(), server_default="0"),
-        sa.Column("created_by_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("created_by_id", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
     )
@@ -77,7 +79,7 @@ def upgrade():
     op.create_table(
         "incident_root_causes",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("incident_id", sa.Integer(), sa.ForeignKey("incident_events.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("incident_id", sa.Integer(), nullable=False),
         sa.Column("why_1", sa.String(2000), nullable=True),
         sa.Column("why_2", sa.String(2000), nullable=True),
         sa.Column("why_3", sa.String(2000), nullable=True),
@@ -95,7 +97,7 @@ def upgrade():
         "incident_dofs",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("dof_no", sa.String(40), nullable=False),
-        sa.Column("incident_id", sa.Integer(), sa.ForeignKey("incident_events.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("incident_id", sa.Integer(), nullable=False),
         sa.Column("finding", sa.String(2000), nullable=False),
         sa.Column("root_cause", sa.String(2000), nullable=True),
         sa.Column("corrective_action", sa.String(2000), nullable=True),
@@ -107,7 +109,7 @@ def upgrade():
         sa.Column("completion_date", sa.Date(), nullable=True),
         sa.Column("effectiveness_note", sa.String(2000), nullable=True),
         sa.Column("close_approval", sa.String(160), nullable=True),
-        sa.Column("created_by_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
+        sa.Column("created_by_id", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=True),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
     )
