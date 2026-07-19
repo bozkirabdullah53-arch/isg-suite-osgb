@@ -69,16 +69,22 @@ def _active_stmt():
 def _refresh_delayed(db: Session, items: list[AnnualPlanItem]) -> None:
     today = date.today()
     changed = False
-    for item in items:
-        if item.status in (AnnualPlanStatus.COMPLETED, AnnualPlanStatus.CANCELLED):
-            continue
-        if item.target_date and item.target_date < today and item.status != AnnualPlanStatus.DELAYED:
-            item.status = AnnualPlanStatus.DELAYED
-            changed = True
-    if changed:
-        db.commit()
+    try:
         for item in items:
-            db.refresh(item)
+            if item.status in (AnnualPlanStatus.COMPLETED, AnnualPlanStatus.CANCELLED):
+                continue
+            if item.target_date and item.target_date < today and item.status != AnnualPlanStatus.DELAYED:
+                item.status = AnnualPlanStatus.DELAYED
+                changed = True
+        if changed:
+            db.commit()
+            for item in items:
+                db.refresh(item)
+    except Exception:
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
 
 @router.get("/meta")

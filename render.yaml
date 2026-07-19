@@ -17,7 +17,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: FRONTEND_ORIGIN
-        value: https://isg-suite-web-1u9t.onrender.com
+        value: https://www.isgsuite.tr
       # Seed admin: Render Dashboard > Environment (sync: false)
       - key: SEED_ADMIN_EMAIL
         sync: false

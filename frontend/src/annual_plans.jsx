@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {ClipboardCheck, Download, Plus, RefreshCw, Sparkles, X} from 'lucide-react';
-import {api, downloadFile} from './api';
+import {api, downloadFile, wakeApi} from './api';
 
 const MONTHS = [
   '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
@@ -140,10 +140,11 @@ export function AnnualPlansPage({user}) {
   async function load() {
     setMessage('');
     try {
+      await wakeApi();
       const c = await api('/companies');
-      setCompanies(c);
-      const cid = pickCompanyId(c, companyId);
-      if (cid !== companyId) {
+      setCompanies(Array.isArray(c) ? c : []);
+      const cid = pickCompanyId(Array.isArray(c) ? c : [], companyId);
+      if (cid && cid !== companyId) {
         setCompanyId(cid);
         return;
       }
@@ -158,22 +159,16 @@ export function AnnualPlansPage({user}) {
         return;
       }
       const planQs = new URLSearchParams({year: String(year), company_id: cid});
-      const [r, s, meta] = await Promise.all([
-        api(`/annual-plans?${planQs}`),
-        api(`/annual-plans/summary?${planQs}`),
-        api('/annual-plans/meta'),
-      ]);
-      setRows(r);
-      setSummary(s);
+      // Sıralı yükle — biri düşerse hangisi olduğu görünsün
+      const meta = await api('/annual-plans/meta');
       setCategories(meta.categories || []);
       setStatuses(meta.statuses || []);
+      const r = await api(`/annual-plans?${planQs}`);
+      setRows(Array.isArray(r) ? r : []);
+      const s = await api(`/annual-plans/summary?${planQs}`);
+      setSummary(s);
     } catch (e) {
-      const msg = e.message || 'Yükleme başarısız.';
-      setMessage(
-        /Failed to fetch|NetworkError|bağlanılamadı/i.test(msg)
-          ? 'Sunucuya bağlanılamadı. API uyanıyor olabilir — 10–20 sn bekleyip Yenile’ye basın.'
-          : msg,
-      );
+      setMessage(e.message || 'Yükleme başarısız.');
     }
   }
 
@@ -259,9 +254,6 @@ export function AnnualPlansPage({user}) {
       );
       return;
     }
-    if (!companyId || String(companyId) !== String(cid)) {
-      setCompanyId(String(cid));
-    }
     if (!window.confirm(
       `${year} yılı için otomatik yıllık plan üretmek istiyor musunuz?\n`
       + 'Hedef tarihler hafta sonu ve resmi tatillere denk gelmeyecek şekilde iş gününe kaydırılır.\n'
@@ -270,21 +262,19 @@ export function AnnualPlansPage({user}) {
       return;
     }
     setBusy(true);
-    setMessage('');
+    setMessage('Sunucu hazırlanıyor, plan üretiliyor…');
     try {
+      await wakeApi();
       const r = await api('/annual-plans/generate', {
         method: 'POST',
         body: JSON.stringify({company_id: cid, year: Number(year)}),
+        _retries: 3,
       });
       setMessage(r.message || `${r.created} madde eklendi. Hedef tarihler iş gününe göre ayarlandı.`);
-      await load();
+      if (String(companyId) !== String(cid)) setCompanyId(String(cid));
+      else await load();
     } catch (err) {
-      const msg = err.message || 'Üretim başarısız.';
-      setMessage(
-        /Failed to fetch|NetworkError|bağlanılamadı/i.test(msg)
-          ? 'Sunucuya bağlanılamadı. Birkaç saniye bekleyip tekrar “Otomatik Plan Üret”e basın.'
-          : msg,
-      );
+      setMessage(err.message || 'Üretim başarısız.');
     } finally {
       setBusy(false);
     }
