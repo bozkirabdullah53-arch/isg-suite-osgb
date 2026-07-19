@@ -8,15 +8,74 @@ import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} fr
 import {DutyDashboard, AdminSummaryDashboard} from './duty_dashboard';
 import './styles.css';
 const roles={global_admin:'Global Yönetici',company_admin:'Firma Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
+/**
+ * Sol menü sırası (yukarı→aşağı): ana panel → günlük operasyon → master data →
+ * İSG saha işleri (risk/olay yoğunluğu) → ticari → rapor/denetim → sistem ayarları.
+ * Her rol yalnızca kendi listesini görür; sıra o rolün kullanım yoğunluğuna göredir.
+ */
 const roleModules={
-  // OSGB global: profesyonel takip + denetim; saha operasyonu (eğitim/takvim/risk...) uzman-hekim-DSP’de
-  global_admin:['osgb_dashboard','osgb_oversight','pro_performance','csgb_audit','professionals','assignments','crm','finance','companies','branches','reports','notifications','subscription','security','users'],
-  // Firma/OSGB operasyon — denetim/performans/ÇSGB yalnızca global_admin
-  company_admin:['osgb_dashboard','professionals','assignments','crm','finance','dashboard','companies','branches','employees','training','documents','reports','notifications','subscription','security','users'],
-  safety_specialist:['dashboard','visits','risk','near_miss','accident','capa','ppe','training','documents','annual_plans'],
-  workplace_physician:['dashboard','visits','health','employees','documents','annual_plans'],
-  other_health_personnel:['dashboard','visits','health','employees','documents','annual_plans'],
-  read_only:['dashboard']
+  global_admin:[
+    'osgb_dashboard','osgb_oversight','pro_performance',
+    'professionals','assignments',
+    'companies','branches',
+    'crm','finance',
+    'reports','csgb_audit',
+    'notifications','users','subscription','security',
+  ],
+  company_admin:[
+    'osgb_dashboard','dashboard',
+    'professionals','assignments',
+    'companies','branches','employees',
+    'training','documents',
+    'crm','finance',
+    'reports',
+    'notifications','users','subscription','security',
+  ],
+  safety_specialist:[
+    'dashboard','visits',
+    'risk','near_miss','accident','capa','ppe',
+    'training','annual_plans','documents',
+  ],
+  workplace_physician:[
+    'dashboard','visits',
+    'health','employees',
+    'annual_plans','documents',
+  ],
+  other_health_personnel:[
+    'dashboard','visits',
+    'health','employees',
+    'annual_plans','documents',
+  ],
+  read_only:['dashboard'],
+};
+const menuCatalog={
+  osgb_dashboard:['OSGB Ana Panel',LayoutDashboard],
+  osgb_oversight:['Hizmet Denetimi',ClipboardCheck],
+  pro_performance:['Performans Raporu',BarChart3],
+  csgb_audit:['ÇSGB Belge Paketi',FileText],
+  professionals:['İSG Profesyonelleri',Stethoscope],
+  assignments:['Görevlendirmeler',BriefcaseBusiness],
+  visits:['Saha Takvimi',CalendarDays],
+  crm:['CRM / Teklif',BriefcaseBusiness],
+  finance:['Finans',WalletCards],
+  dashboard:['İSG Özeti',BarChart3],
+  companies:['İşyerleri',Building2],
+  branches:['Şubeler',GitBranch],
+  employees:['Personel',Users],
+  risk:['Risk Analizi',ShieldAlert],
+  near_miss:['Ramak Kala',AlertTriangle],
+  accident:['İş Kazaları',ShieldAlert],
+  capa:['DÖF',ClipboardCheck],
+  ppe:['KKD Takip',HardHat],
+  training:['Eğitimler',GraduationCap],
+  health:['Sağlık',HeartPulse],
+  documents:['Dokümanlar',FileText],
+  annual_plans:['Yıllık Plan',ClipboardCheck],
+  reports:['Raporlar',BarChart3],
+  notifications:['Bildirimler',Bell],
+  subscription:['Abonelik',CreditCard],
+  security:['Güvenlik',KeyRound],
+  users:['Kullanıcılar',UserCog],
 };
 function Login({done}){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[err,setErr]=useState('');async function submit(e){e.preventDefault();setErr('');try{const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});localStorage.setItem('isg_token',r.access_token);done()}catch(x){setErr(x.message)}}return <main className="login-shell"><section className="login-card"><div className="brand-mark"><ShieldCheck size={34}/></div><h1>İSG Suite</h1><p>İş Sağlığı ve Güvenliği Yönetim Sistemi</p><form onSubmit={submit}><label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email"/><label>Şifre</label><input value={password} onChange={e=>setPassword(e.target.value)} type="password"/>{err&&<div className="error">{err}</div>}<button>Giriş Yap</button></form></section></main>}
 function Modal({title,close,children}){return <div className="modal-bg" onMouseDown={e=>e.target===e.currentTarget&&close()}><section className="modal"><header><h3>{title}</h3><button className="icon" onClick={close}><X/></button></header>{children}</section></div>}
@@ -423,35 +482,9 @@ function App(){
   if(!logged) return <Login done={()=>setLogged(true)}/>;
   if(!user) return <div className="loading">Sistem yükleniyor...</div>;
   const allowed=roleModules[user.role]||[];
-  const menu=[
-    ['osgb_dashboard','OSGB Ana Panel',LayoutDashboard],
-    ['osgb_oversight','Hizmet Denetimi',ClipboardCheck],
-    ['pro_performance','Performans Raporu',BarChart3],
-    ['csgb_audit','ÇSGB Belge Paketi',FileText],
-    ['professionals','İSG Profesyonelleri',Stethoscope],
-    ['assignments','Görevlendirmeler',BriefcaseBusiness],
-    ['visits','Saha Takvimi',CalendarDays],
-    ['crm','CRM / Teklif',BriefcaseBusiness],
-    ['finance','Finans',WalletCards],
-    ['dashboard','İSG Özeti',BarChart3],
-    ['companies','İşyerleri',Building2],
-    ['branches','Şubeler',GitBranch],
-    ['employees','Personel',Users],
-    ['risk','Risk Analizi',ShieldAlert],
-    ['near_miss','Ramak Kala',AlertTriangle],
-    ['accident','İş Kazaları',ShieldAlert],
-    ['capa','DÖF',ClipboardCheck],
-    ['ppe','KKD Takip',HardHat],
-    ['training','Eğitimler',GraduationCap],
-    ['health','Sağlık',HeartPulse],
-    ['documents','Dokümanlar',FileText],
-    ['annual_plans','Yıllık Plan',ClipboardCheck],
-    ['reports','Raporlar',BarChart3],
-    ['notifications','Bildirimler',Bell],
-    ['subscription','Abonelik',CreditCard],
-    ['security','Güvenlik',KeyRound],
-    ['users','Kullanıcılar',UserCog],
-  ].filter(([k])=>allowed.includes(k));
+  const menu=allowed
+    .filter((k)=>menuCatalog[k])
+    .map((k)=>[k,menuCatalog[k][0],menuCatalog[k][1]]);
   const pages={
     osgb_dashboard:<OsgbDashboard user={user}/>,
     osgb_oversight:<OsgbOversightPage user={user} onNavigate={goModule}/>,
