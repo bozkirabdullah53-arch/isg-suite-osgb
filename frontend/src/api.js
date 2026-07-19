@@ -23,8 +23,8 @@ export async function api(path, options = {}) {
     const detail = data.detail;
     const message = Array.isArray(detail)
       ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ")
-      : detail || "İşlem tamamlanamadı.";
-    throw new Error(message);
+      : detail || `İşlem tamamlanamadı (HTTP ${response.status}).`;
+    throw new Error(typeof message === "string" ? message : JSON.stringify(message));
   }
   return data;
 }

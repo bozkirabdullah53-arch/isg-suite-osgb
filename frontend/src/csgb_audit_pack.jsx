@@ -9,8 +9,8 @@ const STATUS_LABELS = {
 };
 
 function statusStyle(status) {
-  if (status === 'ready') return {bg: '#dcfce7', fg: '#166534'};
-  if (status === 'partial') return {bg: '#fef3c7', fg: '#92400e'};
+  if (status === 'ok' || status === 'ready') return {bg: '#dcfce7', fg: '#166534'};
+  if (status === 'warning' || status === 'partial') return {bg: '#fef3c7', fg: '#92400e'};
   return {bg: '#fee2e2', fg: '#991b1b'};
 }
 
@@ -32,54 +32,24 @@ function evidenceLine(ev) {
     return `${ev.name}${ev.certificate_number ? ` · ${ev.certificate_number}` : ''}${ev.certificate_class ? ` · Sınıf ${ev.certificate_class}` : ''}`;
   }
   if (ev.contract_number) return `Sözleşme ${ev.contract_number} (${ev.status || '—'})`;
-  if (ev.isg_katip != null) return `Görevlendirme #${ev.id} · KATİP: ${ev.isg_katip || 'yok'}`;
+  if ('isg_katip' in ev) return `Görevlendirme #${ev.id} · KATİP: ${ev.isg_katip || 'yok'}`;
   if (ev.category) return `${ev.category}: ${ev.count}`;
   if (ev.field) return `${ev.field}: ${ev.value}`;
-  return JSON.stringify(ev);
+  try { return JSON.stringify(ev); } catch { return String(ev); }
 }
 
 export function CsgbAuditPackPage({user}) {
   const [orgs, setOrgs] = useState([]);
   const [osgbId, setOsgbId] = useState('');
   const [data, setData] = useState(null);
-  const [filter, setFilter] = useState('priority'); // all | priority | ready
+  const [filter, setFilter] = useState('priority');
   const [openCode, setOpenCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [loaded, setLoaded] = useState(false);
 
-  if (user.role !== 'global_admin') {
-    return (
-      <>
-        <div className="page-title"><h3>ÇSGB Denetim Belge Paketi</h3></div>
-        <section className="panel"><p>Bu ekran yalnızca global yönetici tarafından görüntülenebilir.</p></section>
-      </>
-    );
-  }
-
-  async function load(oid = osgbId) {
-    setBusy(true);
-    setError('');
-    try {
-      const o = await api('/osgb');
-      setOrgs(o);
-      const id = oid || osgbId || (o[0] ? String(o[0].id) : '');
-      if (id && !osgbId) setOsgbId(id);
-      const q = id ? `?osgb_id=${id}` : '';
-      const r = await api(`/osgb/csgb-audit-pack${q}`);
-      setData(r);
-      const pri = (r.summary?.priority_count ?? (r.gaps || []).length) > 0;
-      setFilter(pri ? 'priority' : 'all');
-    } catch (e) {
-      setError(e.message || 'Paket yüklenemedi.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  useEffect(() => { void load(); }, []);
-
-  const sum = data?.summary;
   const items = data?.items || [];
+  const sum = data?.summary;
 
   const filtered = useMemo(() => {
     if (filter === 'ready') return items.filter((i) => i.status === 'ready');
@@ -96,6 +66,48 @@ export function CsgbAuditPackPage({user}) {
     }
     return [...map.values()];
   }, [filtered]);
+
+  async function load(oid = osgbId) {
+    setBusy(true);
+    setError('');
+    try {
+      const o = await api('/osgb');
+      setOrgs(o || []);
+      const id = oid || osgbId || (o?.[0] ? String(o[0].id) : '');
+      if (id) setOsgbId(String(id));
+      const q = id ? `?osgb_id=${id}` : '';
+      const r = await api(`/osgb/csgb-audit-pack${q}`);
+      setData(r);
+      const pri = (r.summary?.priority_count ?? (r.gaps || []).length) > 0;
+      setFilter(pri ? 'priority' : 'all');
+    } catch (e) {
+      setData(null);
+      const msg = e?.message || 'Paket yüklenemedi.';
+      const lower = String(msg).toLowerCase();
+      if (lower.includes('not found') || lower.includes('404')) {
+        setError(
+          'ÇSGB belge paketi API’si bu ortamda yok (canlı API eski sürüm). '
+          + 'Render’da isg-suite-api için Clear build cache & Deploy yapın; health version ≥ 0.9.22 olmalı.',
+        );
+      } else {
+        setError(msg);
+      }
+    } finally {
+      setBusy(false);
+      setLoaded(true);
+    }
+  }
+
+  useEffect(() => { void load(); }, []);
+
+  if (user.role !== 'global_admin') {
+    return (
+      <>
+        <div className="page-title"><h3>ÇSGB Denetim Belge Paketi</h3></div>
+        <section className="panel"><p>Bu ekran yalnızca global yönetici tarafından görüntülenebilir.</p></section>
+      </>
+    );
+  }
 
   return (
     <>
@@ -118,7 +130,18 @@ export function CsgbAuditPackPage({user}) {
         </div>
       </div>
 
-      {error && <div className="error" style={{marginBottom: 12}}>{error}</div>}
+      {error && (
+        <section className="panel" style={{marginBottom: 16, borderColor: '#fecaca', background: '#fef2f2'}}>
+          <h3 style={{marginTop: 0, color: '#991b1b', display: 'flex', alignItems: 'center', gap: 8}}>
+            <AlertTriangle size={18} /> Paket yüklenemedi
+          </h3>
+          <p style={{margin: 0, color: '#7f1d1d', fontSize: 14}}>{error}</p>
+        </section>
+      )}
+
+      {busy && !data && (
+        <section className="panel"><p style={{margin: 0, color: '#64748b'}}>Belge paketi yükleniyor…</p></section>
+      )}
 
       {orgs.length > 1 && (
         <section className="panel" style={{marginBottom: 16}}>
@@ -229,43 +252,13 @@ export function CsgbAuditPackPage({user}) {
                       const open = openCode === it.code;
                       const hasEv = (it.evidence || []).length > 0;
                       return (
-                        <React.Fragment key={it.code}>
-                          <tr
-                            style={{cursor: hasEv ? 'pointer' : undefined}}
-                            onClick={() => hasEv && setOpenCode(open ? '' : it.code)}
-                          >
-                            <td>
-                              {hasEv
-                                ? (open ? <ChevronDown size={16} /> : <ChevronRight size={16} />)
-                                : null}
-                            </td>
-                            <td><StatusPill status={it.status} /></td>
-                            <td>
-                              <strong>{it.title}</strong>
-                              {it.status === 'ready' && (
-                                <CheckCircle2 size={14} color="#16a34a" style={{marginLeft: 6, verticalAlign: 'middle'}} />
-                              )}
-                            </td>
-                            <td>{it.count}</td>
-                            <td style={{fontSize: 13}}>{it.detail}</td>
-                            <td style={{fontSize: 12, color: '#64748b', maxWidth: 200}}>{it.legal}</td>
-                          </tr>
-                          {open && hasEv && (
-                            <tr>
-                              <td colSpan={6} style={{background: '#f8fafc', fontSize: 12, color: '#475569'}}>
-                                <strong style={{display: 'block', marginBottom: 6}}>Kanıt / kayıt özeti</strong>
-                                <ul style={{margin: 0, paddingLeft: 18}}>
-                                  {(it.evidence || []).slice(0, 20).map((ev, i) => (
-                                    <li key={i}>{evidenceLine(ev)}</li>
-                                  ))}
-                                </ul>
-                                {(it.evidence || []).length > 20 && (
-                                  <div style={{marginTop: 6}}>+{(it.evidence || []).length - 20} kayıt daha</div>
-                                )}
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
+                        <FragmentRow
+                          key={it.code}
+                          it={it}
+                          open={open}
+                          hasEv={hasEv}
+                          onToggle={() => hasEv && setOpenCode(open ? '' : it.code)}
+                        />
                       );
                     })}
                   </tbody>
@@ -287,6 +280,49 @@ export function CsgbAuditPackPage({user}) {
             fiziksel/dijital arşivde ayrıca tutulmalıdır.
           </p>
         </>
+      )}
+
+      {loaded && !busy && !data && !error && (
+        <section className="panel">
+          <p style={{margin: 0, color: '#64748b'}}>Gösterilecek belge paketi verisi yok.</p>
+        </section>
+      )}
+    </>
+  );
+}
+
+function FragmentRow({it, open, hasEv, onToggle}) {
+  return (
+    <>
+      <tr style={{cursor: hasEv ? 'pointer' : undefined}} onClick={onToggle}>
+        <td>
+          {hasEv ? (open ? <ChevronDown size={16} /> : <ChevronRight size={16} />) : null}
+        </td>
+        <td><StatusPill status={it.status} /></td>
+        <td>
+          <strong>{it.title}</strong>
+          {it.status === 'ready' && (
+            <CheckCircle2 size={14} color="#16a34a" style={{marginLeft: 6, verticalAlign: 'middle'}} />
+          )}
+        </td>
+        <td>{it.count}</td>
+        <td style={{fontSize: 13}}>{it.detail}</td>
+        <td style={{fontSize: 12, color: '#64748b', maxWidth: 200}}>{it.legal}</td>
+      </tr>
+      {open && hasEv && (
+        <tr>
+          <td colSpan={6} style={{background: '#f8fafc', fontSize: 12, color: '#475569'}}>
+            <strong style={{display: 'block', marginBottom: 6}}>Kanıt / kayıt özeti</strong>
+            <ul style={{margin: 0, paddingLeft: 18}}>
+              {(it.evidence || []).slice(0, 20).map((ev, i) => (
+                <li key={i}>{evidenceLine(ev)}</li>
+              ))}
+            </ul>
+            {(it.evidence || []).length > 20 && (
+              <div style={{marginTop: 6}}>+{(it.evidence || []).length - 20} kayıt daha</div>
+            )}
+          </td>
+        </tr>
       )}
     </>
   );
