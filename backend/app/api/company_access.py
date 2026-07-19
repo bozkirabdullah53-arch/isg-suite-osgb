@@ -31,11 +31,126 @@ _ROLE_TO_PRO_TYPE = {
     UserRole.OTHER_HEALTH_PERSONNEL: ProfessionalType.OTHER_HEALTH_PERSONNEL,
 }
 
+_PRO_TYPE_TO_ROLE = {
+    ProfessionalType.SAFETY_SPECIALIST: UserRole.SAFETY_SPECIALIST,
+    ProfessionalType.WORKPLACE_PHYSICIAN: UserRole.WORKPLACE_PHYSICIAN,
+    ProfessionalType.OTHER_HEALTH_PERSONNEL: UserRole.OTHER_HEALTH_PERSONNEL,
+}
+
+
+def _norm_text(value: str | None) -> str:
+    s = (value or "").strip().casefold()
+    for a, b in (("ı", "i"), ("İ", "i"), ("ş", "s"), ("ğ", "g"), ("ü", "u"), ("ö", "o"), ("ç", "c")):
+        s = s.replace(a, b)
+    return " ".join(s.split())
+
+
+def find_professional_by_identity(db: Session, user: User) -> IsgProfessional | None:
+    """Rol / OSGB bağımsız: e-posta (öncelik) veya ad ile aktif profesyonel kaydı bul."""
+    stmt = select(IsgProfessional).where(IsgProfessional.is_active.is_(True))
+
+    email = (user.email or "").strip().casefold()
+    if email:
+        by_email = db.scalar(
+            stmt.where(func.lower(IsgProfessional.email) == email).order_by(IsgProfessional.id).limit(1)
+        )
+        if by_email:
+            return by_email
+
+    name = _norm_text(user.full_name)
+    if name:
+        for p in db.scalars(stmt.order_by(IsgProfessional.id)).all():
+            if _norm_text(p.full_name) == name:
+                return p
+    return None
+
+
+def sync_user_from_professional(db: Session, user: User, *, commit: bool = False) -> User:
+    """İSG profesyoneli kaydı varsa kullanıcı rolünü (hekim/uzman/DSP) ve OSGB’yi eşle.
+
+    Global / firma yöneticisine dokunulmaz. Salt okunur veya yanlış saha rolü düzeltilir.
+    """
+    if user.role in (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN):
+        return user
+
+    pro = find_professional_by_identity(db, user)
+    if not pro and user.role in _OSGB_FIELD_ROLES:
+        pro = find_professional_for_user(db, user)
+    if not pro:
+        return user
+
+    desired = _PRO_TYPE_TO_ROLE.get(pro.professional_type)
+    changed = False
+    if desired and user.role != desired:
+        user.role = desired
+        changed = True
+    if pro.osgb_id and user.osgb_id != pro.osgb_id:
+        user.osgb_id = pro.osgb_id
+        changed = True
+    if changed and commit:
+        db.commit()
+        db.refresh(user)
+    return user
+
+
+def link_user_to_professional(db: Session, professional: IsgProfessional) -> User | None:
+    """Profesyonel e-posta veya ad ile kullanıcıyı bulup saha rolünü eşle."""
+    if not professional or not professional.is_active:
+        return None
+    user = None
+    email = (professional.email or "").strip().casefold()
+    if email:
+        user = db.scalar(select(User).where(func.lower(User.email) == email).limit(1))
+    if not user:
+        pname = _norm_text(professional.full_name)
+        if pname:
+            for u in db.scalars(select(User).where(User.is_active.is_(True))).all():
+                if u.role in (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN):
+                    continue
+                if _norm_text(u.full_name) == pname:
+                    user = u
+                    break
+    if not user or not user.is_active:
+        return None
+    if user.role in (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN):
+        return user
+    desired = _PRO_TYPE_TO_ROLE.get(professional.professional_type)
+    if desired:
+        user.role = desired
+    if professional.osgb_id:
+        user.osgb_id = professional.osgb_id
+    return user
+
+
+def sync_all_assigned_field_roles(db: Session) -> dict:
+    """Aktif görevlendirmedeki tüm uzman/hekim/DSP’lerin kullanıcı rollerini düzelt."""
+    pros = list(
+        db.scalars(
+            select(IsgProfessional)
+            .join(WorkplaceAssignment, WorkplaceAssignment.professional_id == IsgProfessional.id)
+            .where(
+                WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+                IsgProfessional.is_active.is_(True),
+            )
+        ).all()
+    )
+    # join tekrarları olabilir
+    seen: set[int] = set()
+    linked = 0
+    for pro in pros:
+        if pro.id in seen:
+            continue
+        seen.add(pro.id)
+        if link_user_to_professional(db, pro):
+            linked += 1
+    db.commit()
+    return {"professionals": len(seen), "users_linked": linked}
+
 
 def find_professional_for_user(db: Session, user: User) -> IsgProfessional | None:
     """Kullanıcıyı İSG profesyoneli kaydıyla eşle (önce e-posta, sonra ad)."""
     if user.role not in _OSGB_FIELD_ROLES:
-        return None
+        return find_professional_by_identity(db, user)
     ptype = _ROLE_TO_PRO_TYPE.get(user.role)
     stmt = select(IsgProfessional).where(IsgProfessional.is_active.is_(True))
     if user.osgb_id:
@@ -51,13 +166,13 @@ def find_professional_for_user(db: Session, user: User) -> IsgProfessional | Non
         if by_email:
             return by_email
 
-    name = (user.full_name or "").strip().casefold()
+    name = _norm_text(user.full_name)
     if name:
         pros = list(db.scalars(stmt).all())
         for p in pros:
-            if (p.full_name or "").strip().casefold() == name:
+            if _norm_text(p.full_name) == name:
                 return p
-    return None
+    return find_professional_by_identity(db, user)
 
 
 def assigned_company_ids(db: Session, user: User) -> list[int]:

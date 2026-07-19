@@ -128,6 +128,7 @@ def verify_training(code: str, db: Session = Depends(get_db)):
         title=row.title,
         company_name=company.name if company else None,
         start_date=row.start_date,
+        end_date=row.end_date,
         hazard_class=row.hazard_class,
         duration_hours=row.duration_hours,
         instructor_name=row.instructor_name,
@@ -244,7 +245,7 @@ def create_training(
             raise HTTPException(422, "Katılımcılardan biri firmaya ait değil veya pasif.")
     hours, years = RULES[payload.hazard_class]
     kod = sektor_kodu_cozumle(payload.sector)
-    raw = f"{payload.company_id}|{payload.title}|{payload.start_date.isoformat()}|{user.id}"
+    raw = f"{payload.company_id}|{payload.title}|{payload.start_date.isoformat()}|{payload.end_date.isoformat()}|{user.id}"
     code = hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
     values = payload.model_dump(exclude={"participant_ids"})
     values["sector"] = kod
@@ -258,7 +259,7 @@ def create_training(
         **values,
         duration_hours=hours,
         renewal_years=years,
-        next_training_date=add_years(payload.end_date or payload.start_date, years),
+        next_training_date=add_years(payload.end_date, years),
         verification_code=code,
         created_by_id=user.id,
     )

@@ -13,6 +13,18 @@ class VisitCreate(BaseModel):
     subject: str = Field(min_length=2, max_length=220)
     notes: str | None = None
 
+
+class VisitUpdate(BaseModel):
+    company_id: int | None = None
+    visit_date: date | None = None
+    start_time: str | None = None
+    end_time: str | None = None
+    duration_minutes: int | None = Field(default=None, ge=0)
+    subject: str | None = Field(default=None, min_length=2, max_length=220)
+    notes: str | None = None
+    status: VisitStatus | None = None
+
+
 class VisitResponse(BaseModel):
     id: int
     osgb_id: int

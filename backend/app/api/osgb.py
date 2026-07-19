@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from app.api.company_access import find_professional_for_user
+from app.api.company_access import find_professional_for_user, link_user_to_professional
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
@@ -74,6 +74,17 @@ def osgb_oversight_seed_demo(
     return {"seeded": seeded, "oversight_summary": overview.get("summary"), "gap_count": overview.get("gap_count")}
 
 
+@router.post("/sync-field-roles")
+def sync_field_roles(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    """Aktif görevlendirmedeki hekim/uzman/DSP kullanıcı rollerini toplu eşle."""
+    from app.api.company_access import sync_all_assigned_field_roles
+    _ = user
+    return {"ok": True, **sync_all_assigned_field_roles(db)}
+
+
 @router.get("/csgb-audit-pack")
 def csgb_audit_pack(
     osgb_id: int | None = None,
@@ -122,7 +133,11 @@ def list_professionals(osgb_id: int | None = None, db: Session = Depends(get_db)
 def create_professional(payload: ProfessionalCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
     _scope_osgb(user, payload.osgb_id)
     obj = IsgProfessional(**payload.model_dump())
-    db.add(obj); db.commit(); db.refresh(obj)
+    db.add(obj)
+    db.flush()
+    link_user_to_professional(db, obj)
+    db.commit()
+    db.refresh(obj)
     return obj
 
 
@@ -144,6 +159,7 @@ def activate_professional(professional_id: int, db: Session = Depends(get_db), u
         raise HTTPException(404, "Profesyonel bulunamadı.")
     _scope_osgb(user, obj.osgb_id)
     obj.is_active = True
+    link_user_to_professional(db, obj)
     db.commit()
     return {"ok": True, "id": professional_id, "is_active": True, "message": "Profesyonel aktifleştirildi."}
 
@@ -161,6 +177,7 @@ def update_professional(
     _scope_osgb(user, obj.osgb_id)
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
+    link_user_to_professional(db, obj)
     db.commit()
     db.refresh(obj)
     return obj
@@ -276,6 +293,7 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
         payload = payload.model_copy(update={"professional_type": professional.professional_type})
     obj = WorkplaceAssignment(**payload.model_dump())
     db.add(obj)
+    link_user_to_professional(db, professional)
     try:
         db.commit()
     except IntegrityError:
@@ -284,6 +302,11 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
             409,
             "Bu profesyonel bu işyerine aynı görev türüyle zaten atanmış. Mevcut kaydı kontrol edin.",
         ) from None
+    try:
+        from app.api.company_access import sync_all_assigned_field_roles
+        sync_all_assigned_field_roles(db)
+    except Exception:
+        pass
     db.refresh(obj)
     return obj
 

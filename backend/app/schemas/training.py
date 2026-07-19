@@ -1,6 +1,12 @@
 from datetime import date, datetime
+from math import ceil
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.models.entities import TrainingStatus
+
+# Bir takvim gününde makul üst ders saati (1 günde 16 saat olmaz)
+MAX_TRAINING_HOURS_PER_DAY = 8
+HAZARD_HOURS = {"Az Tehlikeli": 8, "Tehlikeli": 12, "Çok Tehlikeli": 16}
 
 
 class TrainingCreate(BaseModel):
@@ -11,7 +17,7 @@ class TrainingCreate(BaseModel):
     delivery_method: str = Field(default="Yüz yüze", max_length=40)
     location: str | None = Field(default=None, max_length=220)
     start_date: date
-    end_date: date | None = None
+    end_date: date
     hazard_class: str
     sector: str | None = Field(default=None, max_length=120)
     instructor_name: str = Field(min_length=3, max_length=160)
@@ -28,8 +34,17 @@ class TrainingCreate(BaseModel):
 
     @model_validator(mode="after")
     def dates_valid(self):
-        if self.end_date and self.end_date < self.start_date:
+        if self.end_date < self.start_date:
             raise ValueError("Bitiş tarihi başlangıç tarihinden önce olamaz.")
+        hours = HAZARD_HOURS.get(self.hazard_class, 8)
+        calendar_days = (self.end_date - self.start_date).days + 1
+        min_days = max(1, ceil(hours / MAX_TRAINING_HOURS_PER_DAY))
+        if calendar_days < min_days:
+            raise ValueError(
+                f"{hours} saatlik eğitim en az {min_days} güne yayılmalıdır "
+                f"(günde en fazla {MAX_TRAINING_HOURS_PER_DAY} ders saati). "
+                f"Başlangıç–bitiş aralığını genişletin."
+            )
         if not self.participant_ids:
             raise ValueError(
                 "En az bir katılımcı seçmelisiniz (Excel veya personel listesi). Belge/imza formu için zorunludur."
@@ -96,6 +111,7 @@ class TrainingVerifyResponse(BaseModel):
     title: str | None = None
     company_name: str | None = None
     start_date: date | None = None
+    end_date: date | None = None
     hazard_class: str | None = None
     duration_hours: int | None = None
     instructor_name: str | None = None

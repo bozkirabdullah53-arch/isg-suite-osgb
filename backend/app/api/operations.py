@@ -14,7 +14,7 @@ from app.models.entities import (AssignmentStatus, Company, CrmLead, FinanceTran
                                  OsgbOrganization, ServiceContract, ServiceVisit, User,
                                  UserRole, VisitStatus, WorkplaceAssignment)
 from app.schemas.operations import (FinanceCreate, FinanceResponse, LeadCreate, LeadResponse,
-                                    VisitCreate, VisitResponse)
+                                    VisitCreate, VisitResponse, VisitUpdate)
 
 router = APIRouter(prefix="/operations", tags=["OSGB Operasyonları"])
 ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
@@ -263,6 +263,57 @@ def create_visit(payload: VisitCreate, db: Session = Depends(get_db), user: User
     return obj
 
 
+def _delete_notebook_file(obj: ServiceVisit) -> None:
+    if not obj.notebook_storage_path:
+        return
+    path = (_upload_root() / obj.notebook_storage_path).resolve()
+    if _upload_root() in path.parents and path.exists():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
+@router.patch("/visits/{visit_id}", response_model=VisitResponse)
+def update_visit(
+    visit_id: int,
+    payload: VisitUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*FIELD_VISIT_ROLES, UserRole.GLOBAL_ADMIN)),
+):
+    obj = _get_visit(db, visit_id, user)
+    data = payload.model_dump(exclude_unset=True)
+    if "company_id" in data and data["company_id"] is not None:
+        company = db.get(Company, data["company_id"])
+        if not company or not company.osgb_id:
+            raise HTTPException(400, "İşyeri bir OSGB'ye bağlı değil.")
+        ensure_company_access(db, user, data["company_id"])
+        # Saha personeli yalnız kendi görevli olduğu işyerine taşıyabilir
+        if user.role in _FIELD_ROLES:
+            ensure_company_access(db, user, data["company_id"])
+        obj.company_id = data["company_id"]
+        obj.osgb_id = company.osgb_id
+        data.pop("company_id", None)
+    for key, value in data.items():
+        setattr(obj, key, value)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.delete("/visits/{visit_id}")
+def delete_visit(
+    visit_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*FIELD_VISIT_ROLES, UserRole.GLOBAL_ADMIN)),
+):
+    obj = _get_visit(db, visit_id, user)
+    _delete_notebook_file(obj)
+    db.delete(obj)
+    db.commit()
+    return {"ok": True, "id": visit_id}
+
+
 @router.post("/visits/{visit_id}/notebook", response_model=VisitResponse)
 async def upload_visit_notebook(
     visit_id: int,
@@ -281,12 +332,7 @@ async def upload_visit_notebook(
     if len(data) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(413, f"Dosya {settings.max_upload_mb} MB sınırını aşıyor.")
     if obj.notebook_storage_path:
-        old = (_upload_root() / obj.notebook_storage_path).resolve()
-        if _upload_root() in old.parents and old.exists():
-            try:
-                old.unlink()
-            except OSError:
-                pass
+        _delete_notebook_file(obj)
     rel = f"{obj.osgb_id}/visits/{obj.id}_{uuid4().hex[:10]}{ext}"
     target = _upload_root() / rel
     target.parent.mkdir(parents=True, exist_ok=True)

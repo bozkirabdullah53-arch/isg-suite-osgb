@@ -152,8 +152,13 @@ async def lifespan(_:FastAPI):
                 seed_hazard_library(db)
         except Exception:
             pass
+        try:
+            from app.api.company_access import sync_all_assigned_field_roles
+            sync_all_assigned_field_roles(db)
+        except Exception:
+            pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.35',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.39',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 _cors_origins=list(dict.fromkeys([
@@ -172,14 +177,16 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.35',
+        'version': '0.9.39',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'pro-planlama',
         'health': 'pro-saglik',
-        'osgb_oversight': '6331-visits-notebook',
+        'osgb_oversight': '6331-eval-error-detail',
         'assignment_form': 'katip-contract-upload',
         'visit_notebook': 'tespit-oneri-defteri',
+        'visit_crud': 'field-edit-delete',
         'visit_access': 'field-own-visits-list',
+        'role_sync': 'assignment-bulk-field-menus',
         'training_excel': 'resilient-import',
         'access_boundary': 'global-reports-field-isolation',
         'users_admin': 'suspend-delete',

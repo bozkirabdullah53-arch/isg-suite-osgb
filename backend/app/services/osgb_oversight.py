@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from typing import Any
+import logging
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -38,6 +39,8 @@ from app.models.entities import (
     VisitStatus,
     WorkplaceAssignment,
 )
+
+logger = logging.getLogger(__name__)
 
 # 6331 / İSG Hizmetleri Yön. — uzman sorumlulukları (firma göstergeleri)
 SPECIALIST_CHECKS = [
@@ -145,23 +148,36 @@ def _check_result(code: str, title: str, legal: str, weight: int, passed: bool, 
 def _list_firm_visits(
     db: Session, professional_id: int, company_id: int, start: date, end: date
 ) -> list[ServiceVisit]:
-    return list(
-        db.scalars(
-            select(ServiceVisit)
-            .where(
-                ServiceVisit.professional_id == professional_id,
-                ServiceVisit.company_id == company_id,
-                ServiceVisit.visit_date >= start,
-                ServiceVisit.visit_date <= end,
-            )
-            .order_by(ServiceVisit.visit_date.desc(), ServiceVisit.id.desc())
-        ).all()
-    )
+    try:
+        return list(
+            db.scalars(
+                select(ServiceVisit)
+                .where(
+                    ServiceVisit.professional_id == professional_id,
+                    ServiceVisit.company_id == company_id,
+                    ServiceVisit.visit_date >= start,
+                    ServiceVisit.visit_date <= end,
+                )
+                .order_by(ServiceVisit.visit_date.desc(), ServiceVisit.id.desc())
+            ).all()
+        )
+    except Exception:
+        logger.exception(
+            "Visit list failed professional=%s company=%s; retrying after rollback",
+            professional_id,
+            company_id,
+        )
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return []
 
 
 def _visit_payload(rows: list[ServiceVisit]) -> list[dict]:
     out = []
     for v in rows:
+        notebook_path = getattr(v, "notebook_storage_path", None)
         out.append(
             {
                 "id": v.id,
@@ -172,9 +188,9 @@ def _visit_payload(rows: list[ServiceVisit]) -> list[dict]:
                 "subject": v.subject,
                 "notes": v.notes,
                 "status": v.status.value if hasattr(v.status, "value") else str(v.status),
-                "notebook_file_name": v.notebook_file_name,
-                "has_notebook": bool(v.notebook_storage_path),
-                "notebook_url": f"/operations/visits/{v.id}/notebook" if v.notebook_storage_path else None,
+                "notebook_file_name": getattr(v, "notebook_file_name", None),
+                "has_notebook": bool(notebook_path),
+                "notebook_url": f"/operations/visits/{v.id}/notebook" if notebook_path else None,
             }
         )
     return out
@@ -183,11 +199,12 @@ def _visit_payload(rows: list[ServiceVisit]) -> list[dict]:
 def _visit_minutes(db: Session, professional_id: int, company_id: int, start: date, end: date) -> tuple[int, int, list[dict]]:
     """Tamamlanan veya tespit defteri yüklenmiş ziyaretler süreye sayılır."""
     rows = _list_firm_visits(db, professional_id, company_id, start, end)
-    counted = [
-        v
-        for v in rows
-        if v.status == VisitStatus.COMPLETED or bool(v.notebook_storage_path)
-    ]
+    counted = []
+    for v in rows:
+        st = v.status.value if hasattr(v.status, "value") else str(v.status)
+        has_nb = bool(getattr(v, "notebook_storage_path", None))
+        if st == VisitStatus.COMPLETED.value or st == "COMPLETED" or has_nb:
+            counted.append(v)
     minutes = sum(int(v.duration_minutes or 0) for v in counted)
     return minutes, len(counted), _visit_payload(rows)
 
@@ -237,17 +254,26 @@ def _eval_specialist_firm(
     ) or 0
     dof_ok = overdue_dof == 0
 
-    plan_items = list(
-        db.scalars(
-            select(AnnualPlanItem).where(
-                AnnualPlanItem.company_id == cid,
-                AnnualPlanItem.year == year,
-                AnnualPlanItem.deleted_at.is_(None),
-            )
-        ).all()
-    )
-    delayed_plans = sum(1 for p in plan_items if p.status == AnnualPlanStatus.DELAYED)
-    plan_ok = len(plan_items) > 0 and delayed_plans == 0
+    plan_count = db.scalar(
+        select(func.count())
+        .select_from(AnnualPlanItem)
+        .where(
+            AnnualPlanItem.company_id == cid,
+            AnnualPlanItem.year == year,
+            AnnualPlanItem.deleted_at.is_(None),
+        )
+    ) or 0
+    delayed_plans = db.scalar(
+        select(func.count())
+        .select_from(AnnualPlanItem)
+        .where(
+            AnnualPlanItem.company_id == cid,
+            AnnualPlanItem.year == year,
+            AnnualPlanItem.deleted_at.is_(None),
+            AnnualPlanItem.status == AnnualPlanStatus.DELAYED,
+        )
+    ) or 0
+    plan_ok = plan_count > 0 and delayed_plans == 0
 
     trainings = db.scalar(
         select(func.count())
@@ -309,8 +335,8 @@ def _eval_specialist_firm(
             "İSG Hizmetleri Yön. — yıllık çalışma planı",
             2,
             plan_ok,
-            f"{year} yılı: {len(plan_items)} madde, geciken {delayed_plans}",
-            {"plan_items": len(plan_items), "delayed": delayed_plans},
+            f"{year} yılı: {plan_count} madde, geciken {delayed_plans}",
+            {"plan_items": plan_count, "delayed": delayed_plans},
         ),
         _check_result(
             "egitim",
@@ -492,11 +518,20 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                     checks, visits = _eval_specialist_firm(db, company, a, month_start, month_end, year)
                 else:
                     checks, visits = _eval_physician_firm(db, company, a, month_start, month_end)
-            except Exception:
+            except Exception as exc:
+                logger.exception(
+                    "Oversight eval failed pro=%s company=%s assignment=%s",
+                    pro.id,
+                    company.id,
+                    a.id,
+                )
                 try:
                     db.rollback()
                 except Exception:
                     pass
+                err = str(exc).strip() or exc.__class__.__name__
+                if len(err) > 220:
+                    err = err[:217] + "…"
                 checks = [
                     _check_result(
                         "sistem",
@@ -504,7 +539,7 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                         "Sistem",
                         1,
                         False,
-                        "Bu işyeri için kontrol hesaplanamadı. Sağlık/saha verilerini kontrol edin veya Yenile’ye basın.",
+                        f"{company.name} için kontrol hesaplanamadı ({err}). Yenile’ye basın; sürerse yöneticiye bildirin.",
                     )
                 ]
                 visits = []

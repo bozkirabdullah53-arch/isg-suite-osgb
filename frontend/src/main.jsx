@@ -27,15 +27,39 @@ function Companies({canEdit}){const[data,setData]=useState([]),[open,setOpen]=us
 function Branches({user}){const[companies,setCompanies]=useState([]),[data,setData]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState({company_id:user.company_id||'',name:'',sgk_registry_no:'',city:'',address:''});const load=()=>Promise.all([api('/companies'),api('/branches')]).then(([c,b])=>{setCompanies(c);setData(b)});useEffect(()=>{void load()},[]);async function save(e){e.preventDefault();await api('/branches',{method:'POST',body:JSON.stringify({...form,company_id:Number(form.company_id)})});setOpen(false);load()}return <Page title="Şube Yönetimi" action={<button onClick={()=>setOpen(true)}><Plus/>Şube Ekle</button>}><Table cols={[{key:'name',label:'Şube'},{key:'company_id',label:'Firma',render:r=>companies.find(c=>c.id===r.company_id)?.name||r.company_id},{key:'city',label:'Şehir'},{key:'sgk_registry_no',label:'SGK Sicil No'},{key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>}]} rows={data}/>{open&&<Modal title="Yeni Şube" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Field label="Şube Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/><Field label="Şehir" value={form.city} onChange={e=>setForm({...form,city:e.target.value})}/><Field label="SGK Sicil No" value={form.sgk_registry_no} onChange={e=>setForm({...form,sgk_registry_no:e.target.value})}/><Field label="Adres" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/><Submit/></form></Modal>}</Page>}
 function UserPage({user}){
   const[companies,setCompanies]=useState([]),[data,setData]=useState([]),[open,setOpen]=useState(false),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
-  const[form,setForm]=useState({email:'',full_name:'',password:'',role:'read_only',company_id:user.company_id||''});
+  const[form,setForm]=useState({email:'',full_name:'',password:'',role:'workplace_physician',company_id:user.company_id||''});
   const load=()=>Promise.all([api('/companies'),api('/users')]).then(([c,u])=>{setCompanies(c);setData(u)}).catch(e=>setErr(e.message));
   useEffect(()=>{load()},[]);
   async function save(e){
     e.preventDefault();setErr('');setBusy(true);
     try{
-      await api('/users',{method:'POST',body:JSON.stringify({...form,company_id:form.role==='global_admin'?null:Number(form.company_id)})});
+      const field=['safety_specialist','workplace_physician','other_health_personnel'].includes(form.role);
+      await api('/users',{method:'POST',body:JSON.stringify({
+        ...form,
+        company_id:form.role==='global_admin'?null:(form.company_id?Number(form.company_id):null),
+      })});
       setOpen(false);
-      setForm({email:'',full_name:'',password:'',role:'read_only',company_id:user.company_id||''});
+      setForm({email:'',full_name:'',password:'',role:'workplace_physician',company_id:user.company_id||''});
+      await load();
+      if(field){
+        try{await api('/osgb/sync-field-roles',{method:'POST'})}catch(_){/* ignore */}
+      }
+    }catch(ex){setErr(ex.message)}
+    finally{setBusy(false)}
+  }
+  async function setRole(row,role){
+    if(row.id===user.id) return alert('Kendi rolünüzü buradan değiştiremezsiniz.');
+    setErr('');
+    try{
+      await api(`/users/${row.id}`,{method:'PUT',body:JSON.stringify({role})});
+      await load();
+    }catch(ex){setErr(ex.message)}
+  }
+  async function syncRoles(){
+    setErr('');setBusy(true);
+    try{
+      const r=await api('/osgb/sync-field-roles',{method:'POST'});
+      alert(`Rol eşlemesi: ${r.users_linked||0} kullanıcı güncellendi (${r.professionals||0} profesyonel).`);
       await load();
     }catch(ex){setErr(ex.message)}
     finally{setBusy(false)}
@@ -62,7 +86,17 @@ function UserPage({user}){
   const cols=[
     {key:'full_name',label:'Ad Soyad'},
     {key:'email',label:'E-posta'},
-    {key:'role',label:'Rol',render:r=>roles[r.role]||r.role},
+    {key:'role',label:'Rol',render:r=>(
+      <select
+        value={r.role}
+        disabled={r.id===user.id}
+        onChange={e=>setRole(r,e.target.value)}
+        style={{maxWidth:180}}
+        title="Rol değiştir"
+      >
+        {Object.entries(roles).filter(([k])=>user.role==='global_admin'||k!=='global_admin').map(([k,v])=><option key={k} value={k}>{v}</option>)}
+      </select>
+    )},
     {key:'company_id',label:'Firma',render:r=>companies.find(c=>c.id===r.company_id)?.name||'Sistem Geneli'},
     {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
     {key:'action',label:'İşlem',render:r=>(
@@ -74,7 +108,8 @@ function UserPage({user}){
       </div>
     )},
   ];
-  return <Page title="Kullanıcı ve Yetki Yönetimi" action={<button onClick={()=>{setErr('');setOpen(true)}}><Plus/>Kullanıcı Ekle</button>}>
+  return <Page title="Kullanıcı ve Yetki Yönetimi" action={<div className="actions"><button type="button" className="secondary" disabled={busy} onClick={syncRoles}>Hekim/Uzman Rollerini Eşle</button><button onClick={()=>{setErr('');setOpen(true)}}><Plus/>Kullanıcı Ekle</button></div>}>
+    <p style={{marginTop:0,color:'#475569',fontSize:14}}>Hekim / uzman / DSP için kullanıcı rolü <strong>İşyeri Hekimi</strong> / <strong>İSG Uzmanı</strong> / <strong>DSP</strong> olmalı. Görevlendirme sonrası e-posta veya ad eşleşirse otomatik düzelir; gerekirse aşağıdaki eşle butonunu kullanın.</p>
     {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
     <Table cols={cols} rows={data}/>
     {open&&<Modal title="Yeni Kullanıcı" close={()=>setOpen(false)}>
@@ -85,8 +120,8 @@ function UserPage({user}){
         <Select label="Rol" value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>
           {Object.entries(roles).filter(([k])=>user.role==='global_admin'||k!=='global_admin').map(([k,v])=><option key={k} value={k}>{v}</option>)}
         </Select>
-        {form.role!=='global_admin'&&<Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}>
-          <option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+        {form.role!=='global_admin'&&<Select label="Firma" value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})} required={!['safety_specialist','workplace_physician','other_health_personnel'].includes(form.role)}>
+          <option value="">Seçiniz / OSGB saha (opsiyonel)</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>}
         {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
         <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>

@@ -18,8 +18,11 @@ def list_users(db:Session=Depends(get_db),current:User=Depends(require_roles(Use
 def create_user(payload:UserCreate,db:Session=Depends(get_db),current:User=Depends(require_roles(UserRole.GLOBAL_ADMIN,UserRole.COMPANY_ADMIN))):
     if db.scalar(select(User).where(User.email==payload.email)): raise HTTPException(409,"Bu e-posta kullanılıyor.")
     if current.role!=UserRole.GLOBAL_ADMIN:
-        if payload.company_id!=current.company_id or payload.role==UserRole.GLOBAL_ADMIN: raise HTTPException(403,"Bu kullanıcıyı oluşturamazsınız.")
-    if payload.role!=UserRole.GLOBAL_ADMIN and not payload.company_id: raise HTTPException(422,"Firma seçilmelidir.")
+        if payload.role==UserRole.GLOBAL_ADMIN: raise HTTPException(403,"Bu kullanıcıyı oluşturamazsınız.")
+        if payload.company_id and payload.company_id!=current.company_id: raise HTTPException(403,"Bu kullanıcıyı oluşturamazsınız.")
+    field_roles={UserRole.SAFETY_SPECIALIST,UserRole.WORKPLACE_PHYSICIAN,UserRole.OTHER_HEALTH_PERSONNEL}
+    if payload.role!=UserRole.GLOBAL_ADMIN and not payload.company_id and payload.role not in field_roles:
+        raise HTTPException(422,"Firma seçilmelidir.")
     obj=User(email=payload.email,full_name=payload.full_name,hashed_password=get_password_hash(payload.password),role=payload.role,company_id=payload.company_id)
     db.add(obj);db.commit();db.refresh(obj);return obj
 

@@ -2,12 +2,32 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Download, Plus, Search, ShieldCheck, Upload, Users, X} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 
+const HAZARD_HOURS = {'Az Tehlikeli': 8, Tehlikeli: 12, 'Çok Tehlikeli': 16};
+const MAX_HOURS_PER_DAY = 8;
 const HAZARD_HINT = {
-  'Az Tehlikeli': '8 ders saati · 3 yılda bir yenilenir',
-  'Tehlikeli': '12 ders saati · 2 yılda bir yenilenir',
-  'Çok Tehlikeli': '16 ders saati · her yıl yenilenir',
+  'Az Tehlikeli': '8 ders saati · en az 1 gün · 3 yılda bir yenilenir',
+  Tehlikeli: '12 ders saati · en az 2 güne yayılır · 2 yılda bir yenilenir',
+  'Çok Tehlikeli': '16 ders saati · en az 2 güne yayılır (1 günde 16 saat olmaz) · her yıl yenilenir',
 };
 const STATUS = {planned: 'Planlandı', completed: 'Tamamlandı', cancelled: 'İptal'};
+
+function minTrainingDays(hazardClass) {
+  const hours = HAZARD_HOURS[hazardClass] || 8;
+  return Math.max(1, Math.ceil(hours / MAX_HOURS_PER_DAY));
+}
+
+function formatTrainingDates(row) {
+  if (!row?.start_date) return '—';
+  if (!row.end_date || row.end_date === row.start_date) return row.start_date;
+  return `${row.start_date} – ${row.end_date}`;
+}
+
+function calendarDaysInclusive(start, end) {
+  if (!start || !end) return 0;
+  const a = new Date(`${start}T00:00:00`);
+  const b = new Date(`${end}T00:00:00`);
+  return Math.floor((b - a) / 86400000) + 1;
+}
 
 function Modal({title, close, children, wide}) {
   return (
@@ -81,6 +101,7 @@ export function TrainingPage({user}) {
     delivery_method: 'Yüz yüze',
     location: '',
     start_date: '',
+    end_date: '',
     hazard_class: 'Çok Tehlikeli',
     sector: 'genel_uretim',
     instructor_name: '',
@@ -198,6 +219,23 @@ export function TrainingPage({user}) {
       setErr('Katılımcı seçin: Excel yükleyin (.xlsx) veya ortak personel listesinden seçin.');
       return;
     }
+    if (!form.start_date || !form.end_date) {
+      setErr('Eğitim başlangıç ve bitiş tarihlerini girin (tarih aralığı zorunlu).');
+      return;
+    }
+    if (form.end_date < form.start_date) {
+      setErr('Bitiş tarihi başlangıç tarihinden önce olamaz.');
+      return;
+    }
+    const needed = minTrainingDays(form.hazard_class);
+    const span = calendarDaysInclusive(form.start_date, form.end_date);
+    if (span < needed) {
+      const hours = HAZARD_HOURS[form.hazard_class] || 8;
+      setErr(
+        `${hours} saatlik eğitim en az ${needed} güne yayılmalıdır (günde en fazla ${MAX_HOURS_PER_DAY} ders saati). Başlangıç–bitiş aralığını genişletin.`,
+      );
+      return;
+    }
     setBusy(true);
     try {
       await api('/trainings', {
@@ -209,6 +247,7 @@ export function TrainingPage({user}) {
           delivery_method: form.delivery_method,
           location: form.location || null,
           start_date: form.start_date,
+          end_date: form.end_date,
           hazard_class: form.hazard_class,
           sector: form.sector || 'genel_uretim',
           instructor_name: form.instructor_name.trim(),
@@ -473,7 +512,7 @@ export function TrainingPage({user}) {
   const cols = [
     {key: 'title', label: 'Eğitim'},
     {key: 'company_id', label: 'Firma', render: (r) => companyName(r.company_id)},
-    {key: 'start_date', label: 'Tarih'},
+    {key: 'start_date', label: 'Tarih Aralığı', render: (r) => formatTrainingDates(r)},
     {key: 'hazard_class', label: 'Tehlike'},
     {key: 'duration_hours', label: 'Saat'},
     {key: 'instructor_name', label: 'Eğitici'},
@@ -528,7 +567,7 @@ export function TrainingPage({user}) {
           <div style={{display: 'grid', gap: 14}}>
             <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, fontSize: 14}}>
               <div><span style={{color: '#64748b'}}>Firma</span><div><strong>{companyName(detail.company_id)}</strong></div></div>
-              <div><span style={{color: '#64748b'}}>Tarih</span><div><strong>{detail.start_date}</strong></div></div>
+              <div><span style={{color: '#64748b'}}>Tarih Aralığı</span><div><strong>{formatTrainingDates(detail)}</strong></div></div>
               <div><span style={{color: '#64748b'}}>Tehlike / Süre</span><div><strong>{detail.hazard_class} · {detail.duration_hours} saat</strong></div></div>
               <div><span style={{color: '#64748b'}}>Eğitici</span><div><strong>{detail.instructor_name}</strong></div></div>
               <div><span style={{color: '#64748b'}}>Sektör</span><div><strong>{sectorLabel(sectors, detail.sector)}</strong></div></div>
@@ -628,7 +667,7 @@ export function TrainingPage({user}) {
                       <>
                         <div style={{color: '#087b67', fontWeight: 600}}>✓ {verifyPreview.message}</div>
                         <div>{verifyPreview.company_name} · {verifyPreview.title}</div>
-                        <div>{verifyPreview.participant_count} katılımcı · {verifyPreview.start_date}</div>
+                        <div>{verifyPreview.participant_count} katılımcı · {formatTrainingDates(verifyPreview)}</div>
                       </>
                     ) : (
                       <div className="error">{verifyPreview.message || 'Doğrulanamadı'}</div>
@@ -777,7 +816,21 @@ export function TrainingPage({user}) {
               <option>Yüz yüze</option>
               <option>Uzaktan</option>
             </Select>
-            <Field label="Eğitim Tarihi" type="date" required value={form.start_date} onChange={(e) => setForm({...form, start_date: e.target.value})} />
+            <Field
+              label="Başlangıç Tarihi"
+              type="date"
+              required
+              value={form.start_date}
+              onChange={(e) => setForm({...form, start_date: e.target.value})}
+            />
+            <Field
+              label="Bitiş Tarihi"
+              type="date"
+              required
+              min={form.start_date || undefined}
+              value={form.end_date}
+              onChange={(e) => setForm({...form, end_date: e.target.value})}
+            />
             <Field label="Eğitim Yeri" value={form.location} onChange={(e) => setForm({...form, location: e.target.value})} />
             <Select label="Tehlike Sınıfı" value={form.hazard_class} onChange={(e) => setForm({...form, hazard_class: e.target.value})}>
               <option>Az Tehlikeli</option>
@@ -788,6 +841,10 @@ export function TrainingPage({user}) {
               <span>Süre / Yenileme (otomatik)</span>
               <input readOnly value={HAZARD_HINT[form.hazard_class] || ''} />
             </label>
+            <div style={{gridColumn: '1 / -1', fontSize: 13, color: '#9a3412', background: '#fff7ed', padding: '10px 12px', borderRadius: 8}}>
+              Eğitim tarihleri aralık olarak girilir (başlangıç–bitiş). Günde en fazla {MAX_HOURS_PER_DAY} ders saati;
+              {` ${HAZARD_HOURS[form.hazard_class] || 8} saatlik eğitim en az ${minTrainingDays(form.hazard_class)} takvim gününe yayılmalıdır.`}
+            </div>
             <Select
               label={`Sektör / İş Kolu — A→Z (${filteredSectors.length} sektör, belge konuları)`}
               value={form.sector}
@@ -969,7 +1026,7 @@ export function TrainingVerifyPage({code, onClose}) {
               <ul style={{margin: '12px 0 0', paddingLeft: 18, fontSize: 14, lineHeight: 1.6}}>
                 <li><strong>Firma:</strong> {data.company_name}</li>
                 <li><strong>Eğitim:</strong> {data.title}</li>
-                <li><strong>Tarih:</strong> {data.start_date} · {data.duration_hours} saat · {data.hazard_class}</li>
+                <li><strong>Tarih:</strong> {formatTrainingDates(data)} · {data.duration_hours} saat · {data.hazard_class}</li>
                 <li><strong>Eğitici:</strong> {data.instructor_name}</li>
                 {data.workplace_physician && <li><strong>İşyeri Hekimi:</strong> {data.workplace_physician}</li>}
                 {data.employer_representative && <li><strong>İşveren:</strong> {data.employer_representative}</li>}

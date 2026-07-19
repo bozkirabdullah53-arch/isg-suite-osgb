@@ -142,6 +142,15 @@ def _fmt_date(d) -> str:
     return s
 
 
+def _fmt_date_range(training) -> str:
+    start = _fmt_date(getattr(training, "start_date", None))
+    end_raw = getattr(training, "end_date", None)
+    end = _fmt_date(end_raw) if end_raw else start
+    if not end_raw or start == end:
+        return start
+    return f"{start} – {end}"
+
+
 def _resolve_logo(training) -> Path | None:
     rel = getattr(training, "logo_path", None) or ""
     if not rel:
@@ -272,7 +281,7 @@ def _draw_attendance_page(
     info = [
         ("Firma", company_name),
         ("Eğitimin Adı", training.title),
-        ("Eğitim Tarihi", _fmt_date(training.start_date)),
+        ("Eğitim Tarihi", _fmt_date_range(training)),
         ("Eğitim Süresi", kural["sure"]),
         ("Yenileme Periyodu", kural["yenileme"]),
         ("Tehlike Sınıfı", training.hazard_class),
@@ -444,11 +453,7 @@ def build_certificates_pdf(*, company_name: str, training, employees: dict) -> b
     w, h = page
     bugun = datetime.now().strftime("%d.%m.%Y")
     bugun_kod = datetime.now().strftime("%d%m%Y")
-    egitim_tarihi = _fmt_date(training.start_date)
-    if getattr(training, "end_date", None):
-        end = _fmt_date(training.end_date)
-        if end and end != egitim_tarihi:
-            egitim_tarihi = f"{egitim_tarihi} - {end}"
+    egitim_tarihi = _fmt_date_range(training)
     kural = tehlike_kurali(training.hazard_class)
     sektor = sektor_kodu_cozumle(training.sector)
     sol, sag, _, _ = egitim_konularini_hazirla(training.hazard_class, sektor)
