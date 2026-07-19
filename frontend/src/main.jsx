@@ -19,7 +19,7 @@ const roleModules={
     'professionals','assignments',
     'companies','branches',
     'crm','finance',
-    'reports','csgb_audit',
+    'csgb_audit',
     'notifications','users','subscription','security',
   ],
   company_admin:[
