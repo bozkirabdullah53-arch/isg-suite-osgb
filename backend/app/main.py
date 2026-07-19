@@ -148,7 +148,7 @@ def health():
         'professionals_admin': 'tabs-suspend-delete',
         'training_osgb_access': 'assignment-scoped',
         'duty_board': 'uzman-hekim-dsp-alerts',
-        'osgb_menu': 'oversight-only-no-field-ops',
+        'osgb_menu': 'global-track-pros-only',
         'nav_hardening': 'allowlist-boundary-mobile',
         'field_access': 'assignment-scoped-v2',
         'git': os.environ.get('RENDER_GIT_COMMIT') or os.environ.get('GIT_COMMIT') or 'local',
