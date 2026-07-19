@@ -1,6 +1,6 @@
 # İSG Suite OSGB — Çalışma Kaydı (Proje bitene kadar)
 
-**Son güncelleme:** 2026-07-19  
+**Son güncelleme:** 2026-07-19 11:15 (master force-push sonrası)  
 **Amaç:** PC yeniden başlatma / oturum kesintisi sonrası kaldığımız yerden devam.  
 **Kural:** Bir bölüm (modül) Suite’te **tam ve hatasız** çalışmadan sonraki moda geçilmez. Sırayı kullanıcı söyler.
 
@@ -21,7 +21,7 @@
 | Canlı API | `https://isg-suite-api-1u9t.onrender.com` |
 | Render servisleri | `isg-suite-api-1u9t`, `isg-suite-web-1u9t` |
 
-**Önemli:** Default git branch `master` ile `feature/training-ui-cors` **ayrışmış** (unrelated/diverged). Yeni Eğitim PDF + KKD + risk medya kodu **feature** dalında. `master`’a merge push non-fast-forward reddedildi. Canlı muhtemel yanlış/eski branch veya cache’li deploy.
+**Önemli (2026-07-19 11:15):** `origin/master` artık **force-push** ile `feature/training-ui-cors` ile aynı commit’te (`5846c2b`). GitHub tarafı güncel. Canlı OpenAPI hâlâ **eski** → Render otomatik almamış / cache / auto-deploy kapalı. **Clear build cache & Deploy şart.**
 
 ---
 
@@ -69,29 +69,29 @@
 | `a310aef` | Boş commit (redeploy tetik) |
 | `1333ae6` | PRO prompt + belge no + layout-info |
 | `ff53710` | Doğrulama URL / sidebar fix |
+| `5846c2b` | Proje çalışma kaydı |
+| *(aynı SHA master’a force-push)* | Canlı branch uyumu için |
 
 ---
 
 ## 4) AÇIK SORUNLAR (kritik — kullanıcı “hatalar devam ediyor”)
 
-### P0 — Canlı API / Web eski sürümde
-**Belirti:**
-- İmza PDF: eski `EGITIM KATILIM VE IMZA LISTESI` + bozuk Türkçe (siyah kutu)
-- Katılım belgesi: `certificates.pdf yok` / 404
-- Doğrulama API / layout-info canlıda yok veya 405
-- OpenAPI’de yok: `certificates.pdf`, `verify/{code}`, `parse-excel`, `meta`, `layout-info`
-- OpenAPI’de var (eski): `attendance.pdf`, `sectors`, `expiring`, `overdue`
+### P0 — Canlı API / Web eski sürümde (HÂLÂ — 11:15 ölçüm)
+**Belirti (canlı OpenAPI):**
+- Var: `attendance.pdf`, `sectors`, `expiring`, `overdue`
+- Yok: `certificates.pdf`, `verify`, `layout-info`, `meta`, `parse-excel`
+- İmza PDF hâlâ eski “EGITIM KATILIM…” (Helvetica / bozuk Türkçe)
+- Katılım belgesi 404
 
-**Kök neden:** Render deploy gelmiyor veya yanlış branch / build cache. Kod GitHub `feature/training-ui-cors`’ta güncel.
+**Yapılan:** GitHub `master` = `feature` = `5846c2b` (force-push).  
+**Eksik:** Render panelinden deploy tetiklenmedi / cache temizlenmedi.
 
-**Zorunlu işlem (kullanıcı / Render):**
-1. `isg-suite-api-1u9t` → Settings → Branch = **`feature/training-ui-cors`**
-2. Manual Deploy → **Clear build cache & deploy**
-3. `isg-suite-web-1u9t` → aynı
-4. Kontrol:  
-   `https://isg-suite-api-1u9t.onrender.com/api/v1/trainings/layout-info`  
-   → `{"pdf_layout":"pro-2026",...}` olmalı  
-5. Sonra Eğitim: İmza PDF başlığı **KATILIMCI İMZA FORMU** olmalı; `certificates.pdf` inmeli
+**Zorunlu (kullanıcı — ben Render’a giremiyorum):**
+1. https://dashboard.render.com → giriş
+2. `isg-suite-api-1u9t` → Branch `master` **veya** `feature/training-ui-cors` (ikiside aynı SHA)
+3. **Manual Deploy → Clear build cache & deploy**
+4. `isg-suite-web-1u9t` → aynı
+5. Kontrol: `/api/v1/trainings/layout-info` → `pdf_layout: pro-2026`
 
 ### P1 — Eğitim (kodda kalan / deploy sonrası doğrulanacak)
 - [ ] Canlı smoke: imza PDF + katılım belgesi + verify
