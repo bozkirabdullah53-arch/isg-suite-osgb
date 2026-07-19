@@ -35,14 +35,25 @@ def _map_headers(headers: list[str]) -> dict[int, str]:
     mapping = {}
     for idx, col in enumerate(headers):
         n = _norm(col)
-        if n in ("adsoyad", "adisoyadi", "isim", "ad", "name", "namesurname"):
+        if n in (
+            "adsoyad", "adisoyadi", "isim", "name", "namesurname",
+            "personeladi", "personeladisoyadi", "calisanadi", "calisanadisoyadi",
+        ):
             mapping[idx] = "full_name"
-        elif n in ("tc", "tckimlik", "tckimlikno", "tcno", "kimlik", "kimlikno"):
+        elif n in ("tc", "tckimlik", "tckimlikno", "tcno", "kimlik", "kimlikno", "tckimliknumarasi"):
             mapping[idx] = "national_id_masked"
-        elif n in ("bransgorev", "gorevi", "gorev", "pozisyon", "brans", "unvan", "unvani", "jobtitle"):
+        elif n in (
+            "bransgorev", "gorevi", "gorev", "pozisyon", "brans", "unvan", "unvani",
+            "jobtitle", "meslek", "gorevunvani",
+        ):
             mapping[idx] = "job_title"
-        elif n in ("bolum", "departman", "birim", "department"):
+        elif n in ("bolum", "departman", "birim", "department", "servis"):
             mapping[idx] = "department"
+        # "Adı" + "Soyadı" ayrı sütunlar
+        elif n in ("adi", "ad", "firstname", "first"):
+            mapping[idx] = "_first"
+        elif n in ("soyadi", "soyad", "lastname", "last", "surname"):
+            mapping[idx] = "_last"
     return mapping
 
 
@@ -73,7 +84,10 @@ def parse_employees_xlsx(content: bytes) -> list[dict]:
             for row in rows:
                 name = _cell(row[idx] if idx < len(row) else "")
                 low = name.lower()
-                if not name or any(low.startswith(k) for k in ("sıra", "sira", "no", "ad", "tc", "sertifika")):
+                if not name or any(
+                    low == k or low.startswith(k + " ")
+                    for k in ("sıra", "sira", "no", "ad soyad", "ad soyadı", "tc", "sertifika", "başlık")
+                ):
                     continue
                 out.append({"full_name": name, "national_id_masked": "", "job_title": "", "department": ""})
             return out
@@ -84,8 +98,17 @@ def parse_employees_xlsx(content: bytes) -> list[dict]:
     out = []
     for row in data_rows:
         item = {"full_name": "", "national_id_masked": "", "job_title": "", "department": ""}
+        first = last = ""
         for idx, key in mapping.items():
-            item[key] = _cell(row[idx] if idx < len(row) else "")
+            val = _cell(row[idx] if idx < len(row) else "")
+            if key == "_first":
+                first = val
+            elif key == "_last":
+                last = val
+            else:
+                item[key] = val
+        if not item["full_name"] and (first or last):
+            item["full_name"] = f"{first} {last}".strip()
         if not item["full_name"]:
             continue
         if item["national_id_masked"]:

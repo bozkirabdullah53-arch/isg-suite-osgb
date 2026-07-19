@@ -15,6 +15,7 @@ from app.api.files import safe_upload_root
 from app.core.database import get_db
 from app.models.entities import Company, Employee, TrainingParticipant, TrainingSession, TrainingStatus, User, UserRole
 from app.schemas.training import TrainingCreate, TrainingResponse, TrainingUpdate, TrainingVerifyResponse
+from app.services.training_employee_import import resolve_or_create_employees
 from app.services.training_excel import parse_employees_xlsx
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
 from app.services.training_topics import meta_payload, sektor_kodu_cozumle, sectors_list_for_api
@@ -160,48 +161,24 @@ async def parse_excel(
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     if not rows:
-        raise HTTPException(422, "Excel dosyasında katılımcı bulunamadı.")
+        raise HTTPException(422, "Excel dosyasında katılımcı bulunamadı. Ad Soyad sütunu gerekli.")
 
-    existing = list(
-        db.scalars(
-            select(Employee).where(Employee.company_id == company_id, Employee.is_active.is_(True))
-        ).all()
-    )
-    by_name = {e.full_name.strip().casefold(): e for e in existing if e.full_name}
-
-    created = 0
-    result = []
-    for row in rows:
-        key = row["full_name"].strip().casefold()
-        emp = by_name.get(key)
-        if not emp and create_missing:
-            emp = Employee(
-                company_id=company_id,
-                full_name=row["full_name"].strip(),
-                national_id_masked=row.get("national_id_masked") or None,
-                job_title=row.get("job_title") or None,
-                department=row.get("department") or None,
-                is_active=True,
-            )
-            db.add(emp)
-            db.flush()
-            by_name[key] = emp
-            created += 1
-        result.append(
-            {
-                **row,
-                "employee_id": emp.id if emp else None,
-                "matched": emp is not None,
-            }
-        )
+    result, created = resolve_or_create_employees(db, company_id, rows, create_missing=create_missing)
     if create_missing:
         db.commit()
+    ids = [r["employee_id"] for r in result if r["employee_id"]]
+    if create_missing and not ids:
+        raise HTTPException(
+            422,
+            "Excel okundu ama personel oluşturulamadı. Ad Soyad sütununu kontrol edin "
+            "(Ad Soyad / Adı Soyadı).",
+        )
     return {
         "count": len(result),
         "created": created,
         "matched": sum(1 for r in result if r["matched"]),
         "participants": result,
-        "participant_ids": [r["employee_id"] for r in result if r["employee_id"]],
+        "participant_ids": ids,
     }
 
 
@@ -325,41 +302,23 @@ async def upload_participants(
     if not parsed:
         raise HTTPException(422, "Excel dosyasında katılımcı bulunamadı.")
 
-    existing = list(
-        db.scalars(
-            select(Employee).where(Employee.company_id == row.company_id, Employee.is_active.is_(True))
-        ).all()
+    result, created = resolve_or_create_employees(
+        db, row.company_id, parsed, create_missing=create_missing
     )
-    by_name = {e.full_name.strip().casefold(): e for e in existing if e.full_name}
     existing_ids = {p.employee_id for p in row.participants}
     added = 0
-    created = 0
-    for item in parsed:
-        key = item["full_name"].strip().casefold()
-        emp = by_name.get(key)
-        if not emp and create_missing:
-            emp = Employee(
-                company_id=row.company_id,
-                full_name=item["full_name"].strip(),
-                national_id_masked=item.get("national_id_masked") or None,
-                job_title=item.get("job_title") or None,
-                department=item.get("department") or None,
-                is_active=True,
-            )
-            db.add(emp)
-            db.flush()
-            by_name[key] = emp
-            created += 1
-        if not emp or emp.id in existing_ids:
+    for item in result:
+        emp_id = item.get("employee_id")
+        if not emp_id or emp_id in existing_ids:
             continue
         db.add(
             TrainingParticipant(
                 training_id=row.id,
-                employee_id=emp.id,
-                certificate_number=f"EGT-{row.id:06d}-{emp.id:06d}",
+                employee_id=emp_id,
+                certificate_number=f"EGT-{row.id:06d}-{emp_id:06d}",
             )
         )
-        existing_ids.add(emp.id)
+        existing_ids.add(emp_id)
         added += 1
     db.commit()
     refreshed = _load_training(db, training_id)

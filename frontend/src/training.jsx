@@ -134,8 +134,12 @@ export function TrainingPage({user}) {
     setErr('');
     setExcelInfo('');
     setExcelPreview([]);
-    setForm({...empty, company_id: defaultCompanyId()});
+    const cid = defaultCompanyId() || (companies[0] ? String(companies[0].id) : '');
+    setForm({...empty, company_id: cid});
     setOpen(true);
+    if (cid) {
+      refreshEmployees(cid).catch(() => {});
+    }
   }
 
   async function refreshEmployees(companyId) {
@@ -186,8 +190,12 @@ export function TrainingPage({user}) {
   async function save(e) {
     e.preventDefault();
     setErr('');
+    if (!form.company_id) {
+      setErr('Firma seçiniz. Uzman yalnızca görevlendirildiği işyerleri için eğitim açabilir.');
+      return;
+    }
     if (!form.participant_ids.length) {
-      setErr('Katılımcı seçin: Excel yükleyin veya ortak personel listesinden seçin.');
+      setErr('Katılımcı seçin: Excel yükleyin (.xlsx) veya ortak personel listesinden seçin.');
       return;
     }
     setBusy(true);
@@ -374,7 +382,7 @@ export function TrainingPage({user}) {
     e.target.value = '';
     if (!file) return;
     if (!form.company_id) {
-      setErr('Önce firma seçiniz.');
+      setErr('Önce firma seçiniz. Uzman yalnızca görevlendirildiği işyerine Excel yükleyebilir.');
       return;
     }
     const name = (file.name || '').toLowerCase();
@@ -395,17 +403,24 @@ export function TrainingPage({user}) {
         job: p.job_title || '',
         matched: !!p.employee_id,
       }));
-      setExcelPreview(preview);
-      await refreshEmployees(form.company_id);
+      // Önce seçimi yaz — personel listesi yenilenmesi başarısız olsa bile kayıt mümkün olsun
       setForm((f) => ({...f, participant_ids: ids}));
+      setExcelPreview(preview);
       setExcelInfo(
         `Excel: ${out.count || ids.length} kişi · ${out.created || 0} yeni personel · ${ids.length} seçildi`,
       );
+      try {
+        await refreshEmployees(form.company_id);
+      } catch (_) {
+        /* liste yenileme opsiyonel */
+      }
       if (!ids.length) {
-        setErr('Excel okundu ama eşleşen personel yok. Sütunlar: Ad Soyad, TC Kimlik, Branş/Görev, Bölüm.');
+        setErr(
+          'Excel okundu ama personel seçilemedi. Sütun: Ad Soyad (veya Adı + Soyadı). Dosya .xlsx olmalı.',
+        );
       }
     } catch (x) {
-      setErr('Excel yüklenemedi: ' + x.message);
+      setErr('Excel yüklenemedi: ' + (x.message || 'Bilinmeyen hata'));
     } finally {
       setBusy(false);
     }
