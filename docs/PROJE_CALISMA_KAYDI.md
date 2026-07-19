@@ -1,16 +1,13 @@
 # İSG Suite OSGB — Çalışma Kaydı (Proje bitene kadar)
 
-**Son güncelleme:** 2026-07-19 15:20 — Sağlık Gözetimi PRO parity  
-**Aktif modül:** Sağlık
+**Son güncelleme:** 2026-07-19 15:50 — OSGB Hizmet Denetimi (global admin)  
+**Aktif modül:** OSGB Hizmet Denetimi
 
-### Sağlık — devam
-- [x] Gap analizi (Suite ince CRUD vs PRO gözetim+analiz)
-- [x] Tetkik alanları, meta/summary/suggest, PATCH/DELETE, TXT
-- [x] Frontend Sağlık Gözetimi + Analiz özeti
-- [ ] Commit/push + Render deploy
-
-### Yıllık Plan — tamam
-- Canlıda `0.9.3` / pro-planlama (kullanıcı deploy etti)
+### OSGB Hizmet Denetimi
+- [x] `GET /osgb/oversight` — yalnız `global_admin`
+- [x] 6331 checklist: uzman (saha, risk, DÖF, yıllık plan, eğitim, olay) + hekim (saha, sağlık, muayene, uygunluk)
+- [x] UI: profesyonel skor / işyeri detay — menü yalnız global admin
+- [ ] Commit/push + Render
 
 ---
 

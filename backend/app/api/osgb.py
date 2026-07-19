@@ -8,6 +8,7 @@ from app.models.entities import (Company, IsgProfessional, OsgbOrganization, Ser
 from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCreate,
                               ContractResponse, OsgbCreate, OsgbResponse,
                               ProfessionalCreate, ProfessionalResponse)
+from app.services.osgb_oversight import build_oversight
 
 router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
 ADMIN_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
@@ -30,6 +31,18 @@ def create_osgb(payload: OsgbCreate, db: Session = Depends(get_db), _: User = De
     obj = OsgbOrganization(**payload.model_dump())
     db.add(obj); db.commit(); db.refresh(obj)
     return obj
+
+
+@router.get("/oversight")
+def osgb_oversight(
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """Yalnız global yönetici — profesyonel sorumluluk / 6331 hizmet denetimi."""
+    _ = user
+    return build_oversight(db, osgb_id=osgb_id)
+
 
 @router.get("/professionals", response_model=list[ProfessionalResponse])
 def list_professionals(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):

@@ -1,0 +1,494 @@
+"""OSGB profesyonel hizmet denetimi — 6331 ve İSG Hizmetleri Yönetmeliği odaklı.
+
+Global yönetici, görevlendirilmiş uzman/hekim/DSP'nin atanmış işyerlerindeki
+zorunlu faaliyetleri yerine getirip getirmediğini takip eder.
+
+Not: Modül kayıtları firma bazlıdır; uzmanla bağ `WorkplaceAssignment` üzerinden
+kurulur (firma hijyeni = o görevlendirme altındaki sorumluluk göstergesi).
+Saha süresi `ServiceVisit` ile doğrudan profesyonele bağlanır.
+"""
+from __future__ import annotations
+
+from datetime import date, timedelta
+from typing import Any
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.models.entities import (
+    AnnualPlanItem,
+    AnnualPlanStatus,
+    AssignmentStatus,
+    Company,
+    HealthFitnessStatus,
+    HealthRecord,
+    IncidentEvent,
+    IsgProfessional,
+    ProfessionalType,
+    RiskAssessment,
+    RiskDof,
+    ServiceVisit,
+    TrainingSession,
+    TrainingStatus,
+    VisitStatus,
+    WorkplaceAssignment,
+)
+
+# 6331 / İSG Hizmetleri Yön. — uzman sorumlulukları (firma göstergeleri)
+SPECIALIST_CHECKS = [
+    {
+        "code": "saha_sure",
+        "title": "Aylık saha süresi",
+        "legal": "İSG Hizmetleri Yön. — işyerinde fiilen bulunma / hizmet süresi",
+        "weight": 2,
+    },
+    {
+        "code": "risk_degerlendirme",
+        "title": "Risk değerlendirmesi",
+        "legal": "6331 md.10 — risk değerlendirmesi yapılması ve güncelliği",
+        "weight": 2,
+    },
+    {
+        "code": "risk_dof",
+        "title": "Risk DÖF / termin",
+        "legal": "6331 md.10 — belirlenen önlemlerin takibi",
+        "weight": 1,
+    },
+    {
+        "code": "yillik_plan",
+        "title": "Yıllık çalışma planı",
+        "legal": "İSG Hizmetleri Yön. — yıllık çalışma planı",
+        "weight": 2,
+    },
+    {
+        "code": "egitim",
+        "title": "Çalışan eğitimi",
+        "legal": "6331 md.17 — çalışanların eğitimi",
+        "weight": 2,
+    },
+    {
+        "code": "olay_takip",
+        "title": "Ramak kala / kaza takibi",
+        "legal": "6331 md.14 — iş kazası ve meslek hastalıklarının bildirimi/takibi",
+        "weight": 1,
+    },
+]
+
+# Hekim / DSP
+PHYSICIAN_CHECKS = [
+    {
+        "code": "saha_sure",
+        "title": "Aylık saha süresi",
+        "legal": "İSG Hizmetleri Yön. — hekim/DSP işyerinde bulunma süresi",
+        "weight": 2,
+    },
+    {
+        "code": "saglik_gozetim",
+        "title": "Sağlık gözetimi kayıtları",
+        "legal": "6331 md.15 — sağlık gözetimi",
+        "weight": 2,
+    },
+    {
+        "code": "muayene_gecikme",
+        "title": "Geciken / yaklaşan muayene",
+        "legal": "Sağlık gözetimi periyotlarına uyum",
+        "weight": 2,
+    },
+    {
+        "code": "uygunluk",
+        "title": "Uygunluk / takip durumları",
+        "legal": "İşe giriş ve periyodik muayene sonuçlarının takibi",
+        "weight": 1,
+    },
+]
+
+
+def _month_bounds(ref: date | None = None) -> tuple[date, date]:
+    today = ref or date.today()
+    start = today.replace(day=1)
+    if today.month == 12:
+        end = today.replace(year=today.year + 1, month=1, day=1) - timedelta(days=1)
+    else:
+        end = today.replace(month=today.month + 1, day=1) - timedelta(days=1)
+    return start, end
+
+
+def _status_from_ratio(ok: int, total: int) -> str:
+    if total <= 0:
+        return "unknown"
+    ratio = ok / total
+    if ratio >= 0.85:
+        return "ok"
+    if ratio >= 0.55:
+        return "warning"
+    return "critical"
+
+
+def _check_result(code: str, title: str, legal: str, weight: int, passed: bool, detail: str, metric: Any = None) -> dict:
+    return {
+        "code": code,
+        "title": title,
+        "legal": legal,
+        "weight": weight,
+        "passed": passed,
+        "status": "ok" if passed else "critical",
+        "detail": detail,
+        "metric": metric,
+    }
+
+
+def _visit_minutes(db: Session, professional_id: int, company_id: int, start: date, end: date) -> tuple[int, int]:
+    rows = list(
+        db.scalars(
+            select(ServiceVisit).where(
+                ServiceVisit.professional_id == professional_id,
+                ServiceVisit.company_id == company_id,
+                ServiceVisit.visit_date >= start,
+                ServiceVisit.visit_date <= end,
+                ServiceVisit.status == VisitStatus.COMPLETED,
+            )
+        ).all()
+    )
+    minutes = sum(int(v.duration_minutes or 0) for v in rows)
+    return minutes, len(rows)
+
+
+def _eval_specialist_firm(
+    db: Session,
+    company: Company,
+    assignment: WorkplaceAssignment,
+    month_start: date,
+    month_end: date,
+    year: int,
+) -> list[dict]:
+    cid = company.id
+    required = int(assignment.required_minutes_monthly or 0)
+    visit_min, visit_count = _visit_minutes(db, assignment.professional_id, cid, month_start, month_end)
+    # Manuel actual alanı yedek sinyal
+    actual_fallback = int(assignment.actual_minutes_monthly or 0)
+    effective_min = visit_min if visit_min > 0 else actual_fallback
+    time_ok = required <= 0 or effective_min >= required * 0.8
+
+    risk_count = db.scalar(
+        select(func.count()).select_from(RiskAssessment).where(RiskAssessment.company_id == cid)
+    ) or 0
+    open_high = db.scalar(
+        select(func.count())
+        .select_from(RiskAssessment)
+        .where(
+            RiskAssessment.company_id == cid,
+            RiskAssessment.status == "Açık",
+            RiskAssessment.risk_level.in_(["Yüksek", "Çok Yüksek"]),
+        )
+    ) or 0
+    risk_ok = risk_count > 0 and open_high == 0
+
+    overdue_dof = db.scalar(
+        select(func.count())
+        .select_from(RiskDof)
+        .join(RiskAssessment, RiskDof.risk_id == RiskAssessment.id)
+        .where(
+            RiskAssessment.company_id == cid,
+            RiskDof.is_completed.is_(False),
+            RiskDof.term_date.is_not(None),
+            RiskDof.term_date < date.today(),
+        )
+    ) or 0
+    dof_ok = overdue_dof == 0
+
+    plan_items = list(
+        db.scalars(
+            select(AnnualPlanItem).where(
+                AnnualPlanItem.company_id == cid,
+                AnnualPlanItem.year == year,
+                AnnualPlanItem.deleted_at.is_(None),
+            )
+        ).all()
+    )
+    delayed_plans = sum(1 for p in plan_items if p.status == AnnualPlanStatus.DELAYED)
+    plan_ok = len(plan_items) > 0 and delayed_plans == 0
+
+    trainings = db.scalar(
+        select(func.count())
+        .select_from(TrainingSession)
+        .where(
+            TrainingSession.company_id == cid,
+            TrainingSession.start_date >= date(year, 1, 1),
+            TrainingSession.status != TrainingStatus.CANCELLED,
+        )
+    ) or 0
+    train_ok = trainings > 0
+
+    open_incidents = db.scalar(
+        select(func.count())
+        .select_from(IncidentEvent)
+        .where(
+            IncidentEvent.company_id == cid,
+            IncidentEvent.status.in_(["Aktif", "Açık", "open", "in_progress"]),
+        )
+    ) or 0
+    incident_ok = open_incidents == 0
+
+    return [
+        _check_result(
+            "saha_sure",
+            "Aylık saha süresi",
+            "İSG Hizmetleri Yön. — işyerinde fiilen bulunma / hizmet süresi",
+            2,
+            time_ok,
+            f"Bu ay {effective_min} dk / zorunlu {required or '—'} dk ({visit_count} tamamlanan ziyaret)",
+            {"visit_minutes": visit_min, "required": required, "visits": visit_count},
+        ),
+        _check_result(
+            "risk_degerlendirme",
+            "Risk değerlendirmesi",
+            "6331 md.10 — risk değerlendirmesi yapılması ve güncelliği",
+            2,
+            risk_ok,
+            f"{risk_count} risk kaydı; açık yüksek/çok yüksek: {open_high}",
+            {"risk_count": risk_count, "open_high": open_high},
+        ),
+        _check_result(
+            "risk_dof",
+            "Risk DÖF / termin",
+            "6331 md.10 — belirlenen önlemlerin takibi",
+            1,
+            dof_ok,
+            f"Geciken DÖF: {overdue_dof}",
+            {"overdue_dof": overdue_dof},
+        ),
+        _check_result(
+            "yillik_plan",
+            "Yıllık çalışma planı",
+            "İSG Hizmetleri Yön. — yıllık çalışma planı",
+            2,
+            plan_ok,
+            f"{year} yılı: {len(plan_items)} madde, geciken {delayed_plans}",
+            {"plan_items": len(plan_items), "delayed": delayed_plans},
+        ),
+        _check_result(
+            "egitim",
+            "Çalışan eğitimi",
+            "6331 md.17 — çalışanların eğitimi",
+            2,
+            train_ok,
+            f"{year} yılı eğitim kaydı: {trainings}",
+            {"trainings": trainings},
+        ),
+        _check_result(
+            "olay_takip",
+            "Ramak kala / kaza takibi",
+            "6331 md.14 — iş kazası ve meslek hastalıklarının bildirimi/takibi",
+            1,
+            incident_ok,
+            f"Açık olay kaydı: {open_incidents}",
+            {"open_incidents": open_incidents},
+        ),
+    ]
+
+
+def _eval_physician_firm(
+    db: Session,
+    company: Company,
+    assignment: WorkplaceAssignment,
+    month_start: date,
+    month_end: date,
+) -> list[dict]:
+    cid = company.id
+    required = int(assignment.required_minutes_monthly or 0)
+    visit_min, visit_count = _visit_minutes(db, assignment.professional_id, cid, month_start, month_end)
+    actual_fallback = int(assignment.actual_minutes_monthly or 0)
+    effective_min = visit_min if visit_min > 0 else actual_fallback
+    time_ok = required <= 0 or effective_min >= required * 0.8
+
+    health_total = db.scalar(
+        select(func.count())
+        .select_from(HealthRecord)
+        .where(HealthRecord.company_id == cid, HealthRecord.deleted_at.is_(None))
+    ) or 0
+    today = date.today()
+    overdue = db.scalar(
+        select(func.count())
+        .select_from(HealthRecord)
+        .where(
+            HealthRecord.company_id == cid,
+            HealthRecord.deleted_at.is_(None),
+            HealthRecord.next_examination_date.is_not(None),
+            HealthRecord.next_examination_date < today,
+        )
+    ) or 0
+    due_soon = db.scalar(
+        select(func.count())
+        .select_from(HealthRecord)
+        .where(
+            HealthRecord.company_id == cid,
+            HealthRecord.deleted_at.is_(None),
+            HealthRecord.next_examination_date.is_not(None),
+            HealthRecord.next_examination_date >= today,
+            HealthRecord.next_examination_date <= today + timedelta(days=30),
+        )
+    ) or 0
+    tracking = db.scalar(
+        select(func.count())
+        .select_from(HealthRecord)
+        .where(
+            HealthRecord.company_id == cid,
+            HealthRecord.deleted_at.is_(None),
+            HealthRecord.fitness_status.in_(
+                [HealthFitnessStatus.CONDITIONAL, HealthFitnessStatus.TRACKING, HealthFitnessStatus.UNFIT]
+            ),
+        )
+    ) or 0
+
+    return [
+        _check_result(
+            "saha_sure",
+            "Aylık saha süresi",
+            "İSG Hizmetleri Yön. — hekim/DSP işyerinde bulunma süresi",
+            2,
+            time_ok,
+            f"Bu ay {effective_min} dk / zorunlu {required or '—'} dk ({visit_count} ziyaret)",
+            {"visit_minutes": visit_min, "required": required, "visits": visit_count},
+        ),
+        _check_result(
+            "saglik_gozetim",
+            "Sağlık gözetimi kayıtları",
+            "6331 md.15 — sağlık gözetimi",
+            2,
+            health_total > 0,
+            f"Aktif sağlık kaydı: {health_total}",
+            {"health_total": health_total},
+        ),
+        _check_result(
+            "muayene_gecikme",
+            "Geciken / yaklaşan muayene",
+            "Sağlık gözetimi periyotlarına uyum",
+            2,
+            overdue == 0,
+            f"Geciken {overdue}, 30 gün içinde {due_soon}",
+            {"overdue": overdue, "due_soon": due_soon},
+        ),
+        _check_result(
+            "uygunluk",
+            "Uygunluk / takip durumları",
+            "İşe giriş ve periyodik muayene sonuçlarının takibi",
+            1,
+            tracking <= max(1, health_total // 5) if health_total else True,
+            f"Kısıtlı/takip/uygun değil: {tracking}",
+            {"tracking": tracking},
+        ),
+    ]
+
+
+def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
+    month_start, month_end = _month_bounds()
+    year = date.today().year
+
+    pros_q = select(IsgProfessional).where(IsgProfessional.is_active.is_(True)).order_by(IsgProfessional.full_name)
+    assign_q = select(WorkplaceAssignment).where(WorkplaceAssignment.status == AssignmentStatus.ACTIVE)
+    if osgb_id:
+        pros_q = pros_q.where(IsgProfessional.osgb_id == osgb_id)
+        assign_q = assign_q.where(WorkplaceAssignment.osgb_id == osgb_id)
+
+    professionals = list(db.scalars(pros_q).all())
+    assignments = list(db.scalars(assign_q).all())
+    company_ids = {a.company_id for a in assignments}
+    companies = {
+        c.id: c
+        for c in db.scalars(select(Company).where(Company.id.in_(company_ids))).all()
+    } if company_ids else {}
+
+    by_pro: dict[int, list[WorkplaceAssignment]] = {}
+    for a in assignments:
+        by_pro.setdefault(a.professional_id, []).append(a)
+
+    rows = []
+    summary = {"professionals": 0, "assignments": 0, "ok": 0, "warning": 0, "critical": 0, "unknown": 0}
+
+    for pro in professionals:
+        firms = []
+        firm_statuses = []
+        for a in by_pro.get(pro.id, []):
+            company = companies.get(a.company_id)
+            if not company:
+                continue
+            if pro.professional_type == ProfessionalType.SAFETY_SPECIALIST:
+                checks = _eval_specialist_firm(db, company, a, month_start, month_end, year)
+            else:
+                checks = _eval_physician_firm(db, company, a, month_start, month_end)
+
+            weight_total = sum(c["weight"] for c in checks) or 1
+            weight_ok = sum(c["weight"] for c in checks if c["passed"])
+            score = round(100 * weight_ok / weight_total)
+            status = _status_from_ratio(weight_ok, weight_total)
+            firm_statuses.append(status)
+            firms.append(
+                {
+                    "assignment_id": a.id,
+                    "company_id": company.id,
+                    "company_name": company.name,
+                    "hazard_class": company.hazard_class,
+                    "required_minutes_monthly": a.required_minutes_monthly,
+                    "isg_katip_contract_number": a.isg_katip_contract_number,
+                    "score": score,
+                    "status": status,
+                    "checks": checks,
+                    "failed_count": sum(1 for c in checks if not c["passed"]),
+                }
+            )
+
+        if not firms:
+            continue
+
+        # Profesyonel skoru: firma ortalaması; en kötü durum baskın
+        avg_score = round(sum(f["score"] for f in firms) / len(firms))
+        if "critical" in firm_statuses:
+            overall = "critical"
+        elif "warning" in firm_statuses:
+            overall = "warning"
+        elif all(s == "ok" for s in firm_statuses):
+            overall = "ok"
+        else:
+            overall = "unknown"
+
+        summary["professionals"] += 1
+        summary["assignments"] += len(firms)
+        summary[overall] = summary.get(overall, 0) + 1
+
+        rows.append(
+            {
+                "professional_id": pro.id,
+                "full_name": pro.full_name,
+                "professional_type": pro.professional_type.value,
+                "certificate_class": pro.certificate_class,
+                "certificate_number": pro.certificate_number,
+                "osgb_id": pro.osgb_id,
+                "firm_count": len(firms),
+                "score": avg_score,
+                "status": overall,
+                "firms": firms,
+            }
+        )
+
+    rows.sort(key=lambda r: (0 if r["status"] == "critical" else 1 if r["status"] == "warning" else 2, r["score"]))
+
+    return {
+        "period": {
+            "year": year,
+            "month": date.today().month,
+            "month_start": month_start.isoformat(),
+            "month_end": month_end.isoformat(),
+        },
+        "legal_basis": [
+            "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+            "İş Sağlığı ve Güvenliği Hizmetleri Yönetmeliği",
+            "İşyeri Hekimi ve Diğer Sağlık Personeli ile İş Güvenliği Uzmanlarının Görev, Yetki, Sorumluluk ve Eğitimleri Hakkında Yönetmelik",
+        ],
+        "check_catalog": {
+            "safety_specialist": SPECIALIST_CHECKS,
+            "workplace_physician": PHYSICIAN_CHECKS,
+            "other_health_personnel": PHYSICIAN_CHECKS,
+        },
+        "summary": summary,
+        "professionals": rows,
+    }

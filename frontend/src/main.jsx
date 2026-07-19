@@ -1,10 +1,10 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertTriangle,BarChart3,Bell,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,FileText,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
-import {api, downloadFile} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';import './styles.css';
+import {api, downloadFile} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';import './styles.css';
 const roles={global_admin:'Global Yönetici',company_admin:'Firma Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 const roleModules={
-  global_admin:['osgb_dashboard','professionals','assignments','visits','crm','finance','dashboard','companies','branches','employees','risk','near_miss','accident','capa','ppe','training','health','documents','annual_plans','reports','notifications','subscription','security','users'],
+  global_admin:['osgb_dashboard','osgb_oversight','professionals','assignments','visits','crm','finance','dashboard','companies','branches','employees','risk','near_miss','accident','capa','ppe','training','health','documents','annual_plans','reports','notifications','subscription','security','users'],
   company_admin:['osgb_dashboard','professionals','assignments','visits','crm','finance','dashboard','companies','branches','employees','risk','near_miss','accident','capa','ppe','training','health','documents','annual_plans','reports','notifications','subscription','security','users'],
   safety_specialist:['dashboard','visits','risk','near_miss','accident','capa','ppe','training','documents','annual_plans'],
   workplace_physician:['dashboard','visits','health','employees','documents'],
@@ -189,6 +189,7 @@ function App(){
   const allowed=roleModules[user.role]||[];
   const menu=[
     ['osgb_dashboard','OSGB Ana Panel',LayoutDashboard],
+    ['osgb_oversight','Hizmet Denetimi',ClipboardCheck],
     ['professionals','İSG Profesyonelleri',Stethoscope],
     ['assignments','Görevlendirmeler',BriefcaseBusiness],
     ['visits','Saha Takvimi',CalendarDays],
@@ -215,6 +216,7 @@ function App(){
   ].filter(([k])=>allowed.includes(k));
   const pages={
     osgb_dashboard:<OsgbDashboard user={user}/>,
+    osgb_oversight:<OsgbOversightPage user={user}/>,
     professionals:<ProfessionalsPage user={user}/>,
     assignments:<AssignmentsPage user={user}/>,
     visits:<VisitsPage user={user}/>,
