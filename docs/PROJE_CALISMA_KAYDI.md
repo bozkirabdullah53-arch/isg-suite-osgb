@@ -1,14 +1,14 @@
 # İSG Suite OSGB — Çalışma Kaydı (Proje bitene kadar)
 
-**Son güncelleme:** 2026-07-19 16:50 — Hizmet Denetimi: genel tüm personel + seçince tüm eksikler  
-**Aktif modül:** OSGB Hizmet Denetimi
+**Son güncelleme:** 2026-07-19 17:10 — İSG Özeti: uzman/hekim/DSP sorumluluk uyarı paneli  
+**Aktif modül:** İSG Özeti (Duty Board)
 
-### OSGB Hizmet Denetimi
-- [x] `GET /osgb/oversight` — yalnız `global_admin`
-- [x] 6331 checklist: uzman (saha, risk, DÖF, yıllık plan, eğitim, olay) + hekim (saha, sağlık, muayene, uygunluk)
-- [x] Açılış = **genel** (KPI + grafik + tüm personel eksikleri, kesilmez)
-- [x] Personel seçince = o kişinin **tüm** 6331 eksikleri + firma checklist
-- [x] Commit/push + Render (`0.9.11` / `6331-denetim-v4`) — `54db0b2` feature+master
+### İSG Özeti — Sorumluluk paneli
+- [x] `GET /dashboard/my-duties` — günü geçen / yaklaşan / yapılmayan
+- [x] Sistem Durumu özellik listesi kaldırıldı
+- [x] Görevlendirme kapsamı + 6331 checklist + tarihli DÖF/plan/muayene
+- [x] E-posta bildirimi: planlandı (kapalı) — OSGB bağlantılı
+- [ ] Commit/push + Render (`0.9.13`)
 
 ---
 

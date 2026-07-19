@@ -14,12 +14,19 @@ from app.models.entities import (
     User,
     UserRole,
 )
+from app.api.company_access import assigned_company_ids
+from app.services.professional_duty import build_my_duty_board
 
 router = APIRouter(prefix="/dashboard", tags=["Panel"])
 
 
 @router.get("/summary")
 def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    field_roles = {
+        UserRole.SAFETY_SPECIALIST,
+        UserRole.WORKPLACE_PHYSICIAN,
+        UserRole.OTHER_HEALTH_PERSONNEL,
+    }
     if user.role == UserRole.GLOBAL_ADMIN:
         cc = db.scalar(select(func.count()).select_from(Company).where(Company.is_active.is_(True))) or 0
         bc = db.scalar(select(func.count()).select_from(Branch).where(Branch.is_active.is_(True))) or 0
@@ -39,6 +46,48 @@ def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user
             )
             or 0
         )
+    elif user.role in field_roles:
+        ids = assigned_company_ids(db, user)
+        cc = len(ids)
+        bc = (
+            db.scalar(
+                select(func.count()).select_from(Branch).where(Branch.company_id.in_(ids), Branch.is_active.is_(True))
+            )
+            or 0
+        ) if ids else 0
+        ec = (
+            db.scalar(
+                select(func.count())
+                .select_from(Employee)
+                .where(Employee.company_id.in_(ids), Employee.is_active.is_(True))
+            )
+            or 0
+        ) if ids else 0
+        uc = 0
+        open_risks = 0
+        open_capa = 0
+        if ids:
+            open_risks = (
+                db.scalar(
+                    select(func.count())
+                    .select_from(RiskAssessment)
+                    .where(RiskAssessment.company_id.in_(ids), RiskAssessment.status == "Açık")
+                )
+                or 0
+            )
+            open_capa = (
+                db.scalar(
+                    select(func.count())
+                    .select_from(RiskDof)
+                    .where(
+                        RiskDof.is_completed.is_(False),
+                        RiskDof.risk_id.in_(
+                            select(RiskAssessment.id).where(RiskAssessment.company_id.in_(ids))
+                        ),
+                    )
+                )
+                or 0
+            )
     else:
         cid = user.company_id
         cc = 1 if cid else 0
@@ -96,3 +145,9 @@ def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user
         "open_capa": open_capa,
         "role": user.role.value,
     }
+
+
+@router.get("/my-duties")
+def my_duties(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Uzman / hekim / DSP — kişisel sorumluluk uyarı paneli."""
+    return build_my_duty_board(db, user)

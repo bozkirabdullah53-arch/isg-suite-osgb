@@ -1,7 +1,9 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertTriangle,BarChart3,Bell,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,FileText,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
-import {api, downloadFile} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';import './styles.css';
+import {api, downloadFile} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
+import {DutyDashboard, AdminSummaryDashboard} from './duty_dashboard';
+import './styles.css';
 const roles={global_admin:'Global Yönetici',company_admin:'Firma Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 const roleModules={
   global_admin:['osgb_dashboard','osgb_oversight','professionals','assignments','visits','crm','finance','dashboard','companies','branches','employees','risk','near_miss','accident','capa','ppe','training','health','documents','annual_plans','reports','notifications','subscription','security','users'],
@@ -167,7 +169,14 @@ function SubscriptionPage({user}){
 
 function SearchBar({q,setQ,go}){return <div className="search"><Search size={19}/><input placeholder="Ara..." value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()}/><button className="secondary" onClick={go}>Ara</button></div>}
 function Badge({ok}){return <span className={'badge '+(ok?'ok':'off')}>{ok?'Aktif':'Pasif'}</span>};function Submit(){return <div className="form-actions"><button type="submit">Kaydet</button></div>};function Page({title,action,children}){return <><div className="page-title"><h3>{title}</h3>{action}</div><section className="panel">{children}</section></>}
-function Dashboard({summary}){return <><div className="welcome"><div><h3>Hoş geldiniz</h3><p>İSG faaliyetlerini, riskleri, kazaları, DÖF süreçlerini ve eğitimleri tek merkezden yönetin.</p></div><ShieldCheck size={54}/></div><div className="cards"><Metric title="Aktif Firma" value={summary?.company_count}/><Metric title="Aktif Personel" value={summary?.employee_count}/><Metric title="Açık Risk" value={summary?.open_risks}/><Metric title="Açık DÖF" value={summary?.open_capa}/></div><section className="panel"><h3>Sistem Durumu</h3><ul><li>Risk değerlendirme kaydı ve otomatik risk puanı</li><li>Ramak kala ve iş kazası kayıt yönetimi</li><li>Düzeltici ve önleyici faaliyet takibi</li><li>Eğitim planı, tarih ve katılımcı kaydı</li><li>Firma bazlı erişim ve kayıt tamamlama akışı</li><li>Abonelik, demo ve bildirim merkezi altyapısı</li></ul></section></>}function Metric({title,value}){return <article className="metric"><span>{title}</span><strong>{value??'—'}</strong></article>}
+function Dashboard({summary, user, onNavigate}){
+  const field=['safety_specialist','workplace_physician','other_health_personnel'];
+  if(field.includes(user?.role)){
+    return <DutyDashboard user={user} summary={summary} onNavigate={onNavigate}/>;
+  }
+  return <AdminSummaryDashboard summary={summary}/>;
+}
+function Metric({title,value}){return <article className="metric"><span>{title}</span><strong>{value??'—'}</strong></article>}
 function App(){
   const[logged,setLogged]=useState(!!localStorage.getItem('isg_token'));
   const[user,setUser]=useState(null);
@@ -289,7 +298,7 @@ function App(){
     visits:<VisitsPage user={user}/>,
     crm:<CrmPage user={user}/>,
     finance:<FinancePage user={user}/>,
-    dashboard:<Dashboard summary={summary}/>,
+    dashboard:<Dashboard summary={summary} user={user} onNavigate={goModule}/>,
     companies:<Companies canEdit={user.role==='global_admin'}/>,
     branches:<Branches user={user}/>,
     employees:<Employees user={user}/>,
