@@ -6,8 +6,8 @@ import {DutyDashboard, AdminSummaryDashboard} from './duty_dashboard';
 import './styles.css';
 const roles={global_admin:'Global Yönetici',company_admin:'Firma Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 const roleModules={
-  // OSGB yönetimi: saha modülleri (risk/olay/DÖF/KKD/sağlık/yıllık plan) uzman-hekim-DSP’de kalır
-  global_admin:['osgb_dashboard','osgb_oversight','professionals','assignments','visits','crm','finance','dashboard','companies','branches','employees','training','documents','reports','notifications','subscription','security','users'],
+  // OSGB global: profesyonel takip + denetim; saha/eğitim uzman-hekim-DSP’de
+  global_admin:['osgb_dashboard','osgb_oversight','professionals','assignments','crm','finance','dashboard','companies','branches','employees','documents','reports','notifications','subscription','security','users'],
   company_admin:['osgb_dashboard','professionals','assignments','visits','crm','finance','dashboard','companies','branches','employees','training','documents','reports','notifications','subscription','security','users'],
   safety_specialist:['dashboard','visits','risk','near_miss','accident','capa','ppe','training','documents','annual_plans'],
   workplace_physician:['dashboard','visits','health','employees','documents'],

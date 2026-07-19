@@ -1,14 +1,13 @@
 # İSG Suite OSGB — Çalışma Kaydı (Proje bitene kadar)
 
-**Son güncelleme:** 2026-07-19 17:10 — İSG Özeti: uzman/hekim/DSP sorumluluk uyarı paneli  
-**Aktif modül:** İSG Özeti (Duty Board)
+**Son güncelleme:** 2026-07-19 21:30 — OSGB global: eğitim/saha kaldırıldı; performans+ÇSGB yolu  
+**Aktif modül:** OSGB Global Yönetici deneyimi
 
-### İSG Özeti — Sorumluluk paneli
-- [x] `GET /dashboard/my-duties` — günü geçen / yaklaşan / yapılmayan
-- [x] Sistem Durumu özellik listesi kaldırıldı
-- [x] Görevlendirme kapsamı + 6331 checklist + tarihli DÖF/plan/muayene
-- [x] E-posta bildirimi: planlandı (kapalı) — OSGB bağlantılı
-- [ ] Commit/push + Render (`0.9.13`)
+### OSGB Global Yönetici (hedef)
+- [x] Menüden Eğitim + Saha Takvimi kaldırıldı (global_admin)
+- [ ] Seçilen uzman/hekim/DSP iş tamamlama / performans raporu
+- [ ] ÇSGB OSGB denetim belge paketi / raporları
+- [ ] Commit/push + Render (`0.9.16`)
 
 ---
 
