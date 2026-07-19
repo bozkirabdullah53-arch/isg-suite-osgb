@@ -71,10 +71,20 @@ aside {
   padding: 22px 16px;
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
-.logo { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 10px 20px; }
+.logo { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 10px 20px; flex-shrink: 0; }
 .sidebar-logo { width: 100%; max-width: 180px; height: auto; }
-nav { display: grid; gap: 7px; }
+nav {
+  display: grid;
+  gap: 7px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  align-content: start;
+}
 nav button, .logout {
   display: flex;
   align-items: center;
@@ -87,9 +97,16 @@ nav button, .logout {
   color: #526871;
   cursor: pointer;
   text-align: left;
+  flex-shrink: 0;
 }
-nav button:hover, nav button.active { background: #e8f6f4; color: #0f766e; font-weight: 700; }
-.logout { margin-top: auto; color: #9f2d27; }
+nav button:hover { background: #e8f6f4; color: #0f766e; }
+nav button.active {
+  background: #d8f3ef;
+  color: #0f766e;
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 #0f766e;
+}
+.logout { margin-top: 10px; flex-shrink: 0; color: #9f2d27; }
 
 .workspace { min-width: 0; }
 header {
@@ -144,7 +161,7 @@ header p { margin: 4px 0 0; color: #6c7f87; }
   .cards { grid-template-columns: repeat(2, 1fr); }
 }
 
-@media (max-width: 620px) {
+  @media (max-width: 620px) {
   .app-shell { display: block; }
   aside {
     position: fixed;
@@ -153,13 +170,24 @@ header p { margin: 4px 0 0; color: #6c7f87; }
     top: auto;
     width: 100%;
     height: auto;
+    max-height: none;
     border-right: 0;
     border-top: 1px solid #dcebed;
     padding: 8px;
+    overflow: visible;
   }
   .logo, .logout { display: none; }
-  nav { display: grid; grid-template-columns: repeat(5, 1fr); }
+  nav {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex: none;
+    max-height: none;
+    gap: 4px;
+  }
   nav button { padding: 10px 4px; }
+  nav button.active { box-shadow: inset 0 -3px 0 #0f766e; }
   header { padding: 15px 16px; }
   header p, .user-chip span { display: none; }
   .content { padding: 16px 16px 92px; }

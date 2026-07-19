@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertTriangle,BarChart3,Bell,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,FileText,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
 import {api} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import './styles.css';
@@ -133,7 +133,10 @@ function App(){
   const[logged,setLogged]=useState(!!localStorage.getItem('isg_token'));
   const[user,setUser]=useState(null);
   const[summary,setSummary]=useState(null);
-  const[active,setActive]=useState('');
+  const[active,setActive]=useState(()=>{
+    try{return sessionStorage.getItem('isg_active')||''}catch{return ''}
+  });
+  const navRef=useRef(null);
   const verifyCode=useMemo(()=>{
     try{return new URLSearchParams(window.location.search).get('egitim-dogrula')}
     catch{return null}
@@ -149,6 +152,11 @@ function App(){
     }catch(_){ /* ignore */ }
   }
 
+  function goModule(id){
+    setActive(id);
+    try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
+  }
+
   useEffect(()=>{
     if(!logged) return;
     // Oturum açıkken ?egitim-dogrula=... sol menüyü / uygulamayı ASLA bozmasın
@@ -158,15 +166,31 @@ function App(){
       setSummary(s);
       const allowed=roleModules[u.role]||[];
       setActive((prev)=>{
-        if(verifyCode && allowed.includes('training')) return 'training';
-        if(prev && allowed.includes(prev)) return prev;
-        return allowed[0]||'';
+        let next='';
+        if(verifyCode && allowed.includes('training')) next='training';
+        else if(prev && allowed.includes(prev)) next=prev;
+        else {
+          try{
+            const saved=sessionStorage.getItem('isg_active');
+            if(saved && allowed.includes(saved)) next=saved;
+          }catch(_){ /* ignore */ }
+        }
+        if(!next) next=allowed[0]||'';
+        try{if(next) sessionStorage.setItem('isg_active',next)}catch(_){ /* ignore */ }
+        return next;
       });
     }).catch(()=>{
       localStorage.removeItem('isg_token');
       setLogged(false);
     });
   },[logged,verifyCode]);
+
+  // Aktif menü (ör. Eğitimler) her zaman görünür olsun
+  useEffect(()=>{
+    if(!active || !navRef.current) return;
+    const btn=navRef.current.querySelector(`button[data-nav="${active}"]`);
+    if(btn) btn.scrollIntoView({block:'nearest',behavior:'smooth'});
+  },[active,user]);
 
   // Kamuya açık doğrulama: yalnızca GİRİŞ YOKKEN (dış denetçi). Girişliyken shell korunur.
   if(verifyCode && !logged){
@@ -242,9 +266,16 @@ function App(){
           <img src="/logo.svg" alt="Yönetim Akademisi" className="sidebar-logo"/>
           <span>İSG Suite OSGB</span>
         </div>
-        <nav>
+        <nav ref={navRef}>
           {menu.map(([id,l,I])=>(
-            <button key={id} type="button" className={active===id?'active':''} onClick={()=>setActive(id)}>
+            <button
+              key={id}
+              type="button"
+              data-nav={id}
+              aria-current={active===id?'page':undefined}
+              className={active===id?'active':''}
+              onClick={()=>goModule(id)}
+            >
               <I size={20}/><span>{l}</span>
             </button>
           ))}
