@@ -209,11 +209,23 @@ class HealthRecord(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
-    record_type: Mapped[HealthRecordType] = mapped_column(Enum(HealthRecordType), index=True)
+    record_type: Mapped[HealthRecordType] = mapped_column(
+        Enum(
+            HealthRecordType,
+            name="healthrecordtype",
+            values_callable=lambda enum_cls: [item.value for item in enum_cls],
+        ),
+        index=True,
+    )
     examination_date: Mapped[date] = mapped_column(Date, index=True)
     next_examination_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     fitness_status: Mapped[HealthFitnessStatus] = mapped_column(
-        Enum(HealthFitnessStatus), default=HealthFitnessStatus.PENDING
+        Enum(
+            HealthFitnessStatus,
+            name="healthfitnessstatus",
+            values_callable=lambda enum_cls: [item.value for item in enum_cls],
+        ),
+        default=HealthFitnessStatus.PENDING,
     )
     physician_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     summary: Mapped[str | None] = mapped_column(String(2000), nullable=True)

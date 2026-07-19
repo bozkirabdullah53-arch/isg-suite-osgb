@@ -98,7 +98,7 @@ async def lifespan(_:FastAPI):
                             pass
             for enum_name, values in (
                 ("healthrecordtype", ("return_exam", "job_change", "night_work", "heavy_hazardous", "other")),
-                ("healthfitnessstatus", ("tracking",)),
+                ("healthfitnessstatus", ("fit", "conditional", "tracking", "unfit", "pending")),
             ):
                 for val in values:
                     try:
@@ -119,7 +119,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.26',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.27',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 _cors_origins=list(dict.fromkeys([
@@ -138,7 +138,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.26',
+        'version': '0.9.27',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'pro-planlama',
         'health': 'pro-saglik',

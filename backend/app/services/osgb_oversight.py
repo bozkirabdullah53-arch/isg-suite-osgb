@@ -340,7 +340,11 @@ def _eval_physician_firm(
             HealthRecord.company_id == cid,
             HealthRecord.deleted_at.is_(None),
             HealthRecord.fitness_status.in_(
-                [HealthFitnessStatus.CONDITIONAL, HealthFitnessStatus.TRACKING, HealthFitnessStatus.UNFIT]
+                [
+                    HealthFitnessStatus.CONDITIONAL.value,
+                    HealthFitnessStatus.TRACKING.value,
+                    HealthFitnessStatus.UNFIT.value,
+                ]
             ),
         )
     ) or 0
@@ -441,7 +445,11 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                     checks = _eval_specialist_firm(db, company, a, month_start, month_end, year)
                 else:
                     checks = _eval_physician_firm(db, company, a, month_start, month_end)
-            except Exception as exc:
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
                 checks = [
                     _check_result(
                         "sistem",
@@ -449,7 +457,7 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                         "Sistem",
                         1,
                         False,
-                        f"Kontrol hesaplanamadı: {exc}",
+                        "Bu işyeri için kontrol hesaplanamadı. Sağlık/saha verilerini kontrol edin veya Yenile’ye basın.",
                     )
                 ]
 
