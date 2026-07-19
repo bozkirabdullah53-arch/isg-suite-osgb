@@ -44,6 +44,29 @@ async def lifespan(_:FastAPI):
                             conn.execute(text(stmt))
                         except Exception:
                             pass
+        if "annual_plan_items" in insp.get_table_names():
+            ap_cols = {c["name"] for c in insp.get_columns("annual_plan_items")}
+            ap_alters = []
+            for col, sqltype in (
+                ("category", "VARCHAR(40)"),
+                ("description", "VARCHAR(2000)"),
+                ("target_date", "DATE"),
+                ("deleted_at", "TIMESTAMP"),
+            ):
+                if col not in ap_cols:
+                    ap_alters.append(f"ALTER TABLE annual_plan_items ADD COLUMN {col} {sqltype}")
+            if ap_alters:
+                with engine.begin() as conn:
+                    for stmt in ap_alters:
+                        try:
+                            conn.execute(text(stmt))
+                        except Exception:
+                            pass
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TYPE annualplanstatus ADD VALUE IF NOT EXISTS 'cancelled'"))
+            except Exception:
+                pass
     except Exception:
         pass
     with SessionLocal() as db:
@@ -57,7 +80,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.2',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.3',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 _cors_origins=list(dict.fromkeys([
@@ -76,8 +99,9 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.2',
+        'version': '0.9.3',
         'pdf_layout': 'pro-2026',
+        'annual_plans': 'pro-planlama',
         'git': os.environ.get('RENDER_GIT_COMMIT') or os.environ.get('GIT_COMMIT') or 'local',
     }
 

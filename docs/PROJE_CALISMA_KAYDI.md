@@ -1,15 +1,17 @@
 # İSG Suite OSGB — Çalışma Kaydı (Proje bitene kadar)
 
-**Son güncelleme:** 2026-07-19 12:20 — Risk Analizi aşamasına geçildi  
-**Aktif modül:** Risk Analizi (Eğitim canlıda 0.9.2 / pro-2026)
+**Son güncelleme:** 2026-07-19 12:45 — Yıllık Planlar PRO Planlama Merkezi parity  
+**Aktif modül:** Yıllık Planlar (Risk: kullanıcı canlı incelemede)
 
-### Risk — devam eden
-- [x] Gap analizi (Suite vs PRO)
-- [x] Düzenleme UI + PATCH bölüm senkronu (kod)
-- [ ] KPI / stats kartları
-- [ ] Bölüm yönetimi
-- [ ] Firma geneli DÖF listesi
-- [ ] Revizyon geçmişi tablosu
+### Yıllık Plan — tamamlanan
+- [x] API: meta / summary / generate (12 maddelik PRO şablon) / PATCH / soft DELETE / export.txt
+- [x] Migration 0011 + lifespan kolon fallback
+- [x] Frontend Planlama Merkezi UI (KPI, aylık dağılım, CRUD, otomatik üret, TXT)
+- [x] İSG Uzmanı menü erişimi
+
+### Risk — kullanıcı inceliyor
+- [x] Gap analizi, düzenleme UI, KPI/DÖF/Bölümler (önceki commit)
+- Kullanıcı hata bulursa yazacak
 
 ---
 

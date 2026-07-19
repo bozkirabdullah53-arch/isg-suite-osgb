@@ -56,7 +56,7 @@ export async function downloadFile(path, filename) {
     throw new Error(message);
   }
   const blob = await response.blob();
-  if (!blob || blob.size < 100) {
+  if (!blob || blob.size < 1) {
     throw new Error("Dosya boş veya bozuk geldi. Kayıt ve API sürümünü kontrol edin.");
   }
   const type = (response.headers.get("content-type") || blob.type || "").toLowerCase();
@@ -67,7 +67,9 @@ export async function downloadFile(path, filename) {
     type.includes("spreadsheet") ||
     type.includes("excel") ||
     type.includes("ms-excel") ||
-    type.includes("zip");
+    type.includes("zip") ||
+    type.includes("text/plain") ||
+    type.includes("text/");
   if (!okType) {
     throw new Error("Sunucu beklenen dosya türü yerine başka içerik döndürdü. API sürümünü kontrol edin.");
   }

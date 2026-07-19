@@ -72,6 +72,7 @@ def rebuild_company_notifications(db: Session, company_id: int) -> int:
 
     delayed = db.scalars(select(AnnualPlanItem).where(
         AnnualPlanItem.company_id == company_id,
+        AnnualPlanItem.deleted_at.is_(None),
         AnnualPlanItem.status == AnnualPlanStatus.DELAYED,
     )).all()
     for item in delayed:

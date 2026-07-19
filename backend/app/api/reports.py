@@ -54,6 +54,7 @@ def report_summary(
 
     plan_filter = [] if not effective_company else [AnnualPlanItem.company_id == effective_company]
     delayed_plans = db.scalar(select(func.count()).select_from(AnnualPlanItem).where(
+        AnnualPlanItem.deleted_at.is_(None),
         AnnualPlanItem.status == AnnualPlanStatus.DELAYED,
         *plan_filter,
     )) or 0

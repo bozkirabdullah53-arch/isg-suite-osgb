@@ -1,12 +1,12 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertTriangle,BarChart3,Bell,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,FileText,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
-import {api} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import './styles.css';
+import {api, downloadFile} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import './styles.css';
 const roles={global_admin:'Global Yönetici',company_admin:'Firma Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 const roleModules={
   global_admin:['osgb_dashboard','professionals','assignments','visits','crm','finance','dashboard','companies','branches','employees','risk','near_miss','accident','capa','ppe','training','health','documents','annual_plans','reports','notifications','subscription','security','users'],
   company_admin:['osgb_dashboard','professionals','assignments','visits','crm','finance','dashboard','companies','branches','employees','risk','near_miss','accident','capa','ppe','training','health','documents','annual_plans','reports','notifications','subscription','security','users'],
-  safety_specialist:['dashboard','visits','risk','near_miss','accident','capa','ppe','training','documents'],
+  safety_specialist:['dashboard','visits','risk','near_miss','accident','capa','ppe','training','documents','annual_plans'],
   workplace_physician:['dashboard','visits','health','employees','documents'],
   other_health_personnel:['dashboard','visits','health'],
   read_only:['dashboard']
@@ -47,7 +47,6 @@ function IsgModulePage({user,module}){
 const healthTypeNames={entry_exam:'İşe Giriş Muayenesi',periodic_exam:'Periyodik Muayene',lab_test:'Tetkik',vaccination:'Aşı',fitness_report:'Uygunluk Raporu'};
 const fitnessNames={fit:'Uygun',conditional:'Şartlı Uygun',unfit:'Uygun Değil',pending:'Bekliyor'};
 const documentNames={general:'Genel',risk:'Risk',training:'Eğitim',health:'Sağlık',emergency:'Acil Durum',legal:'Mevzuat',annual_plan:'Yıllık Plan'};
-const planStatusNames={planned:'Planlandı',in_progress:'Devam Ediyor',completed:'Tamamlandı',delayed:'Gecikti'};
 
 function HealthPage({user}){
   const allowed=['global_admin','workplace_physician'].includes(user.role);
@@ -71,18 +70,6 @@ function DocumentsPage({user}){
   async function save(e){e.preventDefault();const payload={...form,company_id:Number(form.company_id),branch_id:null,valid_from:form.valid_from||null,valid_until:form.valid_until||null};await api('/documents',{method:'POST',body:JSON.stringify(payload)});setOpen(false);setForm(empty);load()}
   const cols=[{key:'title',label:'Doküman'},{key:'category',label:'Kategori',render:r=>documentNames[r.category]},{key:'file_name',label:'Dosya Adı'},{key:'version',label:'Versiyon'},{key:'valid_until',label:'Geçerlilik Sonu'}];
   return <Page title="Doküman Yönetimi" action={<button onClick={()=>setOpen(true)}><Plus/>Yeni Doküman</button>}><SearchBar q={q} setQ={setQ} go={load}/><Table cols={cols} rows={rows}/>{open&&<Modal title="Yeni Doküman Kaydı" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Select label="Kategori" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{Object.entries(documentNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Select><Field label="Doküman Başlığı" required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/><Field label="Dosya Adı" value={form.file_name} onChange={e=>setForm({...form,file_name:e.target.value})}/><Field label="Açıklama" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><Field label="Başlangıç Tarihi" type="date" value={form.valid_from} onChange={e=>setForm({...form,valid_from:e.target.value})}/><Field label="Geçerlilik Sonu" type="date" value={form.valid_until} onChange={e=>setForm({...form,valid_until:e.target.value})}/><Field label="Versiyon" value={form.version} onChange={e=>setForm({...form,version:e.target.value})}/><Submit/></form></Modal>}</Page>
-}
-
-function AnnualPlansPage({user}){
-  const now=new Date();
-  const[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false);
-  const empty={company_id:user.company_id||'',year:now.getFullYear(),month:now.getMonth()+1,activity:'',responsible_name:'',status:'planned',completion_date:'',notes:''};
-  const[form,setForm]=useState(empty);
-  const load=()=>Promise.all([api('/companies'),api('/annual-plans')]).then(([c,r])=>{setCompanies(c);setRows(r)});
-  useEffect(()=>{load()},[]);
-  async function save(e){e.preventDefault();const payload={...form,company_id:Number(form.company_id),year:Number(form.year),month:Number(form.month),completion_date:form.completion_date||null};await api('/annual-plans',{method:'POST',body:JSON.stringify(payload)});setOpen(false);setForm(empty);load()}
-  const cols=[{key:'year',label:'Yıl'},{key:'month',label:'Ay'},{key:'activity',label:'Faaliyet'},{key:'responsible_name',label:'Sorumlu'},{key:'status',label:'Durum',render:r=><span className={'badge '+(r.status==='completed'?'ok':'off')}>{planStatusNames[r.status]}</span>}];
-  return <Page title="Yıllık Çalışma Planı" action={<button onClick={()=>setOpen(true)}><Plus/>Yeni Plan Maddesi</button>}><Table cols={cols} rows={rows}/>{open&&<Modal title="Yeni Yıllık Plan Maddesi" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Field label="Yıl" type="number" required value={form.year} onChange={e=>setForm({...form,year:e.target.value})}/><Field label="Ay" type="number" min="1" max="12" required value={form.month} onChange={e=>setForm({...form,month:e.target.value})}/><Field label="Faaliyet" required value={form.activity} onChange={e=>setForm({...form,activity:e.target.value})}/><Field label="Sorumlu" value={form.responsible_name} onChange={e=>setForm({...form,responsible_name:e.target.value})}/><Select label="Durum" value={form.status} onChange={e=>setForm({...form,status:e.target.value})}>{Object.entries(planStatusNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Select><Field label="Tamamlanma Tarihi" type="date" value={form.completion_date} onChange={e=>setForm({...form,completion_date:e.target.value})}/><Field label="Notlar" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/><Submit/></form></Modal>}</Page>
 }
 
 function ReportsPage(){

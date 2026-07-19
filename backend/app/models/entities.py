@@ -249,6 +249,7 @@ class AnnualPlanStatus(str, enum.Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     DELAYED = "delayed"
+    CANCELLED = "cancelled"
 
 
 class AnnualPlanItem(Base):
@@ -258,13 +259,17 @@ class AnnualPlanItem(Base):
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
     year: Mapped[int] = mapped_column(index=True)
     month: Mapped[int] = mapped_column()
+    category: Mapped[str | None] = mapped_column(String(40), nullable=True, default="yillik_calisma", index=True)
     activity: Mapped[str] = mapped_column(String(240), index=True)
+    description: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     responsible_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[AnnualPlanStatus] = mapped_column(
         Enum(AnnualPlanStatus), default=AnnualPlanStatus.PLANNED
     )
     completion_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str | None] = mapped_column(String(1500), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
