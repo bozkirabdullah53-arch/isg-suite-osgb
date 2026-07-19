@@ -42,7 +42,9 @@ def report_summary(
         *isg_filter,
     )) or 0
 
-    health_filter = [] if not effective_company else [HealthRecord.company_id == effective_company]
+    health_filter = [HealthRecord.deleted_at.is_(None)]
+    if effective_company:
+        health_filter.append(HealthRecord.company_id == effective_company)
     health_records = db.scalar(select(func.count()).select_from(HealthRecord).where(*health_filter)) or 0
 
     doc_filter = [] if not effective_company else [DocumentRecord.company_id == effective_company]

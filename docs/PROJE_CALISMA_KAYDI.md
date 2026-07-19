@@ -1,17 +1,16 @@
 # İSG Suite OSGB — Çalışma Kaydı (Proje bitene kadar)
 
-**Son güncelleme:** 2026-07-19 12:45 — Yıllık Planlar PRO Planlama Merkezi parity  
-**Aktif modül:** Yıllık Planlar (Risk: kullanıcı canlı incelemede)
+**Son güncelleme:** 2026-07-19 15:20 — Sağlık Gözetimi PRO parity  
+**Aktif modül:** Sağlık
 
-### Yıllık Plan — tamamlanan
-- [x] API: meta / summary / generate (12 maddelik PRO şablon) / PATCH / soft DELETE / export.txt
-- [x] Migration 0011 + lifespan kolon fallback
-- [x] Frontend Planlama Merkezi UI (KPI, aylık dağılım, CRUD, otomatik üret, TXT)
-- [x] İSG Uzmanı menü erişimi
+### Sağlık — devam
+- [x] Gap analizi (Suite ince CRUD vs PRO gözetim+analiz)
+- [x] Tetkik alanları, meta/summary/suggest, PATCH/DELETE, TXT
+- [x] Frontend Sağlık Gözetimi + Analiz özeti
+- [ ] Commit/push + Render deploy
 
-### Risk — kullanıcı inceliyor
-- [x] Gap analizi, düzenleme UI, KPI/DÖF/Bölümler (önceki commit)
-- Kullanıcı hata bulursa yazacak
+### Yıllık Plan — tamam
+- Canlıda `0.9.3` / pro-planlama (kullanıcı deploy etti)
 
 ---
 

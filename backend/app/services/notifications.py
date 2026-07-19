@@ -57,15 +57,25 @@ def rebuild_company_notifications(db: Session, company_id: int) -> int:
 
     exams = db.scalars(select(HealthRecord).where(
         HealthRecord.company_id == company_id,
+        HealthRecord.deleted_at.is_(None),
         HealthRecord.next_examination_date.is_not(None),
         HealthRecord.next_examination_date <= warning_date,
     )).all()
+    emp_ids = {item.employee_id for item in exams}
+    emp_names = {}
+    if emp_ids:
+        from app.models.entities import Employee
+        emp_names = {
+            e.id: e.full_name
+            for e in db.scalars(select(Employee).where(Employee.id.in_(emp_ids))).all()
+        }
     for item in exams:
+        who = emp_names.get(item.employee_id) or f"Personel #{item.employee_id}"
         notifications.append(Notification(
             company_id=company_id,
             type=NotificationType.WARNING,
             title="Yaklaşan sağlık muayenesi",
-            message=f"Personel #{item.employee_id} için muayene tarihi {item.next_examination_date}.",
+            message=f"{who} için muayene tarihi {item.next_examination_date}.",
             entity_type="health_record",
             entity_id=str(item.id),
         ))

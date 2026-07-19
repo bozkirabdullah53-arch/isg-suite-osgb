@@ -67,6 +67,45 @@ async def lifespan(_:FastAPI):
                     conn.execute(text("ALTER TYPE annualplanstatus ADD VALUE IF NOT EXISTS 'cancelled'"))
             except Exception:
                 pass
+        if "health_records" in insp.get_table_names():
+            hr_cols = {c["name"] for c in insp.get_columns("health_records")}
+            hr_alters = []
+            for col, sqltype in (
+                ("audiometry_date", "DATE"),
+                ("audiometry_result", "VARCHAR(240)"),
+                ("spirometry_date", "DATE"),
+                ("spirometry_result", "VARCHAR(240)"),
+                ("chest_xray_date", "DATE"),
+                ("chest_xray_result", "VARCHAR(240)"),
+                ("blood_lead_date", "DATE"),
+                ("blood_lead_value", "DOUBLE PRECISION"),
+                ("blood_lead_unit", "VARCHAR(20)"),
+                ("blood_lead_ref", "DOUBLE PRECISION"),
+                ("blood_lead_eval", "VARCHAR(40)"),
+                ("suggested_tests", "VARCHAR(1000)"),
+                ("exposures", "VARCHAR(1000)"),
+                ("follow_up_note", "VARCHAR(1500)"),
+                ("deleted_at", "TIMESTAMP"),
+            ):
+                if col not in hr_cols:
+                    hr_alters.append(f"ALTER TABLE health_records ADD COLUMN {col} {sqltype}")
+            if hr_alters:
+                with engine.begin() as conn:
+                    for stmt in hr_alters:
+                        try:
+                            conn.execute(text(stmt))
+                        except Exception:
+                            pass
+            for enum_name, values in (
+                ("healthrecordtype", ("return_exam", "job_change", "night_work", "heavy_hazardous", "other")),
+                ("healthfitnessstatus", ("tracking",)),
+            ):
+                for val in values:
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{val}'"))
+                    except Exception:
+                        pass
     except Exception:
         pass
     with SessionLocal() as db:
@@ -80,7 +119,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.3',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.4',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 _cors_origins=list(dict.fromkeys([
@@ -99,9 +138,10 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.3',
+        'version': '0.9.4',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'pro-planlama',
+        'health': 'pro-saglik',
         'git': os.environ.get('RENDER_GIT_COMMIT') or os.environ.get('GIT_COMMIT') or 'local',
     }
 

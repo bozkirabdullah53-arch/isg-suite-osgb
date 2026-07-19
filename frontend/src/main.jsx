@@ -1,14 +1,14 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertTriangle,BarChart3,Bell,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,FileText,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
-import {api, downloadFile} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import './styles.css';
+import {api, downloadFile} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';import './styles.css';
 const roles={global_admin:'Global Yönetici',company_admin:'Firma Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 const roleModules={
   global_admin:['osgb_dashboard','professionals','assignments','visits','crm','finance','dashboard','companies','branches','employees','risk','near_miss','accident','capa','ppe','training','health','documents','annual_plans','reports','notifications','subscription','security','users'],
   company_admin:['osgb_dashboard','professionals','assignments','visits','crm','finance','dashboard','companies','branches','employees','risk','near_miss','accident','capa','ppe','training','health','documents','annual_plans','reports','notifications','subscription','security','users'],
   safety_specialist:['dashboard','visits','risk','near_miss','accident','capa','ppe','training','documents','annual_plans'],
   workplace_physician:['dashboard','visits','health','employees','documents'],
-  other_health_personnel:['dashboard','visits','health'],
+  other_health_personnel:['dashboard','visits','health','employees'],
   read_only:['dashboard']
 };
 function Login({done}){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[err,setErr]=useState('');async function submit(e){e.preventDefault();setErr('');try{const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});localStorage.setItem('isg_token',r.access_token);done()}catch(x){setErr(x.message)}}return <main className="login-shell"><section className="login-card"><div className="brand-mark"><ShieldCheck size={34}/></div><h1>İSG Suite</h1><p>İş Sağlığı ve Güvenliği Yönetim Sistemi</p><form onSubmit={submit}><label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email"/><label>Şifre</label><input value={password} onChange={e=>setPassword(e.target.value)} type="password"/>{err&&<div className="error">{err}</div>}<button>Giriş Yap</button></form></section></main>}
@@ -44,22 +44,7 @@ function IsgModulePage({user,module}){
 }
 
 
-const healthTypeNames={entry_exam:'İşe Giriş Muayenesi',periodic_exam:'Periyodik Muayene',lab_test:'Tetkik',vaccination:'Aşı',fitness_report:'Uygunluk Raporu'};
-const fitnessNames={fit:'Uygun',conditional:'Şartlı Uygun',unfit:'Uygun Değil',pending:'Bekliyor'};
 const documentNames={general:'Genel',risk:'Risk',training:'Eğitim',health:'Sağlık',emergency:'Acil Durum',legal:'Mevzuat',annual_plan:'Yıllık Plan'};
-
-function HealthPage({user}){
-  const allowed=['global_admin','workplace_physician'].includes(user.role);
-  const[companies,setCompanies]=useState([]),[employees,setEmployees]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false);
-  const empty={company_id:user.company_id||'',employee_id:'',record_type:'periodic_exam',examination_date:'',next_examination_date:'',fitness_status:'pending',physician_name:'',summary:'',confidential_note:''};
-  const[form,setForm]=useState(empty);
-  const load=()=>allowed&&Promise.all([api('/companies'),api('/employees'),api('/health-records')]).then(([c,e,r])=>{setCompanies(c);setEmployees(e);setRows(r)});
-  useEffect(()=>{load()},[]);
-  async function save(e){e.preventDefault();const payload={...form,company_id:Number(form.company_id),employee_id:Number(form.employee_id),next_examination_date:form.next_examination_date||null};await api('/health-records',{method:'POST',body:JSON.stringify(payload)});setOpen(false);setForm(empty);load()}
-  if(!allowed)return <Page title="Sağlık İşlemleri"><div className="panel"><h3>Yetki sınırı</h3><p>Sağlık kayıtları yalnızca işyeri hekimi ve global yönetici tarafından görüntülenebilir.</p></div></Page>;
-  const cols=[{key:'employee_id',label:'Personel No'},{key:'record_type',label:'Kayıt Türü',render:r=>healthTypeNames[r.record_type]},{key:'examination_date',label:'Muayene Tarihi'},{key:'next_examination_date',label:'Sonraki Muayene'},{key:'fitness_status',label:'Uygunluk',render:r=><span className={'badge '+(r.fitness_status==='fit'?'ok':'off')}>{fitnessNames[r.fitness_status]}</span>},{key:'physician_name',label:'Hekim'}];
-  return <Page title="Sağlık ve Muayene Kayıtları" action={<button onClick={()=>setOpen(true)}><Plus/>Yeni Sağlık Kaydı</button>}><Table cols={cols} rows={rows}/>{open&&<Modal title="Yeni Sağlık Kaydı" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value,employee_id:''})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Select label="Personel" required value={form.employee_id} onChange={e=>setForm({...form,employee_id:e.target.value})}><option value="">Seçiniz</option>{employees.filter(x=>String(x.company_id)===String(form.company_id)).map(x=><option key={x.id} value={x.id}>{x.full_name}</option>)}</Select><Select label="Kayıt Türü" value={form.record_type} onChange={e=>setForm({...form,record_type:e.target.value})}>{Object.entries(healthTypeNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Select><Field label="Muayene Tarihi" type="date" required value={form.examination_date} onChange={e=>setForm({...form,examination_date:e.target.value})}/><Field label="Sonraki Muayene" type="date" value={form.next_examination_date} onChange={e=>setForm({...form,next_examination_date:e.target.value})}/><Select label="Uygunluk Durumu" value={form.fitness_status} onChange={e=>setForm({...form,fitness_status:e.target.value})}>{Object.entries(fitnessNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Select><Field label="İşyeri Hekimi" value={form.physician_name} onChange={e=>setForm({...form,physician_name:e.target.value})}/><Field label="Genel Özet" value={form.summary} onChange={e=>setForm({...form,summary:e.target.value})}/><Field label="Gizli Hekim Notu" value={form.confidential_note} onChange={e=>setForm({...form,confidential_note:e.target.value})}/><Submit/></form></Modal>}</Page>
-}
 
 function DocumentsPage({user}){
   const[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[q,setQ]=useState('');

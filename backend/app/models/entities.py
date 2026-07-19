@@ -185,14 +185,20 @@ class IsgRecord(Base):
 class HealthRecordType(str, enum.Enum):
     ENTRY_EXAM = "entry_exam"
     PERIODIC_EXAM = "periodic_exam"
+    RETURN_EXAM = "return_exam"
+    JOB_CHANGE = "job_change"
+    NIGHT_WORK = "night_work"
+    HEAVY_HAZARDOUS = "heavy_hazardous"
     LAB_TEST = "lab_test"
     VACCINATION = "vaccination"
     FITNESS_REPORT = "fitness_report"
+    OTHER = "other"
 
 
 class HealthFitnessStatus(str, enum.Enum):
     FIT = "fit"
     CONDITIONAL = "conditional"
+    TRACKING = "tracking"
     UNFIT = "unfit"
     PENDING = "pending"
 
@@ -205,13 +211,29 @@ class HealthRecord(Base):
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
     record_type: Mapped[HealthRecordType] = mapped_column(Enum(HealthRecordType), index=True)
     examination_date: Mapped[date] = mapped_column(Date, index=True)
-    next_examination_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    next_examination_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     fitness_status: Mapped[HealthFitnessStatus] = mapped_column(
         Enum(HealthFitnessStatus), default=HealthFitnessStatus.PENDING
     )
     physician_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     summary: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     confidential_note: Mapped[str | None] = mapped_column(String(3000), nullable=True)
+    # PRO tetkik takip alanları
+    audiometry_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    audiometry_result: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    spirometry_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    spirometry_result: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    chest_xray_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    chest_xray_result: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    blood_lead_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    blood_lead_value: Mapped[float | None] = mapped_column(nullable=True)
+    blood_lead_unit: Mapped[str | None] = mapped_column(String(20), nullable=True, default="µg/dL")
+    blood_lead_ref: Mapped[float | None] = mapped_column(nullable=True)
+    blood_lead_eval: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    suggested_tests: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    exposures: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    follow_up_note: Mapped[str | None] = mapped_column(String(1500), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
