@@ -1,13 +1,14 @@
 # İSG Suite OSGB — Çalışma Kaydı (Proje bitene kadar)
 
-**Son güncelleme:** 2026-07-19 15:50 — OSGB Hizmet Denetimi (global admin)  
+**Son güncelleme:** 2026-07-19 16:50 — Hizmet Denetimi: genel tüm personel + seçince tüm eksikler  
 **Aktif modül:** OSGB Hizmet Denetimi
 
 ### OSGB Hizmet Denetimi
 - [x] `GET /osgb/oversight` — yalnız `global_admin`
 - [x] 6331 checklist: uzman (saha, risk, DÖF, yıllık plan, eğitim, olay) + hekim (saha, sağlık, muayene, uygunluk)
-- [x] UI: profesyonel skor / işyeri detay — menü yalnız global admin
-- [ ] Commit/push + Render
+- [x] Açılış = **genel** (KPI + grafik + tüm personel eksikleri, kesilmez)
+- [x] Personel seçince = o kişinin **tüm** 6331 eksikleri + firma checklist
+- [ ] Commit/push + Render (`0.9.11` / `6331-denetim-v4`)
 
 ---
 

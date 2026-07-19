@@ -389,13 +389,24 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
     month_start, month_end = _month_bounds()
     year = date.today().year
 
-    pros_q = select(IsgProfessional).where(IsgProfessional.is_active.is_(True)).order_by(IsgProfessional.full_name)
+    # Aktif + pasif: isim listesinde herkes görünür (askıdaki uzman da seçilebilsin)
+    pros_q = select(IsgProfessional).order_by(IsgProfessional.full_name)
     assign_q = select(WorkplaceAssignment).where(WorkplaceAssignment.status == AssignmentStatus.ACTIVE)
     if osgb_id:
         pros_q = pros_q.where(IsgProfessional.osgb_id == osgb_id)
         assign_q = assign_q.where(WorkplaceAssignment.osgb_id == osgb_id)
 
     professionals = list(db.scalars(pros_q).all())
+    directory = [
+        {
+            "professional_id": p.id,
+            "full_name": p.full_name,
+            "professional_type": p.professional_type.value,
+            "certificate_class": p.certificate_class,
+            "is_active": bool(p.is_active),
+        }
+        for p in professionals
+    ]
     assignments = list(db.scalars(assign_q).all())
     company_ids = {a.company_id for a in assignments}
     companies = {
@@ -425,10 +436,22 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
             company = companies.get(a.company_id)
             if not company:
                 continue
-            if pro.professional_type == ProfessionalType.SAFETY_SPECIALIST:
-                checks = _eval_specialist_firm(db, company, a, month_start, month_end, year)
-            else:
-                checks = _eval_physician_firm(db, company, a, month_start, month_end)
+            try:
+                if pro.professional_type == ProfessionalType.SAFETY_SPECIALIST:
+                    checks = _eval_specialist_firm(db, company, a, month_start, month_end, year)
+                else:
+                    checks = _eval_physician_firm(db, company, a, month_start, month_end)
+            except Exception as exc:
+                checks = [
+                    _check_result(
+                        "sistem",
+                        "Değerlendirme hatası",
+                        "Sistem",
+                        1,
+                        False,
+                        f"Kontrol hesaplanamadı: {exc}",
+                    )
+                ]
 
             weight_total = sum(c["weight"] for c in checks) or 1
             weight_ok = sum(c["weight"] for c in checks if c["passed"])
@@ -471,6 +494,7 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                     "certificate_class": pro.certificate_class,
                     "certificate_number": pro.certificate_number,
                     "osgb_id": pro.osgb_id,
+                    "is_active": bool(pro.is_active),
                     "firm_count": 0,
                     "score": 0,
                     "status": "critical",
@@ -551,6 +575,7 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                 "certificate_class": pro.certificate_class,
                 "certificate_number": pro.certificate_number,
                 "osgb_id": pro.osgb_id,
+                "is_active": bool(pro.is_active),
                 "firm_count": len(firms),
                 "score": avg_score,
                 "status": overall,
@@ -610,8 +635,9 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
         },
         "summary": summary,
         "check_columns": check_columns,
-        "gaps": global_gaps[:80],
+        "gaps": global_gaps,
         "gap_count": len(global_gaps),
+        "directory": directory,
         "professionals": rows,
     }
 
