@@ -215,14 +215,26 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
 
 @router.get("/visits", response_model=list[VisitResponse])
 def visits(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    oid = active_osgb(user, osgb_id, db)
-    stmt = select(ServiceVisit).where(ServiceVisit.osgb_id == oid)
+    # Saha personeli: kendi ziyaretlerini OSGB id olmadan da görür
     if user.role in _FIELD_ROLES:
         pro = find_professional_for_user(db, user)
         if not pro:
             return []
-        stmt = stmt.where(ServiceVisit.professional_id == pro.id)
-    return list(db.scalars(stmt.order_by(ServiceVisit.visit_date.desc())).all())
+        return list(
+            db.scalars(
+                select(ServiceVisit)
+                .where(ServiceVisit.professional_id == pro.id)
+                .order_by(ServiceVisit.visit_date.desc(), ServiceVisit.id.desc())
+            ).all()
+        )
+    oid = active_osgb(user, osgb_id, db)
+    return list(
+        db.scalars(
+            select(ServiceVisit)
+            .where(ServiceVisit.osgb_id == oid)
+            .order_by(ServiceVisit.visit_date.desc(), ServiceVisit.id.desc())
+        ).all()
+    )
 
 
 @router.post("/visits", response_model=VisitResponse)
@@ -235,6 +247,9 @@ def create_visit(payload: VisitCreate, db: Session = Depends(get_db), user: User
     professional = _resolve_visit_professional(db, user, payload)
     data = payload.model_dump()
     data["professional_id"] = professional.id
+    # Kullanıcı OSGB bağı boşsa profesyonelden senkronize et (liste/filtreler için)
+    if user.role in _FIELD_ROLES and not user.osgb_id and professional.osgb_id:
+        user.osgb_id = professional.osgb_id
     obj = ServiceVisit(**data)
     db.add(obj)
     db.commit()

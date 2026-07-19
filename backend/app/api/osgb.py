@@ -6,6 +6,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from app.api.company_access import find_professional_for_user
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
@@ -28,7 +29,13 @@ def _scope_osgb(user: User, osgb_id: int) -> None:
 def list_osgb(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     stmt = select(OsgbOrganization).order_by(OsgbOrganization.name)
     if user.role != UserRole.GLOBAL_ADMIN:
-        stmt = stmt.where(OsgbOrganization.id == user.osgb_id)
+        oid = user.osgb_id
+        if not oid:
+            pro = find_professional_for_user(db, user)
+            oid = pro.osgb_id if pro else None
+        if not oid:
+            return []
+        stmt = stmt.where(OsgbOrganization.id == oid)
     return list(db.scalars(stmt).all())
 
 @router.post("", response_model=OsgbResponse)

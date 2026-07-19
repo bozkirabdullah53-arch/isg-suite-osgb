@@ -477,18 +477,25 @@ export function VisitsPage({user}){
  const[notebookFile,setNotebookFile]=useState(null);
  const[form,setForm]=useState({osgb_id:'',company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''});
  const load=async(preferredOid)=>{
-  const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);
-  const id=preferredOid||osgbId(user,o);
-  setOrgs(o);setCompanies(c);
-  setForm(x=>({...x,osgb_id:id||x.osgb_id}));
-  const oid=Number(preferredOid||id);
-  if(oid){
+  setErr('');
+  try{
+   const[o,c]=await Promise.all([api('/osgb').catch(()=>[]),api('/companies')]);
+   setOrgs(o);setCompanies(c);
+   const id=preferredOid||osgbId(user,o)||(c.find(x=>x.osgb_id)?.osgb_id)||'';
+   setForm(x=>({...x,osgb_id:id||x.osgb_id}));
+   if(isField){
+    // Uzman/hekim/DSP: kendi ziyaretleri — OSGB id gerekmez
+    setRows(await api('/operations/visits'));
+    return;
+   }
+   const oid=Number(preferredOid||id);
+   if(!oid){setRows([]);return}
    const[p,v]=await Promise.all([
     api(`/osgb/professionals?osgb_id=${oid}`).catch(()=>[]),
     api(`/operations/visits?osgb_id=${oid}`),
    ]);
    setPros(p);setRows(v);
-  }
+  }catch(ex){setErr(ex.message||'Liste yüklenemedi.');setRows([])}
  };
  useEffect(()=>{load()},[]);
  async function save(e){
@@ -518,12 +525,12 @@ export function VisitsPage({user}){
    setOpen(false);
    setNotebookFile(null);
    setForm(f=>({...f,company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''}));
-   await load(form.osgb_id);
+   await load();
   }catch(ex){setErr(ex.message||'Kayıt başarısız.')}
   finally{setBusy(false)}
  }
  async function done(id){
-  try{await api(`/operations/visits/${id}/complete`,{method:'PATCH'});await load(form.osgb_id)}
+  try{await api(`/operations/visits/${id}/complete`,{method:'PATCH'});await load()}
   catch(ex){setErr(ex.message||'Tamamlanamadı.')}
  }
  async function downloadNotebook(row){
