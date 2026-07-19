@@ -10,7 +10,7 @@ import './styles.css';
 const roles={global_admin:'Global Yönetici',company_admin:'Firma Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 const roleModules={
   // OSGB global: profesyonel takip + denetim; saha operasyonu (eğitim/takvim/risk...) uzman-hekim-DSP’de
-  global_admin:['osgb_dashboard','osgb_oversight','pro_performance','csgb_audit','professionals','assignments','crm','finance','dashboard','companies','branches','documents','reports','notifications','subscription','security','users'],
+  global_admin:['osgb_dashboard','osgb_oversight','pro_performance','csgb_audit','professionals','assignments','crm','finance','companies','branches','documents','reports','notifications','subscription','security','users'],
   company_admin:['osgb_dashboard','professionals','assignments','visits','crm','finance','dashboard','companies','branches','employees','training','documents','reports','notifications','subscription','security','users'],
   safety_specialist:['dashboard','visits','risk','near_miss','accident','capa','ppe','training','documents','annual_plans'],
   workplace_physician:['dashboard','visits','health','employees','documents'],
