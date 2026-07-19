@@ -51,11 +51,10 @@ def create_osgb(payload: OsgbCreate, db: Session = Depends(get_db), _: User = De
 def osgb_oversight(
     osgb_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*ADMIN_ROLES)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
 ):
-    """OSGB yönetimi — profesyonel sorumluluk / 6331 hizmet denetimi."""
-    if user.role != UserRole.GLOBAL_ADMIN:
-        osgb_id = user.osgb_id
+    """Yalnız global yönetici — profesyonel sorumluluk / 6331 hizmet denetimi."""
+    _ = user
     return build_oversight(db, osgb_id=osgb_id)
 
 
@@ -79,11 +78,10 @@ def osgb_oversight_seed_demo(
 def csgb_audit_pack(
     osgb_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*ADMIN_ROLES)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
 ):
-    """ÇSGB OSGB denetimi — müfettiş belge paketi hazırlık durumu."""
-    if user.role != UserRole.GLOBAL_ADMIN:
-        osgb_id = user.osgb_id
+    """ÇSGB OSGB denetimi — yalnız global yönetici."""
+    _ = user
     return build_csgb_audit_pack(db, osgb_id=osgb_id)
 
 
@@ -91,14 +89,13 @@ def csgb_audit_pack(
 def professional_performance(
     professional_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*ADMIN_ROLES)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
 ):
-    """Seçilen uzman/hekim/DSP için iş tamamlama / performans raporu."""
+    """Seçilen uzman/hekim/DSP performans raporu — yalnız global yönetici."""
+    _ = user
     pro = db.get(IsgProfessional, professional_id)
     if not pro:
         raise HTTPException(404, "Profesyonel bulunamadı.")
-    if user.role != UserRole.GLOBAL_ADMIN and pro.osgb_id != user.osgb_id:
-        raise HTTPException(403, "Bu profesyonelin performansına erişim yetkiniz yok.")
     try:
         return build_professional_performance(db, professional_id)
     except ValueError as exc:
@@ -107,8 +104,17 @@ def professional_performance(
 
 @router.get("/professionals", response_model=list[ProfessionalResponse])
 def list_professionals(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    # Saha rolleri yalnızca kendi profesyonel kaydını görür
+    if user.role in (
+        UserRole.SAFETY_SPECIALIST,
+        UserRole.WORKPLACE_PHYSICIAN,
+        UserRole.OTHER_HEALTH_PERSONNEL,
+    ):
+        pro = find_professional_for_user(db, user)
+        return [pro] if pro else []
     target = osgb_id if user.role == UserRole.GLOBAL_ADMIN else user.osgb_id
-    if not target: return []
+    if not target:
+        return []
     _scope_osgb(user, target)
     return list(db.scalars(select(IsgProfessional).where(IsgProfessional.osgb_id == target).order_by(IsgProfessional.full_name)).all())
 
@@ -197,10 +203,21 @@ def delete_professional(professional_id: int, db: Session = Depends(get_db), use
 @router.get("/assignments", response_model=list[AssignmentResponse])
 def list_assignments(company_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     stmt = select(WorkplaceAssignment)
-    if user.role != UserRole.GLOBAL_ADMIN:
-        if not user.osgb_id: return []
+    if user.role in (
+        UserRole.SAFETY_SPECIALIST,
+        UserRole.WORKPLACE_PHYSICIAN,
+        UserRole.OTHER_HEALTH_PERSONNEL,
+    ):
+        pro = find_professional_for_user(db, user)
+        if not pro:
+            return []
+        stmt = stmt.where(WorkplaceAssignment.professional_id == pro.id)
+    elif user.role != UserRole.GLOBAL_ADMIN:
+        if not user.osgb_id:
+            return []
         stmt = stmt.where(WorkplaceAssignment.osgb_id == user.osgb_id)
-    if company_id: stmt = stmt.where(WorkplaceAssignment.company_id == company_id)
+    if company_id:
+        stmt = stmt.where(WorkplaceAssignment.company_id == company_id)
     return list(db.scalars(stmt.order_by(WorkplaceAssignment.start_date.desc())).all())
 
 ALLOWED_CONTRACT = {".pdf", ".jpg", ".jpeg", ".png"}
@@ -216,6 +233,15 @@ def _get_assignment(db: Session, assignment_id: int, user: User) -> WorkplaceAss
     obj = db.get(WorkplaceAssignment, assignment_id)
     if not obj:
         raise HTTPException(404, "Görevlendirme bulunamadı.")
+    if user.role in (
+        UserRole.SAFETY_SPECIALIST,
+        UserRole.WORKPLACE_PHYSICIAN,
+        UserRole.OTHER_HEALTH_PERSONNEL,
+    ):
+        pro = find_professional_for_user(db, user)
+        if not pro or obj.professional_id != pro.id:
+            raise HTTPException(403, "Bu görevlendirmeye erişim yetkiniz yok.")
+        return obj
     _scope_osgb(user, obj.osgb_id)
     return obj
 
@@ -323,10 +349,11 @@ def download_assignment_contract(
 
 
 @router.get("/contracts", response_model=list[ContractResponse])
-def list_contracts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def list_contracts(db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
     stmt = select(ServiceContract)
     if user.role != UserRole.GLOBAL_ADMIN:
-        if not user.osgb_id: return []
+        if not user.osgb_id:
+            return []
         stmt = stmt.where(ServiceContract.osgb_id == user.osgb_id)
     return list(db.scalars(stmt.order_by(ServiceContract.start_date.desc())).all())
 

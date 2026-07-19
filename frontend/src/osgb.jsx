@@ -471,7 +471,7 @@ export function AssignmentsPage({user}){
 
 export function VisitsPage({user}){
  const isField=['safety_specialist','workplace_physician','other_health_personnel'].includes(user.role);
- const isOsgb=['global_admin','company_admin'].includes(user.role);
+ const isOsgb=user.role==='global_admin';
  const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]);
  const[open,setOpen]=useState(false),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
  const[notebookFile,setNotebookFile]=useState(null);

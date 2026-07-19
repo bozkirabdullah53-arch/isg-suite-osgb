@@ -104,15 +104,18 @@ def _get_visit(db: Session, visit_id: int, user: User) -> ServiceVisit:
     obj = db.get(ServiceVisit, visit_id)
     if not obj:
         raise HTTPException(404, "Ziyaret bulunamadı.")
-    scope(user, obj.osgb_id)
+    # Yalnız global yönetici veya ziyareti yapan saha personeli
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return obj
     if user.role in _FIELD_ROLES:
         pro = find_professional_for_user(db, user)
         if not pro or obj.professional_id != pro.id:
             raise HTTPException(403, "Bu ziyarete erişim yetkiniz yok.")
-    return obj
+        return obj
+    raise HTTPException(403, "Bu ziyarete erişim yetkiniz yok.")
 
 @router.get("/dashboard")
-def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN))):
     oid = active_osgb(user, osgb_id, db)
     today = date.today()
     soon = today + timedelta(days=30)
@@ -215,7 +218,7 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
 
 @router.get("/visits", response_model=list[VisitResponse])
 def visits(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    # Saha personeli: kendi ziyaretlerini OSGB id olmadan da görür
+    # Saha personeli: yalnız kendi ziyaretleri
     if user.role in _FIELD_ROLES:
         pro = find_professional_for_user(db, user)
         if not pro:
@@ -227,6 +230,9 @@ def visits(osgb_id: int | None = None, db: Session = Depends(get_db), user: User
                 .order_by(ServiceVisit.visit_date.desc(), ServiceVisit.id.desc())
             ).all()
         )
+    # Tüm OSGB ziyaret listesi yalnız global yönetici
+    if user.role != UserRole.GLOBAL_ADMIN:
+        raise HTTPException(403, "Tüm ziyaret listesi yalnız global yönetici içindir.")
     oid = active_osgb(user, osgb_id, db)
     return list(
         db.scalars(
@@ -319,7 +325,7 @@ def download_visit_notebook(
 
 
 @router.patch("/visits/{visit_id}/complete", response_model=VisitResponse)
-def complete_visit(visit_id: int, db: Session = Depends(get_db), user: User = Depends(require_roles(*VISIT_ROLES))):
+def complete_visit(visit_id: int, db: Session = Depends(get_db), user: User = Depends(require_roles(*FIELD_VISIT_ROLES))):
     obj = _get_visit(db, visit_id, user)
     obj.status = VisitStatus.COMPLETED
     db.commit()
@@ -327,23 +333,33 @@ def complete_visit(visit_id: int, db: Session = Depends(get_db), user: User = De
     return obj
 
 @router.get("/leads", response_model=list[LeadResponse])
-def leads(osgb_id:int|None=None, db:Session=Depends(get_db), user:User=Depends(get_current_user)):
-    oid=active_osgb(user,osgb_id)
-    return list(db.scalars(select(CrmLead).where(CrmLead.osgb_id==oid).order_by(CrmLead.created_at.desc())).all())
+def leads(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN))):
+    oid = active_osgb(user, osgb_id, db)
+    return list(db.scalars(select(CrmLead).where(CrmLead.osgb_id == oid).order_by(CrmLead.created_at.desc())).all())
 
 @router.post("/leads", response_model=LeadResponse)
-def create_lead(payload:LeadCreate, db:Session=Depends(get_db), user:User=Depends(require_roles(*ADMIN))):
-    scope(user,payload.osgb_id);obj=CrmLead(**payload.model_dump());db.add(obj);db.commit();db.refresh(obj);return obj
+def create_lead(payload: LeadCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN))):
+    scope(user, payload.osgb_id)
+    obj = CrmLead(**payload.model_dump())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
 
 @router.get("/finance", response_model=list[FinanceResponse])
-def finance(osgb_id:int|None=None, db:Session=Depends(get_db), user:User=Depends(get_current_user)):
-    oid=active_osgb(user,osgb_id)
-    return list(db.scalars(select(FinanceTransaction).where(FinanceTransaction.osgb_id==oid).order_by(FinanceTransaction.transaction_date.desc())).all())
+def finance(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN))):
+    oid = active_osgb(user, osgb_id, db)
+    return list(db.scalars(select(FinanceTransaction).where(FinanceTransaction.osgb_id == oid).order_by(FinanceTransaction.transaction_date.desc())).all())
 
 @router.post("/finance", response_model=FinanceResponse)
-def create_finance(payload:FinanceCreate, db:Session=Depends(get_db), user:User=Depends(require_roles(*ADMIN))):
-    scope(user,payload.osgb_id)
+def create_finance(payload: FinanceCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN))):
+    scope(user, payload.osgb_id)
     if payload.company_id:
-        company=db.get(Company,payload.company_id)
-        if not company or company.osgb_id!=payload.osgb_id: raise HTTPException(400,"İşyeri OSGB ile eşleşmiyor.")
-    obj=FinanceTransaction(**payload.model_dump());db.add(obj);db.commit();db.refresh(obj);return obj
+        company = db.get(Company, payload.company_id)
+        if not company or company.osgb_id != payload.osgb_id:
+            raise HTTPException(400, "İşyeri OSGB ile eşleşmiyor.")
+    obj = FinanceTransaction(**payload.model_dump())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj

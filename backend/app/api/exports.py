@@ -1,6 +1,6 @@
 from io import BytesIO
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from openpyxl import Workbook
 from reportlab.lib.pagesizes import A4
@@ -8,28 +8,43 @@ from reportlab.pdfgen import canvas
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.company_access import assigned_company_ids
+from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import Employee, IsgRecord, User, UserRole
 
 router = APIRouter(prefix="/exports", tags=["Dışa Aktarım"])
+ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
 
 
-def effective_company(user: User, requested: int | None) -> int | None:
-    return requested if user.role == UserRole.GLOBAL_ADMIN else user.company_id
+def _scoped_company_ids(user: User, requested: int | None, db: Session) -> list[int] | None:
+    """None = global tüm firmalar. Boş = erişim yok."""
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return [requested] if requested else None
+    allowed = assigned_company_ids(db, user)
+    if not allowed:
+        return []
+    if requested:
+        if requested not in allowed:
+            raise HTTPException(403, "Bu firmaya erişemezsiniz.")
+        return [requested]
+    return allowed
 
 
 @router.get("/employees.xlsx")
 def export_employees_excel(
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_roles(*ADMIN)),
 ):
-    cid = effective_company(user, company_id)
-    query = select(Employee).order_by(Employee.full_name)
-    if cid:
-        query = query.where(Employee.company_id == cid)
-    rows = db.scalars(query).all()
+    scope = _scoped_company_ids(user, company_id, db)
+    if scope is not None and not scope:
+        rows = []
+    else:
+        query = select(Employee).order_by(Employee.full_name)
+        if scope is not None:
+            query = query.where(Employee.company_id.in_(scope))
+        rows = list(db.scalars(query).all())
 
     wb = Workbook()
     ws = wb.active
@@ -57,13 +72,16 @@ def export_employees_excel(
 def export_isg_pdf(
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_roles(*ADMIN)),
 ):
-    cid = effective_company(user, company_id)
-    query = select(IsgRecord).order_by(IsgRecord.created_at.desc())
-    if cid:
-        query = query.where(IsgRecord.company_id == cid)
-    rows = db.scalars(query).all()
+    scope = _scoped_company_ids(user, company_id, db)
+    if scope is not None and not scope:
+        rows = []
+    else:
+        query = select(IsgRecord).order_by(IsgRecord.created_at.desc())
+        if scope is not None:
+            query = query.where(IsgRecord.company_id.in_(scope))
+        rows = list(db.scalars(query).all())
 
     stream = BytesIO()
     pdf = canvas.Canvas(stream, pagesize=A4)
@@ -80,13 +98,13 @@ def export_isg_pdf(
         y -= 15
         if y < 50:
             pdf.showPage()
-            pdf.setFont("Helvetica", 9)
             y = height - 50
+            pdf.setFont("Helvetica", 9)
 
     pdf.save()
     stream.seek(0)
     return StreamingResponse(
         stream,
         media_type="application/pdf",
-        headers={"Content-Disposition": 'attachment; filename="isg-ozet-raporu.pdf"'},
+        headers={"Content-Disposition": 'attachment; filename="isg-ozet.pdf"'},
     )
