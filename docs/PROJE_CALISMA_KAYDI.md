@@ -1,8 +1,15 @@
 # İSG Suite OSGB — Çalışma Kaydı (Proje bitene kadar)
 
-**Son güncelleme:** 2026-07-19 11:15 (master force-push sonrası)  
-**Amaç:** PC yeniden başlatma / oturum kesintisi sonrası kaldığımız yerden devam.  
-**Kural:** Bir bölüm (modül) Suite’te **tam ve hatasız** çalışmadan sonraki moda geçilmez. Sırayı kullanıcı söyler.
+**Son güncelleme:** 2026-07-19 12:20 — Risk Analizi aşamasına geçildi  
+**Aktif modül:** Risk Analizi (Eğitim canlıda 0.9.2 / pro-2026)
+
+### Risk — devam eden
+- [x] Gap analizi (Suite vs PRO)
+- [x] Düzenleme UI + PATCH bölüm senkronu (kod)
+- [ ] KPI / stats kartları
+- [ ] Bölüm yönetimi
+- [ ] Firma geneli DÖF listesi
+- [ ] Revizyon geçmişi tablosu
 
 ---
 

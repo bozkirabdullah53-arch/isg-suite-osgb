@@ -639,13 +639,40 @@ def update_risk(
     ensure_access(user, row.company_id)
     data = payload.model_dump(exclude_unset=True)
     term_override = data.pop("term_override_days", None)
+    has_dep_id = "department_id" in data
+    has_dep_name = "department_name" in data
+    dep_id = data.pop("department_id", None) if has_dep_id else None
+    dep_name = data.pop("department_name", None) if has_dep_name else None
+    if has_dep_id or has_dep_name:
+        resolved_id, resolved_name = _resolve_department(
+            db,
+            company_id=row.company_id,
+            department_id=dep_id,
+            department_name=dep_name,
+        )
+        if resolved_id is not None:
+            row.department_id = resolved_id
+        if resolved_name is not None:
+            row.department_name = resolved_name
+
+    changed = has_dep_id or has_dep_name
     for key, val in data.items():
+        if getattr(row, key, None) != val:
+            changed = True
         setattr(row, key, val)
+
+    if "hazard_id" in data:
+        hazard = db.get(Hazard, row.hazard_id)
+        if not hazard or not hazard.is_active:
+            raise HTTPException(422, "Geçersiz tehlike seçimi.")
+
     if "probability" in data or "severity" in data or term_override is not None:
         calc = evaluate(
             row.probability,
             row.severity,
-            term_override_days=term_override if term_override is not None else (row.term_days if row.term_overridden else None),
+            term_override_days=term_override
+            if term_override is not None
+            else (row.term_days if row.term_overridden else None),
         )
         row.risk_score = calc["risk_score"]
         row.risk_level = calc["risk_level"]
@@ -653,6 +680,9 @@ def update_risk(
         row.term_days = calc["term_days"]
         row.term_date = date.fromisoformat(calc["term_date"])
         row.term_overridden = calc["term_overridden"]
+        changed = True
+
+    if changed:
         row.revision_no = (row.revision_no or 0) + 1
     db.commit()
     row = _load_risk(db, row.id)

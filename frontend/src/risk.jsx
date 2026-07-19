@@ -124,6 +124,7 @@ export function RiskPage({user}) {
   const [calc, setCalc] = useState(null);
   const [suggestions, setSuggestions] = useState(null);
   const [open, setOpen] = useState(false);
+  const [editId, setEditId] = useState(null);
   const [libOpen, setLibOpen] = useState(false);
   const [detail, setDetail] = useState(null);
   const [q, setQ] = useState('');
@@ -255,7 +256,6 @@ export function RiskPage({user}) {
     }
     const newDep = (form.new_department || '').trim();
     const payload = {
-      company_id: Number(form.company_id),
       branch_id: form.branch_id ? Number(form.branch_id) : null,
       hazard_id: Number(form.hazard_id),
       activity: form.activity,
@@ -272,15 +272,89 @@ export function RiskPage({user}) {
       payload.department_id = null;
     } else if (form.department_id) {
       payload.department_id = Number(form.department_id);
+    } else if (!editId) {
+      setErr('Bölüm seçiniz veya yeni bölüm adı giriniz.');
+      return;
     }
     try {
-      await api('/risks', {method: 'POST', body: JSON.stringify(payload)});
+      if (editId) {
+        await api(`/risks/${editId}`, {method: 'PATCH', body: JSON.stringify(payload)});
+      } else {
+        await api('/risks', {
+          method: 'POST',
+          body: JSON.stringify({...payload, company_id: Number(form.company_id)}),
+        });
+      }
+      const savedId = editId;
       setOpen(false);
+      setEditId(null);
       setForm(empty);
       setSuggestions(null);
-      load();
+      await load();
+      if (savedId) await openDetail(savedId);
     } catch (x) {
       setErr(x.message);
+    }
+  }
+
+  function openCreate() {
+    setEditId(null);
+    setErr('');
+    setSuggestions(null);
+    setForm({
+      ...empty,
+      company_id: reportCompanyId || user.company_id || companies[0]?.id || '',
+    });
+    setOpen(true);
+  }
+
+  async function openEdit(riskOrId) {
+    setErr('');
+    setBusy(true);
+    try {
+      const id = typeof riskOrId === 'object' ? riskOrId.id : riskOrId;
+      const r = typeof riskOrId === 'object' && riskOrId.risk_code
+        ? riskOrId
+        : await api(`/risks/${id}`);
+      setEditId(r.id);
+      setDetail(null);
+      setForm({
+        ...empty,
+        company_id: String(r.company_id || ''),
+        branch_id: r.branch_id ? String(r.branch_id) : '',
+        department_id: r.department_id ? String(r.department_id) : '',
+        department_name: r.department_name || '',
+        new_department: '',
+        category_id: '',
+        hazard_id: String(r.hazard_id || ''),
+        hazard_q: '',
+        activity: r.activity || '',
+        risk_definition: r.risk_definition || '',
+        affected_people: r.affected_people || '',
+        affected_group: r.affected_group || 'Çalışan',
+        existing_measures: r.existing_measures || '',
+        additional_measures: r.additional_measures || '',
+        probability: r.probability || 3,
+        severity: r.severity || 3,
+      });
+      if (r.hazard_id) {
+        try {
+          const d = await api(`/risks/hazards/${r.hazard_id}`);
+          setSuggestions(d.suggestions || null);
+          setForm((f) => ({
+            ...f,
+            category_id: String(d.hazard?.category_id || ''),
+            hazard_id: String(r.hazard_id),
+          }));
+        } catch (_) {
+          setSuggestions(null);
+        }
+      }
+      setOpen(true);
+    } catch (x) {
+      setErr(x.message);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -410,11 +484,7 @@ export function RiskPage({user}) {
             <Download size={16} /> {dlBusy === 'xlsx' ? 'Excel…' : 'Excel Rapor'}
           </button>
           {canEdit && (
-            <button type="button" onClick={() => {
-              setForm({...empty, company_id: user.company_id || companies[0]?.id || ''});
-              setOpen(true);
-              setErr('');
-            }}>
+            <button type="button" onClick={openCreate}>
               <Plus /> Yeni Risk
             </button>
           )}
@@ -479,6 +549,9 @@ export function RiskPage({user}) {
                   <td>{r.status}</td>
                   <td>
                     <button className="mini" type="button" onClick={() => openDetail(r.id)}>Detay</button>
+                    {canEdit && (
+                      <button className="mini" type="button" onClick={() => openEdit(r)}>Düzenle</button>
+                    )}
                     {canEdit && r.status === 'Açık' && (
                       <button className="mini" type="button" onClick={() => complete(r.id)}>Tamamla</button>
                     )}
@@ -574,9 +647,19 @@ export function RiskPage({user}) {
       )}
 
       {open && (
-        <Modal title="Yeni Risk Değerlendirmesi" close={() => setOpen(false)} wide>
+        <Modal
+          title={editId ? `Risk Düzenle #${editId}` : 'Yeni Risk Değerlendirmesi'}
+          close={() => { setOpen(false); setEditId(null); setErr(''); }}
+          wide
+        >
           <form className="form-grid" onSubmit={save}>
-            <Select label="Firma / İşyeri" required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value, branch_id: '', department_id: '', new_department: ''})}>
+            <Select
+              label="Firma / İşyeri"
+              required
+              value={form.company_id}
+              disabled={!!editId}
+              onChange={(e) => setForm({...form, company_id: e.target.value, branch_id: '', department_id: '', new_department: ''})}
+            >
               <option value="">Seçiniz</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
@@ -678,7 +761,7 @@ export function RiskPage({user}) {
             )}
             {err && <div className="error" style={{gridColumn: '1 / -1'}}>{err}</div>}
             <div className="form-actions" style={{gridColumn: '1 / -1'}}>
-              <button type="submit">Kaydet</button>
+              <button type="submit">{editId ? 'Güncelle' : 'Kaydet'}</button>
             </div>
           </form>
         </Modal>
@@ -690,10 +773,15 @@ export function RiskPage({user}) {
             <div>
               <h3>{detail.risk_code} — Risk Detayı / DÖF</h3>
               <p style={{margin: '6px 0 0', color: '#64748b', fontSize: 14}}>
-                Uygulama içinde kalın · DÖF ekle / tamamla
+                Revizyon: {detail.revision_no ?? 0} · Uygulama içinde düzenleme ve DÖF
               </p>
             </div>
-            <button type="button" className="secondary" onClick={() => setDetail(null)}>Listeye dön</button>
+            <div className="actions">
+              {canEdit && (
+                <button type="button" onClick={() => openEdit(detail)}>Düzenle</button>
+              )}
+              <button type="button" className="secondary" onClick={() => setDetail(null)}>Listeye dön</button>
+            </div>
           </div>
           <div className="form-grid">
             <div className="field"><span>Bölüm</span><strong>{detail.department_name || '—'}</strong></div>
