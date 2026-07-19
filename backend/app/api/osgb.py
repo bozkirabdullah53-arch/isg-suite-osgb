@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
@@ -88,10 +89,36 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
     _scope_osgb(user, payload.osgb_id)
     company = db.get(Company, payload.company_id)
     professional = db.get(IsgProfessional, payload.professional_id)
-    if not company or company.osgb_id != payload.osgb_id: raise HTTPException(400, "İşyeri bu OSGB'ye bağlı değil.")
-    if not professional or professional.osgb_id != payload.osgb_id: raise HTTPException(400, "Profesyonel bu OSGB'ye bağlı değil.")
+    if not company:
+        raise HTTPException(400, "İşyeri bulunamadı.")
+    if not professional:
+        raise HTTPException(400, "Profesyonel bulunamadı.")
+    if professional.osgb_id != payload.osgb_id:
+        raise HTTPException(400, "Profesyonel bu OSGB'ye bağlı değil.")
+    # Global yönetici: işyerinin OSGB bağı yoksa görevlendirme ile bağla
+    if company.osgb_id is None:
+        if user.role != UserRole.GLOBAL_ADMIN:
+            raise HTTPException(400, "İşyeri bir OSGB'ye bağlı değil. Önce işyerini OSGB'ye bağlayın.")
+        company.osgb_id = payload.osgb_id
+    elif company.osgb_id != payload.osgb_id:
+        raise HTTPException(
+            400,
+            "İşyeri başka bir OSGB'ye bağlı. Görevlendirme için aynı OSGB'deki işyerini seçin "
+            "veya işyerinin OSGB bağlantısını güncelleyin.",
+        )
+    if professional.professional_type != payload.professional_type:
+        payload = payload.model_copy(update={"professional_type": professional.professional_type})
     obj = WorkplaceAssignment(**payload.model_dump())
-    db.add(obj); db.commit(); db.refresh(obj)
+    db.add(obj)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            409,
+            "Bu profesyonel bu işyerine aynı görev türüyle zaten atanmış. Mevcut kaydı kontrol edin.",
+        ) from None
+    db.refresh(obj)
     return obj
 
 @router.get("/contracts", response_model=list[ContractResponse])

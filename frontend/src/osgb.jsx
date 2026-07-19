@@ -27,10 +27,93 @@ export function ProfessionalsPage({user}){
 }
 
 export function AssignmentsPage({user}){
- const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState({osgb_id:'',company_id:'',professional_id:'',professional_type:'safety_specialist',start_date:'',end_date:'',required_minutes_monthly:0,planned_minutes_monthly:0,actual_minutes_monthly:0,isg_katip_contract_number:''});
- const load=async()=>{const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);const id=osgbId(user,o);setOrgs(o);setCompanies(c);setForm(x=>({...x,osgb_id:id}));if(id){const[p,a]=await Promise.all([api(`/osgb/professionals?osgb_id=${id}`),api('/osgb/assignments')]);setPros(p);setRows(a)}};useEffect(()=>{load()},[]);
- async function save(e){e.preventDefault();const pro=pros.find(x=>x.id===Number(form.professional_id));await api('/osgb/assignments',{method:'POST',body:JSON.stringify({...form,osgb_id:Number(form.osgb_id),company_id:Number(form.company_id),professional_id:Number(form.professional_id),professional_type:pro?.professional_type||form.professional_type,end_date:form.end_date||null,required_minutes_monthly:Number(form.required_minutes_monthly),planned_minutes_monthly:Number(form.planned_minutes_monthly),actual_minutes_monthly:Number(form.actual_minutes_monthly)})});setOpen(false);load()}
- return <P title="İşyeri Görevlendirmeleri" action={<button onClick={()=>setOpen(true)}><Plus/>Görevlendirme Yap</button>}><T rows={rows} cols={[{k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||r.company_id},{k:'professional_id',l:'Profesyonel',f:r=>pros.find(x=>x.id===r.professional_id)?.full_name||r.professional_id},{k:'professional_type',l:'Görev',f:r=>ptypes[r.professional_type]},{k:'start_date',l:'Başlangıç'},{k:'required_minutes_monthly',l:'Zorunlu dk.'},{k:'actual_minutes_monthly',l:'Gerçekleşen dk.'},{k:'status',l:'Durum'}]}/>{open&&<M title="Yeni Görevlendirme" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><S label="İşyeri" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</S><S label="Profesyonel" required value={form.professional_id} onChange={e=>setForm({...form,professional_id:e.target.value})}><option value="">Seçiniz</option>{pros.map(x=><option key={x.id} value={x.id}>{x.full_name} — {ptypes[x.professional_type]}</option>)}</S><F label="Başlangıç" type="date" required value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/><F label="Bitiş" type="date" value={form.end_date} onChange={e=>setForm({...form,end_date:e.target.value})}/><F label="Aylık Zorunlu Dakika" type="number" value={form.required_minutes_monthly} onChange={e=>setForm({...form,required_minutes_monthly:e.target.value})}/><F label="Aylık Planlanan Dakika" type="number" value={form.planned_minutes_monthly} onChange={e=>setForm({...form,planned_minutes_monthly:e.target.value})}/><F label="İSG-KATİP Sözleşme No" value={form.isg_katip_contract_number} onChange={e=>setForm({...form,isg_katip_contract_number:e.target.value})}/><div className="form-actions"><button>Kaydet</button></div></form></M>}</P>
+ const isGlobal=user.role==='global_admin';
+ const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]);
+ const[open,setOpen]=useState(false),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
+ const[form,setForm]=useState({osgb_id:'',company_id:'',professional_id:'',professional_type:'safety_specialist',start_date:'',end_date:'',required_minutes_monthly:0,planned_minutes_monthly:0,actual_minutes_monthly:0,isg_katip_contract_number:''});
+ const load=async(preferredOid)=>{
+  const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);
+  const id=preferredOid||osgbId(user,o);
+  setOrgs(o);setCompanies(c);
+  setForm(x=>({...x,osgb_id:id||x.osgb_id}));
+  const oid=Number(preferredOid||id);
+  if(oid){
+   const[p,a]=await Promise.all([api(`/osgb/professionals?osgb_id=${oid}`),api('/osgb/assignments')]);
+   setPros(p);setRows(a);
+  }
+ };
+ useEffect(()=>{load()},[]);
+ const companyOpts=companies.filter(x=>{
+  const oid=Number(form.osgb_id);
+  if(!oid) return true;
+  return !x.osgb_id || Number(x.osgb_id)===oid;
+ });
+ async function save(e){
+  e.preventDefault();
+  setErr('');setBusy(true);
+  try{
+   if(!form.osgb_id) throw new Error('OSGB seçiniz.');
+   if(!form.company_id) throw new Error('İşyeri seçiniz.');
+   if(!form.professional_id) throw new Error('Profesyonel seçiniz.');
+   if(!form.start_date) throw new Error('Başlangıç tarihi zorunlu.');
+   const pro=pros.find(x=>x.id===Number(form.professional_id));
+   await api('/osgb/assignments',{method:'POST',body:JSON.stringify({
+    osgb_id:Number(form.osgb_id),
+    company_id:Number(form.company_id),
+    professional_id:Number(form.professional_id),
+    professional_type:pro?.professional_type||form.professional_type,
+    start_date:form.start_date,
+    end_date:form.end_date||null,
+    required_minutes_monthly:Number(form.required_minutes_monthly)||0,
+    planned_minutes_monthly:Number(form.planned_minutes_monthly)||0,
+    actual_minutes_monthly:Number(form.actual_minutes_monthly)||0,
+    isg_katip_contract_number:form.isg_katip_contract_number||null,
+   })});
+   setOpen(false);
+   setForm(f=>({...f,company_id:'',professional_id:'',start_date:'',end_date:'',required_minutes_monthly:0,planned_minutes_monthly:0,actual_minutes_monthly:0,isg_katip_contract_number:''}));
+   await load(form.osgb_id);
+  }catch(ex){setErr(ex.message||'Kayıt başarısız.')}
+  finally{setBusy(false)}
+ }
+ async function onOsgbChange(oid){
+  setForm(f=>({...f,osgb_id:oid,company_id:'',professional_id:''}));
+  await load(oid);
+ }
+ return <P title="İşyeri Görevlendirmeleri" action={<button onClick={()=>{setErr('');setOpen(true)}}><Plus/>Görevlendirme Yap</button>}>
+  {err&&!open&&<p style={{color:'#b91c1c'}}>{err}</p>}
+  <T rows={rows} cols={[
+   {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||r.company_id},
+   {k:'professional_id',l:'Profesyonel',f:r=>pros.find(x=>x.id===r.professional_id)?.full_name||r.professional_id},
+   {k:'professional_type',l:'Görev',f:r=>ptypes[r.professional_type]},
+   {k:'start_date',l:'Başlangıç'},
+   {k:'required_minutes_monthly',l:'Zorunlu dk.'},
+   {k:'actual_minutes_monthly',l:'Gerçekleşen dk.'},
+   {k:'status',l:'Durum'}
+  ]}/>
+  {open&&<M title="Yeni Görevlendirme" close={()=>setOpen(false)}>
+   <form className="form-grid" onSubmit={save}>
+    {isGlobal&&<S label="OSGB" required value={form.osgb_id} onChange={e=>onOsgbChange(e.target.value)}>
+     <option value="">Seçiniz</option>
+     {orgs.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
+    </S>}
+    <S label="İşyeri" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}>
+     <option value="">Seçiniz</option>
+     {companyOpts.map(x=><option key={x.id} value={x.id}>{x.name}{!x.osgb_id?' (OSGB bağlanacak)':''}</option>)}
+    </S>
+    <S label="Profesyonel" required value={form.professional_id} onChange={e=>setForm({...form,professional_id:e.target.value})}>
+     <option value="">Seçiniz</option>
+     {pros.map(x=><option key={x.id} value={x.id}>{x.full_name} — {ptypes[x.professional_type]}</option>)}
+    </S>
+    <F label="Başlangıç" type="date" required value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/>
+    <F label="Bitiş" type="date" value={form.end_date} onChange={e=>setForm({...form,end_date:e.target.value})}/>
+    <F label="Aylık Zorunlu Dakika" type="number" value={form.required_minutes_monthly} onChange={e=>setForm({...form,required_minutes_monthly:e.target.value})}/>
+    <F label="Aylık Planlanan Dakika" type="number" value={form.planned_minutes_monthly} onChange={e=>setForm({...form,planned_minutes_monthly:e.target.value})}/>
+    <F label="İSG-KATİP Sözleşme No" value={form.isg_katip_contract_number} onChange={e=>setForm({...form,isg_katip_contract_number:e.target.value})}/>
+    {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
+    <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>
+   </form>
+  </M>}
+ </P>
 }
 
 export function VisitsPage({user}){
