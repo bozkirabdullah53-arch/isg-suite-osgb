@@ -9,7 +9,8 @@ from app.models.entities import (AssignmentStatus, Company, IsgProfessional, Osg
 from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCreate,
                               ContractResponse, OsgbCreate, OsgbResponse,
                               ProfessionalCreate, ProfessionalResponse, ProfessionalUpdate)
-from app.services.osgb_oversight import build_oversight, seed_oversight_demo
+from app.services.osgb_oversight import build_oversight, build_professional_performance, seed_oversight_demo
+from app.services.csgb_audit_pack import build_csgb_audit_pack
 
 router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
 ADMIN_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
@@ -59,6 +60,34 @@ def osgb_oversight_seed_demo(
         raise HTTPException(400, str(exc)) from exc
     overview = build_oversight(db, osgb_id=seeded["osgb_id"])
     return {"seeded": seeded, "oversight_summary": overview.get("summary"), "gap_count": overview.get("gap_count")}
+
+
+@router.get("/csgb-audit-pack")
+def csgb_audit_pack(
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """ÇSGB OSGB denetimi — müfettiş belge paketi hazırlık durumu."""
+    _ = user
+    return build_csgb_audit_pack(db, osgb_id=osgb_id)
+
+
+@router.get("/professionals/{professional_id}/performance")
+def professional_performance(
+    professional_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """Seçilen uzman/hekim/DSP için iş tamamlama / performans raporu."""
+    _ = user
+    pro = db.get(IsgProfessional, professional_id)
+    if not pro:
+        raise HTTPException(404, "Profesyonel bulunamadı.")
+    try:
+        return build_professional_performance(db, professional_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
 
 
 @router.get("/professionals", response_model=list[ProfessionalResponse])

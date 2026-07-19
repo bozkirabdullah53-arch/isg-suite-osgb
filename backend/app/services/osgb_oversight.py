@@ -642,6 +642,123 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
     }
 
 
+def build_professional_performance(db: Session, professional_id: int) -> dict:
+    """Tek profesyonel için iş tamamlama / performans raporu (global yönetici)."""
+    pro = db.get(IsgProfessional, professional_id)
+    if not pro:
+        raise ValueError("Profesyonel bulunamadı.")
+
+    overview = build_oversight(db, osgb_id=pro.osgb_id)
+    row = next(
+        (p for p in overview.get("professionals") or [] if p["professional_id"] == professional_id),
+        None,
+    )
+
+    type_labels = {
+        "safety_specialist": "İş Güvenliği Uzmanı",
+        "workplace_physician": "İşyeri Hekimi",
+        "other_health_personnel": "Diğer Sağlık Personeli",
+    }
+
+    if not row:
+        # Oversight listesinde yok (pasif / filtre) — yine de kimlik dön
+        return {
+            "professional": {
+                "id": pro.id,
+                "full_name": pro.full_name,
+                "professional_type": pro.professional_type.value,
+                "role_label": type_labels.get(pro.professional_type.value, pro.professional_type.value),
+                "certificate_class": pro.certificate_class,
+                "certificate_number": pro.certificate_number,
+                "is_active": bool(pro.is_active),
+                "osgb_id": pro.osgb_id,
+            },
+            "period": overview.get("period"),
+            "legal_basis": overview.get("legal_basis"),
+            "performance": {
+                "score": 0,
+                "status": "critical",
+                "firm_count": 0,
+                "completed_checks": 0,
+                "total_checks": 0,
+                "completion_pct": 0,
+                "gap_count": 1,
+            },
+            "firms": [],
+            "completed": [],
+            "incomplete": [
+                {
+                    "company_id": None,
+                    "company_name": "—",
+                    "check_code": "gorevlendirme",
+                    "check_title": "Değerlendirme verisi yok",
+                    "detail": "Aktif görevlendirme veya dönem verisi bulunamadı.",
+                    "legal": "",
+                }
+            ],
+            "check_columns": [],
+            "report_title": f"İş Tamamlama / Performans Raporu — {pro.full_name}",
+            "generated_at": date.today().isoformat(),
+        }
+
+    completed = []
+    incomplete = list(row.get("gaps") or [])
+    total_checks = 0
+    passed_checks = 0
+    for f in row.get("firms") or []:
+        for c in f.get("checks") or []:
+            total_checks += 1
+            item = {
+                "company_id": f["company_id"],
+                "company_name": f["company_name"],
+                "check_code": c["code"],
+                "check_title": c["title"],
+                "detail": c["detail"],
+                "legal": c.get("legal"),
+            }
+            if c.get("passed"):
+                passed_checks += 1
+                completed.append(item)
+            # incomplete already from gaps; avoid double if unassigned
+
+    # Unassigned: firms empty, gaps has gorevlendirme
+    if row.get("unassigned") and not incomplete:
+        incomplete = list(row.get("gaps") or [])
+
+    completion_pct = round(100 * passed_checks / total_checks) if total_checks else (0 if incomplete else 100)
+
+    return {
+        "professional": {
+            "id": pro.id,
+            "full_name": pro.full_name,
+            "professional_type": row["professional_type"],
+            "role_label": type_labels.get(row["professional_type"], row["professional_type"]),
+            "certificate_class": row.get("certificate_class"),
+            "certificate_number": row.get("certificate_number"),
+            "is_active": row.get("is_active", True),
+            "osgb_id": pro.osgb_id,
+        },
+        "period": overview.get("period"),
+        "legal_basis": overview.get("legal_basis"),
+        "performance": {
+            "score": row.get("score", 0),
+            "status": row.get("status", "unknown"),
+            "firm_count": row.get("firm_count", 0),
+            "completed_checks": passed_checks,
+            "total_checks": total_checks,
+            "completion_pct": completion_pct,
+            "gap_count": len(incomplete),
+            "unassigned": bool(row.get("unassigned")),
+        },
+        "firms": row.get("firms") or [],
+        "completed": completed,
+        "incomplete": incomplete,
+        "check_columns": row.get("check_columns") or [],
+        "report_title": f"İş Tamamlama / Performans Raporu — {pro.full_name}",
+        "generated_at": date.today().isoformat(),
+    }
+
+
 def seed_oversight_demo(db: Session, osgb_id: int | None = None) -> dict:
     """Test uzman / hekim / DSP + kasıtlı eksiklikler (denetim paneli smoke)."""
     osgb = None

@@ -1,13 +1,13 @@
 # İSG Suite OSGB — Çalışma Kaydı (Proje bitene kadar)
 
-**Son güncelleme:** 2026-07-19 21:30 — OSGB global: eğitim/saha takvimi menüden çıkarıldı  
-**Aktif modül:** OSGB global profesyonel takip + ÇSGB denetim raporu (plan)
+**Son güncelleme:** 2026-07-19 21:45 — Performans raporu + ÇSGB belge paketi  
+**Aktif modül:** OSGB global profesyonel takip + ÇSGB denetim raporu
 
 ### OSGB Global yönetici yönü
 - [x] Menüden kaldır: Eğitimler, Saha Takvimi (global_admin)
-- [ ] Seçilen uzman/hekim/DSP performans / iş tamamlama raporu
-- [ ] ÇSGB OSGB denetim belge paketi / rapor
-- [ ] Commit/push + Render (`0.9.16`)
+- [x] Seçilen uzman/hekim/DSP performans / iş tamamlama raporu
+- [x] ÇSGB OSGB denetim belge paketi / rapor
+- [ ] Commit/push + Render (`0.9.17`)
 
 ---
 
