@@ -4,11 +4,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
-from app.models.entities import (Company, IsgProfessional, OsgbOrganization, ServiceContract,
+from app.models.entities import (AssignmentStatus, Company, IsgProfessional, OsgbOrganization, ServiceContract,
                                  User, UserRole, WorkplaceAssignment)
 from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCreate,
                               ContractResponse, OsgbCreate, OsgbResponse,
-                              ProfessionalCreate, ProfessionalResponse)
+                              ProfessionalCreate, ProfessionalResponse, ProfessionalUpdate)
 from app.services.osgb_oversight import build_oversight, seed_oversight_demo
 
 router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
@@ -74,6 +74,81 @@ def create_professional(payload: ProfessionalCreate, db: Session = Depends(get_d
     obj = IsgProfessional(**payload.model_dump())
     db.add(obj); db.commit(); db.refresh(obj)
     return obj
+
+
+@router.patch("/professionals/{professional_id}/suspend")
+def suspend_professional(professional_id: int, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
+    obj = db.get(IsgProfessional, professional_id)
+    if not obj:
+        raise HTTPException(404, "Profesyonel bulunamadı.")
+    _scope_osgb(user, obj.osgb_id)
+    obj.is_active = False
+    db.commit()
+    return {"ok": True, "id": professional_id, "is_active": False, "message": "Profesyonel askıya alındı."}
+
+
+@router.patch("/professionals/{professional_id}/activate")
+def activate_professional(professional_id: int, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
+    obj = db.get(IsgProfessional, professional_id)
+    if not obj:
+        raise HTTPException(404, "Profesyonel bulunamadı.")
+    _scope_osgb(user, obj.osgb_id)
+    obj.is_active = True
+    db.commit()
+    return {"ok": True, "id": professional_id, "is_active": True, "message": "Profesyonel aktifleştirildi."}
+
+
+@router.patch("/professionals/{professional_id}", response_model=ProfessionalResponse)
+def update_professional(
+    professional_id: int,
+    payload: ProfessionalUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    obj = db.get(IsgProfessional, professional_id)
+    if not obj:
+        raise HTTPException(404, "Profesyonel bulunamadı.")
+    _scope_osgb(user, obj.osgb_id)
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(obj, k, v)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.delete("/professionals/{professional_id}")
+def delete_professional(professional_id: int, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
+    obj = db.get(IsgProfessional, professional_id)
+    if not obj:
+        raise HTTPException(404, "Profesyonel bulunamadı.")
+    _scope_osgb(user, obj.osgb_id)
+    active_assign = db.scalar(
+        select(WorkplaceAssignment).where(
+            WorkplaceAssignment.professional_id == professional_id,
+            WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+        ).limit(1)
+    )
+    if active_assign:
+        raise HTTPException(
+            400,
+            "Aktif görevlendirmesi olan profesyonel silinemez. Önce görevlendirmeleri sonlandırın veya askıya alın.",
+        )
+    try:
+        db.delete(obj)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        # Geçmiş ziyaret/görevlendirme varsa soft-delete
+        obj.is_active = False
+        db.commit()
+        return {
+            "ok": True,
+            "id": professional_id,
+            "soft_deleted": True,
+            "message": "Bağlı kayıtlar nedeniyle kalıcı silinemedi; askıya alındı.",
+        }
+    return {"ok": True, "id": professional_id, "message": "Profesyonel silindi."}
+
 
 @router.get("/assignments", response_model=list[AssignmentResponse])
 def list_assignments(company_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):

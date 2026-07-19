@@ -27,6 +27,16 @@ class ProfessionalCreate(BaseModel):
     certificate_number: str | None = None
     certificate_date: date | None = None
 
+class ProfessionalUpdate(BaseModel):
+    full_name: str | None = Field(default=None, min_length=2, max_length=160)
+    email: EmailStr | None = None
+    phone: str | None = None
+    professional_type: ProfessionalType | None = None
+    certificate_class: str | None = None
+    certificate_number: str | None = None
+    certificate_date: date | None = None
+    is_active: bool | None = None
+
 class ProfessionalResponse(ProfessionalCreate):
     id: int
     is_active: bool
