@@ -1,8 +1,14 @@
 from datetime import date, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from app.api.company_access import ensure_company_access, find_professional_for_user
 from app.api.deps import get_current_user, require_roles
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import (AssignmentStatus, Company, CrmLead, FinanceTransaction, IsgProfessional,
                                  OsgbOrganization, ServiceContract, ServiceVisit, User,
@@ -12,6 +18,20 @@ from app.schemas.operations import (FinanceCreate, FinanceResponse, LeadCreate, 
 
 router = APIRouter(prefix="/operations", tags=["OSGB Operasyonları"])
 ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
+VISIT_ROLES = (
+    UserRole.GLOBAL_ADMIN,
+    UserRole.COMPANY_ADMIN,
+    UserRole.SAFETY_SPECIALIST,
+    UserRole.WORKPLACE_PHYSICIAN,
+    UserRole.OTHER_HEALTH_PERSONNEL,
+)
+ALLOWED_NOTEBOOK = {".pdf", ".jpg", ".jpeg", ".png"}
+_FIELD_ROLES = {
+    UserRole.SAFETY_SPECIALIST,
+    UserRole.WORKPLACE_PHYSICIAN,
+    UserRole.OTHER_HEALTH_PERSONNEL,
+}
+
 
 def scope(user: User, osgb_id: int):
     if user.role != UserRole.GLOBAL_ADMIN and user.osgb_id != osgb_id:
@@ -23,6 +43,55 @@ def active_osgb(user: User, requested: int | None = None) -> int:
         raise HTTPException(400, "Kullanıcıya bağlı bir OSGB bulunamadı.")
     scope(user, oid)
     return oid
+
+
+def _upload_root() -> Path:
+    root = Path(settings.upload_dir).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _resolve_visit_professional(db: Session, user: User, payload: VisitCreate) -> IsgProfessional:
+    if user.role in _FIELD_ROLES:
+        pro = find_professional_for_user(db, user)
+        if not pro:
+            raise HTTPException(
+                400,
+                "Profesyonel kaydınız bulunamadı. Kullanıcı e-postanızın İSG Profesyonelleri kaydıyla aynı olduğundan emin olun.",
+            )
+        return pro
+    if payload.professional_id:
+        professional = db.get(IsgProfessional, payload.professional_id)
+        if not professional or professional.osgb_id != payload.osgb_id:
+            raise HTTPException(400, "Profesyonel OSGB ile eşleşmiyor.")
+        return professional
+    pro = find_professional_for_user(db, user)
+    if pro:
+        return pro
+    assign = db.scalar(
+        select(WorkplaceAssignment).where(
+            WorkplaceAssignment.company_id == payload.company_id,
+            WorkplaceAssignment.osgb_id == payload.osgb_id,
+            WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+        ).order_by(WorkplaceAssignment.id).limit(1)
+    )
+    if assign:
+        professional = db.get(IsgProfessional, assign.professional_id)
+        if professional:
+            return professional
+    raise HTTPException(400, "Bu işyerinde aktif görevlendirme yok; profesyonel belirlenemedi.")
+
+
+def _get_visit(db: Session, visit_id: int, user: User) -> ServiceVisit:
+    obj = db.get(ServiceVisit, visit_id)
+    if not obj:
+        raise HTTPException(404, "Ziyaret bulunamadı.")
+    scope(user, obj.osgb_id)
+    if user.role in _FIELD_ROLES:
+        pro = find_professional_for_user(db, user)
+        if not pro or obj.professional_id != pro.id:
+            raise HTTPException(403, "Bu ziyarete erişim yetkiniz yok.")
+    return obj
 
 @router.get("/dashboard")
 def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -127,23 +196,102 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
     }
 
 @router.get("/visits", response_model=list[VisitResponse])
-def visits(osgb_id:int|None=None, db:Session=Depends(get_db), user:User=Depends(get_current_user)):
-    oid=active_osgb(user,osgb_id)
-    return list(db.scalars(select(ServiceVisit).where(ServiceVisit.osgb_id==oid).order_by(ServiceVisit.visit_date.desc())).all())
+def visits(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    oid = active_osgb(user, osgb_id)
+    stmt = select(ServiceVisit).where(ServiceVisit.osgb_id == oid)
+    if user.role in _FIELD_ROLES:
+        pro = find_professional_for_user(db, user)
+        if not pro:
+            return []
+        stmt = stmt.where(ServiceVisit.professional_id == pro.id)
+    return list(db.scalars(stmt.order_by(ServiceVisit.visit_date.desc())).all())
+
 
 @router.post("/visits", response_model=VisitResponse)
-def create_visit(payload:VisitCreate, db:Session=Depends(get_db), user:User=Depends(require_roles(*ADMIN))):
-    scope(user,payload.osgb_id)
-    company=db.get(Company,payload.company_id); professional=db.get(IsgProfessional,payload.professional_id)
-    if not company or company.osgb_id!=payload.osgb_id: raise HTTPException(400,"İşyeri OSGB ile eşleşmiyor.")
-    if not professional or professional.osgb_id!=payload.osgb_id: raise HTTPException(400,"Profesyonel OSGB ile eşleşmiyor.")
-    obj=ServiceVisit(**payload.model_dump());db.add(obj);db.commit();db.refresh(obj);return obj
+def create_visit(payload: VisitCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*VISIT_ROLES))):
+    scope(user, payload.osgb_id)
+    if user.role in _FIELD_ROLES:
+        ensure_company_access(db, user, payload.company_id)
+    company = db.get(Company, payload.company_id)
+    if not company or company.osgb_id != payload.osgb_id:
+        raise HTTPException(400, "İşyeri OSGB ile eşleşmiyor.")
+    professional = _resolve_visit_professional(db, user, payload)
+    data = payload.model_dump()
+    data["professional_id"] = professional.id
+    obj = ServiceVisit(**data)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.post("/visits/{visit_id}/notebook", response_model=VisitResponse)
+async def upload_visit_notebook(
+    visit_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VISIT_ROLES)),
+):
+    obj = _get_visit(db, visit_id, user)
+    name = file.filename or "tespit-oneri-defteri.pdf"
+    ext = Path(name).suffix.lower()
+    if ext not in ALLOWED_NOTEBOOK:
+        raise HTTPException(422, "Sadece pdf, jpg veya png yükleyin.")
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "Boş dosya yüklenemez.")
+    if len(data) > settings.max_upload_mb * 1024 * 1024:
+        raise HTTPException(413, f"Dosya {settings.max_upload_mb} MB sınırını aşıyor.")
+    if obj.notebook_storage_path:
+        old = (_upload_root() / obj.notebook_storage_path).resolve()
+        if _upload_root() in old.parents and old.exists():
+            try:
+                old.unlink()
+            except OSError:
+                pass
+    rel = f"{obj.osgb_id}/visits/{obj.id}_{uuid4().hex[:10]}{ext}"
+    target = _upload_root() / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    obj.notebook_file_name = name
+    obj.notebook_storage_path = rel.replace("\\", "/")
+    obj.notebook_content_type = file.content_type or {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+    }.get(ext, "application/octet-stream")
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.get("/visits/{visit_id}/notebook")
+def download_visit_notebook(
+    visit_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    obj = _get_visit(db, visit_id, user)
+    if not obj.notebook_storage_path:
+        raise HTTPException(404, "Tespit öneri defteri dosyası yok.")
+    path = (_upload_root() / obj.notebook_storage_path).resolve()
+    if _upload_root() not in path.parents or not path.exists():
+        raise HTTPException(404, "Dosya bulunamadı.")
+    return FileResponse(
+        path,
+        media_type=obj.notebook_content_type or "application/octet-stream",
+        filename=obj.notebook_file_name or path.name,
+    )
+
 
 @router.patch("/visits/{visit_id}/complete", response_model=VisitResponse)
-def complete_visit(visit_id:int, db:Session=Depends(get_db), user:User=Depends(require_roles(*ADMIN))):
-    obj=db.get(ServiceVisit,visit_id)
-    if not obj: raise HTTPException(404,"Ziyaret bulunamadı.")
-    scope(user,obj.osgb_id);obj.status=VisitStatus.COMPLETED;db.commit();db.refresh(obj);return obj
+def complete_visit(visit_id: int, db: Session = Depends(get_db), user: User = Depends(require_roles(*VISIT_ROLES))):
+    obj = _get_visit(db, visit_id, user)
+    obj.status = VisitStatus.COMPLETED
+    db.commit()
+    db.refresh(obj)
+    return obj
 
 @router.get("/leads", response_model=list[LeadResponse])
 def leads(osgb_id:int|None=None, db:Session=Depends(get_db), user:User=Depends(get_current_user)):

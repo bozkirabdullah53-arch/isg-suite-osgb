@@ -75,6 +75,9 @@ export async function downloadFile(path, filename) {
     !type ||
     type.includes("pdf") ||
     type.includes("octet-stream") ||
+    type.includes("image/") ||
+    type.includes("jpeg") ||
+    type.includes("png") ||
     type.includes("spreadsheet") ||
     type.includes("excel") ||
     type.includes("ms-excel") ||

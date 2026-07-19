@@ -5,7 +5,7 @@ from app.models.entities import VisitStatus
 class VisitCreate(BaseModel):
     osgb_id: int
     company_id: int
-    professional_id: int
+    professional_id: int | None = None
     visit_date: date
     start_time: str | None = None
     end_time: str | None = None
@@ -13,8 +13,19 @@ class VisitCreate(BaseModel):
     subject: str = Field(min_length=2, max_length=220)
     notes: str | None = None
 
-class VisitResponse(VisitCreate):
+class VisitResponse(BaseModel):
     id: int
+    osgb_id: int
+    company_id: int
+    professional_id: int
+    visit_date: date
+    start_time: str | None = None
+    end_time: str | None = None
+    duration_minutes: int = 0
+    subject: str
+    notes: str | None = None
+    notebook_file_name: str | None = None
+    notebook_content_type: str | None = None
     status: VisitStatus
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)

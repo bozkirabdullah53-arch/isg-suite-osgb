@@ -1,5 +1,5 @@
 import React,{useEffect,useMemo,useState} from 'react';
-import {api} from './api';
+import {api,downloadFile,uploadFile} from './api';
 import {Plus} from 'lucide-react';
 
 const ptypes={safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli'};
@@ -361,6 +361,7 @@ export function AssignmentsPage({user}){
  const isGlobal=user.role==='global_admin';
  const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]);
  const[open,setOpen]=useState(false),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
+ const[contractFile,setContractFile]=useState(null);
  const[form,setForm]=useState({osgb_id:'',company_id:'',professional_id:'',professional_type:'safety_specialist',start_date:'',end_date:'',required_minutes_monthly:0,planned_minutes_monthly:0,actual_minutes_monthly:0,isg_katip_contract_number:''});
  const load=async(preferredOid)=>{
   const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);
@@ -379,6 +380,10 @@ export function AssignmentsPage({user}){
   if(!oid) return true;
   return !x.osgb_id || Number(x.osgb_id)===oid;
  });
+ function resetFormExtras(){
+  setContractFile(null);
+  setForm(f=>({...f,company_id:'',professional_id:'',start_date:'',end_date:'',required_minutes_monthly:0,planned_minutes_monthly:0,actual_minutes_monthly:0,isg_katip_contract_number:''}));
+ }
  async function save(e){
   e.preventDefault();
   setErr('');setBusy(true);
@@ -387,8 +392,13 @@ export function AssignmentsPage({user}){
    if(!form.company_id) throw new Error('İşyeri seçiniz.');
    if(!form.professional_id) throw new Error('Profesyonel seçiniz.');
    if(!form.start_date) throw new Error('Başlangıç tarihi zorunlu.');
+   const katip=(form.isg_katip_contract_number||'').trim();
+   if(!katip) throw new Error('İSG-KATİP sözleşme numarası zorunlu.');
+   if(!contractFile) throw new Error('Sözleşme dosyası zorunlu (pdf/jpg/png).');
+   const ext=(contractFile.name||'').split('.').pop()?.toLowerCase();
+   if(!['pdf','jpg','jpeg','png'].includes(ext||'')) throw new Error('Sadece pdf, jpg veya png yükleyin.');
    const pro=pros.find(x=>x.id===Number(form.professional_id));
-   await api('/osgb/assignments',{method:'POST',body:JSON.stringify({
+   const created=await api('/osgb/assignments',{method:'POST',body:JSON.stringify({
     osgb_id:Number(form.osgb_id),
     company_id:Number(form.company_id),
     professional_id:Number(form.professional_id),
@@ -398,10 +408,11 @@ export function AssignmentsPage({user}){
     required_minutes_monthly:Number(form.required_minutes_monthly)||0,
     planned_minutes_monthly:Number(form.planned_minutes_monthly)||0,
     actual_minutes_monthly:Number(form.actual_minutes_monthly)||0,
-    isg_katip_contract_number:form.isg_katip_contract_number||null,
+    isg_katip_contract_number:katip,
    })});
+   await uploadFile(`/osgb/assignments/${created.id}/contract`,contractFile);
    setOpen(false);
-   setForm(f=>({...f,company_id:'',professional_id:'',start_date:'',end_date:'',required_minutes_monthly:0,planned_minutes_monthly:0,actual_minutes_monthly:0,isg_katip_contract_number:''}));
+   resetFormExtras();
    await load(form.osgb_id);
   }catch(ex){setErr(ex.message||'Kayıt başarısız.')}
   finally{setBusy(false)}
@@ -410,15 +421,21 @@ export function AssignmentsPage({user}){
   setForm(f=>({...f,osgb_id:oid,company_id:'',professional_id:''}));
   await load(oid);
  }
- return <P title="İşyeri Görevlendirmeleri" action={<button onClick={()=>{setErr('');setOpen(true)}}><Plus/>Görevlendirme Yap</button>}>
+ async function downloadContract(row){
+  try{
+   await downloadFile(`/osgb/assignments/${row.id}/contract`,row.contract_file_name||'sozlesme');
+  }catch(ex){setErr(ex.message||'Sözleşme indirilemedi.')}
+ }
+ return <P title="İşyeri Görevlendirmeleri" action={<button onClick={()=>{setErr('');setContractFile(null);setOpen(true)}}><Plus/>Görevlendirme Yap</button>}>
   {err&&!open&&<p style={{color:'#b91c1c'}}>{err}</p>}
   <T rows={rows} cols={[
    {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||r.company_id},
    {k:'professional_id',l:'Profesyonel',f:r=>pros.find(x=>x.id===r.professional_id)?.full_name||r.professional_id},
    {k:'professional_type',l:'Görev',f:r=>ptypes[r.professional_type]},
+   {k:'isg_katip_contract_number',l:'İSG-KATİP No'},
+   {k:'contract_file_name',l:'Sözleşme',f:r=>r.contract_file_name?<button type="button" className="mini" onClick={()=>downloadContract(r)}>{r.contract_file_name}</button>:'—'},
    {k:'start_date',l:'Başlangıç'},
    {k:'required_minutes_monthly',l:'Zorunlu dk.'},
-   {k:'actual_minutes_monthly',l:'Gerçekleşen dk.'},
    {k:'status',l:'Durum'}
   ]}/>
   {open&&<M title="Yeni Görevlendirme" close={()=>setOpen(false)}>
@@ -439,7 +456,12 @@ export function AssignmentsPage({user}){
     <F label="Bitiş" type="date" value={form.end_date} onChange={e=>setForm({...form,end_date:e.target.value})}/>
     <F label="Aylık Zorunlu Dakika" type="number" value={form.required_minutes_monthly} onChange={e=>setForm({...form,required_minutes_monthly:e.target.value})}/>
     <F label="Aylık Planlanan Dakika" type="number" value={form.planned_minutes_monthly} onChange={e=>setForm({...form,planned_minutes_monthly:e.target.value})}/>
-    <F label="İSG-KATİP Sözleşme No" value={form.isg_katip_contract_number} onChange={e=>setForm({...form,isg_katip_contract_number:e.target.value})}/>
+    <F label="İSG-KATİP Sözleşme No" required value={form.isg_katip_contract_number} onChange={e=>setForm({...form,isg_katip_contract_number:e.target.value})}/>
+    <label className="field" style={{gridColumn:'1/-1'}}>
+     <span>Sözleşme Dosyası (pdf / jpg / png)</span>
+     <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required onChange={e=>setContractFile(e.target.files?.[0]||null)}/>
+     {contractFile&&<small style={{color:'#475569'}}>{contractFile.name}</small>}
+    </label>
     {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
     <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>
    </form>
@@ -448,11 +470,94 @@ export function AssignmentsPage({user}){
 }
 
 export function VisitsPage({user}){
- const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState({osgb_id:'',company_id:'',professional_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''});
- const load=async()=>{const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);const id=osgbId(user,o);setOrgs(o);setCompanies(c);setForm(x=>({...x,osgb_id:id}));if(id){const[p,v]=await Promise.all([api(`/osgb/professionals?osgb_id=${id}`),api(`/operations/visits?osgb_id=${id}`)]);setPros(p);setRows(v)}};useEffect(()=>{load()},[]);
- async function save(e){e.preventDefault();await api('/operations/visits',{method:'POST',body:JSON.stringify({...form,osgb_id:Number(form.osgb_id),company_id:Number(form.company_id),professional_id:Number(form.professional_id),duration_minutes:Number(form.duration_minutes)})});setOpen(false);load()}
- async function done(id){await api(`/operations/visits/${id}/complete`,{method:'PATCH'});load()}
- return <P title="Saha Ziyaret Takvimi" action={<button onClick={()=>setOpen(true)}><Plus/>Ziyaret Planla</button>}><T rows={rows} cols={[{k:'visit_date',l:'Tarih'},{k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||r.company_id},{k:'professional_id',l:'Profesyonel',f:r=>pros.find(x=>x.id===r.professional_id)?.full_name||r.professional_id},{k:'subject',l:'Konu'},{k:'duration_minutes',l:'Süre (dk.)'},{k:'status',l:'Durum'},{k:'x',l:'İşlem',f:r=>r.status==='completed'?'Tamamlandı':<button className="mini" onClick={()=>done(r.id)}>Tamamla</button>}]}/>{open&&<M title="Yeni Saha Ziyareti" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><S label="İşyeri" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</S><S label="Profesyonel" required value={form.professional_id} onChange={e=>setForm({...form,professional_id:e.target.value})}><option value="">Seçiniz</option>{pros.map(x=><option key={x.id} value={x.id}>{x.full_name}</option>)}</S><F label="Tarih" type="date" required value={form.visit_date} onChange={e=>setForm({...form,visit_date:e.target.value})}/><F label="Başlangıç" type="time" value={form.start_time} onChange={e=>setForm({...form,start_time:e.target.value})}/><F label="Bitiş" type="time" value={form.end_time} onChange={e=>setForm({...form,end_time:e.target.value})}/><F label="Süre (dk.)" type="number" value={form.duration_minutes} onChange={e=>setForm({...form,duration_minutes:e.target.value})}/><F label="Ziyaret Konusu" required value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})}/><F label="Notlar" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/><div className="form-actions"><button>Kaydet</button></div></form></M>}</P>
+ const isField=['safety_specialist','workplace_physician','other_health_personnel'].includes(user.role);
+ const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]);
+ const[open,setOpen]=useState(false),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
+ const[notebookFile,setNotebookFile]=useState(null);
+ const[form,setForm]=useState({osgb_id:'',company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''});
+ const load=async()=>{
+  const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);
+  const id=osgbId(user,o);
+  setOrgs(o);setCompanies(c);
+  setForm(x=>({...x,osgb_id:id}));
+  if(id){
+   const[p,v]=await Promise.all([
+    api(`/osgb/professionals?osgb_id=${id}`).catch(()=>[]),
+    api(`/operations/visits?osgb_id=${id}`),
+   ]);
+   setPros(p);setRows(v);
+  }
+ };
+ useEffect(()=>{load()},[]);
+ async function save(e){
+  e.preventDefault();
+  setErr('');setBusy(true);
+  try{
+   if(!form.company_id) throw new Error('İşyeri seçiniz.');
+   if(!form.visit_date) throw new Error('Tarih zorunlu.');
+   if(!notebookFile) throw new Error('Tespit öneri defteri dosyası zorunlu (pdf/jpg/png).');
+   const ext=(notebookFile.name||'').split('.').pop()?.toLowerCase();
+   if(!['pdf','jpg','jpeg','png'].includes(ext||'')) throw new Error('Sadece pdf, jpg veya png yükleyin.');
+   const created=await api('/operations/visits',{method:'POST',body:JSON.stringify({
+    osgb_id:Number(form.osgb_id),
+    company_id:Number(form.company_id),
+    visit_date:form.visit_date,
+    start_time:form.start_time||null,
+    end_time:form.end_time||null,
+    duration_minutes:Number(form.duration_minutes)||0,
+    subject:form.subject,
+    notes:form.notes||null,
+   })});
+   await uploadFile(`/operations/visits/${created.id}/notebook`,notebookFile);
+   setOpen(false);
+   setNotebookFile(null);
+   setForm(f=>({...f,company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''}));
+   await load();
+  }catch(ex){setErr(ex.message||'Kayıt başarısız.')}
+  finally{setBusy(false)}
+ }
+ async function done(id){
+  try{await api(`/operations/visits/${id}/complete`,{method:'PATCH'});await load()}
+  catch(ex){setErr(ex.message||'Tamamlanamadı.')}
+ }
+ async function downloadNotebook(row){
+  try{await downloadFile(`/operations/visits/${row.id}/notebook`,row.notebook_file_name||'tespit-oneri-defteri')}
+  catch(ex){setErr(ex.message||'Dosya indirilemedi.')}
+ }
+ return <P title="Saha Ziyaret Takvimi" action={<button onClick={()=>{setErr('');setNotebookFile(null);setOpen(true)}}><Plus/>Ziyaret Planla</button>}>
+  {err&&!open&&<p style={{color:'#b91c1c'}}>{err}</p>}
+  <T rows={rows} cols={[
+   {k:'visit_date',l:'Tarih'},
+   {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||r.company_id},
+   ...(!isField?[{k:'professional_id',l:'Profesyonel',f:r=>pros.find(x=>x.id===r.professional_id)?.full_name||r.professional_id}]:[]),
+   {k:'subject',l:'Konu'},
+   {k:'notebook_file_name',l:'Tespit Defteri',f:r=>r.notebook_file_name?<button type="button" className="mini" onClick={()=>downloadNotebook(r)}>{r.notebook_file_name}</button>:'—'},
+   {k:'duration_minutes',l:'Süre (dk.)'},
+   {k:'status',l:'Durum'},
+   {k:'x',l:'İşlem',f:r=>r.status==='completed'?'Tamamlandı':<button className="mini" onClick={()=>done(r.id)}>Tamamla</button>}
+  ]}/>
+  {open&&<M title="Yeni Saha Ziyareti" close={()=>setOpen(false)}>
+   <form className="form-grid" onSubmit={save}>
+    <S label="İşyeri" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}>
+     <option value="">Seçiniz</option>
+     {companies.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
+    </S>
+    <F label="Tarih" type="date" required value={form.visit_date} onChange={e=>setForm({...form,visit_date:e.target.value})}/>
+    <F label="Başlangıç" type="time" value={form.start_time} onChange={e=>setForm({...form,start_time:e.target.value})}/>
+    <F label="Bitiş" type="time" value={form.end_time} onChange={e=>setForm({...form,end_time:e.target.value})}/>
+    <F label="Süre (dk.)" type="number" value={form.duration_minutes} onChange={e=>setForm({...form,duration_minutes:e.target.value})}/>
+    <F label="Ziyaret Konusu" required value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})}/>
+    <F label="Notlar" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/>
+    <label className="field" style={{gridColumn:'1/-1'}}>
+     <span>Tespit Öneri Defteri (pdf / jpg / png)</span>
+     <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required onChange={e=>setNotebookFile(e.target.files?.[0]||null)}/>
+     {notebookFile&&<small style={{color:'#475569'}}>{notebookFile.name}</small>}
+    </label>
+    {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
+    <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>
+   </form>
+  </M>}
+ </P>
 }
 
 export function CrmPage({user}){

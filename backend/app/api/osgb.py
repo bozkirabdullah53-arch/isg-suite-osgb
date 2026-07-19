@@ -1,8 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import (AssignmentStatus, Company, IsgProfessional, OsgbOrganization, ServiceContract,
                                  User, UserRole, WorkplaceAssignment)
@@ -188,9 +193,30 @@ def list_assignments(company_id: int | None = None, db: Session = Depends(get_db
     if company_id: stmt = stmt.where(WorkplaceAssignment.company_id == company_id)
     return list(db.scalars(stmt.order_by(WorkplaceAssignment.start_date.desc())).all())
 
+ALLOWED_CONTRACT = {".pdf", ".jpg", ".jpeg", ".png"}
+
+
+def _upload_root() -> Path:
+    root = Path(settings.upload_dir).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _get_assignment(db: Session, assignment_id: int, user: User) -> WorkplaceAssignment:
+    obj = db.get(WorkplaceAssignment, assignment_id)
+    if not obj:
+        raise HTTPException(404, "Görevlendirme bulunamadı.")
+    _scope_osgb(user, obj.osgb_id)
+    return obj
+
+
 @router.post("/assignments", response_model=AssignmentResponse)
 def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
     _scope_osgb(user, payload.osgb_id)
+    katip = (payload.isg_katip_contract_number or "").strip()
+    if not katip:
+        raise HTTPException(400, "İSG-KATİP sözleşme numarası zorunludur.")
+    payload = payload.model_copy(update={"isg_katip_contract_number": katip})
     company = db.get(Company, payload.company_id)
     professional = db.get(IsgProfessional, payload.professional_id)
     if not company:
@@ -224,6 +250,67 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
         ) from None
     db.refresh(obj)
     return obj
+
+
+@router.post("/assignments/{assignment_id}/contract", response_model=AssignmentResponse)
+async def upload_assignment_contract(
+    assignment_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    obj = _get_assignment(db, assignment_id, user)
+    name = file.filename or "sozlesme.pdf"
+    ext = Path(name).suffix.lower()
+    if ext not in ALLOWED_CONTRACT:
+        raise HTTPException(422, "Sadece pdf, jpg veya png yükleyin.")
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, "Boş dosya yüklenemez.")
+    if len(data) > settings.max_upload_mb * 1024 * 1024:
+        raise HTTPException(413, f"Dosya {settings.max_upload_mb} MB sınırını aşıyor.")
+    if obj.contract_storage_path:
+        old = (_upload_root() / obj.contract_storage_path).resolve()
+        if _upload_root() in old.parents and old.exists():
+            try:
+                old.unlink()
+            except OSError:
+                pass
+    rel = f"{obj.osgb_id}/assignments/{obj.id}_{uuid4().hex[:10]}{ext}"
+    target = _upload_root() / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    obj.contract_file_name = name
+    obj.contract_storage_path = rel.replace("\\", "/")
+    obj.contract_content_type = file.content_type or {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+    }.get(ext, "application/octet-stream")
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.get("/assignments/{assignment_id}/contract")
+def download_assignment_contract(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    obj = _get_assignment(db, assignment_id, user)
+    if not obj.contract_storage_path:
+        raise HTTPException(404, "Sözleşme dosyası yok.")
+    path = (_upload_root() / obj.contract_storage_path).resolve()
+    if _upload_root() not in path.parents or not path.exists():
+        raise HTTPException(404, "Dosya bulunamadı.")
+    return FileResponse(
+        path,
+        media_type=obj.contract_content_type or "application/octet-stream",
+        filename=obj.contract_file_name or path.name,
+    )
+
 
 @router.get("/contracts", response_model=list[ContractResponse])
 def list_contracts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):

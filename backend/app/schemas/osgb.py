@@ -59,6 +59,8 @@ class AssignmentResponse(AssignmentCreate):
     id: int
     status: AssignmentStatus
     created_at: datetime
+    contract_file_name: str | None = None
+    contract_content_type: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
 class ContractCreate(BaseModel):

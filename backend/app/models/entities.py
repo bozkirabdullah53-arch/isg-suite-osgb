@@ -70,6 +70,9 @@ class WorkplaceAssignment(Base):
     planned_minutes_monthly: Mapped[int] = mapped_column(Integer, default=0)
     actual_minutes_monthly: Mapped[int] = mapped_column(Integer, default=0)
     isg_katip_contract_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    contract_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    contract_storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    contract_content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     status: Mapped[AssignmentStatus] = mapped_column(Enum(AssignmentStatus), default=AssignmentStatus.ACTIVE)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -448,6 +451,9 @@ class ServiceVisit(Base):
     duration_minutes: Mapped[int] = mapped_column(Integer, default=0)
     subject: Mapped[str] = mapped_column(String(220))
     notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    notebook_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notebook_storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notebook_content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     status: Mapped[VisitStatus] = mapped_column(Enum(VisitStatus), default=VisitStatus.PLANNED, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

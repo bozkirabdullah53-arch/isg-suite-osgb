@@ -106,6 +106,40 @@ async def lifespan(_:FastAPI):
                             conn.execute(text(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{val}'"))
                     except Exception:
                         pass
+        if "workplace_assignments" in insp.get_table_names():
+            wa_cols = {c["name"] for c in insp.get_columns("workplace_assignments")}
+            wa_alters = []
+            for col, sqltype in (
+                ("contract_file_name", "VARCHAR(255)"),
+                ("contract_storage_path", "VARCHAR(500)"),
+                ("contract_content_type", "VARCHAR(120)"),
+            ):
+                if col not in wa_cols:
+                    wa_alters.append(f"ALTER TABLE workplace_assignments ADD COLUMN {col} {sqltype}")
+            if wa_alters:
+                with engine.begin() as conn:
+                    for stmt in wa_alters:
+                        try:
+                            conn.execute(text(stmt))
+                        except Exception:
+                            pass
+        if "service_visits" in insp.get_table_names():
+            sv_cols = {c["name"] for c in insp.get_columns("service_visits")}
+            sv_alters = []
+            for col, sqltype in (
+                ("notebook_file_name", "VARCHAR(255)"),
+                ("notebook_storage_path", "VARCHAR(500)"),
+                ("notebook_content_type", "VARCHAR(120)"),
+            ):
+                if col not in sv_cols:
+                    sv_alters.append(f"ALTER TABLE service_visits ADD COLUMN {col} {sqltype}")
+            if sv_alters:
+                with engine.begin() as conn:
+                    for stmt in sv_alters:
+                        try:
+                            conn.execute(text(stmt))
+                        except Exception:
+                            pass
     except Exception:
         pass
     with SessionLocal() as db:
@@ -119,7 +153,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.28',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.30',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 _cors_origins=list(dict.fromkeys([
@@ -138,12 +172,13 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.28',
+        'version': '0.9.30',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'pro-planlama',
         'health': 'pro-saglik',
         'osgb_oversight': '6331-genel-panel-v5',
-        'assignment_fix': 'osgb-auto-link',
+        'assignment_form': 'katip-contract-upload',
+        'visit_notebook': 'tespit-oneri-defteri',
         'users_admin': 'suspend-delete',
         'professionals_admin': 'edit-search-assign-perf',
         'training_osgb_access': 'assignment-scoped',
@@ -155,4 +190,3 @@ def health():
         'field_access': 'assignment-scoped-v2',
         'git': os.environ.get('RENDER_GIT_COMMIT') or os.environ.get('GIT_COMMIT') or 'local',
     }
-
