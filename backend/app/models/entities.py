@@ -518,6 +518,22 @@ class RiskAssessment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     dofs: Mapped[list["RiskDof"]] = relationship(back_populates="risk", cascade="all, delete-orphan")
+    media_files: Mapped[list["RiskMedia"]] = relationship(
+        back_populates="risk", cascade="all, delete-orphan"
+    )
+
+
+class RiskMedia(Base):
+    """Risk kaydına bağlı foto/medya (PRO MediaFile parity)."""
+    __tablename__ = "risk_media"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    risk_id: Mapped[int] = mapped_column(ForeignKey("risk_assessments.id", ondelete="CASCADE"), index=True)
+    storage_path: Mapped[str] = mapped_column(String(500))
+    original_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    risk: Mapped[RiskAssessment] = relationship(back_populates="media_files")
 
 
 class RiskDof(Base):

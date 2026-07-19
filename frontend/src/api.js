@@ -29,6 +29,18 @@ export async function api(path, options = {}) {
   return data;
 }
 
+/** Auth header ile blob URL üretir (önizleme görselleri için). */
+export async function authBlobUrl(path) {
+  const token = localStorage.getItem("isg_token");
+  const response = await fetch(`${API_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    throw new Error(`Dosya alınamadı (HTTP ${response.status}).`);
+  }
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
+}
 
 export async function downloadFile(path, filename) {
   const token = localStorage.getItem("isg_token");

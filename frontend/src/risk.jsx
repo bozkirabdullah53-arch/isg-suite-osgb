@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {BookOpen, Download, Plus, Search, X} from 'lucide-react';
-import {api, downloadFile} from './api';
+import {api, downloadFile, uploadFile, authBlobUrl} from './api';
 
 const LEVEL_COLORS = {
   'Kabul Edilebilir': '#95a5a6',
@@ -58,6 +58,38 @@ function LevelBadge({level, score}) {
       <span style={{width: 10, height: 10, borderRadius: 99, background: color}} />
       {level || '—'}{score != null ? ` (${score})` : ''}
     </span>
+  );
+}
+
+function AuthThumb({path, alt}) {
+  const [src, setSrc] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    let url = null;
+    authBlobUrl(path)
+      .then((u) => {
+        if (!alive) {
+          URL.revokeObjectURL(u);
+          return;
+        }
+        url = u;
+        setSrc(u);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [path]);
+  if (!src) {
+    return <div style={{width: 96, height: 72, background: '#e2e8f0', borderRadius: 6}} />;
+  }
+  return (
+    <img
+      src={src}
+      alt={alt || ''}
+      style={{width: 96, height: 72, objectFit: 'cover', borderRadius: 6, border: '1px solid #cbd5e1'}}
+    />
   );
 }
 
@@ -312,6 +344,28 @@ export function RiskPage({user}) {
     });
     openDetail(detail.id);
     load();
+  }
+
+  async function uploadMedia(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !detail) return;
+    try {
+      await uploadFile(`/risks/${detail.id}/media`, file);
+      openDetail(detail.id);
+    } catch (ex) {
+      window.alert(ex.message || 'Fotoğraf yüklenemedi.');
+    }
+  }
+
+  async function removeMedia(mediaId) {
+    if (!detail || !window.confirm('Bu fotoğrafı silmek istiyor musunuz?')) return;
+    try {
+      await api(`/risks/${detail.id}/media/${mediaId}`, {method: 'DELETE'});
+      openDetail(detail.id);
+    } catch (ex) {
+      window.alert(ex.message || 'Silinemedi.');
+    }
   }
 
   async function downloadReport(kind) {
@@ -651,6 +705,33 @@ export function RiskPage({user}) {
             <div className="field" style={{gridColumn: '1 / -1'}}><span>Mevcut önlemler</span><p>{detail.existing_measures || '—'}</p></div>
             <div className="field" style={{gridColumn: '1 / -1'}}><span>Ek önlemler</span><p>{detail.additional_measures || '—'}</p></div>
           </div>
+
+          <h4 style={{marginTop: 16}}>Fotoğraf / medya</h4>
+          <div style={{display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start', marginBottom: 8}}>
+            {(detail.media || []).map((m) => (
+              <div key={m.id} style={{textAlign: 'center'}}>
+                <AuthThumb path={`/risks/${detail.id}/media/${m.id}`} alt={m.original_name || ''} />
+                <div style={{fontSize: 11, color: '#64748b', maxWidth: 96, overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                  {m.original_name || `#${m.id}`}
+                </div>
+                {canEdit && (
+                  <button className="mini" type="button" onClick={() => removeMedia(m.id)} style={{marginTop: 4}}>
+                    Sil
+                  </button>
+                )}
+              </div>
+            ))}
+            {!((detail.media || []).length) && (
+              <span style={{color: '#64748b', fontSize: 14}}>Henüz fotoğraf yok</span>
+            )}
+          </div>
+          {canEdit && (
+            <label className="field" style={{display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
+              <span className="mini" style={{pointerEvents: 'none'}}>Fotoğraf ekle</span>
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={uploadMedia} style={{display: 'none'}} />
+            </label>
+          )}
+
           <h4 style={{marginTop: 16}}>DÖF kayıtları</h4>
           <div className="table-wrap">
             <table>

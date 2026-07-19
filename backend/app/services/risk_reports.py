@@ -6,6 +6,7 @@ from io import BytesIO
 from pathlib import Path
 
 import openpyxl
+from openpyxl.drawing.image import Image as XLImage
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from reportlab.lib import colors
@@ -22,6 +23,38 @@ PDF_FONT = "Helvetica"
 PDF_FONT_BOLD = "Helvetica-Bold"
 _ASSETS = Path(__file__).resolve().parent.parent / "assets" / "fonts"
 CREATOR_LINE = "İSG Suite OSGB"
+_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
+
+
+def _upload_root() -> Path:
+    try:
+        from app.core.config import settings
+
+        root = Path(settings.upload_dir).resolve()
+    except Exception:
+        root = Path("uploads").resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _risk_excel_photo_path(risk) -> str | None:
+    """Risk kaydına bağlı ilk uygun fotoğraf dosyasını döndürür (PRO parity)."""
+    try:
+        media_items = list(getattr(risk, "media_files", None) or [])
+    except Exception:
+        media_items = []
+    root = _upload_root()
+    for media in media_items:
+        name = getattr(media, "original_name", "") or ""
+        rel = getattr(media, "storage_path", "") or ""
+        ctype = (getattr(media, "content_type", "") or "").lower()
+        ext = Path(name or rel).suffix.lower()
+        if not (ctype.startswith("image/") or ext in _IMAGE_EXTS):
+            continue
+        candidate = (root / rel).resolve()
+        if root in candidate.parents and candidate.exists():
+            return str(candidate)
+    return None
 
 
 def _register_pdf_fonts() -> None:
@@ -351,12 +384,12 @@ def build_risk_excel(*, company, risks, hazard_map: dict | None = None) -> bytes
 
     ws = wb.active
     ws.title = "Risk Değerlendirme"
-    ws.merge_cells("A1:P1")
+    ws.merge_cells("A1:Q1")
     ws["A1"] = f"RİSK DEĞERLENDİRME RAPORU - {company.name}"
     ws["A1"].font = Font(name="Calibri", bold=True, size=14, color="1a5276")
     ws["A1"].alignment = Alignment(horizontal="center")
 
-    ws.merge_cells("A2:P2")
+    ws.merge_cells("A2:Q2")
     ws["A2"] = (
         f"NACE: {getattr(company, 'nace_code', None) or '—'} | "
         f"Tehlike Sınıfı: {getattr(company, 'hazard_class', None) or '—'} | "
@@ -365,7 +398,7 @@ def build_risk_excel(*, company, risks, hazard_map: dict | None = None) -> bytes
     ws["A2"].font = Font(size=9, color="2c3e50")
     ws["A2"].alignment = Alignment(horizontal="center")
 
-    ws.merge_cells("A3:P3")
+    ws.merge_cells("A3:Q3")
     ws["A3"] = f"Program: {CREATOR_LINE} · 6331 sayılı Kanun kapsamında"
     ws["A3"].font = Font(size=9, italic=True, color="6c757d")
     ws["A3"].alignment = Alignment(horizontal="center")
@@ -387,6 +420,7 @@ def build_risk_excel(*, company, risks, hazard_map: dict | None = None) -> bytes
         "İlave Önlemler",
         "Durum",
         "DÖF Sayısı",
+        "Fotoğraf",
     ]
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=4, column=col, value=header)
@@ -414,6 +448,7 @@ def build_risk_excel(*, company, risks, hazard_map: dict | None = None) -> bytes
             risk.additional_measures or "—",
             risk.status or "Açık",
             len(dofs),
+            "",
         ]
         for col, value in enumerate(data, 1):
             cell = ws.cell(row=idx, column=col, value=value)
@@ -425,10 +460,25 @@ def build_risk_excel(*, company, risks, hazard_map: dict | None = None) -> bytes
             ws.cell(row=idx, column=10).fill = level_fills[level]
             ws.cell(row=idx, column=11).fill = level_fills[level]
 
-    for i, w in enumerate([12, 15, 20, 18, 12, 28, 16, 10, 10, 10, 14, 12, 28, 28, 10, 10], 1):
+        photo_path = _risk_excel_photo_path(risk)
+        if photo_path:
+            try:
+                img = XLImage(photo_path)
+                max_w, max_h = 140, 95
+                if img.width and img.height:
+                    ratio = min(max_w / img.width, max_h / img.height, 1)
+                    img.width = int(img.width * ratio)
+                    img.height = int(img.height * ratio)
+                img.anchor = f"Q{idx}"
+                ws.add_image(img)
+                ws.row_dimensions[idx].height = max(ws.row_dimensions[idx].height or 15, 72)
+            except Exception:
+                ws.cell(row=idx, column=17, value="Fotoğraf var / eklenemedi")
+
+    for i, w in enumerate([12, 15, 20, 18, 12, 28, 16, 10, 10, 10, 14, 12, 28, 28, 10, 10, 18], 1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = "A5"
-    ws.auto_filter.ref = f"A4:P{max(4, 4 + len(risks))}"
+    ws.auto_filter.ref = f"A4:Q{max(4, 4 + len(risks))}"
 
     # DÖF sheet
     ws2 = wb.create_sheet("DÖF Listesi")

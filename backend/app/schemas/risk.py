@@ -89,6 +89,15 @@ class RiskDofResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class RiskMediaResponse(BaseModel):
+    id: int
+    risk_id: int
+    original_name: str | None
+    content_type: str | None
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
 class RiskResponse(BaseModel):
     id: int
     risk_code: str
@@ -120,6 +129,7 @@ class RiskResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     dofs: list[RiskDofResponse] = []
+    media: list[RiskMediaResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
 
