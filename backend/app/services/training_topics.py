@@ -316,10 +316,14 @@ def egitim_konularini_hazirla(tehlike_sinifi: str, sektor: str | None = None):
 
 
 def katilim_formu_konu_ozeti(tehlike_sinifi: str, sektor: str | None = None) -> str:
+    """PRO imza formu konu özeti formatı."""
     sektorel = [sure_ekini_temizle(k) for k in sektorel_konular(sektor)[:5]]
-    ana = "1. Genel / 2. Teknik / 3. Sağlık / 4. İşyerine Özgü Riskler"
+    ana = (
+        "1. Genel Konular / 2. Teknik Konular / 3. Sağlık Konuları / "
+        "4. İş ve İşyerine Özgü Riskler"
+    )
     if sektorel:
-        return ana + " | Sektör: " + "; ".join(sektorel)
+        return ana + " | Sektöre Özgü Başlıklar: " + "; ".join(sektorel)
     return ana
 
 

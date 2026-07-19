@@ -1,4 +1,4 @@
-"""Eğitim katılım belgesi ve imza listesi PDF — bakanlık denetimine uygun yatay A4."""
+"""Eğitim katılım belgesi + imza formu PDF — İSG PRO 2026 layout parity (reportlab)."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -9,6 +9,7 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.pdfmetrics import registerFontFamily, stringWidth
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
@@ -24,16 +25,23 @@ from app.services.training_topics import (
 _FONT = "Helvetica"
 _FONT_B = "Helvetica-Bold"
 _ASSETS = Path(__file__).resolve().parent.parent / "assets" / "fonts"
+
+# PRO dayanak / dipnot (ürün adı yok)
 _DEFAULT_STAMP = (
     "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve "
     "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik "
     "kapsamında düzenlenmiştir."
 )
+_CERT_FOOTER = "6331 Sayılı İş Sağlığı ve Güvenliği Kanunu kapsamında düzenlenmiştir."
 
+# PRO palette
+_BLUE = (13 / 255, 110 / 255, 253 / 255)
+_BLUE_DARK = (10 / 255, 90 / 255, 210 / 255)
+_SLATE = (45 / 255, 70 / 255, 95 / 255)
+_SLATE_SOFT = (185 / 255, 200 / 255, 215 / 255)
 
 
 def _register_fonts() -> None:
-    """Türkçe glyph için TTF zorunlu. Helvetica'ya sessiz düşülmez."""
     global _FONT, _FONT_B
     candidates = [
         (_ASSETS / "DejaVuSans.ttf", _ASSETS / "DejaVuSans-Bold.ttf"),
@@ -51,8 +59,6 @@ def _register_fonts() -> None:
             pdfmetrics.registerFont(TTFont("IsgSans", str(regular)))
             pdfmetrics.registerFont(TTFont("IsgSans-Bold", str(bold if bold.exists() else regular)))
             try:
-                from reportlab.pdfbase.pdfmetrics import registerFontFamily
-
                 registerFontFamily(
                     "IsgSans",
                     normal="IsgSans",
@@ -63,31 +69,31 @@ def _register_fonts() -> None:
             except Exception:
                 pass
             _FONT, _FONT_B = "IsgSans", "IsgSans-Bold"
-            # Smoke: Türkçe glyph genişliği 0 olmamalı
-            from reportlab.pdfbase.pdfmetrics import stringWidth
-
             if stringWidth("ğüşıİÖÇ", _FONT, 10) < 1:
                 raise RuntimeError("Font Türkçe glyph taşımıyor.")
             return
         except Exception as exc:
             last_err = exc
             continue
-    raise RuntimeError(
-        "Eğitim PDF için Unicode font bulunamadı (DejaVu/Arial). "
-        f"Son hata: {last_err}"
-    )
+    raise RuntimeError(f"Eğitim PDF için Unicode font bulunamadı. Son hata: {last_err}")
 
 
 try:
     _register_fonts()
 except Exception:
-    # Import-time: API ayakta kalsın; PDF üretiminde tekrar dene
     pass
 
 
 def _ensure_fonts() -> None:
     if _FONT in ("Helvetica", "Helvetica-Bold") or not _FONT:
         _register_fonts()
+
+
+def _rgb(c: canvas.Canvas, rgb: tuple[float, float, float], *, fill=False, stroke=False):
+    if fill:
+        c.setFillColorRGB(*rgb)
+    if stroke:
+        c.setStrokeColorRGB(*rgb)
 
 
 def _fit(c: canvas.Canvas, text: str, width: float, font: str, size: float) -> str:
@@ -147,42 +153,29 @@ def _resolve_logo(training) -> Path | None:
     return path if path.is_file() else None
 
 
-def _draw_logo(c: canvas.Canvas, training, *, x: float, y: float, max_w: float, max_h: float) -> None:
+def _draw_logo(c: canvas.Canvas, training, *, x: float, y: float, max_w: float, max_h: float) -> bool:
     path = _resolve_logo(training)
     if not path:
-        return
+        return False
     try:
         img = ImageReader(str(path))
         iw, ih = img.getSize()
         if not iw or not ih:
-            return
+            return False
         scale = min(max_w / iw, max_h / ih)
         dw, dh = iw * scale, ih * scale
         c.drawImage(img, x, y + (max_h - dh) / 2, width=dw, height=dh, mask="auto")
+        return True
     except Exception:
-        return
+        return False
 
 
 def _stamp_text(training) -> str:
     return (getattr(training, "stamp_text", None) or "").strip() or _DEFAULT_STAMP
 
 
-def _signers(training) -> tuple[tuple[str, str, str], ...]:
-    physician = (getattr(training, "workplace_physician", None) or "").strip()
-    employer = (getattr(training, "employer_representative", None) or "").strip()
-    return (
-        (
-            "Eğitimi Veren (İSG)",
-            training.instructor_name or "",
-            training.instructor_qualification or "İSG Uzmanı",
-        ),
-        ("İşyeri Hekimi", physician, "İşyeri Hekimi"),
-        ("İşveren / Vekili", employer, "İşveren Vekili"),
-    )
-
-
 def build_attendance_pdf(*, company_name: str, training, employees: dict) -> bytes:
-    """Katılımcı imza / yoklama formu (İSG-EĞT-KF-01)."""
+    """PRO: KATILIMCI İMZA FORMU (İSG-EĞT-KF-01), 10 kişi/sayfa."""
     _ensure_fonts()
     participants = list(training.participants or [])
     if not participants:
@@ -224,110 +217,140 @@ def build_attendance_pdf(*, company_name: str, training, employees: dict) -> byt
 def _draw_attendance_page(
     c, w, h, *, company_name, training, employees, chunk, page_no, total_pages, bugun, kural, sektor_label, konu_ozeti, start_index
 ):
-    ml, mr = 10 * mm, 10 * mm
-    uw = w - ml - mr
+    # PRO: outer slate frame + inner soft frame
+    c.setLineWidth(0.9)
+    _rgb(c, _SLATE, stroke=True)
+    c.rect(5 * mm, 5 * mm, w - 10 * mm, h - 10 * mm, stroke=1, fill=0)
+    c.setLineWidth(0.4)
+    _rgb(c, _SLATE_SOFT, stroke=True)
+    c.rect(7 * mm, 7 * mm, w - 14 * mm, h - 14 * mm, stroke=1, fill=0)
 
-    c.setStrokeColorRGB(0.18, 0.27, 0.37)
-    c.setLineWidth(1.2)
-    c.rect(8 * mm, 8 * mm, w - 16 * mm, h - 16 * mm)
+    ml, mr = 8 * mm, 8 * mm
+    uw = w - ml - mr  # ~281mm
 
-    c.setFillColorRGB(0.89, 0.92, 0.96)
-    c.rect(ml, h - 28 * mm, uw, 16 * mm, fill=1, stroke=0)
-    _draw_logo(c, training, x=ml + 1 * mm, y=h - 27 * mm, max_w=28 * mm, max_h=14 * mm)
-    c.setFillColorRGB(0.08, 0.14, 0.2)
-    c.setFont(_FONT_B, 12)
+    # Header band
+    _rgb(c, (226 / 255, 235 / 255, 244 / 255), fill=True)
+    c.rect(7 * mm, h - 29 * mm, w - 14 * mm, 22 * mm, fill=1, stroke=0)
+    _rgb(c, _SLATE, stroke=True)
+    c.setLineWidth(0.8)
+    c.line(7 * mm, h - 29 * mm, w - 7 * mm, h - 29 * mm)
+
+    has_logo = bool(_resolve_logo(training))
+    if has_logo:
+        c.setFillColorRGB(1, 1, 1)
+        c.setStrokeColorRGB(*_SLATE_SOFT)
+        c.rect(10 * mm, h - 27 * mm, 18 * mm, 18 * mm, fill=1, stroke=1)
+        _draw_logo(c, training, x=11.5 * mm, y=h - 25.5 * mm, max_w=15 * mm, max_h=15 * mm)
+
+    _rgb(c, _SLATE, fill=True)
+    c.setFont(_FONT_B, 10.5)
     c.drawCentredString(w / 2, h - 15 * mm, "İŞ SAĞLIĞI VE GÜVENLİĞİ TEMEL EĞİTİMİ")
-    c.setFont(_FONT_B, 14)
-    c.drawCentredString(w / 2, h - 22 * mm, "KATILIMCI İMZA FORMU")
-    c.setFont(_FONT, 7)
-    c.setFillColorRGB(0.35, 0.35, 0.35)
-    c.drawRightString(w - mr, h - 13 * mm, "Form No: İSG-EĞT-KF-01")
-    c.drawRightString(w - mr, h - 17 * mm, f"Sayfa: {page_no}/{total_pages}")
-    c.drawRightString(w - mr, h - 21 * mm, f"Düzenleme: {bugun}")
-    c.drawString(ml + (30 * mm if _resolve_logo(training) else 0), h - 21 * mm, f"Doğrulama: {training.verification_code or '—'}")
+    c.setFont(_FONT_B, 12)
+    c.drawCentredString(w / 2, h - 21 * mm, "KATILIMCI İMZA FORMU")
+    c.setFont(_FONT, 6.5)
+    c.setFillColorRGB(0.35, 0.35, 0.4)
+    c.drawCentredString(
+        w / 2,
+        h - 26.5 * mm,
+        "Eğitim kaydı, katılımcı listesi ve eğitim konuları aynı veri setine bağlıdır.",
+    )
+
+    c.setFont(_FONT, 6.5)
+    c.setFillColorRGB(0.3, 0.35, 0.4)
+    c.drawRightString(w - mr, h - 12 * mm, "Form No: İSG-EĞT-KF-01")
+    c.drawRightString(w - mr, h - 16 * mm, f"Düzenleme: {bugun}")
+    c.drawRightString(w - mr, h - 20 * mm, f"Sayfa: {page_no}/{total_pages}")
+
+    # Info grid — PRO 13 cells
+    egitici = training.instructor_name or "—"
+    if training.instructor_qualification:
+        egitici = f"{egitici} — {training.instructor_qualification}"
+    deger = training.evaluation_method or "—"
+    if training.passing_score:
+        deger = f"{deger} / Geçme: {training.passing_score}"
 
     info = [
         ("Firma", company_name),
         ("Eğitimin Adı", training.title),
         ("Eğitim Tarihi", _fmt_date(training.start_date)),
         ("Eğitim Süresi", kural["sure"]),
-        ("Yenileme", kural["yenileme"]),
+        ("Yenileme Periyodu", kural["yenileme"]),
         ("Tehlike Sınıfı", training.hazard_class),
         ("Eğitim Türü", training.training_type),
         ("Eğitim Şekli", training.delivery_method),
         ("Sektör / İş Kolu", sektor_label),
         ("Eğitim Yeri", training.location or "—"),
-        ("Eğitici / Yeterlilik", f"{training.instructor_name}" + (f" — {training.instructor_qualification}" if training.instructor_qualification else "")),
-        ("Değerlendirme", f"{training.evaluation_method or '—'}" + (f" (Geçme: {training.passing_score})" if training.passing_score else "")),
+        ("Eğitici / Yeterlilik", egitici),
+        ("Değerlendirme / Puan", deger),
+        ("Doğrulama Kodu", training.verification_code or "—"),
     ]
     col_w = uw / 4
-    row_h = 7.5 * mm
-    y0 = h - 36 * mm
+    row_h = 8 * mm
+    y0 = h - 34 * mm
     for i, (lab, val) in enumerate(info):
         r, col = divmod(i, 4)
         x = ml + col * col_w
         y = y0 - r * row_h
-        c.setStrokeColorRGB(0.7, 0.76, 0.82)
-        c.setFillColorRGB(0.97, 0.98, 0.99)
+        c.setStrokeColorRGB(180 / 255, 195 / 255, 210 / 255)
+        c.setFillColorRGB(247 / 255, 249 / 255, 252 / 255)
         c.rect(x, y - row_h, col_w, row_h, fill=1, stroke=1)
         c.setFillColorRGB(0.3, 0.35, 0.4)
         c.setFont(_FONT_B, 6)
         c.drawString(x + 1.5 * mm, y - 3 * mm, lab)
         c.setFillColorRGB(0.1, 0.1, 0.1)
         c.setFont(_FONT, 7)
-        c.drawString(x + 1.5 * mm, y - 6.2 * mm, _fit(c, val, col_w - 3 * mm, _FONT, 7))
+        c.drawString(x + 1.5 * mm, y - 6.5 * mm, _fit(c, val, col_w - 3 * mm, _FONT, 7))
 
-    box_y = y0 - 3 * row_h - 2 * mm
-    box_h = 22 * mm
-    c.setFillColorRGB(0.92, 0.95, 0.97)
-    c.rect(ml, box_y - box_h, uw, box_h, fill=1, stroke=1)
-    c.setFillColorRGB(0.08, 0.14, 0.2)
+    # Purpose / topics / dayanak box (PRO)
+    konu_y_top = h - 72 * mm
+    konu_h = 22 * mm
+    c.setFillColorRGB(235 / 255, 241 / 255, 247 / 255)
+    c.setStrokeColorRGB(160 / 255, 180 / 255, 200 / 255)
+    c.rect(ml, konu_y_top - konu_h, uw, konu_h, fill=1, stroke=1)
+
+    c.setFillColorRGB(*_SLATE)
     c.setFont(_FONT_B, 7)
-    c.drawString(ml + 2 * mm, box_y - 4 * mm, "Eğitimin Amacı:")
-    c.setFont(_FONT, 6.5)
+    c.drawString(ml + 2 * mm, konu_y_top - 4 * mm, "Eğitimin Amacı:")
+    c.setFont(_FONT, 6.2)
     purpose = (
         "Çalışanların meslek hastalığı ve iş kazasına maruz kalma riskini azaltmak; "
         "sağlıklı ve güvenli çalışma ortamı oluşturmak."
     )
-    for li, line in enumerate(_wrap(c, purpose, uw - 32 * mm, _FONT, 6.5, 2)):
-        c.drawString(ml + 30 * mm, box_y - 4 * mm - li * 3.2 * mm, line)
+    for li, line in enumerate(_wrap(c, purpose, uw - 36 * mm, _FONT, 6.2, 2)):
+        c.drawString(ml + 32 * mm, konu_y_top - 4 * mm - li * 3.2 * mm, line)
 
     c.setFont(_FONT_B, 7)
-    c.drawString(ml + 2 * mm, box_y - 11 * mm, "Eğitim Konuları (özet):")
+    c.drawString(ml + 2 * mm, konu_y_top - 11 * mm, "Belgedeki Konu Başlıkları:")
+    c.setFont(_FONT, 5.8)
+    for li, line in enumerate(_wrap(c, konu_ozeti, uw - 48 * mm, _FONT, 5.8, 3)):
+        c.drawString(ml + 42 * mm, konu_y_top - 11 * mm - li * 3.1 * mm, line)
+
+    c.setFont(_FONT_B, 7)
+    c.drawString(ml + 2 * mm, konu_y_top - 20 * mm, "Dayanak:")
     c.setFont(_FONT, 6)
-    konu_lines = _wrap(c, konu_ozeti, uw - 42 * mm, _FONT, 6, 3)
-    for li, line in enumerate(konu_lines):
-        c.drawString(ml + 38 * mm, box_y - 11 * mm - li * 3 * mm, line)
-
-    c.setFont(_FONT_B, 7)
-    c.drawString(ml + 2 * mm, box_y - 20 * mm, "Dayanak:")
-    c.setFont(_FONT, 6.5)
     c.drawString(
         ml + 18 * mm,
-        box_y - 20 * mm,
-        _fit(
-            c,
-            "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve Çalışanların İSG Eğitimleri Yönetmeliği.",
-            uw - 22 * mm,
-            _FONT,
-            6.5,
-        ),
+        konu_y_top - 20 * mm,
+        _fit(c, _stamp_text(training), uw - 22 * mm, _FONT, 6),
     )
 
-    table_y = box_y - box_h - 3 * mm
-    cols = [10 * mm, 52 * mm, 32 * mm, 48 * mm, 55 * mm, 18 * mm]
-    cols.append(uw - sum(cols))
-    headers = ["Sıra", "Adı Soyadı", "T.C. Kimlik", "Görevi / Bölümü", "İmzası", "Not", "Açıklama"]
+    # Table — PRO column widths (mm): 10,55,31,45,58,20,62
+    table_y = h - 80 * mm
+    cols_mm = [10, 55, 31, 45, 58, 20, 62]
+    scale = uw / (sum(cols_mm) * mm)
+    cols = [x * mm * scale for x in cols_mm]
+    headers = ["Sıra", "Adı Soyadı", "T.C. Kimlik No", "Görevi / Bölümü", "İmzası", "Not", "Açıklama"]
     header_h = 7 * mm
-    row_h = 8 * mm
+    row_h = 8.4 * mm
+
     x = ml
-    c.setFillColorRGB(0.18, 0.27, 0.37)
     for cw, ht in zip(cols, headers):
+        c.setFillColorRGB(*_SLATE)
+        c.setStrokeColorRGB(*_SLATE)
         c.rect(x, table_y - header_h, cw, header_h, fill=1, stroke=1)
         c.setFillColorRGB(1, 1, 1)
         c.setFont(_FONT_B, 6.5)
-        c.drawCentredString(x + cw / 2, table_y - 4.5 * mm, ht)
-        c.setFillColorRGB(0.18, 0.27, 0.37)
+        c.drawCentredString(x + cw / 2, table_y - 4.6 * mm, ht)
         x += cw
 
     y = table_y - header_h
@@ -345,49 +368,67 @@ def _draw_attendance_page(
         vals = [sira, ad, tc, gorev, "", "", ""]
         x = ml
         for ci, (cw, val) in enumerate(zip(cols, vals)):
-            c.setStrokeColorRGB(0.7, 0.74, 0.78)
+            c.setStrokeColorRGB(180 / 255, 190 / 255, 200 / 255)
             c.setFillColorRGB(1, 1, 1)
             c.rect(x, y - row_h, cw, row_h, fill=1, stroke=1)
             c.setFillColorRGB(0.1, 0.1, 0.1)
-            c.setFont(_FONT_B if ci == 1 and val else _FONT, 7)
-            txt = _fit(c, val, cw - 2 * mm, _FONT, 7)
+            font = _FONT_B if ci == 1 and val else _FONT
+            size = 6.2 if ci == 3 else 7
+            c.setFont(font, size)
+            txt = _fit(c, val, cw - 2 * mm, font, size)
             if ci in (0, 2, 5):
-                c.drawCentredString(x + cw / 2, y - 5 * mm, txt)
+                c.drawCentredString(x + cw / 2, y - 5.2 * mm, txt)
             else:
-                c.drawString(x + 1 * mm, y - 5 * mm, txt)
+                c.drawString(x + 1.2 * mm, y - 5.2 * mm, txt)
             x += cw
         y -= row_h
 
-    iy = 12 * mm
-    ih = 22 * mm
+    # Signature boxes — PRO titles
+    physician = (getattr(training, "workplace_physician", None) or "").strip()
+    employer = (getattr(training, "employer_representative", None) or "").strip()
+    imza_cols = [
+        ("Eğitimi Veren", training.instructor_name or ""),
+        ("Eğitimi Veren İşyeri Hekimi", physician),
+        ("İşveren / İşveren Vekili", employer),
+    ]
+    imza_y = 12 * mm
+    imza_h = 23 * mm
     box_w = uw / 3
-    for i, (title, name, role) in enumerate(_signers(training)):
+    for i, (title, name) in enumerate(imza_cols):
         x = ml + i * box_w
-        c.setStrokeColorRGB(0.63, 0.7, 0.78)
-        c.setFillColorRGB(0.97, 0.98, 0.99)
-        c.rect(x, iy, box_w, ih, fill=1, stroke=1)
-        c.setFillColorRGB(0.08, 0.14, 0.2)
+        c.setFillColorRGB(247 / 255, 249 / 255, 252 / 255)
+        c.setStrokeColorRGB(160 / 255, 180 / 255, 200 / 255)
+        c.rect(x, imza_y, box_w, imza_h, fill=1, stroke=1)
+        c.setFillColorRGB(*_SLATE)
+        c.setFont(_FONT_B, 6.5)
+        c.drawCentredString(x + box_w / 2, imza_y + imza_h - 5 * mm, title)
         c.setFont(_FONT_B, 7)
-        c.drawCentredString(x + box_w / 2, iy + ih - 5 * mm, title)
-        c.setFont(_FONT_B if name else _FONT, 7)
-        c.drawCentredString(x + box_w / 2, iy + ih - 10 * mm, _fit(c, name or " ", box_w - 4 * mm, _FONT, 7))
-        c.setStrokeColorRGB(0.35, 0.35, 0.35)
-        c.line(x + 8 * mm, iy + 7 * mm, x + box_w - 8 * mm, iy + 7 * mm)
-        c.setFont(_FONT, 6)
+        c.setFillColorRGB(0.1, 0.1, 0.1)
+        c.drawCentredString(x + box_w / 2, imza_y + imza_h - 10.5 * mm, _fit(c, name or " ", box_w - 6 * mm, _FONT_B, 7))
+        c.setStrokeColorRGB(0.4, 0.4, 0.4)
+        c.line(x + 12 * mm, imza_y + 8 * mm, x + box_w - 12 * mm, imza_y + 8 * mm)
+        c.setFont(_FONT, 5.8)
         c.setFillColorRGB(0.4, 0.4, 0.4)
-        c.drawCentredString(x + box_w / 2, iy + 3 * mm, role if name else "Kaşe / İmza")
+        c.drawCentredString(x + box_w / 2, imza_y + 3.5 * mm, "Kaşe / İmza")
 
     c.setFont(_FONT, 5.5)
-    c.setFillColorRGB(0.45, 0.45, 0.45)
+    c.setFillColorRGB(0.4, 0.4, 0.4)
     c.drawCentredString(
         w / 2,
-        9.5 * mm,
-        _fit(c, _stamp_text(training), uw - 10 * mm, _FONT, 5.5),
+        8 * mm,
+        _fit(
+            c,
+            "Bu form, aynı eğitim kaydına bağlı katılımcı imza listesi olarak hazırlanmıştır. "
+            "İmzalar eğitim katılımının doğrulanması amacıyla alınır.",
+            uw - 8 * mm,
+            _FONT,
+            5.5,
+        ),
     )
 
 
 def build_certificates_pdf(*, company_name: str, training, employees: dict) -> bytes:
-    """Kişi başı katılım belgesi — eğitim konuları zorunlu (Çalışma Bakanlığı)."""
+    """PRO: kişi başı katılım belgesi — 2 sütun konular + dakika."""
     _ensure_fonts()
     participants = list(training.participants or [])
     if not participants:
@@ -429,132 +470,152 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
     ml, mr = 8 * mm, 8 * mm
     uw = w - ml - mr
 
-    c.setStrokeColorRGB(0.05, 0.43, 0.99)
-    c.setLineWidth(1.4)
-    c.rect(5 * mm, 5 * mm, w - 10 * mm, h - 10 * mm)
+    # Double border — PRO
+    c.setLineWidth(1.2)
+    _rgb(c, _BLUE, stroke=True)
+    c.rect(3 * mm, 3 * mm, w - 6 * mm, h - 6 * mm, stroke=1, fill=0)
+    c.setLineWidth(0.4)
+    c.setStrokeColorRGB(200 / 255, 215 / 255, 240 / 255)
+    c.rect(5 * mm, 5 * mm, w - 10 * mm, h - 10 * mm, stroke=1, fill=0)
 
-    c.setFillColorRGB(0.05, 0.43, 0.99)
-    c.rect(5 * mm, h - 26 * mm, w - 10 * mm, 21 * mm, fill=1, stroke=0)
-    if _resolve_logo(training):
+    # Blue header band
+    _rgb(c, _BLUE, fill=True)
+    c.rect(3 * mm, h - 27 * mm, w - 6 * mm, 24 * mm, fill=1, stroke=0)
+    _rgb(c, _BLUE_DARK, fill=True)
+    c.rect(3 * mm, h - 27.5 * mm, w - 6 * mm, 0.5 * mm, fill=1, stroke=0)
+
+    has_logo = bool(_resolve_logo(training))
+    if has_logo:
         c.setFillColorRGB(1, 1, 1)
-        c.roundRect(ml - 1 * mm, h - 24.5 * mm, 26 * mm, 15 * mm, 2 * mm, fill=1, stroke=0)
-        _draw_logo(c, training, x=ml, y=h - 24 * mm, max_w=24 * mm, max_h=14 * mm)
+        c.setStrokeColorRGB(200 / 255, 215 / 255, 240 / 255)
+        c.rect(7 * mm, h - 25 * mm, 22 * mm, 20 * mm, fill=1, stroke=1)
+        _draw_logo(c, training, x=8.5 * mm, y=h - 23.5 * mm, max_w=19 * mm, max_h=17 * mm)
+
     c.setFillColorRGB(1, 1, 1)
     c.setFont(_FONT_B, 11)
-    c.drawCentredString(w / 2, h - 13 * mm, "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ")
+    c.drawCentredString(w / 2, h - 12 * mm, "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ")
     c.setFont(_FONT_B, 9)
     c.drawCentredString(w / 2, h - 19 * mm, company_name or "")
 
+    # Reference row — PRO: Belge No / Tarih + Süre│Tür│Şekil│Doğrulama
     c.setFillColorRGB(0.4, 0.4, 0.4)
     c.setFont(_FONT, 7)
-    c.drawString(ml, h - 34 * mm, f"Belge No: {belge_no}")
-    c.drawRightString(w - mr, h - 34 * mm, f"Düzenleme Tarihi: {bugun}")
-    meta = (
-        f"Süre: {kural['sure']}  │  Tehlike: {training.hazard_class}  │  "
-        f"Sektör: {sektor_adi(sektor)}  │  Doğrulama: {training.verification_code or ''}"
-    )
+    c.drawString(ml, h - 33 * mm, f"Belge No: {belge_no}")
+    c.drawRightString(w - mr, h - 33 * mm, f"Tarih: {bugun}")
+    meta_parts = [
+        f"Süre: {kural['sure']}",
+        f"Tür: {training.training_type}",
+        f"Şekil: {training.delivery_method}",
+        f"Tehlike: {training.hazard_class}",
+        f"Sektör: {sektor_adi(sektor)}",
+    ]
+    if training.verification_code:
+        meta_parts.append(f"Doğrulama: {training.verification_code}")
     c.setFillColorRGB(0.2, 0.2, 0.2)
-    c.drawCentredString(w / 2, h - 39 * mm, _fit(c, meta, uw, _FONT, 7))
+    c.drawCentredString(w / 2, h - 38 * mm, _fit(c, "  │  ".join(meta_parts), uw, _FONT, 7))
 
     name = employee.full_name if employee else "—"
     tc = (getattr(employee, "national_id_masked", None) or "") if employee else ""
     gorev = (employee.job_title or "") if employee else ""
 
-    c.setFillColorRGB(0.05, 0.43, 0.99)
+    c.setFillColorRGB(*_BLUE)
     c.setFont(_FONT, 8)
-    c.drawCentredString(w / 2, h - 48 * mm, "Sn.")
+    c.drawCentredString(w / 2, h - 46 * mm, "Sn.")
     c.setFillColorRGB(0, 0, 0)
     c.setFont(_FONT_B, 16)
-    c.drawCentredString(w / 2, h - 56 * mm, name)
+    c.drawCentredString(w / 2, h - 54 * mm, name)
     c.setFillColorRGB(0.35, 0.35, 0.35)
     c.setFont(_FONT, 7.5)
-    c.drawString(ml, h - 64 * mm, f"T.C. Kimlik No: {tc}" if tc else "T.C. Kimlik No: —")
-    c.drawRightString(w - mr, h - 64 * mm, f"Görevi: {gorev}" if gorev else "Görevi: —")
-    c.drawCentredString(w / 2, h - 69 * mm, f"Eğitim Tarihi: {egitim_tarihi}")
+    c.drawString(ml, h - 62 * mm, f"T.C. Kimlik No: {tc}" if tc else "T.C. Kimlik No: —")
+    c.drawRightString(w - mr, h - 62 * mm, f"Görevi: {gorev}" if gorev else "Görevi: —")
+    c.drawCentredString(w / 2, h - 67 * mm, f"Eğitim Tarihi: {egitim_tarihi}")
 
-    c.setFillColorRGB(0.25, 0.25, 0.25)
-    c.setFont(_FONT, 7)
-    lines = [
+    # Legal — PRO exact lines
+    c.setFillColorRGB(60 / 255, 60 / 255, 60 / 255)
+    c.setFont(_FONT, 6.5)
+    legal = [
         "Yukarıda adı geçen çalışanın, 6331 Sayılı Kanun Gereği, Çalışanların İş Sağlığı ve Güvenliği",
-        "Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında verilen iş sağlığı ve güvenliği",
-        "eğitimlerini başarıyla tamamlayarak bu eğitim belgesini almaya hak kazanmıştır.",
+        "Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında verilen, iş sağlığı ve güvenliği",
+        "eğitimlerini, başarıyla tamamlayarak bu eğitim belgesini almaya hak kazanmıştır.",
     ]
-    y = h - 78 * mm
-    for line in lines:
+    y = h - 74 * mm
+    for line in legal:
         c.drawCentredString(w / 2, y, line)
         y -= 4 * mm
 
-    box_w = (uw - 10 * mm) / 3
-    gap = 5 * mm
-    bh = 24 * mm
-    iy = y - 4 * mm - bh
+    # Signature boxes — PRO roles
+    physician = (getattr(training, "workplace_physician", None) or "").strip()
+    employer = (getattr(training, "employer_representative", None) or "").strip()
     cert_signers = (
         ("Eğitim Veren", training.instructor_name or "", training.instructor_qualification or "İSG Uzmanı"),
-        (
-            "İşyeri Hekimi",
-            (getattr(training, "workplace_physician", None) or "").strip(),
-            "İşyeri Hekimi",
-        ),
-        (
-            "İşveren Vekili",
-            (getattr(training, "employer_representative", None) or "").strip(),
-            "İşveren / Vekili",
-        ),
+        ("Eğitim Veren", physician, "İşyeri Hekimi"),
+        ("Onaylayan", employer, "İşveren Vekili"),
     )
+    box_w = (uw - 16 * mm) / 3
+    gap = (uw - 3 * box_w) / 2
+    bh = 28 * mm
+    iy = y - 3 * mm - bh
     for i, (role, person, unvan) in enumerate(cert_signers):
         x = ml + i * (box_w + gap)
-        c.setFillColorRGB(0.97, 0.98, 1)
-        c.setStrokeColorRGB(0.82, 0.86, 0.94)
+        c.setFillColorRGB(248 / 255, 250 / 255, 255 / 255)
+        c.setStrokeColorRGB(210 / 255, 220 / 255, 240 / 255)
         c.rect(x, iy, box_w, bh, fill=1, stroke=1)
-        c.setFillColorRGB(0.05, 0.43, 0.99)
-        c.rect(x, iy + bh - 1.2 * mm, box_w, 1.2 * mm, fill=1, stroke=0)
+        _rgb(c, _BLUE, fill=True)
+        c.rect(x, iy + bh - 0.8 * mm, box_w, 0.8 * mm, fill=1, stroke=0)
         c.setFont(_FONT_B, 7)
-        c.setFillColorRGB(0.05, 0.43, 0.99)
+        _rgb(c, _BLUE, fill=True)
         c.drawCentredString(x + box_w / 2, iy + bh - 6 * mm, role)
         c.setFillColorRGB(0.1, 0.1, 0.1)
-        c.setFont(_FONT_B, 8)
-        c.drawCentredString(x + box_w / 2, iy + bh - 12 * mm, _fit(c, person or " ", box_w - 4 * mm, _FONT_B, 8))
+        name_size = 8 if len(person or "") < 22 else 7
+        c.setFont(_FONT_B, name_size)
+        c.drawCentredString(x + box_w / 2, iy + bh - 13 * mm, _fit(c, person or " ", box_w - 4 * mm, _FONT_B, name_size))
         c.setStrokeColorRGB(0.4, 0.4, 0.4)
-        c.line(x + 5 * mm, iy + 8 * mm, x + box_w - 5 * mm, iy + 8 * mm)
+        c.line(x + 5 * mm, iy + 10 * mm, x + box_w - 5 * mm, iy + 10 * mm)
         c.setFillColorRGB(0.45, 0.45, 0.45)
         c.setFont(_FONT, 6)
-        c.drawCentredString(x + box_w / 2, iy + 3.5 * mm, unvan)
+        c.drawCentredString(x + box_w / 2, iy + 4 * mm, unvan)
 
+    # Topics header
     ty = iy - 4 * mm
-    c.setStrokeColorRGB(0.05, 0.43, 0.99)
+    _rgb(c, _BLUE, stroke=True)
     c.setLineWidth(1)
     c.line(ml, ty, w - mr, ty)
-    c.setFillColorRGB(0.96, 0.97, 1)
-    c.rect(ml, ty - 7 * mm, uw, 6.5 * mm, fill=1, stroke=0)
-    c.setFillColorRGB(0.05, 0.43, 0.99)
+    c.setFillColorRGB(245 / 255, 247 / 255, 255 / 255)
+    c.rect(ml, ty - 6.5 * mm, uw, 6.5 * mm, fill=1, stroke=0)
+    _rgb(c, _BLUE, fill=True)
     c.setFont(_FONT_B, 8)
-    c.drawCentredString(w / 2, ty - 4.5 * mm, "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM KONULARI (Zorunlu)")
+    c.drawCentredString(w / 2, ty - 4.5 * mm, "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM KONULARI")
 
     top = ty - 9 * mm
-    cw = (uw - 8 * mm) / 2
+    cw = (uw - 10 * mm) / 2
+    bottom_limit = 14 * mm
 
     def draw_col(items, x, start_y, lh):
         yy = start_y
         for is_h, text in items:
-            if yy < 14 * mm:
+            if yy < bottom_limit:
                 break
-            c.setFillColorRGB(0.05, 0.2, 0.45) if is_h else c.setFillColorRGB(0.15, 0.15, 0.15)
-            font = _FONT_B if is_h else _FONT
-            size = 6.8 if is_h else 6.2
+            if is_h:
+                c.setFillColorRGB(0, 0, 0)
+                font, size = _FONT_B, 8
+            else:
+                c.setFillColorRGB(80 / 255, 80 / 255, 80 / 255)
+                font, size = _FONT, 7.2
             c.setFont(font, size)
             c.drawString(x, yy, _fit(c, text, cw - 2 * mm, font, size))
             yy -= lh
         return yy
 
-    draw_col(sol, ml + 1 * mm, top, 3.5 * mm)
-    draw_col(sag, ml + cw + 7 * mm, top, 3.5 * mm)
+    draw_col(sol, ml + 2 * mm, top, 4.0 * mm)
+    draw_col(sag, ml + 2 * mm + cw + 6 * mm, top, 4.3 * mm)
 
-    c.setStrokeColorRGB(0.78, 0.84, 0.94)
-    c.line(ml + 30 * mm, 9 * mm, w - mr - 30 * mm, 9 * mm)
-    c.setFillColorRGB(0.55, 0.55, 0.55)
-    c.setFont(_FONT, 5.5)
-    c.drawCentredString(
-        w / 2,
-        6.5 * mm,
-        _fit(c, _stamp_text(training), uw - 20 * mm, _FONT, 5.5),
-    )
+    # Footer
+    c.setStrokeColorRGB(200 / 255, 215 / 255, 240 / 255)
+    c.setLineWidth(0.5)
+    c.line(ml + 20 * mm, 10 * mm, w - mr - 20 * mm, 10 * mm)
+    c.setFillColorRGB(0.4, 0.4, 0.4)
+    c.setFont(_FONT, 5.8)
+    c.drawCentredString(w / 2, 7 * mm, _fit(c, _CERT_FOOTER, uw - 30 * mm, _FONT, 5.8))
+    c.setFont(_FONT, 5.2)
+    c.setFillColorRGB(65 / 255, 65 / 255, 65 / 255)
+    c.drawRightString(w - mr, 4.5 * mm, _fit(c, _stamp_text(training), uw * 0.55, _FONT, 5.2))
