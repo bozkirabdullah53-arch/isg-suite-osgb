@@ -28,6 +28,7 @@ class HealthRecordCreate(BaseModel):
     suggested_tests: str | None = Field(default=None, max_length=1000)
     exposures: str | None = Field(default=None, max_length=1000)
     follow_up_note: str | None = Field(default=None, max_length=1500)
+    other_biological_test: str | None = Field(default=None, max_length=1000)
 
 
 class HealthRecordUpdate(BaseModel):
@@ -51,6 +52,7 @@ class HealthRecordUpdate(BaseModel):
     suggested_tests: str | None = Field(default=None, max_length=1000)
     exposures: str | None = Field(default=None, max_length=1000)
     follow_up_note: str | None = Field(default=None, max_length=1500)
+    other_biological_test: str | None = Field(default=None, max_length=1000)
 
 
 class HealthRecordResponse(BaseModel):
@@ -81,6 +83,11 @@ class HealthRecordResponse(BaseModel):
     suggested_tests: str | None = None
     exposures: str | None = None
     follow_up_note: str | None = None
+    other_biological_test: str | None = None
+    report_file_name: str | None = None
+    has_report: bool = False
+    smart_summary: str | None = None
+    tetkik_summary: str | None = None
     is_overdue: bool = False
     created_by_id: int
     created_at: datetime

@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Download, HeartPulse, Plus, RefreshCw, Search, X} from 'lucide-react';
-import {api, downloadFile} from './api';
+import {Download, FileText, HeartPulse, Plus, Printer, RefreshCw, Search, Upload, X} from 'lucide-react';
+import {api, downloadFile, uploadFile} from './api';
 
 const TYPE_FALLBACK = {
   entry_exam: 'İşe Giriş',
@@ -23,10 +23,16 @@ const FITNESS_FALLBACK = {
   pending: 'Bekliyor',
 };
 
+const EXPOSURE_FALLBACK = [
+  'Kurşun', 'Kimyasal', 'Solvent', 'Toz', 'Gürültü', 'Titreşim', 'Ergonomi',
+  'Yüksekte çalışma', 'Elektrik', 'Biyolojik', 'Radyasyon', 'Sıcak ortam',
+  'Soğuk ortam', 'Kapalı alan', 'Gece çalışması',
+];
+
 function Modal({title, close, children}) {
   return (
     <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <section className="modal" style={{maxWidth: 920}}>
+      <section className="modal" style={{maxWidth: 980}}>
         <header>
           <h3>{title}</h3>
           <button className="icon" type="button" onClick={close}><X /></button>
@@ -86,8 +92,11 @@ function emptyForm(user) {
     blood_lead_unit: 'µg/dL',
     blood_lead_ref: '30',
     suggested_tests: '',
-    exposures: '',
+    exposures: [],
     follow_up_note: '',
+    other_biological_test: '',
+    period_note: '',
+    meslek_label: '',
   };
 }
 
@@ -98,7 +107,7 @@ function fitnessBadge(status, overdue) {
         : status === 'conditional' || status === 'tracking' ? '#d97706'
           : '#64748b';
   return (
-    <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
+    <span style={{display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}>
       <span className="badge" style={{background: color + '22', color}}>{FITNESS_FALLBACK[status] || status}</span>
       {overdue && (
         <span style={{
@@ -107,6 +116,40 @@ function fitnessBadge(status, overdue) {
         }}>Gecikti</span>
       )}
     </span>
+  );
+}
+
+function MiniTable({title, rows, empty}) {
+  return (
+    <section className="panel" style={{marginBottom: 12}}>
+      <h4 style={{marginTop: 0}}>{title} ({rows?.length || 0})</h4>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Personel</th>
+              <th>Görev</th>
+              <th>Detay</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(rows || []).length ? rows.map((r, i) => (
+              <tr key={r.id || r.employee_id || i}>
+                <td>{r.employee_name || r.full_name || '—'}</td>
+                <td>{r.job_title || '—'}</td>
+                <td style={{fontSize: 12}}>
+                  {r.blood_lead_value != null
+                    ? `${r.blood_lead_value} ${r.blood_lead_unit || ''} · ${r.lead_label || ''}`
+                    : (r.department || r.smart_summary || '—')}
+                </td>
+              </tr>
+            )) : (
+              <tr><td colSpan={3} className="empty">{empty || 'Kayıt yok.'}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -119,7 +162,8 @@ export function HealthPage({user}) {
   const [employees, setEmployees] = useState([]);
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
-  const [meta, setMeta] = useState({record_types: [], fitness_statuses: []});
+  const [analysis, setAnalysis] = useState(null);
+  const [meta, setMeta] = useState({record_types: [], fitness_statuses: [], exposure_options: []});
   const [companyId, setCompanyId] = useState(user.company_id ? String(user.company_id) : '');
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -128,6 +172,8 @@ export function HealthPage({user}) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(() => emptyForm(user));
+  const [reportFile, setReportFile] = useState(null);
+  const [leadLive, setLeadLive] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -141,6 +187,8 @@ export function HealthPage({user}) {
     if (meta.fitness_statuses?.length) return meta.fitness_statuses;
     return Object.entries(FITNESS_FALLBACK).map(([code, label]) => ({code, label}));
   }, [meta]);
+
+  const exposureOpts = meta.exposure_options?.length ? meta.exposure_options : EXPOSURE_FALLBACK;
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -157,18 +205,20 @@ export function HealthPage({user}) {
     try {
       const sumQs = new URLSearchParams();
       if (isGlobal && companyId) sumQs.set('company_id', companyId);
-      const [c, e, r, s, m] = await Promise.all([
+      const [c, e, r, s, m, a] = await Promise.all([
         api('/companies'),
         api('/employees'),
         api(`/health-records?${qs}`),
         api(`/health-records/summary?${sumQs}`),
         api('/health-records/meta'),
+        api(`/health-records/analysis?${sumQs}`),
       ]);
       setCompanies(c);
       setEmployees(e);
       setRows(r);
       setSummary(s);
       setMeta(m);
+      setAnalysis(a);
       if (!companyId && c.length) setCompanyId(String(user.company_id || c[0].id));
     } catch (err) {
       setMessage(err.message || 'Yükleme başarısız.');
@@ -176,6 +226,20 @@ export function HealthPage({user}) {
   }
 
   useEffect(() => { load(); }, [qs]);
+
+  useEffect(() => {
+    const v = form.blood_lead_value;
+    if (v === '' || v == null) {
+      setLeadLive(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      api(`/health-records/lead-eval?value=${encodeURIComponent(v)}&ref=${encodeURIComponent(form.blood_lead_ref || 30)}`)
+        .then(setLeadLive)
+        .catch(() => setLeadLive(null));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [form.blood_lead_value, form.blood_lead_ref]);
 
   const companyEmployees = useMemo(
     () => employees.filter((x) => String(x.company_id) === String(form.company_id || companyId)),
@@ -195,22 +259,39 @@ export function HealthPage({user}) {
         employee_id: empId,
         company_id: company || f.company_id,
         suggested_tests: (sug.suggested_tests || []).join(', '),
-        exposures: (sug.exposures || []).join(', '),
+        exposures: sug.exposures || [],
+        period_note: sug.period_note || '',
+        meslek_label: sug.label || '',
       }));
     } catch {
       setForm((f) => ({...f, employee_id: empId, company_id: company || f.company_id}));
     }
   }
 
+  function toggleExposure(name) {
+    setForm((f) => {
+      const cur = Array.isArray(f.exposures) ? f.exposures : String(f.exposures || '').split(',').map((x) => x.trim()).filter(Boolean);
+      return {
+        ...f,
+        exposures: cur.includes(name) ? cur.filter((x) => x !== name) : [...cur, name],
+      };
+    });
+  }
+
   function openCreate() {
     setEditing(null);
-    const base = {...emptyForm(user), company_id: companyId || user.company_id || ''};
-    setForm(base);
+    setReportFile(null);
+    setLeadLive(null);
+    setForm({...emptyForm(user), company_id: companyId || user.company_id || ''});
     setOpen(true);
   }
 
   function openEdit(row) {
     setEditing(row);
+    setReportFile(null);
+    const exp = row.exposures
+      ? (Array.isArray(row.exposures) ? row.exposures : String(row.exposures).split(',').map((x) => x.trim()).filter(Boolean))
+      : [];
     setForm({
       company_id: row.company_id,
       employee_id: row.employee_id,
@@ -232,14 +313,18 @@ export function HealthPage({user}) {
       blood_lead_unit: row.blood_lead_unit || 'µg/dL',
       blood_lead_ref: row.blood_lead_ref ?? '30',
       suggested_tests: row.suggested_tests || '',
-      exposures: row.exposures || '',
+      exposures: exp,
       follow_up_note: row.follow_up_note || '',
+      other_biological_test: row.other_biological_test || '',
+      period_note: '',
+      meslek_label: '',
     });
     setOpen(true);
   }
 
   function payloadFromForm() {
     const numOrNull = (v) => (v === '' || v == null ? null : Number(v));
+    const exposures = Array.isArray(form.exposures) ? form.exposures.join(', ') : (form.exposures || null);
     return {
       company_id: Number(form.company_id),
       employee_id: Number(form.employee_id),
@@ -261,8 +346,9 @@ export function HealthPage({user}) {
       blood_lead_unit: form.blood_lead_unit || null,
       blood_lead_ref: numOrNull(form.blood_lead_ref),
       suggested_tests: form.suggested_tests || null,
-      exposures: form.exposures || null,
+      exposures,
       follow_up_note: form.follow_up_note || null,
+      other_biological_test: form.other_biological_test || null,
     };
   }
 
@@ -272,11 +358,16 @@ export function HealthPage({user}) {
     setMessage('');
     try {
       const payload = payloadFromForm();
+      let id = editing?.id;
       if (editing) {
         const {company_id: _c, employee_id: _e, ...patch} = payload;
         await api(`/health-records/${editing.id}`, {method: 'PATCH', body: JSON.stringify(patch)});
       } else {
-        await api('/health-records', {method: 'POST', body: JSON.stringify(payload)});
+        const created = await api('/health-records', {method: 'POST', body: JSON.stringify(payload)});
+        id = created.id;
+      }
+      if (reportFile && id) {
+        await uploadFile(`/health-records/${id}/report`, reportFile);
       }
       setOpen(false);
       await load();
@@ -300,14 +391,47 @@ export function HealthPage({user}) {
     }
   }
 
+  function companyQs() {
+    const p = new URLSearchParams();
+    if (isGlobal && companyId) p.set('company_id', companyId);
+    return p.toString();
+  }
+
   async function exportTxt() {
+    try { await downloadFile(`/health-records/export.txt?${companyQs()}`, 'saglik-gozetimi.txt'); }
+    catch (err) { setMessage(err.message); }
+  }
+  async function exportXlsx() {
+    try { await downloadFile(`/health-records/export.xlsx?${companyQs()}`, 'saglik-gozetimi.xlsx'); }
+    catch (err) { setMessage(err.message); }
+  }
+  async function exportAnalysis() {
+    try { await downloadFile(`/health-records/analysis.txt?${companyQs()}`, 'saglik-analiz-raporu.txt'); }
+    catch (err) { setMessage(err.message); }
+  }
+  async function openForm(row) {
     try {
-      const p = new URLSearchParams();
-      if (isGlobal && companyId) p.set('company_id', companyId);
-      await downloadFile(`/health-records/export.txt?${p}`, 'saglik-gozetimi.txt');
+      const token = localStorage.getItem('isg_token');
+      const base = import.meta.env.VITE_API_URL
+        || ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+          ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
+          : 'https://isg-suite-api-1u9t.onrender.com/api/v1');
+      const r = await fetch(`${base}/health-records/${row.id}/form.html`, {
+        headers: token ? {Authorization: `Bearer ${token}`} : {},
+      });
+      if (!r.ok) throw new Error('Form açılamadı.');
+      const html = await r.text();
+      const w = window.open('', '_blank');
+      if (!w) throw new Error('Pop-up engellendi; yazdırma penceresine izin verin.');
+      w.document.write(html);
+      w.document.close();
     } catch (err) {
       setMessage(err.message);
     }
+  }
+  async function downloadReport(row) {
+    try { await downloadFile(`/health-records/${row.id}/report`, row.report_file_name || 'saglik-raporu'); }
+    catch (err) { setMessage(err.message); }
   }
 
   if (!canEdit) {
@@ -321,6 +445,10 @@ export function HealthPage({user}) {
     );
   }
 
+  const selectedExposures = Array.isArray(form.exposures)
+    ? form.exposures
+    : String(form.exposures || '').split(',').map((x) => x.trim()).filter(Boolean);
+
   return (
     <>
       <div className="page-title">
@@ -328,6 +456,7 @@ export function HealthPage({user}) {
         <div className="actions">
           <button type="button" className="secondary" onClick={load} disabled={busy}><RefreshCw size={16} /> Yenile</button>
           <button type="button" className="secondary" onClick={exportTxt}><Download size={16} /> TXT</button>
+          <button type="button" className="secondary" onClick={exportXlsx}><Download size={16} /> Excel</button>
           <button type="button" onClick={openCreate} disabled={busy}><Plus size={16} /> Yeni Kayıt</button>
         </div>
       </div>
@@ -356,7 +485,7 @@ export function HealthPage({user}) {
             <option value="1">Yalnız geciken</option>
           </Select>
         </div>
-        {message && <p style={{marginTop: 12}}>{message}</p>}
+        {message && <p style={{marginTop: 12, color: '#b91c1c'}}>{message}</p>}
       </section>
 
       <div className="cards" style={{marginBottom: 16}}>
@@ -371,26 +500,41 @@ export function HealthPage({user}) {
           <HeartPulse size={16} /> Kayıtlar
         </button>
         <button type="button" className={tab === 'analiz' ? '' : 'secondary'} onClick={() => setTab('analiz')}>
-          Analiz Özeti
+          Sağlık Analiz Merkezi
         </button>
       </div>
 
       {tab === 'analiz' ? (
-        <section className="panel">
-          <h3 style={{marginTop: 0}}>Sağlık Analiz Merkezi</h3>
-          <div className="cards">
-            <article className="metric"><span>Uygun</span><strong>{summary?.fit ?? 0}</strong></article>
-            <article className="metric"><span>Kısıtlı</span><strong>{summary?.conditional ?? 0}</strong></article>
-            <article className="metric"><span>Takip</span><strong>{summary?.tracking ?? 0}</strong></article>
-            <article className="metric"><span>Uygun değil</span><strong>{summary?.unfit ?? 0}</strong></article>
-          </div>
-          <div className="cards" style={{marginTop: 12}}>
-            <article className="metric"><span>Odyometri kaydı</span><strong>{summary?.with_audiometry ?? 0}</strong></article>
-            <article className="metric"><span>SFT kaydı</span><strong>{summary?.with_spirometry ?? 0}</strong></article>
-            <article className="metric"><span>Akciğer grafisi</span><strong>{summary?.with_chest_xray ?? 0}</strong></article>
-            <article className="metric"><span>Kan kurşun</span><strong>{summary?.with_blood_lead ?? 0}</strong></article>
-          </div>
-        </section>
+        <>
+          <section className="panel" style={{marginBottom: 12}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center'}}>
+              <div>
+                <h3 style={{margin: 0}}>Sağlık Analiz Merkezi</h3>
+                <p style={{margin: '6px 0 0', color: '#64748b', fontSize: 14}}>
+                  {analysis?.company_name || 'Firma'} — kurşun maruziyeti, tetkik takip ve eksik kayıtlar
+                </p>
+              </div>
+              <button type="button" className="secondary" onClick={exportAnalysis}><Download size={16} /> Analiz TXT</button>
+            </div>
+            <div className="cards" style={{marginTop: 14}}>
+              <article className="metric"><span>Kurşun ölçümü</span><strong>{analysis?.total_lead ?? 0}</strong></article>
+              <article className="metric"><span>≥30 µg/dL</span><strong style={{color: '#d97706'}}>{analysis?.over30?.length ?? 0} ({analysis?.pct30 ?? 0}%)</strong></article>
+              <article className="metric"><span>≥40</span><strong style={{color: '#b91c1c'}}>{analysis?.over40?.length ?? 0} ({analysis?.pct40 ?? 0}%)</strong></article>
+              <article className="metric"><span>≥45</span><strong style={{color: '#991b1b'}}>{analysis?.over45?.length ?? 0} ({analysis?.pct45 ?? 0}%)</strong></article>
+            </div>
+            <div className="cards" style={{marginTop: 12}}>
+              {(analysis?.ranges || []).map((r) => (
+                <article className="metric" key={r.label}><span>{r.label}</span><strong>{r.count}</strong></article>
+              ))}
+            </div>
+          </section>
+          <MiniTable title="≥30 Kurşun listesi" rows={analysis?.over30} />
+          <MiniTable title="Odyometri takip" rows={analysis?.odyo_follow} />
+          <MiniTable title="SFT takip" rows={analysis?.sft_follow} />
+          <MiniTable title="Akciğer takip" rows={analysis?.chest_follow} />
+          <MiniTable title="Kurşun maruziyeti var, değer yok" rows={analysis?.missing_lead} />
+          <MiniTable title="Sağlık kaydı eksik personel" rows={analysis?.missing_employees} empty="Tüm aktif personelin kaydı var." />
+        </>
       ) : (
         <section className="panel">
           <div className="table-wrap">
@@ -403,40 +547,38 @@ export function HealthPage({user}) {
                   <th>Sonraki</th>
                   <th>Hekim</th>
                   <th>Tetkik</th>
+                  <th>Akıllı özet</th>
                   <th>Durum</th>
                   <th>İşlem</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.length ? rows.map((r) => {
-                  const tetkik = [
-                    r.audiometry_result && `Odyo: ${r.audiometry_result}`,
-                    r.spirometry_result && `SFT: ${r.spirometry_result}`,
-                    r.chest_xray_result && `AG: ${r.chest_xray_result}`,
-                    r.blood_lead_value != null && `Pb: ${r.blood_lead_value} (${r.blood_lead_eval || '—'})`,
-                  ].filter(Boolean).join(' · ');
-                  return (
-                    <tr key={r.id}>
-                      <td>
-                        <div>{r.employee_name || `#${r.employee_id}`}</div>
-                        <div style={{fontSize: 12, color: '#64748b'}}>{r.job_title || r.department || ''}</div>
-                      </td>
-                      <td>{typeMap[r.record_type] || r.record_type}</td>
-                      <td>{r.examination_date}</td>
-                      <td>{r.next_examination_date || '—'}</td>
-                      <td>{r.physician_name || '—'}</td>
-                      <td style={{fontSize: 12, maxWidth: 220}}>{tetkik || '—'}</td>
-                      <td>{fitnessBadge(r.fitness_status, r.is_overdue)}</td>
-                      <td>
-                        <div className="actions" style={{gap: 6}}>
-                          <button type="button" className="mini" onClick={() => openEdit(r)}>Düzenle</button>
-                          <button type="button" className="mini" onClick={() => remove(r)}>Sil</button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                }) : (
-                  <tr><td colSpan={8} className="empty">Kayıt yok. Yeni muayene ekleyebilirsiniz.</td></tr>
+                {rows.length ? rows.map((r) => (
+                  <tr key={r.id}>
+                    <td>
+                      <div>{r.employee_name || `#${r.employee_id}`}</div>
+                      <div style={{fontSize: 12, color: '#64748b'}}>{r.job_title || r.department || ''}</div>
+                    </td>
+                    <td>{typeMap[r.record_type] || r.record_type}</td>
+                    <td>{r.examination_date}</td>
+                    <td>{r.next_examination_date || '—'}</td>
+                    <td>{r.physician_name || '—'}</td>
+                    <td style={{fontSize: 12, maxWidth: 180}}>{r.tetkik_summary || '—'}</td>
+                    <td style={{fontSize: 12, maxWidth: 200}}>{r.smart_summary || '—'}</td>
+                    <td>{fitnessBadge(r.fitness_status, r.is_overdue)}</td>
+                    <td>
+                      <div className="actions" style={{gap: 6, flexWrap: 'wrap'}}>
+                        <button type="button" className="mini" onClick={() => openEdit(r)}>Düzenle</button>
+                        <button type="button" className="mini" onClick={() => openForm(r)}><Printer size={12} /> Form</button>
+                        {r.has_report && (
+                          <button type="button" className="mini" onClick={() => downloadReport(r)}><FileText size={12} /> Rapor</button>
+                        )}
+                        <button type="button" className="mini" onClick={() => remove(r)}>Sil</button>
+                      </div>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr><td colSpan={9} className="empty">Kayıt yok. Yeni muayene ekleyebilirsiniz.</td></tr>
                 )}
               </tbody>
             </table>
@@ -464,6 +606,12 @@ export function HealthPage({user}) {
                 </Select>
               </>
             )}
+            {(form.meslek_label || form.period_note) && (
+              <div style={{gridColumn: '1/-1', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10, padding: 12}}>
+                <strong>{form.meslek_label || 'Meslek önerisi'}</strong>
+                {form.period_note && <p style={{margin: '6px 0 0', fontSize: 13, color: '#0c4a6e'}}>{form.period_note}</p>}
+              </div>
+            )}
             <Select label="Muayene türü" value={form.record_type} onChange={(e) => setForm({...form, record_type: e.target.value})}>
               {Object.entries(typeMap).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </Select>
@@ -487,9 +635,30 @@ export function HealthPage({user}) {
             <Field label="Kan kurşun değer" type="number" step="0.1" value={form.blood_lead_value} onChange={(e) => setForm({...form, blood_lead_value: e.target.value})} />
             <Field label="Birim" value={form.blood_lead_unit} onChange={(e) => setForm({...form, blood_lead_unit: e.target.value})} />
             <Field label="Referans" type="number" step="0.1" value={form.blood_lead_ref} onChange={(e) => setForm({...form, blood_lead_ref: e.target.value})} />
+            {leadLive?.code && (
+              <div style={{gridColumn: '1/-1', fontSize: 13, color: leadLive.code === 'normal' ? '#166534' : '#9a3412'}}>
+                Canlı kurşun değerlendirme: <strong>{leadLive.label}</strong>
+              </div>
+            )}
             <TextArea label="Önerilen tetkikler" value={form.suggested_tests} onChange={(e) => setForm({...form, suggested_tests: e.target.value})} />
-            <TextArea label="Maruziyetler" value={form.exposures} onChange={(e) => setForm({...form, exposures: e.target.value})} />
+            <div style={{gridColumn: '1/-1'}}>
+              <div style={{fontSize: 13, color: '#64748b', marginBottom: 8}}>Maruziyetler (çoklu seçim)</div>
+              <div style={{display: 'flex', flexWrap: 'wrap', gap: 8}}>
+                {exposureOpts.map((name) => (
+                  <label key={name} style={{display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, background: selectedExposures.includes(name) ? '#ecfdf5' : '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px'}}>
+                    <input type="checkbox" checked={selectedExposures.includes(name)} onChange={() => toggleExposure(name)} />
+                    {name}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <TextArea label="Diğer biyolojik tetkik" value={form.other_biological_test} onChange={(e) => setForm({...form, other_biological_test: e.target.value})} />
             <TextArea label="Takip notu" value={form.follow_up_note} onChange={(e) => setForm({...form, follow_up_note: e.target.value})} />
+            <label className="field" style={{gridColumn: '1/-1'}}>
+              <span>Muayene / tetkik raporu (pdf / jpg / png / docx){editing?.report_file_name ? ` — mevcut: ${editing.report_file_name}` : ''}</span>
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png,.docx" onChange={(e) => setReportFile(e.target.files?.[0] || null)} />
+              {reportFile && <small style={{color: '#475569'}}><Upload size={12} /> {reportFile.name}</small>}
+            </label>
             <div className="form-actions">
               <button type="submit" disabled={busy}>{editing ? 'Güncelle' : 'Kaydet'}</button>
             </div>

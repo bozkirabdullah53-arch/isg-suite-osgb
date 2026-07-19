@@ -85,6 +85,10 @@ async def lifespan(_:FastAPI):
                 ("suggested_tests", "VARCHAR(1000)"),
                 ("exposures", "VARCHAR(1000)"),
                 ("follow_up_note", "VARCHAR(1500)"),
+                ("other_biological_test", "VARCHAR(1000)"),
+                ("report_file_name", "VARCHAR(255)"),
+                ("report_storage_path", "VARCHAR(500)"),
+                ("report_content_type", "VARCHAR(120)"),
                 ("deleted_at", "TIMESTAMP"),
             ):
                 if col not in hr_cols:
@@ -158,7 +162,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.39',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.40',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 _cors_origins=list(dict.fromkeys([
@@ -177,10 +181,10 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.39',
+        'version': '0.9.40',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'pro-planlama',
-        'health': 'pro-saglik',
+        'health': 'pro-saglik-analiz-2026',
         'osgb_oversight': '6331-eval-error-detail',
         'assignment_form': 'katip-contract-upload',
         'visit_notebook': 'tespit-oneri-defteri',
