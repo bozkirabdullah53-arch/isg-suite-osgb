@@ -2,14 +2,22 @@
 
 Bu sürüm Render build hatası için hazırlanmıştır.
 
-## Zorunlu işlem
+## Zorunlu işlem (Eğitim PDF hâlâ eskiyse)
 
-1. Bu klasörün tamamını GitHub deposunun köküne yükleyin.
-2. Render servisinde bağlı branch'in bu commit'i kullandığını doğrulayın.
-3. Blueprint kullanıyorsanız `render.yaml` için **Sync Blueprint** yapın.
-4. Frontend servisi için **Manual Deploy → Clear build cache & deploy** seçin.
-5. Backend ortam değişkenlerinde `SEED_ADMIN_EMAIL` ve `SEED_ADMIN_PASSWORD` değerlerini Render panelinden girin.
-6. İlk başarılı girişten sonra admin şifresini değiştirin ve `SEED_ADMIN_PASSWORD` değişkenini kaldırın.
+Render servislerinde branch **mutlaka** `feature/training-ui-cors` olsun.
+`master` dalında PRO imza/belge PDF kodu yok / eski.
+
+1. **isg-suite-api-1u9t** → Settings → Branch = `feature/training-ui-cors`
+2. Manual Deploy → **Clear build cache & deploy**
+3. **isg-suite-web-1u9t** → aynı
+4. Deploy sonrası kontrol:
+   - `https://isg-suite-api-1u9t.onrender.com/api/v1/trainings/layout-info`
+     → `pdf_layout: "pro-2026"` dönmeli
+   - OpenAPI’de `certificates.pdf` + `verify/{code}` görünmeli
+   - İmza PDF dosya adı: `...-katilimci-imza-formu-PRO.pdf`
+   - Başlık: **KATILIMCI İMZA FORMU** (EGITIM KATILIM… değil)
+
+Aktarım promptu: `docs/EGITIM_PRO_AKTARIM_PROMPT.md`
 
 ## Frontend beklenen ayarlar
 

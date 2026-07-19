@@ -76,6 +76,19 @@ def list_sectors():
     return sectors_list_for_api()
 
 
+@router.get("/layout-info")
+def training_layout_info():
+    """Canlı deploy doğrulama — eski API’de bu uç yoktur."""
+    return {
+        "pdf_layout": "pro-2026",
+        "attendance_title": "KATILIMCI İMZA FORMU",
+        "form_no": "İSG-EĞT-KF-01",
+        "certificate_title": "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ",
+        "certificate_no_format": "ISG-GGAAYYYY-001",
+        "endpoints": ["attendance.pdf", "certificates.pdf", "verify/{code}"],
+    }
+
+
 @router.get("/meta")
 def training_meta(user: User = Depends(get_current_user)):
     return meta_payload()
@@ -417,7 +430,7 @@ def attendance_pdf(
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="egitim-{training_id}-imza-listesi.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="egitim-{training_id}-katilimci-imza-formu-PRO.pdf"'},
     )
 
 

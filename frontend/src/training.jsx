@@ -77,7 +77,7 @@ export function TrainingPage({user}) {
   const empty = {
     company_id: user.company_id || '',
     title: '',
-    training_type: 'Temel İSG Eğitimi',
+    training_type: 'İlk Defa',
     delivery_method: 'Yüz yüze',
     location: '',
     start_date: '',
@@ -639,6 +639,8 @@ export function TrainingPage({user}) {
             </Select>
             <Field label="Eğitim Adı" required minLength={3} value={form.title} onChange={(e) => setForm({...form, title: e.target.value})} />
             <Select label="Eğitim Türü" value={form.training_type} onChange={(e) => setForm({...form, training_type: e.target.value})}>
+              <option>İlk Defa</option>
+              <option>Tekrar</option>
               <option>Temel İSG Eğitimi</option>
               <option>İşe Özel Eğitim</option>
               <option>Yenileme Eğitimi</option>
@@ -647,7 +649,6 @@ export function TrainingPage({user}) {
             <Select label="Eğitim Şekli" value={form.delivery_method} onChange={(e) => setForm({...form, delivery_method: e.target.value})}>
               <option>Yüz yüze</option>
               <option>Uzaktan</option>
-              <option>Hibrit</option>
             </Select>
             <Field label="Eğitim Tarihi" type="date" required value={form.start_date} onChange={(e) => setForm({...form, start_date: e.target.value})} />
             <Field label="Eğitim Yeri" value={form.location} onChange={(e) => setForm({...form, location: e.target.value})} />

@@ -328,10 +328,14 @@ def _draw_attendance_page(
     c.setFont(_FONT_B, 7)
     c.drawString(ml + 2 * mm, konu_y_top - 20 * mm, "Dayanak:")
     c.setFont(_FONT, 6)
+    dayanak = (
+        "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve çalışanların İSG eğitimlerine "
+        "ilişkin mevzuat kapsamında düzenlenmiştir."
+    )
     c.drawString(
         ml + 18 * mm,
         konu_y_top - 20 * mm,
-        _fit(c, _stamp_text(training), uw - 22 * mm, _FONT, 6),
+        _fit(c, dayanak, uw - 22 * mm, _FONT, 6),
     )
 
     # Table — PRO column widths (mm): 10,55,31,45,58,20,62
@@ -439,14 +443,20 @@ def build_certificates_pdf(*, company_name: str, training, employees: dict) -> b
     c = canvas.Canvas(buf, pagesize=page)
     w, h = page
     bugun = datetime.now().strftime("%d.%m.%Y")
+    bugun_kod = datetime.now().strftime("%d%m%Y")
     egitim_tarihi = _fmt_date(training.start_date)
+    if getattr(training, "end_date", None):
+        end = _fmt_date(training.end_date)
+        if end and end != egitim_tarihi:
+            egitim_tarihi = f"{egitim_tarihi} - {end}"
     kural = tehlike_kurali(training.hazard_class)
     sektor = sektor_kodu_cozumle(training.sector)
     sol, sag, _, _ = egitim_konularini_hazirla(training.hazard_class, sektor)
 
     for i, p in enumerate(participants, 1):
         e = employees.get(p.employee_id)
-        belge_no = p.certificate_number or f"ISG-{egitim_tarihi.replace('.', '')}-{i:03d}"
+        # PRO belge no: ISG-GGAAYYYY-001 (üretim tarihi + sıra)
+        belge_no = f"ISG-{bugun_kod}-{i:03d}"
         _draw_certificate_page(
             c, w, h,
             company_name=company_name,
@@ -497,7 +507,7 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
     c.setFont(_FONT_B, 9)
     c.drawCentredString(w / 2, h - 19 * mm, company_name or "")
 
-    # Reference row — PRO: Belge No / Tarih + Süre│Tür│Şekil│Doğrulama
+    # Referans — PRO: Belge No / Tarih + yalnızca Süre│Tür│Şekil│Doğrulama
     c.setFillColorRGB(0.4, 0.4, 0.4)
     c.setFont(_FONT, 7)
     c.drawString(ml, h - 33 * mm, f"Belge No: {belge_no}")
@@ -506,8 +516,6 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
         f"Süre: {kural['sure']}",
         f"Tür: {training.training_type}",
         f"Şekil: {training.delivery_method}",
-        f"Tehlike: {training.hazard_class}",
-        f"Sektör: {sektor_adi(sektor)}",
     ]
     if training.verification_code:
         meta_parts.append(f"Doğrulama: {training.verification_code}")
@@ -543,11 +551,13 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
         c.drawCentredString(w / 2, y, line)
         y -= 4 * mm
 
-    # Signature boxes — PRO roles
+    # Signature boxes — PRO roles (unvan altta, isim üstte)
     physician = (getattr(training, "workplace_physician", None) or "").strip()
     employer = (getattr(training, "employer_representative", None) or "").strip()
+    instructor = (training.instructor_name or "").strip()
+    instructor_title = (training.instructor_qualification or "").strip() or "İSG Uzmanı"
     cert_signers = (
-        ("Eğitim Veren", training.instructor_name or "", training.instructor_qualification or "İSG Uzmanı"),
+        ("Eğitim Veren", instructor, instructor_title),
         ("Eğitim Veren", physician, "İşyeri Hekimi"),
         ("Onaylayan", employer, "İşveren Vekili"),
     )
@@ -609,13 +619,19 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
     draw_col(sol, ml + 2 * mm, top, 4.0 * mm)
     draw_col(sag, ml + 2 * mm + cw + 6 * mm, top, 4.3 * mm)
 
-    # Footer
+    # Footer — PRO: orta kanun + sağ stamp (uzman satırı)
     c.setStrokeColorRGB(200 / 255, 215 / 255, 240 / 255)
     c.setLineWidth(0.5)
     c.line(ml + 20 * mm, 10 * mm, w - mr - 20 * mm, 10 * mm)
     c.setFillColorRGB(0.4, 0.4, 0.4)
     c.setFont(_FONT, 5.8)
     c.drawCentredString(w / 2, 7 * mm, _fit(c, _CERT_FOOTER, uw - 30 * mm, _FONT, 5.8))
+    stamp_right = (getattr(training, "stamp_text", None) or "").strip()
+    if not stamp_right:
+        if instructor and instructor_title:
+            stamp_right = f"{instructor} - {instructor_title}"
+        else:
+            stamp_right = _stamp_text(training)
     c.setFont(_FONT, 5.2)
     c.setFillColorRGB(65 / 255, 65 / 255, 65 / 255)
-    c.drawRightString(w - mr, 4.5 * mm, _fit(c, _stamp_text(training), uw * 0.55, _FONT, 5.2))
+    c.drawRightString(w - mr, 4.5 * mm, _fit(c, stamp_right, uw * 0.55, _FONT, 5.2))
