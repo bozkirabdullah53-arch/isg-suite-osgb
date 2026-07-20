@@ -1,0 +1,278 @@
+{
+  "passed": 44,
+  "failed": 1,
+  "total": 45,
+  "results": [
+    {
+      "test": "login_global_admin",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "login_wrong_password",
+      "ok": true,
+      "http": 401,
+      "detail": ""
+    },
+    {
+      "test": "auth_me",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "companies_no_token",
+      "ok": true,
+      "http": 401,
+      "detail": ""
+    },
+    {
+      "test": "bad_jwt",
+      "ok": true,
+      "http": null,
+      "detail": ""
+    },
+    {
+      "test": "health_root",
+      "ok": true,
+      "http": 200,
+      "detail": "version=0.9.55"
+    },
+    {
+      "test": "companies_list_ga",
+      "ok": true,
+      "http": 200,
+      "detail": "n=3"
+    },
+    {
+      "test": "branches_list_ga",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "employees_list_ga",
+      "ok": true,
+      "http": 200,
+      "detail": "n=0"
+    },
+    {
+      "test": "professionals_list",
+      "ok": true,
+      "http": 200,
+      "detail": "n=3"
+    },
+    {
+      "test": "assignments_list",
+      "ok": true,
+      "http": 200,
+      "detail": "n=9"
+    },
+    {
+      "test": "csgb_audit_pack",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "osgb_oversight",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "login_specialist",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "login_physician",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "login_company_admin",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "annual_plan_generate",
+      "ok": true,
+      "http": 200,
+      "detail": "{'company_id': 1, 'year': 2026, 'created': 0, 'skipped_existing': 13, 'template_size': 13, 'workday_adjusted': True, 'target_dates': [], 'message': 'Tüm şablon "
+    },
+    {
+      "test": "annual_plan_idempotent",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "health_specialist_denied",
+      "ok": true,
+      "http": 403,
+      "detail": "{\"detail\":\"Bu işlem için yetkiniz yok.\"}"
+    },
+    {
+      "test": "health_physician_ok",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "health_company_admin_blocked_or_empty",
+      "ok": false,
+      "http": 200,
+      "detail": "CA sağlık PII görmemeli"
+    },
+    {
+      "test": "idor_ca_employees_other_firm",
+      "ok": true,
+      "http": 403,
+      "detail": "{\"detail\":\"Bu firmaya erişemezsiniz — yalnızca görevlendirildiğiniz işyerleri.\"}"
+    },
+    {
+      "test": "idor_uzman_employees_other_firm",
+      "ok": true,
+      "http": 403,
+      "detail": ""
+    },
+    {
+      "test": "risks_meta_specialist",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "risks_list_specialist",
+      "ok": true,
+      "http": 200,
+      "detail": "n=0"
+    },
+    {
+      "test": "risks_meta_ga",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "risks_list_ga",
+      "ok": true,
+      "http": 200,
+      "detail": "n=0"
+    },
+    {
+      "test": "risks_seed_library",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "incidents_list",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "ppe_list",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "trainings_list",
+      "ok": true,
+      "http": 200,
+      "detail": "n=1"
+    },
+    {
+      "test": "trainings_sectors",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "training_verify_invalid_no_pii",
+      "ok": true,
+      "http": 200,
+      "detail": "{'valid': False, 'verification_code': 'NOTREALCODEXYZ', 'participant_count': 0, 'message': 'Bu kodla eşleşen eğitim belgesi bulunamadı.'}"
+    },
+    {
+      "test": "documents_list",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "notifications_refresh_ga",
+      "ok": true,
+      "http": 200,
+      "detail": "{'message': 'OSGB ve işyeri süreleri tarandı.', 'count': 0}"
+    },
+    {
+      "test": "notifications_list",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "crm_leads",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "finance_list",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "visits_list",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "reports_summary",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "export_employees_xlsx",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "export_isg_pdf",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "files_path_traversal_les/../../etc/passwd",
+      "ok": true,
+      "http": 404,
+      "detail": ""
+    },
+    {
+      "test": "files_path_traversal_2e/%2e%2e/etc/passwd",
+      "ok": true,
+      "http": 404,
+      "detail": ""
+    },
+    {
+      "test": "rate_limit_middleware_registered",
+      "ok": true,
+      "http": null,
+      "detail": "middleware=['CORSMiddleware', 'SimpleRateLimitMiddleware', 'SecurityHeadersMiddleware']; EXPECT FAIL if SimpleRateLimit not added — known P0"
+    }
+  ],
+  "note": "Isolated QA only; Phase 8 fixes not applied"
+}

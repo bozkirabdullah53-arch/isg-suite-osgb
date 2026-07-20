@@ -94,7 +94,7 @@ def training_meta(user: User = Depends(get_current_user)):
     return meta_payload()
 
 
-@router.get("/verify/{code}", response_model=TrainingVerifyResponse)
+@router.get("/verify/{code}", response_model=TrainingVerifyResponse, response_model_exclude_none=True)
 def verify_training(code: str, db: Session = Depends(get_db)):
     """Kamuya açık belge doğrulama — bakanlık / işveren kontrolü için."""
     clean = (code or "").strip().upper()

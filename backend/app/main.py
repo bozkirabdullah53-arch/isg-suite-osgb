@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe
 from app.core.rate_limit import SimpleRateLimitMiddleware
-from app.core.config import settings
+from app.core.config import settings, validate_runtime_settings
 from app.core.database import Base, SessionLocal, engine
 from app.services.seed import seed_admin
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -14,6 +14,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 @asynccontextmanager
 async def lifespan(_:FastAPI):
+    validate_runtime_settings()
     Base.metadata.create_all(bind=engine)
     # Mevcut DB'ye yeni kolon (create_all mevcut tabloyu değiştirmez)
     try:
@@ -162,9 +163,10 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.54',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.55',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=120)
 _cors_origins=list(dict.fromkeys([
     settings.frontend_origin,
     'http://localhost:5173',
@@ -181,7 +183,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.54',
+        'version': '0.9.55',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'generate-wake-retry',
         'users_delete': 'reassign-fk-refs',
@@ -205,6 +207,8 @@ def health():
         'osgb_home': 'workplaces-pros-unassigned-contracts',
         'csgb_pack': 'kurumsal-shows-when-saved',
         'notifications': 'osgb-deadline-scan',
+        'rate_limit': 'simple-rpm-120',
+        'secret_key_guard': 'prod-block-default',
         'nav_hardening': 'allowlist-boundary-mobile',
         'field_access': 'assignment-scoped-v2',
         'git': os.environ.get('RENDER_GIT_COMMIT') or os.environ.get('GIT_COMMIT') or 'local',
