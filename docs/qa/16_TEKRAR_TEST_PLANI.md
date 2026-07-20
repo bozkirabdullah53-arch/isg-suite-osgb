@@ -15,7 +15,7 @@
 | 7 | Migration | Boş ve veri içeren PostgreSQL 0001→0014; restore | Şema drift yok; yedekten geri dönüş başarılı | ⏳ Bekliyor (SQLite QA + enum heal canlıda) |
 | 8 | Fonksiyon | Test edilmemiş risk/olay/KKD/eğitim/CRM/finans/doküman/export | Her kritik CRUD ve hata akışı kanıtlı | ⚠️ Liste smoke var; derin CRUD kısmi |
 | 9 | UI/PDF/Excel | Tarayıcı E2E, responsive, indirme ve görsel kalite | Rol menüsü/API uyumu ve dosya içeriği kabul edilir | ⏳ Bekliyor |
-| 10 | Deploy | Render cold/ılık başlangıç, ağ hatası, izleme | Hedef süre/hata eşiği sağlanır | ⏳ Bekliyor |
+| 10 | Deploy | Render cold/ılık başlangıç, ağ hatası, izleme | Hedef süre/hata eşiği sağlanır | ⚠️ **Public smoke geçti** (cold 731ms / warm 227ms, CORS OK, v0.9.59); auth + derin sleep bekliyor |
 
 ## Koşum özeti (izole)
 
@@ -25,6 +25,7 @@
 | `qa_api_smoke.py` | **45/45** |
 | `qa_security_smoke.py` | **9/9** |
 | `qa_retest_smoke.py` | **23/23** |
+| `qa_live_render_smoke.py` | **11/11** public (auth SKIP) |
 
 Kanıt: `docs/qa/logs/qa-retest-smoke.json`, `qa-api-smoke.json`, `qa-security-smoke.json`
 

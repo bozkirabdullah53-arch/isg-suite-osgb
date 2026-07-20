@@ -13,6 +13,10 @@
 **Hâlâ açık / kısmi:**
 - İki OSGB tenant IDOR kanıtı (seed’de tek OSGB)
 - Upload AV/karantina
-- PostgreSQL migrate/restore, Render cold-start, tarayıcı E2E
+- PostgreSQL migrate/restore, tarayıcı E2E
+- Canlı **auth’lu** smoke (credential ile oversight/enum)
+- Render uzun sleep cold-start (bu turda servis zaten sıcaktı: 731 ms)
 
-**Karar:** İzole ortamda P0 ve kritik P1 sağlık/skor maddeleri kapatıldı. Tam canlı kabul için madde 7–10 (migration PG, UI/E2E, deploy) ve iki-OSGB IDOR tamamlanmalıdır.
+**Canlı public smoke (2026-07-20):** API `0.9.59`, CORS + web OK — `docs/qa/logs/qa-live-render-smoke.json`
+
+**Karar:** İzole P0/kritik P1 + canlı public deploy doğrulandı. Tam canlı kabul için auth’lu Render smoke, PG/restore ve UI E2E tamamlanmalıdır.

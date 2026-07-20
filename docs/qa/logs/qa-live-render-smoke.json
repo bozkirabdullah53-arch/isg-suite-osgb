@@ -1,0 +1,89 @@
+{
+  "target_api": "https://isg-suite-api-1u9t.onrender.com",
+  "target_web": "https://www.isgsuite.tr",
+  "passed": 11,
+  "failed": 0,
+  "total": 11,
+  "cold_start_ms": 730.8,
+  "warm_ms": 227.0,
+  "auth_mode": "public_only",
+  "results": [
+    {
+      "test": "live_health_cold",
+      "ok": true,
+      "http": 200,
+      "ms": 730.8,
+      "detail": "version=0.9.59 cold_ms=731"
+    },
+    {
+      "test": "live_version_recent",
+      "ok": true,
+      "http": null,
+      "ms": null,
+      "detail": "version=0.9.59 (delayed enum / skor / CA health beklenen >=0.9.56)"
+    },
+    {
+      "test": "live_rate_limit_marker",
+      "ok": true,
+      "http": null,
+      "ms": null,
+      "detail": "{'rate_limit': 'simple-rpm-120', 'secret_key_guard': 'prod-block-default', 'health_roles': 'no-company-admin', 'oversight_score': 'no-vacuous-pass-v2'}"
+    },
+    {
+      "test": "live_health_warm",
+      "ok": true,
+      "http": 200,
+      "ms": 227.0,
+      "detail": "warm_ms=227"
+    },
+    {
+      "test": "live_docs_exposed",
+      "ok": true,
+      "http": 200,
+      "ms": 228.1,
+      "detail": "INFO: /docs açık olabilir"
+    },
+    {
+      "test": "live_companies_no_token",
+      "ok": true,
+      "http": 401,
+      "ms": 229.6,
+      "detail": ""
+    },
+    {
+      "test": "live_verify_invalid",
+      "ok": true,
+      "http": 200,
+      "ms": 220.3,
+      "detail": "['valid', 'verification_code', 'participant_count', 'message']"
+    },
+    {
+      "test": "live_system_health",
+      "ok": true,
+      "http": 200,
+      "ms": 213.0,
+      "detail": ""
+    },
+    {
+      "test": "live_login",
+      "ok": true,
+      "http": null,
+      "ms": null,
+      "detail": "SKIP: LIVE_SMOKE_EMAIL/PASSWORD yok — yalnız public smoke"
+    },
+    {
+      "test": "live_web_home",
+      "ok": true,
+      "http": 200,
+      "ms": 370.2,
+      "detail": "https://www.isgsuite.tr"
+    },
+    {
+      "test": "live_cors_preflight",
+      "ok": true,
+      "http": 200,
+      "ms": 282.1,
+      "detail": "ACA-Origin=https://www.isgsuite.tr"
+    }
+  ]
+}
