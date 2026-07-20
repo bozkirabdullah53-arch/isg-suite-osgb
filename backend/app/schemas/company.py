@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.core.input_rules import assert_meaningful_text, assert_person_name, clean_text
 
 
 class CompanyCreate(BaseModel):
@@ -19,7 +21,19 @@ class CompanyCreate(BaseModel):
         s = (v or "").strip()
         if not s:
             raise ValueError("İşyeri sicil numarası zorunludur.")
+        if len(s) < 3:
+            raise ValueError("İşyeri sicil numarası en az 3 karakter olmalıdır.")
         return s
+
+    @model_validator(mode="after")
+    def sanitize(self):
+        self.name = assert_meaningful_text(self.name, label="İşyeri adı", min_len=2, required=True)
+        self.address = assert_meaningful_text(self.address, label="Adres", min_len=5, required=False)
+        self.authorized_person = assert_person_name(self.authorized_person, label="Yetkili kişi")
+        self.phone = clean_text(self.phone)
+        if self.phone and len(self.phone) < 7:
+            raise ValueError("Telefon en az 7 karakter olmalıdır.")
+        return self
 
 
 class CompanyUpdate(BaseModel):
@@ -42,7 +56,23 @@ class CompanyUpdate(BaseModel):
         s = v.strip()
         if not s:
             raise ValueError("İşyeri sicil numarası boş olamaz.")
+        if len(s) < 3:
+            raise ValueError("İşyeri sicil numarası en az 3 karakter olmalıdır.")
         return s
+
+    @model_validator(mode="after")
+    def sanitize(self):
+        if self.name is not None:
+            self.name = assert_meaningful_text(self.name, label="İşyeri adı", min_len=2, required=True)
+        if self.address is not None:
+            self.address = assert_meaningful_text(self.address, label="Adres", min_len=5, required=False)
+        if self.authorized_person is not None:
+            self.authorized_person = assert_person_name(self.authorized_person, label="Yetkili kişi")
+        if self.phone is not None:
+            self.phone = clean_text(self.phone)
+            if self.phone and len(self.phone) < 7:
+                raise ValueError("Telefon en az 7 karakter olmalıdır.")
+        return self
 
 
 class CompanyResponse(BaseModel):

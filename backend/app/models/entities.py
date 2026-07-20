@@ -222,6 +222,8 @@ class HealthRecord(Base):
             HealthRecordType,
             name="healthrecordtype",
             values_callable=lambda enum_cls: [item.value for item in enum_cls],
+            native_enum=False,
+            length=40,
         ),
         index=True,
     )
@@ -232,6 +234,8 @@ class HealthRecord(Base):
             HealthFitnessStatus,
             name="healthfitnessstatus",
             values_callable=lambda enum_cls: [item.value for item in enum_cls],
+            native_enum=False,
+            length=40,
         ),
         default=HealthFitnessStatus.PENDING,
     )

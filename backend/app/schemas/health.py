@@ -1,7 +1,8 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.core.input_rules import assert_date_order, assert_event_date, assert_meaningful_text, assert_person_name
 from app.models.entities import HealthFitnessStatus, HealthRecordType
 
 
@@ -29,6 +30,27 @@ class HealthRecordCreate(BaseModel):
     exposures: str | None = Field(default=None, max_length=1000)
     follow_up_note: str | None = Field(default=None, max_length=1500)
     other_biological_test: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def sanitize(self):
+        self.examination_date = assert_event_date(
+            self.examination_date, label="Muayene tarihi", allow_future_days=0
+        )
+        self.next_examination_date = assert_event_date(
+            self.next_examination_date, label="Sonraki muayene", required=False, allow_future_days=3650
+        )
+        assert_date_order(
+            self.examination_date,
+            self.next_examination_date,
+            earlier_label="Muayene tarihi",
+            later_label="Sonraki muayene",
+        )
+        self.physician_name = assert_person_name(self.physician_name, label="Hekim")
+        self.summary = assert_meaningful_text(self.summary, label="Özet", min_len=5, required=False)
+        self.follow_up_note = assert_meaningful_text(
+            self.follow_up_note, label="Takip notu", min_len=3, required=False
+        )
+        return self
 
 
 class HealthRecordUpdate(BaseModel):

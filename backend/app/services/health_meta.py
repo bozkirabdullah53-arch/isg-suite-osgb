@@ -146,7 +146,7 @@ def suggest_for_job(job_title: str | None, department: str | None = None) -> dic
 
 
 def health_period_years(hazard_class: str | None) -> int:
-    h = (hazard_class or "").casefold()
+    h = str(getattr(hazard_class, "value", hazard_class) or "").casefold()
     if "çok" in h or "cok" in h:
         return 1
     if "tehlike" in h and "az" not in h:

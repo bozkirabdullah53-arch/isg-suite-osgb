@@ -336,12 +336,20 @@ def create_health_record(
         sug = suggest_for_job(employee.job_title, employee.department)
         data["suggested_tests"] = data.get("suggested_tests") or ", ".join(sug["suggested_tests"])
         data["exposures"] = data.get("exposures") or ", ".join(sug["exposures"])
-    record = HealthRecord(**data, created_by_id=user.id)
-    _apply_lead_eval(record)
-    db.add(record)
-    db.commit()
-    db.refresh(record)
-    return _to_response(record, employee, user.role in PHYSICIAN_ROLES)
+    # None alanları atla — eksik DB kolonlarında gereksiz INSERT riskini azaltır
+    data = {k: v for k, v in data.items() if v is not None}
+    try:
+        record = HealthRecord(**data, created_by_id=user.id)
+        _apply_lead_eval(record)
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        return _to_response(record, employee, user.role in PHYSICIAN_ROLES)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Sağlık kaydı kaydedilemedi: {exc}") from exc
 
 
 @router.get("/export.txt")

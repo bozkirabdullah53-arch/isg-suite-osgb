@@ -34,8 +34,31 @@ class TrainingCreate(BaseModel):
 
     @model_validator(mode="after")
     def dates_valid(self):
+        from app.core.input_rules import (
+            assert_date_order,
+            assert_event_date,
+            assert_meaningful_text,
+            assert_person_name,
+        )
+
+        self.start_date = assert_event_date(self.start_date, label="Başlangıç tarihi", allow_future_days=365)
+        self.end_date = assert_event_date(self.end_date, label="Bitiş tarihi", allow_future_days=730)
+        assert_date_order(
+            self.start_date,
+            self.end_date,
+            earlier_label="Başlangıç tarihi",
+            later_label="Bitiş tarihi",
+        )
         if self.end_date < self.start_date:
             raise ValueError("Bitiş tarihi başlangıç tarihinden önce olamaz.")
+        self.title = assert_meaningful_text(self.title, label="Eğitim başlığı", min_len=3, required=True)
+        self.location = assert_meaningful_text(self.location, label="Eğitim yeri", min_len=2, required=False)
+        self.instructor_name = assert_person_name(self.instructor_name, label="Eğitmen", required=True)
+        self.workplace_physician = assert_person_name(self.workplace_physician, label="İşyeri hekimi")
+        self.employer_representative = assert_person_name(
+            self.employer_representative, label="İşveren / vekili"
+        )
+        self.notes = assert_meaningful_text(self.notes, label="Notlar", min_len=3, required=False)
         hours = HAZARD_HOURS.get(self.hazard_class, 8)
         calendar_days = (self.end_date - self.start_date).days + 1
         min_days = max(1, ceil(hours / MAX_TRAINING_HOURS_PER_DAY))

@@ -84,8 +84,12 @@ def assert_event_date(
         if required:
             raise ValueError(f"{label} zorunludur.")
         return None
+    from datetime import datetime, timezone
+
     floor = earliest or date(2000, 1, 1)
-    ceiling = date.today() + timedelta(days=max(0, allow_future_days))
+    # Sunucu UTC ise TR “bugün” gelecek sayılmasın
+    today = datetime.now(timezone.utc).date()
+    ceiling = today + timedelta(days=max(0, allow_future_days))
     if value < floor:
         raise ValueError(f"{label} {floor.isoformat()} tarihinden önce olamaz.")
     if value > ceiling:
