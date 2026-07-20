@@ -33,7 +33,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.63',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.64',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=120)
@@ -50,10 +50,11 @@ for r in (auth.router,companies.router,branches.router,users.router,employees.ro
 @app.get('/health')
 def health():
     import os
+    from app.services.clamav_scan import is_clamav_configured
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.63',
+        'version': '0.9.64',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'generate-wake-retry',
         'annual_plan_status': 'enum-delayed',
@@ -61,6 +62,7 @@ def health():
         'health_roles': 'no-company-admin',
         'training_verify_code': 'uuid-unique',
         'upload_security': 'magic-byte-quarantine',
+        'clamav_scan': 'enabled' if is_clamav_configured() else 'disabled',
         'ga_osgb_fallback': 'user-or-first-active',
         'schema_bootstrap': 'alembic-only-v1',
         'render_warmup': 'cron-14m',
