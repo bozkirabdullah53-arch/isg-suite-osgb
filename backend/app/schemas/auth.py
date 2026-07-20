@@ -18,3 +18,6 @@ class CurrentUserResponse(BaseModel):
     role: str
     company_id: int | None
     osgb_id: int | None = None
+    is_eisa: bool = False
+    subscription_write_allowed: bool = True
+    subscription_status: str | None = None

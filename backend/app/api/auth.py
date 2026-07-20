@@ -31,7 +31,25 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 @router.get("/me", response_model=CurrentUserResponse)
 def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from app.api.company_access import sync_user_from_professional
+    from app.models.entities import UserRole
+    from app.services.osgb_subscription import (
+        effective_subscription_status,
+        get_or_create_subscription,
+        resolve_user_osgb_id,
+        subscription_allows_write,
+    )
+
     user = sync_user_from_professional(db, user, commit=True)
+    is_eisa = user.role == UserRole.GLOBAL_ADMIN
+    sub_status = None
+    write_ok = True
+    if not is_eisa:
+        oid = resolve_user_osgb_id(db, user)
+        if oid:
+            sub = get_or_create_subscription(db, oid)
+            eff = effective_subscription_status(sub)
+            sub_status = eff.value
+            write_ok = subscription_allows_write(sub)
     return CurrentUserResponse(
         id=user.id,
         email=user.email,
@@ -39,4 +57,7 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
         role=user.role.value,
         company_id=user.company_id,
         osgb_id=user.osgb_id,
+        is_eisa=is_eisa,
+        subscription_write_allowed=write_ok,
+        subscription_status=sub_status,
     )

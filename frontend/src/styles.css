@@ -19,8 +19,16 @@ button, input { font: inherit; }
     linear-gradient(135deg, #edf8f7, #f7fbff);
 }
 
-.login-card {
+.login-wrap {
   width: min(430px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.login-card {
+  width: 100%;
   background: white;
   border: 1px solid #dcebed;
   border-radius: 24px;
@@ -90,6 +98,29 @@ aside {
 .logo:hover { opacity: 0.88; }
 .logo:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; border-radius: 8px; }
 .sidebar-logo { width: 100%; max-width: 180px; height: auto; pointer-events: none; }
+.sidebar-logo.eisa-logo-horizontal { max-width: 196px; margin-bottom: 2px; }
+.sidebar-logo.eisa-logo-icon { max-width: 72px; margin-bottom: 4px; }
+.logo-caption { font-size: 12px; font-weight: 700; color: #0f4c5c; letter-spacing: 0.02em; }
+.login-eisa-logo { width: min(300px, 92vw); height: auto; display: block; }
+.login-card .linkish {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: #0f766e;
+  font-weight: 650;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.readonly-banner {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-size: 14px;
+  font-weight: 600;
+}
 nav {
   display: grid;
   gap: 7px;

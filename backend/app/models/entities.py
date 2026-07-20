@@ -366,6 +366,68 @@ class CompanySubscription(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class OsgbSubscriptionPlan(str, enum.Enum):
+  STANDARD = "standard"
+
+
+class PaymentChannel(str, enum.Enum):
+    IYZICO = "iyzico"
+    STRIPE = "stripe"
+    BANK_TRANSFER = "bank_transfer"
+    INVOICE = "invoice"
+
+
+class OsgbApplicationStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class OsgbApplication(Base):
+    __tablename__ = "osgb_applications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(220), index=True)
+    authorization_number: Mapped[str] = mapped_column(String(80), index=True)
+    tax_number: Mapped[str] = mapped_column(String(20), index=True)
+    responsible_manager: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    contact_email: Mapped[str] = mapped_column(String(255), index=True)
+    contact_phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    applicant_name: Mapped[str] = mapped_column(String(160))
+    applicant_email: Mapped[str] = mapped_column(String(255))
+    notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    status: Mapped[OsgbApplicationStatus] = mapped_column(
+        Enum(OsgbApplicationStatus), default=OsgbApplicationStatus.PENDING, index=True
+    )
+    matched_osgb_id: Mapped[int | None] = mapped_column(ForeignKey("osgb_organizations.id"), nullable=True, index=True)
+    auto_matched: Mapped[bool] = mapped_column(Boolean, default=False)
+    rejection_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    reviewed_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class OsgbSubscription(Base):
+    __tablename__ = "osgb_subscriptions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    osgb_id: Mapped[int] = mapped_column(ForeignKey("osgb_organizations.id"), unique=True, index=True)
+    plan: Mapped[OsgbSubscriptionPlan] = mapped_column(
+        Enum(OsgbSubscriptionPlan), default=OsgbSubscriptionPlan.STANDARD
+    )
+    status: Mapped[SubscriptionStatus] = mapped_column(Enum(SubscriptionStatus), default=SubscriptionStatus.TRIAL)
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    current_period_ends_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    max_users: Mapped[int] = mapped_column(default=50)
+    max_workplaces: Mapped[int] = mapped_column(default=100)
+    last_payment_channel: Mapped[PaymentChannel | None] = mapped_column(Enum(PaymentChannel), nullable=True)
+    payment_notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    is_auto_renew: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class NotificationType(str, enum.Enum):
     INFO = "info"
     WARNING = "warning"

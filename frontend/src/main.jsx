@@ -5,9 +5,9 @@ import {api, downloadFile} from './api';import {OsgbDashboard,ProfessionalsPage,
 import {ProPerformancePage} from './pro_performance';
 import {CsgbAuditPackPage} from './csgb_audit_pack';
 import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
-import {DutyDashboard, AdminSummaryDashboard} from './duty_dashboard';
+import {EisaPage, OsgbApplyPage} from './eisa';
 import './styles.css';
-const roles={global_admin:'Global Yönetici',company_admin:'Firma Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
+const roles={global_admin:'EİSA Yönetici',company_admin:'Firma Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 /**
  * Sol menü sırası (yukarı→aşağı): ana panel → günlük operasyon → master data →
  * İSG saha işleri (risk/olay yoğunluğu) → ticari → rapor/denetim → sistem ayarları.
@@ -15,6 +15,7 @@ const roles={global_admin:'Global Yönetici',company_admin:'Firma Yöneticisi',s
  */
 const roleModules={
   global_admin:[
+    'eisa',
     'osgb_dashboard','osgb_oversight','pro_performance',
     'professionals','assignments',
     'companies','branches',
@@ -49,6 +50,7 @@ const roleModules={
   read_only:['dashboard'],
 };
 const menuCatalog={
+  eisa:['EİSA Platform',ShieldCheck],
   osgb_dashboard:['OSGB Ana Panel',LayoutDashboard],
   osgb_oversight:['Hizmet Denetimi',ClipboardCheck],
   pro_performance:['Performans Raporu',BarChart3],
@@ -77,7 +79,7 @@ const menuCatalog={
   security:['Güvenlik',KeyRound],
   users:['Kullanıcılar',UserCog],
 };
-function Login({done}){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[err,setErr]=useState('');async function submit(e){e.preventDefault();setErr('');try{const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});localStorage.setItem('isg_token',r.access_token);done()}catch(x){setErr(x.message)}}return <main className="login-shell"><section className="login-card"><div className="brand-mark"><ShieldCheck size={34}/></div><h1>İSG Suite</h1><p>İş Sağlığı ve Güvenliği Yönetim Sistemi</p><form onSubmit={submit}><label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email"/><label>Şifre</label><input value={password} onChange={e=>setPassword(e.target.value)} type="password"/>{err&&<div className="error">{err}</div>}<button>Giriş Yap</button></form></section></main>}
+function Login({done,onApply}){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[err,setErr]=useState('');async function submit(e){e.preventDefault();setErr('');try{const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});localStorage.setItem('isg_token',r.access_token);done()}catch(x){setErr(x.message)}}return <main className="login-shell"><div className="login-wrap"><img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/><section className="login-card"><h1>İSG Suite</h1><p>İş Sağlığı ve Güvenliği Yönetim Sistemi</p><form onSubmit={submit}><label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email"/><label>Şifre</label><input value={password} onChange={e=>setPassword(e.target.value)} type="password"/>{err&&<div className="error">{err}</div>}<button>Giriş Yap</button></form><p style={{marginTop:16,fontSize:13,color:'#64748b'}}>OSGB merkezi misiniz? <button type="button" className="linkish" onClick={onApply}>Başvuru formu</button></p></section></div></main>}
 function Modal({title,close,children}){return <div className="modal-bg" onMouseDown={e=>e.target===e.currentTarget&&close()}><section className="modal"><header><h3>{title}</h3><button className="icon" onClick={close}><X/></button></header>{children}</section></div>}
 function Field({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
@@ -324,7 +326,7 @@ function SecurityPage({user}){
 
 const notificationTypeNames={info:'Bilgi',warning:'Uyarı',critical:'Kritik',success:'Başarılı'};
 const planNames={demo:'Demo',starter:'Başlangıç',professional:'Profesyonel',enterprise:'Kurumsal'};
-const subscriptionStatusNames={trial:'Deneme',active:'Aktif',past_due:'Ödeme Gecikmiş',suspended:'Askıda',cancelled:'İptal'};
+const subscriptionStatusNames={trial:'Deneme',active:'Aktif',past_due:'Salt Okunur',suspended:'Askıda',cancelled:'İptal'};
 
 function NotificationsPage(){
   const[rows,setRows]=useState([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
@@ -360,11 +362,24 @@ function NotificationsPage(){
 
 function SubscriptionPage({user}){
   const[data,setData]=useState(null),[error,setError]=useState('');
-  useEffect(()=>{api('/subscriptions/current').then(setData).catch(e=>setError(e.message))},[]);
+  const isEisa=!!user?.is_eisa;
+  useEffect(()=>{
+    if(isEisa) return;
+    api('/subscriptions/osgb/current').then(setData).catch(e=>setError(e.message));
+  },[isEisa]);
+  if(isEisa){
+    return <Page title="Abonelik ve Paket"><p>OSGB abonelikleri <strong>EİSA Platform</strong> menüsünden yönetilir.</p></Page>;
+  }
   if(error)return <Page title="Abonelik ve Paket"><p>{error}</p></Page>;
   if(!data)return <Page title="Abonelik ve Paket"><p>Abonelik bilgileri yükleniyor...</p></Page>;
-  const end=data.status==='trial'?data.trial_ends_at:data.current_period_ends_at;
-  return <Page title="Abonelik ve Paket"><div className="subscription-card"><div><span>Mevcut Paket</span><h2>{planNames[data.plan]}</h2><p className={'subscription-status '+data.status}>{subscriptionStatusNames[data.status]}</p></div><CreditCard size={54}/></div><div className="report-grid"><Metric title="Azami Kullanıcı" value={data.max_users}/><Metric title="Azami Personel" value={data.max_employees}/><Metric title="Bitiş Tarihi" value={end?new Date(end).toLocaleDateString('tr-TR'):'—'}/></div><section className="panel inner"><h3>Paket yönetimi</h3><p>Paket değişikliği ve ödeme işlemleri global yönetici tarafından yapılır. Gerçek ödeme sağlayıcısı entegrasyonu sonraki ticari entegrasyon aşamasındadır.</p></section></Page>
+  const end=data.effective_status==='trial'?data.trial_ends_at:data.current_period_ends_at;
+  const planLabel=data.plan==='standard'?'Standart (Tüm Modüller)':(planNames[data.plan]||data.plan);
+  return <Page title="Abonelik ve Paket">
+    {!data.write_allowed&&<div className="error" style={{marginBottom:12}}>Salt okunur mod: abonelik süresi doldu. Veri girişi kapalı — EİSA ile iletişime geçin.</div>}
+    <div className="subscription-card"><div><span>Mevcut Paket</span><h2>{planLabel}</h2><p className={'subscription-status '+data.effective_status}>{subscriptionStatusNames[data.effective_status]||data.effective_status}</p></div><CreditCard size={54}/></div>
+    <div className="report-grid"><Metric title="Azami Kullanıcı" value={data.max_users}/><Metric title="Azami İşyeri" value={data.max_workplaces||data.max_employees}/><Metric title="Bitiş Tarihi" value={end?new Date(end).toLocaleDateString('tr-TR'):'—'}/></div>
+    <section className="panel inner"><h3>Paket yönetimi</h3><p>Abonelik ve ödeme işlemleri EİSA platform yönetimi tarafından yürütülür.</p></section>
+  </Page>
 }
 
 function SearchBar({q,setQ,go}){return <div className="search"><Search size={19}/><input placeholder="Ara..." value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==='Enter'&&go()}/><button className="secondary" onClick={go}>Ara</button></div>}
@@ -406,6 +421,7 @@ function App(){
     try{return sessionStorage.getItem('isg_active')||''}catch{return ''}
   });
   const navRef=useRef(null);
+  const[applyMode,setApplyMode]=useState(false);
   const verifyCode=useMemo(()=>{
     try{return new URLSearchParams(window.location.search).get('egitim-dogrula')}
     catch{return null}
@@ -448,9 +464,11 @@ function App(){
 
   function goHome(){
     const allowed=roleModules[user?.role]||[];
-    const home=allowed.includes('osgb_dashboard')
-      ? 'osgb_dashboard'
-      : (allowed.includes('dashboard') ? 'dashboard' : (allowed[0]||''));
+    let home='';
+    if(allowed.includes('eisa')) home='eisa';
+    else if(allowed.includes('osgb_dashboard')) home='osgb_dashboard';
+    else if(allowed.includes('dashboard')) home='dashboard';
+    else home=allowed[0]||'';
     if(home) goModule(home);
   }
 
@@ -501,13 +519,15 @@ function App(){
       />
     );
   }
-  if(!logged) return <Login done={()=>setLogged(true)}/>;
+  if(applyMode) return <OsgbApplyPage onBack={()=>setApplyMode(false)}/>;
+  if(!logged) return <Login done={()=>setLogged(true)} onApply={()=>setApplyMode(true)}/>;
   if(!user) return <div className="loading">Sistem yükleniyor...</div>;
   const allowed=roleModules[user.role]||[];
   const menu=allowed
     .filter((k)=>menuCatalog[k])
     .map((k)=>[k,menuCatalog[k][0],menuCatalog[k][1]]);
   const pages={
+    eisa:<EisaPage user={user}/>,
     osgb_dashboard:<OsgbDashboard user={user}/>,
     osgb_oversight:<OsgbOversightPage user={user} onNavigate={goModule}/>,
     pro_performance:<ProPerformancePage user={user}/>,
@@ -540,8 +560,12 @@ function App(){
     <div className="app-shell">
       <aside>
         <button type="button" className="logo" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfaya dön">
-          <img src="/logo.svg" alt="Yönetim Akademisi" className="sidebar-logo"/>
-          <span>İSG Suite OSGB</span>
+          <img
+            src={user.role==='global_admin'?'/eisa-logo-horizontal.png':'/eisa-logo-icon.png'}
+            alt="EİSA PROGRAMLAMA"
+            className={user.role==='global_admin'?'sidebar-logo eisa-logo-horizontal':'sidebar-logo eisa-logo-icon'}
+          />
+          <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':'İSG Suite OSGB'}</span>
         </button>
         <nav ref={navRef}>
           {menu.map(([id,l,I])=>(
@@ -564,8 +588,8 @@ function App(){
       <section className="workspace">
         <header>
           <div>
-            <h2>İSG Suite OSGB</h2>
-            <p>OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi</p>
+            <h2>{user.role==='global_admin'?'EİSA Platform':'İSG Suite OSGB'}</h2>
+            <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
           </div>
           <div className="header-actions">
             <button type="button" className="header-icon" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfa">
@@ -581,6 +605,11 @@ function App(){
           </div>
         </header>
         <main className="content">
+          {!user.is_eisa && user.subscription_write_allowed===false && (
+            <div className="readonly-banner" role="status">
+              Salt okunur mod: abonelik süresi doldu. Veri girişi kapalı — EİSA ile iletişime geçin.
+            </div>
+          )}
           <ErrorBoundary key={active||'none'} onHome={goHome}>
             {pages[active] || (
               <section className="panel">

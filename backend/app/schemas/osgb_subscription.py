@@ -1,0 +1,74 @@
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+
+class OsgbApplicationCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=220)
+    authorization_number: str = Field(min_length=3, max_length=80)
+    tax_number: str = Field(min_length=8, max_length=20)
+    responsible_manager: str | None = Field(default=None, max_length=160)
+    contact_email: EmailStr
+    contact_phone: str | None = Field(default=None, max_length=40)
+    address: str | None = Field(default=None, max_length=500)
+    applicant_name: str = Field(min_length=2, max_length=160)
+    applicant_email: EmailStr
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+class OsgbApplicationResponse(BaseModel):
+    id: int
+    name: str
+    authorization_number: str
+    tax_number: str
+    responsible_manager: str | None
+    contact_email: str
+    contact_phone: str | None
+    address: str | None
+    applicant_name: str
+    applicant_email: str
+    notes: str | None
+    status: str
+    matched_osgb_id: int | None
+    auto_matched: bool
+    rejection_reason: str | None
+    created_at: datetime
+    reviewed_at: datetime | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OsgbApplicationReject(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
+class OsgbSubscriptionResponse(BaseModel):
+    id: int
+    osgb_id: int
+    osgb_name: str | None = None
+    plan: str
+    status: str
+    effective_status: str
+    write_allowed: bool
+    trial_ends_at: datetime | None
+    current_period_ends_at: datetime | None
+    max_users: int
+    max_workplaces: int
+    last_payment_channel: str | None
+    payment_notes: str | None
+    is_auto_renew: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OsgbSubscriptionUpdate(BaseModel):
+    status: str | None = None
+    trial_ends_at: datetime | None = None
+    current_period_ends_at: datetime | None = None
+    max_users: int | None = Field(default=None, ge=1, le=10000)
+    max_workplaces: int | None = Field(default=None, ge=1, le=100000)
+    last_payment_channel: str | None = None
+    payment_notes: str | None = Field(default=None, max_length=1000)
+    is_auto_renew: bool | None = None

@@ -2,8 +2,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe
+from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe, eisa, osgb_applications
 from app.core.rate_limit import SimpleRateLimitMiddleware
+from app.core.subscription_middleware import OsgbSubscriptionWriteMiddleware
 from app.core.config import settings, validate_runtime_settings
 from app.core.database import Base, SessionLocal, engine
 from app.services.seed import seed_admin
@@ -33,9 +34,10 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.64',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.65',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(OsgbSubscriptionWriteMiddleware)
 app.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=120)
 _cors_origins=list(dict.fromkeys([
     settings.frontend_origin,
@@ -46,7 +48,7 @@ _cors_origins=list(dict.fromkeys([
     'https://isgsuite.tr',
 ]))
 app.add_middleware(CORSMiddleware,allow_origins=_cors_origins,allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
-for r in (auth.router,companies.router,branches.router,users.router,employees.router,isg_records.router,health.router,documents.router,annual_plans.router,reports.router,security.router,files.router,exports.router,subscriptions.router,notifications.router,system.router,dashboard.router,osgb.router,operations.router,trainings.router,risks.router,incidents.router,ppe.router): app.include_router(r,prefix='/api/v1')
+for r in (auth.router,osgb_applications.router,eisa.router,companies.router,branches.router,users.router,employees.router,isg_records.router,health.router,documents.router,annual_plans.router,reports.router,security.router,files.router,exports.router,subscriptions.router,notifications.router,system.router,dashboard.router,osgb.router,operations.router,trainings.router,risks.router,incidents.router,ppe.router): app.include_router(r,prefix='/api/v1')
 @app.get('/health')
 def health():
     import os
@@ -54,7 +56,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.64',
+        'version': '0.9.65',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'generate-wake-retry',
         'annual_plan_status': 'enum-delayed',
@@ -66,6 +68,7 @@ def health():
         'ga_osgb_fallback': 'user-or-first-active',
         'schema_bootstrap': 'alembic-only-v1',
         'render_warmup': 'cron-14m',
+        'eisa_platform': 'osgb-subscription-v1',
         'users_delete': 'reassign-fk-refs',
         'assignment_actions': 'end-suspend-delete',
         'companies_actions': 'deactivate-activate-hard-delete',
