@@ -11,10 +11,11 @@
 | F-05 | P1 | Upload AV, traversal, içerik doğrulama ve indirme yetkisi test edilmedi | **Kısmi** — traversal + MIME reddi geçti; AV/karantina yok |
 | F-06 | P1 | Public eğitim verify gerçek kodda PII sızdırma riski | **Kısmi/OK** — geçersiz minimal; geçerli kodda hard PII yok (ad/sertifika no kalır — belge doğrulama) |
 | F-07 | P2 | Alembic ile `create_all`/lifespan DDL drift riski | Açık |
-| F-08 | P2 | Render cold-start / “Failed to fetch” kök nedeni doğrulanmadı | Açık |
-| F-09 | P2 | PDF/Excel ve UI E2E kalite kapsamı yok | Açık |
-| F-10 | P3 | Docker Compose ve PostgreSQL parity çalıştırılmadı | Açık |
-| F-11 | P1 | Oversight boşta geçiş skoru (hekim %43 / uzman %20) | **KAPANDI** — vacuous pass kaldırıldı (`0.9.57`–`0.9.58`) |
-| F-12 | P0 | Postgres `annualplanstatus` enum’da `delayed` yok | **KAPANDI** — migration `0014` + startup heal |
+| F-08 | P2 | Render cold-start / “Failed to fetch” kök nedeni doğrulanmadı | **Kısmi** — canlı warm/auth OK; uzun sleep ölçülmedi |
+| F-09 | P2 | PDF/Excel ve UI E2E kalite kapsamı yok | **Kısmi** — GA UI menü E2E geçti; PDF/Excel görsel yok |
+| F-10 | P3 | Docker Compose ve PostgreSQL parity çalıştırılmadı | **Engelli** — bu makinede `docker` yok; canlı Render PG ayakta |
+| F-11 | P1 | Oversight boşta geçiş skoru | **KAPANDI** |
+| F-12 | P0 | Postgres `delayed` enum | **KAPANDI** |
+| F-13 | P2 | Eğitim `verification_code` UNIQUE çakışmasında 500 | CRUD smoke’ta gözlendi; yeniden denemede unique tarih ile geçti — hata yüzeyi yumuşatılmalı |
 
 P0 kapatıldı. P1 kalan: iki-OSGB IDOR kanıtı, upload AV. P2 canlı/E2E hâlâ açık.
