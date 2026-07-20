@@ -206,7 +206,7 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
         db.scalar(select(func.count()).select_from(ServiceVisit).where(ServiceVisit.osgb_id == oid)) or 0
     )
 
-    # Operasyonel faaliyet yoksa kurumsal karttan “% hazır” üretilmez
+    # Operasyonel faaliyet: genel denetim %’si için; kurumsal kart ayrı değerlendirilir
     has_ops = bool(companies or active_pros or assignments or visit_n)
 
     items: list[dict[str, Any]] = []
@@ -215,31 +215,35 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
     G_SOZ = ("sozlesme", "3. Sözleşme ve süre")
     G_SAHA = ("saha", "4. Saha / hizmet kayıtları")
 
-    # 1) Yetki belgesi — placeholder (OSGB-001 vb.) ve faaliyet yokken hazır sayılmaz
-    auth_ok = has_ops and _is_real_value(osgb.authorization_number)
+    # 1) Yetki belgesi — kaydedilen gerçek değer görünür (placeholder sayılmaz)
+    auth_real = _is_real_value(osgb.authorization_number)
+    if auth_real:
+        auth_status = "ready"
+        auth_detail = f"Yetki no kayıtlı: {osgb.authorization_number}."
+        if not has_ops:
+            auth_detail += " Genel denetim hazırlığı için işyeri / profesyonel / görevlendirme de ekleyin."
+    else:
+        auth_status = "missing"
+        auth_detail = "Gerçek yetki / ruhsat numarası tanımlı değil (boş veya placeholder: OSGB-001 vb.)."
     items.append(
         _item(
             "yetki_belgesi",
             "OSGB yetki / ruhsat bilgisi",
             "OSGB Yönetmeliği — yetki belgesi",
-            "ready" if auth_ok else "missing",
-            count=1 if auth_ok else 0,
-            detail=(
-                f"Yetki no: {osgb.authorization_number}"
-                if auth_ok
-                else (
-                    "İşyeri / profesyonel / görevlendirme yok — yetki belgesi hazır sayılamaz."
-                    if not has_ops
-                    else "Gerçek yetki / ruhsat numarası tanımlı değil (placeholder veya boş)."
-                )
+            auth_status,
+            count=1 if auth_real else 0,
+            detail=auth_detail,
+            evidence=(
+                [{"field": "authorization_number", "value": osgb.authorization_number}]
+                if auth_real
+                else []
             ),
-            evidence=[{"field": "authorization_number", "value": osgb.authorization_number}] if auth_ok else [],
             group=G_KURUM[0],
             group_label=G_KURUM[1],
         )
     )
 
-    # 2) OSGB kimlik kartı — yalnız gerçek alanlar; faaliyet yokken en fazla eksik
+    # 2) OSGB kimlik kartı — kaydedilen alanlar görünür
     identity_fields = [
         ("name", osgb.name),
         ("tax_number", osgb.tax_number),
@@ -249,31 +253,22 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
         ("phone", osgb.phone),
     ]
     filled = sum(1 for _, v in identity_fields if _is_real_value(v))
-    if not has_ops:
-        id_status = "missing"
-        id_detail = (
-            "Bağlı işyeri, profesyonel veya görevlendirme yok. "
-            "Kurumsal kart tek başına hazırlık üretmez (faaliyet gerekli)."
-        )
-    else:
-        id_status = "ready" if filled >= 5 else ("partial" if filled >= 2 else "missing")
-        id_detail = (
-            f"{filled}/{len(identity_fields)} gerçek alan dolu "
-            "(placeholder sayılmaz: unvan, vergi, sorumlu müdür, adres, e-posta, telefon)."
-        )
+    id_status = "ready" if filled >= 5 else ("partial" if filled >= 2 else "missing")
+    id_detail = (
+        f"{filled}/{len(identity_fields)} gerçek alan dolu "
+        "(placeholder sayılmaz: unvan, vergi, sorumlu müdür, adres, e-posta, telefon)."
+    )
+    if filled and not has_ops:
+        id_detail += " Genel denetim %’si için operasyonel kayıt da gerekli."
     items.append(
         _item(
             "osgb_kimlik",
             "OSGB kimlik ve iletişim bilgileri",
             "OSGB Yönetmeliği — kuruluş bilgileri",
             id_status,
-            count=filled if has_ops else 0,
+            count=filled,
             detail=id_detail,
-            evidence=(
-                [{"field": k, "value": v} for k, v in identity_fields if _is_real_value(v)]
-                if has_ops
-                else []
-            ),
+            evidence=[{"field": k, "value": v} for k, v in identity_fields if _is_real_value(v)],
             group=G_KURUM[0],
             group_label=G_KURUM[1],
         )
@@ -497,15 +492,8 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
     priority = [i for i in items if i["status"] in ("missing", "partial")]
     gaps = [f"{i['title']}: {i['detail']}" for i in priority]
 
-    # Faaliyet yoksa yüzde her zaman 0 (kurumsal kart şişirmesin)
+    # Genel denetim yüzdesi: operasyon yoksa %0 (kurumsal kalem durumu ayrı kalır)
     if not has_ops:
-        ready = 0
-        partial = 0
-        missing = len(items)
-        for i in items:
-            i["status"] = "missing"
-        priority = list(items)
-        gaps = [f"{i['title']}: {i['detail']}" for i in items]
         readiness_pct = 0
     else:
         readiness_pct = round(100 * (ready + 0.5 * partial) / len(items)) if items else 0
@@ -534,10 +522,10 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
         "generated_at": date.today().isoformat(),
         "has_activity": has_ops,
         "legal_note": (
-            "Hazır / kısmi / % hazırlık yalnızca bağlı işyeri, profesyonel, görevlendirme veya saha ziyareti varken hesaplanır. "
-            "İşyeri:0 · Profesyonel:0 · Görevlendirme:0 iken hazırlık her zaman %0’dır; "
-            "OSGB adı veya OSGB-001 / 1234567890 gibi alanlar tek başına faaliyet sayılmaz. "
-            "Kaynak: İşyerleri, İSG Profesyonelleri, Görevlendirmeler, Saha Takvimi."
+            "Kurumsal (yetki/kimlik) kalemler kaydettiğinizde Hazır/Kısmi görünür. "
+            "Genel denetim hazırlık yüzdesi ise işyeri + profesyonel + görevlendirme olmadan %0 kalır. "
+            "Placeholder (OSGB-001, 1234567890, Global Yönetici) hazır sayılmaz. "
+            "Kaynak menüler: İşyerleri, İSG Profesyonelleri, Görevlendirmeler."
         ),
         "summary": {
             "ready": ready,

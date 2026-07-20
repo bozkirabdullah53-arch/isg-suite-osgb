@@ -298,9 +298,10 @@ export function CsgbAuditPackPage({user, onNavigate}) {
                   Görevlendirme: {data.osgb?.assignment_count ?? 0}
                 </p>
                 {data.has_activity === false && (
-                  <p style={{margin: '10px 0 0', padding: '10px 12px', borderRadius: 8, background: '#fee2e2', color: '#991b1b', fontSize: 13, fontWeight: 600, maxWidth: 640}}>
-                    Operasyonel faaliyet yok (işyeri / profesyonel / görevlendirme / ziyaret = 0).
-                    Hazırlık %0 — önce İşyerleri ve İSG Profesyonelleri menülerinden kayıt ekleyin.
+                  <p style={{margin: '10px 0 0', padding: '10px 12px', borderRadius: 8, background: '#fef3c7', color: '#92400e', fontSize: 13, fontWeight: 600, maxWidth: 640}}>
+                    Kurumsal kartı Düzenle ile kaydedebilirsiniz (Hazır/Kısmi görünür).
+                    Genel denetim yüzdesi %0 kalır — İşyerleri + Profesyoneller + Görevlendirmeler de eklenmeli.
+                    Placeholder (OSGB-001, 1234567890) hazır sayılmaz.
                   </p>
                 )}
                 <p style={{margin: '8px 0 0', fontSize: 12, color: '#94a3b8', maxWidth: 640}}>
