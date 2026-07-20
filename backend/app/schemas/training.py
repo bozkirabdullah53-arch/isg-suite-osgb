@@ -118,5 +118,5 @@ class TrainingVerifyResponse(BaseModel):
     workplace_physician: str | None = None
     employer_representative: str | None = None
     participant_count: int = 0
-    participants: list[dict] = Field(default_factory=list)
+    participants: list[dict] | None = None
     message: str | None = None

@@ -24,3 +24,23 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+_INSECURE_SECRET_KEYS = frozenset({
+    "change-me-in-production-at-least-32-characters!",
+    "change-me",
+    "secret",
+    "changeme",
+})
+
+
+def validate_runtime_settings() -> None:
+    """Üretimde zayıf/varsayılan SECRET_KEY ile başlamayı engelle."""
+    env = (settings.environment or "").strip().lower()
+    if env not in ("production", "prod", "live"):
+        return
+    key = (settings.secret_key or "").strip()
+    if len(key) < 32 or key.lower() in _INSECURE_SECRET_KEYS or key.startswith("change-me"):
+        raise RuntimeError(
+            "Production ortamında güçlü SECRET_KEY zorunludur (.env / Render env). "
+            "Varsayılan anahtarla başlatılamaz."
+        )
