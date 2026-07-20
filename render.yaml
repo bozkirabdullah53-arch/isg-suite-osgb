@@ -6,7 +6,7 @@ services:
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: sh start.sh
     healthCheckPath: /health
-    branch: feature/training-ui-cors
+    branch: master
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
@@ -23,6 +23,9 @@ services:
         sync: false
       - key: SEED_ADMIN_PASSWORD
         sync: false
+      # Optional ClamAV (B-01): set CLAMAV_HOST when clamd is reachable
+      - key: CLAMAV_HOST
+        sync: false
 
   # B-03: free-tier sleep önleme — /health ping (UTC, ~$1/ay minimum)
   - type: cron
@@ -32,7 +35,7 @@ services:
     schedule: "*/14 * * * *"
     buildCommand: "true"
     startCommand: python scripts/warmup_ping.py
-    branch: feature/training-ui-cors
+    branch: master
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
@@ -46,7 +49,7 @@ services:
     # Global npm pin Render'da sık kırılıyor; Node 20 + npm ci yeterli
     buildCommand: npm ci --no-audit --no-fund && npm run build
     staticPublishPath: dist
-    branch: feature/training-ui-cors
+    branch: master
     envVars:
       - key: NODE_VERSION
         value: 20.18.0

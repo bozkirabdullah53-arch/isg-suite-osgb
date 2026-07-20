@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.services.clamav_scan import is_clamav_configured, scan_bytes
 
 # Uzantı → beklenen magic imzalar (en az biri eşleşmeli)
 MAGIC_BY_EXT: dict[str, list[bytes]] = {
@@ -64,3 +65,9 @@ def assert_safe_upload(content: bytes, extension: str, original_name: str = "") 
             status_code=400,
             detail="Dosya uzantısı ile içerik uyuşmuyor (içerik doğrulama).",
         )
+
+    if is_clamav_configured():
+        clean, detail = scan_bytes(content)
+        if not clean:
+            quarantine_bytes(content, f"clamav:{detail}", original_name)
+            raise HTTPException(status_code=400, detail="Dosya virüs taramasından geçmedi.")
