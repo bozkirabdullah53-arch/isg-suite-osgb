@@ -79,7 +79,7 @@ const menuCatalog={
   security:['Güvenlik',KeyRound],
   users:['Kullanıcılar',UserCog],
 };
-function Login({done,onApply}){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[err,setErr]=useState('');async function submit(e){e.preventDefault();setErr('');try{const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});localStorage.setItem('isg_token',r.access_token);done()}catch(x){setErr(x.message)}}return <main className="login-shell"><div className="login-wrap"><img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/><section className="login-card"><h1>İSG Suite</h1><p>İş Sağlığı ve Güvenliği Yönetim Sistemi</p><form onSubmit={submit}><label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email"/><label>Şifre</label><input value={password} onChange={e=>setPassword(e.target.value)} type="password"/>{err&&<div className="error">{err}</div>}<button>Giriş Yap</button></form><p style={{marginTop:16,fontSize:13,color:'#64748b'}}>OSGB merkezi misiniz? <button type="button" className="linkish" onClick={onApply}>Başvuru formu</button></p></section></div></main>}
+function Login({done,onApply}){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[err,setErr]=useState('');async function submit(e){e.preventDefault();setErr('');try{const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});localStorage.setItem('isg_token',r.access_token);done()}catch(x){setErr(x.message)}}return <main className="login-shell"><div className="login-wrap"><div className="login-brand"><img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div><section className="login-card"><h1>İSG Suite</h1><p>İş Sağlığı ve Güvenliği Yönetim Sistemi</p><form onSubmit={submit}><label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email"/><label>Şifre</label><input value={password} onChange={e=>setPassword(e.target.value)} type="password"/>{err&&<div className="error">{err}</div>}<button>Giriş Yap</button></form><p style={{marginTop:16,fontSize:13,color:'#64748b'}}>OSGB merkezi misiniz? <button type="button" className="linkish" onClick={onApply}>Başvuru formu</button></p></section></div></main>}
 function Modal({title,close,children}){return <div className="modal-bg" onMouseDown={e=>e.target===e.currentTarget&&close()}><section className="modal"><header><h3>{title}</h3><button className="icon" onClick={close}><X/></button></header>{children}</section></div>}
 function Field({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
@@ -565,7 +565,7 @@ function App(){
             alt="EİSA PROGRAMLAMA"
             className="sidebar-logo eisa-logo-icon"
           />
-          <span className="logo-caption">{user.role==='global_admin'?'EİSA PROGRAMLAMA':'İSG Suite OSGB'}</span>
+          <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':'İSG Suite OSGB'}</span>
         </button>
         <nav ref={navRef}>
           {menu.map(([id,l,I])=>(

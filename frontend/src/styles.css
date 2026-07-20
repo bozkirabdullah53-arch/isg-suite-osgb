@@ -20,11 +20,26 @@ button, input { font: inherit; }
 }
 
 .login-wrap {
-  width: min(520px, 100%);
+  width: min(440px, 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 28px;
+}
+
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.login-eisa-logo {
+  width: min(360px, 88vw);
+  height: auto;
+  display: block;
+  object-fit: contain;
+  background: transparent;
 }
 
 .login-card {
@@ -98,14 +113,20 @@ aside {
 .logo:hover { opacity: 0.88; }
 .logo:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; border-radius: 8px; }
 .sidebar-logo { width: 100%; max-width: 180px; height: auto; pointer-events: none; }
-.sidebar-logo.eisa-logo-icon { width: 64px; max-width: 64px; height: auto; margin-bottom: 6px; object-fit: contain; }
-.logo-caption { font-size: 12px; font-weight: 700; color: #0f4c5c; letter-spacing: 0.02em; }
-.login-eisa-logo {
-  width: min(420px, 94vw);
-  max-height: 140px;
+.sidebar-logo.eisa-logo-icon {
+  width: 72px;
+  max-width: 72px;
   height: auto;
-  display: block;
+  margin-bottom: 8px;
   object-fit: contain;
+}
+.logo-caption {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f4c5c;
+  letter-spacing: 0.04em;
+  text-align: center;
+  line-height: 1.3;
 }
 .login-card .linkish {
   border: 0;

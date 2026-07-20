@@ -312,7 +312,9 @@ export function OsgbApplyPage({ onBack }) {
   return (
     <main className="login-shell">
       <div className="login-wrap" style={{ maxWidth: 560 }}>
-        <img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo" />
+        <div className="login-brand">
+          <img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo" />
+        </div>
         <section className="login-card">
         <h1>OSGB Başvuru Formu</h1>
         <p>İSG Suite platformuna OSGB merkezi olarak başvurun. Yetki no ve vergi no ile mevcut kaydınız otomatik eşleşir.</p>
