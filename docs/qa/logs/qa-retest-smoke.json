@@ -1,7 +1,7 @@
 {
-  "passed": 23,
+  "passed": 29,
   "failed": 0,
-  "total": 23,
+  "total": 29,
   "results": [
     {
       "test": "secret_key_prod_blocks_default",
@@ -55,7 +55,31 @@
       "test": "tenant_two_osgb_note",
       "ok": true,
       "http": null,
-      "detail": "INFO: Seed tek OSGB — çapraz OSGB IDOR ayrı seed gerektirir (F-03 kısmi)"
+      "detail": "INFO: Seed iki OSGB — asagidaki IDOR testleri"
+    },
+    {
+      "test": "login_osgb2_ca",
+      "ok": true,
+      "http": null,
+      "detail": ""
+    },
+    {
+      "test": "idor_osgb1_ca_to_osgb2_employees",
+      "ok": true,
+      "http": 403,
+      "detail": "{\"detail\":\"Bu firmaya erişemezsiniz — yalnızca görevlendirildiğiniz işyerleri.\"}"
+    },
+    {
+      "test": "idor_osgb2_ca_to_osgb1_employees",
+      "ok": true,
+      "http": 403,
+      "detail": "{\"detail\":\"Bu firmaya erişemezsiniz — yalnızca görevlendirildiğiniz işyerleri.\"}"
+    },
+    {
+      "test": "osgb2_ca_own_employees_ok",
+      "ok": true,
+      "http": 200,
+      "detail": ""
     },
     {
       "test": "health_uzman_denied",
@@ -134,6 +158,18 @@
       "ok": true,
       "http": 200,
       "detail": "['valid', 'verification_code', 'title', 'company_name', 'start_date', 'hazard_class', 'duration_hours', 'instructor_name', 'participant_count', 'participants', 'message']"
+    },
+    {
+      "test": "export_employees_xlsx_type",
+      "ok": true,
+      "http": 200,
+      "detail": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    },
+    {
+      "test": "export_isg_pdf_type",
+      "ok": true,
+      "http": 200,
+      "detail": "application/pdf bytes=1761"
     },
     {
       "test": "oversight_ok",

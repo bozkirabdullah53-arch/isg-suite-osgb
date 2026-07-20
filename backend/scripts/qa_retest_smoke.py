@@ -94,8 +94,32 @@ def main():
     rec(
         "tenant_two_osgb_note",
         True,
-        detail="INFO: Seed tek OSGB — çapraz OSGB IDOR ayrı seed gerektirir (F-03 kısmi)",
+        detail="INFO: Seed iki OSGB — asagidaki IDOR testleri",
     )
+    # Cross-OSGB IDOR
+    osgb2_ca = login(c, "test.osgb2.admin@example.com")
+    rec("login_osgb2_ca", bool(osgb2_ca))
+    foreign = None
+    if tok:
+        all_firms = c.get("/api/v1/companies", headers=H(tok))
+        if all_firms.status_code == 200:
+            for f in all_firms.json():
+                if "Yabanci" in str(f.get("name", "")) or "Yabancı" in str(f.get("name", "")):
+                    foreign = f
+                    break
+    if ca and foreign:
+        r = c.get(f"/api/v1/employees?company_id={foreign['id']}", headers=H(ca))
+        ok = r.status_code in (403, 422) or (r.status_code == 200 and len(r.json()) == 0)
+        rec("idor_osgb1_ca_to_osgb2_employees", ok, http=r.status_code, detail=r.text[:80])
+    else:
+        rec("idor_osgb1_ca_to_osgb2_employees", False, detail="SKIP/FAIL: foreign firm veya ca yok")
+    if osgb2_ca and cid1:
+        r = c.get(f"/api/v1/employees?company_id={cid1}", headers=H(osgb2_ca))
+        ok = r.status_code in (403, 422) or (r.status_code == 200 and len(r.json()) == 0)
+        rec("idor_osgb2_ca_to_osgb1_employees", ok, http=r.status_code, detail=r.text[:80])
+    if osgb2_ca and foreign:
+        r = c.get(f"/api/v1/employees?company_id={foreign['id']}", headers=H(osgb2_ca))
+        rec("osgb2_ca_own_employees_ok", r.status_code == 200, http=r.status_code)
 
     # --- 4. Health role matrix ---
     if uzman:
@@ -177,6 +201,25 @@ def main():
             )
         else:
             rec("verify_valid_no_hard_pii", True, detail="SKIP: verification_code yok")
+
+    # --- 6b. Export content types ---
+    if tok:
+        xlsx = c.get("/api/v1/exports/employees.xlsx", headers=H(tok))
+        ct = (xlsx.headers.get("content-type") or "").lower()
+        rec(
+            "export_employees_xlsx_type",
+            xlsx.status_code == 200 and ("sheet" in ct or "excel" in ct or "octet" in ct),
+            http=xlsx.status_code,
+            detail=ct,
+        )
+        pdf = c.get("/api/v1/exports/isg-summary.pdf", headers=H(tok))
+        pct = (pdf.headers.get("content-type") or "").lower()
+        rec(
+            "export_isg_pdf_type",
+            pdf.status_code == 200 and "pdf" in pct and len(pdf.content) > 100,
+            http=pdf.status_code,
+            detail=f"{pct} bytes={len(pdf.content)}",
+        )
 
     # Oversight smoke (score vacuous fix regression)
     if tok:

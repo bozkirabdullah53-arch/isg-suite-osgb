@@ -31,7 +31,7 @@
       "test": "crud_risk_create",
       "ok": true,
       "http": 200,
-      "detail": "{\"id\":3,\"risk_code\":\"RSK-0003\",\"company_id\":1,\"branch_id\":null,\"department_id\":1,\"hazard_id\":459,\"hazard_code\":\"AHB-001\",\"hazard_name\":\"LOTO"
+      "detail": "{\"id\":4,\"risk_code\":\"RSK-0004\",\"company_id\":1,\"branch_id\":null,\"department_id\":1,\"hazard_id\":459,\"hazard_code\":\"AHB-001\",\"hazard_name\":\"LOTO"
     },
     {
       "test": "crud_risk_list",
@@ -43,7 +43,7 @@
       "test": "crud_incident_create",
       "ok": true,
       "http": 200,
-      "detail": "{\"id\":2,\"form_no\":\"ISG-RK-2026-0002\",\"company_id\":1,\"branch_id\":null,\"event_type\":\"ramak_kala\",\"status\":\"Aktif\",\"recorded_by_name\":\"[TEST_DA"
+      "detail": "{\"id\":3,\"form_no\":\"ISG-RK-2026-0003\",\"company_id\":1,\"branch_id\":null,\"event_type\":\"ramak_kala\",\"status\":\"Aktif\",\"recorded_by_name\":\"[TEST_DA"
     },
     {
       "test": "crud_incident_list",
@@ -67,7 +67,7 @@
       "test": "crud_training_create",
       "ok": true,
       "http": 200,
-      "detail": "{\"id\":5,\"company_id\":1,\"branch_id\":null,\"title\":\"TEST_ CRUD Egitim 2026-08-29\",\"training_type\":\"Temel İSG Eğitimi\",\"delivery_method\":\"Yüz yü"
+      "detail": "{\"id\":4,\"company_id\":1,\"branch_id\":null,\"title\":\"TEST_ CRUD Egitim 2026-08-29\",\"training_type\":\"Temel İSG Eğitimi\",\"delivery_method\":\"Yüz yü"
     },
     {
       "test": "crud_training_list",
@@ -79,7 +79,7 @@
       "test": "crud_health_create",
       "ok": true,
       "http": 200,
-      "detail": "{\"id\":6,\"company_id\":1,\"employee_id\":97,\"employee_name\":\"TEST_ CRUD Personel\",\"job_title\":\"Operatör\""
+      "detail": "{\"id\":4,\"company_id\":1,\"employee_id\":95,\"employee_name\":\"TEST_ CRUD Personel\",\"job_title\":\"Operatör\""
     },
     {
       "test": "crud_documents_list",
@@ -103,7 +103,7 @@
       "test": "crud_annual_plan_generate",
       "ok": true,
       "http": 200,
-      "detail": "{\"company_id\":1,\"year\":2026,\"created\":0,\"skipped_existing\":13,\"template_size\":13,\"workday_adjusted\":"
+      "detail": "{\"company_id\":1,\"year\":2026,\"created\":13,\"skipped_existing\":0,\"template_size\":13,\"workday_adjusted\":"
     },
     {
       "test": "crud_export_employees",
