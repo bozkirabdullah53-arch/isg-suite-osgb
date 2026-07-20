@@ -125,8 +125,20 @@ function Companies({canEdit, canAdd}){
   const[busy,setBusy]=useState(false);
   const[err,setErr]=useState('');
   const[creds,setCreds]=useState(null);
+  const[copyMsg,setCopyMsg]=useState('');
   const emptyForm={name:'',sgk_registry_no:'',address:'',phone:'',authorized_person:'',hazard_class:'Az Tehlikeli'};
   const[form,setForm]=useState(emptyForm);
+  async function copyText(text){
+    const v=String(text||'');
+    if(!v) return false;
+    try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(v);return true}}catch(_){/* */}
+    try{
+      const ta=document.createElement('textarea');
+      ta.value=v;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.left='-9999px';
+      document.body.appendChild(ta);ta.select();
+      const ok=document.execCommand('copy');document.body.removeChild(ta);return ok;
+    }catch(_){return false}
+  }
   const load=()=>{
     setErr('');
     const p=new URLSearchParams();
@@ -202,14 +214,27 @@ function Companies({canEdit, canAdd}){
         <div className="form-actions"><button type="submit" disabled={busy}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>
       </form>
     </Modal>}
-    {creds&&<Modal title="İşyeri Giriş Bilgileri" close={()=>setCreds(null)}>
+    {creds&&<Modal title="İşyeri Giriş Bilgileri" close={()=>{setCreds(null);setCopyMsg('')}}>
       <div className="form-grid single">
         <p style={{marginTop:0,color:'#64748b'}}>Bu geçici bilgileri işyeri yetkilisine güvenli kanaldan iletin. İlk girişten sonra şifresini değiştirmesini isteyin.</p>
-        <p><strong>Kullanıcı adı (e-posta):</strong> <code>{creds.email}</code></p>
+        <p style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:0}}>
+          <span><strong>Kullanıcı adı (e-posta):</strong> <code>{creds.email}</code></span>
+          <button type="button" className="mini secondary" onClick={async()=>setCopyMsg((await copyText(creds.email))?'E-posta kopyalandı.':'Kopyalanamadı.')}>E-postayı kopyala</button>
+        </p>
         <p><strong>Ad:</strong> {creds.full_name}</p>
-        <p><strong>Geçici şifre:</strong> <code>{creds.temporary_password}</code></p>
+        <p style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:0}}>
+          <span><strong>Geçici şifre:</strong> <code style={{userSelect:'all'}}>{creds.temporary_password}</code></span>
+          <button type="button" className="mini" onClick={async()=>setCopyMsg((await copyText(creds.temporary_password))?'Şifre kopyalandı.':'Kopyalanamadı.')}>Şifreyi kopyala</button>
+        </p>
+        <div className="actions" style={{gap:8,flexWrap:'wrap'}}>
+          <button type="button" className="secondary" onClick={async()=>{
+            const text=`Kullanıcı adı: ${creds.email}\nGeçici şifre: ${creds.temporary_password}`;
+            setCopyMsg((await copyText(text))?'E-posta ve şifre kopyalandı.':'Kopyalanamadı.');
+          }}>E-posta + şifreyi kopyala</button>
+        </div>
+        {copyMsg&&<p style={{color:copyMsg.includes('amadı')?'#b91c1c':'#166534',margin:0}}>{copyMsg}</p>}
         <p style={{color:'#166534'}}>{creds.message}</p>
-        <div className="form-actions"><button type="button" onClick={()=>setCreds(null)}>Tamam</button></div>
+        <div className="form-actions"><button type="button" onClick={()=>{setCreds(null);setCopyMsg('')}}>Tamam</button></div>
       </div>
     </Modal>}
   </Page>;

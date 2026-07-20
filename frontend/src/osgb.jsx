@@ -12,6 +12,29 @@ function T({cols,rows}){return <div className="table-wrap"><table><thead><tr>{co
 function P({title,action,children}){return <><div className="page-title"><h3>{title}</h3>{action}</div><section className="panel">{children}</section></>}
 function osgbId(user,orgs){return user.osgb_id||orgs[0]?.id||''}
 
+async function copyText(text){
+  const v=String(text||'');
+  if(!v) return false;
+  try{
+    if(navigator.clipboard?.writeText){
+      await navigator.clipboard.writeText(v);
+      return true;
+    }
+  }catch(_){/* fallback */}
+  try{
+    const ta=document.createElement('textarea');
+    ta.value=v;
+    ta.setAttribute('readonly','');
+    ta.style.position='fixed';
+    ta.style.left='-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok=document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  }catch(_){return false}
+}
+
 export function OsgbDashboard({user}){
  const[orgs,setOrgs]=useState([]),[data,setData]=useState(null),[oid,setOid]=useState('');
  const[unassignedOpen,setUnassignedOpen]=useState(false);
@@ -150,6 +173,7 @@ export function ProfessionalsPage({user, onNavigate}){
  const[open,setOpen]=useState(false);
  const[editRow,setEditRow]=useState(null);
  const[creds,setCreds]=useState(null);
+ const[copyMsg,setCopyMsg]=useState('');
  const[err,setErr]=useState('');
  const[busy,setBusy]=useState(false);
  const emptyForm={full_name:'',email:'',phone:'',professional_type:'safety_specialist',certificate_class:'',certificate_number:'',certificate_date:''};
@@ -373,14 +397,28 @@ export function ProfessionalsPage({user, onNavigate}){
     <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':(editRow?'Güncelle':'Kaydet')}</button></div>
    </form>
   </M>}
-  {creds&&<M title="Profesyonel Giriş Bilgileri" close={()=>setCreds(null)}>
+  {creds&&<M title="Profesyonel Giriş Bilgileri" close={()=>{setCreds(null);setCopyMsg('')}}>
    <div className="form-grid single">
     <p style={{marginTop:0,color:'#64748b'}}>Bu bilgileri profesyonelle güvenli kanaldan paylaşın. İlk girişten sonra Güvenlik → Şifre Değiştir ile güncelleyebilir.</p>
-    <p><strong>Kullanıcı adı (e-posta):</strong> <code>{creds.email}</code></p>
+    <p style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:0}}>
+      <span><strong>Kullanıcı adı (e-posta):</strong> <code>{creds.email}</code></span>
+      <button type="button" className="mini secondary" onClick={async()=>{const ok=await copyText(creds.email);setCopyMsg(ok?'E-posta kopyalandı.':'Kopyalanamadı.');}}>E-postayı kopyala</button>
+    </p>
     <p><strong>Ad:</strong> {creds.full_name}</p>
-    <p><strong>Geçici şifre:</strong> <code>{creds.temporary_password}</code></p>
+    <p style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:0}}>
+      <span><strong>Geçici şifre:</strong> <code style={{userSelect:'all'}}>{creds.temporary_password}</code></span>
+      <button type="button" className="mini" onClick={async()=>{const ok=await copyText(creds.temporary_password);setCopyMsg(ok?'Şifre kopyalandı.':'Kopyalanamadı.');}}>Şifreyi kopyala</button>
+    </p>
+    <div className="actions" style={{gap:8,flexWrap:'wrap'}}>
+      <button type="button" className="secondary" onClick={async()=>{
+        const text=`Kullanıcı adı: ${creds.email}\nGeçici şifre: ${creds.temporary_password}`;
+        const ok=await copyText(text);
+        setCopyMsg(ok?'E-posta ve şifre kopyalandı.':'Kopyalanamadı.');
+      }}>E-posta + şifreyi kopyala</button>
+    </div>
+    {copyMsg&&<p style={{color:copyMsg.includes('amadı')?'#b91c1c':'#166534',margin:0}}>{copyMsg}</p>}
     <p style={{color:'#166534'}}>{creds.message}</p>
-    <div className="form-actions"><button type="button" onClick={()=>setCreds(null)}>Tamam</button></div>
+    <div className="form-actions"><button type="button" onClick={()=>{setCreds(null);setCopyMsg('')}}>Tamam</button></div>
    </div>
   </M>}
  </P>

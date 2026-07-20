@@ -158,7 +158,32 @@ function ApplicationsPanel({ apps, busy, onApprove, onReject, onDelete, showActi
 }
 
 function AdminCredentialsModal({ data, onClose }) {
+  const [copyMsg, setCopyMsg] = useState('');
   if (!data) return null;
+  async function copyText(text) {
+    const v = String(text || '');
+    if (!v) return false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(v);
+        return true;
+      }
+    } catch (_) { /* fallback */ }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = v;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
   return (
     <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <section className="modal">
@@ -168,9 +193,26 @@ function AdminCredentialsModal({ data, onClose }) {
             Bu geçici şifreyi OSGB yöneticisine güvenli kanaldan iletin. İlk girişten sonra şifresini değiştirmesini isteyin.
           </p>
           <p><strong>OSGB:</strong> {data.osgb_name}</p>
-          <p><strong>E-posta:</strong> {data.email}</p>
+          <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span><strong>E-posta:</strong> <code>{data.email}</code></span>
+            <button type="button" className="mini secondary" onClick={async () => {
+              setCopyMsg((await copyText(data.email)) ? 'E-posta kopyalandı.' : 'Kopyalanamadı.');
+            }}>E-postayı kopyala</button>
+          </p>
           <p><strong>Ad:</strong> {data.full_name}</p>
-          <p><strong>Geçici şifre:</strong> <code>{data.temporary_password}</code></p>
+          <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span><strong>Geçici şifre:</strong> <code style={{ userSelect: 'all' }}>{data.temporary_password}</code></span>
+            <button type="button" className="mini" onClick={async () => {
+              setCopyMsg((await copyText(data.temporary_password)) ? 'Şifre kopyalandı.' : 'Kopyalanamadı.');
+            }}>Şifreyi kopyala</button>
+          </p>
+          <div className="actions" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" className="secondary" onClick={async () => {
+              const text = `Kullanıcı adı: ${data.email}\nGeçici şifre: ${data.temporary_password}`;
+              setCopyMsg((await copyText(text)) ? 'E-posta ve şifre kopyalandı.' : 'Kopyalanamadı.');
+            }}>E-posta + şifreyi kopyala</button>
+          </div>
+          {copyMsg && <p style={{ color: copyMsg.includes('amadı') ? '#b91c1c' : '#166534', margin: 0 }}>{copyMsg}</p>}
           <p style={{ color: '#166534' }}>{data.message}</p>
           <div className="form-actions">
             <button type="button" onClick={onClose}>Tamam</button>
