@@ -11,6 +11,18 @@ class OsgbCreate(BaseModel):
     phone: str | None = None
     address: str | None = None
 
+
+class OsgbUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=220)
+    authorization_number: str | None = None
+    tax_number: str | None = None
+    responsible_manager: str | None = None
+    email: EmailStr | None = None
+    phone: str | None = None
+    address: str | None = None
+    is_active: bool | None = None
+
+
 class OsgbResponse(OsgbCreate):
     id: int
     is_active: bool

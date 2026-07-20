@@ -511,7 +511,7 @@ function App(){
     osgb_dashboard:<OsgbDashboard user={user}/>,
     osgb_oversight:<OsgbOversightPage user={user} onNavigate={goModule}/>,
     pro_performance:<ProPerformancePage user={user}/>,
-    csgb_audit:<CsgbAuditPackPage user={user}/>,
+    csgb_audit:<CsgbAuditPackPage user={user} onNavigate={goModule}/>,
     professionals:<ProfessionalsPage user={user} onNavigate={goModule}/>,
     assignments:<AssignmentsPage user={user}/>,
     visits:<VisitsPage user={user}/>,

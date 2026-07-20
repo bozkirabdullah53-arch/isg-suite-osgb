@@ -13,7 +13,7 @@ from app.core.database import get_db
 from app.models.entities import (AssignmentStatus, Company, IsgProfessional, OsgbOrganization, ServiceContract,
                                  User, UserRole, WorkplaceAssignment)
 from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCreate,
-                              ContractResponse, OsgbCreate, OsgbResponse,
+                              ContractResponse, OsgbCreate, OsgbResponse, OsgbUpdate,
                               ProfessionalCreate, ProfessionalResponse, ProfessionalUpdate)
 from app.services.osgb_oversight import build_oversight, build_professional_performance, seed_oversight_demo
 from app.services.csgb_audit_pack import build_csgb_audit_pack
@@ -44,6 +44,29 @@ def create_osgb(payload: OsgbCreate, db: Session = Depends(get_db), _: User = De
         raise HTTPException(409, "Bu OSGB zaten kayıtlı.")
     obj = OsgbOrganization(**payload.model_dump())
     db.add(obj); db.commit(); db.refresh(obj)
+    return obj
+
+
+@router.patch("/{osgb_id}", response_model=OsgbResponse)
+def update_osgb(
+    osgb_id: int,
+    payload: OsgbUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    obj = db.get(OsgbOrganization, osgb_id)
+    if not obj:
+        raise HTTPException(404, "OSGB bulunamadı.")
+    data = payload.model_dump(exclude_unset=True)
+    if "name" in data and data["name"] != obj.name:
+        if db.scalar(select(OsgbOrganization).where(OsgbOrganization.name == data["name"], OsgbOrganization.id != osgb_id)):
+            raise HTTPException(409, "Bu OSGB adı zaten kayıtlı.")
+    for k, v in data.items():
+        if isinstance(v, str):
+            v = v.strip() or None
+        setattr(obj, k, v)
+    db.commit()
+    db.refresh(obj)
     return obj
 
 
