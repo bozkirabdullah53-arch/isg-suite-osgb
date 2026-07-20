@@ -1,12 +1,33 @@
 import pytest
+from starlette.applications import Starlette
+from starlette.responses import PlainTextResponse
+from starlette.routing import Route
+from starlette.testclient import TestClient
 
 from app.core.config import validate_runtime_settings, settings
+from app.core.rate_limit import SimpleRateLimitMiddleware
 from app.main import app
 
 
 def test_rate_limit_middleware_registered():
     names = [m.cls.__name__ for m in app.user_middleware if hasattr(m, "cls")]
     assert "SimpleRateLimitMiddleware" in names
+
+
+def test_rate_limit_returns_429_when_exceeded():
+    async def ok(_request):
+        return PlainTextResponse("ok")
+
+    mini = Starlette(routes=[Route("/ping", ok)])
+    mini.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=3)
+    client = TestClient(mini)
+    assert client.get("/ping").status_code == 200
+    assert client.get("/ping").status_code == 200
+    assert client.get("/ping").status_code == 200
+    blocked = client.get("/ping")
+    assert blocked.status_code == 429
+    detail = blocked.json()["detail"].lower()
+    assert "fazla" in detail
 
 
 def test_production_allows_strong_secret(monkeypatch):

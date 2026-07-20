@@ -1,18 +1,18 @@
 # 17 — Nihai QA Kararı
 
-## P0 DÜZELTMELER SONRASI — P1/P2 BEKLİYOR
+## AŞAMA 16 TEKRAR TEST SONRASI — P1 KISMİ / P2 AÇIK
 
-İzole QA smoke sonuçları olumludur: uygulama başlatılmış, SQLite migration başarılı olmuş, mevcut pytest geçmiştir; temel auth, bir firma-arası personel IDOR örneği, uzman/hekim sağlık ayrımı ve yıllık plan üretimi API seviyesinde çalışmıştır.
+İzole QA tekrar smoke (**23/23**), API smoke (**45/45**), security smoke (**9/9**) ve pytest geçti.
 
-**Aşama 8 P0 (uygulandı):**
-- `SimpleRateLimitMiddleware` artık `main.py` içinde kayıtlı (120 istek/dk).
-- `validate_runtime_settings()` üretimde varsayılan/zayıf `SECRET_KEY` ile başlatmayı engelliyor.
-- `tests/test_security_config.py` ile middleware kaydı ve prod secret guard doğrulanıyor.
+**Kapanan:**
+- P0 rate-limit + SECRET_KEY guard
+- Postgres `delayed` enum
+- Oversight vacuous skor (hekim/uzman)
+- CA sağlık API erişimi (403)
 
-Canlıya kabul için hâlâ eksik kanıt:
+**Hâlâ açık / kısmi:**
+- İki OSGB tenant IDOR kanıtı (seed’de tek OSGB)
+- Upload AV/karantina
+- PostgreSQL migrate/restore, Render cold-start, tarayıcı E2E
 
-- Çok-OSGB tenant izolasyonu, CA sağlık erişimi ve sağlık PII alan/export sınırları tam kanıtlanmadı.
-- Upload güvenliği ve public eğitim verify PII davranışı genişletilmiş smoke ile yeniden çalıştırılmadı (terminal oturumunda komut çıktısı alınamadı).
-- Render canlı cold-start/“Failed to fetch”, PostgreSQL parity, restore ve gerçek tarayıcı E2E test edilmedi.
-
-**Karar:** P0 kapatıldı; P1/P2 tamamlanıp `16_TEKRAR_TEST_PLANI.md` ile genişletilmiş smoke başarılı olmadan tam canlı kabul verilmemelidir.
+**Karar:** İzole ortamda P0 ve kritik P1 sağlık/skor maddeleri kapatıldı. Tam canlı kabul için madde 7–10 (migration PG, UI/E2E, deploy) ve iki-OSGB IDOR tamamlanmalıdır.

@@ -1,0 +1,145 @@
+{
+  "passed": 23,
+  "failed": 0,
+  "total": 23,
+  "results": [
+    {
+      "test": "secret_key_prod_blocks_default",
+      "ok": true,
+      "http": null,
+      "detail": ""
+    },
+    {
+      "test": "secret_key_prod_allows_strong",
+      "ok": true,
+      "http": null,
+      "detail": ""
+    },
+    {
+      "test": "rate_limit_registered",
+      "ok": true,
+      "http": null,
+      "detail": "['CORSMiddleware', 'SimpleRateLimitMiddleware', 'SecurityHeadersMiddleware']"
+    },
+    {
+      "test": "login_ga",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "login_roles",
+      "ok": true,
+      "http": null,
+      "detail": ""
+    },
+    {
+      "test": "tenant_ca_other_firm_employees",
+      "ok": true,
+      "http": 403,
+      "detail": "{\"detail\":\"Bu firmaya erişemezsiniz — yalnızca görevlendirildiğiniz işyerleri.\"}"
+    },
+    {
+      "test": "tenant_uzman_other_firm_employees",
+      "ok": true,
+      "http": 403,
+      "detail": ""
+    },
+    {
+      "test": "tenant_ca_risks_no_500",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "tenant_two_osgb_note",
+      "ok": true,
+      "http": null,
+      "detail": "INFO: Seed tek OSGB — çapraz OSGB IDOR ayrı seed gerektirir (F-03 kısmi)"
+    },
+    {
+      "test": "health_uzman_denied",
+      "ok": true,
+      "http": 403,
+      "detail": ""
+    },
+    {
+      "test": "health_ca_denied",
+      "ok": true,
+      "http": 403,
+      "detail": "{\"detail\":\"Bu işlem için yetkiniz yok.\"}"
+    },
+    {
+      "test": "health_readonly_denied",
+      "ok": true,
+      "http": 403,
+      "detail": ""
+    },
+    {
+      "test": "health_hekim_ok",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "health_dsp_ok",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "health_hekim_export",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "health_ca_export_denied",
+      "ok": true,
+      "http": 403,
+      "detail": ""
+    },
+    {
+      "test": "upload_traversal_s/../../etc/passwd",
+      "ok": true,
+      "http": 404,
+      "detail": ""
+    },
+    {
+      "test": "upload_traversal_/%2e%2e/etc/passwd",
+      "ok": true,
+      "http": 404,
+      "detail": ""
+    },
+    {
+      "test": "upload_traversal_1/files/../main.py",
+      "ok": true,
+      "http": 404,
+      "detail": ""
+    },
+    {
+      "test": "upload_bad_mime_rejected",
+      "ok": true,
+      "http": 400,
+      "detail": "{\"detail\":\"Desteklenmeyen dosya türü.\"}"
+    },
+    {
+      "test": "verify_invalid_minimal",
+      "ok": true,
+      "http": 200,
+      "detail": "['valid', 'verification_code', 'participant_count', 'message']"
+    },
+    {
+      "test": "verify_valid_no_hard_pii",
+      "ok": true,
+      "http": 200,
+      "detail": "['valid', 'verification_code', 'title', 'company_name', 'start_date', 'hazard_class', 'duration_hours', 'instructor_name', 'participant_count', 'participants', 'message']"
+    },
+    {
+      "test": "oversight_ok",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    }
+  ]
+}
