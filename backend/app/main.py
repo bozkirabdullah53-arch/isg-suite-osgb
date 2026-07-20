@@ -7,7 +7,7 @@ from app.core.rate_limit import SimpleRateLimitMiddleware
 from app.core.subscription_middleware import OsgbSubscriptionWriteMiddleware
 from app.core.config import settings, validate_runtime_settings
 from app.core.database import Base, SessionLocal, engine
-from app.services.seed import seed_admin
+from app.services.seed import seed_admin, seed_demo_osgbs
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self,request,call_next):
         response=await call_next(request)
@@ -27,6 +27,10 @@ async def lifespan(_:FastAPI):
     with SessionLocal() as db:
         seed_admin(db)
         try:
+            seed_demo_osgbs(db)
+        except Exception:
+            pass
+        try:
             from sqlalchemy import func, select
             from app.models.entities import HazardCategory
             from app.services.hazard_seed import seed_hazard_library
@@ -40,7 +44,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.94',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.95',lifespan=lifespan)
 
 from app.core.validation_tr import register_turkish_validation
 register_turkish_validation(app)
@@ -65,7 +69,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.94',
+        'version': '0.9.95',
         'pdf_layout': 'pro-2026',
         'companies_admin': 'osgb-admin-crud-v1',
         'company_fields': 'address-phone-contact-v1',
@@ -83,6 +87,7 @@ def health():
         'validation_tr': 'turkish-422-v1',
         'input_rules': 'date-text-sanity-v2',
         'osgb_menu': 'no-field-modules-v1',
+        'demo_osgb_seed': 'alfa-beta-v1',
         'training_verify_code': 'uuid-unique',
         'upload_security': 'magic-byte-quarantine',
         'clamav_scan': 'enabled' if is_clamav_configured() else 'disabled',
