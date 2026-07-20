@@ -72,15 +72,11 @@ def cleanup(db) -> dict:
     """TEST_ firmaları ve bağlı kayıtları temizler."""
     companies = list(db.scalars(select(Company).where(Company.name.like(f"{TEST_PREFIX}%"))).all())
     company_ids = [c.id for c in companies]
-    osgb = db.scalar(select(OsgbOrganization).where(OsgbOrganization.name.like(f"{TEST_PREFIX}%")))
-    counts = {"companies": len(company_ids)}
+    osgbs = list(db.scalars(select(OsgbOrganization).where(OsgbOrganization.name.like(f"{TEST_PREFIX}%"))).all())
+    osgb_ids = [o.id for o in osgbs]
+    counts = {"companies": len(company_ids), "osgb": len(osgb_ids)}
 
     if company_ids:
-        for model, col in [
-            (TrainingParticipant, None),  # via training
-        ]:
-            pass
-        # Order matters for FKs
         trainings = list(db.scalars(select(TrainingSession).where(TrainingSession.company_id.in_(company_ids))).all())
         tid = [t.id for t in trainings]
         if tid:
@@ -105,13 +101,12 @@ def cleanup(db) -> dict:
                 q = delete(model).where(model.company_id.in_(company_ids))
                 db.execute(q)
         db.execute(delete(User).where(User.company_id.in_(company_ids)))
-        db.execute(delete(User).where(User.email.like("test.%@example.com")))
         db.execute(delete(Company).where(Company.id.in_(company_ids)))
 
-    if osgb:
-        db.execute(delete(IsgProfessional).where(IsgProfessional.osgb_id == osgb.id))
-        db.execute(delete(OsgbOrganization).where(OsgbOrganization.id == osgb.id))
-        counts["osgb"] = 1
+    if osgb_ids:
+        db.execute(delete(IsgProfessional).where(IsgProfessional.osgb_id.in_(osgb_ids)))
+        db.execute(delete(User).where(User.osgb_id.in_(osgb_ids), User.email.like("test.%@example.com")))
+        db.execute(delete(OsgbOrganization).where(OsgbOrganization.id.in_(osgb_ids)))
 
     # orphan test users (global)
     db.execute(delete(User).where(User.email.like("test.%@example.com")))
@@ -446,13 +441,73 @@ def seed(db) -> dict:
                 )
             )
 
+    # --- İkinci OSGB (çapraz tenant IDOR testleri için) ---
+    osgb2 = OsgbOrganization(
+        name=f"{TEST_PREFIX}OSGB Rakip Merkez",
+        authorization_number="TEST-OSGB-002",
+        tax_number="9990000002",
+        responsible_manager=f"{MARKER} Test OSGB2 Muduru",
+        email="test.osgb2@example.com",
+        phone="05550000002",
+        address=f"{MARKER} Test OSGB2 Adresi, Istanbul",
+        is_active=True,
+    )
+    db.add(osgb2)
+    db.flush()
+    c2 = Company(
+        name=f"{TEST_PREFIX} Firma Yabanci OSGB Ltd.",
+        tax_number="9988776655",
+        nace_code="41.20",
+        hazard_class="Tehlikeli",
+        sgk_registry_no="TEST-ISYERI-OSGB2",
+        is_active=True,
+        osgb_id=osgb2.id,
+    )
+    db.add(c2)
+    db.flush()
+    db.add(
+        Branch(
+            company_id=c2.id,
+            name=f"{TEST_PREFIX}OSGB2 Merkez",
+            city="Istanbul",
+            sgk_registry_no=f"TEST-SGK-OSGB2-{c2.id}",
+            address=f"{MARKER} OSGB2 adres",
+            is_active=True,
+        )
+    )
+    e2 = Employee(
+        company_id=c2.id,
+        full_name=f"{MARKER} Yabanci Personel",
+        job_title="Operator",
+        department="Uretim",
+        is_active=True,
+    )
+    db.add(e2)
+    u2 = User(
+        email="test.osgb2.admin@example.com",
+        full_name=f"{MARKER} OSGB2 Firma Admin",
+        hashed_password=_hash(),
+        role=UserRole.COMPANY_ADMIN,
+        company_id=c2.id,
+        osgb_id=osgb2.id,
+        is_active=True,
+    )
+    db.add(u2)
+    created_users.append(u2.email)
+
     db.commit()
     return {
         "osgb": osgb.name,
-        "companies": [n for n, *_ in firms],
+        "osgb2": osgb2.name,
+        "companies": [n for n, *_ in firms] + [c2.name],
         "users": created_users,
         "password": TEST_PASSWORD,
         "marker": MARKER,
+        "cross_osgb": {
+            "osgb1_company": company_map["Az Tehlikeli"][0].name,
+            "osgb2_company": c2.name,
+            "osgb2_admin": "test.osgb2.admin@example.com",
+        },
     }
 
 

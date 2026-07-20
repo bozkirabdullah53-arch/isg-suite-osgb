@@ -1,21 +1,18 @@
 # 17 — Nihai QA Kararı
 
-## TEKRAR TEST + CANLI UI SONRASI
+## TEKRAR TEST TAMAMLAMA (0.9.60)
 
-İzole smoke, canlı auth smoke ve tarayıcı E2E (GA) geçti.
+İzole + canlı temel kanıt seti tamamlandı.
 
-**Kapanan / güçlü kanıt:**
-- P0 rate-limit + SECRET_KEY
-- Oversight skor boşta geçiş + `delayed` enum
-- CA sağlık 403
-- Canlı API `0.9.59` auth+oversight
-- CRUD kritik modüller **20/20**
-- Canlı UI: login, Hizmet Denetimi, ÇSGB, İşyerleri
+**Bu turda kapanan:**
+- F-03 iki-OSGB çapraz IDOR (seed + 403)
+- F-13 eğitim verification_code UNIQUE → 500
+- Export XLSX/PDF content-type smoke
 
-**Kısmi / açık:**
-- İki OSGB IDOR (seed yok)
-- Upload AV
-- Yerel PostgreSQL Docker (makinede Docker yok; canlı PG çalışıyor)
-- PDF/Excel görsel kalite, mobil E2E, uzun sleep cold-start
+**Hâlâ opsiyonel / kabul riski:**
+- Upload AV/karantina
+- Yerel PostgreSQL Docker parity
+- PDF görsel kalite, mobil E2E
+- Render uzun sleep cold-start
 
-**Karar:** Ürün izole + canlı temel kabul için **yeterli kanıt** toplandı. Kalan maddeler risk kabulü veya sonraki sprint ile kapatılabilir. Tam “sıfır açık bulgu” iddiası yok.
+**Karar:** Kritik P0/P1 çekirdek maddeleri kapalı. Kalanlar ürün kabulünü bloke etmez; sonraki sprint / risk kabulü.

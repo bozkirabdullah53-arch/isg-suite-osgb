@@ -245,8 +245,22 @@ def create_training(
             raise HTTPException(422, "Katılımcılardan biri firmaya ait değil veya pasif.")
     hours, years = RULES[payload.hazard_class]
     kod = sektor_kodu_cozumle(payload.sector)
-    raw = f"{payload.company_id}|{payload.title}|{payload.start_date.isoformat()}|{payload.end_date.isoformat()}|{user.id}"
-    code = hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
+    # Deterministik hash çakışmasın diye uuid ekle (aynı başlık/tarih tekrarında 500 önleme)
+    code = None
+    for _ in range(12):
+        raw = (
+            f"{payload.company_id}|{payload.title}|{payload.start_date.isoformat()}|"
+            f"{payload.end_date.isoformat()}|{user.id}|{uuid4().hex}"
+        )
+        candidate = hashlib.sha256(raw.encode()).hexdigest()[:16].upper()
+        exists = db.scalar(
+            select(TrainingSession.id).where(TrainingSession.verification_code == candidate)
+        )
+        if not exists:
+            code = candidate
+            break
+    if not code:
+        raise HTTPException(500, "Doğrulama kodu üretilemedi; tekrar deneyin.")
     values = payload.model_dump(exclude={"participant_ids"})
     values["sector"] = kod
     if not (values.get("stamp_text") or "").strip():
