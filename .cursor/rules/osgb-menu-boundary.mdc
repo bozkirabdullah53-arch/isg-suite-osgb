@@ -15,3 +15,5 @@ alwaysApply: true
 Bunlar saha rolleri (uzman / hekim / DSP) içindir. OSGB merkezi yalnızca kendi yönetim ekranlarını görür: ana panel, hizmet denetimi, performans, ÇSGB, profesyoneller, görevlendirmeler, saha takvimi, işyerleri/şubeler, CRM, finans, raporlar, bildirimler, kullanıcılar, abonelik, güvenlik.
 
 Kaynak: `frontend/src/main.jsx` → `roleModules.company_admin`.
+
+Menü sırası günlük kullanım yoğunluğuna göredir (sık kullanılan üstte).
