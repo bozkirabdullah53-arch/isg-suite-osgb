@@ -99,10 +99,17 @@ def main() -> int:
                                 "health_roles",
                                 "oversight_score",
                                 "upload_security",
+                                "ga_osgb_fallback",
+                                "schema_bootstrap",
                             )
                             if k in markers
                         }
                     ),
+                )
+                rec(
+                    "live_ga_osgb_marker",
+                    markers.get("ga_osgb_fallback") == "user-or-first-active",
+                    detail=str(markers.get("ga_osgb_fallback")),
                 )
         warm_samples = []
         for _ in range(5):
@@ -172,6 +179,23 @@ def main() -> int:
                     http=ov.status_code,
                     ms=oms,
                     detail="read-only",
+                )
+                # GA OSGB fallback: operations should not 400 when osgb_id absent
+                leads, leads_ms = timed_get(client, "/api/v1/operations/leads", headers=h)
+                rec(
+                    "live_ops_leads",
+                    leads.status_code in (200, 403),
+                    http=leads.status_code,
+                    ms=leads_ms,
+                    detail="ga_osgb_fallback regression",
+                )
+                fin, fin_ms = timed_get(client, "/api/v1/operations/finance", headers=h)
+                rec(
+                    "live_ops_finance",
+                    fin.status_code in (200, 403),
+                    http=fin.status_code,
+                    ms=fin_ms,
+                    detail="ga_osgb_fallback regression",
                 )
                 # Delayed enum regression: oversight should not contain InvalidTextRepresentation
                 txt = ov.text[:400] if ov.status_code == 200 else ""

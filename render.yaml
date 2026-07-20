@@ -24,6 +24,21 @@ services:
       - key: SEED_ADMIN_PASSWORD
         sync: false
 
+  # B-03: free-tier sleep önleme — /health ping (UTC, ~$1/ay minimum)
+  - type: cron
+    name: isg-suite-api-warmup
+    runtime: python
+    rootDir: backend
+    schedule: "*/14 * * * *"
+    buildCommand: "true"
+    startCommand: python scripts/warmup_ping.py
+    branch: feature/training-ui-cors
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: WARMUP_API_URL
+        value: https://isg-suite-api-1u9t.onrender.com
+
   - type: web
     name: isg-suite-web
     runtime: static
