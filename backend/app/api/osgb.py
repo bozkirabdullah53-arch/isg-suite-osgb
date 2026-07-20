@@ -394,6 +394,22 @@ async def upload_assignment_contract(
         old = (_upload_root() / obj.contract_storage_path).resolve()
         if _upload_root() in old.parents and old.exists():
             try:
+                from app.services.archive_store import archive_file_before_delete
+
+                archive_file_before_delete(
+                    db,
+                    source=old,
+                    user=user,
+                    company_id=obj.company_id,
+                    osgb_id=obj.osgb_id,
+                    entity_type="assignment_contract",
+                    entity_id=str(obj.id),
+                    original_name=obj.contract_file_name,
+                    notes="Görev sözleşmesi değiştirilmeden önce arşivlendi",
+                )
+            except Exception:
+                pass
+            try:
                 old.unlink()
             except OSError:
                 pass

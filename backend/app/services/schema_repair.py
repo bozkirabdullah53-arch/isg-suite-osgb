@@ -47,3 +47,7 @@ def repair_schema() -> None:
                 conn.execute(text("ALTER TABLE osgb_organizations ADD COLUMN archived_at TIMESTAMP NULL"))
 
     # Eksik EİSA tabloları için create_all yedekleri start.sh'de; burada yalnızca kritik kolonlar.
+    if "eisa_archive_records" not in tables:
+        from app.models.entities import EisaArchiveRecord  # noqa: F401
+
+        EisaArchiveRecord.__table__.create(bind=engine, checkfirst=True)

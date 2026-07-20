@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api } from './api';
+import { api, downloadFile } from './api';
 import { Check, RefreshCw, X } from 'lucide-react';
 
 export function Page({ title, action, children }) {
@@ -1128,6 +1128,82 @@ export function EisaAuditLogsPage() {
                 <td>{r.description || '—'}</td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    </Page>
+  );
+}
+
+export function EisaArchivesPage() {
+  const [rows, setRows] = useState([]);
+  const [kind, setKind] = useState('all');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  const load = async () => {
+    setBusy(true);
+    setMsg('');
+    try {
+      const q = kind === 'all' ? '' : `?kind=${kind}`;
+      setRows(await api(`/archives${q}`));
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => { void load(); }, [kind]);
+
+  return (
+    <Page title="Merkezi Arşiv" action={<RefreshButton busy={busy} onClick={load} />}>
+      <p style={{ marginTop: 0, color: '#64748b', maxWidth: 720 }}>
+        Tüm kurum yedekleri ve silinen dosya kopyaları burada tutulur. Kullanıcı silse bile tarihli arşiv EİSA elinde kalır.
+      </p>
+      <Msg text={msg} />
+      <div className="actions" style={{ marginBottom: 12 }}>
+        {[
+          ['all', 'Tümü'],
+          ['tenant_backup', 'Kurum yedekleri'],
+          ['deleted_file', 'Silinen dosyalar'],
+        ].map(([v, l]) => (
+          <button key={v} type="button" className={kind === v ? '' : 'secondary'} disabled={busy} onClick={() => setKind(v)}>{l}</button>
+        ))}
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Tarih</th>
+              <th>Tür</th>
+              <th>OSGB</th>
+              <th>Firma</th>
+              <th>Dosya</th>
+              <th>Boyut</th>
+              <th>Not</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length ? rows.map((r) => (
+              <tr key={r.id}>
+                <td>{new Date(r.created_at).toLocaleString('tr-TR')}</td>
+                <td>{r.kind === 'tenant_backup' ? 'Yedek' : 'Silinen dosya'}</td>
+                <td>{r.osgb_id || '—'}</td>
+                <td>{r.company_id || '—'}</td>
+                <td>{r.original_name || '—'}</td>
+                <td>{Math.max(1, Math.round((r.size_bytes || 0) / 1024))} KB</td>
+                <td>{r.notes || '—'}</td>
+                <td>
+                  <button type="button" className="secondary" disabled={busy} onClick={() => downloadFile(`/archives/${r.id}/download`, r.original_name || `arsiv-${r.id}`)}>
+                    İndir
+                  </button>
+                </td>
+              </tr>
+            )) : (
+              <tr><td colSpan={8} className="empty">Arşiv kaydı yok.</td></tr>
+            )}
           </tbody>
         </table>
       </div>

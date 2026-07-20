@@ -591,6 +591,21 @@ async def upload_health_report(
         old = (_upload_root() / record.report_storage_path).resolve()
         if _upload_root() in old.parents and old.exists():
             try:
+                from app.services.archive_store import archive_file_before_delete
+
+                archive_file_before_delete(
+                    db,
+                    source=old,
+                    user=user,
+                    company_id=record.company_id,
+                    entity_type="health_report",
+                    entity_id=str(record.id),
+                    original_name=record.report_file_name,
+                    notes="Sağlık raporu değiştirilmeden önce arşivlendi",
+                )
+            except Exception:
+                pass
+            try:
                 old.unlink()
             except OSError:
                 pass

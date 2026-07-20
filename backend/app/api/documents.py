@@ -53,3 +53,44 @@ def create_document(
     db.commit()
     db.refresh(record)
     return record
+
+
+@router.patch("/{document_id}/deactivate", response_model=DocumentResponse)
+def deactivate_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Dokümanı pasife alır; bağlı dosya merkezi arşive kopyalanır (EİSA erişimi)."""
+    from pathlib import Path
+
+    from app.core.config import settings
+    from app.services.archive_store import archive_file_before_delete
+
+    record = db.get(DocumentRecord, document_id)
+    if not record:
+        raise HTTPException(404, "Doküman bulunamadı.")
+    ensure_access(db, user, record.company_id)
+
+    marker = "[stored:"
+    desc = record.description or ""
+    if marker in desc:
+        stored_name = desc.split(marker, 1)[1].split("]", 1)[0]
+        path = (Path(settings.upload_dir).resolve() / str(record.company_id) / stored_name)
+        try:
+            archive_file_before_delete(
+                db,
+                source=path,
+                user=user,
+                company_id=record.company_id,
+                entity_type="document",
+                entity_id=str(record.id),
+                original_name=record.file_name,
+                notes="Doküman pasife alınmadan önce arşivlendi",
+            )
+        except Exception:
+            pass
+    record.is_active = False
+    db.commit()
+    db.refresh(record)
+    return record

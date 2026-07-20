@@ -507,6 +507,31 @@ class EisaPlatformSetting(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ArchiveKind(str, enum.Enum):
+    TENANT_BACKUP = "tenant_backup"
+    DELETED_FILE = "deleted_file"
+
+
+class EisaArchiveRecord(Base):
+    """Merkezi tarihli arşiv — EİSA her kaydı görür; kurum yalnızca kendi yedeklerini."""
+
+    __tablename__ = "eisa_archive_records"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[ArchiveKind] = mapped_column(Enum(ArchiveKind), index=True)
+    osgb_id: Mapped[int | None] = mapped_column(ForeignKey("osgb_organizations.id"), nullable=True, index=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
+    entity_type: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    entity_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    original_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    storage_path: Mapped[str] = mapped_column(String(500))
+    size_bytes: Mapped[int] = mapped_column(default=0)
+    checksum: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
 class OsgbSubscription(Base):
     __tablename__ = "osgb_subscriptions"
 

@@ -1076,6 +1076,21 @@ def delete_risk_media(
         raise HTTPException(404, "Medya bulunamadı.")
     path = (_upload_root() / media.storage_path).resolve()
     if _upload_root() in path.parents and path.exists():
+        try:
+            from app.services.archive_store import archive_file_before_delete
+
+            archive_file_before_delete(
+                db,
+                source=path,
+                user=user,
+                company_id=row.company_id,
+                entity_type="risk_media",
+                entity_id=str(media_id),
+                original_name=media.original_name,
+                notes="Risk medyası silinmeden önce arşivlendi",
+            )
+        except Exception:
+            pass
         path.unlink(missing_ok=True)
     db.delete(media)
     db.commit()

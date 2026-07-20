@@ -16,6 +16,7 @@ import {
   EisaNotificationsPage,
   EisaReportsPage,
   EisaAuditLogsPage,
+  EisaArchivesPage,
   EisaSystemSettingsPage,
   OsgbApplyPage,
 } from './eisa';
@@ -38,6 +39,7 @@ const roleModules={
     'eisa_packages',
     'eisa_notifications',
     'eisa_reports',
+    'eisa_archives',
     'eisa_audit_logs',
     'eisa_system_settings',
   ],
@@ -77,6 +79,7 @@ const menuCatalog={
   eisa_packages:['Paket Yönetimi',BriefcaseBusiness],
   eisa_notifications:['Bilgilendirmeler',Bell],
   eisa_reports:['Raporlar',BarChart3],
+  eisa_archives:['Merkezi Arşiv',Download],
   eisa_audit_logs:['İşlem Kayıtları',FileText],
   eisa_system_settings:['Sistem Ayarları',KeyRound],
   osgb_dashboard:['OSGB Ana Panel',LayoutDashboard],
@@ -324,14 +327,32 @@ function IsgModulePage({user,module}){
 const documentNames={general:'Genel',risk:'Risk',training:'Eğitim',health:'Sağlık',emergency:'Acil Durum',legal:'Mevzuat',annual_plan:'Yıllık Plan'};
 
 function DocumentsPage({user}){
-  const[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[q,setQ]=useState('');
+  const[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[q,setQ]=useState(''),[busy,setBusy]=useState(false);
+  const canEdit=['global_admin','company_admin','safety_specialist'].includes(user.role);
   const empty={company_id:user.company_id||'',branch_id:'',category:'general',title:'',file_name:'',description:'',valid_from:'',valid_until:'',version:'1.0'};
   const[form,setForm]=useState(empty);
   const load=()=>Promise.all([api('/companies'),api(`/documents${q?`?q=${encodeURIComponent(q)}`:''}`)]).then(([c,r])=>{setCompanies(c);setRows(r)});
   useEffect(()=>{load()},[]);
   async function save(e){e.preventDefault();const payload={...form,company_id:Number(form.company_id),branch_id:null,valid_from:form.valid_from||null,valid_until:form.valid_until||null};await api('/documents',{method:'POST',body:JSON.stringify(payload)});setOpen(false);setForm(empty);load()}
-  const cols=[{key:'title',label:'Doküman'},{key:'category',label:'Kategori',render:r=>documentNames[r.category]},{key:'file_name',label:'Dosya Adı'},{key:'version',label:'Versiyon'},{key:'valid_until',label:'Geçerlilik Sonu'}];
-  return <Page title="Doküman Yönetimi" action={<button onClick={()=>setOpen(true)}><Plus/>Yeni Doküman</button>}><SearchBar q={q} setQ={setQ} go={load}/><Table cols={cols} rows={rows}/>{open&&<Modal title="Yeni Doküman Kaydı" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Select label="Kategori" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{Object.entries(documentNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Select><Field label="Doküman Başlığı" required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/><Field label="Dosya Adı" value={form.file_name} onChange={e=>setForm({...form,file_name:e.target.value})}/><Field label="Açıklama" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><Field label="Başlangıç Tarihi" type="date" value={form.valid_from} onChange={e=>setForm({...form,valid_from:e.target.value})}/><Field label="Geçerlilik Sonu" type="date" value={form.valid_until} onChange={e=>setForm({...form,valid_until:e.target.value})}/><Field label="Versiyon" value={form.version} onChange={e=>setForm({...form,version:e.target.value})}/><Submit/></form></Modal>}</Page>
+  async function deactivate(id){
+    if(!window.confirm('Doküman pasife alınsın mı?\n\nBağlı dosya merkezi arşive kopyalanır; EİSA erişebilir.')) return;
+    setBusy(true);
+    try{
+      await api(`/documents/${id}/deactivate`,{method:'PATCH'});
+      await load();
+    }catch(e){alert(e.message)}
+    finally{setBusy(false)}
+  }
+  const cols=[
+    {key:'title',label:'Doküman'},
+    {key:'category',label:'Kategori',render:r=>documentNames[r.category]},
+    {key:'file_name',label:'Dosya Adı'},
+    {key:'version',label:'Versiyon'},
+    {key:'valid_until',label:'Geçerlilik Sonu'},
+    {key:'is_active',label:'Durum',render:r=>r.is_active===false?'Pasif':'Aktif'},
+    ...(canEdit?[{key:'act',label:'',render:r=>r.is_active===false?null:<button type="button" className="mini secondary" disabled={busy} onClick={()=>deactivate(r.id)}>Pasife Al</button>}]:[]),
+  ];
+  return <Page title="Doküman Yönetimi" action={canEdit?<button onClick={()=>setOpen(true)}><Plus/>Yeni Doküman</button>:null}><SearchBar q={q} setQ={setQ} go={load}/><Table cols={cols} rows={rows}/>{open&&<Modal title="Yeni Doküman Kaydı" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Select label="Kategori" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{Object.entries(documentNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Select><Field label="Doküman Başlığı" required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/><Field label="Dosya Adı" value={form.file_name} onChange={e=>setForm({...form,file_name:e.target.value})}/><Field label="Açıklama" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><Field label="Başlangıç Tarihi" type="date" value={form.valid_from} onChange={e=>setForm({...form,valid_from:e.target.value})}/><Field label="Geçerlilik Sonu" type="date" value={form.valid_until} onChange={e=>setForm({...form,valid_until:e.target.value})}/><Field label="Versiyon" value={form.version} onChange={e=>setForm({...form,version:e.target.value})}/><Submit/></form></Modal>}</Page>
 }
 
 function ReportsPage(){
@@ -344,11 +365,40 @@ function ReportsPage(){
 
 function SecurityPage({user}){
   const[form,setForm]=useState({current_password:'',new_password:''}),[message,setMessage]=useState(''),[logs,setLogs]=useState([]);
+  const[archives,setArchives]=useState([]),[archMsg,setArchMsg]=useState(''),[archBusy,setArchBusy]=useState(false);
   const canView=['global_admin','company_admin'].includes(user.role);
+  const canBackup=user.role==='company_admin';
+  const loadArchives=()=>api('/archives').then(setArchives).catch(e=>setArchMsg(e.message));
   useEffect(()=>{if(canView)api('/security/audit-logs').then(setLogs)},[]);
+  useEffect(()=>{if(canBackup)void loadArchives()},[]);
   async function save(e){e.preventDefault();setMessage('');try{const r=await api('/security/change-password',{method:'POST',body:JSON.stringify(form)});setMessage(r.message);setForm({current_password:'',new_password:''})}catch(err){setMessage(err.message)}}
+  async function createBackup(){
+    if(!window.confirm('Kurum verilerinizin tarihli yedeği alınsın mı?\n\nYedek merkezi arşive kaydedilir; EİSA de erişebilir.')) return;
+    setArchBusy(true);setArchMsg('');
+    try{
+      await api('/archives/backup',{method:'POST',body:JSON.stringify({})});
+      setArchMsg('Yedek oluşturuldu.');
+      await loadArchives();
+    }catch(e){setArchMsg(e.message)}
+    finally{setArchBusy(false)}
+  }
+  async function downloadArchive(id,name){
+    try{
+      await downloadFile(`/archives/${id}/download`, name||`arsiv-${id}.zip`);
+    }catch(e){setArchMsg(e.message)}
+  }
   const cols=[{key:'created_at',label:'Tarih'},{key:'action',label:'İşlem'},{key:'entity_type',label:'Kayıt Türü'},{key:'description',label:'Açıklama'},{key:'ip_address',label:'IP'}];
-  return <Page title="Güvenlik ve Denetim"><div className="security-grid"><section className="panel"><h3>Şifre Değiştir</h3><form className="form-grid single" onSubmit={save}><Field label="Mevcut Şifre" type="password" required value={form.current_password} onChange={e=>setForm({...form,current_password:e.target.value})}/><Field label="Yeni Şifre" type="password" minLength="10" required value={form.new_password} onChange={e=>setForm({...form,new_password:e.target.value})}/><Submit/>{message&&<p>{message}</p>}</form></section><section className="panel"><h3>Güvenlik Notları</h3><ul><li>Yeni şifre en az 10 karakter olmalıdır.</li><li>Canlı ortamda MFA ve parola sıfırlama e-postası eklenmelidir.</li><li>Varsayılan demo şifresi mutlaka değiştirilmelidir.</li></ul></section></div>{canView&&<section className="panel"><h3>Denetim Kayıtları</h3><Table cols={cols} rows={logs}/></section>}</Page>
+  const archCols=[
+    {key:'created_at',label:'Tarih',render:r=>new Date(r.created_at).toLocaleString('tr-TR')},
+    {key:'kind',label:'Tür',render:r=>r.kind==='tenant_backup'?'Kurum yedeği':'Silinen dosya arşivi'},
+    {key:'original_name',label:'Dosya'},
+    {key:'size_bytes',label:'Boyut',render:r=>`${Math.max(1,Math.round((r.size_bytes||0)/1024))} KB`},
+    {key:'notes',label:'Not'},
+    {key:'dl',label:'',render:r=><button type="button" className="mini secondary" onClick={()=>downloadArchive(r.id,r.original_name)}>İndir</button>},
+  ];
+  return <Page title="Güvenlik ve Denetim"><div className="security-grid"><section className="panel"><h3>Şifre Değiştir</h3><form className="form-grid single" onSubmit={save}><Field label="Mevcut Şifre" type="password" required value={form.current_password} onChange={e=>setForm({...form,current_password:e.target.value})}/><Field label="Yeni Şifre" type="password" minLength="10" required value={form.new_password} onChange={e=>setForm({...form,new_password:e.target.value})}/><Submit/>{message&&<p>{message}</p>}</form></section><section className="panel"><h3>Güvenlik Notları</h3><ul><li>Yeni şifre en az 10 karakter olmalıdır.</li><li>Canlı ortamda MFA ve parola sıfırlama e-postası eklenmelidir.</li><li>Varsayılan demo şifresi mutlaka değiştirilmelidir.</li></ul></section></div>
+  {canBackup&&<section className="panel" style={{marginTop:16}}><div className="page-title" style={{marginBottom:12}}><h3 style={{margin:0,fontSize:18}}>Kurum Yedekleme</h3><button type="button" disabled={archBusy} onClick={createBackup}>{archBusy?'Yedekleniyor…':'Yedek Oluştur'}</button></div><p style={{marginTop:0,color:'#64748b'}}>Yedekler tarihli olarak merkezi arşive kaydedilir. Siz indirirsiniz; EİSA de tüm kurum arşivlerine erişir. Silinen dosyalar da tarihli arşivde kalır.</p>{archMsg&&<p style={{color:archMsg.includes('oluştur')?'#166534':'#b91c1c'}}>{archMsg}</p>}<Table cols={archCols} rows={archives} empty="Henüz yedek yok."/></section>}
+  {canView&&<section className="panel"><h3>Denetim Kayıtları</h3><Table cols={cols} rows={logs}/></section>}</Page>
 }
 
 
@@ -565,6 +615,7 @@ function App(){
     eisa_packages:<EisaPackagesPage/>,
     eisa_notifications:<EisaNotificationsPage/>,
     eisa_reports:<EisaReportsPage/>,
+    eisa_archives:<EisaArchivesPage/>,
     eisa_audit_logs:<EisaAuditLogsPage/>,
     eisa_system_settings:<EisaSystemSettingsPage/>,
     osgb_dashboard:<OsgbDashboard user={user}/>,
@@ -634,9 +685,9 @@ function App(){
             <button type="button" className="header-icon" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfa">
               <LayoutDashboard size={18}/>
             </button>
-            <div className="user-chip">
-              <strong>{user.full_name}</strong>
-              <span>{roles[user.role]}</span>
+          <div className="user-chip">
+            <strong>{user.full_name}</strong>
+            <span>{roles[user.role]}</span>
             </div>
             <button type="button" className="header-icon logout-mobile" onClick={logout} title="Çıkış" aria-label="Çıkış">
               <LogOut size={18}/>

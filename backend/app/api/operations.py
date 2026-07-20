@@ -272,11 +272,32 @@ def create_visit(payload: VisitCreate, db: Session = Depends(get_db), user: User
     return obj
 
 
-def _delete_notebook_file(obj: ServiceVisit) -> None:
+def _delete_notebook_file(
+    obj: ServiceVisit,
+    db: Session | None = None,
+    user: User | None = None,
+) -> None:
     if not obj.notebook_storage_path:
         return
     path = (_upload_root() / obj.notebook_storage_path).resolve()
     if _upload_root() in path.parents and path.exists():
+        if db is not None:
+            try:
+                from app.services.archive_store import archive_file_before_delete
+
+                archive_file_before_delete(
+                    db,
+                    source=path,
+                    user=user,
+                    company_id=obj.company_id,
+                    osgb_id=obj.osgb_id,
+                    entity_type="visit_notebook",
+                    entity_id=str(obj.id),
+                    original_name=obj.notebook_file_name,
+                    notes="Ziyaret defteri silinmeden önce arşivlendi",
+                )
+            except Exception:
+                pass
         try:
             path.unlink()
         except OSError:
@@ -317,7 +338,7 @@ def delete_visit(
     user: User = Depends(require_roles(*FIELD_VISIT_ROLES, UserRole.GLOBAL_ADMIN)),
 ):
     obj = _get_visit(db, visit_id, user)
-    _delete_notebook_file(obj)
+    _delete_notebook_file(obj, db=db, user=user)
     db.delete(obj)
     db.commit()
     return {"ok": True, "id": visit_id}
@@ -341,7 +362,7 @@ async def upload_visit_notebook(
     if len(data) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(413, f"Dosya {settings.max_upload_mb} MB sınırını aşıyor.")
     if obj.notebook_storage_path:
-        _delete_notebook_file(obj)
+        _delete_notebook_file(obj, db=db, user=user)
     rel = f"{obj.osgb_id}/visits/{obj.id}_{uuid4().hex[:10]}{ext}"
     target = _upload_root() / rel
     target.parent.mkdir(parents=True, exist_ok=True)
