@@ -31,7 +31,7 @@
       "test": "crud_risk_create",
       "ok": true,
       "http": 200,
-      "detail": "{\"id\":4,\"risk_code\":\"RSK-0004\",\"company_id\":1,\"branch_id\":null,\"department_id\":1,\"hazard_id\":459,\"hazard_code\":\"AHB-001\",\"hazard_name\":\"LOTO"
+      "detail": "{\"id\":5,\"risk_code\":\"RSK-0005\",\"company_id\":1,\"branch_id\":null,\"department_id\":1,\"hazard_id\":459,\"hazard_code\":\"AHB-001\",\"hazard_name\":\"LOTO"
     },
     {
       "test": "crud_risk_list",
@@ -43,7 +43,7 @@
       "test": "crud_incident_create",
       "ok": true,
       "http": 200,
-      "detail": "{\"id\":3,\"form_no\":\"ISG-RK-2026-0003\",\"company_id\":1,\"branch_id\":null,\"event_type\":\"ramak_kala\",\"status\":\"Aktif\",\"recorded_by_name\":\"[TEST_DA"
+      "detail": "{\"id\":4,\"form_no\":\"ISG-RK-2026-0004\",\"company_id\":1,\"branch_id\":null,\"event_type\":\"ramak_kala\",\"status\":\"Aktif\",\"recorded_by_name\":\"[TEST_DA"
     },
     {
       "test": "crud_incident_list",
@@ -90,14 +90,14 @@
     {
       "test": "crud_crm_list",
       "ok": true,
-      "http": 400,
-      "detail": "{\"detail\":\"Kullanıcıya bağlı bir OSGB bulunamadı.\"}"
+      "http": 200,
+      "detail": "[{\"osgb_id\":1,\"company_name\":\"TEST_CRM Firsat 3\",\"contact_name\":\"[TEST_DATA] Kon"
     },
     {
       "test": "crud_finance_list",
       "ok": true,
-      "http": 400,
-      "detail": "{\"detail\":\"Kullanıcıya bağlı bir OSGB bulunamadı.\"}"
+      "http": 200,
+      "detail": "[{\"osgb_id\":1,\"company_id\":1,\"transaction_type\":\"income\",\"category\":\"service\",\"a"
     },
     {
       "test": "crud_annual_plan_generate",

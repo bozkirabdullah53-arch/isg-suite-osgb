@@ -157,7 +157,7 @@
       "test": "verify_valid_no_hard_pii",
       "ok": true,
       "http": 200,
-      "detail": "['valid', 'verification_code', 'title', 'company_name', 'start_date', 'hazard_class', 'duration_hours', 'instructor_name', 'participant_count', 'participants', 'message']"
+      "detail": "['valid', 'verification_code', 'title', 'company_name', 'start_date', 'end_date', 'hazard_class', 'duration_hours', 'instructor_name', 'participant_count', 'participants', 'message']"
     },
     {
       "test": "export_employees_xlsx_type",
