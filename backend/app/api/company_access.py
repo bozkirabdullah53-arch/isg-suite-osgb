@@ -64,6 +64,9 @@ def find_professional_by_identity(db: Session, user: User) -> IsgProfessional | 
     name = _norm_text(user.full_name)
     if not name:
         return None
+    # osgb_id yokken isimle eşleme — çapraz OSGB riski; yalnızca e-posta kabul
+    if not user.osgb_id:
+        return None
     matches = [p for p in db.scalars(stmt.order_by(IsgProfessional.id)).all() if _norm_text(p.full_name) == name]
     if len(matches) == 1:
         return matches[0]
@@ -108,16 +111,13 @@ def link_user_to_professional(db: Session, professional: IsgProfessional) -> Use
         user = db.scalar(select(User).where(func.lower(User.email) == email).limit(1))
     if not user:
         pname = _norm_text(professional.full_name)
-        if pname:
-            cand_stmt = select(User).where(User.is_active.is_(True))
-            if professional.osgb_id:
-                cand_stmt = cand_stmt.where(
-                    (User.osgb_id == professional.osgb_id) | (User.osgb_id.is_(None))
-                )
+        if pname and professional.osgb_id:
+            cand_stmt = select(User).where(
+                User.is_active.is_(True),
+                User.osgb_id == professional.osgb_id,
+            )
             for u in db.scalars(cand_stmt).all():
                 if u.role in (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN):
-                    continue
-                if professional.osgb_id and u.osgb_id and u.osgb_id != professional.osgb_id:
                     continue
                 if _norm_text(u.full_name) == pname:
                     user = u
