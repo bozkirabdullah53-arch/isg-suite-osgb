@@ -149,6 +149,7 @@ export function ProfessionalsPage({user, onNavigate}){
  const[statusFilter,setStatusFilter]=useState('active'); // active | suspended | all
  const[open,setOpen]=useState(false);
  const[editRow,setEditRow]=useState(null);
+ const[creds,setCreds]=useState(null);
  const[err,setErr]=useState('');
  const[busy,setBusy]=useState(false);
  const emptyForm={full_name:'',email:'',phone:'',professional_type:'safety_specialist',certificate_class:'',certificate_number:'',certificate_date:''};
@@ -231,9 +232,11 @@ export function ProfessionalsPage({user, onNavigate}){
   e.preventDefault();setErr('');setBusy(true);
   try{
    const ptype=form.professional_type||tab;
+   const email=(form.email||'').trim();
+   if(!email){setErr('Giriş için e-posta zorunludur.');setBusy(false);return}
    const body={
     full_name:form.full_name,
-    email:form.email||null,
+    email,
     phone:form.phone||null,
     professional_type:ptype,
     certificate_class:ptype==='safety_specialist'?(form.certificate_class||null):null,
@@ -242,10 +245,12 @@ export function ProfessionalsPage({user, onNavigate}){
    };
    if(editRow){
     await api(`/osgb/professionals/${editRow.id}`,{method:'PATCH',body:JSON.stringify(body)});
+    setOpen(false);setEditRow(null);
    }else{
-    await api('/osgb/professionals',{method:'POST',body:JSON.stringify({...body,osgb_id:Number(oid)})});
+    const created=await api('/osgb/professionals',{method:'POST',body:JSON.stringify({...body,osgb_id:Number(oid)})});
+    setOpen(false);setEditRow(null);
+    if(created?.login_account) setCreds(created.login_account);
    }
-   setOpen(false);setEditRow(null);
    await load(oid);
   }catch(ex){setErr(ex.message)}
   finally{setBusy(false)}
@@ -272,7 +277,7 @@ export function ProfessionalsPage({user, onNavigate}){
 
  return <P title="İSG Profesyonelleri" action={<button onClick={openCreate}><Plus/>Profesyonel Ekle</button>}>
   <p style={{marginTop:0,color:'#64748b',fontSize:13}}>
-   OSGB kadrosu: uzman, hekim ve DSP kayıtları. Görevlendirme durumu ve performans raporu buradan takip edilir.
+   OSGB kadrosu: uzman, hekim ve DSP. Eklemede e-posta ile otomatik giriş hesabı ve geçici şifre oluşur; profesyonel kendi bölümüne bu bilgilerle girer, Güvenlik menüsünden şifresini değiştirebilir.
   </p>
 
   {orgs.length>1&&(
@@ -351,7 +356,7 @@ export function ProfessionalsPage({user, onNavigate}){
     }}>
      {Object.entries(ptypes).map(([k,v])=><option key={k} value={k}>{v}</option>)}
     </S>
-    <F label="E-posta" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/>
+    <F label="E-posta (kullanıcı adı)" type="email" required value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/>
     <F label="Telefon" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
     {form.professional_type==='safety_specialist'&&(
      <S label="Belge Sınıfı (A / B / C)" required value={form.certificate_class} onChange={e=>setForm({...form,certificate_class:e.target.value})}>
@@ -363,9 +368,20 @@ export function ProfessionalsPage({user, onNavigate}){
     )}
     <F label="Belge No" value={form.certificate_number} onChange={e=>setForm({...form,certificate_number:e.target.value})}/>
     <F label="Belge Tarihi" type="date" value={form.certificate_date} onChange={e=>setForm({...form,certificate_date:e.target.value})}/>
+    {!editRow&&<p style={{gridColumn:'1/-1',margin:0,color:'#64748b',fontSize:13}}>Kayıtta e-posta kullanıcı adı ve geçici şifre otomatik oluşturulur.</p>}
     {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
     <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':(editRow?'Güncelle':'Kaydet')}</button></div>
    </form>
+  </M>}
+  {creds&&<M title="Profesyonel Giriş Bilgileri" close={()=>setCreds(null)}>
+   <div className="form-grid single">
+    <p style={{marginTop:0,color:'#64748b'}}>Bu bilgileri profesyonelle güvenli kanaldan paylaşın. İlk girişten sonra Güvenlik → Şifre Değiştir ile güncelleyebilir.</p>
+    <p><strong>Kullanıcı adı (e-posta):</strong> <code>{creds.email}</code></p>
+    <p><strong>Ad:</strong> {creds.full_name}</p>
+    <p><strong>Geçici şifre:</strong> <code>{creds.temporary_password}</code></p>
+    <p style={{color:'#166534'}}>{creds.message}</p>
+    <div className="form-actions"><button type="button" onClick={()=>setCreds(null)}>Tamam</button></div>
+   </div>
   </M>}
  </P>
 }

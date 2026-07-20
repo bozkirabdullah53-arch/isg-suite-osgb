@@ -32,7 +32,7 @@ class OsgbResponse(OsgbCreate):
 class ProfessionalCreate(BaseModel):
     osgb_id: int
     full_name: str = Field(min_length=2, max_length=160)
-    email: EmailStr | None = None
+    email: EmailStr
     phone: str | None = None
     professional_type: ProfessionalType
     certificate_class: str | None = None
@@ -49,11 +49,32 @@ class ProfessionalUpdate(BaseModel):
     certificate_date: date | None = None
     is_active: bool | None = None
 
-class ProfessionalResponse(ProfessionalCreate):
+class ProfessionalResponse(BaseModel):
     id: int
+    osgb_id: int
+    full_name: str
+    email: EmailStr | None = None
+    phone: str | None = None
+    professional_type: ProfessionalType
+    certificate_class: str | None = None
+    certificate_number: str | None = None
+    certificate_date: date | None = None
     is_active: bool
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProfessionalLoginAccount(BaseModel):
+    user_id: int
+    email: str
+    full_name: str
+    temporary_password: str
+    created: bool
+    message: str = "Geçici giriş şifresi oluşturuldu. Profesyonel Güvenlik menüsünden değiştirebilir."
+
+
+class ProfessionalCreateResponse(ProfessionalResponse):
+    login_account: ProfessionalLoginAccount | None = None
 
 class AssignmentCreate(BaseModel):
     osgb_id: int

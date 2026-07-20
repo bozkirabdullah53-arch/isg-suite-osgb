@@ -56,16 +56,19 @@ const roleModules={
     'dashboard','visits',
     'risk','near_miss','accident','capa','ppe',
     'training','annual_plans','documents',
+    'security',
   ],
   workplace_physician:[
     'dashboard','visits',
     'health','employees',
     'annual_plans','documents',
+    'security',
   ],
   other_health_personnel:[
     'dashboard','visits',
     'health','employees',
     'annual_plans','documents',
+    'security',
   ],
   read_only:['dashboard'],
 };
@@ -115,12 +118,13 @@ function Modal({title,close,children}){return <div className="modal-bg" onMouseD
 function Field({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
 function Table({cols,rows,empty='Kayıt bulunamadı.'}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
-function Companies({canEdit}){
+function Companies({canEdit, canAdd}){
   const[data,setData]=useState([]);
   const[open,setOpen]=useState(false);
   const[q,setQ]=useState('');
   const[busy,setBusy]=useState(false);
   const[err,setErr]=useState('');
+  const[creds,setCreds]=useState(null);
   const emptyForm={name:'',sgk_registry_no:'',address:'',phone:'',authorized_person:'',hazard_class:'Az Tehlikeli'};
   const[form,setForm]=useState(emptyForm);
   const load=()=>{
@@ -136,10 +140,13 @@ function Companies({canEdit}){
     const payload={...form,sgk_registry_no:(form.sgk_registry_no||'').trim()};
     if(!payload.sgk_registry_no){setErr('İşyeri sicil numarası zorunludur.');setBusy(false);return}
     try{
-      await api('/companies',{method:'POST',body:JSON.stringify(payload)});
+      const created=await api('/companies',{method:'POST',body:JSON.stringify(payload)});
       setOpen(false);
       setForm(emptyForm);
       await load();
+      if(created?.login_account){
+        setCreds(created.login_account);
+      }
     }catch(ex){setErr(ex.message)}
     finally{setBusy(false)}
   }
@@ -161,7 +168,7 @@ function Companies({canEdit}){
     }catch(ex){setErr(ex.message||'İşlem başarısız.')}
     finally{setBusy(false)}
   }
-  return <Page title="Firma Yönetimi" action={canEdit&&<button type="button" disabled={busy} onClick={()=>{setErr('');setOpen(true)}}><Plus/>Firma Ekle</button>}>
+  return <Page title="Firma Yönetimi" action={canAdd&&<button type="button" disabled={busy} onClick={()=>{setErr('');setOpen(true)}}><Plus/>Firma Ekle</button>}>
     {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
     <SearchBar q={q} setQ={setQ} go={load}/>
     <Table cols={[
@@ -194,6 +201,16 @@ function Companies({canEdit}){
         {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
         <div className="form-actions"><button type="submit" disabled={busy}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>
       </form>
+    </Modal>}
+    {creds&&<Modal title="İşyeri Giriş Bilgileri" close={()=>setCreds(null)}>
+      <div className="form-grid single">
+        <p style={{marginTop:0,color:'#64748b'}}>Bu geçici bilgileri işyeri yetkilisine güvenli kanaldan iletin. İlk girişten sonra şifresini değiştirmesini isteyin.</p>
+        <p><strong>Kullanıcı adı (e-posta):</strong> <code>{creds.email}</code></p>
+        <p><strong>Ad:</strong> {creds.full_name}</p>
+        <p><strong>Geçici şifre:</strong> <code>{creds.temporary_password}</code></p>
+        <p style={{color:'#166534'}}>{creds.message}</p>
+        <div className="form-actions"><button type="button" onClick={()=>setCreds(null)}>Tamam</button></div>
+      </div>
     </Modal>}
   </Page>;
 }
@@ -630,7 +647,7 @@ function App(){
     crm:<CrmPage user={user}/>,
     finance:<FinancePage user={user}/>,
     dashboard:<Dashboard summary={summary} user={user} onNavigate={goModule}/>,
-    companies:<Companies canEdit={user.role==='global_admin'||user.role==='company_admin'}/>,
+    companies:<Companies canEdit={user.role==='global_admin'||user.role==='company_admin'} canAdd={user.role==='global_admin'||(user.role==='company_admin'&&!user.company_id)}/>,
     branches:<Branches user={user}/>,
     employees:<Employees user={user}/>,
     risk:<RiskPage user={user}/>,

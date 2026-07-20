@@ -14,7 +14,9 @@ from app.models.entities import (AssignmentStatus, Company, IsgProfessional, Osg
                                  User, UserRole, WorkplaceAssignment)
 from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCreate,
                               ContractResponse, OsgbCreate, OsgbResponse, OsgbUpdate,
-                              ProfessionalCreate, ProfessionalResponse, ProfessionalUpdate)
+                              ProfessionalCreate, ProfessionalCreateResponse, ProfessionalLoginAccount,
+                              ProfessionalResponse, ProfessionalUpdate)
+from app.services.osgb_admin import provision_professional_login
 from app.services.osgb_oversight import build_oversight, build_professional_performance, seed_oversight_demo
 from app.services.csgb_audit_pack import build_csgb_audit_pack
 
@@ -161,16 +163,32 @@ def list_professionals(osgb_id: int | None = None, db: Session = Depends(get_db)
     _scope_osgb(user, target)
     return list(db.scalars(select(IsgProfessional).where(IsgProfessional.osgb_id == target).order_by(IsgProfessional.full_name)).all())
 
-@router.post("/professionals", response_model=ProfessionalResponse)
+@router.post("/professionals", response_model=ProfessionalCreateResponse)
 def create_professional(payload: ProfessionalCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
     _scope_osgb(user, payload.osgb_id)
     obj = IsgProfessional(**payload.model_dump())
     db.add(obj)
     db.flush()
+    wp_user, temp_password, created = provision_professional_login(db, obj)
     link_user_to_professional(db, obj)
     db.commit()
     db.refresh(obj)
-    return obj
+    return ProfessionalCreateResponse(
+        **ProfessionalResponse.model_validate(obj).model_dump(),
+        login_account=ProfessionalLoginAccount(
+            user_id=wp_user.id,
+            email=wp_user.email,
+            full_name=wp_user.full_name,
+            temporary_password=temp_password,
+            created=created,
+            message=(
+                "Giriş hesabı oluşturuldu."
+                if created
+                else "Mevcut hesaba yeni geçici şifre atandı."
+            )
+            + " Profesyonel e-posta ve bu şifre ile giriş yapar; isterse Güvenlik menüsünden değiştirir.",
+        ),
+    )
 
 
 @router.patch("/professionals/{professional_id}/suspend")
