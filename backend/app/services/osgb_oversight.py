@@ -252,7 +252,8 @@ def _eval_specialist_firm(
             RiskDof.term_date < date.today(),
         )
     ) or 0
-    dof_ok = overdue_dof == 0
+    # Risk yokken "geciken DÖF yok" boşta geçmesin
+    dof_ok = risk_count > 0 and overdue_dof == 0
 
     plan_count = db.scalar(
         select(func.count())
@@ -286,6 +287,9 @@ def _eval_specialist_firm(
     ) or 0
     train_ok = trainings > 0
 
+    incident_total = db.scalar(
+        select(func.count()).select_from(IncidentEvent).where(IncidentEvent.company_id == cid)
+    ) or 0
     open_incidents = db.scalar(
         select(func.count())
         .select_from(IncidentEvent)
@@ -294,7 +298,8 @@ def _eval_specialist_firm(
             IncidentEvent.status.in_(["Aktif", "Açık", "open", "in_progress"]),
         )
     ) or 0
-    incident_ok = open_incidents == 0
+    # Olay kaydı yokken "açık olay yok" boşta geçmesin (aksi halde skor ~%20)
+    incident_ok = incident_total > 0 and open_incidents == 0
 
     return [
         _check_result(
@@ -326,8 +331,12 @@ def _eval_specialist_firm(
             "6331 md.10 — belirlenen önlemlerin takibi",
             1,
             dof_ok,
-            f"Geciken DÖF: {overdue_dof}",
-            {"overdue_dof": overdue_dof},
+            (
+                f"Geciken DÖF: {overdue_dof}"
+                if risk_count > 0
+                else "Risk kaydı olmadığı için DÖF takibi değerlendirilemedi"
+            ),
+            {"overdue_dof": overdue_dof, "risk_count": risk_count},
         ),
         _check_result(
             "yillik_plan",
@@ -353,8 +362,12 @@ def _eval_specialist_firm(
             "6331 md.14 — iş kazası ve meslek hastalıklarının bildirimi/takibi",
             1,
             incident_ok,
-            f"Açık olay kaydı: {open_incidents}",
-            {"open_incidents": open_incidents},
+            (
+                f"Açık olay: {open_incidents} / toplam {incident_total}"
+                if incident_total > 0
+                else "Henüz ramak kala/kaza kaydı yok — takip için kayıt oluşturun"
+            ),
+            {"open_incidents": open_incidents, "incident_total": incident_total},
         ),
     ], visits
 
