@@ -1178,12 +1178,34 @@ export function OsgbApplyPage({ onBack }) {
   const [ok, setOk] = useState(false);
   const [err, setErr] = useState('');
 
+  function formatApiError(detail, fallback = 'Başvuru gönderilemedi.') {
+    if (!detail) return fallback;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+      return detail
+        .map((d) => {
+          if (typeof d === 'string') return d;
+          const field = Array.isArray(d.loc) ? d.loc.filter((x) => x !== 'body').join('.') : '';
+          const msg = d.msg || JSON.stringify(d);
+          return field ? `${field}: ${msg}` : msg;
+        })
+        .join(' · ');
+    }
+    if (typeof detail === 'object') return detail.msg || detail.message || JSON.stringify(detail);
+    return String(detail);
+  }
+
   async function submit(e) {
     e.preventDefault();
     setBusy(true);
     setErr('');
     if (!form.contract_accepted || !form.personal_data_accepted) {
       setErr('Sözleşme ve kişisel verilerin korunması onayı zorunludur.');
+      setBusy(false);
+      return;
+    }
+    if ((form.tax_number || '').trim().length < 8) {
+      setErr('Vergi numarası en az 8 karakter olmalıdır.');
       setBusy(false);
       return;
     }
@@ -1194,10 +1216,10 @@ export function OsgbApplyPage({ onBack }) {
         body: JSON.stringify(form),
       });
       const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.detail || 'Başvuru gönderilemedi.');
+      if (!r.ok) throw new Error(formatApiError(data.detail));
       setOk(true);
     } catch (ex) {
-      setErr(ex.message);
+      setErr(ex.message || 'Başvuru gönderilemedi.');
     } finally {
       setBusy(false);
     }
@@ -1227,13 +1249,13 @@ export function OsgbApplyPage({ onBack }) {
           <form className="form-grid" onSubmit={submit}>
             <label className="field"><span>OSGB adı *</span><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
             <label className="field"><span>Yetki numarası *</span><input required value={form.authorization_number} onChange={(e) => setForm({ ...form, authorization_number: e.target.value })} /></label>
-            <label className="field"><span>Vergi numarası *</span><input required value={form.tax_number} onChange={(e) => setForm({ ...form, tax_number: e.target.value })} /></label>
+            <label className="field"><span>Vergi numarası * (en az 8 hane)</span><input required minLength={8} value={form.tax_number} onChange={(e) => setForm({ ...form, tax_number: e.target.value })} /></label>
             <label className="field"><span>Sorumlu müdür</span><input value={form.responsible_manager} onChange={(e) => setForm({ ...form, responsible_manager: e.target.value })} /></label>
-            <label className="field"><span>İletişim e-posta *</span><input type="email" required value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} /></label>
+            <label className="field"><span>İletişim e-posta *</span><input type="email" required placeholder="ornek@firma.com" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} /></label>
             <label className="field"><span>Telefon</span><input value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} /></label>
             <label className="field"><span>Adres</span><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></label>
             <label className="field"><span>Başvuran adı *</span><input required value={form.applicant_name} onChange={(e) => setForm({ ...form, applicant_name: e.target.value })} /></label>
-            <label className="field"><span>Başvuran e-posta *</span><input type="email" required value={form.applicant_email} onChange={(e) => setForm({ ...form, applicant_email: e.target.value })} /></label>
+            <label className="field"><span>Başvuran e-posta *</span><input type="email" required placeholder="ornek@firma.com" value={form.applicant_email} onChange={(e) => setForm({ ...form, applicant_email: e.target.value })} /></label>
             <label className="field"><span>Not</span><input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
             <label className="field">
               <span>
