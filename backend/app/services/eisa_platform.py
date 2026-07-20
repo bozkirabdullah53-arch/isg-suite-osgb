@@ -145,9 +145,12 @@ def subscription_response(db: Session, sub: OsgbSubscription) -> OsgbSubscriptio
 
 
 def osgb_user_response(db: Session, org: OsgbOrganization) -> EisaOsgbUserResponse:
+    from app.services.osgb_admin import find_osgb_admin
+
     sub = db.scalar(select(OsgbSubscription).where(OsgbSubscription.osgb_id == org.id))
     pkg = db.get(EisaPackage, sub.package_id) if sub and sub.package_id else None
     eff = effective_subscription_status(sub) if sub else None
+    admin = find_osgb_admin(db, org.id)
     return EisaOsgbUserResponse(
         id=org.id,
         name=org.name,
@@ -164,6 +167,9 @@ def osgb_user_response(db: Session, org: OsgbOrganization) -> EisaOsgbUserRespon
         trial_ends_at=sub.trial_ends_at if sub else None,
         current_period_ends_at=sub.current_period_ends_at if sub else None,
         write_allowed=subscription_allows_write(sub) if sub else False,
+        admin_email=admin.email if admin else None,
+        admin_name=admin.full_name if admin else None,
+        has_admin_user=admin is not None,
         created_at=org.created_at,
     )
 

@@ -29,6 +29,8 @@ from app.schemas.eisa_platform import (
     EisaAuditLogResponse,
     EisaNotificationCreate,
     EisaNotificationResponse,
+    EisaOsgbAdminProvision,
+    EisaOsgbAdminProvisionResponse,
     EisaOsgbUserResponse,
     EisaPackageCreate,
     EisaPackageResponse,
@@ -36,6 +38,7 @@ from app.schemas.eisa_platform import (
     EisaPaymentCreate,
     EisaPaymentResponse,
     EisaSettingsUpdate,
+    OsgbApplicationApproveResponse,
 )
 from app.schemas.osgb_subscription import (
     OsgbApplicationReject,
@@ -59,6 +62,8 @@ from app.services.osgb_subscription import (
     approve_application,
     get_or_create_subscription,
 )
+
+from app.services.osgb_admin import find_osgb_admin, provision_osgb_admin
 
 router = APIRouter(prefix="/eisa", tags=["EİSA Platform"])
 
@@ -91,17 +96,41 @@ def list_applications(
     return list(db.scalars(stmt).all())
 
 
-@router.post("/applications/{application_id}/approve", response_model=OsgbApplicationResponse)
+@router.post("/applications/{application_id}/approve", response_model=OsgbApplicationApproveResponse)
 def approve(
     application_id: int,
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
 ):
+    from app.services.osgb_admin import provision_from_application
+
     app_row = db.get(OsgbApplication, application_id)
     if not app_row:
         raise HTTPException(404, "Başvuru bulunamadı.")
-    approve_application(db, app_row, user)
+    osgb = approve_application(db, app_row, user)
+    admin_account = None
+    provisioned = provision_from_application(db, app_row, osgb)
+    if provisioned:
+        admin_user, temp_password, created = provisioned
+        admin_account = EisaOsgbAdminProvisionResponse(
+            user_id=admin_user.id,
+            email=admin_user.email,
+            full_name=admin_user.full_name,
+            temporary_password=temp_password,
+            created=created,
+            message="OSGB yönetici hesabı oluşturuldu." if created else "Mevcut hesaba yeni geçici şifre atandı.",
+        )
+        add_audit_log(
+            db,
+            user=user,
+            action="osgb_admin_provisioned",
+            module="eisa",
+            entity_type="user",
+            entity_id=str(admin_user.id),
+            description=f"OSGB yönetici hesabı: {admin_user.email}",
+            ip_address=_client_ip(request),
+        )
     add_audit_log(
         db,
         user=user,
@@ -114,7 +143,10 @@ def approve(
     )
     db.commit()
     db.refresh(app_row)
-    return app_row
+    return OsgbApplicationApproveResponse(
+        application=OsgbApplicationResponse.model_validate(app_row),
+        admin_account=admin_account,
+    )
 
 
 @router.post("/applications/{application_id}/reject", response_model=OsgbApplicationResponse)
@@ -234,6 +266,46 @@ def activate_osgb(
     )
     db.commit()
     return {"ok": True, "id": osgb_id, "is_active": True, "message": "OSGB aktifleştirildi."}
+
+
+@router.post("/osgb-users/{osgb_id}/provision-admin", response_model=EisaOsgbAdminProvisionResponse)
+def provision_osgb_admin_account(
+    osgb_id: int,
+    payload: EisaOsgbAdminProvision,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    org = db.get(OsgbOrganization, osgb_id)
+    if not org:
+        raise HTTPException(404, "OSGB bulunamadı.")
+    email = (payload.email or org.email or "").strip().lower()
+    if not email:
+        raise HTTPException(422, "Yönetici e-posta adresi gerekli. OSGB iletişim e-postasını girin.")
+    full_name = payload.full_name or org.responsible_manager or org.name
+    admin_user, temp_password, created = provision_osgb_admin(
+        db, org, email=email, full_name=full_name
+    )
+    add_audit_log(
+        db,
+        user=user,
+        action="osgb_admin_provisioned",
+        module="eisa",
+        entity_type="user",
+        entity_id=str(admin_user.id),
+        description=f"OSGB yönetici hesabı: {admin_user.email}",
+        ip_address=_client_ip(request),
+    )
+    db.commit()
+    db.refresh(admin_user)
+    return EisaOsgbAdminProvisionResponse(
+        user_id=admin_user.id,
+        email=admin_user.email,
+        full_name=admin_user.full_name,
+        temporary_password=temp_password,
+        created=created,
+        message="OSGB yönetici hesabı oluşturuldu." if created else "Mevcut hesaba yeni geçici şifre atandı.",
+    )
 
 
 @router.get("/subscriptions", response_model=list[OsgbSubscriptionResponse])

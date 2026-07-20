@@ -144,11 +144,36 @@ function ApplicationsPanel({ apps, busy, onApprove, onReject }) {
   );
 }
 
+function AdminCredentialsModal({ data, onClose }) {
+  if (!data) return null;
+  return (
+    <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <section className="modal">
+        <header><h3>OSGB Giriş Bilgileri</h3></header>
+        <div className="form-grid single">
+          <p style={{ marginTop: 0, color: '#64748b' }}>
+            Bu geçici şifreyi OSGB yöneticisine güvenli kanaldan iletin. İlk girişten sonra şifresini değiştirmesini isteyin.
+          </p>
+          <p><strong>OSGB:</strong> {data.osgb_name}</p>
+          <p><strong>E-posta:</strong> {data.email}</p>
+          <p><strong>Ad:</strong> {data.full_name}</p>
+          <p><strong>Geçici şifre:</strong> <code>{data.temporary_password}</code></p>
+          <p style={{ color: '#166534' }}>{data.message}</p>
+          <div className="form-actions">
+            <button type="button" onClick={onClose}>Tamam</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 export function EisaOverviewPage() {
   const [dash, setDash] = useState(null);
   const [apps, setApps] = useState([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [adminCreds, setAdminCreds] = useState(null);
 
   const load = async () => {
     setBusy(true);
@@ -173,8 +198,11 @@ export function EisaOverviewPage() {
     if (!window.confirm('Başvuruyu onaylayıp 10 günlük deneme başlatılsın mı?')) return;
     setBusy(true);
     try {
-      await api(`/eisa/applications/${id}/approve`, { method: 'POST' });
+      const r = await api(`/eisa/applications/${id}/approve`, { method: 'POST' });
       await load();
+      if (r.admin_account) {
+        setAdminCreds({ ...r.admin_account, osgb_name: r.application?.name });
+      }
       setMsg('Başvuru onaylandı.');
     } catch (e) {
       setMsg(e.message);
@@ -220,6 +248,7 @@ export function EisaOverviewPage() {
       <Msg text={msg} />
       <h4 style={{ marginBottom: 8 }}>Bekleyen başvurular</h4>
       <ApplicationsPanel apps={apps} busy={busy} onApprove={approve} onReject={reject} />
+      <AdminCredentialsModal data={adminCreds} onClose={() => setAdminCreds(null)} />
     </Page>
   );
 }
@@ -229,6 +258,8 @@ export function EisaOsgbUsersPage() {
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [adminCreds, setAdminCreds] = useState(null);
+  const [provision, setProvision] = useState(null);
 
   const load = async () => {
     setBusy(true);
@@ -263,10 +294,44 @@ export function EisaOsgbUsersPage() {
     }
   }
 
+  async function provisionAdmin(row) {
+    setProvision({
+      osgb_id: row.id,
+      osgb_name: row.name,
+      email: row.admin_email || row.contact_email || '',
+      full_name: row.admin_name || row.responsible_manager || row.name,
+    });
+  }
+
+  async function submitProvision(e) {
+    e.preventDefault();
+    if (!provision) return;
+    setBusy(true);
+    setMsg('');
+    try {
+      const r = await api(`/eisa/osgb-users/${provision.osgb_id}/provision-admin`, {
+        method: 'POST',
+        body: JSON.stringify({
+          email: provision.email,
+          full_name: provision.full_name,
+        }),
+      });
+      setProvision(null);
+      setAdminCreds({ ...r, osgb_name: provision.osgb_name });
+      await load();
+      setMsg(r.message);
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Page title="OSGB Kullanıcıları" action={<RefreshButton busy={busy} onClick={load} />}>
       <p style={{ marginTop: 0, color: '#64748b' }}>
-        OSGB hesapları kalıcı silinmez; pasif/arşiv yaklaşımı kullanılır.
+        OSGB hesapları kalıcı silinmez; pasif/arşiv yaklaşımı kullanılır. Yönetici hesabı başvuru onayında otomatik oluşturulur;
+        mevcut OSGB’ler için aşağıdan geçici şifre atayabilirsiniz.
       </p>
       <SearchBar value={q} onChange={setQ} placeholder="OSGB adı, e-posta, yetki no…" />
       <button type="button" disabled={busy} onClick={load} style={{ marginBottom: 12 }}>Ara</button>
@@ -280,6 +345,7 @@ export function EisaOsgbUsersPage() {
               <th>İletişim</th>
               <th>Paket</th>
               <th>Abonelik</th>
+              <th>Yönetici</th>
               <th>Hesap</th>
               <th></th>
             </tr>
@@ -292,17 +358,43 @@ export function EisaOsgbUsersPage() {
                 <td>{r.contact_email || '—'}<br /><small>{r.contact_phone || ''}</small></td>
                 <td>{r.package_name || '—'}</td>
                 <td><StatusBadge status={r.effective_status || r.subscription_status} /></td>
+                <td>{r.admin_email || '—'}</td>
                 <td>{r.is_active ? 'Aktif' : 'Pasif'}</td>
                 <td>
-                  <button type="button" className="secondary" disabled={busy} onClick={() => toggleActive(r)}>
-                    {r.is_active ? 'Pasife Al' : 'Aktifleştir'}
-                  </button>
+                  <div className="actions">
+                    <button type="button" className="secondary" disabled={busy} onClick={() => provisionAdmin(r)}>
+                      {r.has_admin_user ? 'Şifre Sıfırla' : 'Yönetici Oluştur'}
+                    </button>
+                    <button type="button" className="secondary" disabled={busy} onClick={() => toggleActive(r)}>
+                      {r.is_active ? 'Pasife Al' : 'Aktifleştir'}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      {provision && (
+        <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setProvision(null)}>
+          <section className="modal">
+            <header><h3>{provision.osgb_name} — Yönetici Hesabı</h3></header>
+            <form className="form-grid" onSubmit={submitProvision}>
+              <label className="field"><span>Yönetici e-posta</span>
+                <input required type="email" value={provision.email} onChange={(e) => setProvision({ ...provision, email: e.target.value })} />
+              </label>
+              <label className="field"><span>Ad soyad</span>
+                <input required value={provision.full_name} onChange={(e) => setProvision({ ...provision, full_name: e.target.value })} />
+              </label>
+              <div className="form-actions">
+                <button type="button" className="secondary" onClick={() => setProvision(null)}>İptal</button>
+                <button type="submit" disabled={busy}>Geçici Şifre Oluştur</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+      <AdminCredentialsModal data={adminCreds} onClose={() => setAdminCreds(null)} />
     </Page>
   );
 }

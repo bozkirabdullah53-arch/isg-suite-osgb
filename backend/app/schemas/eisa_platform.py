@@ -1,8 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.schemas.osgb_subscription import OsgbApplicationResponse
 from app.schemas.validators import parse_optional_datetime
 
 
@@ -145,7 +146,29 @@ class EisaOsgbUserResponse(BaseModel):
     trial_ends_at: datetime | None = None
     current_period_ends_at: datetime | None = None
     write_allowed: bool = False
+    admin_email: str | None = None
+    admin_name: str | None = None
+    has_admin_user: bool = False
     created_at: datetime
+
+
+class EisaOsgbAdminProvision(BaseModel):
+    email: EmailStr | None = None
+    full_name: str | None = Field(default=None, max_length=160)
+
+
+class EisaOsgbAdminProvisionResponse(BaseModel):
+    user_id: int
+    email: str
+    full_name: str
+    temporary_password: str
+    created: bool
+    message: str
+
+
+class OsgbApplicationApproveResponse(BaseModel):
+    application: OsgbApplicationResponse
+    admin_account: EisaOsgbAdminProvisionResponse | None = None
 
 
 class EisaSettingsUpdate(BaseModel):
