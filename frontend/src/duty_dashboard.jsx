@@ -1,6 +1,15 @@
 import React, {useEffect, useState} from 'react';
-import {AlertTriangle, BellRing, CalendarClock, CheckCircle2, Clock3, Mail, RefreshCw, ShieldAlert} from 'lucide-react';
-import {api} from './api';
+import {
+  AlertTriangle,
+  BellRing,
+  CalendarClock,
+  CheckCircle2,
+  Clock3,
+  Download,
+  RefreshCw,
+  ShieldAlert,
+} from 'lucide-react';
+import {api, downloadFile} from './api';
 
 const SEV = {
   overdue: {
@@ -11,18 +20,25 @@ const SEV = {
     icon: AlertTriangle,
   },
   due_soon: {
-    label: 'Günü yaklaşıyor',
+    label: 'Yaklaşan',
     bg: '#fffbeb',
     border: '#fde68a',
     fg: '#92400e',
     icon: CalendarClock,
   },
   missing: {
-    label: 'Yapılmayan / eksik',
+    label: 'Yapılmayan',
     bg: '#f8fafc',
     border: '#cbd5e1',
     fg: '#334155',
     icon: Clock3,
+  },
+  done: {
+    label: 'Yapılan',
+    bg: '#ecfdf5',
+    border: '#a7f3d0',
+    fg: '#065f46',
+    icon: CheckCircle2,
   },
 };
 
@@ -56,11 +72,13 @@ function AlertCard({a, onGo}) {
       </div>
       <div style={{fontSize: 13, color: '#334155'}}>{a.detail}</div>
       {a.legal && <div style={{fontSize: 12, color: '#64748b'}}>{a.legal}</div>}
-      <div>
-        <button type="button" className="mini" onClick={() => onGo?.(a.module)}>
-          Git → {a.module_label || a.module}
-        </button>
-      </div>
+      {a.severity !== 'done' && a.module && (
+        <div>
+          <button type="button" className="mini" onClick={() => onGo?.(a.module)}>
+            İşleme git → {a.module_label || a.module}
+          </button>
+        </div>
+      )}
     </article>
   );
 }
@@ -74,9 +92,9 @@ function AlertColumn({title, items, tone, onGo}) {
         <span style={{marginLeft: 'auto', fontSize: 13, fontWeight: 700}}>{items.length}</span>
       </h3>
       {items.length ? (
-        <div style={{display: 'grid', gap: 10}}>
+        <div style={{display: 'grid', gap: 10, maxHeight: 420, overflow: 'auto'}}>
           {items.map((a, i) => (
-            <AlertCard key={`${a.check_code}-${a.company_id}-${a.due_date}-${i}`} a={a} onGo={onGo} />
+            <AlertCard key={`${a.check_code}-${a.company_id}-${a.due_date}-${a.severity}-${i}`} a={a} onGo={onGo} />
           ))}
         </div>
       ) : (
@@ -86,7 +104,7 @@ function AlertColumn({title, items, tone, onGo}) {
   );
 }
 
-/** İSG Özeti — uzman / hekim / DSP sorumluluk paneli */
+/** Ana sayfa — uzman / hekim / DSP görev durumu */
 export function DutyDashboard({user, summary, onNavigate}) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
@@ -107,17 +125,26 @@ export function DutyDashboard({user, summary, onNavigate}) {
   useEffect(() => { void load(); }, []);
 
   const sm = data?.summary || {};
-  const alerts = data?.alerts || {overdue: [], due_soon: [], missing: []};
+  const alerts = data?.alerts || {overdue: [], due_soon: [], missing: [], done: []};
   const boardError = data?.error || err;
+  const pct = sm.completion_pct ?? 0;
+
+  async function exportReport() {
+    try {
+      await downloadFile('/dashboard/my-duties/export.txt', `gorev-durum-${new Date().toISOString().slice(0, 10)}.txt`);
+    } catch (e) {
+      setErr(e.message || 'Rapor indirilemedi.');
+    }
+  }
 
   return (
     <>
       <div className="welcome" style={{background: 'linear-gradient(120deg,#0f766e,#0e7490)'}}>
         <div>
-          <h3 style={{marginBottom: 6}}>Sorumluluk panelim</h3>
+          <h3 style={{marginBottom: 6}}>Ana sayfa — görev durumum</h3>
           <p style={{margin: 0, opacity: 0.95}}>
-            {data?.role_label || 'İSG Profesyoneli'} — yalnızca görevlendirildiğiniz işyerlerindeki
-            günü geçen, yaklaşan ve yapılmayan 6331 faaliyetleri.
+            {data?.role_label || 'İSG Profesyoneli'} — yapılan, yapılmayan, yaklaşan ve süresi geçen
+            faaliyetler tek bakışta. Eksiklere tıklayıp ilgili modülde kayıt açabilirsiniz.
           </p>
         </div>
         <ShieldAlert size={54} />
@@ -129,9 +156,12 @@ export function DutyDashboard({user, summary, onNavigate}) {
           {data?.professional?.certificate_class ? ` · Sınıf ${data.professional.certificate_class}` : ''}
           {typeof data?.workplace_count === 'number' ? ` · ${data.workplace_count} işyeri` : ''}
         </h3>
-        <div className="actions">
+        <div className="actions" style={{gap: 8, flexWrap: 'wrap'}}>
           <button type="button" className="secondary" disabled={busy} onClick={() => void load()}>
             <RefreshCw size={16} /> Yenile
+          </button>
+          <button type="button" disabled={busy || !data} onClick={() => void exportReport()}>
+            <Download size={16} /> Durum raporu (TXT)
           </button>
         </div>
       </div>
@@ -151,13 +181,17 @@ export function DutyDashboard({user, summary, onNavigate}) {
           <span>Yapılmayan</span>
           <strong>{sm.missing ?? '—'}</strong>
         </article>
+        <article className="metric" style={{borderTop: '3px solid #059669'}}>
+          <span>Yapılan</span>
+          <strong style={{color: '#065f46'}}>{sm.done ?? '—'}</strong>
+        </article>
         <article className="metric" style={{borderTop: '3px solid #0f766e'}}>
-          <span>Atanan işyeri</span>
-          <strong>{data?.workplace_count ?? summary?.company_count ?? '—'}</strong>
+          <span>Tamamlanma</span>
+          <strong>%{pct}</strong>
         </article>
       </div>
 
-      {(sm.overdue > 0 || sm.due_soon > 0) && (
+      {(sm.overdue > 0 || sm.due_soon > 0 || sm.missing > 0) && (
         <section
           className="panel"
           style={{
@@ -171,51 +205,38 @@ export function DutyDashboard({user, summary, onNavigate}) {
             <div>
               <strong>
                 {sm.overdue > 0
-                  ? `${sm.overdue} geciken faaliyet — öncelikli müdahale`
-                  : `${sm.due_soon} yaklaşan faaliyet — planlayın`}
+                  ? `${sm.overdue} süresi geçen faaliyet — öncelikli`
+                  : sm.due_soon > 0
+                    ? `${sm.due_soon} yaklaşan faaliyet`
+                    : `${sm.missing} yapılmayan kontrol`}
               </strong>
               <div style={{fontSize: 13, color: '#64748b', marginTop: 2}}>
-                Kartlara tıklayarak ilgili modüle gidin. OSGB yönetimi aynı sinyalleri Hizmet Denetimi’nde görür.
+                Karttaki “İşleme git” ile ilgili sayfada kayıt oluşturun veya tamamlayın. Durum raporunu indirip OSGB’ye iletebilirsiniz.
               </div>
             </div>
           </div>
         </section>
       )}
 
-      <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))', gap: 14, marginBottom: 16}}>
+      <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 14, marginBottom: 16}}>
         <AlertColumn title="Günü geçenler" items={alerts.overdue || []} tone="overdue" onGo={onNavigate} />
-        <AlertColumn title="Günü yaklaşanlar" items={alerts.due_soon || []} tone="due_soon" onGo={onNavigate} />
+        <AlertColumn title="Yaklaşanlar" items={alerts.due_soon || []} tone="due_soon" onGo={onNavigate} />
         <AlertColumn title="Yapılmayanlar" items={alerts.missing || []} tone="missing" onGo={onNavigate} />
+        <AlertColumn title="Yapılanlar" items={alerts.done || []} tone="done" onGo={onNavigate} />
       </div>
 
-      {!busy && data?.supported && sm.total === 0 && data.workplace_count > 0 && (
-        <section className="panel" style={{marginBottom: 16, borderColor: '#a7f3d0', background: '#ecfdf5'}}>
+      {!busy && data?.supported && (sm.overdue || 0) === 0 && (sm.due_soon || 0) === 0 && (sm.missing || 0) === 0 && data.workplace_count > 0 && (
+        <section className="panel" style={{marginBottom: 0, borderColor: '#a7f3d0', background: '#ecfdf5'}}>
           <p style={{margin: 0, color: '#065f46', fontWeight: 650, display: 'flex', alignItems: 'center', gap: 8}}>
-            <CheckCircle2 size={18} /> Bu dönemde görevlendirildiğiniz işyerlerinde kritik eksik görünmüyor.
+            <CheckCircle2 size={18} /> Bu dönemde kritik eksik / gecikme görünmüyor. Yapılan kontroller sağdaki listede.
           </p>
         </section>
       )}
-
-      <section className="panel" style={{marginBottom: 0}}>
-        <h3 style={{marginTop: 0, display: 'flex', alignItems: 'center', gap: 8}}>
-          <Mail size={18} /> Bildirim (OSGB bağlantısı)
-        </h3>
-        <p style={{marginTop: 0, color: '#475569', fontSize: 14, lineHeight: 1.55}}>
-          Bu panel, OSGB Hizmet Denetimi ile aynı sorumluluk sinyallerini kullanır.
-          İleride yaklaşan ve günü geçen faaliyetler, OSGB yönetimi onayıyla
-          <strong> e-posta</strong> olarak profesyonelin adresine gönderilecek.
-          E-posta altyapısı henüz kapalı — önce ekran uyarılarını netleştiriyoruz.
-        </p>
-        <div style={{fontSize: 12, color: '#64748b'}}>
-          Durum: {data?.email_notifications?.enabled ? 'Aktif' : 'Planlandı (kapalı)'}
-          {data?.period?.today ? ` · Bugün: ${data.period.today}` : ''}
-        </div>
-      </section>
     </>
   );
 }
 
-/** Yönetici / diğer roller — özet metrikler (özellik listesi yok) */
+/** Yönetici / diğer roller — özet metrikler */
 export function AdminSummaryDashboard({summary}) {
   return (
     <>

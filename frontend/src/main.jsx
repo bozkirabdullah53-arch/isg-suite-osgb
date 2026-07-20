@@ -650,9 +650,14 @@ function App(){
   if(!logged) return <Login done={()=>setLogged(true)} onApply={()=>setApplyMode(true)}/>;
   if(!user) return <div className="loading">Sistem yükleniyor...</div>;
   const allowed=roleModules[user.role]||[];
+  const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
   const menu=allowed
-    .filter((k)=>menuCatalog[k])
-    .map((k)=>[k,menuCatalog[k][0],menuCatalog[k][1]]);
+    .filter((k)=>menuCatalog[k] && !(fieldRoles.includes(user.role) && (k==='reports' || k==='pro_performance')))
+    .map((k)=>{
+      const [label, Icon]=menuCatalog[k];
+      if(k==='dashboard' && fieldRoles.includes(user.role)) return [k, 'Ana Sayfa', LayoutDashboard];
+      return [k, label, Icon];
+    });
   const pages={
     eisa_overview:<EisaOverviewPage/>,
     eisa_osgb_users:<EisaOsgbUsersPage/>,

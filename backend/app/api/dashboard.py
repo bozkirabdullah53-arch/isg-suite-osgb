@@ -1,6 +1,7 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import PlainTextResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -17,7 +18,7 @@ from app.models.entities import (
     UserRole,
 )
 from app.api.company_access import assigned_company_ids
-from app.services.professional_duty import build_my_duty_board
+from app.services.professional_duty import build_my_duty_board, format_duty_report_txt
 
 router = APIRouter(prefix="/dashboard", tags=["Panel"])
 
@@ -170,8 +171,27 @@ def my_duties(db: Session = Depends(get_db), user: User = Depends(get_current_us
             "workplace_count": 0,
             "workplace_ids": [],
             "check_catalog": [],
-            "summary": {"overdue": 0, "due_soon": 0, "missing": 0, "total": 0},
-            "alerts": {"overdue": [], "due_soon": [], "missing": [], "all": []},
+            "summary": {"overdue": 0, "due_soon": 0, "missing": 0, "done": 0, "total": 0, "completion_pct": 0},
+            "alerts": {"overdue": [], "due_soon": [], "missing": [], "done": [], "all": []},
             "email_notifications": {"enabled": False, "planned": True, "note": ""},
             "error": "Sorumluluk paneli yüklenirken hata oluştu. Yenile’ye basın; devam ederse OSGB yönetimine bildirin.",
         }
+
+
+@router.get("/my-duties/export.txt")
+def my_duties_export_txt(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Uzman / hekim / DSP — ana sayfa görev durum raporu (TXT)."""
+    if user.role not in (
+        UserRole.SAFETY_SPECIALIST,
+        UserRole.WORKPLACE_PHYSICIAN,
+        UserRole.OTHER_HEALTH_PERSONNEL,
+    ):
+        raise HTTPException(403, "Bu rapor yalnızca İSG profesyonelleri içindir.")
+    board = build_my_duty_board(db, user)
+    body = format_duty_report_txt(board)
+    fname = f"gorev-durum-{date.today().isoformat()}.txt"
+    return PlainTextResponse(
+        body,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )

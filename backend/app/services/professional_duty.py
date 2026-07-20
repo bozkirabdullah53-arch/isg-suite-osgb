@@ -63,6 +63,7 @@ MODULE_LABEL = {
     "health": "Sağlık",
     "assignments": "Görevlendirmeler",
     "capa": "DÖF",
+    "dashboard": "Ana Sayfa",
 }
 
 ROLE_LABEL = {
@@ -89,7 +90,7 @@ def _alert(
     if due_date:
         days_left = (due_date - date.today()).days
     return {
-        "severity": severity,  # overdue | due_soon | missing
+        "severity": severity,  # overdue | due_soon | missing | done
         "kind": kind,
         "title": title,
         "detail": detail,
@@ -101,7 +102,8 @@ def _alert(
         "days_left": days_left,
         "module": module,
         "module_label": MODULE_LABEL.get(module, module),
-        "email_ready": True,  # ileride OSGB e-posta kuyruğu için işaret
+        "email_ready": True,
+        "reportable": True,
     }
 
 
@@ -133,6 +135,7 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
     } if company_ids else {}
 
     alerts: list[dict[str, Any]] = []
+    done: list[dict[str, Any]] = []
 
     if not company_ids:
         alerts.append(
@@ -147,7 +150,7 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
                 legal="İSG Hizmetleri Yön. — işyerine uzman/hekim/DSP görevlendirme",
             )
         )
-        return _pack(user, pro, company_ids, alerts, today)
+        return _pack(user, pro, company_ids, alerts, done, today)
 
     # Aktif görevlendirmeler
     assign_q = select(WorkplaceAssignment).where(
@@ -226,10 +229,22 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
                 )
 
         for c in checks:
-            if c["passed"]:
+            code = c["code"]
+            if c.get("passed"):
+                done.append(
+                    _alert(
+                        severity="done",
+                        kind="duty",
+                        title=c["title"],
+                        detail=c.get("detail") or "Bu dönem için tamamlandı / uygun.",
+                        company_id=cid,
+                        company_name=company.name,
+                        check_code=code,
+                        legal=c.get("legal"),
+                    )
+                )
                 continue
             # Tarihli sinyaller ayrı toplanır; genel eksikler missing
-            code = c["code"]
             if code in ("risk_dof", "muayene_gecikme", "yillik_plan"):
                 # detaylı tarihler aşağıda; yine de checklist eksikliği missing olarak kalsın eğer sayı yoksa
                 meta = c.get("metric") or {}
@@ -389,7 +404,7 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
                     )
                 )
 
-    return _pack(user, pro, company_ids, alerts, today)
+    return _pack(user, pro, company_ids, alerts, done, today)
 
 
 def _pack(
@@ -397,6 +412,7 @@ def _pack(
     pro,
     company_ids: list[int],
     alerts: list[dict],
+    done: list[dict],
     today: date,
 ) -> dict[str, Any]:
     # Öncelik: overdue → due_soon → missing; aynı grupta gün sırası
@@ -407,6 +423,7 @@ def _pack(
         return (order.get(a["severity"], 9), d, a.get("company_name") or "")
 
     alerts.sort(key=sort_key)
+    done_sorted = sorted(done, key=lambda a: (a.get("company_name") or "", a.get("title") or ""))
 
     overdue = [a for a in alerts if a["severity"] == "overdue"]
     due_soon = [a for a in alerts if a["severity"] == "due_soon"]
@@ -417,6 +434,9 @@ def _pack(
         if user.role == UserRole.SAFETY_SPECIALIST
         else PHYSICIAN_CHECKS
     )
+    checks_total = len(done_sorted) + len(missing)
+    # missing burada dönem checklist; overdue/due_soon ayrı (termin)
+    completion_pct = round(100 * len(done_sorted) / checks_total) if checks_total else 100
 
     return {
         "supported": True,
@@ -444,12 +464,15 @@ def _pack(
             "overdue": len(overdue),
             "due_soon": len(due_soon),
             "missing": len(missing),
+            "done": len(done_sorted),
             "total": len(alerts),
+            "completion_pct": completion_pct,
         },
         "alerts": {
             "overdue": overdue,
             "due_soon": due_soon,
             "missing": missing,
+            "done": done_sorted,
             "all": alerts,
         },
         "email_notifications": {
@@ -458,3 +481,41 @@ def _pack(
             "note": "İleride OSGB yönetimi onayı ile yaklaşan/geçen faaliyetler personele e-posta ile bildirilecek.",
         },
     }
+
+
+def format_duty_report_txt(board: dict[str, Any]) -> str:
+    """Ana sayfa durum özeti — profesyonelin indirebileceği metin rapor."""
+    sm = board.get("summary") or {}
+    alerts = board.get("alerts") or {}
+    lines = [
+        "İSG Suite OSGB — Profesyonel Görev Durum Raporu",
+        f"Ad: {board.get('full_name') or '—'}",
+        f"Rol: {board.get('role_label') or board.get('role') or '—'}",
+        f"Tarih: {(board.get('period') or {}).get('today') or date.today().isoformat()}",
+        f"İşyeri sayısı: {board.get('workplace_count', 0)}",
+        f"Tamamlanan: {sm.get('done', 0)} · Yapılmayan: {sm.get('missing', 0)} · "
+        f"Yaklaşan: {sm.get('due_soon', 0)} · Günü geçen: {sm.get('overdue', 0)} · "
+        f"Tamamlanma %{sm.get('completion_pct', 0)}",
+        "-" * 72,
+    ]
+
+    def section(title: str, items: list[dict]):
+        lines.append("")
+        lines.append(title)
+        lines.append("-" * len(title))
+        if not items:
+            lines.append("  (kayıt yok)")
+            return
+        for a in items:
+            due = f" · Termin: {a['due_date']}" if a.get("due_date") else ""
+            lines.append(f"  • [{a.get('company_name') or '—'}] {a.get('title')}{due}")
+            if a.get("detail"):
+                lines.append(f"      {a['detail']}")
+
+    section("GÜNÜ GEÇENLER", alerts.get("overdue") or [])
+    section("YAKLAŞANLAR (14 gün)", alerts.get("due_soon") or [])
+    section("YAPILMAYANLAR", alerts.get("missing") or [])
+    section("YAPILANLAR / UYGUN", alerts.get("done") or [])
+    lines.append("")
+    lines.append("Rapor, profesyonelin ana sayfa sorumluluk panelinden üretilmiştir.")
+    return "\n".join(lines) + "\n"
