@@ -95,10 +95,13 @@ class Company(Base):
     __tablename__ = "companies"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200), unique=True, index=True)
-    tax_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    nace_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    tax_number: Mapped[str | None] = mapped_column(String(20), nullable=True)  # legacy; UI'da yok
+    nace_code: Mapped[str | None] = mapped_column(String(20), nullable=True)  # legacy; UI'da yok
     hazard_class: Mapped[str | None] = mapped_column(String(40), nullable=True)
     sgk_registry_no: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    authorized_person: Mapped[str | None] = mapped_column(String(160), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     osgb_id: Mapped[int | None] = mapped_column(ForeignKey("osgb_organizations.id"), nullable=True, index=True)

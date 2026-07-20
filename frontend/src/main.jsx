@@ -121,7 +121,7 @@ function Companies({canEdit}){
   const[q,setQ]=useState('');
   const[busy,setBusy]=useState(false);
   const[err,setErr]=useState('');
-  const emptyForm={name:'',sgk_registry_no:'',tax_number:'',nace_code:'',hazard_class:'Az Tehlikeli'};
+  const emptyForm={name:'',sgk_registry_no:'',address:'',phone:'',authorized_person:'',hazard_class:'Az Tehlikeli'};
   const[form,setForm]=useState(emptyForm);
   const load=()=>{
     setErr('');
@@ -167,8 +167,9 @@ function Companies({canEdit}){
     <Table cols={[
       {key:'name',label:'Firma'},
       {key:'sgk_registry_no',label:'İşyeri Sicil No'},
-      {key:'tax_number',label:'Vergi No'},
-      {key:'nace_code',label:'NACE'},
+      {key:'authorized_person',label:'Yetkili Kişi'},
+      {key:'phone',label:'Telefon'},
+      {key:'address',label:'Adres'},
       {key:'hazard_class',label:'Tehlike Sınıfı'},
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
       ...(canEdit?[{key:'actions',label:'İşlem',render:r=>(
@@ -184,8 +185,9 @@ function Companies({canEdit}){
       <form className="form-grid" onSubmit={save}>
         <Field label="Firma Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
         <Field label="İşyeri Sicil No" required value={form.sgk_registry_no} onChange={e=>setForm({...form,sgk_registry_no:e.target.value})}/>
-        <Field label="Vergi No" value={form.tax_number} onChange={e=>setForm({...form,tax_number:e.target.value})}/>
-        <Field label="NACE Kodu" value={form.nace_code} onChange={e=>setForm({...form,nace_code:e.target.value})}/>
+        <Field label="Yetkili Kişi" value={form.authorized_person} onChange={e=>setForm({...form,authorized_person:e.target.value})}/>
+        <Field label="Telefon" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
+        <Field label="Adres" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/>
         <Select label="Tehlike Sınıfı" value={form.hazard_class} onChange={e=>setForm({...form,hazard_class:e.target.value})}>
           <option>Az Tehlikeli</option><option>Tehlikeli</option><option>Çok Tehlikeli</option>
         </Select>

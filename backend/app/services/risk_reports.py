@@ -198,8 +198,9 @@ def build_risk_pdf(
         Spacer(1, 8 * mm),
         Paragraph(f"<b>Firma Adı:</b> {company.name}", info),
         Paragraph(f"<b>SGK Sicil No:</b> {sgk_no or '—'}", info),
-        Paragraph(f"<b>Vergi No:</b> {getattr(company, 'tax_number', None) or '—'}", info),
-        Paragraph(f"<b>NACE Kodu:</b> {getattr(company, 'nace_code', None) or '—'}", info),
+        Paragraph(f"<b>Yetkili Kişi:</b> {getattr(company, 'authorized_person', None) or '—'}", info),
+        Paragraph(f"<b>Telefon:</b> {getattr(company, 'phone', None) or '—'}", info),
+        Paragraph(f"<b>Adres:</b> {getattr(company, 'address', None) or '—'}", info),
         Paragraph(f"<b>Tehlike Sınıfı:</b> {getattr(company, 'hazard_class', None) or '—'}", info),
         Paragraph(f"<b>İSG Uzmanı / Hazırlayan:</b> {prepared_by or '—'}", info),
         Paragraph(f"<b>İşyeri Hekimi:</b> {workplace_physician or '—'}", info),
@@ -391,7 +392,8 @@ def build_risk_excel(*, company, risks, hazard_map: dict | None = None) -> bytes
 
     ws.merge_cells("A2:Q2")
     ws["A2"] = (
-        f"NACE: {getattr(company, 'nace_code', None) or '—'} | "
+        f"Yetkili: {getattr(company, 'authorized_person', None) or '—'} | "
+        f"Tel: {getattr(company, 'phone', None) or '—'} | "
         f"Tehlike Sınıfı: {getattr(company, 'hazard_class', None) or '—'} | "
         f"Tarih: {datetime.now().strftime('%d.%m.%Y')}"
     )

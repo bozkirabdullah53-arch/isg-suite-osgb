@@ -4,10 +4,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class CompanyCreate(BaseModel):
     name: str = Field(min_length=2, max_length=200)
     sgk_registry_no: str = Field(min_length=1, max_length=40)
+    hazard_class: str | None = None
+    address: str | None = Field(default=None, max_length=500)
+    phone: str | None = Field(default=None, max_length=40)
+    authorized_person: str | None = Field(default=None, max_length=160)
+    osgb_id: int | None = None
+    # Legacy alanlar — istemci göndermese de API uyumluluğu için opsiyonel
     tax_number: str | None = None
     nace_code: str | None = None
-    hazard_class: str | None = None
-    osgb_id: int | None = None
 
     @field_validator("sgk_registry_no")
     @classmethod
@@ -20,12 +24,15 @@ class CompanyCreate(BaseModel):
 
 class CompanyUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=2, max_length=200)
-    tax_number: str | None = None
-    nace_code: str | None = None
     hazard_class: str | None = None
     sgk_registry_no: str | None = Field(default=None, min_length=1, max_length=40)
+    address: str | None = Field(default=None, max_length=500)
+    phone: str | None = Field(default=None, max_length=40)
+    authorized_person: str | None = Field(default=None, max_length=160)
     is_active: bool | None = None
     osgb_id: int | None = None
+    tax_number: str | None = None
+    nace_code: str | None = None
 
     @field_validator("sgk_registry_no")
     @classmethod
@@ -41,10 +48,11 @@ class CompanyUpdate(BaseModel):
 class CompanyResponse(BaseModel):
     id: int
     name: str
-    tax_number: str | None = None
-    nace_code: str | None = None
     hazard_class: str | None = None
     sgk_registry_no: str | None = None
+    address: str | None = None
+    phone: str | None = None
+    authorized_person: str | None = None
     is_active: bool
     osgb_id: int | None = None
     model_config = ConfigDict(from_attributes=True)

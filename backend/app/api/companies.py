@@ -123,8 +123,10 @@ def list_companies(
         stmt = stmt.where(
             or_(
                 Company.name.ilike(f"%{q}%"),
-                Company.nace_code.ilike(f"%{q}%"),
                 Company.sgk_registry_no.ilike(f"%{q}%"),
+                Company.address.ilike(f"%{q}%"),
+                Company.phone.ilike(f"%{q}%"),
+                Company.authorized_person.ilike(f"%{q}%"),
             )
         )
     return list(db.scalars(stmt).all())

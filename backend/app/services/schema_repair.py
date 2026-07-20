@@ -51,3 +51,17 @@ def repair_schema() -> None:
         from app.models.entities import EisaArchiveRecord  # noqa: F401
 
         EisaArchiveRecord.__table__.create(bind=engine, checkfirst=True)
+
+    if "companies" in tables:
+        cols = _columns("companies")
+        stmts: list[str] = []
+        if "address" not in cols:
+            stmts.append("ALTER TABLE companies ADD COLUMN address VARCHAR(500)")
+        if "phone" not in cols:
+            stmts.append("ALTER TABLE companies ADD COLUMN phone VARCHAR(40)")
+        if "authorized_person" not in cols:
+            stmts.append("ALTER TABLE companies ADD COLUMN authorized_person VARCHAR(160)")
+        if stmts:
+            with engine.begin() as conn:
+                for stmt in stmts:
+                    conn.execute(text(stmt))
