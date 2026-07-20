@@ -134,13 +134,17 @@ def list_companies(
 def create_company(
     payload: CompanyCreate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
     if db.scalar(select(Company).where(Company.name == payload.name)):
         raise HTTPException(409, "Bu firma zaten kayıtlı.")
     data = payload.model_dump()
-    # osgb_id yazılmazsa İşyerleri’nde görünür ama ÇSGB / OSGB paneli 0 sayar
-    if not data.get("osgb_id"):
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id:
+            raise HTTPException(400, "OSGB kapsamınız tanımlı değil. EİSA yöneticisine başvurun.")
+        data["osgb_id"] = user.osgb_id
+    elif not data.get("osgb_id"):
+        # osgb_id yazılmazsa İşyerleri’nde görünür ama ÇSGB / OSGB paneli 0 sayar
         data["osgb_id"] = _default_osgb_id(db)
     obj = Company(**data)
     db.add(obj)
@@ -149,17 +153,31 @@ def create_company(
     return obj
 
 
+def _assert_company_admin_scope(user: User, obj: Company) -> None:
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return
+    if user.role != UserRole.COMPANY_ADMIN:
+        raise HTTPException(403, "Bu işlem için yetkiniz yok.")
+    if not user.osgb_id or obj.osgb_id != user.osgb_id:
+        raise HTTPException(403, "Bu işyerini yönetemezsiniz — yalnızca kendi OSGB kapsamınız.")
+
+
 @router.put("/{company_id}", response_model=CompanyResponse)
 def update_company(
     company_id: int,
     payload: CompanyUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    _assert_company_admin_scope(user, obj)
+    data = payload.model_dump(exclude_unset=True)
+    # OSGB admin başka OSGB'ye taşıyamaz
+    if user.role == UserRole.COMPANY_ADMIN:
+        data.pop("osgb_id", None)
+    for k, v in data.items():
         setattr(obj, k, v)
     db.commit()
     db.refresh(obj)
@@ -170,11 +188,12 @@ def update_company(
 def deactivate_company(
     company_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
+    _assert_company_admin_scope(user, obj)
     obj.is_active = False
     db.commit()
     return {"ok": True, "id": company_id, "is_active": False, "message": "Firma pasife alındı."}
@@ -184,11 +203,12 @@ def deactivate_company(
 def activate_company(
     company_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
+    _assert_company_admin_scope(user, obj)
     obj.is_active = True
     db.commit()
     return {"ok": True, "id": company_id, "is_active": True, "message": "Firma yeniden aktifleştirildi."}
@@ -198,12 +218,13 @@ def activate_company(
 def delete_company(
     company_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
     """Kalıcı sil: bağlı operasyonel kayıtlar da silinir. Pasife alma yapılmaz."""
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
+    _assert_company_admin_scope(user, obj)
     name = obj.name
     try:
         _purge_company_data(db, company_id)

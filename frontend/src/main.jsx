@@ -628,7 +628,7 @@ function App(){
     crm:<CrmPage user={user}/>,
     finance:<FinancePage user={user}/>,
     dashboard:<Dashboard summary={summary} user={user} onNavigate={goModule}/>,
-    companies:<Companies canEdit={user.role==='global_admin'}/>,
+    companies:<Companies canEdit={user.role==='global_admin'||user.role==='company_admin'}/>,
     branches:<Branches user={user}/>,
     employees:<Employees user={user}/>,
     risk:<RiskPage user={user}/>,
