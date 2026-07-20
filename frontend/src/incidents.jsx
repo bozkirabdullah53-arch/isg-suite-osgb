@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Download, Plus, Search, X} from 'lucide-react';
 import {api, downloadFile} from './api';
+import {assertIncidentForm} from './validation';
 
 const TYPE_DEFAULT = {
   near_miss: 'ramak_kala',
@@ -164,6 +165,11 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
   async function save(e) {
     e.preventDefault();
     setErr('');
+    const local = assertIncidentForm(form);
+    if (local) {
+      setErr(local);
+      return;
+    }
     try {
       const payload = {
         ...form,
@@ -510,7 +516,7 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
               <option value="">Şube seçilmedi</option>
               {companyBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </Select>
-            <Field label="Olay tarihi" type="date" required value={form.event_date} onChange={(e) => setForm({...form, event_date: e.target.value})} />
+            <Field label="Olay tarihi" type="date" required max={new Date().toISOString().slice(0, 10)} min="2000-01-01" value={form.event_date} onChange={(e) => setForm({...form, event_date: e.target.value})} />
             <Field label="Saat" value={form.event_time} onChange={(e) => setForm({...form, event_time: e.target.value})} placeholder="14:30" />
             <Field label="Departman / Bölüm" value={form.department} onChange={(e) => setForm({...form, department: e.target.value})} />
             <Field label="Olay yeri" required value={form.location} onChange={(e) => setForm({...form, location: e.target.value})} />
@@ -520,8 +526,8 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
               {(meta?.classifications || []).map((c) => <option key={c} value={c}>{c}</option>)}
             </Select>
             <Field label="Yapılan iş" value={form.work_being_done} onChange={(e) => setForm({...form, work_being_done: e.target.value})} style={{gridColumn: '1 / -1'}} />
-            <TextArea label="Kısa özet (min. 20 karakter)" required value={form.short_summary} onChange={(e) => setForm({...form, short_summary: e.target.value})} />
-            <TextArea label="Detay (min. 30 karakter)" required value={form.detail} onChange={(e) => setForm({...form, detail: e.target.value})} />
+            <TextArea label="Kısa özet (en az 20 karakter, anlamlı açıklama)" required value={form.short_summary} onChange={(e) => setForm({...form, short_summary: e.target.value})} />
+            <TextArea label="Detay (en az 30 karakter — olayın nasıl geliştiğini yazın)" required value={form.detail} onChange={(e) => setForm({...form, detail: e.target.value})} />
             <Field label="İlgili kişiler" value={form.related_people} onChange={(e) => setForm({...form, related_people: e.target.value})} />
             <Check label="Şahit var" checked={form.has_witness} onChange={(v) => setForm({...form, has_witness: v})} />
             {form.has_witness && (

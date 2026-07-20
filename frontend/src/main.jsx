@@ -47,7 +47,7 @@ const roleModules={
   company_admin:[
     'osgb_dashboard','osgb_oversight','pro_performance','csgb_audit',
     'professionals','assignments','visits',
-    'companies','branches','employees',
+    'companies','branches',
     'dashboard',
     'risk','near_miss','accident','capa','ppe',
     'training','health','annual_plans','documents',

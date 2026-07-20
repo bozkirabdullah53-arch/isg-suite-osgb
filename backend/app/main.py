@@ -40,7 +40,10 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.89',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.90',lifespan=lifespan)
+
+from app.core.validation_tr import register_turkish_validation
+register_turkish_validation(app)
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(OsgbSubscriptionWriteMiddleware)
@@ -62,7 +65,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.89',
+        'version': '0.9.90',
         'pdf_layout': 'pro-2026',
         'companies_admin': 'osgb-admin-crud-v1',
         'company_fields': 'address-phone-contact-v1',
@@ -77,6 +80,8 @@ def health():
         'osgb_performance': 'company-admin-restored-v1',
         'oversight_score': 'no-vacuous-pass-v2',
         'health_roles': 'company-admin-monitor-v1',
+        'validation_tr': 'turkish-422-v1',
+        'input_rules': 'date-text-sanity-v1',
         'training_verify_code': 'uuid-unique',
         'upload_security': 'magic-byte-quarantine',
         'clamav_scan': 'enabled' if is_clamav_configured() else 'disabled',

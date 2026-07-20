@@ -28,13 +28,110 @@ export async function wakeApi() {
   }
 }
 
+const FIELD_LABELS_TR = {
+  detail: 'Detay',
+  short_summary: 'Kısa özet',
+  location: 'Olay yeri',
+  classification: 'Sınıflandırma',
+  event_date: 'Olay tarihi',
+  event_type: 'Olay tipi',
+  company_id: 'Firma',
+  branch_id: 'Şube',
+  email: 'E-posta',
+  password: 'Şifre',
+  full_name: 'Ad soyad',
+  name: 'Ad',
+  phone: 'Telefon',
+  title: 'Başlık',
+  description: 'Açıklama',
+  visit_date: 'Ziyaret tarihi',
+  subject: 'Konu',
+  notes: 'Notlar',
+  safety_specialist: 'İSG uzmanı',
+  workplace_physician: 'İşyeri hekimi',
+  employer_representative: 'İşveren / vekili',
+  recorded_by_name: 'Kaydeden',
+  witness_names: 'Şahit isimleri',
+  probability: 'Olasılık',
+  severity: 'Şiddet',
+  start_date: 'Başlangıç tarihi',
+  end_date: 'Bitiş tarihi',
+  valid_from: 'Geçerlilik başlangıcı',
+  valid_until: 'Geçerlilik bitişi',
+};
+
+function fieldLabelTr(field) {
+  if (!field) return '';
+  return FIELD_LABELS_TR[field] || field;
+}
+
+function localizeValidationMsg(rawMsg) {
+  let msg = String(rawMsg || '').trim();
+  if (!msg) return 'Geçersiz değer';
+  // Pydantic bazen "Value error, ..." öneki koyar
+  if (/^value error[,:]?\s*/i.test(msg)) msg = msg.replace(/^value error[,:]?\s*/i, '');
+  const low = msg.toLowerCase();
+
+  let m = low.match(/at least (\d+) characters?/);
+  if (m) return `en az ${m[1]} karakter olmalıdır`;
+  m = low.match(/at most (\d+) characters?/);
+  if (m) return `en fazla ${m[1]} karakter olabilir`;
+  m = low.match(/should have at least (\d+)/);
+  if (m) return `en az ${m[1]} karakter olmalıdır`;
+  m = low.match(/ensure this value has at least (\d+)/);
+  if (m) return `en az ${m[1]} karakter olmalıdır`;
+
+  if (low.includes('field required') || low === 'missing' || low.includes('field required')) {
+    return 'bu alan zorunludur';
+  }
+  if (low.includes('input should be a valid integer') || low.includes('not a valid integer')) {
+    return 'geçerli bir sayı giriniz';
+  }
+  if (low.includes('input should be a valid number') || low.includes('not a valid float')) {
+    return 'geçerli bir sayı giriniz';
+  }
+  if (low.includes('input should be a valid date') || low.includes('invalid date')) {
+    return 'geçerli bir tarih giriniz (YYYY-AA-GG)';
+  }
+  if (low.includes('input should be a valid datetime')) {
+    return 'geçerli bir tarih/saat giriniz';
+  }
+  if (low.includes('input should be a valid email') || low.includes('value is not a valid email')) {
+    return 'geçerli bir e-posta adresi giriniz';
+  }
+  if (low.includes('input should be a valid boolean')) {
+    return 'geçerli bir evet/hayır değeri giriniz';
+  }
+  if (low.includes('string does not match') || low.includes('string should match')) {
+    return 'girilen biçim geçersiz';
+  }
+  if (low.includes('none is not an allowed') || low.includes('input should be a valid string')) {
+    return 'bu alan boş bırakılamaz';
+  }
+  // İngilizce kalmış genel "String should..." kalıpları
+  if (low.startsWith('string should ')) {
+    return msg.replace(/^String should /i, 'Metin ').replace(/^string should /i, 'Metin ');
+  }
+  return msg;
+}
+
 async function parseError(response) {
   const data = await response.json().catch(() => ({}));
   const detail = data.detail;
-  const message = Array.isArray(detail)
-    ? detail.map((d) => (typeof d === "string" ? d : d.msg || JSON.stringify(d))).join("; ")
-    : detail || `İşlem tamamlanamadı (HTTP ${response.status}).`;
-  return typeof message === "string" ? message : JSON.stringify(message);
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((d) => {
+        if (typeof d === "string") return localizeValidationMsg(d);
+        const loc = (d.loc || []).filter((x) => x !== "body" && x !== "query" && x !== "path");
+        const field = loc.length ? String(loc[loc.length - 1]) : "";
+        const msg = localizeValidationMsg(d.msg || JSON.stringify(d));
+        const label = fieldLabelTr(field);
+        return label ? `${label}: ${msg}` : msg;
+      })
+      .join(" · ");
+  }
+  return detail ? String(detail) : `İşlem tamamlanamadı (HTTP ${response.status}).`;
 }
 
 /**
@@ -174,10 +271,22 @@ export async function uploadFile(path, file) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const detail = data.detail;
-    const message = Array.isArray(detail)
-      ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ")
-      : detail || "Dosya yüklenemedi.";
-    throw new Error(message);
+    if (typeof detail === "string" && detail.trim()) throw new Error(detail);
+    if (Array.isArray(detail)) {
+      throw new Error(
+        detail
+          .map((d) => {
+            if (typeof d === "string") return localizeValidationMsg(d);
+            const loc = (d.loc || []).filter((x) => x !== "body" && x !== "query" && x !== "path");
+            const field = loc.length ? String(loc[loc.length - 1]) : "";
+            const msg = localizeValidationMsg(d.msg || JSON.stringify(d));
+            const label = fieldLabelTr(field);
+            return label ? `${label}: ${msg}` : msg;
+          })
+          .join(" · "),
+      );
+    }
+    throw new Error("Dosya yüklenemedi.");
   }
   return data;
 }
