@@ -1,33 +1,33 @@
 {
   "target_api": "https://isg-suite-api-1u9t.onrender.com",
   "target_web": "https://www.isgsuite.tr",
-  "passed": 13,
+  "passed": 16,
   "failed": 0,
-  "total": 13,
-  "cold_start_ms": 276.7,
-  "warm_ms": 277.9,
+  "total": 16,
+  "cold_start_ms": 308.9,
+  "warm_ms": 743.4,
   "auth_mode": "public_only",
   "results": [
     {
       "test": "live_health_cold",
       "ok": true,
       "http": 200,
-      "ms": 276.7,
-      "detail": "version=0.9.62 cold_ms=277"
+      "ms": 308.9,
+      "detail": "version=0.9.64 cold_ms=309"
     },
     {
       "test": "live_version_recent",
       "ok": true,
       "http": null,
       "ms": null,
-      "detail": "version=0.9.62"
+      "detail": "version=0.9.64"
     },
     {
       "test": "live_rate_limit_marker",
       "ok": true,
       "http": null,
       "ms": null,
-      "detail": "{'rate_limit': 'simple-rpm-120', 'secret_key_guard': 'prod-block-default', 'health_roles': 'no-company-admin', 'oversight_score': 'no-vacuous-pass-v2', 'upload_security': 'magic-byte-quarantine', 'ga_osgb_fallback': 'user-or-first-active'}"
+      "detail": "{'rate_limit': 'simple-rpm-120', 'secret_key_guard': 'prod-block-default', 'health_roles': 'no-company-admin', 'oversight_score': 'no-vacuous-pass-v2', 'upload_security': 'magic-byte-quarantine', 'ga_osgb_fallback': 'user-or-first-active', 'schema_bootstrap': 'alembic-only-v1'}"
     },
     {
       "test": "live_ga_osgb_marker",
@@ -37,45 +37,66 @@
       "detail": "user-or-first-active"
     },
     {
+      "test": "live_schema_bootstrap",
+      "ok": true,
+      "http": null,
+      "ms": null,
+      "detail": "alembic-only-v1"
+    },
+    {
+      "test": "live_clamav_marker",
+      "ok": true,
+      "http": null,
+      "ms": null,
+      "detail": "disabled"
+    },
+    {
+      "test": "live_render_warmup",
+      "ok": true,
+      "http": null,
+      "ms": null,
+      "detail": "cron-14m"
+    },
+    {
       "test": "live_health_warm",
       "ok": true,
       "http": 200,
-      "ms": 277.9,
-      "detail": "warm_last=278 warm_p95~=332 samples=[256.2865999643691, 232.0103999809362, 332.4134999420494, 233.18079998716712, 277.89760002633557]"
+      "ms": 743.4,
+      "detail": "warm_last=743 warm_p95~=743 samples=[228.99540001526475, 233.65330003434792, 211.6068999748677, 226.03849996812642, 743.3966000098735]"
     },
     {
       "test": "live_health_latency_budget",
       "ok": true,
       "http": null,
       "ms": null,
-      "detail": "cold_min=248 cold_max=668 warm_p95=332"
+      "detail": "cold_min=232 cold_max=309 warm_p95=743"
     },
     {
       "test": "live_docs_exposed",
       "ok": true,
       "http": 200,
-      "ms": 307.0,
+      "ms": 212.1,
       "detail": "INFO: /docs açık olabilir"
     },
     {
       "test": "live_companies_no_token",
       "ok": true,
       "http": 401,
-      "ms": 306.5,
+      "ms": 210.2,
       "detail": ""
     },
     {
       "test": "live_verify_invalid",
       "ok": true,
       "http": 200,
-      "ms": 229.0,
+      "ms": 224.1,
       "detail": "['valid', 'verification_code', 'participant_count', 'message']"
     },
     {
       "test": "live_system_health",
       "ok": true,
       "http": 200,
-      "ms": 283.1,
+      "ms": 273.2,
       "detail": ""
     },
     {
@@ -89,14 +110,14 @@
       "test": "live_web_home",
       "ok": true,
       "http": 200,
-      "ms": 386.8,
+      "ms": 102.2,
       "detail": "https://www.isgsuite.tr"
     },
     {
       "test": "live_cors_preflight",
       "ok": true,
       "http": 200,
-      "ms": 260.6,
+      "ms": 263.5,
       "detail": "ACA-Origin=https://www.isgsuite.tr"
     }
   ]

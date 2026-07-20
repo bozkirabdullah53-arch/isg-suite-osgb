@@ -111,6 +111,21 @@ def main() -> int:
                     markers.get("ga_osgb_fallback") == "user-or-first-active",
                     detail=str(markers.get("ga_osgb_fallback")),
                 )
+                rec(
+                    "live_schema_bootstrap",
+                    markers.get("schema_bootstrap") == "alembic-only-v1",
+                    detail=str(markers.get("schema_bootstrap")),
+                )
+                rec(
+                    "live_clamav_marker",
+                    markers.get("clamav_scan") in ("disabled", "enabled"),
+                    detail=str(markers.get("clamav_scan")),
+                )
+                rec(
+                    "live_render_warmup",
+                    markers.get("render_warmup") == "cron-14m",
+                    detail=str(markers.get("render_warmup")),
+                )
         warm_samples = []
         for _ in range(5):
             r2, ms2 = timed_get(client, "/health")

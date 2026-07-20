@@ -1,0 +1,17 @@
+{
+  "passed": 2,
+  "failed": 0,
+  "total": 2,
+  "results": [
+    {
+      "test": "pdf_attendance_turkish",
+      "ok": true,
+      "detail": "bytes=48623 DejaVu+Unicode"
+    },
+    {
+      "test": "pdf_incident_turkish",
+      "ok": true,
+      "detail": "bytes=47444 DejaVu+Unicode"
+    }
+  ]
+}
