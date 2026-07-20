@@ -1,6 +1,6 @@
 import enum
 from datetime import date, datetime
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -25,6 +25,7 @@ class OsgbOrganization(Base):
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     address: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -332,6 +333,9 @@ class AuditLog(Base):
     entity_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     description: Mapped[str | None] = mapped_column(String(1200), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    module: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
@@ -397,6 +401,8 @@ class OsgbApplication(Base):
     applicant_name: Mapped[str] = mapped_column(String(160))
     applicant_email: Mapped[str] = mapped_column(String(255))
     notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    contract_accepted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    personal_data_accepted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     status: Mapped[OsgbApplicationStatus] = mapped_column(
         Enum(OsgbApplicationStatus), default=OsgbApplicationStatus.PENDING, index=True
     )
@@ -408,11 +414,105 @@ class OsgbApplication(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class EisaPackage(Base):
+    __tablename__ = "eisa_packages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    price_monthly: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
+    price_yearly: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
+    max_users: Mapped[int] = mapped_column(default=50)
+    max_workplaces: Mapped[int] = mapped_column(default=100)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    sort_order: Mapped[int] = mapped_column(default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class EisaPaymentStatus(str, enum.Enum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    REFUNDED = "refunded"
+
+
+class EisaSubscriptionPayment(Base):
+    __tablename__ = "eisa_subscription_payments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    reference_no: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    osgb_id: Mapped[int] = mapped_column(ForeignKey("osgb_organizations.id"), index=True)
+    subscription_id: Mapped[int | None] = mapped_column(
+        ForeignKey("osgb_subscriptions.id"), nullable=True, index=True
+    )
+    amount: Mapped[float] = mapped_column(Numeric(12, 2))
+    currency: Mapped[str] = mapped_column(String(8), default="TRY")
+    payment_method: Mapped[PaymentChannel | None] = mapped_column(Enum(PaymentChannel), nullable=True)
+    payment_status: Mapped[EisaPaymentStatus] = mapped_column(
+        Enum(EisaPaymentStatus), default=EisaPaymentStatus.COMPLETED, index=True
+    )
+    payment_date: Mapped[datetime] = mapped_column(DateTime, index=True)
+    description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    period_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    period_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    recorded_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EisaNotificationChannel(str, enum.Enum):
+    IN_APP = "in_app"
+    EMAIL = "email"
+    SMS = "sms"
+
+
+class EisaNotificationTarget(str, enum.Enum):
+    ALL_OSGB = "all_osgb"
+    SELECTED_OSGB = "selected_osgb"
+
+
+class EisaNotificationDeliveryStatus(str, enum.Enum):
+    QUEUED = "queued"
+    SENT = "sent"
+    FAILED = "failed"
+    READ = "read"
+
+
+class EisaPlatformNotification(Base):
+    __tablename__ = "eisa_platform_notifications"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    channel: Mapped[EisaNotificationChannel] = mapped_column(Enum(EisaNotificationChannel), index=True)
+    target_scope: Mapped[EisaNotificationTarget] = mapped_column(Enum(EisaNotificationTarget))
+    target_osgb_id: Mapped[int | None] = mapped_column(
+        ForeignKey("osgb_organizations.id"), nullable=True, index=True
+    )
+    title: Mapped[str] = mapped_column(String(220))
+    message: Mapped[str] = mapped_column(String(2000))
+    status: Mapped[EisaNotificationDeliveryStatus] = mapped_column(
+        Enum(EisaNotificationDeliveryStatus), default=EisaNotificationDeliveryStatus.QUEUED, index=True
+    )
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class EisaPlatformSetting(Base):
+    __tablename__ = "eisa_platform_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    value: Mapped[str] = mapped_column(String(2000))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class OsgbSubscription(Base):
     __tablename__ = "osgb_subscriptions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     osgb_id: Mapped[int] = mapped_column(ForeignKey("osgb_organizations.id"), unique=True, index=True)
+    package_id: Mapped[int | None] = mapped_column(ForeignKey("eisa_packages.id"), nullable=True, index=True)
     plan: Mapped[OsgbSubscriptionPlan] = mapped_column(
         Enum(OsgbSubscriptionPlan), default=OsgbSubscriptionPlan.STANDARD
     )

@@ -13,6 +13,9 @@ router = APIRouter(prefix="/osgb-applications", tags=["OSGB Başvuru"])
 
 @router.post("", response_model=OsgbApplicationResponse, status_code=201)
 def submit_application(payload: OsgbApplicationCreate, db: Session = Depends(get_db)):
+    if not payload.contract_accepted or not payload.personal_data_accepted:
+        raise HTTPException(400, "Sözleşme ve kişisel verilerin korunması onayı zorunludur.")
+
     pending = db.scalar(
         select(OsgbApplication).where(
             OsgbApplication.status == OsgbApplicationStatus.PENDING,
@@ -38,6 +41,8 @@ def submit_application(payload: OsgbApplicationCreate, db: Session = Depends(get
         applicant_name=payload.applicant_name.strip(),
         applicant_email=str(payload.applicant_email).lower(),
         notes=payload.notes,
+        contract_accepted=payload.contract_accepted,
+        personal_data_accepted=payload.personal_data_accepted,
         status=OsgbApplicationStatus.PENDING,
         matched_osgb_id=matched.id if matched else None,
         auto_matched=bool(matched),

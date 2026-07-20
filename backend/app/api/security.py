@@ -53,9 +53,12 @@ def list_audit_logs(
             "user_id": r.user_id,
             "company_id": r.company_id,
             "action": r.action,
+            "module": r.module,
             "entity_type": r.entity_type,
             "entity_id": r.entity_id,
             "description": r.description,
+            "old_value": r.old_value,
+            "new_value": r.new_value,
             "ip_address": r.ip_address,
             "created_at": r.created_at,
         }

@@ -14,6 +14,8 @@ class OsgbApplicationCreate(BaseModel):
     applicant_name: str = Field(min_length=2, max_length=160)
     applicant_email: EmailStr
     notes: str | None = Field(default=None, max_length=2000)
+    contract_accepted: bool
+    personal_data_accepted: bool
 
 
 class OsgbApplicationResponse(BaseModel):
@@ -46,17 +48,27 @@ class OsgbSubscriptionResponse(BaseModel):
     id: int
     osgb_id: int
     osgb_name: str | None = None
+    responsible_manager: str | None = None
+    contact_email: str | None = None
+    contact_phone: str | None = None
+    package_id: int | None = None
+    package_name: str | None = None
     plan: str
     status: str
     effective_status: str
     write_allowed: bool
+    days_remaining: int | None = None
     trial_ends_at: datetime | None
     current_period_ends_at: datetime | None
     max_users: int
     max_workplaces: int
     last_payment_channel: str | None
+    last_payment_date: datetime | None = None
+    last_payment_amount: float | None = None
+    payment_status: str | None = None
     payment_notes: str | None
     is_auto_renew: bool
+    account_active: bool = True
     created_at: datetime
     updated_at: datetime
 
@@ -65,6 +77,7 @@ class OsgbSubscriptionResponse(BaseModel):
 
 class OsgbSubscriptionUpdate(BaseModel):
     status: str | None = None
+    package_id: int | None = None
     trial_ends_at: datetime | None = None
     current_period_ends_at: datetime | None = None
     max_users: int | None = Field(default=None, ge=1, le=10000)

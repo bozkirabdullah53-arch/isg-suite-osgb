@@ -11,6 +11,9 @@ def add_audit_log(
     entity_id: str | None = None,
     description: str | None = None,
     ip_address: str | None = None,
+    module: str | None = None,
+    old_value: str | None = None,
+    new_value: str | None = None,
 ) -> None:
     db.add(
         AuditLog(
@@ -21,5 +24,8 @@ def add_audit_log(
             entity_id=entity_id,
             description=description,
             ip_address=ip_address,
+            module=module,
+            old_value=old_value,
+            new_value=new_value,
         )
     )

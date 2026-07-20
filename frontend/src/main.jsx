@@ -5,7 +5,20 @@ import {api, downloadFile} from './api';import {OsgbDashboard,ProfessionalsPage,
 import {ProPerformancePage} from './pro_performance';
 import {CsgbAuditPackPage} from './csgb_audit_pack';
 import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
-import {EisaPage, OsgbApplyPage} from './eisa';
+import {
+  EisaOverviewPage,
+  EisaOsgbUsersPage,
+  EisaSubscriptionsPage,
+  EisaExpiringSubscriptionsPage,
+  EisaExpiredSubscriptionsPage,
+  EisaPaymentsPage,
+  EisaPackagesPage,
+  EisaNotificationsPage,
+  EisaReportsPage,
+  EisaAuditLogsPage,
+  EisaSystemSettingsPage,
+  OsgbApplyPage,
+} from './eisa';
 import './styles.css';
 const roles={global_admin:'EİSA Yönetici',company_admin:'Firma Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 /**
@@ -15,13 +28,18 @@ const roles={global_admin:'EİSA Yönetici',company_admin:'Firma Yöneticisi',sa
  */
 const roleModules={
   global_admin:[
-    'eisa',
-    'osgb_dashboard','osgb_oversight','pro_performance',
-    'professionals','assignments',
-    'companies','branches',
-    'crm','finance',
-    'csgb_audit',
-    'notifications','users','subscription','security',
+    // SaaS-only EİSA kontrol paneli (operasyon modülleri yok)
+    'eisa_overview',
+    'eisa_osgb_users',
+    'eisa_subscriptions',
+    'eisa_subscriptions_expiring',
+    'eisa_subscriptions_expired',
+    'eisa_payments',
+    'eisa_packages',
+    'eisa_notifications',
+    'eisa_reports',
+    'eisa_audit_logs',
+    'eisa_system_settings',
   ],
   company_admin:[
     'osgb_dashboard','dashboard',
@@ -50,7 +68,17 @@ const roleModules={
   read_only:['dashboard'],
 };
 const menuCatalog={
-  eisa:['EİSA Platform',ShieldCheck],
+  eisa_overview:['Genel Bakış',LayoutDashboard],
+  eisa_osgb_users:['OSGB Kullanıcıları',Users],
+  eisa_subscriptions:['Abonelik Yönetimi',CreditCard],
+  eisa_subscriptions_expiring:['Süresi Yaklaşan Abonelikler',CalendarDays],
+  eisa_subscriptions_expired:['Süresi Dolan Abonelikler',AlertTriangle],
+  eisa_payments:['Finans ve Ödemeler',WalletCards],
+  eisa_packages:['Paket Yönetimi',BriefcaseBusiness],
+  eisa_notifications:['Bilgilendirmeler',Bell],
+  eisa_reports:['Raporlar',BarChart3],
+  eisa_audit_logs:['İşlem Kayıtları',FileText],
+  eisa_system_settings:['Sistem Ayarları',KeyRound],
   osgb_dashboard:['OSGB Ana Panel',LayoutDashboard],
   osgb_oversight:['Hizmet Denetimi',ClipboardCheck],
   pro_performance:['Performans Raporu',BarChart3],
@@ -465,7 +493,8 @@ function App(){
   function goHome(){
     const allowed=roleModules[user?.role]||[];
     let home='';
-    if(allowed.includes('eisa')) home='eisa';
+    if(allowed.includes('eisa_overview')) home='eisa_overview';
+    else if(allowed.includes('eisa')) home='eisa';
     else if(allowed.includes('osgb_dashboard')) home='osgb_dashboard';
     else if(allowed.includes('dashboard')) home='dashboard';
     else home=allowed[0]||'';
@@ -527,7 +556,17 @@ function App(){
     .filter((k)=>menuCatalog[k])
     .map((k)=>[k,menuCatalog[k][0],menuCatalog[k][1]]);
   const pages={
-    eisa:<EisaPage user={user}/>,
+    eisa_overview:<EisaOverviewPage/>,
+    eisa_osgb_users:<EisaOsgbUsersPage/>,
+    eisa_subscriptions:<EisaSubscriptionsPage/>,
+    eisa_subscriptions_expiring:<EisaExpiringSubscriptionsPage/>,
+    eisa_subscriptions_expired:<EisaExpiredSubscriptionsPage/>,
+    eisa_payments:<EisaPaymentsPage/>,
+    eisa_packages:<EisaPackagesPage/>,
+    eisa_notifications:<EisaNotificationsPage/>,
+    eisa_reports:<EisaReportsPage/>,
+    eisa_audit_logs:<EisaAuditLogsPage/>,
+    eisa_system_settings:<EisaSystemSettingsPage/>,
     osgb_dashboard:<OsgbDashboard user={user}/>,
     osgb_oversight:<OsgbOversightPage user={user} onNavigate={goModule}/>,
     pro_performance:<ProPerformancePage user={user}/>,

@@ -290,6 +290,11 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 .mini{padding:7px 10px;font-size:12px;border-radius:8px}.form-grid input[type=number]{width:100%}
 
 .report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}@media(max-width:800px){.report-grid{grid-template-columns:repeat(2,1fr)}}
+.status-badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.status-badge.badge-ok{background:#e5f6ef;color:#08744f}
+.status-badge.badge-warn{background:#fff3d6;color:#92400e}
+.status-badge.badge-danger{background:#ffe2e2;color:#b91c1c}
+.status-badge.badge-muted{background:#f3f4f5;color:#6d7478}
 
 .security-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px}
 .form-grid.single{grid-template-columns:1fr}
