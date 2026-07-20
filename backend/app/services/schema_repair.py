@@ -65,3 +65,42 @@ def repair_schema() -> None:
             with engine.begin() as conn:
                 for stmt in stmts:
                     conn.execute(text(stmt))
+
+    # annual_plan_items.status: canlı Postgres enum etiketi (PLANNED) ≠ uygulama değeri (planned)
+    if "annual_plan_items" in tables and dialect == "postgresql":
+        with engine.begin() as conn:
+            row = conn.execute(
+                text(
+                    """
+                    SELECT data_type, udt_name
+                    FROM information_schema.columns
+                    WHERE table_name = 'annual_plan_items' AND column_name = 'status'
+                    """
+                )
+            ).first()
+            if row:
+                data_type, udt_name = row[0], (row[1] or "")
+                if data_type == "USER-DEFINED" or udt_name == "annualplanstatus":
+                    conn.execute(
+                        text(
+                            """
+                            ALTER TABLE annual_plan_items
+                            ALTER COLUMN status TYPE VARCHAR(40)
+                            USING lower(status::text)
+                            """
+                        )
+                    )
+                    try:
+                        conn.execute(text("DROP TYPE IF EXISTS annualplanstatus"))
+                    except Exception:
+                        pass
+                else:
+                    conn.execute(
+                        text(
+                            """
+                            UPDATE annual_plan_items
+                            SET status = lower(status)
+                            WHERE status IS NOT NULL AND status <> lower(status)
+                            """
+                        )
+                    )

@@ -315,6 +315,8 @@ class AnnualPlanItem(Base):
             AnnualPlanStatus,
             name="annualplanstatus",
             values_callable=lambda enum_cls: [item.value for item in enum_cls],
+            native_enum=False,
+            validate_strings=True,
         ),
         default=AnnualPlanStatus.PLANNED,
     )

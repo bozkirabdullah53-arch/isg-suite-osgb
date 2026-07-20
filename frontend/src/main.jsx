@@ -510,6 +510,9 @@ function Badge({ok}){return <span className={'badge '+(ok?'ok':'off')}>{ok?'Akti
 function Dashboard({summary, user, onNavigate}){
   const field=['safety_specialist','workplace_physician','other_health_personnel'];
   if(field.includes(user?.role)){
+    if(typeof DutyDashboard!=='function'){
+      return <section className="panel"><h3>İSG Özeti</h3><p style={{color:'#b91c1c'}}>Saha paneli yüklenemedi. Sayfayı yenileyin (Ctrl+F5).</p></section>;
+    }
     return <DutyDashboard user={user} summary={summary} onNavigate={onNavigate}/>;
   }
   return <AdminSummaryDashboard summary={summary}/>;

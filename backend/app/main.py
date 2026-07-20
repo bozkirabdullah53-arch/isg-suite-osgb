@@ -40,7 +40,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.83',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.84',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(OsgbSubscriptionWriteMiddleware)
@@ -62,7 +62,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.83',
+        'version': '0.9.84',
         'pdf_layout': 'pro-2026',
         'companies_admin': 'osgb-admin-crud-v1',
         'company_fields': 'address-phone-contact-v1',
@@ -70,7 +70,8 @@ def health():
         'creds_copy': 'clipboard-v1',
         'duty_dashboard_import': 'fixed-v1',
         'annual_plans': 'generate-wake-retry',
-        'annual_plan_status': 'enum-delayed',
+        'annual_plan_status': 'varchar-enum-fix-v1',
+        'annual_plan_holidays': 'tr-workday-shift-v2',
         'oversight_score': 'no-vacuous-pass-v2',
         'health_roles': 'no-company-admin',
         'training_verify_code': 'uuid-unique',

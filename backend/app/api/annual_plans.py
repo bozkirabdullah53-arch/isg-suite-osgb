@@ -18,7 +18,7 @@ from app.schemas.annual_plan import (
     AnnualPlanResponse,
     AnnualPlanUpdate,
 )
-from app.services.tr_calendar import plan_target_date
+from app.services.tr_calendar import is_non_working_day, plan_target_date
 
 router = APIRouter(prefix="/annual-plans", tags=["Yıllık Planlar"])
 
@@ -214,13 +214,28 @@ def generate_template(
             if key in existing_keys:
                 continue
             target = plan_target_date(payload.year, month, 15)
+            # Son güvenlik: tatil/hafta sonuna asla yazma
+            if is_non_working_day(target):
+                from app.services.tr_calendar import next_workday
+                import calendar as cal
+
+                target = next_workday(target)
+                if target.month != month:
+                    last = cal.monthrange(payload.year, month)[1]
+                    target = plan_target_date(payload.year, month, last)
             note_extra = notes or ""
-            if target.day != 15:
+            preferred = date(payload.year, month, min(15, cal_last_day(payload.year, month)))
+            if target != preferred:
                 shift_note = (
                     f"Hedef {target.strftime('%d.%m.%Y')} "
-                    "(hafta sonu/resmi tatil nedeniyle kaydırıldı)."
+                    "(hafta sonu/resmi tatil nedeniyle iş gününe kaydırıldı)."
                 )
                 note_extra = f"{note_extra} {shift_note}".strip() if note_extra else shift_note
+            if is_non_working_day(target):
+                raise HTTPException(
+                    500,
+                    f"Hedef tarih tatil/hafta sonuna düştü ({target}) — plan üretimi iptal.",
+                )
             db.add(
                 AnnualPlanItem(
                     company_id=payload.company_id,
@@ -239,6 +254,9 @@ def generate_template(
             targets.append(target.isoformat())
             created += 1
         db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as exc:
         db.rollback()
         raise HTTPException(
@@ -253,13 +271,20 @@ def generate_template(
         "skipped_existing": len(TEMPLATE) - created,
         "template_size": len(TEMPLATE),
         "workday_adjusted": True,
+        "holiday_safe": True,
         "target_dates": targets,
         "message": (
-            f"{created} madde eklendi."
+            f"{created} madde eklendi (tatil/hafta sonu hedefleri iş gününe kaydırıldı)."
             if created
             else "Tüm şablon maddeleri zaten mevcut — yeni kayıt eklenmedi."
         ),
     }
+
+
+def cal_last_day(year: int, month: int) -> int:
+    import calendar as cal
+
+    return cal.monthrange(year, month)[1]
 
 
 @router.get("/export.txt")
