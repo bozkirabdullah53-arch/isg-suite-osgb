@@ -1,6 +1,6 @@
 {
-  "passed": 44,
-  "failed": 1,
+  "passed": 45,
+  "failed": 0,
   "total": 45,
   "results": [
     {
@@ -37,7 +37,7 @@
       "test": "health_root",
       "ok": true,
       "http": 200,
-      "detail": "version=0.9.55"
+      "detail": "version=0.9.58"
     },
     {
       "test": "companies_list_ga",
@@ -103,7 +103,7 @@
       "test": "annual_plan_generate",
       "ok": true,
       "http": 200,
-      "detail": "{'company_id': 1, 'year': 2026, 'created': 0, 'skipped_existing': 13, 'template_size': 13, 'workday_adjusted': True, 'target_dates': [], 'message': 'Tüm şablon "
+      "detail": "{'company_id': 1, 'year': 2026, 'created': 13, 'skipped_existing': 0, 'template_size': 13, 'workday_adjusted': True, 'target_dates': ['2026-01-15', '2026-01-15'"
     },
     {
       "test": "annual_plan_idempotent",
@@ -125,8 +125,8 @@
     },
     {
       "test": "health_company_admin_blocked_or_empty",
-      "ok": false,
-      "http": 200,
+      "ok": true,
+      "http": 403,
       "detail": "CA sağlık PII görmemeli"
     },
     {
