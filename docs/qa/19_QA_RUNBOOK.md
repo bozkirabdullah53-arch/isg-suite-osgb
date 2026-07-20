@@ -28,9 +28,22 @@ python scripts/qa_run_all.py
 | `qa_crud_smoke.py` | CRUD akışları |
 | `qa_upload_export_smoke.py` | Magic-byte + PDF/XLSX export |
 | `qa_pdf_turkish_smoke.py` | DejaVu + Türkçe metin çıkarma |
+| `qa_eisa_archive_smoke.py` | EİSA G1–G6: başvuru, OSGB Sil, arşiv, izolasyon |
 | `qa_live_render_smoke.py` | Canlı Render (public + opsiyonel auth) |
 | `dev_pg_parity.py` | Docker Postgres + alembic |
 | `warmup_ping.py` | Render cron warm-up |
+
+EİSA/arşiv tekil koşum:
+
+```powershell
+cd backend
+$env:DATABASE_URL='sqlite:///./qa_isgsuite.db'
+$env:UPLOAD_DIR='./uploads_qa'
+$env:BACKUP_DIR='./backups_qa'
+$env:ENVIRONMENT='qa'
+python scripts/qa_eisa_archive_smoke.py
+# çıktı: docs/qa/logs/qa-eisa-archive-smoke.json
+```
 
 ## ClamAV (B-01, opsiyonel)
 
@@ -47,8 +60,9 @@ Render prod: `CLAMAV_HOST` env (harici clamd veya worker).
 curl https://isg-suite-api-1u9t.onrender.com/health
 ```
 
-Beklenen (0.9.64+): `schema_bootstrap`, `render_warmup`, `clamav_scan`, `ga_osgb_fallback`.
+Beklenen (0.9.77+): `eisa_platform`, `central_archive`, `tenant_isolation`, `schema_bootstrap`, `render_warmup`, `clamav_scan`.
 
 ## Karar
 
-Nihai kabul: `17_NIHAI_KARAR.md` — açık maddeler: `18_BACKLOG_RISK_KABUL.md`.
+Nihai kabul: `17_NIHAI_KARAR.md` — açık maddeler: `18_BACKLOG_RISK_KABUL.md`.  
+EİSA/arşiv: `21_EISA_ARSIV_SMOKE_RAPORU.md`, `22_O2_O3_ARSIV_SMOKE_RAPORU.md`.

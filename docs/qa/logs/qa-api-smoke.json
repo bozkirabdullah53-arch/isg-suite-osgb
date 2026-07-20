@@ -1,7 +1,7 @@
 {
-  "passed": 45,
+  "passed": 46,
   "failed": 0,
-  "total": 45,
+  "total": 46,
   "results": [
     {
       "test": "login_global_admin",
@@ -37,7 +37,7 @@
       "test": "health_root",
       "ok": true,
       "http": 200,
-      "detail": "version=0.9.64"
+      "detail": "version=0.9.77"
     },
     {
       "test": "companies_list_ga",
@@ -136,10 +136,16 @@
       "detail": "{\"detail\":\"Bu firmaya erişemezsiniz — yalnızca görevlendirildiğiniz işyerleri.\"}"
     },
     {
-      "test": "idor_uzman_employees_other_firm",
+      "test": "idor_uzman_same_osgb_assigned_firm",
+      "ok": true,
+      "http": 200,
+      "detail": "assignment-scoped OK"
+    },
+    {
+      "test": "idor_uzman_cross_osgb_employees",
       "ok": true,
       "http": 403,
-      "detail": ""
+      "detail": "{\"detail\":\"Bu firmaya erişemezsiniz — yalnızca görevlendirildiğiniz işyerleri.\"}"
     },
     {
       "test": "risks_meta_specialist",
@@ -151,7 +157,7 @@
       "test": "risks_list_specialist",
       "ok": true,
       "http": 200,
-      "detail": "n=5"
+      "detail": "n=19"
     },
     {
       "test": "risks_meta_ga",
@@ -163,7 +169,7 @@
       "test": "risks_list_ga",
       "ok": true,
       "http": 200,
-      "detail": "n=5"
+      "detail": "n=19"
     },
     {
       "test": "risks_seed_library",
@@ -187,7 +193,7 @@
       "test": "trainings_list",
       "ok": true,
       "http": 200,
-      "detail": "n=2"
+      "detail": "n=4"
     },
     {
       "test": "trainings_sectors",
@@ -271,7 +277,7 @@
       "test": "rate_limit_middleware_registered",
       "ok": true,
       "http": null,
-      "detail": "middleware=['CORSMiddleware', 'SimpleRateLimitMiddleware', 'SecurityHeadersMiddleware']; EXPECT FAIL if SimpleRateLimit not added — known P0"
+      "detail": "middleware=['CORSMiddleware', 'SimpleRateLimitMiddleware', 'OsgbSubscriptionWriteMiddleware', 'SecurityHeadersMiddleware']; EXPECT FAIL if SimpleRateLimit not added — known P0"
     }
   ],
   "note": "Isolated QA only; Phase 8 fixes not applied"

@@ -31,6 +31,7 @@ SUITES: list[tuple[str, list[str]]] = [
     ("qa_crud_smoke", ["scripts/qa_crud_smoke.py"]),
     ("qa_upload_export_smoke", ["scripts/qa_upload_export_smoke.py"]),
     ("qa_pdf_turkish_smoke", ["scripts/qa_pdf_turkish_smoke.py"]),
+    ("qa_eisa_archive_smoke", ["scripts/qa_eisa_archive_smoke.py"]),
 ]
 
 if os.environ.get("QA_INCLUDE_LIVE", "").strip().lower() in ("1", "true", "yes"):
@@ -46,7 +47,15 @@ def run_suite(name: str, args: list[str]) -> dict:
         "ENVIRONMENT": os.environ.get("ENVIRONMENT", "qa"),
         "SECRET_KEY": os.environ.get("SECRET_KEY", "qa-test-secret-key-at-least-32-characters-ok"),
     }
-    proc = subprocess.run([PY, *args], cwd=ROOT, env=env, capture_output=True, text=True)
+    proc = subprocess.run(
+        [PY, *args],
+        cwd=ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
     ms = round((time.perf_counter() - t0) * 1000, 1)
     ok = proc.returncode == 0
     tail = (proc.stdout or proc.stderr or "").strip().splitlines()

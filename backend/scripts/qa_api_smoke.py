@@ -133,8 +133,18 @@ def main():
         rec("idor_ca_employees_other_firm", ok, http=steal.status_code, detail=steal.text[:100])
     if uzman_tok and cid2:
         steal2 = client.get(f"/api/v1/employees?company_id={cid2}", headers=H(uzman_tok))
-        ok2 = steal2.status_code in (403, 422) or (steal2.status_code == 200 and len(steal2.json()) == 0)
-        rec("idor_uzman_employees_other_firm", ok2, http=steal2.status_code)
+        # Seed: aynı OSGB'de uzman tüm firmalara görevli → 200 beklenir; IDOR değil
+        ok2 = steal2.status_code == 200
+        rec("idor_uzman_same_osgb_assigned_firm", ok2, http=steal2.status_code, detail="assignment-scoped OK")
+    # Gerçek IDOR: yabancı OSGB firması
+    if uzman_tok and tok:
+        foreign = next((c for c in firm_list if "Yabanci" in str(c.get("name", "")) or "Yabancı" in str(c.get("name", ""))), None)
+        if foreign:
+            steal3 = client.get(f"/api/v1/employees?company_id={foreign['id']}", headers=H(uzman_tok))
+            ok3 = steal3.status_code in (403, 422) or (steal3.status_code == 200 and len(steal3.json()) == 0)
+            rec("idor_uzman_cross_osgb_employees", ok3, http=steal3.status_code, detail=steal3.text[:100])
+        else:
+            rec("idor_uzman_cross_osgb_employees", False, detail="Yabanci OSGB firmasi yok")
 
     # --- Risk / incidents / PPE / training ---
     for role, tkn, label in (("uzman", uzman_tok, "specialist"), ("ga", tok, "ga")):

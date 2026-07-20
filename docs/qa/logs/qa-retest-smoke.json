@@ -1,7 +1,7 @@
 {
-  "passed": 29,
+  "passed": 30,
   "failed": 0,
-  "total": 29,
+  "total": 30,
   "results": [
     {
       "test": "secret_key_prod_blocks_default",
@@ -19,7 +19,7 @@
       "test": "rate_limit_registered",
       "ok": true,
       "http": null,
-      "detail": "['CORSMiddleware', 'SimpleRateLimitMiddleware', 'SecurityHeadersMiddleware']"
+      "detail": "['CORSMiddleware', 'SimpleRateLimitMiddleware', 'OsgbSubscriptionWriteMiddleware', 'SecurityHeadersMiddleware']"
     },
     {
       "test": "login_ga",
@@ -40,10 +40,16 @@
       "detail": "{\"detail\":\"Bu firmaya erişemezsiniz — yalnızca görevlendirildiğiniz işyerleri.\"}"
     },
     {
-      "test": "tenant_uzman_other_firm_employees",
+      "test": "tenant_uzman_same_osgb_assigned_firm",
+      "ok": true,
+      "http": 200,
+      "detail": "assignment-scoped"
+    },
+    {
+      "test": "tenant_uzman_cross_osgb_employees",
       "ok": true,
       "http": 403,
-      "detail": ""
+      "detail": "{\"detail\":\"Bu firmaya erişemezsiniz — yalnızca görevlendirildiğiniz işyerleri.\"}"
     },
     {
       "test": "tenant_ca_risks_no_500",

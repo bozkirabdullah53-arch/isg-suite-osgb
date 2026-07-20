@@ -1,9 +1,11 @@
 # 01 — Proje Envanteri (Aşama 1: Salt Okunur)
 
 **Proje:** İSG Suite OSGB  
-**Sürüm (kod):** `0.9.46` (`backend/app/main.py`)  
-**Tarih:** 2026-07-20  
-**Kapsam:** Kaynak kod analizi — kod değişikliği yok, canlı DB kullanılmadı.
+**Sürüm (kod / canlı):** `0.9.77` (`backend/app/main.py`)  
+**Tarih:** 2026-07-20 (güncelleme: EİSA + arşiv delta)  
+**Kapsam:** Kaynak kod analizi — bu dosyanın ilk sürümü 0.9.46 içindi; aşağıdaki tablo 0.9.77’ye güncellendi.
+
+> Delta regresyon: [`20_DELTA_REGRESSION_077.md`](20_DELTA_REGRESSION_077.md)
 
 ---
 
@@ -11,22 +13,21 @@
 
 | Alan | Tespit edilen yapı | Durum | Risk veya not |
 | --- | --- | --- | --- |
-| Frontend | React 19.2 + Vite 6.4, tek SPA (`main.jsx` shell), Lucide; `frontend/src/*.jsx` | Mevcut | TypeScript pakette var, kaynak JS; React Router yok |
-| Backend | FastAPI, 23 router, `/api/v1` + kök `/health` | Mevcut | OpenAPI canlıda açık olabilir |
-| Veritabanı | SQLAlchemy modelleri (~30 tablo); Alembic 0001–0012; SQLite local / PostgreSQL canlı | Mevcut | `create_all` + lifespan ALTER ile Alembic paralel → drift riski |
-| Kimlik doğrulama | JWT (HS256), OAuth2 password, bcrypt/passlib | Mevcut | Varsayılan `SECRET_KEY` kodda; refresh/MFA yok |
-| Yetkilendirme | `UserRole` 6 rol; `require_roles` + `company_access` (görevlendirme kapsamı) | Mevcut | Menü ≠ API yetkisi; izolasyon Aşama 4’te doğrulanacak |
-| Dosya yönetimi | `UPLOAD_DIR`, multipart; sözleşme/ziyaret defteri/risk medya/sağlık raporu/PPE foto | Kısmi | Doküman UI’da binary yükleme yok; antivirüs yok |
-| PDF | ReportLab + DejaVu font; eğitim, risk, olay, özet | Mevcut | Türkçe/taşma Aşama 3’te doğrulanacak |
-| Excel | OpenPyXL; personel import, eğitim parse, risk/PPE/sağlık export | Mevcut | Büyük dosya / formül enjeksiyonu test edilmedi |
-| Bildirim | `notifications` API + yeniden üretme servisi | Mevcut | SMTP isteğe bağlı; e-posta altyapısı UI’da “henüz yok” |
-| Abonelik | `subscriptions` okuma + GA güncelleme | Kısmi | Ödeme sağlayıcısı **yok** |
-| Yedekleme | `scripts/backup_database.py` (SQLite copy / pg_dump) | Mevcut | Yüklenen dosyalar ayrı; restore dokümante |
-| Loglama | `AuditLog` + `services/audit.py`; güvenlik ekranından okuma | Kısmi | Tüm işlemlerin loglanıp loglanmadığı test edilmedi |
-| Dış servisler | SMTP opsiyonel; ödeme/SMS/e-imza/İBYS/antivirüs/bulut depo **yok** | Eksik entegrasyon | Çalışıyor sayılmamalı |
-| Rate limiting | `SimpleRateLimitMiddleware` yazılmış | **Kapalı** | `main.py`’de `add_middleware` yok → brute-force riski |
-| Deploy | `render.yaml`, Docker Compose, frontend nginx SPA rewrite | Mevcut | Cold-start / Failed to fetch bilinen operasyonel risk |
-| Otomatik test | 5 pytest dosyası (smoke, access unit, training, oversight) | Zayıf | HTTP/IDOR/sağlık gizlilik entegrasyon testi yok |
+| Frontend | React 19 + Vite 6 SPA; `main.jsx` + `eisa.jsx` + modül JSX | Mevcut | React Router yok; GA menüsü SaaS-only |
+| Backend | FastAPI, ~26 router (`eisa`, `osgb_applications`, `archives` dahil), `/api/v1` + `/health` | Mevcut | OpenAPI prod’da açık olabilir |
+| Veritabanı | SQLAlchemy; Alembic **0001–0019**; SQLite local / PostgreSQL canlı | Mevcut | QA DB migration drift → smoke 500 (bu turda düzeltildi) |
+| Kimlik doğrulama | JWT HS256, OAuth2 password, bcrypt | Mevcut | MFA / refresh yok |
+| Yetkilendirme | 6 rol + `company_access` + `tenant_access` | Mevcut | GA tüm tenant; izolasyon pytest + smoke OK |
+| Dosya yönetimi | Multipart; magic-byte + karantina; ClamAV opsiyonel | Kısmi | ClamAV prod’da disabled (risk kabulü) |
+| PDF / Excel | ReportLab DejaVu / OpenPyXL | Mevcut | Smoke OK |
+| Bildirim | OSGB deadline scan + EİSA platform bildirimleri | Mevcut | SMTP opsiyonel |
+| Abonelik | OSGB subscription + EİSA paket/ödeme (manuel) | Kısmi | Ödeme gateway **yok** |
+| Yedekleme | `backup_database.py` + **merkezi arşiv** (`central_archive`) | Mevcut | Tenant zip + silme öncesi kopya; HTTP smoke eksik |
+| Loglama | `AuditLog` + EİSA old/new | Mevcut | — |
+| Dış servisler | SMTP opsiyonel; ödeme/SMS/e-imza/İBYS/AV motoru yok | Eksik entegrasyon | Çalışıyor sayılmamalı |
+| Rate limiting | `SimpleRateLimitMiddleware` (120 rpm) | Mevcut | Kayıtlı |
+| Deploy | Render + Docker Compose | Mevcut | Warm-up cron |
+| Otomatik test | pytest 53 + 6 smoke script | Mevcut | EİSA/arsiv HTTP smoke henüz yok |
 
 ---
 
@@ -35,12 +36,12 @@
 ```
 isg-suite-osgb/
 ├── backend/app/{api,core,models,schemas,services}
-├── backend/alembic/versions/0001…0012
+├── backend/alembic/versions/0001…0019
 ├── backend/tests/
-├── backend/scripts/ (seed, backup, audit smoke)
-├── frontend/src/ (14 JSX + api.js)
+├── backend/scripts/ (seed, backup, qa_*.py)
+├── frontend/src/ (main/eisa + modül JSX)
 ├── render.yaml, docker-compose.yml
-└── docs/
+└── docs/qa/
 ```
 
 ---

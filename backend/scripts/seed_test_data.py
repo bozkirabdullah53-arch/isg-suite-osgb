@@ -218,17 +218,17 @@ def seed(db) -> dict:
         created_users.append(u["email"])
     db.flush()
 
-    # Professionals
+    # Professionals — e-posta, saha kullanıcılarıyla (az firması) eşleşsin (ziyaret/find_professional)
     pros = []
-    for ptype, name, cert in [
-        (ProfessionalType.SAFETY_SPECIALIST, f"{MARKER} Profesyonel Uzman", "TEST-UZM-001"),
-        (ProfessionalType.WORKPLACE_PHYSICIAN, f"{MARKER} Profesyonel Hekim", "TEST-HEK-001"),
-        (ProfessionalType.OTHER_HEALTH_PERSONNEL, f"{MARKER} Profesyonel DSP", "TEST-DSP-001"),
+    for ptype, name, cert, email in [
+        (ProfessionalType.SAFETY_SPECIALIST, f"{MARKER} ISG Uzmani az", "TEST-UZM-001", "test.az.uzman@example.com"),
+        (ProfessionalType.WORKPLACE_PHYSICIAN, f"{MARKER} Isyeri Hekimi az", "TEST-HEK-001", "test.az.hekim@example.com"),
+        (ProfessionalType.OTHER_HEALTH_PERSONNEL, f"{MARKER} DSP az", "TEST-DSP-001", "test.az.dsp@example.com"),
     ]:
         p = IsgProfessional(
             osgb_id=osgb.id,
             full_name=name,
-            email=f"test.pro.{ptype.value}@example.com",
+            email=email,
             phone="05550000999",
             professional_type=ptype,
             certificate_class="A",

@@ -10,4 +10,4 @@ QA kritik kapanış sonrası kalan maddeler (bloke edici değil):
 | B-04 | PDF piksel/Türkçe font görsel QA | Örnek PDF’lerin manuel/görsel kontrolü | P2 | Kısmi — `qa_pdf_turkish_smoke.py` (DejaVu + pypdf metin çıkarma) |
 | B-05 | Lifespan DDL sadeleştirme | Heal’i migration’a taşıyıp bootstrap’ı incelter | P2 | Kısmi — migration `0015`; lifespan heal kaldırıldı |
 
-Canlı API (2026-07-20): **0.9.64** — `66ea3ef`. Yerel paket: `python scripts/qa_run_all.py` → **7/7** suite OK (pytest 31 + smoke 114+).
+Canlı API (2026-07-20): **0.9.77** — EİSA + `central_archive`. Yerel paket: `python scripts/qa_run_all.py` → **8/8** suite OK (pytest 53 + smoke + `qa_eisa_archive_smoke` 54).

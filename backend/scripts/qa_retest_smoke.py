@@ -85,8 +85,17 @@ def main():
         rec("tenant_ca_other_firm_employees", ok, http=r.status_code, detail=r.text[:80])
     if uzman and cid2:
         r = c.get(f"/api/v1/employees?company_id={cid2}", headers=H(uzman))
-        ok = r.status_code in (403, 422) or (r.status_code == 200 and len(r.json()) == 0)
-        rec("tenant_uzman_other_firm_employees", ok, http=r.status_code)
+        # Seed: uzman aynı OSGB'deki diğer firmaya da görevli → 200
+        ok = r.status_code == 200
+        rec("tenant_uzman_same_osgb_assigned_firm", ok, http=r.status_code, detail="assignment-scoped")
+    if uzman:
+        foreign = next((f for f in firms if "Yabanci" in str(f.get("name", "")) or "Yabancı" in str(f.get("name", ""))), None)
+        if foreign:
+            r = c.get(f"/api/v1/employees?company_id={foreign['id']}", headers=H(uzman))
+            ok = r.status_code in (403, 422) or (r.status_code == 200 and len(r.json()) == 0)
+            rec("tenant_uzman_cross_osgb_employees", ok, http=r.status_code, detail=r.text[:80])
+        else:
+            rec("tenant_uzman_cross_osgb_employees", False, detail="Yabanci firma yok")
     if ca and cid1:
         r = c.get(f"/api/v1/risks?company_id={cid1}", headers=H(ca))
         # CA may or may not have risk access — must not be 500
@@ -137,11 +146,11 @@ def main():
     if dsp:
         r = c.get("/api/v1/health-records", headers=H(dsp))
         rec("health_dsp_ok", r.status_code == 200, http=r.status_code)
-    if hekim:
-        exp = c.get("/api/v1/health-records/export.txt", headers=H(hekim))
+    if hekim and cid1:
+        exp = c.get(f"/api/v1/health-records/export.txt?company_id={cid1}", headers=H(hekim))
         rec("health_hekim_export", exp.status_code in (200, 404), http=exp.status_code)
-    if ca:
-        exp = c.get("/api/v1/health-records/export.txt", headers=H(ca))
+    if ca and cid1:
+        exp = c.get(f"/api/v1/health-records/export.txt?company_id={cid1}", headers=H(ca))
         rec("health_ca_export_denied", exp.status_code in (401, 403), http=exp.status_code)
 
     # --- 5. Upload / files ---
