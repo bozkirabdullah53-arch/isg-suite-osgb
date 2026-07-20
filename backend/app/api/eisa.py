@@ -87,7 +87,7 @@ def list_applications(
     _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
 ):
     stmt = select(OsgbApplication).order_by(OsgbApplication.created_at.desc())
-    if status:
+    if status and status.lower() not in ("all", "*"):
         try:
             st = OsgbApplicationStatus(status)
             stmt = stmt.where(OsgbApplication.status == st)

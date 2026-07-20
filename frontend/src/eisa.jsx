@@ -108,7 +108,7 @@ function fromDatetimeLocalValue(value) {
   return s;
 }
 
-function ApplicationsPanel({ apps, busy, onApprove, onReject }) {
+function ApplicationsPanel({ apps, busy, onApprove, onReject, showActions = true }) {
   return (
     <div className="table-wrap">
       <table>
@@ -118,8 +118,10 @@ function ApplicationsPanel({ apps, busy, onApprove, onReject }) {
             <th>Yetki No</th>
             <th>Vergi No</th>
             <th>Başvuran</th>
+            <th>Durum</th>
             <th>Eşleşme</th>
-            <th></th>
+            <th>Tarih</th>
+            {showActions && <th></th>}
           </tr>
         </thead>
         <tbody>
@@ -129,14 +131,22 @@ function ApplicationsPanel({ apps, busy, onApprove, onReject }) {
               <td>{a.authorization_number}</td>
               <td>{a.tax_number}</td>
               <td>{a.applicant_name}<br /><small>{a.applicant_email}</small></td>
-              <td>{a.auto_matched ? 'Otomatik (mevcut)' : 'Yeni kayıt'}</td>
-              <td>
-                <button type="button" className="icon" title="Onayla" disabled={busy} onClick={() => onApprove(a.id)}><Check size={16} /></button>
-                <button type="button" className="icon" title="Reddet" disabled={busy} onClick={() => onReject(a.id)}><X size={16} /></button>
-              </td>
+              <td><StatusBadge status={a.status} /></td>
+              <td>{a.auto_matched ? 'Otomatik (mevcut)' : (a.matched_osgb_id ? 'Eşleşti' : 'Yeni kayıt')}</td>
+              <td>{a.created_at ? new Date(a.created_at).toLocaleString('tr-TR') : '—'}</td>
+              {showActions && (
+                <td>
+                  {a.status === 'pending' ? (
+                    <>
+                      <button type="button" className="icon" title="Onayla" disabled={busy} onClick={() => onApprove(a.id)}><Check size={16} /></button>
+                      <button type="button" className="icon" title="Reddet" disabled={busy} onClick={() => onReject(a.id)}><X size={16} /></button>
+                    </>
+                  ) : '—'}
+                </td>
+              )}
             </tr>
           )) : (
-            <tr><td colSpan={6} className="empty">Bekleyen başvuru yok.</td></tr>
+            <tr><td colSpan={showActions ? 8 : 7} className="empty">Bu filtrede başvuru yok.</td></tr>
           )}
         </tbody>
       </table>
@@ -171,17 +181,19 @@ function AdminCredentialsModal({ data, onClose }) {
 export function EisaOverviewPage() {
   const [dash, setDash] = useState(null);
   const [apps, setApps] = useState([]);
+  const [appStatus, setAppStatus] = useState('pending');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [adminCreds, setAdminCreds] = useState(null);
 
-  const load = async () => {
+  const load = async (status = appStatus) => {
     setBusy(true);
     setMsg('');
     try {
+      const statusParam = status === 'all' ? 'all' : status;
       const [d, a] = await Promise.all([
         api('/eisa/dashboard'),
-        api('/eisa/applications?status=pending'),
+        api(`/eisa/applications?status=${statusParam}`),
       ]);
       setDash(d);
       setApps(a);
@@ -192,7 +204,7 @@ export function EisaOverviewPage() {
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(appStatus); }, [appStatus]);
 
   async function approve(id) {
     if (!window.confirm('Başvuruyu onaylayıp 10 günlük deneme başlatılsın mı?')) return;
@@ -227,7 +239,7 @@ export function EisaOverviewPage() {
   }
 
   return (
-    <Page title="Genel Bakış" action={<RefreshButton busy={busy} onClick={load} />}>
+    <Page title="Genel Bakış" action={<RefreshButton busy={busy} onClick={() => load()} />}>
       <p style={{ marginTop: 0, color: '#64748b', maxWidth: 720 }}>
         EİSA platform özeti: OSGB sayıları, abonelik durumları ve tahsilat metrikleri.
       </p>
@@ -246,7 +258,28 @@ export function EisaOverviewPage() {
         ]} />
       )}
       <Msg text={msg} />
-      <h4 style={{ marginBottom: 8 }}>Bekleyen başvurular</h4>
+      <div className="actions" style={{ marginBottom: 12 }}>
+        {[
+          ['pending', 'Bekleyen'],
+          ['approved', 'Onaylanan'],
+          ['rejected', 'Reddedilen'],
+          ['all', 'Tümü'],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            className={appStatus === value ? '' : 'secondary'}
+            disabled={busy}
+            onClick={() => setAppStatus(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <h4 style={{ marginBottom: 8 }}>Başvurular</h4>
+      <p style={{ color: '#64748b', marginTop: 0 }}>
+        Formda hata alırsanız başvuru kayda düşmez. Geçerli e-posta ve en az 8 haneli vergi no ile yeniden gönderin.
+      </p>
       <ApplicationsPanel apps={apps} busy={busy} onApprove={approve} onReject={reject} />
       <AdminCredentialsModal data={adminCreds} onClose={() => setAdminCreds(null)} />
     </Page>
