@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api, downloadFile } from './api';
-import { Check, RefreshCw, X } from 'lucide-react';
+import { Check, RefreshCw, Trash2, X } from 'lucide-react';
 
 export function Page({ title, action, children }) {
   return (
@@ -108,7 +108,7 @@ function fromDatetimeLocalValue(value) {
   return s;
 }
 
-function ApplicationsPanel({ apps, busy, onApprove, onReject, showActions = true }) {
+function ApplicationsPanel({ apps, busy, onApprove, onReject, onDelete, showActions = true }) {
   return (
     <div className="table-wrap">
       <table>
@@ -135,13 +135,16 @@ function ApplicationsPanel({ apps, busy, onApprove, onReject, showActions = true
               <td>{a.auto_matched ? 'Otomatik (mevcut)' : (a.matched_osgb_id ? 'Eşleşti' : 'Yeni kayıt')}</td>
               <td>{a.created_at ? new Date(a.created_at).toLocaleString('tr-TR') : '—'}</td>
               {showActions && (
-                <td>
-                  {a.status === 'pending' ? (
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  {a.status === 'pending' && (
                     <>
                       <button type="button" className="icon" title="Onayla" disabled={busy} onClick={() => onApprove(a.id)}><Check size={16} /></button>
                       <button type="button" className="icon" title="Reddet" disabled={busy} onClick={() => onReject(a.id)}><X size={16} /></button>
                     </>
-                  ) : '—'}
+                  )}
+                  <button type="button" className="icon" title="Başvuru kaydını sil" disabled={busy} onClick={() => onDelete(a)}>
+                    <Trash2 size={16} />
+                  </button>
                 </td>
               )}
             </tr>
@@ -242,6 +245,23 @@ export function EisaOverviewPage() {
     }
   }
 
+  async function removeApplication(app) {
+    const name = app?.name || `#${app?.id}`;
+    if (!window.confirm(
+      `"${name}" başvuru kaydı listeden silinsin mi?\n\nNot: Onaylanmış OSGB hesabı ve kullanıcılar silinmez; yalnızca bu başvuru satırı kaldırılır.`,
+    )) return;
+    setBusy(true);
+    try {
+      await api(`/eisa/applications/${app.id}`, { method: 'DELETE' });
+      await load();
+      setMsg('Başvuru kaydı silindi.');
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Page title="Genel Bakış" action={<RefreshButton busy={busy} onClick={() => load()} />}>
       <Msg text={msg} />
@@ -251,7 +271,7 @@ export function EisaOverviewPage() {
           {dash?.pending_applications != null ? ` — ${dash.pending_applications} bekleyen` : ''}
         </h4>
         <p style={{ marginTop: 0, color: '#64748b' }}>
-          Aşağıdaki listeden başvuruyu onaylayın veya reddedin. Onayda geçici şifre ekranda gösterilir.
+          Aşağıdaki listeden başvuruyu onaylayın, reddedin veya kaydı silin. Onayda geçici şifre ekranda gösterilir.
         </p>
         <div className="actions" style={{ marginBottom: 12 }}>
           {[
@@ -271,7 +291,7 @@ export function EisaOverviewPage() {
             </button>
           ))}
         </div>
-        <ApplicationsPanel apps={apps} busy={busy} onApprove={approve} onReject={reject} />
+        <ApplicationsPanel apps={apps} busy={busy} onApprove={approve} onReject={reject} onDelete={removeApplication} />
       </div>
       <p style={{ marginTop: 0, color: '#64748b', maxWidth: 720 }}>
         Platform özeti: OSGB sayıları, abonelik durumları ve tahsilat metrikleri.

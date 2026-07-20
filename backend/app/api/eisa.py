@@ -181,6 +181,34 @@ def reject(
     return app_row
 
 
+@router.delete("/applications/{application_id}")
+def delete_application(
+    application_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """Başvuru kaydını listeden siler. Onaylanmış OSGB / kullanıcı hesabına dokunmaz."""
+    app_row = db.get(OsgbApplication, application_id)
+    if not app_row:
+        raise HTTPException(404, "Başvuru bulunamadı.")
+    name = app_row.name
+    status = app_row.status.value if hasattr(app_row.status, "value") else str(app_row.status)
+    add_audit_log(
+        db,
+        user=user,
+        action="application_deleted",
+        module="eisa",
+        entity_type="osgb_application",
+        entity_id=str(application_id),
+        description=f"OSGB başvuru kaydı silindi: {name} ({status})",
+        ip_address=_client_ip(request),
+    )
+    db.delete(app_row)
+    db.commit()
+    return {"ok": True, "id": application_id, "message": "Başvuru kaydı silindi."}
+
+
 @router.get("/osgb-users", response_model=list[EisaOsgbUserResponse])
 def list_osgb_users(
     q: str | None = None,
