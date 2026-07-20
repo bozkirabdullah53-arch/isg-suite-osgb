@@ -14,6 +14,10 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from io import BytesIO
+
+from pypdf import PdfReader
+
 from app.services.incident_reports import build_incident_pdf
 from app.services.training_pdfs import build_attendance_pdf
 
@@ -40,6 +44,18 @@ def assert_pdf_bytes(pdf: bytes) -> tuple[bool, str]:
     if "/ToUnicode" not in latin and "/Identity-H" not in latin:
         return False, "no Unicode CMap (ToUnicode/Identity-H)"
     return True, f"bytes={len(pdf)} DejaVu+Unicode"
+
+
+def extract_pdf_text(pdf: bytes) -> str:
+    reader = PdfReader(BytesIO(pdf))
+    return "\n".join((page.extract_text() or "") for page in reader.pages)
+
+
+def assert_turkish_text(text: str, needles: tuple[str, ...]) -> tuple[bool, str]:
+    missing = [n for n in needles if n not in text]
+    if missing:
+        return False, f"missing in extracted text: {missing}"
+    return True, f"chars={len(text)} needles_ok={len(needles)}"
 
 
 def _training_mock() -> SimpleNamespace:
@@ -122,9 +138,14 @@ def main() -> int:
             employees=employees,
         )
         ok, detail = assert_pdf_bytes(pdf)
-        rec("pdf_attendance_turkish", ok, detail)
+        rec("pdf_attendance_structure", ok, detail)
+        if ok:
+            txt = extract_pdf_text(pdf)
+            tok, td = assert_turkish_text(txt, ("İMZA", "Şahin", "Üretim", "İstanbul", "Eğitim"))
+            rec("pdf_attendance_text_turkish", tok, td)
     except Exception as exc:
-        rec("pdf_attendance_turkish", False, repr(exc))
+        rec("pdf_attendance_structure", False, repr(exc))
+        rec("pdf_attendance_text_turkish", False, "skipped")
 
     try:
         incident = _incident_mock()
@@ -135,9 +156,14 @@ def main() -> int:
             dofs=[],
         )
         ok2, detail2 = assert_pdf_bytes(pdf2)
-        rec("pdf_incident_turkish", ok2, detail2)
+        rec("pdf_incident_structure", ok2, detail2)
+        if ok2:
+            txt2 = extract_pdf_text(pdf2)
+            tok2, td2 = assert_turkish_text(txt2, ("RAPORU", "Ramak", "Üretim", "Şti", "Montaj"))
+            rec("pdf_incident_text_turkish", tok2, td2)
     except Exception as exc:
-        rec("pdf_incident_turkish", False, repr(exc))
+        rec("pdf_incident_structure", False, repr(exc))
+        rec("pdf_incident_text_turkish", False, "skipped")
 
     summary = {
         "passed": sum(1 for x in OUT if x["ok"]),

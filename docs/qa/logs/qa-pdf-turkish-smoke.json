@@ -1,17 +1,27 @@
 {
-  "passed": 2,
+  "passed": 4,
   "failed": 0,
-  "total": 2,
+  "total": 4,
   "results": [
     {
-      "test": "pdf_attendance_turkish",
+      "test": "pdf_attendance_structure",
       "ok": true,
       "detail": "bytes=48623 DejaVu+Unicode"
     },
     {
-      "test": "pdf_incident_turkish",
+      "test": "pdf_attendance_text_turkish",
       "ok": true,
-      "detail": "bytes=47444 DejaVu+Unicode"
+      "detail": "chars=1475 needles_ok=5"
+    },
+    {
+      "test": "pdf_incident_structure",
+      "ok": true,
+      "detail": "bytes=47442 DejaVu+Unicode"
+    },
+    {
+      "test": "pdf_incident_text_turkish",
+      "ok": true,
+      "detail": "chars=1318 needles_ok=5"
     }
   ]
 }

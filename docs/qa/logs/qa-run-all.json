@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-20T10:14:49",
+  "timestamp": "2026-07-20T10:22:15",
   "passed": 7,
   "failed": 0,
   "total": 7,
@@ -8,49 +8,49 @@
     {
       "suite": "pytest",
       "ok": true,
-      "ms": 3674.0,
+      "ms": 4872.9,
       "exit_code": 0,
-      "detail": "31 passed in 2.42s"
+      "detail": "31 passed in 3.34s"
     },
     {
       "suite": "qa_api_smoke",
       "ok": true,
-      "ms": 8806.4,
+      "ms": 7952.8,
       "exit_code": 0,
       "detail": "Wrote C:\\Users\\Abdullah\\Projeler\\isg-suite-osgb\\docs\\qa\\logs\\qa-api-smoke.json"
     },
     {
       "suite": "qa_security_smoke",
       "ok": true,
-      "ms": 4088.4,
+      "ms": 6858.1,
       "exit_code": 0,
       "detail": "SUMMARY 9 / 9"
     },
     {
       "suite": "qa_retest_smoke",
       "ok": true,
-      "ms": 8185.8,
+      "ms": 12524.9,
       "exit_code": 0,
       "detail": "SUMMARY 29 / 29 failed= 0"
     },
     {
       "suite": "qa_crud_smoke",
       "ok": true,
-      "ms": 5841.8,
+      "ms": 8016.5,
       "exit_code": 0,
       "detail": "SUMMARY 20 / 20 failed= 0"
     },
     {
       "suite": "qa_upload_export_smoke",
       "ok": true,
-      "ms": 4444.8,
+      "ms": 8561.2,
       "exit_code": 0,
       "detail": "SUMMARY 10 / 10 failed= 0"
     },
     {
       "suite": "qa_pdf_turkish_smoke",
       "ok": true,
-      "ms": 729.7,
+      "ms": 1193.5,
       "exit_code": 0,
       "detail": "Wrote C:\\Users\\Abdullah\\Projeler\\isg-suite-osgb\\docs\\qa\\logs\\qa-pdf-turkish-smoke.json"
     }
