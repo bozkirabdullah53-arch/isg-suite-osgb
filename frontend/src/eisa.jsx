@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { api, downloadFile } from './api';
 import { Check, RefreshCw, Trash2, X } from 'lucide-react';
+import {
+  LEGAL_DOCS_VERSION,
+  LegalDocModal,
+  PRIVACY_NOTICE,
+  SERVICE_AGREEMENT,
+} from './legal_docs';
 
 export function Page({ title, action, children }) {
   return (
@@ -1407,6 +1413,7 @@ export function OsgbApplyPage({ onBack }) {
   const [ok, setOk] = useState(false);
   const [submittedId, setSubmittedId] = useState(null);
   const [err, setErr] = useState('');
+  const [legalDoc, setLegalDoc] = useState(null);
 
   function formatApiError(detail, fallback = 'Başvuru gönderilemedi.') {
     if (!detail) return fallback;
@@ -1430,7 +1437,7 @@ export function OsgbApplyPage({ onBack }) {
     setBusy(true);
     setErr('');
     if (!form.contract_accepted || !form.personal_data_accepted) {
-      setErr('Sözleşme ve kişisel verilerin korunması onayı zorunludur.');
+      setErr('Sözleşme ve kişisel verilerin korunması onayı zorunludur. Lütfen metinleri okuyup onaylayın.');
       setBusy(false);
       return;
     }
@@ -1489,18 +1496,53 @@ export function OsgbApplyPage({ onBack }) {
             <label className="field"><span>Başvuran adı *</span><input required value={form.applicant_name} onChange={(e) => setForm({ ...form, applicant_name: e.target.value })} /></label>
             <label className="field"><span>Başvuran e-posta *</span><input type="email" required placeholder="ornek@firma.com" value={form.applicant_email} onChange={(e) => setForm({ ...form, applicant_email: e.target.value })} /></label>
             <label className="field"><span>Not</span><input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
-            <label className="field">
-              <span>
-                <input type="checkbox" checked={form.contract_accepted} onChange={(e) => setForm({ ...form, contract_accepted: e.target.checked })} />{' '}
-                Sözleşmeyi kabul ediyorum.
-              </span>
-            </label>
-            <label className="field">
-              <span>
-                <input type="checkbox" checked={form.personal_data_accepted} onChange={(e) => setForm({ ...form, personal_data_accepted: e.target.checked })} />{' '}
-                Kişisel verilerimin korunmasını kabul ediyorum.
-              </span>
-            </label>
+
+            <div style={{gridColumn: '1 / -1', padding: '12px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0'}}>
+              <p style={{margin: '0 0 10px', fontSize: 13, color: '#475569'}}>
+                Onaylamadan önce aşağıdaki metinleri okuyunuz. (Revizyon: {LEGAL_DOCS_VERSION})
+              </p>
+              <label className="field" style={{marginBottom: 8}}>
+                <span style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8}}>
+                  <input
+                    type="checkbox"
+                    checked={form.contract_accepted}
+                    onChange={(e) => setForm({ ...form, contract_accepted: e.target.checked })}
+                  />
+                  <span>
+                    <button
+                      type="button"
+                      className="linkish"
+                      style={{padding: 0, fontWeight: 700}}
+                      onClick={() => setLegalDoc(SERVICE_AGREEMENT)}
+                    >
+                      Hizmet ve Kullanım Sözleşmesi
+                    </button>
+                    ’ni okudum ve kabul ediyorum.
+                  </span>
+                </span>
+              </label>
+              <label className="field" style={{marginBottom: 0}}>
+                <span style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8}}>
+                  <input
+                    type="checkbox"
+                    checked={form.personal_data_accepted}
+                    onChange={(e) => setForm({ ...form, personal_data_accepted: e.target.checked })}
+                  />
+                  <span>
+                    <button
+                      type="button"
+                      className="linkish"
+                      style={{padding: 0, fontWeight: 700}}
+                      onClick={() => setLegalDoc(PRIVACY_NOTICE)}
+                    >
+                      KVKK Aydınlatma Metni
+                    </button>
+                    ’ni okudum; kişisel verilerimin işlenmesini kabul ediyorum.
+                  </span>
+                </span>
+              </label>
+            </div>
+
             {err && <div className="error">{err}</div>}
             <div className="form-actions">
               <button type="button" className="secondary" onClick={onBack}>Geri</button>
@@ -1509,6 +1551,7 @@ export function OsgbApplyPage({ onBack }) {
           </form>
         </section>
       </div>
+      {legalDoc && <LegalDocModal doc={legalDoc} onClose={() => setLegalDoc(null)} />}
     </main>
   );
 }
