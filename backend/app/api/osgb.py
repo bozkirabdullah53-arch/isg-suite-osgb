@@ -54,8 +54,10 @@ def update_osgb(
     osgb_id: int,
     payload: OsgbUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
+    if user.role == UserRole.COMPANY_ADMIN and user.osgb_id != osgb_id:
+        raise HTTPException(403, "Yalnız kendi OSGB kaydınızı güncelleyebilirsiniz.")
     obj = db.get(OsgbOrganization, osgb_id)
     if not obj:
         raise HTTPException(404, "OSGB bulunamadı.")
@@ -76,10 +78,13 @@ def update_osgb(
 def osgb_oversight(
     osgb_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
-    """Yalnız global yönetici — profesyonel sorumluluk / 6331 hizmet denetimi."""
-    _ = user
+    """Profesyonel sorumluluk / 6331 hizmet denetimi — EİSA veya OSGB yöneticisi."""
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id:
+            raise HTTPException(400, "OSGB kapsamınız tanımlı değil.")
+        osgb_id = user.osgb_id
     return build_oversight(db, osgb_id=osgb_id)
 
 
@@ -121,10 +126,13 @@ def sync_field_roles(
 def csgb_audit_pack(
     osgb_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
-    """ÇSGB OSGB denetimi — yalnız global yönetici."""
-    _ = user
+    """ÇSGB OSGB denetim paketi — EİSA veya kendi OSGB yöneticisi."""
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id:
+            raise HTTPException(400, "Kullanıcıya bağlı OSGB yok.")
+        osgb_id = user.osgb_id
     return build_csgb_audit_pack(db, osgb_id=osgb_id)
 
 
@@ -132,13 +140,15 @@ def csgb_audit_pack(
 def professional_performance(
     professional_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
-    """Seçilen uzman/hekim/DSP performans raporu — yalnız global yönetici."""
-    _ = user
+    """Seçilen uzman/hekim/DSP performans raporu — EİSA veya kendi OSGB yöneticisi."""
     pro = db.get(IsgProfessional, professional_id)
     if not pro:
         raise HTTPException(404, "Profesyonel bulunamadı.")
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id or pro.osgb_id != user.osgb_id:
+            raise HTTPException(403, "Bu profesyonelin performansına erişemezsiniz.")
     try:
         return build_professional_performance(db, professional_id)
     except ValueError as exc:

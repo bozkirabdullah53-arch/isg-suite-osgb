@@ -57,26 +57,19 @@ export function ProPerformancePage({user}) {
   const [section, setSection] = useState('incomplete'); // incomplete | completed | firms
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-
-  if (user.role !== 'global_admin') {
-    return (
-      <>
-        <div className="page-title"><h3>Performans / İş Tamamlama</h3></div>
-        <section className="panel">
-          <p>Bu ekran yalnızca global yönetici tarafından görüntülenebilir.</p>
-        </section>
-      </>
-    );
-  }
+  const isOsgbAdmin = user.role === 'company_admin';
+  const canView = user.role === 'global_admin' || isOsgbAdmin;
 
   async function loadDirectory(oid = osgbId) {
+    if (!canView) return;
     setBusy(true);
     setError('');
     try {
       const o = await api('/osgb');
       setOrgs(o);
-      const id = oid || osgbId || (o[0] ? String(o[0].id) : '');
-      if (id && !osgbId) setOsgbId(id);
+      const locked = isOsgbAdmin && user.osgb_id ? String(user.osgb_id) : '';
+      const id = locked || oid || osgbId || (o[0] ? String(o[0].id) : '');
+      if (id && id !== osgbId) setOsgbId(id);
       if (!id) {
         setDirectory([]);
         return;
@@ -144,6 +137,17 @@ export function ProPerformancePage({user}) {
 
   const perf = report?.performance;
   const st = statusStyle(perf?.status);
+
+  if (!canView) {
+    return (
+      <>
+        <div className="page-title"><h3>Performans / İş Tamamlama</h3></div>
+        <section className="panel">
+          <p>Bu ekran OSGB yöneticisi veya EİSA tarafından görüntülenebilir.</p>
+        </section>
+      </>
+    );
+  }
   const incomplete = report?.incomplete || [];
   const completed = report?.completed || [];
   const firms = report?.firms || [];
@@ -177,7 +181,7 @@ export function ProPerformancePage({user}) {
       {error && <div className="error" style={{marginBottom: 12}}>{error}</div>}
 
       <section className="panel" style={{marginBottom: 16}}>
-        {orgs.length > 1 && (
+        {user.role === 'global_admin' && orgs.length > 1 && (
           <label className="field" style={{maxWidth: 360, marginBottom: 12}}>
             <span>OSGB</span>
             <select

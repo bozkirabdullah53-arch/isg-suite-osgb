@@ -22,7 +22,7 @@ import {
   OsgbApplyPage,
 } from './eisa';
 import './styles.css';
-const roles={global_admin:'EİSA Yönetici',company_admin:'Firma Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
+const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 /**
  * Sol menü sırası (yukarı→aşağı): ana panel → günlük operasyon → master data →
  * İSG saha işleri (risk/olay yoğunluğu) → ticari → rapor/denetim → sistem ayarları.
@@ -45,12 +45,13 @@ const roleModules={
     'eisa_system_settings',
   ],
   company_admin:[
-    'osgb_dashboard','dashboard',
-    'professionals','assignments',
+    'osgb_dashboard','osgb_oversight','pro_performance','csgb_audit',
+    'professionals','assignments','visits',
     'companies','branches','employees',
-    'training','documents',
-    'crm','finance',
-    'reports',
+    'dashboard',
+    'risk','near_miss','accident','capa','ppe',
+    'training','health','annual_plans','documents',
+    'crm','finance','reports',
     'notifications','users','subscription','security',
   ],
   safety_specialist:[
@@ -671,7 +672,7 @@ function App(){
     eisa_archives:<EisaArchivesPage/>,
     eisa_audit_logs:<EisaAuditLogsPage/>,
     eisa_system_settings:<EisaSystemSettingsPage/>,
-    osgb_dashboard:<OsgbDashboard user={user}/>,
+    osgb_dashboard:<OsgbDashboard user={user} onNavigate={goModule}/>,
     osgb_oversight:<OsgbOversightPage user={user} onNavigate={goModule}/>,
     pro_performance:<ProPerformancePage user={user}/>,
     csgb_audit:<CsgbAuditPackPage user={user} onNavigate={goModule}/>,

@@ -15,14 +15,14 @@ const ITEM_ACTIONS = {
   profesyonel_kadro: {kind: 'nav', module: 'professionals', label: 'İSG Profesyonelleri'},
   gorevlendirme_katip: {kind: 'nav', module: 'assignments', label: 'Görevlendirmeler'},
   hizmet_sozlesmesi: {kind: 'nav', module: 'companies', label: 'İşyerleri (sözleşme için önce bağla)'},
-  saha_sure: {kind: 'nav', module: 'osgb_dashboard', label: 'OSGB Ana Panel'},
-  risk_degerlendirme: {kind: 'nav', module: 'companies', label: 'İşyerleri (saha doldurur)'},
-  yillik_plan: {kind: 'nav', module: 'companies', label: 'İşyerleri (saha doldurur)'},
-  egitim: {kind: 'nav', module: 'companies', label: 'İşyerleri (saha doldurur)'},
-  saglik: {kind: 'nav', module: 'companies', label: 'İşyerleri (saha doldurur)'},
-  olay: {kind: 'nav', module: 'companies', label: 'İşyerleri (saha doldurur)'},
-  personel: {kind: 'nav', module: 'companies', label: 'İşyerleri / Personel'},
-  dokuman_arsiv: {kind: 'nav', module: 'companies', label: 'İşyerleri (doküman saha)'},
+  saha_sure: {kind: 'nav', module: 'visits', label: 'Saha Takvimi'},
+  risk_degerlendirme: {kind: 'nav', module: 'risk', label: 'Risk Analizi'},
+  yillik_plan: {kind: 'nav', module: 'annual_plans', label: 'Yıllık Plan'},
+  egitim: {kind: 'nav', module: 'training', label: 'Eğitimler'},
+  saglik: {kind: 'nav', module: 'health', label: 'Sağlık'},
+  olay: {kind: 'nav', module: 'accident', label: 'İş Kazaları'},
+  personel: {kind: 'nav', module: 'employees', label: 'Personel'},
+  dokuman_arsiv: {kind: 'nav', module: 'documents', label: 'Dokümanlar'},
 };
 
 function statusStyle(status) {
@@ -99,6 +99,8 @@ export function CsgbAuditPackPage({user, onNavigate}) {
     phone: '',
     address: '',
   });
+  const isOsgbAdmin = user.role === 'company_admin';
+  const canView = user.role === 'global_admin' || isOsgbAdmin;
 
   const items = data?.items || [];
   const sum = data?.summary;
@@ -120,12 +122,14 @@ export function CsgbAuditPackPage({user, onNavigate}) {
   }, [filtered]);
 
   async function load(oid = osgbId) {
+    if (!canView) return;
     setBusy(true);
     setError('');
     try {
       const o = await api('/osgb');
       setOrgs(o || []);
-      const id = oid || osgbId || (o?.[0] ? String(o[0].id) : '');
+      const locked = isOsgbAdmin && user.osgb_id ? String(user.osgb_id) : '';
+      const id = locked || oid || osgbId || (o?.[0] ? String(o[0].id) : '');
       if (id) setOsgbId(String(id));
       const q = id ? `?osgb_id=${id}` : '';
       const r = await api(`/osgb/csgb-audit-pack${q}`);
@@ -213,11 +217,11 @@ export function CsgbAuditPackPage({user, onNavigate}) {
     }
   }
 
-  if (user.role !== 'global_admin') {
+  if (!canView) {
     return (
       <>
         <div className="page-title"><h3>ÇSGB Denetim Belge Paketi</h3></div>
-        <section className="panel"><p>Bu ekran yalnızca global yönetici tarafından görüntülenebilir.</p></section>
+        <section className="panel"><p>Bu ekran OSGB yöneticisi ve EİSA tarafından görüntülenebilir.</p></section>
       </>
     );
   }
@@ -261,7 +265,7 @@ export function CsgbAuditPackPage({user, onNavigate}) {
         <section className="panel"><p style={{margin: 0, color: '#64748b'}}>Belge paketi yükleniyor…</p></section>
       )}
 
-      {orgs.length > 1 && (
+      {user.role === 'global_admin' && orgs.length > 1 && (
         <section className="panel" style={{marginBottom: 16}}>
           <label className="field" style={{maxWidth: 360}}>
             <span>OSGB</span>

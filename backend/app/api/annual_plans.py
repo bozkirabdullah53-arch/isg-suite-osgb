@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -285,6 +288,99 @@ def cal_last_day(year: int, month: int) -> int:
     import calendar as cal
 
     return cal.monthrange(year, month)[1]
+
+
+@router.get("/export.xlsx")
+def export_plan_xlsx(
+    year: int | None = None,
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Yıllık çalışma planı — Excel (.xlsx)."""
+    y = year or date.today().year
+    effective = effective_company_id(db, user, company_id)
+    company = db.get(Company, effective)
+    items = list(
+        db.scalars(
+            _active_stmt()
+            .where(AnnualPlanItem.company_id == effective, AnnualPlanItem.year == y)
+            .order_by(AnnualPlanItem.month, AnnualPlanItem.id)
+        ).all()
+    )
+    status_labels = {
+        "planned": "Planlandı",
+        "in_progress": "Devam Ediyor",
+        "completed": "Tamamlandı",
+        "delayed": "Gecikti",
+        "cancelled": "İptal",
+    }
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Yıllık Plan"
+    ws.append(
+        [
+            "Firma",
+            "Yıl",
+            "Ay",
+            "Ay Adı",
+            "Kategori",
+            "Faaliyet",
+            "Açıklama",
+            "Sorumlu",
+            "Hedef Tarih",
+            "Durum",
+            "Tamamlanma",
+            "Notlar",
+        ]
+    )
+    month_names = [
+        "",
+        "Ocak",
+        "Şubat",
+        "Mart",
+        "Nisan",
+        "Mayıs",
+        "Haziran",
+        "Temmuz",
+        "Ağustos",
+        "Eylül",
+        "Ekim",
+        "Kasım",
+        "Aralık",
+    ]
+    firm = company.name if company else str(effective)
+    for it in items:
+        st = it.status.value if hasattr(it.status, "value") else str(it.status or "")
+        ws.append(
+            [
+                firm,
+                it.year,
+                it.month,
+                month_names[it.month] if 1 <= int(it.month or 0) <= 12 else it.month,
+                CATEGORIES.get(it.category or "", it.category or ""),
+                it.activity or "",
+                it.description or "",
+                it.responsible_name or "",
+                it.target_date.isoformat() if it.target_date else "",
+                status_labels.get(st, st),
+                it.completion_date.isoformat() if it.completion_date else "",
+                it.notes or "",
+            ]
+        )
+    widths = [28, 8, 6, 12, 18, 40, 36, 22, 14, 14, 14, 36]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    stream = BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+    fname = f"yillik-plan-{y}-{effective}.xlsx"
+    return StreamingResponse(
+        stream,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
 
 
 @router.get("/export.txt")

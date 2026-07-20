@@ -280,7 +280,7 @@ export function AnnualPlansPage({user}) {
     }
   }
 
-  async function exportTxt() {
+  async function exportExcel() {
     const cid = companyId || user.company_id;
     if (!cid) {
       setMessage('Dışa aktarım için firma seçiniz.');
@@ -288,7 +288,7 @@ export function AnnualPlansPage({user}) {
     }
     try {
       const p = new URLSearchParams({year: String(year), company_id: String(cid)});
-      await downloadFile(`/annual-plans/export.txt?${p}`, `yillik-plan-${year}.txt`);
+      await downloadFile(`/annual-plans/export.xlsx?${p}`, `yillik-plan-${year}.xlsx`);
     } catch (err) {
       setMessage(err.message);
     }
@@ -304,8 +304,8 @@ export function AnnualPlansPage({user}) {
           <button type="button" className="secondary" onClick={load} disabled={busy}>
             <RefreshCw size={16} /> Yenile
           </button>
-          <button type="button" className="secondary" onClick={exportTxt} disabled={busy}>
-            <Download size={16} /> TXT Aktar
+          <button type="button" className="secondary" onClick={exportExcel} disabled={busy}>
+            <Download size={16} /> Excel Aktar
           </button>
           {canEdit && (
             <button type="button" className="secondary" onClick={generate} disabled={busy || !companyId}>

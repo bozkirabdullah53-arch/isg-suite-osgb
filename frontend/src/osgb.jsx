@@ -35,15 +35,19 @@ async function copyText(text){
   }catch(_){return false}
 }
 
-export function OsgbDashboard({user}){
+export function OsgbDashboard({user, onNavigate}){
  const[orgs,setOrgs]=useState([]),[data,setData]=useState(null),[oid,setOid]=useState('');
+ const[ops,setOps]=useState(null);
  const[unassignedOpen,setUnassignedOpen]=useState(false);
  const[unassignedType,setUnassignedType]=useState('safety_specialist');
  const[contractsOpen,setContractsOpen]=useState(false);
 
  async function load(id){
-  if(!id){setData(null);return}
+  if(!id){setData(null);setOps(null);return}
   setData(await api(`/operations/dashboard?osgb_id=${id}`));
+  try{
+   setOps(await api(`/osgb/oversight?osgb_id=${id}`));
+  }catch(_){setOps(null)}
  }
 
  useEffect(()=>{
@@ -59,20 +63,59 @@ export function OsgbDashboard({user}){
  const unBy=data?.unassigned_by_type||{};
  const unSelected=unBy[unassignedType]||{count:0,items:[],label:ptypes[unassignedType]};
  const contracts=data?.upcoming_contracts||[];
+ const sum=ops?.summary||{};
+ const go=(mod)=>{ if(typeof onNavigate==='function') onNavigate(mod); };
 
  return <>
   <div className="welcome"><div>
    <h3>OSGB Ana Panel</h3>
-   <p>Müşteri işyerleri, İSG kadrosu, atanmamış profesyoneller ve bitmesi yaklaşan sözleşmeler.</p>
+   <p>Günlük hizmet süreçlerini anlık izleyin; eksik/kritik noktalara buradan müdahale edin.</p>
   </div></div>
 
-  {orgs.length>1&&<section className="panel" style={{marginBottom:16}}>
+  {orgs.length>1&&user.role==='global_admin'&&<section className="panel" style={{marginBottom:16}}>
    <label className="field"><span>OSGB</span>
     <select value={oid} onChange={e=>{const v=e.target.value;setOid(v);load(v)}}>
      {orgs.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}
     </select>
    </label>
   </section>}
+
+  <div className="cards osgb-cards" style={{marginBottom:16}}>
+   <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('osgb_oversight')} title="Hizmet denetimine git">
+    <span>Kritik Profesyonel</span>
+    <strong style={{color:(sum.critical||0)>0?'#b91c1c':undefined}}>{sum.critical??'—'}</strong>
+   </article>
+   <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('osgb_oversight')} title="Hizmet denetimine git">
+    <span>İzlem Gereken</span>
+    <strong style={{color:(sum.warning||0)>0?'#b45309':undefined}}>{sum.warning??'—'}</strong>
+   </article>
+   <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('osgb_oversight')} title="Hizmet denetimine git">
+    <span>Açık Eksik</span>
+    <strong style={{color:(ops?.gap_count||0)>0?'#b91c1c':undefined}}>{ops?.gap_count??'—'}</strong>
+   </article>
+   <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('visits')} title="Saha takvimine git">
+    <span>Saha Takvimi</span>
+    <strong style={{fontSize:16}}>İzle / Müdahale</strong>
+   </article>
+  </div>
+
+  <section className="panel" style={{marginBottom:16}}>
+   <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center'}}>
+    <div>
+     <h3 style={{margin:'0 0 4px'}}>Günlük operasyon</h3>
+     <p style={{margin:0,color:'#64748b',fontSize:13}}>Süreçleri takip edin, eksikleri kapatın, profesyonel performansına bakın.</p>
+    </div>
+    <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+     <button type="button" className="mini" onClick={()=>go('osgb_oversight')}>Hizmet Denetimi</button>
+     <button type="button" className="mini" onClick={()=>go('pro_performance')}>Performans</button>
+     <button type="button" className="mini" onClick={()=>go('visits')}>Saha Takvimi</button>
+     <button type="button" className="mini" onClick={()=>go('annual_plans')}>Yıllık Plan</button>
+     <button type="button" className="mini" onClick={()=>go('csgb_audit')}>ÇSGB Paketi</button>
+     <button type="button" className="mini" onClick={()=>go('risk')}>Risk</button>
+     <button type="button" className="mini" onClick={()=>go('capa')}>DÖF</button>
+    </div>
+   </div>
+  </section>
 
   <div className="cards osgb-cards" style={{marginBottom:16}}>
    <article className="metric"><span>Müşteri İşyerleri</span><strong>{data?.workplaces??0}</strong></article>
@@ -356,7 +399,7 @@ export function ProfessionalsPage({user, onNavigate}){
    {k:'x',l:'İşlem',f:r=>(
     <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
      <button type="button" className="mini" onClick={()=>openEdit(r)}>Düzenle</button>
-     {user.role==='global_admin'&&(
+     {['global_admin','company_admin'].includes(user.role)&&(
       <button type="button" className="mini" onClick={()=>goPerformance(r)}>Performans</button>
      )}
      {r.is_active
@@ -587,7 +630,7 @@ export function AssignmentsPage({user}){
 
 export function VisitsPage({user}){
  const isField=['safety_specialist','workplace_physician','other_health_personnel'].includes(user.role);
- const isOsgb=user.role==='global_admin';
+ const isOsgb=['global_admin','company_admin'].includes(user.role);
  const canEdit=isField||isOsgb;
  const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]);
  const[open,setOpen]=useState(false),[editing,setEditing]=useState(null),[err,setErr]=useState(''),[busy,setBusy]=useState(false);

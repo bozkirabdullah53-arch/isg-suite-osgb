@@ -33,6 +33,7 @@ router = APIRouter(prefix="/health-records", tags=["Sağlık Kayıtları"])
 
 HEALTH_ROLES = (
     UserRole.GLOBAL_ADMIN,
+    UserRole.COMPANY_ADMIN,
     UserRole.WORKPLACE_PHYSICIAN,
     UserRole.OTHER_HEALTH_PERSONNEL,
 )

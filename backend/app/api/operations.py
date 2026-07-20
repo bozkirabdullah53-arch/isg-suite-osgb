@@ -113,9 +113,13 @@ def _get_visit(db: Session, visit_id: int, user: User) -> ServiceVisit:
     obj = db.get(ServiceVisit, visit_id)
     if not obj:
         raise HTTPException(404, "Ziyaret bulunamadı.")
-    # Yalnız global yönetici veya ziyareti yapan saha personeli
+    # EİSA, kendi OSGB yöneticisi veya ziyareti yapan saha personeli
     if user.role == UserRole.GLOBAL_ADMIN:
         return obj
+    if user.role == UserRole.COMPANY_ADMIN:
+        if user.osgb_id and obj.osgb_id == user.osgb_id:
+            return obj
+        raise HTTPException(403, "Bu ziyarete erişim yetkiniz yok.")
     if user.role in _FIELD_ROLES:
         pro = find_professional_for_user(db, user)
         if not pro or obj.professional_id != pro.id:
@@ -239,9 +243,9 @@ def visits(osgb_id: int | None = None, db: Session = Depends(get_db), user: User
                 .order_by(ServiceVisit.visit_date.desc(), ServiceVisit.id.desc())
             ).all()
         )
-    # Tüm OSGB ziyaret listesi yalnız global yönetici
-    if user.role != UserRole.GLOBAL_ADMIN:
-        raise HTTPException(403, "Tüm ziyaret listesi yalnız global yönetici içindir.")
+    # EİSA veya OSGB yöneticisi: kendi OSGB kapsamındaki tüm ziyaretler
+    if user.role not in (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN):
+        raise HTTPException(403, "Ziyaret listesine erişim yetkiniz yok.")
     oid = active_osgb(user, osgb_id, db)
     return list(
         db.scalars(
@@ -309,7 +313,7 @@ def update_visit(
     visit_id: int,
     payload: VisitUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*FIELD_VISIT_ROLES, UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(*FIELD_VISIT_ROLES, UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
     obj = _get_visit(db, visit_id, user)
     data = payload.model_dump(exclude_unset=True)
@@ -335,7 +339,7 @@ def update_visit(
 def delete_visit(
     visit_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*FIELD_VISIT_ROLES, UserRole.GLOBAL_ADMIN)),
+    user: User = Depends(require_roles(*FIELD_VISIT_ROLES, UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
     obj = _get_visit(db, visit_id, user)
     _delete_notebook_file(obj, db=db, user=user)
@@ -349,7 +353,7 @@ async def upload_visit_notebook(
     visit_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*FIELD_VISIT_ROLES)),
+    user: User = Depends(require_roles(*FIELD_VISIT_ROLES, UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
     obj = _get_visit(db, visit_id, user)
     name = file.filename or "tespit-oneri-defteri.pdf"

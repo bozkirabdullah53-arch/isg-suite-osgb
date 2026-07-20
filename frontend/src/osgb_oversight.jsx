@@ -119,25 +119,18 @@ export function OsgbOversightPage({user, onNavigate}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [seedMsg, setSeedMsg] = useState('');
-
-  if (user.role !== 'global_admin') {
-    return (
-      <>
-        <div className="page-title"><h3>Hizmet Denetimi</h3></div>
-        <section className="panel">
-          <p>Bu ekran yalnızca global yönetici tarafından görüntülenebilir.</p>
-        </section>
-      </>
-    );
-  }
+  const isOsgbAdmin = user.role === 'company_admin';
+  const canView = user.role === 'global_admin' || isOsgbAdmin;
 
   async function load(oid = osgbId) {
+    if (!canView) return;
     setBusy(true);
     setError('');
     try {
       const o = await api('/osgb');
       setOrgs(o);
-      const id = oid || osgbId || (o[0] ? String(o[0].id) : '');
+      const locked = isOsgbAdmin && user.osgb_id ? String(user.osgb_id) : '';
+      const id = locked || oid || osgbId || (o[0] ? String(o[0].id) : '');
       if (id && !osgbId) setOsgbId(id);
       const q = id ? `?osgb_id=${id}` : '';
       const [r, prosDir] = await Promise.all([
@@ -274,14 +267,27 @@ export function OsgbOversightPage({user, onNavigate}) {
     return list;
   }, [data, typeFilter, statusFilter, rows]);
 
+  if (!canView) {
+    return (
+      <>
+        <div className="page-title"><h3>Hizmet Denetimi</h3></div>
+        <section className="panel">
+          <p>Bu ekran OSGB yöneticisi veya EİSA tarafından görüntülenebilir.</p>
+        </section>
+      </>
+    );
+  }
+
   return (
     <>
       <div className="page-title">
         <h3>Hizmet Denetimi</h3>
         <div className="actions">
-          <button type="button" className="secondary" onClick={seedDemo} disabled={busy} title="Demo veri">
-            <Sparkles size={16} /> Test verisi
-          </button>
+          {user.role === 'global_admin' && (
+            <button type="button" className="secondary" onClick={seedDemo} disabled={busy} title="Demo veri">
+              <Sparkles size={16} /> Test verisi
+            </button>
+          )}
           <button type="button" className="secondary" onClick={() => void load()} disabled={busy}>
             <RefreshCw size={16} /> Yenile
           </button>
@@ -294,7 +300,7 @@ export function OsgbOversightPage({user, onNavigate}) {
           Kişi bazlı iş tamamlama raporu için <strong>Performans Raporu</strong> menüsünü kullanın.
         </p>
         <div className="form-grid" style={{gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', marginBottom: 0}}>
-          {orgs.length > 1 && (
+          {user.role === 'global_admin' && orgs.length > 1 && (
             <label className="field">
               <span>OSGB</span>
               <select
