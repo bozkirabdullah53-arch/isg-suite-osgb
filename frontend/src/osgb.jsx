@@ -174,7 +174,13 @@ export function ProfessionalsPage({user, onNavigate}){
  };
 
  useEffect(()=>{void load()},[]);
- useEffect(()=>{setForm(f=>({...f,professional_type:tab}))},[tab]);
+ useEffect(()=>{
+  setForm(f=>({
+   ...f,
+   professional_type:tab,
+   certificate_class:tab==='safety_specialist'?(f.certificate_class||'A'):'',
+  }));
+ },[tab]);
 
  const assignedIds=useMemo(()=>{
   const s=new Set();
@@ -208,12 +214,13 @@ export function ProfessionalsPage({user, onNavigate}){
  function openEdit(row){
   setErr('');
   setEditRow(row);
+  const ptype=row.professional_type||tab;
   setForm({
    full_name:row.full_name||'',
    email:row.email||'',
    phone:row.phone||'',
-   professional_type:row.professional_type||tab,
-   certificate_class:row.certificate_class||'',
+   professional_type:ptype,
+   certificate_class:ptype==='safety_specialist'?(row.certificate_class||''):'',
    certificate_number:row.certificate_number||'',
    certificate_date:row.certificate_date||'',
   });
@@ -223,12 +230,13 @@ export function ProfessionalsPage({user, onNavigate}){
  async function save(e){
   e.preventDefault();setErr('');setBusy(true);
   try{
+   const ptype=form.professional_type||tab;
    const body={
     full_name:form.full_name,
     email:form.email||null,
     phone:form.phone||null,
-    professional_type:form.professional_type||tab,
-    certificate_class:form.certificate_class||null,
+    professional_type:ptype,
+    certificate_class:ptype==='safety_specialist'?(form.certificate_class||null):null,
     certificate_number:form.certificate_number||null,
     certificate_date:form.certificate_date||null,
    };
@@ -310,7 +318,7 @@ export function ProfessionalsPage({user, onNavigate}){
      )}
     </div>
    )},
-   {k:'certificate_class',l:'Sınıf',f:r=>r.certificate_class||'—'},
+   ...(tab==='safety_specialist'?[{k:'certificate_class',l:'Sınıf',f:r=>r.certificate_class||'—'}]:[]),
    {k:'certificate_number',l:'Belge No',f:r=>r.certificate_number||'—'},
    {k:'certificate_date',l:'Belge Tarihi',f:r=>r.certificate_date||'—'},
    {k:'phone',l:'Telefon',f:r=>r.phone||'—'},
@@ -333,20 +341,25 @@ export function ProfessionalsPage({user, onNavigate}){
   {open&&<M title={editRow?`Düzenle — ${editRow.full_name}`:`Yeni ${ptypes[form.professional_type||tab]||'Profesyonel'}`} close={()=>{setOpen(false);setEditRow(null)}}>
    <form className="form-grid" onSubmit={save}>
     <F label="Ad Soyad" required value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})}/>
-    <S label="Meslek" value={form.professional_type} onChange={e=>setForm({...form,professional_type:e.target.value})}>
+    <S label="Meslek" value={form.professional_type} onChange={e=>{
+     const ptype=e.target.value;
+     setForm({
+      ...form,
+      professional_type:ptype,
+      certificate_class:ptype==='safety_specialist'?(form.certificate_class||'A'):'',
+     });
+    }}>
      {Object.entries(ptypes).map(([k,v])=><option key={k} value={k}>{v}</option>)}
     </S>
     <F label="E-posta" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/>
     <F label="Telefon" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
-    {form.professional_type==='safety_specialist'?(
-     <S label="Belge Sınıfı" value={form.certificate_class} onChange={e=>setForm({...form,certificate_class:e.target.value})}>
+    {form.professional_type==='safety_specialist'&&(
+     <S label="Belge Sınıfı (A / B / C)" required value={form.certificate_class} onChange={e=>setForm({...form,certificate_class:e.target.value})}>
       <option value="">Seçiniz</option>
       <option value="A">A</option>
       <option value="B">B</option>
       <option value="C">C</option>
      </S>
-    ):(
-     <F label="Belge Sınıfı" value={form.certificate_class} onChange={e=>setForm({...form,certificate_class:e.target.value})} placeholder="Varsa"/>
     )}
     <F label="Belge No" value={form.certificate_number} onChange={e=>setForm({...form,certificate_number:e.target.value})}/>
     <F label="Belge Tarihi" type="date" value={form.certificate_date} onChange={e=>setForm({...form,certificate_date:e.target.value})}/>
