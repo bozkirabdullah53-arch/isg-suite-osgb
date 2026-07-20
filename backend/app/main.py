@@ -63,11 +63,19 @@ async def lifespan(_:FastAPI):
                             conn.execute(text(stmt))
                         except Exception:
                             pass
-            try:
-                with engine.begin() as conn:
-                    conn.execute(text("ALTER TYPE annualplanstatus ADD VALUE IF NOT EXISTS 'cancelled'"))
-            except Exception:
-                pass
+            # Postgres enum parity — code uses delayed/cancelled; live DB may lack them.
+            for _enum_val in ("delayed", "cancelled"):
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(
+                            text(f"ALTER TYPE annualplanstatus ADD VALUE IF NOT EXISTS '{_enum_val}'")
+                        )
+                except Exception:
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text(f"ALTER TYPE annualplanstatus ADD VALUE '{_enum_val}'"))
+                    except Exception:
+                        pass
         if "health_records" in insp.get_table_names():
             hr_cols = {c["name"] for c in insp.get_columns("health_records")}
             hr_alters = []
@@ -163,7 +171,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.55',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.56',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=120)
@@ -183,9 +191,10 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.55',
+        'version': '0.9.56',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'generate-wake-retry',
+        'annual_plan_status': 'enum-delayed',
         'users_delete': 'reassign-fk-refs',
         'assignment_actions': 'end-suspend-delete',
         'companies_actions': 'deactivate-activate-hard-delete',
