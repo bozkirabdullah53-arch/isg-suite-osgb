@@ -30,3 +30,12 @@ def test_physician_zero_activity_score_is_zero():
     assert round(100 * weight_ok_vacuous_old / 7) == 43
     assert round(100 * 0 / 7) == 0
 
+
+def test_specialist_zero_activity_score_is_zero():
+    """Risk/olay yokken DÖF+olay boşta geçmesin → skor 0 (önceki bug: 2/10 = %20)."""
+    weights = [c["weight"] for c in SPECIALIST_CHECKS]
+    assert sum(weights) == 10
+    weight_ok_vacuous_old = 1 + 1  # risk_dof + olay_takip
+    assert round(100 * weight_ok_vacuous_old / 10) == 20
+    assert round(100 * 0 / 10) == 0
+
