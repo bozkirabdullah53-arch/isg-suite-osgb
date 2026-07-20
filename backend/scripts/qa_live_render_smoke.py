@@ -60,38 +60,68 @@ def main() -> int:
     # Cold start: first request may be slow on Render free/sleeping services
     timeout = httpx.Timeout(120.0, connect=30.0)
     with httpx.Client(base_url=API, timeout=timeout, follow_redirects=True) as client:
-        # 1) Root health (cold)
-        r, ms = timed_get(client, "/health")
-        ver = None
-        markers = {}
-        try:
-            body = r.json()
-            ver = body.get("version")
-            markers = body if isinstance(body, dict) else {}
-        except Exception:
-            body = {}
+        # 1) Root health — cold then series for p50/p95-ish warm
+        cold_samples = []
+        for i in range(3):
+            r, ms = timed_get(client, "/health")
+            cold_samples.append(ms)
+            if i == 0:
+                ver = None
+                markers = {}
+                try:
+                    body = r.json()
+                    ver = body.get("version")
+                    markers = body if isinstance(body, dict) else {}
+                except Exception:
+                    body = {}
+                rec(
+                    "live_health_cold",
+                    r.status_code == 200 and bool(ver),
+                    http=r.status_code,
+                    ms=ms,
+                    detail=f"version={ver} cold_ms={ms:.0f}",
+                )
+                if ver:
+                    rec(
+                        "live_version_recent",
+                        str(ver) >= "0.9.56",
+                        detail=f"version={ver}",
+                    )
+                rec(
+                    "live_rate_limit_marker",
+                    markers.get("rate_limit") == "simple-rpm-120" or "rate_limit" in markers,
+                    detail=str(
+                        {
+                            k: markers.get(k)
+                            for k in (
+                                "rate_limit",
+                                "secret_key_guard",
+                                "health_roles",
+                                "oversight_score",
+                                "upload_security",
+                            )
+                            if k in markers
+                        }
+                    ),
+                )
+        warm_samples = []
+        for _ in range(5):
+            r2, ms2 = timed_get(client, "/health")
+            warm_samples.append(ms2)
+        warm_sorted = sorted(warm_samples)
+        p95 = warm_sorted[min(len(warm_sorted) - 1, int(len(warm_sorted) * 0.95))]
         rec(
-            "live_health_cold",
-            r.status_code == 200 and bool(ver),
-            http=r.status_code,
-            ms=ms,
-            detail=f"version={ver} cold_ms={ms:.0f}",
+            "live_health_warm",
+            r2.status_code == 200,
+            http=r2.status_code,
+            ms=warm_samples[-1],
+            detail=f"warm_last={warm_samples[-1]:.0f} warm_p95~={p95:.0f} samples={warm_samples}",
         )
-        if ver:
-            rec(
-                "live_version_recent",
-                str(ver) >= "0.9.56",
-                detail=f"version={ver} (delayed enum / skor / CA health beklenen >=0.9.56)",
-            )
         rec(
-            "live_rate_limit_marker",
-            markers.get("rate_limit") == "simple-rpm-120" or "rate_limit" in markers,
-            detail=str({k: markers.get(k) for k in ("rate_limit", "secret_key_guard", "health_roles", "oversight_score") if k in markers}),
+            "live_health_latency_budget",
+            p95 < 5000 and min(cold_samples) < 30000,
+            detail=f"cold_min={min(cold_samples):.0f} cold_max={max(cold_samples):.0f} warm_p95={p95:.0f}",
         )
-
-        # 2) Warm health
-        r2, ms2 = timed_get(client, "/health")
-        rec("live_health_warm", r2.status_code == 200, http=r2.status_code, ms=ms2, detail=f"warm_ms={ms2:.0f}")
 
         # 3) OpenAPI / docs exposure (info)
         docs, dms = timed_get(client, "/docs")

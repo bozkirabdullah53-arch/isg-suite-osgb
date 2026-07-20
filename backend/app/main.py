@@ -171,7 +171,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.60',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.61',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=120)
@@ -191,13 +191,14 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.60',
+        'version': '0.9.61',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'generate-wake-retry',
         'annual_plan_status': 'enum-delayed',
         'oversight_score': 'no-vacuous-pass-v2',
         'health_roles': 'no-company-admin',
         'training_verify_code': 'uuid-unique',
+        'upload_security': 'magic-byte-quarantine',
         'users_delete': 'reassign-fk-refs',
         'assignment_actions': 'end-suspend-delete',
         'companies_actions': 'deactivate-activate-hard-delete',

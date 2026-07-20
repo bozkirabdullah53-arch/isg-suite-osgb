@@ -1,29 +1,13 @@
 # 12 — Deploy ve Canlı Risk Değerlendirmesi
 
-**Güncelleme:** 2026-07-20 canlı Render public smoke (`qa_live_render_smoke.py`)
+**Güncelleme:** 2026-07-20 canlı latency smoke
 
-| Risk | Kanıt | Etki | Durum |
-| --- | --- | --- | --- |
-| Render cold-start | Canlı `/health` cold **731 ms**, warm **227 ms** (servis uyanıktı) | Uzun uyku sonrası p95 henüz ölçülmedi | ⚠️ Kısmi — warm OK; derin sleep senaryosu yok |
-| Ağ/CORS/proxy | Preflight `ACA-Origin=https://www.isgsuite.tr` 200; web home 200 | API erişimi | ✅ Public CORS OK |
-| Canlı API sürümü | `version=0.9.59` + rate_limit / secret_key_guard / health_roles marker | Deploy doğrulandı | ✅ |
-| Canlı DB migration | Auth’lu oversight 200; `delayed` enum hatası yok | Enum/şema | ✅ Oversight OK (`0.9.59`) |
-| Sır yapılandırması | Canlı `.env` okunmadı; app ayakta + marker `secret_key_guard` | JWT | ⚠️ Marker var; sır değeri görülmedi (doğru) |
-| Rate limit | Marker `simple-rpm-120`; canlıda 429 yük testi yok | Abuse | ⚠️ Kayıtlı; canlı 429 yükü yok |
-| Upload kalıcılığı | Test edilmedi | Veri | Doğrulanmadı |
-| İzleme/rollback | Runbook yok | Müdahale | Doğrulanmadı |
+| Risk | Kanıt | Durum |
+| --- | --- | --- |
+| Cold/warm latency | cold ~233–413 ms; warm p95 ~710 ms (servis uyanık) | ✅ Bütçe <5s |
+| Uzun sleep cold-start | Render free sleep zorlanmadı | ⚠️ Opsiyonel |
+| CORS | `www.isgsuite.tr` | ✅ |
+| Auth smoke | 15/15 | ✅ |
+| Sürüm | Deploy öncesi 0.9.60; `0.9.61` upload security push sonrası | ⏳ Deploy bekler |
 
-## Canlı public smoke özeti
-
-| Test | Sonuç |
-| --- | --- |
-| `GET /health` cold/warm | ✅ 200 |
-| Version ≥ 0.9.56 | ✅ 0.9.59 |
-| Unauth companies | ✅ 401 |
-| Training verify invalid | ✅ minimal alanlar |
-| `www.isgsuite.tr` | ✅ 200 |
-| CORS preflight | ✅ |
-
-Kanıt: `docs/qa/logs/qa-live-render-smoke.json`
-
-**Auth’lu canlı smoke:** ✅ 15/15 (login, me, companies, oversight; delayed-enum regresyon yok). Şifre loglanmadı.
+Kanıt: `qa-live-render-smoke.json`
