@@ -5,6 +5,7 @@ import {api, downloadFile} from './api';import {OsgbDashboard,ProfessionalsPage,
 import {ProPerformancePage} from './pro_performance';
 import {CsgbAuditPackPage} from './csgb_audit_pack';
 import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
+import {DutyDashboard} from './duty_dashboard';
 import {
   EisaOverviewPage,
   EisaOsgbUsersPage,
