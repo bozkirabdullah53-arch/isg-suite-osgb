@@ -40,7 +40,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.75',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.76',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(OsgbSubscriptionWriteMiddleware)
@@ -62,7 +62,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.75',
+        'version': '0.9.76',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'generate-wake-retry',
         'annual_plan_status': 'enum-delayed',

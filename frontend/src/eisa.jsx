@@ -356,6 +356,27 @@ export function EisaOsgbUsersPage() {
     }
   }
 
+  async function deleteOsgb(row) {
+    if (!window.confirm(
+      `“${row.name}” OSGB hesabı KALICI silinsin mi?\n\n• Listeden tamamen kaldırılır\n• Bağlı işyerleri ve operasyon kayıtları silinir\n• Silmeden önce merkezi yedek alınır (Merkezi Arşiv)\n\nBu işlem geri alınamaz.`,
+    )) return;
+    const typed = window.prompt(`Onay için OSGB adını yazın:\n${row.name}`);
+    if (typed?.trim() !== row.name) {
+      setMsg('Silme iptal: ad eşleşmedi.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api(`/eisa/osgb-users/${row.id}`, { method: 'DELETE' });
+      await load();
+      setMsg(`“${row.name}” kalıcı silindi.`);
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function provisionAdmin(row) {
     setProvision({
       osgb_id: row.id,
@@ -392,8 +413,8 @@ export function EisaOsgbUsersPage() {
   return (
     <Page title="OSGB Kullanıcıları" action={<RefreshButton busy={busy} onClick={load} />}>
       <p style={{ marginTop: 0, color: '#64748b' }}>
-        OSGB hesapları kalıcı silinmez; pasif/arşiv yaklaşımı kullanılır. Yönetici hesabı başvuru onayında otomatik oluşturulur;
-        mevcut OSGB’ler için aşağıdan geçici şifre atayabilirsiniz.
+        Pasife Al geçici olarak dondurur. Sil, OSGB’yi listeden kalıcı kaldırır (önce merkezi yedek alınır).
+        Yönetici hesabı başvuru onayında otomatik oluşur; mevcut OSGB’ler için aşağıdan geçici şifre atayabilirsiniz.
       </p>
       <SearchBar value={q} onChange={setQ} placeholder="OSGB adı, e-posta, yetki no…" />
       <button type="button" disabled={busy} onClick={load} style={{ marginBottom: 12 }}>Ara</button>
@@ -429,6 +450,9 @@ export function EisaOsgbUsersPage() {
                     </button>
                     <button type="button" className="secondary" disabled={busy} onClick={() => toggleActive(r)}>
                       {r.is_active ? 'Pasife Al' : 'Aktifleştir'}
+                    </button>
+                    <button type="button" className="secondary" disabled={busy} onClick={() => deleteOsgb(r)}>
+                      Sil
                     </button>
                   </div>
                 </td>

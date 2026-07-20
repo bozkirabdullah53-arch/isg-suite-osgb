@@ -296,6 +296,52 @@ def activate_osgb(
     return {"ok": True, "id": osgb_id, "is_active": True, "message": "OSGB aktifleştirildi."}
 
 
+@router.delete("/osgb-users/{osgb_id}")
+def delete_osgb(
+    osgb_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """OSGB hesabını listeden kalıcı siler. Önce merkezi yedek alınır; arşiv kayıtları kalır."""
+    from sqlalchemy.exc import IntegrityError
+
+    from app.services.archive_store import create_tenant_backup
+    from app.services.osgb_purge import purge_osgb
+
+    org = db.get(OsgbOrganization, osgb_id)
+    if not org:
+        raise HTTPException(404, "OSGB bulunamadı.")
+    name = org.name
+    try:
+        create_tenant_backup(db, user=user, osgb_id=osgb_id)
+    except Exception:
+        pass
+    try:
+        purge_osgb(db, osgb_id)
+        add_audit_log(
+            db,
+            user=user,
+            action="osgb_deleted",
+            module="eisa",
+            entity_type="osgb_organization",
+            entity_id=str(osgb_id),
+            description=f"OSGB kalıcı silindi: {name}",
+            ip_address=_client_ip(request),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(404, str(exc)) from None
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            409,
+            f"“{name}” silinemedi: bağlı kayıtlar var. Önce Pasife Al deneyin veya destek ile iletişime geçin. ({exc.orig or exc})",
+        ) from None
+    return {"ok": True, "id": osgb_id, "deleted": True, "message": f"“{name}” kalıcı silindi."}
+
+
 @router.post("/osgb-users/{osgb_id}/provision-admin", response_model=EisaOsgbAdminProvisionResponse)
 def provision_osgb_admin_account(
     osgb_id: int,
