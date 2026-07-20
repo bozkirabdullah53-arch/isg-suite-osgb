@@ -1,3 +1,10 @@
+uploads/
+uploads_qa/
+backups/
+backups_qa/
+*.db
+*.sqlite3
+.pytest_cache/
 __pycache__/
 *.py[cod]
 .venv/
@@ -6,5 +13,5 @@ node_modules/
 dist/
 .vscode/
 .idea/
-*.db
 .DS_Store
+docs/qa/backups/

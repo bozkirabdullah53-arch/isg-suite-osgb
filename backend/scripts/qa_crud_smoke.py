@@ -175,8 +175,7 @@ def main():
             ("/api/v1/operations/finance", "finance"),
         ):
             r = c.get(path, headers=H(ga))
-            # GA without osgb_id may return 400 from active_osgb — acceptable for empty tenant
-            rec(f"crud_{label}_list", r.status_code in (200, 400, 403), http=r.status_code, detail=r.text[:80])
+            rec(f"crud_{label}_list", r.status_code == 200, http=r.status_code, detail=r.text[:80])
 
     # --- Annual plan generate ---
     if uzman and cid:

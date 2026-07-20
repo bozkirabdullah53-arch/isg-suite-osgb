@@ -46,7 +46,16 @@ def scope(user: User, osgb_id: int):
 
 def active_osgb(user: User, requested: int | None = None, db: Session | None = None) -> int:
     if user.role == UserRole.GLOBAL_ADMIN:
-        oid = requested
+        # GA: query param > kullanıcıya bağlı OSGB > ilk aktif OSGB
+        oid = requested or user.osgb_id
+        if not oid and db is not None:
+            row = db.scalar(
+                select(OsgbOrganization)
+                .where(OsgbOrganization.is_active.is_(True))
+                .order_by(OsgbOrganization.id)
+                .limit(1)
+            )
+            oid = row.id if row else None
     elif user.role in _FIELD_ROLES:
         oid = user.osgb_id
         if not oid and db is not None:
