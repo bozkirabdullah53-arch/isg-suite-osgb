@@ -1,0 +1,127 @@
+{
+  "passed": 20,
+  "failed": 0,
+  "total": 20,
+  "results": [
+    {
+      "test": "crud_login_roles",
+      "ok": true,
+      "http": null,
+      "detail": ""
+    },
+    {
+      "test": "crud_pick_test_firm",
+      "ok": true,
+      "http": null,
+      "detail": "TEST_ Firma Az Tehlikeli A.Ş."
+    },
+    {
+      "test": "crud_employee_create",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"company_id\":1,\"branch_id\":null,\"full_name\":\"TEST_ CRUD Personel\",\"national_id_masked\":null,\"job_ti"
+    },
+    {
+      "test": "crud_employee_list_contains",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "crud_risk_create",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"id\":3,\"risk_code\":\"RSK-0003\",\"company_id\":1,\"branch_id\":null,\"department_id\":1,\"hazard_id\":459,\"hazard_code\":\"AHB-001\",\"hazard_name\":\"LOTO"
+    },
+    {
+      "test": "crud_risk_list",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "crud_incident_create",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"id\":2,\"form_no\":\"ISG-RK-2026-0002\",\"company_id\":1,\"branch_id\":null,\"event_type\":\"ramak_kala\",\"status\":\"Aktif\",\"recorded_by_name\":\"[TEST_DA"
+    },
+    {
+      "test": "crud_incident_list",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "crud_ppe_list",
+      "ok": true,
+      "http": 200,
+      "detail": "[]"
+    },
+    {
+      "test": "crud_ppe_catalog",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "crud_training_create",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"id\":5,\"company_id\":1,\"branch_id\":null,\"title\":\"TEST_ CRUD Egitim 2026-08-29\",\"training_type\":\"Temel İSG Eğitimi\",\"delivery_method\":\"Yüz yü"
+    },
+    {
+      "test": "crud_training_list",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "crud_health_create",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"id\":6,\"company_id\":1,\"employee_id\":97,\"employee_name\":\"TEST_ CRUD Personel\",\"job_title\":\"Operatör\""
+    },
+    {
+      "test": "crud_documents_list",
+      "ok": true,
+      "http": 200,
+      "detail": "[{\"company_id\":3,\"branch_id\":3,\"category\":\"training\",\"title\":\"[TEST_DATA] Test D"
+    },
+    {
+      "test": "crud_crm_list",
+      "ok": true,
+      "http": 400,
+      "detail": "{\"detail\":\"Kullanıcıya bağlı bir OSGB bulunamadı.\"}"
+    },
+    {
+      "test": "crud_finance_list",
+      "ok": true,
+      "http": 400,
+      "detail": "{\"detail\":\"Kullanıcıya bağlı bir OSGB bulunamadı.\"}"
+    },
+    {
+      "test": "crud_annual_plan_generate",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"company_id\":1,\"year\":2026,\"created\":0,\"skipped_existing\":13,\"template_size\":13,\"workday_adjusted\":"
+    },
+    {
+      "test": "crud_export_employees",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "crud_export_or_report",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "crud_employee_delete",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    }
+  ]
+}

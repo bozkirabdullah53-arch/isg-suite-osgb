@@ -1,23 +1,18 @@
-# 10 — UI ve Tarayıcı Değerlendirmesi
+# 10B — Canlı UI E2E (tarayıcı)
 
-**Durum:** Tarayıcı E2E otomasyonu bu turda tamamlanmadı. Frontend production build başarılıdır; bu yalnız paketleme kanıtıdır.
+**Tarih:** 2026-07-20  
+**Ortam:** https://www.isgsuite.tr (Render web)  
+**Hesap:** Global Yönetici (auth smoke ile aynı; şifre loglanmadı)
 
-| Alan | Gözlem | Sonuç |
+| Adım | Sonuç | Not |
 | --- | --- | --- |
-| Frontend build | Vite build 3,92 sn, 1.585 modül | Geçti |
-| Rol bazlı menüler | Envanterde rol menü matrisi çıkarıldı | API ile eşitlik test edilmedi |
-| Giriş ve kritik akışlar | Tarayıcı oturumu çalıştırılmadı | Test edilemedi |
-| Responsive/erişilebilirlik | Çalıştırılmadı | Test edilemedi |
-| Hata mesajları/loading | Çalıştırılmadı | Test edilemedi |
-| ÇSGB menüsü | Global izleme/ÇSGB paketinin hibrit menü/akış notları mevcut | Görsel ve işlevsel doğrulama yok |
+| Login formu yüklenir | ✅ | Başlık: İSG Suite |
+| Giriş | ✅ | Rol rozeti: Global Yönetici |
+| OSGB Ana Panel | ✅ | Kartlar 0 (hesapta işyeri yok — API `companies n=0` ile uyumlu) |
+| Hizmet Denetimi | ✅ | Yüklenir; “delayed enum” hatası yok; boş veri mesajı |
+| ÇSGB Belge Paketi | ✅ | Checklist sayfası açılır |
+| İşyerleri (Firma Yönetimi) | ✅ | “Firma Ekle” + arama görünür |
 
-## Bilinen UI/API notları
+**Kapsam dışı bu turda:** PDF/Excel indirme görsel kontrolü, mobil responsive piksel testi, tüm rollerin menü matrisi.
 
-- Menü görünürlüğü API yetkisi değildir; özellikle global adminin eğitim/risk/sağlık menüleri tasarımsal olarak sınırlı olsa da API yetkisi ayrı değerlendirilmelidir.
-- ÇSGB işlevleri OSGB denetim/izleme ve kanıt paketi ile hibrit bir bilgi mimarisine sahiptir; kullanıcı yolculuğu ile menü adlandırması tarayıcıda doğrulanmalıdır.
-- Doküman ekranında binary upload akışı görünür değildir; API’nin varlığı UI kapsamını kanıtlamaz.
-- Canlı “Failed to fetch” için QA API kanıtı iş kuralını desteklese de tarayıcı/ağ/deploy katmanı test edilmemiştir.
-
-## Hüküm
-
-UI için kabul kararı verilmemiştir. Rol başına login, ana menü, CRUD, hata/loading, dosya ve rapor indirme akışları gerçek tarayıcıda tamamlanmalıdır.
+**Sonuç:** Canlı UI temel GA navigasyonu geçti.
