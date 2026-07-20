@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import DocumentRecord, User, UserRole
 from app.services.audit import add_audit_log
+from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/files", tags=["Dosyalar"])
 
@@ -58,6 +59,8 @@ async def upload_document_file(
     content = await file.read(max_bytes + 1)
     if len(content) > max_bytes:
         raise HTTPException(status_code=413, detail=f"Dosya {settings.max_upload_mb} MB sınırını aşıyor.")
+
+    assert_safe_upload(content, extension, original.name)
 
     company_dir = safe_upload_root() / str(document.company_id)
     company_dir.mkdir(parents=True, exist_ok=True)

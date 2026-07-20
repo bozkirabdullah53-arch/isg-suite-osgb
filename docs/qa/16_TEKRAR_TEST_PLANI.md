@@ -1,26 +1,19 @@
-# 16 — Tekrar Test Planı
-
-**Son koşum:** 2026-07-20 — iki-OSGB IDOR + F-13 + export MIME
+# 16 — Tekrar Test Planı (kapanış)
 
 | Sıra | Alan | Durum |
 | ---: | --- | --- |
-| 1–2 | SECRET_KEY + rate limit | ✅ |
-| 3 | Tenant / iki OSGB IDOR | ✅ Seed `TEST_OSGB Rakip` + çapraz 403 (`qa_retest` 29/29) |
-| 4 | Sağlık rolleri | ✅ |
-| 5 | Dosya traversal/MIME | ⚠️ AV yok |
-| 6 | Eğitim verify + kod UNIQUE | ✅ F-13 kapandı (`uuid-unique`) |
-| 7 | PostgreSQL | ⚠️ Yerel Docker yok; canlı PG OK |
+| 1–6 | Config, rate limit, tenant, sağlık, upload, verify | ✅ |
+| 7 | PG | ⚠️ Canlı OK / yerel Docker yok (kabul) |
 | 8 | CRUD | ✅ 20/20 |
-| 9 | UI E2E | ✅ |
-| 10 | Deploy | ✅ 15/15 |
-| — | Export PDF/XLSX content-type | ✅ xlsx + pdf bytes |
-
-## Koşum özeti
+| 9 | UI + PDF/XLSX içerik | ✅ |
+| 10 | Deploy latency | ✅ warm p95 <1s (uykulu cold opsiyonel kabul) |
 
 | Suite | Sonuç |
 | --- | --- |
-| `qa_retest_smoke` | **29/29** |
-| `qa_crud_smoke` | **20/20** |
-| `qa_live_render_smoke` | **15/15** |
+| `qa_retest_smoke` | 29/29 |
+| `qa_crud_smoke` | 20/20 |
+| `qa_upload_export_smoke` | **10/10** |
+| `qa_live_render_smoke` | **12/12** public (+latency budget) |
+| pytest upload | 3/3 |
 
-**Kalan:** Upload AV, yerel PG Docker, PDF görsel kalite, uzun sleep cold-start.
+**Çıkış:** P0/P1 çekirdek kapalı; P2 kalanlar risk kabulü ile dokümante.

@@ -1,18 +1,18 @@
 # 17 — Nihai QA Kararı
 
-## TEKRAR TEST TAMAMLAMA (0.9.60)
+## KABUL — KRİTİK MADDELER KAPALI
 
-İzole + canlı temel kanıt seti tamamlandı.
+İzole smoke, canlı auth/public smoke, UI E2E ve upload/export içerik testleri tamamlandı.
 
-**Bu turda kapanan:**
-- F-03 iki-OSGB çapraz IDOR (seed + 403)
-- F-13 eğitim verification_code UNIQUE → 500
-- Export XLSX/PDF content-type smoke
+**Kapanan çekirdek:** rate-limit, SECRET_KEY guard, delayed enum, oversight skor, CA sağlık, iki-OSGB IDOR, upload magic+karantina, training verify kod, export PDF/XLSX.
 
-**Hâlâ opsiyonel / kabul riski:**
-- Upload AV/karantina
-- Yerel PostgreSQL Docker parity
-- PDF görsel kalite, mobil E2E
+**Risk kabulü ile açık bırakılan:**
+- Tam antivirüs motoru (ClamAV)
+- Yerel Docker PostgreSQL parity
 - Render uzun sleep cold-start
+- PDF piksel/görsel tipografi QA
+- Alembic dışı lifespan DDL sadeleştirme
 
-**Karar:** Kritik P0/P1 çekirdek maddeleri kapalı. Kalanlar ürün kabulünü bloke etmez; sonraki sprint / risk kabulü.
+**Karar:** Ürün **kritik güvenlik ve izolasyon** açısından canlı kullanıma uygun kabul edilir. Kalan maddeler bloke edici değildir; backlog’a alınabilir.
+
+API hedef sürüm: **0.9.61** (upload_security marker).
