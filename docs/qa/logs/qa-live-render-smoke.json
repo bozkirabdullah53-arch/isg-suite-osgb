@@ -1,19 +1,19 @@
 {
   "target_api": "https://isg-suite-api-1u9t.onrender.com",
   "target_web": "https://www.isgsuite.tr",
-  "passed": 11,
+  "passed": 15,
   "failed": 0,
-  "total": 11,
-  "cold_start_ms": 730.8,
-  "warm_ms": 227.0,
-  "auth_mode": "public_only",
+  "total": 15,
+  "cold_start_ms": 328.2,
+  "warm_ms": 300.4,
+  "auth_mode": "env",
   "results": [
     {
       "test": "live_health_cold",
       "ok": true,
       "http": 200,
-      "ms": 730.8,
-      "detail": "version=0.9.59 cold_ms=731"
+      "ms": 328.2,
+      "detail": "version=0.9.59 cold_ms=328"
     },
     {
       "test": "live_version_recent",
@@ -33,56 +33,84 @@
       "test": "live_health_warm",
       "ok": true,
       "http": 200,
-      "ms": 227.0,
-      "detail": "warm_ms=227"
+      "ms": 300.4,
+      "detail": "warm_ms=300"
     },
     {
       "test": "live_docs_exposed",
       "ok": true,
       "http": 200,
-      "ms": 228.1,
+      "ms": 237.2,
       "detail": "INFO: /docs açık olabilir"
     },
     {
       "test": "live_companies_no_token",
       "ok": true,
       "http": 401,
-      "ms": 229.6,
+      "ms": 229.1,
       "detail": ""
     },
     {
       "test": "live_verify_invalid",
       "ok": true,
       "http": 200,
-      "ms": 220.3,
+      "ms": 257.6,
       "detail": "['valid', 'verification_code', 'participant_count', 'message']"
     },
     {
       "test": "live_system_health",
       "ok": true,
       "http": 200,
-      "ms": 213.0,
+      "ms": 301.4,
       "detail": ""
     },
     {
       "test": "live_login",
       "ok": true,
-      "http": null,
+      "http": 200,
+      "ms": 756.5,
+      "detail": "credential env kullanıldı"
+    },
+    {
+      "test": "live_auth_me",
+      "ok": true,
+      "http": 200,
+      "ms": 683.8,
+      "detail": ""
+    },
+    {
+      "test": "live_companies_list",
+      "ok": true,
+      "http": 200,
+      "ms": 297.6,
+      "detail": "n=0"
+    },
+    {
+      "test": "live_osgb_oversight",
+      "ok": true,
+      "http": 200,
+      "ms": 246.9,
+      "detail": "read-only"
+    },
+    {
+      "test": "live_oversight_no_delayed_enum_error",
+      "ok": true,
+      "http": 200,
       "ms": null,
-      "detail": "SKIP: LIVE_SMOKE_EMAIL/PASSWORD yok — yalnız public smoke"
+      "detail": "delayed enum hatası olmamalı"
     },
     {
       "test": "live_web_home",
       "ok": true,
       "http": 200,
-      "ms": 370.2,
+      "ms": 71.3,
       "detail": "https://www.isgsuite.tr"
     },
     {
       "test": "live_cors_preflight",
       "ok": true,
       "http": 200,
-      "ms": 282.1,
+      "ms": 338.3,
       "detail": "ACA-Origin=https://www.isgsuite.tr"
     }
   ]
