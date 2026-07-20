@@ -44,13 +44,11 @@ const roleModules={
     'eisa_audit_logs',
     'eisa_system_settings',
   ],
+  // OSGB merkezi: yalnız OSGB yönetimi. Saha modülleri (personel/risk/olay/eğitim/sağlık/plan/doküman/İSG özeti) ASLA burada olmamalı.
   company_admin:[
     'osgb_dashboard','osgb_oversight','pro_performance','csgb_audit',
     'professionals','assignments','visits',
     'companies','branches',
-    'dashboard',
-    'risk','near_miss','accident','capa','ppe',
-    'training','health','annual_plans','documents',
     'crm','finance','reports',
     'notifications','users','subscription','security',
   ],

@@ -109,10 +109,9 @@ export function OsgbDashboard({user, onNavigate}){
      <button type="button" className="mini" onClick={()=>go('osgb_oversight')}>Hizmet Denetimi</button>
      <button type="button" className="mini" onClick={()=>go('pro_performance')}>Performans</button>
      <button type="button" className="mini" onClick={()=>go('visits')}>Saha Takvimi</button>
-     <button type="button" className="mini" onClick={()=>go('annual_plans')}>Yıllık Plan</button>
      <button type="button" className="mini" onClick={()=>go('csgb_audit')}>ÇSGB Paketi</button>
-     <button type="button" className="mini" onClick={()=>go('risk')}>Risk</button>
-     <button type="button" className="mini" onClick={()=>go('capa')}>DÖF</button>
+     <button type="button" className="mini" onClick={()=>go('professionals')}>Profesyoneller</button>
+     <button type="button" className="mini" onClick={()=>go('assignments')}>Görevlendirmeler</button>
     </div>
    </div>
   </section>

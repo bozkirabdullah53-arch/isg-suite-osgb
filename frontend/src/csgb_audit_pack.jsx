@@ -16,13 +16,13 @@ const ITEM_ACTIONS = {
   gorevlendirme_katip: {kind: 'nav', module: 'assignments', label: 'Görevlendirmeler'},
   hizmet_sozlesmesi: {kind: 'nav', module: 'companies', label: 'İşyerleri (sözleşme için önce bağla)'},
   saha_sure: {kind: 'nav', module: 'visits', label: 'Saha Takvimi'},
-  risk_degerlendirme: {kind: 'nav', module: 'risk', label: 'Risk Analizi'},
-  yillik_plan: {kind: 'nav', module: 'annual_plans', label: 'Yıllık Plan'},
-  egitim: {kind: 'nav', module: 'training', label: 'Eğitimler'},
-  saglik: {kind: 'nav', module: 'health', label: 'Sağlık'},
-  olay: {kind: 'nav', module: 'accident', label: 'İş Kazaları'},
-  personel: {kind: 'nav', module: 'employees', label: 'Personel'},
-  dokuman_arsiv: {kind: 'nav', module: 'documents', label: 'Dokümanlar'},
+  risk_degerlendirme: {kind: 'nav', module: 'osgb_oversight', label: 'Hizmet Denetimi (saha doldurur)'},
+  yillik_plan: {kind: 'nav', module: 'osgb_oversight', label: 'Hizmet Denetimi (saha doldurur)'},
+  egitim: {kind: 'nav', module: 'osgb_oversight', label: 'Hizmet Denetimi (saha doldurur)'},
+  saglik: {kind: 'nav', module: 'osgb_oversight', label: 'Hizmet Denetimi (saha doldurur)'},
+  olay: {kind: 'nav', module: 'osgb_oversight', label: 'Hizmet Denetimi (saha doldurur)'},
+  personel: {kind: 'nav', module: 'companies', label: 'İşyerleri'},
+  dokuman_arsiv: {kind: 'nav', module: 'companies', label: 'İşyerleri'},
 };
 
 function statusStyle(status) {
