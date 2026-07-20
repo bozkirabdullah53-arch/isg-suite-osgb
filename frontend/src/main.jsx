@@ -561,11 +561,11 @@ function App(){
       <aside>
         <button type="button" className="logo" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfaya dön">
           <img
-            src={user.role==='global_admin'?'/eisa-logo-horizontal.png':'/eisa-logo-icon.png'}
+            src="/eisa-logo-icon.png"
             alt="EİSA PROGRAMLAMA"
-            className={user.role==='global_admin'?'sidebar-logo eisa-logo-horizontal':'sidebar-logo eisa-logo-icon'}
+            className="sidebar-logo eisa-logo-icon"
           />
-          <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':'İSG Suite OSGB'}</span>
+          <span className="logo-caption">{user.role==='global_admin'?'EİSA PROGRAMLAMA':'İSG Suite OSGB'}</span>
         </button>
         <nav ref={navRef}>
           {menu.map(([id,l,I])=>(

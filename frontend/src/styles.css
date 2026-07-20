@@ -20,11 +20,11 @@ button, input { font: inherit; }
 }
 
 .login-wrap {
-  width: min(430px, 100%);
+  width: min(520px, 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 22px;
+  gap: 20px;
 }
 
 .login-card {
@@ -98,10 +98,15 @@ aside {
 .logo:hover { opacity: 0.88; }
 .logo:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; border-radius: 8px; }
 .sidebar-logo { width: 100%; max-width: 180px; height: auto; pointer-events: none; }
-.sidebar-logo.eisa-logo-horizontal { max-width: 196px; margin-bottom: 2px; }
-.sidebar-logo.eisa-logo-icon { max-width: 72px; margin-bottom: 4px; }
+.sidebar-logo.eisa-logo-icon { max-width: 64px; margin-bottom: 6px; object-fit: contain; }
 .logo-caption { font-size: 12px; font-weight: 700; color: #0f4c5c; letter-spacing: 0.02em; }
-.login-eisa-logo { width: min(300px, 92vw); height: auto; display: block; }
+.login-eisa-logo {
+  width: min(420px, 94vw);
+  max-height: 140px;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
 .login-card .linkish {
   border: 0;
   background: none;
