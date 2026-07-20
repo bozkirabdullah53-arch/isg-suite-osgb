@@ -37,13 +37,13 @@
       "test": "health_root",
       "ok": true,
       "http": 200,
-      "detail": "version=0.9.58"
+      "detail": "version=0.9.64"
     },
     {
       "test": "companies_list_ga",
       "ok": true,
       "http": 200,
-      "detail": "n=3"
+      "detail": "n=4"
     },
     {
       "test": "branches_list_ga",
@@ -103,7 +103,7 @@
       "test": "annual_plan_generate",
       "ok": true,
       "http": 200,
-      "detail": "{'company_id': 1, 'year': 2026, 'created': 13, 'skipped_existing': 0, 'template_size': 13, 'workday_adjusted': True, 'target_dates': ['2026-01-15', '2026-01-15'"
+      "detail": "{'company_id': 1, 'year': 2026, 'created': 0, 'skipped_existing': 13, 'template_size': 13, 'workday_adjusted': True, 'target_dates': [], 'message': 'Tüm şablon "
     },
     {
       "test": "annual_plan_idempotent",
@@ -151,7 +151,7 @@
       "test": "risks_list_specialist",
       "ok": true,
       "http": 200,
-      "detail": "n=0"
+      "detail": "n=5"
     },
     {
       "test": "risks_meta_ga",
@@ -163,7 +163,7 @@
       "test": "risks_list_ga",
       "ok": true,
       "http": 200,
-      "detail": "n=0"
+      "detail": "n=5"
     },
     {
       "test": "risks_seed_library",
@@ -187,7 +187,7 @@
       "test": "trainings_list",
       "ok": true,
       "http": 200,
-      "detail": "n=1"
+      "detail": "n=2"
     },
     {
       "test": "trainings_sectors",

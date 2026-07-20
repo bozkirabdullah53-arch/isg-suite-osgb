@@ -15,3 +15,14 @@ dist/
 .idea/
 .DS_Store
 docs/qa/backups/
+# QA / geçici çıktılar (repo kökü)
+.pytest-out.txt
+.pytest-exit.txt
+.npm-build-out.txt
+.npm-build-exit.txt
+_compare_*
+_live_sectors.json
+backend/.audit-smoke-out.txt
+backend/.seed-run-out.txt
+backend/_*_test.pdf
+backend/scripts/audit_results.json

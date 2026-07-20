@@ -16,6 +16,7 @@ services:
       DATABASE_URL: postgresql+psycopg://isgsuite:isgsuite_dev_password@db:5432/isgsuite
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in your environment}
       FRONTEND_ORIGIN: http://localhost:5173
+      CLAMAV_HOST: ${CLAMAV_HOST:-}
     ports:
       - "8000:8000"
     depends_on:
@@ -29,6 +30,13 @@ services:
       - "5173:80"
     depends_on:
       - backend
+
+  # B-01 opsiyonel: ClamAV — `docker compose up -d clamav` + CLAMAV_HOST=clamav
+  clamav:
+    image: clamav/clamav:stable
+    profiles: ["clamav"]
+    ports:
+      - "3310:3310"
 
 volumes:
   postgres_data:
