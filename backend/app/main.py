@@ -15,146 +15,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 @asynccontextmanager
 async def lifespan(_:FastAPI):
     validate_runtime_settings()
+    # Schema parity: alembic upgrade head (start.sh). create_all for fresh local SQLite only.
     Base.metadata.create_all(bind=engine)
-    # Mevcut DB'ye yeni kolon (create_all mevcut tabloyu değiştirmez)
-    try:
-        from sqlalchemy import inspect, text
-        insp = inspect(engine)
-        if "risk_assessments" in insp.get_table_names():
-            cols = {c["name"] for c in insp.get_columns("risk_assessments")}
-            if "department_id" not in cols:
-                with engine.begin() as conn:
-                    conn.execute(text("ALTER TABLE risk_assessments ADD COLUMN department_id INTEGER"))
-        if "training_sessions" in insp.get_table_names():
-            tcols = {c["name"] for c in insp.get_columns("training_sessions")}
-            alters = []
-            for col, sqltype in (
-                ("workplace_physician", "VARCHAR(160)"),
-                ("employer_representative", "VARCHAR(160)"),
-                ("logo_path", "VARCHAR(500)"),
-                ("stamp_text", "VARCHAR(400)"),
-            ):
-                if col not in tcols:
-                    alters.append(f"ALTER TABLE training_sessions ADD COLUMN {col} {sqltype}")
-            if "stamp_text" in tcols:
-                alters.append("ALTER TABLE training_sessions ALTER COLUMN stamp_text TYPE VARCHAR(400)")
-            if alters:
-                with engine.begin() as conn:
-                    for stmt in alters:
-                        try:
-                            conn.execute(text(stmt))
-                        except Exception:
-                            pass
-        if "annual_plan_items" in insp.get_table_names():
-            ap_cols = {c["name"] for c in insp.get_columns("annual_plan_items")}
-            ap_alters = []
-            for col, sqltype in (
-                ("category", "VARCHAR(40)"),
-                ("description", "VARCHAR(2000)"),
-                ("target_date", "DATE"),
-                ("deleted_at", "TIMESTAMP"),
-            ):
-                if col not in ap_cols:
-                    ap_alters.append(f"ALTER TABLE annual_plan_items ADD COLUMN {col} {sqltype}")
-            if ap_alters:
-                with engine.begin() as conn:
-                    for stmt in ap_alters:
-                        try:
-                            conn.execute(text(stmt))
-                        except Exception:
-                            pass
-            # Postgres enum parity — code uses delayed/cancelled; live DB may lack them.
-            for _enum_val in ("delayed", "cancelled"):
-                try:
-                    with engine.begin() as conn:
-                        conn.execute(
-                            text(f"ALTER TYPE annualplanstatus ADD VALUE IF NOT EXISTS '{_enum_val}'")
-                        )
-                except Exception:
-                    try:
-                        with engine.begin() as conn:
-                            conn.execute(text(f"ALTER TYPE annualplanstatus ADD VALUE '{_enum_val}'"))
-                    except Exception:
-                        pass
-        if "health_records" in insp.get_table_names():
-            hr_cols = {c["name"] for c in insp.get_columns("health_records")}
-            hr_alters = []
-            for col, sqltype in (
-                ("audiometry_date", "DATE"),
-                ("audiometry_result", "VARCHAR(240)"),
-                ("spirometry_date", "DATE"),
-                ("spirometry_result", "VARCHAR(240)"),
-                ("chest_xray_date", "DATE"),
-                ("chest_xray_result", "VARCHAR(240)"),
-                ("blood_lead_date", "DATE"),
-                ("blood_lead_value", "DOUBLE PRECISION"),
-                ("blood_lead_unit", "VARCHAR(20)"),
-                ("blood_lead_ref", "DOUBLE PRECISION"),
-                ("blood_lead_eval", "VARCHAR(40)"),
-                ("suggested_tests", "VARCHAR(1000)"),
-                ("exposures", "VARCHAR(1000)"),
-                ("follow_up_note", "VARCHAR(1500)"),
-                ("other_biological_test", "VARCHAR(1000)"),
-                ("report_file_name", "VARCHAR(255)"),
-                ("report_storage_path", "VARCHAR(500)"),
-                ("report_content_type", "VARCHAR(120)"),
-                ("deleted_at", "TIMESTAMP"),
-            ):
-                if col not in hr_cols:
-                    hr_alters.append(f"ALTER TABLE health_records ADD COLUMN {col} {sqltype}")
-            if hr_alters:
-                with engine.begin() as conn:
-                    for stmt in hr_alters:
-                        try:
-                            conn.execute(text(stmt))
-                        except Exception:
-                            pass
-            for enum_name, values in (
-                ("healthrecordtype", ("return_exam", "job_change", "night_work", "heavy_hazardous", "other")),
-                ("healthfitnessstatus", ("fit", "conditional", "tracking", "unfit", "pending")),
-            ):
-                for val in values:
-                    try:
-                        with engine.begin() as conn:
-                            conn.execute(text(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{val}'"))
-                    except Exception:
-                        pass
-        if "workplace_assignments" in insp.get_table_names():
-            wa_cols = {c["name"] for c in insp.get_columns("workplace_assignments")}
-            wa_alters = []
-            for col, sqltype in (
-                ("contract_file_name", "VARCHAR(255)"),
-                ("contract_storage_path", "VARCHAR(500)"),
-                ("contract_content_type", "VARCHAR(120)"),
-            ):
-                if col not in wa_cols:
-                    wa_alters.append(f"ALTER TABLE workplace_assignments ADD COLUMN {col} {sqltype}")
-            if wa_alters:
-                with engine.begin() as conn:
-                    for stmt in wa_alters:
-                        try:
-                            conn.execute(text(stmt))
-                        except Exception:
-                            pass
-        if "service_visits" in insp.get_table_names():
-            sv_cols = {c["name"] for c in insp.get_columns("service_visits")}
-            sv_alters = []
-            for col, sqltype in (
-                ("notebook_file_name", "VARCHAR(255)"),
-                ("notebook_storage_path", "VARCHAR(500)"),
-                ("notebook_content_type", "VARCHAR(120)"),
-            ):
-                if col not in sv_cols:
-                    sv_alters.append(f"ALTER TABLE service_visits ADD COLUMN {col} {sqltype}")
-            if sv_alters:
-                with engine.begin() as conn:
-                    for stmt in sv_alters:
-                        try:
-                            conn.execute(text(stmt))
-                        except Exception:
-                            pass
-    except Exception:
-        pass
     with SessionLocal() as db:
         seed_admin(db)
         try:
@@ -171,7 +33,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.62',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.63',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=120)
@@ -191,7 +53,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.62',
+        'version': '0.9.63',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'generate-wake-retry',
         'annual_plan_status': 'enum-delayed',
@@ -200,6 +62,8 @@ def health():
         'training_verify_code': 'uuid-unique',
         'upload_security': 'magic-byte-quarantine',
         'ga_osgb_fallback': 'user-or-first-active',
+        'schema_bootstrap': 'alembic-only-v1',
+        'render_warmup': 'cron-14m',
         'users_delete': 'reassign-fk-refs',
         'assignment_actions': 'end-suspend-delete',
         'companies_actions': 'deactivate-activate-hard-delete',
