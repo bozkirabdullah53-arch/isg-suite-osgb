@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
+from app.api.tenant_access import accessible_company_ids_for_admin
 from app.core.database import get_db
 from app.core.security import get_password_hash, verify_password
 from app.models.entities import AuditLog, User, UserRole
@@ -45,7 +46,12 @@ def list_audit_logs(
 ):
     query = select(AuditLog).order_by(AuditLog.created_at.desc()).limit(min(limit, 500))
     if user.role != UserRole.GLOBAL_ADMIN:
-        query = query.where(AuditLog.company_id == user.company_id)
+        company_ids = accessible_company_ids_for_admin(db, user)
+        if not company_ids:
+            # NULL company_id sızıntısını engelle — kapsam yoksa boş
+            query = query.where(AuditLog.id == -1)
+        else:
+            query = query.where(AuditLog.company_id.in_(company_ids))
     rows = db.scalars(query).all()
     return [
         {

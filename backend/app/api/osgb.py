@@ -102,10 +102,17 @@ def sync_field_roles(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
-    """Aktif görevlendirmedeki hekim/uzman/DSP kullanıcı rollerini toplu eşle."""
+    """Aktif görevlendirmedeki hekim/uzman/DSP kullanıcı rollerini eşle.
+
+    Firma / OSGB admini yalnızca kendi OSGB kapsamında çalıştırabilir.
+    """
     from app.api.company_access import sync_all_assigned_field_roles
-    _ = user
-    return {"ok": True, **sync_all_assigned_field_roles(db)}
+
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return {"ok": True, **sync_all_assigned_field_roles(db)}
+    if not user.osgb_id:
+        raise HTTPException(400, "OSGB bağlantısı bulunamadı.")
+    return {"ok": True, **sync_all_assigned_field_roles(db, osgb_id=user.osgb_id)}
 
 
 @router.get("/csgb-audit-pack")

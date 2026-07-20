@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
+from app.api.company_access import ensure_company_access
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import DocumentRecord, User, UserRole
@@ -32,6 +33,10 @@ def safe_upload_root() -> Path:
     return root
 
 
+def _assert_document_access(db: Session, user: User, document: DocumentRecord) -> None:
+    ensure_company_access(db, user, document.company_id)
+
+
 @router.post("/documents/{document_id}")
 async def upload_document_file(
     document_id: int,
@@ -47,8 +52,7 @@ async def upload_document_file(
     document = db.get(DocumentRecord, document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Doküman kaydı bulunamadı.")
-    if user.role != UserRole.GLOBAL_ADMIN and document.company_id != user.company_id:
-        raise HTTPException(status_code=403, detail="Bu dokümana dosya yükleyemezsiniz.")
+    _assert_document_access(db, user, document)
 
     original = Path(file.filename or "file")
     extension = original.suffix.lower()
@@ -95,8 +99,7 @@ def download_document_file(
     document = db.get(DocumentRecord, document_id)
     if not document:
         raise HTTPException(status_code=404, detail="Doküman bulunamadı.")
-    if user.role != UserRole.GLOBAL_ADMIN and document.company_id != user.company_id:
-        raise HTTPException(status_code=403, detail="Bu dosyaya erişemezsiniz.")
+    _assert_document_access(db, user, document)
 
     marker = "[stored:"
     description = document.description or ""

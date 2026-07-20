@@ -4,6 +4,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
+from app.api.tenant_access import (
+    assert_can_manage_user,
+    assert_company_in_admin_scope,
+    users_scope_filter,
+)
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.models.entities import (
@@ -27,7 +32,6 @@ from app.schemas.user import UserCreate, UserResponse, UserUpdate
 
 router = APIRouter(prefix="/users", tags=["Kullanıcılar"])
 
-# Kullanıcı silinmeden önce bu tablolardaki referanslar aktarılır / temizlenir
 _REASSIGN_CREATED_BY = (
     AnnualPlanItem,
     HealthRecord,
@@ -42,9 +46,14 @@ _REASSIGN_CREATED_BY = (
     PpeAssignment,
 )
 
+_FIELD_ROLES = {
+    UserRole.SAFETY_SPECIALIST,
+    UserRole.WORKPLACE_PHYSICIAN,
+    UserRole.OTHER_HEALTH_PERSONNEL,
+}
+
 
 def _detach_user_refs(db: Session, user_id: int, successor_id: int) -> None:
-    """FK ihlali olmasın diye kayıtları successor'a taşı; nullable user_id'leri boşalt."""
     for model in _REASSIGN_CREATED_BY:
         db.execute(
             update(model).where(model.created_by_id == user_id).values(created_by_id=successor_id)
@@ -59,8 +68,9 @@ def list_users(
     current: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
     stmt = select(User).order_by(User.full_name)
-    if current.role != UserRole.GLOBAL_ADMIN:
-        stmt = stmt.where(User.company_id == current.company_id)
+    scope = users_scope_filter(db, current)
+    if scope is not None:
+        stmt = stmt.where(scope)
     return list(db.scalars(stmt).all())
 
 
@@ -75,17 +85,29 @@ def create_user(
     if current.role != UserRole.GLOBAL_ADMIN:
         if payload.role == UserRole.GLOBAL_ADMIN:
             raise HTTPException(403, "Bu kullanıcıyı oluşturamazsınız.")
-        if payload.company_id and payload.company_id != current.company_id:
-            raise HTTPException(403, "Bu kullanıcıyı oluşturamazsınız.")
-    field_roles = {UserRole.SAFETY_SPECIALIST, UserRole.WORKPLACE_PHYSICIAN, UserRole.OTHER_HEALTH_PERSONNEL}
-    if payload.role != UserRole.GLOBAL_ADMIN and not payload.company_id and payload.role not in field_roles:
+        assert_company_in_admin_scope(db, current, payload.company_id)
+        if payload.role not in _FIELD_ROLES and not payload.company_id and not current.osgb_id:
+            raise HTTPException(422, "Firma seçilmelidir.")
+        if payload.role not in _FIELD_ROLES and not payload.company_id and current.osgb_id:
+            # OSGB admin firma seçmeden yalnızca kendi OSGB kapsamlı company_admin açabilir
+            if payload.role != UserRole.COMPANY_ADMIN:
+                raise HTTPException(422, "Firma seçilmelidir.")
+    elif payload.role != UserRole.GLOBAL_ADMIN and not payload.company_id and payload.role not in _FIELD_ROLES:
         raise HTTPException(422, "Firma seçilmelidir.")
+
+    osgb_id = None
+    if current.role == UserRole.GLOBAL_ADMIN:
+        osgb_id = None
+    else:
+        osgb_id = current.osgb_id
+
     obj = User(
         email=payload.email,
         full_name=payload.full_name,
         hashed_password=get_password_hash(payload.password),
         role=payload.role,
         company_id=payload.company_id,
+        osgb_id=osgb_id,
     )
     db.add(obj)
     db.commit()
@@ -103,16 +125,27 @@ def update_user(
     obj = db.get(User, user_id)
     if not obj:
         raise HTTPException(404, "Kullanıcı bulunamadı.")
-    if current.role != UserRole.GLOBAL_ADMIN and (
-        obj.company_id != current.company_id or payload.role == UserRole.GLOBAL_ADMIN
-    ):
+    assert_can_manage_user(db, current, obj)
+    if current.role != UserRole.GLOBAL_ADMIN and payload.role == UserRole.GLOBAL_ADMIN:
         raise HTTPException(403, "Bu kullanıcıyı değiştiremezsiniz.")
+
     data = payload.model_dump(exclude_unset=True)
     password = data.pop("password", None)
+
+    if "company_id" in data and current.role != UserRole.GLOBAL_ADMIN:
+        new_company_id = data["company_id"]
+        assert_company_in_admin_scope(db, current, new_company_id)
+        # Tenant dışına taşımayı engelle
+        if new_company_id is None and not current.osgb_id:
+            raise HTTPException(403, "Firma bağlantısı kaldırılamaz.")
+
     for k, v in data.items():
         setattr(obj, k, v)
     if password:
         obj.hashed_password = get_password_hash(password)
+    # OSGB admin kapsamı korunur
+    if current.role != UserRole.GLOBAL_ADMIN and current.osgb_id and not obj.osgb_id:
+        obj.osgb_id = current.osgb_id
     db.commit()
     db.refresh(obj)
     return obj
@@ -129,10 +162,7 @@ def suspend_user(
         raise HTTPException(404, "Kullanıcı bulunamadı.")
     if obj.id == current.id:
         raise HTTPException(400, "Kendi hesabınızı askıya alamazsınız.")
-    if current.role != UserRole.GLOBAL_ADMIN and obj.company_id != current.company_id:
-        raise HTTPException(403, "Bu kullanıcıyı değiştiremezsiniz.")
-    if obj.role == UserRole.GLOBAL_ADMIN and current.role != UserRole.GLOBAL_ADMIN:
-        raise HTTPException(403, "Global yöneticiyi askıya alamazsınız.")
+    assert_can_manage_user(db, current, obj)
     obj.is_active = False
     db.commit()
     return {"ok": True, "id": user_id, "is_active": False, "message": "Kullanıcı askıya alındı."}
@@ -147,8 +177,7 @@ def activate_user(
     obj = db.get(User, user_id)
     if not obj:
         raise HTTPException(404, "Kullanıcı bulunamadı.")
-    if current.role != UserRole.GLOBAL_ADMIN and obj.company_id != current.company_id:
-        raise HTTPException(403, "Bu kullanıcıyı değiştiremezsiniz.")
+    assert_can_manage_user(db, current, obj)
     obj.is_active = True
     db.commit()
     return {"ok": True, "id": user_id, "is_active": True, "message": "Kullanıcı yeniden aktifleştirildi."}
@@ -160,17 +189,13 @@ def delete_user(
     db: Session = Depends(get_db),
     current: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
-    """Kalıcı silme. Bağlı kayıtlar (yıllık plan vb.) silen yöneticiye aktarılır."""
     obj = db.get(User, user_id)
     if not obj:
         raise HTTPException(404, "Kullanıcı bulunamadı.")
     if obj.id == current.id:
         raise HTTPException(400, "Kendi hesabınızı silemezsiniz.")
-    if current.role != UserRole.GLOBAL_ADMIN and obj.company_id != current.company_id:
-        raise HTTPException(403, "Bu kullanıcıyı silemezsiniz.")
+    assert_can_manage_user(db, current, obj)
     if obj.role == UserRole.GLOBAL_ADMIN:
-        if current.role != UserRole.GLOBAL_ADMIN:
-            raise HTTPException(403, "Global yöneticiyi silemezsiniz.")
         other_admins = db.scalar(
             select(User).where(
                 User.role == UserRole.GLOBAL_ADMIN,
@@ -187,7 +212,6 @@ def delete_user(
         db.commit()
     except IntegrityError:
         db.rollback()
-        # Son çare: askıya al (FK başka tabloda olabilir)
         obj = db.get(User, user_id)
         if obj:
             obj.is_active = False

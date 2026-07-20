@@ -46,8 +46,10 @@ def _norm_text(value: str | None) -> str:
 
 
 def find_professional_by_identity(db: Session, user: User) -> IsgProfessional | None:
-    """Rol / OSGB bağımsız: e-posta (öncelik) veya ad ile aktif profesyonel kaydı bul."""
+    """E-posta (öncelik) veya ad ile aktif profesyonel; mümkünse kullanıcı OSGB’si ile sınırlı."""
     stmt = select(IsgProfessional).where(IsgProfessional.is_active.is_(True))
+    if user.osgb_id:
+        stmt = stmt.where(IsgProfessional.osgb_id == user.osgb_id)
 
     email = (user.email or "").strip().casefold()
     if email:
@@ -56,12 +58,15 @@ def find_professional_by_identity(db: Session, user: User) -> IsgProfessional | 
         )
         if by_email:
             return by_email
+        if user.osgb_id:
+            return None
 
     name = _norm_text(user.full_name)
-    if name:
-        for p in db.scalars(stmt.order_by(IsgProfessional.id)).all():
-            if _norm_text(p.full_name) == name:
-                return p
+    if not name:
+        return None
+    matches = [p for p in db.scalars(stmt.order_by(IsgProfessional.id)).all() if _norm_text(p.full_name) == name]
+    if len(matches) == 1:
+        return matches[0]
     return None
 
 
@@ -104,8 +109,15 @@ def link_user_to_professional(db: Session, professional: IsgProfessional) -> Use
     if not user:
         pname = _norm_text(professional.full_name)
         if pname:
-            for u in db.scalars(select(User).where(User.is_active.is_(True))).all():
+            cand_stmt = select(User).where(User.is_active.is_(True))
+            if professional.osgb_id:
+                cand_stmt = cand_stmt.where(
+                    (User.osgb_id == professional.osgb_id) | (User.osgb_id.is_(None))
+                )
+            for u in db.scalars(cand_stmt).all():
                 if u.role in (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN):
+                    continue
+                if professional.osgb_id and u.osgb_id and u.osgb_id != professional.osgb_id:
                     continue
                 if _norm_text(u.full_name) == pname:
                     user = u
@@ -122,19 +134,19 @@ def link_user_to_professional(db: Session, professional: IsgProfessional) -> Use
     return user
 
 
-def sync_all_assigned_field_roles(db: Session) -> dict:
-    """Aktif görevlendirmedeki tüm uzman/hekim/DSP’lerin kullanıcı rollerini düzelt."""
-    pros = list(
-        db.scalars(
-            select(IsgProfessional)
-            .join(WorkplaceAssignment, WorkplaceAssignment.professional_id == IsgProfessional.id)
-            .where(
-                WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
-                IsgProfessional.is_active.is_(True),
-            )
-        ).all()
+def sync_all_assigned_field_roles(db: Session, osgb_id: int | None = None) -> dict:
+    """Aktif görevlendirmedeki uzman/hekim/DSP kullanıcı rollerini düzelt."""
+    stmt = (
+        select(IsgProfessional)
+        .join(WorkplaceAssignment, WorkplaceAssignment.professional_id == IsgProfessional.id)
+        .where(
+            WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+            IsgProfessional.is_active.is_(True),
+        )
     )
-    # join tekrarları olabilir
+    if osgb_id is not None:
+        stmt = stmt.where(IsgProfessional.osgb_id == osgb_id)
+    pros = list(db.scalars(stmt).all())
     seen: set[int] = set()
     linked = 0
     for pro in pros:
@@ -144,7 +156,7 @@ def sync_all_assigned_field_roles(db: Session) -> dict:
         if link_user_to_professional(db, pro):
             linked += 1
     db.commit()
-    return {"professionals": len(seen), "users_linked": linked}
+    return {"professionals": len(seen), "users_linked": linked, "osgb_id": osgb_id}
 
 
 def find_professional_for_user(db: Session, user: User) -> IsgProfessional | None:
@@ -180,7 +192,13 @@ def assigned_company_ids(db: Session, user: User) -> list[int]:
     if user.role == UserRole.GLOBAL_ADMIN:
         return []  # sınırsız — çağıran filtre kullanmaz
     if user.role == UserRole.COMPANY_ADMIN:
-        return [user.company_id] if user.company_id else []
+        if user.company_id:
+            return [user.company_id]
+        if user.osgb_id:
+            return list(
+                db.scalars(select(Company.id).where(Company.osgb_id == user.osgb_id)).all()
+            )
+        return []
 
     if user.role in _OSGB_FIELD_ROLES:
         pro = find_professional_for_user(db, user)
