@@ -39,7 +39,7 @@ class OsgbApplicationResponse(BaseModel):
     created_at: datetime
     reviewed_at: datetime | None
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
 
 class OsgbApplicationReject(BaseModel):

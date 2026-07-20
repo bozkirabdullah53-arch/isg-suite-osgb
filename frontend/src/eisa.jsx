@@ -244,8 +244,37 @@ export function EisaOverviewPage() {
 
   return (
     <Page title="Genel Bakış" action={<RefreshButton busy={busy} onClick={() => load()} />}>
+      <Msg text={msg} />
+      <div style={{ marginBottom: 20, padding: 16, borderRadius: 12, background: '#f0fdfa', border: '1px solid #99f6e4' }}>
+        <h4 style={{ margin: '0 0 8px' }}>
+          OSGB Başvuru Onayı
+          {dash?.pending_applications != null ? ` — ${dash.pending_applications} bekleyen` : ''}
+        </h4>
+        <p style={{ marginTop: 0, color: '#64748b' }}>
+          Aşağıdaki listeden başvuruyu onaylayın veya reddedin. Onayda geçici şifre ekranda gösterilir.
+        </p>
+        <div className="actions" style={{ marginBottom: 12 }}>
+          {[
+            ['pending', 'Bekleyen'],
+            ['approved', 'Onaylanan'],
+            ['rejected', 'Reddedilen'],
+            ['all', 'Tümü'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={appStatus === value ? '' : 'secondary'}
+              disabled={busy}
+              onClick={() => setAppStatus(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <ApplicationsPanel apps={apps} busy={busy} onApprove={approve} onReject={reject} />
+      </div>
       <p style={{ marginTop: 0, color: '#64748b', maxWidth: 720 }}>
-        EİSA platform özeti: OSGB sayıları, abonelik durumları ve tahsilat metrikleri.
+        Platform özeti: OSGB sayıları, abonelik durumları ve tahsilat metrikleri.
       </p>
       {dash && (
         <MetricGrid items={[
@@ -261,30 +290,6 @@ export function EisaOverviewPage() {
           { label: 'Bekleyen ödeme', value: dash.pending_payments },
         ]} />
       )}
-      <Msg text={msg} />
-      <div className="actions" style={{ marginBottom: 12 }}>
-        {[
-          ['pending', 'Bekleyen'],
-          ['approved', 'Onaylanan'],
-          ['rejected', 'Reddedilen'],
-          ['all', 'Tümü'],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            className={appStatus === value ? '' : 'secondary'}
-            disabled={busy}
-            onClick={() => setAppStatus(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <h4 style={{ marginBottom: 8 }}>Başvurular ({apps.length})</h4>
-      <p style={{ color: '#64748b', marginTop: 0 }}>
-        Formda hata alırsanız başvuru kayda düşmez. Geçerli e-posta ve en az 8 haneli vergi no ile yeniden gönderin.
-      </p>
-      <ApplicationsPanel apps={apps} busy={busy} onApprove={approve} onReject={reject} />
       <AdminCredentialsModal data={adminCreds} onClose={() => setAdminCreds(null)} />
     </Page>
   );
