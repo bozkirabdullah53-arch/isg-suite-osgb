@@ -36,17 +36,23 @@ DEFAULT_SETTINGS = {
 
 
 def get_setting(db: Session, key: str, default: str = "") -> str:
-    row = db.scalar(select(EisaPlatformSetting).where(EisaPlatformSetting.key == key))
-    if row:
-        return row.value
+    try:
+        row = db.scalar(select(EisaPlatformSetting).where(EisaPlatformSetting.key == key))
+        if row:
+            return row.value
+    except Exception:
+        pass
     return DEFAULT_SETTINGS.get(key, default)
 
 
 def get_settings(db: Session) -> dict[str, str]:
-    rows = db.scalars(select(EisaPlatformSetting)).all()
     out = dict(DEFAULT_SETTINGS)
-    for row in rows:
-        out[row.key] = row.value
+    try:
+        rows = db.scalars(select(EisaPlatformSetting)).all()
+        for row in rows:
+            out[row.key] = row.value
+    except Exception:
+        pass
     return out
 
 
@@ -206,30 +212,37 @@ def build_dashboard(db: Session) -> dict:
         if eff == SubscriptionStatus.SUSPENDED:
             suspended_count += 1
 
-    payments_month = db.scalar(
-        select(func.coalesce(func.sum(EisaSubscriptionPayment.amount), 0)).where(
-            EisaSubscriptionPayment.payment_status == EisaPaymentStatus.COMPLETED,
-            EisaSubscriptionPayment.payment_date >= month_start,
-        )
-    ) or Decimal("0")
+    payments_month = Decimal("0")
+    payments_total = Decimal("0")
+    pending_payments = 0
+    failed_payments = 0
+    try:
+        payments_month = db.scalar(
+            select(func.coalesce(func.sum(EisaSubscriptionPayment.amount), 0)).where(
+                EisaSubscriptionPayment.payment_status == EisaPaymentStatus.COMPLETED,
+                EisaSubscriptionPayment.payment_date >= month_start,
+            )
+        ) or Decimal("0")
 
-    payments_total = db.scalar(
-        select(func.coalesce(func.sum(EisaSubscriptionPayment.amount), 0)).where(
-            EisaSubscriptionPayment.payment_status == EisaPaymentStatus.COMPLETED,
-        )
-    ) or Decimal("0")
+        payments_total = db.scalar(
+            select(func.coalesce(func.sum(EisaSubscriptionPayment.amount), 0)).where(
+                EisaSubscriptionPayment.payment_status == EisaPaymentStatus.COMPLETED,
+            )
+        ) or Decimal("0")
 
-    pending_payments = db.scalar(
-        select(func.count()).select_from(EisaSubscriptionPayment).where(
-            EisaSubscriptionPayment.payment_status == EisaPaymentStatus.PENDING
-        )
-    ) or 0
+        pending_payments = db.scalar(
+            select(func.count()).select_from(EisaSubscriptionPayment).where(
+                EisaSubscriptionPayment.payment_status == EisaPaymentStatus.PENDING
+            )
+        ) or 0
 
-    failed_payments = db.scalar(
-        select(func.count()).select_from(EisaSubscriptionPayment).where(
-            EisaSubscriptionPayment.payment_status == EisaPaymentStatus.FAILED
-        )
-    ) or 0
+        failed_payments = db.scalar(
+            select(func.count()).select_from(EisaSubscriptionPayment).where(
+                EisaSubscriptionPayment.payment_status == EisaPaymentStatus.FAILED
+            )
+        ) or 0
+    except Exception:
+        pass
 
     return {
         "platform": "EİSA",

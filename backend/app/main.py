@@ -18,6 +18,12 @@ async def lifespan(_:FastAPI):
     validate_runtime_settings()
     # Schema parity: alembic upgrade head (start.sh). create_all for fresh local SQLite only.
     Base.metadata.create_all(bind=engine)
+    try:
+        from app.services.schema_repair import repair_schema
+
+        repair_schema()
+    except Exception:
+        pass
     with SessionLocal() as db:
         seed_admin(db)
         try:
@@ -34,7 +40,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.70',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.71',lifespan=lifespan)
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(OsgbSubscriptionWriteMiddleware)
@@ -56,7 +62,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.70',
+        'version': '0.9.71',
         'pdf_layout': 'pro-2026',
         'annual_plans': 'generate-wake-retry',
         'annual_plan_status': 'enum-delayed',
@@ -68,7 +74,7 @@ def health():
         'ga_osgb_fallback': 'user-or-first-active',
         'schema_bootstrap': 'alembic-only-v1',
         'render_warmup': 'cron-14m',
-        'eisa_platform': 'eisa-global-admin-v2',
+        'eisa_platform': 'eisa-global-admin-v3',
         'users_delete': 'reassign-fk-refs',
         'assignment_actions': 'end-suspend-delete',
         'companies_actions': 'deactivate-activate-hard-delete',

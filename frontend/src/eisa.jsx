@@ -189,19 +189,23 @@ export function EisaOverviewPage() {
   const load = async (status = appStatus) => {
     setBusy(true);
     setMsg('');
+    const errors = [];
+    const statusParam = status === 'all' ? 'all' : status;
     try {
-      const statusParam = status === 'all' ? 'all' : status;
-      const [d, a] = await Promise.all([
-        api('/eisa/dashboard'),
-        api(`/eisa/applications?status=${statusParam}`),
-      ]);
+      const d = await api('/eisa/dashboard');
       setDash(d);
-      setApps(a);
     } catch (e) {
-      setMsg(e.message);
-    } finally {
-      setBusy(false);
+      errors.push(`Özet: ${e.message}`);
     }
+    try {
+      const a = await api(`/eisa/applications?status=${statusParam}`);
+      setApps(Array.isArray(a) ? a : []);
+    } catch (e) {
+      errors.push(`Başvurular: ${e.message}`);
+      setApps([]);
+    }
+    if (errors.length) setMsg(errors.join(' · '));
+    setBusy(false);
   };
 
   useEffect(() => { void load(appStatus); }, [appStatus]);
@@ -276,7 +280,7 @@ export function EisaOverviewPage() {
           </button>
         ))}
       </div>
-      <h4 style={{ marginBottom: 8 }}>Başvurular</h4>
+      <h4 style={{ marginBottom: 8 }}>Başvurular ({apps.length})</h4>
       <p style={{ color: '#64748b', marginTop: 0 }}>
         Formda hata alırsanız başvuru kayda düşmez. Geçerli e-posta ve en az 8 haneli vergi no ile yeniden gönderin.
       </p>
@@ -1209,6 +1213,7 @@ export function OsgbApplyPage({ onBack }) {
   });
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(false);
+  const [submittedId, setSubmittedId] = useState(null);
   const [err, setErr] = useState('');
 
   function formatApiError(detail, fallback = 'Başvuru gönderilemedi.') {
@@ -1251,6 +1256,7 @@ export function OsgbApplyPage({ onBack }) {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(formatApiError(data.detail));
       setOk(true);
+      setSubmittedId(data.id ?? null);
     } catch (ex) {
       setErr(ex.message || 'Başvuru gönderilemedi.');
     } finally {
@@ -1264,6 +1270,7 @@ export function OsgbApplyPage({ onBack }) {
         <section className="login-card" style={{ maxWidth: 480 }}>
           <h1>Başvuru alındı</h1>
           <p>EİSA ekibi başvurunuzu inceleyecek. Onay sonrası 10 günlük deneme süreniz başlar.</p>
+          {submittedId && <p style={{ color: '#64748b' }}>Başvuru no: <strong>#{submittedId}</strong></p>}
           <button type="button" onClick={onBack}>Giriş sayfasına dön</button>
         </section>
       </main>

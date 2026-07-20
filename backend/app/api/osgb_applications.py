@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.core.database import get_db
 from app.models.entities import OsgbApplication, OsgbApplicationStatus
 from app.schemas.osgb_subscription import OsgbApplicationCreate, OsgbApplicationResponse
@@ -48,6 +50,13 @@ def submit_application(payload: OsgbApplicationCreate, db: Session = Depends(get
         auto_matched=bool(matched),
     )
     db.add(obj)
-    db.commit()
+    try:
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            500,
+            "Başvuru kaydedilemedi. Veritabanı şeması güncelleniyor olabilir; birkaç dakika sonra tekrar deneyin.",
+        ) from exc
     db.refresh(obj)
     return obj
