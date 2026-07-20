@@ -1,7 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.schemas.validators import parse_optional_datetime
 
 
 class EisaPackageCreate(BaseModel):
@@ -55,6 +57,13 @@ class EisaPaymentCreate(BaseModel):
     period_start: datetime | None = None
     period_end: datetime | None = None
     reference_no: str | None = Field(default=None, max_length=80)
+
+    @field_validator("payment_date", "period_start", "period_end", mode="before")
+    @classmethod
+    def _parse_dates(cls, value):
+        if value is None or value == "":
+            return None
+        return parse_optional_datetime(value)
 
 
 class EisaPaymentResponse(BaseModel):

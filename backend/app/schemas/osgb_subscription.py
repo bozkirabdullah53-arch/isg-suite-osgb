@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+from app.schemas.validators import parse_optional_datetime
 
 
 class OsgbApplicationCreate(BaseModel):
@@ -85,3 +87,10 @@ class OsgbSubscriptionUpdate(BaseModel):
     last_payment_channel: str | None = None
     payment_notes: str | None = Field(default=None, max_length=1000)
     is_auto_renew: bool | None = None
+
+    @field_validator("trial_ends_at", "current_period_ends_at", mode="before")
+    @classmethod
+    def _parse_dates(cls, value):
+        if value is None or value == "":
+            return None
+        return parse_optional_datetime(value)

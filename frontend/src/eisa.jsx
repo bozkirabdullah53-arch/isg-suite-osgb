@@ -93,6 +93,21 @@ export function Msg({ text }) {
   return <p style={{ color: ok ? '#166534' : '#b91c1c' }}>{text}</p>;
 }
 
+function toDatetimeLocalValue(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromDatetimeLocalValue(value) {
+  const s = (value || '').trim();
+  if (!s || s === '—') return null;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) return `${s}:00`;
+  return s;
+}
+
 function ApplicationsPanel({ apps, busy, onApprove, onReject }) {
   return (
     <div className="table-wrap">
@@ -358,10 +373,10 @@ function SubscriptionEditModal({ edit, setEdit, busy, packages, onSave }) {
             </select>
           </label>
           <label className="field"><span>Deneme bitiş</span>
-            <input value={edit.trial_ends_at || ''} onChange={(e) => setEdit({ ...edit, trial_ends_at: e.target.value })} />
+            <input type="datetime-local" value={edit.trial_ends_at || ''} onChange={(e) => setEdit({ ...edit, trial_ends_at: e.target.value })} />
           </label>
           <label className="field"><span>Dönem bitiş</span>
-            <input value={edit.current_period_ends_at || ''} onChange={(e) => setEdit({ ...edit, current_period_ends_at: e.target.value })} />
+            <input type="datetime-local" value={edit.current_period_ends_at || ''} onChange={(e) => setEdit({ ...edit, current_period_ends_at: e.target.value })} />
           </label>
           <label className="field"><span>Ödeme notu</span>
             <input value={edit.payment_notes || ''} onChange={(e) => setEdit({ ...edit, payment_notes: e.target.value })} />
@@ -418,8 +433,8 @@ function useSubscriptions(filter) {
         body: JSON.stringify({
           status: edit.status,
           package_id: edit.package_id,
-          trial_ends_at: edit.trial_ends_at || null,
-          current_period_ends_at: edit.current_period_ends_at || null,
+          trial_ends_at: fromDatetimeLocalValue(edit.trial_ends_at),
+          current_period_ends_at: fromDatetimeLocalValue(edit.current_period_ends_at),
           last_payment_channel: edit.last_payment_channel || null,
           payment_notes: edit.payment_notes || null,
           is_auto_renew: edit.is_auto_renew,
@@ -438,8 +453,8 @@ function useSubscriptions(filter) {
   function openEdit(s) {
     setEdit({
       ...s,
-      trial_ends_at: s.trial_ends_at?.slice(0, 16),
-      current_period_ends_at: s.current_period_ends_at?.slice(0, 16),
+      trial_ends_at: toDatetimeLocalValue(s.trial_ends_at),
+      current_period_ends_at: toDatetimeLocalValue(s.current_period_ends_at),
     });
   }
 
