@@ -485,7 +485,7 @@ export function EisaOsgbUsersPage() {
   );
 }
 
-function SubscriptionTable({ rows, busy, onEdit }) {
+function SubscriptionTable({ rows, busy, onEdit, onDelete }) {
   return (
     <div className="table-wrap">
       <table>
@@ -512,7 +512,10 @@ function SubscriptionTable({ rows, busy, onEdit }) {
               <td>{s.last_payment_date ? new Date(s.last_payment_date).toLocaleDateString('tr-TR') : '—'}</td>
               <td>{s.write_allowed ? 'Açık' : 'Salt okunur'}</td>
               <td>
-                <button type="button" className="secondary" disabled={busy} onClick={() => onEdit(s)}>Düzenle</button>
+                <div className="actions">
+                  <button type="button" className="secondary" disabled={busy} onClick={() => onEdit(s)}>Düzenle</button>
+                  <button type="button" className="secondary" disabled={busy} onClick={() => onDelete(s)}>Sil</button>
+                </div>
               </td>
             </tr>
           )) : (
@@ -636,7 +639,29 @@ function useSubscriptions(filter) {
     });
   }
 
-  return { rows, packages, q, setQ, busy, msg, edit, setEdit, load, saveSub, openEdit };
+  async function deleteOsgb(s) {
+    const name = s.osgb_name || `OSGB #${s.osgb_id}`;
+    if (!window.confirm(
+      `“${name}” OSGB hesabı KALICI silinsin mi?\n\nAbonelik ve bağlı kayıtlar kaldırılır; önce merkezi yedek alınır.`,
+    )) return;
+    const typed = window.prompt(`Onay için OSGB adını yazın:\n${name}`);
+    if (typed?.trim() !== name) {
+      setMsg('Silme iptal: ad eşleşmedi.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api(`/eisa/osgb-users/${s.osgb_id}`, { method: 'DELETE' });
+      await load();
+      setMsg(`“${name}” kalıcı silindi.`);
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return { rows, packages, q, setQ, busy, msg, edit, setEdit, load, saveSub, openEdit, deleteOsgb };
 }
 
 export function EisaSubscriptionsPage() {
@@ -646,7 +671,7 @@ export function EisaSubscriptionsPage() {
       <SearchBar value={s.q} onChange={s.setQ} />
       <button type="button" disabled={s.busy} onClick={s.load} style={{ marginBottom: 12 }}>Ara</button>
       <Msg text={s.msg} />
-      <SubscriptionTable rows={s.rows} busy={s.busy} onEdit={s.openEdit} />
+      <SubscriptionTable rows={s.rows} busy={s.busy} onEdit={s.openEdit} onDelete={s.deleteOsgb} />
       <SubscriptionEditModal edit={s.edit} setEdit={s.setEdit} busy={s.busy} packages={s.packages} onSave={s.saveSub} />
     </Page>
   );
@@ -657,7 +682,7 @@ export function EisaExpiringSubscriptionsPage() {
   return (
     <Page title="Süresi Yaklaşan Abonelikler" action={<RefreshButton busy={s.busy} onClick={s.load} />}>
       <Msg text={s.msg} />
-      <SubscriptionTable rows={s.rows} busy={s.busy} onEdit={s.openEdit} />
+      <SubscriptionTable rows={s.rows} busy={s.busy} onEdit={s.openEdit} onDelete={s.deleteOsgb} />
       <SubscriptionEditModal edit={s.edit} setEdit={s.setEdit} busy={s.busy} packages={s.packages} onSave={s.saveSub} />
     </Page>
   );
@@ -668,7 +693,7 @@ export function EisaExpiredSubscriptionsPage() {
   return (
     <Page title="Süresi Dolan Abonelikler" action={<RefreshButton busy={s.busy} onClick={s.load} />}>
       <Msg text={s.msg} />
-      <SubscriptionTable rows={s.rows} busy={s.busy} onEdit={s.openEdit} />
+      <SubscriptionTable rows={s.rows} busy={s.busy} onEdit={s.openEdit} onDelete={s.deleteOsgb} />
       <SubscriptionEditModal edit={s.edit} setEdit={s.setEdit} busy={s.busy} packages={s.packages} onSave={s.saveSub} />
     </Page>
   );
