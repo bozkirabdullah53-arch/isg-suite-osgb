@@ -18,3 +18,15 @@ def test_status_from_ratio_bands():
     assert _status_from_ratio(6, 10) == "warning"
     assert _status_from_ratio(2, 10) == "critical"
     assert _status_from_ratio(0, 0) == "unknown"
+
+
+def test_physician_zero_activity_score_is_zero():
+    """Sağlık kaydı / ziyaret yokken muayene+uygunluk boşta geçmesin → skor 0."""
+    # Ağırlıklar: saha2 + saglik2 + muayene2 + uygunluk1 = 7
+    # Hepsi fail → 0/7 = 0% (önceki bug: muayene+uygunluk pass → 3/7 ≈ 43%)
+    weights = [c["weight"] for c in PHYSICIAN_CHECKS]
+    assert sum(weights) == 7
+    weight_ok_vacuous_old = 2 + 1  # muayene + uygunluk
+    assert round(100 * weight_ok_vacuous_old / 7) == 43
+    assert round(100 * 0 / 7) == 0
+

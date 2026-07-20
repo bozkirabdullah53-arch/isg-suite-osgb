@@ -417,6 +417,12 @@ def _eval_physician_firm(
         )
     ) or 0
 
+    # Sağlık kaydı yokken "gecikme yok / takip sorun yok" boşta geçmesin —
+    # aksi halde hekim hiç iş yapmasa bile skor ~%43 görünür (2+1 / 7 ağırlık).
+    health_ok = health_total > 0
+    exam_ok = health_ok and overdue == 0
+    fitness_ok = health_ok and tracking <= max(1, health_total // 5)
+
     return [
         _check_result(
             "saha_sure",
@@ -437,8 +443,9 @@ def _eval_physician_firm(
             "Sağlık gözetimi kayıtları",
             "6331 md.15 — sağlık gözetimi",
             2,
-            health_total > 0,
-            f"Aktif sağlık kaydı: {health_total}",
+            health_ok,
+            f"Aktif sağlık kaydı: {health_total}"
+            + ("" if health_ok else " — henüz kayıt yok"),
             {"health_total": health_total},
         ),
         _check_result(
@@ -446,18 +453,26 @@ def _eval_physician_firm(
             "Geciken / yaklaşan muayene",
             "Sağlık gözetimi periyotlarına uyum",
             2,
-            overdue == 0,
-            f"Geciken {overdue}, 30 gün içinde {due_soon}",
-            {"overdue": overdue, "due_soon": due_soon},
+            exam_ok,
+            (
+                f"Geciken {overdue}, 30 gün içinde {due_soon}"
+                if health_ok
+                else "Sağlık kaydı olmadığı için muayene takibi değerlendirilemedi"
+            ),
+            {"overdue": overdue, "due_soon": due_soon, "health_total": health_total},
         ),
         _check_result(
             "uygunluk",
             "Uygunluk / takip durumları",
             "İşe giriş ve periyodik muayene sonuçlarının takibi",
             1,
-            tracking <= max(1, health_total // 5) if health_total else True,
-            f"Kısıtlı/takip/uygun değil: {tracking}",
-            {"tracking": tracking},
+            fitness_ok,
+            (
+                f"Kısıtlı/takip/uygun değil: {tracking}"
+                if health_ok
+                else "Sağlık kaydı olmadığı için uygunluk takibi değerlendirilemedi"
+            ),
+            {"tracking": tracking, "health_total": health_total},
         ),
     ], visits
 
