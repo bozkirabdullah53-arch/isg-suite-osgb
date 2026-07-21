@@ -1,9 +1,10 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {AlertTriangle,BarChart3,Bell,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,FileText,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
+import {AlertTriangle,BarChart3,Bell,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
 import {api, apiWithBearer, downloadFile, reportClientError} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';
 import {ProPerformancePage} from './pro_performance';
 import {CsgbAuditPackPage} from './csgb_audit_pack';
+import {Customer360Page} from './customer_360';
 import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
 import {AdminSummaryDashboard,DutyDashboard} from './duty_dashboard';
 import {
@@ -250,14 +251,36 @@ function Login({done,onApply}){
           )}
           {mode==='mfa_setup'&&(
             <form onSubmit={submitMfaSetup}>
-              <p style={{color:'#64748b',fontSize:14}}>Yönetici hesapları için MFA zorunludur. Authenticator uygulamanıza gizli anahtarı ekleyin.</p>
+              <p style={{color:'#64748b',fontSize:14,marginTop:0}}>
+                Yönetici hesapları için MFA zorunludur. Önce telefonunuzdaki Authenticator uygulamasına hesabı ekleyin; ardından uygulamanın gösterdiği <strong>6 haneli kodu</strong> girin.
+              </p>
               {setupInfo&&(
-                <>
-                  <p style={{fontSize:13,wordBreak:'break-all'}}><strong>Gizli anahtar:</strong> <code>{setupInfo.secret}</code></p>
-                  <p style={{fontSize:12,color:'#64748b',wordBreak:'break-all'}}>{setupInfo.otpauth_uri}</p>
-                </>
+                <ol style={{fontSize:13,color:'#475569',paddingLeft:20,margin:'0 0 12px'}}>
+                  <li>Google / Microsoft Authenticator uygulamasını açın</li>
+                  <li><strong>+</strong> → <em>Manuel giriş</em> veya <em>Kurulum anahtarı</em></li>
+                  <li>Aşağıdaki gizli anahtarı yapıştırın (doğrulama alanına değil)</li>
+                  <li>Uygulamada görünen 6 haneli kodu aşağıya yazın</li>
+                </ol>
               )}
-              <label>Doğrulama kodu</label><input value={code} onChange={e=>setCode(e.target.value)} required/>
+              {setupInfo&&(
+                <p style={{fontSize:13,wordBreak:'break-all',background:'#f8fafc',padding:10,borderRadius:8}}>
+                  <strong>Gizli anahtar (Authenticator’a):</strong><br/>
+                  <code style={{userSelect:'all'}}>{setupInfo.secret}</code>
+                </p>
+              )}
+              <label>6 haneli doğrulama kodu</label>
+              <input
+                value={code}
+                onChange={e=>setCode(e.target.value.replace(/\s/g,'').slice(0,8))}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="000000"
+                minLength={6}
+                maxLength={8}
+                pattern="[0-9A-Za-z-]{6,16}"
+                required
+              />
+              <p style={{fontSize:12,color:'#64748b',margin:'6px 0 0'}}>Gizli anahtarı buraya yapıştırmayın — yalnızca uygulamanın ürettiği kısa kod.</p>
               {err&&<div className="error">{err}</div>}
               <button disabled={busy}>MFA etkinleştir</button>
             </form>
@@ -281,7 +304,7 @@ function Modal({title,close,children}){return <div className="modal-bg" onMouseD
 function Field({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
 function Table({cols,rows,empty='Kayıt bulunamadı.'}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
-function Companies({canEdit, canAdd}){
+function Companies({canEdit, canAdd, onOpen360}){
   const[data,setData]=useState([]);
   const[open,setOpen]=useState(false);
   const[q,setQ]=useState('');
@@ -354,6 +377,11 @@ function Companies({canEdit, canAdd}){
       {key:'address',label:'Adres'},
       {key:'hazard_class',label:'Tehlike Sınıfı'},
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
+      ...(onOpen360?[{key:'c360',label:'360',render:r=>(
+        <button type="button" className="mini" disabled={busy} onClick={()=>onOpen360(r.id)} title="Müşteri 360">
+          <Eye size={14} style={{verticalAlign:'middle',marginRight:4}}/>360
+        </button>
+      )}]:[]),
       ...(canEdit?[{key:'actions',label:'İşlem',render:r=>(
         <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
           {r.is_active
@@ -860,6 +888,7 @@ function App(){
   const[active,setActive]=useState(()=>{
     try{return sessionStorage.getItem('isg_active')||''}catch{return ''}
   });
+  const[c360Id,setC360Id]=useState(null);
   const navRef=useRef(null);
   const[applyMode,setApplyMode]=useState(false);
   const verifyCode=useMemo(()=>{
@@ -878,8 +907,9 @@ function App(){
   }
 
   function goModule(id){
+    if(id!=='customer_360') setC360Id(null);
     const allowed=roleModules[user?.role]||[];
-    if(id && !allowed.includes(id)){
+    if(id && id!=='customer_360' && !allowed.includes(id)){
       // Yetkisiz / menüde olmayan modül — ana panele düş
       const home=allowed.includes('osgb_dashboard')
         ? 'osgb_dashboard'
@@ -892,6 +922,18 @@ function App(){
     }
     setActive(id);
     try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
+  }
+
+  function openCustomer360(companyId){
+    setC360Id(companyId);
+    setActive('customer_360');
+    try{sessionStorage.setItem('isg_active','customer_360')}catch(_){ /* ignore */ }
+  }
+
+  function closeCustomer360(){
+    setC360Id(null);
+    setActive('companies');
+    try{sessionStorage.setItem('isg_active','companies')}catch(_){ /* ignore */ }
   }
 
   function logout(){
@@ -996,7 +1038,7 @@ function App(){
     crm:<CrmPage user={user}/>,
     finance:<FinancePage user={user}/>,
     dashboard:<Dashboard summary={summary} user={user} onNavigate={goModule}/>,
-    companies:<Companies canEdit={user.role==='global_admin'||user.role==='company_admin'} canAdd={user.role==='global_admin'||(user.role==='company_admin'&&!user.company_id)}/>,
+    companies:<Companies canEdit={user.role==='global_admin'||user.role==='company_admin'} canAdd={user.role==='global_admin'||(user.role==='company_admin'&&!user.company_id)} onOpen360={user.role==='company_admin'?openCustomer360:undefined}/>,
     branches:<Branches user={user}/>,
     employees:<Employees user={user}/>,
     risk:<RiskPage user={user}/>,
@@ -1069,8 +1111,10 @@ function App(){
               Salt okunur mod: abonelik süresi doldu. Veri girişi kapalı — EİSA ile iletişime geçin.
             </div>
           )}
-          <ErrorBoundary key={active||'none'} onHome={goHome}>
-            {pages[active] || (
+          <ErrorBoundary key={active==='customer_360'?`c360-${c360Id}`:(active||'none')} onHome={goHome}>
+            {active==='customer_360' && c360Id ? (
+              <Customer360Page companyId={c360Id} onBack={closeCustomer360} onNavigate={goModule} user={user}/>
+            ) : pages[active] || (
               <section className="panel">
                 <h3 style={{marginTop:0}}>Modül bulunamadı</h3>
                 <p style={{color:'#64748b'}}>Bu sayfa rolünüz için tanımlı değil veya geçersiz.</p>

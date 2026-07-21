@@ -73,12 +73,16 @@ def mfa_setup(
 
     if getattr(user, "mfa_enabled", False):
         raise HTTPException(status_code=400, detail="MFA zaten açık. Önce kapatın.")
-    secret = pyotp.random_base32()
-    user.mfa_secret_encrypted = encrypt_secret(secret)
-    user.mfa_enabled = False
-    db.commit()
+    existing = get_mfa_secret(user)
+    if existing:
+        secret = existing
+    else:
+        secret = pyotp.random_base32()
+        user.mfa_secret_encrypted = encrypt_secret(secret)
+        user.mfa_enabled = False
+        db.commit()
     uri = pyotp.TOTP(secret).provisioning_uri(name=user.email, issuer_name="ISG Suite")
-    return {"secret": secret, "otpauth_uri": uri}
+    return {"secret": secret, "otpauth_uri": uri, "pending": not getattr(user, "mfa_enabled", False)}
 
 
 @router.post("/mfa/enable")
@@ -94,7 +98,7 @@ def mfa_enable(
     if not secret:
         raise HTTPException(status_code=400, detail="Önce MFA kurulumu başlatın.")
     code = (payload.code or "").strip().replace(" ", "")
-    if not pyotp.TOTP(secret).verify(code, valid_window=1):
+    if not pyotp.TOTP(secret).verify(code, valid_window=2):
         raise HTTPException(status_code=400, detail="Doğrulama kodu hatalı.")
     codes, hashes_json = generate_recovery_codes()
     user.mfa_enabled = True
@@ -132,7 +136,7 @@ def mfa_disable(
         raise HTTPException(status_code=400, detail="Şifre hatalı.")
     secret = get_mfa_secret(user)
     code = (payload.code or "").strip().replace(" ", "")
-    ok = bool(secret and pyotp.TOTP(secret).verify(code, valid_window=1))
+    ok = bool(secret and pyotp.TOTP(secret).verify(code, valid_window=2))
     if not ok:
         raise HTTPException(status_code=400, detail="Doğrulama kodu hatalı.")
     user.mfa_enabled = False

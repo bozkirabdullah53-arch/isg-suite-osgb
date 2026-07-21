@@ -3,7 +3,7 @@ from sqlalchemy import delete, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.company_access import companies_query_for_user
+from app.api.company_access import companies_query_for_user, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import (
@@ -37,6 +37,7 @@ from app.models.entities import (
 )
 from app.models.entities import OsgbOrganization
 from app.schemas.company import CompanyCreate, CompanyResponse, CompanyUpdate
+from app.services.company_overview import build_company_overview
 
 router = APIRouter(prefix="/companies", tags=["Firmalar"])
 
@@ -130,6 +131,32 @@ def list_companies(
             )
         )
     return list(db.scalars(stmt).all())
+
+
+@router.get("/{company_id}", response_model=CompanyResponse)
+def get_company(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    ensure_company_access(db, user, company_id)
+    obj = db.get(Company, company_id)
+    if not obj:
+        raise HTTPException(404, "Firma bulunamadı.")
+    return obj
+
+
+@router.get("/{company_id}/overview")
+def company_overview(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    ensure_company_access(db, user, company_id)
+    obj = db.get(Company, company_id)
+    if not obj:
+        raise HTTPException(404, "Firma bulunamadı.")
+    return build_company_overview(db, obj)
 
 
 @router.post("", response_model=CompanyResponse)
