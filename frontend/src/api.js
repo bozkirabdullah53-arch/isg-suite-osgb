@@ -341,11 +341,17 @@ export async function downloadFile(path, filename) {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-export async function uploadFile(path, file) {
+export async function uploadFile(path, file, extraFields = null) {
   await wakeApi();
   const token = localStorage.getItem("isg_token");
   const formData = new FormData();
   formData.append("file", file);
+  if (extraFields && typeof extraFields === "object") {
+    for (const [k, v] of Object.entries(extraFields)) {
+      if (v === undefined || v === null || v === "") continue;
+      formData.append(k, String(v));
+    }
+  }
   let response;
   try {
     response = await fetch(`${API_URL}${path}`, {

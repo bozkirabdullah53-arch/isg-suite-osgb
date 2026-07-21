@@ -1,6 +1,6 @@
 import enum
 from datetime import date, datetime
-from sqlalchemy import Boolean, Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -716,6 +716,10 @@ class ServiceVisit(Base):
     notebook_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notebook_storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     notebook_content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    gps_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    gps_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    gps_accuracy_m: Mapped[float | None] = mapped_column(Float, nullable=True)
+    gps_captured_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status: Mapped[VisitStatus] = mapped_column(Enum(VisitStatus), default=VisitStatus.PLANNED, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

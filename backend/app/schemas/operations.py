@@ -54,6 +54,13 @@ class VisitPlanCreate(BaseModel):
         return self
 
 
+class VisitGpsStamp(BaseModel):
+    """Saha tamamlamada isteğe bağlı GPS damgası."""
+    gps_lat: float | None = Field(default=None, ge=-90, le=90)
+    gps_lng: float | None = Field(default=None, ge=-180, le=180)
+    gps_accuracy_m: float | None = Field(default=None, ge=0, le=50000)
+
+
 class VisitUpdate(BaseModel):
     company_id: int | None = None
     visit_date: date | None = None
@@ -92,6 +99,10 @@ class VisitResponse(BaseModel):
     notes: str | None = None
     notebook_file_name: str | None = None
     notebook_content_type: str | None = None
+    gps_lat: float | None = None
+    gps_lng: float | None = None
+    gps_accuracy_m: float | None = None
+    gps_captured_at: datetime | None = None
     status: VisitStatus
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)

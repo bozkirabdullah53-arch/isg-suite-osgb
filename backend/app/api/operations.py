@@ -1,8 +1,8 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -14,7 +14,7 @@ from app.models.entities import (AssignmentStatus, Company, CrmLead, FinanceTran
                                  OsgbOrganization, ServiceContract, ServiceVisit, User,
                                  UserRole, VisitStatus, WorkplaceAssignment)
 from app.schemas.operations import (FinanceCreate, FinanceResponse, LeadCreate, LeadResponse,
-                                    VisitCreate, VisitPlanCreate, VisitResponse, VisitUpdate)
+                                    VisitCreate, VisitGpsStamp, VisitPlanCreate, VisitResponse, VisitUpdate)
 from app.services.visit_calendar import build_visit_calendar
 from app.services.module_kpis import build_module_kpis
 
@@ -34,6 +34,17 @@ FIELD_VISIT_ROLES = (
 )
 ALLOWED_NOTEBOOK = {".pdf", ".jpg", ".jpeg", ".png"}
 _FIELD_ROLES = set(FIELD_VISIT_ROLES)
+
+
+def _apply_gps_stamp(obj: ServiceVisit, lat: float | None, lng: float | None, accuracy: float | None = None):
+    if lat is None or lng is None:
+        return
+    if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+        raise HTTPException(422, "GPS koordinatları geçersiz.")
+    obj.gps_lat = float(lat)
+    obj.gps_lng = float(lng)
+    obj.gps_accuracy_m = float(accuracy) if accuracy is not None else None
+    obj.gps_captured_at = datetime.utcnow()
 
 
 def scope(user: User, osgb_id: int):
@@ -434,6 +445,9 @@ def delete_visit(
 async def upload_visit_notebook(
     visit_id: int,
     file: UploadFile = File(...),
+    gps_lat: float | None = Form(default=None),
+    gps_lng: float | None = Form(default=None),
+    gps_accuracy_m: float | None = Form(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*FIELD_VISIT_ROLES, UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
@@ -461,6 +475,7 @@ async def upload_visit_notebook(
         ".jpeg": "image/jpeg",
         ".png": "image/png",
     }.get(ext, "application/octet-stream")
+    _apply_gps_stamp(obj, gps_lat, gps_lng, gps_accuracy_m)
     obj.status = VisitStatus.COMPLETED
     db.commit()
     db.refresh(obj)
@@ -487,8 +502,15 @@ def download_visit_notebook(
 
 
 @router.patch("/visits/{visit_id}/complete", response_model=VisitResponse)
-def complete_visit(visit_id: int, db: Session = Depends(get_db), user: User = Depends(require_roles(*FIELD_VISIT_ROLES))):
+def complete_visit(
+    visit_id: int,
+    payload: VisitGpsStamp | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*FIELD_VISIT_ROLES)),
+):
     obj = _get_visit(db, visit_id, user)
+    stamp = payload or VisitGpsStamp()
+    _apply_gps_stamp(obj, stamp.gps_lat, stamp.gps_lng, stamp.gps_accuracy_m)
     obj.status = VisitStatus.COMPLETED
     db.commit()
     db.refresh(obj)

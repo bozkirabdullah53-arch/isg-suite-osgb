@@ -12,6 +12,32 @@ function T({cols,rows}){return <div className="table-wrap"><table><thead><tr>{co
 function P({title,action,children}){return <><div className="page-title"><h3>{title}</h3>{action}</div><section className="panel">{children}</section></>}
 function osgbId(user,orgs){return user.osgb_id||orgs[0]?.id||''}
 
+/** Tarayıcı GPS — izin yoksa null döner (tamamlama yine yapılabilir). */
+function captureGps(timeoutMs=12000){
+  return new Promise((resolve)=>{
+    if(typeof navigator==='undefined'||!navigator.geolocation){
+      resolve(null);return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{
+        resolve({
+          gps_lat:pos.coords.latitude,
+          gps_lng:pos.coords.longitude,
+          gps_accuracy_m:typeof pos.coords.accuracy==='number'?pos.coords.accuracy:null,
+        });
+      },
+      ()=>resolve(null),
+      {enableHighAccuracy:true,timeout:timeoutMs,maximumAge:30000}
+    );
+  });
+}
+
+function fmtGps(row){
+  if(row?.gps_lat==null||row?.gps_lng==null) return '—';
+  const acc=row.gps_accuracy_m!=null?` ±${Math.round(row.gps_accuracy_m)}m`:'';
+  return `${Number(row.gps_lat).toFixed(5)}, ${Number(row.gps_lng).toFixed(5)}${acc}`;
+}
+
 async function copyText(text){
   const v=String(text||'');
   if(!v) return false;
@@ -798,7 +824,8 @@ export function VisitsPage({user}){
     visitId=created.id;
    }
    if(notebookFile&&visitId){
-    await uploadFile(`/operations/visits/${visitId}/notebook`,notebookFile);
+    const gps=isField?await captureGps():null;
+    await uploadFile(`/operations/visits/${visitId}/notebook`,notebookFile,gps||undefined);
    }
    setOpen(false);setEditing(null);setNotebookFile(null);
    setForm(f=>({...emptyForm,osgb_id:f.osgb_id||oid||''}));
@@ -817,8 +844,13 @@ export function VisitsPage({user}){
   }catch(ex){setErr(ex.message||'Silinemedi.')}
  }
  async function done(id){
-  try{await api(`/operations/visits/${id}/complete`,{method:'PATCH'});await load()}
-  catch(ex){setErr(ex.message||'Tamamlanamadı.')}
+  setErr('');setBusy(true);
+  try{
+   const gps=await captureGps();
+   await api(`/operations/visits/${id}/complete`,{method:'PATCH',body:JSON.stringify(gps||{})});
+   await load();
+  }catch(ex){setErr(ex.message||'Tamamlanamadı.')}
+  finally{setBusy(false)}
  }
  async function downloadNotebook(row){
   try{await downloadFile(`/operations/visits/${row.id}/notebook`,row.notebook_file_name||'tespit-oneri-defteri')}
@@ -847,10 +879,54 @@ export function VisitsPage({user}){
  const filteredRows=selectedDay?rows.filter(r=>r.visit_date===selectedDay):rows;
  const calDays=cal?.days||[];
  const padStart=calDays.length?((calDays[0].weekday+6)%7):0;
+ const todayIso=new Date().toISOString().slice(0,10);
+ const fieldQueue=isField?rows.filter(r=>r.status!=='completed').sort((a,b)=>String(a.visit_date).localeCompare(String(b.visit_date))):[];
+ const overdueQueue=fieldQueue.filter(r=>r.visit_date&&r.visit_date<todayIso);
+ const todayQueue=fieldQueue.filter(r=>r.visit_date===todayIso);
+ const upcomingQueue=fieldQueue.filter(r=>r.visit_date&&r.visit_date>todayIso).slice(0,6);
  return <P title={isOsgb?'Saha Ziyaretleri (OSGB İzleme)':'Saha Ziyaret Takvimi'} action={<div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
   {isOsgb&&<button type="button" onClick={openPlan}><Plus/>Planlı Ziyaret</button>}
   {isField&&<button onClick={openCreate}><Plus/>Ziyaret Kaydet</button>}
  </div>}>
+  {isField&&(
+   <section className="panel field-portal" style={{marginBottom:12}}>
+    <div style={{display:'flex',justifyContent:'space-between',gap:10,flexWrap:'wrap',alignItems:'flex-start',marginBottom:10}}>
+     <div>
+      <h3 style={{margin:'0 0 4px',fontSize:16}}>Saha portalı</h3>
+      <p style={{margin:0,color:'#64748b',fontSize:13}}>Planlı ziyaretleri buradan tamamlayın. Tamamlarken konum (GPS) damgası alınır.</p>
+     </div>
+     <button type="button" className="mini" disabled={busy} onClick={openCreate}>+ Hızlı kayıt</button>
+    </div>
+    <div className="cards osgb-cards" style={{marginBottom:10}}>
+     <article className="metric"><span>Gecikmiş</span><strong style={{color:overdueQueue.length?'#b91c1c':undefined}}>{overdueQueue.length}</strong></article>
+     <article className="metric"><span>Bugün</span><strong>{todayQueue.length}</strong></article>
+     <article className="metric"><span>Yaklaşan</span><strong>{upcomingQueue.length}</strong></article>
+     <article className="metric"><span>Açık iş</span><strong>{fieldQueue.length}</strong></article>
+    </div>
+    {fieldQueue.length===0?(
+     <p style={{margin:0,color:'#64748b',fontSize:14}}>Açık planlı ziyaret yok. Yeni saha kaydı için “Ziyaret Kaydet” kullanın.</p>
+    ):(
+     <div className="field-queue">
+      {[...overdueQueue,...todayQueue,...upcomingQueue].map(r=>{
+       const name=companies.find(x=>x.id===r.company_id)?.name||`İşyeri #${r.company_id}`;
+       const late=r.visit_date&&r.visit_date<todayIso;
+       return (
+        <article key={r.id} className="field-card" style={{borderLeft:late?'4px solid #b91c1c':'4px solid #0f766e'}}>
+         <div>
+          <strong style={{display:'block',fontSize:15}}>{name}</strong>
+          <span style={{color:'#64748b',fontSize:13}}>{r.visit_date} · {r.subject||'Ziyaret'}{late?' · Gecikmiş':''}</span>
+         </div>
+         <div className="actions" style={{flexWrap:'wrap'}}>
+          <button type="button" className="mini secondary" onClick={()=>openEdit(r)}>Düzenle</button>
+          <button type="button" className="mini" disabled={busy} onClick={()=>done(r.id)}>{busy?'GPS…':'GPS ile Tamamla'}</button>
+         </div>
+        </article>
+       );
+      })}
+     </div>
+    )}
+   </section>
+  )}
   {isOsgb&&<p style={{margin:'0 0 12px',color:'#475569',fontSize:14}}>Takvimde planlı ziyaretleri izleyin; gecikmiş ve eksik süre uyarılarını kapatın. Saha kaydı uzman/hekim/DSP tarafından defter ile yapılır.</p>}
   {user.role==='global_admin'&&orgs.length>1&&(
    <label className="field" style={{maxWidth:320,marginBottom:12}}>
@@ -919,11 +995,12 @@ export function VisitsPage({user}){
    {k:'notebook_file_name',l:'Tespit Defteri',f:r=>r.notebook_file_name?<button type="button" className="mini" onClick={()=>downloadNotebook(r)}>{r.notebook_file_name}</button>:'—'},
    {k:'duration_minutes',l:'Süre (dk.)'},
    {k:'status',l:'Durum'},
+   {k:'gps',l:'GPS',f:r=>fmtGps(r)},
    ...(canEdit?[{k:'x',l:'İşlem',f:r=>(
     <div className="actions" style={{flexWrap:'wrap'}}>
      <button type="button" className="mini" onClick={()=>openEdit(r)}>Düzenle</button>
      <button type="button" className="mini" onClick={()=>remove(r)}>Sil</button>
-     {isField&&r.status!=='completed'&&<button type="button" className="mini" onClick={()=>done(r.id)}>Tamamla</button>}
+     {isField&&r.status!=='completed'&&<button type="button" className="mini" disabled={busy} onClick={()=>done(r.id)}>GPS ile Tamamla</button>}
     </div>
    )}]:[])
   ]}/>
@@ -944,6 +1021,7 @@ export function VisitsPage({user}){
      <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required={!editing} onChange={e=>setNotebookFile(e.target.files?.[0]||null)}/>
      {notebookFile&&<small style={{color:'#475569'}}>{notebookFile.name}</small>}
      {!notebookFile&&editing?.notebook_file_name&&<small style={{color:'#475569'}}>Mevcut: {editing.notebook_file_name}</small>}
+     {isField&&<small style={{display:'block',marginTop:6,color:'#0f766e'}}>Defter yüklenince konum (GPS) damgası da kaydedilir (izin verirseniz).</small>}
     </label>
     {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
     <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':(editing?'Güncelle':'Kaydet')}</button></div>

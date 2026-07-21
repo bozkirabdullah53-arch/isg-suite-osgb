@@ -311,6 +311,10 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 .panel.inner{margin-top:18px}
 .osgb-cards{grid-template-columns:repeat(4,1fr)}
 .osgb-cards .metric strong{font-size:25px}.check-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.check-grid span{display:flex;gap:9px;align-items:center;padding:13px;border-radius:10px;background:#f1f8f7;color:#365c61}.check-grid svg{color:#0f766e}.finance-summary{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:16px}.finance-summary b{background:#eef8f7;padding:12px 16px;border-radius:10px;color:#0f665f}@media(max-width:900px){.osgb-cards{grid-template-columns:repeat(2,1fr)}}@media(max-width:620px){.check-grid{grid-template-columns:1fr}.osgb-cards{grid-template-columns:1fr 1fr}}
+.field-queue{display:grid;gap:10px}
+.field-card{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 14px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}
+.field-card .actions button{min-height:40px}
+@media(max-width:620px){.field-card{align-items:stretch}.field-card .actions{width:100%}.field-card .actions button{flex:1;justify-content:center}}
 @media print{
   .app-shell>aside,.app-shell>section>header,.page-title .actions,.no-print,.logout{display:none!important}
   .workspace,.content,.panel{box-shadow:none!important;border:0!important;padding:0!important;margin:0!important}

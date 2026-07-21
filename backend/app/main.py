@@ -11,7 +11,7 @@ from app.services.seed import seed_admin, seed_demo_osgbs
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self,request,call_next):
         response=await call_next(request)
-        response.headers.update({'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'strict-origin-when-cross-origin','Permissions-Policy':'camera=(), microphone=(), geolocation=()'})
+        response.headers.update({'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'strict-origin-when-cross-origin','Permissions-Policy':'camera=(), microphone=(), geolocation=(self)'})
         return response
 @asynccontextmanager
 async def lifespan(_:FastAPI):
@@ -44,7 +44,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.102',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.103',lifespan=lifespan)
 
 from app.core.validation_tr import register_turkish_validation
 register_turkish_validation(app)
@@ -69,7 +69,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.102',
+        'version': '0.9.103',
         'pdf_layout': 'pro-2026',
         'companies_admin': 'osgb-admin-crud-v1',
         'company_fields': 'address-phone-contact-v1',
@@ -100,6 +100,7 @@ def health():
         'capacity_engine': '6331-legal-minutes-v1',
         'visit_calendar': 'plan-overdue-coverage-v1',
         'module_kpis': 'risk-training-health-v1',
+        'field_gps': 'visit-complete-stamp-v1',
         'tenant_isolation': 'osgb-scoped-v1',
         'central_archive': 'tenant-backup-v1',
         'users_delete': 'reassign-fk-refs',
