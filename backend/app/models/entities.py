@@ -852,6 +852,8 @@ class RiskMedia(Base):
     storage_path: Mapped[str] = mapped_column(String(500))
     original_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # 0.9.121 — isteğe bağlı tehlike etiketi checklist (JSON)
+    tags_json: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     risk: Mapped[RiskAssessment] = relationship(back_populates="media_files")

@@ -180,6 +180,8 @@ export function RiskPage({user}) {
   const [depForm, setDepForm] = useState({name: '', description: ''});
   const [hazardHint, setHazardHint] = useState(null);
   const [hintBusy, setHintBusy] = useState(false);
+  const [photoTagCatalog, setPhotoTagCatalog] = useState([]);
+  const [selectedPhotoTags, setSelectedPhotoTags] = useState([]);
 
   const effectiveCompanyId = reportCompanyId || user.company_id || companies[0]?.id || '';
 
@@ -247,6 +249,13 @@ export function RiskPage({user}) {
       await loadStats(cid);
     }
   };
+
+  useEffect(() => {
+    if (!canEdit) return;
+    api('/risks/photo-tag-catalog')
+      .then((r) => setPhotoTagCatalog(r.items || []))
+      .catch(() => setPhotoTagCatalog([]));
+  }, [canEdit]);
 
   useEffect(() => {
     if (!user.company_id && !reportCompanyId) {
@@ -538,11 +547,21 @@ export function RiskPage({user}) {
     e.target.value = '';
     if (!file || !detail) return;
     try {
-      await uploadFile(`/risks/${detail.id}/media`, file);
+      const extra = selectedPhotoTags.length
+        ? {tags: JSON.stringify(selectedPhotoTags)}
+        : null;
+      await uploadFile(`/risks/${detail.id}/media`, file, extra);
+      setSelectedPhotoTags([]);
       openDetail(detail.id);
     } catch (ex) {
       window.alert(ex.message || 'Fotoğraf yüklenemedi.');
     }
+  }
+
+  function togglePhotoTag(code) {
+    setSelectedPhotoTags((prev) => (
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    ));
   }
 
   async function removeMedia(mediaId) {
@@ -1251,11 +1270,16 @@ export function RiskPage({user}) {
           <h4 style={{marginTop: 16}}>Fotoğraf / medya</h4>
           <div style={{display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start', marginBottom: 8}}>
             {(detail.media || []).map((m) => (
-              <div key={m.id} style={{textAlign: 'center'}}>
+              <div key={m.id} style={{textAlign: 'center', maxWidth: 140}}>
                 <AuthThumb path={`/risks/${detail.id}/media/${m.id}`} alt={m.original_name || ''} />
-                <div style={{fontSize: 11, color: '#64748b', maxWidth: 96, overflow: 'hidden', textOverflow: 'ellipsis'}}>
+                <div style={{fontSize: 11, color: '#64748b', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis'}}>
                   {m.original_name || `#${m.id}`}
                 </div>
+                {(m.tag_labels || []).length > 0 && (
+                  <div style={{fontSize: 10, color: '#0f766e', marginTop: 2, lineHeight: 1.3}}>
+                    {(m.tag_labels || []).join(' · ')}
+                  </div>
+                )}
                 {canEdit && (
                   <button className="mini" type="button" onClick={() => removeMedia(m.id)} style={{marginTop: 4}}>
                     Sil
@@ -1268,10 +1292,35 @@ export function RiskPage({user}) {
             )}
           </div>
           {canEdit && (
-            <label className="field" style={{display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
-              <span className="mini" style={{pointerEvents: 'none'}}>Fotoğraf ekle</span>
-              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={uploadMedia} style={{display: 'none'}} />
-            </label>
+            <div style={{marginBottom: 10}}>
+              <div style={{fontSize: 13, color: '#475569', marginBottom: 6}}>
+                Tehlike etiketi (isteğe bağlı — yüklemeden önce seçin)
+              </div>
+              <div style={{display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8}}>
+                {photoTagCatalog.map((t) => {
+                  const on = selectedPhotoTags.includes(t.code);
+                  return (
+                    <button
+                      key={t.code}
+                      type="button"
+                      className="mini"
+                      onClick={() => togglePhotoTag(t.code)}
+                      style={{
+                        background: on ? '#0f766e' : '#f1f5f9',
+                        color: on ? '#fff' : '#334155',
+                        border: on ? '1px solid #0f766e' : '1px solid #cbd5e1',
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <label className="field" style={{display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
+                <span className="mini" style={{pointerEvents: 'none'}}>Fotoğraf ekle</span>
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={uploadMedia} style={{display: 'none'}} />
+              </label>
+            </div>
           )}
 
           <h4 style={{marginTop: 16}}>DÖF kayıtları</h4>

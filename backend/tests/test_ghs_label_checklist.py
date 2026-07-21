@@ -1,4 +1,4 @@
-"""0.9.120 — GHS/CLP tehlike etiketi checklist stub."""
+"""0.9.121 — GHS/CLP tehlike etiketi checklist stub."""
 from __future__ import annotations
 
 from app.services.ghs_label_checklist import (

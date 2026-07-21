@@ -248,3 +248,10 @@ def repair_schema() -> None:
                 conn.execute(
                     text("ALTER TABLE chemical_products ADD COLUMN ghs_checklist_json VARCHAR(500)")
                 )
+
+    # 0.9.121 — Risk medya tehlike etiketi checklist
+    if "risk_media" in _tables():
+        cols = _columns("risk_media")
+        if "tags_json" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE risk_media ADD COLUMN tags_json VARCHAR(500)"))

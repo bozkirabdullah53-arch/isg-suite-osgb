@@ -7,7 +7,7 @@ from datetime import date
 from io import BytesIO
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -46,11 +46,19 @@ from app.schemas.risk import (
     RiskDofResponse,
     RiskDofUpdate,
     RiskMediaResponse,
+    RiskMediaTagsUpdate,
     RiskResponse,
     RiskUpdate,
 )
 from app.services.ai_hazard_hint import HINT_ENGINE, suggest_hazard_from_text
 from app.services.hazard_seed import seed_hazard_library
+from app.services.risk_photo_tags import (
+    TAGS_ENGINE,
+    catalog as photo_tag_catalog,
+    parse_form_tags,
+    parse_tags,
+    serialize_selected,
+)
 from app.services.risk_reports import build_risk_excel, build_risk_pdf
 from app.services.risk_scoring import evaluate, meta_payload
 from app.services.risk_suggestions import get_suggestions
@@ -86,6 +94,19 @@ def _next_code(db: Session, prefix: str, model, field) -> str:
     return f"{prefix}-{count + 1:04d}"
 
 
+def _media_response(m: RiskMedia) -> RiskMediaResponse:
+    parsed = parse_tags(getattr(m, "tags_json", None))
+    return RiskMediaResponse(
+        id=m.id,
+        risk_id=m.risk_id,
+        original_name=m.original_name,
+        content_type=m.content_type,
+        created_at=m.created_at,
+        tags=list(parsed["selected"]),
+        tag_labels=list(parsed["labels"]),
+    )
+
+
 def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: HazardCategory | None = None) -> RiskResponse:
     return RiskResponse(
         id=row.id,
@@ -118,7 +139,7 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
         created_at=row.created_at,
         updated_at=row.updated_at,
         dofs=[RiskDofResponse.model_validate(d) for d in (row.dofs or [])],
-        media=[RiskMediaResponse.model_validate(m) for m in (row.media_files or [])],
+        media=[_media_response(m) for m in (row.media_files or [])],
     )
 
 
@@ -219,6 +240,12 @@ def hazard_hint(
         "alternatives": alts,
         "engine": HINT_ENGINE,
     }
+
+
+@router.get("/photo-tag-catalog")
+def get_photo_tag_catalog(user: User = Depends(get_current_user)):
+    """0.9.121 — Risk fotoğrafı tehlike etiketi checklist kataloğu."""
+    return {"engine": TAGS_ENGINE, "items": photo_tag_catalog()}
 
 
 @router.post("/seed-library")
@@ -1049,6 +1076,7 @@ def complete_dof(
 async def upload_risk_media(
     risk_id: int,
     file: UploadFile = File(...),
+    tags: str | None = Form(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -1070,12 +1098,33 @@ async def upload_risk_media(
         storage_path=rel.replace("\\", "/"),
         original_name=name,
         content_type=file.content_type or "application/octet-stream",
+        tags_json=serialize_selected(parse_form_tags(tags)),
         created_by_id=user.id,
     )
     db.add(media)
     db.commit()
     db.refresh(media)
-    return RiskMediaResponse.model_validate(media)
+    return _media_response(media)
+
+
+@router.put("/{risk_id}/media/{media_id}/tags", response_model=RiskMediaResponse)
+def put_risk_media_tags(
+    risk_id: int,
+    media_id: int,
+    payload: RiskMediaTagsUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """0.9.121 — Mevcut risk medyasına tehlike etiketi checklist güncelle."""
+    row = _load_risk(db, risk_id)
+    ensure_access(db, user, row.company_id)
+    media = next((m for m in (row.media_files or []) if m.id == media_id), None)
+    if not media:
+        raise HTTPException(404, "Medya bulunamadı.")
+    media.tags_json = serialize_selected(payload.selected)
+    db.commit()
+    db.refresh(media)
+    return _media_response(media)
 
 
 @router.get("/{risk_id}/media/{media_id}")

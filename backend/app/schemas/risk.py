@@ -102,7 +102,13 @@ class RiskMediaResponse(BaseModel):
     original_name: str | None
     content_type: str | None
     created_at: datetime
+    tags: list[str] = []
+    tag_labels: list[str] = []
     model_config = ConfigDict(from_attributes=True)
+
+
+class RiskMediaTagsUpdate(BaseModel):
+    selected: list[str] = []
 
 
 class RiskResponse(BaseModel):
