@@ -1,4 +1,4 @@
-﻿"""Aylik sozlesme tahakkuku — aktif ServiceContract -> pending gelir."""
+"""Aylık sözleşme tahakkuku — aktif ServiceContract → pending gelir."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -15,9 +15,10 @@ def accrual_key(contract_id: int, month: date | None = None) -> str:
 
 
 def accrue_month_for_osgb(db: Session, osgb_id: int, as_of: date | None = None) -> dict:
-    """Aktif sozlesmeler icin bu ay tahakkuk olustur (idempotent)."""
+    """Aktif sözleşmeler için bu ay tahakkuk oluştur (idempotent)."""
     today = as_of or date.today()
     month_tag = today.strftime("%Y-%m")
+    month_start = today.replace(day=1)
     contracts = list(
         db.scalars(
             select(ServiceContract).where(
@@ -53,6 +54,20 @@ def accrue_month_for_osgb(db: Session, osgb_id: int, as_of: date | None = None) 
             skipped += 1
             continue
 
+        # CRM dönüşümünün ilk ay tahakkuku ile aynı ayda çift fatura önle
+        existing_month = db.scalar(
+            select(FinanceTransaction).where(
+                FinanceTransaction.osgb_id == osgb_id,
+                FinanceTransaction.company_id == contract.company_id,
+                FinanceTransaction.category == "contract",
+                FinanceTransaction.transaction_date >= month_start,
+                FinanceTransaction.transaction_date <= today,
+            )
+        )
+        if existing_month:
+            skipped += 1
+            continue
+
         fin = FinanceTransaction(
             osgb_id=osgb_id,
             company_id=contract.company_id,
@@ -62,7 +77,7 @@ def accrue_month_for_osgb(db: Session, osgb_id: int, as_of: date | None = None) 
             transaction_date=today,
             due_date=today + timedelta(days=30),
             status="pending",
-            description=f"{key} aylik tahakkuk ({month_tag})",
+            description=f"{key} aylık tahakkuk ({month_tag})",
         )
         db.add(fin)
         db.flush()

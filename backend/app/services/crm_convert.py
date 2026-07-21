@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from app.services.finance_accrual import accrual_key
+
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -116,7 +118,7 @@ def convert_lead_to_contract(db: Session, lead: CrmLead) -> dict:
             transaction_date=today,
             due_date=today + timedelta(days=30),
             status="pending",
-            description=f"CRM-{lead.id} ilk ay tahakkuk ({company.name})",
+            description=f"{accrual_key(contract.id, today)} CRM-{lead.id} ilk ay tahakkuk ({company.name})",
         )
         db.add(finance)
         db.flush()
