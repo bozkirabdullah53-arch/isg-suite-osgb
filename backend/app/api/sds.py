@@ -1,4 +1,4 @@
-"""0.9.119 — SDS/PKD kimyasal ürün sicili (saha uzmanı MVP)."""
+"""0.9.119 — SDS/PKD kimyasal ürün sicili; 0.9.120 — GHS tehlike etiketi checklist."""
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
@@ -21,7 +21,14 @@ from app.schemas.sds import (
     ChemicalProductCreate,
     ChemicalProductResponse,
     ChemicalProductUpdate,
+    GhsChecklistUpdate,
     SdsDueSummary,
+)
+from app.services.ghs_label_checklist import (
+    GHS_ENGINE,
+    catalog as ghs_catalog,
+    parse_checklist,
+    serialize_selected,
 )
 
 router = APIRouter(prefix="/sds", tags=["SDS / PKD"])
@@ -52,6 +59,7 @@ def _review_status(next_review: date | None) -> str:
 
 
 def _to_response(row: ChemicalProduct) -> ChemicalProductResponse:
+    ghs = parse_checklist(getattr(row, "ghs_checklist_json", None))
     return ChemicalProductResponse(
         id=row.id,
         company_id=row.company_id,
@@ -67,6 +75,8 @@ def _to_response(row: ChemicalProduct) -> ChemicalProductResponse:
         created_at=row.created_at,
         updated_at=row.updated_at,
         review_status=_review_status(row.next_review_date),
+        ghs_selected=list(ghs["selected"]),
+        ghs_count=int(ghs["count"]),
     )
 
 
@@ -78,10 +88,24 @@ def _ensure_edit(db: Session, user: User, company_id: int) -> None:
 def sds_meta(user: User = Depends(get_current_user)):
     return {
         "engine": REGISTER_ENGINE,
-        "version_feature": "0.9.119",
-        "fields": ["product_name", "cas_number", "has_sds_file", "next_review_date", "document_id"],
-        "note": "SDS dosyası Dokümanlar kaydı üzerinden yüklenir; sicil kaydı belgeye bağlanır.",
+        "ghs_engine": GHS_ENGINE,
+        "version_feature": "0.9.120",
+        "fields": [
+            "product_name",
+            "cas_number",
+            "has_sds_file",
+            "next_review_date",
+            "document_id",
+            "ghs_checklist",
+        ],
+        "ghs_pictograms": ghs_catalog(),
+        "note": "SDS dosyası Dokümanlar kaydı üzerinden yüklenir; GHS piktogramları saha checklist stub.",
     }
+
+
+@router.get("/ghs-catalog")
+def ghs_label_catalog(user: User = Depends(get_current_user)):
+    return {"engine": GHS_ENGINE, "pictograms": ghs_catalog()}
 
 
 @router.get("/due-summary", response_model=SdsDueSummary)
@@ -93,7 +117,9 @@ def due_summary(
 ):
     company_ids = company_ids_for_query(db, user, company_id)
     if company_ids == []:
-        return SdsDueSummary(total=0, with_sds=0, missing_sds=0, due_soon=0, overdue=0)
+        return SdsDueSummary(
+            total=0, with_sds=0, missing_sds=0, due_soon=0, overdue=0, with_ghs_label=0
+        )
 
     q = select(ChemicalProduct).where(ChemicalProduct.is_active.is_(True))
     if company_ids is not None:
@@ -102,6 +128,7 @@ def due_summary(
     today = date.today()
     soon = today + timedelta(days=days)
     with_sds = sum(1 for r in rows if r.has_sds_file)
+    with_ghs = sum(1 for r in rows if parse_checklist(getattr(r, "ghs_checklist_json", None))["count"] > 0)
     return SdsDueSummary(
         total=len(rows),
         with_sds=with_sds,
@@ -112,6 +139,7 @@ def due_summary(
             if r.next_review_date and today <= r.next_review_date <= soon
         ),
         overdue=sum(1 for r in rows if r.next_review_date and r.next_review_date < today),
+        with_ghs_label=with_ghs,
     )
 
 
@@ -256,6 +284,41 @@ def mark_sds_uploaded(
     if not has_file:
         raise HTTPException(400, "Dokümana henüz dosya yüklenmemiş.")
     row.has_sds_file = True
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return _to_response(row)
+
+
+@router.get("/{product_id}/ghs-checklist")
+def get_ghs_checklist(
+    product_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW_ROLES)),
+):
+    row = db.get(ChemicalProduct, product_id)
+    if not row:
+        raise HTTPException(404, "Kimyasal ürün bulunamadı.")
+    ensure_company_access(db, user, row.company_id)
+    body = parse_checklist(getattr(row, "ghs_checklist_json", None))
+    body["product_id"] = row.id
+    body["product_name"] = row.product_name
+    return body
+
+
+@router.put("/{product_id}/ghs-checklist", response_model=ChemicalProductResponse)
+def put_ghs_checklist(
+    product_id: int,
+    payload: GhsChecklistUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """0.9.120 — GHS/CLP tehlike etiketi piktogram checklist stub."""
+    row = db.get(ChemicalProduct, product_id)
+    if not row:
+        raise HTTPException(404, "Kimyasal ürün bulunamadı.")
+    _ensure_edit(db, user, row.company_id)
+    row.ghs_checklist_json = serialize_selected(payload.selected)
     row.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(row)

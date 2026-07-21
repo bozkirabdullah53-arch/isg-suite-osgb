@@ -1,4 +1,4 @@
-"""0.9.119 — SDS/PKD kimyasal ürün sicili (chemical-register-v1)."""
+"""0.9.120 — SDS/PKD kimyasal ürün sicili (chemical-register-v1)."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -120,8 +120,9 @@ def test_health_flag_sds_register(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.119"
+    assert body["version"] == "0.9.120"
     assert body["sds_register"] == "chemical-register-v1"
+    assert body["ghs_label_checklist"] == "ghs-label-checklist-v1"
     assert body["ai_hazard_hint"] == "keyword-v1"
     assert body["mevzuat_panel"] == "highlights-v1"
 
@@ -179,6 +180,20 @@ def test_sds_meta_and_crud(client):
     assert s["total"] >= 1
     assert s["missing_sds"] >= 1
     assert s["due_soon"] >= 1
+
+    ghs = client.put(
+        f"/api/v1/sds/{product_id}/ghs-checklist",
+        headers=headers,
+        json={"selected": ["GHS02", "GHS07"]},
+    )
+    assert ghs.status_code == 200, ghs.text
+    assert ghs.json()["ghs_selected"] == ["GHS02", "GHS07"]
+    assert ghs.json()["ghs_count"] == 2
+
+    got = client.get(f"/api/v1/sds/{product_id}/ghs-checklist", headers=headers)
+    assert got.status_code == 200
+    assert got.json()["engine"] == "ghs-label-checklist-v1"
+    assert got.json()["selected"] == ["GHS02", "GHS07"]
 
 
 def test_company_admin_cannot_create_sds(client):

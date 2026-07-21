@@ -1,4 +1,4 @@
-"""0.9.119 — SDS/PKD kimyasal ürün sicili şemaları."""
+"""0.9.119 — SDS/PKD kimyasal ürün sicili şemaları (+ 0.9.120 GHS checklist)."""
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -78,6 +78,10 @@ class ChemicalProductUpdate(BaseModel):
         return s
 
 
+class GhsChecklistUpdate(BaseModel):
+    selected: list[str] = Field(default_factory=list, max_length=9)
+
+
 class ChemicalProductResponse(BaseModel):
     id: int
     company_id: int
@@ -93,6 +97,8 @@ class ChemicalProductResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     review_status: str | None = None
+    ghs_selected: list[str] = Field(default_factory=list)
+    ghs_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -103,3 +109,4 @@ class SdsDueSummary(BaseModel):
     missing_sds: int
     due_soon: int
     overdue: int
+    with_ghs_label: int = 0

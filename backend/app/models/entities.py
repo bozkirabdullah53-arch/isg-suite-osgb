@@ -1044,6 +1044,7 @@ class ChemicalProduct(Base):
     )
     next_review_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    ghs_checklist_json: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

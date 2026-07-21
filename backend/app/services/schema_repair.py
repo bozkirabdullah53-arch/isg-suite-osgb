@@ -220,6 +220,7 @@ def repair_schema() -> None:
                         document_id INTEGER,
                         next_review_date DATE,
                         notes VARCHAR(1000),
+                        ghs_checklist_json VARCHAR(500),
                         is_active BOOLEAN NOT NULL DEFAULT {bool_true},
                         created_by_id INTEGER NOT NULL,
                         created_at TIMESTAMP,
@@ -238,3 +239,12 @@ def repair_schema() -> None:
                     conn.execute(text(idx_sql))
                 except Exception:
                     pass
+
+    # 0.9.120 — GHS checklist kolonu
+    if "chemical_products" in _tables():
+        cols = _columns("chemical_products")
+        if "ghs_checklist_json" not in cols:
+            with engine.begin() as conn:
+                conn.execute(
+                    text("ALTER TABLE chemical_products ADD COLUMN ghs_checklist_json VARCHAR(500)")
+                )

@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Beaker, Plus, RefreshCw, Upload} from 'lucide-react';
+import {Beaker, Plus, RefreshCw, Tag, Upload} from 'lucide-react';
 import {api, uploadFile} from './api';
 
 function Modal({title, close, children}) {
@@ -54,8 +54,11 @@ export function SdsRegisterPage({user}) {
   const [companies, setCompanies] = useState([]);
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [catalog, setCatalog] = useState([]);
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
+  const [ghsRow, setGhsRow] = useState(null);
+  const [ghsSelected, setGhsSelected] = useState([]);
   const [form, setForm] = useState({...empty, company_id: user.company_id || ''});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -66,14 +69,16 @@ export function SdsRegisterPage({user}) {
     setErr('');
     try {
       const qs = nextQ.trim() ? `?q=${encodeURIComponent(nextQ.trim())}` : '';
-      const [c, r, s] = await Promise.all([
+      const [c, r, s, meta] = await Promise.all([
         api('/companies'),
         api(`/sds${qs}`),
         api('/sds/due-summary'),
+        api('/sds/meta'),
       ]);
       setCompanies(c);
       setRows(r);
       setSummary(s);
+      setCatalog(meta?.ghs_pictograms || []);
     } catch (e) {
       setErr(e.message || 'SDS sicili yüklenemedi.');
     } finally {
@@ -148,6 +153,37 @@ export function SdsRegisterPage({user}) {
     }
   }
 
+  function openGhs(row) {
+    setGhsRow(row);
+    setGhsSelected([...(row.ghs_selected || [])]);
+  }
+
+  function toggleGhs(code) {
+    setGhsSelected((prev) => (
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    ));
+  }
+
+  async function saveGhs(e) {
+    e.preventDefault();
+    if (!ghsRow) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await api(`/sds/${ghsRow.id}/ghs-checklist`, {
+        method: 'PUT',
+        body: JSON.stringify({selected: ghsSelected}),
+      });
+      setMsg(`Tehlike etiketi güncellendi: ${ghsRow.product_name}`);
+      setGhsRow(null);
+      await load();
+    } catch (ex) {
+      setErr(ex.message || 'Etiket kaydı başarısız.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <div className="page-title">
@@ -166,14 +202,15 @@ export function SdsRegisterPage({user}) {
 
       <section className="panel" style={{marginBottom: 16}}>
         <p style={{margin: '0 0 12px', color: '#475569', fontSize: 14, lineHeight: 1.5}}>
-          Saha kimyasal ürün sicili: ürün adı, isteğe bağlı CAS, SDS dosya durumu ve gözden geçirme tarihi.
-          Dosya yükleme mevcut Dokümanlar altyapısını kullanır.
+          Saha kimyasal ürün sicili: ürün adı, isteğe bağlı CAS, SDS dosya durumu, gözden geçirme tarihi
+          ve GHS/CLP tehlike etiketi checklist. Dosya yükleme Dokümanlar altyapısını kullanır.
         </p>
         {summary && (
           <div className="report-grid" style={{marginBottom: 0}}>
             <div className="metric"><strong>{summary.total}</strong><span>Toplam ürün</span></div>
             <div className="metric"><strong>{summary.with_sds}</strong><span>SDS var</span></div>
             <div className="metric"><strong>{summary.missing_sds}</strong><span>SDS eksik</span></div>
+            <div className="metric"><strong>{summary.with_ghs_label ?? 0}</strong><span>Etiket işaretli</span></div>
             <div className="metric"><strong>{summary.due_soon}</strong><span>Yaklaşan</span></div>
             <div className="metric"><strong>{summary.overdue}</strong><span>Gecikmiş</span></div>
           </div>
@@ -201,6 +238,7 @@ export function SdsRegisterPage({user}) {
               <th>Ürün</th>
               <th>CAS</th>
               <th>SDS</th>
+              <th>GHS</th>
               <th>Gözden geçirme</th>
               <th>Durum</th>
               {canEdit && <th>İşlem</th>}
@@ -208,17 +246,21 @@ export function SdsRegisterPage({user}) {
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td colSpan={canEdit ? 6 : 5}>Kayıt yok.</td></tr>
+              <tr><td colSpan={canEdit ? 7 : 6}>Kayıt yok.</td></tr>
             ) : rows.map((r) => (
               <tr key={r.id}>
                 <td>{r.product_name}</td>
                 <td>{r.cas_number || '—'}</td>
                 <td>{r.has_sds_file ? 'Var' : 'Yok'}</td>
+                <td>{r.ghs_count ? `${r.ghs_count} piktogram` : '—'}</td>
                 <td>{r.next_review_date || '—'}</td>
                 <td>{reviewBadge(r.review_status)}</td>
                 {canEdit && (
                   <td>
                     <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                      <button type="button" className="mini secondary" disabled={busy} onClick={() => openGhs(r)}>
+                        <Tag size={14} /> Etiket
+                      </button>
                       {!r.document_id && (
                         <button type="button" className="mini secondary" disabled={busy} onClick={() => void ensureDocOnly(r)}>
                           Doküman oluştur
@@ -293,6 +335,31 @@ export function SdsRegisterPage({user}) {
               value={form.notes}
               onChange={(e) => setForm({...form, notes: e.target.value})}
             />
+            <div className="form-actions">
+              <button type="submit" disabled={busy}>Kaydet</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {ghsRow && (
+        <Modal title={`Tehlike etiketi — ${ghsRow.product_name}`} close={() => setGhsRow(null)}>
+          <form onSubmit={saveGhs}>
+            <p style={{marginTop: 0, color: '#475569', fontSize: 14}}>
+              GHS/CLP piktogram checklist (stub). Sahada etiket üzerindeki işaretleri seçin.
+            </p>
+            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16}}>
+              {(catalog.length ? catalog : []).map((p) => (
+                <label key={p.code} style={{display: 'flex', gap: 8, alignItems: 'center', fontSize: 14}}>
+                  <input
+                    type="checkbox"
+                    checked={ghsSelected.includes(p.code)}
+                    onChange={() => toggleGhs(p.code)}
+                  />
+                  <span><strong>{p.code}</strong> — {p.label}</span>
+                </label>
+              ))}
+            </div>
             <div className="form-actions">
               <button type="submit" disabled={busy}>Kaydet</button>
             </div>
