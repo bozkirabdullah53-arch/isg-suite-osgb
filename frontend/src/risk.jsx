@@ -124,6 +124,7 @@ function AuthThumb({path, alt}) {
 
 export function RiskPage({user}) {
   const canEdit = ['global_admin', 'company_admin', 'safety_specialist'].includes(user.role);
+  const fieldRole = ['safety_specialist', 'workplace_physician', 'other_health_personnel'].includes(user.role);
   const empty = {
     company_id: user.company_id || '',
     branch_id: '',
@@ -177,6 +178,8 @@ export function RiskPage({user}) {
   const [dofFilter, setDofFilter] = useState('open');
   const [statusFilter, setStatusFilter] = useState('');
   const [depForm, setDepForm] = useState({name: '', description: ''});
+  const [hazardHint, setHazardHint] = useState(null);
+  const [hintBusy, setHintBusy] = useState(false);
 
   const effectiveCompanyId = reportCompanyId || user.company_id || companies[0]?.id || '';
 
@@ -282,6 +285,34 @@ export function RiskPage({user}) {
       .catch(() => setCalc(null));
   }, [form.probability, form.severity]);
 
+  useEffect(() => {
+    if (!fieldRole || !open) {
+      setHazardHint(null);
+      return;
+    }
+    const activity = (form.activity || '').trim();
+    const definition = (form.risk_definition || '').trim();
+    if (activity.length + definition.length < 4) {
+      setHazardHint(null);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      setHintBusy(true);
+      api('/risks/hazard-hint', {
+        method: 'POST',
+        body: JSON.stringify({activity, risk_definition: definition}),
+      })
+        .then((h) => { if (!cancelled) setHazardHint(h); })
+        .catch(() => { if (!cancelled) setHazardHint(null); })
+        .finally(() => { if (!cancelled) setHintBusy(false); });
+    }, 450);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [fieldRole, open, form.activity, form.risk_definition]);
+
   async function seedLibrary() {
     setBusy(true);
     setLibMsg('');
@@ -369,11 +400,24 @@ export function RiskPage({user}) {
     setEditId(null);
     setErr('');
     setSuggestions(null);
+    setHazardHint(null);
     setForm({
       ...empty,
       company_id: reportCompanyId || user.company_id || companies[0]?.id || '',
     });
     setOpen(true);
+  }
+
+  function applyHazardHint(hint) {
+    if (!hint?.suggested_category) return;
+    const catId = hint.category_id
+      || categories.find((c) => c.name === hint.suggested_category)?.id;
+    setForm((f) => ({
+      ...f,
+      category_id: catId ? String(catId) : f.category_id,
+      hazard_id: catId && String(catId) !== String(f.category_id) ? '' : f.hazard_id,
+      probability: hint.probability_hint || f.probability,
+    }));
   }
 
   async function openEdit(riskOrId) {
@@ -1003,7 +1047,7 @@ export function RiskPage({user}) {
       {open && (
         <Modal
           title={editId ? `Risk Düzenle #${editId}` : 'Yeni Risk Değerlendirmesi'}
-          close={() => { setOpen(false); setEditId(null); setErr(''); }}
+          close={() => { setOpen(false); setEditId(null); setErr(''); setHazardHint(null); }}
           wide
         >
           <form className="form-grid" onSubmit={save}>
@@ -1079,6 +1123,59 @@ export function RiskPage({user}) {
 
             <Field label="Faaliyet" required value={form.activity} onChange={(e) => setForm({...form, activity: e.target.value})} />
             <TextArea label="Risk tanımı" required value={form.risk_definition} onChange={(e) => setForm({...form, risk_definition: e.target.value})} />
+            {fieldRole && open && (
+              <div
+                className="field"
+                style={{
+                  gridColumn: '1 / -1',
+                  background: '#f0f7ff',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: 8,
+                  padding: '10px 12px',
+                }}
+              >
+                <span style={{display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700}}>
+                  <AlertTriangle size={16} /> Tehlike önerisi
+                  <span style={{fontWeight: 500, color: '#64748b', fontSize: 12}}>(anahtar kelime · onay sizde)</span>
+                </span>
+                {hintBusy && <p style={{margin: '8px 0 0', fontSize: 13, color: '#64748b'}}>Öneri hesaplanıyor…</p>}
+                {!hintBusy && hazardHint?.matched && (
+                  <div style={{marginTop: 8, fontSize: 13}}>
+                    <div>
+                      Önerilen kategori: <strong>{hazardHint.suggested_category}</strong>
+                      {hazardHint.probability_hint != null && (
+                        <> · Olasılık ipucu: <strong>{hazardHint.probability_hint}/5</strong></>
+                      )}
+                      {hazardHint.confidence != null && (
+                        <span style={{color: '#64748b'}}> · güven {Math.round(hazardHint.confidence * 100)}%</span>
+                      )}
+                    </div>
+                    {(hazardHint.matched_keywords || []).length > 0 && (
+                      <div style={{marginTop: 4, color: '#475569'}}>
+                        Anahtarlar: {(hazardHint.matched_keywords || []).slice(0, 6).join(', ')}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      className="secondary"
+                      style={{marginTop: 8}}
+                      onClick={() => applyHazardHint(hazardHint)}
+                    >
+                      Kategori ve olasılığı uygula
+                    </button>
+                    <p style={{margin: '6px 0 0', color: '#64748b', fontSize: 12}}>{hazardHint.note}</p>
+                  </div>
+                )}
+                {!hintBusy && hazardHint && !hazardHint.matched && (
+                  <p style={{margin: '8px 0 0', fontSize: 13, color: '#64748b'}}>{hazardHint.note || 'Eşleşme yok.'}</p>
+                )}
+                {!hintBusy && !hazardHint && (
+                  <p style={{margin: '8px 0 0', fontSize: 13, color: '#64748b'}}>
+                    Faaliyet veya risk tanımına yazdıkça kategori önerisi çıkar.
+                  </p>
+                )}
+              </div>
+            )}
             <Field label="Etkilenen kişiler" value={form.affected_people} onChange={(e) => setForm({...form, affected_people: e.target.value})} />
             <Select label="Etkilenen grup" value={form.affected_group} onChange={(e) => setForm({...form, affected_group: e.target.value})}>
               {(meta?.affected_groups || ['Çalışan', 'Ziyaretçi', 'Müteahhit', 'Çevre']).map((g) => <option key={g}>{g}</option>)}

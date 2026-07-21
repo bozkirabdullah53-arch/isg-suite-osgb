@@ -8,6 +8,13 @@ class RiskCalculateRequest(BaseModel):
     term_override_days: int | None = Field(default=None, ge=0, le=365)
 
 
+class HazardHintRequest(BaseModel):
+    """Tehlike önerisi — faaliyet + risk tanımı metni."""
+    text: str = Field(default="", max_length=4000)
+    activity: str | None = Field(default=None, max_length=500)
+    risk_definition: str | None = Field(default=None, max_length=2000)
+
+
 class RiskCreate(BaseModel):
     company_id: int
     branch_id: int | None = None

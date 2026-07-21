@@ -35,6 +35,7 @@ from app.schemas.risk import (
     DepartmentCreate,
     DepartmentResponse,
     DepartmentUpdate,
+    HazardHintRequest,
     RiskDofListItem,
     HazardCategoryResponse,
     HazardResponse,
@@ -48,6 +49,7 @@ from app.schemas.risk import (
     RiskResponse,
     RiskUpdate,
 )
+from app.services.ai_hazard_hint import HINT_ENGINE, suggest_hazard_from_text
 from app.services.hazard_seed import seed_hazard_library
 from app.services.risk_reports import build_risk_excel, build_risk_pdf
 from app.services.risk_scoring import evaluate, meta_payload
@@ -181,6 +183,42 @@ def risk_meta(user: User = Depends(get_current_user)):
 @router.post("/calculate")
 def risk_calculate(payload: RiskCalculateRequest, user: User = Depends(get_current_user)):
     return evaluate(payload.probability, payload.severity, term_override_days=payload.term_override_days)
+
+
+@router.post("/hazard-hint")
+def hazard_hint(
+    payload: HazardHintRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Türkçe anahtar kelime → önerilen tehlike kategorisi (AI stub, keyword-v1)."""
+    text = (payload.text or "").strip()
+    if not text:
+        parts = [payload.activity or "", payload.risk_definition or ""]
+        text = " ".join(p.strip() for p in parts if p and p.strip())
+    hint = suggest_hazard_from_text(text, activity=payload.activity)
+    category_id = None
+    cat_name = hint.get("suggested_category")
+    if cat_name:
+        _ensure_library(db)
+        row = db.scalar(select(HazardCategory).where(HazardCategory.name == cat_name))
+        if row:
+            category_id = row.id
+    alts = []
+    for alt in hint.get("alternatives") or []:
+        aid = None
+        aname = alt.get("category")
+        if aname:
+            arow = db.scalar(select(HazardCategory).where(HazardCategory.name == aname))
+            if arow:
+                aid = arow.id
+        alts.append({**alt, "category_id": aid})
+    return {
+        **hint,
+        "category_id": category_id,
+        "alternatives": alts,
+        "engine": HINT_ENGINE,
+    }
 
 
 @router.post("/seed-library")
