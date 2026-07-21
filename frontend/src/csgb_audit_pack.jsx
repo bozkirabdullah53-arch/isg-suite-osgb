@@ -100,6 +100,8 @@ export function CsgbAuditPackPage({user, onNavigate}) {
   const [editErr, setEditErr] = useState('');
   const [dlBusy, setDlBusy] = useState(false);
   const [dlErr, setDlErr] = useState('');
+  const [ibys, setIbys] = useState(null);
+  const [ibysBusy, setIbysBusy] = useState(false);
   const [form, setForm] = useState({
     name: '',
     authorization_number: '',
@@ -144,10 +146,16 @@ export function CsgbAuditPackPage({user, onNavigate}) {
       const q = id ? `?osgb_id=${id}` : '';
       const r = await api(`/osgb/csgb-audit-pack${q}`);
       setData(r);
+      try {
+        setIbys(await api(`/osgb/ibys-export${q}`));
+      } catch (_) {
+        setIbys(null);
+      }
       const pri = (r.summary?.priority_count ?? (r.gaps || []).length) > 0;
       setFilter(pri ? 'priority' : 'all');
     } catch (e) {
       setData(null);
+      setIbys(null);
       const msg = e?.message || 'Paket yüklenemedi.';
       const lower = String(msg).toLowerCase();
       if (lower.includes('not found') || lower.includes('404')) {
@@ -248,6 +256,27 @@ export function CsgbAuditPackPage({user, onNavigate}) {
     }
   }
 
+  async function downloadIbys() {
+    const id = osgbId || data?.osgb?.id;
+    if (!id) {
+      setDlErr('OSGB seçili değil.');
+      return;
+    }
+    setIbysBusy(true);
+    setDlErr('');
+    try {
+      const stamp = new Date().toISOString().slice(0, 10);
+      await downloadFile(
+        `/osgb/ibys-export/package?osgb_id=${id}`,
+        `ibys-yukleme-paketi-${id}-${stamp}.zip`,
+      );
+    } catch (ex) {
+      setDlErr(ex.message || 'İBYS paketi indirilemedi.');
+    } finally {
+      setIbysBusy(false);
+    }
+  }
+
   if (!canView) {
     return (
       <>
@@ -291,6 +320,27 @@ export function CsgbAuditPackPage({user, onNavigate}) {
       {dlErr && (
         <section className="panel" style={{marginBottom: 16, borderColor: '#fecaca', background: '#fef2f2'}}>
           <p style={{margin: 0, color: '#7f1d1d', fontSize: 14}}>{dlErr}</p>
+        </section>
+      )}
+
+      {ibys && (
+        <section className="panel" style={{marginBottom: 16}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center'}}>
+            <div>
+              <h3 style={{margin: '0 0 4px'}}>İBYS yükleme paketi</h3>
+              <p style={{margin: 0, color: '#64748b', fontSize: 13}}>
+                Stub · işyeri + personel CSV ZIP · gerçek İBYS API yok
+              </p>
+            </div>
+            <button type="button" className="secondary" disabled={ibysBusy || busy || !osgbId} onClick={() => void downloadIbys()}>
+              <Download size={16} /> {ibysBusy ? 'Hazırlanıyor…' : 'İBYS CSV paketi indir'}
+            </button>
+          </div>
+          <div style={{display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 10, fontSize: 14}}>
+            <span>İşyeri: <strong>{ibys.summary?.companies ?? 0}</strong></span>
+            <span>Personel: <strong>{ibys.summary?.employees ?? 0}</strong></span>
+            <span>Aktif personel: <strong>{ibys.summary?.active_employees ?? 0}</strong></span>
+          </div>
         </section>
       )}
 

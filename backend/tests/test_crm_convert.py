@@ -73,7 +73,7 @@ def test_health_flag_crm_convert(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.113"
+    assert body["version"] == "0.9.114"
     assert body["crm_convert"] == "lead-to-contract-v1"
     assert body["contracts_ui"] == "osgb-monitor-v1"
     assert body["contracts_actions"] == "end-suspend-v1"
