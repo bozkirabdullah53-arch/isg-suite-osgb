@@ -185,6 +185,33 @@ export function OsgbDashboard({user, onNavigate}){
   </section>}
 
   <div className="cards osgb-cards" style={{marginBottom:16}}>
+   <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('finance')} title="Finansa git">
+    <span>Vadesi geçmiş tahakkuk</span>
+    <strong style={{color:(data?.finance_overdue_count||0)>0?'#b91c1c':undefined}}>{data?.finance_overdue_count??0}</strong>
+    <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>{money(data?.finance_overdue_amount||0)}</small>
+   </article>
+   <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('finance')} title="Finansa git">
+    <span>30 günde vadeli</span>
+    <strong style={{color:(data?.finance_due_soon_count||0)>0?'#b45309':undefined}}>{data?.finance_due_soon_count??0}</strong>
+    <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>{money(data?.finance_due_soon_amount||0)}</small>
+   </article>
+  </div>
+  {((data?.finance_alerts||[]).length>0||(data?.contract_alerts||[]).length>0)&&(
+   <div style={{display:'grid',gap:8,marginBottom:16}}>
+    {(data?.finance_alerts||[]).map((a,i)=>(
+     <div key={'f'+i} style={{padding:'10px 12px',borderRadius:10,background:a.level==='critical'?'#fee2e2':'#fef3c7',color:a.level==='critical'?'#991b1b':'#92400e',fontSize:13,fontWeight:600,cursor:'pointer'}} onClick={()=>go('finance')}>
+      {a.text}
+     </div>
+    ))}
+    {(data?.contract_alerts||[]).map((a,i)=>(
+     <div key={'c'+i} style={{padding:'10px 12px',borderRadius:10,background:a.level==='critical'?'#fee2e2':'#fef3c7',color:a.level==='critical'?'#991b1b':'#92400e',fontSize:13,fontWeight:600,cursor:'pointer'}} onClick={()=>go('contracts')}>
+      {a.text}
+     </div>
+    ))}
+   </div>
+  )}
+
+  <div className="cards osgb-cards" style={{marginBottom:16}}>
    <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('osgb_oversight')} title="Hizmet denetimine git">
     <span>Kritik Profesyonel</span>
     <strong style={{color:(sum.critical||0)>0?'#b91c1c':undefined}}>{sum.critical??'—'}</strong>
@@ -1184,6 +1211,7 @@ export function VisitsPage({user}){
 
 export function CrmPage({user,onNavigate}){
  const[orgs,setOrgs]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[busyId,setBusyId]=useState(null);
+ const[stageFilter,setStageFilter]=useState('open'); // open | won | lost | all
  const[form,setForm]=useState({osgb_id:'',company_name:'',contact_name:'',phone:'',email:'',employee_count:0,hazard_class:'Tehlikeli',stage:'new',estimated_monthly_value:0,next_action_date:'',notes:''});
  const load=async()=>{const o=await api('/osgb');const id=osgbId(user,o);setOrgs(o);setForm(x=>({...x,osgb_id:id}));if(id)setRows(await api(`/operations/leads?osgb_id=${id}`))};useEffect(()=>{load()},[]);
  async function save(e){e.preventDefault();await api('/operations/leads',{method:'POST',body:JSON.stringify({...form,osgb_id:Number(form.osgb_id),employee_count:Number(form.employee_count),estimated_monthly_value:Number(form.estimated_monthly_value),next_action_date:form.next_action_date||null})});setOpen(false);load()}
@@ -1216,8 +1244,21 @@ export function CrmPage({user,onNavigate}){
   }catch(ex){alert(ex.message||'Dönüştürme başarısız.')}
   finally{setBusyId(null)}
  }
+ const filteredRows=rows.filter(r=>{
+  if(stageFilter==='open') return r.stage!=='won'&&r.stage!=='lost';
+  if(stageFilter==='won') return r.stage==='won';
+  if(stageFilter==='lost') return r.stage==='lost';
+  return true;
+ });
+ const stageCounts={open:rows.filter(r=>r.stage!=='won'&&r.stage!=='lost').length,won:rows.filter(r=>r.stage==='won').length,lost:rows.filter(r=>r.stage==='lost').length,all:rows.length};
  return <P title="CRM ve Teklif Fırsatları" action={<button onClick={()=>setOpen(true)}><Plus/>Fırsat Ekle</button>}>
-  <T rows={rows} cols={[
+  <div className="finance-summary" style={{marginBottom:12}}>
+   <b style={{cursor:'pointer'}} onClick={()=>setStageFilter('open')}>Acik: {stageCounts.open}</b>
+   <b style={{cursor:'pointer'}} onClick={()=>setStageFilter('won')}>Kazanildi: {stageCounts.won}</b>
+   <b style={{cursor:'pointer'}} onClick={()=>setStageFilter('lost')}>Kaybedildi: {stageCounts.lost}</b>
+   <b style={{cursor:'pointer'}} onClick={()=>setStageFilter('all')}>Tumu: {stageCounts.all}</b>
+  </div>
+  <T rows={filteredRows} cols={[
    {k:'company_name',l:'Firma'},
    {k:'contact_name',l:'Yetkili'},
    {k:'employee_count',l:'Çalışan'},

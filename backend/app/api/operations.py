@@ -261,6 +261,7 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
         db.scalars(
             select(ServiceContract).where(
                 ServiceContract.osgb_id == oid,
+                func.lower(ServiceContract.status) == "active",
                 ServiceContract.end_date.is_not(None),
                 ServiceContract.end_date.between(today, soon),
             ).order_by(ServiceContract.end_date)
@@ -281,6 +282,55 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
         for c in expiring
     ]
 
+    # Finans KPI: COUNT/SUM without row limit (alerts use totals only)
+    income_pending = (
+        FinanceTransaction.osgb_id == oid,
+        FinanceTransaction.transaction_type == "income",
+        FinanceTransaction.status == "pending",
+        FinanceTransaction.due_date.is_not(None),
+    )
+    overdue_row = db.execute(
+        select(
+            func.count(),
+            func.coalesce(func.sum(FinanceTransaction.amount), 0),
+        ).where(
+            *income_pending,
+            FinanceTransaction.due_date < today,
+        )
+    ).one()
+    due_soon_row = db.execute(
+        select(
+            func.count(),
+            func.coalesce(func.sum(FinanceTransaction.amount), 0),
+        ).where(
+            *income_pending,
+            FinanceTransaction.due_date.between(today, soon),
+        )
+    ).one()
+    finance_overdue_count = int(overdue_row[0] or 0)
+    finance_overdue_amount = int(overdue_row[1] or 0)
+    finance_due_soon_count = int(due_soon_row[0] or 0)
+    finance_due_soon_amount = int(due_soon_row[1] or 0)
+
+    finance_alerts = []
+    if finance_overdue_count:
+        finance_alerts.append({
+            "level": "critical",
+            "text": f"{finance_overdue_count} vadesi gecmis tahakkuk ({finance_overdue_amount:,} TL)".replace(",", "."),
+        })
+    if finance_due_soon_count:
+        finance_alerts.append({
+            "level": "warning",
+            "text": f"{finance_due_soon_count} tahakkuk 30 gun icinde vadeli ({finance_due_soon_amount:,} TL)".replace(",", "."),
+        })
+
+    contract_alerts = []
+    if upcoming_contracts:
+        contract_alerts.append({
+            "level": "warning",
+            "text": f"{len(upcoming_contracts)} aktif sozlesme 30 gun icinde bitiyor",
+        })
+
     return {
         "osgb_id": oid,
         "workplaces": workplaces,
@@ -291,6 +341,13 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
         "upcoming_contract_expiries": len(upcoming_contracts),
         "upcoming_contracts": upcoming_contracts,
         "period_days": 30,
+        "finance_overdue_count": finance_overdue_count,
+        "finance_overdue_amount": finance_overdue_amount,
+        "finance_due_soon_count": finance_due_soon_count,
+        "finance_due_soon_amount": finance_due_soon_amount,
+        "finance_alerts": finance_alerts,
+        "contract_alerts": contract_alerts,
+        "kpi_version": "dashboard-finance-contracts-v2",
     }
 
 
