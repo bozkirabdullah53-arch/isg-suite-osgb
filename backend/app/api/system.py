@@ -15,5 +15,5 @@ def health(db: Session = Depends(get_db)):
         "status": "healthy",
         "database": "connected",
         "timestamp": datetime.utcnow(),
-        "version": "0.9.109",
+        "version": "0.9.110",
     }

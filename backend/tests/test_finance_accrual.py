@@ -124,8 +124,8 @@ def test_health_flag_finance_accrual(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.109"
-    assert body["finance_accrual"] == "monthly-v1"
+    assert body["version"] == "0.9.110"
+    assert body["finance_accrual"] == "monthly-active-v1"
 
 
 def test_accrue_month_creates_pending_income(client):
