@@ -28,6 +28,7 @@ from app.services.csgb_audit_pack import build_csgb_audit_pack, build_csgb_audit
 from app.services.csgb_audit_bundle import build_csgb_audit_bundle_zip
 from app.services.katip_prep import build_katip_prep, katip_prep_csv
 from app.services.ibys_export import build_ibys_export_summary, build_ibys_export_zip
+from app.services.mevzuat_panel import build_mevzuat_panel
 from app.services.capacity_engine import build_capacity_overview, sync_assignment_required
 
 router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
@@ -251,6 +252,16 @@ def csgb_audit_pack_bundle(
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/mevzuat-panel")
+def mevzuat_panel(
+    q: str | None = None,
+    category: str | None = None,
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """OSGB mevzuat mini panel — küratörlü özet + tehlike kategorisi kataloğu (highlights-v1)."""
+    return build_mevzuat_panel(q=q, category=category)
 
 
 @router.get("/katip-prep")
