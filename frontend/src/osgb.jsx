@@ -259,6 +259,11 @@ export function OsgbDashboard({user, onNavigate}){
     <strong style={{color:(data?.finance_due_soon_count||0)>0?'#b45309':undefined}}>{data?.finance_due_soon_count??0}</strong>
     <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>{money(data?.finance_due_soon_amount||0)}</small>
    </article>
+   <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('mevzuat')} title="Mevzuat özetine git">
+    <span>Mevzuat özeti</span>
+    <strong style={{fontSize:16}}>Öne çıkanlar</strong>
+    <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>6331 / yönetmelik kısa notlar</small>
+   </article>
   </div>
   {((data?.finance_alerts||[]).length>0||(data?.contract_alerts||[]).length>0)&&(
    <div style={{display:'grid',gap:8,marginBottom:16}}>

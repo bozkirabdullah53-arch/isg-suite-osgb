@@ -21,6 +21,7 @@ from app.models.entities import (
     AnnualPlanItem,
     AnnualPlanStatus,
     AssignmentStatus,
+    ChemicalProduct,
     Company,
     HealthRecord,
     RiskAssessment,
@@ -51,6 +52,7 @@ MODULE_FOR_CHECK = {
     "uygunluk": "health",
     "gorevlendirme": "assignments",
     "sistem": "dashboard",
+    "sds_review": "sds",
 }
 
 MODULE_LABEL = {
@@ -64,6 +66,7 @@ MODULE_LABEL = {
     "assignments": "Görevlendirmeler",
     "capa": "DÖF",
     "dashboard": "Ana Sayfa",
+    "sds": "SDS / PKD",
 }
 
 ROLE_LABEL = {
@@ -359,6 +362,49 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
                         check_code="yillik_plan",
                         due_date=due,
                         legal="İSG Hizmetleri Yön. — yıllık çalışma planı",
+                    )
+                )
+
+            # 0.9.122 — SDS/PKD gözden geçirme terminleri
+            try:
+                chemicals = list(
+                    db.scalars(
+                        select(ChemicalProduct).where(
+                            ChemicalProduct.company_id == cid,
+                            ChemicalProduct.is_active.is_(True),
+                            ChemicalProduct.next_review_date.is_not(None),
+                        )
+                    ).all()
+                )
+            except Exception:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                chemicals = []
+            for chem in chemicals:
+                due = chem.next_review_date
+                if not due:
+                    continue
+                if due < today:
+                    sev = "overdue"
+                elif due <= soon:
+                    sev = "due_soon"
+                else:
+                    continue
+                sds_flag = "SDS dosyası var" if chem.has_sds_file else "SDS dosyası eksik"
+                alerts.append(
+                    _alert(
+                        severity=sev,
+                        kind="sds",
+                        title=f"SDS gözden geçirme — {chem.product_name}",
+                        detail=f"{sds_flag}"
+                        + (f" · CAS {chem.cas_number}" if chem.cas_number else ""),
+                        company_id=cid,
+                        company_name=company.name,
+                        check_code="sds_review",
+                        due_date=due,
+                        legal="KKDİY / SDS — kimyasal güvenlik bilgi formu periyodu",
                     )
                 )
 

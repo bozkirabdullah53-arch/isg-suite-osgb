@@ -14,6 +14,7 @@ from app.models.entities import (
     AnnualPlanItem,
     AnnualPlanStatus,
     AssignmentStatus,
+    ChemicalProduct,
     Company,
     DocumentRecord,
     Employee,
@@ -37,7 +38,13 @@ def rebuild_company_notifications(db: Session, company_id: int) -> int:
             or_(
                 Notification.entity_type.is_(None),
                 Notification.entity_type.in_(
-                    ("isg_record", "document", "health_record", "annual_plan")
+                    (
+                        "isg_record",
+                        "document",
+                        "health_record",
+                        "annual_plan",
+                        "chemical_product",
+                    )
                 ),
             ),
         )
@@ -129,6 +136,32 @@ def rebuild_company_notifications(db: Session, company_id: int) -> int:
                 title="Geciken yıllık plan faaliyeti",
                 message=f"{item.year}/{item.month}: {item.activity}",
                 entity_type="annual_plan",
+                entity_id=str(item.id),
+            )
+        )
+
+    # 0.9.122 — SDS / PKD gözden geçirme
+    chemicals = db.scalars(
+        select(ChemicalProduct).where(
+            ChemicalProduct.company_id == company_id,
+            ChemicalProduct.is_active.is_(True),
+            ChemicalProduct.next_review_date.is_not(None),
+            ChemicalProduct.next_review_date <= warning_date,
+        )
+    ).all()
+    for item in chemicals:
+        overdue = bool(item.next_review_date and item.next_review_date < today)
+        notifications.append(
+            Notification(
+                company_id=company_id,
+                type=NotificationType.CRITICAL if overdue else NotificationType.WARNING,
+                title="SDS gözden geçirme" + (" gecikmiş" if overdue else " yaklaşıyor"),
+                message=(
+                    f"{item.product_name} için SDS gözden geçirme tarihi "
+                    f"{item.next_review_date}."
+                    + ("" if item.has_sds_file else " SDS dosyası henüz işaretlenmemiş.")
+                ),
+                entity_type="chemical_product",
                 entity_id=str(item.id),
             )
         )
