@@ -17,7 +17,13 @@ from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCrea
                               ProfessionalCreate, ProfessionalCreateResponse, ProfessionalLoginAccount,
                               ProfessionalResponse, ProfessionalUpdate)
 from app.services.osgb_admin import provision_professional_login
-from app.services.osgb_oversight import build_oversight, build_professional_performance, seed_oversight_demo
+from app.services.osgb_oversight import (
+    build_oversight,
+    build_professional_performance,
+    build_professional_performance_roster_csv,
+    build_professional_performance_detail_csv,
+    seed_oversight_demo,
+)
 from app.services.csgb_audit_pack import build_csgb_audit_pack, build_csgb_audit_dashboard_summary
 from app.services.csgb_audit_bundle import build_csgb_audit_bundle_zip
 from app.services.katip_prep import build_katip_prep, katip_prep_csv
@@ -321,6 +327,27 @@ def ibys_export_package(
     )
 
 
+@router.get("/professionals/performance/export.csv")
+def professional_performance_roster_csv(
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    """ÇSGB: OSGB profesyonel performans özeti CSV."""
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id:
+            raise HTTPException(400, "OSGB kapsamınız tanımlı değil.")
+        osgb_id = user.osgb_id
+    elif osgb_id is not None:
+        _scope_osgb(user, osgb_id)
+    data, filename = build_professional_performance_roster_csv(db, osgb_id=osgb_id)
+    return StreamingResponse(
+        iter([data]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/professionals/{professional_id}/performance")
 def professional_performance(
     professional_id: int,
@@ -338,6 +365,30 @@ def professional_performance(
         return build_professional_performance(db, professional_id)
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
+
+
+@router.get("/professionals/{professional_id}/performance/export.csv")
+def professional_performance_detail_csv(
+    professional_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    """Tek profesyonel performans detay CSV (eksik + tamamlanan kontroller)."""
+    pro = db.get(IsgProfessional, professional_id)
+    if not pro:
+        raise HTTPException(404, "Profesyonel bulunamadı.")
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id or pro.osgb_id != user.osgb_id:
+            raise HTTPException(403, "Bu profesyonelin performansına erişemezsiniz.")
+    try:
+        data, filename = build_professional_performance_detail_csv(db, professional_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return StreamingResponse(
+        iter([data]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/professionals", response_model=list[ProfessionalResponse])

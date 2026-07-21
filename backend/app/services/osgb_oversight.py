@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from typing import Any
+import csv
+import io
 import logging
 
 from sqlalchemy import func, select
@@ -881,6 +883,125 @@ def build_professional_performance(db: Session, professional_id: int) -> dict:
         "report_title": f"İş Tamamlama / Performans Raporu — {pro.full_name}",
         "generated_at": date.today().isoformat(),
     }
+
+
+def build_professional_performance_roster_csv(db: Session, osgb_id: int | None = None) -> tuple[bytes, str]:
+    """ÇSGB / OSGB — tüm profesyoneller performans özeti CSV (salt okunur dışa aktarım)."""
+    overview = build_oversight(db, osgb_id=osgb_id)
+    oid = overview.get("osgb_id") or osgb_id or 0
+    period = overview.get("period") or {}
+    period_label = period.get("label") or f"{period.get('month', '')}/{period.get('year', '')}"
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "professional_id",
+            "full_name",
+            "professional_type",
+            "certificate_class",
+            "certificate_number",
+            "score",
+            "status",
+            "firm_count",
+            "gap_count",
+            "unassigned",
+            "period",
+            "osgb_id",
+        ]
+    )
+    for p in overview.get("professionals") or []:
+        writer.writerow(
+            [
+                p.get("professional_id"),
+                p.get("full_name"),
+                p.get("professional_type"),
+                p.get("certificate_class") or "",
+                p.get("certificate_number") or "",
+                p.get("score", 0),
+                p.get("status"),
+                p.get("firm_count", 0),
+                len(p.get("gaps") or []),
+                "yes" if p.get("unassigned") else "no",
+                period_label,
+                oid,
+            ]
+        )
+    # BOM for Excel TR
+    data = ("\ufeff" + buf.getvalue()).encode("utf-8")
+    stamp = date.today().isoformat()
+    filename = f"csgb-pro-performans-{oid}-{stamp}.csv"
+    return data, filename
+
+
+def build_professional_performance_detail_csv(db: Session, professional_id: int) -> tuple[bytes, str]:
+    """Tek profesyonel: tamamlanan + eksik kontroller CSV."""
+    report = build_professional_performance(db, professional_id)
+    pro = report.get("professional") or {}
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        [
+            "professional_id",
+            "full_name",
+            "row_type",
+            "company_id",
+            "company_name",
+            "check_code",
+            "check_title",
+            "detail",
+            "legal",
+            "score",
+            "status",
+            "completion_pct",
+            "generated_at",
+        ]
+    )
+    perf = report.get("performance") or {}
+    base = [
+        pro.get("id"),
+        pro.get("full_name"),
+    ]
+    tail = [
+        perf.get("score", 0),
+        perf.get("status"),
+        perf.get("completion_pct", 0),
+        report.get("generated_at"),
+    ]
+    for item in report.get("incomplete") or []:
+        writer.writerow(
+            base
+            + [
+                "incomplete",
+                item.get("company_id") or "",
+                item.get("company_name") or "",
+                item.get("check_code") or "",
+                item.get("check_title") or "",
+                item.get("detail") or "",
+                item.get("legal") or "",
+            ]
+            + tail
+        )
+    for item in report.get("completed") or []:
+        writer.writerow(
+            base
+            + [
+                "completed",
+                item.get("company_id") or "",
+                item.get("company_name") or "",
+                item.get("check_code") or "",
+                item.get("check_title") or "",
+                item.get("detail") or "",
+                item.get("legal") or "",
+            ]
+            + tail
+        )
+    if not (report.get("incomplete") or report.get("completed")):
+        writer.writerow(base + ["summary", "", "", "", "Veri yok", "", ""] + tail)
+    data = ("\ufeff" + buf.getvalue()).encode("utf-8")
+    stamp = date.today().isoformat()
+    pid = pro.get("id") or professional_id
+    filename = f"csgb-pro-performans-detay-{pid}-{stamp}.csv"
+    return data, filename
 
 
 def seed_oversight_demo(db: Session, osgb_id: int | None = None) -> dict:

@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {AlertTriangle, CheckCircle2, ClipboardList, Printer, RefreshCw, UserRound} from 'lucide-react';
+import {AlertTriangle, CheckCircle2, ClipboardList, Download, Printer, RefreshCw, UserRound} from 'lucide-react';
 import {api, downloadFile} from './api';
 
 const TYPE_LABELS = {
@@ -161,7 +161,21 @@ export function ProPerformancePage({user}) {
             Rol seçin → profesyoneli seçin → atanmış firmalardaki 6331 iş tamamlama raporu.
           </p>
         </div>
-        <div style={{display: 'flex', gap: 8}}>
+        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+          <button
+            type="button"
+            className="ghost"
+            disabled={busy || !osgbId}
+            onClick={() => {
+              const stamp = new Date().toISOString().slice(0, 10);
+              void downloadFile(
+                `/osgb/professionals/performance/export.csv?osgb_id=${osgbId}`,
+                `csgb-pro-performans-${osgbId}-${stamp}.csv`,
+              ).catch((e) => alert(e.message || 'CSV indirilemedi'));
+            }}
+          >
+            <Download size={16} /> OSGB CSV
+          </button>
           <button
             type="button"
             className="ghost"
@@ -170,6 +184,21 @@ export function ProPerformancePage({user}) {
           >
             <RefreshCw size={16} /> Yenile
           </button>
+          {report && (
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                const stamp = new Date().toISOString().slice(0, 10);
+                void downloadFile(
+                  `/osgb/professionals/${selectedId}/performance/export.csv`,
+                  `csgb-pro-performans-detay-${selectedId}-${stamp}.csv`,
+                ).catch((e) => alert(e.message || 'CSV indirilemedi'));
+              }}
+            >
+              <Download size={16} /> Detay CSV
+            </button>
+          )}
           {report && (
             <button type="button" className="ghost" onClick={() => window.print()}>
               <Printer size={16} /> Yazdır
