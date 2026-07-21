@@ -28,6 +28,7 @@ from app.services.csgb_audit_pack import build_csgb_audit_pack, build_csgb_audit
 from app.services.csgb_audit_bundle import build_csgb_audit_bundle_zip
 from app.services.katip_prep import build_katip_prep, katip_prep_csv
 from app.services.ibys_export import build_ibys_export_summary, build_ibys_export_zip
+from app.services.integration_readiness import build_integration_readiness
 from app.services.mevzuat_panel import build_mevzuat_panel
 from app.services.capacity_engine import build_capacity_overview, sync_assignment_required
 
@@ -299,6 +300,22 @@ def katip_prep_export_csv(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/integration-readiness")
+def integration_readiness(
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """İBYS/KATİP/ÇSGB entegrasyon hazırlık checklist (salt okunur stub)."""
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id:
+            raise HTTPException(400, "OSGB kapsamınız tanımlı değil.")
+        osgb_id = user.osgb_id
+    elif osgb_id is not None:
+        _scope_osgb(user, osgb_id)
+    return build_integration_readiness(db, osgb_id=osgb_id)
 
 
 @router.get("/ibys-export")
