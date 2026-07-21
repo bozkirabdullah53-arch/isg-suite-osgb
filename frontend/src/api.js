@@ -135,6 +135,54 @@ async function parseError(response) {
 }
 
 /**
+ * EİSA hata panosuna istemci raporu — döngüye girmemek için fetch kullanır (api() değil).
+ */
+const _reportRecent = new Set();
+
+export function reportClientError(payload = {}) {
+  try {
+    const token = localStorage.getItem("isg_token");
+    if (!token) return;
+    const httpPath = String(payload.http_path || "").slice(0, 500);
+    if (httpPath.includes("/error-reports")) return;
+
+    const title = String(payload.title || "İstemci hatası").slice(0, 220);
+    const message = String(payload.message || "").slice(0, 4000);
+    const key = `${payload.source || ""}|${httpPath}|${title}|${message}`.slice(0, 240);
+    if (_reportRecent.has(key)) return;
+    _reportRecent.add(key);
+    setTimeout(() => _reportRecent.delete(key), 30000);
+
+    const body = {
+      source: payload.source || "api_error",
+      title,
+      message: message || null,
+      stack_trace: payload.stack_trace ? String(payload.stack_trace).slice(0, 8000) : null,
+      user_note: payload.user_note ? String(payload.user_note).slice(0, 2000) : null,
+      page_path: payload.page_path
+        ? String(payload.page_path).slice(0, 500)
+        : (typeof window !== "undefined" ? window.location.pathname.slice(0, 500) : null),
+      http_method: payload.http_method ? String(payload.http_method).slice(0, 16) : null,
+      http_path: httpPath || null,
+      http_status: payload.http_status != null ? Number(payload.http_status) : null,
+      company_id: payload.company_id != null ? Number(payload.company_id) : null,
+    };
+
+    void fetch(`${API_URL}/eisa/error-reports`, {
+      method: "POST",
+      mode: "cors",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    }).catch(() => {});
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+/**
  * API çağrısı — ağ kopmasında API uyandırıp birkaç kez dener.
  * options._retries ile deneme sayısı (varsayılan 2 ek deneme).
  */
@@ -151,6 +199,7 @@ export async function api(path, options = {}) {
   }
 
   let lastErr;
+  let lastStatus = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       if (attempt > 0) {
@@ -159,7 +208,12 @@ export async function api(path, options = {}) {
       }
       const response = await fetch(`${API_URL}${path}`, {...fetchOpts, headers, mode: "cors"});
       if (!response.ok) {
-        throw new Error(await parseError(response));
+        lastStatus = response.status;
+        const err = new Error(await parseError(response));
+        err.httpStatus = response.status;
+        err.httpPath = path;
+        err.httpMethod = method;
+        throw err;
       }
       if (response.status === 204) return null;
       const text = await response.text();
@@ -173,9 +227,27 @@ export async function api(path, options = {}) {
       lastErr = e;
       if (!isNetworkError(e) || attempt === retries) {
         if (isNetworkError(e)) {
+          reportClientError({
+            source: "api_error",
+            title: "Ağ bağlantı hatası",
+            message: String(e?.message || e),
+            http_method: method,
+            http_path: path,
+          });
           throw new Error(
             "Sunucuya bağlanılamadı. API uyanıyor olabilir — 10–20 sn bekleyip Yenile’ye basın.",
           );
+        }
+        const status = e?.httpStatus ?? lastStatus;
+        if (status >= 500) {
+          reportClientError({
+            source: "api_error",
+            title: `API hatası HTTP ${status}`,
+            message: String(e?.message || e),
+            http_method: method,
+            http_path: path,
+            http_status: status,
+          });
         }
         throw e;
       }

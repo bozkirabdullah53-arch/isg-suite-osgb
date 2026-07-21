@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.models.entities import (
     AuditLog,
+    EisaErrorReport,
+    EisaErrorReportStatus,
     EisaPackage,
     EisaPaymentStatus,
     EisaPlatformSetting,
@@ -244,6 +246,21 @@ def build_dashboard(db: Session) -> dict:
     except Exception:
         pass
 
+    open_error_reports = 0
+    try:
+        open_error_reports = db.scalar(
+            select(func.count()).select_from(EisaErrorReport).where(
+                EisaErrorReport.status.in_(
+                    (
+                        EisaErrorReportStatus.OPEN.value,
+                        EisaErrorReportStatus.INVESTIGATING.value,
+                    )
+                )
+            )
+        ) or 0
+    except Exception:
+        pass
+
     return {
         "platform": "EİSA",
         "pending_applications": pending_count,
@@ -260,6 +277,7 @@ def build_dashboard(db: Session) -> dict:
         "failed_payments": failed_payments,
         "upcoming_renewals": expiring_count,
         "expiring_window_days": window,
+        "open_error_reports": open_error_reports,
     }
 
 
@@ -330,3 +348,145 @@ def snapshot_subscription(sub: OsgbSubscription) -> str:
         },
         ensure_ascii=False,
     )
+
+
+ALLOWED_ERROR_SOURCES = frozenset({"ui_crash", "api_error", "user_report"})
+ALLOWED_ERROR_STATUSES = frozenset({"open", "investigating", "resolved", "ignored"})
+DEDUP_WINDOW_MINUTES = 15
+RATE_LIMIT_PER_MINUTE = 8
+MAX_STACK = 8000
+MAX_MESSAGE = 4000
+
+
+def _clip(value: str | None, limit: int) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return text[:limit]
+
+
+def error_report_response(db: Session, row: EisaErrorReport) -> dict:
+    osgb_name = None
+    if row.osgb_id:
+        org = db.get(OsgbOrganization, row.osgb_id)
+        osgb_name = org.name if org else None
+    resolved_by_name = None
+    if row.resolved_by_id:
+        actor = db.get(User, row.resolved_by_id)
+        resolved_by_name = actor.full_name if actor else None
+    return {
+        "id": row.id,
+        "source": row.source,
+        "status": row.status,
+        "user_id": row.user_id,
+        "osgb_id": row.osgb_id,
+        "company_id": row.company_id,
+        "user_email": row.user_email,
+        "user_role": row.user_role,
+        "page_path": row.page_path,
+        "http_method": row.http_method,
+        "http_path": row.http_path,
+        "http_status": row.http_status,
+        "title": row.title,
+        "message": row.message,
+        "stack_trace": row.stack_trace,
+        "user_note": row.user_note,
+        "user_agent": row.user_agent,
+        "occurrence_count": row.occurrence_count or 1,
+        "admin_note": row.admin_note,
+        "admin_reply": row.admin_reply,
+        "resolved_by_id": row.resolved_by_id,
+        "resolved_at": row.resolved_at,
+        "created_at": row.created_at,
+        "updated_at": row.updated_at,
+        "osgb_name": osgb_name,
+        "resolved_by_name": resolved_by_name,
+    }
+
+
+def create_error_report(
+    db: Session,
+    *,
+    user: User,
+    source: str,
+    title: str,
+    message: str | None = None,
+    stack_trace: str | None = None,
+    user_note: str | None = None,
+    page_path: str | None = None,
+    http_method: str | None = None,
+    http_path: str | None = None,
+    http_status: int | None = None,
+    company_id: int | None = None,
+    user_agent: str | None = None,
+) -> EisaErrorReport:
+    src = (source or "user_report").strip().lower()
+    if src not in ALLOWED_ERROR_SOURCES:
+        src = "user_report"
+
+    now = datetime.utcnow()
+    recent_count = db.scalar(
+        select(func.count()).select_from(EisaErrorReport).where(
+            EisaErrorReport.user_id == user.id,
+            EisaErrorReport.created_at >= now - timedelta(minutes=1),
+        )
+    ) or 0
+    if recent_count >= RATE_LIMIT_PER_MINUTE:
+        raise ValueError("Çok fazla hata raporu gönderildi. Lütfen bir dakika bekleyin.")
+
+    title_s = _clip(title, 220) or "Bildirilmemiş hata"
+    message_s = _clip(message, MAX_MESSAGE)
+    http_path_s = _clip(http_path, 500)
+
+    # Dedup: aynı kullanıcı + path/message, açık kayıtlarda
+    dedup_q = select(EisaErrorReport).where(
+        EisaErrorReport.user_id == user.id,
+        EisaErrorReport.status.in_(
+            (EisaErrorReportStatus.OPEN.value, EisaErrorReportStatus.INVESTIGATING.value)
+        ),
+        EisaErrorReport.created_at >= now - timedelta(minutes=DEDUP_WINDOW_MINUTES),
+        EisaErrorReport.source == src,
+    ).order_by(EisaErrorReport.created_at.desc())
+    candidates = list(db.scalars(dedup_q.limit(20)).all())
+    for existing in candidates:
+        same_path = (existing.http_path or "") == (http_path_s or "")
+        same_msg = (existing.message or "") == (message_s or "")
+        same_title = (existing.title or "") == title_s
+        if same_path and (same_msg or same_title):
+            existing.occurrence_count = (existing.occurrence_count or 1) + 1
+            existing.updated_at = now
+            if stack_trace and not existing.stack_trace:
+                existing.stack_trace = _clip(stack_trace, MAX_STACK)
+            if user_note and not existing.user_note:
+                existing.user_note = _clip(user_note, 2000)
+            db.add(existing)
+            db.flush()
+            return existing
+
+    row = EisaErrorReport(
+        source=src,
+        status=EisaErrorReportStatus.OPEN.value,
+        user_id=user.id,
+        osgb_id=user.osgb_id,
+        company_id=company_id or user.company_id,
+        user_email=_clip(getattr(user, "email", None), 255),
+        user_role=user.role.value if getattr(user.role, "value", None) else str(user.role),
+        page_path=_clip(page_path, 500),
+        http_method=_clip(http_method, 16),
+        http_path=http_path_s,
+        http_status=http_status,
+        title=title_s,
+        message=message_s,
+        stack_trace=_clip(stack_trace, MAX_STACK),
+        user_note=_clip(user_note, 2000),
+        user_agent=_clip(user_agent, 500),
+        occurrence_count=1,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(row)
+    db.flush()
+    return row
+

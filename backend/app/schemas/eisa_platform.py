@@ -176,3 +176,53 @@ class EisaSettingsUpdate(BaseModel):
     expiring_window_days: int | None = Field(default=None, ge=1, le=90)
     support_email: str | None = Field(default=None, max_length=255)
     support_phone: str | None = Field(default=None, max_length=40)
+
+
+class EisaErrorReportCreate(BaseModel):
+    source: str = Field(default="user_report", max_length=40)
+    title: str = Field(min_length=2, max_length=220)
+    message: str | None = Field(default=None, max_length=4000)
+    stack_trace: str | None = Field(default=None, max_length=8000)
+    user_note: str | None = Field(default=None, max_length=2000)
+    page_path: str | None = Field(default=None, max_length=500)
+    http_method: str | None = Field(default=None, max_length=16)
+    http_path: str | None = Field(default=None, max_length=500)
+    http_status: int | None = Field(default=None, ge=100, le=599)
+    company_id: int | None = None
+
+
+class EisaErrorReportUpdate(BaseModel):
+    status: str | None = Field(default=None, max_length=40)
+    admin_note: str | None = Field(default=None, max_length=2000)
+    admin_reply: str | None = Field(default=None, max_length=2000)
+
+
+class EisaErrorReportResponse(BaseModel):
+    id: int
+    source: str
+    status: str
+    user_id: int | None
+    osgb_id: int | None
+    company_id: int | None
+    user_email: str | None
+    user_role: str | None
+    page_path: str | None
+    http_method: str | None
+    http_path: str | None
+    http_status: int | None
+    title: str
+    message: str | None
+    stack_trace: str | None
+    user_note: str | None
+    user_agent: str | None
+    occurrence_count: int
+    admin_note: str | None
+    admin_reply: str | None
+    resolved_by_id: int | None
+    resolved_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+    osgb_name: str | None = None
+    resolved_by_name: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)

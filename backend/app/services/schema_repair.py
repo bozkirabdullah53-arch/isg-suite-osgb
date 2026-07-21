@@ -52,6 +52,11 @@ def repair_schema() -> None:
 
         EisaArchiveRecord.__table__.create(bind=engine, checkfirst=True)
 
+    if "eisa_error_reports" not in tables:
+        from app.models.entities import EisaErrorReport  # noqa: F401
+
+        EisaErrorReport.__table__.create(bind=engine, checkfirst=True)
+
     if "companies" in tables:
         cols = _columns("companies")
         stmts: list[str] = []

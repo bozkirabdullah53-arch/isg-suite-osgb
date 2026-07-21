@@ -9,6 +9,7 @@ from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import (
     AuditLog,
+    EisaErrorReport,
     EisaNotificationChannel,
     EisaNotificationDeliveryStatus,
     EisaNotificationTarget,
@@ -27,6 +28,9 @@ from app.models.entities import (
 )
 from app.schemas.eisa_platform import (
     EisaAuditLogResponse,
+    EisaErrorReportCreate,
+    EisaErrorReportResponse,
+    EisaErrorReportUpdate,
     EisaNotificationCreate,
     EisaNotificationResponse,
     EisaOsgbAdminProvision,
@@ -48,8 +52,11 @@ from app.schemas.osgb_subscription import (
 )
 from app.services.audit import add_audit_log
 from app.services.eisa_platform import (
+    ALLOWED_ERROR_STATUSES,
     audit_entry_dict,
     build_dashboard,
+    create_error_report,
+    error_report_response,
     filter_subscriptions,
     generate_payment_reference,
     get_settings,
@@ -851,3 +858,133 @@ def update_eisa_settings(
     )
     db.commit()
     return result
+
+
+@router.post("/error-reports", response_model=EisaErrorReportResponse)
+def submit_error_report(
+    payload: EisaErrorReportCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    try:
+        row = create_error_report(
+            db,
+            user=user,
+            source=payload.source,
+            title=payload.title,
+            message=payload.message,
+            stack_trace=payload.stack_trace,
+            user_note=payload.user_note,
+            page_path=payload.page_path,
+            http_method=payload.http_method,
+            http_path=payload.http_path,
+            http_status=payload.http_status,
+            company_id=payload.company_id,
+            user_agent=request.headers.get("user-agent"),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+    db.commit()
+    db.refresh(row)
+    return EisaErrorReportResponse(**error_report_response(db, row))
+
+
+@router.get("/error-reports", response_model=list[EisaErrorReportResponse])
+def list_error_reports(
+    status: str | None = None,
+    source: str | None = None,
+    q: str | None = None,
+    osgb_id: int | None = None,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    stmt = select(EisaErrorReport).order_by(EisaErrorReport.created_at.desc()).limit(min(limit, 500))
+    if status:
+        stmt = stmt.where(EisaErrorReport.status == status.strip().lower())
+    if source:
+        stmt = stmt.where(EisaErrorReport.source == source.strip().lower())
+    if osgb_id:
+        stmt = stmt.where(EisaErrorReport.osgb_id == osgb_id)
+    rows = list(db.scalars(stmt).all())
+    out = [EisaErrorReportResponse(**error_report_response(db, row)) for row in rows]
+    if q:
+        needle = q.strip().lower()
+        out = [
+            item
+            for item in out
+            if needle
+            in " ".join(
+                filter(
+                    None,
+                    [
+                        item.title,
+                        item.message,
+                        item.user_email,
+                        item.user_note,
+                        item.http_path,
+                        item.osgb_name,
+                    ],
+                )
+            ).lower()
+        ]
+    return out
+
+
+@router.get("/error-reports/{report_id}", response_model=EisaErrorReportResponse)
+def get_error_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    row = db.get(EisaErrorReport, report_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Hata raporu bulunamadı.")
+    return EisaErrorReportResponse(**error_report_response(db, row))
+
+
+@router.patch("/error-reports/{report_id}", response_model=EisaErrorReportResponse)
+def update_error_report(
+    report_id: int,
+    payload: EisaErrorReportUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    row = db.get(EisaErrorReport, report_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Hata raporu bulunamadı.")
+    data = payload.model_dump(exclude_unset=True)
+    old_status = row.status
+    if "status" in data and data["status"] is not None:
+        status = str(data["status"]).strip().lower()
+        if status not in ALLOWED_ERROR_STATUSES:
+            raise HTTPException(status_code=422, detail="Geçersiz durum.")
+        row.status = status
+        if status in ("resolved", "ignored"):
+            row.resolved_by_id = user.id
+            row.resolved_at = datetime.utcnow()
+        elif status in ("open", "investigating"):
+            row.resolved_by_id = None
+            row.resolved_at = None
+    if "admin_note" in data:
+        row.admin_note = data["admin_note"]
+    if "admin_reply" in data:
+        row.admin_reply = data["admin_reply"]
+    row.updated_at = datetime.utcnow()
+    add_audit_log(
+        db,
+        user=user,
+        action="error_report_updated",
+        module="eisa",
+        entity_type="eisa_error_report",
+        entity_id=str(row.id),
+        description=f"Hata raporu güncellendi ({old_status} → {row.status})",
+        old_value=old_status,
+        new_value=row.status,
+        ip_address=_client_ip(request),
+    )
+    db.commit()
+    db.refresh(row)
+    return EisaErrorReportResponse(**error_report_response(db, row))

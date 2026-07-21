@@ -1,7 +1,7 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertTriangle,BarChart3,Bell,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,FileText,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
-import {api, downloadFile} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';
+import {api, downloadFile, reportClientError} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';
 import {ProPerformancePage} from './pro_performance';
 import {CsgbAuditPackPage} from './csgb_audit_pack';
 import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
@@ -19,6 +19,7 @@ import {
   EisaAuditLogsPage,
   EisaArchivesPage,
   EisaSystemSettingsPage,
+  EisaErrorReportsPage,
   OsgbApplyPage,
 } from './eisa';
 import './styles.css';
@@ -38,6 +39,7 @@ const roleModules={
     'eisa_subscriptions_expired',
     'eisa_payments',
     'eisa_packages',
+    'eisa_error_reports',
     'eisa_notifications',
     'eisa_reports',
     'eisa_archives',
@@ -92,6 +94,7 @@ const menuCatalog={
   eisa_subscriptions_expired:['Süresi Dolan Abonelikler',AlertTriangle],
   eisa_payments:['Finans ve Ödemeler',WalletCards],
   eisa_packages:['Paket Yönetimi',BriefcaseBusiness],
+  eisa_error_reports:['Hata Raporları',AlertTriangle],
   eisa_notifications:['Bilgilendirmeler',Bell],
   eisa_reports:['Raporlar',BarChart3],
   eisa_archives:['Merkezi Arşiv',Download],
@@ -533,13 +536,23 @@ function Metric({title,value}){return <article className="metric"><span>{title}<
 class ErrorBoundary extends React.Component{
   constructor(props){super(props);this.state={err:null}}
   static getDerivedStateFromError(err){return{err}}
-  componentDidCatch(err,info){console.error('UI ErrorBoundary',err,info)}
+  componentDidCatch(err,info){
+    console.error('UI ErrorBoundary',err,info);
+    reportClientError({
+      source:'ui_crash',
+      title:'Sayfa çökmesi',
+      message:String(err?.message||err),
+      stack_trace:[err?.stack,info?.componentStack].filter(Boolean).join('\n\n'),
+      page_path:typeof window!=='undefined'?window.location.pathname:null,
+    });
+  }
   render(){
     if(this.state.err){
       return (
         <section className="panel" style={{margin:16}}>
           <h3 style={{marginTop:0,color:'#991b1b'}}>Sayfa yüklenemedi</h3>
           <p style={{color:'#64748b'}}>{String(this.state.err?.message||this.state.err)}</p>
+          <p style={{color:'#64748b',fontSize:13}}>Hata EİSA destek paneline iletildi.</p>
           <div className="actions">
             <button type="button" onClick={()=>{this.setState({err:null});this.props.onHome?.()}}>Ana panele dön</button>
             <button type="button" className="secondary" onClick={()=>window.location.reload()}>Sayfayı yenile</button>
@@ -549,6 +562,65 @@ class ErrorBoundary extends React.Component{
     }
     return this.props.children;
   }
+}
+
+function ReportIssueButton(){
+  const[open,setOpen]=useState(false);
+  const[busy,setBusy]=useState(false);
+  const[msg,setMsg]=useState('');
+  const[form,setForm]=useState({title:'',user_note:''});
+  async function submit(e){
+    e.preventDefault();
+    setBusy(true);setMsg('');
+    try{
+      await api('/eisa/error-reports',{
+        method:'POST',
+        body:JSON.stringify({
+          source:'user_report',
+          title:form.title.trim()||'Kullanıcı sorun bildirimi',
+          user_note:form.user_note.trim()||null,
+          message:form.user_note.trim()||null,
+          page_path:window.location.pathname,
+        }),
+      });
+      setForm({title:'',user_note:''});
+      setOpen(false);
+      setMsg('Bildiriminiz alındı. Teşekkürler.');
+      setTimeout(()=>setMsg(''),4000);
+    }catch(err){
+      setMsg(err.message||'Gönderilemedi');
+    }finally{
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <button type="button" className="header-icon" onClick={()=>setOpen(true)} title="Sorun bildir" aria-label="Sorun bildir">
+        <AlertTriangle size={18}/>
+      </button>
+      {msg && !open ? <span style={{fontSize:12,color:'#0f766e',alignSelf:'center'}}>{msg}</span> : null}
+      {open && (
+        <div className="modal-bg" onMouseDown={(ev)=>ev.target===ev.currentTarget&&setOpen(false)}>
+          <section className="modal">
+            <header><h3>Sorun bildir</h3></header>
+            <form className="form-grid" onSubmit={submit}>
+              <label className="field"><span>Başlık</span>
+                <input required minLength={2} value={form.title} onChange={(ev)=>setForm({...form,title:ev.target.value})} placeholder="Kısa özet"/>
+              </label>
+              <label className="field"><span>Açıklama</span>
+                <textarea required minLength={5} rows={4} value={form.user_note} onChange={(ev)=>setForm({...form,user_note:ev.target.value})} placeholder="Ne yaptınız, ne oldu?"/>
+              </label>
+              {msg ? <p style={{color:'#b91c1c',margin:0}}>{msg}</p> : null}
+              <div className="form-actions">
+                <button type="button" className="secondary" onClick={()=>setOpen(false)}>İptal</button>
+                <button type="submit" disabled={busy}>Gönder</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+    </>
+  );
 }
 function App(){
   const[logged,setLogged]=useState(!!localStorage.getItem('isg_token'));
@@ -677,6 +749,7 @@ function App(){
     eisa_subscriptions_expired:<EisaExpiredSubscriptionsPage/>,
     eisa_payments:<EisaPaymentsPage/>,
     eisa_packages:<EisaPackagesPage/>,
+    eisa_error_reports:<EisaErrorReportsPage/>,
     eisa_notifications:<EisaNotificationsPage/>,
     eisa_reports:<EisaReportsPage/>,
     eisa_archives:<EisaArchivesPage/>,
@@ -746,6 +819,7 @@ function App(){
             <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
           </div>
           <div className="header-actions">
+            <ReportIssueButton/>
             <button type="button" className="header-icon" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfa">
               <LayoutDashboard size={18}/>
             </button>

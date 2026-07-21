@@ -516,6 +516,50 @@ class EisaPlatformSetting(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class EisaErrorReportSource(str, enum.Enum):
+    UI_CRASH = "ui_crash"
+    API_ERROR = "api_error"
+    USER_REPORT = "user_report"
+
+
+class EisaErrorReportStatus(str, enum.Enum):
+    OPEN = "open"
+    INVESTIGATING = "investigating"
+    RESOLVED = "resolved"
+    IGNORED = "ignored"
+
+
+class EisaErrorReport(Base):
+    """Kullanıcı / istemci hata ve destek raporları — EİSA panosu."""
+
+    __tablename__ = "eisa_error_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source: Mapped[str] = mapped_column(String(40), index=True)
+    status: Mapped[str] = mapped_column(String(40), default="open", index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    osgb_id: Mapped[int | None] = mapped_column(ForeignKey("osgb_organizations.id"), nullable=True, index=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True, index=True)
+    user_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    user_role: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    page_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    http_method: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    http_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    http_status: Mapped[int | None] = mapped_column(nullable=True)
+    title: Mapped[str] = mapped_column(String(220))
+    message: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    stack_trace: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_note: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    occurrence_count: Mapped[int] = mapped_column(default=1)
+    admin_note: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    admin_reply: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    resolved_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class ArchiveKind(str, enum.Enum):
     TENANT_BACKUP = "tenant_backup"
     DELETED_FILE = "deleted_file"
