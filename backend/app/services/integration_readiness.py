@@ -1,4 +1,4 @@
-"""0.9.123 — İBYS/KATİP/ÇSGB entegrasyon hazırlık checklist (stub, salt okunur).
+"""0.9.124 — İBYS/KATİP/ÇSGB entegrasyon hazırlık checklist (stub, salt okunur).
 
 Gerçek İBYS / İSG-KATİP API bağlantısı yok; mevcut CSV paket, KATİP eksik listesi
 ve ÇSGB denetim paketi özetinden hazırlık durumu üretilir.
