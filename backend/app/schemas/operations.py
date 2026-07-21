@@ -22,6 +22,7 @@ class VisitCreate(BaseModel):
     duration_minutes: int = Field(default=0, ge=0, le=24 * 60)
     subject: str = Field(min_length=2, max_length=220)
     notes: str | None = None
+    status: VisitStatus | None = None
 
     @model_validator(mode="after")
     def sanitize(self):
@@ -30,6 +31,26 @@ class VisitCreate(BaseModel):
         self.notes = assert_meaningful_text(self.notes, label="Notlar", min_len=3, required=False)
         self.start_time = clean_text(self.start_time)
         self.end_time = clean_text(self.end_time)
+        return self
+
+
+class VisitPlanCreate(BaseModel):
+    """OSGB yöneticisi planlı ziyaret — defter zorunlu değil."""
+    osgb_id: int
+    company_id: int
+    professional_id: int
+    visit_date: date
+    start_time: str | None = "09:00"
+    end_time: str | None = "10:00"
+    duration_minutes: int = Field(default=60, ge=0, le=24 * 60)
+    subject: str = Field(default="Planlı saha ziyareti", min_length=2, max_length=220)
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def sanitize(self):
+        self.visit_date = assert_event_date(self.visit_date, label="Ziyaret tarihi", allow_future_days=365)
+        self.subject = assert_meaningful_text(self.subject, label="Ziyaret konusu", min_len=3, required=True)
+        self.notes = assert_meaningful_text(self.notes, label="Notlar", min_len=3, required=False)
         return self
 
 

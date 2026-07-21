@@ -14,7 +14,8 @@ from app.models.entities import (AssignmentStatus, Company, CrmLead, FinanceTran
                                  OsgbOrganization, ServiceContract, ServiceVisit, User,
                                  UserRole, VisitStatus, WorkplaceAssignment)
 from app.schemas.operations import (FinanceCreate, FinanceResponse, LeadCreate, LeadResponse,
-                                    VisitCreate, VisitResponse, VisitUpdate)
+                                    VisitCreate, VisitPlanCreate, VisitResponse, VisitUpdate)
+from app.services.visit_calendar import build_visit_calendar
 
 router = APIRouter(prefix="/operations", tags=["OSGB Operasyonları"])
 ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
@@ -228,6 +229,75 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
         "upcoming_contracts": upcoming_contracts,
         "period_days": 30,
     }
+
+
+@router.get("/visits/calendar")
+def visits_calendar(
+    month: str | None = None,
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Saha takvimi özeti — planlı/gecikmiş ziyaret ve eksik süre uyarıları."""
+    pro = None
+    if user.role in _FIELD_ROLES:
+        pro = find_professional_for_user(db, user)
+        if not pro:
+            return build_visit_calendar(db, osgb_id=None, month=month)
+        oid = pro.osgb_id
+    elif user.role in (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN):
+        oid = active_osgb(user, osgb_id, db)
+    else:
+        raise HTTPException(403, "Takvim görüntüleme yetkiniz yok.")
+    data = build_visit_calendar(db, osgb_id=oid, month=month)
+    if pro:
+        pid = pro.id
+        for key in ("days", "overdue", "upcoming", "missing"):
+            if key == "days":
+                for day in data.get("days", []):
+                    day["visits"] = [v for v in day.get("visits", []) if v.get("professional_id") == pid]
+                    day["visit_count"] = len(day["visits"])
+            else:
+                data[key] = [r for r in data.get(key, []) if r.get("professional_id") == pid]
+    return data
+
+
+@router.post("/visits/plan", response_model=VisitResponse)
+def plan_visit(
+    payload: VisitPlanCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN, *FIELD_VISIT_ROLES)),
+):
+    """Planlı ziyaret oluştur (defter zorunlu değil)."""
+    scope(user, payload.osgb_id)
+    ensure_company_access(db, user, payload.company_id)
+    company = db.get(Company, payload.company_id)
+    if not company or company.osgb_id != payload.osgb_id:
+        raise HTTPException(400, "İşyeri OSGB ile eşleşmiyor.")
+    professional = db.get(IsgProfessional, payload.professional_id)
+    if not professional or professional.osgb_id != payload.osgb_id:
+        raise HTTPException(400, "Profesyonel OSGB ile eşleşmiyor.")
+    if user.role in _FIELD_ROLES:
+        pro = find_professional_for_user(db, user)
+        if not pro or pro.id != payload.professional_id:
+            raise HTTPException(403, "Yalnız kendi adınıza planlı ziyaret oluşturabilirsiniz.")
+    obj = ServiceVisit(
+        osgb_id=payload.osgb_id,
+        company_id=payload.company_id,
+        professional_id=payload.professional_id,
+        visit_date=payload.visit_date,
+        start_time=payload.start_time,
+        end_time=payload.end_time,
+        duration_minutes=payload.duration_minutes,
+        subject=payload.subject,
+        notes=payload.notes,
+        status=VisitStatus.PLANNED,
+    )
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
 
 @router.get("/visits", response_model=list[VisitResponse])
 def visits(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(get_current_user)):

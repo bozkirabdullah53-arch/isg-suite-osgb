@@ -632,10 +632,19 @@ export function VisitsPage({user}){
  const isOsgb=['global_admin','company_admin'].includes(user.role);
  const canEdit=isField||isOsgb;
  const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]);
- const[open,setOpen]=useState(false),[editing,setEditing]=useState(null),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
+ const[cal,setCal]=useState(null),[month,setMonth]=useState(()=>new Date().toISOString().slice(0,7)),[selectedDay,setSelectedDay]=useState('');
+ const[open,setOpen]=useState(false),[planOpen,setPlanOpen]=useState(false),[editing,setEditing]=useState(null),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
  const[notebookFile,setNotebookFile]=useState(null);
  const emptyForm={osgb_id:'',company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''};
- const[form,setForm]=useState(emptyForm);
+ const emptyPlan={osgb_id:'',company_id:'',professional_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Planlı saha ziyareti',notes:''};
+ const[form,setForm]=useState(emptyForm),[planForm,setPlanForm]=useState(emptyPlan);
+ const weekday=['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
+ async function loadCalendar(oid){
+  try{
+   const q=`?month=${encodeURIComponent(month)}${oid?`&osgb_id=${oid}`:''}`;
+   setCal(await api(`/operations/visits/calendar${q}`));
+  }catch(_){setCal(null)}
+ }
  const load=async(preferredOid)=>{
   setErr('');
   try{
@@ -643,24 +652,39 @@ export function VisitsPage({user}){
    setOrgs(o);setCompanies(c);
    const id=preferredOid||osgbId(user,o)||(c.find(x=>x.osgb_id)?.osgb_id)||'';
    setForm(x=>({...x,osgb_id:id||x.osgb_id}));
+   setPlanForm(x=>({...x,osgb_id:id||x.osgb_id}));
    if(isField){
     setRows(await api('/operations/visits'));
+    await loadCalendar('');
     return;
    }
    const oid=Number(preferredOid||id);
-   if(!oid){setRows([]);return}
+   if(!oid){setRows([]);setCal(null);return}
    const[p,v]=await Promise.all([
     api(`/osgb/professionals?osgb_id=${oid}`).catch(()=>[]),
     api(`/operations/visits?osgb_id=${oid}`),
    ]);
    setPros(p);setRows(v);
+   await loadCalendar(oid);
   }catch(ex){setErr(ex.message||'Liste yüklenemedi.');setRows([])}
  };
  useEffect(()=>{load()},[]);
+ useEffect(()=>{if(form.osgb_id||isField) loadCalendar(isField?'':Number(form.osgb_id)||'')},[month]);
+ function shiftMonth(delta){
+  const [y,m]=month.split('-').map(Number);
+  const d=new Date(y,m-1+delta,1);
+  setMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+  setSelectedDay('');
+ }
  function openCreate(){
   setErr('');setNotebookFile(null);setEditing(null);
   setForm(f=>({...emptyForm,osgb_id:f.osgb_id||osgbId(user,orgs)||''}));
   setOpen(true);
+ }
+ function openPlan(){
+  setErr('');
+  setPlanForm(f=>({...emptyPlan,osgb_id:f.osgb_id||osgbId(user,orgs)||'',visit_date:selectedDay||''}));
+  setPlanOpen(true);
  }
  function openEdit(row){
   setErr('');setNotebookFile(null);setEditing(row);
@@ -735,8 +759,34 @@ export function VisitsPage({user}){
   try{await downloadFile(`/operations/visits/${row.id}/notebook`,row.notebook_file_name||'tespit-oneri-defteri')}
   catch(ex){setErr(ex.message||'Dosya indirilemedi.')}
  }
- return <P title={isOsgb?'Saha Ziyaretleri (OSGB İzleme)':'Saha Ziyaret Takvimi'} action={isField?<button onClick={openCreate}><Plus/>Ziyaret Kaydet</button>:null}>
-  {isOsgb&&<p style={{margin:'0 0 12px',color:'#475569',fontSize:14}}>Uzman / hekim / DSP’nin kaydettiği saha ziyaretleri burada izlenir; gerekirse düzeltebilir veya silebilirsiniz.</p>}
+ async function savePlan(e){
+  e.preventDefault();setErr('');setBusy(true);
+  try{
+   const oid=Number(planForm.osgb_id||form.osgb_id||user.osgb_id||0);
+   if(!planForm.company_id||!planForm.professional_id||!planForm.visit_date) throw new Error('İşyeri, profesyonel ve tarih zorunlu.');
+   await api('/operations/visits/plan',{method:'POST',body:JSON.stringify({
+    osgb_id:oid,
+    company_id:Number(planForm.company_id),
+    professional_id:Number(planForm.professional_id),
+    visit_date:planForm.visit_date,
+    start_time:planForm.start_time||null,
+    end_time:planForm.end_time||null,
+    duration_minutes:Number(planForm.duration_minutes)||60,
+    subject:planForm.subject,
+    notes:planForm.notes||null,
+   })});
+   setPlanOpen(false);await load(form.osgb_id);
+  }catch(ex){setErr(ex.message||'Plan kaydedilemedi.')}
+  finally{setBusy(false)}
+ }
+ const filteredRows=selectedDay?rows.filter(r=>r.visit_date===selectedDay):rows;
+ const calDays=cal?.days||[];
+ const padStart=calDays.length?((calDays[0].weekday+6)%7):0;
+ return <P title={isOsgb?'Saha Ziyaretleri (OSGB İzleme)':'Saha Ziyaret Takvimi'} action={<div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+  {isOsgb&&<button type="button" onClick={openPlan}><Plus/>Planlı Ziyaret</button>}
+  {isField&&<button onClick={openCreate}><Plus/>Ziyaret Kaydet</button>}
+ </div>}>
+  {isOsgb&&<p style={{margin:'0 0 12px',color:'#475569',fontSize:14}}>Takvimde planlı ziyaretleri izleyin; gecikmiş ve eksik süre uyarılarını kapatın. Saha kaydı uzman/hekim/DSP tarafından defter ile yapılır.</p>}
   {user.role==='global_admin'&&orgs.length>1&&(
    <label className="field" style={{maxWidth:320,marginBottom:12}}>
     <span>OSGB</span>
@@ -745,8 +795,58 @@ export function VisitsPage({user}){
     </select>
    </label>
   )}
-  {err&&!open&&<p style={{color:'#b91c1c'}}>{err}</p>}
-  <T rows={rows} cols={[
+  {err&&!open&&!planOpen&&<p style={{color:'#b91c1c'}}>{err}</p>}
+  {cal&&<>
+   <div className="cards osgb-cards" style={{marginBottom:12}}>
+    <article className="metric"><span>Toplam ziyaret</span><strong>{cal.summary?.total_visits??0}</strong></article>
+    <article className="metric"><span>Planlı</span><strong>{cal.summary?.planned??0}</strong></article>
+    <article className="metric"><span>Tamamlanan</span><strong>{cal.summary?.completed??0}</strong></article>
+    <article className="metric"><span>Gecikmiş</span><strong style={{color:(cal.summary?.overdue||0)?'#b91c1c':undefined}}>{cal.summary?.overdue??0}</strong></article>
+    <article className="metric"><span>Eksik süre (işyeri)</span><strong style={{color:(cal.summary?.missing_coverage||0)?'#b45309':undefined}}>{cal.summary?.missing_coverage??0}</strong></article>
+   </div>
+   {(cal.alerts||[]).length>0&&<section className="panel" style={{marginBottom:12,borderLeft:'4px solid #d97706'}}>
+    <ul style={{margin:0,paddingLeft:20,color:'#475569',fontSize:14}}>{cal.alerts.map((a,i)=><li key={i}>{a.text}</li>)}</ul>
+   </section>}
+   <section className="panel" style={{marginBottom:12}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:12}}>
+     <h3 style={{margin:0,fontSize:16}}>{cal.period} — Saha Takvimi</h3>
+     <div style={{display:'flex',gap:8}}>
+      <button type="button" className="mini secondary" onClick={()=>shiftMonth(-1)}>← Önceki</button>
+      <button type="button" className="mini secondary" onClick={()=>{setMonth(new Date().toISOString().slice(0,7));setSelectedDay('')}}>Bugün</button>
+      <button type="button" className="mini secondary" onClick={()=>shiftMonth(1)}>Sonraki →</button>
+      {selectedDay&&<button type="button" className="mini" onClick={()=>setSelectedDay('')}>Tümünü göster</button>}
+     </div>
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:6,marginBottom:6,fontSize:11,color:'#64748b',fontWeight:700}}>
+     {weekday.map(w=><div key={w} style={{textAlign:'center'}}>{w}</div>)}
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:6}}>
+     {Array.from({length:padStart}).map((_,i)=><div key={`p${i}`}/>)}
+     {calDays.map(day=>{
+      const active=selectedDay===day.date;
+      const hasOverdue=day.visits?.some(v=>v.status==='planned'&&day.date<new Date().toISOString().slice(0,10));
+      return <button key={day.date} type="button" onClick={()=>setSelectedDay(active?'':day.date)} style={{
+        minHeight:72,padding:6,borderRadius:8,border:active?'2px solid #0f766e':'1px solid #e2e8f0',
+        background:day.is_today?'#ecfdf5':(active?'#f0fdfa':'#fff'),cursor:'pointer',textAlign:'left'
+      }}>
+        <div style={{fontSize:12,fontWeight:700,color:hasOverdue?'#b91c1c':'#334155'}}>{day.date.slice(8)}</div>
+        {day.visit_count>0&&<div style={{fontSize:11,color:'#0f766e',marginTop:4}}>{day.visit_count} ziyaret</div>}
+        {day.planned_count>0&&<div style={{fontSize:10,color:'#64748b'}}>{day.planned_count} planlı</div>}
+      </button>
+     })}
+    </div>
+   </section>
+   {(cal.missing||[]).length>0&&<section className="panel" style={{marginBottom:12}}>
+    <h3 style={{margin:'0 0 8px',fontSize:15}}>Eksik saha süresi — plan önerisi</h3>
+    <T rows={cal.missing.slice(0,8)} cols={[
+     {k:'company_name',l:'İşyeri'},
+     {k:'professional_name',l:'Profesyonel'},
+     {k:'gap_minutes',l:'Eksik dk'},
+     {k:'has_future_plan',l:'Plan',f:r=>r.has_future_plan?'Var':'Yok'},
+    ]}/>
+   </section>}
+  </>}
+  <T rows={filteredRows} cols={[
    {k:'visit_date',l:'Tarih'},
    {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||r.company_id},
    ...(!isField?[{k:'professional_id',l:'Profesyonel',f:r=>pros.find(x=>x.id===r.professional_id)?.full_name||r.professional_id}]:[]),
@@ -782,6 +882,26 @@ export function VisitsPage({user}){
     </label>
     {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
     <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':(editing?'Güncelle':'Kaydet')}</button></div>
+   </form>
+  </M>}
+  {planOpen&&<M title="Planlı Saha Ziyareti" close={()=>setPlanOpen(false)}>
+   <form className="form-grid" onSubmit={savePlan}>
+    <S label="İşyeri" required value={planForm.company_id} onChange={e=>setPlanForm({...planForm,company_id:e.target.value})}>
+     <option value="">Seçiniz</option>
+     {companies.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
+    </S>
+    <S label="Profesyonel" required value={planForm.professional_id} onChange={e=>setPlanForm({...planForm,professional_id:e.target.value})}>
+     <option value="">Seçiniz</option>
+     {pros.map(x=><option key={x.id} value={x.id}>{x.full_name}</option>)}
+    </S>
+    <F label="Tarih" type="date" required value={planForm.visit_date} onChange={e=>setPlanForm({...planForm,visit_date:e.target.value})}/>
+    <F label="Başlangıç" type="time" value={planForm.start_time} onChange={e=>setPlanForm({...planForm,start_time:e.target.value})}/>
+    <F label="Bitiş" type="time" value={planForm.end_time} onChange={e=>setPlanForm({...planForm,end_time:e.target.value})}/>
+    <F label="Süre (dk.)" type="number" value={planForm.duration_minutes} onChange={e=>setPlanForm({...planForm,duration_minutes:e.target.value})}/>
+    <F label="Konu" required value={planForm.subject} onChange={e=>setPlanForm({...planForm,subject:e.target.value})}/>
+    <F label="Notlar" value={planForm.notes} onChange={e=>setPlanForm({...planForm,notes:e.target.value})}/>
+    {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
+    <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':'Planla'}</button></div>
    </form>
   </M>}
  </P>
