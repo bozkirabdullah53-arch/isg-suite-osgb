@@ -73,14 +73,14 @@ def test_health_flag_crm_convert(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.112"
+    assert body["version"] == "0.9.113"
     assert body["crm_convert"] == "lead-to-contract-v1"
     assert body["contracts_ui"] == "osgb-monitor-v1"
     assert body["contracts_actions"] == "end-suspend-v1"
     assert body["finance_status"] == "patch-paid-v1"
     assert body["crm_finance_link"] == "company-filter-v1"
     assert body["finance_accrual"] == "monthly-v1"
-    assert body["finance_overdue_alert"] == "dashboard-v1"
+    assert body["finance_overdue_alert"] == "dashboard-v2"
     assert body["crm_stage_filters"] == "won-lost-v1"
 
 

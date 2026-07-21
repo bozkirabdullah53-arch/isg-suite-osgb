@@ -149,7 +149,7 @@ def test_health_flag_csgb_audit_bundle_v2(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.112"
+    assert body["version"] == "0.9.113"
     assert body["csgb_pack"] == "audit-bundle-v2"
 
 

@@ -20,6 +20,7 @@ from app.services.osgb_admin import provision_professional_login
 from app.services.osgb_oversight import build_oversight, build_professional_performance, seed_oversight_demo
 from app.services.csgb_audit_pack import build_csgb_audit_pack
 from app.services.csgb_audit_bundle import build_csgb_audit_bundle_zip
+from app.services.katip_prep import build_katip_prep, katip_prep_csv
 from app.services.capacity_engine import build_capacity_overview, sync_assignment_required
 
 router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
@@ -210,6 +211,43 @@ def csgb_audit_pack_bundle(
     return StreamingResponse(
         iter([data]),
         media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/katip-prep")
+def katip_prep(
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """KATİP hazırlık stub: eksik sözleşme no / dosya listesi + hatırlatma sayıları."""
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id:
+            raise HTTPException(400, "OSGB kapsamınız tanımlı değil.")
+        osgb_id = user.osgb_id
+    elif osgb_id is not None:
+        _scope_osgb(user, osgb_id)
+    return build_katip_prep(db, osgb_id=osgb_id)
+
+
+@router.get("/katip-prep/export.csv")
+def katip_prep_export_csv(
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """Eksik KATİP / sözleşme dosyası görevlendirmelerini CSV olarak indir."""
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id:
+            raise HTTPException(400, "OSGB kapsamınız tanımlı değil.")
+        osgb_id = user.osgb_id
+    elif osgb_id is not None:
+        _scope_osgb(user, osgb_id)
+    data, filename = katip_prep_csv(db, osgb_id=osgb_id)
+    return StreamingResponse(
+        iter([data]),
+        media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

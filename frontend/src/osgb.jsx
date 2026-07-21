@@ -661,8 +661,15 @@ export function AssignmentsPage({user}){
  const[open,setOpen]=useState(false),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
  const[statusFilter,setStatusFilter]=useState('active'); // active | suspended | ended | all
  const[contractFile,setContractFile]=useState(null);
+ const[katipPrep,setKatipPrep]=useState(null);
  const[form,setForm]=useState({osgb_id:'',company_id:'',professional_id:'',professional_type:'safety_specialist',start_date:'',end_date:'',required_minutes_monthly:0,planned_minutes_monthly:0,actual_minutes_monthly:0,isg_katip_contract_number:''});
  const statusLabel={active:'Aktif',suspended:'Askıda',ended:'Sonlandı'};
+ const loadKatipPrep=async(oid)=>{
+  try{
+   const q=oid?`?osgb_id=${oid}`:'';
+   setKatipPrep(await api(`/osgb/katip-prep${q}`));
+  }catch(_){setKatipPrep(null)}
+ };
  const load=async(preferredOid)=>{
   setErr('');
   try{
@@ -674,6 +681,9 @@ export function AssignmentsPage({user}){
    if(oid){
     const[p,a]=await Promise.all([api(`/osgb/professionals?osgb_id=${oid}`),api('/osgb/assignments')]);
     setPros(p);setRows(a);
+    await loadKatipPrep(oid);
+   }else{
+    setKatipPrep(null);
    }
   }catch(ex){setErr(ex.message||'Liste yüklenemedi.')}
  };
@@ -733,6 +743,15 @@ export function AssignmentsPage({user}){
    await downloadFile(`/osgb/assignments/${row.id}/contract`,row.contract_file_name||'sozlesme');
   }catch(ex){setErr(ex.message||'Sözleşme indirilemedi.')}
  }
+ async function exportKatipCsv(){
+  const oid=Number(form.osgb_id);
+  if(!oid){setErr('CSV için OSGB seçiniz.');return}
+  setBusy(true);setErr('');
+  try{
+   await downloadFile(`/osgb/katip-prep/export.csv?osgb_id=${oid}`,`katip-hazirlik-${oid}.csv`);
+  }catch(ex){setErr(ex.message||'CSV indirilemedi.')}
+  finally{setBusy(false)}
+ }
  async function act(row,action){
   const labels={end:'sonlandırmak',suspend:'askıya almak',activate:'yeniden aktifleştirmek',delete:'silmek'};
   if(!window.confirm(`Bu görevlendirmeyi ${labels[action]||action} istiyor musunuz?`)) return;
@@ -748,8 +767,49 @@ export function AssignmentsPage({user}){
   }catch(ex){setErr(ex.message||'İşlem başarısız.')}
   finally{setBusy(false)}
  }
+ const prepSum=katipPrep?.summary;
  return <P title="İşyeri Görevlendirmeleri" action={<button onClick={()=>{setErr('');setContractFile(null);setOpen(true)}}><Plus/>Görevlendirme Yap</button>}>
   {err&&!open&&<p style={{color:'#b91c1c'}}>{err}</p>}
+  {prepSum&&(
+   <div style={{marginBottom:14,padding:'12px 14px',border:'1px solid #e2e8f0',borderRadius:8,background:'#f8fafc'}}>
+    <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center',marginBottom:8}}>
+     <div>
+      <strong>KATİP hazırlık</strong>
+      <span style={{marginLeft:8,color:'#64748b',fontSize:13}}>stub · gerçek API yok</span>
+     </div>
+     <button type="button" className="secondary" disabled={busy||!form.osgb_id} onClick={exportKatipCsv}>Eksikleri CSV indir</button>
+    </div>
+    <div style={{display:'flex',gap:16,flexWrap:'wrap',fontSize:14}}>
+     <span>Aktif: <strong>{prepSum.active_assignments}</strong></span>
+     <span>Tamam: <strong style={{color:'#166534'}}>{prepSum.complete}</strong></span>
+     <span>Eksik toplam: <strong style={{color:prepSum.gaps?'#b45309':'#166534'}}>{prepSum.gaps}</strong></span>
+     <span>KATİP no eksik: <strong>{prepSum.missing_katip_number}</strong></span>
+     <span>Dosya eksik: <strong>{prepSum.missing_contract_file}</strong></span>
+     <span>Hatırlatılacak: <strong>{katipPrep?.reminder_counts?.ready_to_remind??0}</strong></span>
+    </div>
+    {(katipPrep.gaps||[]).length>0&&(
+     <div className="table-wrap" style={{marginTop:10}}>
+      <table>
+       <thead><tr>
+        <th>İşyeri</th><th>Profesyonel</th><th>KATİP No</th><th>Dosya</th><th>Eksik</th>
+       </tr></thead>
+       <tbody>
+        {katipPrep.gaps.slice(0,25).map(g=>(
+         <tr key={g.assignment_id}>
+          <td>{g.company_name}</td>
+          <td>{g.professional_name}</td>
+          <td>{g.isg_katip_contract_number||'—'}</td>
+          <td>{g.contract_file_name||'—'}</td>
+          <td>{g.reminder_hint}</td>
+         </tr>
+        ))}
+       </tbody>
+      </table>
+      {katipPrep.gaps.length>25&&<p style={{margin:'8px 0 0',color:'#64748b',fontSize:13}}>İlk 25 kayıt gösteriliyor; tamamı için CSV indirin.</p>}
+     </div>
+    )}
+   </div>
+  )}
   <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:12,alignItems:'center'}}>
    <label className="field" style={{margin:0,minWidth:180}}>
     <span>Durum filtresi</span>
