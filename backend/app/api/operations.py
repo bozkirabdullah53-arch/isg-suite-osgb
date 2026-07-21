@@ -16,6 +16,7 @@ from app.models.entities import (AssignmentStatus, Company, CrmLead, FinanceTran
 from app.schemas.operations import (FinanceCreate, FinanceResponse, LeadCreate, LeadResponse,
                                     VisitCreate, VisitPlanCreate, VisitResponse, VisitUpdate)
 from app.services.visit_calendar import build_visit_calendar
+from app.services.module_kpis import build_module_kpis
 
 router = APIRouter(prefix="/operations", tags=["OSGB Operasyonları"])
 ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
@@ -229,6 +230,17 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
         "upcoming_contracts": upcoming_contracts,
         "period_days": 30,
     }
+
+
+@router.get("/module-kpis")
+def module_kpis(
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN)),
+):
+    """OSGB merkezi modül KPI — risk/DÖF, eğitim yenileme, sağlık periyodik takip."""
+    oid = active_osgb(user, osgb_id, db)
+    return build_module_kpis(db, oid)
 
 
 @router.get("/visits/calendar")

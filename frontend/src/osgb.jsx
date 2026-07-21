@@ -38,16 +38,20 @@ async function copyText(text){
 export function OsgbDashboard({user, onNavigate}){
  const[orgs,setOrgs]=useState([]),[data,setData]=useState(null),[oid,setOid]=useState('');
  const[ops,setOps]=useState(null);
+ const[kpis,setKpis]=useState(null);
  const[unassignedOpen,setUnassignedOpen]=useState(false);
  const[unassignedType,setUnassignedType]=useState('safety_specialist');
  const[contractsOpen,setContractsOpen]=useState(false);
 
  async function load(id){
-  if(!id){setData(null);setOps(null);return}
+  if(!id){setData(null);setOps(null);setKpis(null);return}
   setData(await api(`/operations/dashboard?osgb_id=${id}`));
   try{
    setOps(await api(`/osgb/oversight?osgb_id=${id}`));
   }catch(_){setOps(null)}
+  try{
+   setKpis(await api(`/operations/module-kpis?osgb_id=${id}`));
+  }catch(_){setKpis(null)}
  }
 
  useEffect(()=>{
@@ -64,6 +68,9 @@ export function OsgbDashboard({user, onNavigate}){
  const unSelected=unBy[unassignedType]||{count:0,items:[],label:ptypes[unassignedType]};
  const contracts=data?.upcoming_contracts||[];
  const sum=ops?.summary||{};
+ const rk=kpis?.risk||{};
+ const tr=kpis?.training||{};
+ const hl=kpis?.health||{};
  const go=(mod)=>{ if(typeof onNavigate==='function') onNavigate(mod); };
 
  return <>
@@ -98,6 +105,64 @@ export function OsgbDashboard({user, onNavigate}){
     <strong style={{fontSize:16}}>İzle / Müdahale</strong>
    </article>
   </div>
+
+  <section className="panel" style={{marginBottom:16}}>
+   <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center',marginBottom:12}}>
+    <div>
+     <h3 style={{margin:'0 0 4px'}}>Modül KPI özeti</h3>
+     <p style={{margin:0,color:'#64748b',fontSize:13}}>Risk/DÖF, eğitim yenileme ve sağlık periyodik takip — OSGB geneli salt okunur izleme.</p>
+    </div>
+   </div>
+   {(kpis?.alerts||[]).length>0&&(
+    <div style={{display:'grid',gap:8,marginBottom:12}}>
+     {kpis.alerts.map((a,i)=>(
+      <div key={i} style={{padding:'10px 12px',borderRadius:10,background:a.level==='critical'?'#fee2e2':'#fef3c7',color:a.level==='critical'?'#991b1b':'#92400e',fontSize:13,fontWeight:600}}>
+       {a.text}
+      </div>
+     ))}
+    </div>
+   )}
+   <div className="cards osgb-cards" style={{marginBottom:12}}>
+    <article className="metric" title="Açık risk kayıtları">
+     <span>Açık Risk</span>
+     <strong style={{color:(rk.open_risks||0)>0?'#b45309':undefined}}>{rk.open_risks??'—'}</strong>
+     <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>Çok yüksek {rk.very_high??0} · Yüksek {rk.high??0}</small>
+    </article>
+    <article className="metric" title="Açık ve gecikmiş DÖF">
+     <span>Açık DÖF</span>
+     <strong>{rk.open_dofs??'—'}</strong>
+     <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>Gecikmiş {rk.overdue_dofs??0} · 7 gün {rk.due_soon_dofs??0}</small>
+    </article>
+    <article className="metric" title="Eğitim yenileme tarihleri">
+     <span>Eğitim Yenileme</span>
+     <strong style={{color:(tr.overdue_renewal||0)>0?'#b91c1c':undefined}}>{tr.overdue_renewal??0}</strong>
+     <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>30 gün içinde {tr.due_soon_renewal??0} · Planlı {tr.planned??0}</small>
+    </article>
+    <article className="metric" title="Periyodik sağlık muayeneleri">
+     <span>Sağlık Muayene</span>
+     <strong style={{color:(hl.overdue||0)>0?'#b91c1c':undefined}}>{hl.overdue??0}</strong>
+     <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>30 gün {hl.due_soon??0} · Uygunsuz {hl.unfit??0} · Kurşun {hl.lead_high??0}</small>
+    </article>
+   </div>
+   {(kpis?.top_companies||[]).length>0&&(
+    <div className="table-wrap">
+     <table>
+      <thead><tr><th>İşyeri</th><th>Risk/DÖF</th><th>Eğitim</th><th>Sağlık</th><th>Toplam</th></tr></thead>
+      <tbody>
+       {kpis.top_companies.map(row=>(
+        <tr key={row.company_id}>
+         <td>{row.company_name}</td>
+         <td>{row.risk_issues}</td>
+         <td>{row.training_issues}</td>
+         <td>{row.health_issues}</td>
+         <td><strong>{row.total_issues}</strong></td>
+        </tr>
+       ))}
+      </tbody>
+     </table>
+    </div>
+   )}
+  </section>
 
   <section className="panel" style={{marginBottom:16}}>
    <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center'}}>
