@@ -12,8 +12,8 @@ from app.api.company_access import ensure_company_access, find_professional_for_
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.entities import (AssignmentStatus, Company, CrmLead, FinanceTransaction, IsgProfessional,
-                                 OsgbOrganization, ServiceContract, ServiceVisit, User,
+from app.models.entities import (AssignmentStatus, ChemicalProduct, Company, CrmLead, FinanceTransaction,
+                                 IsgProfessional, OsgbOrganization, ServiceContract, ServiceVisit, User,
                                  UserRole, VisitStatus, WorkplaceAssignment)
 from app.schemas.operations import (FinanceCreate, FinanceResponse, FinanceUpdate, LeadCreate, LeadResponse, LeadUpdate,
                                     VisitCreate, VisitGpsStamp, VisitPlanCreate, VisitResponse, VisitUpdate)
@@ -331,6 +331,46 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
             "text": f"{len(upcoming_contracts)} aktif sozlesme 30 gun icinde bitiyor",
         })
 
+    # 0.9.123 — SDS/PKD gözden geçirme (OSGB ana panel; saha siciline gitmez)
+    company_ids = list(companies.keys())
+    sds_overdue_count = 0
+    sds_due_soon_count = 0
+    if company_ids:
+        sds_overdue_count = int(
+            db.scalar(
+                select(func.count()).select_from(ChemicalProduct).where(
+                    ChemicalProduct.company_id.in_(company_ids),
+                    ChemicalProduct.is_active.is_(True),
+                    ChemicalProduct.next_review_date.is_not(None),
+                    ChemicalProduct.next_review_date < today,
+                )
+            )
+            or 0
+        )
+        sds_due_soon_count = int(
+            db.scalar(
+                select(func.count()).select_from(ChemicalProduct).where(
+                    ChemicalProduct.company_id.in_(company_ids),
+                    ChemicalProduct.is_active.is_(True),
+                    ChemicalProduct.next_review_date.is_not(None),
+                    ChemicalProduct.next_review_date.between(today, soon),
+                )
+            )
+            or 0
+        )
+
+    sds_alerts = []
+    if sds_overdue_count:
+        sds_alerts.append({
+            "level": "critical",
+            "text": f"{sds_overdue_count} SDS / PKD gozden gecirme gecikmis",
+        })
+    if sds_due_soon_count:
+        sds_alerts.append({
+            "level": "warning",
+            "text": f"{sds_due_soon_count} SDS / PKD gozden gecirme 30 gun icinde",
+        })
+
     return {
         "osgb_id": oid,
         "workplaces": workplaces,
@@ -347,7 +387,10 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
         "finance_due_soon_amount": finance_due_soon_amount,
         "finance_alerts": finance_alerts,
         "contract_alerts": contract_alerts,
-        "kpi_version": "dashboard-finance-contracts-v2",
+        "sds_overdue_count": sds_overdue_count,
+        "sds_due_soon_count": sds_due_soon_count,
+        "sds_alerts": sds_alerts,
+        "kpi_version": "dashboard-finance-contracts-sds-v3",
     }
 
 

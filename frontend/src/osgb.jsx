@@ -138,12 +138,13 @@ export function OsgbDashboard({user, onNavigate}){
  const[kpis,setKpis]=useState(null);
  const[csgb,setCsgb]=useState(null);
  const[csgbDlBusy,setCsgbDlBusy]=useState(false);
+ const[integ,setInteg]=useState(null);
  const[unassignedOpen,setUnassignedOpen]=useState(false);
  const[unassignedType,setUnassignedType]=useState('safety_specialist');
  const[contractsOpen,setContractsOpen]=useState(false);
 
  async function load(id){
-  if(!id){setData(null);setOps(null);setKpis(null);setCsgb(null);return}
+  if(!id){setData(null);setOps(null);setKpis(null);setCsgb(null);setInteg(null);return}
   setData(await api(`/operations/dashboard?osgb_id=${id}`));
   try{
    setOps(await api(`/osgb/oversight?osgb_id=${id}`));
@@ -154,6 +155,9 @@ export function OsgbDashboard({user, onNavigate}){
   try{
    setCsgb(await api(`/osgb/csgb-audit-pack/summary?osgb_id=${id}`));
   }catch(_){setCsgb(null)}
+  try{
+   setInteg(await api(`/osgb/integration-readiness?osgb_id=${id}`));
+  }catch(_){setInteg(null)}
  }
 
  useEffect(()=>{
@@ -200,6 +204,55 @@ export function OsgbDashboard({user, onNavigate}){
     </select>
    </label>
   </section>}
+
+  {integ&&(
+   <section className="panel" style={{marginBottom:16}}>
+    <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'flex-start'}}>
+     <div>
+      <h3 style={{margin:'0 0 4px'}}>Entegrasyon hazırlık</h3>
+      <p style={{margin:0,color:'#64748b',fontSize:13}}>
+       İBYS / KATİP stub kontrol listesi · gerçek resmi API yok; CSV, eksik KATİP ve ÇSGB paketi durumu.
+      </p>
+     </div>
+     <div style={{
+       minWidth:88,textAlign:'center',padding:'8px 12px',borderRadius:10,
+       background:integ.overall_ready?'#dcfce7':(integ.summary?.items_ok||0)>=2?'#fef3c7':'#fee2e2',
+       color:integ.overall_ready?'#166534':(integ.summary?.items_ok||0)>=2?'#92400e':'#991b1b',
+     }}>
+      <div style={{fontSize:22,fontWeight:800}}>{integ.summary?.items_ok??0}/{integ.summary?.items_total??3}</div>
+      <div style={{fontSize:11,fontWeight:700}}>Hazır</div>
+     </div>
+    </div>
+    <ul style={{margin:'12px 0 0',paddingLeft:0,fontSize:13,color:'#334155',listStyle:'none'}}>
+     {(integ.checklist||[]).map((item)=>(
+      <li key={item.code} style={{marginBottom:8,display:'flex',gap:10,alignItems:'flex-start'}}>
+       <span style={{
+         flexShrink:0,minWidth:64,textAlign:'center',padding:'2px 8px',borderRadius:6,fontSize:11,fontWeight:700,
+         background:item.status==='ready'?'#dcfce7':item.status==='partial'?'#fef3c7':'#fee2e2',
+         color:item.status==='ready'?'#166534':item.status==='partial'?'#92400e':'#991b1b',
+       }}>
+        {item.status==='ready'?'Hazır':item.status==='partial'?'Kısmi':'Eksik'}
+       </span>
+       <div>
+        <strong>{item.title}</strong>
+        {item.code==='katip_gaps'&&item.gap_count!=null?` · ${item.gap_count} eksik`:''}
+        {item.code==='csgb_pack'&&item.readiness_pct!=null?` · %${item.readiness_pct}`:''}
+        <div style={{color:'#64748b',fontSize:12,marginTop:2}}>{item.detail}</div>
+       </div>
+      </li>
+     ))}
+    </ul>
+    <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:12}}>
+     <button type="button" className="mini secondary" onClick={()=>go('csgb_audit')}>İBYS / ÇSGB paketi</button>
+     <button type="button" className="mini secondary" onClick={()=>go('assignments')}>KATİP / görevlendirme</button>
+    </div>
+    {integ.stub&&(
+     <p style={{margin:'10px 0 0',color:'#94a3b8',fontSize:12}}>
+      Not: Resmi İBYS/KATİP API entegrasyonu henüz yok — bu kart hazırlık durumunu gösterir.
+     </p>
+    )}
+   </section>
+  )}
 
   {csgb&&(
    <section className="panel" style={{marginBottom:16}}>
@@ -264,8 +317,17 @@ export function OsgbDashboard({user, onNavigate}){
     <strong style={{fontSize:16}}>Öne çıkanlar</strong>
     <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>6331 / yönetmelik kısa notlar</small>
    </article>
+   <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('notifications')} title="Bildirim merkezine git — SDS tarama">
+    <span>SDS gözden geçirme</span>
+    <strong style={{color:(data?.sds_overdue_count||0)>0?'#b91c1c':(data?.sds_due_soon_count||0)>0?'#b45309':undefined}}>
+     {(data?.sds_overdue_count||0)+(data?.sds_due_soon_count||0)}
+    </strong>
+    <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>
+     Gecikmiş {data?.sds_overdue_count??0} · 30 günde {data?.sds_due_soon_count??0}
+    </small>
+   </article>
   </div>
-  {((data?.finance_alerts||[]).length>0||(data?.contract_alerts||[]).length>0)&&(
+  {((data?.finance_alerts||[]).length>0||(data?.contract_alerts||[]).length>0||(data?.sds_alerts||[]).length>0)&&(
    <div style={{display:'grid',gap:8,marginBottom:16}}>
     {(data?.finance_alerts||[]).map((a,i)=>(
      <div key={'f'+i} style={{padding:'10px 12px',borderRadius:10,background:a.level==='critical'?'#fee2e2':'#fef3c7',color:a.level==='critical'?'#991b1b':'#92400e',fontSize:13,fontWeight:600,cursor:'pointer'}} onClick={()=>go('finance')}>
@@ -274,6 +336,11 @@ export function OsgbDashboard({user, onNavigate}){
     ))}
     {(data?.contract_alerts||[]).map((a,i)=>(
      <div key={'c'+i} style={{padding:'10px 12px',borderRadius:10,background:a.level==='critical'?'#fee2e2':'#fef3c7',color:a.level==='critical'?'#991b1b':'#92400e',fontSize:13,fontWeight:600,cursor:'pointer'}} onClick={()=>go('contracts')}>
+      {a.text}
+     </div>
+    ))}
+    {(data?.sds_alerts||[]).map((a,i)=>(
+     <div key={'s'+i} style={{padding:'10px 12px',borderRadius:10,background:a.level==='critical'?'#fee2e2':'#fef3c7',color:a.level==='critical'?'#991b1b':'#92400e',fontSize:13,fontWeight:600,cursor:'pointer'}} onClick={()=>go('notifications')}>
       {a.text}
      </div>
     ))}

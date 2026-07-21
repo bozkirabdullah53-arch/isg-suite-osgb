@@ -15,7 +15,7 @@ def health(db: Session = Depends(get_db)):
         "status": "healthy",
         "database": "connected",
         "timestamp": datetime.utcnow(),
-        "version": "0.9.122",
+        "version": "0.9.123",
         "ai_hazard_hint": "keyword-v2",
         "mevzuat_panel": "highlights-v1",
         "sds_register": "chemical-register-v1",
@@ -23,4 +23,7 @@ def health(db: Session = Depends(get_db)):
         "risk_photo_tags": "checklist-v1",
         "sds_review_reminders": "duty-notify-v1",
         "osgb_mevzuat_link": "dashboard-v1",
+        "osgb_sds_due": "dashboard-v1",
+        "integration_readiness": "checklist-v1",
+        "osgb_home_kpis": "finance-contracts-sds-v3",
     }
