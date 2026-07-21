@@ -19,6 +19,7 @@ from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCrea
 from app.services.osgb_admin import provision_professional_login
 from app.services.osgb_oversight import build_oversight, build_professional_performance, seed_oversight_demo
 from app.services.csgb_audit_pack import build_csgb_audit_pack
+from app.services.capacity_engine import build_capacity_overview, sync_assignment_required
 
 router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
 ADMIN_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
@@ -86,6 +87,63 @@ def osgb_oversight(
             raise HTTPException(400, "OSGB kapsamınız tanımlı değil.")
         osgb_id = user.osgb_id
     return build_oversight(db, osgb_id=osgb_id)
+
+
+@router.get("/capacity")
+def osgb_capacity(
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """6331 kapasite motoru — mevzuat asgari süre vs fiili saha yükü."""
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id:
+            raise HTTPException(400, "OSGB kapsamınız tanımlı değil.")
+        osgb_id = user.osgb_id
+    return build_capacity_overview(db, osgb_id=osgb_id)
+
+
+@router.post("/assignments/{assignment_id}/sync-required")
+def sync_assignment_required_minutes(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """Görevlendirme zorunlu dakikasını mevzuat tablosuna göre günceller."""
+    obj = db.get(WorkplaceAssignment, assignment_id)
+    if not obj:
+        raise HTTPException(404, "Görevlendirme bulunamadı.")
+    if user.role == UserRole.COMPANY_ADMIN and user.osgb_id != obj.osgb_id:
+        raise HTTPException(403, "Bu görevlendirmeyi güncelleyemezsiniz.")
+    legal = sync_assignment_required(db, obj)
+    return {
+        "ok": True,
+        "assignment_id": assignment_id,
+        "required_minutes_monthly": legal,
+        "message": f"Zorunlu aylık süre mevzuata göre {legal} dk olarak güncellendi.",
+    }
+
+
+@router.post("/capacity/sync-all-required")
+def sync_all_required_minutes(
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """OSGB kapsamındaki tüm aktif görevlendirmelerin zorunlu dakikasını günceller."""
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id:
+            raise HTTPException(400, "OSGB kapsamınız tanımlı değil.")
+        osgb_id = user.osgb_id
+    stmt = select(WorkplaceAssignment).where(WorkplaceAssignment.status == AssignmentStatus.ACTIVE)
+    if osgb_id:
+        stmt = stmt.where(WorkplaceAssignment.osgb_id == osgb_id)
+    rows = list(db.scalars(stmt).all())
+    updated = 0
+    for a in rows:
+        sync_assignment_required(db, a)
+        updated += 1
+    return {"ok": True, "updated": updated, "message": f"{updated} görevlendirme güncellendi."}
 
 
 @router.post("/oversight/seed-demo")

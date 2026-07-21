@@ -1,10 +1,11 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {AlertTriangle,BarChart3,Bell,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
+import {AlertTriangle,BarChart3,Bell,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
 import {api, apiWithBearer, downloadFile, reportClientError} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';
 import {ProPerformancePage} from './pro_performance';
 import {CsgbAuditPackPage} from './csgb_audit_pack';
 import {Customer360Page} from './customer_360';
+import {CapacityEnginePage} from './capacity_engine';
 import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
 import {AdminSummaryDashboard,DutyDashboard} from './duty_dashboard';
 import {
@@ -53,6 +54,7 @@ const roleModules={
     'osgb_dashboard',
     'visits',
     'osgb_oversight',
+    'capacity_engine',
     'professionals',
     'assignments',
     'companies',
@@ -103,6 +105,7 @@ const menuCatalog={
   eisa_system_settings:['Sistem Ayarları',KeyRound],
   osgb_dashboard:['OSGB Ana Panel',LayoutDashboard],
   osgb_oversight:['Hizmet Denetimi',ClipboardCheck],
+  capacity_engine:['Kapasite Motoru',Gauge],
   pro_performance:['Performans Raporu',BarChart3],
   csgb_audit:['ÇSGB Belge Paketi',FileText],
   professionals:['İSG Profesyonelleri',Stethoscope],
@@ -1030,6 +1033,7 @@ function App(){
     eisa_system_settings:<EisaSystemSettingsPage/>,
     osgb_dashboard:<OsgbDashboard user={user} onNavigate={goModule}/>,
     osgb_oversight:<OsgbOversightPage user={user} onNavigate={goModule}/>,
+    capacity_engine:<CapacityEnginePage user={user} onNavigate={goModule}/>,
     pro_performance:<ProPerformancePage user={user}/>,
     csgb_audit:<CsgbAuditPackPage user={user} onNavigate={goModule}/>,
     professionals:<ProfessionalsPage user={user} onNavigate={goModule}/>,
