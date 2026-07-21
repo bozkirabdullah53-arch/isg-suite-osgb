@@ -1174,6 +1174,11 @@ export function RiskPage({user}) {
                         Anahtarlar: {(hazardHint.matched_keywords || []).slice(0, 6).join(', ')}
                       </div>
                     )}
+                    {(hazardHint.suggested_photo_tags || []).length > 0 && (
+                      <div style={{marginTop: 4, color: '#0f766e'}}>
+                        Foto etiket ipucu: {(hazardHint.suggested_photo_tags || []).join(', ')}
+                      </div>
+                    )}
                     <button
                       type="button"
                       className="secondary"
@@ -1296,7 +1301,7 @@ export function RiskPage({user}) {
               <div style={{fontSize: 13, color: '#475569', marginBottom: 6}}>
                 Tehlike etiketi (isteğe bağlı — yüklemeden önce seçin)
               </div>
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8}}>
+              <div style={{display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, alignItems: 'center'}}>
                 {photoTagCatalog.map((t) => {
                   const on = selectedPhotoTags.includes(t.code);
                   return (
@@ -1315,6 +1320,31 @@ export function RiskPage({user}) {
                     </button>
                   );
                 })}
+                <button
+                  type="button"
+                  className="mini"
+                  onClick={async () => {
+                    try {
+                      const hint = await api('/risks/hazard-hint', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          activity: detail.activity || '',
+                          risk_definition: detail.risk_definition || '',
+                        }),
+                      });
+                      const codes = hint.suggested_photo_tags || [];
+                      if (!codes.length) {
+                        window.alert('Metinden etiket önerisi çıkmadı.');
+                        return;
+                      }
+                      setSelectedPhotoTags((prev) => [...new Set([...prev, ...codes])]);
+                    } catch (ex) {
+                      window.alert(ex.message || 'Öneri alınamadı.');
+                    }
+                  }}
+                >
+                  Metinden öner
+                </button>
               </div>
               <label className="field" style={{display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
                 <span className="mini" style={{pointerEvents: 'none'}}>Fotoğraf ekle</span>

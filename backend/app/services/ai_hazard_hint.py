@@ -1,7 +1,7 @@
 """
-0.9.117 — Tehlike önerisi (keyword-v1).
+0.9.117 — Tehlike önerisi (keyword-v1); 0.9.122 — keyword-v2 + foto etiket ipucu.
 
-Ücretli AI API yok: Türkçe anahtar kelime → tehlike kategorisi + olasılık ipucu.
+Ücretli AI API yok: Türkçe anahtar kelime → tehlike kategorisi + olasılık + risk foto etiketleri.
 Fotoğraf AI (ai_photo_analysis.yaml) sonraki faz; bu MVP saha risk oluşturmayı hızlandırır.
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ import re
 import unicodedata
 from typing import Any
 
-HINT_ENGINE = "keyword-v1"
+HINT_ENGINE = "keyword-v2"
 
 # (kategori_adı, olasılık_ipucu 1-5, anahtarlar) — skor = eşleşen anahtar sayısı
 _RULES: list[tuple[str, int, tuple[str, ...]]] = [
@@ -257,6 +257,22 @@ _RULES: list[tuple[str, int, tuple[str, ...]]] = [
 ]
 
 
+# 0.9.122 — metin → risk foto tehlike etiketi (checklist-v1 kodları)
+_PHOTO_TAG_RULES: list[tuple[str, tuple[str, ...]]] = [
+    ("ppe_missing", ("kkd", "ppe", "baret", "eldiven", "gözlük", "gozluk", "maske", "koruyucu ekipman")),
+    ("slippery_floor", ("kaygan", "nemli zemin", "yağ dökül", "yag dokul", "kayma", "zemin")),
+    ("electrical", ("elektrik", "kablo", "pano", "topraklama", "gerilim", "şok", "sok")),
+    ("work_at_height", ("yüksekte", "yuksekte", "iskele", "çatı", "cati", "düşme", "dusme", "emniyet kemeri")),
+    ("unguarded_machine", ("koruyucusuz", "makine", "pres", "testere", "dönen aksam", "donen aksam")),
+    ("chemical_spill", ("kimyasal", "dökülme", "dokulme", "asit", "solvent", "sds")),
+    ("fire_hot_work", ("yangın", "yangin", "kaynak", "kıvılcım", "kivilcim", "sıcak iş", "sicak is", "alev")),
+    ("confined_space", ("kapalı alan", "kapali alan", "tank", "kuyu", "kanal")),
+    ("falling_object", ("düşen cisim", "dusen cisim", "üstten", "ustten", "malzeme düş")),
+    ("poor_housekeeping", ("düzensiz", "duzensiz", "dağınık", "daginik", "5s", "ev düzeni")),
+    ("noise_vibration", ("gürültü", "gurultu", "titreşim", "titresim", "db")),
+]
+
+
 def _fold(text: str) -> str:
     """Basit Türkçe/ASCII katlama — eşleşme için."""
     t = (text or "").casefold()
@@ -277,8 +293,19 @@ def _fold(text: str) -> str:
     return t
 
 
+def _suggest_photo_tags(folded: str) -> list[str]:
+    selected: list[str] = []
+    for code, keywords in _PHOTO_TAG_RULES:
+        for kw in keywords:
+            fk = _fold(kw)
+            if fk and fk in folded:
+                selected.append(code)
+                break
+    return selected
+
+
 def suggest_hazard_from_text(text: str, *, activity: str | None = None) -> dict[str, Any]:
-    """Serbest metinden kategori + olasılık ipucu üret (stub/heuristik)."""
+    """Serbest metinden kategori + olasılık + foto etiket ipucu üret (stub/heuristik)."""
     blob = " ".join(x for x in [(text or "").strip(), (activity or "").strip()] if x)
     if not blob or len(blob) < 3:
         return {
@@ -289,10 +316,12 @@ def suggest_hazard_from_text(text: str, *, activity: str | None = None) -> dict[
             "confidence": 0.0,
             "matched_keywords": [],
             "alternatives": [],
+            "suggested_photo_tags": [],
             "note": "En az birkaç kelimelik faaliyet veya risk tanımı yazın.",
         }
 
     folded = _fold(blob)
+    photo_tags = _suggest_photo_tags(folded)
     scored: list[tuple[int, str, int, list[str]]] = []
     for category, prob_hint, keywords in _RULES:
         hits: list[str] = []
@@ -317,6 +346,7 @@ def suggest_hazard_from_text(text: str, *, activity: str | None = None) -> dict[
             "confidence": 0.0,
             "matched_keywords": [],
             "alternatives": [],
+            "suggested_photo_tags": photo_tags,
             "note": "Anahtar kelime eşleşmedi; kategoriyi kütüphaneden seçin.",
         }
 
@@ -341,5 +371,6 @@ def suggest_hazard_from_text(text: str, *, activity: str | None = None) -> dict[
         "confidence": confidence,
         "matched_keywords": best_hits[:8],
         "alternatives": alternatives,
+        "suggested_photo_tags": photo_tags,
         "note": "Öneri anahtar kelimeye dayalıdır; nihai seçim İSG uzmanına aittir.",
     }

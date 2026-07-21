@@ -82,10 +82,12 @@ def test_suggest_electric_and_height():
     assert el["suggested_category"] == "Elektrik Riskleri"
     assert el["probability_hint"] >= 3
     assert el["engine"] == HINT_ENGINE
+    assert "electrical" in el["suggested_photo_tags"]
 
     hi = suggest_hazard_from_text("Çatıda iskele kurulumu, yüksekte çalışma, düşme riski")
     assert hi["matched"] is True
     assert hi["suggested_category"] == "Yüksekte Çalışma Riskleri"
+    assert "work_at_height" in hi["suggested_photo_tags"]
 
 
 def test_suggest_empty():
@@ -97,8 +99,9 @@ def test_health_flag_ai_hazard_hint(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.121"
-    assert body["ai_hazard_hint"] == "keyword-v1"
+    assert body["version"] == "0.9.122"
+    assert body["ai_hazard_hint"] == "keyword-v2"
+    assert body["risk_photo_tags"] == "checklist-v1"
 
 
 def test_hazard_hint_endpoint(client):
@@ -114,8 +117,9 @@ def test_hazard_hint_endpoint(client):
     )
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["engine"] == "keyword-v1"
+    assert body["engine"] == "keyword-v2"
     assert body["matched"] is True
     assert body["suggested_category"] == "Yangın ve Patlama Riskleri"
     assert body.get("category_id") is not None
     assert body["probability_hint"] >= 3
+    assert "fire_hot_work" in (body.get("suggested_photo_tags") or [])

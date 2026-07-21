@@ -95,9 +95,9 @@ def test_health_flag_mevzuat_panel(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.121"
+    assert body["version"] == "0.9.122"
     assert body["mevzuat_panel"] == "highlights-v1"
-    assert body["ai_hazard_hint"] == "keyword-v1"
+    assert body["ai_hazard_hint"] == "keyword-v2"
 
 
 def test_mevzuat_panel_endpoint(client):

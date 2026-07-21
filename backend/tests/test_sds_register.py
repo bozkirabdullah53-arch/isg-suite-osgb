@@ -120,11 +120,11 @@ def test_health_flag_sds_register(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.121"
+    assert body["version"] == "0.9.122"
     assert body["sds_register"] == "chemical-register-v1"
     assert body["ghs_label_checklist"] == "ghs-label-checklist-v1"
     assert body["risk_photo_tags"] == "checklist-v1"
-    assert body["ai_hazard_hint"] == "keyword-v1"
+    assert body["ai_hazard_hint"] == "keyword-v2"
     assert body["mevzuat_panel"] == "highlights-v1"
 
 
