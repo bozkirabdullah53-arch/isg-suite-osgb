@@ -1317,7 +1317,19 @@ export function ContractsPage({user}){
   if(r.status==='active') return 'badge-ok';
   return 'badge-muted';
  };
- return <P title="Hizmet Sözleşmeleri" action={<button onClick={()=>setOpen(true)}><Plus/>Sözleşme Ekle</button>}>
+ 
+ async function accrueMonth(){
+  if(!form.osgb_id){alert('OSGB secili degil.');return}
+  if(!window.confirm('Aktif sozlesmeler icin bu ay tahakkuklari olusturulsun mu?\n(Zaten olusmus olanlar atlanir.)')) return;
+  setBusyId('accrue');
+  try{
+   const res=await api(`/operations/finance/accrue-month?osgb_id=${form.osgb_id}`,{method:'POST',body:'{}'});
+   alert(`Tahakkuk: ${res.created_count||0} yeni / ${res.skipped_count||0} atlandi (${res.month||''})`);
+   await load();
+  }catch(ex){alert(ex.message||'Tahakkuk olusturulamadi.')}
+  finally{setBusyId(null)}
+ }
+return <P title="Hizmet Sözleşmeleri" action={<div className="actions" style={{gap:8}}><button type="button" className="secondary" disabled={busyId==='accrue'} onClick={accrueMonth}>Bu ay tahakkuk</button><button onClick={()=>setOpen(true)}><Plus/>Sözleşme Ekle</button></div>}>
   <div className="finance-summary" style={{marginBottom:12}}>
    <b style={{cursor:'pointer'}} onClick={()=>setFilter('active')}>Aktif: {activeCount}</b>
    <b style={{cursor:'pointer'}} onClick={()=>setFilter('expiring')}>30 günde biten: {expiringCount}</b>
