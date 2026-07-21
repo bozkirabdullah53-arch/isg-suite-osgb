@@ -38,6 +38,18 @@ function fmtGps(row){
   return `${Number(row.gps_lat).toFixed(5)}, ${Number(row.gps_lng).toFixed(5)}${acc}`;
 }
 
+function parseSiteInput(raw){
+  const text=String(raw||'').trim();
+  if(!text) return '';
+  const prefix='ISGSUITE:WP:';
+  if(text.toUpperCase().startsWith(prefix)){
+    const tail=text.slice(prefix.length);
+    const parts=tail.split(':');
+    if(parts.length>=2) return parts.slice(1).join(':').replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+  }
+  return text.replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+}
+
 async function copyText(text){
   const v=String(text||'');
   if(!v) return false;
@@ -724,8 +736,9 @@ export function VisitsPage({user}){
  const canEdit=isField||isOsgb;
  const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]);
  const[cal,setCal]=useState(null),[month,setMonth]=useState(()=>new Date().toISOString().slice(0,7)),[selectedDay,setSelectedDay]=useState('');
- const[open,setOpen]=useState(false),[planOpen,setPlanOpen]=useState(false),[editing,setEditing]=useState(null),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
+ const[open,setOpen]=useState(false),[planOpen,setPlanOpen]=useState(false),[verifyOpen,setVerifyOpen]=useState(false),[verifyVisitId,setVerifyVisitId]=useState(null),[verifyCode,setVerifyCode]=useState(''),[editing,setEditing]=useState(null),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
  const[notebookFile,setNotebookFile]=useState(null);
+ const[siteVerifyInput,setSiteVerifyInput]=useState('');
  const emptyForm={osgb_id:'',company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''};
  const emptyPlan={osgb_id:'',company_id:'',professional_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Planlı saha ziyareti',notes:''};
  const[form,setForm]=useState(emptyForm),[planForm,setPlanForm]=useState(emptyPlan);
@@ -768,7 +781,7 @@ export function VisitsPage({user}){
   setSelectedDay('');
  }
  function openCreate(){
-  setErr('');setNotebookFile(null);setEditing(null);
+  setErr('');setNotebookFile(null);setSiteVerifyInput('');setEditing(null);
   setForm(f=>({...emptyForm,osgb_id:f.osgb_id||osgbId(user,orgs)||''}));
   setOpen(true);
  }
@@ -800,6 +813,7 @@ export function VisitsPage({user}){
    if(!form.company_id) throw new Error('İşyeri seçiniz.');
    if(!form.visit_date) throw new Error('Tarih zorunlu.');
    if(!editing&&!notebookFile) throw new Error('Tespit öneri defteri dosyası zorunlu (pdf/jpg/png).');
+   if(isField&&!editing&&!parseSiteInput(siteVerifyInput)) throw new Error('İşyeri QR kodu zorunlu.');
    if(notebookFile){
     const ext=(notebookFile.name||'').split('.').pop()?.toLowerCase();
     if(!['pdf','jpg','jpeg','png'].includes(ext||'')) throw new Error('Sadece pdf, jpg veya png yükleyin.');
@@ -825,9 +839,11 @@ export function VisitsPage({user}){
    }
    if(notebookFile&&visitId){
     const gps=isField?await captureGps():null;
-    await uploadFile(`/operations/visits/${visitId}/notebook`,notebookFile,gps||undefined);
+    const extra={...(gps||{})};
+    if(isField&&siteVerifyInput) extra.site_verify_code=parseSiteInput(siteVerifyInput);
+    await uploadFile(`/operations/visits/${visitId}/notebook`,notebookFile,Object.keys(extra).length?extra:undefined);
    }
-   setOpen(false);setEditing(null);setNotebookFile(null);
+   setOpen(false);setEditing(null);setNotebookFile(null);setSiteVerifyInput('');
    setForm(f=>({...emptyForm,osgb_id:f.osgb_id||oid||''}));
    await load();
   }catch(ex){setErr(ex.message||'Kayıt başarısız.')}
@@ -844,10 +860,21 @@ export function VisitsPage({user}){
   }catch(ex){setErr(ex.message||'Silinemedi.')}
  }
  async function done(id){
+  setVerifyVisitId(id);setVerifyCode('');setVerifyOpen(true);setErr('');
+ }
+ async function confirmComplete(e){
+  e?.preventDefault?.();
+  if(!verifyVisitId) return;
   setErr('');setBusy(true);
   try{
+   const code=parseSiteInput(verifyCode);
+   if(!code) throw new Error('İşyeri QR kodunu okutun veya kodu girin.');
    const gps=await captureGps();
-   await api(`/operations/visits/${id}/complete`,{method:'PATCH',body:JSON.stringify(gps||{})});
+   await api(`/operations/visits/${verifyVisitId}/complete`,{
+    method:'PATCH',
+    body:JSON.stringify({...(gps||{}),site_verify_code:code}),
+   });
+   setVerifyOpen(false);setVerifyVisitId(null);setVerifyCode('');
    await load();
   }catch(ex){setErr(ex.message||'Tamamlanamadı.')}
   finally{setBusy(false)}
@@ -918,7 +945,7 @@ export function VisitsPage({user}){
          </div>
          <div className="actions" style={{flexWrap:'wrap'}}>
           <button type="button" className="mini secondary" onClick={()=>openEdit(r)}>Düzenle</button>
-          <button type="button" className="mini" disabled={busy} onClick={()=>done(r.id)}>{busy?'GPS…':'GPS ile Tamamla'}</button>
+          <button type="button" className="mini" disabled={busy} onClick={()=>done(r.id)}>{busy?'…':'QR + GPS Tamamla'}</button>
          </div>
         </article>
        );
@@ -996,14 +1023,23 @@ export function VisitsPage({user}){
    {k:'duration_minutes',l:'Süre (dk.)'},
    {k:'status',l:'Durum'},
    {k:'gps',l:'GPS',f:r=>fmtGps(r)},
+   {k:'site',l:'QR',f:r=>r.site_verified_at?'✓':'—'},
    ...(canEdit?[{k:'x',l:'İşlem',f:r=>(
     <div className="actions" style={{flexWrap:'wrap'}}>
      <button type="button" className="mini" onClick={()=>openEdit(r)}>Düzenle</button>
      <button type="button" className="mini" onClick={()=>remove(r)}>Sil</button>
-     {isField&&r.status!=='completed'&&<button type="button" className="mini" disabled={busy} onClick={()=>done(r.id)}>GPS ile Tamamla</button>}
+     {isField&&r.status!=='completed'&&<button type="button" className="mini" disabled={busy} onClick={()=>done(r.id)}>QR + GPS Tamamla</button>}
     </div>
    )}]:[])
   ]}/>
+  {verifyOpen&&isField&&<M title="İşyeri QR Doğrulama" close={()=>{setVerifyOpen(false);setVerifyVisitId(null);setVerifyCode('');setErr('')}}>
+   <form className="form-grid single" onSubmit={confirmComplete}>
+    <p style={{margin:0,color:'#64748b',fontSize:14}}>İşyerindeki QR kodu okutun veya kodu elle girin. Ardından GPS konumu alınır.</p>
+    <F label="QR / doğrulama kodu" required value={verifyCode} onChange={e=>setVerifyCode(e.target.value)} placeholder="ISGSUITE:WP:… veya kod"/>
+    {err&&<p style={{color:'#b91c1c',margin:0}}>{err}</p>}
+    <div className="form-actions"><button disabled={busy}>{busy?'Tamamlanıyor…':'Doğrula ve Tamamla'}</button></div>
+   </form>
+  </M>}
   {open&&canEdit&&(isField||editing)&&<M title={editing?'Saha Ziyaretini Düzenle':'Yeni Saha Ziyareti'} close={()=>{setOpen(false);setEditing(null);setErr('')}}>
    <form className="form-grid" onSubmit={save}>
     <S label="İşyeri" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})} disabled={isOsgb&&!!editing}>
@@ -1021,8 +1057,9 @@ export function VisitsPage({user}){
      <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required={!editing} onChange={e=>setNotebookFile(e.target.files?.[0]||null)}/>
      {notebookFile&&<small style={{color:'#475569'}}>{notebookFile.name}</small>}
      {!notebookFile&&editing?.notebook_file_name&&<small style={{color:'#475569'}}>Mevcut: {editing.notebook_file_name}</small>}
-     {isField&&<small style={{display:'block',marginTop:6,color:'#0f766e'}}>Defter yüklenince konum (GPS) damgası da kaydedilir (izin verirseniz).</small>}
+     {isField&&<small style={{display:'block',marginTop:6,color:'#0f766e'}}>Defter yüklenince konum (GPS) ve QR doğrulama kaydedilir.</small>}
     </label>
+    {isField&&!editing&&<F label="İşyeri QR kodu" required value={siteVerifyInput} onChange={e=>setSiteVerifyInput(e.target.value)} placeholder="QR okutun veya kodu yapıştırın"/>}
     {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
     <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':(editing?'Güncelle':'Kaydet')}</button></div>
    </form>

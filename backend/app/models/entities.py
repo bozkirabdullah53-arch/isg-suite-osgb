@@ -103,6 +103,7 @@ class Company(Base):
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     authorized_person: Mapped[str | None] = mapped_column(String(160), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    site_verify_code: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     osgb_id: Mapped[int | None] = mapped_column(ForeignKey("osgb_organizations.id"), nullable=True, index=True)
     users: Mapped[list["User"]] = relationship(back_populates="company")
@@ -720,6 +721,7 @@ class ServiceVisit(Base):
     gps_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
     gps_accuracy_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     gps_captured_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    site_verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status: Mapped[VisitStatus] = mapped_column(Enum(VisitStatus), default=VisitStatus.PLANNED, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

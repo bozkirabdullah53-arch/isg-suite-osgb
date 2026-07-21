@@ -17,6 +17,7 @@ from app.schemas.operations import (FinanceCreate, FinanceResponse, LeadCreate, 
                                     VisitCreate, VisitGpsStamp, VisitPlanCreate, VisitResponse, VisitUpdate)
 from app.services.visit_calendar import build_visit_calendar
 from app.services.module_kpis import build_module_kpis
+from app.services.site_verify import codes_match, generate_site_verify_code, build_qr_payload
 
 router = APIRouter(prefix="/operations", tags=["OSGB Operasyonları"])
 ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
@@ -45,6 +46,18 @@ def _apply_gps_stamp(obj: ServiceVisit, lat: float | None, lng: float | None, ac
     obj.gps_lng = float(lng)
     obj.gps_accuracy_m = float(accuracy) if accuracy is not None else None
     obj.gps_captured_at = datetime.utcnow()
+
+
+def _apply_site_verify(obj: ServiceVisit, company: Company | None, raw_code: str | None):
+    if not company:
+        raise HTTPException(400, "İşyeri bulunamadı.")
+    if not company.site_verify_code:
+        return
+    if not raw_code or not str(raw_code).strip():
+        raise HTTPException(422, "İşyeri QR doğrulama kodu gerekli.")
+    if not codes_match(company.site_verify_code, raw_code):
+        raise HTTPException(400, "QR kodu bu işyeri ile eşleşmiyor.")
+    obj.site_verified_at = datetime.utcnow()
 
 
 def scope(user: User, osgb_id: int):
@@ -448,6 +461,7 @@ async def upload_visit_notebook(
     gps_lat: float | None = Form(default=None),
     gps_lng: float | None = Form(default=None),
     gps_accuracy_m: float | None = Form(default=None),
+    site_verify_code: str | None = Form(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*FIELD_VISIT_ROLES, UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
@@ -476,6 +490,7 @@ async def upload_visit_notebook(
         ".png": "image/png",
     }.get(ext, "application/octet-stream")
     _apply_gps_stamp(obj, gps_lat, gps_lng, gps_accuracy_m)
+    _apply_site_verify(obj, db.get(Company, obj.company_id), site_verify_code)
     obj.status = VisitStatus.COMPLETED
     db.commit()
     db.refresh(obj)
@@ -510,6 +525,8 @@ def complete_visit(
 ):
     obj = _get_visit(db, visit_id, user)
     stamp = payload or VisitGpsStamp()
+    company = db.get(Company, obj.company_id)
+    _apply_site_verify(obj, company, stamp.site_verify_code)
     _apply_gps_stamp(obj, stamp.gps_lat, stamp.gps_lng, stamp.gps_accuracy_m)
     obj.status = VisitStatus.COMPLETED
     db.commit()

@@ -38,6 +38,7 @@ from app.models.entities import (
 from app.models.entities import OsgbOrganization
 from app.schemas.company import CompanyCreate, CompanyResponse, CompanyUpdate
 from app.services.company_overview import build_company_overview
+from app.services.site_verify import build_qr_payload, generate_site_verify_code
 
 router = APIRouter(prefix="/companies", tags=["Firmalar"])
 
@@ -159,6 +160,52 @@ def company_overview(
     return build_company_overview(db, obj)
 
 
+@router.get("/{company_id}/site-qr")
+def company_site_qr(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    """İşyeri saha QR kodu — OSGB yazdırma / paylaşım."""
+    ensure_company_access(db, user, company_id)
+    obj = db.get(Company, company_id)
+    if not obj:
+        raise HTTPException(404, "Firma bulunamadı.")
+    if not obj.site_verify_code:
+        obj.site_verify_code = generate_site_verify_code()
+        db.commit()
+        db.refresh(obj)
+    payload = build_qr_payload(obj.id, obj.site_verify_code)
+    return {
+        "company_id": obj.id,
+        "company_name": obj.name,
+        "site_verify_code": obj.site_verify_code,
+        "qr_payload": payload,
+    }
+
+
+@router.post("/{company_id}/site-qr/regenerate")
+def regenerate_company_site_qr(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    ensure_company_access(db, user, company_id)
+    obj = db.get(Company, company_id)
+    if not obj:
+        raise HTTPException(404, "Firma bulunamadı.")
+    obj.site_verify_code = generate_site_verify_code()
+    db.commit()
+    db.refresh(obj)
+    payload = build_qr_payload(obj.id, obj.site_verify_code)
+    return {
+        "company_id": obj.id,
+        "company_name": obj.name,
+        "site_verify_code": obj.site_verify_code,
+        "qr_payload": payload,
+    }
+
+
 @router.post("", response_model=CompanyResponse)
 def create_company(
     payload: CompanyCreate,
@@ -176,6 +223,7 @@ def create_company(
         # osgb_id yazılmazsa İşyerleri’nde görünür ama ÇSGB / OSGB paneli 0 sayar
         data["osgb_id"] = _default_osgb_id(db)
     obj = Company(**data)
+    obj.site_verify_code = generate_site_verify_code()
     db.add(obj)
     db.commit()
     db.refresh(obj)

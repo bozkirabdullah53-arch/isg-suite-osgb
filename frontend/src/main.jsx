@@ -1,6 +1,6 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {AlertTriangle,BarChart3,Bell,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
+import {AlertTriangle,BarChart3,Bell,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
 import {api, apiWithBearer, downloadFile, reportClientError} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';
 import {ProPerformancePage} from './pro_performance';
 import {CsgbAuditPackPage} from './csgb_audit_pack';
@@ -315,6 +315,8 @@ function Companies({canEdit, canAdd, onOpen360}){
   const[err,setErr]=useState('');
   const[creds,setCreds]=useState(null);
   const[copyMsg,setCopyMsg]=useState('');
+  const[siteQr,setSiteQr]=useState(null);
+  const[siteQrBusy,setSiteQrBusy]=useState(false);
   const emptyForm={name:'',sgk_registry_no:'',address:'',phone:'',authorized_person:'',hazard_class:'Az Tehlikeli'};
   const[form,setForm]=useState(emptyForm);
   async function copyText(text){
@@ -369,6 +371,19 @@ function Companies({canEdit, canAdd, onOpen360}){
     }catch(ex){setErr(ex.message||'İşlem başarısız.')}
     finally{setBusy(false)}
   }
+  async function openSiteQr(row){
+    setSiteQrBusy(true);setErr('');
+    try{setSiteQr(await api(`/companies/${row.id}/site-qr`))}
+    catch(ex){setErr(ex.message||'QR yüklenemedi.');setSiteQr(null)}
+    finally{setSiteQrBusy(false)}
+  }
+  async function regenSiteQr(){
+    if(!siteQr?.company_id) return;
+    setSiteQrBusy(true);setErr('');
+    try{setSiteQr(await api(`/companies/${siteQr.company_id}/site-qr/regenerate`,{method:'POST'}))}
+    catch(ex){setErr(ex.message||'QR yenilenemedi.')}
+    finally{setSiteQrBusy(false)}
+  }
   return <Page title="Firma Yönetimi" action={canAdd&&<button type="button" disabled={busy} onClick={()=>{setErr('');setOpen(true)}}><Plus/>Firma Ekle</button>}>
     {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
     <SearchBar q={q} setQ={setQ} go={load}/>
@@ -383,6 +398,11 @@ function Companies({canEdit, canAdd, onOpen360}){
       ...(onOpen360?[{key:'c360',label:'360',render:r=>(
         <button type="button" className="mini" disabled={busy} onClick={()=>onOpen360(r.id)} title="Müşteri 360">
           <Eye size={14} style={{verticalAlign:'middle',marginRight:4}}/>360
+        </button>
+      )}]:[]),
+      ...(canEdit?[{key:'qr',label:'Saha QR',render:r=>(
+        <button type="button" className="mini secondary" disabled={busy||siteQrBusy} onClick={()=>openSiteQr(r)} title="İşyeri QR kodu">
+          <QrCode size={14} style={{verticalAlign:'middle',marginRight:4}}/>QR
         </button>
       )}]:[]),
       ...(canEdit?[{key:'actions',label:'İşlem',render:r=>(
@@ -429,6 +449,22 @@ function Companies({canEdit, canAdd, onOpen360}){
         {copyMsg&&<p style={{color:copyMsg.includes('amadı')?'#b91c1c':'#166534',margin:0}}>{copyMsg}</p>}
         <p style={{color:'#166534'}}>{creds.message}</p>
         <div className="form-actions"><button type="button" onClick={()=>{setCreds(null);setCopyMsg('')}}>Tamam</button></div>
+      </div>
+    </Modal>}
+    {siteQr&&<Modal title={`Saha QR — ${siteQr.company_name}`} close={()=>setSiteQr(null)}>
+      <div className="form-grid single">
+        <p style={{marginTop:0,color:'#64748b'}}>Bu QR kodu işyerine asın. Saha personeli ziyaret tamamlarken okutur.</p>
+        <div style={{textAlign:'center'}}>
+          <img alt="İşyeri QR" width={220} height={220} src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(siteQr.qr_payload)}`}/>
+        </div>
+        <p><strong>Kod:</strong> <code>{siteQr.site_verify_code}</code></p>
+        <p style={{wordBreak:'break-all',fontSize:13,color:'#475569'}}><strong>Payload:</strong> {siteQr.qr_payload}</p>
+        <div className="actions" style={{gap:8,flexWrap:'wrap'}}>
+          <button type="button" className="mini secondary" disabled={siteQrBusy} onClick={async()=>setCopyMsg((await copyText(siteQr.qr_payload))?'Payload kopyalandı.':'Kopyalanamadı.')}>Payload kopyala</button>
+          <button type="button" className="mini" disabled={siteQrBusy} onClick={regenSiteQr}><RefreshCw size={14}/> Kodu yenile</button>
+        </div>
+        {copyMsg&&<p style={{color:copyMsg.includes('amadı')?'#b91c1c':'#166534',margin:0}}>{copyMsg}</p>}
+        <div className="form-actions"><button type="button" onClick={()=>{setSiteQr(null);setCopyMsg('')}}>Kapat</button></div>
       </div>
     </Modal>}
   </Page>;
