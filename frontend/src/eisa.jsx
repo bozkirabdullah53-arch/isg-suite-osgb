@@ -983,16 +983,27 @@ export function EisaPackagesPage() {
           <section className="modal">
             <header><h3>Yeni Paket</h3></header>
             <form className="form-grid" onSubmit={save}>
-              {['code', 'name', 'description'].map((k) => (
-                <label className="field" key={k}><span>{k}</span>
-                  <input required={k !== 'description'} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
-                </label>
-              ))}
-              {['price_monthly', 'price_yearly', 'max_users', 'max_workplaces'].map((k) => (
-                <label className="field" key={k}><span>{k}</span>
-                  <input required type="number" value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
-                </label>
-              ))}
+              <label className="field"><span>Kod</span>
+                <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="ör. standard" />
+              </label>
+              <label className="field"><span>Ad</span>
+                <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              </label>
+              <label className="field"><span>Açıklama</span>
+                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
+              </label>
+              <label className="field"><span>Aylık fiyat (₺)</span>
+                <input required type="number" min="0" step="0.01" value={form.price_monthly} onChange={(e) => setForm({ ...form, price_monthly: e.target.value })} />
+              </label>
+              <label className="field"><span>Yıllık fiyat (₺)</span>
+                <input required type="number" min="0" step="0.01" value={form.price_yearly} onChange={(e) => setForm({ ...form, price_yearly: e.target.value })} />
+              </label>
+              <label className="field"><span>Azami kullanıcı</span>
+                <input required type="number" min="1" value={form.max_users} onChange={(e) => setForm({ ...form, max_users: e.target.value })} />
+              </label>
+              <label className="field"><span>Azami işyeri</span>
+                <input required type="number" min="1" value={form.max_workplaces} onChange={(e) => setForm({ ...form, max_workplaces: e.target.value })} />
+              </label>
               <div className="form-actions">
                 <button type="button" className="secondary" onClick={() => setOpen(false)}>İptal</button>
                 <button type="submit" disabled={busy}>Kaydet</button>
