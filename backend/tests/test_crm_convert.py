@@ -73,12 +73,13 @@ def test_health_flag_crm_convert(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.109"
+    assert body["version"] == "0.9.110"
     assert body["crm_convert"] == "lead-to-contract-v1"
     assert body["contracts_ui"] == "osgb-monitor-v1"
     assert body["contracts_actions"] == "end-suspend-v1"
     assert body["finance_status"] == "patch-paid-v1"
     assert body["crm_finance_link"] == "company-filter-v1"
+    assert body["finance_accrual"] == "monthly-active-v1"
 
 
 def test_patch_lead_stage(client):
@@ -306,3 +307,50 @@ def test_contract_suspend_end_activate_flow(client):
     assert react.status_code == 200, react.text
     assert react.json()["status"] == "active"
     assert react.json()["end_date"] is None
+
+
+def test_finance_accrue_month_idempotent(client):
+    token, seed = _seed_admin(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    # Manuel sözleşme: CRM convert ilk ay tahakkuku yok → accrue oluşturmalı
+    from app.core.database import SessionLocal
+    from app.models.entities import Company, ServiceContract
+    from datetime import date
+
+    with SessionLocal() as db:
+        company = Company(
+            name="Iota Tahakkuk",
+            sgk_registry_no="SGK-ACCRUE-1",
+            osgb_id=seed["osgb_id"],
+            is_active=True,
+        )
+        db.add(company)
+        db.flush()
+        contract = ServiceContract(
+            osgb_id=seed["osgb_id"],
+            company_id=company.id,
+            contract_number="MAN-ACCRUE-1",
+            start_date=date.today().replace(day=1),
+            monthly_fee=13000,
+            status="active",
+        )
+        db.add(contract)
+        db.commit()
+
+    first = client.post(
+        f"/api/v1/operations/finance/accrue-month?osgb_id={seed['osgb_id']}",
+        headers=headers,
+    )
+    assert first.status_code == 200, first.text
+    body1 = first.json()
+    assert body1["created_count"] >= 1
+    assert body1["month"]
+
+    second = client.post(
+        f"/api/v1/operations/finance/accrue-month?osgb_id={seed['osgb_id']}",
+        headers=headers,
+    )
+    assert second.status_code == 200, second.text
+    body2 = second.json()
+    assert body2["created_count"] == 0
+    assert body2["skipped_count"] >= 1

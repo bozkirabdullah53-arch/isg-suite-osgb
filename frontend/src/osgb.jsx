@@ -1390,7 +1390,21 @@ export function FinancePage({user}){
   finally{setBusyId(null)}
  }
  const visible=companyFilter?rows.filter(r=>String(r.company_id)===String(companyFilter)):rows;
- return <P title="Finans ve Cari Takip" action={<button onClick={()=>setOpen(true)}><Plus/>Finans Kaydı</button>}>
+ async function accrueMonth(){
+  if(!form.osgb_id){alert('OSGB seçili değil.');return}
+  if(!window.confirm('Aktif sözleşmeler için bu ay tahakkukları oluşturulsun mu?\n(Zaten oluşmuş olanlar atlanır.)')) return;
+  setBusyId('accrue');
+  try{
+   const res=await api(`/operations/finance/accrue-month?osgb_id=${form.osgb_id}`,{method:'POST',body:'{}'});
+   alert(`Tahakkuk: ${res.created_count||0} yeni · ${res.skipped_count||0} atlandı (${res.month||''})`);
+   await load();
+  }catch(ex){alert(ex.message||'Tahakkuk oluşturulamadı.')}
+  finally{setBusyId(null)}
+ }
+ return <P title="Finans ve Cari Takip" action={<div className="actions" style={{gap:8}}>
+  <button type="button" className="secondary" disabled={busyId==='accrue'} onClick={accrueMonth}>Bu ay tahakkuk</button>
+  <button onClick={()=>setOpen(true)}><Plus/>Finans Kaydı</button>
+ </div>}>
   <div className="finance-summary">
    <b>Toplam Gelir: {money(visible.filter(x=>x.transaction_type==='income'&&x.status==='paid').reduce((a,b)=>a+b.amount,0))}</b>
    <b>Toplam Gider: {money(visible.filter(x=>x.transaction_type==='expense'&&x.status==='paid').reduce((a,b)=>a+b.amount,0))}</b>

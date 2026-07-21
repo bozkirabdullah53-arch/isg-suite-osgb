@@ -18,6 +18,7 @@ from app.models.entities import (AssignmentStatus, Company, CrmLead, FinanceTran
 from app.schemas.operations import (FinanceCreate, FinanceResponse, FinanceUpdate, LeadCreate, LeadResponse, LeadUpdate,
                                     VisitCreate, VisitGpsStamp, VisitPlanCreate, VisitResponse, VisitUpdate)
 from app.services.crm_convert import convert_lead_to_contract
+from app.services.finance_accrual import accrue_month_for_osgb
 from app.services.visit_calendar import build_visit_calendar
 from app.services.module_kpis import build_module_kpis
 from app.services.site_verify import codes_match
@@ -677,3 +678,15 @@ def update_finance(
     db.commit()
     db.refresh(obj)
     return obj
+
+
+@router.post("/finance/accrue-month")
+def accrue_finance_month(
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN)),
+):
+    """Aktif sözleşmeler için bu ayın tahakkuklarını oluştur (idempotent)."""
+    oid = active_osgb(user, osgb_id, db)
+    scope(user, oid)
+    return accrue_month_for_osgb(db, oid)
