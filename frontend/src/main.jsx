@@ -1,7 +1,7 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertTriangle,BarChart3,Bell,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,FileText,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
-import {api, downloadFile, reportClientError} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';
+import {api, apiWithBearer, downloadFile, reportClientError} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';
 import {ProPerformancePage} from './pro_performance';
 import {CsgbAuditPackPage} from './csgb_audit_pack';
 import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
@@ -128,7 +128,155 @@ const menuCatalog={
   security:['Güvenlik',KeyRound],
   users:['Kullanıcılar',UserCog],
 };
-function Login({done,onApply}){const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[err,setErr]=useState('');async function submit(e){e.preventDefault();setErr('');try{const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password})});localStorage.setItem('isg_token',r.access_token);done()}catch(x){setErr(x.message)}}return <main className="login-shell"><div className="login-wrap"><div className="login-brand"><img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div><section className="login-card"><h1>İSG Suite</h1><p>İş Sağlığı ve Güvenliği Yönetim Sistemi</p><form onSubmit={submit}><label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email"/><label>Şifre</label><input value={password} onChange={e=>setPassword(e.target.value)} type="password"/>{err&&<div className="error">{err}</div>}<button>Giriş Yap</button></form><p style={{marginTop:16,fontSize:13,color:'#64748b'}}>OSGB merkezi misiniz? <button type="button" className="linkish" onClick={onApply}>Başvuru formu</button></p></section></div></main>}
+function Login({done,onApply}){
+  const resetFromUrl=useMemo(()=>{
+    try{return new URLSearchParams(window.location.search).get('sifre-sifirla')}catch{return null}
+  },[]);
+  const[mode,setMode]=useState(resetFromUrl?'reset':'login');
+  const[email,setEmail]=useState('');
+  const[password,setPassword]=useState('');
+  const[code,setCode]=useState('');
+  const[newPassword,setNewPassword]=useState('');
+  const[resetToken,setResetToken]=useState(resetFromUrl||'');
+  const[mfaToken,setMfaToken]=useState('');
+  const[setupInfo,setSetupInfo]=useState(null);
+  const[recoveryCodes,setRecoveryCodes]=useState(null);
+  const[err,setErr]=useState('');
+  const[msg,setMsg]=useState('');
+  const[busy,setBusy]=useState(false);
+
+  async function submitLogin(e){
+    e.preventDefault();setErr('');setBusy(true);
+    try{
+      const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password}),_retries:0});
+      if(r.access_token){localStorage.setItem('isg_token',r.access_token);done();return}
+      if(r.mfa_required&&r.mfa_token){setMfaToken(r.mfa_token);setMode('mfa');return}
+      if(r.mfa_setup_required&&r.mfa_token){
+        setMfaToken(r.mfa_token);
+        localStorage.setItem('isg_mfa_setup_token',r.mfa_token);
+        const setup=await apiWithBearer(r.mfa_token,'/security/mfa/setup',{method:'POST'});
+        setSetupInfo(setup);setMode('mfa_setup');return
+      }
+      setErr('Giriş yanıtı beklenmeyen biçimde.');
+    }catch(x){setErr(x.message)}
+    finally{setBusy(false)}
+  }
+
+  async function submitMfa(e){
+    e.preventDefault();setErr('');setBusy(true);
+    try{
+      const body=await apiWithBearer(mfaToken,'/auth/mfa/verify',{method:'POST',body:JSON.stringify({code})});
+      localStorage.setItem('isg_token',body.access_token);done();
+    }catch(x){setErr(x.message)}
+    finally{setBusy(false)}
+  }
+
+  async function submitMfaSetup(e){
+    e.preventDefault();setErr('');setBusy(true);
+    try{
+      const tok=mfaToken||localStorage.getItem('isg_mfa_setup_token');
+      const body=await apiWithBearer(tok,'/security/mfa/enable',{method:'POST',body:JSON.stringify({code})});
+      if(body.recovery_codes)setRecoveryCodes(body.recovery_codes);
+      localStorage.setItem('isg_token',body.access_token);
+      localStorage.removeItem('isg_mfa_setup_token');
+      if(body.recovery_codes?.length){setMode('recovery');return}
+      done();
+    }catch(x){setErr(x.message)}
+    finally{setBusy(false)}
+  }
+
+  async function submitForgot(e){
+    e.preventDefault();setErr('');setMsg('');setBusy(true);
+    try{
+      const r=await api('/auth/forgot-password',{method:'POST',body:JSON.stringify({email}),_retries:0});
+      setMsg(r.message||'İstek alındı.');
+    }catch(x){setErr(x.message)}
+    finally{setBusy(false)}
+  }
+
+  async function submitReset(e){
+    e.preventDefault();setErr('');setMsg('');setBusy(true);
+    try{
+      const r=await api('/auth/reset-password',{method:'POST',body:JSON.stringify({token:resetToken,new_password:newPassword}),_retries:0});
+      setMsg(r.message||'Şifre güncellendi.');
+      setMode('login');
+      try{const u=new URL(window.location.href);u.searchParams.delete('sifre-sifirla');window.history.replaceState({},'',u.pathname)}catch{}
+    }catch(x){setErr(x.message)}
+    finally{setBusy(false)}
+  }
+
+  return (
+    <main className="login-shell">
+      <div className="login-wrap">
+        <div className="login-brand"><img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div>
+        <section className="login-card">
+          <h1>İSG Suite</h1>
+          <p>İş Sağlığı ve Güvenliği Yönetim Sistemi</p>
+          {mode==='login'&&(
+            <form onSubmit={submitLogin}>
+              <label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email" required/>
+              <label>Şifre</label><input value={password} onChange={e=>setPassword(e.target.value)} type="password" required/>
+              {err&&<div className="error">{err}</div>}
+              <button disabled={busy}>Giriş Yap</button>
+              <p style={{marginTop:12,fontSize:13}}><button type="button" className="linkish" onClick={()=>{setMode('forgot');setErr('');setMsg('')}}>Şifremi unuttum</button></p>
+            </form>
+          )}
+          {mode==='forgot'&&(
+            <form onSubmit={submitForgot}>
+              <p style={{color:'#64748b',fontSize:14}}>Kayıtlı e-posta adresinize sıfırlama bağlantısı gönderilir.</p>
+              <label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email" required/>
+              {err&&<div className="error">{err}</div>}
+              {msg&&<p style={{color:'#166534'}}>{msg}</p>}
+              <button disabled={busy}>Gönder</button>
+              <p style={{marginTop:12,fontSize:13}}><button type="button" className="linkish" onClick={()=>setMode('login')}>Girişe dön</button></p>
+            </form>
+          )}
+          {mode==='reset'&&(
+            <form onSubmit={submitReset}>
+              <p style={{color:'#64748b',fontSize:14}}>Yeni şifrenizi belirleyin (en az 10 karakter).</p>
+              <label>Yeni şifre</label><input value={newPassword} onChange={e=>setNewPassword(e.target.value)} type="password" minLength={10} required/>
+              {err&&<div className="error">{err}</div>}
+              {msg&&<p style={{color:'#166534'}}>{msg}</p>}
+              <button disabled={busy}>Şifreyi güncelle</button>
+            </form>
+          )}
+          {mode==='mfa'&&(
+            <form onSubmit={submitMfa}>
+              <p style={{color:'#64748b',fontSize:14}}>Authenticator kodunu veya kurtarma kodunu girin.</p>
+              <label>Doğrulama kodu</label><input value={code} onChange={e=>setCode(e.target.value)} required/>
+              {err&&<div className="error">{err}</div>}
+              <button disabled={busy}>Doğrula</button>
+            </form>
+          )}
+          {mode==='mfa_setup'&&(
+            <form onSubmit={submitMfaSetup}>
+              <p style={{color:'#64748b',fontSize:14}}>Yönetici hesapları için MFA zorunludur. Authenticator uygulamanıza gizli anahtarı ekleyin.</p>
+              {setupInfo&&(
+                <>
+                  <p style={{fontSize:13,wordBreak:'break-all'}}><strong>Gizli anahtar:</strong> <code>{setupInfo.secret}</code></p>
+                  <p style={{fontSize:12,color:'#64748b',wordBreak:'break-all'}}>{setupInfo.otpauth_uri}</p>
+                </>
+              )}
+              <label>Doğrulama kodu</label><input value={code} onChange={e=>setCode(e.target.value)} required/>
+              {err&&<div className="error">{err}</div>}
+              <button disabled={busy}>MFA etkinleştir</button>
+            </form>
+          )}
+          {mode==='recovery'&&(
+            <div>
+              <p style={{color:'#166534'}}>MFA kuruldu. Kurtarma kodlarını güvenli yere kaydedin (bir kez gösterilir):</p>
+              <ul style={{fontFamily:'monospace',fontSize:13}}>{(recoveryCodes||[]).map(c=><li key={c}>{c}</li>)}</ul>
+              <button type="button" onClick={()=>done()}>Devam et</button>
+            </div>
+          )}
+          {mode==='login'&&(
+            <p style={{marginTop:16,fontSize:13,color:'#64748b'}}>OSGB merkezi misiniz? <button type="button" className="linkish" onClick={onApply}>Başvuru formu</button></p>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
 function Modal({title,close,children}){return <div className="modal-bg" onMouseDown={e=>e.target===e.currentTarget&&close()}><section className="modal"><header><h3>{title}</h3><button className="icon" onClick={close}><X/></button></header>{children}</section></div>}
 function Field({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
@@ -425,12 +573,45 @@ function ReportsPage(){
 function SecurityPage({user}){
   const[form,setForm]=useState({current_password:'',new_password:''}),[message,setMessage]=useState(''),[logs,setLogs]=useState([]);
   const[archives,setArchives]=useState([]),[archMsg,setArchMsg]=useState(''),[archBusy,setArchBusy]=useState(false);
+  const[mfaStatus,setMfaStatus]=useState({mfa_enabled:false,mfa_required:false});
+  const[mfaSetup,setMfaSetup]=useState(null);
+  const[mfaCode,setMfaCode]=useState('');
+  const[recoveryCodes,setRecoveryCodes]=useState(null);
+  const[disableForm,setDisableForm]=useState({password:'',code:''});
   const canView=['global_admin','company_admin'].includes(user.role);
   const canBackup=user.role==='company_admin';
   const loadArchives=()=>api('/archives').then(setArchives).catch(e=>setArchMsg(e.message));
+  const loadMfa=()=>api('/security/mfa/status').then(setMfaStatus).catch(()=>{});
   useEffect(()=>{if(canView)api('/security/audit-logs').then(setLogs)},[]);
   useEffect(()=>{if(canBackup)void loadArchives()},[]);
+  useEffect(()=>{void loadMfa()},[]);
   async function save(e){e.preventDefault();setMessage('');try{const r=await api('/security/change-password',{method:'POST',body:JSON.stringify(form)});setMessage(r.message);setForm({current_password:'',new_password:''})}catch(err){setMessage(err.message)}}
+  async function startMfa(){
+    setMessage('');
+    try{
+      const s=await api('/security/mfa/setup',{method:'POST'});
+      setMfaSetup(s);setRecoveryCodes(null);
+    }catch(e){setMessage(e.message)}
+  }
+  async function enableMfa(e){
+    e.preventDefault();setMessage('');
+    try{
+      const r=await api('/security/mfa/enable',{method:'POST',body:JSON.stringify({code:mfaCode})});
+      setRecoveryCodes(r.recovery_codes||[]);
+      setMfaSetup(null);setMfaCode('');
+      await loadMfa();
+      setMessage(r.message||'MFA etkinleştirildi.');
+    }catch(err){setMessage(err.message)}
+  }
+  async function disableMfa(e){
+    e.preventDefault();setMessage('');
+    try{
+      const r=await api('/security/mfa/disable',{method:'POST',body:JSON.stringify(disableForm)});
+      setDisableForm({password:'',code:''});
+      await loadMfa();
+      setMessage(r.message||'MFA kapatıldı.');
+    }catch(err){setMessage(err.message)}
+  }
   async function createBackup(){
     if(!window.confirm('Kurum verilerinizin tarihli yedeği alınsın mı?\n\nYedek merkezi arşive kaydedilir; EİSA de erişebilir.')) return;
     setArchBusy(true);setArchMsg('');
@@ -455,9 +636,59 @@ function SecurityPage({user}){
     {key:'notes',label:'Not'},
     {key:'dl',label:'',render:r=><button type="button" className="mini secondary" onClick={()=>downloadArchive(r.id,r.original_name)}>İndir</button>},
   ];
-  return <Page title="Güvenlik ve Denetim"><div className="security-grid"><section className="panel"><h3>Şifre Değiştir</h3><form className="form-grid single" onSubmit={save}><Field label="Mevcut Şifre" type="password" required value={form.current_password} onChange={e=>setForm({...form,current_password:e.target.value})}/><Field label="Yeni Şifre" type="password" minLength="10" required value={form.new_password} onChange={e=>setForm({...form,new_password:e.target.value})}/><Submit/>{message&&<p>{message}</p>}</form></section><section className="panel"><h3>Güvenlik Notları</h3><ul><li>Yeni şifre en az 10 karakter olmalıdır.</li><li>Canlı ortamda MFA ve parola sıfırlama e-postası eklenmelidir.</li><li>Varsayılan demo şifresi mutlaka değiştirilmelidir.</li></ul></section></div>
-  {canBackup&&<section className="panel" style={{marginTop:16}}><div className="page-title" style={{marginBottom:12}}><h3 style={{margin:0,fontSize:18}}>Kurum Yedekleme</h3><button type="button" disabled={archBusy} onClick={createBackup}>{archBusy?'Yedekleniyor…':'Yedek Oluştur'}</button></div><p style={{marginTop:0,color:'#64748b'}}>Yedekler tarihli olarak merkezi arşive kaydedilir. Siz indirirsiniz; EİSA de tüm kurum arşivlerine erişir. Silinen dosyalar da tarihli arşivde kalır.</p>{archMsg&&<p style={{color:archMsg.includes('oluştur')?'#166534':'#b91c1c'}}>{archMsg}</p>}<Table cols={archCols} rows={archives} empty="Henüz yedek yok."/></section>}
-  {canView&&<section className="panel"><h3>Denetim Kayıtları</h3><Table cols={cols} rows={logs}/></section>}</Page>
+  return <Page title="Güvenlik ve Denetim">
+    <div className="security-grid">
+      <section className="panel">
+        <h3>Şifre Değiştir</h3>
+        <form className="form-grid single" onSubmit={save}>
+          <Field label="Mevcut Şifre" type="password" required value={form.current_password} onChange={e=>setForm({...form,current_password:e.target.value})}/>
+          <Field label="Yeni Şifre" type="password" minLength="10" required value={form.new_password} onChange={e=>setForm({...form,new_password:e.target.value})}/>
+          <Submit/>{message&&<p>{message}</p>}
+        </form>
+      </section>
+      <section className="panel">
+        <h3>İki Adımlı Doğrulama (MFA)</h3>
+        <p style={{color:'#64748b',marginTop:0}}>
+          Durum: {mfaStatus.mfa_enabled?'Açık':'Kapalı'}
+          {mfaStatus.mfa_required?' · Bu rol için zorunlu':''}
+        </p>
+        {!mfaStatus.mfa_enabled&&!mfaSetup&&(
+          <button type="button" onClick={startMfa}>MFA kur</button>
+        )}
+        {mfaSetup&&(
+          <form className="form-grid single" onSubmit={enableMfa}>
+            <p style={{fontSize:13,wordBreak:'break-all'}}><strong>Gizli anahtar:</strong> <code>{mfaSetup.secret}</code></p>
+            <Field label="Authenticator kodu" value={mfaCode} onChange={e=>setMfaCode(e.target.value)} required/>
+            <button type="submit">Etkinleştir</button>
+          </form>
+        )}
+        {recoveryCodes&&(
+          <div>
+            <p>Kurtarma kodları (bir kez gösterilir):</p>
+            <ul style={{fontFamily:'monospace',fontSize:13}}>{recoveryCodes.map(c=><li key={c}>{c}</li>)}</ul>
+          </div>
+        )}
+        {mfaStatus.mfa_enabled&&(
+          <form className="form-grid single" onSubmit={disableMfa} style={{marginTop:12}}>
+            <Field label="Şifre" type="password" required value={disableForm.password} onChange={e=>setDisableForm({...disableForm,password:e.target.value})}/>
+            <Field label="Authenticator kodu" value={disableForm.code} onChange={e=>setDisableForm({...disableForm,code:e.target.value})} required/>
+            <button type="submit" className="secondary">MFA kapat</button>
+          </form>
+        )}
+      </section>
+      <section className="panel">
+        <h3>Güvenlik Notları</h3>
+        <ul>
+          <li>Yeni şifre en az 10 karakter olmalıdır.</li>
+          <li>EİSA / OSGB yöneticilerinde MFA zorunludur.</li>
+          <li>Şifre sıfırlama e-posta ile yapılır (SMTP yapılandırılmışsa).</li>
+          <li>Varsayılan demo şifresi mutlaka değiştirilmelidir.</li>
+        </ul>
+      </section>
+    </div>
+    {canBackup&&<section className="panel" style={{marginTop:16}}><div className="page-title" style={{marginBottom:12}}><h3 style={{margin:0,fontSize:18}}>Kurum Yedekleme</h3><button type="button" disabled={archBusy} onClick={createBackup}>{archBusy?'Yedekleniyor…':'Yedek Oluştur'}</button></div><p style={{marginTop:0,color:'#64748b'}}>Yedekler tarihli olarak merkezi arşive kaydedilir. Siz indirirsiniz; EİSA de tüm kurum arşivlerine erişir. Silinen dosyalar da tarihli arşivde kalır.</p>{archMsg&&<p style={{color:archMsg.includes('oluştur')?'#166534':'#b91c1c'}}>{archMsg}</p>}<Table cols={archCols} rows={archives} empty="Henüz yedek yok."/></section>}
+    {canView&&<section className="panel"><h3>Denetim Kayıtları</h3><Table cols={cols} rows={logs}/></section>}
+  </Page>
 }
 
 

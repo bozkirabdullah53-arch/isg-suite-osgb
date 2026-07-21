@@ -182,6 +182,26 @@ export function reportClientError(payload = {}) {
   }
 }
 
+/** Geçici / MFA token ile çağrı (localStorage isg_token kullanmaz). */
+export async function apiWithBearer(bearerToken, path, options = {}) {
+  const headers = { ...(options.headers || {}), Authorization: `Bearer ${bearerToken}` };
+  if (options.body != null && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+  const response = await fetch(`${API_URL}${path}`, { ...options, headers, mode: "cors" });
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+  if (response.status === 204) return null;
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
 /**
  * API çağrısı — ağ kopmasında API uyandırıp birkaç kez dener.
  * options._retries ile deneme sayısı (varsayılan 2 ek deneme).

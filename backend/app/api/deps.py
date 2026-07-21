@@ -12,7 +12,7 @@ from app.models.entities import User, UserRole
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+def _user_from_token(token: str, db: Session, *, allowed_purposes: set[str]) -> User:
     credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Oturum doğrulanamadı.",
@@ -21,13 +21,29 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
         user_id = int(payload.get("sub"))
+        purpose = payload.get("purpose") or "access"
     except (JWTError, TypeError, ValueError):
+        raise credentials_error
+
+    if purpose not in allowed_purposes:
         raise credentials_error
 
     user = db.get(User, user_id)
     if not user or not user.is_active:
         raise credentials_error
     return user
+
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    return _user_from_token(token, db, allowed_purposes={"access"})
+
+
+def get_mfa_challenge_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    return _user_from_token(token, db, allowed_purposes={"mfa_challenge", "mfa_setup"})
+
+
+def get_mfa_setup_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    return _user_from_token(token, db, allowed_purposes={"mfa_setup", "access"})
 
 
 def require_roles(*roles: UserRole):

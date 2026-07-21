@@ -43,6 +43,18 @@ PHYSICIAN_ROLES = (
 )
 ALLOWED_REPORT = {".pdf", ".jpg", ".jpeg", ".png", ".docx"}
 
+
+def _guard_confidential_write(user: User, data: dict) -> dict:
+    """confidential_note yalnız hekim/GA yazabilir."""
+    if "confidential_note" not in data:
+        return data
+    if user.role not in PHYSICIAN_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail="Gizli sağlık notunu yalnızca işyeri hekimi veya EİSA yöneticisi yazabilir.",
+        )
+    return data
+
 RECORD_TYPE_LABELS = {
     HealthRecordType.ENTRY_EXAM: "İşe Giriş Muayenesi",
     HealthRecordType.PERIODIC_EXAM: "Periyodik Muayene",
@@ -328,6 +340,7 @@ def create_health_record(
         raise HTTPException(status_code=400, detail="Personel ve firma eşleşmiyor.")
     company = db.get(Company, payload.company_id)
     data = payload.model_dump()
+    _guard_confidential_write(user, data)
     if not data.get("next_examination_date"):
         data["next_examination_date"] = default_next_exam(
             payload.examination_date, company.hazard_class if company else None
@@ -479,7 +492,9 @@ def update_health_record(
     if not record or record.deleted_at:
         raise HTTPException(404, "Sağlık kaydı bulunamadı.")
     ensure_access(db, user, record.company_id)
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    _guard_confidential_write(user, updates)
+    for k, v in updates.items():
         setattr(record, k, v)
     _apply_lead_eval(record)
     db.commit()

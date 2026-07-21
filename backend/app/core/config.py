@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     smtp_from_email: str = "noreply@example.com"
     smtp_use_tls: bool = True
     backup_dir: str = "./backups"
+    backup_encryption_key: str | None = None
     seed_admin_email: str | None = None
     seed_admin_password: str | None = None
     clamav_host: str | None = None

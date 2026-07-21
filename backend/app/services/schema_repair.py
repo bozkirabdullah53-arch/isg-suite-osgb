@@ -57,6 +57,30 @@ def repair_schema() -> None:
 
         EisaErrorReport.__table__.create(bind=engine, checkfirst=True)
 
+    if "password_reset_tokens" not in tables:
+        from app.models.entities import PasswordResetToken  # noqa: F401
+
+        PasswordResetToken.__table__.create(bind=engine, checkfirst=True)
+
+    if "users" in tables:
+        cols = _columns("users")
+        user_cols: list[tuple[str, str]] = [
+            ("failed_login_count", "INTEGER NOT NULL DEFAULT 0" if dialect != "sqlite" else "INTEGER DEFAULT 0"),
+            ("locked_until", "TIMESTAMP" if dialect != "sqlite" else "DATETIME"),
+            ("mfa_enabled", "BOOLEAN NOT NULL DEFAULT false" if dialect != "sqlite" else "BOOLEAN DEFAULT 0"),
+            ("mfa_secret_encrypted", "VARCHAR(500)"),
+            ("mfa_recovery_hashes", "TEXT"),
+        ]
+        stmts = [
+            f"ALTER TABLE users ADD COLUMN {name} {ctype}"
+            for name, ctype in user_cols
+            if name not in cols
+        ]
+        if stmts:
+            with engine.begin() as conn:
+                for stmt in stmts:
+                    conn.execute(text(stmt))
+
     if "companies" in tables:
         cols = _columns("companies")
         stmts: list[str] = []

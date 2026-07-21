@@ -132,8 +132,25 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"), nullable=True)
     osgb_id: Mapped[int | None] = mapped_column(ForeignKey("osgb_organizations.id"), nullable=True, index=True)
+    failed_login_count: Mapped[int] = mapped_column(default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    mfa_secret_encrypted: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    mfa_recovery_hashes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     company: Mapped[Company | None] = relationship(back_populates="users")
+
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
 
 class Employee(Base):
     __tablename__ = "employees"

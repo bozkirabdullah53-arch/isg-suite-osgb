@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
@@ -6,9 +6,25 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class MfaVerifyRequest(BaseModel):
+    code: str = Field(min_length=6, max_length=16)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    new_password: str = Field(min_length=10, max_length=128)
+
+
 class TokenResponse(BaseModel):
-    access_token: str
+    access_token: str | None = None
     token_type: str = "bearer"
+    mfa_required: bool = False
+    mfa_setup_required: bool = False
+    mfa_token: str | None = None
 
 
 class CurrentUserResponse(BaseModel):
@@ -21,3 +37,5 @@ class CurrentUserResponse(BaseModel):
     is_eisa: bool = False
     subscription_write_allowed: bool = True
     subscription_status: str | None = None
+    mfa_enabled: bool = False
+    mfa_required: bool = False

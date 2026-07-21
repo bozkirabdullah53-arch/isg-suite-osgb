@@ -48,6 +48,27 @@ def _rel_store(path: Path) -> str:
     return str(path.relative_to(archive_root())).replace("\\", "/")
 
 
+def _maybe_encrypt_file(path: Path) -> Path:
+    """BACKUP_ENCRYPTION_KEY varsa Fernet ile .enc üretir; düz zip'i siler."""
+    key = (settings.backup_encryption_key or "").strip()
+    if not key:
+        return path
+    import base64
+    import hashlib
+
+    from cryptography.fernet import Fernet
+
+    digest = hashlib.sha256(key.encode("utf-8")).digest()
+    f = Fernet(base64.urlsafe_b64encode(digest))
+    enc_path = path.with_suffix(path.suffix + ".enc")
+    enc_path.write_bytes(f.encrypt(path.read_bytes()))
+    try:
+        path.unlink()
+    except OSError:
+        pass
+    return enc_path
+
+
 def archive_file_before_delete(
     db: Session,
     *,
@@ -212,6 +233,9 @@ def create_tenant_backup(
                     if path.is_file():
                         arcname = f"osgb_files/{sub}/{path.relative_to(osgb_dir).as_posix()}"
                         zf.write(path, arcname)
+
+    zip_path = _maybe_encrypt_file(zip_path)
+    zip_name = zip_path.name
 
     row = EisaArchiveRecord(
         kind=ArchiveKind.TENANT_BACKUP,

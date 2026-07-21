@@ -36,12 +36,26 @@ def main() -> None:
 
     if settings.database_url.startswith("sqlite"):
         backup_sqlite(settings.database_url, target)
+        produced = target.with_suffix(".db")
     elif settings.database_url.startswith(("postgresql", "postgres")):
         backup_postgresql(settings.database_url, target)
+        produced = target.with_suffix(".dump")
     else:
         raise RuntimeError("Unsupported database type for backup.")
 
-    print(f"Backup completed: {target}")
+    key = (settings.backup_encryption_key or "").strip()
+    if key and produced.exists():
+        import base64
+        import hashlib
+        from cryptography.fernet import Fernet
+
+        digest = hashlib.sha256(key.encode("utf-8")).digest()
+        enc = produced.with_suffix(produced.suffix + ".enc")
+        enc.write_bytes(Fernet(base64.urlsafe_b64encode(digest)).encrypt(produced.read_bytes()))
+        produced.unlink(missing_ok=True)
+        produced = enc
+
+    print(f"Backup completed: {produced}")
 
 
 if __name__ == "__main__":
