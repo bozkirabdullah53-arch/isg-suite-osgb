@@ -217,19 +217,18 @@ def build_checklist_pdf(pack: dict[str, Any]) -> bytes:
     return buf.getvalue()
 
 
-def _assignment_rows(db: Session, oid: int) -> list[dict[str, Any]]:
-    assignments = list(
-        db.scalars(
-            select(WorkplaceAssignment).where(
-                WorkplaceAssignment.osgb_id == oid,
-                or_(
-                    WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
-                    WorkplaceAssignment.status == "active",
-                    WorkplaceAssignment.status == "ACTIVE",
-                ),
-            )
-        ).all()
+def _assignment_rows(db: Session, oid: int, company_id: int | None = None) -> list[dict[str, Any]]:
+    stmt = select(WorkplaceAssignment).where(
+        WorkplaceAssignment.osgb_id == oid,
+        or_(
+            WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+            WorkplaceAssignment.status == "active",
+            WorkplaceAssignment.status == "ACTIVE",
+        ),
     )
+    if company_id is not None:
+        stmt = stmt.where(WorkplaceAssignment.company_id == company_id)
+    assignments = list(db.scalars(stmt).all())
     company_ids = {a.company_id for a in assignments}
     companies = {
         c.id: c
@@ -258,12 +257,11 @@ def _assignment_rows(db: Session, oid: int) -> list[dict[str, Any]]:
     return out
 
 
-def _visit_rows(db: Session, oid: int) -> list[dict[str, Any]]:
-    visits = list(
-        db.scalars(
-            select(ServiceVisit).where(ServiceVisit.osgb_id == oid).order_by(ServiceVisit.visit_date.desc())
-        ).all()
-    )
+def _visit_rows(db: Session, oid: int, company_id: int | None = None) -> list[dict[str, Any]]:
+    stmt = select(ServiceVisit).where(ServiceVisit.osgb_id == oid).order_by(ServiceVisit.visit_date.desc())
+    if company_id is not None:
+        stmt = stmt.where(ServiceVisit.company_id == company_id)
+    visits = list(db.scalars(stmt).all())
     return [
         {
             "id": v.id,
@@ -280,8 +278,11 @@ def _visit_rows(db: Session, oid: int) -> list[dict[str, Any]]:
     ]
 
 
-def _contract_rows(db: Session, oid: int) -> list[dict[str, Any]]:
-    contracts = list(db.scalars(select(ServiceContract).where(ServiceContract.osgb_id == oid)).all())
+def _contract_rows(db: Session, oid: int, company_id: int | None = None) -> list[dict[str, Any]]:
+    stmt = select(ServiceContract).where(ServiceContract.osgb_id == oid)
+    if company_id is not None:
+        stmt = stmt.where(ServiceContract.company_id == company_id)
+    contracts = list(db.scalars(stmt).all())
     company_ids = {c.company_id for c in contracts}
     companies = {
         c.id: c
@@ -302,28 +303,52 @@ def _contract_rows(db: Session, oid: int) -> list[dict[str, Any]]:
     ]
 
 
-def build_csgb_audit_bundle_zip(db: Session, osgb_id: int | None = None) -> tuple[bytes, str]:
+def build_csgb_audit_bundle_zip(
+    db: Session,
+    osgb_id: int | None = None,
+    company_id: int | None = None,
+) -> tuple[bytes, str]:
     """Tek tık denetim ZIP: checklist PDF/JSON + görevlendirme / ziyaret / sözleşme / kapasite.
 
+    company_id verilirse müfettiş işyeri snapshot’ı (salt okunur filtre).
     Returns (zip_bytes, filename).
     """
-    pack = build_csgb_audit_pack(db, osgb_id=osgb_id)
+    pack = build_csgb_audit_pack(db, osgb_id=osgb_id, company_id=company_id)
     osgb = pack.get("osgb") or {}
+    scope = pack.get("scope") or {}
     oid = osgb.get("id")
     stamp = date.today().isoformat()
-    safe_name = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in (osgb.get("name") or "osgb"))[:40]
-    filename = f"csgb-denetim-paketi-{safe_name}-{stamp}.zip"
+    if company_id is not None:
+        raw_co = scope.get("company_name") or f"isyeri-{company_id}"
+        safe_co = "".join(ch if (ch.isascii() and (ch.isalnum() or ch in ("-", "_"))) else "_" for ch in raw_co)[:40]
+        safe_co = safe_co.strip("_") or f"isyeri-{company_id}"
+        filename = f"csgb-isyeri-snapshot-{safe_co}-{stamp}.zip"
+    else:
+        safe_osgb = "".join(
+            ch if (ch.isascii() and (ch.isalnum() or ch in ("-", "_"))) else "_"
+            for ch in (osgb.get("name") or "osgb")
+        )[:40]
+        safe_osgb = safe_osgb.strip("_") or "osgb"
+        filename = f"csgb-denetim-paketi-{safe_osgb}-{stamp}.zip"
 
-    assignments = _assignment_rows(db, oid) if oid else []
-    visits = _visit_rows(db, oid) if oid else []
-    contracts = _contract_rows(db, oid) if oid else []
+    assignments = _assignment_rows(db, oid, company_id=company_id) if oid else []
+    visits = _visit_rows(db, oid, company_id=company_id) if oid else []
+    contracts = _contract_rows(db, oid, company_id=company_id) if oid else []
     capacity = build_capacity_overview(db, oid) if oid else {"summary": {}, "firms": [], "professionals": []}
+    if company_id is not None and capacity.get("firms"):
+        capacity = {
+            **capacity,
+            "firms": [f for f in capacity["firms"] if f.get("company_id") == company_id],
+            "scope_company_id": company_id,
+        }
 
     manifest = {
-        "bundle_version": "audit-bundle-v2",
+        "bundle_version": "audit-bundle-v3",
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "osgb_id": oid,
         "osgb_name": osgb.get("name"),
+        "scope": scope,
+        "read_only": True,
         "files": [
             "00-README.txt",
             "01-checklist.pdf",
@@ -343,11 +368,18 @@ def build_csgb_audit_bundle_zip(db: Session, osgb_id: int | None = None) -> tupl
         },
     }
 
+    scope_line = (
+        f"Kapsam: işyeri snapshot — {scope.get('company_name')} (id={company_id})\n"
+        if company_id is not None
+        else "Kapsam: OSGB geneli\n"
+    )
     readme = (
         "ÇSGB / müfettiş denetim hazırlık paketi (İSG Suite OSGB)\n"
         f"OSGB: {osgb.get('name') or '—'} (id={oid})\n"
+        f"{scope_line}"
         f"Üretilme: {manifest['generated_at']}\n"
-        f"Sürüm: {manifest['bundle_version']}\n\n"
+        f"Sürüm: {manifest['bundle_version']}\n"
+        "Mod: salt okunur snapshot (indirme; sistemde değişiklik yok)\n\n"
         "İçerik:\n"
         "- 01-checklist.pdf / .json : hazırlık checklist ve eksikler\n"
         "- 02-assignments.json      : aktif görevlendirmeler + KATİP no\n"

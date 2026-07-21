@@ -18,7 +18,7 @@ from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCrea
                               ProfessionalResponse, ProfessionalUpdate)
 from app.services.osgb_admin import provision_professional_login
 from app.services.osgb_oversight import build_oversight, build_professional_performance, seed_oversight_demo
-from app.services.csgb_audit_pack import build_csgb_audit_pack
+from app.services.csgb_audit_pack import build_csgb_audit_pack, build_csgb_audit_dashboard_summary
 from app.services.csgb_audit_bundle import build_csgb_audit_bundle_zip
 from app.services.katip_prep import build_katip_prep, katip_prep_csv
 from app.services.ibys_export import build_ibys_export_summary, build_ibys_export_zip
@@ -186,29 +186,60 @@ def sync_field_roles(
 @router.get("/csgb-audit-pack")
 def csgb_audit_pack(
     osgb_id: int | None = None,
+    company_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
-    """ÇSGB OSGB denetim paketi — EİSA veya kendi OSGB yöneticisi."""
+    """ÇSGB OSGB denetim paketi — EİSA veya kendi OSGB yöneticisi. company_id = işyeri snapshot."""
     if user.role == UserRole.COMPANY_ADMIN:
         if not user.osgb_id:
             raise HTTPException(400, "Kullanıcıya bağlı OSGB yok.")
         osgb_id = user.osgb_id
-    return build_csgb_audit_pack(db, osgb_id=osgb_id)
+    elif osgb_id is not None:
+        _scope_osgb(user, osgb_id)
+    try:
+        return build_csgb_audit_pack(db, osgb_id=osgb_id, company_id=company_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.get("/csgb-audit-pack/summary")
+def csgb_audit_pack_summary(
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    """Ana Panel: hazırlık % + öncelikli eksik kalem özeti."""
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id:
+            raise HTTPException(400, "Kullanıcıya bağlı OSGB yok.")
+        osgb_id = user.osgb_id
+    elif osgb_id is not None:
+        _scope_osgb(user, osgb_id)
+    return build_csgb_audit_dashboard_summary(db, osgb_id=osgb_id)
 
 
 @router.get("/csgb-audit-pack/bundle")
 def csgb_audit_pack_bundle(
     osgb_id: int | None = None,
+    company_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
-    """Tek tık müfettiş ZIP: checklist PDF + görevlendirme / ziyaret+defter / sözleşme / kapasite."""
+    """Tek tık müfettiş ZIP: checklist PDF + görevlendirme / ziyaret+defter / sözleşme / kapasite.
+
+    company_id ile salt-okunur işyeri snapshot indirilir.
+    """
     if user.role == UserRole.COMPANY_ADMIN:
         if not user.osgb_id:
             raise HTTPException(400, "Kullanıcıya bağlı OSGB yok.")
         osgb_id = user.osgb_id
-    data, filename = build_csgb_audit_bundle_zip(db, osgb_id=osgb_id)
+    elif osgb_id is not None:
+        _scope_osgb(user, osgb_id)
+    try:
+        data, filename = build_csgb_audit_bundle_zip(db, osgb_id=osgb_id, company_id=company_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     return StreamingResponse(
         iter([data]),
         media_type="application/zip",

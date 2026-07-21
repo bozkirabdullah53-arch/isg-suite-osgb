@@ -136,12 +136,14 @@ export function OsgbDashboard({user, onNavigate}){
  const[orgs,setOrgs]=useState([]),[data,setData]=useState(null),[oid,setOid]=useState('');
  const[ops,setOps]=useState(null);
  const[kpis,setKpis]=useState(null);
+ const[csgb,setCsgb]=useState(null);
+ const[csgbDlBusy,setCsgbDlBusy]=useState(false);
  const[unassignedOpen,setUnassignedOpen]=useState(false);
  const[unassignedType,setUnassignedType]=useState('safety_specialist');
  const[contractsOpen,setContractsOpen]=useState(false);
 
  async function load(id){
-  if(!id){setData(null);setOps(null);setKpis(null);return}
+  if(!id){setData(null);setOps(null);setKpis(null);setCsgb(null);return}
   setData(await api(`/operations/dashboard?osgb_id=${id}`));
   try{
    setOps(await api(`/osgb/oversight?osgb_id=${id}`));
@@ -149,6 +151,9 @@ export function OsgbDashboard({user, onNavigate}){
   try{
    setKpis(await api(`/operations/module-kpis?osgb_id=${id}`));
   }catch(_){setKpis(null)}
+  try{
+   setCsgb(await api(`/osgb/csgb-audit-pack/summary?osgb_id=${id}`));
+  }catch(_){setCsgb(null)}
  }
 
  useEffect(()=>{
@@ -169,6 +174,18 @@ export function OsgbDashboard({user, onNavigate}){
  const tr=kpis?.training||{};
  const hl=kpis?.health||{};
  const go=(mod)=>{ if(typeof onNavigate==='function') onNavigate(mod); };
+ const csgbPct=csgb?.readiness_pct??csgb?.summary?.readiness_pct;
+ const csgbGaps=csgb?.missing_items||[];
+
+ async function downloadCsgbZip(){
+  if(!oid) return;
+  setCsgbDlBusy(true);
+  try{
+   const stamp=new Date().toISOString().slice(0,10);
+   await downloadFile(`/osgb/csgb-audit-pack/bundle?osgb_id=${oid}`,`csgb-denetim-paketi-${stamp}.zip`);
+  }catch(e){alert(e.message||'ZIP indirilemedi')}
+  finally{setCsgbDlBusy(false)}
+ }
 
  return <>
   <div className="welcome"><div>
@@ -183,6 +200,53 @@ export function OsgbDashboard({user, onNavigate}){
     </select>
    </label>
   </section>}
+
+  {csgb&&(
+   <section className="panel" style={{marginBottom:16}}>
+    <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'flex-start'}}>
+     <div>
+      <h3 style={{margin:'0 0 4px'}}>ÇSGB denetim hazırlığı</h3>
+      <p style={{margin:0,color:'#64748b',fontSize:13}}>
+       Öncelikli eksikler · müfettiş paketi / işyeri snapshot ÇSGB Belge Paketi’nden.
+      </p>
+     </div>
+     <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+      <div style={{
+        minWidth:88,textAlign:'center',padding:'8px 12px',borderRadius:10,
+        background:(csgbPct??0)>=70?'#dcfce7':(csgbPct??0)>=40?'#fef3c7':'#fee2e2',
+        color:(csgbPct??0)>=70?'#166534':(csgbPct??0)>=40?'#92400e':'#991b1b',
+      }}>
+       <div style={{fontSize:22,fontWeight:800}}>%{csgbPct??0}</div>
+       <div style={{fontSize:11,fontWeight:700}}>Hazırlık</div>
+      </div>
+      <button type="button" className="mini" disabled={csgbDlBusy} onClick={()=>void downloadCsgbZip()}>
+       {csgbDlBusy?'Hazırlanıyor…':'ZIP indir'}
+      </button>
+      <button type="button" className="mini secondary" onClick={()=>go('csgb_audit')}>Pakete git</button>
+     </div>
+    </div>
+    <div style={{display:'flex',gap:14,flexWrap:'wrap',marginTop:10,fontSize:13}}>
+     <span>Hazır <strong>{csgb.summary?.ready??0}</strong></span>
+     <span>Kısmi <strong>{csgb.summary?.partial??0}</strong></span>
+     <span style={{color:(csgb.summary?.missing||0)?'#991b1b':undefined}}>Eksik <strong>{csgb.summary?.missing??0}</strong></span>
+     <span>Öncelik <strong>{csgb.gap_count??csgbGaps.length}</strong></span>
+    </div>
+    {csgbGaps.length>0&&(
+     <ul style={{margin:'12px 0 0',paddingLeft:18,fontSize:13,color:'#334155'}}>
+      {csgbGaps.slice(0,5).map((g,i)=>(
+       <li key={g.code||i} style={{marginBottom:4}}>
+        <strong>{g.title||'Kalem'}</strong>
+        {g.status?` (${g.status==='missing'?'eksik':g.status==='partial'?'kısmi':g.status})`:''}
+        {g.detail?` — ${g.detail}`:''}
+       </li>
+      ))}
+     </ul>
+    )}
+    {!csgbGaps.length&&(
+     <p style={{margin:'12px 0 0',color:'#166534',fontSize:13,fontWeight:600}}>Öncelikli eksik/kısmi kalem yok.</p>
+    )}
+   </section>
+  )}
 
   <div className="cards osgb-cards" style={{marginBottom:16}}>
    <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('finance')} title="Finansa git">

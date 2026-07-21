@@ -132,7 +132,12 @@ def _heal_osgb_links(db: Session, oid: int) -> None:
     db.commit()
 
 
-def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, Any]:
+def build_csgb_audit_pack(
+    db: Session,
+    osgb_id: int | None = None,
+    company_id: int | None = None,
+) -> dict[str, Any]:
+    """ÇSGB denetim checklist. company_id verilirse müfettiş işyeri snapshot’ı (salt okunur kapsam)."""
     osgb = None
     if osgb_id:
         osgb = db.get(OsgbOrganization, osgb_id)
@@ -141,6 +146,7 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
     if not osgb:
         return {
             "osgb": None,
+            "scope": {"mode": "osgb", "company_id": None, "company_name": None},
             "generated_at": date.today().isoformat(),
             "summary": {"ready": 0, "partial": 0, "missing": 1, "total": 1},
             "items": [
@@ -159,29 +165,45 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
     oid = osgb.id
     _heal_osgb_links(db, oid)
 
+    scope_company: Company | None = None
+    if company_id is not None:
+        scope_company = db.get(Company, company_id)
+        if not scope_company or scope_company.osgb_id != oid:
+            raise ValueError("İşyeri bu OSGB kapsamında değil.")
+
     companies = list(
         db.scalars(select(Company).where(Company.osgb_id == oid, Company.is_active.is_(True))).all()
     )
+    if scope_company is not None:
+        companies = [c for c in companies if c.id == scope_company.id] or [scope_company]
     company_ids = [c.id for c in companies]
 
     pros = list(db.scalars(select(IsgProfessional).where(IsgProfessional.osgb_id == oid)).all())
     active_pros = [p for p in pros if p.is_active is not False]
     # Aktif görevlendirme: enum + string uyumu (PG/SQLite farkı)
-    assignments = list(
-        db.scalars(
-            select(WorkplaceAssignment).where(
-                WorkplaceAssignment.osgb_id == oid,
-                or_(
-                    WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
-                    WorkplaceAssignment.status == "active",
-                    WorkplaceAssignment.status == "ACTIVE",
-                ),
-            )
-        ).all()
+    asg_stmt = select(WorkplaceAssignment).where(
+        WorkplaceAssignment.osgb_id == oid,
+        or_(
+            WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+            WorkplaceAssignment.status == "active",
+            WorkplaceAssignment.status == "ACTIVE",
+        ),
     )
-    contracts = list(db.scalars(select(ServiceContract).where(ServiceContract.osgb_id == oid)).all())
+    if company_ids:
+        asg_stmt = asg_stmt.where(WorkplaceAssignment.company_id.in_(company_ids))
+    assignments = list(db.scalars(asg_stmt).all())
 
-    # Module counts scoped to OSGB companies
+    ctr_stmt = select(ServiceContract).where(ServiceContract.osgb_id == oid)
+    if company_ids:
+        ctr_stmt = ctr_stmt.where(ServiceContract.company_id.in_(company_ids))
+    contracts = list(db.scalars(ctr_stmt).all())
+
+    # İşyeri snapshot’ta kadro: yalnızca bu işyerine görevli profesyoneller
+    if scope_company is not None:
+        pro_ids = {a.professional_id for a in assignments}
+        active_pros = [p for p in active_pros if p.id in pro_ids]
+
+    # Module counts scoped to OSGB companies (veya tek işyeri)
     def _count(model, *extra):
         if not company_ids:
             return 0
@@ -203,7 +225,10 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
                 )
             ).all()
         )
-    visits = list(db.scalars(select(ServiceVisit).where(ServiceVisit.osgb_id == oid)).all())
+    vis_stmt = select(ServiceVisit).where(ServiceVisit.osgb_id == oid)
+    if company_ids:
+        vis_stmt = vis_stmt.where(ServiceVisit.company_id.in_(company_ids))
+    visits = list(db.scalars(vis_stmt).all())
     visit_n = len(visits)
     notebook_n = sum(1 for v in visits if v.notebook_storage_path or v.notebook_file_name)
 
@@ -436,10 +461,17 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
 
     # 6c) Kapasite / 6331 asgari süre anlık görüntüsü
     capacity = build_capacity_overview(db, oid)
-    cap_sum = capacity.get("summary") or {}
-    cap_assign = int(cap_sum.get("assignments") or 0)
-    under = int(cap_sum.get("under_served_firms") or 0)
-    at_risk = int(cap_sum.get("at_risk_firms") or 0)
+    cap_firms = list(capacity.get("firms") or [])
+    if scope_company is not None:
+        cap_firms = [f for f in cap_firms if f.get("company_id") == scope_company.id]
+        cap_assign = len(cap_firms)
+        under = sum(1 for f in cap_firms if f.get("status") == "critical")
+        at_risk = sum(1 for f in cap_firms if f.get("status") == "warning")
+    else:
+        cap_sum = capacity.get("summary") or {}
+        cap_assign = int(cap_sum.get("assignments") or 0)
+        under = int(cap_sum.get("under_served_firms") or 0)
+        at_risk = int(cap_sum.get("at_risk_firms") or 0)
     if cap_assign <= 0:
         cap_status, cap_detail = "missing", "Aktif görevlendirme yok; kapasite hesaplanamadı."
     elif under > 0:
@@ -468,7 +500,7 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
                     "actual_minutes": f.get("actual_minutes"),
                     "status": f.get("status"),
                 }
-                for f in (capacity.get("firms") or [])[:40]
+                for f in cap_firms[:40]
             ],
             group=G_KADRO[0],
             group_label=G_KADRO[1],
@@ -589,6 +621,27 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             seen.add(i["group"])
             groups.append({"id": i["group"], "label": i["group_label"]})
 
+    scope_mode = "company" if scope_company is not None else "osgb"
+    co_name = scope_company.name if scope_company is not None else None
+    title = (
+        f"ÇSGB İşyeri Denetim Snapshot — {co_name} ({osgb.name})"
+        if scope_company is not None
+        else f"ÇSGB OSGB Denetim Belge Paketi — {osgb.name}"
+    )
+    legal = (
+        "Kurumsal (yetki/kimlik) kalemler kaydettiğinizde Hazır/Kısmi görünür. "
+        "Genel denetim hazırlık yüzdesi ise işyeri + profesyonel + görevlendirme olmadan %0 kalır. "
+        "Placeholder (OSGB-001, 1234567890, Global Yönetici) hazır sayılmaz. "
+        "Tek tık ZIP: görevlendirme, ziyaret+tespit defteri, sözleşme, 6331 kapasite snapshot. "
+        "Kaynak menüler: İşyerleri, İSG Profesyonelleri, Görevlendirmeler, Saha Takvimi."
+    )
+    if scope_company is not None:
+        legal = (
+            f"Müfettiş / dış denetim salt-okunur işyeri snapshot’ı: {co_name}. "
+            "Sayaçlar ve kanıtlar yalnızca bu işyerine filtrelenir; OSGB kurumsal kimlik kalemleri bağlam için kalır. "
+            "Değişiklik yapılmaz — indirme/yazdırma içindir."
+        )
+
     return {
         "osgb": {
             "id": osgb.id,
@@ -605,16 +658,16 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             "visit_count": visit_n,
             "notebook_count": notebook_n,
         },
+        "scope": {
+            "mode": scope_mode,
+            "company_id": scope_company.id if scope_company is not None else None,
+            "company_name": co_name,
+            "read_only": True,
+        },
         "generated_at": date.today().isoformat(),
-        "bundle_version": "audit-bundle-v2",
+        "bundle_version": "audit-bundle-v3",
         "has_activity": has_ops,
-        "legal_note": (
-            "Kurumsal (yetki/kimlik) kalemler kaydettiğinizde Hazır/Kısmi görünür. "
-            "Genel denetim hazırlık yüzdesi ise işyeri + profesyonel + görevlendirme olmadan %0 kalır. "
-            "Placeholder (OSGB-001, 1234567890, Global Yönetici) hazır sayılmaz. "
-            "Tek tık ZIP: görevlendirme, ziyaret+tespit defteri, sözleşme, 6331 kapasite snapshot. "
-            "Kaynak menüler: İşyerleri, İSG Profesyonelleri, Görevlendirmeler, Saha Takvimi."
-        ),
+        "legal_note": legal,
         "summary": {
             "ready": ready,
             "partial": partial,
@@ -630,6 +683,33 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
         "groups": groups,
         "items": items,
         "gaps": gaps,
-        "report_title": f"ÇSGB OSGB Denetim Belge Paketi — {osgb.name}",
-        "download_hint": "GET /osgb/csgb-audit-pack/bundle — PDF checklist + JSON kanıt ZIP",
+        "missing_items": [
+            {"code": i["code"], "title": i["title"], "status": i["status"], "detail": i["detail"]}
+            for i in priority
+        ],
+        "report_title": title,
+        "download_hint": (
+            "GET /osgb/csgb-audit-pack/bundle?company_id=… — işyeri snapshot ZIP"
+            if scope_company is not None
+            else "GET /osgb/csgb-audit-pack/bundle — PDF checklist + JSON kanıt ZIP"
+        ),
+    }
+
+
+def build_csgb_audit_dashboard_summary(db: Session, osgb_id: int | None = None) -> dict[str, Any]:
+    """Ana Panel için hafif özet: hazırlık % + öncelikli eksikler (tam pack üzerinden)."""
+    pack = build_csgb_audit_pack(db, osgb_id=osgb_id)
+    sum_ = pack.get("summary") or {}
+    missing_items = pack.get("missing_items") or [
+        {"code": None, "title": g.split(":", 1)[0], "status": "priority", "detail": g}
+        for g in (pack.get("gaps") or [])
+    ]
+    return {
+        "osgb": pack.get("osgb"),
+        "generated_at": pack.get("generated_at"),
+        "bundle_version": pack.get("bundle_version"),
+        "summary": sum_,
+        "missing_items": missing_items[:8],
+        "gap_count": len(missing_items),
+        "readiness_pct": sum_.get("readiness_pct", 0),
     }

@@ -88,7 +88,9 @@ function Field({label, ...p}) {
 
 export function CsgbAuditPackPage({user, onNavigate}) {
   const [orgs, setOrgs] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [osgbId, setOsgbId] = useState('');
+  const [companyId, setCompanyId] = useState('');
   const [data, setData] = useState(null);
   const [filter, setFilter] = useState('priority');
   const [openCode, setOpenCode] = useState('');
@@ -116,6 +118,7 @@ export function CsgbAuditPackPage({user, onNavigate}) {
 
   const items = data?.items || [];
   const sum = data?.summary;
+  const scopeMode = data?.scope?.mode || 'osgb';
 
   const filtered = useMemo(() => {
     if (filter === 'ready') return items.filter((i) => i.status === 'ready');
@@ -133,7 +136,7 @@ export function CsgbAuditPackPage({user, onNavigate}) {
     return [...map.values()];
   }, [filtered]);
 
-  async function load(oid = osgbId) {
+  async function load(oid = osgbId, cid = companyId) {
     if (!canView) return;
     setBusy(true);
     setError('');
@@ -143,11 +146,23 @@ export function CsgbAuditPackPage({user, onNavigate}) {
       const locked = isOsgbAdmin && user.osgb_id ? String(user.osgb_id) : '';
       const id = locked || oid || osgbId || (o?.[0] ? String(o[0].id) : '');
       if (id) setOsgbId(String(id));
-      const q = id ? `?osgb_id=${id}` : '';
+      let cos = [];
+      try {
+        cos = await api('/companies');
+        if (!Array.isArray(cos)) cos = cos?.items || cos?.results || [];
+        if (id) cos = (cos || []).filter((c) => String(c.osgb_id) === String(id));
+      } catch (_) {
+        cos = [];
+      }
+      setCompanies(cos || []);
+      const qParts = [];
+      if (id) qParts.push(`osgb_id=${id}`);
+      if (cid) qParts.push(`company_id=${cid}`);
+      const q = qParts.length ? `?${qParts.join('&')}` : '';
       const r = await api(`/osgb/csgb-audit-pack${q}`);
       setData(r);
       try {
-        setIbys(await api(`/osgb/ibys-export${q}`));
+        setIbys(await api(`/osgb/ibys-export${id ? `?osgb_id=${id}` : ''}`));
       } catch (_) {
         setIbys(null);
       }
@@ -227,7 +242,7 @@ export function CsgbAuditPackPage({user, onNavigate}) {
       }
       await api(`/osgb/${id}`, {method: 'PATCH', body: JSON.stringify(body)});
       setEditOpen(false);
-      await load(String(id));
+      await load(String(id), companyId);
     } catch (ex) {
       setEditErr(ex.message || 'Kayıt başarısız.');
     } finally {
@@ -245,10 +260,12 @@ export function CsgbAuditPackPage({user, onNavigate}) {
     setDlErr('');
     try {
       const stamp = new Date().toISOString().slice(0, 10);
-      await downloadFile(
-        `/osgb/csgb-audit-pack/bundle?osgb_id=${id}`,
-        `csgb-denetim-paketi-${stamp}.zip`,
-      );
+      const q = [`osgb_id=${id}`];
+      if (companyId) q.push(`company_id=${companyId}`);
+      const name = companyId
+        ? `csgb-isyeri-snapshot-${companyId}-${stamp}.zip`
+        : `csgb-denetim-paketi-${stamp}.zip`;
+      await downloadFile(`/osgb/csgb-audit-pack/bundle?${q.join('&')}`, name);
     } catch (ex) {
       setDlErr(ex.message || 'ZIP indirilemedi.');
     } finally {
@@ -292,11 +309,11 @@ export function CsgbAuditPackPage({user, onNavigate}) {
         <div>
           <h3>ÇSGB Denetim Belge Paketi</h3>
           <p style={{margin: '4px 0 0', color: '#64748b', fontSize: 13}}>
-            Checklist + tek tık ZIP: görevlendirme, ziyaret/defter, sözleşme, 6331 kapasite.
+            Checklist + tek tık ZIP · isteğe bağlı işyeri salt-okunur snapshot (müfettiş).
           </p>
         </div>
         <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-          {data?.osgb?.id && (
+          {data?.osgb?.id && !companyId && (
             <button type="button" className="ghost" onClick={openOsgbEdit}>
               <Pencil size={16} /> OSGB kartını düzenle
             </button>
@@ -306,7 +323,10 @@ export function CsgbAuditPackPage({user, onNavigate}) {
           </button>
           {data && (
             <button type="button" disabled={dlBusy || busy} onClick={() => void downloadBundle()}>
-              <Download size={16} /> {dlBusy ? 'Paket hazırlanıyor…' : 'Denetim paketi (ZIP)'}
+              <Download size={16} />{' '}
+              {dlBusy
+                ? 'Paket hazırlanıyor…'
+                : (companyId ? 'İşyeri snapshot (ZIP)' : 'Denetim paketi (ZIP)')}
             </button>
           )}
           {data && (
@@ -323,7 +343,7 @@ export function CsgbAuditPackPage({user, onNavigate}) {
         </section>
       )}
 
-      {ibys && (
+      {ibys && !companyId && (
         <section className="panel" style={{marginBottom: 16}}>
           <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center'}}>
             <div>
@@ -357,22 +377,47 @@ export function CsgbAuditPackPage({user, onNavigate}) {
         <section className="panel"><p style={{margin: 0, color: '#64748b'}}>Belge paketi yükleniyor…</p></section>
       )}
 
-      {user.role === 'global_admin' && orgs.length > 1 && (
-        <section className="panel" style={{marginBottom: 16}}>
-          <label className="field" style={{maxWidth: 360}}>
-            <span>OSGB</span>
+      <section className="panel" style={{marginBottom: 16}}>
+        <div style={{display: 'flex', gap: 16, flexWrap: 'wrap'}}>
+          {user.role === 'global_admin' && orgs.length > 1 && (
+            <label className="field" style={{minWidth: 220, flex: 1}}>
+              <span>OSGB</span>
+              <select
+                value={osgbId}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setOsgbId(v);
+                  setCompanyId('');
+                  void load(v, '');
+                }}
+              >
+                {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </label>
+          )}
+          <label className="field" style={{minWidth: 260, flex: 1}}>
+            <span>İşyeri snapshot (müfettiş)</span>
             <select
-              value={osgbId}
+              value={companyId}
               onChange={(e) => {
-                setOsgbId(e.target.value);
-                void load(e.target.value);
+                const v = e.target.value;
+                setCompanyId(v);
+                void load(osgbId, v);
               }}
             >
-              {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+              <option value="">Tüm OSGB (genel paket)</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
             </select>
           </label>
-        </section>
-      )}
+        </div>
+        {scopeMode === 'company' && (
+          <p style={{margin: '10px 0 0', padding: '8px 10px', borderRadius: 8, background: '#eff6ff', color: '#1e40af', fontSize: 13}}>
+            Salt okunur işyeri kapsamı: <strong>{data?.scope?.company_name}</strong> — ZIP indirme değişiklik yapmaz.
+          </p>
+        )}
+      </section>
 
       {data && (
         <>

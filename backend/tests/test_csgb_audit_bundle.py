@@ -1,4 +1,4 @@
-"""0.9.111 — ÇSGB denetim paketi (audit-bundle-v2) ZIP + checklist sıkılaştırma."""
+"""0.9.115 — ÇSGB denetim paketi (audit-bundle-v3) + işyeri salt-okunur snapshot."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -75,39 +75,60 @@ def _seed(client: TestClient) -> tuple[str, dict]:
             hazard_class="Tehlikeli",
             sgk_registry_no="SGK-1",
         )
+        company_b = Company(
+            name="Diğer Firma Ltd",
+            osgb_id=osgb.id,
+            is_active=True,
+            hazard_class="Az Tehlikeli",
+            sgk_registry_no="SGK-2",
+        )
         db.add(company)
+        db.add(company_b)
         db.flush()
         pro = IsgProfessional(
             osgb_id=osgb.id,
             full_name="Ali Uzman",
             professional_type=ProfessionalType.SAFETY_SPECIALIST,
-            certificate_class="B",
+            certificate_class="A",
             certificate_number="UZM-100",
             is_active=True,
         )
         db.add(pro)
         db.flush()
-        db.add(
-            WorkplaceAssignment(
-                osgb_id=osgb.id,
-                company_id=company.id,
-                professional_id=pro.id,
-                professional_type=ProfessionalType.SAFETY_SPECIALIST,
-                start_date=date.today() - timedelta(days=90),
-                required_minutes_monthly=480,
-                planned_minutes_monthly=480,
-                actual_minutes_monthly=120,
-                isg_katip_contract_number="KATIP-99",
-                status=AssignmentStatus.ACTIVE,
-            )
+        asg = WorkplaceAssignment(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            professional_id=pro.id,
+            professional_type=ProfessionalType.SAFETY_SPECIALIST,
+            status=AssignmentStatus.ACTIVE,
+            start_date=date.today() - timedelta(days=30),
+            required_minutes_monthly=600,
+            planned_minutes_monthly=600,
+            actual_minutes_monthly=120,
+            isg_katip_contract_number="KATIP-99",
         )
+        asg_b = WorkplaceAssignment(
+            osgb_id=osgb.id,
+            company_id=company_b.id,
+            professional_id=pro.id,
+            professional_type=ProfessionalType.SAFETY_SPECIALIST,
+            status=AssignmentStatus.ACTIVE,
+            start_date=date.today() - timedelta(days=20),
+            required_minutes_monthly=300,
+            planned_minutes_monthly=300,
+            actual_minutes_monthly=60,
+            isg_katip_contract_number="KATIP-88",
+        )
+        db.add(asg)
+        db.add(asg_b)
         db.add(
             ServiceContract(
                 osgb_id=osgb.id,
                 company_id=company.id,
-                contract_number="SOZ-1",
+                contract_number="SZ-1",
                 start_date=date.today() - timedelta(days=60),
-                monthly_fee=12000,
+                end_date=date.today() + timedelta(days=300),
+                monthly_fee=10000,
                 status="active",
             )
         )
@@ -116,26 +137,40 @@ def _seed(client: TestClient) -> tuple[str, dict]:
                 osgb_id=osgb.id,
                 company_id=company.id,
                 professional_id=pro.id,
-                visit_date=date.today() - timedelta(days=3),
+                visit_date=date.today() - timedelta(days=2),
                 duration_minutes=120,
-                subject="Saha denetimi",
-                notebook_file_name="defter.pdf",
-                notebook_storage_path="1/visits/defter.pdf",
+                subject="Saha kontrol",
                 status=VisitStatus.COMPLETED,
+                notebook_file_name="defter.pdf",
+                notebook_storage_path="demo/notebook.pdf",
             )
         )
         db.add(
-            User(
-                email="denetim-admin@test.com",
-                full_name="Denetim Admin",
-                hashed_password=get_password_hash("TestPass123!"),
-                role=UserRole.COMPANY_ADMIN,
+            ServiceVisit(
                 osgb_id=osgb.id,
-                is_active=True,
+                company_id=company_b.id,
+                professional_id=pro.id,
+                visit_date=date.today() - timedelta(days=1),
+                duration_minutes=60,
+                subject="Diğer saha",
+                status=VisitStatus.COMPLETED,
             )
         )
+        admin = User(
+            email="denetim-admin@test.com",
+            full_name="Denetim Admin",
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            is_active=True,
+        )
+        db.add(admin)
         db.commit()
-        seed = {"osgb_id": osgb.id, "company_id": company.id}
+        seed = {
+            "osgb_id": osgb.id,
+            "company_id": company.id,
+            "company_b_id": company_b.id,
+        }
 
     r = client.post(
         "/api/v1/auth/login",
@@ -145,12 +180,13 @@ def _seed(client: TestClient) -> tuple[str, dict]:
     return r.json()["access_token"], seed
 
 
-def test_health_flag_csgb_audit_bundle_v2(client):
+def test_health_flag_csgb_company_snapshot(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.114"
-    assert body["csgb_pack"] == "audit-bundle-v2"
+    assert body["version"] == "0.9.115"
+    assert body["csgb_pack"] == "audit-bundle-v3"
+    assert body["csgb_company_snapshot"] == "read-only-v1"
 
 
 def test_csgb_audit_pack_includes_notebook_and_capacity(client):
@@ -159,7 +195,9 @@ def test_csgb_audit_pack_includes_notebook_and_capacity(client):
     r = client.get(f"/api/v1/osgb/csgb-audit-pack?osgb_id={seed['osgb_id']}", headers=headers)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body.get("bundle_version") == "audit-bundle-v2"
+    assert body.get("bundle_version") == "audit-bundle-v3"
+    assert body.get("scope", {}).get("mode") == "osgb"
+    assert body.get("scope", {}).get("read_only") is True
     codes = {it["code"] for it in body.get("items") or []}
     assert "tespit_defteri" in codes
     assert "kapasite_6331" in codes
@@ -167,6 +205,54 @@ def test_csgb_audit_pack_includes_notebook_and_capacity(client):
     assert "hizmet_sozlesmesi" in codes
     assert body["osgb"]["notebook_count"] >= 1
     assert body["summary"]["notebooks"] >= 1
+    assert isinstance(body.get("missing_items"), list)
+
+
+def test_csgb_dashboard_summary(client):
+    token, seed = _seed(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    r = client.get(f"/api/v1/osgb/csgb-audit-pack/summary?osgb_id={seed['osgb_id']}", headers=headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "readiness_pct" in body
+    assert "missing_items" in body
+    assert body.get("bundle_version") == "audit-bundle-v3"
+
+
+def test_csgb_company_scoped_pack_and_bundle(client):
+    token, seed = _seed(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    cid = seed["company_id"]
+    r = client.get(
+        f"/api/v1/osgb/csgb-audit-pack?osgb_id={seed['osgb_id']}&company_id={cid}",
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["scope"]["mode"] == "company"
+    assert body["scope"]["company_id"] == cid
+    assert body["osgb"]["company_count"] == 1
+    assert body["osgb"]["visit_count"] == 1
+    assert body["osgb"]["notebook_count"] == 1
+    assert body["osgb"]["assignment_count"] == 1
+
+    z = client.get(
+        f"/api/v1/osgb/csgb-audit-pack/bundle?osgb_id={seed['osgb_id']}&company_id={cid}",
+        headers=headers,
+    )
+    assert z.status_code == 200, z.text
+    assert "application/zip" in (z.headers.get("content-type") or "")
+    with ZipFile(BytesIO(z.content)) as zf:
+        names = set(zf.namelist())
+        assert "manifest.json" in names
+        assert "01-checklist.pdf" in names
+        manifest = zf.read("manifest.json").decode("utf-8")
+        assert "audit-bundle-v3" in manifest
+        assert "company" in manifest
+        visits = zf.read("03-visits-notebook.json").decode("utf-8")
+        assert '"with_notebook": 1' in visits or '"with_notebook":1' in visits
+        # Diğer firmanın ziyareti snapshot’ta olmamalı
+        assert "Diğer saha" not in visits
 
 
 def test_csgb_audit_bundle_zip_download(client):
@@ -191,3 +277,5 @@ def test_csgb_audit_bundle_zip_download(client):
         visits = zf.read("03-visits-notebook.json").decode("utf-8")
         assert "has_notebook" in visits
         assert '"with_notebook": 1' in visits or '"with_notebook":1' in visits
+        man = zf.read("manifest.json").decode("utf-8")
+        assert "audit-bundle-v3" in man
