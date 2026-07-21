@@ -139,6 +139,41 @@ class LeadCreate(BaseModel):
         return self
 
 
+class LeadUpdate(BaseModel):
+    company_name: str | None = Field(default=None, min_length=2, max_length=220)
+    contact_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    employee_count: int | None = Field(default=None, ge=0)
+    hazard_class: str | None = None
+    stage: str | None = None
+    estimated_monthly_value: int | None = Field(default=None, ge=0)
+    next_action_date: date | None = None
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def sanitize(self):
+        if self.company_name is not None:
+            self.company_name = assert_meaningful_text(self.company_name, label="Firma adı", min_len=2, required=True)
+        if self.contact_name is not None:
+            self.contact_name = assert_person_name(self.contact_name, label="Yetkili")
+        if self.notes is not None:
+            self.notes = assert_meaningful_text(self.notes, label="Notlar", min_len=3, required=False)
+        if self.next_action_date is not None:
+            self.next_action_date = assert_event_date(
+                self.next_action_date, label="Sonraki işlem tarihi", required=False, allow_future_days=730
+            )
+        if self.phone is not None:
+            self.phone = clean_text(self.phone)
+        if self.email is not None:
+            self.email = clean_text(self.email)
+        if self.stage is not None:
+            allowed = {"new", "contacted", "proposal", "negotiation", "won", "lost"}
+            if self.stage not in allowed:
+                raise ValueError("Geçersiz CRM aşaması.")
+        return self
+
+
 class LeadResponse(LeadCreate):
     id: int
     created_at: datetime

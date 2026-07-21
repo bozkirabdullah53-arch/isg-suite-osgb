@@ -1183,10 +1183,66 @@ export function VisitsPage({user}){
 }
 
 export function CrmPage({user}){
- const[orgs,setOrgs]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState({osgb_id:'',company_name:'',contact_name:'',phone:'',email:'',employee_count:0,hazard_class:'Tehlikeli',stage:'new',estimated_monthly_value:0,next_action_date:'',notes:''});
+ const[orgs,setOrgs]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[busyId,setBusyId]=useState(null);
+ const[form,setForm]=useState({osgb_id:'',company_name:'',contact_name:'',phone:'',email:'',employee_count:0,hazard_class:'Tehlikeli',stage:'new',estimated_monthly_value:0,next_action_date:'',notes:''});
  const load=async()=>{const o=await api('/osgb');const id=osgbId(user,o);setOrgs(o);setForm(x=>({...x,osgb_id:id}));if(id)setRows(await api(`/operations/leads?osgb_id=${id}`))};useEffect(()=>{load()},[]);
  async function save(e){e.preventDefault();await api('/operations/leads',{method:'POST',body:JSON.stringify({...form,osgb_id:Number(form.osgb_id),employee_count:Number(form.employee_count),estimated_monthly_value:Number(form.estimated_monthly_value),next_action_date:form.next_action_date||null})});setOpen(false);load()}
- return <P title="CRM ve Teklif Fırsatları" action={<button onClick={()=>setOpen(true)}><Plus/>Fırsat Ekle</button>}><T rows={rows} cols={[{k:'company_name',l:'Firma'},{k:'contact_name',l:'Yetkili'},{k:'employee_count',l:'Çalışan'},{k:'stage',l:'Aşama',f:r=>stages[r.stage]||r.stage},{k:'estimated_monthly_value',l:'Aylık Değer',f:r=>money(r.estimated_monthly_value)},{k:'next_action_date',l:'Sonraki İşlem'}]}/>{open&&<M title="Yeni Satış Fırsatı" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><F label="Firma" required value={form.company_name} onChange={e=>setForm({...form,company_name:e.target.value})}/><F label="Yetkili" value={form.contact_name} onChange={e=>setForm({...form,contact_name:e.target.value})}/><F label="Telefon" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/><F label="E-posta" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/><F label="Çalışan Sayısı" type="number" value={form.employee_count} onChange={e=>setForm({...form,employee_count:e.target.value})}/><S label="Aşama" value={form.stage} onChange={e=>setForm({...form,stage:e.target.value})}>{Object.entries(stages).map(([k,v])=><option key={k} value={k}>{v}</option>)}</S><F label="Tahmini Aylık Değer" type="number" value={form.estimated_monthly_value} onChange={e=>setForm({...form,estimated_monthly_value:e.target.value})}/><F label="Sonraki İşlem" type="date" value={form.next_action_date} onChange={e=>setForm({...form,next_action_date:e.target.value})}/><div className="form-actions"><button>Kaydet</button></div></form></M>}</P>
+ async function changeStage(row,stage){
+  if(stage===row.stage) return;
+  setBusyId(row.id);
+  try{
+   await api(`/operations/leads/${row.id}`,{method:'PATCH',body:JSON.stringify({stage})});
+   await load();
+  }catch(ex){alert(ex.message||'Aşama güncellenemedi.')}
+  finally{setBusyId(null)}
+ }
+ async function convertLead(row){
+  if(row.stage==='lost'){alert('Kaybedilmiş fırsat sözleşmeye dönüştürülemez.');return}
+  if(row.stage==='won'){alert('Bu fırsat zaten kazanıldı. Yeniden dönüştürme idempotent çalışır.');}
+  if(!window.confirm(`${row.company_name} için sözleşme oluşturulsun mu?\nTeklif tutarı: ${money(row.estimated_monthly_value)}`)) return;
+  setBusyId(row.id);
+  try{
+   const res=await api(`/operations/leads/${row.id}/convert-to-contract`,{method:'POST',body:'{}'});
+   const msg=res.already_converted
+    ? `Zaten dönüştürülmüş: sözleşme ${res.contract?.contract_number||('CRM-'+row.id)}`
+    : `Sözleşme oluşturuldu: ${res.contract?.contract_number||('CRM-'+row.id)}${res.finance_id?` · ilk ay tahakkuk #${res.finance_id}`:''}`;
+   alert(msg);
+   await load();
+  }catch(ex){alert(ex.message||'Dönüştürme başarısız.')}
+  finally{setBusyId(null)}
+ }
+ return <P title="CRM ve Teklif Fırsatları" action={<button onClick={()=>setOpen(true)}><Plus/>Fırsat Ekle</button>}>
+  <T rows={rows} cols={[
+   {k:'company_name',l:'Firma'},
+   {k:'contact_name',l:'Yetkili'},
+   {k:'employee_count',l:'Çalışan'},
+   {k:'stage',l:'Aşama',f:r=>(
+    <select className="mini-select" disabled={busyId===r.id||r.stage==='won'} value={r.stage} onChange={e=>changeStage(r,e.target.value)}>
+     {Object.entries(stages).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+    </select>
+   )},
+   {k:'estimated_monthly_value',l:'Teklif tutarı (aylık)',f:r=>money(r.estimated_monthly_value)},
+   {k:'next_action_date',l:'Sonraki İşlem'},
+   {k:'x',l:'İşlem',f:r=>(
+    <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
+     <button type="button" className="mini" disabled={busyId===r.id||r.stage==='lost'} onClick={()=>convertLead(r)}>
+      {r.stage==='won'?'Sözleşme (tekrar)':'Sözleşme oluştur'}
+     </button>
+    </div>
+   )},
+  ]}/>
+  {open&&<M title="Yeni Satış Fırsatı" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}>
+   <F label="Firma" required value={form.company_name} onChange={e=>setForm({...form,company_name:e.target.value})}/>
+   <F label="Yetkili" value={form.contact_name} onChange={e=>setForm({...form,contact_name:e.target.value})}/>
+   <F label="Telefon" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
+   <F label="E-posta" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/>
+   <F label="Çalışan Sayısı" type="number" value={form.employee_count} onChange={e=>setForm({...form,employee_count:e.target.value})}/>
+   <S label="Aşama" value={form.stage} onChange={e=>setForm({...form,stage:e.target.value})}>{Object.entries(stages).map(([k,v])=><option key={k} value={k}>{v}</option>)}</S>
+   <F label="Teklif tutarı (aylık)" type="number" value={form.estimated_monthly_value} onChange={e=>setForm({...form,estimated_monthly_value:e.target.value})}/>
+   <F label="Sonraki İşlem" type="date" value={form.next_action_date} onChange={e=>setForm({...form,next_action_date:e.target.value})}/>
+   <div className="form-actions"><button>Kaydet</button></div>
+  </form></M>}
+ </P>
 }
 
 export function FinancePage({user}){

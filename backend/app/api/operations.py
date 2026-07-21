@@ -15,8 +15,9 @@ from app.core.database import get_db
 from app.models.entities import (AssignmentStatus, Company, CrmLead, FinanceTransaction, IsgProfessional,
                                  OsgbOrganization, ServiceContract, ServiceVisit, User,
                                  UserRole, VisitStatus, WorkplaceAssignment)
-from app.schemas.operations import (FinanceCreate, FinanceResponse, LeadCreate, LeadResponse,
+from app.schemas.operations import (FinanceCreate, FinanceResponse, LeadCreate, LeadResponse, LeadUpdate,
                                     VisitCreate, VisitGpsStamp, VisitPlanCreate, VisitResponse, VisitUpdate)
+from app.services.crm_convert import convert_lead_to_contract
 from app.services.visit_calendar import build_visit_calendar
 from app.services.module_kpis import build_module_kpis
 from app.services.site_verify import codes_match
@@ -604,6 +605,41 @@ def create_lead(payload: LeadCreate, db: Session = Depends(get_db), user: User =
     db.commit()
     db.refresh(obj)
     return obj
+
+
+def _get_lead(db: Session, lead_id: int, user: User) -> CrmLead:
+    obj = db.get(CrmLead, lead_id)
+    if not obj:
+        raise HTTPException(404, "Fırsat bulunamadı.")
+    scope(user, obj.osgb_id)
+    return obj
+
+
+@router.patch("/leads/{lead_id}", response_model=LeadResponse)
+def update_lead(
+    lead_id: int,
+    payload: LeadUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN)),
+):
+    obj = _get_lead(db, lead_id, user)
+    data = payload.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        setattr(obj, key, value)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.post("/leads/{lead_id}/convert-to-contract")
+def convert_lead(
+    lead_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN)),
+):
+    obj = _get_lead(db, lead_id, user)
+    return convert_lead_to_contract(db, obj)
+
 
 @router.get("/finance", response_model=list[FinanceResponse])
 def finance(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN))):
