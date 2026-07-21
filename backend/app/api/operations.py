@@ -1,6 +1,8 @@
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
+import base64
+import re
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -17,7 +19,7 @@ from app.schemas.operations import (FinanceCreate, FinanceResponse, LeadCreate, 
                                     VisitCreate, VisitGpsStamp, VisitPlanCreate, VisitResponse, VisitUpdate)
 from app.services.visit_calendar import build_visit_calendar
 from app.services.module_kpis import build_module_kpis
-from app.services.site_verify import codes_match, generate_site_verify_code, build_qr_payload
+from app.services.site_verify import codes_match
 
 router = APIRouter(prefix="/operations", tags=["OSGB Operasyonları"])
 ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
@@ -58,6 +60,40 @@ def _apply_site_verify(obj: ServiceVisit, company: Company | None, raw_code: str
     if not codes_match(company.site_verify_code, raw_code):
         raise HTTPException(400, "QR kodu bu işyeri ile eşleşmiyor.")
     obj.site_verified_at = datetime.utcnow()
+
+
+_DATA_URL_RE = re.compile(r"^data:image/(png|jpeg|jpg);base64,(.+)$", re.IGNORECASE | re.DOTALL)
+
+
+def _apply_signature(obj: ServiceVisit, data_url: str | None):
+    if not data_url or not str(data_url).strip():
+        return
+    m = _DATA_URL_RE.match(str(data_url).strip())
+    if not m:
+        raise HTTPException(422, "İmza formatı geçersiz (PNG/JPEG data URL beklenir).")
+    ext = ".png" if m.group(1).lower() == "png" else ".jpg"
+    try:
+        raw = base64.b64decode(m.group(2), validate=True)
+    except Exception as exc:
+        raise HTTPException(422, "İmza verisi çözülemedi.") from exc
+    if len(raw) < 64:
+        raise HTTPException(422, "İmza boş görünüyor.")
+    if len(raw) > 350_000:
+        raise HTTPException(413, "İmza dosyası çok büyük.")
+    if obj.signature_storage_path:
+        old = (_upload_root() / obj.signature_storage_path).resolve()
+        if _upload_root() in old.parents and old.exists():
+            try:
+                old.unlink()
+            except OSError:
+                pass
+    rel = f"{obj.osgb_id}/visits/{obj.id}_sig_{uuid4().hex[:10]}{ext}"
+    target = _upload_root() / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(raw)
+    obj.signature_file_name = f"imza{ext}"
+    obj.signature_storage_path = rel.replace("\\", "/")
+    obj.signature_captured_at = datetime.utcnow()
 
 
 def scope(user: User, osgb_id: int):
@@ -528,10 +564,32 @@ def complete_visit(
     company = db.get(Company, obj.company_id)
     _apply_site_verify(obj, company, stamp.site_verify_code)
     _apply_gps_stamp(obj, stamp.gps_lat, stamp.gps_lng, stamp.gps_accuracy_m)
+    _apply_signature(obj, stamp.signature_data_url)
     obj.status = VisitStatus.COMPLETED
     db.commit()
     db.refresh(obj)
     return obj
+
+
+@router.get("/visits/{visit_id}/signature")
+def download_visit_signature(
+    visit_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    obj = _get_visit(db, visit_id, user)
+    if not obj.signature_storage_path:
+        raise HTTPException(404, "İmza dosyası yok.")
+    path = (_upload_root() / obj.signature_storage_path).resolve()
+    if _upload_root() not in path.parents or not path.exists():
+        raise HTTPException(404, "Dosya bulunamadı.")
+    media = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
+    return FileResponse(
+        path,
+        media_type=media,
+        filename=obj.signature_file_name or path.name,
+    )
+
 
 @router.get("/leads", response_model=list[LeadResponse])
 def leads(osgb_id: int | None = None, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN))):

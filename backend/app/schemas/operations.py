@@ -55,11 +55,12 @@ class VisitPlanCreate(BaseModel):
 
 
 class VisitGpsStamp(BaseModel):
-    """Saha tamamlamada GPS + isteğe bağlı işyeri QR doğrulama."""
+    """Saha tamamlamada GPS + QR + imza."""
     gps_lat: float | None = Field(default=None, ge=-90, le=90)
     gps_lng: float | None = Field(default=None, ge=-180, le=180)
     gps_accuracy_m: float | None = Field(default=None, ge=0, le=50000)
     site_verify_code: str | None = Field(default=None, max_length=120)
+    signature_data_url: str | None = Field(default=None, max_length=400_000)
 
 
 class VisitUpdate(BaseModel):
@@ -105,6 +106,8 @@ class VisitResponse(BaseModel):
     gps_accuracy_m: float | None = None
     gps_captured_at: datetime | None = None
     site_verified_at: datetime | None = None
+    signature_file_name: str | None = None
+    signature_captured_at: datetime | None = None
     status: VisitStatus
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)

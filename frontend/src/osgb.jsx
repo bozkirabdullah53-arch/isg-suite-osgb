@@ -1,6 +1,7 @@
-import React,{useEffect,useMemo,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {api,downloadFile,uploadFile} from './api';
 import {Plus} from 'lucide-react';
+import {enqueueOfflineComplete,flushOfflineCompletes,listOfflineCompletes,removeOfflineItem} from './field_offline';
 
 const ptypes={safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli'};
 const stages={new:'Yeni',contacted:'Görüşüldü',proposal:'Teklif',negotiation:'Müzakere',won:'Kazanıldı',lost:'Kaybedildi'};
@@ -48,6 +49,64 @@ function parseSiteInput(raw){
     if(parts.length>=2) return parts.slice(1).join(':').replace(/[^A-Za-z0-9]/g,'').toUpperCase();
   }
   return text.replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+}
+
+function SignaturePad({onChange}){
+  const canvasRef=useRef(null);
+  const drawing=useRef(false);
+  const last=useRef(null);
+
+  useEffect(()=>{
+    const c=canvasRef.current; if(!c) return;
+    const ctx=c.getContext('2d');
+    ctx.fillStyle='#fff';
+    ctx.fillRect(0,0,c.width,c.height);
+    ctx.strokeStyle='#0f172a';
+    ctx.lineWidth=2.2;
+    ctx.lineCap='round';
+    ctx.lineJoin='round';
+    onChange?.(null);
+  },[]);
+
+  function pos(e){
+    const c=canvasRef.current;
+    const r=c.getBoundingClientRect();
+    const t=e.touches?.[0];
+    const x=(t?t.clientX:e.clientX)-r.left;
+    const y=(t?t.clientY:e.clientY)-r.top;
+    return {x:x*(c.width/r.width),y:y*(c.height/r.height)};
+  }
+  function start(e){e.preventDefault();drawing.current=true;last.current=pos(e)}
+  function move(e){
+    if(!drawing.current) return;
+    e.preventDefault();
+    const c=canvasRef.current; const ctx=c.getContext('2d');
+    const p=pos(e); const l=last.current;
+    ctx.beginPath(); ctx.moveTo(l.x,l.y); ctx.lineTo(p.x,p.y); ctx.stroke();
+    last.current=p;
+    onChange?.(c.toDataURL('image/png'));
+  }
+  function end(e){e?.preventDefault?.();drawing.current=false;last.current=null}
+  function clear(){
+    const c=canvasRef.current; if(!c) return;
+    const ctx=c.getContext('2d');
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
+    onChange?.(null);
+  }
+  return <div style={{gridColumn:'1/-1'}}>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+      <span style={{fontSize:13,fontWeight:600,color:'#334155'}}>Saha imzası</span>
+      <button type="button" className="mini secondary" onClick={clear}>Temizle</button>
+    </div>
+    <canvas
+      ref={canvasRef}
+      width={640}
+      height={220}
+      style={{width:'100%',height:160,border:'1px solid #cbd5e1',borderRadius:10,touchAction:'none',background:'#fff',cursor:'crosshair'}}
+      onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
+      onTouchStart={start} onTouchMove={move} onTouchEnd={end}
+    />
+  </div>
 }
 
 async function copyText(text){
@@ -736,9 +795,11 @@ export function VisitsPage({user}){
  const canEdit=isField||isOsgb;
  const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]);
  const[cal,setCal]=useState(null),[month,setMonth]=useState(()=>new Date().toISOString().slice(0,7)),[selectedDay,setSelectedDay]=useState('');
- const[open,setOpen]=useState(false),[planOpen,setPlanOpen]=useState(false),[verifyOpen,setVerifyOpen]=useState(false),[verifyVisitId,setVerifyVisitId]=useState(null),[verifyCode,setVerifyCode]=useState(''),[editing,setEditing]=useState(null),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
+ const[open,setOpen]=useState(false),[planOpen,setPlanOpen]=useState(false),[verifyOpen,setVerifyOpen]=useState(false),[verifyVisitId,setVerifyVisitId]=useState(null),[verifyCode,setVerifyCode]=useState(''),[signatureData,setSignatureData]=useState(null),[editing,setEditing]=useState(null),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
  const[notebookFile,setNotebookFile]=useState(null);
  const[siteVerifyInput,setSiteVerifyInput]=useState('');
+ const[offlineQueue,setOfflineQueue]=useState(()=>listOfflineCompletes());
+ const refreshOffline=()=>setOfflineQueue(listOfflineCompletes());
  const emptyForm={osgb_id:'',company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''};
  const emptyPlan={osgb_id:'',company_id:'',professional_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Planlı saha ziyareti',notes:''};
  const[form,setForm]=useState(emptyForm),[planForm,setPlanForm]=useState(emptyPlan);
@@ -860,7 +921,7 @@ export function VisitsPage({user}){
   }catch(ex){setErr(ex.message||'Silinemedi.')}
  }
  async function done(id){
-  setVerifyVisitId(id);setVerifyCode('');setVerifyOpen(true);setErr('');
+  setVerifyVisitId(id);setVerifyCode('');setSignatureData(null);setVerifyOpen(true);setErr('');
  }
  async function confirmComplete(e){
   e?.preventDefault?.();
@@ -869,14 +930,36 @@ export function VisitsPage({user}){
   try{
    const code=parseSiteInput(verifyCode);
    if(!code) throw new Error('İşyeri QR kodunu okutun veya kodu girin.');
+   if(!signatureData) throw new Error('Saha imzası zorunlu.');
    const gps=await captureGps();
-   await api(`/operations/visits/${verifyVisitId}/complete`,{
-    method:'PATCH',
-    body:JSON.stringify({...(gps||{}),site_verify_code:code}),
-   });
-   setVerifyOpen(false);setVerifyVisitId(null);setVerifyCode('');
+   const payload={...(gps||{}),site_verify_code:code,signature_data_url:signatureData};
+   try{
+    await api(`/operations/visits/${verifyVisitId}/complete`,{method:'PATCH',body:JSON.stringify(payload)});
+   }catch(ex){
+    const msg=String(ex.message||'');
+    if(/bağlan|network|fetch|sunucu/i.test(msg) || ex instanceof TypeError){
+     enqueueOfflineComplete({visit_id:verifyVisitId,...payload});
+     refreshOffline();
+     setVerifyOpen(false);setVerifyVisitId(null);setVerifyCode('');setSignatureData(null);
+     setErr('Çevrimdışı: tamamlama kuyruğa alındı. Bağlantı gelince senkronlayın.');
+     return;
+    }
+    throw ex;
+   }
+   setVerifyOpen(false);setVerifyVisitId(null);setVerifyCode('');setSignatureData(null);
    await load();
   }catch(ex){setErr(ex.message||'Tamamlanamadı.')}
+  finally{setBusy(false)}
+ }
+ async function syncOffline(){
+  setBusy(true);setErr('');
+  try{
+   const results=await flushOfflineCompletes(api);
+   refreshOffline();
+   const fail=results.filter(r=>!r.ok);
+   if(fail.length) setErr(`Senkron: ${results.length-fail.length} başarılı, ${fail.length} bekliyor.`);
+   await load();
+  }catch(ex){setErr(ex.message||'Senkron başarısız.')}
   finally{setBusy(false)}
  }
  async function downloadNotebook(row){
@@ -920,10 +1003,20 @@ export function VisitsPage({user}){
     <div style={{display:'flex',justifyContent:'space-between',gap:10,flexWrap:'wrap',alignItems:'flex-start',marginBottom:10}}>
      <div>
       <h3 style={{margin:'0 0 4px',fontSize:16}}>Saha portalı</h3>
-      <p style={{margin:0,color:'#64748b',fontSize:13}}>Planlı ziyaretleri buradan tamamlayın. Tamamlarken konum (GPS) damgası alınır.</p>
+      <p style={{margin:0,color:'#64748b',fontSize:13}}>Planlı ziyaretleri buradan tamamlayın. QR + GPS + imza damgası alınır.</p>
      </div>
-     <button type="button" className="mini" disabled={busy} onClick={openCreate}>+ Hızlı kayıt</button>
+     <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+      {offlineQueue.length>0&&<button type="button" className="mini secondary" disabled={busy} onClick={syncOffline}>Senkron ({offlineQueue.length})</button>}
+      <button type="button" className="mini" disabled={busy} onClick={openCreate}>+ Hızlı kayıt</button>
+     </div>
     </div>
+    {offlineQueue.length>0&&(
+     <div style={{marginBottom:10,padding:'10px 12px',borderRadius:10,background:'#fff7ed',color:'#9a3412',fontSize:13}}>
+      {offlineQueue.length} çevrimdışı tamamlama bekliyor.
+      <button type="button" className="mini" style={{marginLeft:8}} disabled={busy} onClick={syncOffline}>Şimdi gönder</button>
+      <button type="button" className="mini secondary" style={{marginLeft:6}} onClick={()=>{offlineQueue.forEach(x=>removeOfflineItem(x.id));refreshOffline()}}>Temizle</button>
+     </div>
+    )}
     <div className="cards osgb-cards" style={{marginBottom:10}}>
      <article className="metric"><span>Gecikmiş</span><strong style={{color:overdueQueue.length?'#b91c1c':undefined}}>{overdueQueue.length}</strong></article>
      <article className="metric"><span>Bugün</span><strong>{todayQueue.length}</strong></article>
@@ -945,7 +1038,7 @@ export function VisitsPage({user}){
          </div>
          <div className="actions" style={{flexWrap:'wrap'}}>
           <button type="button" className="mini secondary" onClick={()=>openEdit(r)}>Düzenle</button>
-          <button type="button" className="mini" disabled={busy} onClick={()=>done(r.id)}>{busy?'…':'QR + GPS Tamamla'}</button>
+          <button type="button" className="mini" disabled={busy} onClick={()=>done(r.id)}>{busy?'…':'QR + GPS + İmza'}</button>
          </div>
         </article>
        );
@@ -1024,18 +1117,20 @@ export function VisitsPage({user}){
    {k:'status',l:'Durum'},
    {k:'gps',l:'GPS',f:r=>fmtGps(r)},
    {k:'site',l:'QR',f:r=>r.site_verified_at?'✓':'—'},
+   {k:'sig',l:'İmza',f:r=>r.signature_captured_at?'✓':'—'},
    ...(canEdit?[{k:'x',l:'İşlem',f:r=>(
     <div className="actions" style={{flexWrap:'wrap'}}>
      <button type="button" className="mini" onClick={()=>openEdit(r)}>Düzenle</button>
      <button type="button" className="mini" onClick={()=>remove(r)}>Sil</button>
-     {isField&&r.status!=='completed'&&<button type="button" className="mini" disabled={busy} onClick={()=>done(r.id)}>QR + GPS Tamamla</button>}
+     {isField&&r.status!=='completed'&&<button type="button" className="mini" disabled={busy} onClick={()=>done(r.id)}>QR + GPS + İmza</button>}
     </div>
    )}]:[])
   ]}/>
-  {verifyOpen&&isField&&<M title="İşyeri QR Doğrulama" close={()=>{setVerifyOpen(false);setVerifyVisitId(null);setVerifyCode('');setErr('')}}>
+  {verifyOpen&&isField&&<M title="Saha doğrulama ve imza" close={()=>{setVerifyOpen(false);setVerifyVisitId(null);setVerifyCode('');setSignatureData(null);setErr('')}}>
    <form className="form-grid single" onSubmit={confirmComplete}>
-    <p style={{margin:0,color:'#64748b',fontSize:14}}>İşyerindeki QR kodu okutun veya kodu elle girin. Ardından GPS konumu alınır.</p>
+    <p style={{margin:0,color:'#64748b',fontSize:14}}>QR kodu girin, imzalayın. GPS otomatik alınır. Çevrimdışıysa kuyruğa düşer.</p>
     <F label="QR / doğrulama kodu" required value={verifyCode} onChange={e=>setVerifyCode(e.target.value)} placeholder="ISGSUITE:WP:… veya kod"/>
+    <SignaturePad onChange={setSignatureData}/>
     {err&&<p style={{color:'#b91c1c',margin:0}}>{err}</p>}
     <div className="form-actions"><button disabled={busy}>{busy?'Tamamlanıyor…':'Doğrula ve Tamamla'}</button></div>
    </form>

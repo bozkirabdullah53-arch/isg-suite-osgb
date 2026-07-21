@@ -722,6 +722,9 @@ class ServiceVisit(Base):
     gps_accuracy_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     gps_captured_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     site_verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    signature_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    signature_storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    signature_captured_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status: Mapped[VisitStatus] = mapped_column(Enum(VisitStatus), default=VisitStatus.PLANNED, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
