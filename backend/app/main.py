@@ -44,7 +44,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.110',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.111',lifespan=lifespan)
 
 from app.core.validation_tr import register_turkish_validation
 register_turkish_validation(app)
@@ -69,13 +69,15 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.110',
+        'version': '0.9.111',
         'crm_convert': 'lead-to-contract-v1',
         'contracts_ui': 'osgb-monitor-v1',
         'contracts_actions': 'end-suspend-v1',
         'finance_status': 'patch-paid-v1',
         'crm_finance_link': 'company-filter-v1',
         'finance_accrual': 'monthly-v1',
+        'finance_overdue_alert': 'dashboard-v1',
+        'crm_stage_filters': 'won-lost-v1',
         'pdf_layout': 'pro-2026',
         'companies_admin': 'osgb-admin-crud-v1',
         'company_fields': 'address-phone-contact-v1',
@@ -130,7 +132,7 @@ def health():
         'duty_board': 'resilient-my-duties',
         'osgb_menu': 'global-monitor-no-docs',
         'osgb_home': 'workplaces-pros-unassigned-contracts',
-        'csgb_pack': 'kurumsal-shows-when-saved',
+        'csgb_pack': 'audit-bundle-v2',
         'notifications': 'osgb-deadline-scan',
         'rate_limit': 'simple-rpm-120',
         'secret_key_guard': 'prod-block-default',

@@ -79,7 +79,9 @@ def test_health_flag_crm_convert(client):
     assert body["contracts_actions"] == "end-suspend-v1"
     assert body["finance_status"] == "patch-paid-v1"
     assert body["crm_finance_link"] == "company-filter-v1"
-    assert body["finance_accrual"] == "monthly-active-v1"
+    assert body["finance_accrual"] == "monthly-v1"
+    assert body["finance_overdue_alert"] == "dashboard-v1"
+    assert body["crm_stage_filters"] == "won-lost-v1"
 
 
 def test_patch_lead_stage(client):

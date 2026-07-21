@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ExternalLink, FileStack, Pencil, Printer, RefreshCw, X} from 'lucide-react';
-import {api} from './api';
+import {AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Download, ExternalLink, FileStack, Pencil, Printer, RefreshCw, X} from 'lucide-react';
+import {api, downloadFile} from './api';
 
 const STATUS_LABELS = {
   ready: 'Hazır',
@@ -16,6 +16,8 @@ const ITEM_ACTIONS = {
   gorevlendirme_katip: {kind: 'nav', module: 'assignments', label: 'Görevlendirmeler'},
   hizmet_sozlesmesi: {kind: 'nav', module: 'companies', label: 'İşyerleri (sözleşme için önce bağla)'},
   saha_sure: {kind: 'nav', module: 'visits', label: 'Saha Takvimi'},
+  tespit_defteri: {kind: 'nav', module: 'visits', label: 'Saha Takvimi (tespit defteri)'},
+  kapasite_6331: {kind: 'nav', module: 'osgb_oversight', label: 'Hizmet Denetimi / kapasite'},
   risk_degerlendirme: {kind: 'nav', module: 'osgb_oversight', label: 'Hizmet Denetimi (saha doldurur)'},
   yillik_plan: {kind: 'nav', module: 'osgb_oversight', label: 'Hizmet Denetimi (saha doldurur)'},
   egitim: {kind: 'nav', module: 'osgb_oversight', label: 'Hizmet Denetimi (saha doldurur)'},
@@ -52,6 +54,12 @@ function evidenceLine(ev) {
   if ('isg_katip' in ev) return `Görevlendirme #${ev.id} · KATİP: ${ev.isg_katip || 'yok'}`;
   if (ev.category) return `${ev.category}: ${ev.count}`;
   if (ev.field) return `${ev.field}: ${ev.value}`;
+  if (ev.has_notebook != null && ev.visit_date) {
+    return `Ziyaret #${ev.id} · ${ev.visit_date}${ev.has_notebook ? ' · defter var' : ' · defter yok'}`;
+  }
+  if (ev.company_name && ev.role_label) {
+    return `${ev.company_name} · ${ev.role_label} · ${ev.actual_minutes ?? 0}/${ev.legal_required_minutes ?? 0} dk (${ev.status || '—'})`;
+  }
   try { return JSON.stringify(ev); } catch { return String(ev); }
 }
 
@@ -90,6 +98,8 @@ export function CsgbAuditPackPage({user, onNavigate}) {
   const [editOpen, setEditOpen] = useState(false);
   const [editBusy, setEditBusy] = useState(false);
   const [editErr, setEditErr] = useState('');
+  const [dlBusy, setDlBusy] = useState(false);
+  const [dlErr, setDlErr] = useState('');
   const [form, setForm] = useState({
     name: '',
     authorization_number: '',
@@ -217,6 +227,27 @@ export function CsgbAuditPackPage({user, onNavigate}) {
     }
   }
 
+  async function downloadBundle() {
+    const id = osgbId || data?.osgb?.id;
+    if (!id) {
+      setDlErr('OSGB seçili değil.');
+      return;
+    }
+    setDlBusy(true);
+    setDlErr('');
+    try {
+      const stamp = new Date().toISOString().slice(0, 10);
+      await downloadFile(
+        `/osgb/csgb-audit-pack/bundle?osgb_id=${id}`,
+        `csgb-denetim-paketi-${stamp}.zip`,
+      );
+    } catch (ex) {
+      setDlErr(ex.message || 'ZIP indirilemedi.');
+    } finally {
+      setDlBusy(false);
+    }
+  }
+
   if (!canView) {
     return (
       <>
@@ -232,7 +263,7 @@ export function CsgbAuditPackPage({user, onNavigate}) {
         <div>
           <h3>ÇSGB Denetim Belge Paketi</h3>
           <p style={{margin: '4px 0 0', color: '#64748b', fontSize: 13}}>
-            Checklist: kurumsal alanları burada düzenleyin; kadro/saha kalemleri ilgili menüye gider.
+            Checklist + tek tık ZIP: görevlendirme, ziyaret/defter, sözleşme, 6331 kapasite.
           </p>
         </div>
         <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
@@ -245,12 +276,23 @@ export function CsgbAuditPackPage({user, onNavigate}) {
             <RefreshCw size={16} /> Yenile
           </button>
           {data && (
+            <button type="button" disabled={dlBusy || busy} onClick={() => void downloadBundle()}>
+              <Download size={16} /> {dlBusy ? 'Paket hazırlanıyor…' : 'Denetim paketi (ZIP)'}
+            </button>
+          )}
+          {data && (
             <button type="button" className="ghost" onClick={() => window.print()}>
               <Printer size={16} /> Yazdır
             </button>
           )}
         </div>
       </div>
+
+      {dlErr && (
+        <section className="panel" style={{marginBottom: 16, borderColor: '#fecaca', background: '#fef2f2'}}>
+          <p style={{margin: 0, color: '#7f1d1d', fontSize: 14}}>{dlErr}</p>
+        </section>
+      )}
 
       {error && (
         <section className="panel" style={{marginBottom: 16, borderColor: '#fecaca', background: '#fef2f2'}}>
@@ -300,6 +342,8 @@ export function CsgbAuditPackPage({user, onNavigate}) {
                   İşyeri: {data.osgb?.company_count ?? 0} ·
                   Profesyonel: {data.osgb?.professional_count ?? 0} ·
                   Görevlendirme: {data.osgb?.assignment_count ?? 0}
+                  {data.osgb?.visit_count != null ? ` · Ziyaret: ${data.osgb.visit_count}` : ''}
+                  {data.osgb?.notebook_count != null ? ` · Defter: ${data.osgb.notebook_count}` : ''}
                 </p>
                 {data.has_activity === false && (
                   <p style={{margin: '10px 0 0', padding: '10px 12px', borderRadius: 8, background: '#fef3c7', color: '#92400e', fontSize: 13, fontWeight: 600, maxWidth: 640}}>

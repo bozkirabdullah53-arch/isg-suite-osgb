@@ -2,7 +2,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -19,6 +19,7 @@ from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCrea
 from app.services.osgb_admin import provision_professional_login
 from app.services.osgb_oversight import build_oversight, build_professional_performance, seed_oversight_demo
 from app.services.csgb_audit_pack import build_csgb_audit_pack
+from app.services.csgb_audit_bundle import build_csgb_audit_bundle_zip
 from app.services.capacity_engine import build_capacity_overview, sync_assignment_required
 
 router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
@@ -192,6 +193,25 @@ def csgb_audit_pack(
             raise HTTPException(400, "Kullanıcıya bağlı OSGB yok.")
         osgb_id = user.osgb_id
     return build_csgb_audit_pack(db, osgb_id=osgb_id)
+
+
+@router.get("/csgb-audit-pack/bundle")
+def csgb_audit_pack_bundle(
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    """Tek tık müfettiş ZIP: checklist PDF + görevlendirme / ziyaret+defter / sözleşme / kapasite."""
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id:
+            raise HTTPException(400, "Kullanıcıya bağlı OSGB yok.")
+        osgb_id = user.osgb_id
+    data, filename = build_csgb_audit_bundle_zip(db, osgb_id=osgb_id)
+    return StreamingResponse(
+        iter([data]),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/professionals/{professional_id}/performance")

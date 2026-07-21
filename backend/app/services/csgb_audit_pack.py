@@ -29,6 +29,7 @@ from app.models.entities import (
     TrainingSession,
     WorkplaceAssignment,
 )
+from app.services.capacity_engine import build_capacity_overview
 
 
 def _item(
@@ -202,9 +203,9 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
                 )
             ).all()
         )
-    visit_n = (
-        db.scalar(select(func.count()).select_from(ServiceVisit).where(ServiceVisit.osgb_id == oid)) or 0
-    )
+    visits = list(db.scalars(select(ServiceVisit).where(ServiceVisit.osgb_id == oid)).all())
+    visit_n = len(visits)
+    notebook_n = sum(1 for v in visits if v.notebook_storage_path or v.notebook_file_name)
 
     # Operasyonel faaliyet: genel denetim %’si için; kurumsal kart ayrı değerlendirilir
     has_ops = bool(companies or active_pros or assignments or visit_n)
@@ -386,8 +387,91 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
                 if visit_n
                 else "Saha ziyareti / süre kaydı bulunamadı (müfettiş asgari süre kanıtı ister)."
             ),
+            evidence=[
+                {
+                    "id": v.id,
+                    "visit_date": v.visit_date.isoformat() if v.visit_date else None,
+                    "duration_minutes": v.duration_minutes,
+                    "has_notebook": bool(v.notebook_storage_path or v.notebook_file_name),
+                }
+                for v in visits[:40]
+            ],
             group=G_SOZ[0],
             group_label=G_SOZ[1],
+        )
+    )
+
+    # 6b) Tespit / öneri defteri (notebook)
+    if not visit_n:
+        nb_status, nb_detail = "missing", "Ziyaret yok; tespit defteri kanıtı üretilemez."
+    elif notebook_n == 0:
+        nb_status, nb_detail = "missing", f"{visit_n} ziyaret var; hiçbirinde tespit defteri yüklenmemiş."
+    elif notebook_n < visit_n:
+        nb_status = "partial"
+        nb_detail = f"{notebook_n}/{visit_n} ziyarette tespit defteri (notebook) yüklü."
+    else:
+        nb_status, nb_detail = "ready", f"{notebook_n} ziyaretin tümünde tespit defteri yüklü."
+    items.append(
+        _item(
+            "tespit_defteri",
+            "Saha ziyaretleri — tespit / öneri defteri",
+            "İSG Hizmetleri Yönetmeliği — saha kayıt / defter",
+            nb_status if assignments or visit_n else "missing",
+            count=notebook_n,
+            detail=nb_detail,
+            evidence=[
+                {
+                    "id": v.id,
+                    "visit_date": v.visit_date.isoformat() if v.visit_date else None,
+                    "notebook_file_name": v.notebook_file_name,
+                    "has_notebook": True,
+                }
+                for v in visits
+                if v.notebook_storage_path or v.notebook_file_name
+            ][:40],
+            group=G_SAHA[0],
+            group_label=G_SAHA[1],
+        )
+    )
+
+    # 6c) Kapasite / 6331 asgari süre anlık görüntüsü
+    capacity = build_capacity_overview(db, oid)
+    cap_sum = capacity.get("summary") or {}
+    cap_assign = int(cap_sum.get("assignments") or 0)
+    under = int(cap_sum.get("under_served_firms") or 0)
+    at_risk = int(cap_sum.get("at_risk_firms") or 0)
+    if cap_assign <= 0:
+        cap_status, cap_detail = "missing", "Aktif görevlendirme yok; kapasite hesaplanamadı."
+    elif under > 0:
+        cap_status = "partial" if under < cap_assign else "missing"
+        cap_detail = (
+            f"{cap_assign} görevlendirme; kritik eksik süre: {under}, risk: {at_risk} "
+            f"(dönem {capacity.get('period')})."
+        )
+    elif at_risk > 0:
+        cap_status, cap_detail = "partial", f"{cap_assign} görevlendirme; uyarı seviyesinde: {at_risk}."
+    else:
+        cap_status, cap_detail = "ready", f"{cap_assign} görevlendirme; asgari süre karşılama yeterli görünüyor."
+    items.append(
+        _item(
+            "kapasite_6331",
+            "6331 kapasite / asgari süre snapshot",
+            "6331 / İSG Hizmetleri Yönetmeliği — asgari aylık süre",
+            cap_status,
+            count=cap_assign,
+            detail=cap_detail,
+            evidence=[
+                {
+                    "company_name": f.get("company_name"),
+                    "role_label": f.get("role_label"),
+                    "legal_required_minutes": f.get("legal_required_minutes"),
+                    "actual_minutes": f.get("actual_minutes"),
+                    "status": f.get("status"),
+                }
+                for f in (capacity.get("firms") or [])[:40]
+            ],
+            group=G_KADRO[0],
+            group_label=G_KADRO[1],
         )
     )
 
@@ -518,14 +602,18 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             "company_count": len(companies),
             "professional_count": len(active_pros),
             "assignment_count": len(assignments),
+            "visit_count": visit_n,
+            "notebook_count": notebook_n,
         },
         "generated_at": date.today().isoformat(),
+        "bundle_version": "audit-bundle-v2",
         "has_activity": has_ops,
         "legal_note": (
             "Kurumsal (yetki/kimlik) kalemler kaydettiğinizde Hazır/Kısmi görünür. "
             "Genel denetim hazırlık yüzdesi ise işyeri + profesyonel + görevlendirme olmadan %0 kalır. "
             "Placeholder (OSGB-001, 1234567890, Global Yönetici) hazır sayılmaz. "
-            "Kaynak menüler: İşyerleri, İSG Profesyonelleri, Görevlendirmeler."
+            "Tek tık ZIP: görevlendirme, ziyaret+tespit defteri, sözleşme, 6331 kapasite snapshot. "
+            "Kaynak menüler: İşyerleri, İSG Profesyonelleri, Görevlendirmeler, Saha Takvimi."
         ),
         "summary": {
             "ready": ready,
@@ -534,9 +622,14 @@ def build_csgb_audit_pack(db: Session, osgb_id: int | None = None) -> dict[str, 
             "total": len(items),
             "priority_count": len(priority),
             "readiness_pct": readiness_pct,
+            "visits": visit_n,
+            "notebooks": notebook_n,
+            "capacity_under_served": under,
         },
+        "capacity_period": capacity.get("period"),
         "groups": groups,
         "items": items,
         "gaps": gaps,
         "report_title": f"ÇSGB OSGB Denetim Belge Paketi — {osgb.name}",
+        "download_hint": "GET /osgb/csgb-audit-pack/bundle — PDF checklist + JSON kanıt ZIP",
     }
