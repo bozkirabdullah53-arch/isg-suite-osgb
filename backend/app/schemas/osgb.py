@@ -163,6 +163,19 @@ class ContractCreate(BaseModel):
     end_date: date | None = None
     monthly_fee: int | None = None
 
+class ContractUpdate(BaseModel):
+    status: str | None = None
+    end_date: date | None = None
+    monthly_fee: int | None = None
+
+    @model_validator(mode="after")
+    def sanitize(self):
+        if self.status is not None:
+            allowed = {"active", "ended", "suspended", "cancelled"}
+            if self.status not in allowed:
+                raise ValueError("Geçersiz sözleşme durumu.")
+        return self
+
 class ContractResponse(ContractCreate):
     id: int
     status: str

@@ -209,6 +209,26 @@ class FinanceCreate(BaseModel):
         return self
 
 
+class FinanceUpdate(BaseModel):
+    status: str | None = None
+    description: str | None = None
+    due_date: date | None = None
+
+    @model_validator(mode="after")
+    def sanitize(self):
+        if self.status is not None:
+            allowed = {"pending", "paid", "cancelled"}
+            if self.status not in allowed:
+                raise ValueError("Geçersiz finans durumu.")
+        if self.description is not None:
+            self.description = assert_meaningful_text(self.description, label="Açıklama", min_len=3, required=False)
+        if self.due_date is not None:
+            self.due_date = assert_event_date(
+                self.due_date, label="Vade tarihi", required=False, allow_future_days=3650
+            )
+        return self
+
+
 class FinanceResponse(FinanceCreate):
     id: int
     created_at: datetime

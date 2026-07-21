@@ -1316,6 +1316,26 @@ export function ContractsPage({user}){
    {k:'monthly_fee',l:'Aylık ücret',f:r=>r.monthly_fee==null?'—':money(r.monthly_fee)},
    {k:'status',l:'Durum',f:r=><span className={`status-badge ${statusBadge(r)}`}>{statusLabel[r.status]||r.status}{r._expiring?' · yaklaşıyor':''}</span>},
    {k:'source',l:'Kaynak',f:r=>String(r.contract_number||'').startsWith('CRM-')?'CRM dönüşüm':'Manuel'},
+   {k:'act',l:'İşlem',f:r=>(
+    <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
+     {r.status==='active'&&<>
+      <button type="button" className="mini secondary" onClick={async()=>{
+       if(!window.confirm('Sözleşme askıya alınsın mı?')) return;
+       await api(`/osgb/contracts/${r.id}`,{method:'PATCH',body:JSON.stringify({status:'suspended'})});
+       load();
+      }}>Askıya al</button>
+      <button type="button" className="mini" onClick={async()=>{
+       if(!window.confirm('Sözleşme sonlandırılsın mı?')) return;
+       await api(`/osgb/contracts/${r.id}`,{method:'PATCH',body:JSON.stringify({status:'ended'})});
+       load();
+      }}>Sonlandır</button>
+     </>}
+     {r.status==='suspended'&&<button type="button" className="mini" onClick={async()=>{
+      await api(`/osgb/contracts/${r.id}`,{method:'PATCH',body:JSON.stringify({status:'active'})});
+      load();
+     }}>Aktifleştir</button>}
+    </div>
+   )},
   ]}/>
   {open&&<M title="Yeni Hizmet Sözleşmesi" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}>
    <S label="İşyeri" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}>
@@ -1332,10 +1352,19 @@ export function ContractsPage({user}){
 }
 
 export function FinancePage({user}){
- const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState({osgb_id:'',company_id:'',transaction_type:'income',category:'service',amount:0,transaction_date:'',due_date:'',status:'pending',description:''});
+ const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[busyId,setBusyId]=useState(null),[form,setForm]=useState({osgb_id:'',company_id:'',transaction_type:'income',category:'service',amount:0,transaction_date:'',due_date:'',status:'pending',description:''});
  const catLabel={service:'Hizmet',contract:'Sözleşme tahakkuku',salary:'Maaş',expense:'Gider',other:'Diğer'};
+ const statusLabel={pending:'Bekliyor',paid:'Ödendi',cancelled:'İptal'};
  const load=async()=>{const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);const id=osgbId(user,o);setOrgs(o);setCompanies(c);setForm(x=>({...x,osgb_id:id}));if(id)setRows(await api(`/operations/finance?osgb_id=${id}`))};useEffect(()=>{load()},[]);
  async function save(e){e.preventDefault();await api('/operations/finance',{method:'POST',body:JSON.stringify({...form,osgb_id:Number(form.osgb_id),company_id:form.company_id?Number(form.company_id):null,amount:Number(form.amount),due_date:form.due_date||null})});setOpen(false);load()}
+ async function setStatus(row,status){
+  setBusyId(row.id);
+  try{
+   await api(`/operations/finance/${row.id}`,{method:'PATCH',body:JSON.stringify({status})});
+   await load();
+  }catch(ex){alert(ex.message||'Durum güncellenemedi.')}
+  finally{setBusyId(null)}
+ }
  return <P title="Finans ve Cari Takip" action={<button onClick={()=>setOpen(true)}><Plus/>Finans Kaydı</button>}>
   <div className="finance-summary">
    <b>Toplam Gelir: {money(rows.filter(x=>x.transaction_type==='income'&&x.status==='paid').reduce((a,b)=>a+b.amount,0))}</b>
@@ -1348,8 +1377,16 @@ export function FinancePage({user}){
    {k:'transaction_type',l:'Tür',f:r=>r.transaction_type==='income'?'Gelir':'Gider'},
    {k:'category',l:'Kategori',f:r=>catLabel[r.category]||r.category},
    {k:'amount',l:'Tutar',f:r=>money(r.amount)},
-   {k:'status',l:'Durum'},
+   {k:'status',l:'Durum',f:r=>statusLabel[r.status]||r.status},
    {k:'description',l:'Açıklama',f:r=>r.description||'—'},
+   {k:'act',l:'İşlem',f:r=>(
+    <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
+     {r.status==='pending'&&<>
+      <button type="button" className="mini" disabled={busyId===r.id} onClick={()=>setStatus(r,'paid')}>Ödendi</button>
+      <button type="button" className="mini secondary" disabled={busyId===r.id} onClick={()=>setStatus(r,'cancelled')}>İptal</button>
+     </>}
+    </div>
+   )},
   ]}/>
   {open&&<M title="Yeni Finans Kaydı" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}>
    <S label="Tür" value={form.transaction_type} onChange={e=>setForm({...form,transaction_type:e.target.value})}><option value="income">Gelir</option><option value="expense">Gider</option></S>

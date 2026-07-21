@@ -15,7 +15,7 @@ from app.core.database import get_db
 from app.models.entities import (AssignmentStatus, Company, CrmLead, FinanceTransaction, IsgProfessional,
                                  OsgbOrganization, ServiceContract, ServiceVisit, User,
                                  UserRole, VisitStatus, WorkplaceAssignment)
-from app.schemas.operations import (FinanceCreate, FinanceResponse, LeadCreate, LeadResponse, LeadUpdate,
+from app.schemas.operations import (FinanceCreate, FinanceResponse, FinanceUpdate, LeadCreate, LeadResponse, LeadUpdate,
                                     VisitCreate, VisitGpsStamp, VisitPlanCreate, VisitResponse, VisitUpdate)
 from app.services.crm_convert import convert_lead_to_contract
 from app.services.visit_calendar import build_visit_calendar
@@ -655,6 +655,25 @@ def create_finance(payload: FinanceCreate, db: Session = Depends(get_db), user: 
             raise HTTPException(400, "İşyeri OSGB ile eşleşmiyor.")
     obj = FinanceTransaction(**payload.model_dump())
     db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.patch("/finance/{finance_id}", response_model=FinanceResponse)
+def update_finance(
+    finance_id: int,
+    payload: FinanceUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN)),
+):
+    obj = db.get(FinanceTransaction, finance_id)
+    if not obj:
+        raise HTTPException(404, "Finans kaydı bulunamadı.")
+    scope(user, obj.osgb_id)
+    data = payload.model_dump(exclude_unset=True)
+    for key, value in data.items():
+        setattr(obj, key, value)
     db.commit()
     db.refresh(obj)
     return obj

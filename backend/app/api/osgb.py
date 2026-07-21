@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import (AssignmentStatus, Company, IsgProfessional, OsgbOrganization, ServiceContract,
                                  User, UserRole, WorkplaceAssignment)
-from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCreate,
+from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCreate, ContractUpdate,
                               ContractResponse, OsgbCreate, OsgbResponse, OsgbUpdate,
                               ProfessionalCreate, ProfessionalCreateResponse, ProfessionalLoginAccount,
                               ProfessionalResponse, ProfessionalUpdate)
@@ -619,6 +619,14 @@ def delete_assignment(
     return {"ok": True, "id": aid, "message": "Görevlendirme silindi."}
 
 
+def _get_contract(db: Session, contract_id: int, user: User) -> ServiceContract:
+    obj = db.get(ServiceContract, contract_id)
+    if not obj:
+        raise HTTPException(404, "Sözleşme bulunamadı.")
+    _scope_osgb(user, obj.osgb_id)
+    return obj
+
+
 @router.get("/contracts", response_model=list[ContractResponse])
 def list_contracts(db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
     stmt = select(ServiceContract)
@@ -635,4 +643,75 @@ def create_contract(payload: ContractCreate, db: Session = Depends(get_db), user
     if not company or company.osgb_id != payload.osgb_id: raise HTTPException(400, "İşyeri bu OSGB'ye bağlı değil.")
     obj = ServiceContract(**payload.model_dump())
     db.add(obj); db.commit(); db.refresh(obj)
+    return obj
+
+
+@router.patch("/contracts/{contract_id}", response_model=ContractResponse)
+def update_contract(
+    contract_id: int,
+    payload: ContractUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    from datetime import date as date_cls
+
+    obj = _get_contract(db, contract_id, user)
+    data = payload.model_dump(exclude_unset=True)
+    if "status" in data and data["status"] is not None:
+        new_status = data["status"]
+        if obj.status == "ended" and new_status == "suspended":
+            raise HTTPException(400, "Sonlandırılmış sözleşme askıya alınamaz. Önce aktifleştirin.")
+        if new_status == "ended" and "end_date" not in data:
+            data.setdefault("end_date", date_cls.today())
+    for k, v in data.items():
+        setattr(obj, k, v)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.patch("/contracts/{contract_id}/suspend", response_model=ContractResponse)
+def suspend_contract(
+    contract_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    obj = _get_contract(db, contract_id, user)
+    if obj.status == "ended":
+        raise HTTPException(400, "Sonlandırılmış sözleşme askıya alınamaz. Önce aktifleştirin.")
+    obj.status = "suspended"
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.patch("/contracts/{contract_id}/activate", response_model=ContractResponse)
+def activate_contract(
+    contract_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    obj = _get_contract(db, contract_id, user)
+    obj.status = "active"
+    if obj.end_date:
+        obj.end_date = None
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.patch("/contracts/{contract_id}/end", response_model=ContractResponse)
+def end_contract(
+    contract_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """Sözleşmeyi sonlandır (bitiş tarihi bugün)."""
+    from datetime import date as date_cls
+
+    obj = _get_contract(db, contract_id, user)
+    obj.status = "ended"
+    obj.end_date = date_cls.today()
+    db.commit()
+    db.refresh(obj)
     return obj
