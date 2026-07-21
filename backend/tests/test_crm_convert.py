@@ -73,8 +73,9 @@ def test_health_flag_crm_convert(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.106"
+    assert body["version"] == "0.9.107"
     assert body["crm_convert"] == "lead-to-contract-v1"
+    assert body["contracts_ui"] == "osgb-monitor-v1"
 
 
 def test_patch_lead_stage(client):
@@ -201,3 +202,26 @@ def test_convert_lost_lead_rejected(client):
     lead_id = create.json()["id"]
     conv = client.post(f"/api/v1/operations/leads/{lead_id}/convert-to-contract", headers=headers)
     assert conv.status_code == 400
+
+
+def test_contracts_list_shows_converted(client):
+    token, seed = _seed_admin(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    create = client.post(
+        "/api/v1/operations/leads",
+        headers=headers,
+        json={
+            "osgb_id": seed["osgb_id"],
+            "company_name": "Epsilon Sözleşme",
+            "estimated_monthly_value": 12000,
+            "stage": "proposal",
+        },
+    )
+    lead_id = create.json()["id"]
+    conv = client.post(f"/api/v1/operations/leads/{lead_id}/convert-to-contract", headers=headers)
+    assert conv.status_code == 200, conv.text
+
+    listed = client.get("/api/v1/osgb/contracts", headers=headers)
+    assert listed.status_code == 200, listed.text
+    numbers = [c["contract_number"] for c in listed.json()]
+    assert f"CRM-{lead_id}" in numbers

@@ -1245,9 +1245,127 @@ export function CrmPage({user}){
  </P>
 }
 
+export function ContractsPage({user}){
+ const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false);
+ const[filter,setFilter]=useState('all'); // all | active | expiring | expired
+ const[form,setForm]=useState({osgb_id:'',company_id:'',contract_number:'',start_date:'',end_date:'',monthly_fee:0});
+ const today=()=>new Date().toISOString().slice(0,10);
+ const daysLeft=(end)=>{
+  if(!end) return null;
+  const a=new Date(today()+'T00:00:00');
+  const b=new Date(String(end).slice(0,10)+'T00:00:00');
+  return Math.round((b-a)/86400000);
+ };
+ const load=async()=>{
+  const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);
+  const id=osgbId(user,o);
+  setOrgs(o);setCompanies(c);
+  setForm(x=>({...x,osgb_id:id,start_date:x.start_date||today()}));
+  if(id) setRows(await api('/osgb/contracts'));
+ };
+ useEffect(()=>{load()},[]);
+ async function save(e){
+  e.preventDefault();
+  await api('/osgb/contracts',{method:'POST',body:JSON.stringify({
+   osgb_id:Number(form.osgb_id),
+   company_id:Number(form.company_id),
+   contract_number:form.contract_number.trim(),
+   start_date:form.start_date,
+   end_date:form.end_date||null,
+   monthly_fee:form.monthly_fee===''||form.monthly_fee==null?null:Number(form.monthly_fee),
+  })});
+  setOpen(false);
+  setForm(x=>({...x,company_id:'',contract_number:'',end_date:'',monthly_fee:0,start_date:today()}));
+  load();
+ }
+ const statusLabel={active:'Aktif',ended:'Sona erdi',suspended:'Askıda',cancelled:'İptal'};
+ const enriched=rows.map(r=>{
+  const d=daysLeft(r.end_date);
+  return {...r,_days:d,_expiring:r.status==='active'&&d!=null&&d>=0&&d<=30,_expired:d!=null&&d<0};
+ });
+ const activeCount=enriched.filter(r=>r.status==='active').length;
+ const expiringCount=enriched.filter(r=>r._expiring).length;
+ const expiredCount=enriched.filter(r=>r._expired||r.status==='ended').length;
+ const mrr=enriched.filter(r=>r.status==='active').reduce((a,b)=>a+(Number(b.monthly_fee)||0),0);
+ const filtered=enriched.filter(r=>{
+  if(filter==='active') return r.status==='active';
+  if(filter==='expiring') return r._expiring;
+  if(filter==='expired') return r._expired||r.status==='ended';
+  return true;
+ });
+ const statusBadge=(r)=>{
+  if(r._expired||r.status==='ended') return 'badge-danger';
+  if(r._expiring) return 'badge-warn';
+  if(r.status==='active') return 'badge-ok';
+  return 'badge-muted';
+ };
+ return <P title="Hizmet Sözleşmeleri" action={<button onClick={()=>setOpen(true)}><Plus/>Sözleşme Ekle</button>}>
+  <div className="finance-summary" style={{marginBottom:12}}>
+   <b style={{cursor:'pointer'}} onClick={()=>setFilter('active')}>Aktif: {activeCount}</b>
+   <b style={{cursor:'pointer'}} onClick={()=>setFilter('expiring')}>30 günde biten: {expiringCount}</b>
+   <b style={{cursor:'pointer'}} onClick={()=>setFilter('expired')}>Süresi dolan: {expiredCount}</b>
+   <b>Aylık ciro (aktif): {money(mrr)}</b>
+   {filter!=='all'&&<button type="button" className="mini secondary" onClick={()=>setFilter('all')}>Tümünü göster</button>}
+  </div>
+  <T rows={filtered} cols={[
+   {k:'contract_number',l:'Sözleşme No'},
+   {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||r.company_id},
+   {k:'start_date',l:'Başlangıç'},
+   {k:'end_date',l:'Bitiş',f:r=>r.end_date||'—'},
+   {k:'days',l:'Kalan gün',f:r=>r._days==null?'—':(r._days<0?`${Math.abs(r._days)} gün geçti`:`${r._days} gün`)},
+   {k:'monthly_fee',l:'Aylık ücret',f:r=>r.monthly_fee==null?'—':money(r.monthly_fee)},
+   {k:'status',l:'Durum',f:r=><span className={`status-badge ${statusBadge(r)}`}>{statusLabel[r.status]||r.status}{r._expiring?' · yaklaşıyor':''}</span>},
+   {k:'source',l:'Kaynak',f:r=>String(r.contract_number||'').startsWith('CRM-')?'CRM dönüşüm':'Manuel'},
+  ]}/>
+  {open&&<M title="Yeni Hizmet Sözleşmesi" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}>
+   <S label="İşyeri" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}>
+    <option value="">Seçiniz</option>
+    {companies.filter(x=>!form.osgb_id||x.osgb_id==null||Number(x.osgb_id)===Number(form.osgb_id)).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
+   </S>
+   <F label="Sözleşme No" required value={form.contract_number} onChange={e=>setForm({...form,contract_number:e.target.value})}/>
+   <F label="Başlangıç" type="date" required value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/>
+   <F label="Bitiş" type="date" value={form.end_date} onChange={e=>setForm({...form,end_date:e.target.value})}/>
+   <F label="Aylık ücret (TL)" type="number" value={form.monthly_fee} onChange={e=>setForm({...form,monthly_fee:e.target.value})}/>
+   <div className="form-actions"><button>Kaydet</button></div>
+  </form></M>}
+ </P>
+}
+
 export function FinancePage({user}){
  const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState({osgb_id:'',company_id:'',transaction_type:'income',category:'service',amount:0,transaction_date:'',due_date:'',status:'pending',description:''});
+ const catLabel={service:'Hizmet',contract:'Sözleşme tahakkuku',salary:'Maaş',expense:'Gider',other:'Diğer'};
  const load=async()=>{const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);const id=osgbId(user,o);setOrgs(o);setCompanies(c);setForm(x=>({...x,osgb_id:id}));if(id)setRows(await api(`/operations/finance?osgb_id=${id}`))};useEffect(()=>{load()},[]);
  async function save(e){e.preventDefault();await api('/operations/finance',{method:'POST',body:JSON.stringify({...form,osgb_id:Number(form.osgb_id),company_id:form.company_id?Number(form.company_id):null,amount:Number(form.amount),due_date:form.due_date||null})});setOpen(false);load()}
- return <P title="Finans ve Cari Takip" action={<button onClick={()=>setOpen(true)}><Plus/>Finans Kaydı</button>}><div className="finance-summary"><b>Toplam Gelir: {money(rows.filter(x=>x.transaction_type==='income'&&x.status==='paid').reduce((a,b)=>a+b.amount,0))}</b><b>Toplam Gider: {money(rows.filter(x=>x.transaction_type==='expense'&&x.status==='paid').reduce((a,b)=>a+b.amount,0))}</b></div><T rows={rows} cols={[{k:'transaction_date',l:'Tarih'},{k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||'Genel'},{k:'transaction_type',l:'Tür',f:r=>r.transaction_type==='income'?'Gelir':'Gider'},{k:'category',l:'Kategori'},{k:'amount',l:'Tutar',f:r=>money(r.amount)},{k:'status',l:'Durum'}]}/>{open&&<M title="Yeni Finans Kaydı" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><S label="Tür" value={form.transaction_type} onChange={e=>setForm({...form,transaction_type:e.target.value})}><option value="income">Gelir</option><option value="expense">Gider</option></S><S label="İşyeri" value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Genel</option>{companies.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</S><F label="Kategori" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}/><F label="Tutar (TL)" type="number" required value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})}/><F label="İşlem Tarihi" type="date" required value={form.transaction_date} onChange={e=>setForm({...form,transaction_date:e.target.value})}/><F label="Vade Tarihi" type="date" value={form.due_date} onChange={e=>setForm({...form,due_date:e.target.value})}/><S label="Durum" value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="pending">Bekliyor</option><option value="paid">Ödendi</option><option value="cancelled">İptal</option></S><F label="Açıklama" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><div className="form-actions"><button>Kaydet</button></div></form></M>}</P>
+ return <P title="Finans ve Cari Takip" action={<button onClick={()=>setOpen(true)}><Plus/>Finans Kaydı</button>}>
+  <div className="finance-summary">
+   <b>Toplam Gelir: {money(rows.filter(x=>x.transaction_type==='income'&&x.status==='paid').reduce((a,b)=>a+b.amount,0))}</b>
+   <b>Toplam Gider: {money(rows.filter(x=>x.transaction_type==='expense'&&x.status==='paid').reduce((a,b)=>a+b.amount,0))}</b>
+   <b>Bekleyen sözleşme tahakkuku: {money(rows.filter(x=>x.category==='contract'&&x.status==='pending').reduce((a,b)=>a+b.amount,0))}</b>
+  </div>
+  <T rows={rows} cols={[
+   {k:'transaction_date',l:'Tarih'},
+   {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||'Genel'},
+   {k:'transaction_type',l:'Tür',f:r=>r.transaction_type==='income'?'Gelir':'Gider'},
+   {k:'category',l:'Kategori',f:r=>catLabel[r.category]||r.category},
+   {k:'amount',l:'Tutar',f:r=>money(r.amount)},
+   {k:'status',l:'Durum'},
+   {k:'description',l:'Açıklama',f:r=>r.description||'—'},
+  ]}/>
+  {open&&<M title="Yeni Finans Kaydı" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}>
+   <S label="Tür" value={form.transaction_type} onChange={e=>setForm({...form,transaction_type:e.target.value})}><option value="income">Gelir</option><option value="expense">Gider</option></S>
+   <S label="İşyeri" value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Genel</option>{companies.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</S>
+   <S label="Kategori" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>
+    <option value="service">Hizmet</option>
+    <option value="contract">Sözleşme tahakkuku</option>
+    <option value="salary">Maaş</option>
+    <option value="other">Diğer</option>
+   </S>
+   <F label="Tutar (TL)" type="number" required value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})}/>
+   <F label="İşlem Tarihi" type="date" required value={form.transaction_date} onChange={e=>setForm({...form,transaction_date:e.target.value})}/>
+   <F label="Vade Tarihi" type="date" value={form.due_date} onChange={e=>setForm({...form,due_date:e.target.value})}/>
+   <S label="Durum" value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option value="pending">Bekliyor</option><option value="paid">Ödendi</option><option value="cancelled">İptal</option></S>
+   <F label="Açıklama" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/>
+   <div className="form-actions"><button>Kaydet</button></div>
+  </form></M>}
+ </P>
 }
