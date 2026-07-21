@@ -1,4 +1,4 @@
-﻿"""Faz 3.1 â€” CRM fÄ±rsat â†’ sÃ¶zleÅŸme + ilk tahakkuk."""
+"""Faz 3.1 — CRM fırsat → sözleşme + ilk tahakkuk."""
 from __future__ import annotations
 
 import pytest
@@ -45,7 +45,7 @@ def _seed_admin(client: TestClient) -> tuple[str, dict]:
             name="CRM OSGB",
             authorization_number="C-001",
             tax_number="1112223334",
-            responsible_manager="YÃ¶netici",
+            responsible_manager="Yönetici",
             email="crm-osgb@test.com",
             is_active=True,
         )
@@ -73,7 +73,7 @@ def test_health_flag_crm_convert(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.118"
+    assert body["version"] == "0.9.119"
     assert body["crm_convert"] == "lead-to-contract-v1"
     assert body["contracts_ui"] == "osgb-monitor-v1"
     assert body["contracts_actions"] == "end-suspend-v1"
@@ -92,8 +92,8 @@ def test_patch_lead_stage(client):
         headers=headers,
         json={
             "osgb_id": seed["osgb_id"],
-            "company_name": "Alfa Metal AÅž",
-            "contact_name": "AyÅŸe YÄ±lmaz",
+            "company_name": "Alfa Metal AŞ",
+            "contact_name": "Ayşe Yılmaz",
             "employee_count": 40,
             "hazard_class": "Tehlikeli",
             "stage": "new",
@@ -120,7 +120,7 @@ def test_convert_lead_creates_company_contract_finance(client):
         headers=headers,
         json={
             "osgb_id": seed["osgb_id"],
-            "company_name": "Beta GÄ±da Ltd",
+            "company_name": "Beta Gıda Ltd",
             "contact_name": "Mehmet Demir",
             "phone": "05321234567",
             "employee_count": 25,
@@ -218,7 +218,7 @@ def test_contracts_list_shows_converted(client):
         headers=headers,
         json={
             "osgb_id": seed["osgb_id"],
-            "company_name": "Epsilon SÃ¶zleÅŸme",
+            "company_name": "Epsilon Sözleşme",
             "estimated_monthly_value": 12000,
             "stage": "proposal",
         },
@@ -279,7 +279,7 @@ def test_contract_suspend_end_activate_flow(client):
         headers=headers,
         json={
             "osgb_id": seed["osgb_id"],
-            "company_name": "Theta SÃ¶zleÅŸme Aksiyon",
+            "company_name": "Theta Sözleşme Aksiyon",
             "estimated_monthly_value": 11000,
             "stage": "proposal",
         },
@@ -314,7 +314,7 @@ def test_contract_suspend_end_activate_flow(client):
 def test_finance_accrue_month_idempotent(client):
     token, seed = _seed_admin(client)
     headers = {"Authorization": f"Bearer {token}"}
-    # Manuel sÃ¶zleÅŸme: CRM convert ilk ay tahakkuku yok â†’ accrue oluÅŸturmalÄ±
+    # Manuel sözleşme: CRM convert ilk ay tahakkuku yok → accrue oluşturmalı
     from app.core.database import SessionLocal
     from app.models.entities import Company, ServiceContract
     from datetime import date

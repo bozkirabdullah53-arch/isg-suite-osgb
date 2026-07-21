@@ -15,7 +15,8 @@ def health(db: Session = Depends(get_db)):
         "status": "healthy",
         "database": "connected",
         "timestamp": datetime.utcnow(),
-        "version": "0.9.118",
+        "version": "0.9.119",
         "ai_hazard_hint": "keyword-v1",
         "mevzuat_panel": "highlights-v1",
+        "sds_register": "chemical-register-v1",
     }

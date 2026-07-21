@@ -1,4 +1,4 @@
-﻿"""Monthly finance accrual (tahakkuk) for active ServiceContracts."""
+"""Monthly finance accrual (tahakkuk) for active ServiceContracts."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -124,7 +124,7 @@ def test_health_flag_finance_accrual(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.118"
+    assert body["version"] == "0.9.119"
     assert body["finance_accrual"] == "monthly-v1"
     assert body["finance_overdue_alert"] == "dashboard-v2"
     assert body["crm_stage_filters"] == "won-lost-v1"

@@ -1,4 +1,4 @@
-﻿"""0.9.113 â€” KATÄ°P / gÃ¶revlendirme sÃ¶zleÅŸme hazÄ±rlÄ±k stub (missing-contract-v1)."""
+"""0.9.113 — KATİP / görevlendirme sözleşme hazırlık stub (missing-contract-v1)."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -52,10 +52,10 @@ def _seed(client: TestClient) -> tuple[str, dict]:
 
     with SessionLocal() as db:
         osgb = OsgbOrganization(
-            name="KATÄ°P Prep OSGB",
+            name="KATİP Prep OSGB",
             authorization_number="YETKI-KATIP-1",
             tax_number="9988776655",
-            responsible_manager="Prep YÃ¶netici",
+            responsible_manager="Prep Yönetici",
             email="katip-prep@test.com",
             phone="02120000000",
             address="Ankara Test",
@@ -64,7 +64,7 @@ def _seed(client: TestClient) -> tuple[str, dict]:
         db.add(osgb)
         db.flush()
         company = Company(
-            name="KATÄ°P Firma AÅž",
+            name="KATİP Firma AŞ",
             osgb_id=osgb.id,
             is_active=True,
             hazard_class="Tehlikeli",
@@ -147,7 +147,7 @@ def test_health_flag_katip_prep(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.118"
+    assert body["version"] == "0.9.119"
     assert body["katip_prep"] == "missing-contract-v1"
 
 
@@ -169,7 +169,7 @@ def test_katip_prep_lists_gaps_and_reminder_counts(client):
     gap = body["gaps"][0]
     assert gap["missing_katip_number"] is True
     assert gap["missing_contract_file"] is True
-    assert "KATÄ°P" in gap["reminder_hint"] or "eksik" in gap["reminder_hint"].lower()
+    assert "KATİP" in gap["reminder_hint"] or "eksik" in gap["reminder_hint"].lower()
 
 
 def test_katip_prep_csv_export(client):

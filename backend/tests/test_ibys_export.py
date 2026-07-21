@@ -1,4 +1,4 @@
-﻿"""0.9.115 â€” Ä°BYS export stub (employee/company CSV ZIP package)."""
+"""0.9.115 — İBYS export stub (employee/company CSV ZIP package)."""
 from __future__ import annotations
 
 from datetime import date
@@ -45,19 +45,19 @@ def _seed(client: TestClient) -> tuple[str, dict]:
 
     with SessionLocal() as db:
         osgb = OsgbOrganization(
-            name="Ä°BYS OSGB",
+            name="İBYS OSGB",
             authorization_number="YETKI-IBYS-1",
             tax_number="1122334455",
-            responsible_manager="Ä°bys YÃ¶netici",
+            responsible_manager="İbys Yönetici",
             email="ibys-osgb@test.com",
             phone="02121112233",
-            address="Ä°zmir Test",
+            address="İzmir Test",
             is_active=True,
         )
         db.add(osgb)
         db.flush()
         company = Company(
-            name="Ä°BYS Firma Ltd",
+            name="İBYS Firma Ltd",
             osgb_id=osgb.id,
             is_active=True,
             hazard_class="Az Tehlikeli",
@@ -68,9 +68,9 @@ def _seed(client: TestClient) -> tuple[str, dict]:
         db.add(
             Employee(
                 company_id=company.id,
-                full_name="AyÅŸe Personel",
+                full_name="Ayşe Personel",
                 national_id_masked="123*****89",
-                job_title="OperatÃ¶r",
+                job_title="Operatör",
                 start_date=date(2024, 1, 15),
                 is_active=True,
             )
@@ -78,7 +78,7 @@ def _seed(client: TestClient) -> tuple[str, dict]:
         db.add(
             User(
                 email="ibys-admin@test.com",
-                full_name="Ä°bys Admin",
+                full_name="İbys Admin",
                 hashed_password=get_password_hash("TestPass123!"),
                 role=UserRole.COMPANY_ADMIN,
                 osgb_id=osgb.id,
@@ -100,7 +100,7 @@ def test_health_flag_ibys_export(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.118"
+    assert body["version"] == "0.9.119"
     assert body["ibys_export"] == "csv-package-v1"
     assert body["katip_prep"] == "missing-contract-v1"
 
@@ -131,5 +131,5 @@ def test_ibys_export_zip_package(client):
         assert "02-personel.csv" in names
         firms = zf.read("01-isyerleri.csv").decode("utf-8-sig")
         people = zf.read("02-personel.csv").decode("utf-8-sig")
-        assert "Ä°BYS Firma Ltd" in firms or "IBYS Firma" in firms
-        assert "AyÅŸe Personel" in people or "Personel" in people
+        assert "İBYS Firma Ltd" in firms or "IBYS Firma" in firms
+        assert "Ayşe Personel" in people or "Personel" in people

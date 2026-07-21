@@ -97,7 +97,7 @@ def test_health_flag_ai_hazard_hint(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.118"
+    assert body["version"] == "0.9.119"
     assert body["ai_hazard_hint"] == "keyword-v1"
 
 

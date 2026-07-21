@@ -21,6 +21,7 @@ from app.models.entities import (
     IncidentRootCause,
     IsgRecord,
     Notification,
+    ChemicalProduct,
     PpeAssignment,
     PpeAssignmentPhoto,
     RiskAssessment,
@@ -84,6 +85,7 @@ def _purge_company_data(db: Session, company_id: int) -> None:
 
     db.execute(delete(HealthRecord).where(HealthRecord.company_id == company_id))
     db.execute(delete(IsgRecord).where(IsgRecord.company_id == company_id))
+    db.execute(delete(ChemicalProduct).where(ChemicalProduct.company_id == company_id))
     db.execute(delete(DocumentRecord).where(DocumentRecord.company_id == company_id))
     db.execute(delete(AnnualPlanItem).where(AnnualPlanItem.company_id == company_id))
     db.execute(delete(ServiceVisit).where(ServiceVisit.company_id == company_id))

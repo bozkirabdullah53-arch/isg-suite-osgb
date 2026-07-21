@@ -201,3 +201,40 @@ def repair_schema() -> None:
                             """
                         )
                     )
+
+    # 0.9.119 — SDS kimyasal ürün sicili
+    if "chemical_products" not in tables:
+        bool_false = "0" if dialect == "sqlite" else "false"
+        bool_true = "1" if dialect == "sqlite" else "true"
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"""
+                    CREATE TABLE chemical_products (
+                        id INTEGER PRIMARY KEY {"AUTOINCREMENT" if dialect == "sqlite" else ""},
+                        company_id INTEGER NOT NULL,
+                        branch_id INTEGER,
+                        product_name VARCHAR(220) NOT NULL,
+                        cas_number VARCHAR(40),
+                        has_sds_file BOOLEAN NOT NULL DEFAULT {bool_false},
+                        document_id INTEGER,
+                        next_review_date DATE,
+                        notes VARCHAR(1000),
+                        is_active BOOLEAN NOT NULL DEFAULT {bool_true},
+                        created_by_id INTEGER NOT NULL,
+                        created_at TIMESTAMP,
+                        updated_at TIMESTAMP
+                    )
+                    """
+                )
+            )
+            for idx_sql in (
+                "CREATE INDEX IF NOT EXISTS ix_chemical_products_company_id ON chemical_products (company_id)",
+                "CREATE INDEX IF NOT EXISTS ix_chemical_products_product_name ON chemical_products (product_name)",
+                "CREATE INDEX IF NOT EXISTS ix_chemical_products_next_review_date ON chemical_products (next_review_date)",
+                "CREATE INDEX IF NOT EXISTS ix_chemical_products_document_id ON chemical_products (document_id)",
+            ):
+                try:
+                    conn.execute(text(idx_sql))
+                except Exception:
+                    pass

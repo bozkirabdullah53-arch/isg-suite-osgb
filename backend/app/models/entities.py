@@ -1026,3 +1026,27 @@ class PpeAssignmentPhoto(Base):
     content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     assignment: Mapped[PpeAssignment] = relationship(back_populates="photos")
+
+
+class ChemicalProduct(Base):
+    """0.9.119 — SDS/PKD kimyasal ürün sicili (saha uzmanı)."""
+
+    __tablename__ = "chemical_products"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id"), nullable=True)
+    product_name: Mapped[str] = mapped_column(String(220), index=True)
+    cas_number: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    has_sds_file: Mapped[bool] = mapped_column(Boolean, default=False)
+    document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("document_records.id"), nullable=True, index=True
+    )
+    next_review_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
