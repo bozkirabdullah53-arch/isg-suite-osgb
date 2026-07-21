@@ -100,7 +100,7 @@ def test_health_flag_ibys_export(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.124"
+    assert body["version"] == "0.9.125"
     assert body["ibys_export"] == "csv-package-v1"
     assert body["katip_prep"] == "missing-contract-v1"
 

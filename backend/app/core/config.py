@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     clamav_host: str | None = None
     clamav_port: int = 3310
     clamav_timeout_sec: float = 30.0
+    # İBYS / İSG-KATİP adapter scaffold (optional; never commit real secrets)
+    ibys_api_url: str | None = None
+    ibys_api_key: str | None = None
+    katip_api_url: str | None = None
+    katip_api_key: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 

@@ -139,12 +139,13 @@ export function OsgbDashboard({user, onNavigate}){
  const[csgb,setCsgb]=useState(null);
  const[csgbDlBusy,setCsgbDlBusy]=useState(false);
  const[integ,setInteg]=useState(null);
+ const[adapterStatus,setAdapterStatus]=useState(null);
  const[unassignedOpen,setUnassignedOpen]=useState(false);
  const[unassignedType,setUnassignedType]=useState('safety_specialist');
  const[contractsOpen,setContractsOpen]=useState(false);
 
  async function load(id){
-  if(!id){setData(null);setOps(null);setKpis(null);setCsgb(null);setInteg(null);return}
+  if(!id){setData(null);setOps(null);setKpis(null);setCsgb(null);setInteg(null);setAdapterStatus(null);return}
   setData(await api(`/operations/dashboard?osgb_id=${id}`));
   try{
    setOps(await api(`/osgb/oversight?osgb_id=${id}`));
@@ -158,6 +159,9 @@ export function OsgbDashboard({user, onNavigate}){
   try{
    setInteg(await api(`/osgb/integration-readiness?osgb_id=${id}`));
   }catch(_){setInteg(null)}
+  try{
+   setAdapterStatus(await api('/osgb/integrations/status'));
+  }catch(_){setAdapterStatus(null)}
  }
 
  useEffect(()=>{
@@ -246,6 +250,25 @@ export function OsgbDashboard({user, onNavigate}){
      <button type="button" className="mini secondary" onClick={()=>go('csgb_audit')}>İBYS / ÇSGB paketi</button>
      <button type="button" className="mini secondary" onClick={()=>go('assignments')}>KATİP / görevlendirme</button>
     </div>
+    {adapterStatus&&(
+     <div style={{marginTop:12,paddingTop:10,borderTop:'1px solid #e2e8f0',fontSize:12,color:'#64748b'}}>
+      <span>Adapter: </span>
+      <strong style={{color:adapterStatus.summary?.ibys_configured?'#166534':'#92400e'}}>
+       İBYS {adapterStatus.summary?.ibys_configured?'yapılandırıldı':'stub'}
+      </strong>
+      <span> · </span>
+      <strong style={{color:adapterStatus.summary?.katip_configured?'#166534':'#92400e'}}>
+       KATİP {adapterStatus.summary?.katip_configured?'yapılandırıldı':'stub'}
+      </strong>
+      {(adapterStatus.adapters?.ibys?.last_stub_export_at||adapterStatus.adapters?.katip?.last_stub_export_at)&&(
+       <div style={{marginTop:4,color:'#94a3b8'}}>
+        Son stub export:
+        {adapterStatus.adapters?.ibys?.last_stub_export_at?` İBYS ${adapterStatus.adapters.ibys.last_stub_export_at}`:''}
+        {adapterStatus.adapters?.katip?.last_stub_export_at?` · KATİP ${adapterStatus.adapters.katip.last_stub_export_at}`:''}
+       </div>
+      )}
+     </div>
+    )}
     {integ.stub&&(
      <p style={{margin:'10px 0 0',color:'#94a3b8',fontSize:12}}>
       Not: Resmi İBYS/KATİP API entegrasyonu henüz yok — bu kart hazırlık durumunu gösterir.
