@@ -73,10 +73,12 @@ def test_health_flag_crm_convert(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.108"
+    assert body["version"] == "0.9.109"
     assert body["crm_convert"] == "lead-to-contract-v1"
     assert body["contracts_ui"] == "osgb-monitor-v1"
+    assert body["contracts_actions"] == "end-suspend-v1"
     assert body["finance_status"] == "patch-paid-v1"
+    assert body["crm_finance_link"] == "company-filter-v1"
 
 
 def test_patch_lead_stage(client):
@@ -264,3 +266,43 @@ def test_finance_mark_paid_and_contract_end(client):
     assert ended.status_code == 200, ended.text
     assert ended.json()["status"] == "ended"
     assert ended.json()["end_date"] is not None
+
+
+def test_contract_suspend_end_activate_flow(client):
+    token, seed = _seed_admin(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    create = client.post(
+        "/api/v1/operations/leads",
+        headers=headers,
+        json={
+            "osgb_id": seed["osgb_id"],
+            "company_name": "Theta Sözleşme Aksiyon",
+            "estimated_monthly_value": 11000,
+            "stage": "proposal",
+        },
+    )
+    lead_id = create.json()["id"]
+    conv = client.post(f"/api/v1/operations/leads/{lead_id}/convert-to-contract", headers=headers)
+    assert conv.status_code == 200, conv.text
+    contract_id = conv.json()["contract"]["id"]
+
+    sus = client.patch(f"/api/v1/osgb/contracts/{contract_id}/suspend", headers=headers)
+    assert sus.status_code == 200, sus.text
+    assert sus.json()["status"] == "suspended"
+
+    act = client.patch(f"/api/v1/osgb/contracts/{contract_id}/activate", headers=headers)
+    assert act.status_code == 200, act.text
+    assert act.json()["status"] == "active"
+
+    end = client.patch(f"/api/v1/osgb/contracts/{contract_id}/end", headers=headers)
+    assert end.status_code == 200, end.text
+    assert end.json()["status"] == "ended"
+    assert end.json()["end_date"] is not None
+
+    bad = client.patch(f"/api/v1/osgb/contracts/{contract_id}/suspend", headers=headers)
+    assert bad.status_code == 400
+
+    react = client.patch(f"/api/v1/osgb/contracts/{contract_id}/activate", headers=headers)
+    assert react.status_code == 200, react.text
+    assert react.json()["status"] == "active"
+    assert react.json()["end_date"] is None

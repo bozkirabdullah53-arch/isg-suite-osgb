@@ -1077,7 +1077,7 @@ function App(){
     professionals:<ProfessionalsPage user={user} onNavigate={goModule}/>,
     assignments:<AssignmentsPage user={user}/>,
     visits:<VisitsPage user={user}/>,
-    crm:<CrmPage user={user}/>,
+    crm:<CrmPage user={user} onNavigate={goModule}/>,
     contracts:<ContractsPage user={user}/>,
     finance:<FinancePage user={user}/>,
     dashboard:<Dashboard summary={summary} user={user} onNavigate={goModule}/>,

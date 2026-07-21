@@ -1182,7 +1182,7 @@ export function VisitsPage({user}){
  </P>
 }
 
-export function CrmPage({user}){
+export function CrmPage({user,onNavigate}){
  const[orgs,setOrgs]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[busyId,setBusyId]=useState(null);
  const[form,setForm]=useState({osgb_id:'',company_name:'',contact_name:'',phone:'',email:'',employee_count:0,hazard_class:'Tehlikeli',stage:'new',estimated_monthly_value:0,next_action_date:'',notes:''});
  const load=async()=>{const o=await api('/osgb');const id=osgbId(user,o);setOrgs(o);setForm(x=>({...x,osgb_id:id}));if(id)setRows(await api(`/operations/leads?osgb_id=${id}`))};useEffect(()=>{load()},[]);
@@ -1208,6 +1208,11 @@ export function CrmPage({user}){
     : `Sözleşme oluşturuldu: ${res.contract?.contract_number||('CRM-'+row.id)}${res.finance_id?` · ilk ay tahakkuk #${res.finance_id}`:''}`;
    alert(msg);
    await load();
+   const cid=res.contract?.company_id;
+   if(cid && typeof onNavigate==='function' && window.confirm('Finans kaydına gitmek ister misiniz? (işyeri filtresi uygulanır)')){
+    try{sessionStorage.setItem('isg_finance_company_id',String(cid))}catch(_){ /* ignore */ }
+    onNavigate('finance');
+   }
   }catch(ex){alert(ex.message||'Dönüştürme başarısız.')}
   finally{setBusyId(null)}
  }
@@ -1246,8 +1251,8 @@ export function CrmPage({user}){
 }
 
 export function ContractsPage({user}){
- const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false);
- const[filter,setFilter]=useState('all'); // all | active | expiring | expired
+ const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[busyId,setBusyId]=useState(null);
+ const[filter,setFilter]=useState('all'); // all | active | expiring | expired | suspended
  const[form,setForm]=useState({osgb_id:'',company_id:'',contract_number:'',start_date:'',end_date:'',monthly_fee:0});
  const today=()=>new Date().toISOString().slice(0,10);
  const daysLeft=(end)=>{
@@ -1278,6 +1283,16 @@ export function ContractsPage({user}){
   setForm(x=>({...x,company_id:'',contract_number:'',end_date:'',monthly_fee:0,start_date:today()}));
   load();
  }
+ async function act(row,action){
+  const labels={end:'sonlandırmak',suspend:'askıya almak',activate:'yeniden aktifleştirmek'};
+  if(!window.confirm(`Bu sözleşmeyi ${labels[action]||action} istiyor musunuz?`)) return;
+  setBusyId(row.id);
+  try{
+   await api(`/osgb/contracts/${row.id}/${action}`,{method:'PATCH'});
+   await load();
+  }catch(ex){alert(ex.message||'İşlem başarısız.')}
+  finally{setBusyId(null)}
+ }
  const statusLabel={active:'Aktif',ended:'Sona erdi',suspended:'Askıda',cancelled:'İptal'};
  const enriched=rows.map(r=>{
   const d=daysLeft(r.end_date);
@@ -1286,15 +1301,18 @@ export function ContractsPage({user}){
  const activeCount=enriched.filter(r=>r.status==='active').length;
  const expiringCount=enriched.filter(r=>r._expiring).length;
  const expiredCount=enriched.filter(r=>r._expired||r.status==='ended').length;
+ const suspendedCount=enriched.filter(r=>r.status==='suspended').length;
  const mrr=enriched.filter(r=>r.status==='active').reduce((a,b)=>a+(Number(b.monthly_fee)||0),0);
  const filtered=enriched.filter(r=>{
   if(filter==='active') return r.status==='active';
   if(filter==='expiring') return r._expiring;
   if(filter==='expired') return r._expired||r.status==='ended';
+  if(filter==='suspended') return r.status==='suspended';
   return true;
  });
  const statusBadge=(r)=>{
   if(r._expired||r.status==='ended') return 'badge-danger';
+  if(r.status==='suspended') return 'badge-muted';
   if(r._expiring) return 'badge-warn';
   if(r.status==='active') return 'badge-ok';
   return 'badge-muted';
@@ -1303,6 +1321,7 @@ export function ContractsPage({user}){
   <div className="finance-summary" style={{marginBottom:12}}>
    <b style={{cursor:'pointer'}} onClick={()=>setFilter('active')}>Aktif: {activeCount}</b>
    <b style={{cursor:'pointer'}} onClick={()=>setFilter('expiring')}>30 günde biten: {expiringCount}</b>
+   <b style={{cursor:'pointer'}} onClick={()=>setFilter('suspended')}>Askıda: {suspendedCount}</b>
    <b style={{cursor:'pointer'}} onClick={()=>setFilter('expired')}>Süresi dolan: {expiredCount}</b>
    <b>Aylık ciro (aktif): {money(mrr)}</b>
    {filter!=='all'&&<button type="button" className="mini secondary" onClick={()=>setFilter('all')}>Tümünü göster</button>}
@@ -1319,21 +1338,12 @@ export function ContractsPage({user}){
    {k:'act',l:'İşlem',f:r=>(
     <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
      {r.status==='active'&&<>
-      <button type="button" className="mini secondary" onClick={async()=>{
-       if(!window.confirm('Sözleşme askıya alınsın mı?')) return;
-       await api(`/osgb/contracts/${r.id}`,{method:'PATCH',body:JSON.stringify({status:'suspended'})});
-       load();
-      }}>Askıya al</button>
-      <button type="button" className="mini" onClick={async()=>{
-       if(!window.confirm('Sözleşme sonlandırılsın mı?')) return;
-       await api(`/osgb/contracts/${r.id}`,{method:'PATCH',body:JSON.stringify({status:'ended'})});
-       load();
-      }}>Sonlandır</button>
+      <button type="button" className="mini" disabled={busyId===r.id} onClick={()=>act(r,'suspend')}>Askıya Al</button>
+      <button type="button" className="mini" disabled={busyId===r.id} onClick={()=>act(r,'end')}>Sonlandır</button>
      </>}
-     {r.status==='suspended'&&<button type="button" className="mini" onClick={async()=>{
-      await api(`/osgb/contracts/${r.id}`,{method:'PATCH',body:JSON.stringify({status:'active'})});
-      load();
-     }}>Aktifleştir</button>}
+     {(r.status==='suspended'||r.status==='ended')&&(
+      <button type="button" className="mini" disabled={busyId===r.id} onClick={()=>act(r,'activate')}>Aktifleştir</button>
+     )}
     </div>
    )},
   ]}/>
@@ -1352,10 +1362,24 @@ export function ContractsPage({user}){
 }
 
 export function FinancePage({user}){
- const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[busyId,setBusyId]=useState(null),[form,setForm]=useState({osgb_id:'',company_id:'',transaction_type:'income',category:'service',amount:0,transaction_date:'',due_date:'',status:'pending',description:''});
+ const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[busyId,setBusyId]=useState(null);
+ const[companyFilter,setCompanyFilter]=useState(()=>{
+  try{return sessionStorage.getItem('isg_finance_company_id')||''}catch{return ''}
+ });
+ const[form,setForm]=useState({osgb_id:'',company_id:'',transaction_type:'income',category:'service',amount:0,transaction_date:'',due_date:'',status:'pending',description:''});
  const catLabel={service:'Hizmet',contract:'Sözleşme tahakkuku',salary:'Maaş',expense:'Gider',other:'Diğer'};
  const statusLabel={pending:'Bekliyor',paid:'Ödendi',cancelled:'İptal'};
- const load=async()=>{const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);const id=osgbId(user,o);setOrgs(o);setCompanies(c);setForm(x=>({...x,osgb_id:id}));if(id)setRows(await api(`/operations/finance?osgb_id=${id}`))};useEffect(()=>{load()},[]);
+ const load=async()=>{
+  const[o,c]=await Promise.all([api('/osgb'),api('/companies')]);
+  const id=osgbId(user,o);
+  setOrgs(o);setCompanies(c);setForm(x=>({...x,osgb_id:id}));
+  if(id)setRows(await api(`/operations/finance?osgb_id=${id}`));
+ };
+ useEffect(()=>{load()},[]);
+ useEffect(()=>{
+  if(!companyFilter) return;
+  try{sessionStorage.removeItem('isg_finance_company_id')}catch(_){ /* ignore */ }
+ },[companyFilter]);
  async function save(e){e.preventDefault();await api('/operations/finance',{method:'POST',body:JSON.stringify({...form,osgb_id:Number(form.osgb_id),company_id:form.company_id?Number(form.company_id):null,amount:Number(form.amount),due_date:form.due_date||null})});setOpen(false);load()}
  async function setStatus(row,status){
   setBusyId(row.id);
@@ -1365,13 +1389,24 @@ export function FinancePage({user}){
   }catch(ex){alert(ex.message||'Durum güncellenemedi.')}
   finally{setBusyId(null)}
  }
+ const visible=companyFilter?rows.filter(r=>String(r.company_id)===String(companyFilter)):rows;
  return <P title="Finans ve Cari Takip" action={<button onClick={()=>setOpen(true)}><Plus/>Finans Kaydı</button>}>
   <div className="finance-summary">
-   <b>Toplam Gelir: {money(rows.filter(x=>x.transaction_type==='income'&&x.status==='paid').reduce((a,b)=>a+b.amount,0))}</b>
-   <b>Toplam Gider: {money(rows.filter(x=>x.transaction_type==='expense'&&x.status==='paid').reduce((a,b)=>a+b.amount,0))}</b>
-   <b>Bekleyen sözleşme tahakkuku: {money(rows.filter(x=>x.category==='contract'&&x.status==='pending').reduce((a,b)=>a+b.amount,0))}</b>
+   <b>Toplam Gelir: {money(visible.filter(x=>x.transaction_type==='income'&&x.status==='paid').reduce((a,b)=>a+b.amount,0))}</b>
+   <b>Toplam Gider: {money(visible.filter(x=>x.transaction_type==='expense'&&x.status==='paid').reduce((a,b)=>a+b.amount,0))}</b>
+   <b>Bekleyen sözleşme tahakkuku: {money(visible.filter(x=>x.category==='contract'&&x.status==='pending').reduce((a,b)=>a+b.amount,0))}</b>
   </div>
-  <T rows={rows} cols={[
+  <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:12,alignItems:'center'}}>
+   <label className="field" style={{margin:0,minWidth:200}}>
+    <span>İşyeri filtresi</span>
+    <select value={companyFilter} onChange={e=>setCompanyFilter(e.target.value)}>
+     <option value="">Tümü</option>
+     {companies.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
+    </select>
+   </label>
+   {companyFilter&&<button type="button" className="mini secondary" onClick={()=>setCompanyFilter('')}>Filtreyi temizle</button>}
+  </div>
+  <T rows={visible} cols={[
    {k:'transaction_date',l:'Tarih'},
    {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||'Genel'},
    {k:'transaction_type',l:'Tür',f:r=>r.transaction_type==='income'?'Gelir':'Gider'},
