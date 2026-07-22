@@ -26,7 +26,7 @@ export const SERVICE_AGREEMENT = {
     },
     {
       heading: '3. Başvuru, deneme ve abonelik',
-      body: `Müşteri, başvuru formunda verdiği bilgilerin doğru ve güncel olduğunu beyan eder. Sağlayıcı başvuruyu inceler; uygun bulması hâlinde Müşteri’ye yönetici hesabı açılır ve on (10) günlük deneme süresi başlar. Deneme süresi sonunda abonelik/paket koşulları ayrıca bildirilir veya mevcut paket üzerinden devam edilir. Deneme veya abonelik süresi içinde Müşteri, Platform’u yalnızca kendi OSGB faaliyetleri kapsamında kullanabilir.`,
+      body: `Müşteri, başvuru formunda verdiği bilgilerin doğru ve güncel olduğunu beyan eder. Sağlayıcı başvuruyu inceler; uygun bulması hâlinde Müşteri’ye yönetici hesabı açılır ve platformda tanımlı deneme süresi (en fazla doksan (90) gün) başlar. Deneme süresi sonunda abonelik/paket koşulları ayrıca bildirilir veya mevcut paket üzerinden devam edilir. Deneme veya abonelik süresi içinde Müşteri, Platform’u yalnızca kendi OSGB faaliyetleri kapsamında kullanabilir.`,
     },
     {
       heading: '4. Müşteri’nin yükümlülükleri',

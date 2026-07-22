@@ -236,6 +236,7 @@ export function EisaOverviewPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [adminCreds, setAdminCreds] = useState(null);
+  const [trialDays, setTrialDays] = useState(90);
 
   const load = async (status = appStatus) => {
     setBusy(true);
@@ -255,6 +256,12 @@ export function EisaOverviewPage() {
       errors.push(`Başvurular: ${e.message}`);
       setApps([]);
     }
+    try {
+      const s = await api('/eisa/settings');
+      if (s?.trial_days) setTrialDays(Number(s.trial_days) || 90);
+    } catch {
+      /* ayar yoksa varsayılan */
+    }
     if (errors.length) setMsg(errors.join(' · '));
     setBusy(false);
   };
@@ -262,7 +269,7 @@ export function EisaOverviewPage() {
   useEffect(() => { void load(appStatus); }, [appStatus]);
 
   async function approve(id) {
-    if (!window.confirm('Başvuruyu onaylayıp 10 günlük deneme başlatılsın mı?')) return;
+    if (!window.confirm(`Başvuruyu onaylayıp ${trialDays} günlük deneme başlatılsın mı?`)) return;
     setBusy(true);
     try {
       const r = await api(`/eisa/applications/${id}/approve`, { method: 'POST' });
@@ -1598,9 +1605,10 @@ export function EisaSystemSettingsPage() {
     <Page title="Sistem Ayarları" action={<RefreshButton busy={busy} onClick={load} />}>
       <Msg text={msg} />
       <form className="form-grid" onSubmit={save} style={{ maxWidth: 480 }}>
-        <label className="field"><span>Deneme süresi (gün)</span>
-          <input type="number" min="1" value={settings.trial_days} onChange={(e) => setSettings({ ...settings, trial_days: e.target.value })} />
+        <label className="field"><span>Deneme süresi (gün, 1–90)</span>
+          <input type="number" min="1" max="90" value={settings.trial_days} onChange={(e) => setSettings({ ...settings, trial_days: e.target.value })} />
         </label>
+        <p className="muted" style={{fontSize: 12, marginTop: -8}}>Yeni OSGB onaylarında ve ilk abonelik oluşturmada bu süre uygulanır. Aktif deneme/abonelik yeniden onayla uzatılmaz.</p>
         <label className="field"><span>Yaklaşan abonelik penceresi (gün)</span>
           <input type="number" min="1" value={settings.expiring_window_days} onChange={(e) => setSettings({ ...settings, expiring_window_days: e.target.value })} />
         </label>
@@ -1637,6 +1645,14 @@ export function OsgbApplyPage({ onBack }) {
   const [submittedId, setSubmittedId] = useState(null);
   const [err, setErr] = useState('');
   const [legalDoc, setLegalDoc] = useState(null);
+  const [trialDays, setTrialDays] = useState(90);
+
+  useEffect(() => {
+    fetch(`${API_URL}/osgb-applications/public-info`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.trial_days) setTrialDays(Number(d.trial_days) || 90); })
+      .catch(() => {});
+  }, []);
 
   function formatApiError(detail, fallback = 'Başvuru gönderilemedi.') {
     if (!detail) return fallback;
@@ -1691,7 +1707,7 @@ export function OsgbApplyPage({ onBack }) {
       <main className="login-shell">
         <section className="login-card" style={{ maxWidth: 480 }}>
           <h1>Başvuru alındı</h1>
-          <p>EİSA ekibi başvurunuzu inceleyecek. Onay sonrası 10 günlük deneme süreniz başlar.</p>
+          <p>EİSA ekibi başvurunuzu inceleyecek. Onay sonrası {trialDays} günlük ücretsiz deneme süreniz başlar.</p>
           {submittedId && <p style={{ color: '#64748b' }}>Başvuru no: <strong>#{submittedId}</strong></p>}
           <button type="button" onClick={onBack}>Giriş sayfasına dön</button>
         </section>

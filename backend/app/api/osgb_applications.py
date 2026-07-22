@@ -8,9 +8,20 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.core.database import get_db
 from app.models.entities import OsgbApplication, OsgbApplicationStatus
 from app.schemas.osgb_subscription import OsgbApplicationCreate, OsgbApplicationResponse
+from app.services.eisa_platform import resolved_trial_days
 from app.services.osgb_subscription import find_osgb_by_credentials
 
 router = APIRouter(prefix="/osgb-applications", tags=["OSGB Başvuru"])
+
+
+@router.get("/public-info")
+def public_application_info(db: Session = Depends(get_db)):
+    """Başvuru formu için herkese açık deneme süresi bilgisi."""
+    days = resolved_trial_days(db)
+    return {
+        "trial_days": days,
+        "note": f"Onay sonrası {days} günlük ücretsiz deneme süresi başlar.",
+    }
 
 
 @router.post("", response_model=OsgbApplicationResponse, status_code=201)

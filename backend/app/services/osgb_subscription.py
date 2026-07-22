@@ -19,8 +19,15 @@ from app.models.entities import (
     UserRole,
 )
 
-TRIAL_DAYS = 10
+# Geriye dönük sabit; gerçek süre EİSA ayarı `trial_days` (resolved_trial_days).
+TRIAL_DAYS = 90
 WRITE_STATUSES = frozenset({SubscriptionStatus.TRIAL, SubscriptionStatus.ACTIVE})
+
+
+def _trial_days(db: Session) -> int:
+    from app.services.eisa_platform import resolved_trial_days
+
+    return resolved_trial_days(db)
 
 
 def normalize_id(value: str | None) -> str:
@@ -59,11 +66,12 @@ def get_or_create_subscription(db: Session, osgb_id: int) -> OsgbSubscription:
     if sub:
         return sub
     now = datetime.utcnow()
+    days = _trial_days(db)
     sub = OsgbSubscription(
         osgb_id=osgb_id,
         plan=OsgbSubscriptionPlan.STANDARD,
         status=SubscriptionStatus.TRIAL,
-        trial_ends_at=now + timedelta(days=TRIAL_DAYS),
+        trial_ends_at=now + timedelta(days=days),
         max_users=50,
         max_workplaces=100,
     )
@@ -166,21 +174,31 @@ def approve_application(db: Session, application: OsgbApplication, reviewer: Use
         application.auto_matched = False
 
     now = datetime.utcnow()
+    days = _trial_days(db)
     sub = db.scalar(select(OsgbSubscription).where(OsgbSubscription.osgb_id == osgb.id))
     if not sub:
         sub = OsgbSubscription(
             osgb_id=osgb.id,
             plan=OsgbSubscriptionPlan.STANDARD,
             status=SubscriptionStatus.TRIAL,
-            trial_ends_at=now + timedelta(days=TRIAL_DAYS),
+            trial_ends_at=now + timedelta(days=days),
             max_users=50,
             max_workplaces=100,
         )
         db.add(sub)
     else:
-        sub.status = SubscriptionStatus.TRIAL
-        sub.trial_ends_at = now + timedelta(days=TRIAL_DAYS)
-        sub.plan = OsgbSubscriptionPlan.STANDARD
+        # Suistimal önleme: aktif deneme/abonelikte yeniden onayla süreyi sıfırlama
+        eff = effective_subscription_status(sub, now)
+        if eff in (
+            SubscriptionStatus.PAST_DUE,
+            SubscriptionStatus.CANCELLED,
+            SubscriptionStatus.SUSPENDED,
+        ):
+            sub.status = SubscriptionStatus.TRIAL
+            sub.trial_ends_at = now + timedelta(days=days)
+            sub.plan = OsgbSubscriptionPlan.STANDARD
+        elif eff == SubscriptionStatus.TRIAL and not sub.trial_ends_at:
+            sub.trial_ends_at = now + timedelta(days=days)
 
     application.status = OsgbApplicationStatus.APPROVED
     application.matched_osgb_id = osgb.id

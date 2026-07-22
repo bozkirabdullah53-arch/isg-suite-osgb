@@ -30,11 +30,13 @@ from app.services.osgb_subscription import effective_subscription_status, subscr
 
 EXPIRING_WINDOW_DAYS = 14
 DEFAULT_SETTINGS = {
-    "trial_days": "10",
+    "trial_days": "90",
     "expiring_window_days": "14",
     "support_email": "destek@eisa.com.tr",
     "support_phone": "",
 }
+TRIAL_DAYS_MIN = 1
+TRIAL_DAYS_MAX = 90
 
 
 def get_setting(db: Session, key: str, default: str = "") -> str:
@@ -45,6 +47,16 @@ def get_setting(db: Session, key: str, default: str = "") -> str:
     except Exception:
         pass
     return DEFAULT_SETTINGS.get(key, default)
+
+
+def resolved_trial_days(db: Session) -> int:
+    """EİSA ayarından deneme günü (1–90). Ayar yoksa varsayılan 90."""
+    raw = get_setting(db, "trial_days", DEFAULT_SETTINGS["trial_days"])
+    try:
+        days = int(str(raw).strip())
+    except (TypeError, ValueError):
+        days = int(DEFAULT_SETTINGS["trial_days"])
+    return max(TRIAL_DAYS_MIN, min(TRIAL_DAYS_MAX, days))
 
 
 def get_settings(db: Session) -> dict[str, str]:
