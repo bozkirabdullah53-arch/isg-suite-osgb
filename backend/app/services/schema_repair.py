@@ -255,3 +255,65 @@ def repair_schema() -> None:
         if "tags_json" not in cols:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE risk_media ADD COLUMN tags_json VARCHAR(500)"))
+
+    # 0.9.131 — Tatbikat yönetimi tabloları (yalnızca eksikse oluştur)
+    if "drill_records" not in _tables():
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS drill_records (
+                        id INTEGER PRIMARY KEY,
+                        company_id INTEGER NOT NULL REFERENCES companies(id),
+                        drill_type VARCHAR(80) NOT NULL,
+                        drill_date DATE NOT NULL,
+                        start_time VARCHAR(10),
+                        end_time VARCHAR(10),
+                        responsible VARCHAR(200),
+                        participant_count INTEGER NOT NULL DEFAULT 0,
+                        assembly_area VARCHAR(300),
+                        status VARCHAR(20) NOT NULL DEFAULT 'planlandi',
+                        scenario VARCHAR(10000) NOT NULL,
+                        gaps VARCHAR(10000),
+                        result VARCHAR(10000),
+                        participants_json VARCHAR(8000),
+                        is_active BOOLEAN NOT NULL DEFAULT 1,
+                        created_by_id INTEGER NOT NULL REFERENCES users(id),
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+            for idx_sql in (
+                "CREATE INDEX IF NOT EXISTS ix_drill_records_company_id ON drill_records (company_id)",
+                "CREATE INDEX IF NOT EXISTS ix_drill_records_drill_type ON drill_records (drill_type)",
+                "CREATE INDEX IF NOT EXISTS ix_drill_records_drill_date ON drill_records (drill_date)",
+                "CREATE INDEX IF NOT EXISTS ix_drill_records_status ON drill_records (status)",
+                "CREATE INDEX IF NOT EXISTS ix_drill_records_is_active ON drill_records (is_active)",
+            ):
+                try:
+                    conn.execute(text(idx_sql))
+                except Exception:
+                    pass
+    if "drill_photos" not in _tables():
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS drill_photos (
+                        id INTEGER PRIMARY KEY,
+                        drill_id INTEGER NOT NULL REFERENCES drill_records(id) ON DELETE CASCADE,
+                        storage_path VARCHAR(500) NOT NULL,
+                        original_name VARCHAR(255),
+                        content_type VARCHAR(120),
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+            try:
+                conn.execute(text("CREATE INDEX IF NOT EXISTS ix_drill_photos_drill_id ON drill_photos (drill_id)"))
+            except Exception:
+                pass
+

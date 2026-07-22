@@ -1068,3 +1068,47 @@ class ChemicalProduct(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
     )
+
+
+class DrillRecord(Base):
+    """0.9.131 — Tatbikat yönetimi (İSG uzmanı; isg-pro tatbikat alanları)."""
+
+    __tablename__ = "drill_records"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    drill_type: Mapped[str] = mapped_column(String(80), index=True)
+    drill_date: Mapped[date] = mapped_column(Date, index=True)
+    start_time: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    end_time: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    responsible: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    participant_count: Mapped[int] = mapped_column(Integer, default=0)
+    assembly_area: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="planlandi", index=True)
+    scenario: Mapped[str] = mapped_column(String(10000))
+    gaps: Mapped[str | None] = mapped_column(String(10000), nullable=True)
+    result: Mapped[str | None] = mapped_column(String(10000), nullable=True)
+    participants_json: Mapped[str | None] = mapped_column(String(8000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    photos: Mapped[list["DrillPhoto"]] = relationship(
+        back_populates="drill", cascade="all, delete-orphan"
+    )
+
+
+class DrillPhoto(Base):
+    __tablename__ = "drill_photos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    drill_id: Mapped[int] = mapped_column(
+        ForeignKey("drill_records.id", ondelete="CASCADE"), index=True
+    )
+    storage_path: Mapped[str] = mapped_column(String(500))
+    original_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    drill: Mapped[DrillRecord] = relationship(back_populates="photos")

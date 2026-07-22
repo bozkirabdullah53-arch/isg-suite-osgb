@@ -1,11 +1,12 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X} from 'lucide-react';
+import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
 import {api, apiWithBearer, downloadFile, reportClientError} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';
 import {ProPerformancePage} from './pro_performance';
 import {CsgbAuditPackPage} from './csgb_audit_pack';
 import {MevzuatPanelPage} from './mevzuat_panel';
 import {SdsRegisterPage} from './sds_register';
+import {DrillsPage} from './drills';
 import {Customer360Page} from './customer_360';
 import {CapacityEnginePage} from './capacity_engine';
 import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
@@ -75,7 +76,7 @@ const roleModules={
   ],
   safety_specialist:[
     'dashboard','visits',
-    'risk','near_miss','accident','capa','ppe','sds',
+    'risk','near_miss','accident','capa','ppe','sds','tatbikat',
     'training','annual_plans','documents',
     'security',
   ],
@@ -129,6 +130,7 @@ const menuCatalog={
   capa:['DÖF',ClipboardCheck],
   ppe:['KKD Takip',HardHat],
   sds:['SDS / PKD',Beaker],
+  tatbikat:['Tatbikat Yönetimi',Activity],
   training:['Eğitimler',GraduationCap],
   health:['Sağlık',HeartPulse],
   documents:['Dokümanlar',FileText],
@@ -1096,6 +1098,7 @@ function App(){
     capa:<CapaPage user={user}/>,
     ppe:<PpePage user={user}/>,
     sds:<SdsRegisterPage user={user}/>,
+    tatbikat:<DrillsPage user={user}/>,
     training:<TrainingPage user={user}/>,
     health:<HealthPage user={user}/>,
     documents:<DocumentsPage user={user}/>,
