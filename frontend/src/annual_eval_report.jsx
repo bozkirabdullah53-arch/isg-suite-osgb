@@ -472,6 +472,7 @@ export function AnnualEvalReportPage({user, onNavigate}) {
             <div>Çalışan: {overview.employee_count}</div>
             <div>Plan kalemi: {overview.plan_item_count}</div>
             <div>Durum: <strong>{REPORT_LABEL[overview.report_status] || overview.report_status}</strong></div>
+            {overview.verify_code && <div>Doğrulama: <code>{overview.verify_code}</code></div>}
           </div>
           {(overview.warnings || []).length > 0 && (
             <ul style={{margin: '10px 0 0', color: '#92400e', fontSize: 12}}>

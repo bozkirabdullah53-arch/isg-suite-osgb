@@ -163,6 +163,13 @@ def meta(user: User = Depends(get_current_user)):
     return meta_payload()
 
 
+def _ensure_verify_code(ev: AnnualPlanEvaluation) -> str:
+    if ev.verify_code:
+        return ev.verify_code
+    ev.verify_code = f"YPD-{ev.year}-{uuid.uuid4().hex[:10].upper()}"
+    return ev.verify_code
+
+
 @router.post("/start", response_model=EvalOverviewResponse)
 def start_eval(
     payload: AnnualEvalStart,
@@ -180,6 +187,7 @@ def start_eval(
             specialist_name=user.full_name,
             plan_item_count_at_start=len(plans),
             created_by_id=user.id,
+            verify_code=f"YPD-{payload.year}-{uuid.uuid4().hex[:10].upper()}",
         )
         db.add(ev)
         db.commit()
@@ -194,6 +202,10 @@ def start_eval(
             description=f"Değerlendirme başlatıldı {payload.year}",
         )
         db.commit()
+    else:
+        if not ev.verify_code:
+            _ensure_verify_code(ev)
+            db.commit()
     _sync_items(db, ev, plans)
     return _overview(db, payload.company_id, payload.year, user)
 
@@ -277,6 +289,11 @@ def _overview(db: Session, company_id: int, year: int, user: User) -> EvalOvervi
         plan_count_warning=warnings[0] if warnings and "kalem sayısı" in warnings[0] else None,
         kpis=kpis,
         warnings=warnings[:12],
+        verify_code=ev.verify_code if ev else None,
+        report_date=ev.report_date if ev else None,
+        specialist_name=ev.specialist_name if ev else None,
+        physician_name=ev.physician_name if ev else None,
+        employer_name=ev.employer_name if ev else None,
     )
 
 
@@ -931,6 +948,7 @@ def workflow(
     ev.report_status = mapping[action]
     if action == "approve-employer":
         ev.report_date = date.today()
+        _ensure_verify_code(ev)
     if action == "create-revision":
         ev.notes = ((ev.notes or "") + f"\nRevizyon açıldı: {date.today().isoformat()}").strip()
     ev.updated_at = datetime.utcnow()
@@ -1219,6 +1237,9 @@ def export_pdf(
     if ev:
         unplanned = list_unplanned(evaluation_id=ev.id, db=db, user=user)
         capas = list_capas(evaluation_id=ev.id, db=db, user=user)
+        _ensure_verify_code(ev)
+        db.commit()
+        db.refresh(ev)
     suggestions = _suggestions_payload(db, company_id, year, user).get("items") or []
     related = related_evidence(company_id=company_id, year=year, db=db, user=user)
     compare = year_compare(company_id=company_id, year=year, db=db, user=user)
@@ -1242,6 +1263,7 @@ def export_pdf(
             "specialist_name": ev.specialist_name if ev else None,
             "physician_name": ev.physician_name if ev else None,
             "employer_name": ev.employer_name if ev else None,
+            "verify_code": ev.verify_code if ev else None,
         },
     )
     return StreamingResponse(
@@ -1249,6 +1271,32 @@ def export_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="yillik-degerlendirme-{year}.pdf"'},
     )
+
+
+@router.get("/verify/{code}")
+def verify_report(
+    code: str,
+    db: Session = Depends(get_db),
+):
+    """Herkese açık doğrulama — yalnızca özet; firma içeriği yok."""
+    ev = db.scalar(
+        select(AnnualPlanEvaluation).where(
+            AnnualPlanEvaluation.verify_code == code.strip(),
+            AnnualPlanEvaluation.is_active.is_(True),
+        )
+    )
+    if not ev:
+        raise HTTPException(404, "Doğrulama kodu bulunamadı.")
+    company = db.get(Company, ev.company_id)
+    return {
+        "valid": True,
+        "verify_code": ev.verify_code,
+        "year": ev.year,
+        "report_status": ev.report_status,
+        "report_date": ev.report_date,
+        "company_name": company.name if company else None,
+        "note": "Bu doğrulama yalnızca rapor kimliğini teyit eder; içerik erişimi vermez.",
+    }
 
 
 @router.get("/next-year-suggestions")

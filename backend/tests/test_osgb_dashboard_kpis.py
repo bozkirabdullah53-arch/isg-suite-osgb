@@ -159,7 +159,7 @@ def test_health_flag_osgb_home_kpis_v3(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.139"
+    assert body["version"] == "0.9.140"
     assert body["finance_overdue_alert"] == "dashboard-v2"
     assert body["osgb_home_kpis"] == "finance-contracts-sds-v3"
     assert body["osgb_sds_due"] == "dashboard-v1"

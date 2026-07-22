@@ -101,8 +101,8 @@ def test_health_annual_eval(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.139"
-    assert body["annual_eval_report"] == "annual-eval-v5"
+    assert body["version"] == "0.9.140"
+    assert body["annual_eval_report"] == "annual-eval-v6"
 
 
 def test_start_sync_and_update_does_not_mutate_plan(client):
@@ -378,4 +378,20 @@ def test_evidence_unlink_and_history(client):
     assert un.status_code == 200
     left = client.get(f"/api/v1/annual-evals/items/{item_id}/evidences", headers=headers).json()
     assert all(x["id"] != eid for x in left)
+
+
+def test_verify_code_public(client):
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    ov = client.post(
+        "/api/v1/annual-evals/start",
+        headers=headers,
+        json={"company_id": seed["company_id"], "year": 2026},
+    ).json()
+    code = ov.get("verify_code")
+    assert code
+    pub = client.get(f"/api/v1/annual-evals/verify/{code}")
+    assert pub.status_code == 200
+    assert pub.json()["valid"] is True
+    assert pub.json()["year"] == 2026
 

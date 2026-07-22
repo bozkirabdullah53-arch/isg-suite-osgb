@@ -614,3 +614,19 @@ def repair_schema() -> None:
                 )
             )
 
+    # 0.9.140 — annual_plan_evaluations.verify_code
+    if "annual_plan_evaluations" in _tables():
+        cols = _columns("annual_plan_evaluations")
+        if "verify_code" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE annual_plan_evaluations ADD COLUMN verify_code VARCHAR(40)"))
+                try:
+                    conn.execute(
+                        text(
+                            "CREATE UNIQUE INDEX IF NOT EXISTS ix_annual_plan_evaluations_verify_code "
+                            "ON annual_plan_evaluations (verify_code)"
+                        )
+                    )
+                except Exception:
+                    pass
+

@@ -168,7 +168,7 @@ def build_eval_pdf(
 
     def footer():
         pdf.setFont(font, 7)
-        pdf.drawString(40, 24, f"Doküman: YPD-{year} | Rev: {meta.get('report_status') or '-'} | Sayfa {page_no[0]}")
+        pdf.drawString(40, 24, f"Doküman: YPD-{year} | Kod: {meta.get('verify_code') or '-'} | Rev: {meta.get('report_status') or '-'} | Sayfa {page_no[0]}")
         pdf.drawRightString(w - 40, 24, "Plan alanları bu raporda değiştirilmez.")
 
     def line(txt: str, size: int = 9, bold: bool = False, gap: int = 12):

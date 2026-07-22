@@ -1254,6 +1254,7 @@ class AnnualPlanEvaluation(Base):
     employer_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     plan_item_count_at_start: Mapped[int] = mapped_column(Integer, default=0)
     notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    verify_code: Mapped[str | None] = mapped_column(String(40), nullable=True, unique=True, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

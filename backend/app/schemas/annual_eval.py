@@ -163,3 +163,8 @@ class EvalOverviewResponse(BaseModel):
     plan_count_warning: str | None = None
     kpis: dict
     warnings: list[str] = []
+    verify_code: str | None = None
+    report_date: date | None = None
+    specialist_name: str | None = None
+    physician_name: str | None = None
+    employer_name: str | None = None
