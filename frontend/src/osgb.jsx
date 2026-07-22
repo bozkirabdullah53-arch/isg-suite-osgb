@@ -140,6 +140,7 @@ export function OsgbDashboard({user, onNavigate}){
  const[csgbDlBusy,setCsgbDlBusy]=useState(false);
  const[integ,setInteg]=useState(null);
  const[adapterStatus,setAdapterStatus]=useState(null);
+ const[dryRunBusy,setDryRunBusy]=useState('');
  const[unassignedOpen,setUnassignedOpen]=useState(false);
  const[unassignedType,setUnassignedType]=useState('safety_specialist');
  const[contractsOpen,setContractsOpen]=useState(false);
@@ -160,8 +161,18 @@ export function OsgbDashboard({user, onNavigate}){
    setInteg(await api(`/osgb/integration-readiness?osgb_id=${id}`));
   }catch(_){setInteg(null)}
   try{
-   setAdapterStatus(await api('/osgb/integrations/status'));
+   setAdapterStatus(await api(`/osgb/integrations/status?osgb_id=${id}`));
   }catch(_){setAdapterStatus(null)}
+ }
+
+ async function runDryExport(adapter){
+  if(!oid||dryRunBusy) return;
+  setDryRunBusy(adapter);
+  try{
+   await api(`/osgb/integrations/${adapter}/dry-run?osgb_id=${oid}`,{method:'POST'});
+   setAdapterStatus(await api(`/osgb/integrations/status?osgb_id=${oid}`));
+  }catch(e){alert(e.message||'Dry-run başarısız')}
+  finally{setDryRunBusy('')}
  }
 
  useEffect(()=>{
@@ -260,6 +271,43 @@ export function OsgbDashboard({user, onNavigate}){
       <strong style={{color:adapterStatus.summary?.katip_configured?'#166534':'#92400e'}}>
        KATİP {adapterStatus.summary?.katip_configured?'yapılandırıldı':'stub'}
       </strong>
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}>
+       <button type="button" className="mini secondary" disabled={!!dryRunBusy}
+         onClick={()=>runDryExport('ibys')}>
+        {dryRunBusy==='ibys'?'İBYS dry-run…':'İBYS dry-run'}
+       </button>
+       <button type="button" className="mini secondary" disabled={!!dryRunBusy}
+         onClick={()=>runDryExport('katip')}>
+        {dryRunBusy==='katip'?'KATİP dry-run…':'KATİP dry-run'}
+       </button>
+      </div>
+      {(adapterStatus.last_dry_runs||[]).length>0&&(
+       <div style={{marginTop:10,overflowX:'auto'}}>
+        <div style={{fontWeight:700,color:'#475569',marginBottom:4}}>Son dry-run’lar</div>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:11}}>
+         <thead>
+          <tr style={{textAlign:'left',color:'#94a3b8'}}>
+           <th style={{padding:'2px 6px 4px 0'}}>Ne zaman</th>
+           <th style={{padding:'2px 6px 4px'}}>Kim</th>
+           <th style={{padding:'2px 6px 4px'}}>Adapter</th>
+           <th style={{padding:'2px 6px 4px'}}>Durum</th>
+           <th style={{padding:'2px 0 4px 6px',textAlign:'right'}}>Kayıt</th>
+          </tr>
+         </thead>
+         <tbody>
+          {adapterStatus.last_dry_runs.slice(0,8).map(row=>(
+           <tr key={row.id} style={{borderTop:'1px solid #f1f5f9'}}>
+            <td style={{padding:'4px 6px 4px 0',whiteSpace:'nowrap'}}>{row.when||'—'}</td>
+            <td style={{padding:'4px 6px'}}>{row.who||'—'}</td>
+            <td style={{padding:'4px 6px',textTransform:'uppercase'}}>{row.adapter}</td>
+            <td style={{padding:'4px 6px'}}>{row.status}</td>
+            <td style={{padding:'4px 0 4px 6px',textAlign:'right'}}>{row.record_count??0}</td>
+           </tr>
+          ))}
+         </tbody>
+        </table>
+       </div>
+      )}
       {(adapterStatus.adapters?.ibys?.last_stub_export_at||adapterStatus.adapters?.katip?.last_stub_export_at)&&(
        <div style={{marginTop:4,color:'#94a3b8'}}>
         Son stub export:

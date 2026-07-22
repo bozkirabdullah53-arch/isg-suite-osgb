@@ -1030,6 +1030,21 @@ class PpeAssignmentPhoto(Base):
     assignment: Mapped[PpeAssignment] = relationship(back_populates="photos")
 
 
+class IntegrationDryRunLog(Base):
+    """0.9.126 — İBYS/KATİP dry-run export kaydı (harici HTTP yok)."""
+
+    __tablename__ = "integration_dry_run_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    user_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    osgb_id: Mapped[int | None] = mapped_column(ForeignKey("osgb_organizations.id"), nullable=True, index=True)
+    adapter: Mapped[str] = mapped_column(String(20), index=True)  # ibys | katip
+    status: Mapped[str] = mapped_column(String(40), default="dry_run", index=True)
+    record_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
 class ChemicalProduct(Base):
     """0.9.119 — SDS/PKD kimyasal ürün sicili (saha uzmanı)."""
 
