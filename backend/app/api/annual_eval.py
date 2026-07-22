@@ -38,6 +38,7 @@ from app.schemas.annual_eval import (
     LOCKED_REPORT,
     AnnualEvalItemUpdate,
     AnnualEvalStart,
+    BulkEvalAction,
     CapaCreate,
     EvalItemResponse,
     EvalOverviewResponse,
@@ -286,7 +287,11 @@ def list_items(
     outcome: str | None = None,
     q: str | None = None,
     category: str | None = None,
+    month: int | None = Query(None, ge=1, le=12),
+    month_from: int | None = Query(None, ge=1, le=12),
+    month_to: int | None = Query(None, ge=1, le=12),
     missing_evidence: bool = False,
+    overdue: bool = False,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*VIEW_ROLES)),
 ):
@@ -306,6 +311,7 @@ def list_items(
             .order_by(AnnualPlanEvaluationItem.id)
         ).all()
     )
+    today = date.today()
     out: list[EvalItemResponse] = []
     for r in rows:
         plan = plans.get(r.plan_item_id) or db.get(AnnualPlanItem, r.plan_item_id)
@@ -315,6 +321,12 @@ def list_items(
             continue
         if category and (plan.category or "") != category:
             continue
+        if month is not None and plan.month != month:
+            continue
+        if month_from is not None and plan.month < month_from:
+            continue
+        if month_to is not None and plan.month > month_to:
+            continue
         if q:
             qq = q.strip().casefold()
             blob = f"{plan.activity} {plan.responsible_name or ''} {r.result_text or ''}".casefold()
@@ -323,8 +335,166 @@ def list_items(
         evc = sum(1 for e in (r.evidences or []) if e.is_active)
         if missing_evidence and evc > 0:
             continue
+        if overdue:
+            if not plan.target_date or plan.target_date >= today:
+                continue
+            if r.outcome_status not in ("planlandi", "devam", "ertelendi", "kismi"):
+                continue
         out.append(_to_item_resp(r, plan, evc))
     return out
+
+
+@router.get("/analytics")
+def analytics(
+    company_id: int,
+    year: int = Query(..., ge=2020, le=2100),
+    period: str = Query("month"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW_ROLES)),
+):
+    ensure_company_access(db, user, company_id)
+    items = list_items(company_id=company_id, year=year, db=db, user=user)
+    month_names = [
+        "", "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+        "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
+    ]
+
+    def _done(st: str) -> bool:
+        return st in ("tamam", "gecikmeli_tamam")
+
+    buckets: list[dict] = []
+    if period == "quarter":
+        ranges = [(1, 3, "Q1"), (4, 6, "Q2"), (7, 9, "Q3"), (10, 12, "Q4")]
+    elif period == "half":
+        ranges = [(1, 6, "1. Yarı"), (7, 12, "2. Yarı")]
+    elif period == "year":
+        ranges = [(1, 12, str(year))]
+    else:
+        ranges = [(m, m, month_names[m]) for m in range(1, 13)]
+
+    for a, b, label in ranges:
+        subset = [it for it in items if a <= (it.plan.month or 0) <= b]
+        planned = len(subset)
+        completed = sum(1 for it in subset if _done(it.outcome_status))
+        buckets.append(
+            {
+                "key": f"{a}-{b}",
+                "label": label,
+                "month_from": a,
+                "month_to": b,
+                "planned": planned,
+                "completed": completed,
+                "rate": round(100.0 * completed / planned, 1) if planned else None,
+            }
+        )
+
+    by_cat: dict[str, dict] = {}
+    by_resp: dict[str, dict] = {}
+    for it in items:
+        cat = it.plan.category or "diger"
+        resp = it.plan.responsible_name or "Belirtilmemiş"
+        for bag, key in ((by_cat, cat), (by_resp, resp)):
+            row = bag.setdefault(key, {"key": key, "planned": 0, "completed": 0})
+            row["planned"] += 1
+            if _done(it.outcome_status):
+                row["completed"] += 1
+    for bag in (by_cat, by_resp):
+        for row in bag.values():
+            row["rate"] = round(100.0 * row["completed"] / row["planned"], 1) if row["planned"] else None
+
+    return {
+        "year": year,
+        "period": period,
+        "buckets": buckets,
+        "by_category": sorted(by_cat.values(), key=lambda x: -x["planned"]),
+        "by_responsible": sorted(by_resp.values(), key=lambda x: -x["planned"]),
+        "note": "Grafik/tablo tıklanınca ilgili ay aralığı filtrelenir. Plan dışı faaliyetler dahil değildir.",
+    }
+
+
+@router.post("/bulk")
+def bulk_action(
+    payload: BulkEvalAction,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    if payload.action not in ("note", "suggest_next", "mark_capa", "complete"):
+        raise HTTPException(400, "Geçersiz toplu işlem.")
+    rows = list(
+        db.scalars(
+            select(AnnualPlanEvaluationItem).where(
+                AnnualPlanEvaluationItem.id.in_(payload.item_ids),
+                AnnualPlanEvaluationItem.is_active.is_(True),
+            )
+        ).all()
+    )
+    if not rows:
+        raise HTTPException(404, "Seçili değerlendirme kalemi bulunamadı.")
+    company_ids = {r.company_id for r in rows}
+    if len(company_ids) != 1:
+        raise HTTPException(400, "Toplu işlem tek firma kapsamında olmalı.")
+    company_id = next(iter(company_ids))
+    ensure_company_access(db, user, company_id)
+    eval_ids = {r.evaluation_id for r in rows}
+    for eid in eval_ids:
+        ev = db.get(AnnualPlanEvaluation, eid)
+        if not ev:
+            raise HTTPException(404, "Değerlendirme bulunamadı.")
+        _assert_editable(ev)
+
+    updated = 0
+    skipped = []
+    for row in rows:
+        if payload.action == "note":
+            if not (payload.specialist_note or "").strip():
+                raise HTTPException(422, "Toplu not metni zorunlu.")
+            note = payload.specialist_note.strip()
+            row.specialist_note = ((row.specialist_note or "") + "\n" + note).strip()
+            updated += 1
+        elif payload.action == "suggest_next":
+            sug = (payload.next_year_suggestion or "Bir sonraki yıl planına aktarılsın.").strip()
+            row.next_year_suggestion = sug
+            if row.outcome_status in ("planlandi", "devam"):
+                # sadece öneri; durum değişmez
+                pass
+            updated += 1
+        elif payload.action == "mark_capa":
+            row.capa_needed = True
+            updated += 1
+        elif payload.action == "complete":
+            if not payload.actual_end or not (payload.result_text or "").strip():
+                raise HTTPException(422, "Toplu tamamlamada gerçekleşme tarihi ve sonuç zorunlu.")
+            evc = db.scalar(
+                select(func.count()).select_from(AnnualPlanEvalEvidence).where(
+                    AnnualPlanEvalEvidence.evaluation_item_id == row.id,
+                    AnnualPlanEvalEvidence.is_active.is_(True),
+                )
+            ) or 0
+            if evc < 1:
+                skipped.append({"id": row.id, "reason": "Kanıt belgesi yok"})
+                continue
+            plan = db.get(AnnualPlanItem, row.plan_item_id)
+            row.outcome_status = "tamam"
+            row.actual_end = payload.actual_end
+            row.result_text = payload.result_text
+            row.completion_pct = 100
+            row.delay_days = compute_delay_days(plan.target_date if plan else None, row.actual_end)
+            if row.delay_days and row.delay_days > 0:
+                row.outcome_status = "gecikmeli_tamam"
+            updated += 1
+        row.updated_at = datetime.utcnow()
+
+    add_audit_log(
+        db,
+        user=user,
+        action=f"annual_eval_bulk_{payload.action}",
+        module="annual_eval",
+        entity_type="annual_plan_evaluation_item",
+        entity_id=",".join(str(i) for i in payload.item_ids[:20]),
+        description=f"updated={updated} skipped={len(skipped)}",
+    )
+    db.commit()
+    return {"updated": updated, "skipped": skipped, "action": payload.action}
 
 
 @router.put("/items/{item_id}", response_model=EvalItemResponse)

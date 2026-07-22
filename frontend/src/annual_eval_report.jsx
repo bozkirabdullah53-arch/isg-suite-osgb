@@ -57,6 +57,13 @@ export function AnnualEvalReportPage({user, onNavigate}) {
   const [capaForm, setCapaForm] = useState({title: '', root_cause: '', action: '', responsible: '', due_date: '', priority: 'orta'});
   const [upForm, setUpForm] = useState({activity: '', category: '', done_date: '', reason: '', result_text: '', responsible_name: '', suggest_next_year: false});
   const [selectedSuggest, setSelectedSuggest] = useState({});
+  const [period, setPeriod] = useState('month');
+  const [analytics, setAnalytics] = useState(null);
+  const [monthFrom, setMonthFrom] = useState('');
+  const [monthTo, setMonthTo] = useState('');
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [selectedIds, setSelectedIds] = useState({});
+  const [bulkNote, setBulkNote] = useState('');
 
   async function loadCompanies() {
     try {
@@ -75,6 +82,7 @@ export function AnnualEvalReportPage({user, onNavigate}) {
       setOverview(ov);
       setRelated(await api(`/annual-evals/related-evidence?company_id=${companyId}&year=${year}`).catch(() => null));
       setSuggestions(await api(`/annual-evals/next-year-suggestions?company_id=${companyId}&year=${year}`).catch(() => null));
+      setAnalytics(await api(`/annual-evals/analytics?company_id=${companyId}&year=${year}&period=${period}`).catch(() => null));
       if (!ov.evaluation_id) {
         setItems([]);
         setUnplanned([]);
@@ -84,7 +92,10 @@ export function AnnualEvalReportPage({user, onNavigate}) {
       const qs = new URLSearchParams({company_id: companyId, year});
       if (filterOutcome) qs.set('outcome', filterOutcome);
       if (missingEv) qs.set('missing_evidence', 'true');
+      if (overdueOnly) qs.set('overdue', 'true');
       if (q.trim()) qs.set('q', q.trim());
+      if (monthFrom) qs.set('month_from', monthFrom);
+      if (monthTo) qs.set('month_to', monthTo);
       setItems(await api(`/annual-evals/items?${qs}`));
       setUnplanned(await api(`/annual-evals/${ov.evaluation_id}/unplanned`));
       setCapas(await api(`/annual-evals/${ov.evaluation_id}/capas`));
@@ -96,8 +107,33 @@ export function AnnualEvalReportPage({user, onNavigate}) {
   }
 
   useEffect(() => { void loadCompanies(); }, []);
-  useEffect(() => { void loadAll(); }, [companyId, year, filterOutcome, missingEv]);
+  useEffect(() => { void loadAll(); }, [companyId, year, filterOutcome, missingEv, period, monthFrom, monthTo, overdueOnly]);
 
+  async function runBulk(action) {
+    const ids = Object.keys(selectedIds).filter((k) => selectedIds[k]).map(Number);
+    if (!ids.length) {
+      setErr('Toplu işlem için satır seçin.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const body = {item_ids: ids, action};
+      if (action === 'note') body.specialist_note = bulkNote || 'Toplu değerlendirme notu';
+      if (action === 'suggest_next') body.next_year_suggestion = bulkNote || 'Bir sonraki yıl planına aktarılsın.';
+      if (action === 'complete') {
+        body.actual_end = new Date().toISOString().slice(0, 10);
+        body.result_text = bulkNote || 'Toplu tamamlandı';
+      }
+      const res = await api('/annual-evals/bulk', {method: 'POST', body: JSON.stringify(body)});
+      setMsg(`Toplu işlem: ${res.updated} güncellendi` + (res.skipped?.length ? `, ${res.skipped.length} atlandı (kanıt eksik)` : ''));
+      setSelectedIds({});
+      await loadAll();
+    } catch (ex) {
+      setErr(ex.message || 'Toplu işlem başarısız.');
+    } finally {
+      setBusy(false);
+    }
+  }
   async function start() {
     if (!companyId) return;
     setBusy(true);
@@ -320,11 +356,73 @@ export function AnnualEvalReportPage({user, onNavigate}) {
           <label className="field"><span>Ara</span>
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Faaliyet / sorumlu" onKeyDown={(e) => e.key === 'Enter' && loadAll()} />
           </label>
-          <div className="field" style={{alignSelf: 'end'}}>
+          <label className="field"><span>Dönem görünümü</span>
+            <select value={period} onChange={(e) => setPeriod(e.target.value)}>
+              <option value="month">Aylık</option>
+              <option value="quarter">Üç aylık</option>
+              <option value="half">Altı aylık</option>
+              <option value="year">Yıllık</option>
+            </select>
+          </label>
+          <div className="field" style={{alignSelf: 'end', display: 'flex', gap: 8}}>
             <button type="button" className="secondary" onClick={loadAll} disabled={busy}>Filtre uygula</button>
+            <button type="button" className="secondary" onClick={() => { setMonthFrom(''); setMonthTo(''); setOverdueOnly(false); setFilterOutcome(''); setMissingEv(false); setQ(''); }}>Temizle</button>
           </div>
         </div>
       </section>
+
+      {analytics && (
+        <section className="panel" style={{marginBottom: 12}}>
+          <h3 style={{marginTop: 0, fontSize: 15}}>Dönem özeti (tıklayınca filtrele)</h3>
+          <div style={{display: 'flex', flexWrap: 'wrap', gap: 8}}>
+            {(analytics.buckets || []).map((b) => (
+              <button
+                key={b.key}
+                type="button"
+                className="secondary"
+                style={{minWidth: 110, textAlign: 'left'}}
+                onClick={() => { setMonthFrom(String(b.month_from)); setMonthTo(String(b.month_to)); }}
+              >
+                <div style={{fontSize: 11}}>{b.label}</div>
+                <div style={{fontWeight: 700}}>{b.completed}/{b.planned}</div>
+                <div style={{height: 6, background: '#e2e8f0', borderRadius: 4, marginTop: 4}}>
+                  <div style={{height: 6, width: `${b.rate || 0}%`, background: '#0f766e', borderRadius: 4}} />
+                </div>
+              </button>
+            ))}
+          </div>
+          {(analytics.by_category || []).length > 0 && (
+            <div style={{marginTop: 12, fontSize: 13}}>
+              <strong>Kategori:</strong>{' '}
+              {analytics.by_category.slice(0, 8).map((c) => (
+                <button key={c.key} type="button" className="secondary mini" style={{margin: 2}} onClick={() => { setQ(''); setFilterOutcome(''); /* period clear */ setMonthFrom(''); setMonthTo(''); void (async () => {
+                  const qs = new URLSearchParams({company_id: companyId, year, category: c.key});
+                  setItems(await api(`/annual-evals/items?${qs}`));
+                })(); }}>
+                  {c.key} {c.completed}/{c.planned}
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {canEdit && overview?.evaluation_id && !locked && Object.values(selectedIds).some(Boolean) && (
+        <section className="panel" style={{marginBottom: 12}}>
+          <div className="form-grid">
+            <label className="field" style={{gridColumn: '1 / -1'}}><span>Toplu not / sonuç</span>
+              <input value={bulkNote} onChange={(e) => setBulkNote(e.target.value)} placeholder="Not veya tamamlanma sonucu" />
+            </label>
+          </div>
+          <div className="actions" style={{marginTop: 8}}>
+            <button type="button" className="secondary" onClick={() => runBulk('note')}>Seçilenlere not</button>
+            <button type="button" className="secondary" onClick={() => runBulk('suggest_next')}>Sonraki yıla öner</button>
+            <button type="button" className="secondary" onClick={() => runBulk('mark_capa')}>DÖF gerekli</button>
+            <button type="button" className="secondary" onClick={() => runBulk('complete')}>Kanıtlıysa tamamla</button>
+            <button type="button" className="secondary" onClick={() => setOverdueOnly(true)}>Gecikenleri göster</button>
+          </div>
+        </section>
+      )}
 
       {overview && (
         <section className="panel" style={{marginBottom: 12, fontSize: 13}}>
@@ -409,6 +507,7 @@ export function AnnualEvalReportPage({user, onNavigate}) {
         <table>
           <thead>
             <tr>
+              <th></th>
               <th>#</th>
               <th>Kategori</th>
               <th>Faaliyet</th>
@@ -424,9 +523,18 @@ export function AnnualEvalReportPage({user, onNavigate}) {
             </tr>
           </thead>
           <tbody>
-            {items.length === 0 && <tr><td colSpan={12} className="muted">Kayıt yok. Değerlendirmeyi başlatın.</td></tr>}
+            {items.length === 0 && <tr><td colSpan={13} className="muted">Kayıt yok. Değerlendirmeyi başlatın.</td></tr>}
             {items.map((r, idx) => (
               <tr key={r.id}>
+                <td>
+                  {canEdit && !locked && (
+                    <input
+                      type="checkbox"
+                      checked={!!selectedIds[r.id]}
+                      onChange={(e) => setSelectedIds({...selectedIds, [r.id]: e.target.checked})}
+                    />
+                  )}
+                </td>
                 <td>{idx + 1}</td>
                 <td>{r.plan?.category || '—'}</td>
                 <td><strong>{r.plan?.activity}</strong></td>

@@ -184,7 +184,7 @@ def test_health_flag_csgb_company_snapshot(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.136"
+    assert body["version"] == "0.9.137"
     assert body["csgb_pack"] == "audit-bundle-v3"
     assert body["csgb_company_snapshot"] == "read-only-v1"
 

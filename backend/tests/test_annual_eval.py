@@ -101,8 +101,8 @@ def test_health_annual_eval(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.136"
-    assert body["annual_eval_report"] == "annual-eval-v2"
+    assert body["version"] == "0.9.137"
+    assert body["annual_eval_report"] == "annual-eval-v3"
 
 
 def test_start_sync_and_update_does_not_mutate_plan(client):
@@ -279,3 +279,53 @@ def test_related_evidence_and_create_revision(client):
         json={"outcome_status": "devam", "completion_pct": 40, "result_text": "devam"},
     )
     assert ok.status_code == 200
+
+
+def test_analytics_and_bulk_note(client):
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    client.post(
+        "/api/v1/annual-evals/start",
+        headers=headers,
+        json={"company_id": seed["company_id"], "year": 2026},
+    )
+    an = client.get(
+        f"/api/v1/annual-evals/analytics?company_id={seed['company_id']}&year=2026&period=quarter",
+        headers=headers,
+    )
+    assert an.status_code == 200
+    assert len(an.json()["buckets"]) == 4
+    items = client.get(
+        f"/api/v1/annual-evals/items?company_id={seed['company_id']}&year=2026",
+        headers=headers,
+    ).json()
+    bulk = client.post(
+        "/api/v1/annual-evals/bulk",
+        headers=headers,
+        json={"item_ids": [items[0]["id"]], "action": "note", "specialist_note": "Toplu not"},
+    )
+    assert bulk.status_code == 200, bulk.text
+    assert bulk.json()["updated"] == 1
+    detail = client.get(
+        f"/api/v1/annual-evals/items?company_id={seed['company_id']}&year=2026",
+        headers=headers,
+    ).json()[0]
+    assert "Toplu not" in (detail.get("specialist_note") or "")
+
+
+def test_eval_notifications_rebuild(client):
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    from app.services.notifications import rebuild_company_notifications
+    from app.core.database import SessionLocal
+
+    with SessionLocal() as db:
+        n = rebuild_company_notifications(db, seed["company_id"])
+        assert n >= 1
+    # refresh endpoint for specialist
+    r = client.post("/api/v1/notifications/refresh", headers=headers)
+    assert r.status_code == 200
+    listed = client.get("/api/v1/notifications", headers=headers)
+    assert listed.status_code == 200
+    titles = [x.get("title") for x in listed.json()]
+    assert any("değerlendirme" in (t or "").lower() or "Yıllık" in (t or "") for t in titles)

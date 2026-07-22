@@ -7,10 +7,13 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.entities import (
+    AnnualPlanEvalEvidence,
+    AnnualPlanEvaluation,
+    AnnualPlanEvaluationItem,
     AnnualPlanItem,
     AnnualPlanStatus,
     AssignmentStatus,
@@ -43,6 +46,7 @@ def rebuild_company_notifications(db: Session, company_id: int) -> int:
                         "document",
                         "health_record",
                         "annual_plan",
+                        "annual_eval",
                         "chemical_product",
                     )
                 ),
@@ -139,6 +143,121 @@ def rebuild_company_notifications(db: Session, company_id: int) -> int:
                 entity_id=str(item.id),
             )
         )
+
+    # 0.9.137 — Yıllık plan değerlendirme uyarıları
+    year = today.year
+    plan_count = db.scalar(
+        select(AnnualPlanItem.id).where(
+            AnnualPlanItem.company_id == company_id,
+            AnnualPlanItem.year == year,
+            AnnualPlanItem.deleted_at.is_(None),
+        ).limit(1)
+    )
+    ev = db.scalar(
+        select(AnnualPlanEvaluation).where(
+            AnnualPlanEvaluation.company_id == company_id,
+            AnnualPlanEvaluation.year == year,
+            AnnualPlanEvaluation.is_active.is_(True),
+        )
+    )
+    if plan_count and not ev:
+        notifications.append(
+            Notification(
+                company_id=company_id,
+                type=NotificationType.WARNING,
+                title="Yıllık değerlendirme henüz başlatılmadı",
+                message=f"{year} yılı için plan kalemleri var; değerlendirme başlatılmamış.",
+                entity_type="annual_eval",
+                entity_id=str(year),
+            )
+        )
+    elif ev:
+        if ev.report_status in ("hazirlaniyor", "hazirlanmadi", "revizyon"):
+            open_items = list(
+                db.scalars(
+                    select(AnnualPlanEvaluationItem).where(
+                        AnnualPlanEvaluationItem.evaluation_id == ev.id,
+                        AnnualPlanEvaluationItem.is_active.is_(True),
+                        AnnualPlanEvaluationItem.outcome_status.in_(
+                            ("planlandi", "devam", "ertelendi", "kismi")
+                        ),
+                    ).limit(40)
+                ).all()
+            )
+            overdue_n = 0
+            for row in open_items:
+                plan = db.get(AnnualPlanItem, row.plan_item_id)
+                if plan and plan.target_date and plan.target_date < today and row.outcome_status in ("planlandi", "devam"):
+                    overdue_n += 1
+            if overdue_n:
+                notifications.append(
+                    Notification(
+                        company_id=company_id,
+                        type=NotificationType.CRITICAL,
+                        title="Değerlendirme geciken faaliyetler",
+                        message=f"{year}: planlanan tarihi geçen {overdue_n} faaliyet henüz tamamlanmadı.",
+                        entity_type="annual_eval",
+                        entity_id=str(ev.id),
+                    )
+                )
+            with_ev = set(
+                db.scalars(
+                    select(AnnualPlanEvalEvidence.evaluation_item_id).where(
+                        AnnualPlanEvalEvidence.is_active.is_(True),
+                        AnnualPlanEvalEvidence.evaluation_item_id.in_(
+                            select(AnnualPlanEvaluationItem.id).where(
+                                AnnualPlanEvaluationItem.evaluation_id == ev.id,
+                                AnnualPlanEvaluationItem.is_active.is_(True),
+                            )
+                        ),
+                    )
+                ).all()
+            )
+            need_ev = list(
+                db.scalars(
+                    select(AnnualPlanEvaluationItem.id).where(
+                        AnnualPlanEvaluationItem.evaluation_id == ev.id,
+                        AnnualPlanEvaluationItem.is_active.is_(True),
+                        AnnualPlanEvaluationItem.outcome_status.in_(
+                            ("tamam", "gecikmeli_tamam", "kismi", "devam")
+                        ),
+                    )
+                ).all()
+            )
+            missing_ev_n = sum(1 for i in need_ev if i not in with_ev)
+            if missing_ev_n:
+                notifications.append(
+                    Notification(
+                        company_id=company_id,
+                        type=NotificationType.WARNING,
+                        title="Kanıt belgesi eksik faaliyetler",
+                        message=f"{year}: {missing_ev_n} değerlendirilmiş faaliyette kanıt yok.",
+                        entity_type="annual_eval",
+                        entity_id=str(ev.id),
+                    )
+                )
+        if ev.report_status == "hekim_bekliyor":
+            notifications.append(
+                Notification(
+                    company_id=company_id,
+                    type=NotificationType.INFO,
+                    title="Hekim değerlendirmesi bekleniyor",
+                    message=f"{year} yıllık değerlendirme hekim onayında.",
+                    entity_type="annual_eval",
+                    entity_id=str(ev.id),
+                )
+            )
+        if ev.report_status == "isveren_bekliyor":
+            notifications.append(
+                Notification(
+                    company_id=company_id,
+                    type=NotificationType.INFO,
+                    title="İşveren onayı bekleniyor",
+                    message=f"{year} yıllık değerlendirme işveren onayında.",
+                    entity_type="annual_eval",
+                    entity_id=str(ev.id),
+                )
+            )
 
     # 0.9.122 — SDS / PKD gözden geçirme
     chemicals = db.scalars(

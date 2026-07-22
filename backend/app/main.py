@@ -44,7 +44,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.136',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.137',lifespan=lifespan)
 
 from app.core.validation_tr import register_turkish_validation
 register_turkish_validation(app)
@@ -69,7 +69,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.136',
+        'version': '0.9.137',
         'ai_hazard_hint': 'keyword-v2',
         'mevzuat_panel': 'highlights-v1',
         'sds_register': 'chemical-register-v1',
@@ -85,7 +85,7 @@ def health():
         'integrations_live_send': 'live-post-v1',
         'tatbikat': 'drill-management-v1',
         'acil_ekipler': 'emergency-teams-v1',
-        'annual_eval_report': 'annual-eval-v2',
+        'annual_eval_report': 'annual-eval-v3',
         'crm_convert': 'lead-to-contract-v1',
         'contracts_ui': 'osgb-monitor-v1',
         'contracts_actions': 'end-suspend-v1',
@@ -154,7 +154,7 @@ def health():
         'csgb_pack': 'audit-bundle-v3',
         'csgb_company_snapshot': 'read-only-v1',
         'pro_performance_export': 'csv-v1',
-        'notifications': 'osgb-deadline-scan',
+        'notifications': 'osgb-deadline-eval-v2',
         'rate_limit': 'simple-rpm-120',
         'secret_key_guard': 'prod-block-default',
         'nav_hardening': 'allowlist-boundary-mobile',

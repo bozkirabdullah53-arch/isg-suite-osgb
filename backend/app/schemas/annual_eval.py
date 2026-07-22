@@ -104,6 +104,15 @@ class EvidenceLinkCreate(BaseModel):
     doc_type: str | None = Field(default="modul_link", max_length=80)
 
 
+class BulkEvalAction(BaseModel):
+    item_ids: list[int] = Field(min_length=1, max_length=200)
+    action: str  # note | suggest_next | mark_capa | complete
+    specialist_note: str | None = Field(default=None, max_length=2000)
+    next_year_suggestion: str | None = Field(default=None, max_length=2000)
+    actual_end: date | None = None
+    result_text: str | None = Field(default=None, max_length=4000)
+
+
 class PlanItemSnapshot(BaseModel):
     id: int
     activity: str
