@@ -8,6 +8,7 @@ import {MevzuatPanelPage} from './mevzuat_panel';
 import {SdsRegisterPage} from './sds_register';
 import {DrillsPage} from './drills';
 import {EmergencyTeamsPage} from './emergency_teams';
+import {AnnualEvalReportPage} from './annual_eval_report';
 import {Customer360Page} from './customer_360';
 import {CapacityEnginePage} from './capacity_engine';
 import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
@@ -78,7 +79,7 @@ const roleModules={
   safety_specialist:[
     'dashboard','visits',
     'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler',
-    'training','annual_plans','documents',
+    'training','annual_plans','annual_eval_report','documents',
     'security',
   ],
   workplace_physician:[
@@ -137,6 +138,7 @@ const menuCatalog={
   health:['Sağlık',HeartPulse],
   documents:['Dokümanlar',FileText],
   annual_plans:['Yıllık Plan',ClipboardCheck],
+  annual_eval_report:['Yıllık Çalışma Değerlendirme Raporu',FileText],
   reports:['Raporlar',BarChart3],
   notifications:['Bildirimler',Bell],
   subscription:['Abonelik',CreditCard],
@@ -1106,6 +1108,7 @@ function App(){
     health:<HealthPage user={user}/>,
     documents:<DocumentsPage user={user}/>,
     annual_plans:<AnnualPlansPage user={user}/>,
+    annual_eval_report:<AnnualEvalReportPage user={user}/>,
     reports:<ReportsPage/>,
     notifications:<NotificationsPage/>,
     subscription:<SubscriptionPage user={user}/>,
