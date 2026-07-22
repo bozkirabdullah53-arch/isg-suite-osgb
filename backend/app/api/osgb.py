@@ -31,6 +31,7 @@ from app.services.ibys_export import build_ibys_export_summary, build_ibys_expor
 from app.services.integration_readiness import build_integration_readiness
 from app.services.integrations_status import build_integrations_status
 from app.services.integrations_dry_run import VALID_ADAPTERS, run_dry_export
+from app.services.integrations_live_send import run_live_send
 from app.services import ibys_client, katip_client
 from app.services.mevzuat_panel import build_mevzuat_panel
 from app.services.capacity_engine import build_capacity_overview, sync_assignment_required
@@ -374,6 +375,29 @@ def integrations_probe(
     if key == "ibys":
         return ibys_client.probe()
     return katip_client.probe()
+
+
+@router.post("/integrations/{adapter}/live-send")
+def integrations_live_send(
+    adapter: str,
+    osgb_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """İBYS/KATİP canlı gönderim — kimlik yoksa HTTP yok; secret dönülmez."""
+    key = (adapter or "").strip().lower()
+    if key not in VALID_ADAPTERS:
+        raise HTTPException(400, "adapter ibys veya katip olmalı.")
+    if user.role == UserRole.COMPANY_ADMIN:
+        if not user.osgb_id:
+            raise HTTPException(400, "OSGB kapsamınız tanımlı değil.")
+        osgb_id = user.osgb_id
+    elif osgb_id is not None:
+        _scope_osgb(user, osgb_id)
+    try:
+        return run_live_send(db, adapter=key, user=user, osgb_id=osgb_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
 
 @router.get("/ibys-export")

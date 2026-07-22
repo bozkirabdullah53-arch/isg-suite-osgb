@@ -1,4 +1,4 @@
-"""0.9.127 — İBYS/KATİP safe connection probe (live-check-v1)."""
+"""0.9.130 — İBYS/KATİP live-send (live-post-v1)."""
 from __future__ import annotations
 
 import pytest
@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    db_file = tmp_path / "integrations_probe.db"
+    db_file = tmp_path / "integrations_live_send.db"
     url = f"sqlite:///{db_file.as_posix()}"
     monkeypatch.setenv("DATABASE_URL", url)
     monkeypatch.setenv("ENVIRONMENT", "development")
@@ -49,21 +49,21 @@ def _seed(client: TestClient) -> dict:
 
     with SessionLocal() as db:
         osgb = OsgbOrganization(
-            name="Probe OSGB",
-            authorization_number="YETKI-PROBE-1",
-            tax_number="1122334455",
-            responsible_manager="Probe Yonetici",
-            email="probe-osgb@test.com",
-            phone="02121112233",
-            address="Istanbul",
+            name="LiveSend OSGB",
+            authorization_number="YETKI-LIVE-1",
+            tax_number="5566778899",
+            responsible_manager="Live Yonetici",
+            email="live-osgb@test.com",
+            phone="02124445566",
+            address="Ankara",
             is_active=True,
         )
         db.add(osgb)
         db.flush()
         db.add(
             User(
-                email="probe-admin@test.com",
-                full_name="Probe Admin",
+                email="live-admin@test.com",
+                full_name="Live Admin",
                 hashed_password=get_password_hash("TestPass123!"),
                 role=UserRole.COMPANY_ADMIN,
                 osgb_id=osgb.id,
@@ -75,42 +75,44 @@ def _seed(client: TestClient) -> dict:
 
     r = client.post(
         "/api/v1/auth/login",
-        json={"email": "probe-admin@test.com", "password": "TestPass123!"},
+        json={"email": "live-admin@test.com", "password": "TestPass123!"},
     )
     assert r.status_code == 200, r.text
     return {"token": r.json()["access_token"], "osgb_id": osgb_id}
 
 
-def test_health_flag_integrations_probe(client):
+def test_health_flag_integrations_live_send(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
     assert body["version"] == "0.9.130"
-    assert body["integrations_probe"] == "live-check-v1"
-    assert body["integrations_dry_run"] == "log-v1"
+    assert body["integrations_live_send"] == "live-post-v1"
 
 
-def test_probe_missing_credentials_no_network(client, monkeypatch):
+def test_live_send_missing_credentials_no_network(client, monkeypatch):
     seed = _seed(client)
     headers = {"Authorization": f"Bearer {seed['token']}"}
-
     called = {"n": 0}
 
     def _boom(*_a, **_k):
         called["n"] += 1
         raise AssertionError("network must not be called without credentials")
 
-    monkeypatch.setattr("app.services.ibys_client._http_probe", _boom)
-    monkeypatch.setattr("app.services.katip_client._http_probe", _boom)
+    monkeypatch.setattr("app.services.ibys_client._http_live_post", _boom)
+    monkeypatch.setattr("app.services.katip_client._http_live_post", _boom)
 
     for adapter in ("ibys", "katip"):
-        r = client.post(f"/api/v1/osgb/integrations/{adapter}/probe", headers=headers)
+        r = client.post(
+            f"/api/v1/osgb/integrations/{adapter}/live-send?osgb_id={seed['osgb_id']}",
+            headers=headers,
+        )
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["adapter"] == adapter
         assert body["ok"] is False
         assert body["status"] == "missing_credentials"
-        assert body["probe_version"] == "live-check-v1"
+        assert body["log_status"] == "blocked_no_credentials"
+        assert body["live_send_version"] == "live-post-v1"
         raw = r.text.lower()
         assert "api_key" not in raw
         assert "secret" not in raw
@@ -119,11 +121,8 @@ def test_probe_missing_credentials_no_network(client, monkeypatch):
 
     assert called["n"] == 0
 
-    bad = client.post("/api/v1/osgb/integrations/foo/probe", headers=headers)
-    assert bad.status_code == 400
 
-
-def test_probe_configured_mocks_network(client, monkeypatch):
+def test_live_send_configured_mocks_network(client, monkeypatch):
     seed = _seed(client)
     headers = {"Authorization": f"Bearer {seed['token']}"}
 
@@ -135,36 +134,44 @@ def test_probe_configured_mocks_network(client, monkeypatch):
     settings.katip_api_key = "test-katip-key-not-for-git"
 
     monkeypatch.setattr(
-        "app.services.ibys_client._http_probe",
-        lambda _url: {
+        "app.services.ibys_client._http_live_post",
+        lambda *_a, **_k: {
             "ok": True,
-            "status": "reachable",
-            "http_status": 200,
-            "elapsed_ms": 12,
+            "status": "live_sent",
+            "http_status": 202,
+            "elapsed_ms": 18,
         },
     )
     monkeypatch.setattr(
-        "app.services.katip_client._http_probe",
-        lambda _url: {
+        "app.services.katip_client._http_live_post",
+        lambda *_a, **_k: {
             "ok": False,
-            "status": "unreachable",
-            "http_status": None,
-            "elapsed_ms": 5,
+            "status": "http_error",
+            "http_status": 503,
+            "elapsed_ms": 9,
         },
     )
 
-    ibys = client.post("/api/v1/osgb/integrations/ibys/probe", headers=headers)
+    ibys = client.post(
+        f"/api/v1/osgb/integrations/ibys/live-send?osgb_id={seed['osgb_id']}",
+        headers=headers,
+    )
     assert ibys.status_code == 200, ibys.text
     ib = ibys.json()
     assert ib["ok"] is True
-    assert ib["status"] == "reachable"
-    assert ib["http_status"] == 200
+    assert ib["status"] == "live_sent"
+    assert ib["log_status"] == "live_sent"
+    assert ib["http_status"] == 202
     assert "test-ibys-key" not in ibys.text
     assert "example.invalid" not in ibys.text
 
-    katip = client.post("/api/v1/osgb/integrations/katip/probe", headers=headers)
+    katip = client.post(
+        f"/api/v1/osgb/integrations/katip/live-send?osgb_id={seed['osgb_id']}",
+        headers=headers,
+    )
     assert katip.status_code == 200, katip.text
     kt = katip.json()
     assert kt["ok"] is False
-    assert kt["status"] == "unreachable"
+    assert kt["status"] == "http_error"
+    assert kt["log_status"] == "live_failed"
     assert "test-katip-key" not in katip.text

@@ -142,7 +142,9 @@ export function OsgbDashboard({user, onNavigate}){
  const[adapterStatus,setAdapterStatus]=useState(null);
  const[dryRunBusy,setDryRunBusy]=useState('');
  const[probeBusy,setProbeBusy]=useState('');
+ const[liveBusy,setLiveBusy]=useState('');
  const[probeResult,setProbeResult]=useState(null);
+ const[liveResult,setLiveResult]=useState(null);
  const[unassignedOpen,setUnassignedOpen]=useState(false);
  const[unassignedType,setUnassignedType]=useState('safety_specialist');
  const[contractsOpen,setContractsOpen]=useState(false);
@@ -168,7 +170,7 @@ export function OsgbDashboard({user, onNavigate}){
  }
 
  async function runDryExport(adapter){
-  if(!oid||dryRunBusy||probeBusy) return;
+  if(!oid||dryRunBusy||probeBusy||liveBusy) return;
   setDryRunBusy(adapter);
   try{
    await api(`/osgb/integrations/${adapter}/dry-run?osgb_id=${oid}`,{method:'POST'});
@@ -178,13 +180,26 @@ export function OsgbDashboard({user, onNavigate}){
  }
 
  async function runProbe(adapter){
-  if(probeBusy||dryRunBusy) return;
+  if(probeBusy||dryRunBusy||liveBusy) return;
   setProbeBusy(adapter);
   try{
    const res=await api(`/osgb/integrations/${adapter}/probe`,{method:'POST'});
    setProbeResult(res);
   }catch(e){alert(e.message||'Bağlantı denemesi başarısız');setProbeResult(null)}
   finally{setProbeBusy('')}
+ }
+
+ async function runLiveSend(adapter){
+  if(!oid||liveBusy||dryRunBusy||probeBusy) return;
+  const label=adapter==='ibys'?'İBYS':'KATİP';
+  if(!window.confirm(`${label} canlı gönderim denensin mi? Kimlik yoksa ağ çağrısı yapılmaz.`)) return;
+  setLiveBusy(adapter);
+  try{
+   const res=await api(`/osgb/integrations/${adapter}/live-send?osgb_id=${oid}`,{method:'POST'});
+   setLiveResult(res);
+   setAdapterStatus(await api(`/osgb/integrations/status?osgb_id=${oid}`));
+  }catch(e){alert(e.message||'Canlı gönderim başarısız');setLiveResult(null)}
+  finally{setLiveBusy('')}
  }
 
  useEffect(()=>{
@@ -284,21 +299,29 @@ export function OsgbDashboard({user, onNavigate}){
        KATİP {adapterStatus.summary?.katip_configured?'yapılandırıldı':'stub'}
       </strong>
       <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}>
-       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy}
+       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy||!!liveBusy}
          onClick={()=>runDryExport('ibys')}>
         {dryRunBusy==='ibys'?'İBYS dry-run…':'İBYS dry-run'}
        </button>
-       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy}
+       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy||!!liveBusy}
          onClick={()=>runDryExport('katip')}>
         {dryRunBusy==='katip'?'KATİP dry-run…':'KATİP dry-run'}
        </button>
-       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy}
+       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy||!!liveBusy}
          onClick={()=>runProbe('ibys')}>
         {probeBusy==='ibys'?'İBYS bağlantı…':'İBYS bağlantı dene'}
        </button>
-       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy}
+       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy||!!liveBusy}
          onClick={()=>runProbe('katip')}>
         {probeBusy==='katip'?'KATİP bağlantı…':'KATİP bağlantı dene'}
+       </button>
+       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy||!!liveBusy}
+         onClick={()=>runLiveSend('ibys')}>
+        {liveBusy==='ibys'?'İBYS canlı…':'İBYS canlı gönder'}
+       </button>
+       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy||!!liveBusy}
+         onClick={()=>runLiveSend('katip')}>
+        {liveBusy==='katip'?'KATİP canlı…':'KATİP canlı gönder'}
        </button>
       </div>
       {probeResult&&(
@@ -309,6 +332,17 @@ export function OsgbDashboard({user, onNavigate}){
         Son probe · {String(probeResult.adapter||'').toUpperCase()}: {probeResult.status}
         {probeResult.http_status!=null?` · HTTP ${probeResult.http_status}`:''}
         {probeResult.elapsed_ms!=null?` · ${probeResult.elapsed_ms} ms`:''}
+       </div>
+      )}
+      {liveResult&&(
+       <div style={{
+         marginTop:8,fontSize:12,fontWeight:600,
+         color:liveResult.ok?'#166534':liveResult.status==='missing_credentials'?'#92400e':'#991b1b',
+       }}>
+        Son canlı · {String(liveResult.adapter||'').toUpperCase()}: {liveResult.status}
+        {liveResult.http_status!=null?` · HTTP ${liveResult.http_status}`:''}
+        {liveResult.elapsed_ms!=null?` · ${liveResult.elapsed_ms} ms`:''}
+        {liveResult.note?` — ${liveResult.note}`:''}
        </div>
       )}
       {(adapterStatus.last_dry_runs||[]).length>0&&(
