@@ -15,6 +15,8 @@ function sleep(ms) {
 }
 
 function isNetworkError(e) {
+  // HTTP cevapları (4xx/5xx) asla "API uyanıyor" sanılmasın
+  if (e?.httpStatus != null) return false;
   const msg = String(e?.message || e || "").toLowerCase();
   return e instanceof TypeError || msg.includes("failed to fetch") || msg.includes("networkerror") || msg.includes("load failed");
 }

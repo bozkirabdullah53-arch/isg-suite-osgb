@@ -491,7 +491,9 @@ def create_package(
     code = payload.code.strip().lower()
     if db.scalar(select(EisaPackage).where(EisaPackage.code == code)):
         raise HTTPException(409, "Bu paket kodu zaten kayıtlı.")
-    obj = EisaPackage(**payload.model_dump(), code=code)
+    data = payload.model_dump()
+    data["code"] = code
+    obj = EisaPackage(**data)
     db.add(obj)
     add_audit_log(
         db,
