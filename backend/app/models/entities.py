@@ -1236,3 +1236,137 @@ class EmergencySufficiencyRule(Base):
     min_per_shift: Mapped[int] = mapped_column(Integer, default=1)
     notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+
+
+class AnnualPlanEvaluation(Base):
+    """0.9.135 — Yıllık plan değerlendirme raporu (plan kalemlerini değiştirmez)."""
+
+    __tablename__ = "annual_plan_evaluations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    year: Mapped[int] = mapped_column(index=True)
+    branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id"), nullable=True)
+    report_status: Mapped[str] = mapped_column(String(40), default="hazirlaniyor", index=True)
+    report_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    specialist_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    physician_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    employer_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    plan_item_count_at_start: Mapped[int] = mapped_column(Integer, default=0)
+    notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    items: Mapped[list["AnnualPlanEvaluationItem"]] = relationship(
+        back_populates="evaluation", cascade="all, delete-orphan"
+    )
+
+
+class AnnualPlanEvaluationItem(Base):
+    """Plan kalemiyle 1:1 değerlendirme sonucu — plan alanları burada saklanmaz."""
+
+    __tablename__ = "annual_plan_evaluation_items"
+    __table_args__ = (UniqueConstraint("plan_item_id", name="uq_annual_eval_plan_item"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    evaluation_id: Mapped[int] = mapped_column(
+        ForeignKey("annual_plan_evaluations.id", ondelete="CASCADE"), index=True
+    )
+    plan_item_id: Mapped[int] = mapped_column(
+        ForeignKey("annual_plan_items.id"), unique=True, index=True
+    )
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    year: Mapped[int] = mapped_column(index=True)
+    outcome_status: Mapped[str] = mapped_column(String(40), default="planlandi", index=True)
+    actual_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    actual_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    completion_pct: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    result_text: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    deviation_reason: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    delay_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    specialist_note: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    physician_note: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    employer_note: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    next_year_suggestion: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    target_met: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    capa_needed: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    evaluation: Mapped[AnnualPlanEvaluation] = relationship(back_populates="items")
+    evidences: Mapped[list["AnnualPlanEvalEvidence"]] = relationship(
+        back_populates="evaluation_item", cascade="all, delete-orphan"
+    )
+
+
+class AnnualPlanEvalEvidence(Base):
+    __tablename__ = "annual_plan_eval_evidences"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    evaluation_item_id: Mapped[int] = mapped_column(
+        ForeignKey("annual_plan_evaluation_items.id", ondelete="CASCADE"), index=True
+    )
+    doc_type: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    doc_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    doc_no: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    original_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    uploaded_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    evaluation_item: Mapped[AnnualPlanEvaluationItem] = relationship(back_populates="evidences")
+
+
+class AnnualPlanUnplannedActivity(Base):
+    """Plan dışı gerçekleştirilen faaliyet — planlanan orana girmez."""
+
+    __tablename__ = "annual_plan_unplanned_activities"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    evaluation_id: Mapped[int] = mapped_column(
+        ForeignKey("annual_plan_evaluations.id", ondelete="CASCADE"), index=True
+    )
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    year: Mapped[int] = mapped_column(index=True)
+    activity: Mapped[str] = mapped_column(String(240))
+    category: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    done_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    result_text: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    responsible_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    suggest_next_year: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class AnnualPlanEvalCapa(Base):
+    __tablename__ = "annual_plan_eval_capas"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    evaluation_id: Mapped[int] = mapped_column(
+        ForeignKey("annual_plan_evaluations.id", ondelete="CASCADE"), index=True
+    )
+    evaluation_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("annual_plan_evaluation_items.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    title: Mapped[str] = mapped_column(String(240))
+    root_cause: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    action: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    responsible: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    priority: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="acik", index=True)
+    closed_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

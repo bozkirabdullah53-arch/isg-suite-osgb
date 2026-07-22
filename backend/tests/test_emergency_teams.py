@@ -114,7 +114,7 @@ def test_health_acil_ekipler_flag(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.134"
+    assert body["version"] == "0.9.135"
     assert body["acil_ekipler"] == "emergency-teams-v1"
 
 

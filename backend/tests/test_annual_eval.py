@@ -1,0 +1,195 @@
+"""0.9.135 — Yıllık plan değerlendirme smoke tests."""
+from __future__ import annotations
+
+import pytest
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture()
+def client(tmp_path, monkeypatch):
+    db_file = tmp_path / "annual_eval.db"
+    url = f"sqlite:///{db_file.as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", url)
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.setenv("SECRET_KEY", "test-secret-key-at-least-32-chars-long!!")
+    monkeypatch.setattr("app.api.auth.role_requires_mfa", lambda _role: False)
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    import app.core.database as dbmod
+    import app.models.entities as ent
+    from app.core.config import settings
+
+    settings.database_url = url
+    settings.secret_key = "test-secret-key-at-least-32-chars-long!!"
+    settings.environment = "development"
+    settings.upload_dir = str(tmp_path / "uploads")
+
+    engine = create_engine(url, connect_args={"check_same_thread": False})
+    dbmod.engine = engine
+    dbmod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    ent.Base.metadata.create_all(bind=engine)
+
+    from app.main import app
+
+    return TestClient(app)
+
+
+def _seed(client: TestClient) -> dict:
+    from datetime import date
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import (
+        AnnualPlanItem,
+        AnnualPlanStatus,
+        Company,
+        OsgbOrganization,
+        User,
+        UserRole,
+    )
+
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(
+            name="Eval OSGB",
+            authorization_number="YETKI-EVAL-1",
+            tax_number="1122334455",
+            responsible_manager="Eval Yonetici",
+            email="eval-osgb@test.com",
+            phone="02120001122",
+            address="Bursa",
+            is_active=True,
+        )
+        db.add(osgb)
+        db.flush()
+        company = Company(name="Eval Firma", osgb_id=osgb.id, is_active=True)
+        db.add(company)
+        db.flush()
+        user = User(
+            email="eval-uzman@test.com",
+            full_name="Eval Uzman",
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.SAFETY_SPECIALIST,
+            osgb_id=osgb.id,
+            company_id=company.id,
+            is_active=True,
+        )
+        db.add(user)
+        db.flush()
+        plan = AnnualPlanItem(
+            company_id=company.id,
+            year=2026,
+            month=3,
+            category="tatbikat",
+            activity="Yangin tatbikati",
+            description="Tahliye senaryosu",
+            responsible_name="ISG Uzmani",
+            target_date=date(2026, 3, 15),
+            status=AnnualPlanStatus.PLANNED,
+            created_by_id=user.id,
+        )
+        db.add(plan)
+        db.commit()
+        company_id = company.id
+        plan_id = plan.id
+
+    r = client.post("/api/v1/auth/login", json={"email": "eval-uzman@test.com", "password": "TestPass123!"})
+    assert r.status_code == 200, r.text
+    return {"token": r.json()["access_token"], "company_id": company_id, "plan_id": plan_id}
+
+
+def test_health_annual_eval(client):
+    r = client.get("/health")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["version"] == "0.9.135"
+    assert body["annual_eval_report"] == "annual-eval-v1"
+
+
+def test_start_sync_and_update_does_not_mutate_plan(client):
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+
+    start = client.post(
+        "/api/v1/annual-evals/start",
+        headers=headers,
+        json={"company_id": seed["company_id"], "year": 2026},
+    )
+    assert start.status_code == 200, start.text
+    ov = start.json()
+    assert ov["plan_item_count"] == 1
+    assert ov["evaluation_id"]
+
+    items = client.get(
+        f"/api/v1/annual-evals/items?company_id={seed['company_id']}&year=2026",
+        headers=headers,
+    )
+    assert items.status_code == 200
+    rows = items.json()
+    assert len(rows) == 1
+    assert rows[0]["plan"]["activity"] == "Yangin tatbikati"
+    eval_item_id = rows[0]["id"]
+
+    upd = client.put(
+        f"/api/v1/annual-evals/items/{eval_item_id}",
+        headers=headers,
+        json={
+            "outcome_status": "tamam",
+            "actual_end": "2026-03-20",
+            "result_text": "Tatbikat basariyla tamamlandi",
+        },
+    )
+    assert upd.status_code == 200, upd.text
+    assert upd.json()["delay_days"] == 5
+
+    # Plan kaydı değişmemeli
+    from app.core.database import SessionLocal
+    from app.models.entities import AnnualPlanItem, AnnualPlanStatus
+
+    with SessionLocal() as db:
+        plan = db.get(AnnualPlanItem, seed["plan_id"])
+        assert plan.activity == "Yangin tatbikati"
+        assert plan.status == AnnualPlanStatus.PLANNED
+        assert plan.completion_date is None
+
+
+def test_unplanned_does_not_inflate_rate(client):
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    start = client.post(
+        "/api/v1/annual-evals/start",
+        headers=headers,
+        json={"company_id": seed["company_id"], "year": 2026},
+    ).json()
+    eid = start["evaluation_id"]
+    client.post(
+        f"/api/v1/annual-evals/{eid}/unplanned",
+        headers=headers,
+        json={"activity": "Plansiz egitim", "done_date": "2026-04-01", "suggest_next_year": True},
+    )
+    ov = client.get(
+        f"/api/v1/annual-evals/overview?company_id={seed['company_id']}&year=2026",
+        headers=headers,
+    ).json()
+    assert ov["kpis"]["unplanned"] == 1
+    assert ov["kpis"]["planned_total"] == 1
+
+
+def test_locked_after_employer_approve(client):
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    eid = client.post(
+        "/api/v1/annual-evals/start",
+        headers=headers,
+        json={"company_id": seed["company_id"], "year": 2026},
+    ).json()["evaluation_id"]
+    client.post(f"/api/v1/annual-evals/{eid}/workflow/approve-employer", headers=headers)
+    items = client.get(
+        f"/api/v1/annual-evals/items?company_id={seed['company_id']}&year=2026",
+        headers=headers,
+    ).json()
+    bad = client.put(
+        f"/api/v1/annual-evals/items/{items[0]['id']}",
+        headers=headers,
+        json={"outcome_status": "tamam", "actual_end": "2026-03-20", "result_text": "x"},
+    )
+    assert bad.status_code == 409

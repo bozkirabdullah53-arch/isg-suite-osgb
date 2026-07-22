@@ -484,3 +484,133 @@ def repair_schema() -> None:
                 except Exception:
                     pass
 
+    # 0.9.135 — Yıllık plan değerlendirme tabloları
+    if "annual_plan_evaluations" not in _tables():
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS annual_plan_evaluations (
+                        id INTEGER PRIMARY KEY,
+                        company_id INTEGER NOT NULL REFERENCES companies(id),
+                        year INTEGER NOT NULL,
+                        branch_id INTEGER REFERENCES branches(id),
+                        report_status VARCHAR(40) NOT NULL DEFAULT 'hazirlaniyor',
+                        report_date DATE,
+                        specialist_name VARCHAR(160),
+                        physician_name VARCHAR(160),
+                        employer_name VARCHAR(160),
+                        plan_item_count_at_start INTEGER NOT NULL DEFAULT 0,
+                        notes VARCHAR(2000),
+                        is_active BOOLEAN NOT NULL DEFAULT 1,
+                        created_by_id INTEGER NOT NULL REFERENCES users(id),
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+    if "annual_plan_evaluation_items" not in _tables():
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS annual_plan_evaluation_items (
+                        id INTEGER PRIMARY KEY,
+                        evaluation_id INTEGER NOT NULL REFERENCES annual_plan_evaluations(id) ON DELETE CASCADE,
+                        plan_item_id INTEGER NOT NULL UNIQUE REFERENCES annual_plan_items(id),
+                        company_id INTEGER NOT NULL REFERENCES companies(id),
+                        year INTEGER NOT NULL,
+                        outcome_status VARCHAR(40) NOT NULL DEFAULT 'planlandi',
+                        actual_start DATE,
+                        actual_end DATE,
+                        completion_pct INTEGER,
+                        result_text VARCHAR(4000),
+                        deviation_reason VARCHAR(2000),
+                        delay_days INTEGER,
+                        specialist_note VARCHAR(2000),
+                        physician_note VARCHAR(2000),
+                        employer_note VARCHAR(2000),
+                        next_year_suggestion VARCHAR(2000),
+                        target_met BOOLEAN,
+                        capa_needed BOOLEAN NOT NULL DEFAULT 0,
+                        is_active BOOLEAN NOT NULL DEFAULT 1,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+    if "annual_plan_eval_evidences" not in _tables():
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS annual_plan_eval_evidences (
+                        id INTEGER PRIMARY KEY,
+                        evaluation_item_id INTEGER NOT NULL REFERENCES annual_plan_evaluation_items(id) ON DELETE CASCADE,
+                        doc_type VARCHAR(80),
+                        title VARCHAR(200),
+                        doc_date DATE,
+                        doc_no VARCHAR(80),
+                        storage_path VARCHAR(500),
+                        original_name VARCHAR(255),
+                        content_type VARCHAR(120),
+                        notes VARCHAR(1000),
+                        uploaded_by_id INTEGER REFERENCES users(id),
+                        is_active BOOLEAN NOT NULL DEFAULT 1,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+    if "annual_plan_unplanned_activities" not in _tables():
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS annual_plan_unplanned_activities (
+                        id INTEGER PRIMARY KEY,
+                        evaluation_id INTEGER NOT NULL REFERENCES annual_plan_evaluations(id) ON DELETE CASCADE,
+                        company_id INTEGER NOT NULL REFERENCES companies(id),
+                        year INTEGER NOT NULL,
+                        activity VARCHAR(240) NOT NULL,
+                        category VARCHAR(40),
+                        done_date DATE,
+                        reason VARCHAR(2000),
+                        result_text VARCHAR(4000),
+                        responsible_name VARCHAR(160),
+                        suggest_next_year BOOLEAN NOT NULL DEFAULT 0,
+                        is_active BOOLEAN NOT NULL DEFAULT 1,
+                        created_by_id INTEGER NOT NULL REFERENCES users(id),
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+    if "annual_plan_eval_capas" not in _tables():
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS annual_plan_eval_capas (
+                        id INTEGER PRIMARY KEY,
+                        evaluation_id INTEGER NOT NULL REFERENCES annual_plan_evaluations(id) ON DELETE CASCADE,
+                        evaluation_item_id INTEGER REFERENCES annual_plan_evaluation_items(id) ON DELETE SET NULL,
+                        title VARCHAR(240) NOT NULL,
+                        root_cause VARCHAR(2000),
+                        action VARCHAR(2000),
+                        responsible VARCHAR(160),
+                        due_date DATE,
+                        priority VARCHAR(40),
+                        status VARCHAR(20) NOT NULL DEFAULT 'acik',
+                        closed_at DATE,
+                        notes VARCHAR(2000),
+                        is_active BOOLEAN NOT NULL DEFAULT 1,
+                        created_by_id INTEGER NOT NULL REFERENCES users(id),
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+
