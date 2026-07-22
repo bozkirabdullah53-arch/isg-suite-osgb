@@ -9,7 +9,7 @@ alwaysApply: true
 
 - `employees` (Personel)
 - `dashboard` (İSG Özeti)
-- `risk`, `near_miss`, `accident`, `capa`, `ppe`, `sds`, `tatbikat`
+- `risk`, `near_miss`, `accident`, `capa`, `ppe`, `sds`, `tatbikat`, `acil_ekipler`
 - `training`, `health`, `annual_plans`, `documents`
 
 Bunlar saha rolleri (uzman / hekim / DSP) içindir. OSGB merkezi yalnızca kendi yönetim ekranlarını görür: ana panel, hizmet denetimi, performans, ÇSGB, profesyoneller, görevlendirmeler, saha takvimi, işyerleri/şubeler, CRM, finans, raporlar, bildirimler, kullanıcılar, abonelik, güvenlik.

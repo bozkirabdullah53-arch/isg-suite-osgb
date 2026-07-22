@@ -140,7 +140,7 @@ def test_health_flags_sds_review_reminders(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.131"
+    assert body["version"] == "0.9.132"
     assert body["sds_review_reminders"] == "duty-notify-v1"
     assert body["osgb_mevzuat_link"] == "dashboard-v1"
     assert body["osgb_sds_due"] == "dashboard-v1"

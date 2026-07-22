@@ -7,6 +7,7 @@ import {CsgbAuditPackPage} from './csgb_audit_pack';
 import {MevzuatPanelPage} from './mevzuat_panel';
 import {SdsRegisterPage} from './sds_register';
 import {DrillsPage} from './drills';
+import {EmergencyTeamsPage} from './emergency_teams';
 import {Customer360Page} from './customer_360';
 import {CapacityEnginePage} from './capacity_engine';
 import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
@@ -76,7 +77,7 @@ const roleModules={
   ],
   safety_specialist:[
     'dashboard','visits',
-    'risk','near_miss','accident','capa','ppe','sds','tatbikat',
+    'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler',
     'training','annual_plans','documents',
     'security',
   ],
@@ -131,6 +132,7 @@ const menuCatalog={
   ppe:['KKD Takip',HardHat],
   sds:['SDS / PKD',Beaker],
   tatbikat:['Tatbikat Yönetimi',Activity],
+  acil_ekipler:['Acil Durum Ekipleri/Destek Elemanları',Users],
   training:['Eğitimler',GraduationCap],
   health:['Sağlık',HeartPulse],
   documents:['Dokümanlar',FileText],
@@ -1099,6 +1101,7 @@ function App(){
     ppe:<PpePage user={user}/>,
     sds:<SdsRegisterPage user={user}/>,
     tatbikat:<DrillsPage user={user}/>,
+    acil_ekipler:<EmergencyTeamsPage user={user}/>,
     training:<TrainingPage user={user}/>,
     health:<HealthPage user={user}/>,
     documents:<DocumentsPage user={user}/>,
