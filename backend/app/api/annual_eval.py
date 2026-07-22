@@ -1106,6 +1106,32 @@ def export_xlsx(
     )
 
 
+@router.get("/year-compare")
+def year_compare(
+    company_id: int,
+    year: int = Query(..., ge=2020, le=2100),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW_ROLES)),
+):
+    ensure_company_access(db, user, company_id)
+    curr = _overview(db, company_id, year, user)
+    prev = _overview(db, company_id, year - 1, user)
+    return {
+        "year": year,
+        "prev_year": year - 1,
+        "curr_planned": curr.kpis.get("planned_total"),
+        "curr_rate": curr.kpis.get("completion_rate"),
+        "prev_planned": prev.kpis.get("planned_total"),
+        "prev_rate": prev.kpis.get("completion_rate"),
+        "delta_rate": (
+            None
+            if curr.kpis.get("completion_rate") is None or prev.kpis.get("completion_rate") is None
+            else round(float(curr.kpis["completion_rate"]) - float(prev.kpis["completion_rate"]), 1)
+        ),
+        "note": "Önceki yıl değerlendirmesi yoksa oran boş kalır; eski kayıtlar değiştirilmez.",
+    }
+
+
 @router.get("/export.pdf")
 def export_pdf(
     company_id: int,
@@ -1119,9 +1145,13 @@ def export_pdf(
     items = [i.model_dump() for i in list_items(company_id=company_id, year=year, db=db, user=user)]
     ev = _get_eval(db, company_id, year)
     unplanned: list[dict] = []
+    capas: list[dict] = []
     if ev:
         unplanned = list_unplanned(evaluation_id=ev.id, db=db, user=user)
+        capas = list_capas(evaluation_id=ev.id, db=db, user=user)
     suggestions = _suggestions_payload(db, company_id, year, user).get("items") or []
+    related = related_evidence(company_id=company_id, year=year, db=db, user=user)
+    compare = year_compare(company_id=company_id, year=year, db=db, user=user)
     data = build_eval_pdf(
         company_name=company.name if company else str(company_id),
         year=year,
@@ -1129,6 +1159,20 @@ def export_pdf(
         items=items,
         unplanned=unplanned,
         suggestions=suggestions,
+        capas=capas,
+        related=related,
+        compare=compare,
+        meta={
+            "sgk_registry_no": ov.sgk_registry_no,
+            "hazard_class": ov.hazard_class,
+            "employee_count": ov.employee_count,
+            "address": ov.address,
+            "report_status": ov.report_status,
+            "report_date": str(ev.report_date) if ev and ev.report_date else None,
+            "specialist_name": ev.specialist_name if ev else None,
+            "physician_name": ev.physician_name if ev else None,
+            "employer_name": ev.employer_name if ev else None,
+        },
     )
     return StreamingResponse(
         BytesIO(data),

@@ -64,6 +64,7 @@ export function AnnualEvalReportPage({user, onNavigate}) {
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState({});
   const [bulkNote, setBulkNote] = useState('');
+  const [compare, setCompare] = useState(null);
 
   async function loadCompanies() {
     try {
@@ -83,6 +84,8 @@ export function AnnualEvalReportPage({user, onNavigate}) {
       setRelated(await api(`/annual-evals/related-evidence?company_id=${companyId}&year=${year}`).catch(() => null));
       setSuggestions(await api(`/annual-evals/next-year-suggestions?company_id=${companyId}&year=${year}`).catch(() => null));
       setAnalytics(await api(`/annual-evals/analytics?company_id=${companyId}&year=${year}&period=${period}`).catch(() => null));
+      const cmp = await api(`/annual-evals/year-compare?company_id=${companyId}&year=${year}`).catch(() => null);
+      setCompare(cmp);
       if (!ov.evaluation_id) {
         setItems([]);
         setUnplanned([]);
@@ -404,6 +407,15 @@ export function AnnualEvalReportPage({user, onNavigate}) {
               ))}
             </div>
           )}
+        </section>
+      )}
+
+      {compare && (
+        <section className="panel" style={{marginBottom: 12, fontSize: 13}}>
+          <strong>Yıllar arası:</strong> {compare.prev_year}: {compare.prev_rate ?? '—'}%
+          ({compare.prev_planned ?? 0} plan) → {compare.year}: {compare.curr_rate ?? '—'}%
+          ({compare.curr_planned ?? 0} plan)
+          {compare.delta_rate != null ? ` (Δ ${compare.delta_rate})` : ''}
         </section>
       )}
 

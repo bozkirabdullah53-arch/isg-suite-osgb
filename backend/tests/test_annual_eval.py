@@ -101,8 +101,8 @@ def test_health_annual_eval(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.137"
-    assert body["annual_eval_report"] == "annual-eval-v3"
+    assert body["version"] == "0.9.138"
+    assert body["annual_eval_report"] == "annual-eval-v4"
 
 
 def test_start_sync_and_update_does_not_mutate_plan(client):
@@ -329,3 +329,25 @@ def test_eval_notifications_rebuild(client):
     assert listed.status_code == 200
     titles = [x.get("title") for x in listed.json()]
     assert any("değerlendirme" in (t or "").lower() or "Yıllık" in (t or "") for t in titles)
+
+
+def test_year_compare_and_pdf_export(client):
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    client.post(
+        "/api/v1/annual-evals/start",
+        headers=headers,
+        json={"company_id": seed["company_id"], "year": 2026},
+    )
+    cmp = client.get(
+        f"/api/v1/annual-evals/year-compare?company_id={seed['company_id']}&year=2026",
+        headers=headers,
+    )
+    assert cmp.status_code == 200
+    assert cmp.json()["prev_year"] == 2025
+    pdf = client.get(
+        f"/api/v1/annual-evals/export.pdf?company_id={seed['company_id']}&year=2026",
+        headers=headers,
+    )
+    assert pdf.status_code == 200
+    assert pdf.content[:4] == b"%PDF"

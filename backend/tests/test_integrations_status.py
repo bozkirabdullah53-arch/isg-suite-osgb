@@ -85,7 +85,7 @@ def test_health_flag_integrations_adapter(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.137"
+    assert body["version"] == "0.9.138"
     assert body["integrations_adapter"] == "stub-clients-v1"
     assert body["integrations_dry_run"] == "log-v1"
     assert body["integration_readiness"] == "checklist-v1"
