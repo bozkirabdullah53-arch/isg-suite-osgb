@@ -1,4 +1,4 @@
-"""0.9.126 — İBYS/KATİP dry-run export log (log-v1)."""
+"""0.9.127 — İBYS/KATİP dry-run export log (log-v1)."""
 from __future__ import annotations
 
 import pytest
@@ -101,7 +101,7 @@ def test_health_flag_integrations_dry_run(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.126"
+    assert body["version"] == "0.9.127"
     assert body["integrations_dry_run"] == "log-v1"
     assert body["integrations_adapter"] == "stub-clients-v1"
 

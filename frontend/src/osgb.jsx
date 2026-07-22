@@ -141,6 +141,8 @@ export function OsgbDashboard({user, onNavigate}){
  const[integ,setInteg]=useState(null);
  const[adapterStatus,setAdapterStatus]=useState(null);
  const[dryRunBusy,setDryRunBusy]=useState('');
+ const[probeBusy,setProbeBusy]=useState('');
+ const[probeResult,setProbeResult]=useState(null);
  const[unassignedOpen,setUnassignedOpen]=useState(false);
  const[unassignedType,setUnassignedType]=useState('safety_specialist');
  const[contractsOpen,setContractsOpen]=useState(false);
@@ -166,13 +168,23 @@ export function OsgbDashboard({user, onNavigate}){
  }
 
  async function runDryExport(adapter){
-  if(!oid||dryRunBusy) return;
+  if(!oid||dryRunBusy||probeBusy) return;
   setDryRunBusy(adapter);
   try{
    await api(`/osgb/integrations/${adapter}/dry-run?osgb_id=${oid}`,{method:'POST'});
    setAdapterStatus(await api(`/osgb/integrations/status?osgb_id=${oid}`));
   }catch(e){alert(e.message||'Dry-run başarısız')}
   finally{setDryRunBusy('')}
+ }
+
+ async function runProbe(adapter){
+  if(probeBusy||dryRunBusy) return;
+  setProbeBusy(adapter);
+  try{
+   const res=await api(`/osgb/integrations/${adapter}/probe`,{method:'POST'});
+   setProbeResult(res);
+  }catch(e){alert(e.message||'Bağlantı denemesi başarısız');setProbeResult(null)}
+  finally{setProbeBusy('')}
  }
 
  useEffect(()=>{
@@ -272,15 +284,33 @@ export function OsgbDashboard({user, onNavigate}){
        KATİP {adapterStatus.summary?.katip_configured?'yapılandırıldı':'stub'}
       </strong>
       <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:8}}>
-       <button type="button" className="mini secondary" disabled={!!dryRunBusy}
+       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy}
          onClick={()=>runDryExport('ibys')}>
         {dryRunBusy==='ibys'?'İBYS dry-run…':'İBYS dry-run'}
        </button>
-       <button type="button" className="mini secondary" disabled={!!dryRunBusy}
+       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy}
          onClick={()=>runDryExport('katip')}>
         {dryRunBusy==='katip'?'KATİP dry-run…':'KATİP dry-run'}
        </button>
+       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy}
+         onClick={()=>runProbe('ibys')}>
+        {probeBusy==='ibys'?'İBYS bağlantı…':'İBYS bağlantı dene'}
+       </button>
+       <button type="button" className="mini secondary" disabled={!!dryRunBusy||!!probeBusy}
+         onClick={()=>runProbe('katip')}>
+        {probeBusy==='katip'?'KATİP bağlantı…':'KATİP bağlantı dene'}
+       </button>
       </div>
+      {probeResult&&(
+       <div style={{
+         marginTop:8,fontSize:12,fontWeight:600,
+         color:probeResult.ok?'#166534':probeResult.status==='missing_credentials'?'#92400e':'#991b1b',
+       }}>
+        Son probe · {String(probeResult.adapter||'').toUpperCase()}: {probeResult.status}
+        {probeResult.http_status!=null?` · HTTP ${probeResult.http_status}`:''}
+        {probeResult.elapsed_ms!=null?` · ${probeResult.elapsed_ms} ms`:''}
+       </div>
+      )}
       {(adapterStatus.last_dry_runs||[]).length>0&&(
        <div style={{marginTop:10,overflowX:'auto'}}>
         <div style={{fontWeight:700,color:'#475569',marginBottom:4}}>Son dry-run’lar</div>

@@ -31,6 +31,7 @@ from app.services.ibys_export import build_ibys_export_summary, build_ibys_expor
 from app.services.integration_readiness import build_integration_readiness
 from app.services.integrations_status import build_integrations_status
 from app.services.integrations_dry_run import VALID_ADAPTERS, run_dry_export
+from app.services import ibys_client, katip_client
 from app.services.mevzuat_panel import build_mevzuat_panel
 from app.services.capacity_engine import build_capacity_overview, sync_assignment_required
 
@@ -357,6 +358,22 @@ def integrations_dry_run(
         return run_dry_export(db, adapter=key, user=user, osgb_id=osgb_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/integrations/{adapter}/probe")
+def integrations_probe(
+    adapter: str,
+    user: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """İBYS/KATİP güvenli bağlantı probe — secret yok; kimlik yoksa network yok."""
+    key = (adapter or "").strip().lower()
+    if key not in VALID_ADAPTERS:
+        raise HTTPException(400, "adapter ibys veya katip olmalı.")
+    if user.role == UserRole.COMPANY_ADMIN and not user.osgb_id:
+        raise HTTPException(400, "OSGB kapsamınız tanımlı değil.")
+    if key == "ibys":
+        return ibys_client.probe()
+    return katip_client.probe()
 
 
 @router.get("/ibys-export")
