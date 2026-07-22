@@ -1112,3 +1112,127 @@ class DrillPhoto(Base):
     content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     drill: Mapped[DrillRecord] = relationship(back_populates="photos")
+
+
+# ---------------------------------------------------------------------------
+# 0.9.134 — Acil durum ekipleri / destek elemanları (İSG uzmanı)
+# Mevcut modüllere dokunmaz; yalnızca yeni tablolar.
+# ---------------------------------------------------------------------------
+class EmergencyTeamType(Base):
+    """Acil durum ekip türü. company_id NULL = sistem varsayılanı (global)."""
+
+    __tablename__ = "emergency_team_types"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(
+        ForeignKey("companies.id"), nullable=True, index=True
+    )
+    code: Mapped[str] = mapped_column(String(40), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    min_members: Mapped[int] = mapped_column(Integer, default=2)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EmergencyTeam(Base):
+    """İşyerinin acil durum ekibi (söndürme, kurtarma, ilk yardım, ...)."""
+
+    __tablename__ = "emergency_teams"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    type_id: Mapped[int] = mapped_column(ForeignKey("emergency_team_types.id"), index=True)
+    name: Mapped[str] = mapped_column(String(160))
+    leader_assignment_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    min_members: Mapped[int] = mapped_column(Integer, default=2)
+    notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    team_type: Mapped[EmergencyTeamType] = relationship()
+    assignments: Mapped[list["EmergencyTeamAssignment"]] = relationship(
+        back_populates="team", cascade="all, delete-orphan"
+    )
+
+
+class EmergencyTeamAssignment(Base):
+    """Ekip üyesi / destek elemanı görevlendirmesi (asıl / yedek)."""
+
+    __tablename__ = "emergency_team_assignments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    team_id: Mapped[int] = mapped_column(
+        ForeignKey("emergency_teams.id", ondelete="CASCADE"), index=True
+    )
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    membership: Mapped[str] = mapped_column(String(10), default="asil", index=True)
+    is_leader: Mapped[bool] = mapped_column(Boolean, default=False)
+    role_title: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    shift: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    section: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    personnel_no: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    assign_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    assign_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    letter_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    letter_no: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    assigned_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    team: Mapped[EmergencyTeam] = relationship(back_populates="assignments")
+    employee: Mapped[Employee] = relationship()
+    trainings: Mapped[list["EmergencyTeamTraining"]] = relationship(
+        back_populates="assignment", cascade="all, delete-orphan"
+    )
+
+
+class EmergencyTeamTraining(Base):
+    """Ekip üyesinin eğitim / sertifika / ilk yardım belgesi kayıtları."""
+
+    __tablename__ = "emergency_team_trainings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("emergency_team_assignments.id", ondelete="CASCADE"), index=True
+    )
+    training_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    provider: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    trainer: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    training_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    duration_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+    certificate_no: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    valid_until: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    file_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    first_aid_cert_no: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    first_aid_center: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    first_aid_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    first_aid_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    refresh_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    assignment: Mapped[EmergencyTeamAssignment] = relationship(back_populates="trainings")
+
+
+class EmergencySufficiencyRule(Base):
+    """Tehlike sınıfına göre önerilen minimum ekip mevcudu (yol gösterici)."""
+
+    __tablename__ = "emergency_sufficiency_rules"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    hazard_class: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    team_code: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    min_members: Mapped[int] = mapped_column(Integer, default=2)
+    min_per_shift: Mapped[int] = mapped_column(Integer, default=1)
+    notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)

@@ -317,3 +317,170 @@ def repair_schema() -> None:
             except Exception:
                 pass
 
+    # 0.9.134 — Acil durum ekipleri tabloları (yalnızca eksikse oluştur)
+    bool_false = "0" if dialect == "sqlite" else "false"
+    bool_true = "1" if dialect == "sqlite" else "true"
+    if "emergency_team_types" not in _tables():
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS emergency_team_types (
+                        id INTEGER PRIMARY KEY,
+                        company_id INTEGER REFERENCES companies(id),
+                        code VARCHAR(40) NOT NULL,
+                        name VARCHAR(120) NOT NULL,
+                        is_system BOOLEAN NOT NULL DEFAULT {bool_false},
+                        min_members INTEGER NOT NULL DEFAULT 2,
+                        is_active BOOLEAN NOT NULL DEFAULT {bool_true},
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+            for idx_sql in (
+                "CREATE INDEX IF NOT EXISTS ix_emergency_team_types_company_id ON emergency_team_types (company_id)",
+                "CREATE INDEX IF NOT EXISTS ix_emergency_team_types_code ON emergency_team_types (code)",
+                "CREATE INDEX IF NOT EXISTS ix_emergency_team_types_is_system ON emergency_team_types (is_system)",
+                "CREATE INDEX IF NOT EXISTS ix_emergency_team_types_is_active ON emergency_team_types (is_active)",
+            ):
+                try:
+                    conn.execute(text(idx_sql))
+                except Exception:
+                    pass
+    if "emergency_teams" not in _tables():
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS emergency_teams (
+                        id INTEGER PRIMARY KEY,
+                        company_id INTEGER NOT NULL REFERENCES companies(id),
+                        type_id INTEGER NOT NULL REFERENCES emergency_team_types(id),
+                        name VARCHAR(160) NOT NULL,
+                        leader_assignment_id INTEGER,
+                        min_members INTEGER NOT NULL DEFAULT 2,
+                        notes VARCHAR(2000),
+                        is_active BOOLEAN NOT NULL DEFAULT {bool_true},
+                        created_by_id INTEGER NOT NULL REFERENCES users(id),
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+            for idx_sql in (
+                "CREATE INDEX IF NOT EXISTS ix_emergency_teams_company_id ON emergency_teams (company_id)",
+                "CREATE INDEX IF NOT EXISTS ix_emergency_teams_type_id ON emergency_teams (type_id)",
+                "CREATE INDEX IF NOT EXISTS ix_emergency_teams_is_active ON emergency_teams (is_active)",
+            ):
+                try:
+                    conn.execute(text(idx_sql))
+                except Exception:
+                    pass
+    if "emergency_team_assignments" not in _tables():
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS emergency_team_assignments (
+                        id INTEGER PRIMARY KEY,
+                        company_id INTEGER NOT NULL REFERENCES companies(id),
+                        team_id INTEGER NOT NULL REFERENCES emergency_teams(id) ON DELETE CASCADE,
+                        employee_id INTEGER NOT NULL REFERENCES employees(id),
+                        membership VARCHAR(10) NOT NULL DEFAULT 'asil',
+                        is_leader BOOLEAN NOT NULL DEFAULT {bool_false},
+                        role_title VARCHAR(120),
+                        shift VARCHAR(60),
+                        phone VARCHAR(40),
+                        email VARCHAR(255),
+                        section VARCHAR(120),
+                        personnel_no VARCHAR(60),
+                        assign_start DATE,
+                        assign_end DATE,
+                        letter_date DATE,
+                        letter_no VARCHAR(60),
+                        assigned_by VARCHAR(160),
+                        notes VARCHAR(2000),
+                        is_active BOOLEAN NOT NULL DEFAULT {bool_true},
+                        created_by_id INTEGER NOT NULL REFERENCES users(id),
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+            for idx_sql in (
+                "CREATE INDEX IF NOT EXISTS ix_emergency_team_assignments_company_id ON emergency_team_assignments (company_id)",
+                "CREATE INDEX IF NOT EXISTS ix_emergency_team_assignments_team_id ON emergency_team_assignments (team_id)",
+                "CREATE INDEX IF NOT EXISTS ix_emergency_team_assignments_employee_id ON emergency_team_assignments (employee_id)",
+                "CREATE INDEX IF NOT EXISTS ix_emergency_team_assignments_membership ON emergency_team_assignments (membership)",
+                "CREATE INDEX IF NOT EXISTS ix_emergency_team_assignments_is_active ON emergency_team_assignments (is_active)",
+            ):
+                try:
+                    conn.execute(text(idx_sql))
+                except Exception:
+                    pass
+    if "emergency_team_trainings" not in _tables():
+        float_type = "DOUBLE PRECISION" if dialect == "postgresql" else "FLOAT"
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS emergency_team_trainings (
+                        id INTEGER PRIMARY KEY,
+                        assignment_id INTEGER NOT NULL REFERENCES emergency_team_assignments(id) ON DELETE CASCADE,
+                        training_type VARCHAR(120),
+                        provider VARCHAR(160),
+                        trainer VARCHAR(160),
+                        training_date DATE,
+                        duration_hours {float_type},
+                        certificate_no VARCHAR(80),
+                        valid_until DATE,
+                        file_path VARCHAR(500),
+                        first_aid_cert_no VARCHAR(80),
+                        first_aid_center VARCHAR(160),
+                        first_aid_start DATE,
+                        first_aid_end DATE,
+                        refresh_date DATE,
+                        notes VARCHAR(2000),
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    )
+                    """
+                )
+            )
+            for idx_sql in (
+                "CREATE INDEX IF NOT EXISTS ix_emergency_team_trainings_assignment_id ON emergency_team_trainings (assignment_id)",
+                "CREATE INDEX IF NOT EXISTS ix_emergency_team_trainings_valid_until ON emergency_team_trainings (valid_until)",
+            ):
+                try:
+                    conn.execute(text(idx_sql))
+                except Exception:
+                    pass
+    if "emergency_sufficiency_rules" not in _tables():
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    f"""
+                    CREATE TABLE IF NOT EXISTS emergency_sufficiency_rules (
+                        id INTEGER PRIMARY KEY,
+                        hazard_class VARCHAR(40),
+                        team_code VARCHAR(40),
+                        min_members INTEGER NOT NULL DEFAULT 2,
+                        min_per_shift INTEGER NOT NULL DEFAULT 1,
+                        notes VARCHAR(1000),
+                        is_active BOOLEAN NOT NULL DEFAULT {bool_true}
+                    )
+                    """
+                )
+            )
+            for idx_sql in (
+                "CREATE INDEX IF NOT EXISTS ix_emergency_sufficiency_rules_hazard_class ON emergency_sufficiency_rules (hazard_class)",
+                "CREATE INDEX IF NOT EXISTS ix_emergency_sufficiency_rules_team_code ON emergency_sufficiency_rules (team_code)",
+                "CREATE INDEX IF NOT EXISTS ix_emergency_sufficiency_rules_is_active ON emergency_sufficiency_rules (is_active)",
+            ):
+                try:
+                    conn.execute(text(idx_sql))
+                except Exception:
+                    pass
+

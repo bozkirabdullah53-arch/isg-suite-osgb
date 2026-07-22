@@ -112,7 +112,7 @@ def test_health_flag_pro_performance_export(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.133"
+    assert body["version"] == "0.9.134"
     assert body["pro_performance_export"] == "csv-v1"
     assert body["csgb_company_snapshot"] == "read-only-v1"
 
