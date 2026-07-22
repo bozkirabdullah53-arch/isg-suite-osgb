@@ -35,6 +35,7 @@ function badge(outcome) {
 export function AnnualEvalReportPage({user, onNavigate}) {
   const canEdit = user.role === 'safety_specialist' || user.role === 'global_admin';
   const isPhysician = user.role === 'workplace_physician';
+  const isEmployer = user.role === 'read_only';
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState(user.company_id ? String(user.company_id) : '');
   const [year, setYear] = useState(String(new Date().getFullYear()));
@@ -67,6 +68,7 @@ export function AnnualEvalReportPage({user, onNavigate}) {
   const [compare, setCompare] = useState(null);
   const [evidences, setEvidences] = useState([]);
   const [history, setHistory] = useState(null);
+  const [revisions, setRevisions] = useState([]);
 
   async function loadCompanies() {
     try {
@@ -92,6 +94,7 @@ export function AnnualEvalReportPage({user, onNavigate}) {
         setItems([]);
         setUnplanned([]);
         setCapas([]);
+        setRevisions([]);
         return;
       }
       const qs = new URLSearchParams({company_id: companyId, year});
@@ -104,6 +107,7 @@ export function AnnualEvalReportPage({user, onNavigate}) {
       setItems(await api(`/annual-evals/items?${qs}`));
       setUnplanned(await api(`/annual-evals/${ov.evaluation_id}/unplanned`));
       setCapas(await api(`/annual-evals/${ov.evaluation_id}/capas`));
+      setRevisions(await api(`/annual-evals/${ov.evaluation_id}/revisions`).catch(() => []));
     } catch (e) {
       setErr(e.message || 'Değerlendirme yüklenemedi.');
     } finally {
@@ -535,11 +539,28 @@ export function AnnualEvalReportPage({user, onNavigate}) {
           <button type="button" className="secondary" onClick={() => workflow('request-revision')}>Revizyon iste</button>
         </div>
       )}
+      {isPhysician && overview?.evaluation_id && !locked && overview?.report_status === 'hekim_bekliyor' && (
+        <div className="actions" style={{marginBottom: 12}}>
+          <button type="button" className="secondary" onClick={() => workflow('approve-physician')}>Hekim onayladı</button>
+          <button type="button" className="secondary" onClick={() => workflow('request-revision')}>Revizyon iste</button>
+        </div>
+      )}
+      {isEmployer && overview?.evaluation_id && overview?.report_status === 'isveren_bekliyor' && (
+        <div className="actions" style={{marginBottom: 12}}>
+          <button type="button" className="secondary" onClick={() => workflow('approve-employer')}>İşveren onayladı</button>
+          <button type="button" className="secondary" onClick={() => workflow('request-revision')}>Revizyon iste</button>
+        </div>
+      )}
       {canEdit && locked && (
         <div className="actions" style={{marginBottom: 12}}>
           <button type="button" className="secondary" onClick={() => workflow('create-revision')}>Yeni revizyon aç</button>
           <button type="button" className="secondary" onClick={() => workflow('archive')}>Arşivle</button>
         </div>
+      )}
+      {isEmployer && (
+        <p className="muted" style={{fontSize: 12, marginBottom: 12}}>
+          İşveren görünümü: rapor özeti ve onay. Plan / değerlendirme alanları düzenlenemez.
+        </p>
       )}
 
       <div className="table-wrap">
@@ -631,6 +652,27 @@ export function AnnualEvalReportPage({user, onNavigate}) {
           <ul style={{margin: 0, paddingLeft: 18, fontSize: 13}}>
             {capas.map((c) => (
               <li key={c.id}><strong>{c.title}</strong> — {c.status} / {c.responsible || '—'} / {c.due_date || '—'}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {revisions.length > 0 && (
+        <section className="panel" style={{marginTop: 16}}>
+          <h3>Revizyon geçmişi (alan farkları)</h3>
+          <ul style={{margin: 0, paddingLeft: 18, fontSize: 13}}>
+            {revisions.map((r) => (
+              <li key={r.id} style={{marginBottom: 8}}>
+                <strong>#{r.revision_no}</strong> — {r.reason || '—'} · {r.change_count} alan değişikliği
+                {(r.changes || []).slice(0, 8).map((ch, i) => (
+                  <div key={i} className="muted" style={{fontSize: 12, marginLeft: 8}}>
+                    Plan #{ch.plan_item_id}: {ch.kind}
+                    {ch.fields && Object.keys(ch.fields).map((f) => (
+                      <span key={f}> · {f}: {String(ch.fields[f]?.from ?? '—')} → {String(ch.fields[f]?.to ?? '—')}</span>
+                    ))}
+                  </div>
+                ))}
+              </li>
             ))}
           </ul>
         </section>

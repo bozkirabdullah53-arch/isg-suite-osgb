@@ -44,7 +44,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.140',lifespan=lifespan)
+app=FastAPI(title=settings.app_name,version='0.9.141',lifespan=lifespan)
 
 from app.core.validation_tr import register_turkish_validation
 register_turkish_validation(app)
@@ -69,7 +69,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.140',
+        'version': '0.9.141',
         'ai_hazard_hint': 'keyword-v2',
         'mevzuat_panel': 'highlights-v1',
         'sds_register': 'chemical-register-v1',
@@ -85,7 +85,7 @@ def health():
         'integrations_live_send': 'live-post-v1',
         'tatbikat': 'drill-management-v1',
         'acil_ekipler': 'emergency-teams-v1',
-        'annual_eval_report': 'annual-eval-v6',
+        'annual_eval_report': 'annual-eval-v7',
         'crm_convert': 'lead-to-contract-v1',
         'contracts_ui': 'osgb-monitor-v1',
         'contracts_actions': 'end-suspend-v1',

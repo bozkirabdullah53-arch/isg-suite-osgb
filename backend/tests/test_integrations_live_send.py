@@ -85,7 +85,7 @@ def test_health_flag_integrations_live_send(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.140"
+    assert body["version"] == "0.9.141"
     assert body["integrations_live_send"] == "live-post-v1"
 
 

@@ -1,6 +1,7 @@
-"""0.9.136 — Yıllık plan değerlendirme API (AnnualPlanItem alanlarını değiştirmez)."""
+"""0.9.141 — Yıllık plan değerlendirme API (AnnualPlanItem alanlarını değiştirmez)."""
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import date, datetime
 from io import BytesIO
@@ -18,6 +19,7 @@ from app.core.database import get_db
 from app.models.entities import (
     AnnualPlanEvalCapa,
     AnnualPlanEvalEvidence,
+    AnnualPlanEvalRevision,
     AnnualPlanEvaluation,
     AnnualPlanEvaluationItem,
     AnnualPlanItem,
@@ -55,13 +57,37 @@ from app.services.annual_eval_logic import (
 )
 from app.services.annual_eval_reports import build_eval_pdf, build_eval_xlsx
 from app.services.audit import add_audit_log
+from app.services.mailer import send_email, smtp_configured
 
 router = APIRouter(prefix="/annual-evals", tags=["Yıllık Plan Değerlendirme"])
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST)
-VIEW_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST, UserRole.WORKPLACE_PHYSICIAN)
+VIEW_ROLES = (
+    UserRole.GLOBAL_ADMIN,
+    UserRole.SAFETY_SPECIALIST,
+    UserRole.WORKPLACE_PHYSICIAN,
+    UserRole.READ_ONLY,
+)
 ITEM_WRITE_ROLES = (*EDIT_ROLES, UserRole.WORKPLACE_PHYSICIAN)
+WORKFLOW_ROLES = (*EDIT_ROLES, UserRole.WORKPLACE_PHYSICIAN, UserRole.READ_ONLY)
 ALLOWED = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
 LINKABLE_MODULES = frozenset({"training", "drill", "incident", "risk", "visit", "health_summary"})
+_SNAPSHOT_FIELDS = (
+    "id",
+    "plan_item_id",
+    "outcome_status",
+    "actual_start",
+    "actual_end",
+    "completion_pct",
+    "result_text",
+    "deviation_reason",
+    "delay_days",
+    "specialist_note",
+    "physician_note",
+    "employer_note",
+    "next_year_suggestion",
+    "target_met",
+    "capa_needed",
+)
 
 
 def _upload_root() -> Path:
@@ -168,6 +194,84 @@ def _ensure_verify_code(ev: AnnualPlanEvaluation) -> str:
         return ev.verify_code
     ev.verify_code = f"YPD-{ev.year}-{uuid.uuid4().hex[:10].upper()}"
     return ev.verify_code
+
+
+def _item_snapshot(row: AnnualPlanEvaluationItem) -> dict:
+    out: dict = {}
+    for f in _SNAPSHOT_FIELDS:
+        val = getattr(row, f)
+        if isinstance(val, date):
+            val = val.isoformat()
+        out[f] = val
+    return out
+
+
+def _diff_snapshots(prev: list[dict], curr: list[dict]) -> list[dict]:
+    by_id = {str(p.get("plan_item_id")): p for p in prev}
+    changes: list[dict] = []
+    for c in curr:
+        key = str(c.get("plan_item_id"))
+        old = by_id.get(key)
+        if not old:
+            changes.append({"plan_item_id": c.get("plan_item_id"), "kind": "added", "fields": {}})
+            continue
+        fields = {}
+        for f in _SNAPSHOT_FIELDS:
+            if f in ("id", "plan_item_id"):
+                continue
+            if old.get(f) != c.get(f):
+                fields[f] = {"from": old.get(f), "to": c.get(f)}
+        if fields:
+            changes.append({"plan_item_id": c.get("plan_item_id"), "kind": "changed", "fields": fields})
+    return changes
+
+
+def _create_revision_snapshot(
+    db: Session, ev: AnnualPlanEvaluation, user: User, reason: str | None = None
+) -> AnnualPlanEvalRevision:
+    items = list(
+        db.scalars(
+            select(AnnualPlanEvaluationItem).where(
+                AnnualPlanEvaluationItem.evaluation_id == ev.id,
+                AnnualPlanEvaluationItem.is_active.is_(True),
+            )
+        ).all()
+    )
+    curr = [_item_snapshot(i) for i in items]
+    last = db.scalar(
+        select(AnnualPlanEvalRevision)
+        .where(AnnualPlanEvalRevision.evaluation_id == ev.id)
+        .order_by(AnnualPlanEvalRevision.revision_no.desc())
+        .limit(1)
+    )
+    prev = json.loads(last.snapshot_json) if last and last.snapshot_json else []
+    changes = _diff_snapshots(prev, curr) if last else []
+    rev_no = (last.revision_no + 1) if last else 1
+    row = AnnualPlanEvalRevision(
+        evaluation_id=ev.id,
+        revision_no=rev_no,
+        reason=reason or f"Revizyon {rev_no}",
+        snapshot_json=json.dumps(curr, ensure_ascii=False),
+        changes_json=json.dumps(changes, ensure_ascii=False),
+        created_by_id=user.id,
+    )
+    db.add(row)
+    return row
+
+
+def _email_company_roles(db: Session, company_id: int, roles: tuple[UserRole, ...], subject: str, body: str) -> list[dict]:
+    if not smtp_configured():
+        return [{"ok": False, "status": "smtp_not_configured"}]
+    users = list(
+        db.scalars(
+            select(User).where(
+                User.company_id == company_id,
+                User.is_active.is_(True),
+                User.role.in_(roles),
+            )
+        ).all()
+    )
+    return [send_email(to=u.email, subject=subject, body=body) for u in users if u.email]
 
 
 @router.post("/start", response_model=EvalOverviewResponse)
@@ -920,7 +1024,7 @@ def workflow(
     evaluation_id: int,
     action: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*ITEM_WRITE_ROLES)),
+    user: User = Depends(require_roles(*WORKFLOW_ROLES)),
 ):
     ev = db.get(AnnualPlanEvaluation, evaluation_id)
     if not ev or not ev.is_active:
@@ -936,21 +1040,28 @@ def workflow(
     }
     if action not in mapping:
         raise HTTPException(400, "Geçersiz iş akışı adımı.")
+    if user.role == UserRole.READ_ONLY and action not in ("approve-employer", "request-revision"):
+        raise HTTPException(403, "İşveren görünümü yalnızca onay / revizyon isteği uygulayabilir.")
     if user.role == UserRole.WORKPLACE_PHYSICIAN and action not in ("approve-physician", "request-revision"):
         raise HTTPException(403, "Hekim bu iş akışı adımını uygulayamaz.")
     if action == "create-revision":
         if ev.report_status not in ("onaylandi", "arsiv", "revizyon"):
             raise HTTPException(409, "Revizyon yalnızca onaylı/arşiv rapordan açılır.")
+        if user.role not in EDIT_ROLES:
+            raise HTTPException(403, "Revizyon açma yalnızca uzman/yönetici.")
     elif ev.report_status in LOCKED_REPORT and action != "archive":
         raise HTTPException(409, "Kilitli rapor.")
     if action == "approve-employer" and user.role == UserRole.WORKPLACE_PHYSICIAN:
         raise HTTPException(403, "İşveren onayı hekim rolüyle verilemez.")
+    revision_payload = None
+    if action == "create-revision":
+        rev = _create_revision_snapshot(db, ev, user)
+        revision_payload = {"revision_id": None, "revision_no": rev.revision_no, "change_count": len(json.loads(rev.changes_json or "[]"))}
+        ev.notes = ((ev.notes or "") + f"\nRevizyon #{rev.revision_no} açıldı: {date.today().isoformat()}").strip()
     ev.report_status = mapping[action]
     if action == "approve-employer":
         ev.report_date = date.today()
         _ensure_verify_code(ev)
-    if action == "create-revision":
-        ev.notes = ((ev.notes or "") + f"\nRevizyon açıldı: {date.today().isoformat()}").strip()
     ev.updated_at = datetime.utcnow()
     add_audit_log(
         db,
@@ -962,7 +1073,80 @@ def workflow(
         description=ev.report_status,
     )
     db.commit()
-    return {"id": ev.id, "report_status": ev.report_status}
+    if action == "create-revision" and revision_payload is not None:
+        last = db.scalar(
+            select(AnnualPlanEvalRevision)
+            .where(AnnualPlanEvalRevision.evaluation_id == ev.id)
+            .order_by(AnnualPlanEvalRevision.revision_no.desc())
+            .limit(1)
+        )
+        if last:
+            revision_payload["revision_id"] = last.id
+            revision_payload["change_count"] = len(json.loads(last.changes_json or "[]"))
+    # E-posta hatırlatma (SMTP yoksa sessizce atlanır)
+    company = db.get(Company, ev.company_id)
+    cname = company.name if company else str(ev.company_id)
+    mail_map = {
+        "submit-specialist": (
+            (UserRole.WORKPLACE_PHYSICIAN,),
+            f"Yıllık değerlendirme hekim onayı — {cname} / {ev.year}",
+            f"{cname} {ev.year} yıllık değerlendirme hekim onayına gönderildi.",
+        ),
+        "approve-physician": (
+            (UserRole.READ_ONLY, UserRole.SAFETY_SPECIALIST),
+            f"Yıllık değerlendirme işveren onayı — {cname} / {ev.year}",
+            f"{cname} {ev.year} yıllık değerlendirme işveren onayında.",
+        ),
+        "approve-employer": (
+            (UserRole.SAFETY_SPECIALIST, UserRole.WORKPLACE_PHYSICIAN),
+            f"Yıllık değerlendirme onaylandı — {cname} / {ev.year}",
+            f"{cname} {ev.year} yıllık değerlendirme onaylandı. Kod: {ev.verify_code or '-'}",
+        ),
+        "request-revision": (
+            (UserRole.SAFETY_SPECIALIST,),
+            f"Yıllık değerlendirme revizyon — {cname} / {ev.year}",
+            f"{cname} {ev.year} yıllık değerlendirme için revizyon istendi.",
+        ),
+    }
+    mail_result = []
+    if action in mail_map:
+        roles, subject, body = mail_map[action]
+        mail_result = _email_company_roles(db, ev.company_id, roles, subject, body)
+    out = {"id": ev.id, "report_status": ev.report_status, "email": mail_result}
+    if revision_payload:
+        out["revision"] = revision_payload
+    return out
+
+
+@router.get("/{evaluation_id}/revisions")
+def list_revisions(
+    evaluation_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW_ROLES)),
+):
+    ev = db.get(AnnualPlanEvaluation, evaluation_id)
+    if not ev:
+        raise HTTPException(404, "Değerlendirme bulunamadı.")
+    ensure_company_access(db, user, ev.company_id)
+    rows = list(
+        db.scalars(
+            select(AnnualPlanEvalRevision)
+            .where(AnnualPlanEvalRevision.evaluation_id == evaluation_id)
+            .order_by(AnnualPlanEvalRevision.revision_no.desc())
+        ).all()
+    )
+    return [
+        {
+            "id": r.id,
+            "revision_no": r.revision_no,
+            "reason": r.reason,
+            "change_count": len(json.loads(r.changes_json or "[]")),
+            "changes": json.loads(r.changes_json or "[]"),
+            "created_at": r.created_at,
+            "created_by_id": r.created_by_id,
+        }
+        for r in rows
+    ]
 
 
 def _suggestions_payload(db: Session, company_id: int, year: int, user: User) -> dict:
@@ -1264,6 +1448,7 @@ def export_pdf(
             "physician_name": ev.physician_name if ev else None,
             "employer_name": ev.employer_name if ev else None,
             "verify_code": ev.verify_code if ev else None,
+            "verify_url": f"/api/v1/annual-evals/verify/{ev.verify_code}" if ev and ev.verify_code else None,
         },
     )
     return StreamingResponse(

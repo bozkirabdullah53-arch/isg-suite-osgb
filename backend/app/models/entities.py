@@ -1371,3 +1371,23 @@ class AnnualPlanEvalCapa(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class AnnualPlanEvalRevision(Base):
+    """Onaylı rapor revizyon anlık görüntüsü — plan kalemlerini değiştirmez."""
+
+    __tablename__ = "annual_plan_eval_revisions"
+    __table_args__ = (
+        UniqueConstraint("evaluation_id", "revision_no", name="uq_annual_eval_revision_no"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    evaluation_id: Mapped[int] = mapped_column(
+        ForeignKey("annual_plan_evaluations.id", ondelete="CASCADE"), index=True
+    )
+    revision_no: Mapped[int] = mapped_column(Integer, default=1)
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    snapshot_json: Mapped[str] = mapped_column(Text, default="[]")
+    changes_json: Mapped[str] = mapped_column(Text, default="[]")
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

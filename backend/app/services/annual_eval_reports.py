@@ -1,4 +1,4 @@
-"""0.9.138 — Yıllık plan değerlendirme Excel/PDF (plan kayıtlarını değiştirmez)."""
+"""0.9.141 — Yıllık plan değerlendirme Excel/PDF (plan kayıtlarını değiştirmez)."""
 from __future__ import annotations
 
 from io import BytesIO
@@ -7,10 +7,30 @@ from typing import Any
 
 from openpyxl import Workbook
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import registerFontFamily
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
+
+
+def _qr_image(payload: str) -> ImageReader | None:
+    try:
+        import qrcode
+    except ImportError:
+        return None
+    try:
+        qr = qrcode.QRCode(version=2, box_size=4, border=1)
+        qr.add_data(payload)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return ImageReader(buf)
+    except Exception:
+        return None
+
 
 _ASSETS = Path(__file__).resolve().parents[1] / "assets"
 _FONT_REG = "EvalDejaVu"
@@ -193,6 +213,15 @@ def build_eval_pdf(
         9,
     )
     line(f"Değerlendirme durumu: {meta.get('report_status') or '—'} | Rapor tarihi: {meta.get('report_date') or '—'}", 9, gap=14)
+    verify_code = meta.get("verify_code")
+    verify_url = meta.get("verify_url") or (f"/api/v1/annual-evals/verify/{verify_code}" if verify_code else None)
+    if verify_url:
+        qr = _qr_image(str(verify_url))
+        if qr:
+            pdf.drawImage(qr, w - 120, h - 130, width=72, height=72, mask="auto")
+            pdf.setFont(font, 7)
+            pdf.drawRightString(w - 40, h - 138, f"Doğrulama: {verify_code}")
+            y = min(y, h - 150)
     line("1. Amaç ve kapsam", 11, True, 14)
     line(f"Bu rapor {year} yılı yıllık çalışma planı faaliyetlerinin gerçekleşme, sapma ve kanıt durumunu değerlendirir.", 9)
     line("2. Gerçekleşme özeti", 11, True, 14)

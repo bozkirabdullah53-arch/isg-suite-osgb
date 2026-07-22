@@ -101,8 +101,8 @@ def test_health_annual_eval(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.140"
-    assert body["annual_eval_report"] == "annual-eval-v6"
+    assert body["version"] == "0.9.141"
+    assert body["annual_eval_report"] == "annual-eval-v7"
 
 
 def test_start_sync_and_update_does_not_mutate_plan(client):
@@ -394,4 +394,87 @@ def test_verify_code_public(client):
     assert pub.status_code == 200
     assert pub.json()["valid"] is True
     assert pub.json()["year"] == 2026
+
+
+def test_revision_field_diff_and_employer_approve(client):
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    ov = client.post(
+        "/api/v1/annual-evals/start",
+        headers=headers,
+        json={"company_id": seed["company_id"], "year": 2026},
+    ).json()
+    eid = ov["evaluation_id"]
+    items = client.get(
+        f"/api/v1/annual-evals/items?company_id={seed['company_id']}&year=2026",
+        headers=headers,
+    ).json()
+    item_id = items[0]["id"]
+    client.put(
+        f"/api/v1/annual-evals/items/{item_id}",
+        headers=headers,
+        json={"outcome_status": "tamam", "completion_pct": 100, "actual_end": "2026-03-10"},
+    )
+    assert client.post(f"/api/v1/annual-evals/{eid}/workflow/approve-employer", headers=headers).status_code == 200
+    rev1 = client.post(f"/api/v1/annual-evals/{eid}/workflow/create-revision", headers=headers)
+    assert rev1.status_code == 200, rev1.text
+    assert rev1.json().get("revision", {}).get("revision_no") == 1
+    upd = client.put(
+        f"/api/v1/annual-evals/items/{item_id}",
+        headers=headers,
+        json={"outcome_status": "kismi", "completion_pct": 50, "specialist_note": "revize", "result_text": "kismi"},
+    )
+    assert upd.status_code == 200, upd.text
+    rev2 = client.post(f"/api/v1/annual-evals/{eid}/workflow/create-revision", headers=headers)
+    assert rev2.status_code == 200, rev2.text
+    assert rev2.json()["revision"]["revision_no"] == 2
+    assert rev2.json()["revision"]["change_count"] >= 1
+    listed = client.get(f"/api/v1/annual-evals/{eid}/revisions", headers=headers)
+    assert listed.status_code == 200
+    body = listed.json()
+    assert len(body) >= 2
+    assert any(r["revision_no"] == 2 and r["change_count"] >= 1 for r in body)
+
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import User, UserRole
+
+    with SessionLocal() as db:
+        emp = User(
+            email="eval-isveren@test.com",
+            full_name="Eval Isveren",
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.READ_ONLY,
+            osgb_id=db.query(User).filter(User.email == "eval-uzman@test.com").one().osgb_id,
+            company_id=seed["company_id"],
+            is_active=True,
+        )
+        db.add(emp)
+        db.commit()
+
+    login = client.post("/api/v1/auth/login", json={"email": "eval-isveren@test.com", "password": "TestPass123!"})
+    assert login.status_code == 200, login.text
+    eh = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    assert client.get(
+        f"/api/v1/annual-evals/overview?company_id={seed['company_id']}&year=2026",
+        headers=eh,
+    ).status_code == 200
+    client.post(f"/api/v1/annual-evals/{eid}/workflow/submit-specialist", headers=headers)
+    client.post(f"/api/v1/annual-evals/{eid}/workflow/approve-physician", headers=headers)
+    # Physician may not exist — specialist can move to isveren via approve-physician? Only physician role.
+    # Specialist already can approve-employer; for employer path set status manually via specialist flow:
+    # After create-revision status is revizyon; specialist submit then we need physician.
+    # Simpler: specialist approve-employer again after moving — use specialist to set isveren_bekliyor via patch? No.
+    # Force: specialist submit-specialist (hekim_bekliyor) then specialist cannot approve-physician.
+    # Seed a physician or use DB to set status.
+    with SessionLocal() as db:
+        from app.models.entities import AnnualPlanEvaluation
+        ev = db.get(AnnualPlanEvaluation, eid)
+        ev.report_status = "isveren_bekliyor"
+        db.commit()
+    ok = client.post(f"/api/v1/annual-evals/{eid}/workflow/approve-employer", headers=eh)
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["report_status"] == "onaylandi"
+    forbidden = client.post(f"/api/v1/annual-evals/{eid}/workflow/create-revision", headers=eh)
+    assert forbidden.status_code == 403
 

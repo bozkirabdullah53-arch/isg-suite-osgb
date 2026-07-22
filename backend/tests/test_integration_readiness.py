@@ -134,7 +134,7 @@ def test_health_flag_integration_readiness(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.140"
+    assert body["version"] == "0.9.141"
     assert body["integration_readiness"] == "checklist-v1"
     assert body["ibys_export"] == "csv-package-v1"
     assert body["katip_prep"] == "missing-contract-v1"

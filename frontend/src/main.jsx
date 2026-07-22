@@ -85,7 +85,7 @@ const roleModules={
   workplace_physician:[
     'dashboard','visits',
     'health','employees',
-    'annual_plans','documents',
+    'annual_plans','annual_eval_report','documents',
     'security',
   ],
   other_health_personnel:[
@@ -94,7 +94,7 @@ const roleModules={
     'annual_plans','documents',
     'security',
   ],
-  read_only:['dashboard'],
+  read_only:['dashboard','annual_eval_report','notifications'],
 };
 const menuCatalog={
   eisa_overview:['Genel Bakış',LayoutDashboard],

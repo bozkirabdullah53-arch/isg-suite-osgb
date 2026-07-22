@@ -630,3 +630,24 @@ def repair_schema() -> None:
                 except Exception:
                     pass
 
+    # 0.9.141 — annual_plan_eval_revisions
+    if "annual_plan_eval_revisions" not in _tables():
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS annual_plan_eval_revisions (
+                        id INTEGER PRIMARY KEY,
+                        evaluation_id INTEGER NOT NULL REFERENCES annual_plan_evaluations(id) ON DELETE CASCADE,
+                        revision_no INTEGER NOT NULL DEFAULT 1,
+                        reason VARCHAR(500),
+                        snapshot_json TEXT NOT NULL DEFAULT '[]',
+                        changes_json TEXT NOT NULL DEFAULT '[]',
+                        created_by_id INTEGER NOT NULL REFERENCES users(id),
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE (evaluation_id, revision_no)
+                    )
+                    """
+                )
+            )
+
