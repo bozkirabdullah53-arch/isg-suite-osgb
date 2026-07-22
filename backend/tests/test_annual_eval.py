@@ -101,8 +101,8 @@ def test_health_annual_eval(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.135"
-    assert body["annual_eval_report"] == "annual-eval-v1"
+    assert body["version"] == "0.9.136"
+    assert body["annual_eval_report"] == "annual-eval-v2"
 
 
 def test_start_sync_and_update_does_not_mutate_plan(client):
@@ -193,3 +193,89 @@ def test_locked_after_employer_approve(client):
         json={"outcome_status": "tamam", "actual_end": "2026-03-20", "result_text": "x"},
     )
     assert bad.status_code == 409
+
+
+def test_transfer_next_year_creates_new_plan_only(client):
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    client.post(
+        "/api/v1/annual-evals/start",
+        headers=headers,
+        json={"company_id": seed["company_id"], "year": 2026},
+    )
+    items = client.get(
+        f"/api/v1/annual-evals/items?company_id={seed['company_id']}&year=2026",
+        headers=headers,
+    ).json()
+    client.put(
+        f"/api/v1/annual-evals/items/{items[0]['id']}",
+        headers=headers,
+        json={
+            "outcome_status": "gerceklesmedi",
+            "deviation_reason": "Butce yok",
+            "next_year_suggestion": "2027 planina al",
+        },
+    )
+    tr = client.post(
+        "/api/v1/annual-evals/transfer-to-next-year",
+        headers=headers,
+        json={
+            "company_id": seed["company_id"],
+            "from_year": 2026,
+            "items": [{"activity": "Yangin tatbikati", "month": 3, "category": "tatbikat"}],
+        },
+    )
+    assert tr.status_code == 200, tr.text
+    assert tr.json()["created_count"] == 1
+    assert tr.json()["to_year"] == 2027
+
+    from app.core.database import SessionLocal
+    from app.models.entities import AnnualPlanItem
+    from sqlalchemy import select
+
+    with SessionLocal() as db:
+        old = db.get(AnnualPlanItem, seed["plan_id"])
+        assert old.year == 2026
+        assert old.activity == "Yangin tatbikati"
+        news = list(
+            db.scalars(
+                select(AnnualPlanItem).where(
+                    AnnualPlanItem.company_id == seed["company_id"],
+                    AnnualPlanItem.year == 2027,
+                )
+            ).all()
+        )
+        assert len(news) == 1
+
+
+def test_related_evidence_and_create_revision(client):
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    eid = client.post(
+        "/api/v1/annual-evals/start",
+        headers=headers,
+        json={"company_id": seed["company_id"], "year": 2026},
+    ).json()["evaluation_id"]
+    rel = client.get(
+        f"/api/v1/annual-evals/related-evidence?company_id={seed['company_id']}&year=2026",
+        headers=headers,
+    )
+    assert rel.status_code == 200
+    body = rel.json()
+    assert "trainings" in body and "health_summary" in body
+    assert "Tanı" in body["health_summary"]["note"] or "toplulaştırılmış" in body["health_summary"]["note"]
+
+    client.post(f"/api/v1/annual-evals/{eid}/workflow/approve-employer", headers=headers)
+    rev = client.post(f"/api/v1/annual-evals/{eid}/workflow/create-revision", headers=headers)
+    assert rev.status_code == 200
+    assert rev.json()["report_status"] == "revizyon"
+    items = client.get(
+        f"/api/v1/annual-evals/items?company_id={seed['company_id']}&year=2026",
+        headers=headers,
+    ).json()
+    ok = client.put(
+        f"/api/v1/annual-evals/items/{items[0]['id']}",
+        headers=headers,
+        json={"outcome_status": "devam", "completion_pct": 40, "result_text": "devam"},
+    )
+    assert ok.status_code == 200

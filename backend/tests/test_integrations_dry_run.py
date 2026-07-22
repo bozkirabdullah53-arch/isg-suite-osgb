@@ -101,7 +101,7 @@ def test_health_flag_integrations_dry_run(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.135"
+    assert body["version"] == "0.9.136"
     assert body["integrations_dry_run"] == "log-v1"
     assert body["integrations_adapter"] == "stub-clients-v1"
 

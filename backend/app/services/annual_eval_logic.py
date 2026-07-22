@@ -65,21 +65,32 @@ def build_kpis(items: list[dict[str, Any]], unplanned_count: int = 0) -> dict[st
     missing_ev = 0
     delayed_done = 0
     scores: list[float] = []
+    timed_done = 0
+    done_for_time = 0
+    evidence_eligible = 0
+    evidence_ok = 0
     for it in items:
         st = it.get("outcome_status") or "planlandi"
         by[st] = by.get(st, 0) + 1
-        if int(it.get("evidence_count") or 0) < 1 and st not in (
-            "planlandi",
-            "iptal",
-            "plan_revizyonuyla_kaldirildi",
-        ):
-            missing_ev += 1
-        if st == "gecikmeli_tamam" or (it.get("delay_days") or 0) > 0 and st in ("tamam", "gecikmeli_tamam"):
+        if st not in ("planlandi", "iptal", "plan_revizyonuyla_kaldirildi"):
+            evidence_eligible += 1
+            if int(it.get("evidence_count") or 0) >= 1:
+                evidence_ok += 1
+            else:
+                missing_ev += 1
+        if st == "gecikmeli_tamam" or ((it.get("delay_days") or 0) > 0 and st in ("tamam", "gecikmeli_tamam")):
             delayed_done += 1
+        if st in ("tamam", "gecikmeli_tamam"):
+            done_for_time += 1
+            delay = it.get("delay_days")
+            if delay is None or delay <= 0:
+                timed_done += 1
         sc = item_score(st, it.get("completion_pct"))
         if sc is not None:
             scores.append(sc)
     rate = round(sum(scores) / len(scores), 1) if scores else None
+    on_time = round(100.0 * timed_done / done_for_time, 1) if done_for_time else None
+    evidence_rate = round(100.0 * evidence_ok / evidence_eligible, 1) if evidence_eligible else None
     return {
         "planned_total": total,
         "tamam": by.get("tamam", 0),
@@ -93,6 +104,13 @@ def build_kpis(items: list[dict[str, Any]], unplanned_count: int = 0) -> dict[st
         "unplanned": unplanned_count,
         "delayed_completed": delayed_done,
         "completion_rate": rate,
+        "on_time_rate": on_time,
+        "evidence_rate": evidence_rate,
+        "formulas": {
+            "completion_rate": "Tamam/gecikmeli=%100; kısmi/devam=girilen %; ertelendi/gerçekleşmedi=%0; iptal/revizyon dışı. Plan dışı dahil değil.",
+            "on_time_rate": "Tamamlanan faaliyetler içinde gecikme_günleri ≤ 0 olanların oranı.",
+            "evidence_rate": "Planlandı/iptal/revizyon dışı kalemlerde en az 1 kanıtı olanların oranı.",
+        },
         "note": (
             None
             if rate is not None
@@ -103,7 +121,7 @@ def build_kpis(items: list[dict[str, Any]], unplanned_count: int = 0) -> dict[st
 
 def meta_payload() -> dict[str, Any]:
     return {
-        "engine": "annual-eval-v1",
+        "engine": "annual-eval-v2",
         "outcomes": [{"code": k, "label": OUTCOME_LABELS.get(k, k)} for k in OUTCOME_STATUSES],
         "report_statuses": list(REPORT_STATUSES),
         "note": (

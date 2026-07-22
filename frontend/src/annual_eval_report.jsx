@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Download, FileText, Plus, RefreshCw} from 'lucide-react';
+import {Download, FileText, Link2, Plus, RefreshCw} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 
 const OUTCOME_LABEL = {
@@ -32,14 +32,19 @@ function badge(outcome) {
   return <span className="status-badge badge-muted">{OUTCOME_LABEL[outcome] || outcome}</span>;
 }
 
-export function AnnualEvalReportPage({user}) {
+export function AnnualEvalReportPage({user, onNavigate}) {
   const canEdit = user.role === 'safety_specialist' || user.role === 'global_admin';
+  const isPhysician = user.role === 'workplace_physician';
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState(user.company_id ? String(user.company_id) : '');
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [overview, setOverview] = useState(null);
   const [items, setItems] = useState([]);
   const [unplanned, setUnplanned] = useState([]);
+  const [capas, setCapas] = useState([]);
+  const [suggestions, setSuggestions] = useState(null);
+  const [related, setRelated] = useState(null);
+  const [q, setQ] = useState('');
   const [filterOutcome, setFilterOutcome] = useState('');
   const [missingEv, setMissingEv] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -48,7 +53,10 @@ export function AnnualEvalReportPage({user}) {
   const [edit, setEdit] = useState(null);
   const [form, setForm] = useState({});
   const [unplannedOpen, setUnplannedOpen] = useState(false);
+  const [capaOpen, setCapaOpen] = useState(null);
+  const [capaForm, setCapaForm] = useState({title: '', root_cause: '', action: '', responsible: '', due_date: '', priority: 'orta'});
   const [upForm, setUpForm] = useState({activity: '', category: '', done_date: '', reason: '', result_text: '', responsible_name: '', suggest_next_year: false});
+  const [selectedSuggest, setSelectedSuggest] = useState({});
 
   async function loadCompanies() {
     try {
@@ -65,16 +73,21 @@ export function AnnualEvalReportPage({user}) {
     try {
       const ov = await api(`/annual-evals/overview?company_id=${companyId}&year=${year}`);
       setOverview(ov);
+      setRelated(await api(`/annual-evals/related-evidence?company_id=${companyId}&year=${year}`).catch(() => null));
+      setSuggestions(await api(`/annual-evals/next-year-suggestions?company_id=${companyId}&year=${year}`).catch(() => null));
       if (!ov.evaluation_id) {
         setItems([]);
         setUnplanned([]);
+        setCapas([]);
         return;
       }
       const qs = new URLSearchParams({company_id: companyId, year});
       if (filterOutcome) qs.set('outcome', filterOutcome);
       if (missingEv) qs.set('missing_evidence', 'true');
+      if (q.trim()) qs.set('q', q.trim());
       setItems(await api(`/annual-evals/items?${qs}`));
       setUnplanned(await api(`/annual-evals/${ov.evaluation_id}/unplanned`));
+      setCapas(await api(`/annual-evals/${ov.evaluation_id}/capas`));
     } catch (e) {
       setErr(e.message || 'Değerlendirme yüklenemedi.');
     } finally {
@@ -95,7 +108,7 @@ export function AnnualEvalReportPage({user}) {
         body: JSON.stringify({company_id: Number(companyId), year: Number(year)}),
       });
       setOverview(ov);
-      setMsg('Değerlendirme başlatıldı / senkronize edildi. Plan alanları değiştirilmez.');
+      setMsg('Değerlendirme başlatıldı / senkronize edildi. Plan bilgileri burada değiştirilmez.');
       await loadAll();
     } catch (e) {
       setErr(e.message || 'Başlatılamadı.');
@@ -128,17 +141,17 @@ export function AnnualEvalReportPage({user}) {
     setBusy(true);
     setErr('');
     try {
-      await api(`/annual-evals/items/${edit.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          ...form,
-          actual_start: form.actual_start || null,
-          actual_end: form.actual_end || null,
-          completion_pct: form.completion_pct === '' ? null : Number(form.completion_pct),
-        }),
-      });
+      const body = isPhysician
+        ? {physician_note: form.physician_note || null}
+        : {
+            ...form,
+            actual_start: form.actual_start || null,
+            actual_end: form.actual_end || null,
+            completion_pct: form.completion_pct === '' ? null : Number(form.completion_pct),
+          };
+      await api(`/annual-evals/items/${edit.id}`, {method: 'PUT', body: JSON.stringify(body)});
       setEdit(null);
-      setMsg('Değerlendirme kaydedildi.');
+      setMsg(isPhysician ? 'Hekim görüşü kaydedildi.' : 'Değerlendirme kaydedildi.');
       await loadAll();
     } catch (ex) {
       setErr(ex.message || 'Kayıt başarısız.');
@@ -155,6 +168,20 @@ export function AnnualEvalReportPage({user}) {
       await loadAll();
     } catch (ex) {
       setErr(ex.message || 'Kanıt yüklenemedi.');
+    }
+  }
+
+  async function linkRelated(mod, id, title) {
+    if (!edit) return;
+    try {
+      await api(`/annual-evals/items/${edit.id}/evidences/link`, {
+        method: 'POST',
+        body: JSON.stringify({source_module: mod, source_id: id, title}),
+      });
+      setMsg('Modül kaydı kanıt olarak bağlandı.');
+      await loadAll();
+    } catch (ex) {
+      setErr(ex.message || 'Bağlanamadı.');
     }
   }
 
@@ -182,6 +209,29 @@ export function AnnualEvalReportPage({user}) {
     }
   }
 
+  async function saveCapa(e) {
+    e.preventDefault();
+    if (!overview?.evaluation_id) return;
+    setBusy(true);
+    try {
+      await api(`/annual-evals/${overview.evaluation_id}/capas`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...capaForm,
+          due_date: capaForm.due_date || null,
+          evaluation_item_id: capaOpen?.id || null,
+        }),
+      });
+      setCapaOpen(null);
+      setMsg('Düzeltici faaliyet oluşturuldu.');
+      await loadAll();
+    } catch (ex) {
+      setErr(ex.message || 'CAPA kaydedilemedi.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function workflow(action) {
     if (!overview?.evaluation_id) return;
     setBusy(true);
@@ -196,15 +246,50 @@ export function AnnualEvalReportPage({user}) {
     }
   }
 
+  async function transferSelected() {
+    const picked = (suggestions?.items || []).filter((_, i) => selectedSuggest[i]);
+    if (!picked.length) {
+      setErr('Aktarılacak öneri seçin.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await api('/annual-evals/transfer-to-next-year', {
+        method: 'POST',
+        body: JSON.stringify({
+          company_id: Number(companyId),
+          from_year: Number(year),
+          items: picked.map((s) => ({
+            activity: s.activity,
+            category: s.category || null,
+            month: s.month || 1,
+            responsible_name: s.responsible_name || null,
+            description: s.suggestion || null,
+            source_eval_item_id: s.source_eval_item_id || null,
+            source_unplanned_id: s.source_unplanned_id || null,
+          })),
+        }),
+      });
+      setMsg(`${res.created_count} kalem ${res.to_year} planına aktarıldı (eski değerlendirme değişmedi).`);
+      setSelectedSuggest({});
+    } catch (ex) {
+      setErr(ex.message || 'Aktarım başarısız.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const k = overview?.kpis || {};
   const locked = overview?.report_status === 'onaylandi' || overview?.report_status === 'arsiv';
+  const needResult = ['tamam', 'gecikmeli_tamam', 'kismi'].includes(form.outcome_status);
+  const needDeviation = ['ertelendi', 'gerceklesmedi', 'iptal'].includes(form.outcome_status);
 
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <h2><FileText size={22} style={{marginRight: 8, verticalAlign: 'middle'}} />Yıllık Çalışma Değerlendirme Raporu</h2>
-          <p className="muted">Bu ekran yıllık çalışma planındaki faaliyetlerin gerçekleşmesini değerlendirir. Plan bilgileri burada değiştirilmez.</p>
+          <p className="muted">Bu ekran, seçilen yıllık çalışma planındaki faaliyetlerin gerçekleşme durumunu değerlendirir. Plan bilgileri burada değiştirilmez.</p>
         </div>
         <div className="actions">
           {canEdit && <button type="button" onClick={start} disabled={busy || !companyId}>Değerlendirmeyi Başlat / Senkronize Et</button>}
@@ -232,6 +317,12 @@ export function AnnualEvalReportPage({user}) {
           <label className="field"><span>Değerlendirme yılı</span>
             <input type="number" value={year} onChange={(e) => setYear(e.target.value)} min="2020" max="2100" />
           </label>
+          <label className="field"><span>Ara</span>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Faaliyet / sorumlu" onKeyDown={(e) => e.key === 'Enter' && loadAll()} />
+          </label>
+          <div className="field" style={{alignSelf: 'end'}}>
+            <button type="button" className="secondary" onClick={loadAll} disabled={busy}>Filtre uygula</button>
+          </div>
         </div>
       </section>
 
@@ -240,6 +331,7 @@ export function AnnualEvalReportPage({user}) {
           <div style={{display: 'flex', flexWrap: 'wrap', gap: 16}}>
             <div><strong>{overview.company_name}</strong></div>
             <div>SGK: {overview.sgk_registry_no || '—'}</div>
+            <div>Adres: {overview.address || '—'}</div>
             <div>Tehlike: {overview.hazard_class || '—'}</div>
             <div>Çalışan: {overview.employee_count}</div>
             <div>Plan kalemi: {overview.plan_item_count}</div>
@@ -255,12 +347,15 @@ export function AnnualEvalReportPage({user}) {
 
       {overview && overview.plan_item_count === 0 && (
         <section className="panel" style={{marginBottom: 12}}>
-          <p>Seçilen yıl için değerlendirilecek yıllık çalışma planı kalemi bulunamadı. Önce <strong>Yıllık Plan</strong> menüsünden planı oluşturun.</p>
+          <p>Seçilen yıl için değerlendirilecek onaylı bir yıllık çalışma planı bulunamadı. Değerlendirme oluşturabilmek için önce yıllık çalışma planını hazırlayın ve onaylayın.</p>
+          {typeof onNavigate === 'function' && (
+            <button type="button" onClick={() => onNavigate('annual_plans')}>Yıllık Çalışma Planına Git</button>
+          )}
         </section>
       )}
 
       {overview && (
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 8, marginBottom: 12}}>
+        <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(130px,1fr))', gap: 8, marginBottom: 12}}>
           {[
             ['planned_total', 'Planlanan', ''],
             ['tamam', 'Tamamlanan', 'tamam'],
@@ -271,11 +366,14 @@ export function AnnualEvalReportPage({user}) {
             ['missing_evidence', 'Kanıt eksik', null],
             ['unplanned', 'Plan dışı', null],
             ['completion_rate', 'Gerçekleşme %', null],
+            ['on_time_rate', 'Zamanında %', null],
+            ['evidence_rate', 'Kanıtlı %', null],
           ].map(([key, label, outcome]) => (
             <button
               key={key}
               type="button"
               className="panel"
+              title={(k.formulas && k.formulas[key]) || ''}
               style={{padding: 10, textAlign: 'left', cursor: outcome !== null ? 'pointer' : 'default'}}
               onClick={() => {
                 if (key === 'missing_evidence') { setMissingEv(true); setFilterOutcome(''); return; }
@@ -289,14 +387,21 @@ export function AnnualEvalReportPage({user}) {
           ))}
         </div>
       )}
+      {k.note && <p className="muted" style={{marginTop: -4}}>{k.note}</p>}
 
       {canEdit && overview?.evaluation_id && !locked && (
         <div className="actions" style={{marginBottom: 12}}>
           <button type="button" className="secondary" onClick={() => setUnplannedOpen(true)}><Plus size={14} /> Plan Dışı Faaliyet</button>
           <button type="button" className="secondary" onClick={() => workflow('submit-specialist')}>Uzman → Hekim</button>
-          <button type="button" className="secondary" onClick={() => workflow('approve-physician')}>Hekim onayladı</button>
-          <button type="button" className="secondary" onClick={() => workflow('approve-employer')}>İşveren onayladı</button>
+          {(canEdit || isPhysician) && <button type="button" className="secondary" onClick={() => workflow('approve-physician')}>Hekim onayladı</button>}
+          {canEdit && <button type="button" className="secondary" onClick={() => workflow('approve-employer')}>İşveren onayladı</button>}
           <button type="button" className="secondary" onClick={() => workflow('request-revision')}>Revizyon iste</button>
+        </div>
+      )}
+      {canEdit && locked && (
+        <div className="actions" style={{marginBottom: 12}}>
+          <button type="button" className="secondary" onClick={() => workflow('create-revision')}>Yeni revizyon aç</button>
+          <button type="button" className="secondary" onClick={() => workflow('archive')}>Arşivle</button>
         </div>
       )}
 
@@ -332,10 +437,13 @@ export function AnnualEvalReportPage({user}) {
                 <td>{r.actual_end || '—'}</td>
                 <td>{r.completion_pct != null ? `${r.completion_pct}%` : '—'}</td>
                 <td>{r.delay_days != null ? `${r.delay_days} g` : '—'}</td>
-                <td>{r.evidence_count > 0 ? 'Var' : 'Eksik'}</td>
-                <td>
-                  {canEdit && !locked && (
+                <td>{r.evidence_count > 0 ? 'Var' : <span style={{color: '#b45309'}}>Eksik</span>}</td>
+                <td style={{whiteSpace: 'nowrap'}}>
+                  {(canEdit || isPhysician) && !locked && (
                     <button type="button" className="secondary mini" onClick={() => openEdit(r)}>Değerlendir</button>
+                  )}
+                  {canEdit && !locked && (
+                    <button type="button" className="secondary mini" onClick={() => { setCapaOpen(r); setCapaForm({title: `${r.plan?.activity || 'Faaliyet'} — düzeltici`, root_cause: '', action: '', responsible: r.plan?.responsible_name || '', due_date: '', priority: 'orta'}); }}>DÖF</button>
                   )}
                 </td>
               </tr>
@@ -343,6 +451,20 @@ export function AnnualEvalReportPage({user}) {
           </tbody>
         </table>
       </div>
+
+      {related && (
+        <section className="panel" style={{marginTop: 16}}>
+          <h3>İlgili modül kanıt önerileri</h3>
+          <p className="muted" style={{fontSize: 12}}>{related.note}</p>
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 10, fontSize: 13}}>
+            <div>Eğitim: <strong>{related.trainings?.count || 0}</strong> (tamam: {related.trainings?.completed || 0})</div>
+            <div>Tatbikat: <strong>{related.drills?.count || 0}</strong></div>
+            <div>Olay: <strong>{related.incidents?.count || 0}</strong> (kaza {related.incidents?.accident || 0} / ramak {related.incidents?.near_miss || 0})</div>
+            <div>Risk: <strong>{related.risks?.count || 0}</strong></div>
+            <div>Sağlık (toplu): muayene {related.health_summary?.exams_completed || 0}</div>
+          </div>
+        </section>
+      )}
 
       {unplanned.length > 0 && (
         <section className="panel" style={{marginTop: 16}}>
@@ -355,50 +477,104 @@ export function AnnualEvalReportPage({user}) {
         </section>
       )}
 
+      {capas.length > 0 && (
+        <section className="panel" style={{marginTop: 16}}>
+          <h3>Düzeltici Faaliyetler</h3>
+          <ul style={{margin: 0, paddingLeft: 18, fontSize: 13}}>
+            {capas.map((c) => (
+              <li key={c.id}><strong>{c.title}</strong> — {c.status} / {c.responsible || '—'} / {c.due_date || '—'}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {suggestions && (suggestions.items || []).length > 0 && (
+        <section className="panel" style={{marginTop: 16}}>
+          <h3>Bir sonraki yıl önerileri ({suggestions.year})</h3>
+          <p className="muted" style={{fontSize: 12}}>{suggestions.note}</p>
+          <ul style={{listStyle: 'none', padding: 0, margin: 0}}>
+            {suggestions.items.map((s, i) => (
+              <li key={i} style={{display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 6, fontSize: 13}}>
+                {canEdit && (
+                  <input type="checkbox" checked={!!selectedSuggest[i]} onChange={(e) => setSelectedSuggest({...selectedSuggest, [i]: e.target.checked})} />
+                )}
+                <span><strong>{s.activity}</strong> — {s.reason} {s.suggestion ? `· ${s.suggestion}` : ''}</span>
+              </li>
+            ))}
+          </ul>
+          {canEdit && (
+            <button type="button" style={{marginTop: 8}} onClick={transferSelected} disabled={busy}>Seçilenleri yeni yıl planına aktar</button>
+          )}
+        </section>
+      )}
+
       {edit && (
         <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setEdit(null)}>
-          <section className="modal" style={{maxWidth: 760}}>
+          <section className="modal" style={{maxWidth: 780}}>
             <header><h3>Faaliyet Değerlendirme</h3></header>
             <div className="panel" style={{marginBottom: 12, background: '#f8fafc', fontSize: 13}}>
               <div><strong>{edit.plan?.activity}</strong></div>
               <div>Kategori: {edit.plan?.category} · Ay: {edit.plan?.month} · Hedef: {edit.plan?.target_date || '—'}</div>
               <div>Sorumlu: {edit.plan?.responsible_name || '—'} · Plan durumu: {edit.plan?.plan_status}</div>
               <div className="muted">Plan alanları salt okunurdur.</div>
+              {edit.evidence_count < 1 && !['planlandi', 'iptal', 'plan_revizyonuyla_kaldirildi'].includes(edit.outcome_status) && (
+                <div style={{color: '#b45309', marginTop: 6}}>Kanıt belgesi eklenmedi.</div>
+              )}
             </div>
             <form className="form-grid" onSubmit={saveEdit}>
-              <label className="field"><span>Gerçekleşme durumu</span>
-                <select value={form.outcome_status} onChange={(e) => setForm({...form, outcome_status: e.target.value})}>
-                  {Object.entries(OUTCOME_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                </select>
+              {!isPhysician && (
+                <>
+                  <label className="field"><span>Gerçekleşme durumu</span>
+                    <select value={form.outcome_status} onChange={(e) => setForm({...form, outcome_status: e.target.value})}>
+                      {Object.entries(OUTCOME_LABEL).map(([kk, v]) => <option key={kk} value={kk}>{v}</option>)}
+                    </select>
+                  </label>
+                  <label className="field"><span>Fiilî tamamlanma {needResult ? '*' : ''}</span>
+                    <input type="date" value={form.actual_end} onChange={(e) => setForm({...form, actual_end: e.target.value})} required={needResult && form.outcome_status !== 'kismi'} />
+                  </label>
+                  <label className="field"><span>Fiilî başlangıç</span>
+                    <input type="date" value={form.actual_start} onChange={(e) => setForm({...form, actual_start: e.target.value})} />
+                  </label>
+                  <label className="field"><span>Gerçekleşme oranı % {(form.outcome_status === 'kismi' || form.outcome_status === 'devam') ? '*' : ''}</span>
+                    <input type="number" min="0" max="100" value={form.completion_pct} onChange={(e) => setForm({...form, completion_pct: e.target.value})} required={form.outcome_status === 'kismi'} />
+                  </label>
+                  <label className="field" style={{gridColumn: '1 / -1'}}><span>Sonuç {needResult ? '*' : ''}</span>
+                    <textarea rows={3} value={form.result_text} onChange={(e) => setForm({...form, result_text: e.target.value})} required={needResult} />
+                  </label>
+                  <label className="field" style={{gridColumn: '1 / -1'}}><span>Sapma / gerekçe {needDeviation ? '*' : ''}</span>
+                    <textarea rows={2} value={form.deviation_reason} onChange={(e) => setForm({...form, deviation_reason: e.target.value})} required={needDeviation} />
+                  </label>
+                  <label className="field" style={{gridColumn: '1 / -1'}}><span>Uzman notu</span>
+                    <textarea rows={2} value={form.specialist_note} onChange={(e) => setForm({...form, specialist_note: e.target.value})} />
+                  </label>
+                  <label className="field" style={{gridColumn: '1 / -1'}}><span>Sonraki yıl önerisi {form.outcome_status === 'gerceklesmedi' ? '*' : ''}</span>
+                    <textarea rows={2} value={form.next_year_suggestion} onChange={(e) => setForm({...form, next_year_suggestion: e.target.value})} required={form.outcome_status === 'gerceklesmedi'} />
+                  </label>
+                  <label className="field" style={{gridColumn: '1 / -1'}}><span>Kanıt dosyası</span>
+                    <input type="file" accept=".pdf,image/*" onChange={(e) => uploadEvidence(e.target.files?.[0])} />
+                  </label>
+                  <label style={{display: 'flex', gap: 8, alignItems: 'center', fontSize: 13}}>
+                    <input type="checkbox" checked={!!form.capa_needed} onChange={(e) => setForm({...form, capa_needed: e.target.checked})} />
+                    Düzeltici faaliyet gerekli
+                  </label>
+                </>
+              )}
+              <label className="field" style={{gridColumn: '1 / -1'}}><span>Hekim görüşü</span>
+                <textarea rows={2} value={form.physician_note} onChange={(e) => setForm({...form, physician_note: e.target.value})} />
               </label>
-              <label className="field"><span>Fiilî tamamlanma</span>
-                <input type="date" value={form.actual_end} onChange={(e) => setForm({...form, actual_end: e.target.value})} />
-              </label>
-              <label className="field"><span>Fiilî başlangıç</span>
-                <input type="date" value={form.actual_start} onChange={(e) => setForm({...form, actual_start: e.target.value})} />
-              </label>
-              <label className="field"><span>Gerçekleşme oranı %</span>
-                <input type="number" min="0" max="100" value={form.completion_pct} onChange={(e) => setForm({...form, completion_pct: e.target.value})} />
-              </label>
-              <label className="field" style={{gridColumn: '1 / -1'}}><span>Sonuç</span>
-                <textarea rows={3} value={form.result_text} onChange={(e) => setForm({...form, result_text: e.target.value})} />
-              </label>
-              <label className="field" style={{gridColumn: '1 / -1'}}><span>Sapma / gerekçe</span>
-                <textarea rows={2} value={form.deviation_reason} onChange={(e) => setForm({...form, deviation_reason: e.target.value})} />
-              </label>
-              <label className="field" style={{gridColumn: '1 / -1'}}><span>Uzman notu</span>
-                <textarea rows={2} value={form.specialist_note} onChange={(e) => setForm({...form, specialist_note: e.target.value})} />
-              </label>
-              <label className="field" style={{gridColumn: '1 / -1'}}><span>Sonraki yıl önerisi</span>
-                <textarea rows={2} value={form.next_year_suggestion} onChange={(e) => setForm({...form, next_year_suggestion: e.target.value})} />
-              </label>
-              <label className="field" style={{gridColumn: '1 / -1'}}><span>Kanıt dosyası</span>
-                <input type="file" accept=".pdf,image/*" onChange={(e) => uploadEvidence(e.target.files?.[0])} />
-              </label>
-              <label style={{display: 'flex', gap: 8, alignItems: 'center', fontSize: 13}}>
-                <input type="checkbox" checked={!!form.capa_needed} onChange={(e) => setForm({...form, capa_needed: e.target.checked})} />
-                Düzeltici faaliyet gerekli
-              </label>
+              {canEdit && related && (
+                <div style={{gridColumn: '1 / -1', fontSize: 12}}>
+                  <div style={{fontWeight: 600, marginBottom: 4}}><Link2 size={14} /> Kanıt olarak bağla</div>
+                  <div style={{display: 'flex', flexWrap: 'wrap', gap: 6}}>
+                    {(related.trainings?.items || []).slice(0, 3).map((t) => (
+                      <button key={`t${t.id}`} type="button" className="secondary mini" onClick={() => linkRelated('training', t.id, t.title)}>{t.title?.slice(0, 28)}</button>
+                    ))}
+                    {(related.drills?.items || []).slice(0, 3).map((d) => (
+                      <button key={`d${d.id}`} type="button" className="secondary mini" onClick={() => linkRelated('drill', d.id, d.title)}>{d.title}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="form-actions">
                 <button type="button" className="secondary" onClick={() => setEdit(null)}>İptal</button>
                 <button type="submit" disabled={busy}>Kaydet</button>
@@ -434,6 +610,35 @@ export function AnnualEvalReportPage({user}) {
               </label>
               <div className="form-actions">
                 <button type="button" className="secondary" onClick={() => setUnplannedOpen(false)}>İptal</button>
+                <button type="submit" disabled={busy}>Kaydet</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {capaOpen && (
+        <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setCapaOpen(null)}>
+          <section className="modal">
+            <header><h3>Düzeltici Faaliyet</h3></header>
+            <form className="form-grid" onSubmit={saveCapa}>
+              <label className="field" style={{gridColumn: '1 / -1'}}><span>Başlık</span>
+                <input required value={capaForm.title} onChange={(e) => setCapaForm({...capaForm, title: e.target.value})} />
+              </label>
+              <label className="field" style={{gridColumn: '1 / -1'}}><span>Kök neden</span>
+                <textarea rows={2} value={capaForm.root_cause} onChange={(e) => setCapaForm({...capaForm, root_cause: e.target.value})} />
+              </label>
+              <label className="field" style={{gridColumn: '1 / -1'}}><span>Önlem</span>
+                <textarea rows={2} value={capaForm.action} onChange={(e) => setCapaForm({...capaForm, action: e.target.value})} />
+              </label>
+              <label className="field"><span>Sorumlu</span>
+                <input value={capaForm.responsible} onChange={(e) => setCapaForm({...capaForm, responsible: e.target.value})} />
+              </label>
+              <label className="field"><span>Hedef tarih</span>
+                <input type="date" value={capaForm.due_date} onChange={(e) => setCapaForm({...capaForm, due_date: e.target.value})} />
+              </label>
+              <div className="form-actions">
+                <button type="button" className="secondary" onClick={() => setCapaOpen(null)}>İptal</button>
                 <button type="submit" disabled={busy}>Kaydet</button>
               </div>
             </form>

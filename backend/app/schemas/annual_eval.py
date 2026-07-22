@@ -81,6 +81,29 @@ class CapaCreate(BaseModel):
     notes: str | None = Field(default=None, max_length=2000)
 
 
+class TransferNextYearItem(BaseModel):
+    activity: str = Field(min_length=3, max_length=240)
+    category: str | None = Field(default=None, max_length=40)
+    month: int = Field(default=1, ge=1, le=12)
+    responsible_name: str | None = Field(default=None, max_length=160)
+    description: str | None = Field(default=None, max_length=2000)
+    source_eval_item_id: int | None = None
+    source_unplanned_id: int | None = None
+
+
+class TransferNextYear(BaseModel):
+    company_id: int
+    from_year: int = Field(ge=2020, le=2100)
+    items: list[TransferNextYearItem] = Field(min_length=1)
+
+
+class EvidenceLinkCreate(BaseModel):
+    source_module: str = Field(min_length=2, max_length=40)
+    source_id: int
+    title: str | None = Field(default=None, max_length=200)
+    doc_type: str | None = Field(default="modul_link", max_length=80)
+
+
 class PlanItemSnapshot(BaseModel):
     id: int
     activity: str

@@ -1,4 +1,4 @@
-"""0.9.135 — Yıllık plan değerlendirme API (AnnualPlanItem alanlarını değiştirmez)."""
+"""0.9.136 — Yıllık plan değerlendirme API (AnnualPlanItem alanlarını değiştirmez)."""
 from __future__ import annotations
 
 import uuid
@@ -11,7 +11,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.api.company_access import company_ids_for_query, ensure_company_access
+from app.api.company_access import ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
@@ -21,9 +21,16 @@ from app.models.entities import (
     AnnualPlanEvaluation,
     AnnualPlanEvaluationItem,
     AnnualPlanItem,
+    AnnualPlanStatus,
     AnnualPlanUnplannedActivity,
     Company,
+    DrillRecord,
     Employee,
+    HealthRecord,
+    IncidentEvent,
+    RiskAssessment,
+    TrainingSession,
+    TrainingStatus,
     User,
     UserRole,
 )
@@ -34,7 +41,9 @@ from app.schemas.annual_eval import (
     CapaCreate,
     EvalItemResponse,
     EvalOverviewResponse,
+    EvidenceLinkCreate,
     PlanItemSnapshot,
+    TransferNextYear,
     UnplannedCreate,
 )
 from app.services.annual_eval_logic import (
@@ -49,7 +58,9 @@ from app.services.audit import add_audit_log
 router = APIRouter(prefix="/annual-evals", tags=["Yıllık Plan Değerlendirme"])
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST)
 VIEW_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST, UserRole.WORKPLACE_PHYSICIAN)
+ITEM_WRITE_ROLES = (*EDIT_ROLES, UserRole.WORKPLACE_PHYSICIAN)
 ALLOWED = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
+LINKABLE_MODULES = frozenset({"training", "drill", "incident", "risk", "visit", "health_summary"})
 
 
 def _upload_root() -> Path:
@@ -321,7 +332,7 @@ def update_item(
     item_id: int,
     payload: AnnualEvalItemUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles(*ITEM_WRITE_ROLES)),
 ):
     row = db.get(AnnualPlanEvaluationItem, item_id)
     if not row or not row.is_active:
@@ -332,6 +343,33 @@ def update_item(
         raise HTTPException(404, "Değerlendirme bulunamadı.")
     _assert_editable(ev)
     data = payload.model_dump(exclude_unset=True)
+    if user.role == UserRole.WORKPLACE_PHYSICIAN:
+        if set(data.keys()) - {"physician_note"}:
+            raise HTTPException(403, "Hekim yalnızca hekim değerlendirmesi ekleyebilir.")
+        row.physician_note = data.get("physician_note")
+        row.updated_at = datetime.utcnow()
+        add_audit_log(
+            db,
+            user=user,
+            action="annual_eval_physician_note",
+            module="annual_eval",
+            entity_type="annual_plan_evaluation_item",
+            entity_id=str(row.id),
+            description="Hekim görüşü güncellendi",
+        )
+        db.commit()
+        db.refresh(row)
+        plan = db.get(AnnualPlanItem, row.plan_item_id)
+        if not plan:
+            raise HTTPException(404, "Plan kalemi bulunamadı.")
+        evc = db.scalar(
+            select(func.count()).select_from(AnnualPlanEvalEvidence).where(
+                AnnualPlanEvalEvidence.evaluation_item_id == row.id,
+                AnnualPlanEvalEvidence.is_active.is_(True),
+            )
+        ) or 0
+        return _to_item_resp(row, plan, int(evc))
+
     outcome = data.get("outcome_status", row.outcome_status)
     merged = {
         "actual_end": data.get("actual_end", row.actual_end),
@@ -369,6 +407,56 @@ def update_item(
     if not plan:
         raise HTTPException(404, "Plan kalemi bulunamadı.")
     return _to_item_resp(row, plan, int(evc))
+
+
+@router.post("/items/{item_id}/evidences/link")
+def link_evidence(
+    item_id: int,
+    payload: EvidenceLinkCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    row = db.get(AnnualPlanEvaluationItem, item_id)
+    if not row or not row.is_active:
+        raise HTTPException(404, "Değerlendirme kalemi bulunamadı.")
+    ensure_company_access(db, user, row.company_id)
+    ev = db.get(AnnualPlanEvaluation, row.evaluation_id)
+    if ev:
+        _assert_editable(ev)
+    mod = payload.source_module.strip().lower()
+    if mod not in LINKABLE_MODULES:
+        raise HTTPException(422, "Desteklenmeyen kaynak modül.")
+    note = f"link:{mod}:{payload.source_id}"
+    dup = db.scalar(
+        select(AnnualPlanEvalEvidence).where(
+            AnnualPlanEvalEvidence.evaluation_item_id == row.id,
+            AnnualPlanEvalEvidence.notes == note,
+            AnnualPlanEvalEvidence.is_active.is_(True),
+        )
+    )
+    if dup:
+        return {"id": dup.id, "title": dup.title, "linked": True, "duplicate": True}
+    evd = AnnualPlanEvalEvidence(
+        evaluation_item_id=row.id,
+        doc_type=payload.doc_type or "modul_link",
+        title=payload.title or f"{mod}#{payload.source_id}",
+        notes=note,
+        uploaded_by_id=user.id,
+    )
+    db.add(evd)
+    db.commit()
+    db.refresh(evd)
+    add_audit_log(
+        db,
+        user=user,
+        action="annual_eval_evidence_link",
+        module="annual_eval",
+        entity_type="annual_plan_eval_evidence",
+        entity_id=str(evd.id),
+        description=note,
+    )
+    db.commit()
+    return {"id": evd.id, "title": evd.title, "linked": True, "duplicate": False}
 
 
 @router.post("/items/{item_id}/evidences")
@@ -522,7 +610,52 @@ def add_capa(
     db.add(row)
     db.commit()
     db.refresh(row)
+    add_audit_log(
+        db,
+        user=user,
+        action="annual_eval_capa_create",
+        module="annual_eval",
+        entity_type="annual_plan_eval_capa",
+        entity_id=str(row.id),
+        description=row.title,
+    )
+    db.commit()
     return {"id": row.id, "title": row.title, "status": row.status}
+
+
+@router.get("/{evaluation_id}/capas")
+def list_capas(
+    evaluation_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW_ROLES)),
+):
+    ev = db.get(AnnualPlanEvaluation, evaluation_id)
+    if not ev:
+        raise HTTPException(404, "Değerlendirme bulunamadı.")
+    ensure_company_access(db, user, ev.company_id)
+    rows = list(
+        db.scalars(
+            select(AnnualPlanEvalCapa).where(
+                AnnualPlanEvalCapa.evaluation_id == evaluation_id,
+                AnnualPlanEvalCapa.is_active.is_(True),
+            )
+        ).all()
+    )
+    return [
+        {
+            "id": r.id,
+            "evaluation_item_id": r.evaluation_item_id,
+            "title": r.title,
+            "root_cause": r.root_cause,
+            "action": r.action,
+            "responsible": r.responsible,
+            "due_date": r.due_date,
+            "priority": r.priority,
+            "status": r.status,
+            "notes": r.notes,
+        }
+        for r in rows
+    ]
 
 
 @router.post("/{evaluation_id}/workflow/{action}")
@@ -530,7 +663,7 @@ def workflow(
     evaluation_id: int,
     action: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles(*ITEM_WRITE_ROLES)),
 ):
     ev = db.get(AnnualPlanEvaluation, evaluation_id)
     if not ev or not ev.is_active:
@@ -541,15 +674,25 @@ def workflow(
         "approve-physician": "isveren_bekliyor",
         "approve-employer": "onaylandi",
         "request-revision": "revizyon",
+        "create-revision": "revizyon",
         "archive": "arsiv",
     }
     if action not in mapping:
         raise HTTPException(400, "Geçersiz iş akışı adımı.")
-    if ev.report_status in LOCKED_REPORT and action != "archive":
+    if user.role == UserRole.WORKPLACE_PHYSICIAN and action not in ("approve-physician", "request-revision"):
+        raise HTTPException(403, "Hekim bu iş akışı adımını uygulayamaz.")
+    if action == "create-revision":
+        if ev.report_status not in ("onaylandi", "arsiv", "revizyon"):
+            raise HTTPException(409, "Revizyon yalnızca onaylı/arşiv rapordan açılır.")
+    elif ev.report_status in LOCKED_REPORT and action != "archive":
         raise HTTPException(409, "Kilitli rapor.")
+    if action == "approve-employer" and user.role == UserRole.WORKPLACE_PHYSICIAN:
+        raise HTTPException(403, "İşveren onayı hekim rolüyle verilemez.")
     ev.report_status = mapping[action]
     if action == "approve-employer":
         ev.report_date = date.today()
+    if action == "create-revision":
+        ev.notes = ((ev.notes or "") + f"\nRevizyon açıldı: {date.today().isoformat()}").strip()
     ev.updated_at = datetime.utcnow()
     add_audit_log(
         db,
@@ -562,6 +705,201 @@ def workflow(
     )
     db.commit()
     return {"id": ev.id, "report_status": ev.report_status}
+
+
+def _suggestions_payload(db: Session, company_id: int, year: int, user: User) -> dict:
+    items = list_items(company_id=company_id, year=year, db=db, user=user)
+    suggestions = []
+    for it in items:
+        if it.outcome_status in ("gerceklesmedi", "ertelendi", "kismi") or it.capa_needed:
+            suggestions.append(
+                {
+                    "source_eval_item_id": it.id,
+                    "plan_item_id": it.plan_item_id,
+                    "activity": it.plan.activity,
+                    "category": it.plan.category,
+                    "month": it.plan.month or 1,
+                    "responsible_name": it.plan.responsible_name,
+                    "reason": it.outcome_status if not it.capa_needed else "capa",
+                    "suggestion": it.next_year_suggestion,
+                }
+            )
+    ev = _get_eval(db, company_id, year)
+    if ev:
+        for u in list_unplanned(evaluation_id=ev.id, db=db, user=user):
+            if u.get("suggest_next_year"):
+                suggestions.append(
+                    {
+                        "source_unplanned_id": u["id"],
+                        "plan_item_id": None,
+                        "activity": u["activity"],
+                        "category": u.get("category"),
+                        "month": 1,
+                        "responsible_name": u.get("responsible_name"),
+                        "reason": "plan_disi",
+                        "suggestion": "Sonraki yıl planına eklenmesi önerilir.",
+                    }
+                )
+    return {
+        "year": year + 1,
+        "from_year": year,
+        "items": suggestions,
+        "note": "Otomatik ekleme yok; kontrollü aktarım kullanıcı onayıyla yapılır.",
+    }
+
+
+@router.get("/related-evidence")
+def related_evidence(
+    company_id: int,
+    year: int = Query(..., ge=2020, le=2100),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW_ROLES)),
+):
+    """Modül kayıtlarından salt okunur kanıt önerileri (sağlık verisi toplulaştırılmış)."""
+    ensure_company_access(db, user, company_id)
+    y0, y1 = date(year, 1, 1), date(year, 12, 31)
+
+    trainings = list(
+        db.scalars(
+            select(TrainingSession).where(
+                TrainingSession.company_id == company_id,
+                TrainingSession.start_date >= y0,
+                TrainingSession.start_date <= y1,
+            ).order_by(TrainingSession.start_date.desc()).limit(30)
+        ).all()
+    )
+    drills = list(
+        db.scalars(
+            select(DrillRecord).where(
+                DrillRecord.company_id == company_id,
+                DrillRecord.is_active.is_(True),
+                DrillRecord.drill_date >= y0,
+                DrillRecord.drill_date <= y1,
+            ).order_by(DrillRecord.drill_date.desc()).limit(30)
+        ).all()
+    )
+    incidents = list(
+        db.scalars(
+            select(IncidentEvent).where(
+                IncidentEvent.company_id == company_id,
+                IncidentEvent.event_date >= y0,
+                IncidentEvent.event_date <= y1,
+            ).order_by(IncidentEvent.event_date.desc()).limit(30)
+        ).all()
+    )
+    risks = list(
+        db.scalars(
+            select(RiskAssessment).where(
+                RiskAssessment.company_id == company_id,
+                RiskAssessment.created_at >= datetime(year, 1, 1),
+                RiskAssessment.created_at < datetime(year + 1, 1, 1),
+            ).order_by(RiskAssessment.id.desc()).limit(30)
+        ).all()
+    )
+    health_done = db.scalar(
+        select(func.count()).select_from(HealthRecord).where(
+            HealthRecord.company_id == company_id,
+            HealthRecord.examination_date >= y0,
+            HealthRecord.examination_date <= y1,
+        )
+    ) or 0
+    health_pending_next = db.scalar(
+        select(func.count()).select_from(HealthRecord).where(
+            HealthRecord.company_id == company_id,
+            HealthRecord.next_examination_date.is_not(None),
+            HealthRecord.next_examination_date >= y0,
+            HealthRecord.next_examination_date <= y1,
+        )
+    ) or 0
+
+    return {
+        "year": year,
+        "trainings": {
+            "count": len(trainings),
+            "completed": sum(1 for t in trainings if t.status == TrainingStatus.COMPLETED),
+            "items": [
+                {"id": t.id, "title": t.title, "date": t.start_date, "status": t.status.value if hasattr(t.status, "value") else str(t.status)}
+                for t in trainings[:15]
+            ],
+        },
+        "drills": {
+            "count": len(drills),
+            "items": [
+                {"id": d.id, "title": d.drill_type, "date": d.drill_date, "status": d.status}
+                for d in drills[:15]
+            ],
+        },
+        "incidents": {
+            "count": len(incidents),
+            "accident": sum(1 for i in incidents if i.event_type == "accident"),
+            "near_miss": sum(1 for i in incidents if i.event_type == "near_miss"),
+            "items": [
+                {"id": i.id, "title": (i.short_summary or "")[:80], "date": i.event_date, "type": i.event_type}
+                for i in incidents[:15]
+            ],
+        },
+        "risks": {
+            "count": len(risks),
+            "items": [
+                {
+                    "id": r.id,
+                    "title": (r.activity or r.risk_definition or r.risk_code or f"Risk#{r.id}")[:80],
+                    "date": r.created_at.date() if r.created_at else None,
+                }
+                for r in risks[:15]
+            ],
+        },
+        "health_summary": {
+            "exams_completed": int(health_done),
+            "followups_in_year": int(health_pending_next),
+            "note": "Tanı/teşhis gibi özel nitelikli sağlık verisi aktarılmaz; yalnızca toplulaştırılmış sayılar.",
+        },
+        "note": "Önerilen kayıtlar silinmez; kullanıcı ilişkiyi kanıt olarak bağlayabilir.",
+    }
+
+
+@router.post("/transfer-to-next-year")
+def transfer_to_next_year(
+    payload: TransferNextYear,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Kontrollü aktarım: yeni yıl için bağımsız AnnualPlanItem oluşturur; eski değerlendirmeyi değiştirmez."""
+    ensure_company_access(db, user, payload.company_id)
+    target_year = payload.from_year + 1
+    created = []
+    for it in payload.items:
+        row = AnnualPlanItem(
+            company_id=payload.company_id,
+            year=target_year,
+            month=it.month,
+            category=it.category or "yillik_calisma",
+            activity=it.activity,
+            description=(it.description or f"Önceki yıl ({payload.from_year}) değerlendirmesinden aktarıldı.")[:2000],
+            responsible_name=it.responsible_name,
+            status=AnnualPlanStatus.PLANNED,
+            created_by_id=user.id,
+        )
+        db.add(row)
+        db.flush()
+        created.append({"id": row.id, "activity": row.activity, "year": target_year})
+    add_audit_log(
+        db,
+        user=user,
+        action="annual_eval_transfer_next_year",
+        module="annual_eval",
+        entity_type="annual_plan_item",
+        entity_id=str(payload.company_id),
+        description=f"{payload.from_year}->{target_year} {len(created)} kalem",
+    )
+    db.commit()
+    return {
+        "from_year": payload.from_year,
+        "to_year": target_year,
+        "created_count": len(created),
+        "items": created,
+        "note": "Yeni plan kalemleri oluşturuldu; önceki yıl değerlendirme kayıtları değiştirilmedi.",
+    }
 
 
 @router.get("/export.xlsx")
@@ -577,14 +915,19 @@ def export_xlsx(
     items = [i.model_dump() for i in list_items(company_id=company_id, year=year, db=db, user=user)]
     ev = _get_eval(db, company_id, year)
     unplanned: list[dict] = []
+    capas: list[dict] = []
     if ev:
         unplanned = list_unplanned(evaluation_id=ev.id, db=db, user=user)
+        capas = list_capas(evaluation_id=ev.id, db=db, user=user)
+    suggestions = _suggestions_payload(db, company_id, year, user).get("items") or []
     data = build_eval_xlsx(
         company_name=company.name if company else str(company_id),
         year=year,
         items=items,
         unplanned=unplanned,
         kpis=ov.kpis,
+        capas=capas,
+        suggestions=suggestions,
     )
     return StreamingResponse(
         BytesIO(data),
@@ -604,11 +947,18 @@ def export_pdf(
     company = db.get(Company, company_id)
     ov = _overview(db, company_id, year, user)
     items = [i.model_dump() for i in list_items(company_id=company_id, year=year, db=db, user=user)]
+    ev = _get_eval(db, company_id, year)
+    unplanned: list[dict] = []
+    if ev:
+        unplanned = list_unplanned(evaluation_id=ev.id, db=db, user=user)
+    suggestions = _suggestions_payload(db, company_id, year, user).get("items") or []
     data = build_eval_pdf(
         company_name=company.name if company else str(company_id),
         year=year,
         kpis=ov.kpis,
         items=items,
+        unplanned=unplanned,
+        suggestions=suggestions,
     )
     return StreamingResponse(
         BytesIO(data),
@@ -625,28 +975,4 @@ def next_year_suggestions(
     user: User = Depends(require_roles(*VIEW_ROLES)),
 ):
     ensure_company_access(db, user, company_id)
-    items = list_items(company_id=company_id, year=year, db=db, user=user)
-    suggestions = []
-    for it in items:
-        if it.outcome_status in ("gerceklesmedi", "ertelendi", "kismi") or it.capa_needed:
-            suggestions.append(
-                {
-                    "plan_item_id": it.plan_item_id,
-                    "activity": it.plan.activity,
-                    "reason": it.outcome_status,
-                    "suggestion": it.next_year_suggestion,
-                }
-            )
-    ev = _get_eval(db, company_id, year)
-    if ev:
-        for u in list_unplanned(evaluation_id=ev.id, db=db, user=user):
-            if u.get("suggest_next_year"):
-                suggestions.append(
-                    {
-                        "plan_item_id": None,
-                        "activity": u["activity"],
-                        "reason": "plan_disi",
-                        "suggestion": "Sonraki yıl planına eklenmesi önerilir.",
-                    }
-                )
-    return {"year": year + 1, "from_year": year, "items": suggestions, "note": "Otomatik ekleme yok; kontrollü aktarım kullanıcı onayıyla yapılır."}
+    return _suggestions_payload(db, company_id, year, user)

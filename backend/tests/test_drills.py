@@ -87,7 +87,7 @@ def test_health_tatbikat_flag(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.135"
+    assert body["version"] == "0.9.136"
     assert body["tatbikat"] == "drill-management-v1"
 
 

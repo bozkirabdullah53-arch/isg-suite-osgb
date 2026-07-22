@@ -1108,7 +1108,7 @@ function App(){
     health:<HealthPage user={user}/>,
     documents:<DocumentsPage user={user}/>,
     annual_plans:<AnnualPlansPage user={user}/>,
-    annual_eval_report:<AnnualEvalReportPage user={user}/>,
+    annual_eval_report:<AnnualEvalReportPage user={user} onNavigate={goModule}/>,
     reports:<ReportsPage/>,
     notifications:<NotificationsPage/>,
     subscription:<SubscriptionPage user={user}/>,
