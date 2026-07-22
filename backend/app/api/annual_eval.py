@@ -696,9 +696,79 @@ def list_evidences(
             "title": e.title,
             "doc_date": e.doc_date,
             "original_name": e.original_name,
+            "notes": e.notes,
             "created_at": e.created_at,
         }
         for e in rows
+    ]
+
+
+@router.delete("/evidences/{evidence_id}")
+def unlink_evidence(
+    evidence_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """İlişkiyi kaldırır (soft delete); dosya/geçmiş bozulmaz."""
+    evd = db.get(AnnualPlanEvalEvidence, evidence_id)
+    if not evd or not evd.is_active:
+        raise HTTPException(404, "Kanıt bulunamadı.")
+    item = db.get(AnnualPlanEvaluationItem, evd.evaluation_item_id)
+    if not item:
+        raise HTTPException(404, "Değerlendirme kalemi bulunamadı.")
+    ensure_company_access(db, user, item.company_id)
+    ev = db.get(AnnualPlanEvaluation, item.evaluation_id)
+    if ev:
+        _assert_editable(ev)
+    evd.is_active = False
+    add_audit_log(
+        db,
+        user=user,
+        action="annual_eval_evidence_unlink",
+        module="annual_eval",
+        entity_type="annual_plan_eval_evidence",
+        entity_id=str(evd.id),
+        description=evd.title or evd.notes,
+    )
+    db.commit()
+    return {"ok": True, "id": evidence_id}
+
+
+@router.get("/items/{item_id}/history")
+def item_history(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW_ROLES)),
+):
+    from app.models.entities import AuditLog
+
+    row = db.get(AnnualPlanEvaluationItem, item_id)
+    if not row:
+        raise HTTPException(404, "Kayıt bulunamadı.")
+    ensure_company_access(db, user, row.company_id)
+    logs = list(
+        db.scalars(
+            select(AuditLog)
+            .where(
+                AuditLog.module == "annual_eval",
+                AuditLog.entity_id == str(item_id),
+            )
+            .order_by(AuditLog.created_at.desc())
+            .limit(50)
+        ).all()
+    )
+    # Also evaluation-level and evidence actions mentioning this item
+    return [
+        {
+            "id": a.id,
+            "action": a.action,
+            "description": a.description,
+            "created_at": a.created_at,
+            "user_id": a.user_id,
+            "old_value": a.old_value,
+            "new_value": a.new_value,
+        }
+        for a in logs
     ]
 
 

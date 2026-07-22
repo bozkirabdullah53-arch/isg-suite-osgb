@@ -167,7 +167,7 @@ def test_health_flag_risk_photo_tags(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.138"
+    assert body["version"] == "0.9.139"
     assert body["risk_photo_tags"] == "checklist-v1"
     assert body["ghs_label_checklist"] == "ghs-label-checklist-v1"
 

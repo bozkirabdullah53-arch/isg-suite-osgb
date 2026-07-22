@@ -101,8 +101,8 @@ def test_health_annual_eval(client):
     r = client.get("/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == "0.9.138"
-    assert body["annual_eval_report"] == "annual-eval-v4"
+    assert body["version"] == "0.9.139"
+    assert body["annual_eval_report"] == "annual-eval-v5"
 
 
 def test_start_sync_and_update_does_not_mutate_plan(client):
@@ -351,3 +351,31 @@ def test_year_compare_and_pdf_export(client):
     )
     assert pdf.status_code == 200
     assert pdf.content[:4] == b"%PDF"
+
+
+def test_evidence_unlink_and_history(client):
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+    client.post(
+        "/api/v1/annual-evals/start",
+        headers=headers,
+        json={"company_id": seed["company_id"], "year": 2026},
+    )
+    item_id = client.get(
+        f"/api/v1/annual-evals/items?company_id={seed['company_id']}&year=2026",
+        headers=headers,
+    ).json()[0]["id"]
+    linked = client.post(
+        f"/api/v1/annual-evals/items/{item_id}/evidences/link",
+        headers=headers,
+        json={"source_module": "training", "source_id": 1, "title": "Test egitim"},
+    )
+    assert linked.status_code == 200, linked.text
+    eid = linked.json()["id"]
+    hist = client.get(f"/api/v1/annual-evals/items/{item_id}/history", headers=headers)
+    assert hist.status_code == 200
+    un = client.delete(f"/api/v1/annual-evals/evidences/{eid}", headers=headers)
+    assert un.status_code == 200
+    left = client.get(f"/api/v1/annual-evals/items/{item_id}/evidences", headers=headers).json()
+    assert all(x["id"] != eid for x in left)
+

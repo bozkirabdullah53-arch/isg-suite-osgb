@@ -65,6 +65,8 @@ export function AnnualEvalReportPage({user, onNavigate}) {
   const [selectedIds, setSelectedIds] = useState({});
   const [bulkNote, setBulkNote] = useState('');
   const [compare, setCompare] = useState(null);
+  const [evidences, setEvidences] = useState([]);
+  const [history, setHistory] = useState(null);
 
   async function loadCompanies() {
     try {
@@ -156,7 +158,7 @@ export function AnnualEvalReportPage({user, onNavigate}) {
     }
   }
 
-  function openEdit(row) {
+  async function openEdit(row) {
     setEdit(row);
     setForm({
       outcome_status: row.outcome_status || 'planlandi',
@@ -172,6 +174,30 @@ export function AnnualEvalReportPage({user, onNavigate}) {
       target_met: row.target_met ?? null,
       capa_needed: !!row.capa_needed,
     });
+    try {
+      setEvidences(await api(`/annual-evals/items/${row.id}/evidences`));
+    } catch (_) {
+      setEvidences([]);
+    }
+  }
+
+  async function showHistory(row) {
+    try {
+      setHistory({row, logs: await api(`/annual-evals/items/${row.id}/history`)});
+    } catch (ex) {
+      setErr(ex.message || 'Geçmiş yüklenemedi.');
+    }
+  }
+
+  async function unlinkEv(id) {
+    try {
+      await api(`/annual-evals/evidences/${id}`, {method: 'DELETE'});
+      setMsg('Kanıt ilişkisi kaldırıldı (soft delete).');
+      if (edit) setEvidences(await api(`/annual-evals/items/${edit.id}/evidences`));
+      await loadAll();
+    } catch (ex) {
+      setErr(ex.message || 'Kaldırılamadı.');
+    }
   }
 
   async function saveEdit(e) {
@@ -562,6 +588,7 @@ export function AnnualEvalReportPage({user, onNavigate}) {
                   {(canEdit || isPhysician) && !locked && (
                     <button type="button" className="secondary mini" onClick={() => openEdit(r)}>Değerlendir</button>
                   )}
+                  <button type="button" className="secondary mini" onClick={() => showHistory(r)}>Geçmiş</button>
                   {canEdit && !locked && (
                     <button type="button" className="secondary mini" onClick={() => { setCapaOpen(r); setCapaForm({title: `${r.plan?.activity || 'Faaliyet'} — düzeltici`, root_cause: '', action: '', responsible: r.plan?.responsible_name || '', due_date: '', priority: 'orta'}); }}>DÖF</button>
                   )}
@@ -673,6 +700,21 @@ export function AnnualEvalReportPage({user, onNavigate}) {
                   <label className="field" style={{gridColumn: '1 / -1'}}><span>Kanıt dosyası</span>
                     <input type="file" accept=".pdf,image/*" onChange={(e) => uploadEvidence(e.target.files?.[0])} />
                   </label>
+                  {evidences.length > 0 && (
+                    <div style={{gridColumn: '1 / -1', fontSize: 12}}>
+                      <strong>Mevcut kanıtlar</strong>
+                      <ul style={{margin: '6px 0', paddingLeft: 18}}>
+                        {evidences.map((e) => (
+                          <li key={e.id}>
+                            {e.title || e.original_name || e.notes || `#${e.id}`}
+                            {canEdit && !locked && (
+                              <button type="button" className="secondary mini" style={{marginLeft: 8}} onClick={() => unlinkEv(e.id)}>İlişkiyi kaldır</button>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <label style={{display: 'flex', gap: 8, alignItems: 'center', fontSize: 13}}>
                     <input type="checkbox" checked={!!form.capa_needed} onChange={(e) => setForm({...form, capa_needed: e.target.checked})} />
                     Düzeltici faaliyet gerekli
@@ -762,6 +804,24 @@ export function AnnualEvalReportPage({user, onNavigate}) {
                 <button type="submit" disabled={busy}>Kaydet</button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+
+      {history && (
+        <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setHistory(null)}>
+          <section className="modal">
+            <header><h3>Değerlendirme geçmişi</h3></header>
+            <p className="muted" style={{fontSize: 13}}>{history.row?.plan?.activity}</p>
+            <ul style={{fontSize: 13, paddingLeft: 18}}>
+              {(history.logs || []).length === 0 && <li>Kayıt yok.</li>}
+              {(history.logs || []).map((l) => (
+                <li key={l.id}>{String(l.created_at || '').slice(0, 19)} — {l.action}: {l.description}</li>
+              ))}
+            </ul>
+            <div className="form-actions">
+              <button type="button" className="secondary" onClick={() => setHistory(null)}>Kapat</button>
+            </div>
           </section>
         </div>
       )}
