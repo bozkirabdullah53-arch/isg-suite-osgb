@@ -760,6 +760,7 @@ export function EisaPaymentsPage() {
 
   const load = async () => {
     setBusy(true);
+    setMsg('');
     try {
       const [payments, users] = await Promise.all([
         api('/eisa/payments'),
@@ -883,6 +884,7 @@ export function EisaPackagesPage() {
 
   const load = async () => {
     setBusy(true);
+    setMsg('');
     try {
       setRows(await api('/eisa/packages'));
     } catch (e) {
@@ -1234,6 +1236,7 @@ export function EisaNotificationsPage() {
 
   const load = async () => {
     setBusy(true);
+    setMsg('');
     try {
       const [notes, users] = await Promise.all([api('/eisa/notifications'), api('/eisa/osgb-users')]);
       setRows(notes);
@@ -1368,6 +1371,7 @@ export function EisaReportsPage() {
 
   const load = async () => {
     setBusy(true);
+    setMsg('');
     try {
       setData(await api('/eisa/reports/summary'));
     } catch (e) {
@@ -1427,6 +1431,7 @@ export function EisaAuditLogsPage() {
 
   const load = async () => {
     setBusy(true);
+    setMsg('');
     try {
       setRows(await api('/eisa/audit-logs?module=eisa'));
     } catch (e) {
@@ -1552,6 +1557,7 @@ export function EisaSystemSettingsPage() {
 
   const load = async () => {
     setBusy(true);
+    setMsg('');
     try {
       setSettings(await api('/eisa/settings'));
     } catch (e) {
