@@ -41,19 +41,27 @@ def seed_admin(db: Session) -> None:
     db.commit()
 
 
+def _demo_seed_allowed() -> bool:
+    """Üretimde varsayılan kapalı; yalnızca açıkça istenirse veya local/qa."""
+    if settings.seed_demo_osgbs:
+        return True
+    env = (settings.environment or "").strip().lower()
+    return env in {"development", "dev", "qa", "test", "local"}
+
+
 def seed_demo_osgbs(db: Session) -> list[str]:
-    """Idempotent: 2 demo/test OSGB kaydı (yoksa ekler)."""
+    """İsteğe bağlı demo OSGB seed. Silinen kayıtları yeniden oluşturmaz (prod'da kapalı)."""
+    if not _demo_seed_allowed():
+        return []
+
     created: list[str] = []
     for spec in DEMO_OSGBS:
         exists = db.scalar(
             select(OsgbOrganization).where(OsgbOrganization.name == spec["name"]).limit(1)
         )
         if exists:
-            if not exists.is_active:
-                exists.is_active = True
-                db.commit()
+            # Pasife alınan / askıdaki demoyu restart'ta tekrar aktif etme
             continue
-        # yetki no çakışması
         if spec.get("authorization_number"):
             clash = db.scalar(
                 select(OsgbOrganization)
@@ -72,8 +80,5 @@ def seed_demo_osgbs(db: Session) -> list[str]:
         except Exception:
             pass
         created.append(spec["name"])
-    if created:
-        db.commit()
-    else:
-        db.commit()
+    db.commit()
     return created

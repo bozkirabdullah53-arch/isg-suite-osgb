@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     backup_encryption_key: str | None = None
     seed_admin_email: str | None = None
     seed_admin_password: str | None = None
+    # Canlıda kapalı: silinen demo OSGB'ler restart'ta geri gelmesin
+    seed_demo_osgbs: bool = False
     clamav_host: str | None = None
     clamav_port: int = 3310
     clamav_timeout_sec: float = 30.0
