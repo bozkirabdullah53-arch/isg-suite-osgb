@@ -85,3 +85,74 @@ def test_purge_osgb_deletes_despite_dry_run_logs(client: TestClient):
             select(IntegrationDryRunLog).where(IntegrationDryRunLog.osgb_id == osgb_id)
         ).all()
         assert left == []
+
+
+def test_purge_company_with_emergency_teams(client: TestClient):
+    """P0 regresyon: emergency_teams FK firma silmeyi engellemesin."""
+    from app.api.companies import _purge_company_data
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import (
+        Company,
+        EmergencyTeam,
+        EmergencyTeamType,
+        OsgbOrganization,
+        User,
+        UserRole,
+    )
+    from sqlalchemy import select
+
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(
+            name="VoLor Purge OSGB",
+            authorization_number="YETKI-EM-1",
+            tax_number="9988776655",
+            responsible_manager="Test",
+            email="em-purge@test.com",
+            phone="02121112233",
+            address="Ankara",
+            is_active=True,
+        )
+        db.add(osgb)
+        db.flush()
+        company = Company(name="VoLorBoZ", osgb_id=osgb.id, is_active=True, hazard_class="Az Tehlikeli")
+        db.add(company)
+        db.flush()
+        admin = User(
+            email="em-admin@test.com",
+            full_name="Admin",
+            hashed_password=get_password_hash("Test1234!"),
+            role=UserRole.COMPANY_ADMIN,
+            company_id=company.id,
+            is_active=True,
+        )
+        db.add(admin)
+        db.flush()
+        ttype = EmergencyTeamType(
+            company_id=company.id,
+            code="sondurme",
+            name="Sondurme",
+            is_system=False,
+            min_members=2,
+        )
+        db.add(ttype)
+        db.flush()
+        db.add(
+            EmergencyTeam(
+                company_id=company.id,
+                type_id=ttype.id,
+                name="Ekip A",
+                min_members=2,
+                created_by_id=admin.id,
+            )
+        )
+        db.commit()
+        cid = company.id
+
+    with SessionLocal() as db:
+        _purge_company_data(db, cid)
+        db.delete(db.get(Company, cid))
+        db.commit()
+        assert db.get(Company, cid) is None
+        left = db.scalars(select(EmergencyTeam).where(EmergencyTeam.company_id == cid)).all()
+        assert left == []

@@ -7,12 +7,26 @@ from app.api.company_access import companies_query_for_user, ensure_company_acce
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import (
+    AnnualPlanEvalCapa,
+    AnnualPlanEvalEvidence,
+    AnnualPlanEvalRevision,
+    AnnualPlanEvaluation,
+    AnnualPlanEvaluationItem,
     AnnualPlanItem,
+    AnnualPlanUnplannedActivity,
     AuditLog,
     Branch,
     Company,
     CompanySubscription,
     DocumentRecord,
+    DrillPhoto,
+    DrillRecord,
+    EisaArchiveRecord,
+    EisaErrorReport,
+    EmergencyTeam,
+    EmergencyTeamAssignment,
+    EmergencyTeamTraining,
+    EmergencyTeamType,
     Employee,
     FinanceTransaction,
     HealthRecord,
@@ -76,12 +90,76 @@ def _purge_company_data(db: Session, company_id: int) -> None:
         db.execute(delete(TrainingParticipant).where(TrainingParticipant.training_id.in_(training_ids)))
         db.execute(delete(TrainingSession).where(TrainingSession.id.in_(training_ids)))
 
+    # Acil durum ekipleri (emergency_teams → companies FK)
+    assign_ids = _ids(db, EmergencyTeamAssignment, company_id)
+    if assign_ids:
+        db.execute(
+            delete(EmergencyTeamTraining).where(EmergencyTeamTraining.assignment_id.in_(assign_ids))
+        )
+        db.execute(delete(EmergencyTeamAssignment).where(EmergencyTeamAssignment.id.in_(assign_ids)))
+    db.execute(delete(EmergencyTeam).where(EmergencyTeam.company_id == company_id))
+    db.execute(
+        delete(EmergencyTeamType).where(
+            EmergencyTeamType.company_id == company_id,
+            EmergencyTeamType.is_system.is_(False),
+        )
+    )
+
+    # Tatbikat
+    drill_ids = _ids(db, DrillRecord, company_id)
+    if drill_ids:
+        db.execute(delete(DrillPhoto).where(DrillPhoto.drill_id.in_(drill_ids)))
+        db.execute(delete(DrillRecord).where(DrillRecord.id.in_(drill_ids)))
+
+    # Yıllık plan değerlendirme (plan_item FK önce temizlenmeli)
+    eval_ids = _ids(db, AnnualPlanEvaluation, company_id)
+    if eval_ids:
+        item_ids = list(
+            db.scalars(
+                select(AnnualPlanEvaluationItem.id).where(
+                    AnnualPlanEvaluationItem.evaluation_id.in_(eval_ids)
+                )
+            ).all()
+        )
+        if item_ids:
+            db.execute(
+                delete(AnnualPlanEvalEvidence).where(
+                    AnnualPlanEvalEvidence.evaluation_item_id.in_(item_ids)
+                )
+            )
+        db.execute(delete(AnnualPlanEvalCapa).where(AnnualPlanEvalCapa.evaluation_id.in_(eval_ids)))
+        db.execute(
+            delete(AnnualPlanEvalRevision).where(AnnualPlanEvalRevision.evaluation_id.in_(eval_ids))
+        )
+        db.execute(
+            delete(AnnualPlanUnplannedActivity).where(
+                AnnualPlanUnplannedActivity.evaluation_id.in_(eval_ids)
+            )
+        )
+        db.execute(
+            delete(AnnualPlanEvaluationItem).where(
+                AnnualPlanEvaluationItem.evaluation_id.in_(eval_ids)
+            )
+        )
+        db.execute(delete(AnnualPlanEvaluation).where(AnnualPlanEvaluation.id.in_(eval_ids)))
+    db.execute(
+        delete(AnnualPlanEvaluationItem).where(AnnualPlanEvaluationItem.company_id == company_id)
+    )
+    db.execute(
+        delete(AnnualPlanUnplannedActivity).where(
+            AnnualPlanUnplannedActivity.company_id == company_id
+        )
+    )
+
     emp_ids = list(db.scalars(select(Employee.id).where(Employee.company_id == company_id)).all())
     if emp_ids:
         # Başka firmaya taşınmış eğitim katılımı kalmış olabilir
         db.execute(delete(TrainingParticipant).where(TrainingParticipant.employee_id.in_(emp_ids)))
         db.execute(delete(HealthRecord).where(HealthRecord.employee_id.in_(emp_ids)))
         db.execute(delete(PpeAssignment).where(PpeAssignment.employee_id.in_(emp_ids)))
+        db.execute(
+            delete(EmergencyTeamAssignment).where(EmergencyTeamAssignment.employee_id.in_(emp_ids))
+        )
 
     db.execute(delete(HealthRecord).where(HealthRecord.company_id == company_id))
     db.execute(delete(IsgRecord).where(IsgRecord.company_id == company_id))
@@ -103,6 +181,14 @@ def _purge_company_data(db: Session, company_id: int) -> None:
     db.execute(
         update(FinanceTransaction)
         .where(FinanceTransaction.company_id == company_id)
+        .values(company_id=None)
+    )
+    db.execute(
+        update(EisaErrorReport).where(EisaErrorReport.company_id == company_id).values(company_id=None)
+    )
+    db.execute(
+        update(EisaArchiveRecord)
+        .where(EisaArchiveRecord.company_id == company_id)
         .values(company_id=None)
     )
 
