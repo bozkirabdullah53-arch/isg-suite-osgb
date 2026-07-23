@@ -9,9 +9,11 @@ from app.models.entities import (
     Company,
     CrmLead,
     EisaArchiveRecord,
+    EisaErrorReport,
     EisaPlatformNotification,
     EisaSubscriptionPayment,
     FinanceTransaction,
+    IntegrationDryRunLog,
     IsgProfessional,
     OsgbApplication,
     OsgbOrganization,
@@ -45,6 +47,8 @@ def purge_osgb(db: Session, osgb_id: int) -> str:
     db.execute(delete(CrmLead).where(CrmLead.osgb_id == osgb_id))
     db.execute(delete(FinanceTransaction).where(FinanceTransaction.osgb_id == osgb_id))
     db.execute(delete(IsgProfessional).where(IsgProfessional.osgb_id == osgb_id))
+    # İBYS/KATİP dry-run logları OSGB'ye FK tutar; silinmezse IntegrityError
+    db.execute(delete(IntegrationDryRunLog).where(IntegrationDryRunLog.osgb_id == osgb_id))
 
     db.execute(
         update(OsgbApplication)
@@ -56,10 +60,15 @@ def purge_osgb(db: Session, osgb_id: int) -> str:
         .where(EisaPlatformNotification.target_osgb_id == osgb_id)
         .values(target_osgb_id=None)
     )
-    # Merkezi arşiv kalır; FK kopmasın diye osgb bağlantısını temizle
+    # Merkezi arşiv / hata raporları kalır; FK kopmasın diye osgb bağlantısını temizle
     db.execute(
         update(EisaArchiveRecord)
         .where(EisaArchiveRecord.osgb_id == osgb_id)
+        .values(osgb_id=None)
+    )
+    db.execute(
+        update(EisaErrorReport)
+        .where(EisaErrorReport.osgb_id == osgb_id)
         .values(osgb_id=None)
     )
 
