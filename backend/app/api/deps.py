@@ -39,7 +39,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 
 def get_mfa_challenge_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
-    return _user_from_token(token, db, allowed_purposes={"mfa_challenge", "mfa_setup"})
+    # Setup token ile /auth/mfa/verify üzerinden access JWT alınamaz (MFA bypass kapatıldı).
+    return _user_from_token(token, db, allowed_purposes={"mfa_challenge"})
 
 
 def get_mfa_setup_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:

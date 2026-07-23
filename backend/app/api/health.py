@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from html import escape as html_escape
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
@@ -28,6 +29,7 @@ from app.services.health_meta import (
     suggest_for_job,
     tetkik_summary,
 )
+from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/health-records", tags=["Sağlık Kayıtları"])
 
@@ -532,12 +534,19 @@ def health_form_html(
     employee = db.get(Employee, record.employee_id)
     conf = record.confidential_note if user.role in PHYSICIAN_ROLES else None
 
+    def safe(value) -> str:
+        if value is None:
+            return ""
+        return html_escape(str(value), quote=True)
+
     def cell(label: str, value: str) -> str:
         return (
-            f"<div class='box'><div class='lab'>{label}</div>"
-            f"<div class='val'>{value or '—'}</div></div>"
+            f"<div class='box'><div class='lab'>{safe(label)}</div>"
+            f"<div class='val'>{safe(value) or '—'}</div></div>"
         )
 
+    company_name = safe(company.name if company else "")
+    employee_name = safe(employee.full_name if employee else "")
     html = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
 <title>Sağlık Gözetimi Formu</title>
 <style>
@@ -554,7 +563,7 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 @media print{{body{{background:#fff}}.wrap{{box-shadow:none;margin:0;max-width:none}}}}
 </style></head><body>
 <div class="top"><h2>Sağlık Gözetimi Formu</h2>
-<p style="margin:0;opacity:.9">{company.name if company else ''} · {employee.full_name if employee else ''}</p></div>
+<p style="margin:0;opacity:.9">{company_name} · {employee_name}</p></div>
 <div class="wrap">
 <div class="grid">
 {cell('Personel', employee.full_name if employee else '')}
@@ -576,14 +585,14 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 {cell('Akıllı Özet', smart_summary(record, employee))}
 </div>
 <h3>Önerilen tetkikler / Maruziyet</h3>
-<p>{record.suggested_tests or '—'}</p>
-<p>{record.exposures or '—'}</p>
+<p>{safe(record.suggested_tests) or '—'}</p>
+<p>{safe(record.exposures) or '—'}</p>
 <h3>Not / Kısıt / Takip</h3>
-<p>{record.summary or '—'}</p>
-<p>{record.follow_up_note or ''}</p>
-{f'<h3>Gizli hekim notu</h3><p>{conf}</p>' if conf else ''}
+<p>{safe(record.summary) or '—'}</p>
+<p>{safe(record.follow_up_note) or ''}</p>
+{f'<h3>Gizli hekim notu</h3><p>{safe(conf)}</p>' if conf else ''}
 <div class="sign">
-<div>İşyeri Hekimi<br><b>{record.physician_name or '........................'}</b></div>
+<div>İşyeri Hekimi<br><b>{safe(record.physician_name) or '........................'}</b></div>
 <div>İşveren / Vekili<br><b>........................</b></div>
 </div>
 <p style="margin-top:18px;font-size:12px;color:#64748b">Yazdır: Ctrl+P · İSG Suite OSGB</p>
@@ -611,6 +620,14 @@ async def upload_health_report(
         raise HTTPException(400, "Boş dosya yüklenemez.")
     if len(data) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(413, f"Dosya {settings.max_upload_mb} MB sınırını aşıyor.")
+    assert_safe_upload(data, ext, name)
+    safe_mime = {
+        ".pdf": "application/pdf",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }.get(ext, "application/octet-stream")
     if record.report_storage_path:
         old = (_upload_root() / record.report_storage_path).resolve()
         if _upload_root() in old.parents and old.exists():
@@ -637,15 +654,9 @@ async def upload_health_report(
     target = _upload_root() / rel
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(data)
-    record.report_file_name = name
+    record.report_file_name = Path(name).name
     record.report_storage_path = rel.replace("\\", "/")
-    record.report_content_type = file.content_type or {
-        ".pdf": "application/pdf",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    }.get(ext, "application/octet-stream")
+    record.report_content_type = safe_mime
     db.commit()
     db.refresh(record)
     employee = db.get(Employee, record.employee_id)

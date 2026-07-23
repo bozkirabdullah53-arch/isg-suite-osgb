@@ -109,11 +109,16 @@ def verify_mfa_login(
 ):
     import pyotp
 
+    if not user.mfa_enabled:
+        raise HTTPException(
+            status_code=403,
+            detail="MFA henüz etkinleştirilmedi. Önce güvenlik ayarlarından MFA’yı tamamlayın.",
+        )
     code = (payload.code or "").strip().replace(" ", "")
     secret = get_mfa_secret(user)
     ok = False
     if secret:
-        ok = pyotp.TOTP(secret).verify(code, valid_window=1)
+        ok = pyotp.TOTP(secret).verify(code, valid_window=2)
     if not ok:
         ok = verify_recovery_code(user, code)
     if not ok:

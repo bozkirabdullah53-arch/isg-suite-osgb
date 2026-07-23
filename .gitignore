@@ -26,3 +26,4 @@ backend/.audit-smoke-out.txt
 backend/.seed-run-out.txt
 backend/_*_test.pdf
 backend/scripts/audit_results.json
+backend/scripts/demo_testers.json

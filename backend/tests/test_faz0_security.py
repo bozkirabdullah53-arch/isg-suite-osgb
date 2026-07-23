@@ -23,16 +23,23 @@ def client(tmp_path, monkeypatch):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     import app.core.database as dbmod
-    import app.models.entities  # noqa: F401 — register metadata
+    import app.models.entities as ent
 
     engine = create_engine(url, connect_args={"check_same_thread": False})
     dbmod.engine = engine
     dbmod.SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    dbmod.Base.metadata.create_all(bind=engine)
+    ent.Base.metadata.drop_all(bind=engine)
+    ent.Base.metadata.create_all(bind=engine)
 
     from app.core.security import get_password_hash
     from app.models.entities import Company, Employee, User, UserRole
-    from app.main import app
+    import app.main as main_mod
+
+    main_mod.engine = engine
+    main_mod.SessionLocal = dbmod.SessionLocal
+    ent.Base.metadata.drop_all(bind=engine)
+    ent.Base.metadata.create_all(bind=engine)
+    app = main_mod.app
 
     db = dbmod.SessionLocal()
     try:
@@ -240,3 +247,34 @@ def test_mfa_setup_and_login(client):
     )
     assert r.status_code == 200
     assert r.json().get("access_token")
+
+
+def test_mfa_setup_token_cannot_bypass_via_auth_verify(client):
+    """P0: mfa_setup JWT + /auth/mfa/verify ile access alınamaz."""
+    import app.core.database as dbmod
+    from app.models.entities import User, UserRole
+
+    db = dbmod.SessionLocal()
+    try:
+        u = db.query(User).filter_by(email="uzman@example.com").one()
+        u.role = UserRole.COMPANY_ADMIN
+        u.mfa_enabled = False
+        db.commit()
+    finally:
+        db.close()
+
+    r = _login(client, "uzman@example.com", "UzmanPass123!")
+    assert r.json().get("mfa_setup_required") is True
+    setup_tok = r.json()["mfa_token"]
+
+    r = client.post("/api/v1/security/mfa/setup", headers={"Authorization": f"Bearer {setup_tok}"})
+    assert r.status_code == 200
+    secret = r.json()["secret"]
+    code = pyotp.TOTP(secret).now()
+
+    r = client.post(
+        "/api/v1/auth/mfa/verify",
+        headers={"Authorization": f"Bearer {setup_tok}"},
+        json={"code": code},
+    )
+    assert r.status_code in (401, 403)

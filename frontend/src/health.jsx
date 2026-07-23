@@ -474,10 +474,14 @@ export function HealthPage({user}) {
       });
       if (!r.ok) throw new Error('Form açılamadı.');
       const html = await r.text();
-      const w = window.open('', '_blank');
-      if (!w) throw new Error('Pop-up engellendi; yazdırma penceresine izin verin.');
-      w.document.write(html);
-      w.document.close();
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const w = window.open(url, '_blank');
+      if (!w) {
+        URL.revokeObjectURL(url);
+        throw new Error('Pop-up engellendi; yazdırma penceresine izin verin.');
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
       setMessage(err.message);
     }

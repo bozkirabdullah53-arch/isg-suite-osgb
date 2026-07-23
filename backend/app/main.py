@@ -11,7 +11,13 @@ from app.services.seed import seed_admin, seed_demo_osgbs
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self,request,call_next):
         response=await call_next(request)
-        response.headers.update({'X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY','Referrer-Policy':'strict-origin-when-cross-origin','Permissions-Policy':'camera=(self), microphone=(), geolocation=(self)'})
+        response.headers.update({
+            'X-Content-Type-Options':'nosniff',
+            'X-Frame-Options':'DENY',
+            'Referrer-Policy':'strict-origin-when-cross-origin',
+            'Permissions-Policy':'camera=(self), microphone=(), geolocation=(self)',
+            'Strict-Transport-Security':'max-age=31536000; includeSubDomains',
+        })
         return response
 @asynccontextmanager
 async def lifespan(_:FastAPI):
@@ -44,7 +50,15 @@ async def lifespan(_:FastAPI):
         except Exception:
             pass
     yield
-app=FastAPI(title=settings.app_name,version='0.9.143',lifespan=lifespan)
+_is_prod = (settings.environment or '').strip().lower() in {'production', 'prod', 'live'}
+app=FastAPI(
+    title=settings.app_name,
+    version='0.9.144',
+    lifespan=lifespan,
+    docs_url=None if _is_prod else '/docs',
+    redoc_url=None if _is_prod else '/redoc',
+    openapi_url=None if _is_prod else '/openapi.json',
+)
 
 from app.core.validation_tr import register_turkish_validation
 register_turkish_validation(app)
@@ -69,7 +83,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.143',
+        'version': '0.9.144',
         'ai_hazard_hint': 'keyword-v2',
         'mevzuat_panel': 'highlights-v1',
         'sds_register': 'chemical-register-v1',

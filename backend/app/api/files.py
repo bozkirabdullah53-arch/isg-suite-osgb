@@ -105,9 +105,33 @@ def download_document_file(
     description = document.description or ""
     if marker not in description:
         raise HTTPException(status_code=404, detail="Bu kayda bağlı dosya bulunmuyor.")
-    stored_name = description.split(marker, 1)[1].split("]", 1)[0]
+    raw_name = description.split(marker, 1)[1].split("]", 1)[0].strip()
+    # Cross-tenant path traversal engeli: yalnızca dosya adı, ayırıcı/`..` yok
+    stored_name = Path(raw_name).name
+    if (
+        not stored_name
+        or stored_name != raw_name
+        or ".." in stored_name
+        or "/" in raw_name
+        or "\\" in raw_name
+    ):
+        raise HTTPException(status_code=400, detail="Geçersiz dosya referansı.")
     path = (safe_upload_root() / str(document.company_id) / stored_name).resolve()
-    if safe_upload_root() not in path.parents or not path.exists():
+    company_root = (safe_upload_root() / str(document.company_id)).resolve()
+    if company_root not in path.parents and path != company_root:
+        raise HTTPException(status_code=404, detail="Dosya fiziksel depolamada bulunamadı.")
+    if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail="Dosya fiziksel depolamada bulunamadı.")
 
-    return FileResponse(path, filename=document.file_name or stored_name)
+    # İstemci Content-Type'ına güvenme — uzantıdan güvenli MIME
+    mime_by_ext = {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".xls": "application/vnd.ms-excel",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    }
+    media = mime_by_ext.get(path.suffix.lower(), "application/octet-stream")
+    return FileResponse(path, filename=document.file_name or stored_name, media_type=media)
