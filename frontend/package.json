@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint src/auth_session.js src/legal_acceptances.jsx src/memberships_panel.jsx src/api.js src/validation.js",
+    "lint": "eslint src/auth_session.js src/legal_acceptances.jsx src/memberships_panel.jsx src/api.js src/validation.js src/field_offline.js",
     "test:e2e": "playwright test"
   },
   "dependencies": {
