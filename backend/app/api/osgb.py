@@ -41,6 +41,12 @@ router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
 ADMIN_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
 
 def _scope_osgb(user: User, osgb_id: int) -> None:
+    """OSGB erişim kontrolü — TenantContext varsa ondan, yoksa user.osgb_id."""
+    from app.core.tenant_context import assert_osgb_access, current_tenant
+
+    if current_tenant() is not None:
+        assert_osgb_access(osgb_id)
+        return
     if user.role != UserRole.GLOBAL_ADMIN and user.osgb_id != osgb_id:
         raise HTTPException(403, "Bu OSGB kaydına erişim yetkiniz yok.")
 

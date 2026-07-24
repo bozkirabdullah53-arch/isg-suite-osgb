@@ -6,7 +6,15 @@ import pytest
 from fastapi import HTTPException
 
 from app.api import company_access as ca
+from app.core.tenant_context import clear_tenant
 from app.models.entities import UserRole
+
+
+@pytest.fixture(autouse=True)
+def _clear_tenant():
+    clear_tenant()
+    yield
+    clear_tenant()
 
 
 def test_company_admin_only_own_firm(monkeypatch):

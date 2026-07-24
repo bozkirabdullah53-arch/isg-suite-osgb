@@ -379,6 +379,12 @@ def _assert_company_admin_scope(user: User, obj: Company) -> None:
         return
     if user.role != UserRole.COMPANY_ADMIN:
         raise HTTPException(403, "Bu işlem için yetkiniz yok.")
+    if obj.osgb_id is not None:
+        from app.core.tenant_context import assert_osgb_access, current_tenant
+
+        if current_tenant() is not None:
+            assert_osgb_access(obj.osgb_id)
+            return
     if not user.osgb_id or obj.osgb_id != user.osgb_id:
         raise HTTPException(403, "Bu işyerini yönetemezsiniz — yalnızca kendi OSGB kapsamınız.")
 

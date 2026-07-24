@@ -241,6 +241,15 @@ def ensure_company_access(db: Session, user: User, company_id: int | None) -> in
 
     allowed = assigned_company_ids(db, user)
     if company_id in allowed:
+        # P1-03b: TenantContext varsa OSGB çapraz erişimini ikinci kez kes
+        company = db.get(Company, company_id)
+        osgb = getattr(company, "osgb_id", None) if company is not None else None
+        if isinstance(osgb, int):
+            from app.core.tenant_context import assert_osgb_access, current_tenant
+
+            ctx = current_tenant()
+            if ctx is not None and not ctx.is_global and isinstance(ctx.osgb_id, int):
+                assert_osgb_access(osgb)
         return company_id
 
     if user.role in _OSGB_FIELD_ROLES and not allowed:

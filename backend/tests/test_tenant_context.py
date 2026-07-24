@@ -18,6 +18,13 @@ from app.core.tenant_context import (
 from app.models.entities import UserRole
 
 
+@pytest.fixture(autouse=True)
+def _clear_tenant_between_tests():
+    clear_tenant()
+    yield
+    clear_tenant()
+
+
 def _user(**kwargs):
     base = dict(id=1, role=UserRole.COMPANY_ADMIN, osgb_id=7, company_id=3)
     base.update(kwargs)
@@ -81,3 +88,29 @@ def test_tenant_middleware_registered():
 
     names = [m.cls.__name__ for m in app.user_middleware if hasattr(m, "cls")]
     assert "TenantContextMiddleware" in names
+
+
+def test_company_admin_scope_uses_tenant_context():
+    from app.api.companies import _assert_company_admin_scope
+
+    clear_tenant()
+    bind_user_tenant(_user(role=UserRole.COMPANY_ADMIN, osgb_id=7))
+    ok = SimpleNamespace(osgb_id=7)
+    _assert_company_admin_scope(_user(role=UserRole.COMPANY_ADMIN, osgb_id=7), ok)
+    with pytest.raises(HTTPException) as exc:
+        _assert_company_admin_scope(
+            _user(role=UserRole.COMPANY_ADMIN, osgb_id=7),
+            SimpleNamespace(osgb_id=99),
+        )
+    assert exc.value.status_code == 403
+
+
+def test_scope_osgb_uses_tenant_context():
+    from app.api.osgb import _scope_osgb
+
+    clear_tenant()
+    bind_user_tenant(_user(role=UserRole.COMPANY_ADMIN, osgb_id=7))
+    _scope_osgb(_user(role=UserRole.COMPANY_ADMIN, osgb_id=7), 7)
+    with pytest.raises(HTTPException) as exc:
+        _scope_osgb(_user(role=UserRole.COMPANY_ADMIN, osgb_id=7), 99)
+    assert exc.value.status_code == 403
