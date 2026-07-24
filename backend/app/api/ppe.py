@@ -16,6 +16,7 @@ from app.api.company_access import company_ids_for_query, effective_company_id, 
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
+from app.services.upload_gateway import persist_relative
 from app.models.entities import (
     Branch,
     Company,
@@ -276,9 +277,12 @@ async def upload_photo(
     if len(data) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(413, f"Dosya {settings.max_upload_mb} MB sınırını aşıyor.")
     rel = f"{row.company_id}/ppe/{row.id}_{uuid.uuid4().hex[:10]}{ext}"
-    target = _upload_root() / rel
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(data)
+    if settings.upload_gateway_enabled:
+        persist_relative(data, relative_path=rel, original_name=name)
+    else:
+        target = _upload_root() / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
     photo = PpeAssignmentPhoto(
         assignment_id=row.id,
         storage_path=rel.replace("\\", "/"),

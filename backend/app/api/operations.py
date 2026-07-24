@@ -22,6 +22,7 @@ from app.services.finance_accrual import accrue_month_for_osgb
 from app.services.visit_calendar import build_visit_calendar
 from app.services.module_kpis import build_module_kpis
 from app.services.site_verify import codes_match, consume_ephemeral_token
+from app.services.upload_gateway import persist_relative
 
 router = APIRouter(prefix="/operations", tags=["OSGB Operasyonları"])
 ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
@@ -94,9 +95,12 @@ def _apply_signature(obj: ServiceVisit, data_url: str | None):
             except OSError:
                 pass
     rel = f"{obj.osgb_id}/visits/{obj.id}_sig_{uuid4().hex[:10]}{ext}"
-    target = _upload_root() / rel
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(raw)
+    if settings.upload_gateway_enabled:
+        persist_relative(raw, relative_path=rel, original_name=f"imza{ext}", max_bytes=350_000)
+    else:
+        target = _upload_root() / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(raw)
     obj.signature_file_name = f"imza{ext}"
     obj.signature_storage_path = rel.replace("\\", "/")
     obj.signature_captured_at = datetime.utcnow()
@@ -620,9 +624,12 @@ async def upload_visit_notebook(
     if obj.notebook_storage_path:
         _delete_notebook_file(obj, db=db, user=user)
     rel = f"{obj.osgb_id}/visits/{obj.id}_{uuid4().hex[:10]}{ext}"
-    target = _upload_root() / rel
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(data)
+    if settings.upload_gateway_enabled:
+        persist_relative(data, relative_path=rel, original_name=name)
+    else:
+        target = _upload_root() / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
     obj.notebook_file_name = name
     obj.notebook_storage_path = rel.replace("\\", "/")
     obj.notebook_content_type = file.content_type or {
