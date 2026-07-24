@@ -4,6 +4,7 @@ from uuid import uuid4
 from jose import jwt
 from passlib.context import CryptContext
 
+from app.core.auth_cookies import access_token_ttl_minutes
 from app.core.config import settings
 
 
@@ -17,9 +18,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
-
-
-from app.core.auth_cookies import access_token_ttl_minutes
 
 
 def create_access_token(
