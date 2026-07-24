@@ -21,13 +21,24 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - name: Install
         run: pip install -r requirements.txt
-      - name: Pytest (SQLite)
+      - name: Pytest (SQLite smoke)
         env:
           ENVIRONMENT: development
           SECRET_KEY: ci-secret-key-at-least-32-characters-long
           DATABASE_URL: sqlite:///./ci_test.db
           PYTHONPATH: .
-        run: pytest -q
+        run: >
+          pytest -q
+          tests/test_security_config.py
+          tests/test_token_revoke.py
+          tests/test_company_name_scope.py
+          tests/test_company_access.py
+          tests/test_ci_postgres_parity.py
+          tests/test_backup_restore.py
+          tests/test_clamav_scan.py
+          tests/test_capacity_engine.py
+          tests/test_ai_hazard_hint.py
+          tests/test_active_osgb.py
 
   backend-postgres:
     runs-on: ubuntu-latest

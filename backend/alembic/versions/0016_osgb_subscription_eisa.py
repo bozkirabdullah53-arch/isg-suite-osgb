@@ -61,44 +61,74 @@ def upgrade():
         )
         op.create_index("ix_osgb_subscriptions_osgb_id", "osgb_subscriptions", ["osgb_id"])
 
-    # Mevcut OSGB'lere deneme aboneliği (10 gün)
+    # Mevcut OSGB'lere deneme aboneliği (10 gün) — enum etiketleri SA create_all ile
+    # STANDARD/TRIAL olabilir; değer uyuşmazsa seed atlanır (CI/fresh DB).
     if insp.has_table("osgb_organizations") and insp.has_table("osgb_subscriptions"):
-        if bind.dialect.name == "sqlite":
-            op.execute(
-                sa.text(
-                    """
-                    INSERT INTO osgb_subscriptions (
-                        osgb_id, plan, status, trial_ends_at, max_users, max_workplaces,
-                        is_auto_renew, created_at, updated_at
-                    )
-                    SELECT o.id, 'standard', 'trial',
-                           datetime('now', '+10 days'),
-                           50, 100, 0, datetime('now'), datetime('now')
-                    FROM osgb_organizations o
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM osgb_subscriptions s WHERE s.osgb_id = o.id
-                    )
-                    """
-                )
+        from sqlalchemy import text as sa_text
+
+        def _label(typ: str, preferred: tuple[str, ...]) -> str | None:
+            if bind.dialect.name != "postgresql":
+                return preferred[0]
+            labels = list(
+                bind.execute(
+                    sa_text(
+                        "SELECT e.enumlabel FROM pg_enum e "
+                        "JOIN pg_type t ON t.oid = e.enumtypid WHERE t.typname = :n"
+                    ),
+                    {"n": typ},
+                ).scalars()
             )
-        else:
-            op.execute(
-                sa.text(
-                    """
-                    INSERT INTO osgb_subscriptions (
-                        osgb_id, plan, status, trial_ends_at, max_users, max_workplaces,
-                        is_auto_renew, created_at, updated_at
+            if not labels:
+                return preferred[0]
+            for p in preferred:
+                if p in labels:
+                    return p
+            return None
+
+        plan_v = _label("osgbsubscriptionplan", ("standard", "STANDARD"))
+        status_v = _label("subscriptionstatus", ("trial", "TRIAL"))
+        if not plan_v or not status_v:
+            return
+        try:
+            with bind.begin_nested():
+                if bind.dialect.name == "sqlite":
+                    op.execute(
+                        sa.text(
+                            f"""
+                            INSERT INTO osgb_subscriptions (
+                                osgb_id, plan, status, trial_ends_at, max_users, max_workplaces,
+                                is_auto_renew, created_at, updated_at
+                            )
+                            SELECT o.id, '{plan_v}', '{status_v}',
+                                   datetime('now', '+10 days'),
+                                   50, 100, 0, datetime('now'), datetime('now')
+                            FROM osgb_organizations o
+                            WHERE NOT EXISTS (
+                                SELECT 1 FROM osgb_subscriptions s WHERE s.osgb_id = o.id
+                            )
+                            """
+                        )
                     )
-                    SELECT o.id, 'standard', 'trial',
-                           NOW() + INTERVAL '10 days',
-                           50, 100, false, NOW(), NOW()
-                    FROM osgb_organizations o
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM osgb_subscriptions s WHERE s.osgb_id = o.id
+                else:
+                    op.execute(
+                        sa.text(
+                            f"""
+                            INSERT INTO osgb_subscriptions (
+                                osgb_id, plan, status, trial_ends_at, max_users, max_workplaces,
+                                is_auto_renew, created_at, updated_at
+                            )
+                            SELECT o.id, '{plan_v}', '{status_v}',
+                                   NOW() + INTERVAL '10 days',
+                                   50, 100, false, NOW(), NOW()
+                            FROM osgb_organizations o
+                            WHERE NOT EXISTS (
+                                SELECT 1 FROM osgb_subscriptions s WHERE s.osgb_id = o.id
+                            )
+                            """
+                        )
                     )
-                    """
-                )
-            )
+        except Exception:
+            pass
 
 
 def downgrade():

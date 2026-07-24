@@ -196,8 +196,6 @@ def test_company_site_qr_endpoint(client):
 def test_ephemeral_site_qr_completes_visit_once(client):
     from datetime import date
 
-    from sqlalchemy import select
-
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
     from app.models.entities import Company, ServiceVisit, User, UserRole, VisitStatus
