@@ -68,6 +68,24 @@ def _default_osgb_id(db: Session) -> int | None:
     return db.scalar(select(OsgbOrganization.id).order_by(OsgbOrganization.id).limit(1))
 
 
+def _company_name_taken(
+    db: Session,
+    name: str,
+    osgb_id: int | None,
+    *,
+    exclude_id: int | None = None,
+) -> bool:
+    """Aynı OSGB içinde ad çakışması (P1-05: global unique değil)."""
+    stmt = select(Company.id).where(Company.name == name)
+    if osgb_id is None:
+        stmt = stmt.where(Company.osgb_id.is_(None))
+    else:
+        stmt = stmt.where(Company.osgb_id == osgb_id)
+    if exclude_id is not None:
+        stmt = stmt.where(Company.id != exclude_id)
+    return db.scalar(stmt.limit(1)) is not None
+
+
 def _ids(db: Session, model, company_id: int) -> list[int]:
     return list(db.scalars(select(model.id).where(model.company_id == company_id)).all())
 
@@ -334,8 +352,6 @@ def create_company(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
-    if db.scalar(select(Company).where(Company.name == payload.name)):
-        raise HTTPException(409, "Bu firma zaten kayıtlı.")
     data = payload.model_dump()
     if user.role == UserRole.COMPANY_ADMIN:
         if not user.osgb_id:
@@ -344,10 +360,16 @@ def create_company(
     elif not data.get("osgb_id"):
         # osgb_id yazılmazsa İşyerleri’nde görünür ama ÇSGB / OSGB paneli 0 sayar
         data["osgb_id"] = _default_osgb_id(db)
+    if _company_name_taken(db, payload.name, data.get("osgb_id")):
+        raise HTTPException(409, "Bu OSGB kapsamında aynı adlı işyeri zaten kayıtlı.")
     obj = Company(**data)
     obj.site_verify_code = generate_site_verify_code()
     db.add(obj)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Bu OSGB kapsamında aynı adlı işyeri zaten kayıtlı.")
     db.refresh(obj)
     return obj
 
@@ -376,9 +398,18 @@ def update_company(
     # OSGB admin başka OSGB'ye taşıyamaz
     if user.role == UserRole.COMPANY_ADMIN:
         data.pop("osgb_id", None)
+    next_name = data.get("name", obj.name)
+    next_osgb = data.get("osgb_id", obj.osgb_id)
+    if "name" in data or "osgb_id" in data:
+        if _company_name_taken(db, next_name, next_osgb, exclude_id=obj.id):
+            raise HTTPException(409, "Bu OSGB kapsamında aynı adlı işyeri zaten kayıtlı.")
     for k, v in data.items():
         setattr(obj, k, v)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, "Bu OSGB kapsamında aynı adlı işyeri zaten kayıtlı.")
     db.refresh(obj)
     return obj
 

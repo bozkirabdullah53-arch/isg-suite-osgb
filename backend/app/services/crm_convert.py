@@ -31,16 +31,16 @@ def _find_or_create_company(db: Session, lead: CrmLead) -> Company:
             existing.site_verify_code = generate_site_verify_code()
         return existing
 
-    # Unique name globally — if conflict under another OSGB, suffix
+    # Aynı ad farklı OSGB'de serbest (P1-05); yalnızca bu OSGB içinde çakışma kontrolü
     name = lead.company_name.strip()
-    clash = db.scalar(select(Company).where(func.lower(Company.name) == name.casefold()))
+    clash = db.scalar(
+        select(Company).where(
+            Company.osgb_id == lead.osgb_id,
+            func.lower(Company.name) == name.casefold(),
+        )
+    )
     if clash:
-        name = f"{name} (OSGB-{lead.osgb_id})"
-        again = db.scalar(select(Company).where(func.lower(Company.name) == name.casefold()))
-        if again and again.osgb_id == lead.osgb_id:
-            return again
-        if again:
-            name = f"{lead.company_name.strip()} #{lead.id}"
+        return clash
 
     company = Company(
         name=name,

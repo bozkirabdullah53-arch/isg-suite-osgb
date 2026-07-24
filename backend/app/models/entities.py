@@ -93,8 +93,9 @@ class ServiceContract(Base):
 
 class Company(Base):
     __tablename__ = "companies"
+    __table_args__ = (UniqueConstraint("osgb_id", "name", name="uq_company_osgb_name"),)
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(200), index=True)
     tax_number: Mapped[str | None] = mapped_column(String(20), nullable=True)  # legacy; UI'da yok
     nace_code: Mapped[str | None] = mapped_column(String(20), nullable=True)  # legacy; UI'da yok
     hazard_class: Mapped[str | None] = mapped_column(String(40), nullable=True)
