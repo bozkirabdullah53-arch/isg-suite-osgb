@@ -1421,3 +1421,29 @@ class AnnualPlanEvalRevision(Base):
     changes_json: Mapped[str] = mapped_column(Text, default="[]")
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class LegalAcceptance(Base):
+    """P1-12: Aydınlatma / açık rıza kabul kaydı — versiyonlu, değiştirilemez."""
+
+    __tablename__ = "legal_acceptances"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "document_key", "document_version", name="uq_legal_accept_user_doc_ver"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    osgb_id: Mapped[int | None] = mapped_column(
+        ForeignKey("osgb_organizations.id"), nullable=True, index=True
+    )
+    company_id: Mapped[int | None] = mapped_column(
+        ForeignKey("companies.id"), nullable=True, index=True
+    )
+    document_key: Mapped[str] = mapped_column(String(80), index=True)
+    document_version: Mapped[str] = mapped_column(String(40))
+    legal_basis: Mapped[str] = mapped_column(String(60))
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(400), nullable=True)
+    accepted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

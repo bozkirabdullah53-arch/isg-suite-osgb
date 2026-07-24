@@ -64,6 +64,17 @@ def _assert_can_access(db: Session, user: User, row: EisaArchiveRecord) -> None:
         return
     if user.role != UserRole.COMPANY_ADMIN:
         raise HTTPException(403, "Arşive erişim yetkiniz yok.")
+    # P1-03: TenantContext ikinci hat
+    try:
+        from app.core.tenant_context import assert_company_access, assert_osgb_access, current_tenant
+
+        if current_tenant() is not None:
+            if row.osgb_id is not None:
+                assert_osgb_access(row.osgb_id)
+            if row.company_id is not None and user.company_id:
+                assert_company_access(row.company_id)
+    except HTTPException:
+        raise
     if user.osgb_id and row.osgb_id == user.osgb_id:
         return
     if row.company_id and row.company_id in accessible_company_ids_for_admin(db, user):

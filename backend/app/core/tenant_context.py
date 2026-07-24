@@ -84,6 +84,23 @@ def assert_osgb_access(osgb_id: int | None) -> None:
         raise HTTPException(403, "Bu OSGB kapsamına erişiminiz yok.")
 
 
+def assert_company_access(company_id: int | None) -> None:
+    """Kayıt company_id'si TenantContext.company_id ile uyumlu mu?
+
+    company_id kapsamı olmayan roller (OSGB admin, global) için no-op;
+    tek firmaya bağlı kullanıcıda çapraz firma erişimini keser.
+    """
+    if company_id is None:
+        raise HTTPException(404, "Kayıt bulunamadı.")
+    ctx = require_tenant()
+    if ctx.is_global:
+        return
+    if ctx.company_id is None:
+        return
+    if int(company_id) != int(ctx.company_id):
+        raise HTTPException(403, "Bu işyeri kapsamına erişiminiz yok.")
+
+
 def bind_user_tenant(user: User) -> TenantContext:
     """Auth sonrası çağrılır — ContextVar'a yazar."""
     ctx = tenant_from_user(user)

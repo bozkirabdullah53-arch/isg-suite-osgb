@@ -7,7 +7,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from app.core.config import settings
-from app.core.database import SessionLocal
+from app.core import database as dbmod
 from app.core.security import ALGORITHM
 from app.models.entities import User, UserRole
 from app.services.osgb_subscription import (
@@ -25,6 +25,7 @@ WRITE_EXEMPT_PREFIXES = (
     "/api/v1/osgb-applications",
     "/api/v1/eisa",
     "/api/v1/trainings/verify",
+    "/api/v1/legal",
 )
 
 
@@ -47,7 +48,7 @@ class OsgbSubscriptionWriteMiddleware(BaseHTTPMiddleware):
         except (JWTError, TypeError, ValueError):
             return await call_next(request)
 
-        with SessionLocal() as db:
+        with dbmod.SessionLocal() as db:
             user = db.get(User, user_id)
             if not user or not user.is_active or user.role == UserRole.GLOBAL_ADMIN:
                 return await call_next(request)

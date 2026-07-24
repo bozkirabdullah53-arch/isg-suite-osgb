@@ -30,7 +30,7 @@ def test_alembic_head_applied(pg_session: Session):
     ver = pg_session.execute(text("SELECT version_num FROM alembic_version")).scalar()
     assert ver is not None
     # Head dosya adı 0039… — en az 0039 olmalı (string compare revision id)
-    assert str(ver) >= "0040"
+    assert str(ver) >= "0041"
 
 
 def test_same_name_different_osgb_allowed(pg_session: Session):
