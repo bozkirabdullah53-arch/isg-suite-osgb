@@ -12,12 +12,14 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.company_access import accessible_company_ids_or_empty, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.api.files import safe_upload_root
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import Company, Employee, TrainingParticipant, TrainingSession, TrainingStatus, User, UserRole
 from app.schemas.training import TrainingCreate, TrainingResponse, TrainingUpdate, TrainingVerifyResponse
 from app.services.training_employee_import import resolve_or_create_employees
 from app.services.training_excel import parse_employees_xlsx
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
+from app.services.upload_gateway import persist_relative
 from app.services.training_topics import meta_payload, sektor_kodu_cozumle, sectors_list_for_api
 
 
@@ -362,14 +364,18 @@ async def upload_training_logo(
     content = await file.read(2 * 1024 * 1024 + 1)
     if len(content) > 2 * 1024 * 1024:
         raise HTTPException(413, "Logo en fazla 2 MB olabilir.")
-    company_dir = safe_upload_root() / str(row.company_id) / "training-logos"
-    company_dir.mkdir(parents=True, exist_ok=True)
     stored = f"{training_id}_{uuid4().hex[:10]}{ext}"
-    target = (company_dir / stored).resolve()
-    if safe_upload_root() not in target.parents:
-        raise HTTPException(400, "Geçersiz dosya yolu.")
-    target.write_bytes(content)
-    row.logo_path = f"{row.company_id}/training-logos/{stored}"
+    rel = f"{row.company_id}/training-logos/{stored}"
+    if settings.upload_gateway_enabled:
+        persist_relative(content, relative_path=rel, original_name=original.name, max_bytes=2 * 1024 * 1024)
+    else:
+        company_dir = safe_upload_root() / str(row.company_id) / "training-logos"
+        company_dir.mkdir(parents=True, exist_ok=True)
+        target = (company_dir / stored).resolve()
+        if safe_upload_root() not in target.parents:
+            raise HTTPException(400, "Geçersiz dosya yolu.")
+        target.write_bytes(content)
+    row.logo_path = rel.replace("\\", "/")
     db.commit()
     return _load_training(db, training_id)
 

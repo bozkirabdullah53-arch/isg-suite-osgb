@@ -62,6 +62,7 @@ from app.services.risk_photo_tags import (
 from app.services.risk_reports import build_risk_excel, build_risk_pdf
 from app.services.risk_scoring import evaluate, meta_payload
 from app.services.risk_suggestions import get_suggestions
+from app.services.upload_gateway import persist_relative
 
 router = APIRouter(prefix="/risks", tags=["Risk Değerlendirme"])
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)
@@ -1090,9 +1091,12 @@ async def upload_risk_media(
     if len(data) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(413, f"Dosya {settings.max_upload_mb} MB sınırını aşıyor.")
     rel = f"{row.company_id}/risk/{row.id}_{uuid.uuid4().hex[:10]}{ext}"
-    target = _upload_root() / rel
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(data)
+    if settings.upload_gateway_enabled:
+        persist_relative(data, relative_path=rel, original_name=name)
+    else:
+        target = _upload_root() / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
     media = RiskMedia(
         risk_id=row.id,
         storage_path=rel.replace("\\", "/"),

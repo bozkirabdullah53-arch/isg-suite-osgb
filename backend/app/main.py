@@ -53,7 +53,7 @@ async def lifespan(_:FastAPI):
 _is_prod = (settings.environment or '').strip().lower() in {'production', 'prod', 'live'}
 app=FastAPI(
     title=settings.app_name,
-    version='0.9.152',
+    version='0.9.153',
     lifespan=lifespan,
     docs_url=None if _is_prod else '/docs',
     redoc_url=None if _is_prod else '/redoc',
@@ -84,10 +84,11 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.152',
+        'version': '0.9.153',
         'environment': (settings.environment or 'development').strip().lower() or 'development',
         'object_storage': storage_backend_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
+        'upload_gateway_wired': 'files-health-training-risk-v1',
         'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
         'ai_hazard_hint': 'keyword-v2',
         'mevzuat_panel': 'highlights-v1',

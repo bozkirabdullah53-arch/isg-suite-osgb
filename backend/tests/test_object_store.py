@@ -71,3 +71,17 @@ def test_gateway_uses_object_store(tmp_path, monkeypatch):
     assert name.endswith(".pdf")
     assert path.exists()
     assert Path(tmp_path).resolve() in path.parents
+
+
+def test_persist_relative_keeps_layout(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "upload_gateway_enabled", True)
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    monkeypatch.setattr(settings, "max_upload_mb", 1)
+    from app.services import object_store as os_mod
+
+    os_mod.reset_object_store_for_tests()
+    rel = "9/health/12_abcdef.pdf"
+    path = gw.persist_relative(b"%PDF-1.4 x", relative_path=rel, original_name="a.pdf")
+    assert path.exists()
+    assert path.name.endswith(".pdf")
+    assert (tmp_path / "9" / "health").exists()

@@ -30,6 +30,7 @@ from app.services.health_meta import (
     suggest_for_job,
     tetkik_summary,
 )
+from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/health-records", tags=["Sağlık Kayıtları"])
@@ -639,7 +640,6 @@ async def upload_health_report(
         raise HTTPException(400, "Boş dosya yüklenemez.")
     if len(data) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(413, f"Dosya {settings.max_upload_mb} MB sınırını aşıyor.")
-    assert_safe_upload(data, ext, name)
     safe_mime = {
         ".pdf": "application/pdf",
         ".jpg": "image/jpeg",
@@ -670,9 +670,13 @@ async def upload_health_report(
             except OSError:
                 pass
     rel = f"{record.company_id}/health/{record.id}_{uuid4().hex[:10]}{ext}"
-    target = _upload_root() / rel
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(data)
+    if settings.upload_gateway_enabled:
+        persist_relative(data, relative_path=rel, original_name=name)
+    else:
+        assert_safe_upload(data, ext, name)
+        target = _upload_root() / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
     record.report_file_name = Path(name).name
     record.report_storage_path = rel.replace("\\", "/")
     record.report_content_type = safe_mime

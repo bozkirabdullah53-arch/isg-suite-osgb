@@ -15,6 +15,8 @@ MAGIC_BY_EXT: dict[str, list[bytes]] = {
     ".png": [b"\x89PNG\r\n\x1a\n"],
     ".jpg": [b"\xff\xd8\xff"],
     ".jpeg": [b"\xff\xd8\xff"],
+    ".gif": [b"GIF87a", b"GIF89a"],
+    ".webp": [b"RIFF"],
     ".xlsx": [b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"],
     ".docx": [b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"],
     ".xls": [b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"],
@@ -59,7 +61,16 @@ def assert_safe_upload(content: bytes, extension: str, original_name: str = "") 
         quarantine_bytes(content, f"unknown_ext:{ext}", original_name)
         raise HTTPException(status_code=400, detail="Desteklenmeyen dosya türü.")
 
-    if not any(content.startswith(sig) for sig in expected):
+    if ext == ".webp":
+        # RIFF....WEBP
+        ok = content.startswith(b"RIFF") and len(content) >= 12 and content[8:12] == b"WEBP"
+        if not ok:
+            quarantine_bytes(content, "magic_mismatch:.webp", original_name)
+            raise HTTPException(
+                status_code=400,
+                detail="Dosya uzantısı ile içerik uyuşmuyor (içerik doğrulama).",
+            )
+    elif not any(content.startswith(sig) for sig in expected):
         quarantine_bytes(content, f"magic_mismatch:{ext}", original_name)
         raise HTTPException(
             status_code=400,

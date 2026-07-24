@@ -77,3 +77,40 @@ def persist_upload(
     # Uzak: geriye uyum için key'i Path gibi değil stored_name + key metadata
     # Şimdilik local-only production; uzak cutover ayrı PR.
     return upload_root() / key, stored_name
+
+
+def persist_relative(
+    content: bytes,
+    *,
+    relative_path: str,
+    original_name: str = "",
+    max_bytes: int | None = None,
+) -> Path:
+    """Mevcut rel path düzenini koruyarak gateway üzerinden yazar.
+
+    Örn: ``42/health/7_abc.pdf`` → upload_dir altında aynı göreli yol.
+    """
+    if not settings.upload_gateway_enabled:
+        raise RuntimeError("upload_gateway_enabled=False — mevcut endpoint yollarını kullanın.")
+
+    rel = (relative_path or "").replace("\\", "/").strip("/")
+    parts = [p for p in rel.split("/") if p and p != ".."]
+    if not parts:
+        raise HTTPException(status_code=400, detail="Geçersiz dosya yolu.")
+    key = "/".join(parts)
+    ext = Path(key).suffix.lower()
+    if not ext:
+        raise HTTPException(status_code=400, detail="Dosya uzantısı gerekli.")
+
+    limit = max_bytes if max_bytes is not None else settings.max_upload_mb * 1024 * 1024
+    if len(content) > limit:
+        mb = max(1, limit // (1024 * 1024))
+        raise HTTPException(status_code=413, detail=f"Dosya {mb} MB sınırını aşıyor.")
+
+    assert_safe_upload(content, ext, original_name)
+    store = get_object_store()
+    store.put_bytes(key, content)
+    local = store.resolve_local_path(key)
+    if local is not None:
+        return local
+    return upload_root() / key
