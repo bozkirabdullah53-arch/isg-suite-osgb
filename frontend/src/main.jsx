@@ -685,6 +685,17 @@ function SecurityPage({user}){
   useEffect(()=>{if(canBackup)void loadArchives()},[]);
   useEffect(()=>{void loadMfa()},[]);
   async function save(e){e.preventDefault();setMessage('');try{const r=await api('/security/change-password',{method:'POST',body:JSON.stringify(form)});setMessage(r.message);setForm({current_password:'',new_password:''})}catch(err){setMessage(err.message)}}
+  async function logoutAllDevices(){
+    if(!window.confirm('Tüm cihazlardaki oturumlar kapatılsın mı?\n\nBu cihaz dahil yeniden giriş yapmanız gerekir.')) return;
+    setMessage('');
+    try{
+      const r=await api('/auth/logout-all',{method:'POST'});
+      setMessage(r.message||'Tüm oturumlar kapatıldı.');
+      localStorage.removeItem('isg_token');
+      localStorage.removeItem('isg_mfa_setup_token');
+      setTimeout(()=>window.location.reload(),800);
+    }catch(err){setMessage(err.message)}
+  }
   async function startMfa(){
     setMessage('');
     try{
@@ -769,6 +780,10 @@ function SecurityPage({user}){
           <Field label="Yeni Şifre" type="password" minLength="10" required value={form.new_password} onChange={e=>setForm({...form,new_password:e.target.value})}/>
           <Submit/>{message&&<p>{message}</p>}
         </form>
+        <div style={{marginTop:16,paddingTop:12,borderTop:'1px solid #e2e8f0'}}>
+          <p style={{marginTop:0,color:'#64748b',fontSize:14}}>Şüpheli giriş veya kayıp cihaz için tüm oturumları kapatın.</p>
+          <button type="button" className="secondary" onClick={logoutAllDevices}>Tüm cihazlardan çıkış</button>
+        </div>
       </section>
       <section className="panel">
         <h3>İki Adımlı Doğrulama (MFA)</h3>

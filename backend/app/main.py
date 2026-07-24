@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives
 from app.core.rate_limit import SimpleRateLimitMiddleware
+from app.core.request_id import RequestIdMiddleware
 from app.core.subscription_middleware import OsgbSubscriptionWriteMiddleware
 from app.core.config import settings, validate_runtime_settings
 from app.core.database import Base, SessionLocal, engine
@@ -53,7 +54,7 @@ async def lifespan(_:FastAPI):
 _is_prod = (settings.environment or '').strip().lower() in {'production', 'prod', 'live'}
 app=FastAPI(
     title=settings.app_name,
-    version='0.9.158',
+    version='0.9.159',
     lifespan=lifespan,
     docs_url=None if _is_prod else '/docs',
     redoc_url=None if _is_prod else '/redoc',
@@ -64,6 +65,7 @@ from app.core.validation_tr import register_turkish_validation
 register_turkish_validation(app)
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestIdMiddleware)
 app.add_middleware(OsgbSubscriptionWriteMiddleware)
 app.add_middleware(
     SimpleRateLimitMiddleware,
@@ -88,7 +90,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.158',
+        'version': '0.9.159',
         'environment': (settings.environment or 'development').strip().lower() or 'development',
         'object_storage': storage_backend_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
@@ -146,6 +148,8 @@ def health():
         'eisa_platform': 'eisa-error-reports-v1',
         'security_faz0': 'mfa-reset-lock-logout-revoke-v1',
         'token_revoke': 'jti-denylist-tv-v1',
+        'request_id': 'x-request-id-v1',
+        'logout_all': 'token-version-v1',
         'customer_360': 'company-overview-v1',
         'capacity_engine': '6331-legal-minutes-v1',
         'visit_calendar': 'plan-overdue-coverage-v1',

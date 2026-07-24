@@ -68,6 +68,27 @@ def test_xff_separates_clients():
     assert client.get("/ping", headers={"X-Forwarded-For": "2.2.2.2"}).status_code == 200
 
 
+def test_request_id_header_present():
+    from starlette.applications import Starlette
+    from starlette.responses import PlainTextResponse
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+
+    from app.core.request_id import RequestIdMiddleware
+
+    async def ok(_request):
+        return PlainTextResponse("ok")
+
+    mini = Starlette(routes=[Route("/ping", ok)])
+    mini.add_middleware(RequestIdMiddleware)
+    client = TestClient(mini)
+    r = client.get("/ping")
+    assert r.status_code == 200
+    assert r.headers.get("x-request-id")
+    custom = client.get("/ping", headers={"X-Request-ID": "client-trace-1"})
+    assert custom.headers.get("x-request-id") == "client-trace-1"
+
+
 def test_production_allows_strong_secret(monkeypatch):
     monkeypatch.setattr(settings, "environment", "production")
     monkeypatch.setattr(settings, "secret_key", "x" * 40)

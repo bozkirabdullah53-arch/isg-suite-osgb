@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
@@ -86,6 +87,15 @@ def test_token_version_bump_invalidates(client):
         bump_token_version(user)
         db.commit()
 
+    assert client.get("/api/v1/auth/me", headers=headers).status_code == 401
+
+
+def test_logout_all_invalidates_current_token(client):
+    _seed_user()
+    login = client.post("/api/v1/auth/login", json={"email": "revoke@test.com", "password": "TestPass123!"})
+    token = login.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    assert client.post("/api/v1/auth/logout-all", headers=headers).status_code == 200
     assert client.get("/api/v1/auth/me", headers=headers).status_code == 401
 
 

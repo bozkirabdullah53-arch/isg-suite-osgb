@@ -199,6 +199,38 @@ def logout(
     return {"ok": True, "message": "Oturum sonlandırıldı."}
 
 
+@router.post("/logout-all")
+def logout_all_sessions(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Tüm cihazlardaki JWT'leri düşürür (token_version++). Bu istekteki token da geçersiz olur."""
+    from app.services.token_revoke import bump_token_version, prune_expired_denylist
+
+    bump_token_version(user)
+    try:
+        prune_expired_denylist(db)
+    except Exception:
+        pass
+    add_audit_log(
+        db,
+        user=user,
+        action="logout_all",
+        entity_type="user",
+        entity_id=str(user.id),
+        description="Tüm oturumlar sonlandırıldı (token_version)",
+        ip_address=_client_ip(request),
+        module="auth",
+    )
+    db.commit()
+    return {
+        "ok": True,
+        "message": "Tüm cihazlardaki oturumlar kapatıldı. Lütfen yeniden giriş yapın.",
+        "token_version": int(getattr(user, "token_version", 0) or 0),
+    }
+
+
 @router.post("/forgot-password")
 def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
     """Her zaman nötr yanıt — kullanıcı varlığını sızdırma."""

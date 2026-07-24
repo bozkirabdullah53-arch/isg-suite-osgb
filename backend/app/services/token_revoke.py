@@ -39,7 +39,21 @@ def revoke_jti(
 
 
 def bump_token_version(user) -> int:
-    """Şifre değişince tüm eski JWT'leri düşürür."""
+    """Şifre değişince / logout-all ile tüm eski JWT'leri düşürür."""
     current = int(getattr(user, "token_version", 0) or 0)
     user.token_version = current + 1
     return user.token_version
+
+
+def prune_expired_denylist(db: Session, *, limit: int = 200) -> int:
+    """Süresi dolmuş denylist kayıtlarını siler (best-effort, sınırlı batch)."""
+    from sqlalchemy import delete
+
+    now = datetime.utcnow()
+    expired_ids = list(
+        db.scalars(select(TokenDenylist.id).where(TokenDenylist.expires_at < now).limit(limit)).all()
+    )
+    if not expired_ids:
+        return 0
+    result = db.execute(delete(TokenDenylist).where(TokenDenylist.id.in_(expired_ids)))
+    return int(result.rowcount or 0)
