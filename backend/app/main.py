@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives
-from app.core.rate_limit import SimpleRateLimitMiddleware
+from app.core.rate_limit import SimpleRateLimitMiddleware, rate_limit_backend
 from app.core.request_id import RequestIdMiddleware
 from app.core.subscription_middleware import OsgbSubscriptionWriteMiddleware
 from app.core.config import settings, validate_runtime_settings
@@ -54,7 +54,7 @@ async def lifespan(_:FastAPI):
 _is_prod = (settings.environment or '').strip().lower() in {'production', 'prod', 'live'}
 app=FastAPI(
     title=settings.app_name,
-    version='0.9.164',
+    version='0.9.165',
     lifespan=lifespan,
     docs_url=None if _is_prod else '/docs',
     redoc_url=None if _is_prod else '/redoc',
@@ -90,7 +90,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.164',
+        'version': '0.9.165',
         'environment': (settings.environment or 'development').strip().lower() or 'development',
         'object_storage': storage_backend_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
@@ -188,7 +188,7 @@ def health():
         'csgb_company_snapshot': 'read-only-v1',
         'pro_performance_export': 'csv-v1',
         'notifications': 'osgb-deadline-eval-v2',
-        'rate_limit': f'rpm-{settings.rate_limit_rpm}-auth-{settings.rate_limit_auth_rpm}-xff',
+        'rate_limit': f'rpm-{settings.rate_limit_rpm}-auth-{settings.rate_limit_auth_rpm}-xff-{rate_limit_backend()}',
         'secret_key_guard': 'prod-block-default',
         'nav_hardening': 'allowlist-boundary-mobile',
         'field_access': 'assignment-scoped-v2',

@@ -26,6 +26,9 @@ services:
         sync: false
       - key: SEED_ADMIN_PASSWORD
         sync: false
+      # Optional Redis (P1-02 rate limit paylaşımı) — Dashboard'da REDIS_URL set edilince aktif
+      - key: REDIS_URL
+        sync: false
       # Optional ClamAV (B-01): set CLAMAV_HOST when clamd is reachable
       - key: CLAMAV_HOST
         sync: false

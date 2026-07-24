@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     # P1-2 rate limit
     rate_limit_rpm: int = 120
     rate_limit_auth_rpm: int = 30
+    # P1-02 Redis rate limit — boşsa bellek içi (çoklu instance paylaşılmaz)
+    redis_url: str | None = None
     # İBYS / İSG-KATİP adapter scaffold (optional; never commit real secrets)
     ibys_api_url: str | None = None
     ibys_api_key: str | None = None

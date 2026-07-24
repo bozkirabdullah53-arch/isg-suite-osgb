@@ -5,7 +5,7 @@ from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from app.core.config import validate_runtime_settings, settings
-from app.core.rate_limit import SimpleRateLimitMiddleware
+from app.core.rate_limit import SimpleRateLimitMiddleware, rate_limit_backend
 from app.main import app
 
 
@@ -66,6 +66,47 @@ def test_xff_separates_clients():
     assert client.get("/ping", headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 429
     # Farklı istemci etkilenmez
     assert client.get("/ping", headers={"X-Forwarded-For": "2.2.2.2"}).status_code == 200
+
+
+class _FakeRedis:
+    def __init__(self):
+        self.counts: dict[str, int] = {}
+        self.ttls: dict[str, int] = {}
+
+    async def incr(self, key):
+        self.counts[key] = self.counts.get(key, 0) + 1
+        return self.counts[key]
+
+    async def expire(self, key, ttl):
+        self.ttls[key] = ttl
+        return True
+
+    async def ttl(self, key):
+        return self.ttls.get(key, 60)
+
+
+def test_redis_store_blocks_over_limit():
+    import asyncio
+
+    from app.core.rate_limit import RedisRateLimitStore
+
+    store = RedisRateLimitStore(_FakeRedis())
+
+    async def _run():
+        assert (await store.hit("k", limit=2))[0] is True
+        assert (await store.hit("k", limit=2))[0] is True
+        allowed, retry = await store.hit("k", limit=2)
+        assert allowed is False
+        assert retry >= 1
+
+    asyncio.run(_run())
+
+
+def test_rate_limit_backend_default_memory():
+    from app.core.rate_limit import reset_rate_limit_store_for_tests
+
+    reset_rate_limit_store_for_tests()
+    assert rate_limit_backend() in {"memory", "memory-fallback", "redis"}
 
 
 def test_request_id_header_present():
