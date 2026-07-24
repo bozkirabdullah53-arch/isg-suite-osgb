@@ -19,15 +19,53 @@ def test_rate_limit_returns_429_when_exceeded():
         return PlainTextResponse("ok")
 
     mini = Starlette(routes=[Route("/ping", ok)])
-    mini.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=3)
+    mini.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=3, auth_requests_per_minute=3)
     client = TestClient(mini)
     assert client.get("/ping").status_code == 200
     assert client.get("/ping").status_code == 200
     assert client.get("/ping").status_code == 200
     blocked = client.get("/ping")
     assert blocked.status_code == 429
+    assert "Retry-After" in blocked.headers
     detail = blocked.json()["detail"].lower()
     assert "fazla" in detail
+
+
+def test_health_path_exempt_from_rate_limit():
+    async def ok(_request):
+        return PlainTextResponse("ok")
+
+    mini = Starlette(routes=[Route("/health", ok)])
+    mini.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=2, auth_requests_per_minute=2)
+    client = TestClient(mini)
+    for _ in range(6):
+        assert client.get("/health").status_code == 200
+
+
+def test_auth_path_has_stricter_bucket():
+    async def ok(_request):
+        return PlainTextResponse("ok")
+
+    mini = Starlette(routes=[Route("/api/v1/auth/login", ok, methods=["POST"])])
+    mini.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=100, auth_requests_per_minute=2)
+    client = TestClient(mini)
+    assert client.post("/api/v1/auth/login").status_code == 200
+    assert client.post("/api/v1/auth/login").status_code == 200
+    assert client.post("/api/v1/auth/login").status_code == 429
+
+
+def test_xff_separates_clients():
+    async def ok(_request):
+        return PlainTextResponse("ok")
+
+    mini = Starlette(routes=[Route("/ping", ok)])
+    mini.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=2, auth_requests_per_minute=2)
+    client = TestClient(mini)
+    assert client.get("/ping", headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 200
+    assert client.get("/ping", headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 200
+    assert client.get("/ping", headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 429
+    # Farklı istemci etkilenmez
+    assert client.get("/ping", headers={"X-Forwarded-For": "2.2.2.2"}).status_code == 200
 
 
 def test_production_allows_strong_secret(monkeypatch):

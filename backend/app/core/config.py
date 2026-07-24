@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # P0-10 sağlık alan şifreleme — varsayılan kapalı; açılınca yeni yazılar enc:v1:
     health_field_encryption_enabled: bool = False
     health_field_encryption_key: str | None = None
+    # P1-2 rate limit
+    rate_limit_rpm: int = 120
+    rate_limit_auth_rpm: int = 30
     # İBYS / İSG-KATİP adapter scaffold (optional; never commit real secrets)
     ibys_api_url: str | None = None
     ibys_api_key: str | None = None

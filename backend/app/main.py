@@ -53,7 +53,7 @@ async def lifespan(_:FastAPI):
 _is_prod = (settings.environment or '').strip().lower() in {'production', 'prod', 'live'}
 app=FastAPI(
     title=settings.app_name,
-    version='0.9.153',
+    version='0.9.154',
     lifespan=lifespan,
     docs_url=None if _is_prod else '/docs',
     redoc_url=None if _is_prod else '/redoc',
@@ -65,7 +65,11 @@ register_turkish_validation(app)
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(OsgbSubscriptionWriteMiddleware)
-app.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=120)
+app.add_middleware(
+    SimpleRateLimitMiddleware,
+    requests_per_minute=settings.rate_limit_rpm,
+    auth_requests_per_minute=settings.rate_limit_auth_rpm,
+)
 _cors_origins=list(dict.fromkeys([
     settings.frontend_origin,
     'http://localhost:5173',
@@ -84,7 +88,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.153',
+        'version': '0.9.154',
         'environment': (settings.environment or 'development').strip().lower() or 'development',
         'object_storage': storage_backend_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
@@ -177,7 +181,7 @@ def health():
         'csgb_company_snapshot': 'read-only-v1',
         'pro_performance_export': 'csv-v1',
         'notifications': 'osgb-deadline-eval-v2',
-        'rate_limit': 'simple-rpm-120',
+        'rate_limit': f'rpm-{settings.rate_limit_rpm}-auth-{settings.rate_limit_auth_rpm}-xff',
         'secret_key_guard': 'prod-block-default',
         'nav_hardening': 'allowlist-boundary-mobile',
         'field_access': 'assignment-scoped-v2',
