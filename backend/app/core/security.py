@@ -26,7 +26,12 @@ def create_access_token(
     minutes: int | None = None,
     token_version: int = 0,
 ) -> str:
-    ttl = minutes if minutes is not None else settings.access_token_expire_minutes
+    if minutes is not None:
+        ttl = minutes
+    elif purpose == "access" and bool(getattr(settings, "auth_refresh_cookie_enabled", False)):
+        ttl = int(getattr(settings, "access_token_expire_minutes_short", 15) or 15)
+    else:
+        ttl = settings.access_token_expire_minutes
     expire = datetime.now(timezone.utc) + timedelta(minutes=ttl)
     payload = {
         "sub": subject,

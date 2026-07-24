@@ -7,6 +7,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./isgsuite.db"
     secret_key: str = "change-me-in-production-at-least-32-characters!"  # Field(min_length=32)
     access_token_expire_minutes: int = 60
+    # P1-01: refresh cookie açıkken kısa access (dakika)
+    access_token_expire_minutes_short: int = 15
     frontend_origin: str = "http://localhost:5173"
     upload_dir: str = "./uploads"
     max_upload_mb: int = 10

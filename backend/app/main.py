@@ -166,6 +166,8 @@ def health():
         'legal_consent': 'acceptance-versioned-v1',
         'memberships': 'org-workplace-scaffold-v1',
         'frontend_tests': 'vitest-smoke-v1',
+        'rls_pilot': 'legal-acceptances-v1',
+        'access_ttl': 'short-when-refresh-cookie',
         'customer_360': 'company-overview-v1',
         'capacity_engine': '6331-legal-minutes-v1',
         'visit_calendar': 'plan-overdue-coverage-v1',

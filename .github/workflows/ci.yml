@@ -42,6 +42,7 @@ jobs:
           tests/test_legal_consent.py
           tests/test_memberships.py
           tests/test_p1_version_jobs.py
+          tests/test_rls_membership_access.py
 
   backend-postgres:
     runs-on: ubuntu-latest

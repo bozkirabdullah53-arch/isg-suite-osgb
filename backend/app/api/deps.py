@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.rls import apply_rls_user
 from app.core.security import ALGORITHM
 from app.core.tenant_context import bind_user_tenant
 from app.models.entities import User, UserRole
@@ -46,6 +47,7 @@ def _user_from_token(token: str, db: Session, *, allowed_purposes: set[str]) -> 
     # P1-03: istek boyunca TenantContext (osgb/firma kapsamı)
     if purpose == "access":
         bind_user_tenant(user)
+        apply_rls_user(db, user.id)
     return user
 
 

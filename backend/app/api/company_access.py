@@ -193,12 +193,14 @@ def assigned_company_ids(db: Session, user: User) -> list[int]:
         return []  # sınırsız — çağıran filtre kullanmaz
     if user.role == UserRole.COMPANY_ADMIN:
         if user.company_id:
-            return [user.company_id]
-        if user.osgb_id:
-            return list(
+            base = [user.company_id]
+        elif user.osgb_id:
+            base = list(
                 db.scalars(select(Company.id).where(Company.osgb_id == user.osgb_id)).all()
             )
-        return []
+        else:
+            base = []
+        return _merge_membership_companies(db, user, base)
 
     if user.role in _OSGB_FIELD_ROLES:
         pro = find_professional_for_user(db, user)
@@ -219,15 +221,44 @@ def assigned_company_ids(db: Session, user: User) -> list[int]:
                     seen.add(i)
                     ordered.append(i)
             if ordered:
-                return ordered
+                return _merge_membership_companies(db, user, ordered)
         # Görevlendirme yoksa eski tek-firma hesabı (company_id bağlı uzman)
         if user.company_id:
-            return [user.company_id]
-        return []
+            return _merge_membership_companies(db, user, [user.company_id])
+        return _merge_membership_companies(db, user, [])
 
     if user.company_id:
-        return [user.company_id]
-    return []
+        return _merge_membership_companies(db, user, [user.company_id])
+    return _merge_membership_companies(db, user, [])
+
+
+def _merge_membership_companies(db: Session, user: User, base: list[int]) -> list[int]:
+    """P1-04: WorkplaceMembership satırları erişimi genişletir (daraltmaz)."""
+    try:
+        from app.models.entities import WorkplaceMembership
+
+        extra = list(
+            db.scalars(
+                select(WorkplaceMembership.company_id).where(
+                    WorkplaceMembership.user_id == user.id,
+                    WorkplaceMembership.is_active.is_(True),
+                )
+            ).all()
+        )
+    except Exception:
+        return base
+    if not extra:
+        return base
+    seen = set(base)
+    out = list(base)
+    for cid in extra:
+        if cid is None:
+            continue
+        i = int(cid)
+        if i not in seen:
+            seen.add(i)
+            out.append(i)
+    return out
 
 
 def ensure_company_access(db: Session, user: User, company_id: int | None) -> int:
