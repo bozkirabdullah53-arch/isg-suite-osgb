@@ -31,6 +31,33 @@ def test_apply_rls_user_noop_on_sqlite(tmp_path):
         apply_rls_user(db, None)
 
 
+def test_apply_rls_user_sets_allowed_companies_on_sqlite_noop(tmp_path):
+    """SQLite'ta set_config yok — User nesnesiyle de no-op kalmalı."""
+    url = f"sqlite:///{(tmp_path / 'rls2.db').as_posix()}"
+    engine = create_engine(url, connect_args={"check_same_thread": False})
+    Session = sessionmaker(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    with Session() as db:
+        o = OsgbOrganization(name="RLS OSGB", is_active=True)
+        db.add(o)
+        db.flush()
+        c = Company(name="RLS Co", osgb_id=o.id, is_active=True)
+        db.add(c)
+        db.flush()
+        u = User(
+            email="rls@test.com",
+            full_name="RLS",
+            hashed_password="x",
+            role=UserRole.COMPANY_ADMIN,
+            company_id=None,
+            osgb_id=o.id,
+            is_active=True,
+        )
+        db.add(u)
+        db.commit()
+        apply_rls_user(db, u)
+
+
 def test_membership_expands_assigned_companies(tmp_path):
     url = f"sqlite:///{(tmp_path / 'exp.db').as_posix()}"
     engine = create_engine(url, connect_args={"check_same_thread": False})
