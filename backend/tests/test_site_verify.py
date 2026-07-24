@@ -17,6 +17,30 @@ def test_codes_match_fail_closed_when_company_code_missing():
     assert codes_match("ABC123", build_qr_payload(9, "ABC123")) is True
 
 
+def test_ensure_company_site_verify_code_backfills(tmp_path):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models.entities import Base, Company, OsgbOrganization
+    from app.services.site_verify import ensure_company_site_verify_code
+
+    url = f"sqlite:///{(tmp_path / 'bf.db').as_posix()}"
+    engine = create_engine(url, connect_args={"check_same_thread": False})
+    Session = sessionmaker(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    with Session() as db:
+        o = OsgbOrganization(name="BF OSGB", is_active=True)
+        db.add(o)
+        db.flush()
+        c = Company(name="BF Co", osgb_id=o.id, is_active=True, site_verify_code=None)
+        db.add(c)
+        db.flush()
+        code = ensure_company_site_verify_code(db, c)
+        assert code
+        assert c.site_verify_code == code
+        assert ensure_company_site_verify_code(db, c) == code
+
+
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     db_file = tmp_path / "site_qr.db"

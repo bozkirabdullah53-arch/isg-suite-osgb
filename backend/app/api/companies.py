@@ -59,6 +59,7 @@ from app.services.site_verify import (
     build_ephemeral_qr_payload,
     build_qr_payload,
     create_ephemeral_session,
+    ensure_company_site_verify_code,
     generate_site_verify_code,
 )
 
@@ -285,8 +286,9 @@ def company_site_qr(
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
-    if not obj.site_verify_code:
-        obj.site_verify_code = generate_site_verify_code()
+    had_code = bool((obj.site_verify_code or "").strip())
+    ensure_company_site_verify_code(db, obj)
+    if not had_code:
         db.commit()
         db.refresh(obj)
     payload = build_qr_payload(obj.id, obj.site_verify_code)

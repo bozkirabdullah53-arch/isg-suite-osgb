@@ -21,7 +21,7 @@ from app.services.crm_convert import convert_lead_to_contract
 from app.services.finance_accrual import accrue_month_for_osgb
 from app.services.visit_calendar import build_visit_calendar
 from app.services.module_kpis import build_module_kpis
-from app.services.site_verify import codes_match, consume_ephemeral_token
+from app.services.site_verify import codes_match, consume_ephemeral_token, ensure_company_site_verify_code
 from app.services.upload_gateway import persist_relative
 
 router = APIRouter(prefix="/operations", tags=["OSGB Operasyonları"])
@@ -54,12 +54,14 @@ def _apply_gps_stamp(obj: ServiceVisit, lat: float | None, lng: float | None, ac
 
 
 def _apply_site_verify(db: Session, obj: ServiceVisit, company: Company | None, raw_code: str | None):
-    """Ziyaret tamamlama QR — kalıcı veya geçici; boş kod / bypass yok (P0-05)."""
+    """Ziyaret tamamlama QR — kalıcı veya geçici; boş gönderim yok (P0-05)."""
     if not company:
         raise HTTPException(400, "İşyeri bulunamadı.")
+    # Eski kayıtlarda kod yoksa üret; QR'siz tamamlamaya izin verme
+    ensure_company_site_verify_code(db, company)
     if not raw_code or not str(raw_code).strip():
         raise HTTPException(422, "İşyeri QR doğrulama kodu gerekli.")
-    if company.site_verify_code and codes_match(company.site_verify_code, raw_code):
+    if codes_match(company.site_verify_code, raw_code):
         obj.site_verified_at = datetime.utcnow()
         return
     if consume_ephemeral_token(db, company.id, raw_code):

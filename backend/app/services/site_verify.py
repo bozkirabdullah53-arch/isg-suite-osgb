@@ -68,6 +68,18 @@ def parse_ephemeral(raw: str) -> tuple[int | None, str]:
     return None, ""
 
 
+def ensure_company_site_verify_code(db: Session, company) -> str:
+    """Eksik kalıcı kodu üret (P0-05 fail-closed sonrası saha kırılmasını önler)."""
+    existing = (getattr(company, "site_verify_code", None) or "").strip()
+    if existing:
+        return existing
+    code = generate_site_verify_code()
+    company.site_verify_code = code
+    db.add(company)
+    db.flush()
+    return code
+
+
 def codes_match(company_code: str | None, raw: str | None) -> bool:
     """Kalıcı işyeri kodu eşleşmesi — boş şirket kodu fail-closed (P0-05)."""
     if not company_code or not str(company_code).strip():

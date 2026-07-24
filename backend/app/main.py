@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -14,6 +15,8 @@ from app.core.version import APP_VERSION
 from app.core.auth_cookies import refresh_cookie_enabled
 from app.services.job_queue import async_jobs_enabled, job_backend_label
 from app.services.seed import seed_admin, seed_demo_osgbs
+
+logger = logging.getLogger(__name__)
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self,request,call_next):
         response=await call_next(request)
@@ -35,13 +38,13 @@ async def lifespan(_:FastAPI):
 
         repair_schema()
     except Exception:
-        pass
+        logger.exception("schema_repair failed at startup")
     with SessionLocal() as db:
         seed_admin(db)
         try:
             seed_demo_osgbs(db)
         except Exception:
-            pass
+            logger.exception("seed_demo_osgbs failed at startup")
         try:
             from sqlalchemy import func, select
             from app.models.entities import HazardCategory
@@ -49,12 +52,31 @@ async def lifespan(_:FastAPI):
             if (db.scalar(select(func.count()).select_from(HazardCategory)) or 0) == 0:
                 seed_hazard_library(db)
         except Exception:
-            pass
+            logger.exception("hazard_seed failed at startup")
         try:
             from app.api.company_access import sync_all_assigned_field_roles
             sync_all_assigned_field_roles(db)
         except Exception:
-            pass
+            logger.exception("sync_all_assigned_field_roles failed at startup")
+        try:
+            from sqlalchemy import select
+            from app.models.entities import Company
+            from app.services.site_verify import ensure_company_site_verify_code
+
+            missing = list(
+                db.scalars(
+                    select(Company).where(
+                        (Company.site_verify_code.is_(None)) | (Company.site_verify_code == "")
+                    )
+                ).all()
+            )
+            for company in missing:
+                ensure_company_site_verify_code(db, company)
+            if missing:
+                db.commit()
+                logger.info("Backfilled site_verify_code for %s companies", len(missing))
+        except Exception:
+            logger.exception("site_verify_code backfill failed at startup")
     yield
 _is_prod = (settings.environment or '').strip().lower() in {'production', 'prod', 'live'}
 app=FastAPI(
@@ -177,7 +199,7 @@ def health():
         'visit_calendar': 'plan-overdue-coverage-v1',
         'module_kpis': 'risk-training-health-v1',
         'field_gps': 'visit-complete-stamp-v1',
-        'field_qr': 'workplace-ephemeral-failclosed-v3',
+        'field_qr': 'workplace-ephemeral-failclosed-backfill-v4',
         'field_signature': 'visit-sign-offline-v1',
         'tenant_isolation': 'osgb-scoped-v1',
         'central_archive': 'tenant-backup-restore-plan-v1',
@@ -212,5 +234,6 @@ def health():
         'secret_key_guard': 'prod-block-default',
         'nav_hardening': 'allowlist-boundary-mobile',
         'field_access': 'assignment-scoped-v2',
+        'startup_obs': 'no-silent-pass-v1',
         'git': os.environ.get('RENDER_GIT_COMMIT') or os.environ.get('GIT_COMMIT') or 'local',
     }
