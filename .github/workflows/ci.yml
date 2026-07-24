@@ -36,6 +36,7 @@ jobs:
           tests/test_backup_restore.py
           tests/test_active_osgb.py
           tests/test_ci_postgres_parity.py
+          tests/test_tenant_context.py
 
   backend-postgres:
     runs-on: ubuntu-latest

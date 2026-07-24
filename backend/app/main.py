@@ -5,6 +5,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives
 from app.core.rate_limit import SimpleRateLimitMiddleware, rate_limit_backend
 from app.core.request_id import RequestIdMiddleware
+from app.core.tenant_middleware import TenantContextMiddleware
 from app.core.subscription_middleware import OsgbSubscriptionWriteMiddleware
 from app.core.config import settings, validate_runtime_settings
 from app.core.database import Base, SessionLocal, engine
@@ -54,7 +55,7 @@ async def lifespan(_:FastAPI):
 _is_prod = (settings.environment or '').strip().lower() in {'production', 'prod', 'live'}
 app=FastAPI(
     title=settings.app_name,
-    version='0.9.165',
+    version='0.9.166',
     lifespan=lifespan,
     docs_url=None if _is_prod else '/docs',
     redoc_url=None if _is_prod else '/redoc',
@@ -66,6 +67,7 @@ register_turkish_validation(app)
 
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestIdMiddleware)
+app.add_middleware(TenantContextMiddleware)
 app.add_middleware(OsgbSubscriptionWriteMiddleware)
 app.add_middleware(
     SimpleRateLimitMiddleware,
@@ -90,7 +92,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.165',
+        'version': '0.9.166',
         'environment': (settings.environment or 'development').strip().lower() or 'development',
         'object_storage': storage_backend_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
@@ -152,6 +154,7 @@ def health():
         'logout_all': 'token-version-v1',
         'company_name_unique': 'osgb-scoped-v1',
         'ci_postgres': 'workflow-v1-migrate-parity',
+        'tenant_context': 'contextvar-v1',
         'customer_360': 'company-overview-v1',
         'capacity_engine': '6331-legal-minutes-v1',
         'visit_calendar': 'plan-overdue-coverage-v1',

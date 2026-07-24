@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import ALGORITHM
+from app.core.tenant_context import bind_user_tenant
 from app.models.entities import User, UserRole
 from app.services.token_revoke import is_jti_revoked
 
@@ -41,6 +42,10 @@ def _user_from_token(token: str, db: Session, *, allowed_purposes: set[str]) -> 
     user_tv = int(getattr(user, "token_version", 0) or 0)
     if tv != user_tv:
         raise credentials_error
+
+    # P1-03: istek boyunca TenantContext (osgb/firma kapsamı)
+    if purpose == "access":
+        bind_user_tenant(user)
     return user
 
 
