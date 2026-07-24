@@ -26,6 +26,8 @@ class TokenResponse(BaseModel):
     mfa_setup_required: bool = False
     mfa_token: str | None = None
     refresh_cookie: bool = False
+    # P1-01: saniye; refresh cookie açıkken kısa access süresi
+    expires_in: int | None = None
 
 
 class CurrentUserResponse(BaseModel):

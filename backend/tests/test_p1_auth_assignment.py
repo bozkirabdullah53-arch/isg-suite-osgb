@@ -57,7 +57,10 @@ def test_refresh_cookie_flow_when_enabled(client, monkeypatch):
     from app.core.auth_cookies import REFRESH_COOKIE_NAME
 
     settings.auth_refresh_cookie_enabled = True
+    settings.environment = "development"
+    settings.auth_refresh_cookie_force_off = False
     monkeypatch.setattr("app.api.auth.refresh_cookie_enabled", lambda: True)
+    monkeypatch.setattr("app.core.auth_cookies.refresh_cookie_enabled", lambda: True)
 
     with SessionLocal() as db:
         u = User(
@@ -77,6 +80,7 @@ def test_refresh_cookie_flow_when_enabled(client, monkeypatch):
     body = login.json()
     assert body.get("access_token")
     assert body.get("refresh_cookie") is True
+    assert body.get("expires_in")
     assert REFRESH_COOKIE_NAME in login.cookies
 
     # Access ile me

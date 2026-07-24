@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, get_mfa_challenge_user, oauth2_scheme
 from app.core.auth_cookies import (
     REFRESH_COOKIE_NAME,
+    access_token_ttl_minutes,
     clear_refresh_cookie,
     refresh_cookie_enabled,
     set_refresh_cookie,
@@ -57,7 +58,11 @@ def _sync_field(db: Session, user: User) -> User:
 
 def _issue_access(user: User, response: Response) -> TokenResponse:
     tv = int(getattr(user, "token_version", 0) or 0)
-    body = TokenResponse(access_token=create_access_token(str(user.id), token_version=tv))
+    ttl_min = access_token_ttl_minutes()
+    body = TokenResponse(
+        access_token=create_access_token(str(user.id), token_version=tv, minutes=ttl_min),
+        expires_in=max(60, ttl_min * 60),
+    )
     if refresh_cookie_enabled():
         set_refresh_cookie(response, create_refresh_token(str(user.id), token_version=tv))
         body.refresh_cookie = True

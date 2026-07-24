@@ -19,6 +19,9 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
+from app.core.auth_cookies import access_token_ttl_minutes
+
+
 def create_access_token(
     subject: str,
     *,
@@ -28,8 +31,8 @@ def create_access_token(
 ) -> str:
     if minutes is not None:
         ttl = minutes
-    elif purpose == "access" and bool(getattr(settings, "auth_refresh_cookie_enabled", False)):
-        ttl = int(getattr(settings, "access_token_expire_minutes_short", 15) or 15)
+    elif purpose == "access":
+        ttl = access_token_ttl_minutes()
     else:
         ttl = settings.access_token_expire_minutes
     expire = datetime.now(timezone.utc) + timedelta(minutes=ttl)

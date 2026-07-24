@@ -43,6 +43,7 @@ jobs:
           tests/test_memberships.py
           tests/test_p1_version_jobs.py
           tests/test_rls_membership_access.py
+          tests/test_refresh_cookie_rollout.py
 
   backend-postgres:
     runs-on: ubuntu-latest

@@ -11,6 +11,7 @@ from app.core.subscription_middleware import OsgbSubscriptionWriteMiddleware
 from app.core.config import settings, validate_runtime_settings
 from app.core.database import Base, SessionLocal, engine
 from app.core.version import APP_VERSION
+from app.core.auth_cookies import refresh_cookie_enabled
 from app.services.seed import seed_admin, seed_demo_osgbs
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self,request,call_next):
@@ -158,7 +159,8 @@ def health():
         'company_name_unique': 'osgb-scoped-v1',
         'ci_postgres': 'workflow-v1-migrate-parity',
         'tenant_context': 'contextvar-wired-v1',
-        'auth_refresh_cookie': 'on' if settings.auth_refresh_cookie_enabled else 'off',
+        'auth_refresh_cookie': 'on' if refresh_cookie_enabled() else 'off',
+        'auth_refresh_rollout': 'prod-on-partitioned-v1',
         'assignment_unique': 'active-partial-v2',
         'access_log': 'json-request-id-v1',
         'async_jobs': 'on' if settings.async_jobs_enabled else 'off-sync-fallback',

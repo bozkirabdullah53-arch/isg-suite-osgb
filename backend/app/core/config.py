@@ -49,8 +49,10 @@ class Settings(BaseSettings):
     rate_limit_auth_rpm: int = 30
     # P1-02 Redis rate limit — boşsa bellek içi (çoklu instance paylaşılmaz)
     redis_url: str | None = None
-    # P1-01 HttpOnly refresh cookie — kapalı; açılınca login Set-Cookie yazar
+    # P1-01 HttpOnly refresh cookie
     auth_refresh_cookie_enabled: bool = False
+    # Canlıda acil kapatma: AUTH_REFRESH_COOKIE_FORCE_OFF=true
+    auth_refresh_cookie_force_off: bool = False
     refresh_token_expire_days: int = 14
     # P1-10 async job kuyruğu — kapalı; açılınca enqueue arka planda çalışır
     async_jobs_enabled: bool = False
