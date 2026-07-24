@@ -110,6 +110,22 @@ class Company(Base):
     branches: Mapped[list["Branch"]] = relationship(back_populates="company", cascade="all, delete-orphan")
     employees: Mapped[list["Employee"]] = relationship(back_populates="company")
 
+
+class SiteQrSession(Base):
+    """Geçici saha QR — TTL + tek kullanımlık; kalıcı site_verify_code'u silmez."""
+
+    __tablename__ = "site_qr_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    token: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class Branch(Base):
     __tablename__ = "branches"
     __table_args__ = (UniqueConstraint("company_id", "name", name="uq_branch_company_name"),)

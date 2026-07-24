@@ -43,6 +43,7 @@ from app.models.entities import (
     RiskMedia,
     ServiceContract,
     ServiceVisit,
+    SiteQrSession,
     TrainingParticipant,
     TrainingSession,
     User,
@@ -53,7 +54,12 @@ from app.models.entities import (
 from app.models.entities import OsgbOrganization
 from app.schemas.company import CompanyCreate, CompanyResponse, CompanyUpdate
 from app.services.company_overview import build_company_overview
-from app.services.site_verify import build_qr_payload, generate_site_verify_code
+from app.services.site_verify import (
+    build_ephemeral_qr_payload,
+    build_qr_payload,
+    create_ephemeral_session,
+    generate_site_verify_code,
+)
 
 router = APIRouter(prefix="/companies", tags=["Firmalar"])
 
@@ -104,6 +110,7 @@ def _purge_company_data(db: Session, company_id: int) -> None:
             EmergencyTeamType.is_system.is_(False),
         )
     )
+    db.execute(delete(SiteQrSession).where(SiteQrSession.company_id == company_id))
 
     # Tatbikat
     drill_ids = _ids(db, DrillRecord, company_id)
@@ -291,6 +298,33 @@ def regenerate_company_site_qr(
         "company_name": obj.name,
         "site_verify_code": obj.site_verify_code,
         "qr_payload": payload,
+    }
+
+
+@router.post("/{company_id}/site-qr/ephemeral")
+def create_company_ephemeral_site_qr(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    """Geçici saha QR (TTL, tek kullanımlık). Kalıcı QR'ı değiştirmez."""
+    ensure_company_access(db, user, company_id)
+    obj = db.get(Company, company_id)
+    if not obj:
+        raise HTTPException(404, "Firma bulunamadı.")
+    row = create_ephemeral_session(db, company_id=obj.id, created_by_id=user.id)
+    db.commit()
+    db.refresh(row)
+    payload = build_ephemeral_qr_payload(obj.id, row.token)
+    return {
+        "company_id": obj.id,
+        "company_name": obj.name,
+        "kind": "ephemeral",
+        "token": row.token,
+        "qr_payload": payload,
+        "expires_at": row.expires_at.isoformat() + "Z",
+        "ttl_minutes": int((row.expires_at - row.created_at).total_seconds() // 60) or 30,
+        "single_use": True,
     }
 
 

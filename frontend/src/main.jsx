@@ -329,6 +329,7 @@ function Companies({canEdit, canAdd, onOpen360}){
   const[creds,setCreds]=useState(null);
   const[copyMsg,setCopyMsg]=useState('');
   const[siteQr,setSiteQr]=useState(null);
+  const[siteQrEphemeral,setSiteQrEphemeral]=useState(null);
   const[siteQrBusy,setSiteQrBusy]=useState(false);
   const emptyForm={name:'',sgk_registry_no:'',address:'',phone:'',authorized_person:'',hazard_class:'Az Tehlikeli'};
   const[form,setForm]=useState(emptyForm);
@@ -385,7 +386,7 @@ function Companies({canEdit, canAdd, onOpen360}){
     finally{setBusy(false)}
   }
   async function openSiteQr(row){
-    setSiteQrBusy(true);setErr('');
+    setSiteQrBusy(true);setErr('');setSiteQrEphemeral(null);setCopyMsg('');
     try{setSiteQr(await api(`/companies/${row.id}/site-qr`))}
     catch(ex){setErr(ex.message||'QR yüklenemedi.');setSiteQr(null)}
     finally{setSiteQrBusy(false)}
@@ -395,6 +396,13 @@ function Companies({canEdit, canAdd, onOpen360}){
     setSiteQrBusy(true);setErr('');
     try{setSiteQr(await api(`/companies/${siteQr.company_id}/site-qr/regenerate`,{method:'POST'}))}
     catch(ex){setErr(ex.message||'QR yenilenemedi.')}
+    finally{setSiteQrBusy(false)}
+  }
+  async function createEphemeralSiteQr(){
+    if(!siteQr?.company_id) return;
+    setSiteQrBusy(true);setErr('');setCopyMsg('');
+    try{setSiteQrEphemeral(await api(`/companies/${siteQr.company_id}/site-qr/ephemeral`,{method:'POST'}))}
+    catch(ex){setErr(ex.message||'Geçici QR oluşturulamadı.');setSiteQrEphemeral(null)}
     finally{setSiteQrBusy(false)}
   }
   return <Page title="Firma Yönetimi" action={canAdd&&<button type="button" disabled={busy} onClick={()=>{setErr('');setOpen(true)}}><Plus/>Firma Ekle</button>}>
@@ -464,9 +472,9 @@ function Companies({canEdit, canAdd, onOpen360}){
         <div className="form-actions"><button type="button" onClick={()=>{setCreds(null);setCopyMsg('')}}>Tamam</button></div>
       </div>
     </Modal>}
-    {siteQr&&<Modal title={`Saha QR — ${siteQr.company_name}`} close={()=>setSiteQr(null)}>
+    {siteQr&&<Modal title={`Saha QR — ${siteQr.company_name}`} close={()=>{setSiteQr(null);setSiteQrEphemeral(null);setCopyMsg('')}}>
       <div className="form-grid single">
-        <p style={{marginTop:0,color:'#64748b'}}>Bu QR kodu işyerine asın. Saha personeli ziyaret tamamlarken okutur.</p>
+        <p style={{marginTop:0,color:'#64748b'}}>Kalıcı QR — işyerine asılır. Saha personeli ziyaret tamamlarken okutur.</p>
         <div style={{textAlign:'center'}}>
           <img alt="İşyeri QR" width={220} height={220} src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(siteQr.qr_payload)}`}/>
         </div>
@@ -474,10 +482,21 @@ function Companies({canEdit, canAdd, onOpen360}){
         <p style={{wordBreak:'break-all',fontSize:13,color:'#475569'}}><strong>Payload:</strong> {siteQr.qr_payload}</p>
         <div className="actions" style={{gap:8,flexWrap:'wrap'}}>
           <button type="button" className="mini secondary" disabled={siteQrBusy} onClick={async()=>setCopyMsg((await copyText(siteQr.qr_payload))?'Payload kopyalandı.':'Kopyalanamadı.')}>Payload kopyala</button>
-          <button type="button" className="mini" disabled={siteQrBusy} onClick={regenSiteQr}><RefreshCw size={14}/> Kodu yenile</button>
+          <button type="button" className="mini" disabled={siteQrBusy} onClick={regenSiteQr}><RefreshCw size={14}/> Kalıcı kodu yenile</button>
+          <button type="button" className="mini secondary" disabled={siteQrBusy} onClick={createEphemeralSiteQr}><QrCode size={14}/> Geçici QR (30 dk)</button>
         </div>
+        {siteQrEphemeral&&<>
+          <hr style={{border:'none',borderTop:'1px solid #e2e8f0',margin:'8px 0'}}/>
+          <p style={{marginTop:0,color:'#64748b'}}>Geçici QR — süresi dolunca veya bir kez kullanılınca geçersiz olur. Kalıcı QR değişmez.</p>
+          <div style={{textAlign:'center'}}>
+            <img alt="Geçici işyeri QR" width={220} height={220} src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(siteQrEphemeral.qr_payload)}`}/>
+          </div>
+          <p><strong>Bitiş:</strong> <code>{siteQrEphemeral.expires_at}</code> ({siteQrEphemeral.ttl_minutes} dk, tek kullanımlık)</p>
+          <p style={{wordBreak:'break-all',fontSize:13,color:'#475569'}}><strong>Payload:</strong> {siteQrEphemeral.qr_payload}</p>
+          <button type="button" className="mini secondary" disabled={siteQrBusy} onClick={async()=>setCopyMsg((await copyText(siteQrEphemeral.qr_payload))?'Geçici payload kopyalandı.':'Kopyalanamadı.')}>Geçici payload kopyala</button>
+        </>}
         {copyMsg&&<p style={{color:copyMsg.includes('amadı')?'#b91c1c':'#166534',margin:0}}>{copyMsg}</p>}
-        <div className="form-actions"><button type="button" onClick={()=>{setSiteQr(null);setCopyMsg('')}}>Kapat</button></div>
+        <div className="form-actions"><button type="button" onClick={()=>{setSiteQr(null);setSiteQrEphemeral(null);setCopyMsg('')}}>Kapat</button></div>
       </div>
     </Modal>}
   </Page>;

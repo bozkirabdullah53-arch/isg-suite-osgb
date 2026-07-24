@@ -191,3 +191,83 @@ def test_company_site_qr_endpoint(client):
     data = resp.json()
     assert data["company_id"] == cid
     assert data["qr_payload"].startswith("ISGSUITE:WP:")
+
+
+def test_ephemeral_site_qr_completes_visit_once(client):
+    from datetime import date
+
+    from sqlalchemy import select
+
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import Company, ServiceVisit, User, UserRole, VisitStatus
+
+    token, seed, _perm = _seed(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with SessionLocal() as db:
+        company = db.get(Company, seed["company_id"])
+        db.add(
+            User(
+                email="qr-admin@test.com",
+                full_name="QR Admin",
+                hashed_password=get_password_hash("TestPass123!"),
+                role=UserRole.COMPANY_ADMIN,
+                osgb_id=company.osgb_id,
+                is_active=True,
+            )
+        )
+        db.commit()
+
+    admin = client.post("/api/v1/auth/login", json={"email": "qr-admin@test.com", "password": "TestPass123!"})
+    assert admin.status_code == 200, admin.text
+    admin_headers = {"Authorization": f"Bearer {admin.json()['access_token']}"}
+
+    created = client.post(
+        f"/api/v1/companies/{seed['company_id']}/site-qr/ephemeral",
+        headers=admin_headers,
+    )
+    assert created.status_code == 200, created.text
+    eph = created.json()
+    assert eph["kind"] == "ephemeral"
+    assert eph["qr_payload"].startswith("ISGSUITE:WPTEMP:")
+    assert eph["single_use"] is True
+
+    ok = client.patch(
+        f"/api/v1/operations/visits/{seed['visit_id']}/complete",
+        headers=headers,
+        json={"site_verify_code": eph["qr_payload"]},
+    )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["site_verified_at"] is not None
+
+    with SessionLocal() as db:
+        v1 = db.get(ServiceVisit, seed["visit_id"])
+        company = db.get(Company, seed["company_id"])
+        visit2 = ServiceVisit(
+            osgb_id=company.osgb_id,
+            company_id=company.id,
+            professional_id=v1.professional_id,
+            visit_date=date.today(),
+            subject="İkinci ziyaret",
+            duration_minutes=30,
+            status=VisitStatus.PLANNED,
+        )
+        db.add(visit2)
+        db.commit()
+        vid2 = visit2.id
+
+    reuse = client.patch(
+        f"/api/v1/operations/visits/{vid2}/complete",
+        headers=headers,
+        json={"site_verify_code": eph["qr_payload"]},
+    )
+    assert reuse.status_code == 400
+
+    # Kalıcı QR hâlâ geçerli
+    ok_perm = client.patch(
+        f"/api/v1/operations/visits/{vid2}/complete",
+        headers=headers,
+        json={"site_verify_code": build_qr_payload(seed["company_id"], seed["code"])},
+    )
+    assert ok_perm.status_code == 200, ok_perm.text
