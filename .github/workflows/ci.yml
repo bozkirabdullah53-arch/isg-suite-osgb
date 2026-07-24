@@ -101,6 +101,8 @@ jobs:
         run: npm ci
       - name: Test
         run: npm test
+      - name: Lint
+        run: npm run lint
       - name: Audit
         run: npm audit --omit=dev
       - name: Build

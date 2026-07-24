@@ -5,7 +5,7 @@ export function setRefreshCookieMode(enabled) {
   try {
     if (enabled) localStorage.setItem(REFRESH_FLAG_KEY, "1");
     else localStorage.removeItem(REFRESH_FLAG_KEY);
-  } catch (_) {
+  } catch {
     /* ignore */
   }
 }
@@ -13,7 +13,7 @@ export function setRefreshCookieMode(enabled) {
 export function refreshCookieMode() {
   try {
     return localStorage.getItem(REFRESH_FLAG_KEY) === "1";
-  } catch (_) {
+  } catch {
     return false;
   }
 }
