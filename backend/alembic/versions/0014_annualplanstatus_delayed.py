@@ -17,14 +17,10 @@ def upgrade():
     bind = op.get_bind()
     if bind.dialect.name != "postgresql":
         return
+    from app.core.pg_enum import pg_add_enum_value
+
     for value in ("delayed", "cancelled"):
-        try:
-            op.execute(f"ALTER TYPE annualplanstatus ADD VALUE IF NOT EXISTS '{value}'")
-        except Exception:
-            try:
-                op.execute(f"ALTER TYPE annualplanstatus ADD VALUE '{value}'")
-            except Exception:
-                pass
+        pg_add_enum_value(bind, "annualplanstatus", value)
 
 
 def downgrade():

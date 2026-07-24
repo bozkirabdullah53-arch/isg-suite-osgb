@@ -79,14 +79,10 @@ def upgrade():
     for enum_name, values in (
         ("healthfitnessstatus", ("fit", "conditional", "unfit", "pending")),
     ):
+        from app.core.pg_enum import pg_add_enum_value
+
         for val in values:
-            try:
-                op.execute(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{val}'")
-            except Exception:
-                try:
-                    op.execute(f"ALTER TYPE {enum_name} ADD VALUE '{val}'")
-                except Exception:
-                    pass
+            pg_add_enum_value(bind, enum_name, val)
 
 
 def downgrade():

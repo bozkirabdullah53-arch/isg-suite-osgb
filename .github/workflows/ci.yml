@@ -26,6 +26,7 @@ jobs:
           ENVIRONMENT: development
           SECRET_KEY: ci-secret-key-at-least-32-characters-long
           DATABASE_URL: sqlite:///./ci_test.db
+          PYTHONPATH: .
         run: pytest -q
 
   backend-postgres:
@@ -52,6 +53,7 @@ jobs:
       SECRET_KEY: ci-secret-key-at-least-32-characters-long
       DATABASE_URL: postgresql+psycopg://isg:isg@localhost:5432/isg_ci
       CI_POSTGRES: "1"
+      PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

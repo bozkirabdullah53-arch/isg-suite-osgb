@@ -27,14 +27,10 @@ def upgrade():
         op.add_column("annual_plan_items", sa.Column("target_date", sa.Date(), nullable=True))
     if "deleted_at" not in cols:
         op.add_column("annual_plan_items", sa.Column("deleted_at", sa.DateTime(), nullable=True))
-    # Postgres enum: cancelled (best-effort)
-    try:
-        op.execute("ALTER TYPE annualplanstatus ADD VALUE IF NOT EXISTS 'cancelled'")
-    except Exception:
-        try:
-            op.execute("ALTER TYPE annualplanstatus ADD VALUE 'cancelled'")
-        except Exception:
-            pass
+    # Postgres enum: cancelled (best-effort; native_enum=False DB'lerde tip yok olabilir)
+    from app.core.pg_enum import pg_add_enum_value
+
+    pg_add_enum_value(bind, "annualplanstatus", "cancelled")
 
 
 def downgrade():

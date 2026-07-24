@@ -62,7 +62,8 @@ def upgrade():
     )
     # Drop orphaned enum type if nothing else uses it (best-effort)
     try:
-        op.execute(sa.text("DROP TYPE IF EXISTS annualplanstatus"))
+        with bind.begin_nested():
+            op.execute(sa.text("DROP TYPE IF EXISTS annualplanstatus"))
     except Exception:
         pass
 
