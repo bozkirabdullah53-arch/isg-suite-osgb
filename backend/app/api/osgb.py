@@ -17,6 +17,7 @@ from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCrea
                               ProfessionalCreate, ProfessionalCreateResponse, ProfessionalLoginAccount,
                               ProfessionalResponse, ProfessionalUpdate)
 from app.services.osgb_admin import provision_professional_login
+from app.services.upload_gateway import persist_relative
 from app.services.osgb_oversight import (
     build_oversight,
     build_professional_performance,
