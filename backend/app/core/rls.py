@@ -3,7 +3,8 @@
 Vars:
 - app.current_user_id — boşsa (migrasyon/job) RLS geçiş
 - app.rls_admin — memberships vb. (global/OSGB admin)
-- app.rls_bypass — global admin: tüm satırlar
+- app.rls_bypass — global admin: tüm satırlar; ayrıca allowed_company_ids
+  hesabında geçici (chicken-egg önleme)
 - app.allowed_company_ids — CSV firma id (doküman/sağlık RLS)
 - app.current_company_id / app.current_osgb_id — yardımcı bağlam
 """
@@ -53,9 +54,13 @@ def apply_rls_user(db: Session, user: User | int | None) -> None:
         _set(db, "app.allowed_company_ids", "")
         return
 
-    _set(db, "app.rls_bypass", "")
-    # Firma listesi — document_records / health_records politikası
+    # Firma listesi (assigned_company_ids → workplace_assignments okur).
+    # Geçici bypass: FORCE RLS + henüz boş allowed_company_ids chicken-egg'ini önler.
     from app.api.company_access import assigned_company_ids
 
-    ids = assigned_company_ids(db, user)
+    _set(db, "app.rls_bypass", "1")
+    try:
+        ids = assigned_company_ids(db, user)
+    finally:
+        _set(db, "app.rls_bypass", "")
     _set(db, "app.allowed_company_ids", ",".join(str(int(i)) for i in ids) if ids else "")
