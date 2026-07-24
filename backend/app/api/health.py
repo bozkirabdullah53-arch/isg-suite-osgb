@@ -19,6 +19,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import Company, Employee, HealthFitnessStatus, HealthRecord, HealthRecordType, User, UserRole
 from app.schemas.health import HealthRecordCreate, HealthRecordResponse, HealthRecordUpdate
+from app.services.health_field_crypto import DecryptedRecordView, encrypt_payload
 from app.services.health_meta import (
     EXPOSURE_OPTIONS,
     MESLEK_TETKIK,
@@ -93,14 +94,27 @@ def _active():
 def _to_response(row: HealthRecord, employee: Employee | None, include_confidential: bool) -> HealthRecordResponse:
     today = date.today()
     overdue = bool(row.next_examination_date and row.next_examination_date < today)
+    view = DecryptedRecordView(row)
     data = HealthRecordResponse.model_validate(row)
+    for field in (
+        "confidential_note",
+        "summary",
+        "audiometry_result",
+        "spirometry_result",
+        "chest_xray_result",
+        "follow_up_note",
+        "other_biological_test",
+        "exposures",
+        "suggested_tests",
+    ):
+        setattr(data, field, getattr(view, field))
     data.employee_name = employee.full_name if employee else None
     data.job_title = employee.job_title if employee else None
     data.department = employee.department if employee else None
     data.is_overdue = overdue
     data.has_report = bool(row.report_storage_path)
-    data.smart_summary = smart_summary(row, employee)
-    data.tetkik_summary = tetkik_summary(row)
+    data.smart_summary = smart_summary(view, employee)
+    data.tetkik_summary = tetkik_summary(view)
     if not include_confidential:
         data.confidential_note = None
     return data
@@ -353,6 +367,7 @@ def create_health_record(
         data["exposures"] = data.get("exposures") or ", ".join(sug["exposures"])
     # None alanları atla — eksik DB kolonlarında gereksiz INSERT riskini azaltır
     data = {k: v for k, v in data.items() if v is not None}
+    data = encrypt_payload(data)
     try:
         record = HealthRecord(**data, created_by_id=user.id)
         _apply_lead_eval(record)
@@ -386,26 +401,27 @@ def export_health_txt(
     for r in rows:
         emp = employees.get(r.employee_id)
         name = emp.full_name if emp else f"#{r.employee_id}"
+        view = DecryptedRecordView(r)
         lines.append(
             f"{r.examination_date} | {RECORD_TYPE_LABELS.get(r.record_type, r.record_type.value)} | "
             f"{name} | Hekim: {r.physician_name or '—'} | "
             f"Durum: {FITNESS_LABELS.get(r.fitness_status, r.fitness_status.value)} | "
             f"Sonraki: {r.next_examination_date or '—'}"
         )
-        lines.append(f"   Özet: {smart_summary(r, emp)}")
+        lines.append(f"   Özet: {smart_summary(view, emp)}")
         tetkik = []
-        if r.audiometry_result or r.audiometry_date:
-            tetkik.append(f"Odyo:{r.audiometry_result or r.audiometry_date}")
-        if r.spirometry_result or r.spirometry_date:
-            tetkik.append(f"SFT:{r.spirometry_result or r.spirometry_date}")
-        if r.chest_xray_result or r.chest_xray_date:
-            tetkik.append(f"Akciger:{r.chest_xray_result or r.chest_xray_date}")
+        if view.audiometry_result or r.audiometry_date:
+            tetkik.append(f"Odyo:{view.audiometry_result or r.audiometry_date}")
+        if view.spirometry_result or r.spirometry_date:
+            tetkik.append(f"SFT:{view.spirometry_result or r.spirometry_date}")
+        if view.chest_xray_result or r.chest_xray_date:
+            tetkik.append(f"Akciger:{view.chest_xray_result or r.chest_xray_date}")
         if r.blood_lead_value is not None:
             tetkik.append(f"Pb:{r.blood_lead_value}{r.blood_lead_unit or ''} ({r.blood_lead_eval or '—'})")
         if tetkik:
             lines.append(f"   Tetkik: {' | '.join(tetkik)}")
-        if r.summary:
-            lines.append(f"   Not: {r.summary}")
+        if view.summary:
+            lines.append(f"   Not: {view.summary}")
     body = "\n".join(lines) + "\n"
     return PlainTextResponse(
         body,
@@ -435,6 +451,7 @@ def export_health_xlsx(
     ws.append(headers)
     for r in rows:
         emp = employees.get(r.employee_id)
+        view = DecryptedRecordView(r)
         ws.append([
             emp.full_name if emp else f"#{r.employee_id}",
             emp.job_title if emp else "",
@@ -444,15 +461,15 @@ def export_health_xlsx(
             r.next_examination_date.isoformat() if r.next_examination_date else "",
             FITNESS_LABELS.get(r.fitness_status, r.fitness_status.value),
             r.physician_name or "",
-            f"{r.audiometry_date or ''} / {r.audiometry_result or ''}".strip(" /"),
-            f"{r.spirometry_date or ''} / {r.spirometry_result or ''}".strip(" /"),
-            f"{r.chest_xray_date or ''} / {r.chest_xray_result or ''}".strip(" /"),
+            f"{r.audiometry_date or ''} / {view.audiometry_result or ''}".strip(" /"),
+            f"{r.spirometry_date or ''} / {view.spirometry_result or ''}".strip(" /"),
+            f"{r.chest_xray_date or ''} / {view.chest_xray_result or ''}".strip(" /"),
             f"{r.blood_lead_value if r.blood_lead_value is not None else ''} {r.blood_lead_unit or ''}".strip(),
             r.blood_lead_eval or "",
-            r.suggested_tests or "",
-            r.exposures or "",
-            r.other_biological_test or "",
-            smart_summary(r, emp),
+            view.suggested_tests or "",
+            view.exposures or "",
+            view.other_biological_test or "",
+            smart_summary(view, emp),
             r.report_file_name or "",
         ])
     # Analiz sayfası
@@ -496,6 +513,7 @@ def update_health_record(
     ensure_access(db, user, record.company_id)
     updates = payload.model_dump(exclude_unset=True)
     _guard_confidential_write(user, updates)
+    updates = encrypt_payload(updates)
     for k, v in updates.items():
         setattr(record, k, v)
     _apply_lead_eval(record)
@@ -532,7 +550,8 @@ def health_form_html(
     ensure_access(db, user, record.company_id)
     company = db.get(Company, record.company_id)
     employee = db.get(Employee, record.employee_id)
-    conf = record.confidential_note if user.role in PHYSICIAN_ROLES else None
+    view = DecryptedRecordView(record)
+    conf = view.confidential_note if user.role in PHYSICIAN_ROLES else None
 
     def safe(value) -> str:
         if value is None:
@@ -577,19 +596,19 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 </div>
 <h3>Tetkikler</h3>
 <div class="grid">
-{cell('Odyometri', f"{record.audiometry_date or ''} / {record.audiometry_result or ''}".strip(' /'))}
-{cell('SFT', f"{record.spirometry_date or ''} / {record.spirometry_result or ''}".strip(' /'))}
-{cell('Akciğer Grafisi', f"{record.chest_xray_date or ''} / {record.chest_xray_result or ''}".strip(' /'))}
+{cell('Odyometri', f"{record.audiometry_date or ''} / {view.audiometry_result or ''}".strip(' /'))}
+{cell('SFT', f"{record.spirometry_date or ''} / {view.spirometry_result or ''}".strip(' /'))}
+{cell('Akciğer Grafisi', f"{record.chest_xray_date or ''} / {view.chest_xray_result or ''}".strip(' /'))}
 {cell('Kan Kurşun', f"{record.blood_lead_date or ''} / {record.blood_lead_value if record.blood_lead_value is not None else ''} {record.blood_lead_unit or ''} (ref {record.blood_lead_ref or '—'}) / {record.blood_lead_eval or ''}".strip(' /'))}
-{cell('Diğer Biyolojik Tetkik', record.other_biological_test or '')}
-{cell('Akıllı Özet', smart_summary(record, employee))}
+{cell('Diğer Biyolojik Tetkik', view.other_biological_test or '')}
+{cell('Akıllı Özet', smart_summary(view, employee))}
 </div>
 <h3>Önerilen tetkikler / Maruziyet</h3>
-<p>{safe(record.suggested_tests) or '—'}</p>
-<p>{safe(record.exposures) or '—'}</p>
+<p>{safe(view.suggested_tests) or '—'}</p>
+<p>{safe(view.exposures) or '—'}</p>
 <h3>Not / Kısıt / Takip</h3>
-<p>{safe(record.summary) or '—'}</p>
-<p>{safe(record.follow_up_note) or ''}</p>
+<p>{safe(view.summary) or '—'}</p>
+<p>{safe(view.follow_up_note) or ''}</p>
 {f'<h3>Gizli hekim notu</h3><p>{safe(conf)}</p>' if conf else ''}
 <div class="sign">
 <div>İşyeri Hekimi<br><b>{safe(record.physician_name) or '........................'}</b></div>
