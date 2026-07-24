@@ -1,7 +1,7 @@
 import js from "@eslint/js";
 import globals from "globals";
 
-/** P1-09: kademeli lint — auth / legal / memberships. */
+/** P1-09: kademeli lint — auth / legal / memberships / api / validation. */
 export default [
   {ignores: ["dist/**", "node_modules/**", "e2e/**"]},
   {
@@ -9,6 +9,8 @@ export default [
       "src/auth_session.js",
       "src/legal_acceptances.jsx",
       "src/memberships_panel.jsx",
+      "src/api.js",
+      "src/validation.js",
     ],
     languageOptions: {
       ecmaVersion: 2022,

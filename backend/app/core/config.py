@@ -37,8 +37,8 @@ class Settings(BaseSettings):
     object_storage_region: str | None = None
     object_storage_access_key: str | None = None
     object_storage_secret_key: str | None = None
-    # P0-07 geçici saha QR süresi (dakika)
-    site_qr_ephemeral_ttl_minutes: int = 30
+    # P0-05 geçici saha QR süresi (dakika) — kısa TTL + tek kullanım
+    site_qr_ephemeral_ttl_minutes: int = 5
     # P0-08 geri yükleme — varsayılan kapalı (yalnızca plan her zaman açık)
     backup_restore_enabled: bool = False
     # P0-10 sağlık alan şifreleme — varsayılan kapalı; açılınca yeni yazılar enc:v1:
@@ -54,8 +54,9 @@ class Settings(BaseSettings):
     # Canlıda acil kapatma: AUTH_REFRESH_COOKIE_FORCE_OFF=true
     auth_refresh_cookie_force_off: bool = False
     refresh_token_expire_days: int = 14
-    # P1-10 async job kuyruğu — kapalı; açılınca enqueue arka planda çalışır
+    # P1-10 async job — açıkça true VEYA REDIS_URL doluysa açık; acil: ASYNC_JOBS_FORCE_OFF=true
     async_jobs_enabled: bool = False
+    async_jobs_force_off: bool = False
     # İBYS / İSG-KATİP adapter scaffold (optional; never commit real secrets)
     ibys_api_url: str | None = None
     ibys_api_key: str | None = None

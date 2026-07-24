@@ -66,7 +66,7 @@ export async function wakeApi() {
       mode: "cors",
       credentials: FETCH_CREDENTIALS,
     });
-  } catch (_) {
+  } catch {
     /* ignore */
   }
 }

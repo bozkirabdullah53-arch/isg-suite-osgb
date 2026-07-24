@@ -21,3 +21,24 @@ def test_enqueue_accepts_kwargs(monkeypatch):
     rec = enqueue("kw", work, n=41)
     assert rec.status == JobStatus.DONE
     assert rec.result == 42
+
+
+def test_async_jobs_auto_on_with_redis(monkeypatch):
+    from app.core import config as cfg
+    from app.services import job_queue as jq
+
+    monkeypatch.setattr(cfg.settings, "async_jobs_force_off", False)
+    monkeypatch.setattr(cfg.settings, "async_jobs_enabled", False)
+    monkeypatch.setattr(cfg.settings, "redis_url", "redis://localhost:6379/0")
+    assert jq.async_jobs_enabled() is True
+    monkeypatch.setattr(cfg.settings, "async_jobs_force_off", True)
+    assert jq.async_jobs_enabled() is False
+    monkeypatch.setattr(cfg.settings, "async_jobs_force_off", False)
+    monkeypatch.setattr(cfg.settings, "redis_url", None)
+    assert jq.async_jobs_enabled() is False
+
+
+def test_site_qr_ttl_default_short():
+    from app.core.config import settings
+
+    assert int(settings.site_qr_ephemeral_ttl_minutes) <= 5

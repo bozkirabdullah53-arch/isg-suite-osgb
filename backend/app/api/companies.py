@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.company_access import companies_query_for_user, ensure_company_access
 from app.api.deps import get_current_user, require_roles
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import (
     AnnualPlanEvalCapa,
@@ -341,7 +342,7 @@ def create_company_ephemeral_site_qr(
         "token": row.token,
         "qr_payload": payload,
         "expires_at": row.expires_at.isoformat() + "Z",
-        "ttl_minutes": int((row.expires_at - row.created_at).total_seconds() // 60) or 30,
+        "ttl_minutes": int((row.expires_at - row.created_at).total_seconds() // 60) or int(settings.site_qr_ephemeral_ttl_minutes),
         "single_use": True,
     }
 

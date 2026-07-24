@@ -26,9 +26,13 @@ services:
         sync: false
       - key: SEED_ADMIN_PASSWORD
         sync: false
-      # Optional Redis (P1-02 rate limit paylaşımı) — Dashboard'da REDIS_URL set edilince aktif
+      # Optional Redis (P1-02 rate limit + P1-10 async jobs auto-on)
+      # Dashboard'da REDIS_URL set edilince rate limit redis + async jobs açılır
       - key: REDIS_URL
         sync: false
+      # Acil kapatma: ASYNC_JOBS_FORCE_OFF=true (Redis olsa bile senkron)
+      - key: ASYNC_JOBS_FORCE_OFF
+        value: "false"
       # P1-01 HttpOnly refresh — production kodda açık; acil kapatma:
       # AUTH_REFRESH_COOKIE_FORCE_OFF=true
       - key: AUTH_REFRESH_COOKIE_ENABLED

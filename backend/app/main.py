@@ -12,7 +12,7 @@ from app.core.config import settings, validate_runtime_settings
 from app.core.database import Base, SessionLocal, engine
 from app.core.version import APP_VERSION
 from app.core.auth_cookies import refresh_cookie_enabled
-from app.services.job_queue import job_backend_label
+from app.services.job_queue import async_jobs_enabled, job_backend_label
 from app.services.seed import seed_admin, seed_demo_osgbs
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self,request,call_next):
@@ -164,7 +164,7 @@ def health():
         'auth_refresh_rollout': 'prod-on-samesite-none-v2',
         'assignment_unique': 'active-partial-v2',
         'access_log': 'json-request-id-v1',
-        'async_jobs': 'on' if settings.async_jobs_enabled else 'off-sync-fallback',
+        'async_jobs': 'on' if async_jobs_enabled() else 'off-sync-fallback',
         'job_backend': job_backend_label(),
         'release_manifest': 'single-version-v1',
         'legal_consent': 'cms-ui-v2',
@@ -177,7 +177,7 @@ def health():
         'visit_calendar': 'plan-overdue-coverage-v1',
         'module_kpis': 'risk-training-health-v1',
         'field_gps': 'visit-complete-stamp-v1',
-        'field_qr': 'workplace-ephemeral-v1',
+        'field_qr': 'workplace-ephemeral-ttl5-v2',
         'field_signature': 'visit-sign-offline-v1',
         'tenant_isolation': 'osgb-scoped-v1',
         'central_archive': 'tenant-backup-restore-plan-v1',
