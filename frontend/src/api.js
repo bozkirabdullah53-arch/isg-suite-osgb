@@ -221,7 +221,7 @@ export function reportClientError(payload = {}) {
       },
       body: JSON.stringify(body),
     }).catch(() => {});
-  } catch (_) {
+  } catch {
     /* ignore */
   }
 }
