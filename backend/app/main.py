@@ -10,6 +10,7 @@ from app.core.access_log import StructuredAccessLogMiddleware
 from app.core.subscription_middleware import OsgbSubscriptionWriteMiddleware
 from app.core.config import settings, validate_runtime_settings
 from app.core.database import Base, SessionLocal, engine
+from app.core.version import APP_VERSION
 from app.services.seed import seed_admin, seed_demo_osgbs
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self,request,call_next):
@@ -56,7 +57,7 @@ async def lifespan(_:FastAPI):
 _is_prod = (settings.environment or '').strip().lower() in {'production', 'prod', 'live'}
 app=FastAPI(
     title=settings.app_name,
-    version='0.9.171',
+    version=APP_VERSION,
     lifespan=lifespan,
     docs_url=None if _is_prod else '/docs',
     redoc_url=None if _is_prod else '/redoc',
@@ -94,7 +95,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.171',
+        'version': APP_VERSION,
         'environment': (settings.environment or 'development').strip().lower() or 'development',
         'object_storage': storage_backend_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
@@ -161,6 +162,7 @@ def health():
         'assignment_unique': 'active-partial-v2',
         'access_log': 'json-request-id-v1',
         'async_jobs': 'on' if settings.async_jobs_enabled else 'off-sync-fallback',
+        'release_manifest': 'single-version-v1',
         'customer_360': 'company-overview-v1',
         'capacity_engine': '6331-legal-minutes-v1',
         'visit_calendar': 'plan-overdue-coverage-v1',

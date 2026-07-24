@@ -6,12 +6,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.version import APP_VERSION
 from app.services.job_queue import async_jobs_enabled, get_job
 
 router = APIRouter(prefix="/system", tags=["Sistem"])
-
-# Ana /health ile aynı sürüm kaynağı (P1-11 drift önleme)
-APP_VERSION = "0.9.171"
 
 
 @router.get("/health")

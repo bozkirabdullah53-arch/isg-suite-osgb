@@ -1,17 +1,18 @@
 """Kurum yedekleme ve merkezi arşiv API."""
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
 from app.api.tenant_access import accessible_company_ids_for_admin
-from app.core.database import get_db
+from app.core.database import SessionLocal, get_db
 from app.models.entities import ArchiveKind, EisaArchiveRecord, User, UserRole
 from app.services.archive_store import create_tenant_backup, resolve_archive_path
 from app.services.audit import add_audit_log
 from app.services.backup_restore import inspect_backup_file, restore_files_from_backup
+from app.services.job_queue import JobStatus, async_jobs_enabled, enqueue
 
 router = APIRouter(prefix="/archives", tags=["Yedekleme ve Arşiv"])
 
@@ -95,36 +96,80 @@ def list_archives(
     return [_to_response(r) for r in db.scalars(stmt).all()]
 
 
-@router.post("/backup", response_model=ArchiveResponse)
-def create_backup(
-    payload: BackupRequest,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
-):
-    try:
-        if user.role == UserRole.GLOBAL_ADMIN:
+def _run_tenant_backup_job(
+    *,
+    user_id: int,
+    is_global_admin: bool,
+    user_osgb_id: int | None,
+    user_company_id: int | None,
+    payload_osgb_id: int | None,
+    payload_company_id: int | None,
+) -> dict:
+    """Kendi SessionLocal'ı ile yedek üretir (async worker güvenli)."""
+    with SessionLocal() as db:
+        user = db.get(User, user_id)
+        if not user or not user.is_active:
+            raise ValueError("Kullanıcı bulunamadı veya pasif.")
+        if is_global_admin:
             row = create_tenant_backup(
-                db, user=user, osgb_id=payload.osgb_id, company_id=payload.company_id
+                db, user=user, osgb_id=payload_osgb_id, company_id=payload_company_id
             )
         else:
             row = create_tenant_backup(
                 db,
                 user=user,
-                osgb_id=user.osgb_id,
-                company_id=payload.company_id or user.company_id,
+                osgb_id=user_osgb_id,
+                company_id=payload_company_id or user_company_id,
             )
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
-    add_audit_log(
-        db,
-        user=user,
-        action="tenant_backup_created",
-        module="archives",
-        entity_type="eisa_archive",
-        entity_id=str(row.id),
-        description=f"Tenant yedeği oluşturuldu: {row.original_name}",
+        add_audit_log(
+            db,
+            user=user,
+            action="tenant_backup_created",
+            module="archives",
+            entity_type="eisa_archive",
+            entity_id=str(row.id),
+            description=f"Tenant yedeği oluşturuldu: {row.original_name}",
+        )
+        db.commit()
+        return {
+            "archive_id": row.id,
+            "original_name": row.original_name,
+            "size_bytes": row.size_bytes,
+        }
+
+
+@router.post("/backup")
+def create_backup(
+    payload: BackupRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    """Yedek oluştur. ASYNC_JOBS_ENABLED açıkken 202 + job_id; kapalıyken senkron ArchiveResponse."""
+    job = enqueue(
+        "tenant_backup",
+        _run_tenant_backup_job,
+        user_id=user.id,
+        is_global_admin=user.role == UserRole.GLOBAL_ADMIN,
+        user_osgb_id=user.osgb_id,
+        user_company_id=user.company_id,
+        payload_osgb_id=payload.osgb_id,
+        payload_company_id=payload.company_id,
     )
-    db.commit()
+    if async_jobs_enabled():
+        return JSONResponse(
+            status_code=202,
+            content={
+                "job_id": job.id,
+                "status": job.status.value,
+                "name": job.name,
+            },
+        )
+    if job.status == JobStatus.FAILED:
+        raise HTTPException(400, job.error or "Yedek oluşturulamadı.")
+    archive_id = (job.result or {}).get("archive_id")
+    row = db.get(EisaArchiveRecord, archive_id) if archive_id else None
+    if not row:
+        raise HTTPException(500, "Yedek kaydı okunamadı.")
     return _to_response(row)
 
 

@@ -10,6 +10,56 @@ const API_URL =
 
 const API_ROOT = API_URL.replace(/\/api\/v1\/?$/, "");
 
+/** P1-01: HttpOnly refresh cookie için credentials; flag kapalıyken zararsız. */
+const FETCH_CREDENTIALS = "include";
+const REFRESH_FLAG_KEY = "isg_refresh_cookie";
+
+export function setRefreshCookieMode(enabled) {
+  try {
+    if (enabled) localStorage.setItem(REFRESH_FLAG_KEY, "1");
+    else localStorage.removeItem(REFRESH_FLAG_KEY);
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function refreshCookieMode() {
+  try {
+    return localStorage.getItem(REFRESH_FLAG_KEY) === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+let _refreshInFlight = null;
+
+async function tryRefreshAccessToken() {
+  if (!refreshCookieMode()) return false;
+  if (!_refreshInFlight) {
+    _refreshInFlight = (async () => {
+      const response = await fetch(`${API_URL}/auth/refresh`, {
+        method: "POST",
+        credentials: FETCH_CREDENTIALS,
+        mode: "cors",
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        setRefreshCookieMode(false);
+        return false;
+      }
+      const body = await response.json().catch(() => ({}));
+      if (body?.access_token) {
+        localStorage.setItem("isg_token", body.access_token);
+        return true;
+      }
+      return false;
+    })().finally(() => {
+      _refreshInFlight = null;
+    });
+  }
+  return _refreshInFlight;
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -24,7 +74,12 @@ function isNetworkError(e) {
 /** Render cold-start: kimlik doğrulamasız /health ile API'yi uyandır. */
 export async function wakeApi() {
   try {
-    await fetch(`${API_ROOT}/health`, {method: "GET", cache: "no-store", mode: "cors"});
+    await fetch(`${API_ROOT}/health`, {
+      method: "GET",
+      cache: "no-store",
+      mode: "cors",
+      credentials: FETCH_CREDENTIALS,
+    });
   } catch (_) {
     /* ignore */
   }
@@ -173,6 +228,7 @@ export function reportClientError(payload = {}) {
     void fetch(`${API_URL}/eisa/error-reports`, {
       method: "POST",
       mode: "cors",
+      credentials: FETCH_CREDENTIALS,
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
@@ -190,7 +246,12 @@ export async function apiWithBearer(bearerToken, path, options = {}) {
   if (options.body != null && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
-  const response = await fetch(`${API_URL}${path}`, { ...options, headers, mode: "cors" });
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers,
+    mode: "cors",
+    credentials: FETCH_CREDENTIALS,
+  });
   if (!response.ok) {
     throw new Error(await parseError(response));
   }
@@ -204,13 +265,24 @@ export async function apiWithBearer(bearerToken, path, options = {}) {
   }
 }
 
+function canAttemptTokenRefresh(path, status) {
+  if (status !== 401) return false;
+  if (!refreshCookieMode()) return false;
+  const p = String(path || "");
+  if (p.startsWith("/auth/login") || p.startsWith("/auth/refresh") || p.startsWith("/auth/mfa")) {
+    return false;
+  }
+  return true;
+}
+
 /**
  * API çağrısı — ağ kopmasında API uyandırıp birkaç kez dener.
  * options._retries ile deneme sayısı (varsayılan 2 ek deneme).
+ * P1-01: refresh cookie modunda 401 → bir kez /auth/refresh.
  */
 export async function api(path, options = {}) {
   const retries = options._retries ?? 2;
-  const { _retries, headers: optHeaders, ...fetchOpts } = options;
+  const { _retries, _didRefresh, headers: optHeaders, ...fetchOpts } = options;
   const token = localStorage.getItem("isg_token");
   const method = (fetchOpts.method || "GET").toUpperCase();
   const headers = {...(optHeaders || {})};
@@ -228,9 +300,20 @@ export async function api(path, options = {}) {
         await wakeApi();
         await sleep(1200 * attempt);
       }
-      const response = await fetch(`${API_URL}${path}`, {...fetchOpts, headers, mode: "cors"});
+      const response = await fetch(`${API_URL}${path}`, {
+        ...fetchOpts,
+        headers,
+        mode: "cors",
+        credentials: FETCH_CREDENTIALS,
+      });
       if (!response.ok) {
         lastStatus = response.status;
+        if (!_didRefresh && canAttemptTokenRefresh(path, response.status)) {
+          const ok = await tryRefreshAccessToken();
+          if (ok) {
+            return api(path, {...options, _didRefresh: true, _retries: 0});
+          }
+        }
         const err = new Error(await parseError(response));
         err.httpStatus = response.status;
         err.httpPath = path;
@@ -285,6 +368,7 @@ export async function authBlobUrl(path) {
   const response = await fetch(`${API_URL}${path}`, {
     headers: token ? {Authorization: `Bearer ${token}`} : {},
     mode: "cors",
+    credentials: FETCH_CREDENTIALS,
   });
   if (!response.ok) {
     throw new Error(`Dosya alınamadı (HTTP ${response.status}).`);
@@ -301,6 +385,7 @@ export async function downloadFile(path, filename) {
     response = await fetch(`${API_URL}${path}`, {
       headers: token ? {Authorization: `Bearer ${token}`} : {},
       mode: "cors",
+      credentials: FETCH_CREDENTIALS,
     });
   } catch (e) {
     if (isNetworkError(e)) {
@@ -361,6 +446,7 @@ export async function uploadFile(path, file, extraFields = null) {
       headers: token ? {Authorization: `Bearer ${token}`} : {},
       body: formData,
       mode: "cors",
+      credentials: FETCH_CREDENTIALS,
     });
   } catch (e) {
     if (isNetworkError(e)) {

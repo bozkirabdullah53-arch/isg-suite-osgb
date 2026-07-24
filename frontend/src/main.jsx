@@ -1,7 +1,7 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
-import {api, apiWithBearer, downloadFile, reportClientError} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';
+import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';
 import {ProPerformancePage} from './pro_performance';
 import {CsgbAuditPackPage} from './csgb_audit_pack';
 import {MevzuatPanelPage} from './mevzuat_panel';
@@ -166,7 +166,12 @@ function Login({done,onApply}){
     e.preventDefault();setErr('');setBusy(true);
     try{
       const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password}),_retries:0});
-      if(r.access_token){localStorage.setItem('isg_token',r.access_token);done();return}
+      if(r.access_token){
+        localStorage.setItem('isg_token',r.access_token);
+        setRefreshCookieMode(!!r.refresh_cookie);
+        done();
+        return;
+      }
       if(r.mfa_required&&r.mfa_token){setMfaToken(r.mfa_token);setMode('mfa');return}
       if(r.mfa_setup_required&&r.mfa_token){
         setMfaToken(r.mfa_token);
@@ -183,7 +188,9 @@ function Login({done,onApply}){
     e.preventDefault();setErr('');setBusy(true);
     try{
       const body=await apiWithBearer(mfaToken,'/auth/mfa/verify',{method:'POST',body:JSON.stringify({code})});
-      localStorage.setItem('isg_token',body.access_token);done();
+      localStorage.setItem('isg_token',body.access_token);
+      setRefreshCookieMode(!!body.refresh_cookie);
+      done();
     }catch(x){setErr(x.message)}
     finally{setBusy(false)}
   }
@@ -195,6 +202,7 @@ function Login({done,onApply}){
       const body=await apiWithBearer(tok,'/security/mfa/enable',{method:'POST',body:JSON.stringify({code})});
       if(body.recovery_codes)setRecoveryCodes(body.recovery_codes);
       localStorage.setItem('isg_token',body.access_token);
+      setRefreshCookieMode(!!body.refresh_cookie);
       localStorage.removeItem('isg_mfa_setup_token');
       if(body.recovery_codes?.length){setMode('recovery');return}
       done();
@@ -693,6 +701,7 @@ function SecurityPage({user}){
       setMessage(r.message||'Tüm oturumlar kapatıldı.');
       localStorage.removeItem('isg_token');
       localStorage.removeItem('isg_mfa_setup_token');
+      setRefreshCookieMode(false);
       setTimeout(()=>window.location.reload(),800);
     }catch(err){setMessage(err.message)}
   }
@@ -1053,6 +1062,7 @@ function App(){
     }catch(_){ /* ağ hatası olsa da yerel oturumu kapat */ }
     localStorage.removeItem('isg_token');
     localStorage.removeItem('isg_mfa_setup_token');
+    setRefreshCookieMode(false);
     try{sessionStorage.removeItem('isg_active')}catch(_){ /* ignore */ }
     setLogged(false);
     setUser(null);
@@ -1094,6 +1104,7 @@ function App(){
       });
     }).catch(()=>{
       localStorage.removeItem('isg_token');
+      setRefreshCookieMode(false);
       setLogged(false);
     });
   },[logged,verifyCode]);
