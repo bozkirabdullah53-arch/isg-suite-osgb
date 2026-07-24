@@ -56,7 +56,7 @@ async def lifespan(_:FastAPI):
 _is_prod = (settings.environment or '').strip().lower() in {'production', 'prod', 'live'}
 app=FastAPI(
     title=settings.app_name,
-    version='0.9.170',
+    version='0.9.171',
     lifespan=lifespan,
     docs_url=None if _is_prod else '/docs',
     redoc_url=None if _is_prod else '/redoc',
@@ -94,7 +94,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.170',
+        'version': '0.9.171',
         'environment': (settings.environment or 'development').strip().lower() or 'development',
         'object_storage': storage_backend_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
@@ -158,7 +158,7 @@ def health():
         'ci_postgres': 'workflow-v1-migrate-parity',
         'tenant_context': 'contextvar-wired-v1',
         'auth_refresh_cookie': 'on' if settings.auth_refresh_cookie_enabled else 'off',
-        'assignment_unique': 'active-partial-v1',
+        'assignment_unique': 'active-partial-v2',
         'access_log': 'json-request-id-v1',
         'async_jobs': 'on' if settings.async_jobs_enabled else 'off-sync-fallback',
         'customer_360': 'company-overview-v1',
