@@ -10,6 +10,9 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
+      # P0: production sertleştirmesi (SECRET_KEY doğrulama + migration fail-fast)
+      - key: ENVIRONMENT
+        value: production
       - key: DATABASE_URL
         fromDatabase:
           name: isg-suite-db

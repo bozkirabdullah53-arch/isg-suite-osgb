@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     clamav_host: str | None = None
     clamav_port: int = 3310
     clamav_timeout_sec: float = 30.0
+    # P0 upload gateway — kapalı; açılınca yeni yollar persist_upload kullanır
+    upload_gateway_enabled: bool = False
     # İBYS / İSG-KATİP adapter scaffold (optional; never commit real secrets)
     ibys_api_url: str | None = None
     ibys_api_key: str | None = None
