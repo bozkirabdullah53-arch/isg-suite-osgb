@@ -788,9 +788,12 @@ async def upload_assignment_contract(
             except OSError:
                 pass
     rel = f"{obj.osgb_id}/assignments/{obj.id}_{uuid4().hex[:10]}{ext}"
-    target = _upload_root() / rel
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(data)
+    if settings.upload_gateway_enabled:
+        persist_relative(data, relative_path=rel, original_name=name)
+    else:
+        target = _upload_root() / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
     obj.contract_file_name = name
     obj.contract_storage_path = rel.replace("\\", "/")
     obj.contract_content_type = file.content_type or {

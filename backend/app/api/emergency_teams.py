@@ -20,6 +20,7 @@ from app.api.company_access import company_ids_for_query, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
+from app.services.upload_gateway import persist_relative
 from app.models.entities import (
     Company,
     Employee,
@@ -684,9 +685,12 @@ async def upload_certificate(
     if len(data) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(413, f"Dosya {settings.max_upload_mb} MB sınırını aşıyor.")
     rel = f"{row.company_id}/emergency_teams/{row.id}_{uuid.uuid4().hex[:10]}{ext}"
-    target = _upload_root() / rel
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(data)
+    if settings.upload_gateway_enabled:
+        persist_relative(data, relative_path=rel, original_name=name)
+    else:
+        target = _upload_root() / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
 
     # En son eğitime iliştir; yoksa belge taşıyan yeni bir kayıt oluştur
     latest = None
