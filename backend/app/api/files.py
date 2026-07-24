@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import DocumentRecord, User, UserRole
 from app.services.audit import add_audit_log
+from app.services.upload_gateway import persist_upload
 from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/files", tags=["Dosyalar"])
@@ -64,17 +65,26 @@ async def upload_document_file(
     if len(content) > max_bytes:
         raise HTTPException(status_code=413, detail=f"Dosya {settings.max_upload_mb} MB sınırını aşıyor.")
 
-    assert_safe_upload(content, extension, original.name)
+    # Flag kapalı: mevcut yol. Açık: tekil gateway (aynı disk düzeni).
+    if settings.upload_gateway_enabled:
+        _, stored_name = persist_upload(
+            content,
+            company_id=document.company_id,
+            extension=extension,
+            original_name=original.name,
+        )
+    else:
+        assert_safe_upload(content, extension, original.name)
 
-    company_dir = safe_upload_root() / str(document.company_id)
-    company_dir.mkdir(parents=True, exist_ok=True)
-    stored_name = f"{uuid4().hex}{extension}"
-    target = (company_dir / stored_name).resolve()
-    if safe_upload_root() not in target.parents:
-        raise HTTPException(status_code=400, detail="Geçersiz dosya yolu.")
+        company_dir = safe_upload_root() / str(document.company_id)
+        company_dir.mkdir(parents=True, exist_ok=True)
+        stored_name = f"{uuid4().hex}{extension}"
+        target = (company_dir / stored_name).resolve()
+        if safe_upload_root() not in target.parents:
+            raise HTTPException(status_code=400, detail="Geçersiz dosya yolu.")
 
-    async with aiofiles.open(target, "wb") as out:
-        await out.write(content)
+        async with aiofiles.open(target, "wb") as out:
+            await out.write(content)
 
     document.file_name = original.name
     document.description = ((document.description or "") + f"\n[stored:{stored_name}]").strip()
