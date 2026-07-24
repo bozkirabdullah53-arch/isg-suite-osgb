@@ -12,6 +12,7 @@ from app.core.config import settings, validate_runtime_settings
 from app.core.database import Base, SessionLocal, engine
 from app.core.version import APP_VERSION
 from app.core.auth_cookies import refresh_cookie_enabled
+from app.services.job_queue import job_backend_label
 from app.services.seed import seed_admin, seed_demo_osgbs
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self,request,call_next):
@@ -164,11 +165,12 @@ def health():
         'assignment_unique': 'active-partial-v2',
         'access_log': 'json-request-id-v1',
         'async_jobs': 'on' if settings.async_jobs_enabled else 'off-sync-fallback',
+        'job_backend': job_backend_label(),
         'release_manifest': 'single-version-v1',
-        'legal_consent': 'acceptance-ui-v1',
-        'memberships': 'org-workplace-scaffold-v1',
-        'frontend_tests': 'vitest-eslint-smoke-v1',
-        'rls_pilot': 'legal-acceptances-v1',
+        'legal_consent': 'cms-ui-v2',
+        'memberships': 'admin-api-ui-v1',
+        'frontend_tests': 'vitest-eslint-pw-smoke-v1',
+        'rls_pilot': 'legal-memberships-v2',
         'access_ttl': 'short-when-refresh-cookie',
         'customer_360': 'company-overview-v1',
         'capacity_engine': '6331-legal-minutes-v1',

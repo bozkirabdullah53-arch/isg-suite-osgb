@@ -27,7 +27,8 @@ def test_apply_rls_user_noop_on_sqlite(tmp_path):
     Session = sessionmaker(bind=engine)
     Base.metadata.create_all(bind=engine)
     with Session() as db:
-        apply_rls_user(db, 42)  # exception olmamalı
+        apply_rls_user(db, 42)
+        apply_rls_user(db, None)
 
 
 def test_membership_expands_assigned_companies(tmp_path):

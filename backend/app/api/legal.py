@@ -1,8 +1,4 @@
-"""Legal document versions and acceptance API (P1-12).
-
-Aydınlatma ile açık rıza ayrı document_key; kabul kaydı immutable.
-Metin içeriği hukuk onayı sonrası güncellenir — burada yalnızca sürüm anahtarları.
-"""
+"""Legal document catalog + acceptance (P1-12 CMS)."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -18,25 +14,40 @@ from app.models.entities import LegalAcceptance, User
 
 router = APIRouter(prefix="/legal", tags=["Hukuki Onaylar"])
 
-# Sabit kayıt: key → sürüm + hukuki dayanak (metin CMS/hukuk paketi ayrıca)
 LEGAL_DOCUMENTS: dict[str, dict[str, str]] = {
     "privacy_notice": {
         "title": "Aydınlatma Metni",
-        "version": "2026-07-01",
+        "version": "2026-07-24",
         "legal_basis": "kvkk_art_10",
         "summary": "Kişisel verilerin işlenmesine ilişkin bilgilendirme (açık rıza yerine geçmez).",
+        "body": (
+            "İSG Suite, OSGB ve işyeri süreçlerinde kimlik, iletişim ve operasyon verilerinizi "
+            "KVKK md.5/6 kapsamında hizmet sözleşmesi ve meşru menfaat hukuki dayanaklarıyla işler. "
+            "Bu metin bilgilendirme amaçlıdır; özel nitelikli veri için ayrıca açık rıza alınır. "
+            "Haklarınız: erişim, düzeltme, silme, itiraz. İletişim: platform destek kanalları."
+        ),
     },
     "explicit_consent_health": {
         "title": "Sağlık Verisi Açık Rıza",
-        "version": "2026-07-01",
+        "version": "2026-07-24",
         "legal_basis": "explicit_consent",
         "summary": "Özel nitelikli sağlık verisi işleme için ayrı açık rıza.",
+        "body": (
+            "İşyeri hekimliği ve İSG süreçlerinde sağlık verilerinizin (muayene, tetkik, maruziyet) "
+            "yetkili rollerce işlenmesine açık rıza veriyorum. Rızamı geri çekme hakkım saklıdır; "
+            "geri çekme yasal saklama yükümlülüklerini ortadan kaldırmaz."
+        ),
     },
     "terms_of_use": {
         "title": "Kullanım Koşulları",
-        "version": "2026-07-01",
+        "version": "2026-07-24",
         "legal_basis": "contract",
         "summary": "Platform kullanım şartları.",
+        "body": (
+            "Platform bir SaaS hizmetidir; yasal İSG yükümlülükleri müşteri OSGB/işverenindedir. "
+            "Hesap güvenliği, doğru veri girişi ve yetkisiz paylaşım yasağı kullanıcı sorumluluğundadır. "
+            "Hizmet kesintileri, bakım ve güncellemeler makul ölçüde bildirilir."
+        ),
     },
 }
 
@@ -47,6 +58,7 @@ class LegalDocumentOut(BaseModel):
     version: str
     legal_basis: str
     summary: str
+    body: str | None = None
     accepted: bool = False
     accepted_at: datetime | None = None
 
@@ -80,9 +92,7 @@ def list_legal_documents(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    rows = db.scalars(
-        select(LegalAcceptance).where(LegalAcceptance.user_id == user.id)
-    ).all()
+    rows = db.scalars(select(LegalAcceptance).where(LegalAcceptance.user_id == user.id)).all()
     by_key = {(r.document_key, r.document_version): r for r in rows}
     out: list[LegalDocumentOut] = []
     for key, meta in LEGAL_DOCUMENTS.items():
@@ -95,11 +105,40 @@ def list_legal_documents(
                 version=ver,
                 legal_basis=meta["legal_basis"],
                 summary=meta["summary"],
+                body=meta.get("body"),
                 accepted=hit is not None,
                 accepted_at=hit.accepted_at if hit else None,
             )
         )
     return out
+
+
+@router.get("/documents/{document_key}", response_model=LegalDocumentOut)
+def get_legal_document(
+    document_key: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    meta = LEGAL_DOCUMENTS.get(document_key)
+    if not meta:
+        raise HTTPException(404, "Hukuki belge bulunamadı.")
+    hit = db.scalar(
+        select(LegalAcceptance).where(
+            LegalAcceptance.user_id == user.id,
+            LegalAcceptance.document_key == document_key,
+            LegalAcceptance.document_version == meta["version"],
+        )
+    )
+    return LegalDocumentOut(
+        key=document_key,
+        title=meta["title"],
+        version=meta["version"],
+        legal_basis=meta["legal_basis"],
+        summary=meta["summary"],
+        body=meta.get("body"),
+        accepted=hit is not None,
+        accepted_at=hit.accepted_at if hit else None,
+    )
 
 
 @router.post("/accept", response_model=AcceptanceOut)
@@ -114,10 +153,7 @@ def accept_legal_document(
         raise HTTPException(404, "Hukuki belge bulunamadı.")
     version = (payload.document_version or meta["version"]).strip()
     if version != meta["version"]:
-        raise HTTPException(
-            409,
-            f"Belge sürümü güncel değil. Güncel sürüm: {meta['version']}",
-        )
+        raise HTTPException(409, f"Belge sürümü güncel değil. Güncel sürüm: {meta['version']}")
 
     existing = db.scalar(
         select(LegalAcceptance).where(

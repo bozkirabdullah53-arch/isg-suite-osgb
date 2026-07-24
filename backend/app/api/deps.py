@@ -47,7 +47,7 @@ def _user_from_token(token: str, db: Session, *, allowed_purposes: set[str]) -> 
     # P1-03: istek boyunca TenantContext (osgb/firma kapsamı)
     if purpose == "access":
         bind_user_tenant(user)
-        apply_rls_user(db, user.id)
+        apply_rls_user(db, user)
     return user
 
 

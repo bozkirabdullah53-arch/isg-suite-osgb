@@ -104,7 +104,9 @@ jobs:
         run: npm test
       - name: Lint
         run: npm run lint
-      - name: Audit
-        run: npm audit --omit=dev
       - name: Build
         run: npm run build
+      - name: E2E smoke
+        run: npx playwright install --with-deps chromium && npm run test:e2e
+      - name: Audit
+        run: npm audit --omit=dev

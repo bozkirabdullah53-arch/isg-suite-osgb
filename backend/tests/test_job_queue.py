@@ -1,5 +1,5 @@
-"""P1-10 job queue scaffold tests."""
-from app.services.job_queue import JobStatus, enqueue, get_job
+"""Job queue + Redis label smoke."""
+from app.services.job_queue import JobStatus, enqueue, get_job, job_backend_label
 
 
 def test_enqueue_sync_when_flag_off(monkeypatch):
@@ -12,6 +12,11 @@ def test_enqueue_sync_when_flag_off(monkeypatch):
     assert rec.status == JobStatus.DONE
     assert rec.result == 42
     assert get_job(rec.id) is rec
+
+
+def test_job_backend_label_sync(monkeypatch):
+    monkeypatch.setattr("app.services.job_queue.async_jobs_enabled", lambda: False)
+    assert job_backend_label() == "off-sync-fallback"
 
 
 def test_system_job_endpoint(monkeypatch):
