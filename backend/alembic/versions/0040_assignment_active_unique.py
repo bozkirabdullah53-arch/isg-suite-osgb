@@ -41,15 +41,18 @@ def upgrade():
     insp = sa.inspect(bind)
     idx_names = {i["name"] for i in insp.get_indexes("workplace_assignments")}
     if _NEW not in idx_names:
-        # Hem value ('active') hem name ('ACTIVE') etiketlerini kapsar
-        where = sa.text("status IN ('active', 'ACTIVE')")
+        if bind.dialect.name == "postgresql":
+            # SQLAlchemy native enum etiketleri genelde ACTIVE/ENDED/SUSPENDED
+            where = sa.text("status = 'ACTIVE'")
+        else:
+            where = sa.text("status IN ('active', 'ACTIVE')")
         op.create_index(
             _NEW,
             "workplace_assignments",
             ["company_id", "professional_id", "professional_type"],
             unique=True,
-            postgresql_where=where,
-            sqlite_where=where,
+            postgresql_where=where if bind.dialect.name == "postgresql" else None,
+            sqlite_where=where if bind.dialect.name == "sqlite" else None,
         )
 
 
