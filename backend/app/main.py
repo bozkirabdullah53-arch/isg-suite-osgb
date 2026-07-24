@@ -192,7 +192,7 @@ def health():
         'legal_consent': 'cms-ui-v2',
         'memberships': 'admin-api-ui-v1',
         'frontend_tests': 'vitest-eslint-pw-offline-v2',
-        'rls_pilot': 'field-modules-v5',
+        'rls_pilot': 'field-modules-training-sds-drill-v6',
         'access_ttl': 'short-when-refresh-cookie',
         'customer_360': 'company-overview-v1',
         'capacity_engine': '6331-legal-minutes-v1',
