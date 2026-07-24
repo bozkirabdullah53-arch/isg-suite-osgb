@@ -161,7 +161,7 @@ def health():
         'ci_postgres': 'workflow-v1-migrate-parity',
         'tenant_context': 'contextvar-wired-v1',
         'auth_refresh_cookie': 'on' if refresh_cookie_enabled() else 'off',
-        'auth_refresh_rollout': 'prod-on-partitioned-v1',
+        'auth_refresh_rollout': 'prod-on-samesite-none-v2',
         'assignment_unique': 'active-partial-v2',
         'access_log': 'json-request-id-v1',
         'async_jobs': 'on' if settings.async_jobs_enabled else 'off-sync-fallback',

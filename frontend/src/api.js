@@ -228,27 +228,56 @@ export function reportClientError(payload = {}) {
 
 /** Geçici / MFA token ile çağrı (localStorage isg_token kullanmaz). */
 export async function apiWithBearer(bearerToken, path, options = {}) {
-  const headers = { ...(options.headers || {}), Authorization: `Bearer ${bearerToken}` };
-  if (options.body != null && !headers["Content-Type"]) {
+  const retries = options._retries ?? 2;
+  const { _retries, headers: optHeaders, ...fetchOpts } = options;
+  const method = (fetchOpts.method || "GET").toUpperCase();
+  const headers = {
+    ...(optHeaders || {}),
+    Authorization: `Bearer ${bearerToken}`,
+  };
+  if (method !== "GET" && method !== "HEAD" && fetchOpts.body != null && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers,
-    mode: "cors",
-    credentials: FETCH_CREDENTIALS,
-  });
-  if (!response.ok) {
-    throw new Error(await parseError(response));
+
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (attempt > 0) {
+        await wakeApi();
+        await sleep(1200 * attempt);
+      }
+      const response = await fetch(`${API_URL}${path}`, {
+        ...fetchOpts,
+        headers,
+        mode: "cors",
+        credentials: FETCH_CREDENTIALS,
+      });
+      if (!response.ok) {
+        const err = new Error(await parseError(response));
+        err.httpStatus = response.status;
+        throw err;
+      }
+      if (response.status === 204) return null;
+      const text = await response.text();
+      if (!text) return null;
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    } catch (e) {
+      lastErr = e;
+      if (!isNetworkError(e) || attempt === retries) {
+        if (isNetworkError(e)) {
+          throw new Error(
+            "Sunucuya bağlanılamadı. API uyanıyor olabilir — 10–20 sn bekleyip tekrar deneyin.",
+          );
+        }
+        throw e;
+      }
+    }
   }
-  if (response.status === 204) return null;
-  const text = await response.text();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
+  throw lastErr;
 }
 
 /**

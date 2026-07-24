@@ -167,7 +167,7 @@ function Login({done,onApply}){
   async function submitLogin(e){
     e.preventDefault();setErr('');setBusy(true);
     try{
-      const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password}),_retries:0});
+      const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password}),_retries:3});
       if(r.access_token){
         localStorage.setItem('isg_token',r.access_token);
         setRefreshCookieMode(!!r.refresh_cookie);
@@ -189,7 +189,7 @@ function Login({done,onApply}){
   async function submitMfa(e){
     e.preventDefault();setErr('');setBusy(true);
     try{
-      const body=await apiWithBearer(mfaToken,'/auth/mfa/verify',{method:'POST',body:JSON.stringify({code})});
+      const body=await apiWithBearer(mfaToken,'/auth/mfa/verify',{method:'POST',body:JSON.stringify({code}),_retries:3});
       localStorage.setItem('isg_token',body.access_token);
       setRefreshCookieMode(!!body.refresh_cookie);
       done();

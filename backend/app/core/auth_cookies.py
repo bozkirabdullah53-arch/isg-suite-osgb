@@ -26,11 +26,11 @@ def access_token_ttl_minutes() -> int:
 
 
 def _cookie_flags() -> tuple[bool, str, bool]:
-    """Prod: Secure + SameSite=None + Partitioned (cross-site SPA). Yerel: Lax."""
+    """Prod: Secure + SameSite=None (cross-site SPA). Partitioned bazı tarayıcılarda sorun çıkardı — kapalı."""
     env = (settings.environment or "").strip().lower()
     secure = env in {"production", "prod", "live"}
     samesite = "none" if secure else "lax"
-    partitioned = secure  # CHIPS — üçüncü taraf cookie engeline karşı
+    partitioned = False
     return secure, samesite, partitioned
 
 
