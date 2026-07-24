@@ -1,11 +1,17 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.database import get_db
+from app.services.job_queue import async_jobs_enabled, get_job
 
 router = APIRouter(prefix="/system", tags=["Sistem"])
+
+# Ana /health ile aynı sürüm kaynağı (P1-11 drift önleme)
+APP_VERSION = "0.9.170"
 
 
 @router.get("/health")
@@ -15,15 +21,23 @@ def health(db: Session = Depends(get_db)):
         "status": "healthy",
         "database": "connected",
         "timestamp": datetime.utcnow(),
-        "version": "0.9.124",
-        "ai_hazard_hint": "keyword-v2",
-        "mevzuat_panel": "highlights-v1",
-        "sds_register": "chemical-register-v1",
-        "ghs_label_checklist": "ghs-label-checklist-v1",
-        "risk_photo_tags": "checklist-v1",
-        "sds_review_reminders": "duty-notify-v1",
-        "osgb_mevzuat_link": "dashboard-v1",
-        "osgb_sds_due": "dashboard-v1",
-        "integration_readiness": "checklist-v1",
-        "osgb_home_kpis": "finance-contracts-sds-v3",
+        "version": APP_VERSION,
+        "environment": (settings.environment or "development").strip().lower() or "development",
+        "async_jobs": "on" if async_jobs_enabled() else "off",
+    }
+
+
+@router.get("/jobs/{job_id}")
+def job_status(job_id: str):
+    """Async iş durumu (P1-10). Kayıt yoksa 404."""
+    rec = get_job(job_id)
+    if not rec:
+        raise HTTPException(404, "İş bulunamadı.")
+    return {
+        "id": rec.id,
+        "name": rec.name,
+        "status": rec.status.value,
+        "error": rec.error,
+        "created_at": rec.created_at.isoformat() + "Z",
+        "finished_at": rec.finished_at.isoformat() + "Z" if rec.finished_at else None,
     }

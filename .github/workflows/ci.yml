@@ -38,6 +38,7 @@ jobs:
           tests/test_ci_postgres_parity.py
           tests/test_tenant_context.py
           tests/test_p1_auth_assignment.py
+          tests/test_job_queue.py
 
   backend-postgres:
     runs-on: ubuntu-latest

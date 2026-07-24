@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     # P1-01 HttpOnly refresh cookie — kapalı; açılınca login Set-Cookie yazar
     auth_refresh_cookie_enabled: bool = False
     refresh_token_expire_days: int = 14
+    # P1-10 async job kuyruğu — kapalı; açılınca enqueue arka planda çalışır
+    async_jobs_enabled: bool = False
     # İBYS / İSG-KATİP adapter scaffold (optional; never commit real secrets)
     ibys_api_url: str | None = None
     ibys_api_key: str | None = None
