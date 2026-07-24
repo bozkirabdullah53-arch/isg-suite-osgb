@@ -1447,3 +1447,37 @@ class LegalAcceptance(Base):
     ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(400), nullable=True)
     accepted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class OrganizationMembership(Base):
+    """P1-04: Kullanıcının OSGB üyelikleri (çoklu OSGB/rol hazırlığı)."""
+
+    __tablename__ = "organization_memberships"
+    __table_args__ = (
+        UniqueConstraint("user_id", "osgb_id", "role", name="uq_org_membership_user_osgb_role"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    osgb_id: Mapped[int] = mapped_column(
+        ForeignKey("osgb_organizations.id", ondelete="CASCADE"), index=True
+    )
+    role: Mapped[str] = mapped_column(String(40))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class WorkplaceMembership(Base):
+    """P1-04: Kullanıcının işyeri üyelikleri (çoklu firma hazırlığı)."""
+
+    __tablename__ = "workplace_memberships"
+    __table_args__ = (
+        UniqueConstraint("user_id", "company_id", "role", name="uq_wp_membership_user_company_role"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String(40))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

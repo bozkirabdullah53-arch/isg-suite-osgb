@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal
+from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships
 from app.core.rate_limit import SimpleRateLimitMiddleware, rate_limit_backend
 from app.core.request_id import RequestIdMiddleware
 from app.core.tenant_middleware import TenantContextMiddleware
@@ -86,7 +86,7 @@ _cors_origins=list(dict.fromkeys([
     'https://isgsuite.tr',
 ]))
 app.add_middleware(CORSMiddleware,allow_origins=_cors_origins,allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
-for r in (auth.router,osgb_applications.router,eisa.router,companies.router,branches.router,users.router,employees.router,isg_records.router,health.router,documents.router,annual_plans.router,annual_eval.router,reports.router,security.router,files.router,exports.router,subscriptions.router,notifications.router,system.router,dashboard.router,osgb.router,operations.router,trainings.router,risks.router,incidents.router,ppe.router,sds.router,drills.router,emergency_teams.router,archives.router,legal.router): app.include_router(r,prefix='/api/v1')
+for r in (auth.router,osgb_applications.router,eisa.router,companies.router,branches.router,users.router,employees.router,isg_records.router,health.router,documents.router,annual_plans.router,annual_eval.router,reports.router,security.router,files.router,exports.router,subscriptions.router,notifications.router,system.router,dashboard.router,osgb.router,operations.router,trainings.router,risks.router,incidents.router,ppe.router,sds.router,drills.router,emergency_teams.router,archives.router,legal.router,memberships.router): app.include_router(r,prefix='/api/v1')
 @app.get('/health')
 def health():
     import os
@@ -164,6 +164,8 @@ def health():
         'async_jobs': 'on' if settings.async_jobs_enabled else 'off-sync-fallback',
         'release_manifest': 'single-version-v1',
         'legal_consent': 'acceptance-versioned-v1',
+        'memberships': 'org-workplace-scaffold-v1',
+        'frontend_tests': 'vitest-smoke-v1',
         'customer_360': 'company-overview-v1',
         'capacity_engine': '6331-legal-minutes-v1',
         'visit_calendar': 'plan-overdue-coverage-v1',

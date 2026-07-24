@@ -9,7 +9,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
@@ -19,5 +21,8 @@
     "react-dom": "^19.0.0",
     "lucide-react": "^0.468.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "happy-dom": "^17.4.4",
+    "vitest": "^3.2.4"
+  }
 }

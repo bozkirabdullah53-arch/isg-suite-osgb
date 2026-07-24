@@ -39,6 +39,9 @@ jobs:
           tests/test_tenant_context.py
           tests/test_p1_auth_assignment.py
           tests/test_job_queue.py
+          tests/test_legal_consent.py
+          tests/test_memberships.py
+          tests/test_p1_version_jobs.py
 
   backend-postgres:
     runs-on: ubuntu-latest
@@ -95,6 +98,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install
         run: npm ci
+      - name: Test
+        run: npm test
       - name: Audit
         run: npm audit --omit=dev
       - name: Build

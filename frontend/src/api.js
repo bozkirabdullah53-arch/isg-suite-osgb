@@ -1,3 +1,7 @@
+import { canAttemptTokenRefresh, refreshCookieMode, setRefreshCookieMode } from "./auth_session.js";
+
+export { setRefreshCookieMode } from "./auth_session.js";
+
 const isLocalHost =
   typeof window !== "undefined" &&
   (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
@@ -12,24 +16,6 @@ const API_ROOT = API_URL.replace(/\/api\/v1\/?$/, "");
 
 /** P1-01: HttpOnly refresh cookie için credentials; flag kapalıyken zararsız. */
 const FETCH_CREDENTIALS = "include";
-const REFRESH_FLAG_KEY = "isg_refresh_cookie";
-
-export function setRefreshCookieMode(enabled) {
-  try {
-    if (enabled) localStorage.setItem(REFRESH_FLAG_KEY, "1");
-    else localStorage.removeItem(REFRESH_FLAG_KEY);
-  } catch (_) {
-    /* ignore */
-  }
-}
-
-function refreshCookieMode() {
-  try {
-    return localStorage.getItem(REFRESH_FLAG_KEY) === "1";
-  } catch (_) {
-    return false;
-  }
-}
 
 let _refreshInFlight = null;
 
@@ -263,16 +249,6 @@ export async function apiWithBearer(bearerToken, path, options = {}) {
   } catch {
     return text;
   }
-}
-
-function canAttemptTokenRefresh(path, status) {
-  if (status !== 401) return false;
-  if (!refreshCookieMode()) return false;
-  const p = String(path || "");
-  if (p.startsWith("/auth/login") || p.startsWith("/auth/refresh") || p.startsWith("/auth/mfa")) {
-    return false;
-  }
-  return true;
 }
 
 /**
