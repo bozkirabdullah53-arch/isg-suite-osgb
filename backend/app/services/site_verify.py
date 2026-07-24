@@ -69,8 +69,9 @@ def parse_ephemeral(raw: str) -> tuple[int | None, str]:
 
 
 def codes_match(company_code: str | None, raw: str | None) -> bool:
-    if not company_code:
-        return True
+    """Kalıcı işyeri kodu eşleşmesi — boş şirket kodu fail-closed (P0-05)."""
+    if not company_code or not str(company_code).strip():
+        return False
     submitted = parse_site_code(raw or "")
     return bool(submitted) and submitted == company_code.strip().upper()
 

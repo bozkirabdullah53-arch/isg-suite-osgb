@@ -54,13 +54,12 @@ def _apply_gps_stamp(obj: ServiceVisit, lat: float | None, lng: float | None, ac
 
 
 def _apply_site_verify(db: Session, obj: ServiceVisit, company: Company | None, raw_code: str | None):
+    """Ziyaret tamamlama QR — kalıcı veya geçici; boş kod / bypass yok (P0-05)."""
     if not company:
         raise HTTPException(400, "İşyeri bulunamadı.")
-    if not company.site_verify_code:
-        return
     if not raw_code or not str(raw_code).strip():
         raise HTTPException(422, "İşyeri QR doğrulama kodu gerekli.")
-    if codes_match(company.site_verify_code, raw_code):
+    if company.site_verify_code and codes_match(company.site_verify_code, raw_code):
         obj.site_verified_at = datetime.utcnow()
         return
     if consume_ephemeral_token(db, company.id, raw_code):

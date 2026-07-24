@@ -177,7 +177,7 @@ def health():
         'visit_calendar': 'plan-overdue-coverage-v1',
         'module_kpis': 'risk-training-health-v1',
         'field_gps': 'visit-complete-stamp-v1',
-        'field_qr': 'workplace-ephemeral-ttl5-v2',
+        'field_qr': 'workplace-ephemeral-failclosed-v3',
         'field_signature': 'visit-sign-offline-v1',
         'tenant_isolation': 'osgb-scoped-v1',
         'central_archive': 'tenant-backup-restore-plan-v1',

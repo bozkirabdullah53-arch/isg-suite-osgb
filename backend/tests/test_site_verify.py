@@ -6,7 +6,15 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from app.services.site_verify import build_qr_payload
+from app.services.site_verify import build_qr_payload, codes_match
+
+
+def test_codes_match_fail_closed_when_company_code_missing():
+    assert codes_match(None, "ANYTHING") is False
+    assert codes_match("", "ANYTHING") is False
+    assert codes_match("ABC123", "") is False
+    assert codes_match("ABC123", "ABC123") is True
+    assert codes_match("ABC123", build_qr_payload(9, "ABC123")) is True
 
 
 @pytest.fixture()
