@@ -53,7 +53,7 @@ async def lifespan(_:FastAPI):
 _is_prod = (settings.environment or '').strip().lower() in {'production', 'prod', 'live'}
 app=FastAPI(
     title=settings.app_name,
-    version='0.9.148',
+    version='0.9.149',
     lifespan=lifespan,
     docs_url=None if _is_prod else '/docs',
     redoc_url=None if _is_prod else '/redoc',
@@ -80,10 +80,14 @@ for r in (auth.router,osgb_applications.router,eisa.router,companies.router,bran
 def health():
     import os
     from app.services.clamav_scan import is_clamav_configured
+    from app.services.object_store import storage_backend_label
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.148',
+        'version': '0.9.149',
+        'environment': (settings.environment or 'development').strip().lower() or 'development',
+        'object_storage': storage_backend_label(),
+        'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
         'ai_hazard_hint': 'keyword-v2',
         'mevzuat_panel': 'highlights-v1',
         'sds_register': 'chemical-register-v1',

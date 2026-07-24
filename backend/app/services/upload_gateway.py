@@ -24,6 +24,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.services.object_store import get_object_store
 from app.services.upload_security import assert_safe_upload
 
 
@@ -41,10 +42,11 @@ def persist_upload(
     original_name: str = "",
     subdir: str = "",
 ) -> tuple[Path, str]:
-    """Güvenli yazma: magic/AV + path jail + boyut.
+    """Güvenli yazma: magic/AV + object store + path jail + boyut.
 
-    Döner: (absolute_path, stored_relative_name).
-    Yalnızca upload_gateway_enabled=True iken yeni kod yollarından çağrılmalı.
+    Döner: (absolute_path | placeholder, stored_relative_name).
+    Uzak backend'de Path upload_root altında sanal anahtarı işaret eder (FileResponse
+    için resolve_local_path None ise çağıran stream kullanmalı — henüz cutover yok).
     """
     if not settings.upload_gateway_enabled:
         raise RuntimeError("upload_gateway_enabled=False — mevcut endpoint yollarını kullanın.")
@@ -59,16 +61,19 @@ def persist_upload(
 
     assert_safe_upload(content, ext, original_name)
 
-    company_dir = upload_root() / str(int(company_id))
+    stored_name = f"{uuid4().hex}{ext}"
+    parts = [str(int(company_id))]
     if subdir:
         safe_sub = "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in subdir)[:64]
-        company_dir = company_dir / safe_sub
-    company_dir.mkdir(parents=True, exist_ok=True)
+        parts.append(safe_sub)
+    parts.append(stored_name)
+    key = "/".join(parts)
 
-    stored_name = f"{uuid4().hex}{ext}"
-    target = (company_dir / stored_name).resolve()
-    if upload_root() not in target.parents:
-        raise HTTPException(status_code=400, detail="Geçersiz dosya yolu.")
-
-    target.write_bytes(content)
-    return target, stored_name
+    store = get_object_store()
+    store.put_bytes(key, content)
+    local = store.resolve_local_path(key)
+    if local is not None:
+        return local, stored_name
+    # Uzak: geriye uyum için key'i Path gibi değil stored_name + key metadata
+    # Şimdilik local-only production; uzak cutover ayrı PR.
+    return upload_root() / key, stored_name

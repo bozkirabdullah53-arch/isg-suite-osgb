@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     clamav_timeout_sec: float = 30.0
     # P0 upload gateway — kapalı; açılınca yeni yollar persist_upload kullanır
     upload_gateway_enabled: bool = False
+    # P0-06 object storage — varsayılan local; s3/r2 için bucket + credential
+    object_storage_backend: str = "local"
+    object_storage_bucket: str | None = None
+    object_storage_prefix: str = "uploads"
+    object_storage_endpoint: str | None = None
+    object_storage_region: str | None = None
+    object_storage_access_key: str | None = None
+    object_storage_secret_key: str | None = None
     # İBYS / İSG-KATİP adapter scaffold (optional; never commit real secrets)
     ibys_api_url: str | None = None
     ibys_api_key: str | None = None
