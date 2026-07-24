@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, get_mfa_challenge_user
+from app.api.deps import get_current_user, get_mfa_challenge_user, oauth2_scheme
 from app.core.database import get_db
 from app.core.security import create_access_token, verify_password
 from app.models.entities import User
@@ -84,7 +84,9 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         db.commit()
         return TokenResponse(
             mfa_required=True,
-            mfa_token=create_purpose_token(str(user.id), "mfa_challenge", minutes=10),
+            mfa_token=create_purpose_token(
+                str(user.id), "mfa_challenge", minutes=10, token_version=getattr(user, "token_version", 0) or 0
+            ),
         )
 
     if role_requires_mfa(user.role) and not getattr(user, "mfa_enabled", False):
@@ -92,12 +94,18 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         db.commit()
         return TokenResponse(
             mfa_setup_required=True,
-            mfa_token=create_purpose_token(str(user.id), "mfa_setup", minutes=30),
+            mfa_token=create_purpose_token(
+                str(user.id), "mfa_setup", minutes=30, token_version=getattr(user, "token_version", 0) or 0
+            ),
         )
 
     register_success_login(db, user, ip=ip)
     db.commit()
-    return TokenResponse(access_token=create_access_token(str(user.id)))
+    return TokenResponse(
+        access_token=create_access_token(
+            str(user.id), token_version=getattr(user, "token_version", 0) or 0
+        )
+    )
 
 
 @router.post("/mfa/verify", response_model=TokenResponse)
@@ -145,7 +153,50 @@ def verify_mfa_login(
         module="auth",
     )
     db.commit()
-    return TokenResponse(access_token=create_access_token(str(user.id)))
+    return TokenResponse(
+        access_token=create_access_token(
+            str(user.id), token_version=getattr(user, "token_version", 0) or 0
+        )
+    )
+
+
+@router.post("/logout")
+def logout(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
+):
+    """Aktif access token'ı denylist'e yazar; istemci localStorage temizlemeli."""
+    from datetime import datetime, timezone
+
+    from jose import JWTError, jwt
+
+    from app.core.config import settings
+    from app.core.security import ALGORITHM
+    from app.services.token_revoke import revoke_jti
+
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        if jti and exp:
+            expires_at = datetime.fromtimestamp(int(exp), tz=timezone.utc).replace(tzinfo=None)
+            revoke_jti(db, jti=str(jti), user_id=user.id, expires_at=expires_at)
+            add_audit_log(
+                db,
+                user=user,
+                action="logout",
+                entity_type="user",
+                entity_id=str(user.id),
+                description="Oturum sonlandırıldı (token iptal)",
+                ip_address=_client_ip(request),
+                module="auth",
+            )
+            db.commit()
+    except (JWTError, TypeError, ValueError):
+        pass
+    return {"ok": True, "message": "Oturum sonlandırıldı."}
 
 
 @router.post("/forgot-password")

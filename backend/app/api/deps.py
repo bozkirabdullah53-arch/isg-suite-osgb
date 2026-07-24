@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import ALGORITHM
 from app.models.entities import User, UserRole
+from app.services.token_revoke import is_jti_revoked
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -22,14 +23,23 @@ def _user_from_token(token: str, db: Session, *, allowed_purposes: set[str]) -> 
         payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
         user_id = int(payload.get("sub"))
         purpose = payload.get("purpose") or "access"
+        jti = payload.get("jti")
+        tv = int(payload.get("tv") or 0)
     except (JWTError, TypeError, ValueError):
         raise credentials_error
 
     if purpose not in allowed_purposes:
         raise credentials_error
 
+    if jti and is_jti_revoked(db, str(jti)):
+        raise credentials_error
+
     user = db.get(User, user_id)
     if not user or not user.is_active:
+        raise credentials_error
+
+    user_tv = int(getattr(user, "token_version", 0) or 0)
+    if tv != user_tv:
         raise credentials_error
     return user
 

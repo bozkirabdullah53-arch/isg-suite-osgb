@@ -40,6 +40,9 @@ def change_password(
     if verify_password(payload.new_password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Yeni şifre mevcut şifreyle aynı olamaz.")
     user.hashed_password = get_password_hash(payload.new_password)
+    from app.services.token_revoke import bump_token_version
+
+    bump_token_version(user)
     add_audit_log(
         db,
         user=user,
@@ -51,7 +54,7 @@ def change_password(
         module="security",
     )
     db.commit()
-    return {"message": "Şifre başarıyla değiştirildi."}
+    return {"message": "Şifre başarıyla değiştirildi. Diğer oturumlar kapatıldı."}
 
 
 @router.get("/mfa/status")
@@ -118,7 +121,9 @@ def mfa_enable(
     return {
         "message": "MFA etkinleştirildi.",
         "recovery_codes": codes,
-        "access_token": create_access_token(str(user.id)),
+        "access_token": create_access_token(
+            str(user.id), token_version=getattr(user, "token_version", 0) or 0
+        ),
         "token_type": "bearer",
     }
 

@@ -1032,8 +1032,12 @@ function App(){
     try{sessionStorage.setItem('isg_active','companies')}catch(_){ /* ignore */ }
   }
 
-  function logout(){
+  async function logout(){
+    try{
+      await api('/auth/logout',{method:'POST'});
+    }catch(_){ /* ağ hatası olsa da yerel oturumu kapat */ }
     localStorage.removeItem('isg_token');
+    localStorage.removeItem('isg_mfa_setup_token');
     try{sessionStorage.removeItem('isg_active')}catch(_){ /* ignore */ }
     setLogged(false);
     setUser(null);

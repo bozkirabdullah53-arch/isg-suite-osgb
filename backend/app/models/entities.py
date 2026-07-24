@@ -154,8 +154,21 @@ class User(Base):
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     mfa_secret_encrypted: Mapped[str | None] = mapped_column(String(500), nullable=True)
     mfa_recovery_hashes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    token_version: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     company: Mapped[Company | None] = relationship(back_populates="users")
+
+
+class TokenDenylist(Base):
+    """Logout ile iptal edilen JWT jti listesi."""
+
+    __tablename__ = "token_denylist"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    jti: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    revoked_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class PasswordResetToken(Base):

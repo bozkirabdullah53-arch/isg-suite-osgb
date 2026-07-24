@@ -57,9 +57,23 @@ def decrypt_secret(token: str) -> str | None:
         return None
 
 
-def create_purpose_token(subject: str, purpose: str, minutes: int = 10) -> str:
+def create_purpose_token(
+    subject: str,
+    purpose: str,
+    minutes: int = 10,
+    *,
+    token_version: int = 0,
+) -> str:
+    from uuid import uuid4
+
     expire = datetime.utcnow() + timedelta(minutes=minutes)
-    payload = {"sub": subject, "exp": expire, "purpose": purpose}
+    payload = {
+        "sub": subject,
+        "exp": expire,
+        "purpose": purpose,
+        "jti": uuid4().hex,
+        "tv": int(token_version or 0),
+    }
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
 
@@ -167,6 +181,9 @@ def consume_password_reset(db: Session, raw_token: str, new_password: str) -> Us
     user.hashed_password = get_password_hash(new_password)
     user.failed_login_count = 0
     user.locked_until = None
+    from app.services.token_revoke import bump_token_version
+
+    bump_token_version(user)
     row.used_at = _utcnow()
     return user
 
