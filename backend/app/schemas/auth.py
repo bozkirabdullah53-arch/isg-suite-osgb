@@ -25,6 +25,7 @@ class TokenResponse(BaseModel):
     mfa_required: bool = False
     mfa_setup_required: bool = False
     mfa_token: str | None = None
+    refresh_cookie: bool = False
 
 
 class CurrentUserResponse(BaseModel):

@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     rate_limit_auth_rpm: int = 30
     # P1-02 Redis rate limit — boşsa bellek içi (çoklu instance paylaşılmaz)
     redis_url: str | None = None
+    # P1-01 HttpOnly refresh cookie — kapalı; açılınca login Set-Cookie yazar
+    auth_refresh_cookie_enabled: bool = False
+    refresh_token_expire_days: int = 14
     # İBYS / İSG-KATİP adapter scaffold (optional; never commit real secrets)
     ibys_api_url: str | None = None
     ibys_api_key: str | None = None

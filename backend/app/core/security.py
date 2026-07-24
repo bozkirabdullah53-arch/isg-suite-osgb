@@ -36,3 +36,13 @@ def create_access_token(
         "tv": int(token_version or 0),
     }
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+
+
+def create_refresh_token(subject: str, *, token_version: int = 0) -> str:
+    days = int(getattr(settings, "refresh_token_expire_days", 14) or 14)
+    return create_access_token(
+        subject,
+        purpose="refresh",
+        minutes=max(60, days * 24 * 60),
+        token_version=token_version,
+    )

@@ -29,6 +29,9 @@ services:
       # Optional Redis (P1-02 rate limit paylaşımı) — Dashboard'da REDIS_URL set edilince aktif
       - key: REDIS_URL
         sync: false
+      # P1-01 HttpOnly refresh — varsayılan kapalı; true yapınca login cookie yazar
+      - key: AUTH_REFRESH_COOKIE_ENABLED
+        value: "false"
       # Optional ClamAV (B-01): set CLAMAV_HOST when clamd is reachable
       - key: CLAMAV_HOST
         sync: false

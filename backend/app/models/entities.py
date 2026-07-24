@@ -59,7 +59,7 @@ class AssignmentStatus(str, enum.Enum):
 
 class WorkplaceAssignment(Base):
     __tablename__ = "workplace_assignments"
-    __table_args__ = (UniqueConstraint("company_id", "professional_id", "professional_type", name="uq_company_professional_assignment"),)
+    # P1-06: aktif kayıt için partial unique DB index (0040); history serbest
     id: Mapped[int] = mapped_column(primary_key=True)
     osgb_id: Mapped[int] = mapped_column(ForeignKey("osgb_organizations.id"), index=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)

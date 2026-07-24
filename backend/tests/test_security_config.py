@@ -19,7 +19,14 @@ def test_rate_limit_returns_429_when_exceeded():
         return PlainTextResponse("ok")
 
     mini = Starlette(routes=[Route("/ping", ok)])
-    mini.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=3, auth_requests_per_minute=3)
+    from app.core.rate_limit import MemoryRateLimitStore
+
+    mini.add_middleware(
+        SimpleRateLimitMiddleware,
+        requests_per_minute=3,
+        auth_requests_per_minute=3,
+        store=MemoryRateLimitStore(),
+    )
     client = TestClient(mini)
     assert client.get("/ping").status_code == 200
     assert client.get("/ping").status_code == 200
@@ -36,7 +43,14 @@ def test_health_path_exempt_from_rate_limit():
         return PlainTextResponse("ok")
 
     mini = Starlette(routes=[Route("/health", ok)])
-    mini.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=2, auth_requests_per_minute=2)
+    from app.core.rate_limit import MemoryRateLimitStore
+
+    mini.add_middleware(
+        SimpleRateLimitMiddleware,
+        requests_per_minute=2,
+        auth_requests_per_minute=2,
+        store=MemoryRateLimitStore(),
+    )
     client = TestClient(mini)
     for _ in range(6):
         assert client.get("/health").status_code == 200
@@ -47,7 +61,14 @@ def test_auth_path_has_stricter_bucket():
         return PlainTextResponse("ok")
 
     mini = Starlette(routes=[Route("/api/v1/auth/login", ok, methods=["POST"])])
-    mini.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=100, auth_requests_per_minute=2)
+    from app.core.rate_limit import MemoryRateLimitStore
+
+    mini.add_middleware(
+        SimpleRateLimitMiddleware,
+        requests_per_minute=100,
+        auth_requests_per_minute=2,
+        store=MemoryRateLimitStore(),
+    )
     client = TestClient(mini)
     assert client.post("/api/v1/auth/login").status_code == 200
     assert client.post("/api/v1/auth/login").status_code == 200
@@ -59,7 +80,14 @@ def test_xff_separates_clients():
         return PlainTextResponse("ok")
 
     mini = Starlette(routes=[Route("/ping", ok)])
-    mini.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=2, auth_requests_per_minute=2)
+    from app.core.rate_limit import MemoryRateLimitStore
+
+    mini.add_middleware(
+        SimpleRateLimitMiddleware,
+        requests_per_minute=2,
+        auth_requests_per_minute=2,
+        store=MemoryRateLimitStore(),
+    )
     client = TestClient(mini)
     assert client.get("/ping", headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 200
     assert client.get("/ping", headers={"X-Forwarded-For": "1.1.1.1"}).status_code == 200

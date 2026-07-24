@@ -1,10 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_mfa_challenge_user, oauth2_scheme
+from app.core.auth_cookies import (
+    REFRESH_COOKIE_NAME,
+    clear_refresh_cookie,
+    refresh_cookie_enabled,
+    set_refresh_cookie,
+)
+from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, create_refresh_token, verify_password
 from app.models.entities import User
 from app.schemas.auth import (
     CurrentUserResponse,
@@ -48,8 +55,22 @@ def _sync_field(db: Session, user: User) -> User:
     return sync_user_from_professional(db, user, commit=True)
 
 
+def _issue_access(user: User, response: Response) -> TokenResponse:
+    tv = int(getattr(user, "token_version", 0) or 0)
+    body = TokenResponse(access_token=create_access_token(str(user.id), token_version=tv))
+    if refresh_cookie_enabled():
+        set_refresh_cookie(response, create_refresh_token(str(user.id), token_version=tv))
+        body.refresh_cookie = True
+    return body
+
+
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
+def login(
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     ip = _client_ip(request)
     email = str(payload.email).strip().lower()
     try:
@@ -101,17 +122,14 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
 
     register_success_login(db, user, ip=ip)
     db.commit()
-    return TokenResponse(
-        access_token=create_access_token(
-            str(user.id), token_version=getattr(user, "token_version", 0) or 0
-        )
-    )
+    return _issue_access(user, response)
 
 
 @router.post("/mfa/verify", response_model=TokenResponse)
 def verify_mfa_login(
     payload: MfaVerifyRequest,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_mfa_challenge_user),
 ):
@@ -153,16 +171,61 @@ def verify_mfa_login(
         module="auth",
     )
     db.commit()
-    return TokenResponse(
-        access_token=create_access_token(
-            str(user.id), token_version=getattr(user, "token_version", 0) or 0
-        )
-    )
+    return _issue_access(user, response)
+
+
+@router.post("/refresh", response_model=TokenResponse)
+def refresh_access_token(request: Request, response: Response, db: Session = Depends(get_db)):
+    """HttpOnly refresh cookie → yeni access token. Flag kapalıysa 404."""
+    if not refresh_cookie_enabled():
+        raise HTTPException(404, "Refresh cookie kapalı.")
+    from datetime import datetime, timezone
+
+    from jose import JWTError, jwt
+
+    from app.core.security import ALGORITHM
+    from app.services.token_revoke import is_jti_revoked, revoke_jti
+
+    raw = (request.cookies.get(REFRESH_COOKIE_NAME) or "").strip()
+    if not raw:
+        raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
+    try:
+        payload = jwt.decode(raw, settings.secret_key, algorithms=[ALGORITHM])
+        if (payload.get("purpose") or "") != "refresh":
+            raise HTTPException(401, "Oturum yenilenemedi.")
+        user_id = int(payload.get("sub"))
+        jti = payload.get("jti")
+        tv = int(payload.get("tv") or 0)
+        exp = payload.get("exp")
+    except (JWTError, TypeError, ValueError, HTTPException):
+        clear_refresh_cookie(response)
+        raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
+
+    if jti and is_jti_revoked(db, str(jti)):
+        clear_refresh_cookie(response)
+        raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
+
+    user = db.get(User, user_id)
+    if not user or not user.is_active:
+        clear_refresh_cookie(response)
+        raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
+    if tv != int(getattr(user, "token_version", 0) or 0):
+        clear_refresh_cookie(response)
+        raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
+
+    # Eski refresh'i düşür (rotation)
+    if jti and exp:
+        expires_at = datetime.fromtimestamp(int(exp), tz=timezone.utc).replace(tzinfo=None)
+        revoke_jti(db, jti=str(jti), user_id=user.id, expires_at=expires_at)
+        db.commit()
+
+    return _issue_access(user, response)
 
 
 @router.post("/logout")
 def logout(
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     token: str = Depends(oauth2_scheme),
@@ -172,7 +235,6 @@ def logout(
 
     from jose import JWTError, jwt
 
-    from app.core.config import settings
     from app.core.security import ALGORITHM
     from app.services.token_revoke import revoke_jti
 
@@ -196,12 +258,32 @@ def logout(
             db.commit()
     except (JWTError, TypeError, ValueError):
         pass
+    # Refresh cookie varsa temizle (flag açıkken)
+    raw = (request.cookies.get(REFRESH_COOKIE_NAME) or "").strip()
+    if raw:
+        try:
+            from jose import JWTError, jwt
+
+            from app.core.security import ALGORITHM
+            from app.services.token_revoke import revoke_jti
+
+            payload = jwt.decode(raw, settings.secret_key, algorithms=[ALGORITHM])
+            jti = payload.get("jti")
+            exp = payload.get("exp")
+            if jti and exp:
+                expires_at = datetime.fromtimestamp(int(exp), tz=timezone.utc).replace(tzinfo=None)
+                revoke_jti(db, jti=str(jti), user_id=user.id, expires_at=expires_at)
+                db.commit()
+        except Exception:
+            pass
+    clear_refresh_cookie(response)
     return {"ok": True, "message": "Oturum sonlandırıldı."}
 
 
 @router.post("/logout-all")
 def logout_all_sessions(
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -224,6 +306,7 @@ def logout_all_sessions(
         module="auth",
     )
     db.commit()
+    clear_refresh_cookie(response)
     return {
         "ok": True,
         "message": "Tüm cihazlardaki oturumlar kapatıldı. Lütfen yeniden giriş yapın.",

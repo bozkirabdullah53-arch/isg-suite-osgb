@@ -6,6 +6,7 @@ from app.api import auth, branches, companies, dashboard, employees, users, isg_
 from app.core.rate_limit import SimpleRateLimitMiddleware, rate_limit_backend
 from app.core.request_id import RequestIdMiddleware
 from app.core.tenant_middleware import TenantContextMiddleware
+from app.core.access_log import StructuredAccessLogMiddleware
 from app.core.subscription_middleware import OsgbSubscriptionWriteMiddleware
 from app.core.config import settings, validate_runtime_settings
 from app.core.database import Base, SessionLocal, engine
@@ -55,7 +56,7 @@ async def lifespan(_:FastAPI):
 _is_prod = (settings.environment or '').strip().lower() in {'production', 'prod', 'live'}
 app=FastAPI(
     title=settings.app_name,
-    version='0.9.167',
+    version='0.9.168',
     lifespan=lifespan,
     docs_url=None if _is_prod else '/docs',
     redoc_url=None if _is_prod else '/redoc',
@@ -66,6 +67,7 @@ from app.core.validation_tr import register_turkish_validation
 register_turkish_validation(app)
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(StructuredAccessLogMiddleware)
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(TenantContextMiddleware)
 app.add_middleware(OsgbSubscriptionWriteMiddleware)
@@ -92,7 +94,7 @@ def health():
     return {
         'status': 'ok',
         'service': settings.app_name,
-        'version': '0.9.167',
+        'version': '0.9.168',
         'environment': (settings.environment or 'development').strip().lower() or 'development',
         'object_storage': storage_backend_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
@@ -155,6 +157,9 @@ def health():
         'company_name_unique': 'osgb-scoped-v1',
         'ci_postgres': 'workflow-v1-migrate-parity',
         'tenant_context': 'contextvar-wired-v1',
+        'auth_refresh_cookie': 'on' if settings.auth_refresh_cookie_enabled else 'off',
+        'assignment_unique': 'active-partial-v1',
+        'access_log': 'json-request-id-v1',
         'customer_360': 'company-overview-v1',
         'capacity_engine': '6331-legal-minutes-v1',
         'visit_calendar': 'plan-overdue-coverage-v1',
