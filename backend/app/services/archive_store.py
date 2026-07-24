@@ -158,11 +158,17 @@ def create_tenant_backup(
 
     org = db.get(OsgbOrganization, target_osgb) if target_osgb else None
     manifest = {
+        "format_version": 2,
         "created_at": datetime.utcnow().isoformat() + "Z",
         "created_by": user.email,
         "osgb_id": target_osgb,
         "osgb_name": org.name if org else None,
         "companies": [{"id": c.id, "name": c.name} for c in companies],
+        "restore": {
+            "supports_file_restore": True,
+            "supports_db_row_restore": False,
+            "notes": "Dosya restore BACKUP_RESTORE_ENABLED ile; DB restore yok.",
+        },
     }
 
     company_ids = [c.id for c in companies]

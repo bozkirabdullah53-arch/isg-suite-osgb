@@ -1542,9 +1542,40 @@ export function EisaArchivesPage() {
                 <td>{Math.max(1, Math.round((r.size_bytes || 0) / 1024))} KB</td>
                 <td>{r.notes || '—'}</td>
                 <td>
-                  <button type="button" className="secondary" disabled={busy} onClick={() => downloadFile(`/archives/${r.id}/download`, r.original_name || `arsiv-${r.id}`)}>
-                    İndir
-                  </button>
+                  <div className="actions" style={{ gap: 6, flexWrap: 'wrap' }}>
+                    <button type="button" className="secondary" disabled={busy} onClick={() => downloadFile(`/archives/${r.id}/download`, r.original_name || `arsiv-${r.id}`)}>
+                      İndir
+                    </button>
+                    {r.kind === 'tenant_backup' && (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          setMsg('');
+                          try {
+                            const p = await api(`/archives/${r.id}/restore-plan`);
+                            window.alert(
+                              [
+                                `Yedek: ${p.archive_name || r.id}`,
+                                `OSGB: ${p.osgb_name || p.osgb_id || '-'}`,
+                                `İşyeri: ${(p.companies || []).map((c) => c.name).join(', ') || '-'}`,
+                                `Doküman/personel meta: ${p.document_count}/${p.employee_count}`,
+                                `Dosya girdisi: ${(p.file_entries || []).length}`,
+                                `Restore açık: ${p.restore_enabled ? 'EVET' : 'HAYIR'}`,
+                              ].join('\n'),
+                            );
+                          } catch (e) {
+                            setMsg(e.message);
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        İçeriği gör
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             )) : (

@@ -726,6 +726,26 @@ function SecurityPage({user}){
       await downloadFile(`/archives/${id}/download`, name||`arsiv-${id}.zip`);
     }catch(e){setArchMsg(e.message)}
   }
+  async function showRestorePlan(id){
+    setArchBusy(true);setArchMsg('');
+    try{
+      const p=await api(`/archives/${id}/restore-plan`);
+      const lines=[
+        `Yedek: ${p.archive_name||id}`,
+        `Tarih: ${p.created_at||'-'}`,
+        `OSGB: ${p.osgb_name||p.osgb_id||'-'}`,
+        `İşyeri: ${(p.companies||[]).map(c=>c.name).join(', ')||'-'}`,
+        `Doküman meta: ${p.document_count||0} | Personel meta: ${p.employee_count||0}`,
+        `Dosya sayısı (örnek listelenen): ${(p.file_entries||[]).length}`,
+        `Gerçek restore açık mı: ${p.restore_enabled?'EVET':'HAYIR (güvenlik — kapalı)'}`,
+        '',
+        ...(p.notes||[]),
+      ];
+      window.alert(lines.join('\n'));
+      setArchMsg('Restore planı gösterildi (yazma yok).');
+    }catch(e){setArchMsg(e.message)}
+    finally{setArchBusy(false)}
+  }
   const cols=[{key:'created_at',label:'Tarih'},{key:'action',label:'İşlem'},{key:'entity_type',label:'Kayıt Türü'},{key:'description',label:'Açıklama'},{key:'ip_address',label:'IP'}];
   const archCols=[
     {key:'created_at',label:'Tarih',render:r=>new Date(r.created_at).toLocaleString('tr-TR')},
@@ -733,7 +753,12 @@ function SecurityPage({user}){
     {key:'original_name',label:'Dosya'},
     {key:'size_bytes',label:'Boyut',render:r=>`${Math.max(1,Math.round((r.size_bytes||0)/1024))} KB`},
     {key:'notes',label:'Not'},
-    {key:'dl',label:'',render:r=><button type="button" className="mini secondary" onClick={()=>downloadArchive(r.id,r.original_name)}>İndir</button>},
+    {key:'dl',label:'',render:r=>(
+      <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
+        <button type="button" className="mini secondary" disabled={archBusy} onClick={()=>downloadArchive(r.id,r.original_name)}>İndir</button>
+        {r.kind==='tenant_backup'&&<button type="button" className="mini" disabled={archBusy} onClick={()=>showRestorePlan(r.id)}>İçeriği gör</button>}
+      </div>
+    )},
   ];
   return <Page title="Güvenlik ve Denetim">
     <div className="security-grid">
@@ -785,7 +810,7 @@ function SecurityPage({user}){
         </ul>
       </section>
     </div>
-    {canBackup&&<section className="panel" style={{marginTop:16}}><div className="page-title" style={{marginBottom:12}}><h3 style={{margin:0,fontSize:18}}>Kurum Yedekleme</h3><button type="button" disabled={archBusy} onClick={createBackup}>{archBusy?'Yedekleniyor…':'Yedek Oluştur'}</button></div><p style={{marginTop:0,color:'#64748b'}}>Yedekler tarihli olarak merkezi arşive kaydedilir. Siz indirirsiniz; EİSA de tüm kurum arşivlerine erişir. Silinen dosyalar da tarihli arşivde kalır.</p>{archMsg&&<p style={{color:archMsg.includes('oluştur')?'#166534':'#b91c1c'}}>{archMsg}</p>}<Table cols={archCols} rows={archives} empty="Henüz yedek yok."/></section>}
+    {canBackup&&<section className="panel" style={{marginTop:16}}><div className="page-title" style={{marginBottom:12}}><h3 style={{margin:0,fontSize:18}}>Kurum Yedekleme</h3><button type="button" disabled={archBusy} onClick={createBackup}>{archBusy?'Yedekleniyor…':'Yedek Oluştur'}</button></div><p style={{marginTop:0,color:'#64748b'}}>Yedekler tarihli olarak merkezi arşive kaydedilir. <strong>İçeriği gör</strong> ile yedekte ne olduğunu yazmadan incelersiniz. Canlıya otomatik geri yükleme kapalıdır.</p>{archMsg&&<p style={{color:archMsg.includes('oluştur')||archMsg.includes('gösterildi')?'#166534':'#b91c1c'}}>{archMsg}</p>}<Table cols={archCols} rows={archives} empty="Henüz yedek yok."/></section>}
     {canView&&<section className="panel"><h3>Denetim Kayıtları</h3><Table cols={cols} rows={logs}/></section>}
   </Page>
 }

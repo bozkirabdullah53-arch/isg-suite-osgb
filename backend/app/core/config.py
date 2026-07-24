@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     object_storage_secret_key: str | None = None
     # P0-07 geçici saha QR süresi (dakika)
     site_qr_ephemeral_ttl_minutes: int = 30
+    # P0-08 geri yükleme — varsayılan kapalı (yalnızca plan her zaman açık)
+    backup_restore_enabled: bool = False
     # İBYS / İSG-KATİP adapter scaffold (optional; never commit real secrets)
     ibys_api_url: str | None = None
     ibys_api_key: str | None = None

@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.models.entities import ArchiveKind, EisaArchiveRecord, User, UserRole
 from app.services.archive_store import create_tenant_backup, resolve_archive_path
 from app.services.audit import add_audit_log
+from app.services.backup_restore import inspect_backup_file, restore_files_from_backup
 
 router = APIRouter(prefix="/archives", tags=["Yedekleme ve Arşiv"])
 
@@ -34,6 +35,11 @@ class ArchiveResponse(BaseModel):
 class BackupRequest(BaseModel):
     company_id: int | None = None
     osgb_id: int | None = None
+
+
+class RestoreRequest(BaseModel):
+    dry_run: bool = True
+    confirm: str | None = None
 
 
 def _to_response(row: EisaArchiveRecord) -> ArchiveResponse:
@@ -137,3 +143,60 @@ def download_archive(
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
     return FileResponse(path, filename=row.original_name or path.name)
+
+
+@router.get("/{archive_id}/restore-plan")
+def archive_restore_plan(
+    archive_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    """Yedek içeriğini salt okunur inceler — hiçbir şey yazmaz."""
+    row = db.get(EisaArchiveRecord, archive_id)
+    if not row:
+        raise HTTPException(404, "Arşiv bulunamadı.")
+    if row.kind != ArchiveKind.TENANT_BACKUP:
+        raise HTTPException(400, "Restore planı yalnızca kurum yedekleri için geçerlidir.")
+    _assert_can_access(db, user, row)
+    try:
+        path = resolve_archive_path(row)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    plan = inspect_backup_file(path, archive_name=row.original_name)
+    return plan.to_dict()
+
+
+@router.post("/{archive_id}/restore")
+def archive_restore(
+    archive_id: int,
+    payload: RestoreRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    """Dosya geri yükleme — varsayılan kapalı; dry_run ile güvenli prova."""
+    row = db.get(EisaArchiveRecord, archive_id)
+    if not row:
+        raise HTTPException(404, "Arşiv bulunamadı.")
+    if row.kind != ArchiveKind.TENANT_BACKUP:
+        raise HTTPException(400, "Restore yalnızca kurum yedekleri için.")
+    _assert_can_access(db, user, row)
+    try:
+        path = resolve_archive_path(row)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    result = restore_files_from_backup(
+        path,
+        dry_run=payload.dry_run,
+        confirm=payload.confirm,
+    )
+    add_audit_log(
+        db,
+        user=user,
+        action="tenant_backup_restore_dry_run" if payload.dry_run else "tenant_backup_restore",
+        module="archives",
+        entity_type="eisa_archive",
+        entity_id=str(row.id),
+        description=result.get("message") or "restore",
+    )
+    db.commit()
+    return result
