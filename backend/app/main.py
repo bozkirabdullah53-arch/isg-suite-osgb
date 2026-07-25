@@ -117,6 +117,7 @@ def health():
     import os
     from app.services.clamav_scan import is_clamav_configured
     from app.services.health_field_crypto import encryption_key_status, health_crypto_ready_label
+    from app.services.backup_restore import backup_crypto_ready_label, backup_encryption_key_status
     from app.services.object_store import object_storage_config_ok, storage_backend_label
     return {
         'status': 'ok',
@@ -129,10 +130,12 @@ def health():
         'redis': redis_status_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
         'upload_gateway_wired': 'assert-safe-all-legacy-v2',
-        'infra_rollout': 'field-offline-tenant-bound-v11',
+        'infra_rollout': 'backup-crypto-ready-v12',
         'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
         'health_field_encryption_key': encryption_key_status(),
         'health_field_crypto_ready': health_crypto_ready_label(),
+        'backup_encryption_key': backup_encryption_key_status(),
+        'backup_crypto_ready': backup_crypto_ready_label(),
         'ai_hazard_hint': 'keyword-v2',
         'mevzuat_panel': 'highlights-v1',
         'sds_register': 'chemical-register-v1',

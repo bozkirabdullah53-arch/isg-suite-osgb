@@ -46,6 +46,11 @@ def main() -> int:
     print("health_field_encryption:", "on" if settings.health_field_encryption_enabled else "off")
     print("health_field_encryption_key:", encryption_key_status())
     print("health_field_crypto_ready:", health_crypto_ready_label())
+    from app.services.backup_restore import backup_crypto_ready_label, backup_encryption_key_status
+
+    print("backup_restore:", "on" if settings.backup_restore_enabled else "off")
+    print("backup_encryption_key:", backup_encryption_key_status())
+    print("backup_crypto_ready:", backup_crypto_ready_label())
     return 0
 
 

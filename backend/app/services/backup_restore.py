@@ -13,8 +13,50 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from app.core.config import settings
+from app.core.config import _INSECURE_SECRET_KEYS, settings
 from app.services.archive_store import upload_root
+
+
+def backup_encryption_key_status() -> str:
+    """dedicated | missing | weak | invalid"""
+    key = (settings.backup_encryption_key or "").strip()
+    if not key:
+        return "missing"
+    weak = (
+        len(key) < 32
+        or key.lower() in _INSECURE_SECRET_KEYS
+        or key.startswith("change-me")
+    )
+    try:
+        import base64
+        import hashlib
+
+        from cryptography.fernet import Fernet
+
+        digest = hashlib.sha256(key.encode("utf-8")).digest()
+        f = Fernet(base64.urlsafe_b64encode(digest))
+        token = f.encrypt(b"probe")
+        assert f.decrypt(token) == b"probe"
+    except Exception:
+        return "invalid"
+    return "weak" if weak else "dedicated"
+
+
+def backup_encryption_readiness() -> dict:
+    status = backup_encryption_key_status()
+    return {
+        "restore_enabled": bool(settings.backup_restore_enabled),
+        "key_status": status,
+        "can_encrypt": status == "dedicated",
+        "probe_ok": status in ("dedicated", "weak"),
+    }
+
+
+def backup_crypto_ready_label() -> str:
+    ready = backup_encryption_readiness()
+    if ready["probe_ok"] and ready["key_status"] == "dedicated":
+        return "ok"
+    return "not_ready"
 
 
 @dataclass

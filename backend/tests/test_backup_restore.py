@@ -88,3 +88,33 @@ def test_restore_skips_osgb_files_without_osgb_id(tmp_path, monkeypatch):
     result = br.restore_files_from_backup(zpath, dry_run=True)
     assert result["files_touched"] == 0
     assert "osgb_files/visits/x.pdf" in result["skipped"]
+
+
+def test_backup_encryption_readiness_missing(monkeypatch):
+    monkeypatch.setattr(settings, "backup_encryption_key", None)
+    monkeypatch.setattr(settings, "backup_restore_enabled", False)
+    assert br.backup_encryption_key_status() == "missing"
+    assert br.backup_crypto_ready_label() == "not_ready"
+    assert br.backup_encryption_readiness()["can_encrypt"] is False
+
+
+def test_backup_encryption_readiness_weak(monkeypatch):
+    monkeypatch.setattr(settings, "backup_encryption_key", "change-me-in-production-at-least-32-characters!")
+    assert br.backup_encryption_key_status() == "weak"
+    assert br.backup_crypto_ready_label() == "not_ready"
+
+
+def test_backup_encryption_readiness_dedicated(monkeypatch):
+    monkeypatch.setattr(settings, "backup_encryption_key", "dedicated-backup-key-at-least-32chars!!")
+    assert br.backup_encryption_key_status() == "dedicated"
+    assert br.backup_crypto_ready_label() == "ok"
+    assert br.backup_encryption_readiness()["can_encrypt"] is True
+
+
+def test_restore_still_blocked_when_crypto_ready(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "backup_restore_enabled", False)
+    monkeypatch.setattr(settings, "backup_encryption_key", "dedicated-backup-key-at-least-32chars!!")
+    zpath = _make_zip(tmp_path)
+    with pytest.raises(HTTPException) as exc:
+        br.restore_files_from_backup(zpath, dry_run=True)
+    assert exc.value.status_code == 403

@@ -66,6 +66,11 @@ services:
         value: "false"
       - key: HEALTH_FIELD_ENCRYPTION_KEY
         sync: false
+      # P0-08 yedek — restore kapalı; şifreleme anahtarı opsiyonel (probe için doldurulabilir)
+      - key: BACKUP_RESTORE_ENABLED
+        value: "false"
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
       # Optional ClamAV (B-01): set CLAMAV_HOST when clamd is reachable
       - key: CLAMAV_HOST
         sync: false
