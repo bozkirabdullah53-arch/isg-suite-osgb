@@ -51,6 +51,9 @@ def main() -> int:
     print("backup_restore:", "on" if settings.backup_restore_enabled else "off")
     print("backup_encryption_key:", backup_encryption_key_status())
     print("backup_crypto_ready:", backup_crypto_ready_label())
+    from app.services.clamav_scan import clamav_status_label
+
+    print("clamav:", clamav_status_label())
     return 0
 
 

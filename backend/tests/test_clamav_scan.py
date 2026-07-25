@@ -1,14 +1,47 @@
 from unittest import mock
 
-from app.services.clamav_scan import is_clamav_configured, scan_bytes
+from app.services.clamav_scan import clamav_status_label, is_clamav_configured, scan_bytes
 
 
 def test_not_configured(monkeypatch):
     monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", None)
     assert not is_clamav_configured()
+    assert clamav_status_label() == "disabled"
     clean, detail = scan_bytes(b"any")
     assert clean is True
     assert detail == "skipped"
+
+
+def test_status_reachable(monkeypatch):
+    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", "127.0.0.1")
+
+    class FakeSock:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def settimeout(self, _):
+            pass
+
+        def sendall(self, _data):
+            pass
+
+        def recv(self, _n):
+            return b"PONG\0"
+
+    monkeypatch.setattr("app.services.clamav_scan.socket.create_connection", lambda *_a, **_k: FakeSock())
+    assert clamav_status_label() == "reachable"
+
+
+def test_status_unreachable(monkeypatch):
+    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", "127.0.0.1")
+    monkeypatch.setattr(
+        "app.services.clamav_scan.socket.create_connection",
+        mock.Mock(side_effect=OSError("connection refused")),
+    )
+    assert clamav_status_label() == "unreachable"
 
 
 def test_instream_ok(monkeypatch):
