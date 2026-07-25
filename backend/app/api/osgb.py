@@ -1,5 +1,6 @@
 from pathlib import Path
 from uuid import uuid4
+import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
@@ -39,6 +40,7 @@ from app.services.mevzuat_panel import build_mevzuat_panel
 from app.services.capacity_engine import build_capacity_overview, sync_assignment_required
 
 router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
+logger = logging.getLogger(__name__)
 ADMIN_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
 
 def _scope_osgb(user: User, osgb_id: int) -> None:
@@ -732,7 +734,7 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
             from app.api.company_access import sync_all_assigned_field_roles
             sync_all_assigned_field_roles(db)
         except Exception:
-            pass
+            logger.warning("assignment create/reactivate: role sync failed", exc_info=True)
         db.refresh(existing)
         return existing
     obj = WorkplaceAssignment(**payload.model_dump())
@@ -750,7 +752,7 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
         from app.api.company_access import sync_all_assigned_field_roles
         sync_all_assigned_field_roles(db)
     except Exception:
-        pass
+        logger.warning("assignment create: role sync failed", exc_info=True)
     db.refresh(obj)
     return obj
 
@@ -790,7 +792,7 @@ async def upload_assignment_contract(
                     notes="Görev sözleşmesi değiştirilmeden önce arşivlendi",
                 )
             except Exception:
-                pass
+                logger.warning("assignment contract: archive-before-replace failed", exc_info=True)
             try:
                 old.unlink()
             except OSError:
@@ -865,7 +867,7 @@ def activate_assignment(
         from app.api.company_access import sync_all_assigned_field_roles
         sync_all_assigned_field_roles(db)
     except Exception:
-        pass
+        logger.warning("assignment activate: role sync failed", exc_info=True)
     return obj
 
 

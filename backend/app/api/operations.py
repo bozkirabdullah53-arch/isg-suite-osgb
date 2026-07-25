@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 import base64
+import logging
 import re
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -26,6 +27,7 @@ from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/operations", tags=["OSGB Operasyonları"])
+logger = logging.getLogger(__name__)
 ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
 VISIT_ROLES = (
     UserRole.GLOBAL_ADMIN,
@@ -556,7 +558,7 @@ def _delete_notebook_file(
                     notes="Ziyaret defteri silinmeden önce arşivlendi",
                 )
             except Exception:
-                pass
+                logger.warning("visit notebook: archive-before-delete failed", exc_info=True)
         try:
             path.unlink()
         except OSError:

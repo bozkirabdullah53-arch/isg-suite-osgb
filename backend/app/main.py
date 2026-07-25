@@ -238,6 +238,6 @@ def health():
         'secret_key_guard': 'prod-block-default',
         'nav_hardening': 'allowlist-boundary-mobile',
         'field_access': 'assignment-scoped-v2',
-        'startup_obs': 'no-silent-pass-v1',
+        'startup_obs': 'no-silent-pass-v2',
         'git': os.environ.get('RENDER_GIT_COMMIT') or os.environ.get('GIT_COMMIT') or 'local',
     }
