@@ -88,6 +88,7 @@ def inspect_backup_file(path: Path, *, archive_name: str | None = None) -> Resto
                 "Bu plan salt okunurdur; otomatik geri yükleme yapmaz.",
                 "Dosya geri yükleme BACKUP_RESTORE_ENABLED=true olmadan çalışmaz.",
                 "Veritabanı satır restore bu sürümde yoktur (güvenlik).",
+                "osgb_files/* → {osgb_id}/* (manifest); restore hâlâ BACKUP_RESTORE_ENABLED ile kapalı.",
             ]
             if encrypted:
                 notes.append("Yedek şifreli (.enc); inceleme için sunucu anahtarı kullanıldı.")
@@ -143,22 +144,34 @@ def restore_files_from_backup(
     try:
         root = upload_root()
         with zipfile.ZipFile(work, "r") as zf:
-            for name in zf.namelist():
+            names = zf.namelist()
+            manifest: dict = {}
+            if "manifest.json" in names:
+                try:
+                    manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    manifest = {}
+            osgb_id_raw = manifest.get("osgb_id")
+            try:
+                osgb_id = int(osgb_id_raw) if osgb_id_raw is not None else None
+            except (TypeError, ValueError):
+                osgb_id = None
+
+            for name in names:
                 if name.endswith("/"):
                     continue
                 rel: str | None = None
                 if name.startswith("files/"):
                     rel = name[len("files/") :]
                 elif name.startswith("osgb_files/"):
-                    # osgb_files/visits/x → {osgb}/visits/x — manifest osgb_id gerekir
-                    # Güvenli yol: yalnızca relative parçayı jail içinde tut
-                    rel = name[len("osgb_files/") :]
-                    # Eski yedek düzeni: uploads/{osgb_id}/visits/... — çağıran bilmeli;
-                    # burada osgb_files altında olduğu gibi yazamayız. manifest'ten al.
-                    continue  # osgb dosyaları ayrı PR; company files önce
+                    rest = name[len("osgb_files/") :]
+                    if osgb_id is None:
+                        skipped.append(name)
+                        continue
+                    rel = f"{osgb_id}/{rest}" if rest else None
                 else:
                     continue
-                if not rel or ".." in rel.split("/"):
+                if not rel or ".." in Path(rel).parts:
                     skipped.append(name)
                     continue
                 target = (root / rel).resolve()
