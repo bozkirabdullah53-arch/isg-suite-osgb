@@ -324,7 +324,7 @@ function Login({done,onApply}){
             </div>
           )}
           {mode==='login'&&(
-            <p style={{marginTop:16,fontSize:13,color:'#64748b'}}>OSGB merkezi misiniz? <button type="button" className="linkish" onClick={onApply}>Başvuru formu</button></p>
+            <p style={{marginTop:10,marginBottom:0,fontSize:12,color:'#64748b'}}>OSGB merkezi misiniz? <button type="button" className="linkish" onClick={onApply}>Başvuru formu</button></p>
           )}
         </section>
       </div>

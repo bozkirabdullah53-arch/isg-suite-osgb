@@ -11,20 +11,27 @@ button, input { font: inherit; }
 
 .login-shell {
   min-height: 100vh;
+  min-height: 100dvh;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
   display: grid;
   place-items: center;
-  padding: 24px;
+  padding: 12px 16px;
   background:
     radial-gradient(circle at top left, rgba(13,148,136,.17), transparent 34%),
     linear-gradient(135deg, #edf8f7, #f7fbff);
 }
 
 .login-wrap {
-  width: min(440px, 100%);
+  width: min(400px, 100%);
+  max-height: calc(100dvh - 24px);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 28px;
+  justify-content: center;
+  gap: 10px;
 }
 
 .login-brand {
@@ -32,10 +39,12 @@ button, input { font: inherit; }
   flex-direction: column;
   align-items: center;
   width: 100%;
+  flex-shrink: 0;
 }
 
 .login-eisa-logo {
-  width: min(360px, 88vw);
+  width: min(220px, 72vw);
+  max-height: 44px;
   height: auto;
   display: block;
   object-fit: contain;
@@ -46,37 +55,38 @@ button, input { font: inherit; }
   width: 100%;
   background: white;
   border: 1px solid #dcebed;
-  border-radius: 24px;
-  padding: 38px;
+  border-radius: 18px;
+  padding: 20px 22px;
   box-shadow: 0 24px 70px rgba(22, 78, 99, .12);
+  flex-shrink: 0;
 }
 
 .brand-mark {
-  width: 62px;
-  height: 62px;
+  width: 48px;
+  height: 48px;
   display: grid;
   place-items: center;
-  border-radius: 18px;
+  border-radius: 14px;
   background: #e6f7f4;
   color: #0f766e;
 }
 
-.login-card h1 { margin: 18px 0 5px; font-size: 30px; }
-.login-card p { margin: 0 0 28px; color: #647983; }
-.login-card form { display: grid; gap: 10px; }
-.login-card label { font-weight: 650; font-size: 14px; margin-top: 8px; }
+.login-card h1 { margin: 0 0 4px; font-size: 24px; }
+.login-card p { margin: 0 0 12px; color: #647983; font-size: 13px; line-height: 1.35; }
+.login-card form { display: grid; gap: 6px; }
+.login-card label { font-weight: 650; font-size: 13px; margin-top: 4px; }
 .login-card input {
-  padding: 13px 14px;
+  padding: 10px 12px;
   border: 1px solid #cbdde1;
-  border-radius: 11px;
+  border-radius: 10px;
   outline: none;
 }
 .login-card input:focus { border-color: #0f766e; box-shadow: 0 0 0 3px rgba(15,118,110,.12); }
 .login-card button {
-  margin-top: 12px;
-  padding: 14px;
+  margin-top: 8px;
+  padding: 11px;
   border: 0;
-  border-radius: 11px;
+  border-radius: 10px;
   color: white;
   background: #0f766e;
   font-weight: 750;
@@ -325,5 +335,5 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 /* Deneysel tema anahtarı (klasik görünüm) — mevcut tasarıma dokunmaz, sadece yeni buton */
 .theme-toggle{display:inline-flex;align-items:center;gap:7px;border:1px solid #dcebed;border-radius:999px;background:white;color:#24515e;padding:8px 13px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
 .theme-toggle:hover{border-color:#0f766e;color:#0f766e}
-.theme-toggle-floating{position:fixed;right:18px;bottom:18px;z-index:40;box-shadow:0 10px 30px rgba(22,78,99,.18)}
+.theme-toggle-floating{position:fixed;right:14px;bottom:14px;z-index:40;box-shadow:0 10px 30px rgba(22,78,99,.18);padding:7px 11px;font-size:12px}
 @media(max-width:620px){.theme-toggle:not(.theme-toggle-floating) span{display:none}.theme-toggle:not(.theme-toggle-floating){width:40px;height:40px;justify-content:center;padding:0;border-radius:10px}}
