@@ -28,7 +28,13 @@ class ObjectStore(Protocol):
 
 def _normalize_key(key: str) -> str:
     raw = (key or "").replace("\\", "/").strip("/")
-    parts = [p for p in raw.split("/") if p and p != ".."]
+    parts: list[str] = []
+    for part in raw.split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            raise HTTPException(status_code=400, detail="Geçersiz depolama anahtarı.")
+        parts.append(part)
     if not parts:
         raise HTTPException(status_code=400, detail="Geçersiz depolama anahtarı.")
     return "/".join(parts)
@@ -157,16 +163,25 @@ def reset_object_store_for_tests() -> None:
 def storage_backend_label() -> str:
     backend = (settings.object_storage_backend or "local").strip().lower() or "local"
     if backend in ("s3", "r2", "minio"):
-        bucket = (settings.object_storage_bucket or "").strip()
-        return f"{backend}-ready-v1" if bucket else f"{backend}-misconfig-v1"
+        return f"{backend}-ready-v1" if object_storage_config_ok() else f"{backend}-misconfig-v1"
     return f"{backend}-v1"
 
 
 def object_storage_config_ok() -> bool:
-    """S3 seçildiyse bucket zorunlu; local her zaman OK."""
+    """S3/R2 seçildiyse bucket + credential (+ R2 için endpoint) zorunlu; local her zaman OK."""
     backend = (settings.object_storage_backend or "local").strip().lower() or "local"
     if backend in ("local", "disk", "fs"):
         return True
     if backend in ("s3", "r2", "minio"):
-        return bool((settings.object_storage_bucket or "").strip())
+        bucket = (settings.object_storage_bucket or "").strip()
+        key = (settings.object_storage_access_key or "").strip()
+        secret = (settings.object_storage_secret_key or "").strip()
+        endpoint = (settings.object_storage_endpoint or "").strip()
+        region = (settings.object_storage_region or "").strip()
+        if not (bucket and key and secret):
+            return False
+        # R2/minio: endpoint şart; AWS S3: region yeter
+        if backend in ("r2", "minio"):
+            return bool(endpoint)
+        return bool(region or endpoint)
     return False

@@ -44,6 +44,24 @@ def test_unknown_backend(monkeypatch):
         os_mod.get_object_store()
 
 
+def test_local_config_always_ok():
+    assert os_mod.object_storage_config_ok() is True
+    assert os_mod.storage_backend_label() == "local-v1"
+
+
+def test_r2_config_requires_endpoint(monkeypatch):
+    monkeypatch.setattr(settings, "object_storage_backend", "r2")
+    monkeypatch.setattr(settings, "object_storage_bucket", "isg-uploads")
+    monkeypatch.setattr(settings, "object_storage_access_key", "ak")
+    monkeypatch.setattr(settings, "object_storage_secret_key", "sk")
+    monkeypatch.setattr(settings, "object_storage_endpoint", "")
+    assert os_mod.object_storage_config_ok() is False
+    assert os_mod.storage_backend_label() == "r2-misconfig-v1"
+    monkeypatch.setattr(settings, "object_storage_endpoint", "https://x.r2.cloudflarestorage.com")
+    assert os_mod.object_storage_config_ok() is True
+    assert os_mod.storage_backend_label() == "r2-ready-v1"
+
+
 def test_s3_without_boto_raises(monkeypatch):
     monkeypatch.setattr(settings, "object_storage_backend", "s3")
     monkeypatch.setattr(settings, "object_storage_bucket", "bucket")
