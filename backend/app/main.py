@@ -130,7 +130,7 @@ def health():
         'redis': redis_status_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
         'upload_gateway_wired': 'assert-safe-all-legacy-v2',
-        'infra_rollout': 'async-gateway-on-r2-next-v16',
+        'infra_rollout': 'prod-async-gateway-cutover-v17',
         'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
         'health_field_encryption_key': encryption_key_status(),
         'health_field_crypto_ready': health_crypto_ready_label(),

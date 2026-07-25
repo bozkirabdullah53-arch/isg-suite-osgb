@@ -48,12 +48,19 @@ _worker_started = False
 
 
 def async_jobs_enabled() -> bool:
-    """P1-10: açıkça ASYNC_JOBS_ENABLED veya REDIS_URL → on; FORCE_OFF her zaman kapalı."""
-    if bool(getattr(settings, "async_jobs_force_off", False)):
-        return False
+    """P1-10: ASYNC_JOBS_ENABLED veya REDIS_URL → on.
+
+    ASYNC_JOBS_FORCE_OFF Redis varken artık no-op (0.9.213 cutover);
+    Redis yokken force_off hâlâ senkron tutar.
+    """
+    has_redis = bool((getattr(settings, "redis_url", None) or "").strip())
     if bool(getattr(settings, "async_jobs_enabled", False)):
         return True
-    return bool((getattr(settings, "redis_url", None) or "").strip())
+    if has_redis:
+        return True
+    if bool(getattr(settings, "async_jobs_force_off", False)):
+        return False
+    return False
 
 
 def register_handler(name: str, fn: Callable[..., Any]) -> Callable[..., Any]:

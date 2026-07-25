@@ -27,8 +27,10 @@ class Settings(BaseSettings):
     clamav_host: str | None = None
     clamav_port: int = 3310
     clamav_timeout_sec: float = 30.0
-    # P0 upload gateway — kapalı; açılınca yeni yollar persist_upload kullanır
+    # P0 upload gateway — production'da apply_production_rollout açar
     upload_gateway_enabled: bool = False
+    # Acil kapatma: UPLOAD_GATEWAY_FORCE_OFF=true (production override'ı iptal)
+    upload_gateway_force_off: bool = False
     # P0-06 object storage — varsayılan local; s3/r2 için bucket + credential
     object_storage_backend: str = "local"
     object_storage_bucket: str | None = None
@@ -54,7 +56,7 @@ class Settings(BaseSettings):
     # Canlıda acil kapatma: AUTH_REFRESH_COOKIE_FORCE_OFF=true
     auth_refresh_cookie_force_off: bool = False
     refresh_token_expire_days: int = 14
-    # P1-10 async job — açıkça true VEYA REDIS_URL doluysa açık; acil: ASYNC_JOBS_FORCE_OFF=true
+    # P1-10 async job — REDIS_URL veya ASYNC_JOBS_ENABLED; FORCE_OFF artık Redis varken no-op
     async_jobs_enabled: bool = False
     async_jobs_force_off: bool = False
     # İBYS / İSG-KATİP adapter scaffold (optional; never commit real secrets)
@@ -74,6 +76,18 @@ _INSECURE_SECRET_KEYS = frozenset({
     "secret",
     "changeme",
 })
+
+
+def apply_production_rollout() -> None:
+    """Canlı cutover: Redis varken async; production'da upload gateway (force-off yoksa)."""
+    env = (settings.environment or "").strip().lower()
+    if env not in ("production", "prod", "live"):
+        return
+    if not bool(settings.upload_gateway_force_off):
+        settings.upload_gateway_enabled = True
+
+
+apply_production_rollout()
 
 
 def validate_runtime_settings() -> None:

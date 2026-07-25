@@ -48,9 +48,11 @@ services:
         sync: false
       - key: OBJECT_STORAGE_SECRET_KEY
         sync: false
-      # Upload gateway — magic/quarantine merkezi yol (local veya S3)
+      # Upload gateway — production kodda açık; acil: UPLOAD_GATEWAY_FORCE_OFF=true
       - key: UPLOAD_GATEWAY_ENABLED
         value: "true"
+      - key: UPLOAD_GATEWAY_FORCE_OFF
+        value: "false"
       # P1-01 HttpOnly refresh — production kodda açık; acil kapatma:
       # AUTH_REFRESH_COOKIE_FORCE_OFF=true
       - key: AUTH_REFRESH_COOKIE_ENABLED

@@ -31,8 +31,9 @@ def test_async_jobs_auto_on_with_redis(monkeypatch):
     monkeypatch.setattr(cfg.settings, "async_jobs_enabled", False)
     monkeypatch.setattr(cfg.settings, "redis_url", "redis://localhost:6379/0")
     assert jq.async_jobs_enabled() is True
+    # Redis varken FORCE_OFF no-op
     monkeypatch.setattr(cfg.settings, "async_jobs_force_off", True)
-    assert jq.async_jobs_enabled() is False
+    assert jq.async_jobs_enabled() is True
     monkeypatch.setattr(cfg.settings, "async_jobs_force_off", False)
     monkeypatch.setattr(cfg.settings, "redis_url", None)
     assert jq.async_jobs_enabled() is False
