@@ -298,3 +298,27 @@ def maybe_auto_cutover_object_storage() -> dict:
     reset_object_store_for_tests()
     log.info("object storage auto-cutover: local → %s", target)
     return {"status": "cutover", "backend": target, "probe": probe}
+
+
+def persistent_disk_label() -> str:
+    """UPLOAD_DIR /var/data altında ise Render persistent disk varsay."""
+    from pathlib import Path
+
+    root = str(Path(settings.upload_dir).resolve()).replace("\\", "/")
+    if root.startswith("/var/data"):
+        return "mounted-v1"
+    return "ephemeral-v1"
+
+
+def infra_cutover_remaining() -> list[str]:
+    """Canlı %100 için kalan operasyonel boşluklar (özet)."""
+    gaps: list[str] = []
+    label = storage_backend_label()
+    if label.startswith("local"):
+        gaps.append("object_storage_r2")
+    if persistent_disk_label() != "mounted-v1" and label.startswith("local"):
+        gaps.append("persistent_disk")
+    # restore yazma bilerek kapalı — staging drill sonrası açılır
+    if not bool(settings.backup_restore_enabled):
+        gaps.append("backup_restore_staging_drill")
+    return gaps

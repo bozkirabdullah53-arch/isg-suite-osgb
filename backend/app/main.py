@@ -136,7 +136,12 @@ def health():
     from app.services.clamav_scan import is_clamav_configured
     from app.services.health_field_crypto import encryption_key_status, health_crypto_ready_label
     from app.services.backup_restore import backup_crypto_ready_label, backup_encryption_key_status
-    from app.services.object_store import object_storage_config_ok, storage_backend_label
+    from app.services.object_store import (
+        infra_cutover_remaining,
+        object_storage_config_ok,
+        persistent_disk_label,
+        storage_backend_label,
+    )
     return {
         'status': 'ok',
         'service': settings.app_name,
@@ -145,10 +150,12 @@ def health():
         'object_storage': storage_backend_label(),
         'object_storage_config': 'ok' if object_storage_config_ok() else 'incomplete',
         'object_storage_probe': 'head-bucket-v1',
+        'persistent_disk': persistent_disk_label(),
+        'infra_cutover_remaining': infra_cutover_remaining(),
         'redis': redis_status_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
         'upload_gateway_wired': 'assert-safe-all-legacy-v2',
-        'infra_rollout': 'dedicated-crypto-keys-decrypt-fallback-v20',
+        'infra_rollout': 'persistent-disk-cutover-gaps-v21',
         'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
         'health_field_encryption_key': encryption_key_status(),
         'health_field_crypto_ready': health_crypto_ready_label(),

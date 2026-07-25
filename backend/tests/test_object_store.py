@@ -207,3 +207,20 @@ def test_auto_cutover_to_r2_when_reachable(monkeypatch):
     assert result["status"] == "cutover"
     assert result["backend"] == "r2"
     assert settings.object_storage_backend == "r2"
+
+
+def test_persistent_disk_and_cutover_gaps(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path / "uploads"))
+    monkeypatch.setattr(settings, "object_storage_backend", "local")
+    monkeypatch.setattr(settings, "backup_restore_enabled", False)
+    assert os_mod.persistent_disk_label() == "ephemeral-v1"
+    gaps = os_mod.infra_cutover_remaining()
+    assert "object_storage_r2" in gaps
+    assert "persistent_disk" in gaps
+    assert "backup_restore_staging_drill" in gaps
+
+    monkeypatch.setattr(settings, "upload_dir", "/var/data/uploads")
+    assert os_mod.persistent_disk_label() == "mounted-v1"
+    gaps2 = os_mod.infra_cutover_remaining()
+    assert "persistent_disk" not in gaps2
+    assert "object_storage_r2" in gaps2

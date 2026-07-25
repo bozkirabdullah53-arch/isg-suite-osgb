@@ -7,6 +7,11 @@ services:
     startCommand: sh start.sh
     healthCheckPath: /health
     branch: master
+    # P0-03: redeploy'da dosya kaybını azalt (R2 gelene kadar); Dashboard'dan da eklenebilir
+    disk:
+      name: isg-suite-api-data
+      mountPath: /var/data
+      sizeGB: 5
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
@@ -21,6 +26,10 @@ services:
         generateValue: true
       - key: FRONTEND_ORIGIN
         value: https://www.isgsuite.tr
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: BACKUP_DIR
+        value: /var/data/backups
       # Seed admin: Render Dashboard > Environment (sync: false)
       - key: SEED_ADMIN_EMAIL
         sync: false
@@ -72,7 +81,7 @@ services:
         value: "true"
       - key: OBJECT_STORAGE_FORCE_LOCAL
         value: "false"
-      # P0-08 yedek — restore kapalı; production'da SECRET_KEY fallback (dedicated tercih)
+      # P0-08 yedek — restore kapalı; dedicated key tercih
       - key: BACKUP_RESTORE_ENABLED
         value: "false"
       - key: BACKUP_ENCRYPTION_KEY
