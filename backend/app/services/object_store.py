@@ -304,9 +304,20 @@ def persistent_disk_label() -> str:
     """UPLOAD_DIR /var/data altında ise Render persistent disk varsay."""
     from pathlib import Path
 
-    root = str(Path(settings.upload_dir).resolve()).replace("\\", "/")
-    if root.startswith("/var/data"):
-        return "mounted-v1"
+    candidates = [(settings.upload_dir or "").replace("\\", "/").strip()]
+    try:
+        candidates.append(str(Path(settings.upload_dir).resolve()).replace("\\", "/"))
+    except OSError:
+        pass
+    for raw in candidates:
+        if not raw:
+            continue
+        # Windows resolve: C:/var/data/... → /var/data/...
+        norm = raw[2:] if len(raw) >= 2 and raw[1] == ":" else raw
+        if not norm.startswith("/"):
+            norm = "/" + norm.lstrip("/")
+        if norm.startswith("/var/data"):
+            return "mounted-v1"
     return "ephemeral-v1"
 
 
