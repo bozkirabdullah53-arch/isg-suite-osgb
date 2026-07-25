@@ -26,16 +26,14 @@ services:
         sync: false
       - key: SEED_ADMIN_PASSWORD
         sync: false
-      # Optional Redis (P1-02 rate limit). Async jobs: REDIS_URL ile auto-on
-      # ama ASYNC_JOBS_FORCE_OFF=true → önce yalnız rate limit (güvenli).
-      # Dashboard: New > Redis > Key Value → REDIS_URL'i API servisine bağla
+      # Redis: rate limit + async (FORCE_OFF kapalı → REDIS_URL ile async on)
       - key: REDIS_URL
         sync: false
       - key: ASYNC_JOBS_FORCE_OFF
-        value: "true"
-      - key: ASYNC_JOBS_ENABLED
         value: "false"
-      # Object storage (P0-03) — varsayılan local; R2/S3 cutover için doldur
+      - key: ASYNC_JOBS_ENABLED
+        value: "true"
+      # Object storage (P0-03) — varsayılan local; R2 credential + probe sonrası r2
       - key: OBJECT_STORAGE_BACKEND
         value: "local"
       - key: OBJECT_STORAGE_BUCKET
@@ -50,9 +48,9 @@ services:
         sync: false
       - key: OBJECT_STORAGE_SECRET_KEY
         sync: false
-      # Upload gateway — S3 doğrulanmadan açma
+      # Upload gateway — magic/quarantine merkezi yol (local veya S3)
       - key: UPLOAD_GATEWAY_ENABLED
-        value: "false"
+        value: "true"
       # P1-01 HttpOnly refresh — production kodda açık; acil kapatma:
       # AUTH_REFRESH_COOKIE_FORCE_OFF=true
       - key: AUTH_REFRESH_COOKIE_ENABLED
