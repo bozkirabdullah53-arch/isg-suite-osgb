@@ -18,6 +18,7 @@ from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCrea
                               ProfessionalResponse, ProfessionalUpdate)
 from app.services.osgb_admin import provision_professional_login
 from app.services.upload_gateway import persist_relative
+from app.services.upload_security import assert_safe_upload
 from app.services.osgb_oversight import (
     build_oversight,
     build_professional_performance,
@@ -798,6 +799,7 @@ async def upload_assignment_contract(
     if settings.upload_gateway_enabled:
         persist_relative(data, relative_path=rel, original_name=name)
     else:
+        assert_safe_upload(data, ext, name)
         target = _upload_root() / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)

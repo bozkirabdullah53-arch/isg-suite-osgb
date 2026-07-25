@@ -23,6 +23,7 @@ from app.services.visit_calendar import build_visit_calendar
 from app.services.module_kpis import build_module_kpis
 from app.services.site_verify import codes_match, consume_ephemeral_token, ensure_company_site_verify_code
 from app.services.upload_gateway import persist_relative
+from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/operations", tags=["OSGB Operasyonları"])
 ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
@@ -99,6 +100,7 @@ def _apply_signature(obj: ServiceVisit, data_url: str | None):
     if settings.upload_gateway_enabled:
         persist_relative(raw, relative_path=rel, original_name=f"imza{ext}", max_bytes=350_000)
     else:
+        assert_safe_upload(raw, ext, f"imza{ext}")
         target = _upload_root() / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(raw)
@@ -628,6 +630,7 @@ async def upload_visit_notebook(
     if settings.upload_gateway_enabled:
         persist_relative(data, relative_path=rel, original_name=name)
     else:
+        assert_safe_upload(data, ext, name)
         target = _upload_root() / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)

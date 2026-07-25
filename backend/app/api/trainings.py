@@ -20,6 +20,7 @@ from app.services.training_employee_import import resolve_or_create_employees
 from app.services.training_excel import parse_employees_xlsx
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
 from app.services.upload_gateway import persist_relative
+from app.services.upload_security import assert_safe_upload
 from app.services.training_topics import meta_payload, sektor_kodu_cozumle, sectors_list_for_api
 
 
@@ -369,6 +370,7 @@ async def upload_training_logo(
     if settings.upload_gateway_enabled:
         persist_relative(content, relative_path=rel, original_name=original.name, max_bytes=2 * 1024 * 1024)
     else:
+        assert_safe_upload(content, ext, original.name)
         company_dir = safe_upload_root() / str(row.company_id) / "training-logos"
         company_dir.mkdir(parents=True, exist_ok=True)
         target = (company_dir / stored).resolve()

@@ -17,6 +17,7 @@ from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
 from app.services.upload_gateway import persist_relative
+from app.services.upload_security import assert_safe_upload
 from app.models.entities import (
     AnnualPlanEvalCapa,
     AnnualPlanEvalEvidence,
@@ -778,6 +779,7 @@ async def upload_evidence(
     if settings.upload_gateway_enabled:
         persist_relative(data, relative_path=rel, original_name=name)
     else:
+        assert_safe_upload(data, ext, name)
         target = _upload_root() / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)

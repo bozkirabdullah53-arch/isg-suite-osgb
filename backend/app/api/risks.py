@@ -63,6 +63,7 @@ from app.services.risk_reports import build_risk_excel, build_risk_pdf
 from app.services.risk_scoring import evaluate, meta_payload
 from app.services.risk_suggestions import get_suggestions
 from app.services.upload_gateway import persist_relative
+from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/risks", tags=["Risk Değerlendirme"])
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)
@@ -1094,6 +1095,7 @@ async def upload_risk_media(
     if settings.upload_gateway_enabled:
         persist_relative(data, relative_path=rel, original_name=name)
     else:
+        assert_safe_upload(data, ext, name)
         target = _upload_root() / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
