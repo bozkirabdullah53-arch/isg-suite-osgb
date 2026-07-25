@@ -148,7 +148,7 @@ def health():
         'redis': redis_status_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
         'upload_gateway_wired': 'assert-safe-all-legacy-v2',
-        'infra_rollout': 'backup-crypto-secret-fallback-v19',
+        'infra_rollout': 'dedicated-crypto-keys-decrypt-fallback-v20',
         'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
         'health_field_encryption_key': encryption_key_status(),
         'health_field_crypto_ready': health_crypto_ready_label(),

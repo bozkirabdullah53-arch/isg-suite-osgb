@@ -31,7 +31,20 @@ SENSITIVE_TEXT_FIELDS: tuple[str, ...] = (
 
 
 def encryption_key_material() -> str:
+    """Yazma anahtarı: dedicated tercih, yoksa SECRET_KEY."""
     return (settings.health_field_encryption_key or settings.secret_key or "").strip()
+
+
+def _decrypt_key_candidates() -> list[str]:
+    """Dedicated + SECRET_KEY (eski secret_key_fallback ciphertext için)."""
+    out: list[str] = []
+    for raw in (
+        (settings.health_field_encryption_key or "").strip(),
+        (settings.secret_key or "").strip(),
+    ):
+        if raw and raw not in out:
+            out.append(raw)
+    return out
 
 
 def _fernet_from(raw: str):
@@ -131,13 +144,17 @@ def decrypt_field(value: str | None) -> str | None:
         return value
     if not is_encrypted(value):
         return value
-    token = value[len(PREFIX) :]
-    try:
-        return _fernet().decrypt(token.encode("ascii")).decode("utf-8")
-    except Exception:
-        logger.warning("health field decrypt failed", exc_info=True)
-        # Yanlış anahtar / bozuk — UI'yi tamamen kırmamak için işaretle
-        return "[şifre-çözülemedi]"
+    token = value[len(PREFIX) :].encode("ascii")
+    last_exc: Exception | None = None
+    for raw in _decrypt_key_candidates():
+        try:
+            return _fernet_from(raw).decrypt(token).decode("utf-8")
+        except Exception as exc:
+            last_exc = exc
+            continue
+    logger.warning("health field decrypt failed", exc_info=last_exc)
+    # Yanlış anahtar / bozuk — UI'yi tamamen kırmamak için işaretle
+    return "[şifre-çözülemedi]"
 
 
 def encrypt_payload(data: dict[str, Any]) -> dict[str, Any]:

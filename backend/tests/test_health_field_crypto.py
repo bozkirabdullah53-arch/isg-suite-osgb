@@ -87,3 +87,15 @@ def test_enable_health_crypto_production(monkeypatch):
     monkeypatch.setattr(settings, "secret_key", "test-secret-key-at-least-32-chars-long!!")
     assert crypto.enable_health_crypto_for_production().startswith("enabled:")
     assert settings.health_field_encryption_enabled is True
+
+
+def test_decrypt_falls_back_to_secret_after_dedicated_cutover(monkeypatch):
+    """Dedicated key ile yazmadan önce SECRET_KEY ile şifrelenen veri okunabilmeli."""
+    monkeypatch.setattr(settings, "health_field_encryption_enabled", True)
+    monkeypatch.setattr(settings, "secret_key", "old-secret-key-at-least-32-characters!!")
+    monkeypatch.setattr(settings, "health_field_encryption_key", None)
+    legacy = crypto.encrypt_field("eski not")
+    monkeypatch.setattr(settings, "health_field_encryption_key", "new-dedicated-health-key-32chars-min!")
+    assert crypto.decrypt_field(legacy) == "eski not"
+    fresh = crypto.encrypt_field("yeni not")
+    assert crypto.decrypt_field(fresh) == "yeni not"

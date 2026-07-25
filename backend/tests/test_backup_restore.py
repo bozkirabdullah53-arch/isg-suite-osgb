@@ -146,6 +146,29 @@ def test_enable_backup_crypto_force_off(monkeypatch):
     assert br.backup_encryption_key_material() == ""
 
 
+def test_backup_decrypt_falls_back_to_secret_after_dedicated(tmp_path, monkeypatch):
+    import base64
+    import hashlib
+    import zipfile
+
+    from cryptography.fernet import Fernet
+
+    secret = "old-backup-secret-at-least-32-characters!"
+    dedicated = "new-dedicated-backup-key-32chars-min!!"
+    monkeypatch.setattr(settings, "secret_key", secret)
+    monkeypatch.setattr(settings, "backup_encryption_key", None)
+    monkeypatch.setattr(settings, "backup_encryption_secret_fallback", True)
+    zpath = _make_zip(tmp_path)
+    digest = hashlib.sha256(secret.encode("utf-8")).digest()
+    enc = tmp_path / "legacy.zip.enc"
+    enc.write_bytes(Fernet(base64.urlsafe_b64encode(digest)).encrypt(zpath.read_bytes()))
+    monkeypatch.setattr(settings, "backup_encryption_key", dedicated)
+    monkeypatch.setattr(settings, "backup_encryption_secret_fallback", False)
+    plan = br.inspect_backup_file(enc)
+    assert plan.encrypted is True
+    assert plan.document_count >= 0
+
+
 def test_restore_write_still_blocked_when_crypto_ready(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "backup_restore_enabled", False)
     monkeypatch.setattr(settings, "backup_encryption_key", "dedicated-backup-key-at-least-32chars!!")

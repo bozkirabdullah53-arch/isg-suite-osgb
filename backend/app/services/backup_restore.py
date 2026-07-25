@@ -139,12 +139,25 @@ class RestorePlan:
         return asdict(self)
 
 
+def _backup_decrypt_key_candidates() -> list[str]:
+    """Dedicated + material + SECRET_KEY (eski fallback .enc için)."""
+    out: list[str] = []
+    for raw in (
+        (settings.backup_encryption_key or "").strip(),
+        backup_encryption_key_material(),
+        (settings.secret_key or "").strip(),
+    ):
+        if raw and raw not in out:
+            out.append(raw)
+    return out
+
+
 def _decrypt_if_needed(path: Path) -> Path:
     """`.enc` ise geçici düz dosya üretir (çağıran silmeli); değilse path döner."""
     if not path.name.endswith(".enc"):
         return path
-    key = backup_encryption_key_material()
-    if not key:
+    candidates = _backup_decrypt_key_candidates()
+    if not candidates:
         raise HTTPException(
             status_code=400,
             detail="Şifreli yedek; BACKUP_ENCRYPTION_KEY / SECRET_KEY türevi yok.",
@@ -155,12 +168,20 @@ def _decrypt_if_needed(path: Path) -> Path:
 
     from cryptography.fernet import Fernet, InvalidToken
 
-    digest = hashlib.sha256(key.encode("utf-8")).digest()
-    f = Fernet(base64.urlsafe_b64encode(digest))
-    try:
-        plain = f.decrypt(path.read_bytes())
-    except InvalidToken as exc:
-        raise HTTPException(status_code=400, detail="Yedek çözülemedi (anahtar uyuşmuyor).") from exc
+    cipher = path.read_bytes()
+    plain: bytes | None = None
+    last_exc: Exception | None = None
+    for key in candidates:
+        digest = hashlib.sha256(key.encode("utf-8")).digest()
+        f = Fernet(base64.urlsafe_b64encode(digest))
+        try:
+            plain = f.decrypt(cipher)
+            break
+        except InvalidToken as exc:
+            last_exc = exc
+            continue
+    if plain is None:
+        raise HTTPException(status_code=400, detail="Yedek çözülemedi (anahtar uyuşmuyor).") from last_exc
     tmp = Path(tempfile.mkstemp(suffix=".zip")[1])
     tmp.write_bytes(plain)
     return tmp
