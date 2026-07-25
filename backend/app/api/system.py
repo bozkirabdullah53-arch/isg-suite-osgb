@@ -59,6 +59,29 @@ def storage_probe(
     }
 
 
+@router.post("/health-crypto-backfill")
+def health_crypto_backfill(
+    dry_run: bool = True,
+    confirm: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """Düz metin sağlık alanlarını şifrele (GA). Varsayılan dry-run; yazma confirm=BACKFILL ister."""
+    _ = user
+    from app.services.health_field_crypto import backfill_plaintext_records
+
+    commit = (not dry_run) and (confirm or "").strip().upper() == "BACKFILL"
+    if not dry_run and not commit:
+        raise HTTPException(
+            status_code=400,
+            detail="Yazma için dry_run=false ve confirm=BACKFILL gerekli.",
+        )
+    result = backfill_plaintext_records(db, commit=commit)
+    result["requested_by"] = user.email
+    result["dry_run"] = not commit
+    return result
+
+
 @router.get("/jobs/{job_id}")
 def job_status(job_id: str):
     """Async iş durumu (P1-10). Kayıt yoksa 404."""
