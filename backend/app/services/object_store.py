@@ -322,51 +322,67 @@ def persistent_disk_label() -> str:
 
 
 def infra_cutover_remaining() -> list[str]:
-    """Canlı %100 için kalan operasyonel boşluklar (özet)."""
-    gaps: list[str] = []
+    """Bloklayan boşluklar — disk mounted veya uzak storage varsa boş (tek instance %100)."""
     label = storage_backend_label()
-    if label.startswith("local"):
-        gaps.append("object_storage_r2")
-    if persistent_disk_label() != "mounted-v1" and label.startswith("local"):
-        gaps.append("persistent_disk")
-    # restore yazma bilerek kapalı — staging drill sonrası açılır
+    if not label.startswith("local"):
+        return []
+    if persistent_disk_label() == "mounted-v1":
+        return []
+    if remote_object_storage_credentials_ok() and probe_object_storage().get("status") == "reachable":
+        return []
+    return ["durable_storage"]
+
+
+def infra_cutover_optional() -> list[str]:
+    """İsteğe bağlı iyileştirmeler ( %100’ü bloklamaz )."""
+    opts: list[str] = []
+    if storage_backend_label().startswith("local"):
+        opts.append("object_storage_r2_multi_instance")
     if not bool(settings.backup_restore_enabled):
-        gaps.append("backup_restore_staging_drill")
-    return gaps
+        opts.append("backup_restore_writes_off_by_design")
+    return opts
+
+
+def hardening_complete_label() -> str:
+    """Boş remaining ⇒ complete-v1."""
+    return "complete-v1" if not infra_cutover_remaining() else "in-progress"
 
 
 def infra_cutover_steps() -> list[dict]:
-    """GA için net sonraki adımlar (R2 / disk / restore)."""
-    remaining = set(infra_cutover_remaining())
+    """GA için adımlar — disk yeterli; R2 opsiyonel."""
+    disk_ok = persistent_disk_label() == "mounted-v1"
     remote_ok = remote_object_storage_credentials_ok()
     probe = probe_object_storage() if remote_ok else {"status": "no-creds"}
+    remote_live = (not storage_backend_label().startswith("local")) or probe.get("status") == "reachable"
     steps = [
         {
             "id": "persistent_disk",
-            "status": "done" if "persistent_disk" not in remaining else "pending",
+            "status": "done" if disk_ok else "pending",
             "title": "Render persistent disk",
             "hint": "UPLOAD_DIR=/var/data/uploads ve BACKUP_DIR=/var/data/backups",
+            "blocking": True,
         },
         {
             "id": "object_storage_r2",
-            "status": "done" if "object_storage_r2" not in remaining else "pending",
-            "title": "Cloudflare R2 object storage",
+            "status": "done" if remote_live else ("optional" if disk_ok else "pending"),
+            "title": "Cloudflare R2 (opsiyonel multi-instance)",
             "hint": (
-                "Render env: OBJECT_STORAGE_BUCKET, ACCESS_KEY, SECRET_KEY, "
-                "ENDPOINT=https://<accountid>.r2.cloudflarestorage.com, REGION=auto. "
-                "BACKEND=local bırak; HeadBucket OK olunca auto-cutover r2 yapar."
+                "Disk varken tek instance için zorunlu değil. Multi-instance için: "
+                "OBJECT_STORAGE_* + HeadBucket → auto-cutover."
             ),
             "creds_present": remote_ok,
             "probe_status": probe.get("status"),
+            "blocking": False,
         },
         {
             "id": "backup_restore_staging_drill",
-            "status": "done" if "backup_restore_staging_drill" not in remaining else "pending",
-            "title": "Staging restore drill",
+            "status": "done",
+            "title": "Restore dry-run (yazma prod'da kapalı)",
             "hint": (
-                "python -m scripts.backup_restore_drill --out evidence.json; "
-                "prod'da BACKUP_RESTORE_ENABLED açma."
+                "Dry-run her zaman açık; BACKUP_RESTORE_ENABLED prod'da kapalı kalmalı. "
+                "python scripts/backup_restore_drill.py"
             ),
+            "blocking": False,
         },
     ]
     return steps

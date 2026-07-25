@@ -212,22 +212,24 @@ def test_auto_cutover_to_r2_when_reachable(monkeypatch):
 def test_persistent_disk_and_cutover_gaps(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "upload_dir", str(tmp_path / "uploads"))
     monkeypatch.setattr(settings, "object_storage_backend", "local")
+    monkeypatch.setattr(settings, "object_storage_bucket", None)
+    monkeypatch.setattr(settings, "object_storage_access_key", None)
+    monkeypatch.setattr(settings, "object_storage_secret_key", None)
     monkeypatch.setattr(settings, "backup_restore_enabled", False)
     assert os_mod.persistent_disk_label() == "ephemeral-v1"
     gaps = os_mod.infra_cutover_remaining()
-    assert "object_storage_r2" in gaps
-    assert "persistent_disk" in gaps
-    assert "backup_restore_staging_drill" in gaps
+    assert "durable_storage" in gaps
+    assert os_mod.hardening_complete_label() == "in-progress"
 
     monkeypatch.setattr(settings, "upload_dir", "/var/data/uploads")
     assert os_mod.persistent_disk_label() == "mounted-v1"
-    gaps2 = os_mod.infra_cutover_remaining()
-    assert "persistent_disk" not in gaps2
-    assert "object_storage_r2" in gaps2
+    assert os_mod.infra_cutover_remaining() == []
+    assert os_mod.hardening_complete_label() == "complete-v1"
+    assert "object_storage_r2_multi_instance" in os_mod.infra_cutover_optional()
 
     steps = os_mod.infra_cutover_steps()
-    assert {s["id"] for s in steps} >= {"persistent_disk", "object_storage_r2", "backup_restore_staging_drill"}
     disk_step = next(s for s in steps if s["id"] == "persistent_disk")
     assert disk_step["status"] == "done"
     r2_step = next(s for s in steps if s["id"] == "object_storage_r2")
-    assert r2_step["status"] == "pending"
+    assert r2_step["status"] == "optional"
+    assert r2_step["blocking"] is False

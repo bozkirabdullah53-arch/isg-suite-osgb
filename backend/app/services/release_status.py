@@ -26,6 +26,8 @@ def infra_detail_payload() -> dict:
     from app.services.clamav_scan import is_clamav_configured
     from app.services.health_field_crypto import encryption_key_status, health_crypto_ready_label
     from app.services.object_store import (
+        hardening_complete_label,
+        infra_cutover_optional,
         infra_cutover_remaining,
         infra_cutover_steps,
         object_storage_config_ok,
@@ -42,12 +44,14 @@ def infra_detail_payload() -> dict:
         "object_storage_config": "ok" if object_storage_config_ok() else "incomplete",
         "object_storage_probe": "head-bucket-v1",
         "persistent_disk": persistent_disk_label(),
+        "hardening_complete": hardening_complete_label(),
         "infra_cutover_remaining": infra_cutover_remaining(),
+        "infra_cutover_optional": infra_cutover_optional(),
         "infra_cutover_steps": infra_cutover_steps(),
         "redis": redis_status_label(),
         "upload_gateway": "on" if settings.upload_gateway_enabled else "off",
         "upload_gateway_wired": "assert-safe-all-legacy-v2",
-        "infra_rollout": "ga-health-backfill-endpoint-v25",
+        "infra_rollout": "hardening-complete-disk-sufficient-v26",
         "health_field_encryption": "on" if settings.health_field_encryption_enabled else "off",
         "health_field_encryption_key": encryption_key_status(),
         "health_field_crypto_ready": health_crypto_ready_label(),
