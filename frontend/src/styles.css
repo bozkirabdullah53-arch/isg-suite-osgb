@@ -319,4 +319,11 @@ header p { margin: 4px 0 0; color: #6c7f87; }
   .app-shell>aside,.app-shell>section>header,.page-title .actions,.no-print,.logout{display:none!important}
   .workspace,.content,.panel{box-shadow:none!important;border:0!important;padding:0!important;margin:0!important}
   body{background:white!important}
+  .theme-toggle{display:none!important}
 }
+
+/* Deneysel tema anahtarı (klasik görünüm) — mevcut tasarıma dokunmaz, sadece yeni buton */
+.theme-toggle{display:inline-flex;align-items:center;gap:7px;border:1px solid #dcebed;border-radius:999px;background:white;color:#24515e;padding:8px 13px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+.theme-toggle:hover{border-color:#0f766e;color:#0f766e}
+.theme-toggle-floating{position:fixed;right:18px;bottom:18px;z-index:40;box-shadow:0 10px 30px rgba(22,78,99,.18)}
+@media(max-width:620px){.theme-toggle:not(.theme-toggle-floating) span{display:none}.theme-toggle:not(.theme-toggle-floating){width:40px;height:40px;justify-content:center;padding:0;border-radius:10px}}

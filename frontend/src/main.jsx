@@ -1,6 +1,6 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
-import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
+import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Undo2,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
 import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';
 import {LegalAcceptancesPanel} from './legal_acceptances';
 import {MembershipsPanel} from './memberships_panel';
@@ -32,6 +32,8 @@ import {
   OsgbApplyPage,
 } from './eisa';
 import './styles.css';
+import './theme-modern.css';
+import {useUiTheme} from './theme';
 const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 /**
  * Sol menü sırası (yukarı→aşağı): ana panel → günlük operasyon → master data →
@@ -1005,7 +1007,24 @@ function ReportIssueButton(){
     </>
   );
 }
+function ThemeToggle({theme,onToggle,floating}){
+  const modern=theme==='modern';
+  const label=modern?'Klasik tasarıma dön':'Yeni tasarımı dene (deneysel)';
+  return (
+    <button
+      type="button"
+      className={floating?'theme-toggle theme-toggle-floating':'theme-toggle'}
+      onClick={onToggle}
+      title={label}
+      aria-label={label}
+    >
+      {modern?<Undo2 size={15}/>:<Sparkles size={15}/>}
+      <span>{modern?'Klasik tasarım':'Yeni tasarım'}</span>
+    </button>
+  );
+}
 function App(){
+  const[uiTheme,toggleUiTheme]=useUiTheme();
   const[logged,setLogged]=useState(!!localStorage.getItem('isg_token'));
   const[user,setUser]=useState(null);
   const[summary,setSummary]=useState(null);
@@ -1133,7 +1152,12 @@ function App(){
     );
   }
   if(applyMode) return <OsgbApplyPage onBack={()=>setApplyMode(false)}/>;
-  if(!logged) return <Login done={()=>setLogged(true)} onApply={()=>setApplyMode(true)}/>;
+  if(!logged) return (
+    <>
+      <Login done={()=>setLogged(true)} onApply={()=>setApplyMode(true)}/>
+      <ThemeToggle theme={uiTheme} onToggle={toggleUiTheme} floating/>
+    </>
+  );
   if(!user) return <div className="loading">Sistem yükleniyor...</div>;
   const allowed=roleModules[user.role]||[];
   const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
@@ -1229,6 +1253,7 @@ function App(){
             <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
           </div>
           <div className="header-actions">
+            <ThemeToggle theme={uiTheme} onToggle={toggleUiTheme}/>
             <ReportIssueButton/>
             <button type="button" className="header-icon" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfa">
               <LayoutDashboard size={18}/>

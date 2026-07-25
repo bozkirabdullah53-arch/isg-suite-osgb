@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 560" fill="none">
+  
+  <defs>
+    <radialGradient id="bgOrb" cx="38%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#5eead4" stop-opacity=".55"/>
+      <stop offset="55%" stop-color="#2dd4bf" stop-opacity=".22"/>
+      <stop offset="100%" stop-color="#0e7490" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="helmetDome" cx="34%" cy="24%" r="88%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="52%" stop-color="#f1f7f8"/>
+      <stop offset="82%" stop-color="#cfe3e7"/>
+      <stop offset="100%" stop-color="#a9c6cd"/>
+    </radialGradient>
+    <linearGradient id="helmetBrim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e9f3f5"/>
+      <stop offset="45%" stop-color="#c2d9de"/>
+      <stop offset="100%" stop-color="#8fb1ba"/>
+    </linearGradient>
+    <linearGradient id="helmetRidge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#d4e6e9"/>
+    </linearGradient>
+    <linearGradient id="shieldBody" x1="15%" y1="8%" x2="85%" y2="95%">
+      <stop offset="0%" stop-color="#2dd4bf"/>
+      <stop offset="55%" stop-color="#0d9488"/>
+      <stop offset="100%" stop-color="#0e7490"/>
+    </linearGradient>
+    <linearGradient id="shieldRim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#99f6e4"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </linearGradient>
+    <radialGradient id="ball" cx="32%" cy="28%" r="80%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="45%" stop-color="#99f6e4"/>
+      <stop offset="100%" stop-color="#0d9488"/>
+    </radialGradient>
+    <radialGradient id="ballBlue" cx="32%" cy="28%" r="80%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="45%" stop-color="#a5f3fc"/>
+      <stop offset="100%" stop-color="#0e7490"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5eead4"/>
+      <stop offset="100%" stop-color="#0e7490"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <filter id="soft2" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+  </defs>
+
+  
+  <circle cx="285" cy="240" r="235" fill="url(#bgOrb)"/>
+
+  
+  <g transform="rotate(-24 132 138)">
+    <ellipse cx="132" cy="138" rx="64" ry="24" stroke="url(#ring)" stroke-width="15" opacity=".9"/>
+    <ellipse cx="132" cy="134" rx="64" ry="24" stroke="#ccfbf1" stroke-width="4" opacity=".55"/>
+  </g>
+
+  
+  <circle cx="468" cy="128" r="26" fill="url(#ballBlue)"/>
+  <circle cx="90" cy="330" r="16" fill="url(#ball)"/>
+  <circle cx="500" cy="300" r="11" fill="url(#ball)" opacity=".85"/>
+  <circle cx="424" cy="58" r="8" fill="#99f6e4" opacity=".8"/>
+
+  
+  <ellipse cx="252" cy="392" rx="150" ry="30" fill="#0f4c5c" opacity=".28" filter="url(#soft)"/>
+
+  
+  <g>
+    
+    <path d="M 128 342 C 128 258 184 196 252 196 C 320 196 376 258 376 342 Z" fill="url(#helmetDome)"/>
+    
+    <path d="M 236 200 C 236 186 268 186 268 200 L 268 268 L 236 268 Z" fill="url(#helmetRidge)"/>
+    
+    <path d="M 168 300 C 172 254 198 224 226 214" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity=".75" filter="url(#soft2)"/>
+    
+    <path d="M 108 342 C 108 330 122 324 140 324 L 364 324 C 382 324 396 330 396 342 C 396 358 362 368 252 368 C 142 368 108 358 108 342 Z" fill="url(#helmetBrim)"/>
+    
+    <path d="M 122 336 C 160 328 344 328 382 336" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity=".6"/>
+  </g>
+
+  
+  <ellipse cx="416" cy="428" rx="72" ry="16" fill="#0f4c5c" opacity=".24" filter="url(#soft)"/>
+
+  
+  <g transform="rotate(10 416 330)">
+    <path d="M 416 236 C 448 254 474 260 494 262 C 494 336 470 392 416 420 C 362 392 338 336 338 262 C 358 260 384 254 416 236 Z" fill="url(#shieldRim)"/>
+    <path d="M 416 250 C 444 265 466 271 482 273 C 482 337 462 384 416 409 C 370 384 350 337 350 273 C 366 271 388 265 416 250 Z" fill="url(#shieldBody)"/>
+    
+    <path d="M 416 250 C 444 265 466 271 482 273 C 482 300 478 324 470 345 C 430 330 396 296 384 262 C 396 259 406 255 416 250 Z" fill="#ffffff" opacity=".14"/>
+    
+    <path d="M 384 328 L 408 352 L 452 296" stroke="#ffffff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
