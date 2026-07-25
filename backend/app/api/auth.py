@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+import logging
 
 from app.api.deps import get_current_user, get_mfa_challenge_user, oauth2_scheme
 from app.core.auth_cookies import (
@@ -39,6 +40,7 @@ from app.services.auth_security import (
 from app.services.audit import add_audit_log
 
 router = APIRouter(prefix="/auth", tags=["Kimlik Doğrulama"])
+logger = logging.getLogger(__name__)
 
 
 def _client_ip(request: Request) -> str | None:
@@ -262,7 +264,7 @@ def logout(
             )
             db.commit()
     except (JWTError, TypeError, ValueError):
-        pass
+        logger.warning("logout: access jti revoke failed", exc_info=True)
     # Refresh cookie varsa temizle (flag açıkken)
     raw = (request.cookies.get(REFRESH_COOKIE_NAME) or "").strip()
     if raw:
@@ -280,7 +282,7 @@ def logout(
                 revoke_jti(db, jti=str(jti), user_id=user.id, expires_at=expires_at)
                 db.commit()
         except Exception:
-            pass
+            logger.warning("logout: refresh jti revoke failed", exc_info=True)
     clear_refresh_cookie(response)
     return {"ok": True, "message": "Oturum sonlandırıldı."}
 
@@ -299,7 +301,7 @@ def logout_all_sessions(
     try:
         prune_expired_denylist(db)
     except Exception:
-        pass
+        logger.warning("logout_all: denylist prune failed", exc_info=True)
     add_audit_log(
         db,
         user=user,

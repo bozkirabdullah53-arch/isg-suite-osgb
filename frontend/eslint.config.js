@@ -1,7 +1,7 @@
 import js from "@eslint/js";
 import globals from "globals";
 
-/** P1-09: kademeli lint — auth / legal / memberships / api / validation / offline. */
+/** P1-09: kademeli lint — auth / legal / memberships / api / validation / offline / duty. */
 export default [
   {ignores: ["dist/**", "node_modules/**", "e2e/**"]},
   {
@@ -12,6 +12,7 @@ export default [
       "src/api.js",
       "src/validation.js",
       "src/field_offline.js",
+      "src/duty_dashboard.jsx",
     ],
     languageOptions: {
       ecmaVersion: 2022,
