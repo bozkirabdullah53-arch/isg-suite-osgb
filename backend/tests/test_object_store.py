@@ -103,3 +103,75 @@ def test_persist_relative_keeps_layout(tmp_path, monkeypatch):
     assert path.exists()
     assert path.name.endswith(".pdf")
     assert (tmp_path / "9" / "health").exists()
+
+
+def test_probe_skips_when_local_no_creds(monkeypatch):
+    monkeypatch.setattr(settings, "object_storage_backend", "local")
+    monkeypatch.setattr(settings, "object_storage_bucket", None)
+    monkeypatch.setattr(settings, "object_storage_access_key", None)
+    monkeypatch.setattr(settings, "object_storage_secret_key", None)
+    result = os_mod.probe_object_storage()
+    assert result["ok"] is True
+    assert result["status"] == "local"
+    assert result["remote"] == "skipped"
+    assert isinstance(os_mod.get_object_store(), os_mod.LocalObjectStore)
+
+
+def test_probe_reachable_with_mock(monkeypatch):
+    import types
+
+    monkeypatch.setattr(settings, "object_storage_backend", "local")
+    monkeypatch.setattr(settings, "object_storage_bucket", "isg-uploads")
+    monkeypatch.setattr(settings, "object_storage_access_key", "ak")
+    monkeypatch.setattr(settings, "object_storage_secret_key", "sk")
+    monkeypatch.setattr(settings, "object_storage_endpoint", "https://x.r2.cloudflarestorage.com")
+    monkeypatch.setattr(settings, "object_storage_region", "auto")
+
+    class _Client:
+        def head_bucket(self, Bucket):  # noqa: N803
+            assert Bucket == "isg-uploads"
+
+    class _Boto3:
+        @staticmethod
+        def client(service, **kwargs):
+            assert service == "s3"
+            return _Client()
+
+    botocore_config = types.ModuleType("botocore.config")
+    botocore_config.Config = lambda *a, **k: object()
+    monkeypatch.setitem(__import__("sys").modules, "botocore.config", botocore_config)
+    monkeypatch.setitem(__import__("sys").modules, "boto3", _Boto3())
+
+    result = os_mod.probe_object_storage()
+    assert result["ok"] is True
+    assert result["status"] == "reachable"
+    assert isinstance(os_mod.get_object_store(), os_mod.LocalObjectStore)
+
+
+def test_probe_unreachable_with_mock(monkeypatch):
+    import types
+
+    monkeypatch.setattr(settings, "object_storage_backend", "local")
+    monkeypatch.setattr(settings, "object_storage_bucket", "isg-uploads")
+    monkeypatch.setattr(settings, "object_storage_access_key", "ak")
+    monkeypatch.setattr(settings, "object_storage_secret_key", "sk")
+    monkeypatch.setattr(settings, "object_storage_endpoint", "https://x.r2.cloudflarestorage.com")
+
+    class _Client:
+        def head_bucket(self, Bucket):  # noqa: N803
+            raise RuntimeError("boom")
+
+    class _Boto3:
+        @staticmethod
+        def client(service, **kwargs):
+            return _Client()
+
+    botocore_config = types.ModuleType("botocore.config")
+    botocore_config.Config = lambda *a, **k: object()
+    monkeypatch.setitem(__import__("sys").modules, "botocore.config", botocore_config)
+    monkeypatch.setitem(__import__("sys").modules, "boto3", _Boto3())
+
+    result = os_mod.probe_object_storage()
+    assert result["ok"] is False
+    assert result["status"] == "unreachable"
+    assert result["error_class"] == "RuntimeError"

@@ -173,15 +173,90 @@ def object_storage_config_ok() -> bool:
     if backend in ("local", "disk", "fs"):
         return True
     if backend in ("s3", "r2", "minio"):
-        bucket = (settings.object_storage_bucket or "").strip()
-        key = (settings.object_storage_access_key or "").strip()
-        secret = (settings.object_storage_secret_key or "").strip()
-        endpoint = (settings.object_storage_endpoint or "").strip()
-        region = (settings.object_storage_region or "").strip()
-        if not (bucket and key and secret):
-            return False
-        # R2/minio: endpoint şart; AWS S3: region yeter
-        if backend in ("r2", "minio"):
-            return bool(endpoint)
-        return bool(region or endpoint)
+        return remote_object_storage_credentials_ok(backend_hint=backend)
     return False
+
+
+def remote_object_storage_credentials_ok(backend_hint: str | None = None) -> bool:
+    """Aktif backend local olsa bile R2/S3 env dolu mu? (cutover öncesi probe)."""
+    bucket = (settings.object_storage_bucket or "").strip()
+    key = (settings.object_storage_access_key or "").strip()
+    secret = (settings.object_storage_secret_key or "").strip()
+    endpoint = (settings.object_storage_endpoint or "").strip()
+    region = (settings.object_storage_region or "").strip()
+    if not (bucket and key and secret):
+        return False
+    hint = (backend_hint or settings.object_storage_backend or "s3").strip().lower()
+    if hint in ("r2", "minio"):
+        return bool(endpoint)
+    # AWS veya henüz backend=local iken doldurulmuş credential: endpoint veya region
+    return bool(region or endpoint)
+
+
+def probe_object_storage() -> dict:
+    """Salt okunur depolama ön kontrolü — put/delete yok; aktif store'u değiştirmez.
+
+    - Credential yok / local → status=local (skipped)
+    - Credential var → HeadBucket (backend hâlâ local olabilir)
+    """
+    import time
+
+    backend = (settings.object_storage_backend or "local").strip().lower() or "local"
+    if not remote_object_storage_credentials_ok(
+        backend_hint=backend if backend in ("s3", "r2", "minio") else None
+    ):
+        return {
+            "ok": True,
+            "status": "local" if backend in ("local", "disk", "fs") else "incomplete",
+            "remote": "skipped",
+            "active_backend": backend,
+        }
+
+    bucket = (settings.object_storage_bucket or "").strip()
+    try:
+        import boto3  # type: ignore
+        from botocore.config import Config  # type: ignore
+    except ImportError:
+        return {
+            "ok": False,
+            "status": "missing_boto3",
+            "remote": "skipped",
+            "active_backend": backend,
+        }
+
+    kwargs: dict = {
+        "aws_access_key_id": (settings.object_storage_access_key or "").strip(),
+        "aws_secret_access_key": (settings.object_storage_secret_key or "").strip(),
+        "config": Config(
+            connect_timeout=2,
+            read_timeout=2,
+            retries={"max_attempts": 1},
+        ),
+    }
+    if settings.object_storage_endpoint:
+        kwargs["endpoint_url"] = settings.object_storage_endpoint
+    if settings.object_storage_region:
+        kwargs["region_name"] = settings.object_storage_region
+
+    started = time.monotonic()
+    try:
+        client = boto3.client("s3", **kwargs)
+        client.head_bucket(Bucket=bucket)
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        return {
+            "ok": True,
+            "status": "reachable",
+            "remote": "probed",
+            "elapsed_ms": elapsed_ms,
+            "active_backend": backend,
+        }
+    except Exception as exc:
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        return {
+            "ok": False,
+            "status": "unreachable",
+            "remote": "probed",
+            "elapsed_ms": elapsed_ms,
+            "active_backend": backend,
+            "error_class": type(exc).__name__,
+        }
