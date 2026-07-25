@@ -32,6 +32,11 @@ def main() -> int:
     print("async_jobs:", "on" if async_jobs_enabled() else "off")
     print("job_backend:", job_backend_label())
     print("async_force_off:", bool(settings.async_jobs_force_off))
+    from app.services.health_field_crypto import encryption_key_status, health_crypto_ready_label
+
+    print("health_field_encryption:", "on" if settings.health_field_encryption_enabled else "off")
+    print("health_field_encryption_key:", encryption_key_status())
+    print("health_field_crypto_ready:", health_crypto_ready_label())
     return 0
 
 

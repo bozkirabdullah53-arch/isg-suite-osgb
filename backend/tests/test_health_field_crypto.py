@@ -39,3 +39,41 @@ def test_decrypted_record_view(monkeypatch):
     assert view.confidential_note == "hekim notu"
     assert view.summary == "duz"
     assert view.blood_lead_value == 1.0
+
+
+def test_readiness_missing(monkeypatch):
+    monkeypatch.setattr(settings, "health_field_encryption_enabled", False)
+    monkeypatch.setattr(settings, "health_field_encryption_key", None)
+    monkeypatch.setattr(settings, "secret_key", "")
+    assert crypto.encryption_key_status() == "missing"
+    assert crypto.health_crypto_ready_label() == "not_ready"
+    ready = crypto.encryption_readiness()
+    assert ready["enabled"] is False
+    assert ready["can_enable"] is False
+    assert ready["probe_ok"] is False
+
+
+def test_readiness_weak_fallback(monkeypatch):
+    monkeypatch.setattr(settings, "health_field_encryption_enabled", False)
+    monkeypatch.setattr(settings, "health_field_encryption_key", None)
+    monkeypatch.setattr(settings, "secret_key", "change-me-in-production-at-least-32-characters!")
+    assert crypto.encryption_key_status() == "weak_fallback"
+    assert crypto.health_crypto_ready_label() == "not_ready"
+
+
+def test_readiness_secret_key_fallback(monkeypatch):
+    monkeypatch.setattr(settings, "health_field_encryption_enabled", False)
+    monkeypatch.setattr(settings, "health_field_encryption_key", None)
+    monkeypatch.setattr(settings, "secret_key", "test-secret-key-at-least-32-chars-long!!")
+    assert crypto.encryption_key_status() == "secret_key_fallback"
+    assert crypto.health_crypto_ready_label() == "ok"
+    assert crypto.encryption_readiness()["can_enable"] is False
+
+
+def test_readiness_dedicated(monkeypatch):
+    monkeypatch.setattr(settings, "health_field_encryption_enabled", False)
+    monkeypatch.setattr(settings, "health_field_encryption_key", "dedicated-health-key-32chars-min!!")
+    monkeypatch.setattr(settings, "secret_key", "change-me-in-production-at-least-32-characters!")
+    assert crypto.encryption_key_status() == "dedicated"
+    assert crypto.health_crypto_ready_label() == "ok"
+    assert crypto.encryption_readiness()["can_enable"] is True

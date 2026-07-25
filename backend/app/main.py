@@ -116,6 +116,7 @@ for r in (auth.router,osgb_applications.router,eisa.router,companies.router,bran
 def health():
     import os
     from app.services.clamav_scan import is_clamav_configured
+    from app.services.health_field_crypto import encryption_key_status, health_crypto_ready_label
     from app.services.object_store import object_storage_config_ok, storage_backend_label
     return {
         'status': 'ok',
@@ -127,8 +128,10 @@ def health():
         'redis': redis_status_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
         'upload_gateway_wired': 'assert-safe-all-legacy-v2',
-        'infra_rollout': 'obs-silent-except-v5',
+        'infra_rollout': 'health-crypto-ready-probe-v6',
         'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
+        'health_field_encryption_key': encryption_key_status(),
+        'health_field_crypto_ready': health_crypto_ready_label(),
         'ai_hazard_hint': 'keyword-v2',
         'mevzuat_panel': 'highlights-v1',
         'sds_register': 'chemical-register-v1',
@@ -212,7 +215,7 @@ def health():
         'assignment_actions': 'end-suspend-delete',
         'companies_actions': 'deactivate-activate-hard-delete',
         'companies_sgk': 'required-on-create',
-        'health': 'field-crypto-ready-v1',
+        'health': 'field-crypto-ready-v2',
         'osgb_oversight': '6331-eval-error-detail',
         'assignment_form': 'katip-contract-upload',
         'katip_prep': 'missing-contract-v1',

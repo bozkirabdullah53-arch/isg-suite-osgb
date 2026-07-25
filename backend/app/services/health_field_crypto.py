@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 from typing import Any
 
-from app.core.config import settings
+from app.core.config import _INSECURE_SECRET_KEYS, settings
 
+logger = logging.getLogger(__name__)
 PREFIX = "enc:v1:"
 
 # At-rest şifrelenebilecek metin alanları (sayısal tetkik değerleri hariç — filtre/rapor)
@@ -28,14 +30,69 @@ SENSITIVE_TEXT_FIELDS: tuple[str, ...] = (
 )
 
 
-def _fernet():
+def encryption_key_material() -> str:
+    return (settings.health_field_encryption_key or settings.secret_key or "").strip()
+
+
+def _fernet_from(raw: str):
     from cryptography.fernet import Fernet
 
-    raw = (settings.health_field_encryption_key or settings.secret_key or "").strip()
-    if not raw:
-        raise RuntimeError("Sağlık alanı şifreleme anahtarı yok.")
     digest = hashlib.sha256(raw.encode("utf-8")).digest()
     return Fernet(base64.urlsafe_b64encode(digest))
+
+
+def _fernet():
+    raw = encryption_key_material()
+    if not raw:
+        raise RuntimeError("Sağlık alanı şifreleme anahtarı yok.")
+    return _fernet_from(raw)
+
+
+def encryption_key_status() -> str:
+    """dedicated | secret_key_fallback | weak_fallback | missing | invalid"""
+    dedicated = (settings.health_field_encryption_key or "").strip()
+    secret = (settings.secret_key or "").strip()
+    if dedicated:
+        try:
+            f = _fernet_from(dedicated)
+            token = f.encrypt(b"probe")
+            assert f.decrypt(token) == b"probe"
+            return "dedicated"
+        except Exception:
+            return "invalid"
+    if not secret:
+        return "missing"
+    weak = (
+        len(secret) < 32
+        or secret.lower() in _INSECURE_SECRET_KEYS
+        or secret.startswith("change-me")
+    )
+    try:
+        f = _fernet_from(secret)
+        token = f.encrypt(b"probe")
+        assert f.decrypt(token) == b"probe"
+    except Exception:
+        return "invalid"
+    return "weak_fallback" if weak else "secret_key_fallback"
+
+
+def encryption_readiness() -> dict[str, Any]:
+    """Flag kapalıyken de anahtar/probe durumunu raporlar (yazmayı değiştirmez)."""
+    status = encryption_key_status()
+    probe_ok = status in ("dedicated", "secret_key_fallback", "weak_fallback")
+    return {
+        "enabled": bool(settings.health_field_encryption_enabled),
+        "key_status": status,
+        "can_enable": status == "dedicated",
+        "probe_ok": probe_ok,
+    }
+
+
+def health_crypto_ready_label() -> str:
+    ready = encryption_readiness()
+    if ready["probe_ok"] and ready["key_status"] != "weak_fallback":
+        return "ok"
+    return "not_ready"
 
 
 def is_encrypted(value: str | None) -> bool:
@@ -62,6 +119,7 @@ def decrypt_field(value: str | None) -> str | None:
     try:
         return _fernet().decrypt(token.encode("ascii")).decode("utf-8")
     except Exception:
+        logger.warning("health field decrypt failed", exc_info=True)
         # Yanlış anahtar / bozuk — UI'yi tamamen kırmamak için işaretle
         return "[şifre-çözülemedi]"
 
