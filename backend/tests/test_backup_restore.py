@@ -37,15 +37,36 @@ def _make_zip(tmp: Path) -> Path:
 
 def test_inspect_backup_plan(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "backup_restore_enabled", False)
-    zpath = _make_zip(tmp_path)
+    zpath = tmp_path / "backup-v3.zip"
+    with zipfile.ZipFile(zpath, "w") as zf:
+        zf.writestr(
+            "manifest.json",
+            json.dumps(
+                {
+                    "format_version": 3,
+                    "created_at": "2026-07-24T00:00:00Z",
+                    "osgb_id": 1,
+                    "osgb_name": "Test OSGB",
+                    "companies": [{"id": 9, "name": "Firma A"}],
+                    "domain_counts": {"health_records": 1, "risk_assessments": 0},
+                },
+                ensure_ascii=False,
+            ),
+        )
+        zf.writestr("documents.json", "[]")
+        zf.writestr("employees.json", "[]")
+        zf.writestr("health_records.json", json.dumps([{"id": 1, "company_id": 9}]))
+        zf.writestr("files/9/doc.pdf", b"%PDF-1.4")
+        zf.writestr("osgb_files/visits/n.pdf", b"%PDF-osgb")
     plan = br.inspect_backup_file(zpath)
-    assert plan.format_version == 2
+    assert plan.format_version == 3
     assert plan.osgb_name == "Test OSGB"
     assert plan.companies[0]["id"] == 9
+    assert plan.domain_counts.get("health_records") == 1
     assert "files/9/doc.pdf" in plan.file_entries
     assert "osgb_files/visits/n.pdf" in plan.file_entries
     assert plan.restore_enabled is False
-    assert any("osgb_files" in n for n in plan.notes)
+    assert any("format_version>=3" in n for n in plan.notes)
 
 
 def test_restore_dry_run_allowed_when_flag_off(tmp_path, monkeypatch):

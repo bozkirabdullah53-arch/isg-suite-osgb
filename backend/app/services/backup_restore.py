@@ -130,6 +130,7 @@ class RestorePlan:
     companies: list[dict] = field(default_factory=list)
     document_count: int = 0
     employee_count: int = 0
+    domain_counts: dict = field(default_factory=dict)
     file_entries: list[str] = field(default_factory=list)
     encrypted: bool = False
     restore_enabled: bool = False
@@ -205,17 +206,41 @@ def inspect_backup_file(path: Path, *, archive_name: str | None = None) -> Resto
                 docs = json.loads(zf.read("documents.json").decode("utf-8"))
             if "employees.json" in names:
                 emps = json.loads(zf.read("employees.json").decode("utf-8"))
+            domain_counts = dict(manifest.get("domain_counts") or {})
+            for key, fname in (
+                ("health_records", "health_records.json"),
+                ("risk_assessments", "risk_assessments.json"),
+                ("incident_events", "incident_events.json"),
+                ("workplace_assignments", "workplace_assignments.json"),
+                ("service_contracts", "service_contracts.json"),
+            ):
+                if key not in domain_counts and fname in names:
+                    try:
+                        payload = json.loads(zf.read(fname).decode("utf-8"))
+                        domain_counts[key] = len(payload) if isinstance(payload, list) else 0
+                    except Exception:
+                        domain_counts[key] = 0
+            if "training_sessions" not in domain_counts and "trainings.json" in names:
+                try:
+                    payload = json.loads(zf.read("trainings.json").decode("utf-8"))
+                    if isinstance(payload, dict):
+                        domain_counts["training_sessions"] = len(payload.get("sessions") or [])
+                        domain_counts["training_participants"] = len(payload.get("participants") or [])
+                except Exception:
+                    pass
             files = sorted(
                 n for n in names if n.startswith("files/") or n.startswith("osgb_files/")
             )
             notes = [
                 "Bu plan salt okunurdur; otomatik geri yükleme yapmaz.",
                 "Dry-run dosya eşlemesi her zaman açık; diske yazma BACKUP_RESTORE_ENABLED=true + confirm=RESTORE ister.",
-                "Veritabanı satır restore bu sürümde yoktur (güvenlik).",
+                "Veritabanı satır restore bu sürümde yoktur (güvenlik); domain JSON export salt okunur.",
                 "osgb_files/* → {osgb_id}/* (manifest).",
             ]
             if encrypted:
                 notes.append("Yedek şifreli (.enc); inceleme için sunucu anahtarı kullanıldı.")
+            if (manifest.get("format_version") or 0) >= 3:
+                notes.append("format_version>=3: sağlık/risk/eğitim/görevlendirme/olay JSON dahil.")
             return RestorePlan(
                 archive_name=archive_name or path.name,
                 format_version=manifest.get("format_version"),
@@ -225,6 +250,7 @@ def inspect_backup_file(path: Path, *, archive_name: str | None = None) -> Resto
                 companies=list(manifest.get("companies") or []),
                 document_count=len(docs) if isinstance(docs, list) else 0,
                 employee_count=len(emps) if isinstance(emps, list) else 0,
+                domain_counts=domain_counts,
                 file_entries=files[:200],
                 encrypted=encrypted,
                 restore_enabled=bool(settings.backup_restore_enabled),
