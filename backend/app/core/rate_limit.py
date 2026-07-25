@@ -107,6 +107,22 @@ def rate_limit_backend() -> str:
     return _backend_name
 
 
+def redis_status_label() -> str:
+    """Health için: unset | ok | unreachable (canlıyı bozmaz)."""
+    url = (getattr(settings, "redis_url", None) or "").strip()
+    if not url:
+        return "unset"
+    try:
+        import redis
+
+        client = redis.from_url(url, decode_responses=True, socket_connect_timeout=1.5)
+        client.ping()
+        return "ok"
+    except Exception as exc:  # pragma: no cover
+        logger.warning("Redis ping failed: %s", exc)
+        return "unreachable"
+
+
 def _init_store() -> RateLimitStore:
     global _backend_name
     url = (getattr(settings, "redis_url", None) or "").strip()

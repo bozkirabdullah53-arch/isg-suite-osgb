@@ -3,7 +3,6 @@ from uuid import uuid4
 
 import aiofiles
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
@@ -130,8 +129,6 @@ def download_document_file(
     company_root = (safe_upload_root() / str(document.company_id)).resolve()
     if company_root not in path.parents and path != company_root:
         raise HTTPException(status_code=404, detail="Dosya fiziksel depolamada bulunamadı.")
-    if not path.exists() or not path.is_file():
-        raise HTTPException(status_code=404, detail="Dosya fiziksel depolamada bulunamadı.")
 
     # İstemci Content-Type'ına güvenme — uzantıdan güvenli MIME
     mime_by_ext = {
@@ -143,5 +140,12 @@ def download_document_file(
         ".xls": "application/vnd.ms-excel",
         ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }
-    media = mime_by_ext.get(path.suffix.lower(), "application/octet-stream")
-    return FileResponse(path, filename=document.file_name or stored_name, media_type=media)
+    media = mime_by_ext.get(Path(stored_name).suffix.lower(), "application/octet-stream")
+    from app.services.stored_files import response_for_storage_key
+
+    rel = f"{document.company_id}/{stored_name}"
+    return response_for_storage_key(
+        rel,
+        filename=document.file_name or stored_name,
+        media_type=media,
+    )

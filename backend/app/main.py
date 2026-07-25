@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships
-from app.core.rate_limit import SimpleRateLimitMiddleware, rate_limit_backend
+from app.core.rate_limit import SimpleRateLimitMiddleware, rate_limit_backend, redis_status_label
 from app.core.request_id import RequestIdMiddleware
 from app.core.tenant_middleware import TenantContextMiddleware
 from app.core.access_log import StructuredAccessLogMiddleware
@@ -115,15 +115,18 @@ for r in (auth.router,osgb_applications.router,eisa.router,companies.router,bran
 def health():
     import os
     from app.services.clamav_scan import is_clamav_configured
-    from app.services.object_store import storage_backend_label
+    from app.services.object_store import object_storage_config_ok, storage_backend_label
     return {
         'status': 'ok',
         'service': settings.app_name,
         'version': APP_VERSION,
         'environment': (settings.environment or 'development').strip().lower() or 'development',
         'object_storage': storage_backend_label(),
+        'object_storage_config': 'ok' if object_storage_config_ok() else 'incomplete',
+        'redis': redis_status_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
         'upload_gateway_wired': 'assert-safe-all-legacy-v2',
+        'infra_rollout': 'redis-rate-first-s3-ready-v1',
         'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
         'ai_hazard_hint': 'keyword-v2',
         'mevzuat_panel': 'highlights-v1',

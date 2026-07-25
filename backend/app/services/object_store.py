@@ -109,16 +109,21 @@ class S3ObjectStore:
     def get_bytes(self, key: str) -> bytes:
         try:
             obj = self._client.get_object(Bucket=self.bucket, Key=self._full_key(key))
-        except Exception as exc:  # noqa: BLE001 — boto ClientError çeşitleri
-            raise HTTPException(status_code=404, detail="Dosya bulunamadı.") from exc
+        except Exception:
+            # Cutover: S3'te yoksa eski local upload_dir
+            legacy = LocalObjectStore().resolve_local_path(key)
+            if legacy is not None and legacy.is_file():
+                return legacy.read_bytes()
+            raise HTTPException(status_code=404, detail="Dosya bulunamadı.")
         return obj["Body"].read()
 
     def exists(self, key: str) -> bool:
         try:
             self._client.head_object(Bucket=self.bucket, Key=self._full_key(key))
             return True
-        except Exception:  # noqa: BLE001
-            return False
+        except Exception:
+            legacy = LocalObjectStore().resolve_local_path(key)
+            return bool(legacy is not None and legacy.is_file())
 
     def delete(self, key: str) -> None:
         self._client.delete_object(Bucket=self.bucket, Key=self._full_key(key))
@@ -151,4 +156,17 @@ def reset_object_store_for_tests() -> None:
 
 def storage_backend_label() -> str:
     backend = (settings.object_storage_backend or "local").strip().lower() or "local"
+    if backend in ("s3", "r2", "minio"):
+        bucket = (settings.object_storage_bucket or "").strip()
+        return f"{backend}-ready-v1" if bucket else f"{backend}-misconfig-v1"
     return f"{backend}-v1"
+
+
+def object_storage_config_ok() -> bool:
+    """S3 seçildiyse bucket zorunlu; local her zaman OK."""
+    backend = (settings.object_storage_backend or "local").strip().lower() or "local"
+    if backend in ("local", "disk", "fs"):
+        return True
+    if backend in ("s3", "r2", "minio"):
+        return bool((settings.object_storage_bucket or "").strip())
+    return False
