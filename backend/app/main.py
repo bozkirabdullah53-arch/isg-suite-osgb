@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships
 from app.core.rate_limit import SimpleRateLimitMiddleware, rate_limit_backend, redis_status_label
-from app.core.request_id import RequestIdMiddleware
+from app.core.request_id import RequestIdMiddleware, install_request_id_logging
 from app.core.tenant_middleware import TenantContextMiddleware
 from app.core.access_log import StructuredAccessLogMiddleware
 from app.core.subscription_middleware import OsgbSubscriptionWriteMiddleware
@@ -31,6 +31,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 @asynccontextmanager
 async def lifespan(_:FastAPI):
     validate_runtime_settings()
+    install_request_id_logging()
     # Schema parity: alembic upgrade head (start.sh). create_all for fresh local SQLite only.
     Base.metadata.create_all(bind=engine)
     try:
@@ -180,7 +181,7 @@ def health():
         'eisa_platform': 'eisa-error-reports-v1',
         'security_faz0': 'mfa-reset-lock-logout-revoke-v1',
         'token_revoke': 'jti-denylist-tv-v1',
-        'request_id': 'x-request-id-v1',
+        'request_id': 'x-request-id-logfilter-v2',
         'logout_all': 'token-version-v1',
         'company_name_unique': 'osgb-scoped-v1',
         'ci_postgres': 'workflow-v1-migrate-parity',
@@ -194,7 +195,7 @@ def health():
         'release_manifest': 'single-version-v1',
         'legal_consent': 'cms-ui-v2',
         'memberships': 'admin-api-ui-v1',
-        'frontend_tests': 'vitest-eslint-pw-duty-v3',
+        'frontend_tests': 'vitest-eslint-pw-legal-docs-v4',
         'rls_pilot': 'companies-create-refresh-v13',
         'access_ttl': 'short-when-refresh-cookie',
         'customer_360': 'company-overview-v1',

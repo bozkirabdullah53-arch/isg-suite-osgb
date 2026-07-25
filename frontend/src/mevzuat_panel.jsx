@@ -1,5 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
-import {BookOpen, RefreshCw, Search} from 'lucide-react';
+import {useEffect, useMemo, useState} from 'react';
 import {api} from './api';
 
 export function MevzuatPanelPage() {
@@ -28,7 +27,6 @@ export function MevzuatPanelPage() {
 
   useEffect(() => {
     void load('', '');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const categories = data?.categories || [];
