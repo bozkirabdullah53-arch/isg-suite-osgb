@@ -95,6 +95,22 @@ def health_crypto_ready_label() -> str:
     return "not_ready"
 
 
+def enable_health_crypto_for_production() -> str:
+    """Production cutover: secret_key_fallback veya dedicated ile yeni yazıları şifrele."""
+    env = (settings.environment or "").strip().lower()
+    if env not in ("production", "prod", "live"):
+        return "skipped-non-prod"
+    if bool(getattr(settings, "health_field_encryption_force_off", False)):
+        return "force-off"
+    status = encryption_key_status()
+    if status in ("dedicated", "secret_key_fallback"):
+        settings.health_field_encryption_enabled = True
+        logger.info("health field encryption enabled (%s)", status)
+        return f"enabled:{status}"
+    logger.warning("health field encryption not ready (%s)", status)
+    return f"not-ready:{status}"
+
+
 def is_encrypted(value: str | None) -> bool:
     return bool(value) and str(value).startswith(PREFIX)
 

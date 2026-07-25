@@ -77,3 +77,13 @@ def test_readiness_dedicated(monkeypatch):
     assert crypto.encryption_key_status() == "dedicated"
     assert crypto.health_crypto_ready_label() == "ok"
     assert crypto.encryption_readiness()["can_enable"] is True
+
+
+def test_enable_health_crypto_production(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "health_field_encryption_force_off", False)
+    monkeypatch.setattr(settings, "health_field_encryption_enabled", False)
+    monkeypatch.setattr(settings, "health_field_encryption_key", None)
+    monkeypatch.setattr(settings, "secret_key", "test-secret-key-at-least-32-chars-long!!")
+    assert crypto.enable_health_crypto_for_production().startswith("enabled:")
+    assert settings.health_field_encryption_enabled is True

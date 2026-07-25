@@ -175,3 +175,35 @@ def test_probe_unreachable_with_mock(monkeypatch):
     assert result["ok"] is False
     assert result["status"] == "unreachable"
     assert result["error_class"] == "RuntimeError"
+
+
+def test_auto_cutover_to_r2_when_reachable(monkeypatch):
+    import types
+
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "object_storage_auto_cutover", True)
+    monkeypatch.setattr(settings, "object_storage_force_local", False)
+    monkeypatch.setattr(settings, "object_storage_backend", "local")
+    monkeypatch.setattr(settings, "object_storage_bucket", "isg-uploads")
+    monkeypatch.setattr(settings, "object_storage_access_key", "ak")
+    monkeypatch.setattr(settings, "object_storage_secret_key", "sk")
+    monkeypatch.setattr(settings, "object_storage_endpoint", "https://abc.r2.cloudflarestorage.com")
+
+    class _Client:
+        def head_bucket(self, Bucket):  # noqa: N803
+            return None
+
+    class _Boto3:
+        @staticmethod
+        def client(service, **kwargs):
+            return _Client()
+
+    botocore_config = types.ModuleType("botocore.config")
+    botocore_config.Config = lambda *a, **k: object()
+    monkeypatch.setitem(__import__("sys").modules, "botocore.config", botocore_config)
+    monkeypatch.setitem(__import__("sys").modules, "boto3", _Boto3())
+
+    result = os_mod.maybe_auto_cutover_object_storage()
+    assert result["status"] == "cutover"
+    assert result["backend"] == "r2"
+    assert settings.object_storage_backend == "r2"

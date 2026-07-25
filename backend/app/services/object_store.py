@@ -260,3 +260,41 @@ def probe_object_storage() -> dict:
             "active_backend": backend,
             "error_class": type(exc).__name__,
         }
+
+
+def maybe_auto_cutover_object_storage() -> dict:
+    """Production: credential + HeadBucket OK ise local → r2/s3. Store singleton sıfırlanır."""
+    import logging
+
+    log = logging.getLogger(__name__)
+    env = (settings.environment or "").strip().lower()
+    if env not in ("production", "prod", "live"):
+        return {"status": "skipped-non-prod"}
+    if bool(getattr(settings, "object_storage_force_local", False)):
+        return {"status": "force-local"}
+    if not bool(getattr(settings, "object_storage_auto_cutover", True)):
+        return {"status": "auto-cutover-off"}
+
+    backend = (settings.object_storage_backend or "local").strip().lower() or "local"
+    if backend not in ("local", "disk", "fs"):
+        return {"status": "already-remote", "backend": backend}
+
+    if not remote_object_storage_credentials_ok():
+        return {"status": "no-creds"}
+
+    probe = probe_object_storage()
+    if probe.get("status") != "reachable":
+        return {"status": "unreachable", "probe": probe}
+
+    endpoint = (settings.object_storage_endpoint or "").strip().lower()
+    if "r2.cloudflarestorage.com" in endpoint or "cloudflarestorage.com" in endpoint:
+        target = "r2"
+    elif endpoint:
+        target = "minio"
+    else:
+        target = "s3"
+
+    settings.object_storage_backend = target
+    reset_object_store_for_tests()
+    log.info("object storage auto-cutover: local → %s", target)
+    return {"status": "cutover", "backend": target, "probe": probe}

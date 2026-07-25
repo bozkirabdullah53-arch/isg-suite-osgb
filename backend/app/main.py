@@ -32,6 +32,18 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 async def lifespan(_:FastAPI):
     validate_runtime_settings()
     install_request_id_logging()
+    try:
+        from app.services.health_field_crypto import enable_health_crypto_for_production
+
+        logger.info("health crypto rollout: %s", enable_health_crypto_for_production())
+    except Exception:
+        logger.exception("health crypto rollout failed at startup")
+    try:
+        from app.services.object_store import maybe_auto_cutover_object_storage
+
+        logger.info("object storage rollout: %s", maybe_auto_cutover_object_storage())
+    except Exception:
+        logger.exception("object storage auto-cutover failed at startup")
     # Schema parity: alembic upgrade head (start.sh). create_all for fresh local SQLite only.
     Base.metadata.create_all(bind=engine)
     try:
@@ -130,7 +142,7 @@ def health():
         'redis': redis_status_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
         'upload_gateway_wired': 'assert-safe-all-legacy-v2',
-        'infra_rollout': 'prod-async-gateway-cutover-v17',
+        'infra_rollout': 'health-crypto-on-r2-autocutover-v18',
         'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
         'health_field_encryption_key': encryption_key_status(),
         'health_field_crypto_ready': health_crypto_ready_label(),

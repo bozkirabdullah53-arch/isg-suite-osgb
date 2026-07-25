@@ -66,6 +66,12 @@ services:
         value: "false"
       - key: HEALTH_FIELD_ENCRYPTION_KEY
         sync: false
+      - key: HEALTH_FIELD_ENCRYPTION_FORCE_OFF
+        value: "false"
+      - key: OBJECT_STORAGE_AUTO_CUTOVER
+        value: "true"
+      - key: OBJECT_STORAGE_FORCE_LOCAL
+        value: "false"
       # P0-08 yedek — restore kapalı; şifreleme anahtarı opsiyonel (probe için doldurulabilir)
       - key: BACKUP_RESTORE_ENABLED
         value: "false"

@@ -43,9 +43,13 @@ class Settings(BaseSettings):
     site_qr_ephemeral_ttl_minutes: int = 5
     # P0-08 geri yükleme — varsayılan kapalı (yalnızca plan her zaman açık)
     backup_restore_enabled: bool = False
-    # P0-10 sağlık alan şifreleme — varsayılan kapalı; açılınca yeni yazılar enc:v1:
+    # P0-10 sağlık alan şifreleme — production rollout açabilir; acil kapatma:
     health_field_encryption_enabled: bool = False
     health_field_encryption_key: str | None = None
+    health_field_encryption_force_off: bool = False
+    # P0-06: credential + HeadBucket OK ise local→r2/s3 (production)
+    object_storage_auto_cutover: bool = True
+    object_storage_force_local: bool = False
     # P1-2 rate limit
     rate_limit_rpm: int = 120
     rate_limit_auth_rpm: int = 30
