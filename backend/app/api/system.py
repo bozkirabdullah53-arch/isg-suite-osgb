@@ -28,6 +28,17 @@ def health(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/infra-detail")
+def infra_detail(
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """Tam feature registry + crypto/storage — yalnız global_admin (P1-07)."""
+    _ = user
+    from app.services.release_status import infra_detail_payload
+
+    return infra_detail_payload()
+
+
 @router.get("/storage-probe")
 def storage_probe(
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),

@@ -120,7 +120,13 @@ def _to_response(row: HealthRecord, employee: Employee | None, include_confident
     data.smart_summary = smart_summary(view, employee)
     data.tetkik_summary = tetkik_summary(view)
     if not include_confidential:
-        data.confidential_note = None
+        # P0-07: hassas klinik metin yalnız hekim/GA
+        from app.services.health_field_crypto import SENSITIVE_TEXT_FIELDS
+
+        for field in SENSITIVE_TEXT_FIELDS:
+            setattr(data, field, None)
+        data.smart_summary = None
+        data.tetkik_summary = None
     return data
 
 
@@ -555,7 +561,18 @@ def health_form_html(
     company = db.get(Company, record.company_id)
     employee = db.get(Employee, record.employee_id)
     view = DecryptedRecordView(record)
-    conf = view.confidential_note if user.role in PHYSICIAN_ROLES else None
+    is_physician = user.role in PHYSICIAN_ROLES
+    conf = view.confidential_note if is_physician else None
+    # P0-07: form HTML'de klinik metin yalnız hekim/GA
+    audiometry_txt = view.audiometry_result if is_physician else None
+    spirometry_txt = view.spirometry_result if is_physician else None
+    chest_txt = view.chest_xray_result if is_physician else None
+    other_bio = view.other_biological_test if is_physician else None
+    suggested = view.suggested_tests if is_physician else None
+    exposures = view.exposures if is_physician else None
+    summary_txt = view.summary if is_physician else None
+    follow_up = view.follow_up_note if is_physician else None
+    smart = smart_summary(view, employee) if is_physician else ""
 
     def safe(value) -> str:
         if value is None:
@@ -600,19 +617,19 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 </div>
 <h3>Tetkikler</h3>
 <div class="grid">
-{cell('Odyometri', f"{record.audiometry_date or ''} / {view.audiometry_result or ''}".strip(' /'))}
-{cell('SFT', f"{record.spirometry_date or ''} / {view.spirometry_result or ''}".strip(' /'))}
-{cell('Akciğer Grafisi', f"{record.chest_xray_date or ''} / {view.chest_xray_result or ''}".strip(' /'))}
+{cell('Odyometri', f"{record.audiometry_date or ''} / {audiometry_txt or ''}".strip(' /'))}
+{cell('SFT', f"{record.spirometry_date or ''} / {spirometry_txt or ''}".strip(' /'))}
+{cell('Akciğer Grafisi', f"{record.chest_xray_date or ''} / {chest_txt or ''}".strip(' /'))}
 {cell('Kan Kurşun', f"{record.blood_lead_date or ''} / {record.blood_lead_value if record.blood_lead_value is not None else ''} {record.blood_lead_unit or ''} (ref {record.blood_lead_ref or '—'}) / {record.blood_lead_eval or ''}".strip(' /'))}
-{cell('Diğer Biyolojik Tetkik', view.other_biological_test or '')}
-{cell('Akıllı Özet', smart_summary(view, employee))}
+{cell('Diğer Biyolojik Tetkik', other_bio or '')}
+{cell('Akıllı Özet', smart)}
 </div>
 <h3>Önerilen tetkikler / Maruziyet</h3>
-<p>{safe(view.suggested_tests) or '—'}</p>
-<p>{safe(view.exposures) or '—'}</p>
+<p>{safe(suggested) or '—'}</p>
+<p>{safe(exposures) or '—'}</p>
 <h3>Not / Kısıt / Takip</h3>
-<p>{safe(view.summary) or '—'}</p>
-<p>{safe(view.follow_up_note) or ''}</p>
+<p>{safe(summary_txt) or '—'}</p>
+<p>{safe(follow_up) or ''}</p>
 {f'<h3>Gizli hekim notu</h3><p>{safe(conf)}</p>' if conf else ''}
 <div class="sign">
 <div>İşyeri Hekimi<br><b>{safe(record.physician_name) or '........................'}</b></div>

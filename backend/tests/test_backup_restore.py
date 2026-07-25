@@ -149,7 +149,6 @@ def test_enable_backup_crypto_force_off(monkeypatch):
 def test_backup_decrypt_falls_back_to_secret_after_dedicated(tmp_path, monkeypatch):
     import base64
     import hashlib
-    import zipfile
 
     from cryptography.fernet import Fernet
 
@@ -167,6 +166,19 @@ def test_backup_decrypt_falls_back_to_secret_after_dedicated(tmp_path, monkeypat
     plan = br.inspect_backup_file(enc)
     assert plan.encrypted is True
     assert plan.document_count >= 0
+
+
+def test_backup_restore_drill_dry_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "backup_restore_enabled", False)
+    zpath = _make_zip(tmp_path)
+    plan = br.inspect_backup_file(zpath)
+    dry = br.restore_files_from_backup(zpath, dry_run=True)
+    assert plan.osgb_id == 1
+    assert dry["files_touched"] >= 1
+    # yazma hâlâ kapalı
+    with pytest.raises(HTTPException) as exc:
+        br.restore_files_from_backup(zpath, dry_run=False, confirm="RESTORE")
+    assert exc.value.status_code == 403
 
 
 def test_restore_write_still_blocked_when_crypto_ready(tmp_path, monkeypatch):

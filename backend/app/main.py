@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships
-from app.core.rate_limit import SimpleRateLimitMiddleware, rate_limit_backend, redis_status_label
+from app.core.rate_limit import SimpleRateLimitMiddleware
 from app.core.request_id import RequestIdMiddleware, install_request_id_logging
 from app.core.tenant_middleware import TenantContextMiddleware
 from app.core.access_log import StructuredAccessLogMiddleware
@@ -12,8 +12,6 @@ from app.core.subscription_middleware import OsgbSubscriptionWriteMiddleware
 from app.core.config import settings, validate_runtime_settings
 from app.core.database import Base, SessionLocal, engine
 from app.core.version import APP_VERSION
-from app.core.auth_cookies import refresh_cookie_enabled
-from app.services.job_queue import async_jobs_enabled, job_backend_label
 from app.services.seed import seed_admin, seed_demo_osgbs
 
 logger = logging.getLogger(__name__)
@@ -50,14 +48,18 @@ async def lifespan(_:FastAPI):
         logger.info("object storage rollout: %s", maybe_auto_cutover_object_storage())
     except Exception:
         logger.exception("object storage auto-cutover failed at startup")
-    # Schema parity: alembic upgrade head (start.sh). create_all for fresh local SQLite only.
-    Base.metadata.create_all(bind=engine)
-    try:
-        from app.services.schema_repair import repair_schema
+    # Schema: production = alembic-only (start.sh). create_all/repair yalnız local/dev.
+    _boot_env = (settings.environment or "").strip().lower()
+    if _boot_env in ("production", "prod", "live"):
+        logger.info("production boot: skipping create_all/schema_repair (alembic-only)")
+    else:
+        Base.metadata.create_all(bind=engine)
+        try:
+            from app.services.schema_repair import repair_schema
 
-        repair_schema()
-    except Exception:
-        logger.exception("schema_repair failed at startup")
+            repair_schema()
+        except Exception:
+            logger.exception("schema_repair failed at startup")
     with SessionLocal() as db:
         seed_admin(db)
         try:
@@ -132,146 +134,5 @@ app.add_middleware(CORSMiddleware,allow_origins=_cors_origins,allow_credentials=
 for r in (auth.router,osgb_applications.router,eisa.router,companies.router,branches.router,users.router,employees.router,isg_records.router,health.router,documents.router,annual_plans.router,annual_eval.router,reports.router,security.router,files.router,exports.router,subscriptions.router,notifications.router,system.router,dashboard.router,osgb.router,operations.router,trainings.router,risks.router,incidents.router,ppe.router,sds.router,drills.router,emergency_teams.router,archives.router,legal.router,memberships.router): app.include_router(r,prefix='/api/v1')
 @app.get('/health')
 def health():
-    import os
-    from app.services.clamav_scan import is_clamav_configured
-    from app.services.health_field_crypto import encryption_key_status, health_crypto_ready_label
-    from app.services.backup_restore import backup_crypto_ready_label, backup_encryption_key_status
-    from app.services.object_store import (
-        infra_cutover_remaining,
-        object_storage_config_ok,
-        persistent_disk_label,
-        storage_backend_label,
-    )
-    return {
-        'status': 'ok',
-        'service': settings.app_name,
-        'version': APP_VERSION,
-        'environment': (settings.environment or 'development').strip().lower() or 'development',
-        'object_storage': storage_backend_label(),
-        'object_storage_config': 'ok' if object_storage_config_ok() else 'incomplete',
-        'object_storage_probe': 'head-bucket-v1',
-        'persistent_disk': persistent_disk_label(),
-        'infra_cutover_remaining': infra_cutover_remaining(),
-        'redis': redis_status_label(),
-        'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
-        'upload_gateway_wired': 'assert-safe-all-legacy-v2',
-        'infra_rollout': 'persistent-disk-cutover-gaps-v21',
-        'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
-        'health_field_encryption_key': encryption_key_status(),
-        'health_field_crypto_ready': health_crypto_ready_label(),
-        'backup_encryption_key': backup_encryption_key_status(),
-        'backup_crypto_ready': backup_crypto_ready_label(),
-        'ai_hazard_hint': 'keyword-v2',
-        'mevzuat_panel': 'highlights-v1',
-        'sds_register': 'chemical-register-v1',
-        'ghs_label_checklist': 'ghs-label-checklist-v1',
-        'risk_photo_tags': 'checklist-v1',
-        'sds_review_reminders': 'duty-notify-v1',
-        'osgb_mevzuat_link': 'dashboard-v1',
-        'osgb_sds_due': 'dashboard-v1',
-        'integration_readiness': 'checklist-v1',
-        'integrations_adapter': 'stub-clients-v1',
-        'integrations_dry_run': 'log-v1',
-        'integrations_probe': 'live-check-v1',
-        'integrations_live_send': 'live-post-v1',
-        'tatbikat': 'drill-management-v1',
-        'acil_ekipler': 'emergency-teams-v1',
-        'annual_eval_report': 'annual-eval-v7',
-        'osgb_trial': 'settings-v1',
-        'crm_convert': 'lead-to-contract-v1',
-        'contracts_ui': 'osgb-monitor-v1',
-        'contracts_actions': 'end-suspend-v1',
-        'finance_status': 'patch-paid-v1',
-        'crm_finance_link': 'company-filter-v1',
-        'finance_accrual': 'monthly-v1',
-        'finance_overdue_alert': 'dashboard-v2',
-        'crm_stage_filters': 'won-lost-v1',
-        'pdf_layout': 'pro-2026',
-        'companies_admin': 'osgb-admin-crud-v1',
-        'company_fields': 'address-phone-contact-v1',
-        'professional_login': 'email-temp-password-v1',
-        'creds_copy': 'clipboard-v1',
-        'duty_dashboard_import': 'fixed-v1',
-        'duty_home': 'done-missing-report-v1',
-        'annual_plans': 'generate-wake-retry',
-        'annual_plan_export': 'xlsx-v1',
-        'annual_plan_status': 'varchar-enum-fix-v1',
-        'annual_plan_holidays': 'tr-workday-shift-v2',
-        'osgb_performance': 'company-admin-restored-v1',
-        'oversight_score': 'no-vacuous-pass-v2',
-        'health_roles': 'company-admin-monitor-v1',
-        'validation_tr': 'turkish-422-v1',
-        'input_rules': 'date-text-sanity-v2',
-        'osgb_menu': 'no-field-modules-v1',
-        'demo_osgb_seed': 'alfa-beta-v1',
-        'training_verify_code': 'uuid-unique',
-        'upload_security': 'magic-byte-quarantine',
-        'clamav_scan': 'configured' if is_clamav_configured() else 'disabled',
-        'clamav_probe': 'zping-v1',
-        'ga_osgb_fallback': 'user-or-first-active',
-        'schema_bootstrap': 'alembic-only-v1',
-        'render_warmup': 'cron-14m',
-        'eisa_platform': 'eisa-error-reports-v1',
-        'security_faz0': 'mfa-reset-lock-logout-revoke-v1',
-        'token_revoke': 'jti-denylist-tv-v1',
-        'request_id': 'x-request-id-logfilter-v2',
-        'logout_all': 'token-version-v1',
-        'company_name_unique': 'osgb-scoped-v1',
-        'ci_postgres': 'workflow-v1-migrate-parity',
-        'tenant_context': 'contextvar-wired-v1',
-        'auth_refresh_cookie': 'on' if refresh_cookie_enabled() else 'off',
-        'auth_refresh_rollout': 'prod-on-samesite-none-v2',
-        'assignment_unique': 'active-partial-v2',
-        'access_log': 'json-request-id-v1',
-        'async_jobs': 'on' if async_jobs_enabled() else 'off-sync-fallback',
-        'job_backend': job_backend_label(),
-        'release_manifest': 'single-version-v1',
-        'legal_consent': 'cms-ui-v2',
-        'memberships': 'admin-api-ui-v1',
-        'frontend_tests': 'vitest-eslint-pw-field-offline-v5',
-        'rls_pilot': 'companies-create-refresh-v13',
-        'access_ttl': 'short-when-refresh-cookie',
-        'customer_360': 'company-overview-v1',
-        'capacity_engine': '6331-legal-minutes-v1',
-        'visit_calendar': 'plan-overdue-coverage-v1',
-        'module_kpis': 'risk-training-health-v1',
-        'field_gps': 'visit-complete-stamp-v1',
-        'field_qr': 'workplace-ephemeral-failclosed-backfill-v4',
-        'field_signature': 'visit-sign-offline-v3',
-        'field_offline': 'tenant-bound-v1',
-        'tenant_isolation': 'osgb-scoped-v1',
-        'central_archive': 'tenant-backup-dry-run-v3',
-        'backup_restore': 'off' if not settings.backup_restore_enabled else 'on',
-        'users_delete': 'reassign-fk-refs',
-        'assignment_actions': 'end-suspend-delete',
-        'companies_actions': 'deactivate-activate-hard-delete',
-        'companies_sgk': 'required-on-create',
-        'health': 'field-crypto-ready-v2',
-        'osgb_oversight': '6331-eval-error-detail',
-        'assignment_form': 'katip-contract-upload',
-        'katip_prep': 'missing-contract-v1',
-        'ibys_export': 'csv-package-v1',
-        'visit_notebook': 'tespit-oneri-defteri',
-        'visit_crud': 'field-edit-delete',
-        'visit_access': 'field-own-visits-list',
-        'role_sync': 'assignment-bulk-field-menus',
-        'training_excel': 'resilient-import',
-        'access_boundary': 'global-reports-field-isolation',
-        'users_admin': 'suspend-delete',
-        'professionals_admin': 'edit-search-assign-perf',
-        'training_osgb_access': 'assignment-scoped',
-        'duty_board': 'resilient-my-duties',
-        'osgb_menu': 'global-monitor-no-docs',
-        'osgb_home': 'workplaces-pros-unassigned-contracts',
-        'osgb_home_kpis': 'finance-contracts-sds-v3',
-        'csgb_pack': 'audit-bundle-v3',
-        'csgb_company_snapshot': 'read-only-v1',
-        'pro_performance_export': 'csv-v1',
-        'notifications': 'osgb-deadline-eval-v2',
-        'rate_limit': f'rpm-{settings.rate_limit_rpm}-auth-{settings.rate_limit_auth_rpm}-xff-{rate_limit_backend()}',
-        'secret_key_guard': 'prod-block-default',
-        'nav_hardening': 'allowlist-boundary-mobile',
-        'field_access': 'assignment-scoped-v2',
-        'startup_obs': 'no-silent-pass-v4',
-        'git': os.environ.get('RENDER_GIT_COMMIT') or os.environ.get('GIT_COMMIT') or 'local',
-    }
+    from app.services.release_status import public_health_payload
+    return public_health_payload()
