@@ -1,7 +1,10 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Undo2,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
-import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode} from './api';import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';import {OsgbOversightPage} from './osgb_oversight';
+import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode} from './api';
+import {clearOfflineQueue} from './field_offline';
+import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';
+import {OsgbOversightPage} from './osgb_oversight';
 import {LegalAcceptancesPanel} from './legal_acceptances';
 import {MembershipsPanel} from './memberships_panel';
 import {ProPerformancePage} from './pro_performance';
@@ -705,6 +708,7 @@ function SecurityPage({user}){
       setMessage(r.message||'Tüm oturumlar kapatıldı.');
       localStorage.removeItem('isg_token');
       localStorage.removeItem('isg_mfa_setup_token');
+      clearOfflineQueue();
       setRefreshCookieMode(false);
       setTimeout(()=>window.location.reload(),800);
     }catch(err){setMessage(err.message)}
@@ -1085,6 +1089,7 @@ function App(){
     }catch(_){ /* ağ hatası olsa da yerel oturumu kapat */ }
     localStorage.removeItem('isg_token');
     localStorage.removeItem('isg_mfa_setup_token');
+    clearOfflineQueue();
     setRefreshCookieMode(false);
     try{sessionStorage.removeItem('isg_active')}catch(_){ /* ignore */ }
     setLogged(false);
@@ -1127,6 +1132,7 @@ function App(){
       });
     }).catch(()=>{
       localStorage.removeItem('isg_token');
+      clearOfflineQueue();
       setRefreshCookieMode(false);
       setLogged(false);
     });

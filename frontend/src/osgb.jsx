@@ -12,6 +12,10 @@ function M({title,close,children}){return <div className="modal-bg"><section cla
 function T({cols,rows}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.k}>{c.l}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id||i}>{cols.map(c=><td key={c.k}>{c.f?c.f(r):String(r[c.k]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">Henüz kayıt bulunmuyor.</td></tr>}</tbody></table></div>}
 function P({title,action,children}){return <><div className="page-title"><h3>{title}</h3>{action}</div><section className="panel">{children}</section></>}
 function osgbId(user,orgs){return user.osgb_id||orgs[0]?.id||''}
+function offlineScope(user,orgs,formOid){
+  const oid=Number(user?.osgb_id||formOid||osgbId(user,orgs)||0);
+  return {userId:Number(user?.id||0),osgbId:oid};
+}
 
 /** Tarayıcı GPS — izin yoksa null döner (tamamlama yine yapılabilir). */
 function captureGps(timeoutMs=12000){
@@ -1156,8 +1160,10 @@ export function VisitsPage({user}){
  const[open,setOpen]=useState(false),[planOpen,setPlanOpen]=useState(false),[verifyOpen,setVerifyOpen]=useState(false),[verifyVisitId,setVerifyVisitId]=useState(null),[verifyCode,setVerifyCode]=useState(''),[signatureData,setSignatureData]=useState(null),[editing,setEditing]=useState(null),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
  const[notebookFile,setNotebookFile]=useState(null);
  const[siteVerifyInput,setSiteVerifyInput]=useState('');
- const[offlineQueue,setOfflineQueue]=useState(()=>listOfflineCompletes());
- const refreshOffline=()=>setOfflineQueue(listOfflineCompletes());
+ const offlineCtx=()=>offlineScope(user,orgs,form.osgb_id);
+ const[offlineQueue,setOfflineQueue]=useState([]);
+ const refreshOffline=()=>setOfflineQueue(listOfflineCompletes(offlineCtx()));
+ useEffect(()=>{refreshOffline()},[user?.id,user?.osgb_id,form.osgb_id,orgs]);
  const emptyForm={osgb_id:'',company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''};
  const emptyPlan={osgb_id:'',company_id:'',professional_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Planlı saha ziyareti',notes:''};
  const[form,setForm]=useState(emptyForm),[planForm,setPlanForm]=useState(emptyPlan);
@@ -1296,7 +1302,12 @@ export function VisitsPage({user}){
    }catch(ex){
     const msg=String(ex.message||'');
     if(/bağlan|network|fetch|sunucu/i.test(msg) || ex instanceof TypeError){
-     enqueueOfflineComplete({visit_id:verifyVisitId,...payload});
+     enqueueOfflineComplete({
+      visit_id:verifyVisitId,
+      user_id:user.id,
+      osgb_id:Number(user.osgb_id||form.osgb_id||osgbId(user,orgs)||0),
+      ...payload,
+     });
      refreshOffline();
      setVerifyOpen(false);setVerifyVisitId(null);setVerifyCode('');setSignatureData(null);
      setErr('Çevrimdışı: tamamlama kuyruğa alındı. Bağlantı gelince senkronlayın.');
@@ -1312,7 +1323,7 @@ export function VisitsPage({user}){
  async function syncOffline(){
   setBusy(true);setErr('');
   try{
-   const results=await flushOfflineCompletes(api);
+   const results=await flushOfflineCompletes(api, offlineCtx());
    refreshOffline();
    const fail=results.filter(r=>!r.ok);
    if(fail.length) setErr(`Senkron: ${results.length-fail.length} başarılı, ${fail.length} bekliyor.`);

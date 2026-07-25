@@ -30,11 +30,24 @@ function pruneQueue(list) {
   return cleaned.slice(0, MAX_ITEMS);
 }
 
+function matchesScope(row, scope) {
+  if (!scope) return true;
+  const uid = Number(scope.userId ?? scope.user_id);
+  const oid = Number(scope.osgbId ?? scope.osgb_id);
+  if (Number.isFinite(uid) && uid > 0 && row.user_id !== uid) return false;
+  if (Number.isFinite(oid) && oid > 0 && row.osgb_id !== oid) return false;
+  return true;
+}
+
 /** @returns {object|null} */
 export function normalizeComplete(item) {
   if (!item || item.type !== "complete") return null;
   const visitId = Number(item.visit_id);
+  const userId = Number(item.user_id);
+  const osgbId = Number(item.osgb_id);
   if (!Number.isFinite(visitId) || visitId <= 0) return null;
+  if (!Number.isFinite(userId) || userId <= 0) return null;
+  if (!Number.isFinite(osgbId) || osgbId <= 0) return null;
 
   let signature = typeof item.signature_data_url === "string" ? item.signature_data_url : null;
   let signatureOmitted = Boolean(item.signature_omitted);
@@ -49,6 +62,8 @@ export function normalizeComplete(item) {
     type: "complete",
     created_at: item.created_at || new Date().toISOString(),
     visit_id: visitId,
+    user_id: userId,
+    osgb_id: osgbId,
     gps_lat: item.gps_lat ?? null,
     gps_lng: item.gps_lng ?? null,
     gps_accuracy_m: item.gps_accuracy_m ?? null,
@@ -74,7 +89,6 @@ function writeQueue(list) {
     try {
       localStorage.setItem(KEY, JSON.stringify(slim));
     } catch {
-      // Son çare: en yeni 5 kayıt
       try {
         localStorage.setItem(KEY, JSON.stringify(slim.slice(0, 5)));
       } catch {
@@ -84,8 +98,8 @@ function writeQueue(list) {
   }
 }
 
-export function listOfflineCompletes() {
-  return readQueue().filter((x) => x?.type === "complete");
+export function listOfflineCompletes(scope) {
+  return readQueue().filter((x) => x?.type === "complete" && matchesScope(x, scope));
 }
 
 export function enqueueOfflineComplete(item) {
@@ -106,8 +120,16 @@ export function removeOfflineItem(id) {
   writeQueue(readQueue().filter((x) => x.id !== id));
 }
 
-export async function flushOfflineCompletes(apiFn) {
-  const pending = listOfflineCompletes();
+export function clearOfflineQueue() {
+  try {
+    localStorage.removeItem(KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function flushOfflineCompletes(apiFn, scope) {
+  const pending = listOfflineCompletes(scope);
   const results = [];
   for (const item of pending) {
     try {
@@ -135,7 +157,6 @@ export async function flushOfflineCompletes(apiFn) {
         attempts,
         dropped: attempts >= MAX_RETRIES,
       });
-      // Ağ hatasında dur; diğerlerini deneme
       if (/bağlan|network|fetch|sunucu/i.test(String(ex.message || ""))) break;
     }
   }
@@ -149,4 +170,5 @@ export const _test = {
   MAX_SIGNATURE_CHARS,
   MAX_RETRIES,
   pruneQueue,
+  matchesScope,
 };
