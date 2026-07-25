@@ -4,6 +4,9 @@ Tehlike türüne göre ilgili mevzuatı otomatik getirir.
 """
 
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 REGULATIONS = {
     "Fiziksel Riskler": [
@@ -153,12 +156,15 @@ GENERAL_REGULATIONS = [
 
 def get_regulations_for_hazard(hazard):
     """Tehlike için ilgili mevzuatı getir"""
-    import json
     if hazard and hazard.regulations:
         try:
             return json.loads(hazard.regulations)
-        except:
-            pass
+        except (TypeError, ValueError, json.JSONDecodeError):
+            logger.warning(
+                "hazard regulations JSON parse failed hazard_id=%s",
+                getattr(hazard, "id", None),
+                exc_info=True,
+            )
     return []
 
 

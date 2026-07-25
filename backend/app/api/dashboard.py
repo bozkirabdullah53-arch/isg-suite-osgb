@@ -1,4 +1,5 @@
 from datetime import date
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
@@ -20,6 +21,7 @@ from app.models.entities import (
 from app.api.company_access import assigned_company_ids
 from app.services.professional_duty import build_my_duty_board, format_duty_report_txt
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dashboard", tags=["Panel"])
 
 
@@ -156,10 +158,11 @@ def my_duties(db: Session = Depends(get_db), user: User = Depends(get_current_us
     try:
         return build_my_duty_board(db, user)
     except Exception:
+        logger.warning("my-duties board failed user_id=%s", getattr(user, "id", None), exc_info=True)
         try:
             db.rollback()
         except Exception:
-            pass
+            logger.warning("my-duties rollback failed", exc_info=True)
         # Panel hiç açılmasın diye kontrollü boş cevap
         return {
             "supported": True,

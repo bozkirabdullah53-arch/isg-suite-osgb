@@ -10,6 +10,7 @@ OSGB Hizmet Denetimi checklist’leri ile aynı değerlendirme çekirdeğini kul
 """
 from __future__ import annotations
 
+import logging
 from datetime import date, timedelta
 from typing import Any
 
@@ -38,6 +39,7 @@ from app.services.osgb_oversight import (
     _month_bounds,
 )
 
+logger = logging.getLogger(__name__)
 APPROACHING_DAYS = 14
 
 MODULE_FOR_CHECK = {
@@ -194,10 +196,15 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
             try:
                 checks, _visits = _eval_specialist_firm(db, company, assignment, month_start, month_end, year)
             except Exception:
+                logger.warning(
+                    "duty specialist eval failed company_id=%s",
+                    cid,
+                    exc_info=True,
+                )
                 try:
                     db.rollback()
                 except Exception:
-                    pass
+                    logger.warning("duty specialist rollback failed company_id=%s", cid, exc_info=True)
                 checks = []
                 alerts.append(
                     _alert(
@@ -214,10 +221,15 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
             try:
                 checks, _visits = _eval_physician_firm(db, company, assignment, month_start, month_end)
             except Exception:
+                logger.warning(
+                    "duty physician eval failed company_id=%s",
+                    cid,
+                    exc_info=True,
+                )
                 try:
                     db.rollback()
                 except Exception:
-                    pass
+                    logger.warning("duty physician rollback failed company_id=%s", cid, exc_info=True)
                 checks = []
                 alerts.append(
                     _alert(
@@ -283,10 +295,11 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
                     ).all()
                 )
             except Exception:
+                logger.warning("duty risk dof query failed company_id=%s", cid, exc_info=True)
                 try:
                     db.rollback()
                 except Exception:
-                    pass
+                    logger.warning("duty risk dof rollback failed company_id=%s", cid, exc_info=True)
                 dofs = []
             for d in dofs:
                 term = d.term_date
@@ -329,10 +342,11 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
                     ).all()
                 )
             except Exception:
+                logger.warning("duty annual plan query failed company_id=%s", cid, exc_info=True)
                 try:
                     db.rollback()
                 except Exception:
-                    pass
+                    logger.warning("duty annual plan rollback failed company_id=%s", cid, exc_info=True)
                 plans = []
             for p in plans:
                 # Hedef tarih yoksa ay sonu varsay
@@ -377,10 +391,11 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
                     ).all()
                 )
             except Exception:
+                logger.warning("duty chemical review query failed company_id=%s", cid, exc_info=True)
                 try:
                     db.rollback()
                 except Exception:
-                    pass
+                    logger.warning("duty chemical rollback failed company_id=%s", cid, exc_info=True)
                 chemicals = []
             for chem in chemicals:
                 due = chem.next_review_date
@@ -421,10 +436,11 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
                     ).all()
                 )
             except Exception:
+                logger.warning("duty health exam query failed company_id=%s", cid, exc_info=True)
                 try:
                     db.rollback()
                 except Exception:
-                    pass
+                    logger.warning("duty health rollback failed company_id=%s", cid, exc_info=True)
                 health_rows = []
             for h in health_rows:
                 nxt = h.next_examination_date

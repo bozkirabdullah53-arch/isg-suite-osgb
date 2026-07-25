@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
@@ -28,6 +29,7 @@ from app.schemas.eisa_platform import EisaOsgbUserResponse
 from app.schemas.osgb_subscription import OsgbSubscriptionResponse
 from app.services.osgb_subscription import effective_subscription_status, subscription_allows_write
 
+logger = logging.getLogger(__name__)
 EXPIRING_WINDOW_DAYS = 14
 DEFAULT_SETTINGS = {
     "trial_days": "90",
@@ -45,7 +47,7 @@ def get_setting(db: Session, key: str, default: str = "") -> str:
         if row:
             return row.value
     except Exception:
-        pass
+        logger.warning("eisa get_setting failed key=%s", key, exc_info=True)
     return DEFAULT_SETTINGS.get(key, default)
 
 
@@ -66,7 +68,7 @@ def get_settings(db: Session) -> dict[str, str]:
         for row in rows:
             out[row.key] = row.value
     except Exception:
-        pass
+        logger.warning("eisa get_settings failed", exc_info=True)
     return out
 
 
@@ -256,7 +258,7 @@ def build_dashboard(db: Session) -> dict:
             )
         ) or 0
     except Exception:
-        pass
+        logger.warning("eisa dashboard payment metrics failed", exc_info=True)
 
     open_error_reports = 0
     try:
@@ -271,7 +273,7 @@ def build_dashboard(db: Session) -> dict:
             )
         ) or 0
     except Exception:
-        pass
+        logger.warning("eisa dashboard open_error_reports failed", exc_info=True)
 
     return {
         "platform": "EİSA",

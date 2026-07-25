@@ -1,6 +1,7 @@
 """Yıllık plan API — İSG PRO 2026 Planlama Merkezi parity."""
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
 from io import BytesIO
 
@@ -23,6 +24,7 @@ from app.schemas.annual_plan import (
 )
 from app.services.tr_calendar import is_non_working_day, plan_target_date
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/annual-plans", tags=["Yıllık Planlar"])
 
 EDIT_ROLES = (
@@ -84,10 +86,11 @@ def _refresh_delayed(db: Session, items: list[AnnualPlanItem]) -> None:
             for item in items:
                 db.refresh(item)
     except Exception:
+        logger.warning("annual plan delayed-status refresh failed", exc_info=True)
         try:
             db.rollback()
         except Exception:
-            pass
+            logger.warning("annual plan delayed-status rollback failed", exc_info=True)
 
 
 @router.get("/meta")

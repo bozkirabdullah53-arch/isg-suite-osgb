@@ -127,7 +127,7 @@ def health():
         'redis': redis_status_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
         'upload_gateway_wired': 'assert-safe-all-legacy-v2',
-        'infra_rollout': 'failclosed-purge-excel-magic-v4',
+        'infra_rollout': 'obs-silent-except-v5',
         'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
         'ai_hazard_hint': 'keyword-v2',
         'mevzuat_panel': 'highlights-v1',
@@ -238,6 +238,6 @@ def health():
         'secret_key_guard': 'prod-block-default',
         'nav_hardening': 'allowlist-boundary-mobile',
         'field_access': 'assignment-scoped-v2',
-        'startup_obs': 'no-silent-pass-v2',
+        'startup_obs': 'no-silent-pass-v3',
         'git': os.environ.get('RENDER_GIT_COMMIT') or os.environ.get('GIT_COMMIT') or 'local',
     }
