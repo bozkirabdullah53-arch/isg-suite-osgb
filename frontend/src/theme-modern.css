@@ -1,73 +1,195 @@
 /* ============================================================
-   İSG Suite — "Modern" tema (deneysel)
+   İSG Suite — "Modern" tema v2 (deneysel)
    Tamamı html[data-ui-theme="modern"] altında scope'ludur.
-   Bu dosya yüklü olsa bile attribute yoksa HİÇBİR etkisi olmaz;
-   klasik tasarım styles.css'te dokunulmadan durur.
+   Attribute yokken bu dosyanın sıfır etkisi vardır; klasik
+   tasarım styles.css'te dokunulmadan durur.
+
+   Tasarım dili: animasyonlu aurora zemin + cam (glass) yüzeyler,
+   teal→cyan marka degradesi, Sora/Manrope tipografi, kademeli
+   giriş animasyonları, ışık süpürmeli butonlar, parlayan aktif
+   menü ve içsel animasyonlu 3D iş güvenliği sahnesi.
    ============================================================ */
 
+@property --m-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
 html[data-ui-theme="modern"] {
-  --m-bg: #f4f7fa;
-  --m-surface: #ffffff;
-  --m-surface-2: #f7fafc;
-  --m-border: #e3ecf1;
-  --m-border-strong: #d3e1e8;
-  --m-text: #102733;
-  --m-text-soft: #5c7482;
-  --m-text-faint: #7e939f;
+  --m-bg: #eef4f8;
+  --m-glass: rgba(255, 255, 255, .64);
+  --m-glass-strong: rgba(255, 255, 255, .85);
+  --m-glass-border: rgba(255, 255, 255, .75);
+  --m-border: rgba(190, 212, 224, .55);
+  --m-text: #0d222e;
+  --m-text-soft: #526b7a;
+  --m-text-faint: #7b919d;
   --m-accent: #0d9488;
   --m-accent-deep: #0f766e;
-  --m-accent-ink: #0b5f58;
-  --m-accent-grad: linear-gradient(135deg, #0d9488 0%, #0e7490 100%);
+  --m-accent-ink: #0a5a53;
+  --m-accent-grad: linear-gradient(135deg, #14b8a6 0%, #0d9488 45%, #0e7490 100%);
   --m-danger: #dc2626;
-  --m-radius-xl: 22px;
-  --m-radius-lg: 17px;
-  --m-radius-md: 12px;
-  --m-shadow-sm: 0 1px 2px rgba(12, 44, 56, .05), 0 5px 16px rgba(12, 44, 56, .05);
-  --m-shadow-md: 0 2px 6px rgba(12, 44, 56, .07), 0 16px 38px rgba(12, 44, 56, .10);
-  --m-shadow-accent: 0 6px 18px rgba(13, 148, 136, .28);
-  --m-ring: 0 0 0 3px rgba(13, 148, 136, .16);
+  --m-radius-xl: 24px;
+  --m-radius-lg: 18px;
+  --m-radius-md: 13px;
+  --m-shadow-sm: 0 2px 6px rgba(11, 44, 58, .05), 0 10px 30px rgba(11, 44, 58, .07);
+  --m-shadow-md: 0 4px 10px rgba(11, 44, 58, .08), 0 24px 54px rgba(11, 44, 58, .13);
+  --m-shadow-accent: 0 8px 22px rgba(13, 148, 136, .32);
+  --m-ring: 0 0 0 3px rgba(20, 184, 166, .2);
 
+  font-family: Manrope, Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--m-text);
   background: var(--m-bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-html[data-ui-theme="modern"] body { background: var(--m-bg); }
+html[data-ui-theme="modern"] body { background: transparent; }
 
-/* ---------- Giriş ekranı ---------- */
-html[data-ui-theme="modern"] .login-shell {
+html[data-ui-theme="modern"] h1,
+html[data-ui-theme="modern"] h2,
+html[data-ui-theme="modern"] h3,
+html[data-ui-theme="modern"] h4 {
+  font-family: Sora, Manrope, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -.022em;
+}
+
+/* ---------- Canlı aurora zemini (tüm uygulama) ---------- */
+html[data-ui-theme="modern"] body::before {
+  content: "";
+  position: fixed;
+  inset: -22%;
+  z-index: -1;
+  pointer-events: none;
   background:
-    radial-gradient(1000px 560px at 88% -12%, rgba(8, 145, 178, .13), transparent 62%),
-    radial-gradient(860px 520px at -12% 104%, rgba(13, 148, 136, .15), transparent 58%),
-    linear-gradient(180deg, #f3f8fa 0%, #eef4f8 100%);
+    radial-gradient(38% 34% at 12% 18%, rgba(20, 184, 166, .20), transparent 70%),
+    radial-gradient(32% 38% at 88% 12%, rgba(8, 145, 178, .17), transparent 70%),
+    radial-gradient(42% 44% at 74% 92%, rgba(99, 102, 241, .11), transparent 72%),
+    radial-gradient(30% 30% at 30% 88%, rgba(45, 212, 191, .13), transparent 70%);
+  filter: blur(46px) saturate(1.15);
+  animation: m-aurora 26s ease-in-out infinite alternate;
+}
+
+/* ---------- Kaydırma çubukları ve odak ---------- */
+html[data-ui-theme="modern"] ::-webkit-scrollbar { width: 10px; height: 10px; }
+html[data-ui-theme="modern"] ::-webkit-scrollbar-thumb {
+  background: rgba(14, 116, 144, .28);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+html[data-ui-theme="modern"] ::-webkit-scrollbar-track { background: transparent; }
+html[data-ui-theme="modern"] :focus-visible {
+  outline: 2px solid #14b8a6;
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   GİRİŞ EKRANI — aurora + cam kart + dönen ışık halkası + 3D sahne
+   ============================================================ */
+html[data-ui-theme="modern"] .login-shell {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(1100px 640px at 86% -14%, rgba(8, 145, 178, .16), transparent 60%),
+    radial-gradient(900px 560px at -14% 106%, rgba(20, 184, 166, .18), transparent 58%),
+    linear-gradient(180deg, #f0f7f9 0%, #e9f1f7 100%);
+}
+html[data-ui-theme="modern"] .login-shell::before {
+  content: "";
+  position: absolute;
+  inset: -10%;
+  pointer-events: none;
+  background:
+    radial-gradient(300px 300px at 14% 24%, rgba(45, 212, 191, .22), transparent 70%),
+    radial-gradient(240px 240px at 6% 80%, rgba(8, 145, 178, .16), transparent 70%),
+    radial-gradient(200px 200px at 92% 84%, rgba(94, 234, 212, .18), transparent 70%),
+    radial-gradient(120px 120px at 78% 18%, rgba(99, 102, 241, .10), transparent 70%);
+  filter: blur(20px);
+  animation: m-orb-drift 13s ease-in-out infinite;
+}
+/* 3D iş güvenliği sahnesi (içsel animasyonları SVG'nin kendindedir) */
+html[data-ui-theme="modern"] .login-shell::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: calc(50% + 240px);
+  width: 430px;
+  height: 460px;
+  margin-top: -230px;
+  pointer-events: none;
+  background: url("/isg-3d-scene.svg") center / contain no-repeat;
+  filter: drop-shadow(0 34px 40px rgba(9, 52, 66, .22));
+  animation: m-float 8s ease-in-out infinite;
+}
+@media (max-width: 1180px) {
+  html[data-ui-theme="modern"] .login-shell::after { display: none; }
+}
+html[data-ui-theme="modern"] .login-wrap { position: relative; z-index: 1; }
+@media (min-width: 1181px) {
+  html[data-ui-theme="modern"] .login-wrap { transform: translateX(-170px); }
+}
+html[data-ui-theme="modern"] .login-brand {
+  animation: m-fade-up .7s cubic-bezier(.16, 1, .3, 1) both;
 }
 html[data-ui-theme="modern"] .login-card {
-  border: 1px solid rgba(227, 236, 241, .95);
-  border-radius: 26px;
-  box-shadow: 0 32px 90px rgba(9, 48, 63, .16);
+  position: relative;
+  z-index: 0;
+  background: rgba(255, 255, 255, .93);
+  backdrop-filter: blur(22px) saturate(1.4);
+  border: 1px solid var(--m-glass-border);
+  border-radius: 28px;
+  box-shadow: 0 36px 90px rgba(9, 48, 63, .18);
+  animation: m-pop .55s cubic-bezier(.16, 1, .3, 1) .08s both;
 }
-html[data-ui-theme="modern"] .login-card h1 { letter-spacing: -.02em; }
+/* dönen konik ışık halkası */
+html[data-ui-theme="modern"] .login-card::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: 30px;
+  background: conic-gradient(
+    from var(--m-angle),
+    transparent 0deg,
+    rgba(45, 212, 191, .6) 40deg,
+    rgba(8, 145, 178, .38) 90deg,
+    transparent 150deg,
+    transparent 210deg,
+    rgba(94, 234, 212, .34) 280deg,
+    transparent 330deg
+  );
+  filter: blur(9px);
+  animation: m-rotate 7s linear infinite;
+}
+html[data-ui-theme="modern"] .login-card h1 { font-size: 32px; }
 html[data-ui-theme="modern"] .login-card p { color: var(--m-text-soft); }
 html[data-ui-theme="modern"] .login-card input {
-  border-color: var(--m-border-strong);
-  border-radius: 12px;
-  background: var(--m-surface-2);
-  transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+  border: 1px solid var(--m-border);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .75);
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease, transform .18s ease;
 }
 html[data-ui-theme="modern"] .login-card input:focus {
   border-color: var(--m-accent);
-  background: white;
+  background: #ffffff;
   box-shadow: var(--m-ring);
+  transform: translateY(-1px);
 }
 html[data-ui-theme="modern"] .login-card button:not(.linkish) {
+  position: relative;
+  overflow: hidden;
   background: var(--m-accent-grad);
-  border-radius: 13px;
-  box-shadow: var(--m-shadow-accent);
-  transition: transform .14s ease, box-shadow .14s ease, filter .14s ease;
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), var(--m-shadow-accent);
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
 }
 html[data-ui-theme="modern"] .login-card button:not(.linkish):hover {
-  filter: brightness(1.06);
-  transform: translateY(-1px);
+  filter: brightness(1.07);
+  transform: translateY(-2px);
+}
+html[data-ui-theme="modern"] .login-card button:not(.linkish):active {
+  transform: translateY(0) scale(.99);
 }
 html[data-ui-theme="modern"] .login-card .linkish { color: var(--m-accent-deep); }
 html[data-ui-theme="modern"] .brand-mark {
@@ -75,123 +197,221 @@ html[data-ui-theme="modern"] .brand-mark {
   color: var(--m-accent-ink);
 }
 
-/* ---------- Uygulama kabuğu / kenar çubuğu ---------- */
+/* ============================================================
+   KENAR ÇUBUĞU — koyu cam, parlayan aktif öğe
+   ============================================================ */
 html[data-ui-theme="modern"] aside {
-  background: linear-gradient(180deg, #0a2127 0%, #0d3038 78%, #0e343c 100%);
+  background: linear-gradient(180deg, rgba(6, 24, 30, .96) 0%, rgba(9, 34, 42, .97) 70%, rgba(10, 38, 46, .97) 100%);
+  backdrop-filter: blur(16px);
   border-right: 0;
-  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .05);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .06), 12px 0 40px rgba(5, 22, 28, .18);
 }
 html[data-ui-theme="modern"] .sidebar-logo.eisa-logo-icon {
-  background: rgba(255, 255, 255, .95);
-  border-radius: 16px;
-  padding: 8px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, .28);
+  background: rgba(255, 255, 255, .96);
+  border-radius: 18px;
+  padding: 9px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .34), 0 0 0 1px rgba(255, 255, 255, .12);
+  transition: transform .25s ease, box-shadow .25s ease;
 }
-html[data-ui-theme="modern"] .logo-caption {
-  color: #a9c8cd;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  font-size: 10px;
+html[data-ui-theme="modern"] .logo:hover .sidebar-logo.eisa-logo-icon {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, .4), 0 0 26px rgba(45, 212, 191, .25);
 }
 html[data-ui-theme="modern"] .logo:hover { opacity: 1; }
 html[data-ui-theme="modern"] .logo:focus-visible { outline-color: #5eead4; }
+html[data-ui-theme="modern"] .logo-caption {
+  color: #9fc2c8;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 800;
+}
 
 html[data-ui-theme="modern"] nav { gap: 4px; padding-right: 4px; }
 html[data-ui-theme="modern"] nav::-webkit-scrollbar { width: 6px; }
 html[data-ui-theme="modern"] nav::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .15);
   border-radius: 99px;
+  border: 0;
+  background-clip: border-box;
 }
 html[data-ui-theme="modern"] nav button,
 html[data-ui-theme="modern"] .logout {
-  color: #93aeb5;
+  color: #8fadb5;
   border-radius: var(--m-radius-md);
   padding: 11px 12px;
-  font-weight: 550;
-  transition: background .15s ease, color .15s ease;
+  font-weight: 600;
+  transition: background .16s ease, color .16s ease, transform .18s ease;
 }
 html[data-ui-theme="modern"] nav button:hover {
-  background: rgba(255, 255, 255, .07);
+  background: rgba(255, 255, 255, .08);
   color: #f0fdfa;
+  transform: translateX(4px);
 }
+html[data-ui-theme="modern"] nav button svg { transition: transform .2s ease; }
+html[data-ui-theme="modern"] nav button:hover svg { transform: scale(1.14); }
 html[data-ui-theme="modern"] nav button.active {
-  background: linear-gradient(90deg, rgba(45, 212, 191, .22), rgba(45, 212, 191, .06));
+  background: linear-gradient(90deg, rgba(45, 212, 191, .26), rgba(14, 116, 144, .10));
   color: #5eead4;
-  font-weight: 700;
-  box-shadow: inset 3px 0 0 #2dd4bf;
+  font-weight: 800;
+  transform: none;
+  animation: m-nav-glow 3.2s ease-in-out infinite;
 }
 html[data-ui-theme="modern"] .logout { color: #f1a8a8; }
-html[data-ui-theme="modern"] .logout:hover { background: rgba(248, 113, 113, .14); color: #fecaca; }
+html[data-ui-theme="modern"] .logout:hover { background: rgba(248, 113, 113, .15); color: #fecaca; }
 
-/* ---------- Üst bar ---------- */
+/* ============================================================
+   ÜST BAR — yüzen cam şerit
+   ============================================================ */
 html[data-ui-theme="modern"] header {
-  background: rgba(244, 247, 250, .8);
-  backdrop-filter: blur(16px) saturate(1.5);
-  border-bottom: 1px solid rgba(211, 225, 232, .75);
-  padding: 16px 28px;
+  top: 12px;
+  margin: 12px 22px 0;
+  padding: 13px 22px;
+  border-radius: 20px;
+  border: 1px solid var(--m-glass-border);
+  background: rgba(255, 255, 255, .58);
+  backdrop-filter: blur(20px) saturate(1.6);
+  box-shadow: 0 12px 34px rgba(11, 44, 58, .09);
+  animation: m-fade-down .5s cubic-bezier(.16, 1, .3, 1) both;
 }
-html[data-ui-theme="modern"] header h2 { font-size: 20px; letter-spacing: -.015em; }
+html[data-ui-theme="modern"] header h2 { font-size: 19px; }
 html[data-ui-theme="modern"] header p { color: var(--m-text-faint); font-size: 13px; }
 html[data-ui-theme="modern"] .user-chip strong { font-size: 14px; }
 html[data-ui-theme="modern"] .user-chip span { color: var(--m-text-faint); }
 
-/* ---------- İçerik / paneller / kartlar ---------- */
-html[data-ui-theme="modern"] .welcome {
-  background:
-    radial-gradient(560px 240px at 92% -30%, rgba(255, 255, 255, .18), transparent 70%),
-    linear-gradient(128deg, #0f766e 0%, #0e7490 62%, #155e75 100%);
-  border-radius: var(--m-radius-xl);
-  box-shadow: 0 18px 46px rgba(14, 116, 144, .26);
+/* ============================================================
+   İÇERİK — kademeli girişler, cam paneller, canlı karşılama
+   ============================================================ */
+html[data-ui-theme="modern"] .content > * {
+  animation: m-fade-up .5s cubic-bezier(.16, 1, .3, 1) both;
 }
-html[data-ui-theme="modern"] .welcome h3 { letter-spacing: -.02em; }
 
+/* Karşılama afişi: akan degrade + süzülen ışık küreleri + ışık süpürmesi */
+html[data-ui-theme="modern"] .welcome {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--m-radius-xl);
+  background: linear-gradient(118deg, #0f766e, #0e7490, #155e75, #0d9488, #0f766e);
+  background-size: 320% 320%;
+  animation: m-gradient-flow 16s ease infinite;
+  box-shadow: 0 22px 54px rgba(14, 116, 144, .3);
+}
+html[data-ui-theme="modern"] .welcome::before {
+  content: "";
+  position: absolute;
+  right: -70px;
+  top: -90px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .34), rgba(255, 255, 255, .04) 66%);
+  animation: m-float 9s ease-in-out infinite;
+  pointer-events: none;
+}
+html[data-ui-theme="modern"] .welcome::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -70%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .13), transparent);
+  transform: skewX(-18deg);
+  animation: m-sheen 6.5s ease-in-out infinite;
+  pointer-events: none;
+}
+html[data-ui-theme="modern"] .welcome > * { position: relative; z-index: 1; }
+
+/* Metrik ve panel kartları: cam yüzey + kademeli giriş + 3D eğim */
 html[data-ui-theme="modern"] .metric,
 html[data-ui-theme="modern"] .panel {
-  border: 1px solid var(--m-border);
+  background: var(--m-glass);
+  backdrop-filter: blur(16px) saturate(1.35);
+  border: 1px solid var(--m-glass-border);
   border-radius: var(--m-radius-lg);
   box-shadow: var(--m-shadow-sm);
 }
-html[data-ui-theme="modern"] .metric {
-  transition: transform .16s ease, box-shadow .16s ease;
+html[data-ui-theme="modern"] .cards .metric {
+  animation: m-fade-up .55s cubic-bezier(.16, 1, .3, 1) both;
+  transition: transform .2s ease, box-shadow .2s ease;
 }
+html[data-ui-theme="modern"] .cards .metric:nth-child(1) { animation-delay: .04s; }
+html[data-ui-theme="modern"] .cards .metric:nth-child(2) { animation-delay: .1s; }
+html[data-ui-theme="modern"] .cards .metric:nth-child(3) { animation-delay: .16s; }
+html[data-ui-theme="modern"] .cards .metric:nth-child(4) { animation-delay: .22s; }
+html[data-ui-theme="modern"] .cards .metric:nth-child(n+5) { animation-delay: .28s; }
 html[data-ui-theme="modern"] .metric:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--m-shadow-md);
+  transform: perspective(800px) rotateX(3deg) translateY(-5px);
+  transform-origin: 50% 100%;
+  box-shadow: var(--m-shadow-md), 0 0 0 1px rgba(45, 212, 191, .25);
 }
-html[data-ui-theme="modern"] .metric span { color: var(--m-text-soft); font-weight: 600; font-size: 13px; }
+html[data-ui-theme="modern"] .metric span { color: var(--m-text-soft); font-weight: 700; font-size: 13px; }
 html[data-ui-theme="modern"] .metric strong {
-  background: var(--m-accent-grad);
+  font-family: Sora, Manrope, sans-serif;
+  background: linear-gradient(120deg, #0d9488, #0e7490, #14b8a6, #0d9488);
+  background-size: 250% 250%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  letter-spacing: -.02em;
+  animation: m-gradient-flow 9s ease infinite;
 }
 html[data-ui-theme="modern"] .panel li { color: var(--m-text-soft); }
 
-/* ---------- Butonlar ---------- */
+/* ============================================================
+   BUTONLAR — degrade + ışık süpürmesi + bası hissi
+   ============================================================ */
 html[data-ui-theme="modern"] .page-title button,
 html[data-ui-theme="modern"] .actions button,
 html[data-ui-theme="modern"] .button,
 html[data-ui-theme="modern"] .panel button,
 html[data-ui-theme="modern"] .form-actions button {
+  position: relative;
+  overflow: hidden;
   background: var(--m-accent-grad);
   border-radius: var(--m-radius-md);
-  box-shadow: var(--m-shadow-accent);
-  transition: transform .13s ease, box-shadow .13s ease, filter .13s ease;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), var(--m-shadow-accent);
+  transition: transform .14s ease, box-shadow .14s ease, filter .14s ease;
 }
+html[data-ui-theme="modern"] .page-title button::after,
+html[data-ui-theme="modern"] .actions button::after,
+html[data-ui-theme="modern"] .button::after,
+html[data-ui-theme="modern"] .form-actions button::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -70%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .45), transparent);
+  transform: skewX(-20deg);
+  transition: left .45s ease;
+}
+html[data-ui-theme="modern"] .page-title button:hover::after,
+html[data-ui-theme="modern"] .actions button:hover::after,
+html[data-ui-theme="modern"] .button:hover::after,
+html[data-ui-theme="modern"] .form-actions button:hover::after { left: 130%; }
 html[data-ui-theme="modern"] .page-title button:hover,
 html[data-ui-theme="modern"] .actions button:hover,
 html[data-ui-theme="modern"] .button:hover,
 html[data-ui-theme="modern"] .panel button:hover,
 html[data-ui-theme="modern"] .form-actions button:hover {
-  filter: brightness(1.06);
-  transform: translateY(-1px);
+  filter: brightness(1.07);
+  transform: translateY(-2px);
+}
+html[data-ui-theme="modern"] .page-title button:active,
+html[data-ui-theme="modern"] .actions button:active,
+html[data-ui-theme="modern"] .button:active,
+html[data-ui-theme="modern"] .panel button:active,
+html[data-ui-theme="modern"] .form-actions button:active {
+  transform: translateY(0) scale(.98);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 4px 10px rgba(13, 148, 136, .24);
 }
 html[data-ui-theme="modern"] .secondary,
 html[data-ui-theme="modern"] .button.secondary {
-  background: white !important;
+  background: rgba(255, 255, 255, .8) !important;
   color: var(--m-accent-ink) !important;
-  border: 1px solid var(--m-border-strong) !important;
+  border: 1px solid var(--m-border) !important;
+  backdrop-filter: blur(10px);
   box-shadow: var(--m-shadow-sm);
 }
 html[data-ui-theme="modern"] .secondary:hover,
@@ -199,130 +419,192 @@ html[data-ui-theme="modern"] .button.secondary:hover {
   border-color: var(--m-accent) !important;
   filter: none;
 }
+html[data-ui-theme="modern"] .secondary::after,
+html[data-ui-theme="modern"] .button.secondary::after { display: none; }
 html[data-ui-theme="modern"] .icon {
   background: transparent !important;
   color: var(--m-text-soft) !important;
   border: 0 !important;
   box-shadow: none !important;
+  overflow: visible;
 }
-html[data-ui-theme="modern"] .icon:hover { color: var(--m-accent-deep) !important; transform: none; }
+html[data-ui-theme="modern"] .icon::after { display: none; }
+html[data-ui-theme="modern"] .icon:hover {
+  color: var(--m-accent-deep) !important;
+  transform: scale(1.15);
+}
 
-/* ---------- Arama / tablo ---------- */
+/* ============================================================
+   ARAMA / TABLO — cam yüzey + satır kademesi
+   ============================================================ */
 html[data-ui-theme="modern"] .search {
-  background: white;
-  border-color: var(--m-border);
+  background: rgba(255, 255, 255, .72);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--m-glass-border);
   border-radius: var(--m-radius-md);
   box-shadow: var(--m-shadow-sm);
-  transition: border-color .16s ease, box-shadow .16s ease;
+  transition: border-color .18s ease, box-shadow .18s ease;
 }
 html[data-ui-theme="modern"] .search:focus-within {
   border-color: var(--m-accent);
   box-shadow: var(--m-ring);
 }
 html[data-ui-theme="modern"] .table-wrap {
-  border-color: var(--m-border);
+  background: rgba(255, 255, 255, .8);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--m-glass-border);
   border-radius: var(--m-radius-lg);
   box-shadow: var(--m-shadow-sm);
-  background: white;
 }
 html[data-ui-theme="modern"] th {
-  background: #f1f6f9;
-  color: #617986;
-  letter-spacing: .05em;
+  background: rgba(238, 246, 249, .92);
+  color: #5b7b89;
+  letter-spacing: .06em;
+  font-weight: 800;
 }
 html[data-ui-theme="modern"] th,
-html[data-ui-theme="modern"] td { border-bottom-color: #ecf2f5; }
-html[data-ui-theme="modern"] tbody tr:hover { background: #f5fafb; }
+html[data-ui-theme="modern"] td { border-bottom-color: rgba(210, 227, 234, .6); }
+html[data-ui-theme="modern"] tbody tr {
+  animation: m-fade-up .4s ease both;
+  transition: background .15s ease;
+}
+html[data-ui-theme="modern"] tbody tr:nth-child(1) { animation-delay: .02s; }
+html[data-ui-theme="modern"] tbody tr:nth-child(2) { animation-delay: .05s; }
+html[data-ui-theme="modern"] tbody tr:nth-child(3) { animation-delay: .08s; }
+html[data-ui-theme="modern"] tbody tr:nth-child(4) { animation-delay: .11s; }
+html[data-ui-theme="modern"] tbody tr:nth-child(5) { animation-delay: .14s; }
+html[data-ui-theme="modern"] tbody tr:nth-child(6) { animation-delay: .17s; }
+html[data-ui-theme="modern"] tbody tr:nth-child(7) { animation-delay: .2s; }
+html[data-ui-theme="modern"] tbody tr:nth-child(8) { animation-delay: .23s; }
+html[data-ui-theme="modern"] tbody tr:nth-child(n+9) { animation-delay: .26s; }
+html[data-ui-theme="modern"] tbody tr:hover { background: rgba(20, 184, 166, .07); }
 html[data-ui-theme="modern"] .empty { color: var(--m-text-faint); }
 
-/* ---------- Rozetler / durumlar ---------- */
-html[data-ui-theme="modern"] .badge.ok { background: #d9f6ea; color: #047857; }
-html[data-ui-theme="modern"] .badge.off { background: #eef1f3; color: #64707a; }
-html[data-ui-theme="modern"] .status-badge.badge-ok { background: #d9f6ea; color: #047857; }
-html[data-ui-theme="modern"] .status-badge.badge-warn { background: #fdf0d2; color: #a16207; }
-html[data-ui-theme="modern"] .status-badge.badge-danger { background: #fee2e2; color: #b91c1c; }
-html[data-ui-theme="modern"] .notice.info { background: #e0efff; }
-html[data-ui-theme="modern"] .notice.success { background: #dcf7e8; }
+/* ============================================================
+   ROZETLER / DURUMLAR
+   ============================================================ */
+html[data-ui-theme="modern"] .badge,
+html[data-ui-theme="modern"] .status-badge { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .5); }
+html[data-ui-theme="modern"] .badge.ok { background: #d3f5e6; color: #047857; }
+html[data-ui-theme="modern"] .badge.off { background: #eaeef1; color: #64707a; }
+html[data-ui-theme="modern"] .status-badge.badge-ok { background: #d3f5e6; color: #047857; }
+html[data-ui-theme="modern"] .status-badge.badge-warn { background: #fdeecb; color: #a16207; }
+html[data-ui-theme="modern"] .status-badge.badge-danger { background: #fedede; color: #b91c1c; }
+html[data-ui-theme="modern"] .notice.info { background: #dcecfe; }
+html[data-ui-theme="modern"] .notice.success { background: #d6f5e4; }
 
-/* ---------- Modal / formlar ---------- */
+/* ============================================================
+   MODAL / FORMLAR — cam + yaylı açılış
+   ============================================================ */
 html[data-ui-theme="modern"] .modal-bg {
-  background: rgba(8, 30, 39, .52);
-  backdrop-filter: blur(5px);
+  background: rgba(6, 28, 36, .55);
+  backdrop-filter: blur(7px);
+  animation: m-fade .18s ease both;
 }
 html[data-ui-theme="modern"] .modal {
-  border-radius: 20px;
-  box-shadow: 0 34px 100px rgba(0, 0, 0, .3);
+  background: rgba(255, 255, 255, .93);
+  backdrop-filter: blur(26px) saturate(1.4);
+  border: 1px solid var(--m-glass-border);
+  border-radius: 22px;
+  box-shadow: 0 40px 110px rgba(0, 0, 0, .34);
+  animation: m-pop .3s cubic-bezier(.16, 1, .3, 1) both;
 }
 html[data-ui-theme="modern"] .modal > header {
+  background: transparent;
   border-bottom: 1px solid var(--m-border);
 }
-html[data-ui-theme="modern"] .field span { color: #47616d; }
+html[data-ui-theme="modern"] .field span { color: #43606d; }
 html[data-ui-theme="modern"] .field input,
 html[data-ui-theme="modern"] .field select,
 html[data-ui-theme="modern"] .field textarea {
-  border-color: var(--m-border-strong);
-  border-radius: 11px;
-  background: var(--m-surface-2);
-  transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+  border: 1px solid var(--m-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .8);
+  transition: border-color .18s ease, box-shadow .18s ease, background .18s ease, transform .18s ease;
 }
 html[data-ui-theme="modern"] .field input:focus,
 html[data-ui-theme="modern"] .field select:focus,
 html[data-ui-theme="modern"] .field textarea:focus {
   border-color: var(--m-accent);
-  background: white;
+  background: #ffffff;
   box-shadow: var(--m-ring);
+  transform: translateY(-1px);
 }
 
-/* ---------- Modül yardımcıları ---------- */
+/* ============================================================
+   MODÜL YARDIMCILARI
+   ============================================================ */
 html[data-ui-theme="modern"] .subscription-card {
+  position: relative;
+  overflow: hidden;
   background:
-    radial-gradient(420px 200px at 100% 0%, rgba(8, 145, 178, .10), transparent 70%),
-    linear-gradient(135deg, #eafaf5, #edf5ff);
-  border: 1px solid var(--m-border);
+    radial-gradient(460px 220px at 100% 0%, rgba(8, 145, 178, .12), transparent 70%),
+    linear-gradient(135deg, rgba(234, 250, 245, .9), rgba(237, 245, 255, .9));
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--m-glass-border);
   border-radius: var(--m-radius-xl);
   box-shadow: var(--m-shadow-sm);
 }
 html[data-ui-theme="modern"] .check-grid span {
-  background: #eff7f6;
+  background: rgba(236, 247, 246, .85);
   border-radius: var(--m-radius-md);
   color: #315a60;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+html[data-ui-theme="modern"] .check-grid span:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--m-shadow-sm);
 }
 html[data-ui-theme="modern"] .finance-summary b {
-  background: #e9f6f4;
+  background: rgba(231, 246, 244, .9);
   border-radius: var(--m-radius-md);
   color: var(--m-accent-ink);
 }
 html[data-ui-theme="modern"] .field-card {
-  background: white;
-  border-color: var(--m-border);
+  background: var(--m-glass);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--m-glass-border);
   border-radius: var(--m-radius-lg);
   box-shadow: var(--m-shadow-sm);
+  transition: transform .18s ease, box-shadow .18s ease;
 }
-html[data-ui-theme="modern"] .doc-topics { background: #f2f7fb; border-radius: var(--m-radius-md); }
+html[data-ui-theme="modern"] .field-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--m-shadow-md);
+}
+html[data-ui-theme="modern"] .doc-topics { background: rgba(240, 246, 251, .9); border-radius: var(--m-radius-md); }
 html[data-ui-theme="modern"] .readonly-banner { border-radius: var(--m-radius-md); }
 
-/* ---------- Tema düğmesi (modern görünümde) ---------- */
+/* ---------- Tema düğmesi ---------- */
 html[data-ui-theme="modern"] .theme-toggle {
-  border: 1px solid var(--m-border-strong);
-  background: white;
+  border: 1px solid var(--m-border);
+  background: rgba(255, 255, 255, .78);
+  backdrop-filter: blur(10px);
   color: var(--m-accent-ink);
   box-shadow: var(--m-shadow-sm);
+  transition: border-color .18s ease, color .18s ease, transform .18s ease;
 }
 html[data-ui-theme="modern"] .theme-toggle:hover {
   border-color: var(--m-accent);
   color: var(--m-accent-deep);
+  transform: translateY(-1px);
 }
+html[data-ui-theme="modern"] .theme-toggle svg { transition: transform .3s ease; }
+html[data-ui-theme="modern"] .theme-toggle:hover svg { transform: rotate(-14deg) scale(1.15); }
 
 /* ============================================================
-   Animasyon + pseudo-3D katmanı (yalnız modern tema)
+   KEYFRAMES
    ============================================================ */
-
 @keyframes m-fade-up {
-  from { opacity: 0; transform: translateY(14px); }
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes m-fade-down {
+  from { opacity: 0; transform: translateY(-12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes m-pop {
-  from { opacity: 0; transform: scale(.94) translateY(10px); }
+  from { opacity: 0; transform: scale(.93) translateY(12px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 @keyframes m-fade {
@@ -331,144 +613,37 @@ html[data-ui-theme="modern"] .theme-toggle:hover {
 }
 @keyframes m-float {
   0%, 100% { transform: translateY(0) rotate(0deg); }
-  50%      { transform: translateY(-16px) rotate(-1.2deg); }
+  50%      { transform: translateY(-18px) rotate(-1.4deg); }
 }
 @keyframes m-orb-drift {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  50%      { transform: translate(24px, -18px) scale(1.06); }
+  50%      { transform: translate(26px, -20px) scale(1.07); }
+}
+@keyframes m-aurora {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
+  50%  { transform: translate(3%, -2%) rotate(2.5deg) scale(1.06); }
+  100% { transform: translate(-3%, 2%) rotate(-2deg) scale(1.03); }
+}
+@keyframes m-gradient-flow {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes m-sheen {
+  0%, 55% { left: -70%; }
+  85%, 100% { left: 130%; }
+}
+@keyframes m-rotate {
+  to { --m-angle: 360deg; }
+}
+@keyframes m-nav-glow {
+  0%, 100% { box-shadow: inset 3px 0 0 #2dd4bf, 0 0 16px rgba(45, 212, 191, .1); }
+  50%      { box-shadow: inset 3px 0 0 #5eead4, 0 0 30px rgba(45, 212, 191, .28); }
 }
 
-/* --- Giriş ekranı: 3D İSG sahnesi + ışık küreleri --- */
-html[data-ui-theme="modern"] .login-shell {
-  position: relative;
-  overflow: hidden;
-}
-html[data-ui-theme="modern"] .login-shell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(260px 260px at 12% 22%, rgba(45, 212, 191, .18), transparent 70%),
-    radial-gradient(200px 200px at 8% 78%, rgba(8, 145, 178, .14), transparent 70%),
-    radial-gradient(150px 150px at 90% 82%, rgba(94, 234, 212, .16), transparent 70%);
-  animation: m-orb-drift 11s ease-in-out infinite;
-}
-html[data-ui-theme="modern"] .login-shell::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: calc(50% + 250px);
-  width: 400px;
-  height: 430px;
-  margin-top: -215px;
-  pointer-events: none;
-  background: url("/isg-3d-scene.svg") center / contain no-repeat;
-  filter: drop-shadow(0 30px 34px rgba(10, 55, 70, .18));
-  animation: m-float 7s ease-in-out infinite;
-}
-@media (max-width: 1180px) {
-  html[data-ui-theme="modern"] .login-shell::after { display: none; }
-}
-html[data-ui-theme="modern"] .login-wrap {
-  position: relative;
-  z-index: 1;
-}
-@media (min-width: 1181px) {
-  html[data-ui-theme="modern"] .login-wrap { transform: translateX(-160px); }
-}
-html[data-ui-theme="modern"] .login-card {
-  animation: m-pop .5s cubic-bezier(.16, 1, .3, 1) both;
-}
-html[data-ui-theme="modern"] .login-brand {
-  animation: m-fade-up .6s cubic-bezier(.16, 1, .3, 1) both;
-}
-
-/* --- Sayfa/modül geçişleri --- */
-html[data-ui-theme="modern"] .content > * {
-  animation: m-fade-up .42s cubic-bezier(.16, 1, .3, 1) both;
-}
-
-/* --- Kartlarda 3D derinlik --- */
-html[data-ui-theme="modern"] .metric,
-html[data-ui-theme="modern"] .panel {
-  background: linear-gradient(180deg, #ffffff 0%, #fbfdfe 100%);
-}
-html[data-ui-theme="modern"] .metric:hover {
-  transform: perspective(900px) rotateX(2.4deg) translateY(-4px);
-  transform-origin: 50% 100%;
-  box-shadow: var(--m-shadow-md);
-}
-html[data-ui-theme="modern"] .welcome {
-  position: relative;
-  overflow: hidden;
-}
-html[data-ui-theme="modern"] .welcome::before {
-  content: "";
-  position: absolute;
-  right: -70px;
-  top: -90px;
-  width: 240px;
-  height: 240px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .32), rgba(255, 255, 255, .05) 65%);
-  animation: m-float 9s ease-in-out infinite;
-  pointer-events: none;
-}
-html[data-ui-theme="modern"] .welcome::after {
-  content: "";
-  position: absolute;
-  left: 34%;
-  bottom: -60px;
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, .16), rgba(255, 255, 255, .02) 70%);
-  animation: m-orb-drift 12s ease-in-out infinite;
-  pointer-events: none;
-}
-html[data-ui-theme="modern"] .welcome > * { position: relative; z-index: 1; }
-
-/* --- Butonlarda bevel / bası hissi --- */
-html[data-ui-theme="modern"] .page-title button,
-html[data-ui-theme="modern"] .actions button,
-html[data-ui-theme="modern"] .button,
-html[data-ui-theme="modern"] .panel button,
-html[data-ui-theme="modern"] .form-actions button,
-html[data-ui-theme="modern"] .login-card button:not(.linkish) {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), var(--m-shadow-accent);
-}
-html[data-ui-theme="modern"] .page-title button:active,
-html[data-ui-theme="modern"] .actions button:active,
-html[data-ui-theme="modern"] .button:active,
-html[data-ui-theme="modern"] .panel button:active,
-html[data-ui-theme="modern"] .form-actions button:active,
-html[data-ui-theme="modern"] .login-card button:not(.linkish):active {
-  transform: translateY(1px) scale(.99);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 3px 8px rgba(13, 148, 136, .22);
-}
-html[data-ui-theme="modern"] .secondary:active,
-html[data-ui-theme="modern"] .button.secondary:active {
-  transform: translateY(1px);
-}
-
-/* --- Kenar çubuğu derinliği ve gezinme mikro-hareketi --- */
-html[data-ui-theme="modern"] aside {
-  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .05), 10px 0 34px rgba(7, 27, 33, .12);
-}
-html[data-ui-theme="modern"] nav button:hover { transform: translateX(3px); }
-html[data-ui-theme="modern"] nav button { transition: background .15s ease, color .15s ease, transform .18s ease; }
-html[data-ui-theme="modern"] nav button.active { transform: none; }
-
-/* --- Modal giriş animasyonu --- */
-html[data-ui-theme="modern"] .modal-bg { animation: m-fade .16s ease both; }
-html[data-ui-theme="modern"] .modal { animation: m-pop .26s cubic-bezier(.16, 1, .3, 1) both; }
-
-/* --- Tema düğmesi ikonu --- */
-html[data-ui-theme="modern"] .theme-toggle svg { transition: transform .3s ease; }
-html[data-ui-theme="modern"] .theme-toggle:hover svg { transform: rotate(-12deg) scale(1.12); }
-
-/* --- Azaltılmış hareket tercihi --- */
+/* ============================================================
+   AZALTILMIŞ HAREKET + YAZDIRMA
+   ============================================================ */
 @media (prefers-reduced-motion: reduce) {
   html[data-ui-theme="modern"] *,
   html[data-ui-theme="modern"] *::before,
@@ -477,24 +652,43 @@ html[data-ui-theme="modern"] .theme-toggle:hover svg { transform: rotate(-12deg)
     transition: none !important;
   }
 }
+@media print {
+  html[data-ui-theme="modern"] body::before { display: none; }
+  html[data-ui-theme="modern"] .metric,
+  html[data-ui-theme="modern"] .panel,
+  html[data-ui-theme="modern"] .table-wrap { background: white; backdrop-filter: none; }
+}
 
-/* ---------- Duyarlı düzen ---------- */
+/* ============================================================
+   DUYARLI DÜZEN
+   ============================================================ */
+@media (max-width: 900px) {
+  html[data-ui-theme="modern"] header { margin: 10px 12px 0; }
+}
 @media (max-width: 620px) {
+  html[data-ui-theme="modern"] header {
+    top: 8px;
+    margin: 8px 10px 0;
+    padding: 12px 14px;
+    border-radius: 16px;
+  }
   html[data-ui-theme="modern"] aside {
-    border-top: 1px solid rgba(255, 255, 255, .08);
-    box-shadow: 0 -10px 30px rgba(7, 27, 33, .35);
+    border-top: 1px solid rgba(255, 255, 255, .09);
+    box-shadow: 0 -12px 34px rgba(5, 22, 28, .4);
   }
   html[data-ui-theme="modern"] nav button.active {
+    animation: none;
     box-shadow: inset 0 -3px 0 #2dd4bf;
   }
+  html[data-ui-theme="modern"] nav button:hover { transform: none; }
   html[data-ui-theme="modern"] .header-icon {
-    background: rgba(13, 148, 136, .12) !important;
+    background: rgba(13, 148, 136, .13) !important;
     color: var(--m-accent-deep) !important;
     border-radius: var(--m-radius-md);
     box-shadow: none;
   }
   html[data-ui-theme="modern"] .logout-mobile {
-    background: rgba(220, 38, 38, .1) !important;
+    background: rgba(220, 38, 38, .11) !important;
     color: var(--m-danger) !important;
   }
 }
