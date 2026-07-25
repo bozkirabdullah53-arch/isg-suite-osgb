@@ -15,4 +15,6 @@ def test_infra_detail_has_crypto_and_gaps():
     assert body["status"] == "ok"
     assert "health_field_encryption_key" in body
     assert "infra_cutover_remaining" in body
+    assert "infra_cutover_steps" in body
+    assert isinstance(body["infra_cutover_steps"], list)
     assert body.get("public_health") == "slim-v1"

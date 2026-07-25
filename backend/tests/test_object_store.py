@@ -224,3 +224,10 @@ def test_persistent_disk_and_cutover_gaps(monkeypatch, tmp_path):
     gaps2 = os_mod.infra_cutover_remaining()
     assert "persistent_disk" not in gaps2
     assert "object_storage_r2" in gaps2
+
+    steps = os_mod.infra_cutover_steps()
+    assert {s["id"] for s in steps} >= {"persistent_disk", "object_storage_r2", "backup_restore_staging_drill"}
+    disk_step = next(s for s in steps if s["id"] == "persistent_disk")
+    assert disk_step["status"] == "done"
+    r2_step = next(s for s in steps if s["id"] == "object_storage_r2")
+    assert r2_step["status"] == "pending"

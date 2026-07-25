@@ -333,3 +333,40 @@ def infra_cutover_remaining() -> list[str]:
     if not bool(settings.backup_restore_enabled):
         gaps.append("backup_restore_staging_drill")
     return gaps
+
+
+def infra_cutover_steps() -> list[dict]:
+    """GA için net sonraki adımlar (R2 / disk / restore)."""
+    remaining = set(infra_cutover_remaining())
+    remote_ok = remote_object_storage_credentials_ok()
+    probe = probe_object_storage() if remote_ok else {"status": "no-creds"}
+    steps = [
+        {
+            "id": "persistent_disk",
+            "status": "done" if "persistent_disk" not in remaining else "pending",
+            "title": "Render persistent disk",
+            "hint": "UPLOAD_DIR=/var/data/uploads ve BACKUP_DIR=/var/data/backups",
+        },
+        {
+            "id": "object_storage_r2",
+            "status": "done" if "object_storage_r2" not in remaining else "pending",
+            "title": "Cloudflare R2 object storage",
+            "hint": (
+                "Render env: OBJECT_STORAGE_BUCKET, ACCESS_KEY, SECRET_KEY, "
+                "ENDPOINT=https://<accountid>.r2.cloudflarestorage.com, REGION=auto. "
+                "BACKEND=local bırak; HeadBucket OK olunca auto-cutover r2 yapar."
+            ),
+            "creds_present": remote_ok,
+            "probe_status": probe.get("status"),
+        },
+        {
+            "id": "backup_restore_staging_drill",
+            "status": "done" if "backup_restore_staging_drill" not in remaining else "pending",
+            "title": "Staging restore drill",
+            "hint": (
+                "python -m scripts.backup_restore_drill --out evidence.json; "
+                "prod'da BACKUP_RESTORE_ENABLED açma."
+            ),
+        },
+    ]
+    return steps

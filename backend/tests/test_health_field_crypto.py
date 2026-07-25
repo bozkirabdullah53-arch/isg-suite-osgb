@@ -89,6 +89,49 @@ def test_enable_health_crypto_production(monkeypatch):
     assert settings.health_field_encryption_enabled is True
 
 
+def test_backfill_plaintext_records(monkeypatch):
+    monkeypatch.setattr(settings, "health_field_encryption_enabled", True)
+    monkeypatch.setattr(settings, "secret_key", "test-secret-key-at-least-32-chars-long!!")
+    monkeypatch.setattr(settings, "health_field_encryption_key", None)
+
+    class _Row:
+        summary = "duz ozet"
+        confidential_note = None
+        audiometry_result = None
+        spirometry_result = None
+        chest_xray_result = None
+        follow_up_note = None
+        other_biological_test = None
+        exposures = None
+        suggested_tests = None
+
+    class _DB:
+        def __init__(self):
+            self.row = _Row()
+            self.committed = False
+            self.rolled = False
+
+        def scalars(self, _q):
+            return self
+
+        def all(self):
+            return [self.row]
+
+        def commit(self):
+            self.committed = True
+
+        def rollback(self):
+            self.rolled = True
+
+    db = _DB()
+    out = crypto.backfill_plaintext_records(db, commit=False)
+    assert out["status"] == "ok"
+    assert out["fields_touched"] == 1
+    assert db.row.summary.startswith(crypto.PREFIX)
+    assert db.rolled is True
+    assert db.committed is False
+
+
 def test_decrypt_falls_back_to_secret_after_dedicated_cutover(monkeypatch):
     """Dedicated key ile yazmadan önce SECRET_KEY ile şifrelenen veri okunabilmeli."""
     monkeypatch.setattr(settings, "health_field_encryption_enabled", True)

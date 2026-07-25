@@ -124,6 +124,41 @@ def enable_health_crypto_for_production() -> str:
     return f"not-ready:{status}"
 
 
+def backfill_plaintext_records(db: Any, *, commit: bool = False) -> dict[str, Any]:
+    """Düz metin hassas alanları enc:v1: yapar; zaten şifreli olanları atlar."""
+    if not settings.health_field_encryption_enabled:
+        return {"status": "skipped", "reason": "health_field_encryption_enabled=false"}
+    from sqlalchemy import select
+
+    from app.models.entities import HealthRecord
+
+    rows = list(db.scalars(select(HealthRecord)).all())
+    touched_rows = 0
+    touched_fields = 0
+    for row in rows:
+        changed = False
+        for field in SENSITIVE_TEXT_FIELDS:
+            raw = getattr(row, field, None)
+            if not raw or is_encrypted(raw):
+                continue
+            setattr(row, field, encrypt_field(raw))
+            touched_fields += 1
+            changed = True
+        if changed:
+            touched_rows += 1
+    if commit and touched_rows:
+        db.commit()
+    else:
+        db.rollback()
+    return {
+        "status": "ok",
+        "commit": commit,
+        "rows_scanned": len(rows),
+        "rows_touched": touched_rows,
+        "fields_touched": touched_fields,
+    }
+
+
 def is_encrypted(value: str | None) -> bool:
     return bool(value) and str(value).startswith(PREFIX)
 
