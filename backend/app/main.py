@@ -115,7 +115,7 @@ for r in (auth.router,osgb_applications.router,eisa.router,companies.router,bran
 @app.get('/health')
 def health():
     import os
-    from app.services.clamav_scan import clamav_status_label, is_clamav_configured
+    from app.services.clamav_scan import is_clamav_configured
     from app.services.health_field_crypto import encryption_key_status, health_crypto_ready_label
     from app.services.backup_restore import backup_crypto_ready_label, backup_encryption_key_status
     from app.services.object_store import object_storage_config_ok, storage_backend_label
@@ -130,7 +130,7 @@ def health():
         'redis': redis_status_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
         'upload_gateway_wired': 'assert-safe-all-legacy-v2',
-        'infra_rollout': 'clamav-status-probe-v13',
+        'infra_rollout': 'clamav-probe-script-v14',
         'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
         'health_field_encryption_key': encryption_key_status(),
         'health_field_crypto_ready': health_crypto_ready_label(),
@@ -181,7 +181,8 @@ def health():
         'demo_osgb_seed': 'alfa-beta-v1',
         'training_verify_code': 'uuid-unique',
         'upload_security': 'magic-byte-quarantine',
-        'clamav_scan': clamav_status_label() if is_clamav_configured() else 'disabled',
+        'clamav_scan': 'configured' if is_clamav_configured() else 'disabled',
+        'clamav_probe': 'zping-v1',
         'ga_osgb_fallback': 'user-or-first-active',
         'schema_bootstrap': 'alembic-only-v1',
         'render_warmup': 'cron-14m',
