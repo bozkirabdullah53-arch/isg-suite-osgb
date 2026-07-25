@@ -128,9 +128,9 @@ def inspect_backup_file(path: Path, *, archive_name: str | None = None) -> Resto
             )
             notes = [
                 "Bu plan salt okunurdur; otomatik geri yükleme yapmaz.",
-                "Dosya geri yükleme BACKUP_RESTORE_ENABLED=true olmadan çalışmaz.",
+                "Dry-run dosya eşlemesi her zaman açık; diske yazma BACKUP_RESTORE_ENABLED=true + confirm=RESTORE ister.",
                 "Veritabanı satır restore bu sürümde yoktur (güvenlik).",
-                "osgb_files/* → {osgb_id}/* (manifest); restore hâlâ BACKUP_RESTORE_ENABLED ile kapalı.",
+                "osgb_files/* → {osgb_id}/* (manifest).",
             ]
             if encrypted:
                 notes.append("Yedek şifreli (.enc); inceleme için sunucu anahtarı kullanıldı.")
@@ -164,12 +164,13 @@ def restore_files_from_backup(
 ) -> dict:
     """Zip içindeki files/ ve osgb_files/ girdilerini upload_dir altına yazar.
 
-    dry_run=True: yalnızca sayım. Gerçek yazma: flag + confirm=RESTORE.
+    dry_run=True: yalnızca eşleme/sayım (flag gerekmez).
+    Gerçek yazma: backup_restore_enabled + confirm=RESTORE.
     """
-    if not settings.backup_restore_enabled:
+    if not dry_run and not settings.backup_restore_enabled:
         raise HTTPException(
             status_code=403,
-            detail="Geri yükleme kapalı (BACKUP_RESTORE_ENABLED). Önce restore-plan kullanın.",
+            detail="Geri yükleme yazımı kapalı (BACKUP_RESTORE_ENABLED). Dry-run kullanın.",
         )
     if not dry_run and (confirm or "").strip() != "RESTORE":
         raise HTTPException(status_code=422, detail='Onay için confirm="RESTORE" gerekli.')

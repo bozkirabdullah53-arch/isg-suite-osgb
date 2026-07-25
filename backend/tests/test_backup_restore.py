@@ -48,11 +48,22 @@ def test_inspect_backup_plan(tmp_path, monkeypatch):
     assert any("osgb_files" in n for n in plan.notes)
 
 
-def test_restore_blocked_when_flag_off(tmp_path, monkeypatch):
+def test_restore_dry_run_allowed_when_flag_off(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "backup_restore_enabled", False)
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path / "uploads"))
+    zpath = _make_zip(tmp_path)
+    result = br.restore_files_from_backup(zpath, dry_run=True)
+    assert result["dry_run"] is True
+    assert result["files_touched"] == 2
+    assert "1/visits/n.pdf" in result["sample"]
+    assert not (tmp_path / "uploads" / "9" / "doc.pdf").exists()
+
+
+def test_restore_write_blocked_when_flag_off(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "backup_restore_enabled", False)
     zpath = _make_zip(tmp_path)
     with pytest.raises(HTTPException) as exc:
-        br.restore_files_from_backup(zpath, dry_run=True)
+        br.restore_files_from_backup(zpath, dry_run=False, confirm="RESTORE")
     assert exc.value.status_code == 403
 
 
@@ -111,10 +122,12 @@ def test_backup_encryption_readiness_dedicated(monkeypatch):
     assert br.backup_encryption_readiness()["can_encrypt"] is True
 
 
-def test_restore_still_blocked_when_crypto_ready(tmp_path, monkeypatch):
+def test_restore_write_still_blocked_when_crypto_ready(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "backup_restore_enabled", False)
     monkeypatch.setattr(settings, "backup_encryption_key", "dedicated-backup-key-at-least-32chars!!")
     zpath = _make_zip(tmp_path)
+    dry = br.restore_files_from_backup(zpath, dry_run=True)
+    assert dry["files_touched"] == 2
     with pytest.raises(HTTPException) as exc:
-        br.restore_files_from_backup(zpath, dry_run=True)
+        br.restore_files_from_backup(zpath, dry_run=False, confirm="RESTORE")
     assert exc.value.status_code == 403

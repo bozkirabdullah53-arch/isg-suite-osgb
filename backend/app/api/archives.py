@@ -229,7 +229,7 @@ def archive_restore(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
-    """Dosya geri yükleme — varsayılan kapalı; dry_run ile güvenli prova."""
+    """Dosya geri yükleme — dry_run her zaman; diske yazma flag + confirm=RESTORE."""
     row = db.get(EisaArchiveRecord, archive_id)
     if not row:
         raise HTTPException(404, "Arşiv bulunamadı.")
