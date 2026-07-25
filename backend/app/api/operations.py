@@ -659,13 +659,12 @@ def download_visit_notebook(
     obj = _get_visit(db, visit_id, user)
     if not obj.notebook_storage_path:
         raise HTTPException(404, "Tespit öneri defteri dosyası yok.")
-    path = (_upload_root() / obj.notebook_storage_path).resolve()
-    if _upload_root() not in path.parents or not path.exists():
-        raise HTTPException(404, "Dosya bulunamadı.")
-    return FileResponse(
-        path,
+    from app.services.stored_files import response_for_storage_key
+
+    return response_for_storage_key(
+        obj.notebook_storage_path,
+        filename=obj.notebook_file_name,
         media_type=obj.notebook_content_type or "application/octet-stream",
-        filename=obj.notebook_file_name or path.name,
     )
 
 
@@ -697,14 +696,14 @@ def download_visit_signature(
     obj = _get_visit(db, visit_id, user)
     if not obj.signature_storage_path:
         raise HTTPException(404, "İmza dosyası yok.")
-    path = (_upload_root() / obj.signature_storage_path).resolve()
-    if _upload_root() not in path.parents or not path.exists():
-        raise HTTPException(404, "Dosya bulunamadı.")
-    media = "image/png" if path.suffix.lower() == ".png" else "image/jpeg"
-    return FileResponse(
-        path,
+    from app.services.stored_files import response_for_storage_key
+
+    suffix = Path(obj.signature_storage_path).suffix.lower()
+    media = "image/png" if suffix == ".png" else "image/jpeg"
+    return response_for_storage_key(
+        obj.signature_storage_path,
+        filename=obj.signature_file_name,
         media_type=media,
-        filename=obj.signature_file_name or path.name,
     )
 
 

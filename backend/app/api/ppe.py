@@ -309,10 +309,13 @@ def get_photo(
     photo = next((p for p in (row.photos or []) if p.id == photo_id), None)
     if not photo:
         raise HTTPException(404, "Fotoğraf bulunamadı.")
-    path = (_upload_root() / photo.storage_path).resolve()
-    if _upload_root() not in path.parents or not path.exists():
-        raise HTTPException(404, "Dosya bulunamadı.")
-    return FileResponse(path, media_type=photo.content_type or "application/octet-stream", filename=photo.original_name or path.name)
+    from app.services.stored_files import response_for_storage_key
+
+    return response_for_storage_key(
+        photo.storage_path,
+        filename=photo.original_name,
+        media_type=photo.content_type or "application/octet-stream",
+    )
 
 
 @router.get("/export.xlsx")

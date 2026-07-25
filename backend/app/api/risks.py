@@ -1145,13 +1145,12 @@ def get_risk_media(
     media = next((m for m in (row.media_files or []) if m.id == media_id), None)
     if not media:
         raise HTTPException(404, "Medya bulunamadı.")
-    path = (_upload_root() / media.storage_path).resolve()
-    if _upload_root() not in path.parents or not path.exists():
-        raise HTTPException(404, "Dosya bulunamadı.")
-    return FileResponse(
-        path,
+    from app.services.stored_files import response_for_storage_key
+
+    return response_for_storage_key(
+        media.storage_path,
+        filename=media.original_name,
         media_type=media.content_type or "application/octet-stream",
-        filename=media.original_name or path.name,
     )
 
 

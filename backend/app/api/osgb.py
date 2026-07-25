@@ -825,13 +825,12 @@ def download_assignment_contract(
     obj = _get_assignment(db, assignment_id, user)
     if not obj.contract_storage_path:
         raise HTTPException(404, "Sözleşme dosyası yok.")
-    path = (_upload_root() / obj.contract_storage_path).resolve()
-    if _upload_root() not in path.parents or not path.exists():
-        raise HTTPException(404, "Dosya bulunamadı.")
-    return FileResponse(
-        path,
+    from app.services.stored_files import response_for_storage_key
+
+    return response_for_storage_key(
+        obj.contract_storage_path,
+        filename=obj.contract_file_name,
         media_type=obj.contract_content_type or "application/octet-stream",
-        filename=obj.contract_file_name or path.name,
     )
 
 

@@ -692,7 +692,7 @@ def download_health_report(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*HEALTH_ROLES)),
 ):
-    from fastapi.responses import FileResponse
+    from app.services.stored_files import response_for_storage_key
 
     record = db.get(HealthRecord, record_id)
     if not record or record.deleted_at:
@@ -700,11 +700,8 @@ def download_health_report(
     ensure_access(db, user, record.company_id)
     if not record.report_storage_path:
         raise HTTPException(404, "Rapor dosyası yok.")
-    path = (_upload_root() / record.report_storage_path).resolve()
-    if _upload_root() not in path.parents or not path.exists():
-        raise HTTPException(404, "Dosya bulunamadı.")
-    return FileResponse(
-        path,
+    return response_for_storage_key(
+        record.report_storage_path,
+        filename=record.report_file_name,
         media_type=record.report_content_type or "application/octet-stream",
-        filename=record.report_file_name or path.name,
     )

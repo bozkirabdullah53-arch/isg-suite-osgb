@@ -126,7 +126,7 @@ def health():
         'redis': redis_status_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
         'upload_gateway_wired': 'assert-safe-all-legacy-v2',
-        'infra_rollout': 'redis-rate-first-s3-ready-v1',
+        'infra_rollout': 'download-paths-s3-ready-v2',
         'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
         'ai_hazard_hint': 'keyword-v2',
         'mevzuat_panel': 'highlights-v1',
