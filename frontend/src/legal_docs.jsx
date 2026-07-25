@@ -1,3 +1,5 @@
+import {X} from 'lucide-react';
+
 /** Belgelerin yürürlük / revizyon tarihi */
 export const LEGAL_DOCS_VERSION = '20.07.2026';
 export const LEGAL_PROVIDER = 'EİSA PROGRAMLAMA';
