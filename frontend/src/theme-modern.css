@@ -1,13 +1,11 @@
 /* ============================================================
-   İSG Suite — "Modern" tema v2 (deneysel)
+   İSG Suite — "Modern" tema v3 (Premium)
    Tamamı html[data-ui-theme="modern"] altında scope'ludur.
    Attribute yokken bu dosyanın sıfır etkisi vardır; klasik
    tasarım styles.css'te dokunulmadan durur.
 
-   Tasarım dili: animasyonlu aurora zemin + cam (glass) yüzeyler,
-   teal→cyan marka degradesi, Sora/Manrope tipografi, kademeli
-   giriş animasyonları, ışık süpürmeli butonlar, parlayan aktif
-   menü ve içsel animasyonlu 3D iş güvenliği sahnesi.
+   Dil: endüstriyel güvenlik — derin slate/teal, cam yüzeyler,
+   kontrollü 3D derinlik, Outfit/Sora tipografi. Mor yok.
    ============================================================ */
 
 @property --m-angle {
@@ -17,28 +15,28 @@
 }
 
 html[data-ui-theme="modern"] {
-  --m-bg: #eef4f8;
-  --m-glass: rgba(255, 255, 255, .64);
-  --m-glass-strong: rgba(255, 255, 255, .85);
-  --m-glass-border: rgba(255, 255, 255, .75);
-  --m-border: rgba(190, 212, 224, .55);
-  --m-text: #0d222e;
-  --m-text-soft: #526b7a;
-  --m-text-faint: #7b919d;
-  --m-accent: #0d9488;
-  --m-accent-deep: #0f766e;
-  --m-accent-ink: #0a5a53;
-  --m-accent-grad: linear-gradient(135deg, #14b8a6 0%, #0d9488 45%, #0e7490 100%);
+  --m-bg: #e8eef3;
+  --m-glass: rgba(255, 255, 255, .68);
+  --m-glass-strong: rgba(255, 255, 255, .9);
+  --m-glass-border: rgba(255, 255, 255, .78);
+  --m-border: rgba(160, 186, 200, .45);
+  --m-text: #0a1c26;
+  --m-text-soft: #4a6573;
+  --m-text-faint: #6e8794;
+  --m-accent: #0f766e;
+  --m-accent-deep: #115e59;
+  --m-accent-ink: #134e4a;
+  --m-accent-grad: linear-gradient(135deg, #2dd4bf 0%, #0d9488 42%, #0e7490 100%);
   --m-danger: #dc2626;
-  --m-radius-xl: 24px;
+  --m-radius-xl: 26px;
   --m-radius-lg: 18px;
   --m-radius-md: 13px;
-  --m-shadow-sm: 0 2px 6px rgba(11, 44, 58, .05), 0 10px 30px rgba(11, 44, 58, .07);
-  --m-shadow-md: 0 4px 10px rgba(11, 44, 58, .08), 0 24px 54px rgba(11, 44, 58, .13);
-  --m-shadow-accent: 0 8px 22px rgba(13, 148, 136, .32);
-  --m-ring: 0 0 0 3px rgba(20, 184, 166, .2);
+  --m-shadow-sm: 0 2px 8px rgba(8, 32, 44, .05), 0 12px 32px rgba(8, 32, 44, .08);
+  --m-shadow-md: 0 8px 16px rgba(8, 32, 44, .08), 0 28px 60px rgba(8, 32, 44, .14);
+  --m-shadow-accent: 0 10px 28px rgba(13, 148, 136, .34);
+  --m-ring: 0 0 0 3px rgba(20, 184, 166, .22);
 
-  font-family: Manrope, Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: Manrope, Outfit, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--m-text);
   background: var(--m-bg);
   -webkit-font-smoothing: antialiased;
@@ -50,24 +48,38 @@ html[data-ui-theme="modern"] h1,
 html[data-ui-theme="modern"] h2,
 html[data-ui-theme="modern"] h3,
 html[data-ui-theme="modern"] h4 {
-  font-family: Sora, Manrope, ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: -.022em;
+  font-family: Outfit, Sora, Manrope, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -.028em;
+  font-weight: 700;
 }
 
-/* ---------- Canlı aurora zemini (tüm uygulama) ---------- */
+/* ---------- Derinlikli aurora + ince teknik ızgara ---------- */
 html[data-ui-theme="modern"] body::before {
   content: "";
   position: fixed;
   inset: -22%;
-  z-index: -1;
+  z-index: -2;
   pointer-events: none;
   background:
-    radial-gradient(38% 34% at 12% 18%, rgba(20, 184, 166, .20), transparent 70%),
-    radial-gradient(32% 38% at 88% 12%, rgba(8, 145, 178, .17), transparent 70%),
-    radial-gradient(42% 44% at 74% 92%, rgba(99, 102, 241, .11), transparent 72%),
-    radial-gradient(30% 30% at 30% 88%, rgba(45, 212, 191, .13), transparent 70%);
-  filter: blur(46px) saturate(1.15);
-  animation: m-aurora 26s ease-in-out infinite alternate;
+    radial-gradient(42% 36% at 10% 16%, rgba(45, 212, 191, .22), transparent 70%),
+    radial-gradient(36% 40% at 90% 8%, rgba(14, 116, 144, .2), transparent 70%),
+    radial-gradient(44% 42% at 78% 94%, rgba(15, 118, 110, .14), transparent 72%),
+    radial-gradient(28% 28% at 28% 90%, rgba(20, 184, 166, .12), transparent 70%);
+  filter: blur(48px) saturate(1.12);
+  animation: m-aurora 28s ease-in-out infinite alternate;
+}
+html[data-ui-theme="modern"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .32;
+  background-image:
+    linear-gradient(rgba(15, 118, 110, .04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 118, 110, .04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 20%, transparent 75%);
 }
 
 /* ---------- Kaydırma çubukları ve odak ---------- */
@@ -90,10 +102,11 @@ html[data-ui-theme="modern"] :focus-visible {
 html[data-ui-theme="modern"] .login-shell {
   position: relative;
   overflow: hidden;
+  min-height: 100vh;
   background:
-    radial-gradient(1100px 640px at 86% -14%, rgba(8, 145, 178, .16), transparent 60%),
-    radial-gradient(900px 560px at -14% 106%, rgba(20, 184, 166, .18), transparent 58%),
-    linear-gradient(180deg, #f0f7f9 0%, #e9f1f7 100%);
+    radial-gradient(1200px 700px at 88% -10%, rgba(14, 116, 144, .22), transparent 58%),
+    radial-gradient(900px 600px at -12% 110%, rgba(45, 212, 191, .2), transparent 55%),
+    linear-gradient(165deg, #0b1f28 0%, #12333d 38%, #0f4c4a 72%, #0d3d48 100%);
 }
 html[data-ui-theme="modern"] .login-shell::before {
   content: "";
@@ -101,25 +114,24 @@ html[data-ui-theme="modern"] .login-shell::before {
   inset: -10%;
   pointer-events: none;
   background:
-    radial-gradient(300px 300px at 14% 24%, rgba(45, 212, 191, .22), transparent 70%),
-    radial-gradient(240px 240px at 6% 80%, rgba(8, 145, 178, .16), transparent 70%),
-    radial-gradient(200px 200px at 92% 84%, rgba(94, 234, 212, .18), transparent 70%),
-    radial-gradient(120px 120px at 78% 18%, rgba(99, 102, 241, .10), transparent 70%);
-  filter: blur(20px);
-  animation: m-orb-drift 13s ease-in-out infinite;
+    radial-gradient(320px 320px at 16% 22%, rgba(45, 212, 191, .28), transparent 70%),
+    radial-gradient(260px 260px at 8% 78%, rgba(14, 116, 144, .2), transparent 70%),
+    radial-gradient(220px 220px at 92% 82%, rgba(94, 234, 212, .16), transparent 70%);
+  filter: blur(22px);
+  animation: m-orb-drift 14s ease-in-out infinite;
 }
-/* 3D iş güvenliği sahnesi (içsel animasyonları SVG'nin kendindedir) */
+/* 3D iş güvenliği sahnesi */
 html[data-ui-theme="modern"] .login-shell::after {
   content: "";
   position: absolute;
   top: 50%;
-  left: calc(50% + 240px);
-  width: 430px;
-  height: 460px;
-  margin-top: -230px;
+  left: calc(50% + 220px);
+  width: 460px;
+  height: 500px;
+  margin-top: -250px;
   pointer-events: none;
   background: url("/isg-3d-scene.svg") center / contain no-repeat;
-  filter: drop-shadow(0 34px 40px rgba(9, 52, 66, .22));
+  filter: drop-shadow(0 40px 50px rgba(0, 20, 28, .55));
   animation: m-float 8s ease-in-out infinite;
 }
 @media (max-width: 1180px) {
@@ -135,11 +147,13 @@ html[data-ui-theme="modern"] .login-brand {
 html[data-ui-theme="modern"] .login-card {
   position: relative;
   z-index: 0;
-  background: rgba(255, 255, 255, .93);
-  backdrop-filter: blur(22px) saturate(1.4);
-  border: 1px solid var(--m-glass-border);
+  background: rgba(255, 255, 255, .94);
+  backdrop-filter: blur(28px) saturate(1.45);
+  border: 1px solid rgba(255, 255, 255, .55);
   border-radius: 28px;
-  box-shadow: 0 36px 90px rgba(9, 48, 63, .18);
+  box-shadow:
+    0 4px 0 rgba(255, 255, 255, .4) inset,
+    0 40px 100px rgba(0, 12, 20, .45);
   animation: m-pop .55s cubic-bezier(.16, 1, .3, 1) .08s both;
 }
 /* dönen konik ışık halkası */
@@ -162,7 +176,13 @@ html[data-ui-theme="modern"] .login-card::before {
   filter: blur(9px);
   animation: m-rotate 7s linear infinite;
 }
-html[data-ui-theme="modern"] .login-card h1 { font-size: 32px; }
+html[data-ui-theme="modern"] .login-card h1 {
+  font-size: clamp(28px, 4vw, 36px);
+  background: linear-gradient(120deg, #0f766e, #0e7490 55%, #134e4a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
 html[data-ui-theme="modern"] .login-card p { color: var(--m-text-soft); }
 html[data-ui-theme="modern"] .login-card input {
   border: 1px solid var(--m-border);
@@ -291,10 +311,10 @@ html[data-ui-theme="modern"] .welcome {
   position: relative;
   overflow: hidden;
   border-radius: var(--m-radius-xl);
-  background: linear-gradient(118deg, #0f766e, #0e7490, #155e75, #0d9488, #0f766e);
+  background: linear-gradient(125deg, #115e59, #0f766e, #0e7490, #155e75, #0f766e);
   background-size: 320% 320%;
   animation: m-gradient-flow 16s ease infinite;
-  box-shadow: 0 22px 54px rgba(14, 116, 144, .3);
+  box-shadow: 0 24px 56px rgba(14, 116, 144, .32), inset 0 1px 0 rgba(255, 255, 255, .2);
 }
 html[data-ui-theme="modern"] .welcome::before {
   content: "";
@@ -341,13 +361,13 @@ html[data-ui-theme="modern"] .cards .metric:nth-child(3) { animation-delay: .16s
 html[data-ui-theme="modern"] .cards .metric:nth-child(4) { animation-delay: .22s; }
 html[data-ui-theme="modern"] .cards .metric:nth-child(n+5) { animation-delay: .28s; }
 html[data-ui-theme="modern"] .metric:hover {
-  transform: perspective(800px) rotateX(3deg) translateY(-5px);
+  transform: perspective(900px) rotateX(4deg) translateY(-6px);
   transform-origin: 50% 100%;
-  box-shadow: var(--m-shadow-md), 0 0 0 1px rgba(45, 212, 191, .25);
+  box-shadow: var(--m-shadow-md), 0 0 0 1px rgba(45, 212, 191, .28);
 }
 html[data-ui-theme="modern"] .metric span { color: var(--m-text-soft); font-weight: 700; font-size: 13px; }
 html[data-ui-theme="modern"] .metric strong {
-  font-family: Sora, Manrope, sans-serif;
+  font-family: Outfit, Sora, Manrope, sans-serif;
   background: linear-gradient(120deg, #0d9488, #0e7490, #14b8a6, #0d9488);
   background-size: 250% 250%;
   -webkit-background-clip: text;
@@ -653,7 +673,8 @@ html[data-ui-theme="modern"] .theme-toggle:hover svg { transform: rotate(-14deg)
   }
 }
 @media print {
-  html[data-ui-theme="modern"] body::before { display: none; }
+  html[data-ui-theme="modern"] body::before,
+  html[data-ui-theme="modern"] body::after { display: none; }
   html[data-ui-theme="modern"] .metric,
   html[data-ui-theme="modern"] .panel,
   html[data-ui-theme="modern"] .table-wrap { background: white; backdrop-filter: none; }
@@ -691,4 +712,23 @@ html[data-ui-theme="modern"] .theme-toggle:hover svg { transform: rotate(-14deg)
     background: rgba(220, 38, 38, .11) !important;
     color: var(--m-danger) !important;
   }
+  html[data-ui-theme="modern"] .metric:hover {
+    transform: translateY(-3px);
+  }
+}
+
+/* Premium v3 ek: sayfa başlığı + alan kartı derinliği */
+html[data-ui-theme="modern"] .page-title h3 {
+  font-size: 24px;
+  letter-spacing: -.03em;
+}
+html[data-ui-theme="modern"] .field-card:hover {
+  transform: translateY(-3px) perspective(800px) rotateX(2deg);
+}
+html[data-ui-theme="modern"] .login-brand {
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, .35));
+}
+html[data-ui-theme="modern"] th {
+  font-size: 12px;
+  text-transform: uppercase;
 }

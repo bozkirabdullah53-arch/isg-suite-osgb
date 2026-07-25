@@ -1013,7 +1013,7 @@ function ReportIssueButton(){
 }
 function ThemeToggle({theme,onToggle,floating}){
   const modern=theme==='modern';
-  const label=modern?'Klasik tasarıma dön':'Yeni tasarımı dene (deneysel)';
+  const label=modern?'Klasik arayüze dön':'Premium arayüze geç';
   return (
     <button
       type="button"
@@ -1023,7 +1023,7 @@ function ThemeToggle({theme,onToggle,floating}){
       aria-label={label}
     >
       {modern?<Undo2 size={15}/>:<Sparkles size={15}/>}
-      <span>{modern?'Klasik tasarım':'Yeni tasarım'}</span>
+      <span>{modern?'Klasik':'Premium'}</span>
     </button>
   );
 }

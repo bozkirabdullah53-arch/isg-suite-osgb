@@ -1,15 +1,18 @@
 import {useEffect, useState} from 'react';
 
-// Deneysel UI teması: 'classic' (mevcut/varsayılan tasarım) | 'modern' (yeni tasarım).
-// Tercih localStorage'da saklanır; 'modern' seçiliyse <html data-ui-theme="modern">
-// üzerinden theme-modern.css devreye girer. Klasik tasarım hiçbir şekilde değişmez.
+// UI teması: 'classic' | 'modern' (premium — varsayılan).
+// Tercih localStorage'da saklanır; modern seçiliyse <html data-ui-theme="modern">
+// üzerinden theme-modern.css devreye girer. Klasik styles.css dokunulmaz.
 const THEME_KEY = 'isg_ui_theme';
 
 export function getStoredUiTheme() {
   try {
-    return localStorage.getItem(THEME_KEY) === 'modern' ? 'modern' : 'classic';
+    const stored = localStorage.getItem(THEME_KEY);
+    if (stored === 'classic') return 'classic';
+    // modern veya boş/yeni kullanıcı → premium varsayılan
+    return 'modern';
   } catch (_) {
-    return 'classic';
+    return 'modern';
   }
 }
 
