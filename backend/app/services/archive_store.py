@@ -49,8 +49,10 @@ def _rel_store(path: Path) -> str:
 
 
 def _maybe_encrypt_file(path: Path) -> Path:
-    """BACKUP_ENCRYPTION_KEY varsa Fernet ile .enc üretir; düz zip'i siler."""
-    key = (settings.backup_encryption_key or "").strip()
+    """Anahtar varsa Fernet ile .enc üretir; düz zip'i siler."""
+    from app.services.backup_restore import backup_encryption_key_material
+
+    key = backup_encryption_key_material()
     if not key:
         return path
     import base64

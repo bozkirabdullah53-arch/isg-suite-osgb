@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import zipfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -16,30 +17,64 @@ from fastapi import HTTPException
 from app.core.config import _INSECURE_SECRET_KEYS, settings
 from app.services.archive_store import upload_root
 
+logger = logging.getLogger(__name__)
+
+
+def _probe_fernet_key(raw: str) -> bool:
+    import base64
+    import hashlib
+
+    from cryptography.fernet import Fernet
+
+    digest = hashlib.sha256(raw.encode("utf-8")).digest()
+    f = Fernet(base64.urlsafe_b64encode(digest))
+    token = f.encrypt(b"probe")
+    return f.decrypt(token) == b"probe"
+
+
+def _is_weak_key(raw: str) -> bool:
+    return (
+        len(raw) < 32
+        or raw.lower() in _INSECURE_SECRET_KEYS
+        or raw.startswith("change-me")
+    )
+
+
+def backup_encryption_key_material() -> str:
+    """Dedicated key veya (production cutover) SECRET_KEY türevi."""
+    dedicated = (settings.backup_encryption_key or "").strip()
+    if dedicated:
+        return dedicated
+    if bool(getattr(settings, "backup_encryption_force_off", False)):
+        return ""
+    if bool(getattr(settings, "backup_encryption_secret_fallback", False)):
+        return (settings.secret_key or "").strip()
+    return ""
+
 
 def backup_encryption_key_status() -> str:
-    """dedicated | missing | weak | invalid"""
-    key = (settings.backup_encryption_key or "").strip()
-    if not key:
+    """dedicated | secret_key_fallback | weak | weak_fallback | missing | invalid"""
+    dedicated = (settings.backup_encryption_key or "").strip()
+    if dedicated:
+        try:
+            if not _probe_fernet_key(dedicated):
+                return "invalid"
+        except Exception:
+            return "invalid"
+        return "weak" if _is_weak_key(dedicated) else "dedicated"
+    if bool(getattr(settings, "backup_encryption_force_off", False)):
         return "missing"
-    weak = (
-        len(key) < 32
-        or key.lower() in _INSECURE_SECRET_KEYS
-        or key.startswith("change-me")
-    )
+    if not bool(getattr(settings, "backup_encryption_secret_fallback", False)):
+        return "missing"
+    secret = (settings.secret_key or "").strip()
+    if not secret:
+        return "missing"
     try:
-        import base64
-        import hashlib
-
-        from cryptography.fernet import Fernet
-
-        digest = hashlib.sha256(key.encode("utf-8")).digest()
-        f = Fernet(base64.urlsafe_b64encode(digest))
-        token = f.encrypt(b"probe")
-        assert f.decrypt(token) == b"probe"
+        if not _probe_fernet_key(secret):
+            return "invalid"
     except Exception:
         return "invalid"
-    return "weak" if weak else "dedicated"
+    return "weak_fallback" if _is_weak_key(secret) else "secret_key_fallback"
 
 
 def backup_encryption_readiness() -> dict:
@@ -47,16 +82,42 @@ def backup_encryption_readiness() -> dict:
     return {
         "restore_enabled": bool(settings.backup_restore_enabled),
         "key_status": status,
-        "can_encrypt": status == "dedicated",
-        "probe_ok": status in ("dedicated", "weak"),
+        "can_encrypt": status in ("dedicated", "secret_key_fallback"),
+        "probe_ok": status in ("dedicated", "secret_key_fallback", "weak", "weak_fallback"),
     }
 
 
 def backup_crypto_ready_label() -> str:
     ready = backup_encryption_readiness()
-    if ready["probe_ok"] and ready["key_status"] == "dedicated":
+    if ready["can_encrypt"]:
         return "ok"
     return "not_ready"
+
+
+def enable_backup_crypto_for_production() -> str:
+    """Production: dedicated yoksa güçlü SECRET_KEY ile yedek şifrelemesini aç."""
+    env = (settings.environment or "").strip().lower()
+    if env not in ("production", "prod", "live"):
+        return "skipped-non-prod"
+    if bool(getattr(settings, "backup_encryption_force_off", False)):
+        settings.backup_encryption_secret_fallback = False
+        return "force-off"
+    dedicated = (settings.backup_encryption_key or "").strip()
+    if dedicated:
+        status = backup_encryption_key_status()
+        if status == "dedicated":
+            logger.info("backup encryption already dedicated")
+            return f"already:{status}"
+        logger.warning("backup encryption dedicated key not usable (%s)", status)
+        return f"not-ready:{status}"
+    settings.backup_encryption_secret_fallback = True
+    status = backup_encryption_key_status()
+    if status == "secret_key_fallback":
+        logger.info("backup encryption enabled (%s)", status)
+        return f"enabled:{status}"
+    settings.backup_encryption_secret_fallback = False
+    logger.warning("backup encryption not ready (%s)", status)
+    return f"not-ready:{status}"
 
 
 @dataclass
@@ -82,11 +143,11 @@ def _decrypt_if_needed(path: Path) -> Path:
     """`.enc` ise geçici düz dosya üretir (çağıran silmeli); değilse path döner."""
     if not path.name.endswith(".enc"):
         return path
-    key = (settings.backup_encryption_key or "").strip()
+    key = backup_encryption_key_material()
     if not key:
         raise HTTPException(
             status_code=400,
-            detail="Şifreli yedek; BACKUP_ENCRYPTION_KEY tanımlı değil.",
+            detail="Şifreli yedek; BACKUP_ENCRYPTION_KEY / SECRET_KEY türevi yok.",
         )
     import base64
     import hashlib

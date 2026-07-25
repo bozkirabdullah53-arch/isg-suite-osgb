@@ -103,6 +103,7 @@ def test_restore_skips_osgb_files_without_osgb_id(tmp_path, monkeypatch):
 
 def test_backup_encryption_readiness_missing(monkeypatch):
     monkeypatch.setattr(settings, "backup_encryption_key", None)
+    monkeypatch.setattr(settings, "backup_encryption_secret_fallback", False)
     monkeypatch.setattr(settings, "backup_restore_enabled", False)
     assert br.backup_encryption_key_status() == "missing"
     assert br.backup_crypto_ready_label() == "not_ready"
@@ -111,15 +112,38 @@ def test_backup_encryption_readiness_missing(monkeypatch):
 
 def test_backup_encryption_readiness_weak(monkeypatch):
     monkeypatch.setattr(settings, "backup_encryption_key", "change-me-in-production-at-least-32-characters!")
+    monkeypatch.setattr(settings, "backup_encryption_secret_fallback", False)
     assert br.backup_encryption_key_status() == "weak"
     assert br.backup_crypto_ready_label() == "not_ready"
 
 
 def test_backup_encryption_readiness_dedicated(monkeypatch):
     monkeypatch.setattr(settings, "backup_encryption_key", "dedicated-backup-key-at-least-32chars!!")
+    monkeypatch.setattr(settings, "backup_encryption_secret_fallback", False)
     assert br.backup_encryption_key_status() == "dedicated"
     assert br.backup_crypto_ready_label() == "ok"
     assert br.backup_encryption_readiness()["can_encrypt"] is True
+
+
+def test_enable_backup_crypto_production_secret_fallback(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "backup_encryption_key", None)
+    monkeypatch.setattr(settings, "backup_encryption_secret_fallback", False)
+    monkeypatch.setattr(settings, "backup_encryption_force_off", False)
+    monkeypatch.setattr(settings, "secret_key", "prod-secret-key-at-least-32-characters-long!!")
+    assert br.enable_backup_crypto_for_production().startswith("enabled:")
+    assert br.backup_encryption_key_status() == "secret_key_fallback"
+    assert br.backup_crypto_ready_label() == "ok"
+    assert br.backup_encryption_key_material() == settings.secret_key
+
+
+def test_enable_backup_crypto_force_off(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "backup_encryption_key", None)
+    monkeypatch.setattr(settings, "backup_encryption_force_off", True)
+    monkeypatch.setattr(settings, "secret_key", "prod-secret-key-at-least-32-characters-long!!")
+    assert br.enable_backup_crypto_for_production() == "force-off"
+    assert br.backup_encryption_key_material() == ""
 
 
 def test_restore_write_still_blocked_when_crypto_ready(tmp_path, monkeypatch):

@@ -39,6 +39,12 @@ async def lifespan(_:FastAPI):
     except Exception:
         logger.exception("health crypto rollout failed at startup")
     try:
+        from app.services.backup_restore import enable_backup_crypto_for_production
+
+        logger.info("backup crypto rollout: %s", enable_backup_crypto_for_production())
+    except Exception:
+        logger.exception("backup crypto rollout failed at startup")
+    try:
         from app.services.object_store import maybe_auto_cutover_object_storage
 
         logger.info("object storage rollout: %s", maybe_auto_cutover_object_storage())
@@ -142,7 +148,7 @@ def health():
         'redis': redis_status_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
         'upload_gateway_wired': 'assert-safe-all-legacy-v2',
-        'infra_rollout': 'health-crypto-on-r2-autocutover-v18',
+        'infra_rollout': 'backup-crypto-secret-fallback-v19',
         'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
         'health_field_encryption_key': encryption_key_status(),
         'health_field_crypto_ready': health_crypto_ready_label(),

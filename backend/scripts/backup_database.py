@@ -43,7 +43,9 @@ def main() -> None:
     else:
         raise RuntimeError("Unsupported database type for backup.")
 
-    key = (settings.backup_encryption_key or "").strip()
+    from app.services.backup_restore import backup_encryption_key_material
+
+    key = backup_encryption_key_material()
     if key and produced.exists():
         import base64
         import hashlib

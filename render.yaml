@@ -72,11 +72,13 @@ services:
         value: "true"
       - key: OBJECT_STORAGE_FORCE_LOCAL
         value: "false"
-      # P0-08 yedek — restore kapalı; şifreleme anahtarı opsiyonel (probe için doldurulabilir)
+      # P0-08 yedek — restore kapalı; production'da SECRET_KEY fallback (dedicated tercih)
       - key: BACKUP_RESTORE_ENABLED
         value: "false"
       - key: BACKUP_ENCRYPTION_KEY
         sync: false
+      - key: BACKUP_ENCRYPTION_FORCE_OFF
+        value: "false"
       # Optional ClamAV (B-01): set CLAMAV_HOST when clamd is reachable
       - key: CLAMAV_HOST
         sync: false

@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = True
     backup_dir: str = "./backups"
     backup_encryption_key: str | None = None
+    # Production enable_backup_crypto_for_production secret_key kullanır; acil kapatma:
+    backup_encryption_secret_fallback: bool = False
+    backup_encryption_force_off: bool = False
     seed_admin_email: str | None = None
     seed_admin_password: str | None = None
     # Canlıda kapalı: silinen demo OSGB'ler restart'ta geri gelmesin
