@@ -5,6 +5,8 @@ OSGB uzman / hekim / DSP yalnızca kendisine görevlendirilen işyerlerine eriş
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -18,6 +20,8 @@ from app.models.entities import (
     UserRole,
     WorkplaceAssignment,
 )
+
+logger = logging.getLogger(__name__)
 
 _OSGB_FIELD_ROLES = {
     UserRole.SAFETY_SPECIALIST,
@@ -246,6 +250,11 @@ def _merge_membership_companies(db: Session, user: User, base: list[int]) -> lis
             ).all()
         )
     except Exception:
+        logger.warning(
+            "membership company merge failed user_id=%s; using assignment base only",
+            getattr(user, "id", None),
+            exc_info=True,
+        )
         return base
     if not extra:
         return base

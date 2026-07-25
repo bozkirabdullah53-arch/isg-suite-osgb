@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +28,7 @@ from app.schemas.drills import (
     DrillResponse,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/drills", tags=["Tatbikat Yönetimi"])
 
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST)
@@ -65,6 +67,7 @@ def _parse_participants(raw: str | None) -> list[DrillParticipant]:
             )
         return out
     except Exception:
+        logger.warning("drill participants parse failed", exc_info=True)
         return []
 
 

@@ -53,6 +53,7 @@ def _sync_field(db: Session, user: User) -> User:
     try:
         sync_all_assigned_field_roles(db)
     except Exception:
+        logger.warning("auth _sync_field: bulk role sync failed", exc_info=True)
         db.rollback()
     user = db.get(User, user.id) or user
     return sync_user_from_professional(db, user, commit=True)

@@ -61,6 +61,11 @@ services:
         value: "15"
       - key: AUTH_REFRESH_COOKIE_FORCE_OFF
         value: "false"
+      # P0-10 sağlık alan şifreleme — varsayılan kapalı; açmadan önce dedicated key
+      - key: HEALTH_FIELD_ENCRYPTION_ENABLED
+        value: "false"
+      - key: HEALTH_FIELD_ENCRYPTION_KEY
+        sync: false
       # Optional ClamAV (B-01): set CLAMAV_HOST when clamd is reachable
       - key: CLAMAV_HOST
         sync: false

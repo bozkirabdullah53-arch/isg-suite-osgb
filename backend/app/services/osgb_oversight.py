@@ -172,7 +172,12 @@ def _list_firm_visits(
         try:
             db.rollback()
         except Exception:
-            pass
+            logger.warning(
+                "Visit list rollback failed professional=%s company=%s",
+                professional_id,
+                company_id,
+                exc_info=True,
+            )
         return []
 
 
@@ -558,7 +563,12 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
                 try:
                     db.rollback()
                 except Exception:
-                    pass
+                    logger.warning(
+                        "Oversight eval rollback failed pro=%s company=%s",
+                        pro.id,
+                        company.id,
+                        exc_info=True,
+                    )
                 err = str(exc).strip() or exc.__class__.__name__
                 if len(err) > 220:
                     err = err[:217] + "…"
