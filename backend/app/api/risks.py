@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import date
 from io import BytesIO
@@ -11,6 +12,8 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
+
+logger = logging.getLogger(__name__)
 
 from app.api.company_access import company_ids_for_query, effective_company_id, ensure_company_access
 from app.api.deps import get_current_user, require_roles
@@ -1182,7 +1185,11 @@ def delete_risk_media(
                 notes="Risk medyası silinmeden önce arşivlendi",
             )
         except Exception:
-            pass
+            logger.warning(
+                "risk media: archive-before-delete failed media_id=%s",
+                media_id,
+                exc_info=True,
+            )
         path.unlink(missing_ok=True)
     db.delete(media)
     db.commit()

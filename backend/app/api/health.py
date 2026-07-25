@@ -1,6 +1,7 @@
 """Sağlık gözetimi API — İSG PRO 2026 Sağlık Gözetimi / Analiz parity."""
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timedelta
 from html import escape as html_escape
 from io import BytesIO
@@ -12,6 +13,8 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.api.company_access import company_ids_for_query, effective_company_id, ensure_company_access
 from app.api.deps import get_current_user, require_roles
@@ -664,7 +667,11 @@ async def upload_health_report(
                     notes="Sağlık raporu değiştirilmeden önce arşivlendi",
                 )
             except Exception:
-                pass
+                logger.warning(
+                    "health report: archive-before-replace failed id=%s",
+                    record.id,
+                    exc_info=True,
+                )
             try:
                 old.unlink()
             except OSError:

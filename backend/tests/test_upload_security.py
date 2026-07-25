@@ -43,3 +43,9 @@ def test_clamav_accepts_clean(monkeypatch):
         lambda _content: (True, "stream: OK"),
     )
     assert_safe_upload(b"%PDF-1.7\n", ".pdf", "clean.pdf")
+
+
+def test_xlsx_and_xlsm_magic_ok():
+    zip_sig = b"PK\x03\x04" + b"\x00" * 8
+    assert_safe_upload(zip_sig, ".xlsx", "a.xlsx")
+    assert_safe_upload(zip_sig, ".xlsm", "a.xlsm")

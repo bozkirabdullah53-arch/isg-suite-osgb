@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -8,6 +10,7 @@ from app.core.database import get_db
 from app.models.entities import DocumentRecord, User, UserRole
 from app.schemas.document import DocumentCreate, DocumentResponse
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["Dokümanlar"])
 
 EDIT_ROLES = (
@@ -89,7 +92,11 @@ def deactivate_document(
                 notes="Doküman pasife alınmadan önce arşivlendi",
             )
         except Exception:
-            pass
+            logger.warning(
+                "document: archive-before-deactivate failed id=%s",
+                document_id,
+                exc_info=True,
+            )
     record.is_active = False
     db.commit()
     db.refresh(record)

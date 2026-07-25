@@ -1,9 +1,12 @@
 """EİSA — platform üst yönetimi: OSGB başvuru, abonelik, finans, paket, bildirim."""
 from datetime import datetime
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
@@ -322,8 +325,13 @@ def delete_osgb(
     name = org.name
     try:
         create_tenant_backup(db, user=user, osgb_id=osgb_id)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.exception("OSGB silme öncesi yedek başarısız: osgb_id=%s", osgb_id)
+        raise HTTPException(
+            500,
+            f"“{name}” silinemedi: önce merkezi yedek alınamadı. "
+            "Yedek sorunu giderilmeden kalıcı silme yapılmaz.",
+        ) from exc
     try:
         purge_osgb(db, osgb_id)
         add_audit_log(

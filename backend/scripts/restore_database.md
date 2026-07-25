@@ -16,3 +16,9 @@ pg_restore --clean --if-exists --no-owner \
 ```
 
 Canlı veritabanına geri yüklemeden önce ayrı bir test veritabanında doğrulama yapın.
+
+## Tenant arşiv (API) — restore-plan vs restore
+
+- `GET /api/v1/archives/{id}/restore-plan` — salt okunur inceleme (`inspect_backup_file`). Canlı veriyi değiştirmez.
+- `POST /api/v1/archives/{id}/restore` — **kapalı** (`BACKUP_RESTORE_ENABLED=false`). Açılmadan önce staging'de plan çıktısını doğrulayın; onay (confirm) dizesi zorunlu.
+- Tenant ZIP arşivi satır satır tüm DB domain'ini geri kurmaz; object/manifest odaklıdır. Tam DB restore için yukarıdaki `pg_restore` / SQLite adımlarını kullanın.

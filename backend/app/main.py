@@ -127,7 +127,7 @@ def health():
         'redis': redis_status_label(),
         'upload_gateway': 'on' if settings.upload_gateway_enabled else 'off',
         'upload_gateway_wired': 'assert-safe-all-legacy-v2',
-        'infra_rollout': 'redis-live-s3-guided-v3',
+        'infra_rollout': 'failclosed-purge-excel-magic-v4',
         'health_field_encryption': 'on' if settings.health_field_encryption_enabled else 'off',
         'ai_hazard_hint': 'keyword-v2',
         'mevzuat_panel': 'highlights-v1',

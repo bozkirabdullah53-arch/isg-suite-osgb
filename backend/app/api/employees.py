@@ -9,6 +9,7 @@ from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import Branch, Employee, User, UserRole
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
+from app.services.upload_security import assert_safe_upload
 router=APIRouter(prefix="/employees",tags=["Personel"])
 EDIT_ROLES=(UserRole.GLOBAL_ADMIN,UserRole.COMPANY_ADMIN,UserRole.SAFETY_SPECIALIST,UserRole.WORKPLACE_PHYSICIAN,UserRole.OTHER_HEALTH_PERSONNEL)
 
@@ -63,7 +64,9 @@ def deactivate_employee(employee_id:int,db:Session=Depends(get_db),user:User=Dep
 def import_excel(company_id:int,branch_id:int|None=None,file:UploadFile=File(...),db:Session=Depends(get_db),user:User=Depends(require_roles(*EDIT_ROLES))):
     check_company(db,user,company_id);validate_branch(db,company_id,branch_id)
     if not file.filename.lower().endswith('.xlsx'): raise HTTPException(422,"Yalnızca .xlsx dosyası yükleyebilirsiniz.")
-    wb=load_workbook(BytesIO(file.file.read()),read_only=True,data_only=True); ws=wb.active
+    content=file.file.read()
+    assert_safe_upload(content,'.xlsx',file.filename or '')
+    wb=load_workbook(BytesIO(content),read_only=True,data_only=True); ws=wb.active
     headers=[str(c.value or '').strip().lower() for c in next(ws.iter_rows(max_row=1))]
     aliases={'adı soyadı':'full_name','adi soyadi':'full_name','tc kimlik':'national_id_masked','t.c. kimlik':'national_id_masked','branş/görevi':'job_title','brans/gorevi':'job_title','görevi':'job_title','işe giriş tarihi':'start_date','ise giris tarihi':'start_date','engelli/hükümlü durumu':'special_status','engelli/hukumlu durumu':'special_status','departman':'department'}
     mapped=[aliases.get(h,h) for h in headers]

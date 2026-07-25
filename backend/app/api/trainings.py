@@ -160,6 +160,7 @@ async def parse_excel(
     if not name.endswith((".xlsx", ".xlsm")):
         raise HTTPException(422, "Yalnızca .xlsx / .xlsm dosyaları kabul edilir.")
     content = await file.read()
+    assert_safe_upload(content, Path(name).suffix.lower() or ".xlsx", file.filename or "")
     try:
         rows = parse_employees_xlsx(content)
     except ValueError as exc:
@@ -313,6 +314,7 @@ async def upload_participants(
     if not name.endswith((".xlsx", ".xlsm")):
         raise HTTPException(422, "Yalnızca .xlsx / .xlsm dosyaları kabul edilir.")
     content = await file.read()
+    assert_safe_upload(content, Path(name).suffix.lower() or ".xlsx", file.filename or "")
     try:
         parsed = parse_employees_xlsx(content)
     except ValueError as exc:

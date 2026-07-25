@@ -18,6 +18,7 @@ MAGIC_BY_EXT: dict[str, list[bytes]] = {
     ".gif": [b"GIF87a", b"GIF89a"],
     ".webp": [b"RIFF"],
     ".xlsx": [b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"],
+    ".xlsm": [b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"],
     ".docx": [b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"],
     ".xls": [b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"],
 }
