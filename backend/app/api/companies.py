@@ -373,6 +373,10 @@ def create_company(
     except IntegrityError:
         db.rollback()
         raise HTTPException(409, "Bu OSGB kapsamında aynı adlı işyeri zaten kayıtlı.")
+    # Yeni id henüz eski allowed_company_ids listesinde yok; RLS SELECT için yeniden hesapla.
+    from app.core.rls import apply_rls_user
+
+    apply_rls_user(db, user)
     db.refresh(obj)
     return obj
 
