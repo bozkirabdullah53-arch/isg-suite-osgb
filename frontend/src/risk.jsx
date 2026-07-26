@@ -774,10 +774,10 @@ export function RiskPage({user}) {
   }
 
   const TABS = [
-    {id: 'panel', label: 'Risk Merkezi', Icon: LayoutDashboard},
-    {id: 'risks', label: 'Risk Kayıtları', Icon: AlertTriangle},
-    {id: 'library', label: 'Tehlike Kütüphanesi', Icon: BookOpen, count: hazardCount || null},
-    {id: 'dofs', label: 'Aksiyon Takibi', Icon: ClipboardList},
+    {id: 'panel', label: 'Merkez', Icon: LayoutDashboard},
+    {id: 'risks', label: 'Kayıtlar', Icon: AlertTriangle},
+    {id: 'library', label: 'Kütüphane', Icon: BookOpen, count: hazardCount || null},
+    {id: 'dofs', label: 'Aksiyon', Icon: ClipboardList},
     {id: 'reports', label: 'Raporlar', Icon: FileText},
     {id: 'departments', label: 'Bölümler', Icon: Building2},
   ];
@@ -787,7 +787,7 @@ export function RiskPage({user}) {
       <div className="risk-top">
         <div>
           <h1>Risk Değerlendirme</h1>
-          <p>Tehlikeleri puanlayın, aksiyonları izleyin, rapor alın.</p>
+          <p>Tehlike puanlama, aksiyon takibi ve raporlama.</p>
           <div className="risk-scope">
             <span><Building2 size={12} /> {companyName}</span>
             {companyHazard ? <span><ShieldAlert size={12} /> {companyHazard}</span> : null}
@@ -799,7 +799,7 @@ export function RiskPage({user}) {
             <select
               value={reportCompanyId}
               onChange={(e) => setReportCompanyId(e.target.value)}
-              style={{minWidth: 160, borderRadius: 8, padding: '7px 10px', border: '1px solid #e2e8ef', fontSize: 13}}
+              aria-label="Firma seçimi"
             >
               <option value="">Firma seçiniz</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -1040,12 +1040,10 @@ export function RiskPage({user}) {
 
       {tab === 'reports' && !detail && (
         <section>
-          <div className="risk-top" style={{marginBottom: 12}}>
-            <div>
-              <h1 style={{fontSize: '1.15rem'}}>Raporlar</h1>
-              <p>PDF, Excel ve DÖF listesi çıktıları.</p>
-            </div>
-          </div>
+          <h2 className="risk-section-title">
+            Raporlar
+            <span>PDF, Excel ve DÖF listesi çıktıları</span>
+          </h2>
           <div className="risk-report-grid">
             <article className="risk-report-card">
               <h3>Risk PDF</h3>
@@ -1074,18 +1072,18 @@ export function RiskPage({user}) {
 
       {tab === 'library' && !detail && (
         <section>
-          <div className="risk-top" style={{marginBottom: 12}}>
-            <div>
-              <h1 style={{fontSize: '1.15rem'}}>Tehlike kütüphanesi</h1>
-              <p>{categories.length} kategori · {hazardCount || '—'} tehlike</p>
-            </div>
-            <div className="risk-top-actions">
-              {canEdit && (
+          <div className="risk-top" style={{marginBottom: 12, alignItems: 'center'}}>
+            <h2 className="risk-section-title" style={{marginBottom: 0}}>
+              Tehlike kütüphanesi
+              <span>{categories.length} kategori · {hazardCount || '—'} tehlike</span>
+            </h2>
+            {canEdit && (
+              <div className="risk-top-actions">
                 <button type="button" className="btn" disabled={busy} onClick={seedLibrary}>
                   Senkronize et
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
           {libMsg && <div className="ok" style={{marginBottom: 12}}>{libMsg}</div>}
           <div className="risk-lib-grid">
