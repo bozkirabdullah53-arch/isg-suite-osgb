@@ -18,6 +18,7 @@ import {Customer360Page} from './customer_360';
 import {CapacityEnginePage} from './capacity_engine';
 import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
 import {AdminSummaryDashboard,DutyDashboard} from './duty_dashboard';
+import {AppModal} from './ui_modal';
 import {
   EisaOverviewPage,
   EisaOsgbUsersPage,
@@ -411,7 +412,7 @@ function Login({done,onApply}){
     </main>
   );
 }
-function Modal({title,close,children}){return <div className="modal-bg" onMouseDown={e=>e.target===e.currentTarget&&close()}><section className="modal"><header><h3>{title}</h3><button className="icon" onClick={close}><X/></button></header>{children}</section></div>}
+function Modal({title,close,children}){return <AppModal title={title} close={close}>{children}</AppModal>}
 function Field({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
 function Table({cols,rows,empty='Kayıt bulunamadı.'}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
@@ -1249,9 +1250,7 @@ function ReportIssueButton(){
       </button>
       {msg && !open ? <span style={{fontSize:12,color:'#0f766e',alignSelf:'center'}}>{msg}</span> : null}
       {open && (
-        <div className="modal-bg" onMouseDown={(ev)=>ev.target===ev.currentTarget&&setOpen(false)}>
-          <section className="modal">
-            <header><h3>Sorun bildir</h3></header>
+        <AppModal title="Sorun bildir" close={() => setOpen(false)}>
             <form className="form-grid" onSubmit={submit}>
               <label className="field"><span>Başlık</span>
                 <input required minLength={2} value={form.title} onChange={(ev)=>setForm({...form,title:ev.target.value})} placeholder="Kısa özet"/>
@@ -1265,8 +1264,7 @@ function ReportIssueButton(){
                 <button type="submit" disabled={busy}>Gönder</button>
               </div>
             </form>
-          </section>
-        </div>
+        </AppModal>
       )}
     </>
   );

@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, Download, ExternalLink, FileStack, Pencil, Printer, RefreshCw, X} from 'lucide-react';
 import {api, downloadFile} from './api';
+import {AppModal} from './ui_modal';
 
 const STATUS_LABELS = {
   ready: 'Hazır',
@@ -64,17 +65,7 @@ function evidenceLine(ev) {
 }
 
 function Modal({title, close, children}) {
-  return (
-    <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <section className="modal" style={{maxWidth: 640}}>
-        <header>
-          <h3>{title}</h3>
-          <button type="button" className="icon" onClick={close} aria-label="Kapat"><X size={18} /></button>
-        </header>
-        {children}
-      </section>
-    </div>
-  );
+  return <AppModal title={title} close={close}>{children}</AppModal>;
 }
 
 function Field({label, ...p}) {

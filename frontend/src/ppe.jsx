@@ -1,19 +1,10 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Download, Plus, Printer, Search, Trash2, Upload, X} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
+import {AppModal} from './ui_modal';
 
 function Modal({title, close, children, wide}) {
-  return (
-    <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <section className="modal" style={{maxWidth: wide ? 1100 : 960}}>
-        <header>
-          <h3>{title}</h3>
-          <button className="icon" type="button" onClick={close}><X /></button>
-        </header>
-        {children}
-      </section>
-    </div>
-  );
+  return <AppModal title={title} close={close} wide={wide}>{children}</AppModal>;
 }
 
 function Field({label, ...p}) {

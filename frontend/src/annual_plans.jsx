@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {ClipboardCheck, Download, Plus, RefreshCw, Sparkles, X} from 'lucide-react';
 import {api, downloadFile, wakeApi} from './api';
+import {AppModal} from './ui_modal';
 
 const MONTHS = [
   '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
@@ -26,17 +27,7 @@ const STATUS_FALLBACK = {
 };
 
 function Modal({title, close, children}) {
-  return (
-    <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <section className="modal" style={{maxWidth: 720}}>
-        <header>
-          <h3>{title}</h3>
-          <button className="icon" type="button" onClick={close}><X /></button>
-        </header>
-        {children}
-      </section>
-    </div>
-  );
+  return <AppModal title={title} close={close}>{children}</AppModal>;
 }
 
 function Field({label, ...p}) {

@@ -3,13 +3,14 @@ import {api,downloadFile,uploadFile} from './api';
 import {Camera,Plus,ScanLine} from 'lucide-react';
 import {enqueueOfflineComplete,flushOfflineCompletes,listOfflineCompletes,removeOfflineItem} from './field_offline';
 import {SiteQrCameraModal} from './field_qr_scan';
+import {AppModal} from './ui_modal';
 
 const ptypes={safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli'};
 const stages={new:'Yeni',contacted:'Görüşüldü',proposal:'Teklif',negotiation:'Müzakere',won:'Kazanıldı',lost:'Kaybedildi'};
 const money=v=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY',maximumFractionDigits:0}).format(v||0);
 function F({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function S({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
-function M({title,close,children}){return <div className="modal-bg"><section className="modal"><header><h3>{title}</h3><button className="icon" onClick={close}>×</button></header>{children}</section></div>}
+function M({title,close,children,wide}){return <AppModal title={title} close={close} wide={wide}>{children}</AppModal>}
 function T({cols,rows}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.k}>{c.l}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id||i}>{cols.map(c=><td key={c.k}>{c.f?c.f(r):String(r[c.k]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">Henüz kayıt bulunmuyor.</td></tr>}</tbody></table></div>}
 function P({title,action,children}){return <><div className="page-title"><h3>{title}</h3>{action}</div><section className="panel">{children}</section></>}
 function osgbId(user,orgs){return user.osgb_id||orgs[0]?.id||''}

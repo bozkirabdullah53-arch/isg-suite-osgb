@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Download, FileText, HeartPulse, Plus, Printer, RefreshCw, Search, Upload, X} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
+import {AppModal} from './ui_modal';
 
 const TYPE_FALLBACK = {
   entry_exam: 'İşe Giriş',
@@ -9,6 +10,8 @@ const TYPE_FALLBACK = {
   job_change: 'İş Değişikliği',
   night_work: 'Gece Çalışması',
   heavy_hazardous: 'Ağır-Tehlikeli',
+  special_risk: 'Özel Risk / Göreve Özgü',
+  occupational_disease_suspect: 'Meslek Hastalığı Şüphesi',
   lab_test: 'Tetkik',
   vaccination: 'Aşı',
   fitness_report: 'Uygunluk',
@@ -30,17 +33,7 @@ const EXPOSURE_FALLBACK = [
 ];
 
 function Modal({title, close, children}) {
-  return (
-    <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <section className="modal" style={{maxWidth: 980}}>
-        <header>
-          <h3>{title}</h3>
-          <button className="icon" type="button" onClick={close}><X /></button>
-        </header>
-        {children}
-      </section>
-    </div>
-  );
+  return <AppModal title={title} close={close} wide>{children}</AppModal>;
 }
 
 function Field({label, ...p}) {
@@ -81,6 +74,8 @@ function emptyForm(user) {
     physician_name: user.role === 'workplace_physician' ? (user.full_name || '') : '',
     summary: '',
     confidential_note: '',
+    informed_consent: false,
+    restrictions: '',
     audiometry_date: '',
     audiometry_result: '',
     spirometry_date: '',
@@ -347,6 +342,8 @@ export function HealthPage({user}) {
       physician_name: row.physician_name || '',
       summary: row.summary || '',
       confidential_note: row.confidential_note || '',
+      informed_consent: !!row.informed_consent,
+      restrictions: row.restrictions || '',
       audiometry_date: row.audiometry_date || '',
       audiometry_result: row.audiometry_result || '',
       spirometry_date: row.spirometry_date || '',
@@ -380,6 +377,8 @@ export function HealthPage({user}) {
       physician_name: form.physician_name || null,
       summary: form.summary || null,
       confidential_note: form.confidential_note || null,
+      informed_consent: !!form.informed_consent,
+      restrictions: form.restrictions || null,
       audiometry_date: form.audiometry_date || null,
       audiometry_result: form.audiometry_result || null,
       spirometry_date: form.spirometry_date || null,
@@ -716,9 +715,22 @@ export function HealthPage({user}) {
               </button>
             )}
             <TextArea label="Özet" value={form.summary} onChange={(e) => setForm({...form, summary: e.target.value})} />
+            <TextArea label="Kısıtlamalar (uygunluk şartları)" value={form.restrictions} onChange={(e) => setForm({...form, restrictions: e.target.value})} />
             {isPhysician && (
               <TextArea label="Gizli hekim notu" value={form.confidential_note} onChange={(e) => setForm({...form, confidential_note: e.target.value})} />
             )}
+            <label className="field" style={{gridColumn: '1/-1', display: 'flex', alignItems: 'flex-start', gap: 10}}>
+              <input
+                type="checkbox"
+                checked={!!form.informed_consent}
+                onChange={(e) => setForm({...form, informed_consent: e.target.checked})}
+                style={{marginTop: 4}}
+              />
+              <span>
+                Personel bilgilendirme onayı verildi (zorunlu). Muayene amacı, tetkikler ve sonuçların
+                iş sağlığı gözetimi kapsamında işlendiği anlatıldı.
+              </span>
+            </label>
             <Field label="Odyometri tarihi" type="date" value={form.audiometry_date} onChange={(e) => setForm({...form, audiometry_date: e.target.value})} />
             <Field label="Odyometri sonuç" value={form.audiometry_result} onChange={(e) => setForm({...form, audiometry_result: e.target.value})} />
             <Field label="SFT tarihi" type="date" value={form.spirometry_date} onChange={(e) => setForm({...form, spirometry_date: e.target.value})} />

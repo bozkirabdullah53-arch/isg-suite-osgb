@@ -585,3 +585,25 @@ html[data-ui-theme="modern"] .eisa-osgb-users td:last-child{
 html[data-ui-theme="modern"] .eisa-osgb-users tbody tr:hover td:last-child{
   background:rgba(240,253,250,.98);
 }
+
+/* —— Global modal overlay: sticky header üstünde, kesilmesin —— */
+.modal-bg{
+  position:fixed !important;
+  inset:0 !important;
+  z-index:200 !important;
+  display:grid !important;
+  place-items:center !important;
+  align-content:center !important;
+  padding:max(16px, 3vh) 20px !important;
+  overflow:auto !important;
+  -webkit-overflow-scrolling:touch;
+}
+.modal-wide{ width:min(1100px, 100%); }
+.modal{
+  margin:auto;
+  max-height:min(90vh, 920px);
+}
+header.workspace-header,
+.app-shell > .workspace > header{
+  z-index:5;
+}

@@ -1,18 +1,13 @@
 import React, {useEffect, useState} from 'react';
 import {Beaker, Plus, RefreshCw, Tag, Upload} from 'lucide-react';
 import {api, uploadFile} from './api';
+import {AppModal} from './ui_modal';
 
 function Modal({title, close, children}) {
   return (
-    <div className="modal-bg" onClick={close}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <h3>{title}</h3>
-          <button type="button" className="secondary mini" onClick={close}>Kapat</button>
-        </div>
-        {children}
-      </div>
-    </div>
+    <AppModal title={title} close={close}>
+      {children}
+    </AppModal>
   );
 }
 

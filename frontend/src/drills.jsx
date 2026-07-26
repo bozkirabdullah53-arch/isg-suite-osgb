@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Activity, Download, Plus, RefreshCw, Upload} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
+import {AppModal} from './ui_modal';
 
 const STATUS_LABEL = {
   planlandi: 'Planlandı',
@@ -241,9 +242,7 @@ export function DrillsPage({user}) {
       </div>
 
       {open && (
-        <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
-          <section className="modal" style={{maxWidth: 760}}>
-            <header><h3>Yeni Tatbikat</h3></header>
+        <AppModal title="Yeni Tatbikat" close={() => setOpen(false)}>
             <form className="form-grid" onSubmit={save}>
               <label className="field"><span>İşyeri</span>
                 <select required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value, employee_ids: []})}>
@@ -326,8 +325,7 @@ export function DrillsPage({user}) {
                 <button type="submit" disabled={busy}>Kaydet</button>
               </div>
             </form>
-          </section>
-        </div>
+        </AppModal>
       )}
     </div>
   );

@@ -1,4 +1,5 @@
 import {X} from 'lucide-react';
+import {AppModal} from './ui_modal';
 
 /** Belgelerin yürürlük / revizyon tarihi */
 export const LEGAL_DOCS_VERSION = '20.07.2026';
@@ -130,22 +131,13 @@ export function LegalDocBody({doc}) {
 export function LegalDocModal({doc, onClose}) {
   if (!doc) return null;
   return (
-    <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <section
-        className="modal"
-        style={{maxWidth: 720, width: '94vw', maxHeight: '88vh', display: 'flex', flexDirection: 'column'}}
-      >
-        <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12}}>
-          <h3 style={{margin: 0}}>{doc.shortTitle || doc.title}</h3>
-          <button type="button" className="icon" onClick={onClose} aria-label="Kapat"><X size={18} /></button>
-        </header>
-        <div style={{overflow: 'auto', padding: '4px 2px 12px', flex: 1}}>
+    <AppModal title={doc.shortTitle || doc.title} close={onClose} wide>
+        <div style={{overflow: 'auto', padding: '4px 2px 12px', flex: 1, maxHeight: '60vh'}}>
           <LegalDocBody doc={doc} />
         </div>
         <div className="form-actions" style={{borderTop: '1px solid #e2e8f0', paddingTop: 12}}>
           <button type="button" onClick={onClose}>Okudum, kapat</button>
         </div>
-      </section>
-    </div>
+    </AppModal>
   );
 }
