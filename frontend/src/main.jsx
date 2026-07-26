@@ -199,8 +199,14 @@ function Login({done,onApply}){
       if(r.mfa_setup_required&&r.mfa_token){
         setMfaToken(r.mfa_token);
         localStorage.setItem('isg_mfa_setup_token',r.mfa_token);
-        const setup=await apiWithBearer(r.mfa_token,'/security/mfa/setup',{method:'POST'});
-        setSetupInfo(setup);setMode('mfa_setup');return
+        try{
+          const setup=await apiWithBearer(r.mfa_token,'/security/mfa/setup',{method:'POST'});
+          setSetupInfo(setup);setMode('mfa_setup');return
+        }catch(setupErr){
+          setErr(setupErr.message||'MFA kurulumu başlatılamadı.');
+          setMode('login');
+          return
+        }
       }
       setErr('Giriş yanıtı beklenmeyen biçimde.');
     }catch(x){setErr(x.message)}
@@ -254,8 +260,8 @@ function Login({done,onApply}){
   }
 
   return (
-    <main className="login-shell">
-      <div className="login-wrap">
+    <main className={mode==='mfa_setup'||mode==='recovery'?'login-shell login-shell--form':'login-shell'}>
+      <div className={mode==='mfa_setup'||mode==='recovery'?'login-wrap login-wrap--form':'login-wrap'}>
         <div className="login-brand"><img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div>
         <section className="login-card">
           <h1>İSG Suite</h1>
@@ -294,26 +300,56 @@ function Login({done,onApply}){
               <label>Doğrulama kodu</label><input value={code} onChange={e=>setCode(e.target.value)} required/>
               {err&&<div className="error">{err}</div>}
               <button disabled={busy}>Doğrula</button>
+              <p style={{marginTop:12,fontSize:13,color:'#64748b'}}>
+                Authenticator yoksa EİSA’dan <strong>Şifre Sıfırla</strong> isteyin; yeni şifre ile MFA kurulumu yeniden açılır.
+              </p>
+              <p style={{marginTop:8,fontSize:13}}><button type="button" className="linkish" onClick={()=>{setMode('login');setCode('');setErr('')}}>Girişe dön</button></p>
             </form>
           )}
           {mode==='mfa_setup'&&(
             <form onSubmit={submitMfaSetup}>
               <p style={{color:'#64748b',fontSize:14,marginTop:0}}>
-                Yönetici hesapları için MFA zorunludur. Önce telefonunuzdaki Authenticator uygulamasına hesabı ekleyin; ardından uygulamanın gösterdiği <strong>6 haneli kodu</strong> girin.
+                Yönetici hesapları için MFA zorunludur. QR’ı veya gizli anahtarı Authenticator’a ekleyin; sonra <strong>6 haneli kodu</strong> girin.
               </p>
-              {setupInfo&&(
-                <ol style={{fontSize:13,color:'#475569',paddingLeft:20,margin:'0 0 12px'}}>
-                  <li>Google / Microsoft Authenticator uygulamasını açın</li>
-                  <li><strong>+</strong> → <em>Manuel giriş</em> veya <em>Kurulum anahtarı</em></li>
-                  <li>Aşağıdaki gizli anahtarı yapıştırın (doğrulama alanına değil)</li>
-                  <li>Uygulamada görünen 6 haneli kodu aşağıya yazın</li>
-                </ol>
-              )}
-              {setupInfo&&(
-                <p style={{fontSize:13,wordBreak:'break-all',background:'#f8fafc',padding:10,borderRadius:8}}>
-                  <strong>Gizli anahtar (Authenticator’a):</strong><br/>
-                  <code style={{userSelect:'all'}}>{setupInfo.secret}</code>
-                </p>
+              {setupInfo?(
+                <>
+                  <ol style={{fontSize:13,color:'#475569',paddingLeft:20,margin:'0 0 12px'}}>
+                    <li>Google / Microsoft Authenticator uygulamasını açın</li>
+                    <li><strong>+</strong> → QR tara veya manuel kurulum anahtarı</li>
+                    <li>Aşağıdaki QR / gizli anahtarı kullanın (doğrulama alanına değil)</li>
+                    <li>Uygulamada görünen 6 haneli kodu aşağıya yazın</li>
+                  </ol>
+                  {setupInfo.otpauth_uri&&(
+                    <div style={{textAlign:'center',marginBottom:12}}>
+                      <img
+                        alt="MFA kurulum QR"
+                        width={200}
+                        height={200}
+                        style={{borderRadius:12,background:'#fff',padding:8,border:'1px solid #e2e8f0'}}
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(setupInfo.otpauth_uri)}`}
+                      />
+                      <p style={{margin:'8px 0 0',fontSize:12,color:'#64748b'}}>QR okutulamazsa gizli anahtarı kullanın</p>
+                    </div>
+                  )}
+                  <p style={{fontSize:13,wordBreak:'break-all',background:'#f8fafc',padding:10,borderRadius:8,border:'1px solid #e2e8f0'}}>
+                    <strong>Gizli anahtar (Authenticator’a):</strong><br/>
+                    <code style={{userSelect:'all',fontSize:14,letterSpacing:'.04em'}}>{setupInfo.secret}</code>
+                  </p>
+                  <button
+                    type="button"
+                    className="secondary"
+                    style={{marginTop:8}}
+                    onClick={async()=>{
+                      try{
+                        await navigator.clipboard.writeText(setupInfo.secret||'');
+                        setMsg('Gizli anahtar kopyalandı.');
+                      }catch{setMsg('Kopyalanamadı — anahtarı elle seçin.')}
+                    }}
+                  >Anahtarı kopyala</button>
+                  {msg&&<p style={{color:'#166534',fontSize:13}}>{msg}</p>}
+                </>
+              ):(
+                <p style={{color:'#b91c1c',fontSize:14}}>Kurulum anahtarı yüklenemedi. Girişe dönüp tekrar deneyin.</p>
               )}
               <label>6 haneli doğrulama kodu</label>
               <input
@@ -329,7 +365,7 @@ function Login({done,onApply}){
               />
               <p style={{fontSize:12,color:'#64748b',margin:'6px 0 0'}}>Gizli anahtarı buraya yapıştırmayın — yalnızca uygulamanın ürettiği kısa kod.</p>
               {err&&<div className="error">{err}</div>}
-              <button disabled={busy}>MFA etkinleştir</button>
+              <button disabled={busy||!setupInfo}>MFA etkinleştir</button>
             </form>
           )}
           {mode==='recovery'&&(

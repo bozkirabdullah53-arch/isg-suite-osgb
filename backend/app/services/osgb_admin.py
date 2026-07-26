@@ -80,6 +80,10 @@ def provision_osgb_admin(
         user.company_id = None
         user.is_active = True
         user.hashed_password = get_password_hash(temp_password)
+        # Geçici şifre ile yeniden giriş: eski MFA cihazını kilitlemesin; ilk girişte yeniden kurulsun.
+        user.mfa_enabled = False
+        user.mfa_secret_encrypted = None
+        user.mfa_recovery_hashes = None
     else:
         user = User(
             email=email,

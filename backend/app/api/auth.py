@@ -108,7 +108,14 @@ def login(
     user = _sync_field(db, user)
     clear_throttle(email, ip)
 
-    if getattr(user, "mfa_enabled", False):
+    mfa_on = bool(getattr(user, "mfa_enabled", False))
+    mfa_secret = get_mfa_secret(user) if mfa_on else None
+    # MFA bayrağı açık ama gizli anahtar yoksa doğrulama ekranına düşmesin; kurulum zorunlu.
+    if mfa_on and not mfa_secret:
+        user.mfa_enabled = False
+        mfa_on = False
+
+    if mfa_on:
         register_success_login(db, user, ip=ip)
         db.commit()
         return TokenResponse(
@@ -118,7 +125,7 @@ def login(
             ),
         )
 
-    if role_requires_mfa(user.role) and not getattr(user, "mfa_enabled", False):
+    if role_requires_mfa(user.role) and not mfa_on:
         register_success_login(db, user, ip=ip)
         db.commit()
         return TokenResponse(
