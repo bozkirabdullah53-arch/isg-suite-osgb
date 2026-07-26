@@ -337,3 +337,82 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 .theme-toggle:hover{border-color:#0f766e;color:#0f766e}
 .theme-toggle-floating{position:fixed;right:14px;bottom:14px;z-index:40;box-shadow:0 10px 30px rgba(22,78,99,.18);padding:7px 11px;font-size:12px}
 @media(max-width:620px){.theme-toggle:not(.theme-toggle-floating) span{display:none}.theme-toggle:not(.theme-toggle-floating){width:40px;height:40px;justify-content:center;padding:0;border-radius:10px}}
+
+/* EİSA — OSGB Kullanıcıları: sütun hizası + işlem butonları her zaman görünür */
+.eisa-osgb-users .eisa-toolbar{
+  display:flex;
+  align-items:flex-end;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:14px;
+}
+.eisa-osgb-users .eisa-toolbar .field{margin-bottom:0;max-width:360px;flex:1 1 240px}
+.eisa-search-field{margin-bottom:12px}
+.eisa-osgb-users .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.eisa-osgb-users table{
+  width:100%;
+  min-width:1080px;
+  table-layout:fixed;
+  border-collapse:separate;
+  border-spacing:0;
+}
+.eisa-osgb-users th,
+.eisa-osgb-users td{
+  vertical-align:middle;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.eisa-osgb-users td:nth-child(3),
+.eisa-osgb-users td:nth-child(8),
+.eisa-osgb-users th:nth-child(8){
+  white-space:normal;
+  overflow:visible;
+  text-overflow:unset;
+}
+.eisa-osgb-users .eisa-cell-stack{
+  display:grid;
+  gap:2px;
+  min-width:0;
+}
+.eisa-osgb-users .eisa-cell-stack > span{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.eisa-osgb-users .eisa-cell-stack small{color:#64748b;font-size:12px}
+.eisa-osgb-users th:last-child,
+.eisa-osgb-users td:last-child{
+  position:sticky;
+  right:0;
+  z-index:2;
+  width:150px;
+  min-width:150px;
+  background:#fff;
+  box-shadow:-10px 0 14px -12px rgba(15,23,42,.28);
+  padding-left:12px;
+  padding-right:12px;
+}
+.eisa-osgb-users th:last-child{background:#f2f8f8;z-index:3}
+.eisa-osgb-users .eisa-row-actions{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:6px;
+  margin:0;
+}
+.eisa-osgb-users .eisa-row-actions button{
+  width:100%;
+  justify-content:center;
+  white-space:nowrap;
+  padding:7px 8px;
+}
+html[data-ui-theme="modern"] .eisa-osgb-users th:last-child{
+  background:rgba(238,246,249,.98);
+}
+html[data-ui-theme="modern"] .eisa-osgb-users td:last-child{
+  background:rgba(255,255,255,.97);
+}
+html[data-ui-theme="modern"] .eisa-osgb-users tbody tr:hover td:last-child{
+  background:rgba(240,253,250,.98);
+}

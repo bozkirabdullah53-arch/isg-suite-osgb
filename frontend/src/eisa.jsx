@@ -86,7 +86,7 @@ export function MetricGrid({ items }) {
 
 export function SearchBar({ value, onChange, placeholder = 'Ara…' }) {
   return (
-    <label className="field" style={{ maxWidth: 320, marginBottom: 12 }}>
+    <label className="field eisa-search-field" style={{ maxWidth: 320 }}>
       <span>Arama</span>
       <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
     </label>
@@ -468,15 +468,28 @@ export function EisaOsgbUsersPage() {
 
   return (
     <Page title="OSGB Kullanıcıları" action={<RefreshButton busy={busy} onClick={load} />}>
+      <div className="eisa-osgb-users">
       <p style={{ marginTop: 0, color: '#64748b' }}>
         Pasife Al geçici olarak dondurur. Sil, OSGB’yi listeden kalıcı kaldırır (önce merkezi yedek alınır).
         Yönetici hesabı başvuru onayında otomatik oluşur; mevcut OSGB’ler için aşağıdan geçici şifre atayabilirsiniz.
       </p>
-      <SearchBar value={q} onChange={setQ} placeholder="OSGB adı, e-posta, yetki no…" />
-      <button type="button" disabled={busy} onClick={load} style={{ marginBottom: 12 }}>Ara</button>
+      <div className="eisa-toolbar">
+        <SearchBar value={q} onChange={setQ} placeholder="OSGB adı, e-posta, yetki no…" />
+        <button type="button" disabled={busy} onClick={load}>Ara</button>
+      </div>
       <Msg text={msg} />
       <div className="table-wrap">
         <table>
+          <colgroup>
+            <col style={{ width: '18%' }} />
+            <col style={{ width: '13%' }} />
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '9%' }} />
+            <col style={{ width: '9%' }} />
+            <col style={{ width: '16%' }} />
+            <col style={{ width: '7%' }} />
+            <col style={{ width: '150px' }} />
+          </colgroup>
           <thead>
             <tr>
               <th>OSGB</th>
@@ -486,28 +499,33 @@ export function EisaOsgbUsersPage() {
               <th>Abonelik</th>
               <th>Yönetici</th>
               <th>Hesap</th>
-              <th></th>
+              <th>İşlem</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id}>
-                <td>{r.name}</td>
-                <td>{r.responsible_manager || '—'}</td>
-                <td>{r.contact_email || '—'}<br /><small>{r.contact_phone || ''}</small></td>
+                <td title={r.name}>{r.name}</td>
+                <td title={r.responsible_manager || ''}>{r.responsible_manager || '—'}</td>
+                <td>
+                  <div className="eisa-cell-stack">
+                    <span title={r.contact_email || ''}>{r.contact_email || '—'}</span>
+                    {r.contact_phone ? <small>{r.contact_phone}</small> : null}
+                  </div>
+                </td>
                 <td>{r.package_name || '—'}</td>
                 <td><StatusBadge status={r.effective_status || r.subscription_status} /></td>
-                <td>{r.admin_email || '—'}</td>
+                <td title={r.admin_email || ''}>{r.admin_email || '—'}</td>
                 <td>{r.is_active ? 'Aktif' : 'Pasif'}</td>
                 <td>
-                  <div className="actions">
-                    <button type="button" className="secondary" disabled={busy} onClick={() => provisionAdmin(r)}>
+                  <div className="actions eisa-row-actions">
+                    <button type="button" className="mini secondary" disabled={busy} onClick={() => provisionAdmin(r)}>
                       {r.has_admin_user ? 'Şifre Sıfırla' : 'Yönetici Oluştur'}
                     </button>
-                    <button type="button" className="secondary" disabled={busy} onClick={() => toggleActive(r)}>
+                    <button type="button" className="mini secondary" disabled={busy} onClick={() => toggleActive(r)}>
                       {r.is_active ? 'Pasife Al' : 'Aktifleştir'}
                     </button>
-                    <button type="button" className="secondary" disabled={busy} onClick={() => deleteOsgb(r)}>
+                    <button type="button" className="mini secondary" disabled={busy} onClick={() => deleteOsgb(r)}>
                       Sil
                     </button>
                   </div>
@@ -516,6 +534,7 @@ export function EisaOsgbUsersPage() {
             ))}
           </tbody>
         </table>
+      </div>
       </div>
       {provision && (
         <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setProvision(null)}>
