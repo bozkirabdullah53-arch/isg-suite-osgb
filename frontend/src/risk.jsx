@@ -783,29 +783,38 @@ export function RiskPage({user}) {
   ];
 
   return (
-    <div className="risk-pro-root risk-module-wrap">
-      <section className="risk-page-intro" style={{marginBottom: 12}}>
+    <div className="risk-pro-root">
+      <div className="risk-top">
         <div>
-          <div className="risk-eyebrow">Risk Değerlendirme Modülü</div>
           <h1>Risk Değerlendirme</h1>
-          <p>Riskleri belirleyin, puanlayın, aksiyonları atayın ve denetlenebilir raporlar oluşturun.</p>
+          <p>Tehlikeleri puanlayın, aksiyonları izleyin, rapor alın.</p>
+          <div className="risk-scope">
+            <span><Building2 size={12} /> {companyName}</span>
+            {companyHazard ? <span><ShieldAlert size={12} /> {companyHazard}</span> : null}
+            <span>5×5 matris</span>
+          </div>
         </div>
-        <div className="risk-actions">
+        <div className="risk-top-actions">
           {!user.company_id && (
             <select
               value={reportCompanyId}
               onChange={(e) => setReportCompanyId(e.target.value)}
-              style={{minWidth: 180, borderRadius: 10, padding: '8px 10px', border: '1px solid #cbdde1'}}
+              style={{minWidth: 160, borderRadius: 8, padding: '7px 10px', border: '1px solid #e2e8ef', fontSize: 13}}
             >
               <option value="">Firma seçiniz</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           )}
-          <button type="button" className="btn btn-outline-primary" onClick={refreshAll}>
-            <RefreshCw size={15} /> Yenile
+          <button type="button" className="btn" onClick={refreshAll}>
+            <RefreshCw size={14} /> Yenile
           </button>
+          {canEdit && (
+            <button type="button" className="btn btn-primary" onClick={openCreate}>
+              <Plus size={14} /> Yeni Risk
+            </button>
+          )}
         </div>
-      </section>
+      </div>
 
       <div className="risk-module-bar">
         <div className="risk-module-tabs">
@@ -816,91 +825,35 @@ export function RiskPage({user}) {
               className={`risk-module-tab${tab === id ? ' active' : ''}`}
               onClick={() => { setTab(id); setDetail(null); }}
             >
-              <Icon size={15} /> {label}
+              <Icon size={14} /> {label}
               {count != null && count > 0 ? <span className="risk-tab-count">{count}</span> : null}
             </button>
           ))}
         </div>
-        {canEdit && (
-          <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
-            <Plus size={15} /> Yeni Risk
-          </button>
-        )}
       </div>
 
       {tab === 'panel' && !detail && (
         <>
-          <section className="risk-page-intro">
-            <div>
-              <div className="risk-eyebrow">Risk Değerlendirme Çalışma Alanı</div>
-              <h1>Risk Merkezi</h1>
-              <p>Tehlikeleri, risk önceliklerini ve düzeltici faaliyetleri tek bir sade çalışma akışında yönetin.</p>
-              <div className="risk-scope-line">
-                <span className="risk-scope-chip"><Building2 size={13} /> {companyName}</span>
-                {companyHazard ? (
-                  <span className="risk-scope-chip"><ShieldAlert size={13} /> {companyHazard}</span>
-                ) : null}
-                <span className="risk-scope-chip"><LayoutDashboard size={13} /> 5×5 Matris</span>
-              </div>
-            </div>
-            <div className="risk-actions">
-              <button type="button" className="btn btn-outline-primary" onClick={() => setTab('library')}>
-                <BookOpen size={15} /> Tehlike Kütüphanesi
-                {hazardCount ? <span className="btn-count">{hazardCount}</span> : null}
-              </button>
-              {canEdit && (
-                <button type="button" className="btn btn-primary" onClick={openCreate}>
-                  <Plus size={15} /> Yeni Risk Kaydı
-                </button>
-              )}
-            </div>
-          </section>
-
-          <button type="button" className="hazard-library-feature" onClick={() => setTab('library')}>
-            <div className="hazard-library-feature-icon"><BookOpen size={22} /></div>
-            <div className="hazard-library-feature-copy">
-              <div className="risk-eyebrow">Hazır Bilgi Kaynağı</div>
-              <h2>Tehlike Kütüphanesi</h2>
-              <p>
-                {categories.length || 43} kategori ve {hazardCount || 552} kodlanmış tehlike kaydı;
-                risk formuna doğrudan aktarılabilir.
-              </p>
-            </div>
-            <div className="hazard-library-feature-action">Kütüphaneyi Aç →</div>
-          </button>
-
           <section className="risk-kpi-grid" aria-label="Risk özeti">
             <div className="risk-kpi">
-              <div className="risk-kpi-icon"><ClipboardList size={18} /></div>
-              <div>
-                <div className="risk-kpi-value">{stats?.total_risks ?? 0}</div>
-                <div className="risk-kpi-label">Toplam risk kaydı</div>
-                <div className="risk-kpi-note">{stats?.open_risks ?? 0} açık</div>
-              </div>
+              <div className="risk-kpi-value">{stats?.total_risks ?? 0}</div>
+              <div className="risk-kpi-label">Toplam risk</div>
+              <div className="risk-kpi-note">{stats?.open_risks ?? 0} açık</div>
             </div>
             <div className="risk-kpi critical">
-              <div className="risk-kpi-icon"><ShieldAlert size={18} /></div>
-              <div>
-                <div className="risk-kpi-value">{stats?.very_high ?? 0}</div>
-                <div className="risk-kpi-label">Çok yüksek risk</div>
-                <div className="risk-kpi-note">Acil öncelik</div>
-              </div>
+              <div className="risk-kpi-value">{stats?.very_high ?? 0}</div>
+              <div className="risk-kpi-label">Çok yüksek</div>
+              <div className="risk-kpi-note">Acil öncelik</div>
             </div>
             <div className="risk-kpi warning">
-              <div className="risk-kpi-icon"><ClipboardList size={18} /></div>
-              <div>
-                <div className="risk-kpi-value">{stats?.open_dofs ?? 0}</div>
-                <div className="risk-kpi-label">Açık aksiyon / DÖF</div>
-                <div className="risk-kpi-note">{stats?.due_soon_dofs ?? 0} kayıt 7 gün içinde</div>
-              </div>
+              <div className="risk-kpi-value">{stats?.open_dofs ?? 0}</div>
+              <div className="risk-kpi-label">Açık DÖF</div>
+              <div className="risk-kpi-note">{stats?.due_soon_dofs ?? 0} / 7 gün</div>
             </div>
             <div className={`risk-kpi ${(stats?.overdue_dofs || 0) > 0 ? 'critical' : 'success'}`}>
-              <div className="risk-kpi-icon"><AlertTriangle size={18} /></div>
-              <div>
-                <div className="risk-kpi-value">{stats?.overdue_dofs ?? 0}</div>
-                <div className="risk-kpi-label">Geciken termin</div>
-                <div className="risk-kpi-note">{stats?.overdue_terms ?? 0} risk termin gecikmesi</div>
-              </div>
+              <div className="risk-kpi-value">{stats?.overdue_dofs ?? 0}</div>
+              <div className="risk-kpi-label">Geciken DÖF</div>
+              <div className="risk-kpi-note">{stats?.overdue_terms ?? 0} risk termin</div>
             </div>
           </section>
 
@@ -908,11 +861,11 @@ export function RiskPage({user}) {
             <article className="risk-panel">
               <div className="risk-panel-head">
                 <div>
-                  <h2>Öncelikli Riskler</h2>
-                  <p>Skor ve termin durumuna göre ilk müdahale edilmesi gereken kayıtlar</p>
+                  <h2>Öncelikli riskler</h2>
+                  <p>Yüksek ve çok yüksek açık kayıtlar</p>
                 </div>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => setTab('risks')}>
-                  Tüm riskler →
+                  Tümü
                 </button>
               </div>
               <div className="risk-priority-list">
@@ -927,7 +880,7 @@ export function RiskPage({user}) {
                     <div>
                       <div className="risk-priority-title">{r.activity}</div>
                       <div className="risk-priority-meta">
-                        {r.risk_code} · {r.department_name || 'Bölüm belirtilmedi'}
+                        {r.risk_code} · {r.department_name || '—'}
                         {r.hazard_name ? ` · ${r.hazard_name}` : ''}
                       </div>
                     </div>
@@ -936,9 +889,8 @@ export function RiskPage({user}) {
                         {r.risk_level}
                       </span>
                       {r.term_date ? (
-                        <div className="risk-priority-meta" style={{marginTop: 4}}>
-                          {r.term_date}
-                          {isOverdueDate(r.term_date) ? ' · Gecikti' : ''}
+                        <div className="risk-priority-meta" style={{marginTop: 3}}>
+                          {r.term_date}{isOverdueDate(r.term_date) ? ' · gecikti' : ''}
                         </div>
                       ) : null}
                     </div>
@@ -946,8 +898,8 @@ export function RiskPage({user}) {
                 )) : (
                   <div className="risk-empty">
                     <div>
-                      <h3>Öncelikli açık risk bulunmuyor</h3>
-                      <p>Yeni kayıt ekleyebilir veya mevcut kayıtları risk listesinden inceleyebilirsiniz.</p>
+                      <h3>Öncelikli açık risk yok</h3>
+                      <p>Yeni kayıt ekleyebilir veya tüm listeyi inceleyebilirsiniz.</p>
                       {canEdit && (
                         <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
                           İlk riski ekle
@@ -962,17 +914,17 @@ export function RiskPage({user}) {
             <aside className="risk-panel">
               <div className="risk-panel-head">
                 <div>
-                  <h2>5×5 Risk Matrisi</h2>
-                  <p>Olasılık × şiddet puanlama rehberi</p>
+                  <h2>5×5 matris</h2>
+                  <p>Olasılık × şiddet</p>
                 </div>
               </div>
               <RiskMatrixGuide />
               <div className="risk-distribution">
                 {[
-                  ['Çok yüksek', stats?.very_high || stats?.levels?.['Çok Yüksek'] || 0, '#c7362f'],
-                  ['Yüksek', stats?.high || stats?.levels?.Yüksek || 0, '#cf7900'],
-                  ['Orta', stats?.levels?.Orta || 0, '#c3a218'],
-                  ['Düşük / Kabul', (stats?.levels?.Düşük || 0) + (stats?.levels?.['Kabul Edilebilir'] || 0), '#16815d'],
+                  ['Çok yüksek', stats?.very_high || stats?.levels?.['Çok Yüksek'] || 0, '#b91c1c'],
+                  ['Yüksek', stats?.high || stats?.levels?.Yüksek || 0, '#c2410c'],
+                  ['Orta', stats?.levels?.Orta || 0, '#a16207'],
+                  ['Düşük / Kabul', (stats?.levels?.Düşük || 0) + (stats?.levels?.['Kabul Edilebilir'] || 0), '#047857'],
                 ].map(([label, count, color]) => {
                   const den = Math.max(stats?.total_risks || 1, 1);
                   return (
@@ -993,11 +945,11 @@ export function RiskPage({user}) {
             <article className="risk-panel">
               <div className="risk-panel-head">
                 <div>
-                  <h2>Son Risk Kayıtları</h2>
-                  <p>En son eklenen ve güncel çalışma bekleyen kayıtlar</p>
+                  <h2>Son kayıtlar</h2>
+                  <p>En güncel riskler</p>
                 </div>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => setTab('risks')}>
-                  Listeyi aç
+                  Liste
                 </button>
               </div>
               {recentRisks.length ? (
@@ -1006,7 +958,7 @@ export function RiskPage({user}) {
                     <thead>
                       <tr>
                         <th>Kayıt</th>
-                        <th>Faaliyet / Tehlike</th>
+                        <th>Faaliyet</th>
                         <th>Skor</th>
                         <th>Termin</th>
                         <th>Durum</th>
@@ -1017,11 +969,11 @@ export function RiskPage({user}) {
                         <tr key={r.id} onClick={() => openDetail(r.id)} style={{cursor: 'pointer'}}>
                           <td>
                             <strong>{r.risk_code}</strong>
-                            <div style={{fontSize: 12, color: '#64748b'}}>{r.department_name || '—'}</div>
+                            <div style={{fontSize: 12, color: '#5b6b7c'}}>{r.department_name || '—'}</div>
                           </td>
                           <td>
                             <div>{r.activity}</div>
-                            <div style={{fontSize: 12, color: '#64748b'}}>{r.hazard_name || '—'}</div>
+                            <div style={{fontSize: 12, color: '#5b6b7c'}}>{r.hazard_name || '—'}</div>
                           </td>
                           <td>
                             <span className={`risk-level-badge risk-level-${levelClass(r.risk_level)}`}>
@@ -1039,10 +991,10 @@ export function RiskPage({user}) {
                 <div className="risk-empty">
                   <div>
                     <h3>Henüz risk kaydı yok</h3>
-                    <p>İlk risk kaydını oluşturarak değerlendirme sürecini başlatın.</p>
+                    <p>İlk kaydı oluşturarak değerlendirmeyi başlatın.</p>
                     {canEdit && (
                       <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
-                        Yeni risk kaydı
+                        Yeni risk
                       </button>
                     )}
                   </div>
@@ -1053,8 +1005,8 @@ export function RiskPage({user}) {
             <aside className="risk-panel">
               <div className="risk-panel-head">
                 <div>
-                  <h2>Bölüm Yoğunluğu</h2>
-                  <p>Risk kayıtlarının işyeri bölümlerine dağılımı</p>
+                  <h2>Bölüm yoğunluğu</h2>
+                  <p>Kayıt dağılımı</p>
                 </div>
               </div>
               <div className="risk-distribution">
@@ -1062,7 +1014,7 @@ export function RiskPage({user}) {
                   const max = Math.max(...stats.departments.map((x) => x.count || 0), 1);
                   return (
                     <div key={d.name} className="risk-distribution-row">
-                      <span title={d.name}>{String(d.name).slice(0, 18)}</span>
+                      <span title={d.name}>{String(d.name).slice(0, 16)}</span>
                       <div className="risk-progress">
                         <span style={{width: `${Math.round(((d.count || 0) * 100) / max)}%`}} />
                       </div>
@@ -1070,10 +1022,9 @@ export function RiskPage({user}) {
                     </div>
                   );
                 })) : (
-                  <div className="risk-empty" style={{minHeight: 150}}>
+                  <div className="risk-empty" style={{minHeight: 120}}>
                     <div>
-                      <h3>Bölüm verisi yok</h3>
-                      <p>Firma bölümleri oluşturulduğunda dağılım burada görünür.</p>
+                      <h3>Bölüm yok</h3>
                       <button type="button" className="btn btn-ghost btn-sm" onClick={() => setTab('departments')}>
                         Bölümleri yönet
                       </button>
@@ -1089,33 +1040,32 @@ export function RiskPage({user}) {
 
       {tab === 'reports' && !detail && (
         <section>
-          <section className="risk-page-intro">
+          <div className="risk-top" style={{marginBottom: 12}}>
             <div>
-              <div className="risk-eyebrow">Çıktılar</div>
-              <h1>Raporlar</h1>
-              <p>Firma risk değerlendirme PDF/Excel çıktıları ve DÖF listesi.</p>
+              <h1 style={{fontSize: '1.15rem'}}>Raporlar</h1>
+              <p>PDF, Excel ve DÖF listesi çıktıları.</p>
             </div>
-          </section>
+          </div>
           <div className="risk-report-grid">
             <article className="risk-report-card">
-              <h3>Risk PDF Raporu</h3>
-              <p>İşyeri risk kayıtlarını, skorları ve DÖF özetlerini yazdırılabilir PDF olarak indirin.</p>
+              <h3>Risk PDF</h3>
+              <p>Skorlar ve DÖF özeti ile yazdırılabilir rapor.</p>
               <button type="button" className="btn btn-primary" disabled={!!dlBusy} onClick={() => downloadReport('pdf')}>
-                <Download size={15} /> {dlBusy === 'pdf' ? 'Hazırlanıyor…' : 'PDF İndir'}
+                <Download size={14} /> {dlBusy === 'pdf' ? '…' : 'PDF indir'}
               </button>
             </article>
             <article className="risk-report-card">
-              <h3>Risk Excel Raporu</h3>
-              <p>Risk matrisi, DÖF listesi ve istatistik sayfalarını içeren çalışma kitabı.</p>
+              <h3>Risk Excel</h3>
+              <p>Risk + DÖF + istatistik sayfaları.</p>
               <button type="button" className="btn btn-primary" disabled={!!dlBusy} onClick={() => downloadReport('xlsx')}>
-                <FileSpreadsheet size={15} /> {dlBusy === 'xlsx' ? 'Hazırlanıyor…' : 'Excel İndir'}
+                <FileSpreadsheet size={14} /> {dlBusy === 'xlsx' ? '…' : 'Excel indir'}
               </button>
             </article>
             <article className="risk-report-card">
-              <h3>DÖF Excel Listesi</h3>
-              <p>Yalnızca düzeltici / önleyici faaliyet kayıtlarını ayrı Excel olarak alın.</p>
+              <h3>DÖF Excel</h3>
+              <p>Yalnız düzeltici / önleyici faaliyet listesi.</p>
               <button type="button" className="btn btn-primary" disabled={!!dlBusy} onClick={() => downloadReport('dof')}>
-                <ClipboardList size={15} /> {dlBusy === 'dof' ? 'Hazırlanıyor…' : 'DÖF Excel'}
+                <ClipboardList size={14} /> {dlBusy === 'dof' ? '…' : 'DÖF indir'}
               </button>
             </article>
           </div>
@@ -1124,20 +1074,19 @@ export function RiskPage({user}) {
 
       {tab === 'library' && !detail && (
         <section>
-          <section className="risk-page-intro">
+          <div className="risk-top" style={{marginBottom: 12}}>
             <div>
-              <div className="risk-eyebrow">Hazır Bilgi Kaynağı</div>
-              <h1>Tehlike Kütüphanesi</h1>
-              <p>{categories.length} kategori · {hazardCount || '—'} tehlike. Kayıt formuna doğrudan aktarılır.</p>
+              <h1 style={{fontSize: '1.15rem'}}>Tehlike kütüphanesi</h1>
+              <p>{categories.length} kategori · {hazardCount || '—'} tehlike</p>
             </div>
-            <div className="risk-actions">
+            <div className="risk-top-actions">
               {canEdit && (
-                <button type="button" className="btn btn-outline-primary" disabled={busy} onClick={seedLibrary}>
-                  Kütüphaneyi Senkronize Et
+                <button type="button" className="btn" disabled={busy} onClick={seedLibrary}>
+                  Senkronize et
                 </button>
               )}
             </div>
-          </section>
+          </div>
           {libMsg && <div className="ok" style={{marginBottom: 12}}>{libMsg}</div>}
           <div className="risk-lib-grid">
             <div className="risk-lib-cats">
@@ -1153,7 +1102,7 @@ export function RiskPage({user}) {
                 </button>
               ))}
               {!categories.length && (
-                <div className="risk-empty" style={{minHeight: 120}}>
+                <div className="risk-empty" style={{minHeight: 100}}>
                   <p>Kategori yok. Senkronize edin.</p>
                 </div>
               )}
@@ -1162,7 +1111,7 @@ export function RiskPage({user}) {
               <div className="risk-panel-head">
                 <div>
                   <h2>Tehlikeler</h2>
-                  <p>Kategori seçin, tehlike kaydına tıklayarak yeni risk formuna aktarın.</p>
+                  <p>Seçip forma aktarın</p>
                 </div>
               </div>
               <div className="table-wrap">
@@ -1204,7 +1153,7 @@ export function RiskPage({user}) {
                         </td>
                       </tr>
                     )) : (
-                      <tr><td colSpan={3} className="empty">Kategori seçin veya ara.</td></tr>
+                      <tr><td colSpan={3} className="empty">Kategori seçin</td></tr>
                     )}
                   </tbody>
                 </table>
