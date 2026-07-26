@@ -804,6 +804,7 @@ function UserPage({user}){
       </form>
     </Modal>}
   </Page>
+}
 function Employees({user}){
   const[companies,setCompanies]=useState([]);
   const[branches,setBranches]=useState([]);
