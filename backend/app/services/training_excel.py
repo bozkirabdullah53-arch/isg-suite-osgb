@@ -17,22 +17,36 @@ def _cell(v: Any) -> str:
     if v is None:
         return ""
     text = str(v).strip()
+    # Excel bozulmuş boşluk / BOM
+    text = text.replace("\ufeff", "").replace("\xa0", " ").strip()
     return "" if text.lower() in ("none", "nan") else text
 
 
 def _norm(text: str) -> str:
-    t = _cell(text).lower()
+    """Pro _norm_text birebir: Türkçe İ/ı + NFKD (combining dot temizliği)."""
+    import unicodedata
+
+    t = _cell(text).strip()
+    # Büyük İ/I önce — Python lower() İ → i+combining-dot üretebilir
+    t = t.replace("İ", "i").replace("I", "i").replace("ı", "i")
+    t = t.lower().replace("ı", "i")
+    t = unicodedata.normalize("NFKD", t)
+    t = "".join(ch for ch in t if not unicodedata.combining(ch))
     for a, b in (
         (" ", ""),
         ("_", ""),
         ("-", ""),
         (".", ""),
-        ("ı", "i"),
+        ("/", ""),
+        ("\\", ""),
         ("ğ", "g"),
         ("ü", "u"),
         ("ş", "s"),
         ("ö", "o"),
         ("ç", "c"),
+        ("*", ""),
+        ("(", ""),
+        (")", ""),
     ):
         t = t.replace(a, b)
     return re.sub(r"[^a-z0-9]+", "", t)
@@ -63,6 +77,14 @@ _HEADER_ALIASES: dict[str, str] = {
     "isim": "full_name",
     "personeladi": "full_name",
     "calisanadi": "full_name",
+    "adisoyad": "full_name",
+    "adiivesoyadi": "full_name",
+    "calisaninadisoyadi": "full_name",
+    "personelinadisoyadi": "full_name",
+    "iscininadisoyadi": "full_name",
+    "katilimci": "full_name",
+    "katilimciadi": "full_name",
+    "katilimciadisoyadi": "full_name",
     "ad": "_first",
     "adi": "_first",
     "firstname": "_first",
@@ -109,7 +131,21 @@ _HEADER_ALIASES: dict[str, str] = {
 
 
 def _header_field(value: Any) -> str:
-    return _HEADER_ALIASES.get(_norm(str(value or "")), "")
+    n = _norm(str(value or ""))
+    if not n:
+        return ""
+    if n in _HEADER_ALIASES:
+        return _HEADER_ALIASES[n]
+    # Bulanık: "Personel Adı ve Soyadı", "Çalışanın Adı Soyadı" vb.
+    if n in ("soyad", "soyadi"):
+        return "_last"
+    if "soyad" in n:
+        if n in ("ad", "adi") or n.startswith("ad") or "isim" in n or "personel" in n or "calisan" in n or "katilim" in n:
+            return "full_name"
+        return "full_name"
+    if n in ("ad", "adi", "isim"):
+        return "_first"
+    return ""
 
 
 def _sheet_rows(ws) -> list[list[Any]]:
@@ -185,7 +221,8 @@ def _best_employee_table(sheet_rows: list[list[Any]]) -> tuple[list[dict], int |
     best_data: list[dict] = []
     best_score = -1
     best_header_index: int | None = None
-    for header_index, row in enumerate(sheet_rows[:40]):
+    scan_limit = min(80, len(sheet_rows))
+    for header_index, row in enumerate(sheet_rows[:scan_limit]):
         fields = [_header_field(value) for value in row]
         has_name = "full_name" in fields or ("_first" in fields and "_last" in fields)
         if not has_name:
@@ -210,6 +247,7 @@ def _best_employee_table(sheet_rows: list[list[Any]]) -> tuple[list[dict], int |
         names: list[dict] = []
         ignored = {
             "ad",
+            "adi",
             "adisoyadi",
             "adsoyad",
             "isim",
@@ -221,11 +259,16 @@ def _best_employee_table(sheet_rows: list[list[Any]]) -> tuple[list[dict], int |
             "tckimlik",
             "sertifika",
             "egitimadi",
+            "adisoyad",
+            "soyad",
+            "soyadi",
         }
         for row in sheet_rows:
             value = _cell(row[index] if index < len(row) else "")
             normalized = _norm(value)
             if not value or normalized in ignored or normalized.startswith("toplam"):
+                continue
+            if _header_field(value):
                 continue
             names.append(
                 {
@@ -237,6 +280,27 @@ def _best_employee_table(sheet_rows: list[list[Any]]) -> tuple[list[dict], int |
             )
         if names:
             return names, 0
+
+    # Son çare: iki+ kelimeli hücreleri ad-soyad say (başlık bulunamadıysa)
+    fallback: list[dict] = []
+    for row in sheet_rows:
+        for value in row:
+            text = _cell(value)
+            if not text or _header_field(text):
+                continue
+            parts = [p for p in text.replace(",", " ").split() if p]
+            if len(parts) >= 2 and len(text) <= 80 and not re.search(r"\d{6,}", text):
+                fallback.append(
+                    {
+                        "full_name": text,
+                        "national_id_masked": "",
+                        "job_title": "",
+                        "department": "",
+                    }
+                )
+                break
+    if len(fallback) >= 2:
+        return fallback, 0
     return [], None
 
 

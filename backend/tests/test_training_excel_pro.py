@@ -46,6 +46,40 @@ def test_parse_employees_xlsx_compat():
     assert {r["full_name"] for r in rows} >= {"Zeynep Kaya", "Canan Su"}
 
 
+def test_turkish_capital_i_header():
+    """İ harfi NFKD sonrası adisoyadi olmalı."""
+    from app.services.training_excel import _header_field, _norm
+
+    assert _norm("Adı Soyadı") == "adisoyadi"
+    assert _norm("ADI SOYADI") == "adisoyadi"
+    assert _header_field("Adı Soyadı") == "full_name"
+    assert _header_field("Personel Adı ve Soyadı") == "full_name"
+    content = _xlsx_bytes(
+        [
+            ["Adı Soyadı", "Görevi"],
+            ["Ali Veli", "Usta"],
+            ["Ayşe Fatma", "Operatör"],
+        ]
+    )
+    rows, _, _ = parse_employee_upload(content, "tr.xlsx")
+    assert len(rows) == 2
+    assert rows[0]["full_name"] == "Ali Veli"
+
+
+def test_separate_adi_soyadi_columns():
+    content = _xlsx_bytes(
+        [
+            ["Adı", "Soyadı", "Bölüm"],
+            ["Mehmet", "Yılmaz", "Kesim"],
+            ["Zeynep", "Kaya", "Paket"],
+        ]
+    )
+    rows, _, _ = parse_employee_upload(content, "split.xlsx")
+    assert len(rows) == 2
+    assert rows[0]["full_name"] == "Mehmet Yılmaz"
+    assert rows[1]["full_name"] == "Zeynep Kaya"
+
+
 def test_header_below_metadata_rows():
     content = _xlsx_bytes(
         [

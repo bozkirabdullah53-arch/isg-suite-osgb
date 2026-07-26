@@ -41,7 +41,9 @@ def resolve_or_create_employees(
         if not name:
             continue
         key = name.casefold()
-        tc = (row.get("national_id_masked") or "").strip() or None
+        # Boş TC → None ("" unique constraint'e takılır: company+national_id)
+        raw_tc = (row.get("national_id_masked") or "").strip()
+        tc = raw_tc or None
         tc_digits = _tc_key(tc)
         emp = by_name.get(key) or (by_tc.get(tc_digits) if tc_digits else None)
 
@@ -65,6 +67,25 @@ def resolve_or_create_employees(
             except IntegrityError:
                 by_name, by_tc = _reload_maps()
                 emp = by_name.get(key) or (by_tc.get(tc_digits) if tc_digits else None)
+                # Aynı boş/çakışan TC ile ikinci kişi: TC'siz yeniden dene
+                if not emp and tc is not None:
+                    emp = Employee(
+                        company_id=company_id,
+                        full_name=name,
+                        national_id_masked=None,
+                        job_title=(row.get("job_title") or None) or None,
+                        department=(row.get("department") or None) or None,
+                        is_active=True,
+                    )
+                    try:
+                        with db.begin_nested():
+                            db.add(emp)
+                            db.flush()
+                        by_name[key] = emp
+                        created += 1
+                    except IntegrityError:
+                        by_name, by_tc = _reload_maps()
+                        emp = by_name.get(key)
 
         result.append(
             {
