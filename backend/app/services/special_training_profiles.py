@@ -175,3 +175,44 @@ def special_meta_for_api() -> dict:
             for code, label in SPECIAL_VERIFICATION_METHODS.items()
         ],
     }
+
+
+DEFAULT_CERTIFICATE_TITLE = "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ"
+DEFAULT_ATTENDANCE_TITLE = "İŞ SAĞLIĞI VE GÜVENLİĞİ TEMEL EĞİTİMİ"
+
+
+def resolve_training_document_titles(training) -> dict[str, str | None]:
+    """Eğitim türüne göre belge / imza formu başlığı (özel eğitim ≠ temel İSG)."""
+    haystack = " ".join(
+        str(x or "")
+        for x in (
+            getattr(training, "training_type", None),
+            getattr(training, "title", None),
+            getattr(training, "notes", None),
+        )
+    ).casefold()
+
+    for key, profile in SPECIAL_TRAINING_PROFILES.items():
+        markers = [
+            key.replace("_", " "),
+            str(profile.get("title") or ""),
+            str(profile.get("short_code") or ""),
+        ]
+        if key == "yuksekte_calisma":
+            markers += ["yüksekte çalışma", "yuksekte calisma", "yüksekte"]
+        if key == "hijyen_sanitasyon":
+            markers += ["hijyen", "sanitasyon", "hijyen ve sanitasyon"]
+        for marker in markers:
+            m = str(marker or "").strip().casefold()
+            if m and m in haystack:
+                return {
+                    "certificate_title": str(profile.get("certificate_title") or DEFAULT_CERTIFICATE_TITLE),
+                    "attendance_title": str(profile.get("attendance_title") or DEFAULT_ATTENDANCE_TITLE),
+                    "profile_key": key,
+                }
+
+    return {
+        "certificate_title": DEFAULT_CERTIFICATE_TITLE,
+        "attendance_title": DEFAULT_ATTENDANCE_TITLE,
+        "profile_key": None,
+    }

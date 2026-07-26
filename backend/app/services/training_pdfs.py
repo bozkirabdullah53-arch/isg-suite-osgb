@@ -14,6 +14,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 from app.core.config import settings
+from app.services.special_training_profiles import resolve_training_document_titles
 from app.services.training_topics import (
     egitim_konularini_hazirla,
     katilim_formu_konu_ozeti,
@@ -252,8 +253,10 @@ def _draw_attendance_page(
         _draw_logo(c, training, x=11.5 * mm, y=h - 25.5 * mm, max_w=15 * mm, max_h=15 * mm)
 
     _rgb(c, _SLATE, fill=True)
-    c.setFont(_FONT_B, 10.5)
-    c.drawCentredString(w / 2, h - 15 * mm, "İŞ SAĞLIĞI VE GÜVENLİĞİ TEMEL EĞİTİMİ")
+    titles = resolve_training_document_titles(training)
+    att_title = titles["attendance_title"] or "İŞ SAĞLIĞI VE GÜVENLİĞİ TEMEL EĞİTİMİ"
+    c.setFont(_FONT_B, 9 if len(att_title) > 42 else 10.5)
+    c.drawCentredString(w / 2, h - 15 * mm, _fit(c, att_title, w - 50 * mm, _FONT_B, 9 if len(att_title) > 42 else 10.5))
     c.setFont(_FONT_B, 12)
     c.drawCentredString(w / 2, h - 21 * mm, "KATILIMCI İMZA FORMU")
     c.setFont(_FONT, 6.5)
@@ -507,8 +510,11 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
         _draw_logo(c, training, x=8.5 * mm, y=h - 23.5 * mm, max_w=19 * mm, max_h=17 * mm)
 
     c.setFillColorRGB(1, 1, 1)
-    c.setFont(_FONT_B, 11)
-    c.drawCentredString(w / 2, h - 12 * mm, "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ")
+    titles = resolve_training_document_titles(training)
+    cert_title = titles["certificate_title"] or "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ"
+    title_size = 9 if len(cert_title) > 48 else 11
+    c.setFont(_FONT_B, title_size)
+    c.drawCentredString(w / 2, h - 12 * mm, _fit(c, cert_title, w - 40 * mm, _FONT_B, title_size))
     c.setFont(_FONT_B, 9)
     c.drawCentredString(w / 2, h - 19 * mm, company_name or "")
 
