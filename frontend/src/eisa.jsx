@@ -1754,8 +1754,8 @@ export function OsgbApplyPage({ onBack }) {
 
   if (ok) {
     return (
-      <main className="login-shell">
-        <section className="login-card" style={{ maxWidth: 480 }}>
+      <main className="login-shell login-shell--form">
+        <section className="login-card" style={{ maxWidth: 480, margin: '0 auto' }}>
           <h1>Başvuru alındı</h1>
           <p>EİSA ekibi başvurunuzu inceleyecek. Onay sonrası {trialDays} günlük ücretsiz deneme süreniz başlar.</p>
           {submittedId && <p style={{ color: '#64748b' }}>Başvuru no: <strong>#{submittedId}</strong></p>}
@@ -1766,8 +1766,8 @@ export function OsgbApplyPage({ onBack }) {
   }
 
   return (
-    <main className="login-shell">
-      <div className="login-wrap" style={{ maxWidth: 560 }}>
+    <main className="login-shell login-shell--form">
+      <div className="login-wrap login-wrap--form">
         <div className="login-brand">
           <img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo" />
         </div>
@@ -1832,8 +1832,8 @@ export function OsgbApplyPage({ onBack }) {
               </label>
             </div>
 
-            {err && <div className="error">{err}</div>}
-            <div className="form-actions">
+            {err && <div className="error" style={{gridColumn: '1 / -1'}}>{err}</div>}
+            <div className="form-actions apply-form-actions">
               <button type="button" className="secondary" onClick={onBack}>Geri</button>
               <button type="submit" disabled={busy}>{busy ? 'Gönderiliyor…' : 'Başvuruyu Gönder'}</button>
             </div>

@@ -61,6 +61,32 @@ button, input { font: inherit; }
   flex-shrink: 0;
 }
 
+/* Uzun başvuru formu: giriş ekranı kilidini bozmadan kaydırılabilir */
+.login-shell--form {
+  height: auto;
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: block;
+  padding: 16px 16px 28px;
+  -webkit-overflow-scrolling: touch;
+}
+.login-wrap--form {
+  width: min(560px, 100%);
+  max-height: none;
+  margin: 0 auto;
+  justify-content: flex-start;
+}
+.login-shell--form .apply-form-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background: linear-gradient(180deg, rgba(255,255,255,.92) 0%, #fff 35%);
+  padding: 12px 0 4px;
+  margin-top: 4px;
+  border-top: 1px solid #e2e8f0;
+}
+
 .brand-mark {
   width: 48px;
   height: 48px;

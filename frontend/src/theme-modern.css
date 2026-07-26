@@ -112,6 +112,15 @@ html[data-ui-theme="modern"] .login-shell {
     radial-gradient(900px 600px at -12% 110%, rgba(45, 212, 191, .2), transparent 55%),
     linear-gradient(165deg, #0b1f28 0%, #12333d 38%, #0f4c4a 72%, #0d3d48 100%);
 }
+html[data-ui-theme="modern"] .login-shell.login-shell--form {
+  height: auto;
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+html[data-ui-theme="modern"] .login-shell--form .apply-form-actions {
+  background: linear-gradient(180deg, rgba(255,255,255,.88) 0%, rgba(255,255,255,.98) 40%);
+}
 html[data-ui-theme="modern"] .login-shell::before {
   content: "";
   position: absolute;
