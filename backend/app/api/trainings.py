@@ -22,6 +22,7 @@ from app.services.training_pdfs import build_attendance_pdf, build_certificates_
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 from app.services.training_topics import meta_payload, sektor_kodu_cozumle, sectors_list_for_api
+from app.services.special_training_profiles import special_meta_for_api
 
 
 router = APIRouter(prefix="/trainings", tags=["Eğitim Yönetimi"])
@@ -88,9 +89,14 @@ def training_layout_info():
         "form_no": "İSG-EĞT-KF-01",
         "certificate_title": "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ",
         "certificate_no_format": "ISG-GGAAYYYY-001",
-        "endpoints": ["attendance.pdf", "certificates.pdf", "verify/{code}"],
+        "endpoints": ["attendance.pdf", "certificates.pdf", "verify/{code}", "special-profiles"],
     }
 
+
+
+@router.get("/special-profiles")
+def list_special_profiles(user: User = Depends(get_current_user)):
+    return special_meta_for_api()
 
 @router.get("/meta")
 def training_meta(user: User = Depends(get_current_user)):

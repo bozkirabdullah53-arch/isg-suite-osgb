@@ -82,9 +82,11 @@ async function loadSectorsCatalog() {
     const meta = await api('/trainings/meta');
     if (meta?.sectors?.length > 10) return meta.sectors;
   } catch (_) { /* ignore */ }
-  // 3) Statik paket
+  // 3) Statik paket (dizi veya {sectors:[...]})
   const local = await fetch('/training-sectors.json').then((r) => r.json());
-  return Array.isArray(local) ? local : [];
+  if (Array.isArray(local) && local.length > 10) return local;
+  if (Array.isArray(local?.sectors) && local.sectors.length > 10) return local.sectors;
+  return [];
 }
 
 function sectorLabel(sectors, code) {
@@ -120,6 +122,8 @@ export function TrainingPage({user}) {
   const [companies, setCompanies] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [sectors, setSectors] = useState([]);
+  const [specialProfiles, setSpecialProfiles] = useState([]);
+  const [specialProfileCode, setSpecialProfileCode] = useState('');
   const [rows, setRows] = useState([]);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -155,12 +159,36 @@ export function TrainingPage({user}) {
     setErr('');
     setExcelInfo('');
     setExcelPreview([]);
+    setSpecialProfileCode('');
     const cid = defaultCompanyId() || (companies[0] ? String(companies[0].id) : '');
     setForm({...empty, company_id: cid});
     setOpen(true);
     if (cid) {
       refreshEmployees(cid).catch(() => {});
     }
+  }
+
+  function applySpecialProfile(code) {
+    setSpecialProfileCode(code);
+    if (!code) return;
+    const profile = specialProfiles.find((p) => p.code === code);
+    if (!profile) return;
+    const topicLines = (profile.topics || [])
+      .map((t) => `• [${t.mode === 'practice' ? 'Uygulama' : 'Teori'}] ${t.title}`)
+      .join('\n');
+    setForm((prev) => ({
+      ...prev,
+      title: profile.title || prev.title,
+      training_type: profile.title || 'İşe Özel Eğitim',
+      delivery_method: profile.training_method || prev.delivery_method,
+      evaluation_method: (profile.evaluation_methods && profile.evaluation_methods[0]) || prev.evaluation_method,
+      notes: [
+        profile.purpose || '',
+        profile.disclaimer || '',
+        topicLines ? `Konular (${profile.default_total_hours || ''} saat):\n${topicLines}` : '',
+      ].filter(Boolean).join('\n\n'),
+      stamp_text: profile.legal_basis || prev.stamp_text,
+    }));
   }
 
   async function refreshEmployees(companyId) {
@@ -202,6 +230,12 @@ export function TrainingPage({user}) {
     setEmployees(e);
     setRows(t);
     setSectors(sec);
+    try {
+      const sp = await api('/trainings/special-profiles');
+      setSpecialProfiles(Array.isArray(sp?.profiles) ? sp.profiles : []);
+    } catch (_) {
+      setSpecialProfiles([]);
+    }
   };
 
   useEffect(() => {
@@ -803,6 +837,18 @@ export function TrainingPage({user}) {
                 Ayrıca <strong>İSG Profesyonelleri</strong> kaydınızın e-postası, giriş yaptığınız kullanıcı e-postası ile aynı olmalı.
               </div>
             )}
+            <Select
+              label="Özel eğitim profili (Pro — opsiyonel)"
+              value={specialProfileCode}
+              onChange={(e) => applySpecialProfile(e.target.value)}
+            >
+              <option value="">Temel İSG / manuel</option>
+              {specialProfiles.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.title} ({p.default_total_hours || '?'} saat)
+                </option>
+              ))}
+            </Select>
             <Field label="Eğitim Adı" required minLength={3} value={form.title} onChange={(e) => setForm({...form, title: e.target.value})} />
             <Select label="Eğitim Türü" value={form.training_type} onChange={(e) => setForm({...form, training_type: e.target.value})}>
               <option>İlk Defa</option>
@@ -811,9 +857,13 @@ export function TrainingPage({user}) {
               <option>İşe Özel Eğitim</option>
               <option>Yenileme Eğitimi</option>
               <option>Acil Durum / Tatbikat</option>
+              {specialProfiles.map((p) => (
+                <option key={`tt-${p.code}`} value={p.title}>{p.title}</option>
+              ))}
             </Select>
             <Select label="Eğitim Şekli" value={form.delivery_method} onChange={(e) => setForm({...form, delivery_method: e.target.value})}>
               <option>Yüz yüze</option>
+              <option>Yüz yüze ve uygulamalı</option>
               <option>Uzaktan</option>
             </Select>
             <Field
@@ -878,6 +928,9 @@ export function TrainingPage({user}) {
               <option>Uygulama</option>
               <option>Sözlü değerlendirme</option>
               <option>Katılım yeterlidir</option>
+              <option>Yazılı ve uygulamalı değerlendirme</option>
+              <option>Sözlü ve uygulamalı değerlendirme</option>
+              <option>Yazılı değerlendirme</option>
             </Select>
             <Field label="Geçme Puanı (0-100)" type="number" min="0" max="100" value={form.passing_score} onChange={(e) => setForm({...form, passing_score: e.target.value})} />
 

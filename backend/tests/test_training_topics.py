@@ -13,7 +13,9 @@ def test_tehlike_rules():
 
 def test_sektor_resolve():
     assert sektor_kodu_cozumle("insaat") == "insaat"
-    assert sektor_kodu_cozumle("İnşaat / Şantiye") == "insaat"
+    # Pro katalogunda "İnşaat / Şantiye" kodu insaat_santiye
+    assert sektor_kodu_cozumle("İnşaat / Şantiye") == "insaat_santiye"
+    assert sektor_kodu_cozumle("İnşaat ve Şantiye") == "insaat"
     assert sektor_kodu_cozumle(None) == "genel_uretim"
 
 

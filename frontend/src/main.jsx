@@ -86,7 +86,7 @@ const roleModules={
   safety_specialist:[
     'visits','dashboard',
     'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler',
-    'training','annual_plans','annual_eval_report','documents',
+    'training','employees','annual_plans','annual_eval_report','documents',
     'security',
   ],
   workplace_physician:[
