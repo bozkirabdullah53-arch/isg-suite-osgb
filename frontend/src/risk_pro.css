@@ -539,6 +539,281 @@
   box-shadow: 0 1px 2px rgba(8, 32, 44, 0.04);
 }
 
+/* —— Yeni Risk modal (portal → body) —— */
+.risk-modal-bg {
+  z-index: 80;
+  padding: 18px;
+  background: rgba(6, 28, 36, 0.58);
+  backdrop-filter: blur(10px) saturate(1.15);
+  -webkit-backdrop-filter: blur(10px) saturate(1.15);
+  animation: risk-modal-fade 0.2s ease both;
+}
+.risk-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 100%);
+  max-height: min(92vh, 900px);
+  overflow: hidden;
+  border-radius: 22px;
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.98) 0%, rgba(246, 250, 252, 0.96) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 2px 4px rgba(8, 32, 44, 0.06),
+    0 18px 40px rgba(8, 32, 44, 0.16),
+    0 40px 100px rgba(8, 32, 44, 0.28);
+  animation: risk-modal-rise 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-style: preserve-3d;
+}
+.risk-modal-wide {
+  width: min(1120px, 100%);
+}
+.risk-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 16px 20px 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(247, 250, 252, 0.72));
+  border-bottom: 1px solid rgba(160, 186, 200, 0.4);
+}
+.risk-modal-kicker {
+  margin: 0 0 3px;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.risk-modal-head h3 {
+  margin: 0;
+  font-family: Outfit, Manrope, ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #0a1c26;
+}
+.risk-modal-close {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  border: 1px solid rgba(160, 186, 200, 0.45);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 12px rgba(8, 32, 44, 0.08);
+  color: #4a6573;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.risk-modal-close:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(8, 32, 44, 0.12);
+  color: #0a1c26;
+}
+.risk-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.risk-form-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-areas:
+    "main score"
+    "footer footer";
+  gap: 0;
+  min-height: 100%;
+}
+.risk-form-main {
+  grid-area: main;
+  padding: 18px 20px 12px !important;
+  align-content: start;
+}
+.risk-form-span { grid-column: 1 / -1; }
+.risk-form-score {
+  grid-area: score;
+  padding: 16px 16px 16px 8px;
+  border-left: 1px solid rgba(160, 186, 200, 0.35);
+  background:
+    radial-gradient(420px 220px at 100% 0%, rgba(15, 118, 110, 0.08), transparent 70%),
+    linear-gradient(180deg, rgba(247, 250, 252, 0.9), rgba(255, 255, 255, 0.55));
+}
+.risk-form-footer {
+  grid-area: footer;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px 16px;
+  border-top: 1px solid rgba(160, 186, 200, 0.4);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(10px);
+}
+.risk-form-footer .form-actions {
+  margin: 0;
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.risk-form-footer .error { margin: 0; flex: 1 1 220px; }
+
+.risk-score-card {
+  position: sticky;
+  top: 8px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(160, 186, 200, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 10px 28px rgba(8, 32, 44, 0.1),
+    0 2px 6px rgba(8, 32, 44, 0.05);
+  transform: perspective(900px) rotateY(-2deg);
+  transform-origin: left center;
+}
+.risk-score-hero {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 12px;
+  padding: 12px 12px 11px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #0f766e, #0e7490);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 10px 22px rgba(14, 116, 144, 0.28);
+}
+.risk-score-hero span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.risk-score-hero strong {
+  font-family: Outfit, Manrope, ui-sans-serif, system-ui, sans-serif;
+  font-size: 2rem;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.risk-score-hero em {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.92;
+}
+.risk-score-hero.risk-score-critical {
+  background: linear-gradient(145deg, #b91c1c, #c2410c);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 10px 22px rgba(185, 28, 28, 0.28);
+}
+.risk-score-hero.risk-score-high {
+  background: linear-gradient(145deg, #c2410c, #b45309);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 10px 22px rgba(194, 65, 12, 0.26);
+}
+.risk-score-hero.risk-score-medium {
+  background: linear-gradient(145deg, #a16207, #ca8a04);
+}
+.risk-score-hero.risk-score-low,
+.risk-score-hero.risk-score-acceptable {
+  background: linear-gradient(145deg, #0f766e, #047857);
+}
+.risk-score-matrix p {
+  margin: 0 0 6px;
+  color: #6e8794;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.risk-score-matrix .risk-matrix-wrap { padding: 0; }
+.risk-score-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 12px;
+}
+.risk-score-meta > div {
+  padding: 8px 6px;
+  border-radius: 10px;
+  background: rgba(232, 238, 243, 0.7);
+  text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.risk-score-meta span {
+  display: block;
+  color: #6e8794;
+  font-size: 10px;
+  font-weight: 650;
+}
+.risk-score-meta strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: #0a1c26;
+}
+.risk-score-term {
+  margin: 8px 0 0;
+  text-align: center;
+  color: #4a6573;
+  font-size: 12px;
+  font-weight: 600;
+}
+.risk-hazard-chip {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.1);
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.risk-hint-card {
+  background: linear-gradient(160deg, #f0f7ff, #eef8f6);
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* Matris hücreleri — hafif kabartma */
+.risk-matrix-cell {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 1px 2px rgba(8, 32, 44, 0.08);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.risk-matrix-cell.active {
+  outline: none;
+  transform: translateY(-2px) scale(1.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    0 0 0 2px #0f766e,
+    0 8px 16px rgba(15, 118, 110, 0.28);
+}
+
+@keyframes risk-modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes risk-modal-rise {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
 @media (max-width: 980px) {
   .risk-kpi-grid {
     grid-template-columns: 1fr 1fr;
@@ -549,4 +824,20 @@
   .risk-report-grid,
   .risk-lib-grid { grid-template-columns: 1fr; }
   .risk-top { flex-direction: column; align-items: stretch; }
+  .risk-form-shell {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "score"
+      "main"
+      "footer";
+  }
+  .risk-form-score {
+    border-left: 0;
+    border-bottom: 1px solid rgba(160, 186, 200, 0.35);
+    padding: 12px 16px;
+  }
+  .risk-score-card {
+    position: static;
+    transform: none;
+  }
 }

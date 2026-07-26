@@ -638,8 +638,9 @@ html[data-ui-theme="modern"] .theme-toggle:hover svg { transform: rotate(-14deg)
    KEYFRAMES
    ============================================================ */
 @keyframes m-fade-up {
+  /* transform:none ile bitmeli — aksi halde fixed modal içerik kutusuna kilitlenir */
   from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 @keyframes m-fade-down {
   from { opacity: 0; transform: translateY(-12px); }

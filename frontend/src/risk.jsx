@@ -1,4 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
+import {createPortal} from 'react-dom';
 import {
   AlertTriangle,
   BookOpen,
@@ -55,40 +56,46 @@ function OverdueBadge() {
 }
 
 function Modal({title, close, children, wide}) {
-  return (
-    <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <section className="modal" style={{maxWidth: wide ? 1100 : 960}}>
-        <header>
-          <h3>{title}</h3>
-          <button className="icon" type="button" onClick={close}><X /></button>
+  return createPortal(
+    <div className="modal-bg risk-modal-bg" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <section className={`modal risk-modal${wide ? ' risk-modal-wide' : ''}`} role="dialog" aria-modal="true">
+        <header className="risk-modal-head">
+          <div>
+            <p className="risk-modal-kicker">Risk değerlendirme</p>
+            <h3>{title}</h3>
+          </div>
+          <button className="icon risk-modal-close" type="button" onClick={close} aria-label="Kapat">
+            <X />
+          </button>
         </header>
-        {children}
+        <div className="risk-modal-body">{children}</div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
-function Field({label, ...p}) {
+function Field({label, style, className, ...p}) {
   return (
-    <label className="field">
+    <label className={`field${className ? ` ${className}` : ''}`} style={style}>
       <span>{label}</span>
       <input {...p} />
     </label>
   );
 }
 
-function Select({label, children, ...p}) {
+function Select({label, children, style, className, ...p}) {
   return (
-    <label className="field">
+    <label className={`field${className ? ` ${className}` : ''}`} style={style}>
       <span>{label}</span>
       <select {...p}>{children}</select>
     </label>
   );
 }
 
-function TextArea({label, ...p}) {
+function TextArea({label, style, className, ...p}) {
   return (
-    <label className="field">
+    <label className={`field${className ? ` ${className}` : ''}`} style={style}>
       <span>{label}</span>
       <textarea rows={3} {...p} />
     </label>
@@ -1458,174 +1465,201 @@ export function RiskPage({user}) {
           close={() => { setOpen(false); setEditId(null); setErr(''); setHazardHint(null); }}
           wide
         >
-          <form className="form-grid" onSubmit={save}>
-            <Select
-              label="Firma / İşyeri"
-              required
-              value={form.company_id}
-              disabled={!!editId}
-              onChange={(e) => setForm({...form, company_id: e.target.value, branch_id: '', department_id: '', new_department: ''})}
-            >
-              <option value="">Seçiniz</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-            <Select label="Şube" value={form.branch_id} onChange={(e) => setForm({...form, branch_id: e.target.value})}>
-              <option value="">Şube seçilmedi</option>
-              {companyBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </Select>
-
-            <Select
-              label="İşyeri / Fabrika Bölümü"
-              value={form.department_id}
-              onChange={(e) => setForm({...form, department_id: e.target.value, new_department: ''})}
-            >
-              <option value="">Bölüm seçiniz</option>
-              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </Select>
-            <div className="field">
-              <span>Yeni bölüm (listede yoksa)</span>
-              <div style={{display: 'flex', gap: 8}}>
-                <input
-                  placeholder="Örn: Üretim, Bakım, Boyahane..."
-                  value={form.new_department}
-                  onChange={(e) => setForm({...form, new_department: e.target.value, department_id: ''})}
-                />
-                <button type="button" className="secondary" disabled={busy || !form.new_department.trim()} onClick={addDepartmentQuick}>
-                  Kaydet
-                </button>
-              </div>
-              <small style={{color: '#64748b'}}>Yeni adı yazıp Kaydet veya doğrudan risk kaydederken otomatik oluşturulur.</small>
-            </div>
-
-            <div className="field" style={{gridColumn: '1 / -1'}}>
-              <span>Tehlike kütüphanesi seçimi (zorunlu)</span>
-              <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6}}>
-                <button type="button" className="secondary" onClick={() => setLibOpen(true)}>
-                  <BookOpen size={16} /> Kütüphaneden Seç
-                </button>
-                {selectedHazard && (
-                  <span style={{alignSelf: 'center', fontSize: 14}}>
-                    Seçili: <strong>{selectedHazard.code} — {selectedHazard.name}</strong>
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <Select label="Tehlike kategorisi" required value={form.category_id} onChange={(e) => setForm({...form, category_id: e.target.value, hazard_id: '', hazard_q: ''})}>
-              <option value="">Seçiniz ({categories.length} kategori)</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name} ({c.hazard_count || 0})</option>
-              ))}
-            </Select>
-            <Field
-              label="Tehlike ara"
-              placeholder="FZK-001 veya gürültü..."
-              value={form.hazard_q}
-              onChange={(e) => setForm({...form, hazard_q: e.target.value})}
-              disabled={!form.category_id}
-            />
-            <Select label="Tehlike" required value={form.hazard_id} onChange={(e) => onHazardPick(e.target.value)} style={{gridColumn: '1 / -1'}}>
-              <option value="">Kütüphaneden seçiniz ({hazards.length})</option>
-              {hazards.map((h) => <option key={h.id} value={h.id}>{h.code} — {h.name}</option>)}
-            </Select>
-
-            <Field label="Faaliyet" required value={form.activity} onChange={(e) => setForm({...form, activity: e.target.value})} />
-            <TextArea label="Risk tanımı" required value={form.risk_definition} onChange={(e) => setForm({...form, risk_definition: e.target.value})} />
-            {fieldRole && open && (
-              <div
-                className="field"
-                style={{
-                  gridColumn: '1 / -1',
-                  background: '#f0f7ff',
-                  border: '1px solid #bfdbfe',
-                  borderRadius: 8,
-                  padding: '10px 12px',
-                }}
+          <form className="risk-form-shell" onSubmit={save}>
+            <div className="risk-form-main form-grid">
+              <Select
+                label="Firma / İşyeri"
+                required
+                value={form.company_id}
+                disabled={!!editId}
+                onChange={(e) => setForm({...form, company_id: e.target.value, branch_id: '', department_id: '', new_department: ''})}
               >
-                <span style={{display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700}}>
-                  <AlertTriangle size={16} /> Tehlike önerisi
-                  <span style={{fontWeight: 500, color: '#64748b', fontSize: 12}}>(anahtar kelime · onay sizde)</span>
-                </span>
-                {hintBusy && <p style={{margin: '8px 0 0', fontSize: 13, color: '#64748b'}}>Öneri hesaplanıyor…</p>}
-                {!hintBusy && hazardHint?.matched && (
-                  <div style={{marginTop: 8, fontSize: 13}}>
-                    <div>
-                      Önerilen kategori: <strong>{hazardHint.suggested_category}</strong>
-                      {hazardHint.probability_hint != null && (
-                        <> · Olasılık ipucu: <strong>{hazardHint.probability_hint}/5</strong></>
-                      )}
-                      {hazardHint.confidence != null && (
-                        <span style={{color: '#64748b'}}> · güven {Math.round(hazardHint.confidence * 100)}%</span>
-                      )}
-                    </div>
-                    {(hazardHint.matched_keywords || []).length > 0 && (
-                      <div style={{marginTop: 4, color: '#475569'}}>
-                        Anahtarlar: {(hazardHint.matched_keywords || []).slice(0, 6).join(', ')}
-                      </div>
-                    )}
-                    {(hazardHint.suggested_photo_tags || []).length > 0 && (
-                      <div style={{marginTop: 4, color: '#0f766e'}}>
-                        Foto etiket ipucu: {(hazardHint.suggested_photo_tags || []).join(', ')}
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      className="secondary"
-                      style={{marginTop: 8}}
-                      onClick={() => applyHazardHint(hazardHint)}
-                    >
-                      Kategori ve olasılığı uygula
-                    </button>
-                    <p style={{margin: '6px 0 0', color: '#64748b', fontSize: 12}}>{hazardHint.note}</p>
-                  </div>
-                )}
-                {!hintBusy && hazardHint && !hazardHint.matched && (
-                  <p style={{margin: '8px 0 0', fontSize: 13, color: '#64748b'}}>{hazardHint.note || 'Eşleşme yok.'}</p>
-                )}
-                {!hintBusy && !hazardHint && (
-                  <p style={{margin: '8px 0 0', fontSize: 13, color: '#64748b'}}>
-                    Faaliyet veya risk tanımına yazdıkça kategori önerisi çıkar.
-                  </p>
-                )}
+                <option value="">Seçiniz</option>
+                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+              <Select label="Şube" value={form.branch_id} onChange={(e) => setForm({...form, branch_id: e.target.value})}>
+                <option value="">Şube seçilmedi</option>
+                {companyBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </Select>
+
+              <Select
+                label="İşyeri / Fabrika Bölümü"
+                value={form.department_id}
+                onChange={(e) => setForm({...form, department_id: e.target.value, new_department: ''})}
+              >
+                <option value="">Bölüm seçiniz</option>
+                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </Select>
+              <div className="field">
+                <span>Yeni bölüm (listede yoksa)</span>
+                <div style={{display: 'flex', gap: 8}}>
+                  <input
+                    placeholder="Örn: Üretim, Bakım, Boyahane..."
+                    value={form.new_department}
+                    onChange={(e) => setForm({...form, new_department: e.target.value, department_id: ''})}
+                  />
+                  <button type="button" className="secondary" disabled={busy || !form.new_department.trim()} onClick={addDepartmentQuick}>
+                    Kaydet
+                  </button>
+                </div>
+                <small style={{color: '#64748b'}}>Yeni adı yazıp Kaydet veya risk kaydında otomatik oluşturulur.</small>
               </div>
-            )}
-            <Field label="Etkilenen kişiler" value={form.affected_people} onChange={(e) => setForm({...form, affected_people: e.target.value})} />
-            <Select label="Etkilenen grup" value={form.affected_group} onChange={(e) => setForm({...form, affected_group: e.target.value})}>
-              {(meta?.affected_groups || ['Çalışan', 'Ziyaretçi', 'Müteahhit', 'Çevre']).map((g) => <option key={g}>{g}</option>)}
-            </Select>
-            <TextArea label="Mevcut önlemler" value={form.existing_measures} onChange={(e) => setForm({...form, existing_measures: e.target.value})} />
-            <TextArea label="Ek önlemler" value={form.additional_measures} onChange={(e) => setForm({...form, additional_measures: e.target.value})} />
-            <Select label="Olasılık (1-5)" value={form.probability} onChange={(e) => setForm({...form, probability: e.target.value})}>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>{n} — {(meta?.probability_labels || {})[n] || n}</option>
-              ))}
-            </Select>
-            <Select label="Şiddet (1-5)" value={form.severity} onChange={(e) => setForm({...form, severity: e.target.value})}>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>{n} — {(meta?.severity_labels || {})[n] || n}</option>
-              ))}
-            </Select>
-            {calc && (
-              <div className="field" style={{gridColumn: '1 / -1'}}>
-                <span>Hesaplanan risk</span>
-                <div style={{display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap'}}>
-                  <LevelBadge level={calc.risk_level} score={calc.risk_score} />
-                  <span>Termin: {calc.term_label} ({calc.term_date})</span>
+
+              <div className="field risk-form-span">
+                <span>Tehlike kütüphanesi seçimi (zorunlu)</span>
+                <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6}}>
+                  <button type="button" className="secondary" onClick={() => setLibOpen(true)}>
+                    <BookOpen size={16} /> Kütüphaneden Seç
+                  </button>
+                  {selectedHazard && (
+                    <span className="risk-hazard-chip">
+                      {selectedHazard.code} — {selectedHazard.name}
+                    </span>
+                  )}
                 </div>
               </div>
-            )}
-            {suggestions && (
-              <div className="field" style={{gridColumn: '1 / -1'}}>
-                <span>Öneri motoru (kategori)</span>
-                <ul style={{margin: 0, paddingLeft: 18, fontSize: 13}}>
-                  {(suggestions.ppe || []).slice(0, 3).map((x) => <li key={x}>KKD: {x}</li>)}
-                  {(suggestions.engineering_measures || []).slice(0, 2).map((x) => <li key={x}>Müh.: {x}</li>)}
-                </ul>
+
+              <Select label="Tehlike kategorisi" required value={form.category_id} onChange={(e) => setForm({...form, category_id: e.target.value, hazard_id: '', hazard_q: ''})}>
+                <option value="">Seçiniz ({categories.length} kategori)</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.hazard_count || 0})</option>
+                ))}
+              </Select>
+              <Field
+                label="Tehlike ara"
+                placeholder="FZK-001 veya gürültü..."
+                value={form.hazard_q}
+                onChange={(e) => setForm({...form, hazard_q: e.target.value})}
+                disabled={!form.category_id}
+              />
+              <Select
+                label="Tehlike"
+                required
+                value={form.hazard_id}
+                onChange={(e) => onHazardPick(e.target.value)}
+                style={{gridColumn: '1 / -1'}}
+              >
+                <option value="">Kütüphaneden seçiniz ({hazards.length})</option>
+                {hazards.map((h) => <option key={h.id} value={h.id}>{h.code} — {h.name}</option>)}
+              </Select>
+
+              <Field label="Faaliyet" required value={form.activity} onChange={(e) => setForm({...form, activity: e.target.value})} />
+              <TextArea label="Risk tanımı" required value={form.risk_definition} onChange={(e) => setForm({...form, risk_definition: e.target.value})} />
+              {fieldRole && open && (
+                <div className="field risk-hint-card risk-form-span">
+                  <span style={{display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700}}>
+                    <AlertTriangle size={16} /> Tehlike önerisi
+                    <span style={{fontWeight: 500, color: '#64748b', fontSize: 12}}>(anahtar kelime · onay sizde)</span>
+                  </span>
+                  {hintBusy && <p style={{margin: '8px 0 0', fontSize: 13, color: '#64748b'}}>Öneri hesaplanıyor…</p>}
+                  {!hintBusy && hazardHint?.matched && (
+                    <div style={{marginTop: 8, fontSize: 13}}>
+                      <div>
+                        Önerilen kategori: <strong>{hazardHint.suggested_category}</strong>
+                        {hazardHint.probability_hint != null && (
+                          <> · Olasılık ipucu: <strong>{hazardHint.probability_hint}/5</strong></>
+                        )}
+                        {hazardHint.confidence != null && (
+                          <span style={{color: '#64748b'}}> · güven {Math.round(hazardHint.confidence * 100)}%</span>
+                        )}
+                      </div>
+                      {(hazardHint.matched_keywords || []).length > 0 && (
+                        <div style={{marginTop: 4, color: '#475569'}}>
+                          Anahtarlar: {(hazardHint.matched_keywords || []).slice(0, 6).join(', ')}
+                        </div>
+                      )}
+                      {(hazardHint.suggested_photo_tags || []).length > 0 && (
+                        <div style={{marginTop: 4, color: '#0f766e'}}>
+                          Foto etiket ipucu: {(hazardHint.suggested_photo_tags || []).join(', ')}
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        className="secondary"
+                        style={{marginTop: 8}}
+                        onClick={() => applyHazardHint(hazardHint)}
+                      >
+                        Kategori ve olasılığı uygula
+                      </button>
+                      <p style={{margin: '6px 0 0', color: '#64748b', fontSize: 12}}>{hazardHint.note}</p>
+                    </div>
+                  )}
+                  {!hintBusy && hazardHint && !hazardHint.matched && (
+                    <p style={{margin: '8px 0 0', fontSize: 13, color: '#64748b'}}>{hazardHint.note || 'Eşleşme yok.'}</p>
+                  )}
+                  {!hintBusy && !hazardHint && (
+                    <p style={{margin: '8px 0 0', fontSize: 13, color: '#64748b'}}>
+                      Faaliyet veya risk tanımına yazdıkça kategori önerisi çıkar.
+                    </p>
+                  )}
+                </div>
+              )}
+              <Field label="Etkilenen kişiler" value={form.affected_people} onChange={(e) => setForm({...form, affected_people: e.target.value})} />
+              <Select label="Etkilenen grup" value={form.affected_group} onChange={(e) => setForm({...form, affected_group: e.target.value})}>
+                {(meta?.affected_groups || ['Çalışan', 'Ziyaretçi', 'Müteahhit', 'Çevre']).map((g) => <option key={g}>{g}</option>)}
+              </Select>
+              <TextArea label="Mevcut önlemler" value={form.existing_measures} onChange={(e) => setForm({...form, existing_measures: e.target.value})} />
+              <TextArea label="Ek önlemler" value={form.additional_measures} onChange={(e) => setForm({...form, additional_measures: e.target.value})} />
+              <Select label="Olasılık (1-5)" value={form.probability} onChange={(e) => setForm({...form, probability: e.target.value})}>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <option key={n} value={n}>{n} — {(meta?.probability_labels || {})[n] || n}</option>
+                ))}
+              </Select>
+              <Select label="Şiddet (1-5)" value={form.severity} onChange={(e) => setForm({...form, severity: e.target.value})}>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <option key={n} value={n}>{n} — {(meta?.severity_labels || {})[n] || n}</option>
+                ))}
+              </Select>
+              {suggestions && (
+                <div className="field risk-form-span">
+                  <span>Öneri motoru (kategori)</span>
+                  <ul style={{margin: 0, paddingLeft: 18, fontSize: 13}}>
+                    {(suggestions.ppe || []).slice(0, 3).map((x) => <li key={x}>KKD: {x}</li>)}
+                    {(suggestions.engineering_measures || []).slice(0, 2).map((x) => <li key={x}>Müh.: {x}</li>)}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <aside className="risk-form-score" aria-live="polite">
+              <div className="risk-score-card">
+                <div className={`risk-score-hero risk-score-${levelClass(calc?.risk_level)}`}>
+                  <span>Canlı skor</span>
+                  <strong>{calc?.risk_score ?? '—'}</strong>
+                  <em>{calc?.risk_level || 'Olasılık × şiddet'}</em>
+                </div>
+                <div className="risk-score-matrix">
+                  <p>5×5 matris</p>
+                  <RiskMatrixGuide probability={form.probability} severity={form.severity} />
+                </div>
+                <div className="risk-score-meta">
+                  <div>
+                    <span>Olasılık</span>
+                    <strong>{form.probability || '—'}</strong>
+                  </div>
+                  <div>
+                    <span>Şiddet</span>
+                    <strong>{form.severity || '—'}</strong>
+                  </div>
+                  <div>
+                    <span>Termin</span>
+                    <strong>{calc?.term_label || '—'}</strong>
+                  </div>
+                </div>
+                {calc?.term_date ? (
+                  <p className="risk-score-term">{calc.term_date}</p>
+                ) : null}
               </div>
-            )}
-            {err && <div className="error" style={{gridColumn: '1 / -1'}}>{err}</div>}
-            <div className="form-actions" style={{gridColumn: '1 / -1'}}>
-              <button type="submit">{editId ? 'Güncelle' : 'Kaydet'}</button>
+            </aside>
+
+            <div className="risk-form-footer">
+              {err && <div className="error">{err}</div>}
+              <div className="form-actions">
+                <button type="button" className="secondary" onClick={() => { setOpen(false); setEditId(null); setErr(''); setHazardHint(null); }}>
+                  Vazgeç
+                </button>
+                <button type="submit">{editId ? 'Güncelle' : 'Kaydet'}</button>
+              </div>
             </div>
           </form>
         </Modal>
