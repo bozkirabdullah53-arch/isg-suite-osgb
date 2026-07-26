@@ -1181,13 +1181,21 @@ export function RiskPage({user}) {
                               type="button"
                               className="mini"
                               onClick={() => {
-                                onHazardPick(h.id);
-                                openCreate();
-                                setForm((f) => ({
-                                  ...f,
-                                  category_id: String(h.category_id || form.category_id),
+                                setEditId(null);
+                                setErr('');
+                                setSuggestions(null);
+                                setForm({
+                                  ...empty,
+                                  company_id: reportCompanyId || user.company_id || companies[0]?.id || '',
+                                  category_id: String(h.category_id || ''),
                                   hazard_id: String(h.id),
-                                }));
+                                  risk_definition: h.description || h.name || '',
+                                  probability: h.default_probability || 3,
+                                  severity: h.default_severity || 3,
+                                });
+                                onHazardPick(h.id);
+                                setOpen(true);
+                                setTab('risks');
                               }}
                             >
                               Forma aktar
