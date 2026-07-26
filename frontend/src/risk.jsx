@@ -1,6 +1,21 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {AlertTriangle, BookOpen, Building2, ClipboardList, Download, LayoutDashboard, Plus, Search, X} from 'lucide-react';
+import {
+  AlertTriangle,
+  BookOpen,
+  Building2,
+  ClipboardList,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  LayoutDashboard,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  X,
+} from 'lucide-react';
 import {api, downloadFile, uploadFile, authBlobUrl} from './api';
+import './risk_pro.css';
 
 const LEVEL_COLORS = {
   'Kabul Edilebilir': '#95a5a6',
@@ -122,8 +137,45 @@ function AuthThumb({path, alt}) {
   );
 }
 
+function levelClass(level) {
+  if (level === 'Çok Yüksek') return 'critical';
+  if (level === 'Yüksek') return 'high';
+  if (level === 'Orta') return 'medium';
+  if (level === 'Düşük') return 'low';
+  return 'acceptable';
+}
+
+function RiskMatrixGuide({probability, severity}) {
+  const active = Number(probability) && Number(severity) ? Number(probability) * Number(severity) : null;
+  return (
+    <div className="risk-matrix-wrap">
+      <div className="risk-matrix" aria-label="5x5 risk matrisi">
+        <div className="risk-matrix-label">Ş\O</div>
+        {[1, 2, 3, 4, 5].map((p) => (
+          <div key={`p${p}`} className="risk-matrix-label">{p}</div>
+        ))}
+        {[1, 2, 3, 4, 5].map((s) => (
+          <React.Fragment key={`row${s}`}>
+            <div className="risk-matrix-label">{s}</div>
+            {[1, 2, 3, 4, 5].map((p) => {
+              const score = s * p;
+              const cls = score <= 9 ? 'low' : score <= 14 ? 'medium' : score <= 19 ? 'high' : 'critical';
+              const isActive = active === score && Number(severity) === s && Number(probability) === p;
+              return (
+                <div key={`${s}-${p}`} className={`risk-matrix-cell ${cls}${isActive ? ' active' : ''}`}>
+                  {score}
+                </div>
+              );
+            })}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function RiskPage({user}) {
-  const canEdit = ['global_admin', 'company_admin', 'safety_specialist'].includes(user.role);
+  const canEdit = ['global_admin', 'safety_specialist'].includes(user.role);
   const fieldRole = ['safety_specialist', 'workplace_physician', 'other_health_personnel'].includes(user.role);
   const empty = {
     company_id: user.company_id || '',
@@ -689,94 +741,468 @@ export function RiskPage({user}) {
 
   const selectedHazard = hazards.find((h) => String(h.id) === String(form.hazard_id));
   const totalHazards = categories.reduce((s, c) => s + (c.hazard_count || 0), 0);
+  const hazardCount = totalHazards;
+  const companyName =
+    companies.find((c) => String(c.id) === String(effectiveCompanyId))?.name ||
+    'İşyeri';
+  const companyHazard =
+    companies.find((c) => String(c.id) === String(effectiveCompanyId))?.hazard_class || '';
+
+  const priorityRisks = useMemo(() => {
+    return [...rows]
+      .filter((r) => (r.status || 'Açık') !== 'Tamamlandı' && (r.status || '') !== 'İptal')
+      .filter((r) => r.risk_level === 'Çok Yüksek' || r.risk_level === 'Yüksek')
+      .sort((a, b) => (b.risk_score || 0) - (a.risk_score || 0))
+      .slice(0, 8);
+  }, [rows]);
+
+  const recentRisks = useMemo(() => [...rows].slice(0, 8), [rows]);
+
+  async function refreshAll() {
+    setErr('');
+    try {
+      await Promise.all([
+        load(),
+        loadStats(effectiveCompanyId),
+        loadDofs(effectiveCompanyId),
+        loadDepartments(effectiveCompanyId),
+        api('/risks/categories').then(setCategories).catch(() => {}),
+      ]);
+    } catch (x) {
+      setErr(x.message || 'Yenileme başarısız');
+    }
+  }
+
+  const TABS = [
+    {id: 'panel', label: 'Risk Merkezi', Icon: LayoutDashboard},
+    {id: 'risks', label: 'Risk Kayıtları', Icon: AlertTriangle},
+    {id: 'library', label: 'Tehlike Kütüphanesi', Icon: BookOpen, count: hazardCount || null},
+    {id: 'dofs', label: 'Aksiyon Takibi', Icon: ClipboardList},
+    {id: 'reports', label: 'Raporlar', Icon: FileText},
+    {id: 'departments', label: 'Bölümler', Icon: Building2},
+  ];
 
   return (
-    <>
-      <div className="page-title">
-        <h3>Risk Analizi</h3>
-        <div className="actions">
-          <button className="secondary" type="button" onClick={() => setLibOpen(true)}>
-            <BookOpen size={16} /> Tehlike Kütüphanesi ({categories.length} kategori)
-          </button>
-          <button className="secondary" type="button" disabled={!!dlBusy} onClick={() => downloadReport('pdf')}>
-            <Download size={16} /> {dlBusy === 'pdf' ? 'PDF…' : 'PDF Rapor'}
-          </button>
-          <button className="secondary" type="button" disabled={!!dlBusy} onClick={() => downloadReport('xlsx')}>
-            <Download size={16} /> {dlBusy === 'xlsx' ? 'Excel…' : 'Excel Rapor'}
-          </button>
-          <button className="secondary" type="button" disabled={!!dlBusy} onClick={() => downloadReport('dof')}>
-            <Download size={16} /> {dlBusy === 'dof' ? 'DÖF…' : 'DÖF Excel'}
-          </button>
-          {canEdit && (
-            <button type="button" onClick={openCreate}>
-              <Plus /> Yeni Risk
-            </button>
-          )}
+    <div className="risk-pro-root risk-module-wrap">
+      <section className="risk-page-intro" style={{marginBottom: 12}}>
+        <div>
+          <div className="risk-eyebrow">Risk Değerlendirme Modülü</div>
+          <h1>Risk Değerlendirme</h1>
+          <p>Riskleri belirleyin, puanlayın, aksiyonları atayın ve denetlenebilir raporlar oluşturun.</p>
         </div>
-      </div>
-
-      <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14}}>
-        {[
-          ['panel', 'Ana Panel', LayoutDashboard],
-          ['risks', 'Riskler', AlertTriangle],
-          ['dofs', 'DÖF Listesi', ClipboardList],
-          ['departments', 'Bölümler', Building2],
-        ].map(([id, label, Icon]) => (
-          <button
-            key={id}
-            type="button"
-            className={tab === id ? '' : 'secondary'}
-            onClick={() => { setTab(id); setDetail(null); }}
-            style={{display: 'inline-flex', alignItems: 'center', gap: 8}}
-          >
-            <Icon size={16} /> {label}
+        <div className="risk-actions">
+          {!user.company_id && (
+            <select
+              value={reportCompanyId}
+              onChange={(e) => setReportCompanyId(e.target.value)}
+              style={{minWidth: 180, borderRadius: 10, padding: '8px 10px', border: '1px solid #cbdde1'}}
+            >
+              <option value="">Firma seçiniz</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+          <button type="button" className="btn btn-outline-primary" onClick={refreshAll}>
+            <RefreshCw size={15} /> Yenile
           </button>
-        ))}
-        {!user.company_id && (
-          <select
-            value={reportCompanyId}
-            onChange={(e) => setReportCompanyId(e.target.value)}
-            style={{minWidth: 180, marginLeft: 'auto', borderRadius: 10, padding: '8px 10px', border: '1px solid #cbdde1'}}
-          >
-            <option value="">Firma seçiniz</option>
-            {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+        </div>
+      </section>
+
+      <div className="risk-module-bar">
+        <div className="risk-module-tabs">
+          {TABS.map(({id, label, Icon, count}) => (
+            <button
+              key={id}
+              type="button"
+              className={`risk-module-tab${tab === id ? ' active' : ''}`}
+              onClick={() => { setTab(id); setDetail(null); }}
+            >
+              <Icon size={15} /> {label}
+              {count != null && count > 0 ? <span className="risk-tab-count">{count}</span> : null}
+            </button>
+          ))}
+        </div>
+        {canEdit && (
+          <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
+            <Plus size={15} /> Yeni Risk
+          </button>
         )}
       </div>
 
       {tab === 'panel' && !detail && (
-        <section className="panel" style={{marginBottom: 16}}>
-          <div className="welcome" style={{marginBottom: 16}}>
+        <>
+          <section className="risk-page-intro">
             <div>
-              <h3>Risk Değerlendirme Paneli</h3>
-              <p>PRO 2026 uyumlu özet: açık riskler, seviye dağılımı ve geciken DÖF kayıtları.</p>
-            </div>
-          </div>
-          <div className="cards">
-            <article className="metric"><span>Toplam Risk</span><strong>{stats?.total_risks ?? '—'}</strong></article>
-            <article className="metric"><span>Çok Yüksek</span><strong style={{color: '#e74c3c'}}>{stats?.very_high ?? '—'}</strong></article>
-            <article className="metric"><span>Açık DÖF</span><strong>{stats?.open_dofs ?? '—'}</strong></article>
-            <article className="metric"><span>Geciken DÖF</span><strong style={{color: '#b91c1c'}}>{stats?.overdue_dofs ?? '—'}</strong></article>
-          </div>
-          <div className="cards" style={{marginTop: 0}}>
-            <article className="metric"><span>Açık Risk</span><strong>{stats?.open_risks ?? '—'}</strong></article>
-            <article className="metric"><span>Yüksek</span><strong style={{color: '#f39c12'}}>{stats?.high ?? '—'}</strong></article>
-            <article className="metric"><span>Geciken Termin</span><strong>{stats?.overdue_terms ?? '—'}</strong></article>
-            <article className="metric"><span>7 Gün İçinde DÖF</span><strong>{stats?.due_soon_dofs ?? '—'}</strong></article>
-          </div>
-          {(stats?.departments || []).length > 0 && (
-            <div style={{marginTop: 8}}>
-              <h4 style={{marginTop: 0}}>Bölüm yoğunluğu</h4>
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: 8}}>
-                {stats.departments.slice(0, 12).map((d) => (
-                  <span key={d.name} style={{padding: '6px 10px', background: '#f1f5f9', borderRadius: 999, fontSize: 13}}>
-                    {d.name}: <strong>{d.count}</strong>
-                  </span>
-                ))}
+              <div className="risk-eyebrow">Risk Değerlendirme Çalışma Alanı</div>
+              <h1>Risk Merkezi</h1>
+              <p>Tehlikeleri, risk önceliklerini ve düzeltici faaliyetleri tek bir sade çalışma akışında yönetin.</p>
+              <div className="risk-scope-line">
+                <span className="risk-scope-chip"><Building2 size={13} /> {companyName}</span>
+                {companyHazard ? (
+                  <span className="risk-scope-chip"><ShieldAlert size={13} /> {companyHazard}</span>
+                ) : null}
+                <span className="risk-scope-chip"><LayoutDashboard size={13} /> 5×5 Matris</span>
               </div>
             </div>
-          )}
+            <div className="risk-actions">
+              <button type="button" className="btn btn-outline-primary" onClick={() => setTab('library')}>
+                <BookOpen size={15} /> Tehlike Kütüphanesi
+                {hazardCount ? <span className="btn-count">{hazardCount}</span> : null}
+              </button>
+              {canEdit && (
+                <button type="button" className="btn btn-primary" onClick={openCreate}>
+                  <Plus size={15} /> Yeni Risk Kaydı
+                </button>
+              )}
+            </div>
+          </section>
+
+          <button type="button" className="hazard-library-feature" onClick={() => setTab('library')}>
+            <div className="hazard-library-feature-icon"><BookOpen size={22} /></div>
+            <div className="hazard-library-feature-copy">
+              <div className="risk-eyebrow">Hazır Bilgi Kaynağı</div>
+              <h2>Tehlike Kütüphanesi</h2>
+              <p>
+                {categories.length || 43} kategori ve {hazardCount || 552} kodlanmış tehlike kaydı;
+                risk formuna doğrudan aktarılabilir.
+              </p>
+            </div>
+            <div className="hazard-library-feature-action">Kütüphaneyi Aç →</div>
+          </button>
+
+          <section className="risk-kpi-grid" aria-label="Risk özeti">
+            <div className="risk-kpi">
+              <div className="risk-kpi-icon"><ClipboardList size={18} /></div>
+              <div>
+                <div className="risk-kpi-value">{stats?.total_risks ?? 0}</div>
+                <div className="risk-kpi-label">Toplam risk kaydı</div>
+                <div className="risk-kpi-note">{stats?.open_risks ?? 0} açık</div>
+              </div>
+            </div>
+            <div className="risk-kpi critical">
+              <div className="risk-kpi-icon"><ShieldAlert size={18} /></div>
+              <div>
+                <div className="risk-kpi-value">{stats?.very_high ?? 0}</div>
+                <div className="risk-kpi-label">Çok yüksek risk</div>
+                <div className="risk-kpi-note">Acil öncelik</div>
+              </div>
+            </div>
+            <div className="risk-kpi warning">
+              <div className="risk-kpi-icon"><ClipboardList size={18} /></div>
+              <div>
+                <div className="risk-kpi-value">{stats?.open_dofs ?? 0}</div>
+                <div className="risk-kpi-label">Açık aksiyon / DÖF</div>
+                <div className="risk-kpi-note">{stats?.due_soon_dofs ?? 0} kayıt 7 gün içinde</div>
+              </div>
+            </div>
+            <div className={`risk-kpi ${(stats?.overdue_dofs || 0) > 0 ? 'critical' : 'success'}`}>
+              <div className="risk-kpi-icon"><AlertTriangle size={18} /></div>
+              <div>
+                <div className="risk-kpi-value">{stats?.overdue_dofs ?? 0}</div>
+                <div className="risk-kpi-label">Geciken termin</div>
+                <div className="risk-kpi-note">{stats?.overdue_terms ?? 0} risk termin gecikmesi</div>
+              </div>
+            </div>
+          </section>
+
+          <section className="risk-work-grid">
+            <article className="risk-panel">
+              <div className="risk-panel-head">
+                <div>
+                  <h2>Öncelikli Riskler</h2>
+                  <p>Skor ve termin durumuna göre ilk müdahale edilmesi gereken kayıtlar</p>
+                </div>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setTab('risks')}>
+                  Tüm riskler →
+                </button>
+              </div>
+              <div className="risk-priority-list">
+                {priorityRisks.length ? priorityRisks.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    className={`risk-priority-item${r.risk_level === 'Yüksek' ? ' high' : ''}`}
+                    onClick={() => openDetail(r.id)}
+                  >
+                    <div className="risk-priority-mark">{r.risk_score}</div>
+                    <div>
+                      <div className="risk-priority-title">{r.activity}</div>
+                      <div className="risk-priority-meta">
+                        {r.risk_code} · {r.department_name || 'Bölüm belirtilmedi'}
+                        {r.hazard_name ? ` · ${r.hazard_name}` : ''}
+                      </div>
+                    </div>
+                    <div style={{textAlign: 'right'}}>
+                      <span className={`risk-level-badge risk-level-${levelClass(r.risk_level)}`}>
+                        {r.risk_level}
+                      </span>
+                      {r.term_date ? (
+                        <div className="risk-priority-meta" style={{marginTop: 4}}>
+                          {r.term_date}
+                          {isOverdueDate(r.term_date) ? ' · Gecikti' : ''}
+                        </div>
+                      ) : null}
+                    </div>
+                  </button>
+                )) : (
+                  <div className="risk-empty">
+                    <div>
+                      <h3>Öncelikli açık risk bulunmuyor</h3>
+                      <p>Yeni kayıt ekleyebilir veya mevcut kayıtları risk listesinden inceleyebilirsiniz.</p>
+                      {canEdit && (
+                        <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
+                          İlk riski ekle
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </article>
+
+            <aside className="risk-panel">
+              <div className="risk-panel-head">
+                <div>
+                  <h2>5×5 Risk Matrisi</h2>
+                  <p>Olasılık × şiddet puanlama rehberi</p>
+                </div>
+              </div>
+              <RiskMatrixGuide />
+              <div className="risk-distribution">
+                {[
+                  ['Çok yüksek', stats?.very_high || stats?.levels?.['Çok Yüksek'] || 0, '#c7362f'],
+                  ['Yüksek', stats?.high || stats?.levels?.Yüksek || 0, '#cf7900'],
+                  ['Orta', stats?.levels?.Orta || 0, '#c3a218'],
+                  ['Düşük / Kabul', (stats?.levels?.Düşük || 0) + (stats?.levels?.['Kabul Edilebilir'] || 0), '#16815d'],
+                ].map(([label, count, color]) => {
+                  const den = Math.max(stats?.total_risks || 1, 1);
+                  return (
+                    <div key={label} className="risk-distribution-row">
+                      <span>{label}</span>
+                      <div className="risk-progress">
+                        <span style={{width: `${Math.round((count * 100) / den)}%`, background: color}} />
+                      </div>
+                      <strong>{count}</strong>
+                    </div>
+                  );
+                })}
+              </div>
+            </aside>
+          </section>
+
+          <section className="risk-work-grid">
+            <article className="risk-panel">
+              <div className="risk-panel-head">
+                <div>
+                  <h2>Son Risk Kayıtları</h2>
+                  <p>En son eklenen ve güncel çalışma bekleyen kayıtlar</p>
+                </div>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setTab('risks')}>
+                  Listeyi aç
+                </button>
+              </div>
+              {recentRisks.length ? (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Kayıt</th>
+                        <th>Faaliyet / Tehlike</th>
+                        <th>Skor</th>
+                        <th>Termin</th>
+                        <th>Durum</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {recentRisks.map((r) => (
+                        <tr key={r.id} onClick={() => openDetail(r.id)} style={{cursor: 'pointer'}}>
+                          <td>
+                            <strong>{r.risk_code}</strong>
+                            <div style={{fontSize: 12, color: '#64748b'}}>{r.department_name || '—'}</div>
+                          </td>
+                          <td>
+                            <div>{r.activity}</div>
+                            <div style={{fontSize: 12, color: '#64748b'}}>{r.hazard_name || '—'}</div>
+                          </td>
+                          <td>
+                            <span className={`risk-level-badge risk-level-${levelClass(r.risk_level)}`}>
+                              {r.risk_score} · {r.risk_level}
+                            </span>
+                          </td>
+                          <td>{r.term_date || '—'}</td>
+                          <td>{r.status || 'Açık'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="risk-empty">
+                  <div>
+                    <h3>Henüz risk kaydı yok</h3>
+                    <p>İlk risk kaydını oluşturarak değerlendirme sürecini başlatın.</p>
+                    {canEdit && (
+                      <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
+                        Yeni risk kaydı
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </article>
+
+            <aside className="risk-panel">
+              <div className="risk-panel-head">
+                <div>
+                  <h2>Bölüm Yoğunluğu</h2>
+                  <p>Risk kayıtlarının işyeri bölümlerine dağılımı</p>
+                </div>
+              </div>
+              <div className="risk-distribution">
+                {(stats?.departments || []).length ? (stats.departments.slice(0, 8).map((d) => {
+                  const max = Math.max(...stats.departments.map((x) => x.count || 0), 1);
+                  return (
+                    <div key={d.name} className="risk-distribution-row">
+                      <span title={d.name}>{String(d.name).slice(0, 18)}</span>
+                      <div className="risk-progress">
+                        <span style={{width: `${Math.round(((d.count || 0) * 100) / max)}%`}} />
+                      </div>
+                      <strong>{d.count}</strong>
+                    </div>
+                  );
+                })) : (
+                  <div className="risk-empty" style={{minHeight: 150}}>
+                    <div>
+                      <h3>Bölüm verisi yok</h3>
+                      <p>Firma bölümleri oluşturulduğunda dağılım burada görünür.</p>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setTab('departments')}>
+                        Bölümleri yönet
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </aside>
+          </section>
           {err && <div className="error" style={{marginTop: 12}}>{err}</div>}
+        </>
+      )}
+
+      {tab === 'reports' && !detail && (
+        <section>
+          <section className="risk-page-intro">
+            <div>
+              <div className="risk-eyebrow">Çıktılar</div>
+              <h1>Raporlar</h1>
+              <p>Firma risk değerlendirme PDF/Excel çıktıları ve DÖF listesi.</p>
+            </div>
+          </section>
+          <div className="risk-report-grid">
+            <article className="risk-report-card">
+              <h3>Risk PDF Raporu</h3>
+              <p>İşyeri risk kayıtlarını, skorları ve DÖF özetlerini yazdırılabilir PDF olarak indirin.</p>
+              <button type="button" className="btn btn-primary" disabled={!!dlBusy} onClick={() => downloadReport('pdf')}>
+                <Download size={15} /> {dlBusy === 'pdf' ? 'Hazırlanıyor…' : 'PDF İndir'}
+              </button>
+            </article>
+            <article className="risk-report-card">
+              <h3>Risk Excel Raporu</h3>
+              <p>Risk matrisi, DÖF listesi ve istatistik sayfalarını içeren çalışma kitabı.</p>
+              <button type="button" className="btn btn-primary" disabled={!!dlBusy} onClick={() => downloadReport('xlsx')}>
+                <FileSpreadsheet size={15} /> {dlBusy === 'xlsx' ? 'Hazırlanıyor…' : 'Excel İndir'}
+              </button>
+            </article>
+            <article className="risk-report-card">
+              <h3>DÖF Excel Listesi</h3>
+              <p>Yalnızca düzeltici / önleyici faaliyet kayıtlarını ayrı Excel olarak alın.</p>
+              <button type="button" className="btn btn-primary" disabled={!!dlBusy} onClick={() => downloadReport('dof')}>
+                <ClipboardList size={15} /> {dlBusy === 'dof' ? 'Hazırlanıyor…' : 'DÖF Excel'}
+              </button>
+            </article>
+          </div>
+        </section>
+      )}
+
+      {tab === 'library' && !detail && (
+        <section>
+          <section className="risk-page-intro">
+            <div>
+              <div className="risk-eyebrow">Hazır Bilgi Kaynağı</div>
+              <h1>Tehlike Kütüphanesi</h1>
+              <p>{categories.length} kategori · {hazardCount || '—'} tehlike. Kayıt formuna doğrudan aktarılır.</p>
+            </div>
+            <div className="risk-actions">
+              {canEdit && (
+                <button type="button" className="btn btn-outline-primary" disabled={busy} onClick={seedLibrary}>
+                  Kütüphaneyi Senkronize Et
+                </button>
+              )}
+            </div>
+          </section>
+          {libMsg && <div className="ok" style={{marginBottom: 12}}>{libMsg}</div>}
+          <div className="risk-lib-grid">
+            <div className="risk-lib-cats">
+              {categories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`risk-lib-cat${String(form.category_id) === String(c.id) ? ' active' : ''}`}
+                  onClick={() => setForm((f) => ({...f, category_id: String(c.id), hazard_id: '', hazard_q: ''}))}
+                >
+                  <span>{c.name}</span>
+                  <strong>{c.hazard_count ?? 0}</strong>
+                </button>
+              ))}
+              {!categories.length && (
+                <div className="risk-empty" style={{minHeight: 120}}>
+                  <p>Kategori yok. Senkronize edin.</p>
+                </div>
+              )}
+            </div>
+            <div className="risk-panel">
+              <div className="risk-panel-head">
+                <div>
+                  <h2>Tehlikeler</h2>
+                  <p>Kategori seçin, tehlike kaydına tıklayarak yeni risk formuna aktarın.</p>
+                </div>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>Kod</th><th>Ad</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {hazards.length ? hazards.map((h) => (
+                      <tr key={h.id}>
+                        <td>{h.code}</td>
+                        <td>{h.name}</td>
+                        <td>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              className="mini"
+                              onClick={() => {
+                                onHazardPick(h.id);
+                                openCreate();
+                                setForm((f) => ({
+                                  ...f,
+                                  category_id: String(h.category_id || form.category_id),
+                                  hazard_id: String(h.id),
+                                }));
+                              }}
+                            >
+                              Forma aktar
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr><td colSpan={3} className="empty">Kategori seçin veya ara.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </section>
       )}
 
@@ -1501,6 +1927,6 @@ export function RiskPage({user}) {
           )}
         </section>
       )}
-    </>
+    </div>
   );
 }
