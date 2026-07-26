@@ -379,12 +379,18 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     sub_status = None
     write_ok = True
     if not is_eisa:
-        oid = resolve_user_osgb_id(db, user)
-        if oid:
-            sub = get_or_create_subscription(db, oid)
-            eff = effective_subscription_status(sub)
-            sub_status = eff.value
-            write_ok = subscription_allows_write(sub)
+        try:
+            oid = resolve_user_osgb_id(db, user)
+            if oid:
+                sub = get_or_create_subscription(db, oid)
+                eff = effective_subscription_status(sub)
+                sub_status = eff.value
+                write_ok = subscription_allows_write(sub)
+        except Exception:
+            # Lokal/eski kayıtlarda enum uyumsuzluğu oturumu düşürmesin
+            logger.exception("auth/me subscription lookup failed user_id=%s", getattr(user, "id", None))
+            sub_status = None
+            write_ok = True
     return CurrentUserResponse(
         id=user.id,
         email=user.email,

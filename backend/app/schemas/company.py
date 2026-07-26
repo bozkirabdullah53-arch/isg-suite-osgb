@@ -85,4 +85,10 @@ class CompanyResponse(BaseModel):
     authorized_person: str | None = None
     is_active: bool
     osgb_id: int | None = None
+    login_account: dict | None = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class CompanyCreateResponse(CompanyResponse):
+    """Oluşturma yanıtı — kiosk giriş bilgisi dahil."""
+    pass

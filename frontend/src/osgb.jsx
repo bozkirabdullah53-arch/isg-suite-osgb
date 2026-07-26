@@ -46,13 +46,19 @@ function fmtGps(row){
 function parseSiteInput(raw){
   const text=String(raw||'').trim();
   if(!text) return '';
-  const prefix='ISGSUITE:WP:';
-  if(text.toUpperCase().startsWith(prefix)){
-    const tail=text.slice(prefix.length);
-    const parts=tail.split(':');
-    if(parts.length>=2) return parts.slice(1).join(':').replace(/[^A-Za-z0-9]/g,'').toUpperCase();
-  }
+  const upper=text.toUpperCase();
+  // Kalıcı veya geçici işyeri QR payload'unu olduğu gibi bırak (backend parse eder)
+  if(upper.startsWith('ISGSUITE:WPTEMP:')||upper.startsWith('ISGSUITE:WP:')) return text;
   return text.replace(/[^A-Za-z0-9]/g,'').toUpperCase();
+}
+
+function fmtCheckTime(iso){
+  if(!iso) return '—';
+  try{
+    const d=new Date(iso.endsWith('Z')||iso.includes('+')?iso:iso+'Z');
+    if(Number.isNaN(d.getTime())) return String(iso).slice(11,16)||'—';
+    return d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+  }catch{return '—'}
 }
 
 function SignaturePad({onChange}){
@@ -1160,13 +1166,15 @@ export function VisitsPage({user}){
  const[open,setOpen]=useState(false),[planOpen,setPlanOpen]=useState(false),[verifyOpen,setVerifyOpen]=useState(false),[verifyVisitId,setVerifyVisitId]=useState(null),[verifyCode,setVerifyCode]=useState(''),[signatureData,setSignatureData]=useState(null),[editing,setEditing]=useState(null),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
  const[notebookFile,setNotebookFile]=useState(null);
  const[siteVerifyInput,setSiteVerifyInput]=useState('');
+ const[kioskQrInput,setKioskQrInput]=useState('');
+ const[kioskMsg,setKioskMsg]=useState('');
+ const emptyForm={osgb_id:'',company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''};
+ const emptyPlan={osgb_id:'',company_id:'',professional_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Planlı saha ziyareti',notes:''};
+ const[form,setForm]=useState(emptyForm),[planForm,setPlanForm]=useState(emptyPlan);
  const offlineCtx=()=>offlineScope(user,orgs,form.osgb_id);
  const[offlineQueue,setOfflineQueue]=useState([]);
  const refreshOffline=()=>setOfflineQueue(listOfflineCompletes(offlineCtx()));
  useEffect(()=>{refreshOffline()},[user?.id,user?.osgb_id,form.osgb_id,orgs]);
- const emptyForm={osgb_id:'',company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''};
- const emptyPlan={osgb_id:'',company_id:'',professional_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Planlı saha ziyareti',notes:''};
- const[form,setForm]=useState(emptyForm),[planForm,setPlanForm]=useState(emptyPlan);
  const weekday=['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
  async function loadCalendar(oid){
   try{
@@ -1355,6 +1363,28 @@ export function VisitsPage({user}){
   }catch(ex){setErr(ex.message||'Plan kaydedilemedi.')}
   finally{setBusy(false)}
  }
+ async function scanPresence(mode){
+  setErr('');setKioskMsg('');setBusy(true);
+  try{
+   const code=parseSiteInput(kioskQrInput);
+   if(!code) throw new Error('İşyeri QR kodunu okutun veya yapıştırın.');
+   let gps=null;
+   try{gps=await captureGps(8000)}catch(_){gps=null}
+   const body={site_verify_code:code};
+   if(gps?.gps_lat!=null){body.gps_lat=gps.gps_lat;body.gps_lng=gps.gps_lng;body.gps_accuracy_m=gps.gps_accuracy_m}
+   const path=mode==='out'?'/operations/visits/check-out':'/operations/visits/check-in';
+   const res=await api(path,{method:'POST',body:JSON.stringify(body)});
+   setKioskQrInput('');
+   const name=companies.find(x=>x.id===res.company_id)?.name||`İşyeri #${res.company_id}`;
+   if(mode==='out'){
+    setKioskMsg(`Çıkış kaydedildi — ${name}: ${res.duration_minutes||0} dk (${res.start_time||'—'}–${res.end_time||'—'})`);
+   }else{
+    setKioskMsg(`Giriş kaydedildi — ${name} · ${res.start_time||fmtCheckTime(res.checked_in_at)}`);
+   }
+   await load(form.osgb_id);
+  }catch(ex){setErr(ex.message||'QR işlem başarısız.')}
+  finally{setBusy(false)}
+ }
  const filteredRows=selectedDay?rows.filter(r=>r.visit_date===selectedDay):rows;
  const calDays=cal?.days||[];
  const padStart=calDays.length?((calDays[0].weekday+6)%7):0;
@@ -1378,6 +1408,19 @@ export function VisitsPage({user}){
       {offlineQueue.length>0&&<button type="button" className="mini secondary" disabled={busy} onClick={syncOffline}>Senkron ({offlineQueue.length})</button>}
       <button type="button" className="mini" disabled={busy} onClick={openCreate}>+ Hızlı kayıt</button>
      </div>
+    </div>
+    <div style={{marginBottom:12,padding:12,borderRadius:12,border:'1px solid #99f6e4',background:'#f0fdfa'}}>
+     <strong style={{display:'block',marginBottom:6,fontSize:14}}>İşyeri QR — Giriş / Çıkış</strong>
+     <p style={{margin:'0 0 8px',color:'#475569',fontSize:13}}>İşyerindeki kiosk QR’ını yapıştırın. Girişte bir, çıkışta bir okutun; süre otomatik yazılır.</p>
+     <label className="field" style={{marginBottom:8}}>
+      <span>QR / kod</span>
+      <input value={kioskQrInput} onChange={e=>setKioskQrInput(e.target.value)} placeholder="ISGSUITE:WPTEMP:… veya ISGSUITE:WP:…" autoComplete="off"/>
+     </label>
+     <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+      <button type="button" className="mini" disabled={busy} onClick={()=>scanPresence('in')}>Giriş (QR)</button>
+      <button type="button" className="mini secondary" disabled={busy} onClick={()=>scanPresence('out')}>Çıkış (QR)</button>
+     </div>
+     {kioskMsg&&<p style={{margin:'8px 0 0',color:'#0f766e',fontSize:13}}>{kioskMsg}</p>}
     </div>
     {offlineQueue.length>0&&(
      <div style={{marginBottom:10,padding:'10px 12px',borderRadius:10,background:'#fff7ed',color:'#9a3412',fontSize:13}}>
@@ -1481,9 +1524,11 @@ export function VisitsPage({user}){
    {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||r.company_id},
    ...(!isField?[{k:'professional_id',l:'Profesyonel',f:r=>pros.find(x=>x.id===r.professional_id)?.full_name||r.professional_id}]:[]),
    {k:'subject',l:'Konu'},
+   {k:'checked_in_at',l:'Giriş',f:r=>r.start_time||fmtCheckTime(r.checked_in_at)},
+   {k:'checked_out_at',l:'Çıkış',f:r=>r.end_time||fmtCheckTime(r.checked_out_at)},
    {k:'notebook_file_name',l:'Tespit Defteri',f:r=>r.notebook_file_name?<button type="button" className="mini" onClick={()=>downloadNotebook(r)}>{r.notebook_file_name}</button>:'—'},
    {k:'duration_minutes',l:'Süre (dk.)'},
-   {k:'status',l:'Durum'},
+   {k:'status',l:'Durum',f:r=>r.checked_in_at&&!r.checked_out_at?'Sahada':r.status},
    {k:'gps',l:'GPS',f:r=>fmtGps(r)},
    {k:'site',l:'QR',f:r=>r.site_verified_at?'✓':'—'},
    {k:'sig',l:'İmza',f:r=>r.signature_captured_at?'✓':'—'},

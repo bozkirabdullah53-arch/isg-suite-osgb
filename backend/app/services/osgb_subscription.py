@@ -62,6 +62,24 @@ def find_osgb_by_credentials(
 
 
 def get_or_create_subscription(db: Session, osgb_id: int) -> OsgbSubscription:
+    from sqlalchemy import text
+
+    # SQLite/eski kayıtlarda enum VALUE ('standard') ile NAME ('STANDARD') karışabiliyor.
+    # Bu projedeki Enum tanımı NAME bekliyor; okumadan önce normalize et.
+    try:
+        db.execute(
+            text(
+                "UPDATE osgb_subscriptions SET "
+                "plan = CASE WHEN lower(plan)='standard' THEN 'STANDARD' ELSE plan END, "
+                "status = upper(status) "
+                "WHERE osgb_id = :oid"
+            ),
+            {"oid": int(osgb_id)},
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+
     sub = db.scalar(select(OsgbSubscription).where(OsgbSubscription.osgb_id == osgb_id))
     if sub:
         return sub

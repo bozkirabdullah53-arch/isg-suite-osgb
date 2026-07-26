@@ -752,6 +752,8 @@ class ServiceVisit(Base):
     gps_accuracy_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     gps_captured_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     site_verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    checked_in_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    checked_out_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     signature_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     signature_storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     signature_captured_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

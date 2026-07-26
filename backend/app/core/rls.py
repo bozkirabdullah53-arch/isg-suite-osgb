@@ -17,6 +17,9 @@ from app.models.entities import User, UserRole
 
 
 def _set(db: Session, key: str, value: str) -> None:
+    bind = db.get_bind()
+    if bind is None or bind.dialect.name != "postgresql":
+        return
     db.execute(text("SELECT set_config(:k, :v, true)"), {"k": key, "v": value})
 
 

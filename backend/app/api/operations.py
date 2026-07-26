@@ -17,12 +17,18 @@ from app.models.entities import (AssignmentStatus, ChemicalProduct, Company, Crm
                                  IsgProfessional, OsgbOrganization, ServiceContract, ServiceVisit, User,
                                  UserRole, VisitStatus, WorkplaceAssignment)
 from app.schemas.operations import (FinanceCreate, FinanceResponse, FinanceUpdate, LeadCreate, LeadResponse, LeadUpdate,
-                                    VisitCreate, VisitGpsStamp, VisitPlanCreate, VisitResponse, VisitUpdate)
+                                    VisitCheckStamp, VisitCreate, VisitGpsStamp, VisitPlanCreate, VisitResponse, VisitUpdate)
 from app.services.crm_convert import convert_lead_to_contract
 from app.services.finance_accrual import accrue_month_for_osgb
 from app.services.visit_calendar import build_visit_calendar
 from app.services.module_kpis import build_module_kpis
-from app.services.site_verify import codes_match, consume_ephemeral_token, ensure_company_site_verify_code
+from app.services.site_verify import (
+    codes_match,
+    consume_ephemeral_token,
+    ensure_company_site_verify_code,
+    resolve_company_from_site_code,
+    validate_ephemeral_token,
+)
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 
@@ -71,6 +77,53 @@ def _apply_site_verify(db: Session, obj: ServiceVisit, company: Company | None, 
         obj.site_verified_at = datetime.utcnow()
         return
     raise HTTPException(400, "QR kodu bu işyeri ile eşleşmiyor veya süresi dolmuş.")
+
+
+def _verify_site_presence(db: Session, company: Company, raw_code: str | None):
+    """Kiosk giriş/çıkış — ephemeral consume edilmez (aynı TTL içinde yeniden kullanılır)."""
+    ensure_company_site_verify_code(db, company)
+    if not raw_code or not str(raw_code).strip():
+        raise HTTPException(422, "İşyeri QR doğrulama kodu gerekli.")
+    if codes_match(company.site_verify_code, raw_code):
+        return
+    if validate_ephemeral_token(db, company.id, raw_code):
+        return
+    raise HTTPException(400, "QR kodu bu işyeri ile eşleşmiyor veya süresi dolmuş.")
+
+
+def _require_field_assignment(db: Session, user: User, company_id: int) -> IsgProfessional:
+    pro = find_professional_for_user(db, user)
+    if not pro:
+        raise HTTPException(
+            400,
+            "Profesyonel kaydınız bulunamadı. Kullanıcı e-postanızın İSG Profesyonelleri kaydıyla aynı olduğundan emin olun.",
+        )
+    assign = db.scalar(
+        select(WorkplaceAssignment).where(
+            WorkplaceAssignment.professional_id == pro.id,
+            WorkplaceAssignment.company_id == company_id,
+            WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+        ).order_by(WorkplaceAssignment.id).limit(1)
+    )
+    if not assign:
+        raise HTTPException(403, "Bu işyerine aktif görevlendirmeniz yok.")
+    return pro
+
+
+def _open_checkin_visit(db: Session, professional_id: int, company_id: int) -> ServiceVisit | None:
+    return db.scalar(
+        select(ServiceVisit).where(
+            ServiceVisit.professional_id == professional_id,
+            ServiceVisit.company_id == company_id,
+            ServiceVisit.checked_in_at.is_not(None),
+            ServiceVisit.checked_out_at.is_(None),
+            ServiceVisit.status != VisitStatus.CANCELLED,
+        ).order_by(ServiceVisit.id.desc()).limit(1)
+    )
+
+
+def _hhmm(dt: datetime) -> str:
+    return dt.strftime("%H:%M")
 
 
 _DATA_URL_RE = re.compile(r"^data:image/(png|jpeg|jpg);base64,(.+)$", re.IGNORECASE | re.DOTALL)
@@ -447,6 +500,83 @@ def visits_calendar(
             else:
                 data[key] = [r for r in data.get(key, []) if r.get("professional_id") == pid]
     return data
+
+
+@router.post("/visits/check-in", response_model=VisitResponse)
+def check_in_visit(
+    payload: VisitCheckStamp,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*FIELD_VISIT_ROLES)),
+):
+    """İşyeri QR ile saha girişi — açık ziyaret oluşturur / süre sayacı başlar."""
+    company = resolve_company_from_site_code(db, payload.site_verify_code)
+    if not company:
+        raise HTTPException(400, "QR kodu bu işyeri ile eşleşmiyor veya süresi dolmuş.")
+    if not company.osgb_id:
+        raise HTTPException(400, "İşyeri bir OSGB'ye bağlı değil.")
+    ensure_company_access(db, user, company.id)
+    pro = _require_field_assignment(db, user, company.id)
+    open_visit = _open_checkin_visit(db, pro.id, company.id)
+    if open_visit:
+        raise HTTPException(409, "Bu işyerinde zaten açık bir girişiniz var. Önce çıkış yapın.")
+
+    _verify_site_presence(db, company, payload.site_verify_code)
+    now = datetime.utcnow()
+    if user.role in _FIELD_ROLES and not user.osgb_id and pro.osgb_id:
+        user.osgb_id = pro.osgb_id
+    obj = ServiceVisit(
+        osgb_id=company.osgb_id,
+        company_id=company.id,
+        professional_id=pro.id,
+        visit_date=now.date(),
+        start_time=_hhmm(now),
+        end_time=None,
+        duration_minutes=0,
+        subject="Saha ziyareti (QR giriş)",
+        notes=None,
+        status=VisitStatus.PLANNED,
+        checked_in_at=now,
+        site_verified_at=now,
+    )
+    _apply_gps_stamp(obj, payload.gps_lat, payload.gps_lng, payload.gps_accuracy_m)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+
+@router.post("/visits/check-out", response_model=VisitResponse)
+def check_out_visit(
+    payload: VisitCheckStamp,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*FIELD_VISIT_ROLES)),
+):
+    """İşyeri QR ile saha çıkışı — süre hesaplanır; defter/imza ayrı kalabilir."""
+    company = resolve_company_from_site_code(db, payload.site_verify_code)
+    if not company:
+        raise HTTPException(400, "QR kodu bu işyeri ile eşleşmiyor veya süresi dolmuş.")
+    ensure_company_access(db, user, company.id)
+    pro = _require_field_assignment(db, user, company.id)
+    obj = _open_checkin_visit(db, pro.id, company.id)
+    if not obj:
+        raise HTTPException(404, "Açık giriş bulunamadı. Önce QR ile giriş yapın.")
+
+    _verify_site_presence(db, company, payload.site_verify_code)
+    now = datetime.utcnow()
+    if obj.checked_in_at and now < obj.checked_in_at:
+        raise HTTPException(400, "Çıkış saati girişten önce olamaz.")
+    obj.checked_out_at = now
+    obj.end_time = _hhmm(now)
+    if not obj.start_time and obj.checked_in_at:
+        obj.start_time = _hhmm(obj.checked_in_at)
+    delta = now - (obj.checked_in_at or now)
+    obj.duration_minutes = max(0, int(delta.total_seconds() // 60))
+    obj.site_verified_at = now
+    obj.status = VisitStatus.COMPLETED
+    _apply_gps_stamp(obj, payload.gps_lat, payload.gps_lng, payload.gps_accuracy_m)
+    db.commit()
+    db.refresh(obj)
+    return obj
 
 
 @router.post("/visits/plan", response_model=VisitResponse)

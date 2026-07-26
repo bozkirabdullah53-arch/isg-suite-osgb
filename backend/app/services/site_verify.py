@@ -68,6 +68,27 @@ def parse_ephemeral(raw: str) -> tuple[int | None, str]:
     return None, ""
 
 
+def parse_permanent(raw: str) -> tuple[int | None, str]:
+    """Döner: (company_id|None, code). Payload yoksa (None, normalize edilmiş kod)."""
+    text = (raw or "").strip()
+    if not text:
+        return None, ""
+    upper = text.upper()
+    if upper.startswith(QR_TEMP_PREFIX):
+        return None, ""
+    if upper.startswith(QR_PREFIX):
+        tail = text[len(QR_PREFIX) :]
+        parts = tail.split(":", 1)
+        if len(parts) == 2:
+            try:
+                cid = int(parts[0].strip())
+            except ValueError:
+                return None, ""
+            code = re.sub(r"[^A-Za-z0-9]", "", parts[1]).upper()
+            return cid, code
+    return None, parse_site_code(text)
+
+
 def ensure_company_site_verify_code(db: Session, company) -> str:
     """Eksik kalıcı kodu üret (P0-05 fail-closed sonrası saha kırılmasını önler)."""
     existing = (getattr(company, "site_verify_code", None) or "").strip()
@@ -126,18 +147,18 @@ def create_ephemeral_session(
     return row
 
 
-def consume_ephemeral_token(db: Session, company_id: int, raw: str | None) -> bool:
-    """Geçerli geçici QR ise used_at işaretler ve True döner."""
+def _find_active_ephemeral(db: Session, company_id: int, raw: str | None):
+    """Aktif (süresi dolmamış, iptal/kullanılmamış) ephemeral oturum veya None."""
     from app.models.entities import SiteQrSession
 
     parsed_cid, token = parse_ephemeral(raw or "")
     if not token:
-        return False
+        return None
     if parsed_cid is not None and parsed_cid != company_id:
-        return False
+        return None
 
     now = datetime.utcnow()
-    row = db.scalar(
+    return db.scalar(
         select(SiteQrSession).where(
             SiteQrSession.company_id == company_id,
             SiteQrSession.token == token,
@@ -146,7 +167,40 @@ def consume_ephemeral_token(db: Session, company_id: int, raw: str | None) -> bo
             SiteQrSession.expires_at > now,
         )
     )
+
+
+def validate_ephemeral_token(db: Session, company_id: int, raw: str | None) -> bool:
+    """Geçerli geçici QR — used_at yazmaz (kiosk giriş/çıkış aynı kodu paylaşır)."""
+    return _find_active_ephemeral(db, company_id, raw) is not None
+
+
+def consume_ephemeral_token(db: Session, company_id: int, raw: str | None) -> bool:
+    """Geçerli geçici QR ise used_at işaretler ve True döner (resmi ziyaret tamamlama)."""
+    row = _find_active_ephemeral(db, company_id, raw)
     if not row:
         return False
-    row.used_at = now
+    row.used_at = datetime.utcnow()
     return True
+
+
+def resolve_company_from_site_code(db: Session, raw: str | None):
+    """QR'dan Company bulur. Kalıcı veya aktif ephemeral kabul eder (consume yok)."""
+    from app.models.entities import Company
+
+    text = (raw or "").strip()
+    if not text:
+        return None
+
+    eph_cid, eph_token = parse_ephemeral(text)
+    if eph_token and eph_cid is not None:
+        company = db.get(Company, eph_cid)
+        if company and validate_ephemeral_token(db, company.id, text):
+            return company
+
+    perm_cid, perm_code = parse_permanent(text)
+    if perm_cid is not None and perm_code:
+        company = db.get(Company, perm_cid)
+        if company and codes_match(company.site_verify_code, text):
+            return company
+
+    return None

@@ -53,7 +53,7 @@ from app.models.entities import (
     WorkplaceDepartment,
 )
 from app.models.entities import OsgbOrganization
-from app.schemas.company import CompanyCreate, CompanyResponse, CompanyUpdate
+from app.schemas.company import CompanyCreate, CompanyCreateResponse, CompanyResponse, CompanyUpdate
 from app.services.company_overview import build_company_overview
 from app.services.site_verify import (
     build_ephemeral_qr_payload,
@@ -328,7 +328,7 @@ def create_company_ephemeral_site_qr(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
-    """Geçici saha QR (TTL, tek kullanımlık). Kalıcı QR'ı değiştirmez."""
+    """Geçici saha QR (TTL). Kiosk giriş/çıkış aynı dönem kodunu yeniden kullanabilir; yenilemede eski iptal."""
     ensure_company_access(db, user, company_id)
     obj = db.get(Company, company_id)
     if not obj:
@@ -349,7 +349,7 @@ def create_company_ephemeral_site_qr(
     }
 
 
-@router.post("", response_model=CompanyResponse)
+@router.post("", response_model=CompanyCreateResponse)
 def create_company(
     payload: CompanyCreate,
     db: Session = Depends(get_db),
@@ -368,10 +368,10 @@ def create_company(
     obj = Company(**data)
     obj.site_verify_code = generate_site_verify_code()
     db.add(obj)
+    from app.core.rls import apply_rls_user, set_rls_bypass
+
     try:
         # INSERT: boş allowed_company_ids + RLS WITH CHECK çakışmasın
-        from app.core.rls import apply_rls_user, set_rls_bypass
-
         set_rls_bypass(db, True)
         db.commit()
     except IntegrityError:
@@ -383,7 +383,40 @@ def create_company(
     # Yeni id henüz eski allowed_company_ids listesinde yok; RLS SELECT için yeniden hesapla.
     apply_rls_user(db, user)
     db.refresh(obj)
-    return obj
+
+    login_account = None
+    try:
+        from app.services.osgb_admin import provision_workplace_kiosk_login
+
+        kiosk_user, temp_password, created = provision_workplace_kiosk_login(db, obj)
+        db.commit()
+        login_account = {
+            "user_id": kiosk_user.id,
+            "email": kiosk_user.email,
+            "full_name": kiosk_user.full_name,
+            "temporary_password": temp_password,
+            "created": created,
+            "message": "İşyeri QR kiosk hesabı hazır. Bu bilgilerle girişte doğrudan QR ekranı açılır.",
+        }
+    except Exception:
+        db.rollback()
+        apply_rls_user(db, user)
+        # Firma oluştu; kiosk hesabı sonra tekrar denenebilir
+        login_account = None
+
+    apply_rls_user(db, user)
+    return CompanyCreateResponse(
+        id=obj.id,
+        name=obj.name,
+        hazard_class=obj.hazard_class,
+        sgk_registry_no=obj.sgk_registry_no,
+        address=obj.address,
+        phone=obj.phone,
+        authorized_person=obj.authorized_person,
+        is_active=obj.is_active,
+        osgb_id=obj.osgb_id,
+        login_account=login_account,
+    )
 
 
 def _assert_company_admin_scope(user: User, obj: Company) -> None:

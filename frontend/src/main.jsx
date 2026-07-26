@@ -103,6 +103,21 @@ const roleModules={
   ],
   read_only:['dashboard','annual_eval_report','notifications'],
 };
+
+/** Yalnız otomatik üretilen işyeri QR kiosk hesabı — diğer company_admin menüsü bozulmaz. */
+function isWorkplaceKioskUser(user){
+  if(user?.role!=='company_admin' || !user.company_id) return false;
+  const email=String(user.email||'').toLowerCase();
+  return email.endsWith('@kiosk.isgsuite.tr');
+}
+
+/** OSGB / firma admin menüsü aynı kalır; kiosk hesabı yalnız QR ekranı görür. */
+function modulesForUser(user){
+  if(isWorkplaceKioskUser(user)){
+    return ['site_qr_kiosk'];
+  }
+  return roleModules[user?.role]||[];
+}
 const menuCatalog={
   eisa_overview:['Genel Bakış',LayoutDashboard],
   eisa_osgb_users:['OSGB Kullanıcıları',Users],
@@ -126,6 +141,7 @@ const menuCatalog={
   professionals:['İSG Profesyonelleri',Stethoscope],
   assignments:['Görevlendirmeler',BriefcaseBusiness],
   visits:['Saha Takvimi',CalendarDays],
+  site_qr_kiosk:['İşyeri QR',QrCode],
   crm:['CRM / Teklif',BriefcaseBusiness],
   contracts:['Sözleşmeler',FileText],
   finance:['Finans',WalletCards],
@@ -335,6 +351,91 @@ function Modal({title,close,children}){return <div className="modal-bg" onMouseD
 function Field({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
 function Table({cols,rows,empty='Kayıt bulunamadı.'}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
+
+/** İşyeri kiosk — yalnızca company_id’li company_admin. Menü/aksiyon yok; ephemeral QR yenilenir. */
+function SiteQrKioskPage({user,onLogout}){
+  const companyId=user?.company_id;
+  const[info,setInfo]=useState(null);
+  const[err,setErr]=useState('');
+  const[busy,setBusy]=useState(false);
+  const[remainSec,setRemainSec]=useState(0);
+  const timerRef=useRef(null);
+  const refreshRef=useRef(null);
+
+  const refreshQr=async()=>{
+    if(!companyId) return;
+    setBusy(true);setErr('');
+    try{
+      const row=await api(`/companies/${companyId}/site-qr/ephemeral`,{method:'POST'});
+      setInfo(row);
+      const exp=row.expires_at?new Date(row.expires_at).getTime():(Date.now()+((row.ttl_minutes||5)*60*1000));
+      const tick=()=>{
+        const left=Math.max(0,Math.floor((exp-Date.now())/1000));
+        setRemainSec(left);
+        if(left<=0){
+          if(timerRef.current){clearInterval(timerRef.current);timerRef.current=null}
+          refreshQr();
+        }
+      };
+      tick();
+      if(timerRef.current) clearInterval(timerRef.current);
+      timerRef.current=setInterval(tick,1000);
+      if(refreshRef.current) clearTimeout(refreshRef.current);
+      const ms=Math.max(15_000,exp-Date.now()-5_000);
+      refreshRef.current=setTimeout(()=>{refreshQr()},ms);
+    }catch(ex){
+      setErr(ex.message||'QR yüklenemedi.');
+    }finally{setBusy(false)}
+  };
+
+  useEffect(()=>{
+    refreshQr();
+    return ()=>{
+      if(timerRef.current) clearInterval(timerRef.current);
+      if(refreshRef.current) clearTimeout(refreshRef.current);
+    };
+  },[companyId]);
+
+  const mm=String(Math.floor(remainSec/60)).padStart(2,'0');
+  const ss=String(remainSec%60).padStart(2,'0');
+  const payload=info?.qr_payload||'';
+
+  return (
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24,background:'linear-gradient(160deg,#0f766e 0%,#134e4a 45%,#0f172a 100%)',color:'#f8fafc'}}>
+      <div style={{textAlign:'center',maxWidth:520,width:'100%'}}>
+        <p style={{margin:0,opacity:.85,fontSize:14,letterSpacing:'.04em',textTransform:'uppercase'}}>İşyeri QR kiosk</p>
+        <h1 style={{margin:'8px 0 4px',fontSize:28,fontWeight:700}}>{info?.company_name||user?.full_name||'İşyeri'}</h1>
+        <p style={{margin:'0 0 20px',opacity:.9,fontSize:15}}>Uzman / hekim giriş ve çıkışta bu kodu okutur.</p>
+        <div style={{background:'#fff',borderRadius:16,padding:20,display:'inline-block',boxShadow:'0 20px 50px rgba(0,0,0,.35)'}}>
+          {payload?(
+            <img
+              alt="İşyeri QR"
+              width={320}
+              height={320}
+              style={{display:'block',width:Math.min(320,typeof window!=='undefined'?window.innerWidth-80:320),height:'auto'}}
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(payload)}`}
+            />
+          ):(
+            <div style={{width:280,height:280,display:'grid',placeItems:'center',color:'#64748b'}}>{busy?'Yükleniyor…':'QR yok'}</div>
+          )}
+        </div>
+        <p style={{margin:'18px 0 6px',fontSize:18,fontWeight:600}}>
+          {remainSec>0?`Yenileniyor… ${mm}:${ss}`:(busy?'Yenileniyor…':'—')}
+        </p>
+        {err&&<p style={{color:'#fecaca',marginTop:8}}>{err}</p>}
+        <div style={{marginTop:20,display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
+          <button type="button" className="mini secondary" disabled={busy} onClick={refreshQr} style={{background:'rgba(255,255,255,.12)',color:'#fff',border:'1px solid rgba(255,255,255,.35)'}}>
+            <RefreshCw size={14}/> Şimdi yenile
+          </button>
+          <button type="button" className="mini" onClick={onLogout} style={{background:'#fff',color:'#0f172a'}}>
+            <LogOut size={14}/> Çıkış
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Companies({canEdit, canAdd, onOpen360}){
   const[data,setData]=useState([]);
   const[open,setOpen]=useState(false);
@@ -1055,7 +1156,7 @@ function App(){
 
   function goModule(id){
     if(id!=='customer_360') setC360Id(null);
-    const allowed=roleModules[user?.role]||[];
+    const allowed=modulesForUser(user);
     if(id && id!=='customer_360' && !allowed.includes(id)){
       // Yetkisiz / menüde olmayan modül — ana panele düş
       const home=allowed.includes('osgb_dashboard')
@@ -1098,7 +1199,7 @@ function App(){
   }
 
   function goHome(){
-    const allowed=roleModules[user?.role]||[];
+    const allowed=modulesForUser(user);
     let home='';
     if(allowed.includes('eisa_overview')) home='eisa_overview';
     else if(allowed.includes('eisa')) home='eisa';
@@ -1121,7 +1222,7 @@ function App(){
         if(cancelled) return;
         setUser(u);
         setSummary(s);
-        const allowed=roleModules[u.role]||[];
+        const allowed=modulesForUser(u);
         setActive((prev)=>{
           let next='';
           if(verifyCode && allowed.includes('training')) next='training';
@@ -1174,7 +1275,11 @@ function App(){
     </>
   );
   if(!user) return <div className="loading">Sistem yükleniyor...</div>;
-  const allowed=roleModules[user.role]||[];
+  const allowed=modulesForUser(user);
+  const isWorkplaceKiosk=isWorkplaceKioskUser(user);
+  if(isWorkplaceKiosk){
+    return <SiteQrKioskPage user={user} onLogout={logout}/>;
+  }
   const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
   const menu=allowed
     .filter((k)=>menuCatalog[k] && !(fieldRoles.includes(user.role) && (k==='reports' || k==='pro_performance')))
@@ -1206,6 +1311,7 @@ function App(){
     professionals:<ProfessionalsPage user={user} onNavigate={goModule}/>,
     assignments:<AssignmentsPage user={user}/>,
     visits:<VisitsPage user={user}/>,
+    site_qr_kiosk:<SiteQrKioskPage user={user} onLogout={logout}/>,
     crm:<CrmPage user={user} onNavigate={goModule}/>,
     contracts:<ContractsPage user={user}/>,
     finance:<FinancePage user={user}/>,

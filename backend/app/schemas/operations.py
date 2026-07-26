@@ -63,6 +63,21 @@ class VisitGpsStamp(BaseModel):
     signature_data_url: str | None = Field(default=None, max_length=400_000)
 
 
+class VisitCheckStamp(BaseModel):
+    """QR kiosk giriş/çıkış — site kodu zorunlu, GPS opsiyonel."""
+    site_verify_code: str = Field(min_length=4, max_length=120)
+    gps_lat: float | None = Field(default=None, ge=-90, le=90)
+    gps_lng: float | None = Field(default=None, ge=-180, le=180)
+    gps_accuracy_m: float | None = Field(default=None, ge=0, le=50000)
+
+    @model_validator(mode="after")
+    def sanitize(self):
+        self.site_verify_code = clean_text(self.site_verify_code) or ""
+        if not self.site_verify_code:
+            raise ValueError("İşyeri QR kodu gerekli.")
+        return self
+
+
 class VisitUpdate(BaseModel):
     company_id: int | None = None
     visit_date: date | None = None
@@ -106,6 +121,8 @@ class VisitResponse(BaseModel):
     gps_accuracy_m: float | None = None
     gps_captured_at: datetime | None = None
     site_verified_at: datetime | None = None
+    checked_in_at: datetime | None = None
+    checked_out_at: datetime | None = None
     signature_file_name: str | None = None
     signature_captured_at: datetime | None = None
     status: VisitStatus

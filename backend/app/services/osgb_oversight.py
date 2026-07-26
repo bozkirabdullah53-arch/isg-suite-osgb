@@ -195,6 +195,9 @@ def _visit_payload(rows: list[ServiceVisit]) -> list[dict]:
                 "subject": v.subject,
                 "notes": v.notes,
                 "status": v.status.value if hasattr(v.status, "value") else str(v.status),
+                "checked_in_at": v.checked_in_at.isoformat() + "Z" if getattr(v, "checked_in_at", None) else None,
+                "checked_out_at": v.checked_out_at.isoformat() + "Z" if getattr(v, "checked_out_at", None) else None,
+                "open_on_site": bool(getattr(v, "checked_in_at", None) and not getattr(v, "checked_out_at", None)),
                 "notebook_file_name": getattr(v, "notebook_file_name", None),
                 "has_notebook": bool(notebook_path),
                 "notebook_url": f"/operations/visits/{v.id}/notebook" if notebook_path else None,
@@ -204,13 +207,14 @@ def _visit_payload(rows: list[ServiceVisit]) -> list[dict]:
 
 
 def _visit_minutes(db: Session, professional_id: int, company_id: int, start: date, end: date) -> tuple[int, int, list[dict]]:
-    """Tamamlanan veya tespit defteri yüklenmiş ziyaretler süreye sayılır."""
+    """Tamamlanan, check-out’lu veya tespit defteri yüklenmiş ziyaretler süreye sayılır."""
     rows = _list_firm_visits(db, professional_id, company_id, start, end)
     counted = []
     for v in rows:
         st = v.status.value if hasattr(v.status, "value") else str(v.status)
         has_nb = bool(getattr(v, "notebook_storage_path", None))
-        if st == VisitStatus.COMPLETED.value or st == "COMPLETED" or has_nb:
+        has_checkout = bool(getattr(v, "checked_out_at", None)) and int(v.duration_minutes or 0) > 0
+        if st == VisitStatus.COMPLETED.value or st == "COMPLETED" or has_nb or has_checkout:
             counted.append(v)
     minutes = sum(int(v.duration_minutes or 0) for v in counted)
     return minutes, len(counted), _visit_payload(rows)

@@ -164,3 +164,58 @@ def provision_professional_login(db: Session, professional) -> tuple[User, str, 
 
     db.flush()
     return user, temp_password, created
+
+
+def provision_workplace_kiosk_login(db: Session, company) -> tuple[User, str, bool]:
+    """İşyeri QR kiosk hesabı — company_admin + company_id; girişte yalnız QR ekranı."""
+    from app.models.entities import Company
+
+    if not isinstance(company, Company) or not company.id:
+        raise HTTPException(500, "Geçersiz işyeri kaydı.")
+
+    email = f"isyeri.{company.id}@kiosk.isgsuite.tr"
+    name = f"{(company.name or 'İşyeri')[:120]} QR"
+    temp_password = generate_temporary_password()
+
+    user = db.scalar(
+        select(User).where(
+            User.company_id == company.id,
+            User.role == UserRole.COMPANY_ADMIN,
+            User.is_active.is_(True),
+        ).order_by(User.id).limit(1)
+    )
+    created = False
+    if user:
+        user.email = email
+        user.full_name = name[:160]
+        user.osgb_id = company.osgb_id
+        user.company_id = company.id
+        user.hashed_password = get_password_hash(temp_password)
+        user.is_active = True
+    else:
+        existing_email = db.scalar(select(User).where(func.lower(User.email) == email.lower()))
+        if existing_email:
+            user = existing_email
+            if user.role == UserRole.GLOBAL_ADMIN:
+                raise HTTPException(409, "Kiosk e-postası çakışması.")
+            user.full_name = name[:160]
+            user.role = UserRole.COMPANY_ADMIN
+            user.osgb_id = company.osgb_id
+            user.company_id = company.id
+            user.hashed_password = get_password_hash(temp_password)
+            user.is_active = True
+        else:
+            user = User(
+                email=email,
+                full_name=name[:160],
+                hashed_password=get_password_hash(temp_password),
+                role=UserRole.COMPANY_ADMIN,
+                osgb_id=company.osgb_id,
+                company_id=company.id,
+                is_active=True,
+            )
+            db.add(user)
+            created = True
+
+    db.flush()
+    return user, temp_password, created
