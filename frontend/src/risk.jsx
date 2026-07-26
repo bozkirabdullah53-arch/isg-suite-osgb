@@ -735,13 +735,14 @@ export function RiskPage({user}) {
     }
     const params = new URLSearchParams({company_id: String(cid)});
     if (levelFilter && kind !== 'dof') params.set('level', levelFilter);
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
     setDlBusy(kind);
     try {
       if (kind === 'dof') {
-        await downloadFile(`/risks/report/dof.xlsx?${params}`, `dof-listesi-${cid}.xlsx`);
+        await downloadFile(`/risks/report/dof.xlsx?${params}`, `dof-listesi-${cid}-${stamp}.xlsx`);
       } else {
         const ext = kind === 'pdf' ? 'pdf' : 'xlsx';
-        await downloadFile(`/risks/report.${ext}?${params}`, `risk-raporu-${cid}.${ext}`);
+        await downloadFile(`/risks/report.${ext}?${params}`, `risk-raporu-${cid}-${stamp}.${ext}`);
       }
     } catch (x) {
       const label = kind === 'pdf' ? 'PDF' : kind === 'dof' ? 'DÖF Excel' : 'Excel';
