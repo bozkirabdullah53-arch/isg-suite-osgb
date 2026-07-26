@@ -87,6 +87,115 @@ button, input { font: inherit; }
   border-top: 1px solid #e2e8f0;
 }
 
+/* OSGB başvuru — tek bakışta sığacak kompakt düzen */
+.login-shell--apply {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8px 10px 12px;
+  overflow-y: auto;
+}
+.login-wrap--apply {
+  width: min(640px, 100%);
+  gap: 4px;
+  margin: 0;
+}
+.login-brand--apply { margin: 0; }
+.login-brand--apply .login-eisa-logo {
+  max-height: 28px;
+  width: min(150px, 48vw);
+}
+.login-card--apply {
+  padding: 12px 14px 10px;
+  border-radius: 14px;
+}
+.login-card--apply h1 {
+  font-size: 18px;
+  margin: 0 0 2px;
+}
+.login-card--apply > p {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+.apply-form.form-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  padding: 0;
+}
+.apply-form .field {
+  gap: 3px;
+  margin: 0;
+}
+.apply-form .field > span {
+  font-size: 11px;
+  font-weight: 700;
+  color: #425c67;
+}
+.apply-form .field input {
+  padding: 7px 9px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+.apply-form .apply-span-2 { grid-column: 1 / -1; }
+.apply-legal {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+.apply-legal > p {
+  margin: 0;
+  font-size: 11px;
+  color: #64748b;
+}
+.apply-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  color: #334155;
+  font-weight: 500;
+  margin: 0;
+}
+.apply-check input { margin-top: 2px; flex-shrink: 0; }
+.apply-check .linkish {
+  padding: 0 !important;
+  margin: 0 !important;
+  font-size: 12px;
+  font-weight: 700;
+  background: transparent !important;
+  color: #0f766e !important;
+  box-shadow: none !important;
+}
+.login-card--apply .apply-form-actions {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  padding: 8px 0 0;
+  gap: 8px;
+  border-top: 1px solid #e2e8f0;
+  position: static;
+  background: transparent;
+}
+.login-card--apply .apply-form-actions button {
+  margin-top: 0;
+  padding: 9px 12px;
+  font-size: 13px;
+}
+.login-card--apply .error {
+  padding: 8px;
+  font-size: 12px;
+  margin: 0;
+}
+@media (max-width: 520px) {
+  .apply-form.form-grid { grid-template-columns: 1fr 1fr; gap: 5px 8px; }
+  .login-card--apply { padding: 10px 10px 8px; }
+  .login-card--apply h1 { font-size: 16px; }
+}
+
 .brand-mark {
   width: 48px;
   height: 48px;

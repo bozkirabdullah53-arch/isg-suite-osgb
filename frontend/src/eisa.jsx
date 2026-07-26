@@ -1766,68 +1766,48 @@ export function OsgbApplyPage({ onBack }) {
   }
 
   return (
-    <main className="login-shell login-shell--form">
-      <div className="login-wrap login-wrap--form">
-        <div className="login-brand">
+    <main className="login-shell login-shell--form login-shell--apply">
+      <div className="login-wrap login-wrap--form login-wrap--apply">
+        <div className="login-brand login-brand--apply">
           <img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo" />
         </div>
-        <section className="login-card">
-          <h1>OSGB Başvuru Formu</h1>
-          <p>İSG Suite platformuna OSGB merkezi olarak başvurun. Yetki no ve vergi no ile mevcut kaydınız otomatik eşleşir.</p>
-          <form className="form-grid" onSubmit={submit}>
+        <section className="login-card login-card--apply">
+          <h1>OSGB Başvuru</h1>
+          <p>Yetki ve vergi no ile kaydınız eşleşir. Onay sonrası deneme açılır.</p>
+          <form className="form-grid apply-form" onSubmit={submit}>
             <label className="field"><span>OSGB adı *</span><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-            <label className="field"><span>Yetki numarası *</span><input required value={form.authorization_number} onChange={(e) => setForm({ ...form, authorization_number: e.target.value })} /></label>
-            <label className="field"><span>Vergi numarası * (en az 8 hane)</span><input required minLength={8} value={form.tax_number} onChange={(e) => setForm({ ...form, tax_number: e.target.value })} /></label>
+            <label className="field"><span>Yetki no *</span><input required value={form.authorization_number} onChange={(e) => setForm({ ...form, authorization_number: e.target.value })} /></label>
+            <label className="field"><span>Vergi no * (min. 8)</span><input required minLength={8} value={form.tax_number} onChange={(e) => setForm({ ...form, tax_number: e.target.value })} /></label>
             <label className="field"><span>Sorumlu müdür</span><input value={form.responsible_manager} onChange={(e) => setForm({ ...form, responsible_manager: e.target.value })} /></label>
             <label className="field"><span>İletişim e-posta *</span><input type="email" required placeholder="ornek@firma.com" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} /></label>
             <label className="field"><span>Telefon</span><input value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} /></label>
-            <label className="field"><span>Adres</span><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></label>
+            <label className="field apply-span-2"><span>Adres</span><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></label>
             <label className="field"><span>Başvuran adı *</span><input required value={form.applicant_name} onChange={(e) => setForm({ ...form, applicant_name: e.target.value })} /></label>
             <label className="field"><span>Başvuran e-posta *</span><input type="email" required placeholder="ornek@firma.com" value={form.applicant_email} onChange={(e) => setForm({ ...form, applicant_email: e.target.value })} /></label>
-            <label className="field"><span>Not</span><input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
+            <label className="field apply-span-2"><span>Not</span><input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
 
-            <div style={{gridColumn: '1 / -1', padding: '12px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0'}}>
-              <p style={{margin: '0 0 10px', fontSize: 13, color: '#475569'}}>
-                Onaylamadan önce aşağıdaki metinleri okuyunuz. (Revizyon: {LEGAL_DOCS_VERSION})
-              </p>
-              <label className="field" style={{marginBottom: 8}}>
-                <span style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8}}>
-                  <input
-                    type="checkbox"
-                    checked={form.contract_accepted}
-                    onChange={(e) => setForm({ ...form, contract_accepted: e.target.checked })}
-                  />
-                  <span>
-                    <button
-                      type="button"
-                      className="linkish"
-                      style={{padding: 0, fontWeight: 700}}
-                      onClick={() => setLegalDoc(SERVICE_AGREEMENT)}
-                    >
-                      Hizmet ve Kullanım Sözleşmesi
-                    </button>
-                    ’ni okudum ve kabul ediyorum.
-                  </span>
+            <div className="apply-legal">
+              <p>Metinleri okuyup onaylayın (Rev: {LEGAL_DOCS_VERSION})</p>
+              <label className="apply-check">
+                <input
+                  type="checkbox"
+                  checked={form.contract_accepted}
+                  onChange={(e) => setForm({ ...form, contract_accepted: e.target.checked })}
+                />
+                <span>
+                  <button type="button" className="linkish" onClick={() => setLegalDoc(SERVICE_AGREEMENT)}>Sözleşme</button>
+                  ’ni kabul ediyorum
                 </span>
               </label>
-              <label className="field" style={{marginBottom: 0}}>
-                <span style={{display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8}}>
-                  <input
-                    type="checkbox"
-                    checked={form.personal_data_accepted}
-                    onChange={(e) => setForm({ ...form, personal_data_accepted: e.target.checked })}
-                  />
-                  <span>
-                    <button
-                      type="button"
-                      className="linkish"
-                      style={{padding: 0, fontWeight: 700}}
-                      onClick={() => setLegalDoc(PRIVACY_NOTICE)}
-                    >
-                      KVKK Aydınlatma Metni
-                    </button>
-                    ’ni okudum; kişisel verilerimin işlenmesini kabul ediyorum.
-                  </span>
+              <label className="apply-check">
+                <input
+                  type="checkbox"
+                  checked={form.personal_data_accepted}
+                  onChange={(e) => setForm({ ...form, personal_data_accepted: e.target.checked })}
+                />
+                <span>
+                  <button type="button" className="linkish" onClick={() => setLegalDoc(PRIVACY_NOTICE)}>KVKK</button>
+                  metnini kabul ediyorum
                 </span>
               </label>
             </div>
