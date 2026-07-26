@@ -118,9 +118,17 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20.18.0
+      # Same-origin: CORS/3P-cookie yok. Rewrite ile API'ye proxy.
       - key: VITE_API_URL
-        value: https://isg-suite-api-1u9t.onrender.com/api/v1
+        value: /api/v1
     routes:
+      # API proxy — SPA catch-all'dan ÖNCE olmalı (POST/GET dahil)
+      - type: rewrite
+        source: /api/*
+        destination: https://isg-suite-api-1u9t.onrender.com/api/*
+      - type: rewrite
+        source: /health
+        destination: https://isg-suite-api-1u9t.onrender.com/health
       - type: rewrite
         source: /*
         destination: /index.html

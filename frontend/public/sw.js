@@ -1,5 +1,6 @@
-const CACHE = "isg-suite-v3";
-const CORE = ["/", "/manifest.webmanifest", "/icon.svg"];
+const CACHE = "isg-suite-v4";
+// "/" cache'leme — eski index.html / eski bundle'a kilitlenmeyi önler
+const CORE = ["/manifest.webmanifest", "/icon.svg"];
 
 function isCacheableAsset(request) {
   if (request.method !== "GET") return false;
@@ -42,6 +43,8 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   // Cross-origin (Render API vb.): SW'ye hiç dokunma — CORS/credentials bozulmasın
   if (url.origin !== self.location.origin) return;
+  // Same-origin API / health proxy — SW bypass (body/method bozulmasın)
+  if (/\/api(\/|$)/i.test(url.pathname) || url.pathname === "/health") return;
 
   // API / hassas istekler: yalnızca network, cache yok
   if (!isCacheableAsset(event.request)) {

@@ -6,20 +6,26 @@ const isLocalHost =
   typeof window !== "undefined" &&
   (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
+/** Canlıda same-origin /api/v1 (Render rewrite → API). Cross-origin CORS kırılmalarını önler. */
 const API_URL =
   import.meta.env.VITE_API_URL ||
   (isLocalHost
     ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
-    : "https://isg-suite-api-1u9t.onrender.com/api/v1");
+    : typeof window !== "undefined"
+      ? `${window.location.origin}/api/v1`
+      : "/api/v1");
 
-const API_ROOT = API_URL.replace(/\/api\/v1\/?$/, "");
+const API_ROOT = API_URL.replace(/\/api\/v1\/?$/, "") || (typeof window !== "undefined" ? window.location.origin : "");
 
 /**
- * Cross-site API (www.isgsuite.tr → onrender.com): credentials:include
- * Chrome 3P-cookie kısıtında Failed to fetch üretebiliyor.
- * Bearer JWT yeterli olan uçlarda omit; yalnızca refresh cookie gereken auth'ta include.
+ * Same-origin'de include güvenli (refresh cookie).
+ * Eski cross-origin fallback'te yalnız auth cookie uçlarında include.
  */
 function fetchCredentials(path = "") {
+  const sameOrigin =
+    typeof window !== "undefined" &&
+    (API_URL.startsWith("/") || API_URL.startsWith(window.location.origin));
+  if (sameOrigin) return "include";
   const p = String(path || "");
   if (
     p.startsWith("/auth/login") ||
@@ -408,8 +414,11 @@ export async function api(path, options = {}) {
             http_method: method,
             http_path: path,
           });
+          const detail = String(e?.message || e || "").slice(0, 120);
           throw new Error(
-            "Sunucuya bağlanılamadı. API uyanıyor olabilir — 10–20 sn bekleyip Yenile’ye basın.",
+            detail && !detail.toLowerCase().includes("failed to fetch")
+              ? `Sunucuya bağlanılamadı (${detail}). Birkaç saniye sonra tekrar deneyin.`
+              : "Sunucuya bağlanılamadı. Sayfayı yenileyip (Ctrl+F5) tekrar deneyin.",
           );
         }
         const status = e?.httpStatus ?? lastStatus;
