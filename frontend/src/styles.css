@@ -460,6 +460,40 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 .field-card{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 14px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc}
 .field-card .actions button{min-height:40px}
 @media(max-width:620px){.field-card{align-items:stretch}.field-card .actions{width:100%}.field-card .actions button{flex:1;justify-content:center}}
+
+/* Saha mobil — 3 büyük adım, dağınıklık yok */
+.field-simple{display:grid;gap:12px;padding:14px!important}
+.field-step{display:grid;gap:6px}
+.field-step-label{margin:0;font-size:13px;font-weight:800;color:#0f766e;letter-spacing:.02em;text-transform:uppercase}
+.field-big-btn{
+  display:inline-flex!important;align-items:center;justify-content:center;gap:10px;
+  width:100%;min-height:58px;font-size:17px!important;font-weight:800!important;
+  border-radius:14px!important;padding:14px 16px!important;
+}
+.field-big-btn-out{background:#0e7490!important}
+.field-big-btn-note{background:#115e59!important}
+.field-on-site{
+  padding:12px;border-radius:12px;background:#ecfdf5;border:1px solid #6ee7b7;display:grid;gap:8px;
+}
+.field-on-site strong{display:block;color:#065f46;font-size:15px}
+.field-on-site span{display:block;color:#047857;font-size:13px;margin-bottom:4px}
+.field-on-site button{width:100%;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:800}
+.field-paste-toggle{justify-content:center;font-size:13px;color:#64748b!important;padding:4px!important;background:transparent!important;box-shadow:none!important}
+.field-paste-box{display:grid;gap:8px;padding:10px;border:1px dashed #cbd5e1;border-radius:10px;background:#f8fafc}
+.field-paste-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.field-paste-actions button{min-height:44px}
+.field-offline{padding:10px 12px;border-radius:10px;background:#fff7ed;color:#9a3412;font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.field-ok-msg{margin:0;padding:10px;border-radius:10px;background:#ecfdf5;color:#065f46;font-size:14px;font-weight:600}
+.field-err-msg{margin:0;padding:10px;border-radius:10px;background:#fef2f2;color:#b91c1c;font-size:14px}
+.field-card-btn{width:100%;min-height:48px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:800;border-radius:12px}
+.field-more{margin-top:4px;border:1px solid #e2e8f0;border-radius:10px;padding:8px 10px;background:#f8fafc}
+.field-more summary{cursor:pointer;font-size:13px;font-weight:700;color:#475569}
+.field-visit-form{padding-top:4px}
+@media(max-width:900px){
+  .field-desktop-only{display:none!important}
+  .field-page-actions{width:100%}
+  .field-page-actions button{width:100%;min-height:48px;justify-content:center}
+}
 @media print{
   .app-shell>aside,.app-shell>section>header,.page-title .actions,.no-print,.logout{display:none!important}
   .workspace,.content,.panel{box-shadow:none!important;border:0!important;padding:0!important;margin:0!important}

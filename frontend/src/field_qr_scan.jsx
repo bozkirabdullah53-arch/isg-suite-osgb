@@ -1,5 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import jsQR from 'jsqr';
+import {QrCode,ScanLine} from 'lucide-react';
 
 /**
  * Mobil saha QR kamera okuyucu — mevcut ziyaret/tamamlama akışına dokunmaz.
@@ -20,7 +21,11 @@ export function SiteQrCameraModal({open,mode,onClose,onDetected}){
     if(!open) return undefined;
     lockedRef.current=false;
     setCamErr('');
-    setHint(mode==='out'?'Çıkış için işyeri QR’sını okutun.':'Giriş için işyeri QR’sını okutun.');
+    setHint(
+      mode==='out'?'Çıkış için işyeri QR’sını okutun.'
+      :mode==='visit'||mode==='complete'?'İşyeri QR’sını çerçeveye tutun.'
+      :'Giriş için işyeri QR’sını okutun.'
+    );
     let cancelled=false;
 
     async function start(){
@@ -84,10 +89,17 @@ export function SiteQrCameraModal({open,mode,onClose,onDetected}){
 
   if(!open) return null;
   return (
-    <div className="modal-bg" onMouseDown={e=>{if(e.target===e.currentTarget) onClose?.()}}>
+    <div className="modal-bg" style={{zIndex:50}} onMouseDown={e=>{if(e.target===e.currentTarget) onClose?.()}}>
       <section className="modal" style={{maxWidth:520,width:'min(96vw,520px)'}}>
-        <header>
-          <h3>{mode==='out'?'Çıkış — QR okut':'Giriş — QR okut'}</h3>
+        <header style={{display:'flex',alignItems:'center',gap:10}}>
+          <span style={{display:'inline-flex',color:'#0f766e'}} aria-hidden>
+            {mode==='out'?<ScanLine size={22}/>:<QrCode size={22}/>}
+          </span>
+          <h3 style={{flex:1,margin:0}}>
+            {mode==='out'?'Çıkış — QR okut'
+              :mode==='visit'||mode==='complete'?'İşyeri QR okut'
+              :'Giriş — QR okut'}
+          </h3>
           <button type="button" className="icon" onClick={onClose} aria-label="Kapat">×</button>
         </header>
         <div style={{display:'grid',gap:10}}>

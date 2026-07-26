@@ -1,6 +1,6 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {api,downloadFile,uploadFile} from './api';
-import {Plus} from 'lucide-react';
+import {Camera,Plus,ScanLine} from 'lucide-react';
 import {enqueueOfflineComplete,flushOfflineCompletes,listOfflineCompletes,removeOfflineItem} from './field_offline';
 import {SiteQrCameraModal} from './field_qr_scan';
 
@@ -1171,6 +1171,8 @@ export function VisitsPage({user}){
  const[kioskMsg,setKioskMsg]=useState('');
  const[scanOpen,setScanOpen]=useState(false);
  const[scanMode,setScanMode]=useState('in');
+ const scanModeRef=useRef('in');
+ const[showPaste,setShowPaste]=useState(false);
  const emptyForm={osgb_id:'',company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''};
  const emptyPlan={osgb_id:'',company_id:'',professional_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Planlı saha ziyareti',notes:''};
  const[form,setForm]=useState(emptyForm),[planForm,setPlanForm]=useState(emptyPlan);
@@ -1218,7 +1220,8 @@ export function VisitsPage({user}){
  }
  function openCreate(){
   setErr('');setNotebookFile(null);setSiteVerifyInput('');setEditing(null);
-  setForm(f=>({...emptyForm,osgb_id:f.osgb_id||osgbId(user,orgs)||''}));
+  const today=new Date().toISOString().slice(0,10);
+  setForm(f=>({...emptyForm,osgb_id:f.osgb_id||osgbId(user,orgs)||'',visit_date:today}));
   setOpen(true);
  }
  function openPlan(){
@@ -1390,12 +1393,25 @@ export function VisitsPage({user}){
   finally{setBusy(false)}
  }
  function openCameraScan(mode){
-  setErr('');setScanMode(mode);setScanOpen(true);
+  setErr('');
+  scanModeRef.current=mode;
+  setScanMode(mode);
+  setScanOpen(true);
  }
  async function onCameraDetected(raw){
-  setKioskQrInput(raw);
+  const code=String(raw||'').trim();
+  const mode=scanModeRef.current||scanMode;
   setScanOpen(false);
-  await scanPresence(scanMode,raw);
+  if(mode==='visit'){
+    setSiteVerifyInput(code);
+    return;
+  }
+  if(mode==='complete'){
+    setVerifyCode(code);
+    return;
+  }
+  setKioskQrInput(code);
+  await scanPresence(mode,code);
  }
  const filteredRows=selectedDay?rows.filter(r=>r.visit_date===selectedDay):rows;
  const calDays=cal?.days||[];
@@ -1406,93 +1422,88 @@ export function VisitsPage({user}){
  const overdueQueue=fieldQueue.filter(r=>r.visit_date&&r.visit_date<todayIso);
  const todayQueue=fieldQueue.filter(r=>r.visit_date===todayIso);
  const upcomingQueue=fieldQueue.filter(r=>r.visit_date&&r.visit_date>todayIso).slice(0,6);
- return <P title={isOsgb?'Saha Ziyaretleri (OSGB İzleme)':'Saha Ziyaret Takvimi'} action={<div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+ return <P title={isOsgb?'Saha Ziyaretleri (OSGB İzleme)':'Saha'} action={<div className="field-page-actions" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
   {isOsgb&&<button type="button" onClick={openPlan}><Plus/>Planlı Ziyaret</button>}
-  {isField&&<button onClick={openCreate}><Plus/>Ziyaret Kaydet</button>}
+  {isField&&<button type="button" onClick={openCreate}><Plus/>Defter kaydı</button>}
  </div>}>
   {isField&&(
-   <section className="panel field-portal" style={{marginBottom:12}}>
-    <div style={{display:'flex',justifyContent:'space-between',gap:10,flexWrap:'wrap',alignItems:'flex-start',marginBottom:10}}>
-     <div>
-      <h3 style={{margin:'0 0 4px',fontSize:16}}>Saha portalı</h3>
-      <p style={{margin:0,color:'#64748b',fontSize:13}}>Planlı ziyaretleri buradan tamamlayın. QR + GPS + imza damgası alınır.</p>
+   <section className="panel field-portal field-simple">
+    {kioskMsg&&<p className="field-ok-msg">{kioskMsg}</p>}
+    {err&&!open&&!verifyOpen&&<p className="field-err-msg">{err}</p>}
+
+    {openOnSite.length>0&&(
+     <div className="field-on-site">
+      {openOnSite.map(r=>{
+       const name=companies.find(x=>x.id===r.company_id)?.name||`İşyeri #${r.company_id}`;
+       return (
+        <div key={r.id}>
+         <strong>Şu an sahadasınız</strong>
+         <span>{name} · giriş {r.start_time||fmtCheckTime(r.checked_in_at)}</span>
+         <button type="button" disabled={busy} onClick={()=>openCameraScan('out')}>
+          <ScanLine size={22}/> Çıkış için QR okut
+         </button>
+        </div>
+       );
+      })}
      </div>
-     <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-      {offlineQueue.length>0&&<button type="button" className="mini secondary" disabled={busy} onClick={syncOffline}>Senkron ({offlineQueue.length})</button>}
-      <button type="button" className="mini" disabled={busy} onClick={openCreate}>+ Hızlı kayıt</button>
-     </div>
+    )}
+
+    <div className="field-step">
+     <p className="field-step-label">1 — İşyerine girince</p>
+     <button type="button" className="field-big-btn" disabled={busy} onClick={()=>openCameraScan('in')}>
+      <Camera size={28}/> Giriş QR okut
+     </button>
     </div>
-    <div style={{marginBottom:12,padding:14,borderRadius:14,border:'1px solid #5eead4',background:'linear-gradient(180deg,#f0fdfa 0%,#ecfeff 100%)'}}>
-     <strong style={{display:'block',marginBottom:4,fontSize:15}}>Hızlı saha — QR Giriş / Çıkış</strong>
-     <p style={{margin:'0 0 12px',color:'#475569',fontSize:13}}>Telefonda kamerayı açıp işyerindeki kiosk QR’sını okutun. Kamera yoksa kodu yapıştırın.</p>
-     {openOnSite.length>0&&(
-      <div style={{marginBottom:12,padding:'10px 12px',borderRadius:10,background:'#fff',border:'1px solid #99f6e4'}}>
-       {openOnSite.map(r=>{
-        const name=companies.find(x=>x.id===r.company_id)?.name||`İşyeri #${r.company_id}`;
-        return (
-         <div key={r.id} style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap',alignItems:'center'}}>
-          <div>
-           <strong style={{display:'block',color:'#0f766e'}}>Sahadasınız · {name}</strong>
-           <span style={{fontSize:13,color:'#64748b'}}>Giriş {r.start_time||fmtCheckTime(r.checked_in_at)}</span>
-          </div>
-          <button type="button" className="mini" disabled={busy} onClick={()=>openCameraScan('out')}>Çıkış için QR okut</button>
-         </div>
-        );
-       })}
+
+    <div className="field-step">
+     <p className="field-step-label">2 — İşyerinden çıkınca</p>
+     <button type="button" className="field-big-btn field-big-btn-out" disabled={busy} onClick={()=>openCameraScan('out')}>
+      <ScanLine size={28}/> Çıkış QR okut
+     </button>
+    </div>
+
+    <div className="field-step">
+     <p className="field-step-label">3 — Defter / ziyaret kaydı</p>
+     <button type="button" className="field-big-btn field-big-btn-note" disabled={busy} onClick={openCreate}>
+      <Plus size={28}/> Defter yükle + QR
+     </button>
+    </div>
+
+    <button type="button" className="linkish field-paste-toggle" onClick={()=>setShowPaste(v=>!v)}>
+     {showPaste?'Yapıştır alanını gizle':'Kamera yoksa kod yapıştır'}
+    </button>
+    {showPaste&&(
+     <div className="field-paste-box">
+      <input value={kioskQrInput} onChange={e=>setKioskQrInput(e.target.value)} placeholder="Kodu buraya yapıştırın" autoComplete="off"/>
+      <div className="field-paste-actions">
+       <button type="button" disabled={busy||!kioskQrInput} onClick={()=>scanPresence('in')}>Giriş yap</button>
+       <button type="button" className="secondary" disabled={busy||!kioskQrInput} onClick={()=>scanPresence('out')}>Çıkış yap</button>
       </div>
-     )}
-     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
-      <button type="button" disabled={busy} onClick={()=>openCameraScan('in')} style={{minHeight:52,fontSize:16,fontWeight:700}}>Giriş</button>
-      <button type="button" className="secondary" disabled={busy} onClick={()=>openCameraScan('out')} style={{minHeight:52,fontSize:16,fontWeight:700}}>Çıkış</button>
      </div>
-     <label className="field" style={{marginBottom:8}}>
-      <span>Yedek: QR / kod yapıştır</span>
-      <input value={kioskQrInput} onChange={e=>setKioskQrInput(e.target.value)} placeholder="ISGSUITE:WPTEMP:… veya ISGSUITE:WP:…" autoComplete="off"/>
-     </label>
-     <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-      <button type="button" className="mini" disabled={busy||!kioskQrInput} onClick={()=>scanPresence('in')}>Yapıştırılan ile giriş</button>
-      <button type="button" className="mini secondary" disabled={busy||!kioskQrInput} onClick={()=>scanPresence('out')}>Yapıştırılan ile çıkış</button>
-     </div>
-     {kioskMsg&&<p style={{margin:'8px 0 0',color:'#0f766e',fontSize:13}}>{kioskMsg}</p>}
-    </div>
-    {scanOpen&&(
-     <SiteQrCameraModal
-      open={scanOpen}
-      mode={scanMode}
-      onClose={()=>setScanOpen(false)}
-      onDetected={onCameraDetected}
-     />
     )}
+
     {offlineQueue.length>0&&(
-     <div style={{marginBottom:10,padding:'10px 12px',borderRadius:10,background:'#fff7ed',color:'#9a3412',fontSize:13}}>
-      {offlineQueue.length} çevrimdışı tamamlama bekliyor.
-      <button type="button" className="mini" style={{marginLeft:8}} disabled={busy} onClick={syncOffline}>Şimdi gönder</button>
-      <button type="button" className="mini secondary" style={{marginLeft:6}} onClick={()=>{offlineQueue.forEach(x=>removeOfflineItem(x.id));refreshOffline()}}>Temizle</button>
+     <div className="field-offline">
+      {offlineQueue.length} kayıt bekliyor (çevrimdışı).
+      <button type="button" disabled={busy} onClick={syncOffline}>Şimdi gönder</button>
      </div>
     )}
-    <div className="cards osgb-cards" style={{marginBottom:10}}>
-     <article className="metric"><span>Gecikmiş</span><strong style={{color:overdueQueue.length?'#b91c1c':undefined}}>{overdueQueue.length}</strong></article>
-     <article className="metric"><span>Bugün</span><strong>{todayQueue.length}</strong></article>
-     <article className="metric"><span>Yaklaşan</span><strong>{upcomingQueue.length}</strong></article>
-     <article className="metric"><span>Açık iş</span><strong>{fieldQueue.length}</strong></article>
-    </div>
-    {fieldQueue.length===0&&openOnSite.length===0?(
-     <p style={{margin:0,color:'#64748b',fontSize:14}}>Açık planlı ziyaret yok. Yeni saha kaydı için “Ziyaret Kaydet” kullanın.</p>
-    ):(
+
+    {fieldQueue.length>0&&(
      <div className="field-queue">
+      <p className="field-step-label">Bekleyen ziyaretler</p>
       {[...overdueQueue,...todayQueue,...upcomingQueue].map(r=>{
        const name=companies.find(x=>x.id===r.company_id)?.name||`İşyeri #${r.company_id}`;
        const late=r.visit_date&&r.visit_date<todayIso;
        return (
         <article key={r.id} className="field-card" style={{borderLeft:late?'4px solid #b91c1c':'4px solid #0f766e'}}>
          <div>
-          <strong style={{display:'block',fontSize:15}}>{name}</strong>
-          <span style={{color:'#64748b',fontSize:13}}>{r.visit_date} · {r.subject||'Ziyaret'}{late?' · Gecikmiş':''}</span>
+          <strong style={{display:'block',fontSize:16}}>{name}</strong>
+          <span style={{color:'#64748b',fontSize:13}}>{r.visit_date}{late?' · Gecikmiş':''}</span>
          </div>
-         <div className="actions" style={{flexWrap:'wrap'}}>
-          <button type="button" className="mini secondary" onClick={()=>openEdit(r)}>Düzenle</button>
-          <button type="button" className="mini" disabled={busy} onClick={()=>done(r.id)}>{busy?'…':'QR + GPS + İmza'}</button>
-         </div>
+         <button type="button" className="field-card-btn" disabled={busy} onClick={()=>done(r.id)}>
+          <Camera size={18}/> Tamamla (QR)
+         </button>
         </article>
        );
       })}
@@ -1509,7 +1520,8 @@ export function VisitsPage({user}){
     </select>
    </label>
   )}
-  {err&&!open&&!planOpen&&<p style={{color:'#b91c1c'}}>{err}</p>}
+  {err&&!open&&!planOpen&&!isField&&<p style={{color:'#b91c1c'}}>{err}</p>}
+  <div className={isField?'field-desktop-only':undefined}>
   {cal&&<>
    <div className="cards osgb-cards" style={{marginBottom:12}}>
     <article className="metric"><span>Toplam ziyaret</span><strong>{cal.summary?.total_visits??0}</strong></article>
@@ -1581,35 +1593,84 @@ export function VisitsPage({user}){
     </div>
    )}]:[])
   ]}/>
+  </div>
   {verifyOpen&&isField&&<M title="Saha doğrulama ve imza" close={()=>{setVerifyOpen(false);setVerifyVisitId(null);setVerifyCode('');setSignatureData(null);setErr('')}}>
    <form className="form-grid single" onSubmit={confirmComplete}>
-    <p style={{margin:0,color:'#64748b',fontSize:14}}>QR kodu girin, imzalayın. GPS otomatik alınır. Çevrimdışıysa kuyruğa düşer.</p>
-    <F label="QR / doğrulama kodu" required value={verifyCode} onChange={e=>setVerifyCode(e.target.value)} placeholder="ISGSUITE:WP:… veya kod"/>
+    <p style={{margin:0,color:'#334155',fontSize:15,fontWeight:600}}>1) Kamerayla QR okutun · 2) İmzalayın</p>
+    <button type="button" className="field-big-btn" disabled={busy} onClick={()=>openCameraScan('complete')} style={{width:'100%',marginBottom:8}}>
+     <Camera size={26}/> QR kodu kamerayla okut
+    </button>
+    {verifyCode?(
+     <p style={{margin:0,fontSize:13,color:'#0f766e',wordBreak:'break-all'}}>QR alındı ✓</p>
+    ):(
+     <p style={{margin:0,fontSize:12,color:'#64748b'}}>Okutunca buraya yazılır. İsterseniz aşağıya yapıştırın.</p>
+    )}
+    <label className="field" style={{gridColumn:'1/-1'}}>
+     <span>Kod (yedek)</span>
+     <input required value={verifyCode} onChange={e=>setVerifyCode(e.target.value)} placeholder="Yapıştır…" autoComplete="off"/>
+    </label>
     <SignaturePad onChange={setSignatureData}/>
     {err&&<p style={{color:'#b91c1c',margin:0}}>{err}</p>}
-    <div className="form-actions"><button disabled={busy}>{busy?'Tamamlanıyor…':'Doğrula ve Tamamla'}</button></div>
+    <div className="form-actions"><button disabled={busy}>{busy?'Tamamlanıyor…':'Kaydet'}</button></div>
    </form>
   </M>}
-  {open&&canEdit&&(isField||editing)&&<M title={editing?'Saha Ziyaretini Düzenle':'Yeni Saha Ziyareti'} close={()=>{setOpen(false);setEditing(null);setErr('')}}>
-   <form className="form-grid" onSubmit={save}>
-    <S label="İşyeri" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})} disabled={isOsgb&&!!editing}>
+  {open&&canEdit&&(isField||editing)&&<M title={editing?'Saha Ziyaretini Düzenle':'Defter + QR kaydı'} close={()=>{setOpen(false);setEditing(null);setErr('')}}>
+   <form className="form-grid field-visit-form" onSubmit={save}>
+    <S label="1) İşyeri" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})} disabled={isOsgb&&!!editing}>
      <option value="">Seçiniz</option>
      {companies.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
     </S>
-    <F label="Tarih" type="date" required value={form.visit_date} onChange={e=>setForm({...form,visit_date:e.target.value})}/>
-    <F label="Başlangıç" type="time" value={form.start_time} onChange={e=>setForm({...form,start_time:e.target.value})}/>
-    <F label="Bitiş" type="time" value={form.end_time} onChange={e=>setForm({...form,end_time:e.target.value})}/>
-    <F label="Süre (dk.)" type="number" value={form.duration_minutes} onChange={e=>setForm({...form,duration_minutes:e.target.value})}/>
-    <F label="Ziyaret Konusu" required value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})}/>
-    <F label="Notlar" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/>
     <label className="field" style={{gridColumn:'1/-1'}}>
-     <span>{editing?'Tespit Öneri Defteri (opsiyonel — yeni dosya seçerseniz değişir)':'Tespit Öneri Defteri (pdf / jpg / png)'}</span>
+     <span>{editing?'2) Defter (opsiyonel)':'2) Tespit öneri defteri (pdf/jpg/png) *'}</span>
      <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required={!editing} onChange={e=>setNotebookFile(e.target.files?.[0]||null)}/>
      {notebookFile&&<small style={{color:'#475569'}}>{notebookFile.name}</small>}
      {!notebookFile&&editing?.notebook_file_name&&<small style={{color:'#475569'}}>Mevcut: {editing.notebook_file_name}</small>}
-     {isField&&<small style={{display:'block',marginTop:6,color:'#0f766e'}}>Defter yüklenince konum (GPS) ve QR doğrulama kaydedilir.</small>}
     </label>
-    {isField&&!editing&&<F label="İşyeri QR kodu" required value={siteVerifyInput} onChange={e=>setSiteVerifyInput(e.target.value)} placeholder="QR okutun veya kodu yapıştırın"/>}
+    {isField&&!editing&&(
+     <div style={{gridColumn:'1/-1',display:'grid',gap:8}}>
+      <span style={{fontSize:13,fontWeight:700,color:'#425c67'}}>3) İşyeri QR *</span>
+      <button type="button" className="field-big-btn" disabled={busy} onClick={()=>openCameraScan('visit')}>
+       <Camera size={26}/> Kamerayı aç — QR okut
+      </button>
+      {siteVerifyInput?(
+       <p style={{margin:0,fontSize:13,color:'#0f766e',wordBreak:'break-all'}}>QR alındı ✓</p>
+      ):(
+       <p style={{margin:0,fontSize:12,color:'#64748b'}}>Okutunca otomatik dolar. Gerekirse aşağıya yapıştırın.</p>
+      )}
+      <input required value={siteVerifyInput} onChange={e=>setSiteVerifyInput(e.target.value)} placeholder="Yedek: kod yapıştır" autoComplete="off"/>
+     </div>
+    )}
+    <details className="field-more" style={{gridColumn:'1/-1'}}>
+     <summary>Tarih / saat / konu (isteğe bağlı)</summary>
+     <div className="form-grid" style={{padding:'10px 0 0'}}>
+      <F label="Tarih" type="date" required value={form.visit_date} onChange={e=>setForm({...form,visit_date:e.target.value})}/>
+      <F label="Başlangıç" type="time" value={form.start_time} onChange={e=>setForm({...form,start_time:e.target.value})}/>
+      <F label="Bitiş" type="time" value={form.end_time} onChange={e=>setForm({...form,end_time:e.target.value})}/>
+      <F label="Süre (dk.)" type="number" value={form.duration_minutes} onChange={e=>setForm({...form,duration_minutes:e.target.value})}/>
+      <F label="Ziyaret Konusu" required value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})}/>
+      <F label="Notlar" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/>
+     </div>
+    </details>
+    {!isField&&(
+     <>
+      <F label="Tarih" type="date" required value={form.visit_date} onChange={e=>setForm({...form,visit_date:e.target.value})}/>
+      <F label="Başlangıç" type="time" value={form.start_time} onChange={e=>setForm({...form,start_time:e.target.value})}/>
+      <F label="Bitiş" type="time" value={form.end_time} onChange={e=>setForm({...form,end_time:e.target.value})}/>
+      <F label="Süre (dk.)" type="number" value={form.duration_minutes} onChange={e=>setForm({...form,duration_minutes:e.target.value})}/>
+      <F label="Ziyaret Konusu" required value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})}/>
+      <F label="Notlar" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/>
+     </>
+    )}
+    {isField&&editing&&(
+     <>
+      <F label="Tarih" type="date" required value={form.visit_date} onChange={e=>setForm({...form,visit_date:e.target.value})}/>
+      <F label="Başlangıç" type="time" value={form.start_time} onChange={e=>setForm({...form,start_time:e.target.value})}/>
+      <F label="Bitiş" type="time" value={form.end_time} onChange={e=>setForm({...form,end_time:e.target.value})}/>
+      <F label="Süre (dk.)" type="number" value={form.duration_minutes} onChange={e=>setForm({...form,duration_minutes:e.target.value})}/>
+      <F label="Ziyaret Konusu" required value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})}/>
+      <F label="Notlar" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/>
+     </>
+    )}
     {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
     <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':(editing?'Güncelle':'Kaydet')}</button></div>
    </form>
@@ -1634,6 +1695,14 @@ export function VisitsPage({user}){
     <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':'Planla'}</button></div>
    </form>
   </M>}
+  {scanOpen&&(
+   <SiteQrCameraModal
+    open={scanOpen}
+    mode={scanMode}
+    onClose={()=>setScanOpen(false)}
+    onDetected={onCameraDetected}
+   />
+  )}
  </P>
 }
 
