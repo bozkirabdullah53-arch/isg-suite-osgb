@@ -275,6 +275,36 @@ def company_overview(
     return build_company_overview(db, obj)
 
 
+@router.post("/{company_id}/kiosk-login/reset")
+def reset_company_kiosk_login(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    """Kiosk şifresini yalnızca bilinçli sıfırlar; her firma kaydında yenilenmez."""
+    if user.role == UserRole.COMPANY_ADMIN and user.company_id:
+        raise HTTPException(403, "İşyeri kiosk hesabı şifre sıfırlayamaz.")
+    ensure_company_access(db, user, company_id)
+    obj = db.get(Company, company_id)
+    if not obj:
+        raise HTTPException(404, "Firma bulunamadı.")
+    from app.services.osgb_admin import provision_workplace_kiosk_login
+
+    kiosk_user, plaintext, created = provision_workplace_kiosk_login(db, obj, reset_password=True)
+    db.commit()
+    if not plaintext:
+        raise HTTPException(500, "Şifre üretilemedi.")
+    return {
+        "user_id": kiosk_user.id,
+        "email": kiosk_user.email,
+        "full_name": kiosk_user.full_name,
+        "password": plaintext,
+        "temporary_password": plaintext,
+        "created": created,
+        "message": "Kiosk şifresi yenilendi. Eski şifre artık geçersiz. İşyerine yeni şifreyi iletin.",
+    }
+
+
 @router.get("/{company_id}/site-qr")
 def company_site_qr(
     company_id: int,
@@ -395,8 +425,13 @@ def create_company(
             "email": kiosk_user.email,
             "full_name": kiosk_user.full_name,
             "temporary_password": temp_password,
+            "password": temp_password,
             "created": created,
-            "message": "İşyeri QR kiosk hesabı hazır. Bu bilgilerle girişte doğrudan QR ekranı açılır.",
+            "message": (
+                "İşyeri kiosk hesabı oluşturuldu. Bu e-posta ve şifre kalıcıdır; "
+                "işyerine bir kez iletin. Sonraki girişlerde aynı şifre kullanılır "
+                "(yalnız OSGB şifreyi bilinçli sıfırlarsa değişir)."
+            ),
         }
     except Exception:
         db.rollback()

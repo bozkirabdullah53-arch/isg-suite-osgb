@@ -521,6 +521,16 @@ function Companies({canEdit, canAdd, onOpen360}){
     catch(ex){setErr(ex.message||'Geçici QR oluşturulamadı.');setSiteQrEphemeral(null)}
     finally{setSiteQrBusy(false)}
   }
+  async function resetKioskLogin(row){
+    if(!row?.id) return;
+    if(!window.confirm(`“${row.name}” kiosk şifresi sıfırlansın mı?\n\nEski şifre geçersiz olur. Yeni şifre bir kez gösterilir — işyerine iletin.`)) return;
+    setBusy(true);setErr('');setCopyMsg('');
+    try{
+      const acc=await api(`/companies/${row.id}/kiosk-login/reset`,{method:'POST'});
+      setCreds(acc);
+    }catch(ex){setErr(ex.message||'Kiosk şifresi sıfırlanamadı.')}
+    finally{setBusy(false)}
+  }
   return <Page title="Firma Yönetimi" action={canAdd&&<button type="button" disabled={busy} onClick={()=>{setErr('');setOpen(true)}}><Plus/>Firma Ekle</button>}>
     {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
     <SearchBar q={q} setQ={setQ} go={load}/>
@@ -547,6 +557,7 @@ function Companies({canEdit, canAdd, onOpen360}){
           {r.is_active
             ? <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'deactivate')}>Pasife Al</button>
             : <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>Aktifleştir</button>}
+          <button type="button" className="mini secondary" disabled={busy} onClick={()=>resetKioskLogin(r)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>
           <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'delete')}>Sil</button>
         </div>
       )}]:[]),
@@ -565,21 +576,29 @@ function Companies({canEdit, canAdd, onOpen360}){
         <div className="form-actions"><button type="submit" disabled={busy}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>
       </form>
     </Modal>}
-    {creds&&<Modal title="İşyeri Giriş Bilgileri" close={()=>{setCreds(null);setCopyMsg('')}}>
+    {creds&&<Modal title="İşyeri Kiosk Giriş Bilgileri" close={()=>{setCreds(null);setCopyMsg('')}}>
       <div className="form-grid single">
-        <p style={{marginTop:0,color:'#64748b'}}>Bu geçici bilgileri işyeri yetkilisine güvenli kanaldan iletin. İlk girişten sonra şifresini değiştirmesini isteyin.</p>
+        <p style={{marginTop:0,color:'#64748b'}}>
+          Bu e-posta ve şifre <strong>kalıcıdır</strong>. İşyerine bir kez iletin; her girişte aynı şifreyi kullanırlar.
+          Şifre yalnızca siz “Kiosk şifresini sıfırla” derseniz değişir.
+        </p>
         <p style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:0}}>
           <span><strong>Kullanıcı adı (e-posta):</strong> <code>{creds.email}</code></span>
           <button type="button" className="mini secondary" onClick={async()=>setCopyMsg((await copyText(creds.email))?'E-posta kopyalandı.':'Kopyalanamadı.')}>E-postayı kopyala</button>
         </p>
         <p><strong>Ad:</strong> {creds.full_name}</p>
-        <p style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:0}}>
-          <span><strong>Geçici şifre:</strong> <code style={{userSelect:'all'}}>{creds.temporary_password}</code></span>
-          <button type="button" className="mini" onClick={async()=>setCopyMsg((await copyText(creds.temporary_password))?'Şifre kopyalandı.':'Kopyalanamadı.')}>Şifreyi kopyala</button>
-        </p>
+        {(creds.password||creds.temporary_password)?(
+          <p style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:0}}>
+            <span><strong>Şifre:</strong> <code style={{userSelect:'all'}}>{creds.password||creds.temporary_password}</code></span>
+            <button type="button" className="mini" onClick={async()=>setCopyMsg((await copyText(creds.password||creds.temporary_password))?'Şifre kopyalandı.':'Kopyalanamadı.')}>Şifreyi kopyala</button>
+          </p>
+        ):(
+          <p style={{color:'#b45309'}}>Şifre bu ekranda bir kez gösterilir. Unutulursa listeden “Kiosk şifresini sıfırla” kullanın.</p>
+        )}
         <div className="actions" style={{gap:8,flexWrap:'wrap'}}>
           <button type="button" className="secondary" onClick={async()=>{
-            const text=`Kullanıcı adı: ${creds.email}\nGeçici şifre: ${creds.temporary_password}`;
+            const pw=creds.password||creds.temporary_password||'';
+            const text=`Kullanıcı adı: ${creds.email}\nŞifre: ${pw}`;
             setCopyMsg((await copyText(text))?'E-posta ve şifre kopyalandı.':'Kopyalanamadı.');
           }}>E-posta + şifreyi kopyala</button>
         </div>

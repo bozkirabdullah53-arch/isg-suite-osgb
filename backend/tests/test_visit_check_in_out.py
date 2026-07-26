@@ -262,9 +262,15 @@ def test_provision_workplace_kiosk_login(client):
         assert user.email.startswith("isyeri.")
         assert temp_password
         assert "@kiosk.isgsuite.tr" in user.email
-        # İkinci çağrı mevcut hesabı günceller
+        # İkinci çağrı şifreyi yenilemez
         user2, temp2, created2 = provision_workplace_kiosk_login(db, company)
         db.commit()
         assert created2 is False
         assert user2.id == user.id
-        assert temp2
+        assert temp2 is None
+        # Bilinçli sıfırlama
+        user3, temp3, created3 = provision_workplace_kiosk_login(db, company, reset_password=True)
+        db.commit()
+        assert created3 is False
+        assert temp3
+        assert temp3 != temp_password
