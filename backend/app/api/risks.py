@@ -30,6 +30,7 @@ from app.models.entities import (
     RiskAssessment,
     RiskDof,
     RiskMedia,
+    RiskRevision,
     User,
     UserRole,
     WorkplaceDepartment,
@@ -51,9 +52,11 @@ from app.schemas.risk import (
     RiskMediaResponse,
     RiskMediaTagsUpdate,
     RiskResponse,
+    RiskRevisionResponse,
     RiskUpdate,
 )
 from app.services.ai_hazard_hint import HINT_ENGINE, suggest_hazard_from_text
+from app.services.audit import add_audit_log
 from app.services.hazard_seed import seed_hazard_library
 from app.services.risk_photo_tags import (
     TAGS_ENGINE,
@@ -62,16 +65,35 @@ from app.services.risk_photo_tags import (
     parse_tags,
     serialize_selected,
 )
-from app.services.risk_reports import build_risk_excel, build_risk_pdf
+from app.services.risk_reports import build_dof_excel, build_risk_excel, build_risk_pdf
 from app.services.risk_scoring import evaluate, meta_payload
 from app.services.risk_suggestions import get_suggestions
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/risks", tags=["Risk Değerlendirme"])
-EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)
+# OSGB company_admin menüde risk yok; yazma da saha uzmanı + global admin.
+EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST)
 ALLOWED_PHOTO = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+ALLOWED_MEDIA = ALLOWED_PHOTO | {".pdf", ".mp4", ".avi", ".mov", ".bmp", ".doc", ".docx", ".xls", ".xlsx"}
 LEGACY_TAG = "[ISG#"
+REVISION_FIELDS = (
+    "department_name",
+    "hazard_id",
+    "activity",
+    "risk_definition",
+    "affected_people",
+    "affected_group",
+    "existing_measures",
+    "additional_measures",
+    "probability",
+    "severity",
+    "risk_score",
+    "risk_level",
+    "term_days",
+    "term_date",
+    "status",
+)
 
 
 def ensure_access(db: Session, user: User, company_id: int) -> None:
@@ -99,6 +121,17 @@ def _next_code(db: Session, prefix: str, model, field) -> str:
     return f"{prefix}-{count + 1:04d}"
 
 
+def _media_file_type(ext: str) -> str:
+    e = (ext or "").lower()
+    if e in ALLOWED_PHOTO or e == ".bmp":
+        return "photo"
+    if e in {".mp4", ".avi", ".mov"}:
+        return "video"
+    if e == ".pdf":
+        return "pdf"
+    return "drawing"
+
+
 def _media_response(m: RiskMedia) -> RiskMediaResponse:
     parsed = parse_tags(getattr(m, "tags_json", None))
     return RiskMediaResponse(
@@ -106,6 +139,10 @@ def _media_response(m: RiskMedia) -> RiskMediaResponse:
         risk_id=m.risk_id,
         original_name=m.original_name,
         content_type=m.content_type,
+        file_type=getattr(m, "file_type", None),
+        file_size=getattr(m, "file_size", None),
+        description=getattr(m, "description", None),
+        dof_id=getattr(m, "dof_id", None),
         created_at=m.created_at,
         tags=list(parsed["selected"]),
         tag_labels=list(parsed["labels"]),
@@ -113,6 +150,10 @@ def _media_response(m: RiskMedia) -> RiskMediaResponse:
 
 
 def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: HazardCategory | None = None) -> RiskResponse:
+    revisions = [
+        RiskRevisionResponse.model_validate(r)
+        for r in list(getattr(row, "revisions", None) or [])[:40]
+    ]
     return RiskResponse(
         id=row.id,
         risk_code=row.risk_code,
@@ -145,7 +186,61 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
         updated_at=row.updated_at,
         dofs=[RiskDofResponse.model_validate(d) for d in (row.dofs or [])],
         media=[_media_response(m) for m in (row.media_files or [])],
+        revisions=revisions,
     )
+
+
+def _snapshot_fields(row: RiskAssessment) -> dict:
+    out = {}
+    for key in REVISION_FIELDS:
+        val = getattr(row, key, None)
+        out[key] = "" if val is None else str(val)
+    return out
+
+
+def _record_field_revisions(
+    db: Session,
+    *,
+    row: RiskAssessment,
+    before: dict,
+    user: User,
+    reason: str | None,
+) -> int:
+    """Alan bazlı revizyon satırları yazar; yeni revision_no döner."""
+    after = _snapshot_fields(row)
+    changes = [(k, before.get(k, ""), after.get(k, "")) for k in REVISION_FIELDS if before.get(k, "") != after.get(k, "")]
+    if not changes:
+        return int(row.revision_no or 0)
+    next_no = int(row.revision_no or 0) + 1
+    for field_name, old_value, new_value in changes:
+        db.add(
+            RiskRevision(
+                risk_id=row.id,
+                revision_no=next_no,
+                changed_by_id=user.id,
+                field_name=field_name,
+                old_value=old_value[:4000] if old_value else "",
+                new_value=new_value[:4000] if new_value else "",
+                change_reason=(reason or "")[:500] or None,
+            )
+        )
+    row.revision_no = next_no
+    return next_no
+
+
+def _load_risk(db: Session, risk_id: int) -> RiskAssessment:
+    row = db.scalar(
+        select(RiskAssessment)
+        .options(
+            selectinload(RiskAssessment.dofs),
+            selectinload(RiskAssessment.media_files),
+            selectinload(RiskAssessment.revisions),
+        )
+        .where(RiskAssessment.id == risk_id)
+    )
+    if not row:
+        raise HTTPException(404, "Risk kaydı bulunamadı.")
+    return row
 
 
 def _resolve_department(
@@ -185,20 +280,6 @@ def _ensure_library(db: Session) -> None:
     count = db.scalar(select(func.count()).select_from(HazardCategory)) or 0
     if count == 0:
         seed_hazard_library(db)
-
-
-def _load_risk(db: Session, risk_id: int) -> RiskAssessment:
-    row = db.scalar(
-        select(RiskAssessment)
-        .options(
-            selectinload(RiskAssessment.dofs),
-            selectinload(RiskAssessment.media_files),
-        )
-        .where(RiskAssessment.id == risk_id)
-    )
-    if not row:
-        raise HTTPException(404, "Risk kaydı bulunamadı.")
-    return row
 
 
 @router.get("/meta")
@@ -586,9 +667,20 @@ def delete_risk(
 ):
     row = _load_risk(db, risk_id)
     ensure_access(db, user, row.company_id)
+    code = row.risk_code
+    cid = row.company_id
     db.delete(row)
+    add_audit_log(
+        db,
+        user=user,
+        action="DELETE",
+        entity_type="risk_assessment",
+        entity_id=str(risk_id),
+        description=f"Risk silindi: {code}",
+        module="risk",
+    )
     db.commit()
-    return {"ok": True, "id": risk_id}
+    return {"ok": True, "id": risk_id, "company_id": cid}
 
 
 @router.get("/hazards", response_model=list[HazardResponse])
@@ -774,6 +866,22 @@ def risk_report_excel(
     )
 
 
+@router.get("/report/dof.xlsx")
+def risk_dof_excel(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """PRO /rapor/dof-excel — sadece DÖF listesi Excel."""
+    company, risks, hazard_map = _load_company_risks(db, user, company_id, None, None)
+    xlsx = build_dof_excel(company=company, risks=risks, hazard_map=hazard_map)
+    return StreamingResponse(
+        BytesIO(xlsx),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="dof-listesi-{company.id}.xlsx"'},
+    )
+
+
 def _legacy_status(status: RecordStatus) -> str:
     return {
         RecordStatus.OPEN: "Açık",
@@ -937,6 +1045,16 @@ def create_risk(
     )
     db.add(row)
     db.commit()
+    add_audit_log(
+        db,
+        user=user,
+        action="CREATE",
+        entity_type="risk_assessment",
+        entity_id=str(row.id),
+        description=f"Risk oluşturuldu: {row.risk_code}",
+        module="risk",
+    )
+    db.commit()
     row = _load_risk(db, row.id)
     cat = db.get(HazardCategory, hazard.category_id)
     return _to_response(row, hazard, cat)
@@ -951,7 +1069,9 @@ def update_risk(
 ):
     row = _load_risk(db, risk_id)
     ensure_access(db, user, row.company_id)
+    before = _snapshot_fields(row)
     data = payload.model_dump(exclude_unset=True)
+    reason = data.pop("change_reason", None)
     term_override = data.pop("term_override_days", None)
     has_dep_id = "department_id" in data
     has_dep_name = "department_name" in data
@@ -969,10 +1089,7 @@ def update_risk(
         if resolved_name is not None:
             row.department_name = resolved_name
 
-    changed = has_dep_id or has_dep_name
     for key, val in data.items():
-        if getattr(row, key, None) != val:
-            changed = True
         setattr(row, key, val)
 
     if "hazard_id" in data:
@@ -994,10 +1111,19 @@ def update_risk(
         row.term_days = calc["term_days"]
         row.term_date = date.fromisoformat(calc["term_date"])
         row.term_overridden = calc["term_overridden"]
-        changed = True
 
-    if changed:
-        row.revision_no = (row.revision_no or 0) + 1
+    old_rev = int(row.revision_no or 0)
+    rev_no = _record_field_revisions(db, row=row, before=before, user=user, reason=reason)
+    if rev_no > old_rev:
+        add_audit_log(
+            db,
+            user=user,
+            action="UPDATE",
+            entity_type="risk_assessment",
+            entity_id=str(row.id),
+            description=f"Risk güncellendi: {row.risk_code} (rev {rev_no})",
+            module="risk",
+        )
     db.commit()
     row = _load_risk(db, row.id)
     h = db.get(Hazard, row.hazard_id)
@@ -1082,6 +1208,8 @@ async def upload_risk_media(
     risk_id: int,
     file: UploadFile = File(...),
     tags: str | None = Form(default=None),
+    description: str | None = Form(default=None),
+    dof_id: int | None = Form(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -1089,8 +1217,12 @@ async def upload_risk_media(
     ensure_access(db, user, row.company_id)
     name = file.filename or "photo.jpg"
     ext = Path(name).suffix.lower()
-    if ext not in ALLOWED_PHOTO:
-        raise HTTPException(422, "Sadece jpg/png/webp/gif yükleyin.")
+    if ext not in ALLOWED_MEDIA:
+        raise HTTPException(422, "Desteklenen: jpg/png/webp/gif/pdf/mp4/avi/mov/doc/docx/xls/xlsx.")
+    if dof_id is not None:
+        dof = db.get(RiskDof, dof_id)
+        if not dof or dof.risk_id != risk_id:
+            raise HTTPException(422, "DÖF bu riske ait değil.")
     data = await file.read()
     if len(data) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(413, f"Dosya {settings.max_upload_mb} MB sınırını aşıyor.")
@@ -1102,15 +1234,29 @@ async def upload_risk_media(
         target = _upload_root() / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
+    ftype = _media_file_type(ext)
     media = RiskMedia(
         risk_id=row.id,
+        dof_id=dof_id,
         storage_path=rel.replace("\\", "/"),
         original_name=name,
         content_type=file.content_type or "application/octet-stream",
-        tags_json=serialize_selected(parse_form_tags(tags)),
+        file_type=ftype,
+        file_size=len(data),
+        description=(description or "").strip() or None,
+        tags_json=serialize_selected(parse_form_tags(tags)) if ftype == "photo" else None,
         created_by_id=user.id,
     )
     db.add(media)
+    add_audit_log(
+        db,
+        user=user,
+        action="CREATE",
+        entity_type="risk_media",
+        entity_id=str(row.id),
+        description=f"Medya yüklendi: {name} ({ftype})",
+        module="risk",
+    )
     db.commit()
     db.refresh(media)
     return _media_response(media)

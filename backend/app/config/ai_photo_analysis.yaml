@@ -1,0 +1,213 @@
+version: "1.0.0"
+name: "ISG Risk Analizi - Fotoğraftan Yapay Zeka Uygunsuzluk Analizi"
+owner: "Yetkili İSG Uzmanı"
+status: "taslak_yapilandirma"
+created_for: "Mevcut risk analizi programına, çalışan sistemi bozmadan AI fotoğraf analizi altyapısı eklemek"
+
+safety_mode:
+  active_code_changed: false
+  database_changed: false
+  destructive_operation_allowed: false
+  human_approval_required: true
+  purpose: >
+    Bu YAML dosyası ilk aşamada sadece yapılandırma ve prompt dosyasıdır.
+    Mevcut app.py, models.py, templates ve veritabanı üzerinde otomatik değişiklik yapmaz.
+    AI sonucu doğrudan risk kaydına yazılmamalı; önce İSG uzmanının onayına sunulmalıdır.
+
+ai_provider:
+  mode: "configurable"
+  default_provider: "openai_or_gemini_later"
+  api_key_env_name: "ISG_AI_API_KEY"
+  note: >
+    Gerçek fotoğraf analizi için görsel anlayan bir yapay zeka modeli gerekir.
+    API anahtarı kod içine yazılmamalıdır. İleride .env veya ortam değişkeni kullanılmalıdır.
+
+image_input:
+  allowed_file_types:
+    - "jpg"
+    - "jpeg"
+    - "png"
+    - "webp"
+  max_file_size_mb: 15
+  source_locations:
+    existing_upload_folder: "uploads/"
+    existing_media_table: "media_files"
+  analysis_trigger_options:
+    - "risk_detail sayfasında mevcut fotoğrafın altında 'AI Fotoğraf Analizi' butonu"
+    - "ileride ayrı 'Fotoğraftan Risk Oluştur' ekranı"
+
+system_prompt: |
+  Sen A Sınıfı İş Güvenliği Uzmanı, risk değerlendirme uzmanı ve işyeri saha denetçisi gibi davran.
+  Yüklenen işyeri fotoğrafını Türkiye iş sağlığı ve güvenliği mevzuatı açısından incele.
+
+  Görevin:
+  1. Fotoğrafta görülebilen uygunsuzlukları tespit etmek.
+  2. Her uygunsuzluğu risk analizi programına aktarılabilecek şekilde yapılandırmak.
+  3. İlgili mevzuatı mevzuat adı ve konu başlığı düzeyinde belirtmek.
+  4. Olasılık, şiddet ve risk puanını 5x5 matris mantığıyla önermek.
+  5. Risk kaydına doğrudan yazılabilecek resmi tespit ve öneri metni üretmek.
+
+  Çok önemli kurallar:
+  - Fotoğrafta net görünmeyen hiçbir şeyi kesin bilgi gibi yazma.
+  - Emin olmadığın tespitlerde "fotoğraftan kesin doğrulanamıyor" ifadesini kullan.
+  - Mevzuat madde numarası uydurma.
+  - Görmediğin KKD, etiket, korkuluk, acil çıkış, yangın ekipmanı veya makine koruyucusunu varmış gibi yazma.
+  - Birden fazla uygunsuzluk varsa her birini ayrı risk önerisi olarak üret.
+  - Sonuçlar nihai karar değildir; mutlaka İSG uzmanı onayına sunulmalıdır.
+
+user_prompt_template: |
+  Aşağıdaki işyeri fotoğrafını analiz et.
+
+  Firma/işyeri bilgisi: {{company_name}}
+  Bölüm: {{department_name}}
+  Faaliyet/iş tanımı: {{activity}}
+  Tehlike sınıfı: {{hazard_class}}
+  Varsa kullanıcının notu: {{user_note}}
+
+  Fotoğrafta görülebilen uygunsuzlukları Türkiye İSG mevzuatı ve 5x5 risk matrisi kapsamında değerlendir.
+  Çıktıyı sadece belirtilen JSON şemasına uygun ver.
+
+output_format:
+  type: "json"
+  require_valid_json: true
+  top_level_fields:
+    genel_degerlendirme: "Fotoğrafın genel İSG değerlendirmesi"
+    tespit_edilen_uygunsuzluklar: "Risk önerileri listesi"
+    insan_onayi_gerekiyor_mu: true
+    uyari: "AI analizinin ön değerlendirme olduğu ve İSG uzmanı onayı gerektiği notu"
+
+json_schema_example:
+  genel_degerlendirme: "Fotoğrafta çalışma alanında İSG açısından değerlendirilmesi gereken uygunsuzluklar görülmektedir."
+  tespit_edilen_uygunsuzluklar:
+    - uygunsuzluk_basligi: "Kısa ve net uygunsuzluk başlığı"
+      fotografa_gore_gorulen_durum: "Fotoğrafta görülen somut durum"
+      kesinlik_duzeyi: "yüksek | orta | düşük"
+      tehlike_kaynagi: "Tehlikenin kaynağı"
+      risk_tanimi: "Risk analizindeki risk tanımı alanına yazılacak açıklama"
+      etkilenen_kisiler: "Çalışanlar, ziyaretçiler, alt işveren çalışanları vb."
+      etkilenen_grup: "Çalışan | Ziyaretçi | Müteahhit | Çevre | Tümü"
+      mevcut_onlemler: "Fotoğrafta görülebilen mevcut önlemler; görünmüyorsa bunu belirt"
+      olasi_sonuclar:
+        - "Yaralanma"
+        - "Düşme"
+        - "Elektrik çarpması"
+      alinmasi_gereken_onlemler:
+        - "Teknik önlem"
+        - "Organizasyonel önlem"
+        - "Eğitim / denetim / KKD önlemi"
+      ilgili_mevzuat:
+        - mevzuat_adi: "6331 sayılı İş Sağlığı ve Güvenliği Kanunu"
+          ilgili_konu: "İşverenin genel yükümlülüğü, risklerden korunma ilkeleri"
+          aciklama: "Tespit edilen uygunsuzlukla ilişkisi"
+      risk_degerlendirme:
+        olasilik: 3
+        siddet: 4
+        risk_puani: 12
+        risk_seviyesi: "Orta"
+        gerekce: "Puanlama gerekçesi"
+      termin:
+        onerilen_gun: 15
+        aciliyet: "Derhal | 1 gün | 3 gün | 7 gün | 15 gün | 30 gün | 60 gün | 90 gün"
+        gerekce: "Termin gerekçesi"
+      sorumlu_birim: "İşveren vekili / Bakım birimi / Üretim sorumlusu / İdari işler / İSG birimi"
+      rapora_yazilacak_tespit_metni: "Risk analiz raporuna doğrudan yazılabilecek tespit metni"
+      rapora_yazilacak_oneri_metni: "Risk analiz raporuna doğrudan yazılabilecek öneri metni"
+  insan_onayi_gerekiyor_mu: true
+  uyari: "Bu analiz yapay zekâ tarafından fotoğraf üzerinden ön değerlendirme amacıyla oluşturulmuştur. Nihai değerlendirme yetkili İSG profesyoneli tarafından kontrol edilmelidir."
+
+risk_matrix:
+  method: "5x5"
+  probability:
+    1: "Çok düşük"
+    2: "Düşük"
+    3: "Orta"
+    4: "Yüksek"
+    5: "Çok yüksek"
+  severity:
+    1: "Hafif"
+    2: "Küçük yaralanma"
+    3: "Ciddi yaralanma"
+    4: "Çok ciddi yaralanma / kalıcı hasar"
+    5: "Ölüm / birden fazla ağır yaralanma"
+  formula: "risk_puani = olasilik * siddet"
+  level_rules_program_compatible:
+    - range: "1-4"
+      level: "Kabul Edilebilir"
+    - range: "5-9"
+      level: "Düşük"
+    - range: "10-14"
+      level: "Orta"
+    - range: "15-19"
+      level: "Yüksek"
+    - range: "20-25"
+      level: "Çok Yüksek"
+  term_rules_program_compatible:
+    "25": 0
+    "20-24": 1
+    "18-19": 3
+    "15-17": 7
+    "12-14": 15
+    "10-11": 30
+    "8-9": 60
+    "1-7": 90
+
+mevzuat_reference_policy:
+  allowed_regulation_names:
+    - "6331 sayılı İş Sağlığı ve Güvenliği Kanunu"
+    - "İş Sağlığı ve Güvenliği Risk Değerlendirmesi Yönetmeliği"
+    - "İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliği"
+    - "Yapı İşlerinde İş Sağlığı ve Güvenliği Yönetmeliği"
+    - "Kişisel Koruyucu Donanımların İşyerlerinde Kullanılması Hakkında Yönetmelik"
+    - "Binaların Yangından Korunması Hakkında Yönetmelik"
+    - "Kimyasallarla Çalışmalarda Sağlık ve Güvenlik Önlemleri Hakkında Yönetmelik"
+    - "Elle Taşıma İşleri Yönetmeliği"
+    - "Ekranlı Araçlarla Çalışmalarda Sağlık ve Güvenlik Önlemleri Hakkında Yönetmelik"
+    - "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik"
+  article_number_rule: "Madde numarası kesin bilinmiyorsa yazma; mevzuat adı ve konu başlığı yeterlidir."
+
+program_field_mapping:
+  current_models_file: "models.py"
+  risk_table: "risks"
+  media_table: "media_files"
+  form_template: "templates/risk_form.html"
+  detail_template: "templates/risk_detail.html"
+  route_file: "app.py"
+  ai_output_to_risk_fields:
+    activity: "user_prompt_template.activity veya AI önerisi"
+    risk_definition: "risk_tanimi"
+    affected_people: "etkilenen_kisiler"
+    affected_group: "etkilenen_grup"
+    existing_measures: "mevcut_onlemler"
+    probability: "risk_degerlendirme.olasilik"
+    severity: "risk_degerlendirme.siddet"
+    risk_score: "risk_degerlendirme.risk_puani"
+    risk_level: "risk_degerlendirme.risk_seviyesi"
+    additional_measures: "rapora_yazilacak_oneri_metni + alinmasi_gereken_onlemler"
+    term_days: "termin.onerilen_gun"
+    media_files.description: "uygunsuzluk_basligi + fotografa_gore_gorulen_durum"
+  do_not_auto_write_without_approval: true
+
+proposed_integration_steps:
+  step_1_non_destructive:
+    description: "Risk detay sayfasında fotoğraf altında AI analiz butonu ekle"
+    files_to_change_later:
+      - "app.py"
+      - "templates/risk_detail.html"
+    database_change_required: false
+  step_2_analysis_preview:
+    description: "AI sonucunu sadece ekranda ön izleme olarak göster"
+    database_change_required: false
+  step_3_human_approved_transfer:
+    description: "Uzman onay verirse mevcut risk kaydına aktar veya yeni risk oluştur"
+    database_change_required: "opsiyonel"
+  step_4_audit_storage:
+    description: "AI analiz sonucunu kayıt altında tutmak için ayrı tablo eklenebilir"
+    database_change_required: true
+    suggested_table: "ai_photo_analysis_logs"
+
+minimum_ui_texts:
+  analyze_button: "AI Fotoğraf Analizi"
+  preview_title: "Yapay Zekâ Ön Analiz Sonucu"
+  transfer_button: "Risk Kaydına Aktar"
+  cancel_button: "Vazgeç"
+  warning_text: "Bu sonuç yapay zekâ ön analizidir. Kaydetmeden önce İSG uzmanı tarafından kontrol edilmelidir."

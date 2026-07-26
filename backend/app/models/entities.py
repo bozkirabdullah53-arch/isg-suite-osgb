@@ -245,6 +245,8 @@ class HealthRecordType(str, enum.Enum):
     JOB_CHANGE = "job_change"
     NIGHT_WORK = "night_work"
     HEAVY_HAZARDOUS = "heavy_hazardous"
+    SPECIAL_RISK = "special_risk"
+    OCCUPATIONAL_DISEASE_SUSPECT = "occupational_disease_suspect"
     LAB_TEST = "lab_test"
     VACCINATION = "vaccination"
     FITNESS_REPORT = "fitness_report"
@@ -290,6 +292,10 @@ class HealthRecord(Base):
     physician_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidential_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Pro parity: bilgilendirme onayı + kısıtlamalar (hekim notundan ayrı)
+    informed_consent: Mapped[bool] = mapped_column(Boolean, default=False)
+    informed_consent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    restrictions: Mapped[str | None] = mapped_column(Text, nullable=True)
     # PRO tetkik takip alanları
     audiometry_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     audiometry_result: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -874,21 +880,45 @@ class RiskAssessment(Base):
     media_files: Mapped[list["RiskMedia"]] = relationship(
         back_populates="risk", cascade="all, delete-orphan"
     )
+    revisions: Mapped[list["RiskRevision"]] = relationship(
+        back_populates="risk", cascade="all, delete-orphan", order_by="RiskRevision.id.desc()"
+    )
 
 
 class RiskMedia(Base):
-    """Risk kaydına bağlı foto/medya (PRO MediaFile parity)."""
+    """Risk kaydına bağlı medya (PRO MediaFile parity)."""
     __tablename__ = "risk_media"
     id: Mapped[int] = mapped_column(primary_key=True)
     risk_id: Mapped[int] = mapped_column(ForeignKey("risk_assessments.id", ondelete="CASCADE"), index=True)
+    dof_id: Mapped[int | None] = mapped_column(
+        ForeignKey("risk_dofs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     storage_path: Mapped[str] = mapped_column(String(500))
     original_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    file_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # photo|video|pdf|drawing
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # 0.9.121 — isteğe bağlı tehlike etiketi checklist (JSON)
     tags_json: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     risk: Mapped[RiskAssessment] = relationship(back_populates="media_files")
+
+
+class RiskRevision(Base):
+    """PRO RiskRevision — alan bazlı değişiklik geçmişi."""
+    __tablename__ = "risk_revisions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    risk_id: Mapped[int] = mapped_column(ForeignKey("risk_assessments.id", ondelete="CASCADE"), index=True)
+    revision_no: Mapped[int] = mapped_column(Integer)
+    changed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    field_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    change_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    risk: Mapped[RiskAssessment] = relationship(back_populates="revisions")
 
 
 class RiskDof(Base):

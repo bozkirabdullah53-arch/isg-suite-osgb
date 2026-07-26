@@ -54,6 +54,7 @@ class RiskUpdate(BaseModel):
     severity: int | None = Field(default=None, ge=1, le=5)
     term_override_days: int | None = Field(default=None, ge=0, le=365)
     status: str | None = Field(default=None, max_length=50)
+    change_reason: str | None = Field(default=None, max_length=500)
 
 
 class RiskDofCreate(BaseModel):
@@ -101,6 +102,10 @@ class RiskMediaResponse(BaseModel):
     risk_id: int
     original_name: str | None
     content_type: str | None
+    file_type: str | None = None
+    file_size: int | None = None
+    description: str | None = None
+    dof_id: int | None = None
     created_at: datetime
     tags: list[str] = []
     tag_labels: list[str] = []
@@ -109,6 +114,19 @@ class RiskMediaResponse(BaseModel):
 
 class RiskMediaTagsUpdate(BaseModel):
     selected: list[str] = []
+
+
+class RiskRevisionResponse(BaseModel):
+    id: int
+    risk_id: int
+    revision_no: int
+    field_name: str | None
+    old_value: str | None
+    new_value: str | None
+    change_reason: str | None
+    changed_by_id: int | None
+    changed_at: datetime
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RiskResponse(BaseModel):
@@ -143,6 +161,7 @@ class RiskResponse(BaseModel):
     updated_at: datetime
     dofs: list[RiskDofResponse] = []
     media: list[RiskMediaResponse] = []
+    revisions: list[RiskRevisionResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
 

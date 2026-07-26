@@ -570,3 +570,83 @@ def build_risk_excel(*, company, risks, hazard_map: dict | None = None) -> bytes
     wb.save(out)
     out.seek(0)
     return out.read()
+
+
+def build_dof_excel(*, company, risks: list, hazard_map: dict | None = None) -> bytes:
+    """PRO /rapor/dof-excel — yalnız DÖF listesi."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+
+    hazard_map = hazard_map or {}
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "DÖF Listesi"
+    header_font = Font(bold=True, size=11, color="FFFFFF")
+    header_fill = PatternFill(start_color="1A5276", end_color="1A5276", fill_type="solid")
+    thin = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
+    )
+    wb.properties.creator = CREATOR_LINE
+    wb.properties.title = "DÖF Listesi"
+
+    ws.merge_cells("A1:I1")
+    ws["A1"] = f"DÜZELTİCİ-ÖNLEYİCİ FAALİYET LİSTESİ - {getattr(company, 'name', '')}"
+    ws["A1"].font = Font(bold=True, size=14, color="1A5276")
+    ws.merge_cells("A2:I2")
+    ws["A2"] = CREATOR_LINE
+    ws["A2"].font = Font(size=9, italic=True, color="6C757D")
+    ws["A2"].alignment = Alignment(horizontal="center")
+
+    headers = [
+        "DÖF No",
+        "Risk Kodu",
+        "Bölüm",
+        "Tehlike",
+        "Yapılacak İş",
+        "Sorumlu",
+        "Termin Tarihi",
+        "Durum",
+        "Tamamlanma Tarihi",
+    ]
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=4, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin
+        cell.alignment = Alignment(horizontal="center", wrap_text=True)
+
+    row_i = 5
+    for risk in risks:
+        haz = hazard_map.get(getattr(risk, "hazard_id", None))
+        haz_name = getattr(haz, "name", None) if haz else "—"
+        for dof in getattr(risk, "dofs", None) or []:
+            values = [
+                dof.dof_code,
+                getattr(risk, "risk_code", "") or "—",
+                getattr(risk, "department_name", None) or "—",
+                haz_name or "—",
+                dof.description,
+                dof.responsible_person or "—",
+                _fmt_date(dof.term_date),
+                dof.status or "Açık",
+                _fmt_date(dof.completion_date),
+            ]
+            for col, val in enumerate(values, 1):
+                cell = ws.cell(row=row_i, column=col, value=val)
+                cell.border = thin
+                cell.font = Font(size=9)
+                cell.alignment = Alignment(wrap_text=True)
+            row_i += 1
+
+    for i, w in enumerate([12, 12, 15, 18, 30, 18, 12, 12, 15], 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.oddFooter.center.text = CREATOR_LINE
+
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    return out.read()

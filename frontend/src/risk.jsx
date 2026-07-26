@@ -665,13 +665,18 @@ export function RiskPage({user}) {
       return;
     }
     const params = new URLSearchParams({company_id: String(cid)});
-    if (levelFilter) params.set('level', levelFilter);
+    if (levelFilter && kind !== 'dof') params.set('level', levelFilter);
     setDlBusy(kind);
     try {
-      const ext = kind === 'pdf' ? 'pdf' : 'xlsx';
-      await downloadFile(`/risks/report.${ext}?${params}`, `risk-raporu-${cid}.${ext}`);
+      if (kind === 'dof') {
+        await downloadFile(`/risks/report/dof.xlsx?${params}`, `dof-listesi-${cid}.xlsx`);
+      } else {
+        const ext = kind === 'pdf' ? 'pdf' : 'xlsx';
+        await downloadFile(`/risks/report.${ext}?${params}`, `risk-raporu-${cid}.${ext}`);
+      }
     } catch (x) {
-      alert((kind === 'pdf' ? 'PDF' : 'Excel') + ' indirilemedi:\n' + x.message);
+      const label = kind === 'pdf' ? 'PDF' : kind === 'dof' ? 'DÖF Excel' : 'Excel';
+      alert(label + ' indirilemedi:\n' + x.message);
     } finally {
       setDlBusy('');
     }
@@ -698,6 +703,9 @@ export function RiskPage({user}) {
           </button>
           <button className="secondary" type="button" disabled={!!dlBusy} onClick={() => downloadReport('xlsx')}>
             <Download size={16} /> {dlBusy === 'xlsx' ? 'Excel…' : 'Excel Rapor'}
+          </button>
+          <button className="secondary" type="button" disabled={!!dlBusy} onClick={() => downloadReport('dof')}>
+            <Download size={16} /> {dlBusy === 'dof' ? 'DÖF…' : 'DÖF Excel'}
           </button>
           {canEdit && (
             <button type="button" onClick={openCreate}>
@@ -1274,12 +1282,27 @@ export function RiskPage({user}) {
 
           <h4 style={{marginTop: 16}}>Fotoğraf / medya</h4>
           <div style={{display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start', marginBottom: 8}}>
-            {(detail.media || []).map((m) => (
+            {(detail.media || []).map((m) => {
+              const isPhoto = !m.file_type || m.file_type === 'photo';
+              return (
               <div key={m.id} style={{textAlign: 'center', maxWidth: 140}}>
-                <AuthThumb path={`/risks/${detail.id}/media/${m.id}`} alt={m.original_name || ''} />
+                {isPhoto ? (
+                  <AuthThumb path={`/risks/${detail.id}/media/${m.id}`} alt={m.original_name || ''} />
+                ) : (
+                  <div style={{
+                    width: 120, height: 80, borderRadius: 8, background: '#f1f5f9',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, color: '#334155', border: '1px solid #cbd5e1',
+                  }}>
+                    {(m.file_type || 'dosya').toUpperCase()}
+                  </div>
+                )}
                 <div style={{fontSize: 11, color: '#64748b', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis'}}>
                   {m.original_name || `#${m.id}`}
                 </div>
+                {m.description && (
+                  <div style={{fontSize: 10, color: '#64748b', marginTop: 2}}>{m.description}</div>
+                )}
                 {(m.tag_labels || []).length > 0 && (
                   <div style={{fontSize: 10, color: '#0f766e', marginTop: 2, lineHeight: 1.3}}>
                     {(m.tag_labels || []).join(' · ')}
@@ -1291,15 +1314,16 @@ export function RiskPage({user}) {
                   </button>
                 )}
               </div>
-            ))}
+              );
+            })}
             {!((detail.media || []).length) && (
-              <span style={{color: '#64748b', fontSize: 14}}>Henüz fotoğraf yok</span>
+              <span style={{color: '#64748b', fontSize: 14}}>Henüz medya yok</span>
             )}
           </div>
           {canEdit && (
             <div style={{marginBottom: 10}}>
               <div style={{fontSize: 13, color: '#475569', marginBottom: 6}}>
-                Tehlike etiketi (isteğe bağlı — yüklemeden önce seçin)
+                Tehlike etiketi (isteğe bağlı — fotoğraf yüklemeden önce)
               </div>
               <div style={{display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8, alignItems: 'center'}}>
                 {photoTagCatalog.map((t) => {
@@ -1347,8 +1371,13 @@ export function RiskPage({user}) {
                 </button>
               </div>
               <label className="field" style={{display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
-                <span className="mini" style={{pointerEvents: 'none'}}>Fotoğraf ekle</span>
-                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={uploadMedia} style={{display: 'none'}} />
+                <span className="mini" style={{pointerEvents: 'none'}}>Dosya ekle</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,.doc,.docx,.xls,.xlsx"
+                  onChange={uploadMedia}
+                  style={{display: 'none'}}
+                />
               </label>
             </div>
           )}
@@ -1437,6 +1466,38 @@ export function RiskPage({user}) {
                 <button type="submit">DÖF Ekle</button>
               </div>
             </form>
+          )}
+
+          <h4 style={{marginTop: 20}}>Revizyon geçmişi</h4>
+          {(detail.revisions || []).length ? (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Rev</th>
+                    <th>Alan</th>
+                    <th>Eski</th>
+                    <th>Yeni</th>
+                    <th>Neden</th>
+                    <th>Tarih</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(detail.revisions || []).slice(0, 20).map((r) => (
+                    <tr key={r.id}>
+                      <td>v{r.revision_no}</td>
+                      <td>{r.field_name || '—'}</td>
+                      <td style={{maxWidth: 160, fontSize: 12}}>{(r.old_value || '—').slice(0, 80)}</td>
+                      <td style={{maxWidth: 160, fontSize: 12}}>{(r.new_value || '—').slice(0, 80)}</td>
+                      <td style={{fontSize: 12}}>{r.change_reason || '—'}</td>
+                      <td style={{fontSize: 12}}>{r.changed_at ? String(r.changed_at).slice(0, 19).replace('T', ' ') : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p style={{color: '#64748b', fontSize: 14}}>Henüz alan değişikliği kaydı yok.</p>
           )}
         </section>
       )}
