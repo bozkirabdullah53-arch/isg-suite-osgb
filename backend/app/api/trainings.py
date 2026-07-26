@@ -17,7 +17,7 @@ from app.core.database import get_db
 from app.models.entities import Company, Employee, TrainingParticipant, TrainingSession, TrainingStatus, User, UserRole
 from app.schemas.training import TrainingCreate, TrainingResponse, TrainingUpdate, TrainingVerifyResponse
 from app.services.training_employee_import import resolve_or_create_employees
-from app.services.training_excel import parse_employees_xlsx
+from app.services.training_excel import parse_employee_upload
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
@@ -29,8 +29,9 @@ router = APIRouter(prefix="/trainings", tags=["Eğitim Yönetimi"])
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)
 # test_training_rules.py bu sabiti kullanır
 RULES = {"Az Tehlikeli": (8, 3), "Tehlikeli": (12, 2), "Çok Tehlikeli": (16, 1)}
-LOGO_EXT = {".png", ".jpg", ".jpeg", ".webp"}
-LOGO_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
+LOGO_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+LOGO_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"}
+EXCEL_EXT = (".xlsx", ".xlsm", ".csv")
 
 
 def ensure_access(db: Session, user: User, company_id: int):
@@ -157,18 +158,28 @@ async def parse_excel(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    """Excel çalışan listesini okur; isteğe bağlı eksik personeli oluşturur."""
+    """Excel/CSV çalışan listesini okur; isteğe bağlı eksik personeli oluşturur (Pro parity)."""
     ensure_access(db, user, company_id)
     company = db.get(Company, company_id)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
     name = (file.filename or "").lower()
-    if not name.endswith((".xlsx", ".xlsm")):
-        raise HTTPException(422, "Yalnızca .xlsx / .xlsm dosyaları kabul edilir.")
+    if not name.endswith(EXCEL_EXT):
+        raise HTTPException(
+            422,
+            "Geçersiz dosya! Lütfen .xlsx, .xlsm veya .csv uzantılı bir çalışan listesi yükleyin.",
+        )
+    if name.endswith(".xls") and not name.endswith((".xlsx", ".xlsm")):
+        raise HTTPException(
+            422,
+            "Eski .xls formatı desteklenmez. Lütfen dosyayı Excel'de .xlsx olarak kaydedip tekrar yükleyin.",
+        )
     content = await file.read()
-    assert_safe_upload(content, Path(name).suffix.lower() or ".xlsx", file.filename or "")
+    suffix = Path(name).suffix.lower() or ".xlsx"
+    if suffix != ".csv":
+        assert_safe_upload(content, suffix, file.filename or "")
     try:
-        rows = parse_employees_xlsx(content)
+        rows, excel_meta, logo_bytes = parse_employee_upload(content, file.filename or "liste.xlsx")
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     if not rows:
@@ -190,6 +201,8 @@ async def parse_excel(
         "matched": sum(1 for r in result if r["matched"]),
         "participants": result,
         "participant_ids": ids,
+        "excel_meta": excel_meta or {},
+        "has_embedded_logo": bool(logo_bytes),
     }
 
 
@@ -317,12 +330,17 @@ async def upload_participants(
     row = _load_training(db, training_id)
     ensure_access(db, user, row.company_id)
     name = (file.filename or "").lower()
-    if not name.endswith((".xlsx", ".xlsm")):
-        raise HTTPException(422, "Yalnızca .xlsx / .xlsm dosyaları kabul edilir.")
+    if not name.endswith(EXCEL_EXT):
+        raise HTTPException(
+            422,
+            "Geçersiz dosya! Lütfen .xlsx, .xlsm veya .csv uzantılı bir çalışan listesi yükleyin.",
+        )
     content = await file.read()
-    assert_safe_upload(content, Path(name).suffix.lower() or ".xlsx", file.filename or "")
+    suffix = Path(name).suffix.lower() or ".xlsx"
+    if suffix != ".csv":
+        assert_safe_upload(content, suffix, file.filename or "")
     try:
-        parsed = parse_employees_xlsx(content)
+        parsed, _meta, _logo = parse_employee_upload(content, file.filename or "liste.xlsx")
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     if not parsed:

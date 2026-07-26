@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {Download, Plus, Search, ShieldCheck, Upload, Users, X} from 'lucide-react';
+import {Award, CheckCircle2, ClipboardList, Download, FileSpreadsheet, Search, ShieldCheck, Upload, Users} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
+import './training_pro.css';
 
 const HAZARD_HOURS = {'Az Tehlikeli': 8, Tehlikeli: 12, 'Çok Tehlikeli': 16};
 const MAX_HOURS_PER_DAY = 8;
@@ -10,6 +11,11 @@ const HAZARD_HINT = {
   'Çok Tehlikeli': '16 ders saati · en az 2 güne yayılır (1 günde 16 saat olmaz) · her yıl yenilenir',
 };
 const STATUS = {planned: 'Planlandı', completed: 'Tamamlandı', cancelled: 'İptal'};
+const TABS = [
+  {id: 'temel', label: 'Temel İSG Eğitimi'},
+  {id: 'ozel', label: 'Özel Eğitimler'},
+  {id: 'kayitlar', label: 'Kayıtlar'},
+];
 
 function minTrainingDays(hazardClass) {
   const hours = HAZARD_HOURS[hazardClass] || 8;
@@ -29,45 +35,20 @@ function calendarDaysInclusive(start, end) {
   return Math.floor((b - a) / 86400000) + 1;
 }
 
-function Modal({title, close, children, wide}) {
+function apiBaseUrl() {
+  const host =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
   return (
-    <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <section className={'modal' + (wide ? ' wide' : '')}>
-        <header>
-          <h3>{title}</h3>
-          <button className="icon" type="button" onClick={close}><X /></button>
-        </header>
-        <div className="modal-body">{children}</div>
-      </section>
-    </div>
-  );
-}
-
-function Field({label, ...p}) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <input {...p} />
-    </label>
-  );
-}
-
-function Select({label, children, ...p}) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <select {...p}>{children}</select>
-    </label>
+    import.meta.env.VITE_API_URL ||
+    (host
+      ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
+      : 'https://isg-suite-api-1u9t.onrender.com/api/v1')
   );
 }
 
 async function loadSectorsCatalog() {
-  const host =
-    typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  const base =
-    import.meta.env.VITE_API_URL ||
-    (host ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1` : 'https://isg-suite-api-1u9t.onrender.com/api/v1');
+  const base = apiBaseUrl();
 
   // 1) Yeni API /sectors
   try {
@@ -77,15 +58,19 @@ async function loadSectorsCatalog() {
       if (Array.isArray(data) && data.length > 10) return data;
     }
   } catch (_) { /* ignore */ }
+
   // 2) Auth’lu meta
   try {
     const meta = await api('/trainings/meta');
     if (meta?.sectors?.length > 10) return meta.sectors;
   } catch (_) { /* ignore */ }
+
   // 3) Statik paket (dizi veya {sectors:[...]})
-  const local = await fetch('/training-sectors.json').then((r) => r.json());
-  if (Array.isArray(local) && local.length > 10) return local;
-  if (Array.isArray(local?.sectors) && local.sectors.length > 10) return local.sectors;
+  try {
+    const local = await fetch('/training-sectors.json').then((r) => r.json());
+    if (Array.isArray(local) && local.length > 10) return local;
+    if (Array.isArray(local?.sectors) && local.sectors.length > 10) return local.sectors;
+  } catch (_) { /* ignore */ }
   return [];
 }
 
@@ -94,14 +79,13 @@ function sectorLabel(sectors, code) {
   return s ? (s.label || s.name) : code || '—';
 }
 
-export function TrainingPage({user}) {
-  const canEdit = ['global_admin', 'company_admin', 'safety_specialist'].includes(user.role);
-  const empty = {
+function emptyForm(user) {
+  return {
     company_id: user.company_id || '',
-    title: '',
+    title: 'Temel İş Sağlığı ve Güvenliği Eğitimi',
     training_type: 'İlk Defa',
     delivery_method: 'Yüz yüze',
-    location: '',
+    location: 'İşyeri Eğitim Salonu',
     start_date: '',
     end_date: '',
     hazard_class: 'Çok Tehlikeli',
@@ -110,7 +94,8 @@ export function TrainingPage({user}) {
     instructor_qualification: '',
     workplace_physician: '',
     employer_representative: '',
-    stamp_text: '6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında düzenlenmiştir.',
+    stamp_text:
+      '6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında düzenlenmiştir.',
     evaluation_method: 'Sınav',
     passing_score: '',
     attendance_verified: true,
@@ -118,25 +103,129 @@ export function TrainingPage({user}) {
     notes: '',
     participant_ids: [],
   };
+}
 
+function EducationOutputPanel({
+  savedTrainingId,
+  participantCount,
+  dlBusy,
+  onDownloadCertificates,
+  onDownloadAttendance,
+  onSaveAndPrepare,
+  canEdit,
+  busy,
+}) {
+  const ready = !!savedTrainingId;
+  return (
+    <section
+      className={'education-output-panel' + (ready ? ' is-ready' : '')}
+      aria-labelledby="educationOutputTitle"
+    >
+      <div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12, marginBottom: 14}}>
+        <div>
+          <div className="section-title" style={{marginBottom: 6}}>Eğitim Belgesi ve PDF Raporlama</div>
+          <h3 id="educationOutputTitle" style={{margin: '0 0 6px', fontSize: 18}}>
+            Belge ve katılım listesi çıktıları
+          </h3>
+          {ready ? (
+            <p className="tp-help" style={{margin: 0}}>
+              Kayıt <strong>#{savedTrainingId}</strong> · {participantCount || 0} katılımcı üzerinden PDF çıktıları hazır.
+            </p>
+          ) : (
+            <p className="tp-help" style={{margin: 0}}>
+              Önce Excel yükleyin veya ortak listeden personel seçip eğitimi kaydedin.
+            </p>
+          )}
+        </div>
+        <span
+          style={{
+            alignSelf: 'flex-start',
+            padding: '8px 14px',
+            borderRadius: 999,
+            fontWeight: 800,
+            fontSize: 12,
+            background: ready ? '#d1fae5' : '#e2e8f0',
+            color: ready ? '#066' : '#64748b',
+          }}
+        >
+          {ready ? '✓ Çıktıya hazır' : 'Personel aktarımı bekleniyor'}
+        </span>
+      </div>
+
+      <div className="education-output-row">
+        {ready ? (
+          <button
+            type="button"
+            className="education-output-button education-output-button--certificate"
+            disabled={!!dlBusy}
+            onClick={onDownloadCertificates}
+          >
+            <Award size={18} />
+            {dlBusy === 'certs' ? 'İndiriliyor…' : 'Sertifika PDF (Katılım Belgeleri)'}
+          </button>
+        ) : (
+          <div className="education-output-disabled" aria-disabled="true">
+            Sertifika PDF (Katılım Belgeleri)
+          </div>
+        )}
+        {ready ? (
+          <button
+            type="button"
+            className="education-output-button education-output-button--attendance"
+            disabled={!!dlBusy}
+            onClick={onDownloadAttendance}
+          >
+            <ClipboardList size={18} />
+            {dlBusy === 'attendance' ? 'İndiriliyor…' : 'Katılım PDF (İmza Formu)'}
+          </button>
+        ) : (
+          <div className="education-output-disabled" aria-disabled="true">
+            Katılım PDF (İmza Formu)
+          </div>
+        )}
+      </div>
+
+      {canEdit && (
+        <div style={{marginTop: 12}}>
+          <button
+            type="button"
+            className="btn-premium"
+            disabled={busy}
+            onClick={onSaveAndPrepare}
+          >
+            {busy ? 'Kaydediliyor…' : 'Eğitimi Kaydet ve PDF Hazırla'}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function TrainingPage({user}) {
+  const canEdit = ['global_admin', 'company_admin', 'safety_specialist'].includes(user.role);
+  const excelInputRef = useRef(null);
+  const logoInputRef = useRef(null);
+  const pendingLogoRef = useRef(null);
+
+  const [tab, setTab] = useState('temel');
   const [companies, setCompanies] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [sectors, setSectors] = useState([]);
   const [specialProfiles, setSpecialProfiles] = useState([]);
   const [specialProfileCode, setSpecialProfileCode] = useState('');
   const [rows, setRows] = useState([]);
-  const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
-  const [form, setForm] = useState(empty);
+  const [form, setForm] = useState(() => emptyForm(user));
   const [err, setErr] = useState('');
+  const [okMsg, setOkMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [excelInfo, setExcelInfo] = useState('');
   const [excelPreview, setExcelPreview] = useState([]);
+  const [dragOver, setDragOver] = useState(false);
+  const [savedTrainingId, setSavedTrainingId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [dlBusy, setDlBusy] = useState('');
-  const [docForm, setDocForm] = useState({workplace_physician: '', employer_representative: '', stamp_text: ''});
-  const [verifyPreview, setVerifyPreview] = useState(null);
-  const excelInputRef = useRef(null);
+  const [fileLabel, setFileLabel] = useState('.xlsx, .xlsm veya .csv dosyası seçin');
 
   const companyEmployees = useMemo(
     () =>
@@ -149,63 +238,10 @@ export function TrainingPage({user}) {
     [employees, form.company_id],
   );
 
-  function defaultCompanyId(list = companies) {
-    if (user.company_id) return String(user.company_id);
-    if (list.length === 1) return String(list[0].id);
-    return '';
-  }
-
-  function openNewTraining() {
-    setErr('');
-    setExcelInfo('');
-    setExcelPreview([]);
-    setSpecialProfileCode('');
-    const cid = defaultCompanyId() || (companies[0] ? String(companies[0].id) : '');
-    setForm({...empty, company_id: cid});
-    setOpen(true);
-    if (cid) {
-      refreshEmployees(cid).catch(() => {});
-    }
-  }
-
-  function applySpecialProfile(code) {
-    setSpecialProfileCode(code);
-    if (!code) return;
-    const profile = specialProfiles.find((p) => p.code === code);
-    if (!profile) return;
-    const topicLines = (profile.topics || [])
-      .map((t) => `• [${t.mode === 'practice' ? 'Uygulama' : 'Teori'}] ${t.title}`)
-      .join('\n');
-    setForm((prev) => ({
-      ...prev,
-      title: profile.title || prev.title,
-      training_type: profile.title || 'İşe Özel Eğitim',
-      delivery_method: profile.training_method || prev.delivery_method,
-      evaluation_method: (profile.evaluation_methods && profile.evaluation_methods[0]) || prev.evaluation_method,
-      notes: [
-        profile.purpose || '',
-        profile.disclaimer || '',
-        topicLines ? `Konular (${profile.default_total_hours || ''} saat):\n${topicLines}` : '',
-      ].filter(Boolean).join('\n\n'),
-      stamp_text: profile.legal_basis || prev.stamp_text,
-    }));
-  }
-
-  async function refreshEmployees(companyId) {
-    const cid = companyId || form.company_id;
-    const path = cid
-      ? `/employees?company_id=${Number(cid)}&active=true`
-      : '/employees';
-    const list = await api(path);
-    setEmployees(Array.isArray(list) ? list : []);
-    return Array.isArray(list) ? list : [];
-  }
-
   const filteredSectors = useMemo(() => {
     const list = [...sectors].sort((a, b) =>
       String(a.label || a.name || '').localeCompare(String(b.label || b.name || ''), 'tr'),
     );
-    // Tehlike sınıfına göre önerilenler üstte; hepsi listede kalır
     return list.sort((a, b) => {
       const ah = a.hazard_class === form.hazard_class ? 0 : 1;
       const bh = b.hazard_class === form.hazard_class ? 0 : 1;
@@ -219,226 +255,203 @@ export function TrainingPage({user}) {
     [sectors, form.sector],
   );
 
-  const load = async () => {
+  const selectedProfile = useMemo(
+    () => specialProfiles.find((p) => p.code === specialProfileCode),
+    [specialProfiles, specialProfileCode],
+  );
+
+  const companyName = (id) => companies.find((c) => c.id === id)?.name || id;
+
+  function defaultCompanyId(list = companies) {
+    if (user.company_id) return String(user.company_id);
+    if (list.length === 1) return String(list[0].id);
+    return '';
+  }
+
+  async function refreshEmployees(companyId) {
+    const cid = companyId || form.company_id;
+    const path = cid ? `/employees?company_id=${Number(cid)}&active=true` : '/employees';
+    const list = await api(path);
+    setEmployees(Array.isArray(list) ? list : []);
+    return Array.isArray(list) ? list : [];
+  }
+
+  const load = async (searchQ = q) => {
     const [c, e, t, sec] = await Promise.all([
       api('/companies'),
       api('/employees'),
-      api('/trainings' + (q ? `?q=${encodeURIComponent(q)}` : '')),
+      api('/trainings' + (searchQ ? `?q=${encodeURIComponent(searchQ)}` : '')),
       loadSectorsCatalog(),
     ]);
     setCompanies(c);
     setEmployees(e);
-    setRows(t);
+    setRows(Array.isArray(t) ? t : []);
     setSectors(sec);
     try {
       const sp = await api('/trainings/special-profiles');
-      setSpecialProfiles(Array.isArray(sp?.profiles) ? sp.profiles : []);
+      setSpecialProfiles(Array.isArray(sp?.profiles) ? sp.profiles : Array.isArray(sp) ? sp : []);
     } catch (_) {
       setSpecialProfiles([]);
+    }
+    if (!form.company_id) {
+      const cid = user.company_id
+        ? String(user.company_id)
+        : c.length === 1
+          ? String(c[0].id)
+          : '';
+      if (cid) setForm((f) => ({...f, company_id: cid}));
     }
   };
 
   useEffect(() => {
     load().catch((x) => setErr(x.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function save(e) {
-    e.preventDefault();
+  function validateDates(f = form) {
+    if (!f.start_date || !f.end_date) {
+      return 'Eğitim başlangıç ve bitiş tarihlerini girin (tarih aralığı zorunlu).';
+    }
+    if (f.end_date < f.start_date) {
+      return 'Bitiş tarihi başlangıç tarihinden önce olamaz.';
+    }
+    const needed = minTrainingDays(f.hazard_class);
+    const span = calendarDaysInclusive(f.start_date, f.end_date);
+    if (span < needed) {
+      const hours = HAZARD_HOURS[f.hazard_class] || 8;
+      return (
+        `${hours} saatlik eğitim en az ${needed} güne yayılmalıdır ` +
+        `(günde en fazla ${MAX_HOURS_PER_DAY} ders saati). Başlangıç–bitiş aralığını genişletin.`
+      );
+    }
+    return '';
+  }
+
+  function buildPayload(f = form) {
+    return {
+      company_id: Number(f.company_id),
+      title: (f.title || '').trim(),
+      training_type: f.training_type,
+      delivery_method: f.delivery_method,
+      location: f.location || null,
+      start_date: f.start_date,
+      end_date: f.end_date,
+      hazard_class: f.hazard_class,
+      sector: f.sector || 'genel_uretim',
+      instructor_name: (f.instructor_name || '').trim(),
+      instructor_qualification: f.instructor_qualification || null,
+      workplace_physician: (f.workplace_physician || '').trim() || null,
+      employer_representative: (f.employer_representative || '').trim() || null,
+      stamp_text: (f.stamp_text || '').trim() || null,
+      evaluation_method: f.evaluation_method,
+      passing_score: f.passing_score === '' || f.passing_score == null ? null : Number(f.passing_score),
+      attendance_verified: !!f.attendance_verified,
+      success_verified: !!f.success_verified,
+      notes: f.notes || null,
+      participant_ids: (f.participant_ids || []).map(Number),
+    };
+  }
+
+  async function maybeUploadLogo(trainingId) {
+    const file = pendingLogoRef.current;
+    if (!file || !trainingId) return;
+    try {
+      await uploadFile(`/trainings/${trainingId}/logo`, file);
+      pendingLogoRef.current = null;
+      if (logoInputRef.current) logoInputRef.current.value = '';
+    } catch (x) {
+      setErr('Eğitim kaydedildi ancak logo yüklenemedi: ' + (x.message || x));
+    }
+  }
+
+  async function saveTraining({keepForm = true, switchToRecords = false} = {}) {
     setErr('');
+    setOkMsg('');
+    if (!canEdit) {
+      setErr('Bu işlem için yetkiniz yok.');
+      return null;
+    }
     if (!form.company_id) {
       setErr('Firma seçiniz. Uzman yalnızca görevlendirildiği işyerleri için eğitim açabilir.');
-      return;
+      return null;
     }
-    if (!form.participant_ids.length) {
+    if (!(form.participant_ids || []).length) {
       setErr('Katılımcı seçin: Excel yükleyin (.xlsx) veya ortak personel listesinden seçin.');
-      return;
+      return null;
     }
-    if (!form.start_date || !form.end_date) {
-      setErr('Eğitim başlangıç ve bitiş tarihlerini girin (tarih aralığı zorunlu).');
-      return;
+    if (!(form.title || '').trim() || (form.title || '').trim().length < 3) {
+      setErr('Eğitim adı en az 3 karakter olmalıdır.');
+      return null;
     }
-    if (form.end_date < form.start_date) {
-      setErr('Bitiş tarihi başlangıç tarihinden önce olamaz.');
-      return;
+    if (!(form.instructor_name || '').trim() || (form.instructor_name || '').trim().length < 3) {
+      setErr('Eğitici adı soyadı zorunludur.');
+      return null;
     }
-    const needed = minTrainingDays(form.hazard_class);
-    const span = calendarDaysInclusive(form.start_date, form.end_date);
-    if (span < needed) {
-      const hours = HAZARD_HOURS[form.hazard_class] || 8;
-      setErr(
-        `${hours} saatlik eğitim en az ${needed} güne yayılmalıdır (günde en fazla ${MAX_HOURS_PER_DAY} ders saati). Başlangıç–bitiş aralığını genişletin.`,
-      );
-      return;
+    if (!form.attendance_verified || !form.success_verified) {
+      setErr('Katılım ve başarı doğrulama kutularını işaretleyin.');
+      return null;
     }
+    const dateErr = validateDates(form);
+    if (dateErr) {
+      setErr(dateErr);
+      return null;
+    }
+
     setBusy(true);
     try {
-      await api('/trainings', {
+      const created = await api('/trainings', {
         method: 'POST',
-        body: JSON.stringify({
-          company_id: Number(form.company_id),
-          title: form.title.trim(),
-          training_type: form.training_type,
-          delivery_method: form.delivery_method,
-          location: form.location || null,
-          start_date: form.start_date,
-          end_date: form.end_date,
-          hazard_class: form.hazard_class,
-          sector: form.sector || 'genel_uretim',
-          instructor_name: form.instructor_name.trim(),
-          instructor_qualification: form.instructor_qualification || null,
-          workplace_physician: form.workplace_physician.trim() || null,
-          employer_representative: form.employer_representative.trim() || null,
-          stamp_text: form.stamp_text.trim() || null,
-          evaluation_method: form.evaluation_method,
-          passing_score: form.passing_score === '' ? null : Number(form.passing_score),
-          attendance_verified: !!form.attendance_verified,
-          success_verified: !!form.success_verified,
-          notes: form.notes || null,
-          participant_ids: form.participant_ids.map(Number),
-        }),
+        body: JSON.stringify(buildPayload(form)),
       });
-      setOpen(false);
-      setExcelInfo('');
-      setExcelPreview([]);
-      setForm({...empty, company_id: form.company_id || defaultCompanyId()});
+      const id = created?.id;
+      setSavedTrainingId(id || null);
+      await maybeUploadLogo(id);
+      setOkMsg(`Eğitim kaydedildi (#${id}). PDF çıktıları hazır.`);
       await load();
+      if (switchToRecords) setTab('kayitlar');
+      if (!keepForm) {
+        setForm({...emptyForm(user), company_id: form.company_id || defaultCompanyId()});
+        setExcelInfo('');
+        setExcelPreview([]);
+        setSavedTrainingId(null);
+      }
+      return created;
     } catch (x) {
-      setErr(x.message);
+      setErr(x.message || 'Kayıt başarısız');
+      return null;
     } finally {
       setBusy(false);
     }
   }
 
-  async function complete(id) {
-    try {
-      await api(`/trainings/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({status: 'completed', attendance_verified: true, success_verified: true}),
-      });
-      await load();
-    } catch (x) {
-      alert(x.message);
-    }
-  }
-
   async function downloadAttendance(id) {
-    setDlBusy('attendance-' + id);
+    setDlBusy('attendance');
     try {
       await downloadFile(`/trainings/${id}/attendance.pdf`, `egitim-${id}-katilimci-imza-formu.pdf`);
     } catch (x) {
-      alert('İmza / yoklama PDF indirilemedi:\n' + x.message);
+      setErr('İmza / yoklama PDF indirilemedi: ' + (x.message || x));
     } finally {
       setDlBusy('');
     }
   }
 
   async function downloadCertificates(id) {
-    setDlBusy('certs-' + id);
+    setDlBusy('certs');
     try {
       await downloadFile(`/trainings/${id}/certificates.pdf`, `egitim-${id}-katilim-belgeleri.pdf`);
     } catch (x) {
       const msg = x.message || '';
       if (/not found/i.test(msg) || msg === 'Not Found') {
-        alert(
-          'Katılım belgesi PDF indirilemedi: API sürümü eski (certificates.pdf yok).\n\n'
-          + 'Render’da isg-suite-api için Clear build cache & Deploy yapın.\n'
-          + 'Deploy sonrası tehlike sınıfı + sektör seçimine göre 4. bölüm konuları belgede basılır.',
+        setErr(
+          'Katılım belgesi PDF indirilemedi: API sürümü eski (certificates.pdf yok). ' +
+            'Render’da Clear build cache & Deploy yapın.',
         );
       } else {
-        alert('Katılım belgesi PDF indirilemedi:\n' + msg);
+        setErr('Katılım belgesi PDF indirilemedi: ' + msg);
       }
     } finally {
       setDlBusy('');
     }
-  }
-
-  function openDetail(row) {
-    setDetail(row);
-    setDocForm({
-      workplace_physician: row.workplace_physician || '',
-      employer_representative: row.employer_representative || '',
-      stamp_text: row.stamp_text || '6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında düzenlenmiştir.',
-    });
-    setVerifyPreview(null);
-  }
-
-  function verifyUrl(code) {
-    if (!code) return '';
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    return `${origin}/?egitim-dogrula=${encodeURIComponent(code)}`;
-  }
-
-  async function saveDocFields() {
-    if (!detail) return;
-    setBusy(true);
-    setErr('');
-    try {
-      const updated = await api(`/trainings/${detail.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          workplace_physician: docForm.workplace_physician.trim() || null,
-          employer_representative: docForm.employer_representative.trim() || null,
-          stamp_text: docForm.stamp_text.trim() || null,
-        }),
-      });
-      setDetail(updated);
-      setRows((list) => list.map((r) => (r.id === updated.id ? updated : r)));
-    } catch (x) {
-      setErr(x.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onLogo(e) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || !detail) return;
-    setBusy(true);
-    try {
-      const updated = await uploadFile(`/trainings/${detail.id}/logo`, file);
-      setDetail(updated);
-      setRows((list) => list.map((r) => (r.id === updated.id ? updated : r)));
-    } catch (x) {
-      alert('Logo yüklenemedi:\n' + x.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function checkVerify() {
-    if (!detail?.verification_code) return;
-    setBusy(true);
-    try {
-      const host =
-        typeof window !== 'undefined' &&
-        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-      const base =
-        import.meta.env.VITE_API_URL ||
-        (host ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1` : 'https://isg-suite-api-1u9t.onrender.com/api/v1');
-      const r = await fetch(`${base}/trainings/verify/${detail.verification_code}`);
-      const data = await r.json();
-      setVerifyPreview(data);
-    } catch (x) {
-      setVerifyPreview({valid: false, message: x.message});
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function participantRows(training) {
-    const list = training?.participants || [];
-    return list.map((p, i) => {
-      const emp = employees.find((e) => e.id === p.employee_id);
-      return {
-        sira: i + 1,
-        name: emp?.full_name || `Personel #${p.employee_id}`,
-        tc: emp?.national_id_masked || '—',
-        job: emp?.job_title || '—',
-        dept: emp?.department || '—',
-        cert: p.certificate_number || '—',
-      };
-    });
   }
 
   function pickExcel() {
@@ -450,21 +463,26 @@ export function TrainingPage({user}) {
     excelInputRef.current?.click();
   }
 
-  async function onExcel(e) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
+  async function processExcelFile(file) {
     if (!file) return;
     if (!form.company_id) {
       setErr('Önce firma seçiniz. Uzman yalnızca görevlendirildiği işyerine Excel yükleyebilir.');
       return;
     }
     const name = (file.name || '').toLowerCase();
-    if (name.endsWith('.xls') && !name.endsWith('.xlsx') && !name.endsWith('.xlsm')) {
+    if (name.endsWith('.xls') && !name.endsWith('.xlsx') && !name.endsWith('.xlsm') && !name.endsWith('.csv')) {
       setErr('Eski .xls desteklenmez. Excel’de .xlsx olarak kaydedip tekrar yükleyin.');
       return;
     }
+    if (!name.endsWith('.xlsx') && !name.endsWith('.xlsm') && !name.endsWith('.csv')) {
+      setErr('Geçersiz dosya. .xlsx, .xlsm veya .csv yükleyin.');
+      return;
+    }
+
     setErr('');
+    setOkMsg('');
     setBusy(true);
+    setFileLabel(file.name);
     try {
       const out = await uploadFile(
         `/trainings/parse-excel?company_id=${Number(form.company_id)}&create_missing=true`,
@@ -476,20 +494,31 @@ export function TrainingPage({user}) {
         job: p.job_title || '',
         matched: !!p.employee_id,
       }));
-      // Önce seçimi yaz — personel listesi yenilenmesi başarısız olsa bile kayıt mümkün olsun
-      setForm((f) => ({...f, participant_ids: ids}));
+      const meta = out.excel_meta || {};
+
+      setForm((f) => ({
+        ...f,
+        participant_ids: ids,
+        ...(meta.title ? {title: String(meta.title)} : {}),
+        ...(meta.training_type ? {training_type: String(meta.training_type)} : {}),
+      }));
       setExcelPreview(preview);
       setExcelInfo(
         `Excel: ${out.count || ids.length} kişi · ${out.created || 0} yeni personel · ${ids.length} seçildi`,
       );
+      setOkMsg(
+        `Dosya dönüştürüldü. ${out.count || ids.length} satır okundu, ${out.created || 0} yeni personel oluşturuldu, ` +
+          `${ids.length} katılımcı seçildi` +
+          (out.matched != null ? ` (${out.matched} eşleşti).` : '.'),
+      );
+
       try {
         await refreshEmployees(form.company_id);
-      } catch (_) {
-        /* liste yenileme opsiyonel */
-      }
+      } catch (_) { /* liste yenileme opsiyonel */ }
+
       if (!ids.length) {
         setErr(
-          'Excel okundu ama personel seçilemedi. Sütun: Ad Soyad (veya Adı + Soyadı). Dosya .xlsx olmalı.',
+          'Excel okundu ama personel seçilemedi. Sütun: Ad Soyad (veya Adı + Soyadı). Dosya .xlsx/.csv olmalı.',
         );
       }
     } catch (x) {
@@ -499,8 +528,22 @@ export function TrainingPage({user}) {
     }
   }
 
+  async function onExcelInput(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    await processExcelFile(file);
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer?.files?.[0];
+    processExcelFile(file);
+  }
+
   async function selectAllEmployees() {
     setErr('');
+    setOkMsg('');
     if (!form.company_id) {
       setErr('Ortak personel listesi için önce Firma seçiniz.');
       return;
@@ -516,13 +559,14 @@ export function TrainingPage({user}) {
         setForm((f) => ({...f, participant_ids: []}));
         setExcelInfo('');
         setErr(
-          'Bu firmada aktif personel yok. PC’den Excel yükleyin veya Personel menüsünden ekleyin (PRO ortak liste gibi).',
+          'Bu firmada aktif personel yok. PC’den Excel yükleyin veya Personel menüsünden ekleyin.',
         );
         return;
       }
       setExcelPreview([]);
       setForm((f) => ({...f, participant_ids: active.map((e) => e.id)}));
       setExcelInfo(`${active.length} kişi ortak personel listesinden seçildi`);
+      setOkMsg(`${active.length} personel eğitime eklendi (ortak liste).`);
     } catch (x) {
       setErr('Personel listesi alınamadı: ' + x.message);
     } finally {
@@ -541,483 +585,1016 @@ export function TrainingPage({user}) {
     });
   }
 
-  const companyName = (id) => companies.find((c) => c.id === id)?.name || id;
+  function applySpecialProfile(code) {
+    setSpecialProfileCode(code);
+    if (!code) return;
+    const profile = specialProfiles.find((p) => p.code === code);
+    if (!profile) return;
+    const topicLines = (profile.topics || [])
+      .map((t) => {
+        if (typeof t === 'string') return `• ${t}`;
+        const mode = t.mode === 'practice' ? 'Uygulama' : 'Teori';
+        return `• [${mode}] ${t.title || t.name || ''}`;
+      })
+      .join('\n');
+    setForm((prev) => ({
+      ...prev,
+      title: profile.title || prev.title,
+      training_type: profile.title || 'İşe Özel Eğitim',
+      delivery_method: profile.training_method || prev.delivery_method,
+      evaluation_method:
+        (profile.evaluation_methods && profile.evaluation_methods[0]) || prev.evaluation_method,
+      notes: [
+        profile.purpose || '',
+        profile.disclaimer || '',
+        topicLines ? `Konular (${profile.default_total_hours || ''} saat):\n${topicLines}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+      stamp_text: profile.legal_basis || prev.stamp_text,
+    }));
+  }
 
-  const cols = [
-    {key: 'title', label: 'Eğitim'},
-    {key: 'company_id', label: 'Firma', render: (r) => companyName(r.company_id)},
-    {key: 'start_date', label: 'Tarih Aralığı', render: (r) => formatTrainingDates(r)},
-    {key: 'hazard_class', label: 'Tehlike'},
-    {key: 'duration_hours', label: 'Saat'},
-    {key: 'instructor_name', label: 'Eğitici'},
-    {key: 'participants', label: 'Katılımcı', render: (r) => r.participants?.length || 0},
-    {
-      key: 'status',
-      label: 'Durum',
-      render: (r) => (
-        <span className={'badge ' + (r.status === 'completed' ? 'ok' : 'off')}>
-          {STATUS[r.status] || r.status}
-        </span>
-      ),
-    },
-    {
-      key: 'action',
-      label: 'İşlem',
-      render: (r) => (
-        <div className="actions" style={{flexWrap: 'wrap'}}>
-          <button className="mini" type="button" onClick={() => openDetail(r)}>
-            Belgeler
-          </button>
-          {canEdit && r.status !== 'completed' && (
-            <button className="mini" type="button" onClick={() => complete(r.id)}>Tamamla</button>
-          )}
+  async function saveSpecialTraining(e) {
+    e?.preventDefault?.();
+    setErr('');
+    setOkMsg('');
+    if (!specialProfileCode || !selectedProfile) {
+      setErr('Özel eğitim profili seçiniz.');
+      return;
+    }
+    const created = await saveTraining({keepForm: true});
+    if (created?.id) {
+      setOkMsg(`Özel eğitim kaydedildi: ${selectedProfile.title} (#${created.id}).`);
+    }
+  }
+
+  function openDetail(row) {
+    setDetail(row);
+    setTab('kayitlar');
+  }
+
+  function participantRows(training) {
+    const list = training?.participants || [];
+    return list.map((p, i) => {
+      const emp = employees.find((e) => e.id === p.employee_id);
+      return {
+        sira: i + 1,
+        name: emp?.full_name || `Personel #${p.employee_id}`,
+        tc: emp?.national_id_masked || '—',
+        job: emp?.job_title || '—',
+        dept: emp?.department || '—',
+        cert: p.certificate_number || '—',
+      };
+    });
+  }
+
+  async function complete(id) {
+    try {
+      await api(`/trainings/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({status: 'completed', attendance_verified: true, success_verified: true}),
+      });
+      await load();
+      if (detail?.id === id) {
+        const refreshed = await api('/trainings');
+        const row = (Array.isArray(refreshed) ? refreshed : []).find((x) => x.id === id);
+        if (row) setDetail(row);
+      }
+    } catch (x) {
+      setErr(x.message);
+    }
+  }
+
+  /* ───────── Temel İSG tab ───────── */
+  function renderTemelTab() {
+    return (
+      <>
+        <div className="hero-shell">
+          <div className="hero-band">
+            <div className="hero-layout">
+              <div>
+                <div className="hero-chip" style={{marginBottom: 14}}>
+                  <Award size={14} />
+                  Eğitim Belgesi Üretim Merkezi
+                </div>
+                <h1 style={{fontSize: 28, fontWeight: 800, margin: '0 0 12px', lineHeight: 1.25}}>
+                  Çalışan listesini yükleyin, belgeleri tek akışta üretin.
+                </h1>
+                <p style={{margin: 0, opacity: 0.85, lineHeight: 1.55}}>
+                  Excel dosyasından katılım belgesi, imza formu ve eğitim çıktıları için profesyonel,
+                  kontrollü ve hızlı bir üretim akışı.
+                </p>
+                <div style={{marginTop: 18, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center'}}>
+                  <button
+                    type="button"
+                    className="btn-premium"
+                    style={{width: 'auto', padding: '0 18px'}}
+                    onClick={() => setTab('ozel')}
+                  >
+                    Yüksekte Çalışma ve Hijyen Eğitimleri
+                  </button>
+                  <span style={{fontSize: 12, opacity: 0.75}}>
+                    Mevcut temel eğitimden ayrı uzmanlık eğitimleri
+                  </span>
+                </div>
+              </div>
+              <div className="hero-metrics" aria-label="Eğitim modülü özellikleri">
+                <div className="hero-metric" role="note">
+                  <div className="hero-metric-value">Excel</div>
+                  <div className="hero-metric-label">.xlsx / .xlsm / .csv yükleme</div>
+                </div>
+                <div className="hero-metric" role="note">
+                  <div className="hero-metric-value">PDF</div>
+                  <div className="hero-metric-label">Belge ve imza formu çıktısı</div>
+                </div>
+                <div className="hero-metric" role="note">
+                  <div className="hero-metric-value">Otomatik</div>
+                  <div className="hero-metric-label">Tehlike sınıfına göre süre</div>
+                </div>
+                <div className="hero-metric" role="note">
+                  <div className="hero-metric-value">Ortak Liste</div>
+                  <div className="hero-metric-label">Aktif işyeri personeli</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      ),
-    },
-  ];
 
-  return (
-    <>
-      <div className="page-title">
-        <h3>Eğitim Yönetimi</h3>
-        {canEdit && (
-          <button type="button" onClick={openNewTraining}>
-            <Plus /> Yeni Eğitim
-          </button>
-        )}
-      </div>
-      {detail ? (
-        <section className="panel doc-workspace">
-          <div className="doc-head">
+        <div className="panel-card">
+          <div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12, marginBottom: 18}}>
             <div>
-              <h3>{detail.title} — Belge Üretim Merkezi</h3>
-              <p style={{margin: '6px 0 0', color: '#64748b', fontSize: 14}}>
-                Uygulama içinde kalın · PRO uyumlu imza formu + katılım belgesi (konular dahil)
+              <div className="section-title" style={{marginBottom: 6}}>Belge Akışı</div>
+              <h2 style={{margin: '0 0 6px', fontSize: 22}}>Çalışan listesi yükleme formu</h2>
+              <p className="tp-help" style={{margin: 0}}>
+                Firma, eğitim ve imza bilgilerini doğrulayın; ardından Excel dosyasını sisteme yükleyin.
               </p>
             </div>
-            <button type="button" className="secondary" onClick={() => setDetail(null)}>Listeye dön</button>
+            <span
+              style={{
+                padding: '8px 12px',
+                borderRadius: 999,
+                background: '#edf5f2',
+                color: '#12634b',
+                fontWeight: 800,
+                fontSize: 12,
+                alignSelf: 'flex-start',
+              }}
+            >
+              <ShieldCheck size={14} style={{verticalAlign: -2, marginRight: 4}} />
+              Gereksiz veri saklanmaz
+            </span>
           </div>
 
-          <div style={{display: 'grid', gap: 14}}>
-            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, fontSize: 14}}>
-              <div><span style={{color: '#64748b'}}>Firma</span><div><strong>{companyName(detail.company_id)}</strong></div></div>
-              <div><span style={{color: '#64748b'}}>Tarih Aralığı</span><div><strong>{formatTrainingDates(detail)}</strong></div></div>
-              <div><span style={{color: '#64748b'}}>Tehlike / Süre</span><div><strong>{detail.hazard_class} · {detail.duration_hours} saat</strong></div></div>
-              <div><span style={{color: '#64748b'}}>Eğitici</span><div><strong>{detail.instructor_name}</strong></div></div>
-              <div><span style={{color: '#64748b'}}>Sektör</span><div><strong>{sectorLabel(sectors, detail.sector)}</strong></div></div>
-              <div><span style={{color: '#64748b'}}>Doğrulama</span><div><strong>{detail.verification_code || '—'}</strong></div></div>
+          {err && <div className="tp-alert err">{err}</div>}
+          {okMsg && <div className="tp-alert ok">{okMsg}</div>}
+
+          <div className="tp-grid-2" style={{marginBottom: 12}}>
+            <div className="field-card">
+              <label className="tp-label" htmlFor="tp-firma">Firma Seç</label>
+              <select
+                id="tp-firma"
+                className="tp-select"
+                value={form.company_id}
+                disabled={!canEdit}
+                onChange={(e) => {
+                  setExcelPreview([]);
+                  setExcelInfo('');
+                  setOkMsg('');
+                  setErr('');
+                  setSavedTrainingId(null);
+                  const cid = e.target.value;
+                  setForm({...form, company_id: cid, participant_ids: []});
+                  if (cid) {
+                    refreshEmployees(cid).catch((x) =>
+                      setErr('Personel listesi alınamadı: ' + (x.message || x)),
+                    );
+                  }
+                }}
+              >
+                <option value="">Seçiniz</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <div className="tp-help">Personel, eğitim kaydı ve belgeler seçtiğiniz firmaya bağlanır.</div>
+            </div>
+            <div className="field-card">
+              <label className="tp-label" htmlFor="tp-logo">Firma logosu (opsiyonel)</label>
+              <input
+                id="tp-logo"
+                ref={logoInputRef}
+                className="tp-input"
+                type="file"
+                accept=".png,.jpg,.jpeg,.gif,.webp"
+                disabled={!canEdit}
+                onChange={(e) => {
+                  pendingLogoRef.current = e.target.files?.[0] || null;
+                }}
+              />
+              <div className="tp-help">PNG/JPG — kayıt sonrası belge sol üstüne basılır.</div>
+            </div>
+          </div>
+
+          <div className="field-card" style={{marginBottom: 12}}>
+            <div className="section-title" style={{marginBottom: 8}}>Gerçekleşme ve Kanıt Zinciri</div>
+            <div className="tp-grid-2">
+              <div>
+                <label className="tp-label">Eğitimin adı *</label>
+                <input
+                  className="tp-input"
+                  value={form.title}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, title: e.target.value})}
+                  placeholder="Örn: Temel İş Sağlığı ve Güvenliği Eğitimi"
+                />
+              </div>
+              <div>
+                <label className="tp-label">Eğitici adı soyadı *</label>
+                <input
+                  className="tp-input"
+                  value={form.instructor_name}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, instructor_name: e.target.value})}
+                  placeholder="İSG uzmanı veya işyeri hekimi"
+                />
+              </div>
+              <div>
+                <label className="tp-label">Eğitici unvanı / yeterlilik</label>
+                <input
+                  className="tp-input"
+                  value={form.instructor_qualification}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, instructor_qualification: e.target.value})}
+                  placeholder="Örn: A Sınıfı İGU — belge no"
+                />
+              </div>
+              <div>
+                <label className="tp-label">Başarı değerlendirmesi</label>
+                <select
+                  className="tp-select"
+                  value={form.evaluation_method}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, evaluation_method: e.target.value})}
+                >
+                  <option>Sınav</option>
+                  <option>Uygulama</option>
+                  <option>Sözlü değerlendirme</option>
+                  <option>Katılım yeterlidir</option>
+                  <option>Yazılı ve uygulamalı değerlendirme</option>
+                  <option>Sözlü ve uygulamalı değerlendirme</option>
+                  <option>Yazılı değerlendirme</option>
+                </select>
+              </div>
+              <div>
+                <label className="tp-label">Başarı puanı (0–100)</label>
+                <input
+                  className="tp-input"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={form.passing_score}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, passing_score: e.target.value})}
+                  placeholder="0–100"
+                />
+              </div>
+              <div>
+                <label className="tp-label">Eğitim türü</label>
+                <select
+                  className="tp-select"
+                  value={form.training_type}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, training_type: e.target.value})}
+                >
+                  <option>İlk Defa</option>
+                  <option>Tekrar</option>
+                  <option>Temel İSG Eğitimi</option>
+                  <option>İşe Özel Eğitim</option>
+                  <option>Yenileme Eğitimi</option>
+                </select>
+              </div>
+            </div>
+            <div className="tp-grid-2" style={{marginTop: 12}}>
+              <label className="check-box">
+                <input
+                  type="checkbox"
+                  checked={!!form.attendance_verified}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, attendance_verified: e.target.checked})}
+                />
+                <span>
+                  <strong>Katılım doğrulandı</strong>
+                  <small className="tp-help" style={{display: 'block'}}>
+                    Katılımcıların eğitime devam/katılım kayıtlarının kontrol edildiğini onaylıyorum.
+                  </small>
+                </span>
+              </label>
+              <label className="check-box">
+                <input
+                  type="checkbox"
+                  checked={!!form.success_verified}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, success_verified: e.target.checked})}
+                />
+                <span>
+                  <strong>Başarı koşulu sağlandı</strong>
+                  <small className="tp-help" style={{display: 'block'}}>
+                    Belge oluşturulacak kişilerin değerlendirmeyi başarıyla tamamladığını onaylıyorum.
+                  </small>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div className="tp-grid-2" style={{marginBottom: 12}}>
+            <div className="field-card">
+              <div className="section-title" style={{marginBottom: 10}}>İmza Yetkilileri</div>
+              <label className="tp-label">İşyeri hekimi</label>
+              <input
+                className="tp-input"
+                value={form.workplace_physician}
+                disabled={!canEdit}
+                onChange={(e) => setForm({...form, workplace_physician: e.target.value})}
+                placeholder="Ad Soyad"
+              />
+              <label className="tp-label" style={{marginTop: 10}}>İşveren / vekili</label>
+              <input
+                className="tp-input"
+                value={form.employer_representative}
+                disabled={!canEdit}
+                onChange={(e) => setForm({...form, employer_representative: e.target.value})}
+                placeholder="Ad Soyad"
+              />
             </div>
 
-            <div>
-              <strong style={{fontSize: 14}}>Belgede basılacak konular (4. bölüm — sektöre özgü)</strong>
-              <div className="doc-topics">
-                <div style={{marginBottom: 6, color: '#52677a'}}>
-                  1. Genel · 2. Teknik · 3. Sağlık (sabit) + aşağıdaki işyerine özgü konular
+            <div className="field-card">
+              <div className="section-title" style={{marginBottom: 10}}>Eğitim Bilgileri</div>
+              <div className="tp-grid-2">
+                <div>
+                  <label className="tp-label">Tehlike sınıfı</label>
+                  <select
+                    className="tp-select"
+                    value={form.hazard_class}
+                    disabled={!canEdit}
+                    onChange={(e) => setForm({...form, hazard_class: e.target.value})}
+                  >
+                    <option>Az Tehlikeli</option>
+                    <option>Tehlikeli</option>
+                    <option>Çok Tehlikeli</option>
+                  </select>
                 </div>
-                {(sectors.find((s) => s.code === detail.sector)?.topics || []).length
-                  ? (sectors.find((s) => s.code === detail.sector).topics).map((t, i) => (
-                    <div key={i}>• {t}</div>
+                <div>
+                  <label className="tp-label">Süre / yenileme</label>
+                  <input className="tp-input" readOnly value={HAZARD_HINT[form.hazard_class] || ''} />
+                </div>
+                <div>
+                  <label className="tp-label">Başlangıç tarihi *</label>
+                  <input
+                    className="tp-input"
+                    type="date"
+                    value={form.start_date}
+                    disabled={!canEdit}
+                    onChange={(e) => setForm({...form, start_date: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="tp-label">Bitiş tarihi *</label>
+                  <input
+                    className="tp-input"
+                    type="date"
+                    min={form.start_date || undefined}
+                    value={form.end_date}
+                    disabled={!canEdit}
+                    onChange={(e) => setForm({...form, end_date: e.target.value})}
+                  />
+                </div>
+                <div style={{gridColumn: '1 / -1'}}>
+                  <label className="tp-label">Eğitim yeri</label>
+                  <input
+                    className="tp-input"
+                    value={form.location}
+                    disabled={!canEdit}
+                    onChange={(e) => setForm({...form, location: e.target.value})}
+                  />
+                </div>
+                <div style={{gridColumn: '1 / -1'}}>
+                  <label className="tp-label">
+                    Sektör / iş kolu ({filteredSectors.length} sektör)
+                  </label>
+                  <select
+                    className="tp-select"
+                    value={form.sector}
+                    disabled={!canEdit}
+                    onChange={(e) => setForm({...form, sector: e.target.value})}
+                  >
+                    {filteredSectors.length === 0 && <option value="genel_uretim">Yükleniyor…</option>}
+                    {filteredSectors.map((s) => (
+                      <option key={s.code} value={s.code}>
+                        {(s.label || s.name)} [{s.hazard_class || '—'}]
+                      </option>
+                    ))}
+                  </select>
+                  <div className="tp-help">Belgedeki 4. konu başlığı bu seçime göre hazırlanır.</div>
+                </div>
+              </div>
+              <div className="tp-alert warn" style={{marginTop: 10}}>
+                Günde en fazla {MAX_HOURS_PER_DAY} ders saati;
+                {` ${HAZARD_HOURS[form.hazard_class] || 8} saatlik eğitim en az ${minTrainingDays(form.hazard_class)} takvim gününe yayılmalıdır.`}
+              </div>
+              <div className="sector-topics" style={{marginTop: 10}}>
+                <strong>4. İş ve İşyerine Özgü Riskler</strong>
+                <div className="tp-help" style={{marginBottom: 6}}>
+                  Sektör seçildiğinde belgeye yazılacak konular:
+                </div>
+                {(selectedSector?.topics || []).length ? (
+                  <ol style={{margin: 0, paddingLeft: 18}}>
+                    {(selectedSector.topics).map((t, i) => (
+                      <li key={i}>{typeof t === 'string' ? t : t.title || t.name}</li>
+                    ))}
+                  </ol>
+                ) : (
+                  <div>Sektör seçildiğinde konular burada görünür.</div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="shared-personnel-panel">
+            <div className="shared-personnel-head">
+              <div>
+                <div className="section-title" style={{marginBottom: 4}}>Ortak Personel Listesi</div>
+                <h3 style={{margin: '0 0 4px', fontSize: 16}}>
+                  {form.company_id ? companyName(Number(form.company_id)) : 'Aktif işyeri seçilmedi'}
+                </h3>
+                <div className="tp-help" style={{margin: 0}}>
+                  Yalnız seçili işyerinin aktif çalışanları gösterilir. Eğitime eklenecek kişileri işaretleyin.
+                </div>
+              </div>
+              {canEdit && companyEmployees.length > 0 && (
+                <button type="button" className="btn-outline-premium" style={{width: 'auto', minHeight: 40, padding: '0 16px'}} onClick={selectAllEmployees}>
+                  Tümünü Seç
+                </button>
+              )}
+            </div>
+            {companyEmployees.length ? (
+              <>
+                <div className="shared-personnel-list">
+                  {companyEmployees.map((emp) => {
+                    const checked =
+                      form.participant_ids.includes(emp.id) ||
+                      form.participant_ids.includes(Number(emp.id));
+                    return (
+                      <label key={emp.id} className="shared-personnel-item">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={!canEdit}
+                          onChange={() => toggleParticipant(emp.id)}
+                        />
+                        <span>
+                          <span className="shared-personnel-name">{emp.full_name}</span>
+                          <span className="shared-personnel-meta">
+                            {emp.job_title || 'Görev belirtilmemiş'}
+                            {emp.department ? ` · ${emp.department}` : ''}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div style={{padding: '0 1rem 1rem', fontSize: 13, color: '#6b7d90'}}>
+                  {form.participant_ids.length} / {companyEmployees.length} çalışan seçildi.
+                  {excelInfo ? ` · ${excelInfo}` : ''}
+                </div>
+              </>
+            ) : (
+              <div className="shared-personnel-empty">
+                {excelPreview.length ? (
+                  excelPreview.map((p, i) => (
+                    <div key={i}>• {p.name}{p.job ? ` — ${p.job}` : ''}</div>
                   ))
-                  : <div>Sektör konuları yüklenemedi. Yeni eğitimde sektör seçimini kontrol edin.</div>}
+                ) : (
+                  <>
+                    Bu işyerine ait aktif çalışan bulunamadı. Excel yükleyin veya Personel menüsünden ekleyin.
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="field-card" style={{marginBottom: 14}}>
+            <div className="section-title" style={{marginBottom: 10}}>Excel Dosyası</div>
+            <div
+              className={'drop-zone' + (dragOver ? ' drag' : '')}
+              role="button"
+              tabIndex={0}
+              onClick={() => canEdit && pickExcel()}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && canEdit && pickExcel()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={canEdit ? onDrop : undefined}
+            >
+              <Upload size={36} style={{opacity: 0.55}} />
+              <p style={{fontWeight: 700, margin: '12px 0 4px'}}>{fileLabel}</p>
+              <p className="tp-help" style={{margin: 0}}>
+                Ad Soyad zorunludur. TC Kimlik, Branş/Görev ve Bölüm alanları önerilir.
+                {!form.company_id ? ' · önce Firma seçin' : ''}
+              </p>
+              <input
+                ref={excelInputRef}
+                type="file"
+                accept=".xlsx,.xlsm,.csv"
+                hidden
+                onChange={onExcelInput}
+              />
+            </div>
+          </div>
+
+          {canEdit && (
+            <div style={{display: 'grid', gap: 10}}>
+              <button
+                type="button"
+                className="btn-premium"
+                disabled={busy}
+                onClick={pickExcel}
+              >
+                <FileSpreadsheet size={18} style={{verticalAlign: -3, marginRight: 6}} />
+                PC&apos;den Dosyayı Yükle ve Dönüştür
+              </button>
+              <button
+                type="button"
+                className="btn-outline-premium"
+                disabled={busy}
+                onClick={selectAllEmployees}
+              >
+                <Users size={18} style={{verticalAlign: -3, marginRight: 6}} />
+                Seçilen Personelleri Eğitime Ekle
+              </button>
+              <div className="tp-help" style={{textAlign: 'center'}}>
+                PC seçeneği Excel/CSV dosyasını okur. Ortak Personel seçeneği işaretlediğiniz çalışanları kullanır.
+              </div>
+            </div>
+          )}
+
+          <EducationOutputPanel
+            savedTrainingId={savedTrainingId}
+            participantCount={form.participant_ids.length}
+            dlBusy={dlBusy}
+            canEdit={canEdit}
+            busy={busy}
+            onDownloadCertificates={() => downloadCertificates(savedTrainingId)}
+            onDownloadAttendance={() => downloadAttendance(savedTrainingId)}
+            onSaveAndPrepare={() => saveTraining({keepForm: true})}
+          />
+        </div>
+      </>
+    );
+  }
+
+  /* ───────── Özel Eğitimler tab ───────── */
+  function renderOzelTab() {
+    return (
+      <>
+        <div className="hero-shell">
+          <div className="hero-band">
+            <div className="hero-layout">
+              <div>
+                <div className="hero-chip" style={{marginBottom: 12}}>Uzmanlık Eğitimleri</div>
+                <h1 style={{fontSize: 26, fontWeight: 800, margin: '0 0 10px'}}>
+                  İki özel eğitim, mevcut temel eğitimden tamamen ayrı.
+                </h1>
+                <p style={{margin: 0, opacity: 0.85}}>
+                  Gerçek katılımcı, doğrulanmış eğitici bilgisi ve kurumsal PDF üretimi.
+                </p>
+              </div>
+              <div className="hero-metrics">
+                {specialProfiles.slice(0, 4).map((p) => (
+                  <div key={p.code} className="special-profile-card">
+                    <b>{p.title}</b>
+                    <small style={{opacity: 0.8, display: 'block', marginTop: 4}}>
+                      {(p.default_total_hours || p.default_theory || '?')} saat · {p.training_method || 'Yüz yüze'}
+                    </small>
+                  </div>
+                ))}
+                {!specialProfiles.length && (
+                  <div className="special-profile-card">
+                    <b>Profiller yükleniyor…</b>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="panel-card">
+          <div className="section-title" style={{marginBottom: 6}}>Eğitim ve Belge Hazırlama</div>
+          <h2 style={{margin: '0 0 8px', fontSize: 20}}>Uzmanlık eğitim kaydı oluşturun</h2>
+          <p className="tp-help">Profil kartından seçim yapın; eğitim türü profil başlığı olarak kaydedilir.</p>
+
+          {err && <div className="tp-alert err">{err}</div>}
+          {okMsg && <div className="tp-alert ok">{okMsg}</div>}
+
+          <div className="tp-grid-2" style={{marginBottom: 14}}>
+            {specialProfiles.map((p) => (
+              <button
+                key={p.code}
+                type="button"
+                className="field-card"
+                style={{
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  borderColor: specialProfileCode === p.code ? '#f6b800' : undefined,
+                  boxShadow: specialProfileCode === p.code ? '0 0 0 2px rgba(246,184,0,.35)' : undefined,
+                }}
+                onClick={() => applySpecialProfile(p.code)}
+              >
+                <strong style={{display: 'block', marginBottom: 6}}>{p.title}</strong>
+                <span className="tp-help">{p.purpose || p.disclaimer || 'Özel eğitim profili'}</span>
+                <div style={{marginTop: 8}}>
+                  {(p.topics || []).slice(0, 6).map((t, i) => (
+                    <span key={i} className="topic-chip">
+                      {typeof t === 'string' ? t : t.title || t.name}
+                    </span>
+                  ))}
+                </div>
+              </button>
+            ))}
+            {!specialProfiles.length && (
+              <div className="tp-alert warn">Özel eğitim profilleri yüklenemedi.</div>
+            )}
+          </div>
+
+          <form onSubmit={saveSpecialTraining}>
+            <div className="tp-grid-2">
+              <div>
+                <label className="tp-label">Firma</label>
+                <select
+                  className="tp-select"
+                  value={form.company_id}
+                  disabled={!canEdit}
+                  onChange={(e) => {
+                    const cid = e.target.value;
+                    setForm({...form, company_id: cid, participant_ids: []});
+                    if (cid) refreshEmployees(cid).catch(() => {});
+                  }}
+                >
+                  <option value="">Seçiniz</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="tp-label">Eğitim profili</label>
+                <select
+                  className="tp-select"
+                  value={specialProfileCode}
+                  disabled={!canEdit}
+                  onChange={(e) => applySpecialProfile(e.target.value)}
+                >
+                  <option value="">Seçiniz</option>
+                  {specialProfiles.map((p) => (
+                    <option key={p.code} value={p.code}>
+                      {p.title} ({p.default_total_hours || '?'} saat)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="tp-label">Eğitici adı soyadı *</label>
+                <input
+                  className="tp-input"
+                  required
+                  value={form.instructor_name}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, instructor_name: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="tp-label">Yeterlilik / unvan</label>
+                <input
+                  className="tp-input"
+                  value={form.instructor_qualification}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, instructor_qualification: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="tp-label">Başlangıç *</label>
+                <input
+                  className="tp-input"
+                  type="date"
+                  required
+                  value={form.start_date}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, start_date: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="tp-label">Bitiş *</label>
+                <input
+                  className="tp-input"
+                  type="date"
+                  required
+                  value={form.end_date}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, end_date: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="tp-label">Eğitim yeri</label>
+                <input
+                  className="tp-input"
+                  value={form.location}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, location: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="tp-label">Değerlendirme</label>
+                <select
+                  className="tp-select"
+                  value={form.evaluation_method}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, evaluation_method: e.target.value})}
+                >
+                  {(selectedProfile?.evaluation_methods || []).length
+                    ? selectedProfile.evaluation_methods.map((m) => (
+                      <option key={m}>{m}</option>
+                    ))
+                    : (
+                      <>
+                        <option>Yazılı ve uygulamalı değerlendirme</option>
+                        <option>Uygulama</option>
+                        <option>Sınav</option>
+                      </>
+                    )}
+                </select>
+              </div>
+            </div>
+
+            <div className="shared-personnel-panel" style={{marginTop: 14}}>
+              <div className="shared-personnel-head">
+                <div>
+                  <div className="section-title">Katılımcılar</div>
+                  <div className="tp-help">Personel listesinden seçin.</div>
+                </div>
+                {canEdit && (
+                  <button type="button" className="btn-outline-premium" style={{width: 'auto', minHeight: 40, padding: '0 14px'}} onClick={selectAllEmployees}>
+                    Tümünü Seç
+                  </button>
+                )}
+              </div>
+              <div className="shared-personnel-list">
+                {companyEmployees.length ? companyEmployees.map((emp) => {
+                  const checked =
+                    form.participant_ids.includes(emp.id) ||
+                    form.participant_ids.includes(Number(emp.id));
+                  return (
+                    <label key={emp.id} className="shared-personnel-item">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={!canEdit}
+                        onChange={() => toggleParticipant(emp.id)}
+                      />
+                      <span>
+                        <span className="shared-personnel-name">{emp.full_name}</span>
+                        <span className="shared-personnel-meta">{emp.job_title || '—'}</span>
+                      </span>
+                    </label>
+                  );
+                }) : (
+                  <div className="shared-personnel-empty">Firma seçip personel bekleyin.</div>
+                )}
               </div>
             </div>
 
             {canEdit && (
-              <div style={{padding: 12, background: '#f8fafc', borderRadius: 10, display: 'grid', gap: 10}}>
-                <strong style={{fontSize: 14}}>Belge imza / kaşe alanları</strong>
-                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
-                  <Field label="İşyeri Hekimi" value={docForm.workplace_physician} onChange={(e) => setDocForm({...docForm, workplace_physician: e.target.value})} />
-                  <Field label="İşveren / Vekili" value={docForm.employer_representative} onChange={(e) => setDocForm({...docForm, employer_representative: e.target.value})} />
-                </div>
-                <label className="field">
-                  <span>Mevzuat dipnotu (kanun / yönetmelik)</span>
-                  <input value={docForm.stamp_text} onChange={(e) => setDocForm({...docForm, stamp_text: e.target.value})} />
-                </label>
-                <div style={{display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center'}}>
-                  <button type="button" className="secondary" disabled={busy} onClick={saveDocFields}>
-                    {busy ? 'Kaydediliyor…' : 'İmza alanlarını kaydet'}
-                  </button>
-                  <label className="button secondary" style={{display: 'inline-flex'}}>
-                    <Upload size={16} /> {detail.logo_path ? 'Logoyu değiştir' : 'Logo yükle (PNG/JPG)'}
-                    <input type="file" accept=".png,.jpg,.jpeg,.webp" hidden onChange={onLogo} disabled={busy} />
-                  </label>
-                  <label className="button secondary" style={{display: 'inline-flex'}}>
-                    <Upload size={16} /> Excel ile katılımcı ekle
-                    <input
-                      type="file"
-                      accept=".xlsx,.xlsm"
-                      hidden
-                      disabled={busy}
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        e.target.value = '';
-                        if (!file) return;
-                        setBusy(true);
-                        try {
-                          await uploadFile(`/trainings/${detail.id}/upload-participants?create_missing=true`, file);
-                          setEmployees(await api('/employees'));
-                          const refreshed = await api('/trainings');
-                          setRows(refreshed);
-                          const row = refreshed.find((x) => x.id === detail.id);
-                          if (row) openDetail(row);
-                        } catch (x) {
-                          alert('Katılımcı yüklenemedi:\n' + x.message);
-                        } finally {
-                          setBusy(false);
-                        }
-                      }}
-                    />
-                  </label>
-                  {detail.logo_path && <span style={{fontSize: 12, color: '#087b67'}}>Logo kayıtlı</span>}
-                </div>
-              </div>
-            )}
-
-            {detail.verification_code && (
-              <div style={{padding: 12, background: '#eef5fb', borderRadius: 10, fontSize: 13, lineHeight: 1.55}}>
-                <strong>Doğrulama linki (paylaşılabilir):</strong>{' '}
-                <code style={{userSelect: 'all'}}>{verifyUrl(detail.verification_code)}</code>
-                <div style={{marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-                  <button type="button" className="secondary" onClick={() => navigator.clipboard?.writeText(verifyUrl(detail.verification_code))}>
-                    Linki kopyala
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => window.open(verifyUrl(detail.verification_code), '_blank', 'noopener,noreferrer')}
-                  >
-                    Yeni sekmede aç
-                  </button>
-                  <button type="button" className="secondary" disabled={busy} onClick={checkVerify}>
-                    Doğrulamayı test et
-                  </button>
-                </div>
-                <p style={{margin: '8px 0 0', fontSize: 12, color: '#64748b'}}>
-                  Linki aynı sekmede açmayın — girişliyken sol menü bozulmasın diye paylaşım yeni sekmede / kopyala ile yapılır.
-                </p>
-                {verifyPreview && (
-                  <div style={{marginTop: 10, padding: 10, background: '#fff', borderRadius: 8}}>
-                    {verifyPreview.valid ? (
-                      <>
-                        <div style={{color: '#087b67', fontWeight: 600}}>✓ {verifyPreview.message}</div>
-                        <div>{verifyPreview.company_name} · {verifyPreview.title}</div>
-                        <div>{verifyPreview.participant_count} katılımcı · {formatTrainingDates(verifyPreview)}</div>
-                      </>
-                    ) : (
-                      <div className="error">{verifyPreview.message || 'Doğrulanamadı'}</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!(detail.participants?.length) && (
-              <div className="error">
-                Katılımcı yok. Yukarıdan Excel yükleyin veya yeni eğitim oluştururken personel seçin.
-              </div>
-            )}
-
-            <div style={{display: 'flex', gap: 10, flexWrap: 'wrap'}}>
-              <button
-                type="button"
-                disabled={!detail.participants?.length || !!dlBusy}
-                onClick={() => downloadAttendance(detail.id)}
-              >
-                <Download size={16} /> {dlBusy === 'attendance-' + detail.id ? 'İndiriliyor…' : 'İmza / Yoklama Formu PDF'}
+              <button type="submit" className="btn-premium" style={{marginTop: 14}} disabled={busy}>
+                {busy ? 'Kaydediliyor…' : 'Kaydı Doğrula ve Belgelere Hazırla'}
               </button>
-              <button
-                type="button"
-                disabled={!detail.participants?.length || !!dlBusy}
-                onClick={() => downloadCertificates(detail.id)}
-              >
-                <Download size={16} /> {dlBusy === 'certs-' + detail.id ? 'İndiriliyor…' : 'Katılım Belgesi PDF (konular dahil)'}
-              </button>
-            </div>
+            )}
+          </form>
 
+          <EducationOutputPanel
+            savedTrainingId={savedTrainingId}
+            participantCount={form.participant_ids.length}
+            dlBusy={dlBusy}
+            canEdit={canEdit}
+            busy={busy}
+            onDownloadCertificates={() => downloadCertificates(savedTrainingId)}
+            onDownloadAttendance={() => downloadAttendance(savedTrainingId)}
+            onSaveAndPrepare={() => saveTraining({keepForm: true})}
+          />
+        </div>
+      </>
+    );
+  }
+
+  /* ───────── Kayıtlar tab ───────── */
+  function renderKayitlarTab() {
+    if (detail) {
+      return (
+        <div className="panel-card">
+          <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16}}>
             <div>
-              <h4 style={{margin: '4px 0 8px'}}>Katılımcı listesi ({detail.participants?.length || 0})</h4>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Sıra</th>
-                      <th>Ad Soyad</th>
-                      <th>T.C.</th>
-                      <th>Görev</th>
-                      <th>Bölüm</th>
-                      <th>Belge No</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {participantRows(detail).length ? participantRows(detail).map((p) => (
-                      <tr key={p.sira}>
-                        <td>{p.sira}</td>
-                        <td>{p.name}</td>
-                        <td>{p.tc}</td>
-                        <td>{p.job}</td>
-                        <td>{p.dept}</td>
-                        <td>{p.cert}</td>
-                      </tr>
-                    )) : (
-                      <tr><td colSpan={6} className="empty">Katılımcı yok</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <div className="section-title">Belge Üretim Merkezi</div>
+              <h2 style={{margin: '4px 0'}}>{detail.title}</h2>
+              <p className="tp-help" style={{margin: 0}}>
+                {companyName(detail.company_id)} · {formatTrainingDates(detail)} · {detail.hazard_class} ·{' '}
+                {detail.duration_hours} saat
+              </p>
+            </div>
+            <button type="button" className="btn-outline-premium" style={{width: 'auto', minHeight: 42, padding: '0 16px'}} onClick={() => setDetail(null)}>
+              Listeye dön
+            </button>
+          </div>
+
+          <div className="tp-grid-3" style={{marginBottom: 14, fontSize: 14}}>
+            <div><span className="tp-help">Eğitici</span><div><strong>{detail.instructor_name}</strong></div></div>
+            <div><span className="tp-help">Sektör</span><div><strong>{sectorLabel(sectors, detail.sector)}</strong></div></div>
+            <div>
+              <span className="tp-help">Durum</span>
+              <div><strong>{STATUS[detail.status] || detail.status}</strong></div>
             </div>
           </div>
-        </section>
-      ) : (
-      <section className="panel">
-        <div style={{marginBottom: 14, padding: '12px 14px', background: '#eef5fb', borderRadius: 10, fontSize: 14, lineHeight: 1.55, color: '#243447'}}>
-          <strong>Bakanlık denetimi için zorunlu belgeler:</strong>{' '}
-          satırdan <strong>Belgeler</strong> açın → imza formu ve katılım belgesi PDF indirin.
-          Belge ekranı uygulama içinde açılır; konular orada görünür.
+
+          <div className="sector-topics" style={{marginBottom: 14}}>
+            <strong>Belgede basılacak konular (4. bölüm)</strong>
+            {(sectors.find((s) => s.code === detail.sector)?.topics || []).length
+              ? (sectors.find((s) => s.code === detail.sector).topics).map((t, i) => (
+                <div key={i}>• {typeof t === 'string' ? t : t.title || t.name}</div>
+              ))
+              : <div>Sektör konuları yüklenemedi.</div>}
+          </div>
+
+          <div className="education-output-row" style={{marginBottom: 16}}>
+            <button
+              type="button"
+              className="education-output-button education-output-button--certificate"
+              disabled={!detail.participants?.length || !!dlBusy}
+              onClick={() => downloadCertificates(detail.id)}
+            >
+              <Download size={16} /> Sertifika PDF
+            </button>
+            <button
+              type="button"
+              className="education-output-button education-output-button--attendance"
+              disabled={!detail.participants?.length || !!dlBusy}
+              onClick={() => downloadAttendance(detail.id)}
+            >
+              <Download size={16} /> Katılım PDF
+            </button>
+          </div>
+
+          {canEdit && detail.status !== 'completed' && (
+            <button
+              type="button"
+              className="btn-outline-premium"
+              style={{marginBottom: 14}}
+              onClick={() => complete(detail.id)}
+            >
+              <CheckCircle2 size={16} style={{verticalAlign: -3, marginRight: 6}} />
+              Eğitimi Tamamla
+            </button>
+          )}
+
+          <h4 style={{margin: '8px 0'}}>Katılımcılar ({detail.participants?.length || 0})</h4>
+          <div style={{overflowX: 'auto'}}>
+            <table className="records-table">
+              <thead>
+                <tr>
+                  <th>Sıra</th>
+                  <th>Ad Soyad</th>
+                  <th>T.C.</th>
+                  <th>Görev</th>
+                  <th>Bölüm</th>
+                  <th>Belge No</th>
+                </tr>
+              </thead>
+              <tbody>
+                {participantRows(detail).length ? participantRows(detail).map((p) => (
+                  <tr key={p.sira}>
+                    <td>{p.sira}</td>
+                    <td>{p.name}</td>
+                    <td>{p.tc}</td>
+                    <td>{p.job}</td>
+                    <td>{p.dept}</td>
+                    <td>{p.cert}</td>
+                  </tr>
+                )) : (
+                  <tr><td colSpan={6}>Katılımcı yok</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div className="search">
-          <Search size={19} />
-          <input
-            placeholder="Eğitim, eğitici veya sektör ara..."
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && load()}
-          />
-          <button className="secondary" type="button" onClick={() => load().catch((x) => setErr(x.message))}>Ara</button>
+      );
+    }
+
+    return (
+      <div className="panel-card">
+        <div className="section-title" style={{marginBottom: 6}}>Eğitim Kayıtları</div>
+        <h2 style={{margin: '0 0 12px', fontSize: 20}}>Kayıtlı oturumlar</h2>
+        <div style={{display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap'}}>
+          <div style={{flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8}}>
+            <Search size={18} style={{opacity: 0.5}} />
+            <input
+              className="tp-input"
+              placeholder="Eğitim, eğitici veya sektör ara..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && load().catch((x) => setErr(x.message))}
+            />
+          </div>
+          <button
+            type="button"
+            className="btn-outline-premium"
+            style={{width: 'auto', minHeight: 48, padding: '0 18px'}}
+            onClick={() => load().catch((x) => setErr(x.message))}
+          >
+            Ara
+          </button>
         </div>
-        {err && !open && <div className="error">{err}</div>}
-        <div className="table-wrap">
-          <table>
+        {err && <div className="tp-alert err">{err}</div>}
+        <div style={{overflowX: 'auto'}}>
+          <table className="records-table">
             <thead>
-              <tr>{cols.map((c) => <th key={c.key}>{c.label}</th>)}</tr>
+              <tr>
+                <th>Eğitim</th>
+                <th>Firma</th>
+                <th>Tarih</th>
+                <th>Tehlike</th>
+                <th>Saat</th>
+                <th>Katılımcı</th>
+                <th>Durum</th>
+                <th>İşlem</th>
+              </tr>
             </thead>
             <tbody>
               {rows.length ? rows.map((r) => (
                 <tr key={r.id}>
-                  {cols.map((c) => (
-                    <td key={c.key}>{c.render ? c.render(r) : String(r[c.key] ?? '—')}</td>
-                  ))}
+                  <td>{r.title}</td>
+                  <td>{companyName(r.company_id)}</td>
+                  <td>{formatTrainingDates(r)}</td>
+                  <td>{r.hazard_class}</td>
+                  <td>{r.duration_hours}</td>
+                  <td>{r.participants?.length || 0}</td>
+                  <td>{STATUS[r.status] || r.status}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn-outline-premium"
+                      style={{width: 'auto', minHeight: 36, padding: '0 12px', fontSize: 12}}
+                      onClick={() => openDetail(r)}
+                    >
+                      Belgeler
+                    </button>
+                  </td>
                 </tr>
               )) : (
-                <tr><td colSpan={cols.length} className="empty">Henüz eğitim kaydı yok. Yeni Eğitim ile katılımcılı kayıt oluşturun.</td></tr>
+                <tr>
+                  <td colSpan={8}>Henüz eğitim kaydı yok.</td>
+                </tr>
               )}
             </tbody>
           </table>
         </div>
-      </section>
-      )}
+      </div>
+    );
+  }
 
-      {open && (
-        <Modal title="Yeni Eğitim Oturumu" close={() => setOpen(false)}>
-          <form className="form-grid" onSubmit={save}>
-            <Select
-              label="Firma (görevlendirildiğiniz işyerleri)"
-              required
-              value={form.company_id}
-              onChange={(e) => {
-                setExcelPreview([]);
-                setExcelInfo('');
-                setErr('');
-                const cid = e.target.value;
-                setForm({...form, company_id: cid, participant_ids: []});
-                if (cid) {
-                  refreshEmployees(cid).catch((x) =>
-                    setErr('Personel listesi alınamadı: ' + (x.message || x)),
-                  );
-                } else {
-                  setEmployees([]);
-                }
-              }}
-            >
-              <option value="">Seçiniz</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-            {!companies.length && (
-              <div style={{gridColumn: '1 / -1', fontSize: 13, color: '#9a3412', background: '#fff7ed', padding: '10px 12px', borderRadius: 8}}>
-                Listede işyeri yok. Global yönetici <strong>Görevlendirmeler</strong>’den size firma atamalı.
-                Ayrıca <strong>İSG Profesyonelleri</strong> kaydınızın e-postası, giriş yaptığınız kullanıcı e-postası ile aynı olmalı.
-              </div>
-            )}
-            <Select
-              label="Özel eğitim profili (Pro — opsiyonel)"
-              value={specialProfileCode}
-              onChange={(e) => applySpecialProfile(e.target.value)}
-            >
-              <option value="">Temel İSG / manuel</option>
-              {specialProfiles.map((p) => (
-                <option key={p.code} value={p.code}>
-                  {p.title} ({p.default_total_hours || '?'} saat)
-                </option>
-              ))}
-            </Select>
-            <Field label="Eğitim Adı" required minLength={3} value={form.title} onChange={(e) => setForm({...form, title: e.target.value})} />
-            <Select label="Eğitim Türü" value={form.training_type} onChange={(e) => setForm({...form, training_type: e.target.value})}>
-              <option>İlk Defa</option>
-              <option>Tekrar</option>
-              <option>Temel İSG Eğitimi</option>
-              <option>İşe Özel Eğitim</option>
-              <option>Yenileme Eğitimi</option>
-              <option>Acil Durum / Tatbikat</option>
-              {specialProfiles.map((p) => (
-                <option key={`tt-${p.code}`} value={p.title}>{p.title}</option>
-              ))}
-            </Select>
-            <Select label="Eğitim Şekli" value={form.delivery_method} onChange={(e) => setForm({...form, delivery_method: e.target.value})}>
-              <option>Yüz yüze</option>
-              <option>Yüz yüze ve uygulamalı</option>
-              <option>Uzaktan</option>
-            </Select>
-            <Field
-              label="Başlangıç Tarihi"
-              type="date"
-              required
-              value={form.start_date}
-              onChange={(e) => setForm({...form, start_date: e.target.value})}
-            />
-            <Field
-              label="Bitiş Tarihi"
-              type="date"
-              required
-              min={form.start_date || undefined}
-              value={form.end_date}
-              onChange={(e) => setForm({...form, end_date: e.target.value})}
-            />
-            <Field label="Eğitim Yeri" value={form.location} onChange={(e) => setForm({...form, location: e.target.value})} />
-            <Select label="Tehlike Sınıfı" value={form.hazard_class} onChange={(e) => setForm({...form, hazard_class: e.target.value})}>
-              <option>Az Tehlikeli</option>
-              <option>Tehlikeli</option>
-              <option>Çok Tehlikeli</option>
-            </Select>
-            <label className="field">
-              <span>Süre / Yenileme (otomatik)</span>
-              <input readOnly value={HAZARD_HINT[form.hazard_class] || ''} />
-            </label>
-            <div style={{gridColumn: '1 / -1', fontSize: 13, color: '#9a3412', background: '#fff7ed', padding: '10px 12px', borderRadius: 8}}>
-              Eğitim tarihleri aralık olarak girilir (başlangıç–bitiş). Günde en fazla {MAX_HOURS_PER_DAY} ders saati;
-              {` ${HAZARD_HOURS[form.hazard_class] || 8} saatlik eğitim en az ${minTrainingDays(form.hazard_class)} takvim gününe yayılmalıdır.`}
-            </div>
-            <Select
-              label={`Sektör / İş Kolu — A→Z (${filteredSectors.length} sektör, belge konuları)`}
-              value={form.sector}
-              onChange={(e) => setForm({...form, sector: e.target.value})}
-            >
-              {filteredSectors.length === 0 && <option value="genel_uretim">Yükleniyor…</option>}
-              {filteredSectors.map((s) => (
-                <option key={s.code} value={s.code}>
-                  {(s.label || s.name)} [{s.hazard_class || '—'}]
-                </option>
-              ))}
-            </Select>
-            <label className="field" style={{gridColumn: '1 / -1'}}>
-              <span>Bu sektörün belge konuları (4. bölüm — Çalışma Bakanlığı)</span>
-              <div style={{marginTop: 8, padding: 12, background: '#f4f7fb', borderRadius: 12, fontSize: 13, lineHeight: 1.5}}>
-                {(selectedSector?.topics || []).length
-                  ? (selectedSector.topics).map((t, i) => <div key={i}>• {t}</div>)
-                  : 'Sektör seçildiğinde konular burada görünür. Belge PDF’te genel+teknik+sağlık+bu konular basılır.'}
-              </div>
-            </label>
-            <Field label="Eğitici Ad Soyad" required minLength={3} value={form.instructor_name} onChange={(e) => setForm({...form, instructor_name: e.target.value})} />
-            <Field label="Eğitici Yeterlilik / Unvan" value={form.instructor_qualification} onChange={(e) => setForm({...form, instructor_qualification: e.target.value})} />
-            <Field label="İşyeri Hekimi (belge imza)" value={form.workplace_physician} onChange={(e) => setForm({...form, workplace_physician: e.target.value})} placeholder="Ad Soyad" />
-            <Field label="İşveren / Vekili (belge imza)" value={form.employer_representative} onChange={(e) => setForm({...form, employer_representative: e.target.value})} placeholder="Ad Soyad" />
-            <label className="field" style={{gridColumn: '1 / -1'}}>
-              <span>Mevzuat dipnotu (kanun / yönetmelik)</span>
-              <input value={form.stamp_text} onChange={(e) => setForm({...form, stamp_text: e.target.value})} />
-            </label>
-            <Select label="Başarı Değerlendirme" value={form.evaluation_method} onChange={(e) => setForm({...form, evaluation_method: e.target.value})}>
-              <option>Sınav</option>
-              <option>Uygulama</option>
-              <option>Sözlü değerlendirme</option>
-              <option>Katılım yeterlidir</option>
-              <option>Yazılı ve uygulamalı değerlendirme</option>
-              <option>Sözlü ve uygulamalı değerlendirme</option>
-              <option>Yazılı değerlendirme</option>
-            </Select>
-            <Field label="Geçme Puanı (0-100)" type="number" min="0" max="100" value={form.passing_score} onChange={(e) => setForm({...form, passing_score: e.target.value})} />
+  return (
+    <div className="training-pro">
+      <div className="tp-tabs" role="tablist">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            className={'tp-tab' + (tab === t.id ? ' active' : '')}
+            onClick={() => {
+              setErr('');
+              setOkMsg('');
+              if (t.id !== 'kayitlar') setDetail(null);
+              setTab(t.id);
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-            <div style={{gridColumn: '1 / -1', display: 'grid', gap: 12}}>
-              <div style={{fontWeight: 700, color: '#243447'}}>Katılımcı kaynağı (PRO 2026 gibi)</div>
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={pickExcel}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && pickExcel()}
-                style={{
-                  border: '2px dashed #9bb8c2',
-                  borderRadius: 14,
-                  padding: '18px 16px',
-                  background: '#f7fbfc',
-                  cursor: busy ? 'wait' : 'pointer',
-                  textAlign: 'center',
-                }}
-              >
-                <div style={{display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 700, color: '#0f766e'}}>
-                  <Upload size={20} /> PC’den Excel Yükle (.xlsx / .xlsm)
-                </div>
-                <div style={{marginTop: 6, fontSize: 13, color: '#5b7380'}}>
-                  Ad Soyad zorunlu · TC Kimlik, Branş/Görev, Bölüm önerilir
-                  {!form.company_id ? ' · önce Firma seçin' : ''}
-                </div>
-                <input
-                  ref={excelInputRef}
-                  type="file"
-                  accept=".xlsx,.xlsm"
-                  hidden
-                  onChange={onExcel}
-                />
-              </div>
-              <div style={{display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center'}}>
-                <button type="button" className="secondary" disabled={busy} onClick={selectAllEmployees}>
-                  <Users size={16} /> Ortak personel listesinin tamamını seç
-                  {form.company_id ? ` (${companyEmployees.length})` : ''}
-                </button>
-                {excelInfo && <span style={{fontSize: 13, color: '#087b67'}}>{excelInfo}</span>}
-              </div>
-              {!form.company_id && (
-                <div style={{fontSize: 13, color: '#9a3412', background: '#fff7ed', padding: '8px 10px', borderRadius: 8}}>
-                  Firma seçmeden Excel / ortak liste çalışmaz. Uzman yalnızca görevlendirildiği işyerlerini görür.
-                </div>
-              )}
-            </div>
-
-            <label className="field" style={{gridColumn: '1 / -1'}}>
-              <span>Katılımcılar ({form.participant_ids.length} seçili)</span>
-              <div className="check-grid" style={{maxHeight: 220, overflow: 'auto', marginTop: 8}}>
-                {companyEmployees.length ? companyEmployees.map((emp) => (
-                  <label key={emp.id} style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-                    <input
-                      type="checkbox"
-                      checked={form.participant_ids.includes(emp.id) || form.participant_ids.includes(Number(emp.id))}
-                      onChange={() => toggleParticipant(emp.id)}
-                    />
-                    <span>{emp.full_name}{emp.job_title ? ` — ${emp.job_title}` : ''}</span>
-                  </label>
-                )) : excelPreview.length ? (
-                  excelPreview.map((p, i) => (
-                    <div key={i} style={{fontSize: 13, color: '#334155'}}>
-                      • {p.name}{p.job ? ` — ${p.job}` : ''}
-                    </div>
-                  ))
-                ) : (
-                  <span className="empty">
-                    Personel yok. Excel yükleyin veya Ortak personel listesini kullanın (önce Personel menüsünden eklenmiş olmalı).
-                  </span>
-                )}
-              </div>
-            </label>
-            <label className="field">
-              <span><input type="checkbox" checked={form.attendance_verified} onChange={(e) => setForm({...form, attendance_verified: e.target.checked})} /> Katılım doğrulandı</span>
-            </label>
-            <label className="field">
-              <span><input type="checkbox" checked={form.success_verified} onChange={(e) => setForm({...form, success_verified: e.target.checked})} /> Başarı doğrulandı</span>
-            </label>
-            {err && <div className="error" style={{gridColumn: '1 / -1'}}>{err}</div>}
-            <div className="form-actions">
-              <button type="submit" disabled={busy}>{busy ? 'Kaydediliyor...' : 'Kaydet'}</button>
-            </div>
-          </form>
-        </Modal>
-      )}
-    </>
+      {tab === 'temel' && renderTemelTab()}
+      {tab === 'ozel' && renderOzelTab()}
+      {tab === 'kayitlar' && renderKayitlarTab()}
+    </div>
   );
 }
 
@@ -1036,12 +1613,7 @@ export function TrainingVerifyPage({code, onClose}) {
     setErr('');
     setData(null);
     try {
-      const host =
-        typeof window !== 'undefined' &&
-        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-      const base =
-        import.meta.env.VITE_API_URL ||
-        (host ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1` : 'https://isg-suite-api-1u9t.onrender.com/api/v1');
+      const base = apiBaseUrl();
       const r = await fetch(`${base}/trainings/verify/${encodeURIComponent(clean)}`);
       const json = await r.json();
       setData(json);
@@ -1052,6 +1624,7 @@ export function TrainingVerifyPage({code, onClose}) {
 
   useEffect(() => {
     if (code) run(code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
   return (
@@ -1059,18 +1632,33 @@ export function TrainingVerifyPage({code, onClose}) {
       <section className="login-card" style={{maxWidth: 520, textAlign: 'left'}}>
         <div className="brand-mark" style={{marginBottom: 8}}><ShieldCheck size={34} /></div>
         <h1 style={{fontSize: 22}}>Eğitim Belgesi Doğrulama</h1>
-        <p style={{marginBottom: 16, color: '#64748b'}}>İSG Suite — kamuya açık doğrulama (giriş gerekmez)</p>
+        <p style={{marginBottom: 16, color: '#64748b'}}>
+          İSG Suite — kamuya açık doğrulama (giriş gerekmez)
+        </p>
         <label className="field">
           <span>Doğrulama kodu</span>
-          <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Örn. A1B2C3D4E5F6G7H8" />
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Örn. A1B2C3D4E5F6G7H8"
+          />
         </label>
         <div style={{display: 'flex', gap: 8, marginTop: 12}}>
           <button type="button" onClick={() => run()}>Doğrula</button>
-          {onClose && <button type="button" className="secondary" onClick={onClose}>Kapat</button>}
+          {onClose && (
+            <button type="button" className="secondary" onClick={onClose}>Kapat</button>
+          )}
         </div>
         {err && <div className="error" style={{marginTop: 12}}>{err}</div>}
         {data && (
-          <div style={{marginTop: 16, padding: 14, background: data.valid ? '#ecfdf5' : '#fef2f2', borderRadius: 12}}>
+          <div
+            style={{
+              marginTop: 16,
+              padding: 14,
+              background: data.valid ? '#ecfdf5' : '#fef2f2',
+              borderRadius: 12,
+            }}
+          >
             <strong style={{color: data.valid ? '#087b67' : '#b91c1c'}}>
               {data.valid ? '✓ Belge doğrulandı' : '✗ Belge bulunamadı'}
             </strong>
@@ -1079,10 +1667,17 @@ export function TrainingVerifyPage({code, onClose}) {
               <ul style={{margin: '12px 0 0', paddingLeft: 18, fontSize: 14, lineHeight: 1.6}}>
                 <li><strong>Firma:</strong> {data.company_name}</li>
                 <li><strong>Eğitim:</strong> {data.title}</li>
-                <li><strong>Tarih:</strong> {formatTrainingDates(data)} · {data.duration_hours} saat · {data.hazard_class}</li>
+                <li>
+                  <strong>Tarih:</strong> {formatTrainingDates(data)} · {data.duration_hours} saat ·{' '}
+                  {data.hazard_class}
+                </li>
                 <li><strong>Eğitici:</strong> {data.instructor_name}</li>
-                {data.workplace_physician && <li><strong>İşyeri Hekimi:</strong> {data.workplace_physician}</li>}
-                {data.employer_representative && <li><strong>İşveren:</strong> {data.employer_representative}</li>}
+                {data.workplace_physician && (
+                  <li><strong>İşyeri Hekimi:</strong> {data.workplace_physician}</li>
+                )}
+                {data.employer_representative && (
+                  <li><strong>İşveren:</strong> {data.employer_representative}</li>
+                )}
                 <li><strong>Katılımcı:</strong> {data.participant_count}</li>
               </ul>
             )}
