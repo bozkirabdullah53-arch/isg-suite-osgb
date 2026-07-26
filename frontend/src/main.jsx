@@ -804,7 +804,82 @@ function UserPage({user}){
       </form>
     </Modal>}
   </Page>
-}function Employees({user}){const[companies,setCompanies]=useState([]),[branches,setBranches]=useState([]),[data,setData]=useState([]),[open,setOpen]=useState(false),[q,setQ]=useState(''),[form,setForm]=useState({company_id:user.company_id||'',branch_id:'',full_name:'',national_id_masked:'',job_title:'',department:'',start_date:'',special_status:''});const load=()=>Promise.all([api('/companies'),api('/branches'),api('/employees'+(q?`?q=${encodeURIComponent(q)}`:''))]).then(([c,b,e])=>{setCompanies(c);setBranches(b);setData(e)});useEffect(()=>{void load()},[]);async function save(e){e.preventDefault();const payload={...form,company_id:Number(form.company_id),branch_id:form.branch_id?Number(form.branch_id):null,start_date:form.start_date||null};await api('/employees',{method:'POST',body:JSON.stringify(payload)});setOpen(false);load()}async function upload(e){const f=e.target.files[0];if(!f)return;const cid=form.company_id||companies[0]?.id;if(!cid)return alert('Önce firma seçiniz.');const fd=new FormData();fd.append('file',f);const token=localStorage.getItem('isg_token');const base=import.meta.env.VITE_API_URL||'http://localhost:8000/api/v1';const r=await fetch(`${base}/employees/import-excel?company_id=${cid}`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd});const out=await r.json();alert(r.ok?`${out.created} personel aktarıldı.`:(out.detail||'Yükleme başarısız.'));load()}return <Page title="Personel Yönetimi" action={<div className="actions"><label className="button secondary"><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden onChange={upload}/></label><button onClick={()=>setOpen(true)}><Plus/>Personel Ekle</button></div>}><SearchBar q={q} setQ={setQ} go={load}/><Table cols={[{key:'full_name',label:'Ad Soyad'},{key:'job_title',label:'Görev'},{key:'department',label:'Departman'},{key:'branch_id',label:'Şube',render:r=>branches.find(b=>b.id===r.branch_id)?.name||'—'},{key:'start_date',label:'İşe Giriş'},{key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>}]} rows={data}/>{open&&<Modal title="Yeni Personel" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value,branch_id:''})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Select label="Şube" value={form.branch_id} onChange={e=>setForm({...form,branch_id:e.target.value})}><option value="">Şube seçilmedi</option>{branches.filter(b=>String(b.company_id)===String(form.company_id)).map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</Select><Field label="Ad Soyad" required value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})}/><Field label="T.C. Kimlik (maskeli)" value={form.national_id_masked} onChange={e=>setForm({...form,national_id_masked:e.target.value})}/><Field label="Branş / Görev" value={form.job_title} onChange={e=>setForm({...form,job_title:e.target.value})}/><Field label="Departman" value={form.department} onChange={e=>setForm({...form,department:e.target.value})}/><Field label="İşe Giriş Tarihi" type="date" value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/><Field label="Engelli / Hükümlü Durumu" value={form.special_status} onChange={e=>setForm({...form,special_status:e.target.value})}/><Submit/></form></Modal>}</Page>}
+function Employees({user}){
+  const[companies,setCompanies]=useState([]);
+  const[branches,setBranches]=useState([]);
+  const[data,setData]=useState([]);
+  const[open,setOpen]=useState(false);
+  const[q,setQ]=useState('');
+  const[busy,setBusy]=useState(false);
+  const[form,setForm]=useState({company_id:user.company_id||'',branch_id:'',full_name:'',national_id_masked:'',job_title:'',department:'',start_date:'',special_status:''});
+  const load=()=>Promise.all([api('/companies'),api('/branches'),api('/employees'+(q?`?q=${encodeURIComponent(q)}`:''))]).then(([c,b,e])=>{setCompanies(c);setBranches(b);setData(e)});
+  useEffect(()=>{void load()},[]);
+  async function save(e){
+    e.preventDefault();
+    const payload={...form,company_id:Number(form.company_id),branch_id:form.branch_id?Number(form.branch_id):null,start_date:form.start_date||null};
+    await api('/employees',{method:'POST',body:JSON.stringify(payload)});
+    setOpen(false);load();
+  }
+  async function upload(e){
+    const f=e.target.files[0];
+    e.target.value='';
+    if(!f)return;
+    const cid=form.company_id||companies[0]?.id;
+    if(!cid)return alert('Önce firma seçiniz.');
+    setBusy(true);
+    try{
+      const fd=new FormData();
+      fd.append('file',f);
+      const token=localStorage.getItem('isg_token');
+      const base=import.meta.env.VITE_API_URL||'http://localhost:8000/api/v1';
+      const r=await fetch(`${base}/employees/import-excel?company_id=${cid}${form.branch_id?`&branch_id=${form.branch_id}`:''}`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd});
+      const out=await r.json().catch(()=>({}));
+      if(!r.ok){
+        alert(typeof out.detail==='string'?out.detail:(out.detail||'Yükleme başarısız. Şablonu indirip Adı Soyadı sütunuyla tekrar deneyin.'));
+        return;
+      }
+      const errN=(out.errors||[]).length;
+      alert(`${out.created||0} personel aktarıldı.${errN?` ${errN} satır atlandı.`:''}`);
+      load();
+    }catch(x){
+      alert(x.message||'Yükleme başarısız.');
+    }finally{
+      setBusy(false);
+    }
+  }
+  return <Page title="Personel Yönetimi" action={<div className="actions">
+    <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Şablon İndir</button>
+    <label className="button secondary" style={{opacity:busy?0.6:1}}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy} onChange={upload}/></label>
+    <button onClick={()=>setOpen(true)}><Plus/>Personel Ekle</button>
+  </div>}>
+    <p style={{margin:'0 0 12px',fontSize:13,color:'#475569'}}>
+      Excel ile eklemek için önce <strong>Şablon İndir</strong> → sütunlar: Adı Soyadı, TC Kimlik, Görevi, İşe Giriş Tarihi, Engelli/Hükümlü Durumu.
+      Sadece <strong>Adı Soyadı</strong> zorunlu; diğerleri boş bırakılabilir.
+    </p>
+    <SearchBar q={q} setQ={setQ} go={load}/>
+    <Table cols={[
+      {key:'full_name',label:'Ad Soyad'},
+      {key:'job_title',label:'Görev'},
+      {key:'department',label:'Departman'},
+      {key:'branch_id',label:'Şube',render:r=>branches.find(b=>b.id===r.branch_id)?.name||'—'},
+      {key:'start_date',label:'İşe Giriş'},
+      {key:'special_status',label:'Özel Durum',render:r=>r.special_status||'—'},
+      {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>}
+    ]} rows={data}/>
+    {open&&<Modal title="Yeni Personel" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}>
+      <Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value,branch_id:''})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select>
+      <Select label="Şube" value={form.branch_id} onChange={e=>setForm({...form,branch_id:e.target.value})}><option value="">Şube seçilmedi</option>{branches.filter(b=>String(b.company_id)===String(form.company_id)).map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</Select>
+      <Field label="Ad Soyad" required value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})}/>
+      <Field label="T.C. Kimlik (maskeli)" value={form.national_id_masked} onChange={e=>setForm({...form,national_id_masked:e.target.value})}/>
+      <Field label="Branş / Görev" value={form.job_title} onChange={e=>setForm({...form,job_title:e.target.value})}/>
+      <Field label="Departman" value={form.department} onChange={e=>setForm({...form,department:e.target.value})}/>
+      <Field label="İşe Giriş Tarihi" type="date" value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/>
+      <Field label="Engelli / Hükümlü Durumu" value={form.special_status} onChange={e=>setForm({...form,special_status:e.target.value})}/>
+      <Submit/>
+    </form></Modal>}
+  </Page>;
+}
+
 
 const moduleConfig={
   near_miss:{title:'Ramak Kala Kayıtları',severityLabel:'Olası Etki'},
