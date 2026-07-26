@@ -14,9 +14,22 @@ const API_URL =
 
 const API_ROOT = API_URL.replace(/\/api\/v1\/?$/, "");
 
-/** P1-01: refresh cookie açıksa credentials; aksi halde omit (3P cookie / CORS sürtünmesi azalır). */
-function fetchCredentials() {
-  return refreshCookieMode() ? "include" : "omit";
+/**
+ * Cross-site API (www.isgsuite.tr → onrender.com): credentials:include
+ * Chrome 3P-cookie kısıtında Failed to fetch üretebiliyor.
+ * Bearer JWT yeterli olan uçlarda omit; yalnızca refresh cookie gereken auth'ta include.
+ */
+function fetchCredentials(path = "") {
+  const p = String(path || "");
+  if (
+    p.startsWith("/auth/login") ||
+    p.startsWith("/auth/refresh") ||
+    p.startsWith("/auth/logout") ||
+    p.startsWith("/auth/mfa")
+  ) {
+    return "include";
+  }
+  return "omit";
 }
 
 let _refreshInFlight = null;
@@ -52,11 +65,32 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Tarayıcı destekliyorsa istek zaman aşımı (asılı kalan cold-start bağlantıları). */
+function requestSignal(ms = 25_000) {
+  try {
+    if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+      return AbortSignal.timeout(ms);
+    }
+  } catch {
+    /* ignore */
+  }
+  return undefined;
+}
+
 function isNetworkError(e) {
   // HTTP cevapları (4xx/5xx) asla "API uyanıyor" sanılmasın
   if (e?.httpStatus != null) return false;
   const msg = String(e?.message || e || "").toLowerCase();
-  return e instanceof TypeError || msg.includes("failed to fetch") || msg.includes("networkerror") || msg.includes("load failed");
+  const name = String(e?.name || "").toLowerCase();
+  return (
+    e instanceof TypeError ||
+    name === "aborterror" ||
+    msg.includes("failed to fetch") ||
+    msg.includes("networkerror") ||
+    msg.includes("load failed") ||
+    msg.includes("aborted") ||
+    msg.includes("timeout")
+  );
 }
 
 let _wakeInFlight = null;
@@ -242,7 +276,7 @@ export function reportClientError(payload = {}) {
     void fetch(`${API_URL}/eisa/error-reports`, {
       method: "POST",
       mode: "cors",
-      credentials: fetchCredentials(),
+      credentials: fetchCredentials("/eisa/error-reports"),
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
@@ -278,7 +312,8 @@ export async function apiWithBearer(bearerToken, path, options = {}) {
         ...fetchOpts,
         headers,
         mode: "cors",
-        credentials: fetchCredentials(),
+        credentials: fetchCredentials(path),
+        signal: fetchOpts.signal || requestSignal(),
       });
       if (!response.ok) {
         const err = new Error(await parseError(response));
@@ -337,7 +372,8 @@ export async function api(path, options = {}) {
         ...fetchOpts,
         headers,
         mode: "cors",
-        credentials: fetchCredentials(),
+        credentials: fetchCredentials(path),
+        signal: fetchOpts.signal || requestSignal(),
       });
       if (!response.ok) {
         lastStatus = response.status;
@@ -401,7 +437,7 @@ export async function authBlobUrl(path) {
   const response = await fetch(`${API_URL}${path}`, {
     headers: token ? {Authorization: `Bearer ${token}`} : {},
     mode: "cors",
-    credentials: fetchCredentials(),
+    credentials: fetchCredentials(path),
   });
   if (!response.ok) {
     throw new Error(`Dosya alınamadı (HTTP ${response.status}).`);
@@ -418,7 +454,7 @@ export async function downloadFile(path, filename) {
     response = await fetch(`${API_URL}${path}`, {
       headers: token ? {Authorization: `Bearer ${token}`} : {},
       mode: "cors",
-      credentials: fetchCredentials(),
+      credentials: fetchCredentials(path),
     });
   } catch (e) {
     if (isNetworkError(e)) {
@@ -479,7 +515,7 @@ export async function uploadFile(path, file, extraFields = null) {
       headers: token ? {Authorization: `Bearer ${token}`} : {},
       body: formData,
       mode: "cors",
-      credentials: fetchCredentials(),
+      credentials: fetchCredentials(path),
     });
   } catch (e) {
     if (isNetworkError(e)) {
