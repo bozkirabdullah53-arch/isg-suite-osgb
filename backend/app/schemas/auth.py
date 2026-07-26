@@ -10,6 +10,13 @@ class MfaVerifyRequest(BaseModel):
     code: str = Field(min_length=6, max_length=16)
 
 
+class MfaRestartSetupRequest(BaseModel):
+    """Authenticator yoksa: şifre doğrulanır, MFA sıfırlanır, kurulum token’ı verilir."""
+
+    email: EmailStr
+    password: str
+
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 

@@ -19,6 +19,7 @@ from app.schemas.auth import (
     CurrentUserResponse,
     ForgotPasswordRequest,
     LoginRequest,
+    MfaRestartSetupRequest,
     MfaVerifyRequest,
     ResetPasswordRequest,
     TokenResponse,
@@ -138,6 +139,54 @@ def login(
     register_success_login(db, user, ip=ip)
     db.commit()
     return _issue_access(user, response)
+
+
+@router.post("/mfa/restart-setup", response_model=TokenResponse)
+def restart_mfa_setup(
+    payload: MfaRestartSetupRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Authenticator kurulumu yapılamadıysa: e-posta+şifre ile MFA’yı sıfırlayıp kurulum ekranına düşür."""
+    ip = _client_ip(request)
+    email = str(payload.email).strip().lower()
+    try:
+        throttle_login(email, ip)
+    except ValueError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+
+    user = db.scalar(select(User).where(User.email == payload.email))
+    if not user or not verify_password(payload.password, user.hashed_password):
+        register_failed_login(db, user, email=email, ip=ip)
+        db.commit()
+        raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı.")
+    if not user.is_active:
+        raise HTTPException(status_code=401, detail="Hesap pasif. Yöneticinizle iletişime geçin.")
+    if not role_requires_mfa(user.role):
+        raise HTTPException(status_code=400, detail="Bu hesap için MFA kurulumu gerekmez.")
+
+    user.mfa_enabled = False
+    user.mfa_secret_encrypted = None
+    user.mfa_recovery_hashes = None
+    clear_throttle(email, ip)
+    add_audit_log(
+        db,
+        user=user,
+        action="mfa_restart_setup",
+        entity_type="user",
+        entity_id=str(user.id),
+        description="MFA kurulum yeniden başlatıldı (şifre doğrulamalı)",
+        ip_address=ip,
+        module="auth",
+    )
+    register_success_login(db, user, ip=ip)
+    db.commit()
+    return TokenResponse(
+        mfa_setup_required=True,
+        mfa_token=create_purpose_token(
+            str(user.id), "mfa_setup", minutes=30, token_version=getattr(user, "token_version", 0) or 0
+        ),
+    )
 
 
 @router.post("/mfa/verify", response_model=TokenResponse)

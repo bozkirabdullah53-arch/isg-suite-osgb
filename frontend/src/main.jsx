@@ -224,6 +224,29 @@ function Login({done,onApply}){
     finally{setBusy(false)}
   }
 
+  async function restartMfaSetup(){
+    setErr('');setMsg('');setBusy(true);
+    try{
+      if(!email||!password){
+        setErr('Kurulum için önce giriş e-posta ve şifrenizi girin.');
+        setMode('login');
+        return;
+      }
+      const r=await api('/auth/mfa/restart-setup',{method:'POST',body:JSON.stringify({email,password}),_retries:2});
+      if(!(r.mfa_setup_required&&r.mfa_token)){
+        setErr('MFA kurulumu başlatılamadı.');
+        return;
+      }
+      setMfaToken(r.mfa_token);
+      localStorage.setItem('isg_mfa_setup_token',r.mfa_token);
+      const setup=await apiWithBearer(r.mfa_token,'/security/mfa/setup',{method:'POST'});
+      setSetupInfo(setup);
+      setCode('');
+      setMode('mfa_setup');
+    }catch(x){setErr(x.message||'MFA kurulumu başlatılamadı.')}
+    finally{setBusy(false)}
+  }
+
   async function submitMfaSetup(e){
     e.preventDefault();setErr('');setBusy(true);
     try{
@@ -300,10 +323,15 @@ function Login({done,onApply}){
               <label>Doğrulama kodu</label><input value={code} onChange={e=>setCode(e.target.value)} required/>
               {err&&<div className="error">{err}</div>}
               <button disabled={busy}>Doğrula</button>
-              <p style={{marginTop:12,fontSize:13,color:'#64748b'}}>
-                Authenticator yoksa EİSA’dan <strong>Şifre Sıfırla</strong> isteyin; yeni şifre ile MFA kurulumu yeniden açılır.
-              </p>
-              <p style={{marginTop:8,fontSize:13}}><button type="button" className="linkish" onClick={()=>{setMode('login');setCode('');setErr('')}}>Girişe dön</button></p>
+              <div style={{marginTop:14,padding:'12px 12px',borderRadius:10,background:'#f0fdfa',border:'1px solid #99f6e4'}}>
+                <p style={{margin:'0 0 10px',fontSize:13,color:'#0f766e',fontWeight:600}}>
+                  Telefonda Authenticator yok / QR görmediniz mi?
+                </p>
+                <button type="button" className="secondary" disabled={busy} onClick={restartMfaSetup} style={{width:'100%',justifyContent:'center'}}>
+                  QR ve gizli anahtarı göster (kurulumu başlat)
+                </button>
+              </div>
+              <p style={{marginTop:10,fontSize:13}}><button type="button" className="linkish" onClick={()=>{setMode('login');setCode('');setErr('')}}>Girişe dön</button></p>
             </form>
           )}
           {mode==='mfa_setup'&&(
