@@ -2,6 +2,7 @@ import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {api,downloadFile,uploadFile} from './api';
 import {Plus} from 'lucide-react';
 import {enqueueOfflineComplete,flushOfflineCompletes,listOfflineCompletes,removeOfflineItem} from './field_offline';
+import {SiteQrCameraModal} from './field_qr_scan';
 
 const ptypes={safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli'};
 const stages={new:'Yeni',contacted:'Görüşüldü',proposal:'Teklif',negotiation:'Müzakere',won:'Kazanıldı',lost:'Kaybedildi'};
@@ -1168,6 +1169,8 @@ export function VisitsPage({user}){
  const[siteVerifyInput,setSiteVerifyInput]=useState('');
  const[kioskQrInput,setKioskQrInput]=useState('');
  const[kioskMsg,setKioskMsg]=useState('');
+ const[scanOpen,setScanOpen]=useState(false);
+ const[scanMode,setScanMode]=useState('in');
  const emptyForm={osgb_id:'',company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''};
  const emptyPlan={osgb_id:'',company_id:'',professional_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Planlı saha ziyareti',notes:''};
  const[form,setForm]=useState(emptyForm),[planForm,setPlanForm]=useState(emptyPlan);
@@ -1363,10 +1366,10 @@ export function VisitsPage({user}){
   }catch(ex){setErr(ex.message||'Plan kaydedilemedi.')}
   finally{setBusy(false)}
  }
- async function scanPresence(mode){
+  async function scanPresence(mode,rawCode){
   setErr('');setKioskMsg('');setBusy(true);
   try{
-   const code=parseSiteInput(kioskQrInput);
+   const code=parseSiteInput(rawCode!=null?rawCode:kioskQrInput);
    if(!code) throw new Error('İşyeri QR kodunu okutun veya yapıştırın.');
    let gps=null;
    try{gps=await captureGps(8000)}catch(_){gps=null}
@@ -1375,6 +1378,7 @@ export function VisitsPage({user}){
    const path=mode==='out'?'/operations/visits/check-out':'/operations/visits/check-in';
    const res=await api(path,{method:'POST',body:JSON.stringify(body)});
    setKioskQrInput('');
+   setScanOpen(false);
    const name=companies.find(x=>x.id===res.company_id)?.name||`İşyeri #${res.company_id}`;
    if(mode==='out'){
     setKioskMsg(`Çıkış kaydedildi — ${name}: ${res.duration_minutes||0} dk (${res.start_time||'—'}–${res.end_time||'—'})`);
@@ -1385,11 +1389,20 @@ export function VisitsPage({user}){
   }catch(ex){setErr(ex.message||'QR işlem başarısız.')}
   finally{setBusy(false)}
  }
+ function openCameraScan(mode){
+  setErr('');setScanMode(mode);setScanOpen(true);
+ }
+ async function onCameraDetected(raw){
+  setKioskQrInput(raw);
+  setScanOpen(false);
+  await scanPresence(scanMode,raw);
+ }
  const filteredRows=selectedDay?rows.filter(r=>r.visit_date===selectedDay):rows;
  const calDays=cal?.days||[];
  const padStart=calDays.length?((calDays[0].weekday+6)%7):0;
  const todayIso=new Date().toISOString().slice(0,10);
- const fieldQueue=isField?rows.filter(r=>r.status!=='completed').sort((a,b)=>String(a.visit_date).localeCompare(String(b.visit_date))):[];
+ const openOnSite=isField?rows.filter(r=>r.checked_in_at&&!r.checked_out_at):[];
+ const fieldQueue=isField?rows.filter(r=>r.status!=='completed'&&!(r.checked_in_at&&!r.checked_out_at)).sort((a,b)=>String(a.visit_date).localeCompare(String(b.visit_date))):[];
  const overdueQueue=fieldQueue.filter(r=>r.visit_date&&r.visit_date<todayIso);
  const todayQueue=fieldQueue.filter(r=>r.visit_date===todayIso);
  const upcomingQueue=fieldQueue.filter(r=>r.visit_date&&r.visit_date>todayIso).slice(0,6);
@@ -1409,19 +1422,47 @@ export function VisitsPage({user}){
       <button type="button" className="mini" disabled={busy} onClick={openCreate}>+ Hızlı kayıt</button>
      </div>
     </div>
-    <div style={{marginBottom:12,padding:12,borderRadius:12,border:'1px solid #99f6e4',background:'#f0fdfa'}}>
-     <strong style={{display:'block',marginBottom:6,fontSize:14}}>İşyeri QR — Giriş / Çıkış</strong>
-     <p style={{margin:'0 0 8px',color:'#475569',fontSize:13}}>İşyerindeki kiosk QR’ını yapıştırın. Girişte bir, çıkışta bir okutun; süre otomatik yazılır.</p>
+    <div style={{marginBottom:12,padding:14,borderRadius:14,border:'1px solid #5eead4',background:'linear-gradient(180deg,#f0fdfa 0%,#ecfeff 100%)'}}>
+     <strong style={{display:'block',marginBottom:4,fontSize:15}}>Hızlı saha — QR Giriş / Çıkış</strong>
+     <p style={{margin:'0 0 12px',color:'#475569',fontSize:13}}>Telefonda kamerayı açıp işyerindeki kiosk QR’sını okutun. Kamera yoksa kodu yapıştırın.</p>
+     {openOnSite.length>0&&(
+      <div style={{marginBottom:12,padding:'10px 12px',borderRadius:10,background:'#fff',border:'1px solid #99f6e4'}}>
+       {openOnSite.map(r=>{
+        const name=companies.find(x=>x.id===r.company_id)?.name||`İşyeri #${r.company_id}`;
+        return (
+         <div key={r.id} style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+          <div>
+           <strong style={{display:'block',color:'#0f766e'}}>Sahadasınız · {name}</strong>
+           <span style={{fontSize:13,color:'#64748b'}}>Giriş {r.start_time||fmtCheckTime(r.checked_in_at)}</span>
+          </div>
+          <button type="button" className="mini" disabled={busy} onClick={()=>openCameraScan('out')}>Çıkış için QR okut</button>
+         </div>
+        );
+       })}
+      </div>
+     )}
+     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+      <button type="button" disabled={busy} onClick={()=>openCameraScan('in')} style={{minHeight:52,fontSize:16,fontWeight:700}}>Giriş</button>
+      <button type="button" className="secondary" disabled={busy} onClick={()=>openCameraScan('out')} style={{minHeight:52,fontSize:16,fontWeight:700}}>Çıkış</button>
+     </div>
      <label className="field" style={{marginBottom:8}}>
-      <span>QR / kod</span>
+      <span>Yedek: QR / kod yapıştır</span>
       <input value={kioskQrInput} onChange={e=>setKioskQrInput(e.target.value)} placeholder="ISGSUITE:WPTEMP:… veya ISGSUITE:WP:…" autoComplete="off"/>
      </label>
      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-      <button type="button" className="mini" disabled={busy} onClick={()=>scanPresence('in')}>Giriş (QR)</button>
-      <button type="button" className="mini secondary" disabled={busy} onClick={()=>scanPresence('out')}>Çıkış (QR)</button>
+      <button type="button" className="mini" disabled={busy||!kioskQrInput} onClick={()=>scanPresence('in')}>Yapıştırılan ile giriş</button>
+      <button type="button" className="mini secondary" disabled={busy||!kioskQrInput} onClick={()=>scanPresence('out')}>Yapıştırılan ile çıkış</button>
      </div>
      {kioskMsg&&<p style={{margin:'8px 0 0',color:'#0f766e',fontSize:13}}>{kioskMsg}</p>}
     </div>
+    {scanOpen&&(
+     <SiteQrCameraModal
+      open={scanOpen}
+      mode={scanMode}
+      onClose={()=>setScanOpen(false)}
+      onDetected={onCameraDetected}
+     />
+    )}
     {offlineQueue.length>0&&(
      <div style={{marginBottom:10,padding:'10px 12px',borderRadius:10,background:'#fff7ed',color:'#9a3412',fontSize:13}}>
       {offlineQueue.length} çevrimdışı tamamlama bekliyor.
@@ -1435,7 +1476,7 @@ export function VisitsPage({user}){
      <article className="metric"><span>Yaklaşan</span><strong>{upcomingQueue.length}</strong></article>
      <article className="metric"><span>Açık iş</span><strong>{fieldQueue.length}</strong></article>
     </div>
-    {fieldQueue.length===0?(
+    {fieldQueue.length===0&&openOnSite.length===0?(
      <p style={{margin:0,color:'#64748b',fontSize:14}}>Açık planlı ziyaret yok. Yeni saha kaydı için “Ziyaret Kaydet” kullanın.</p>
     ):(
      <div className="field-queue">

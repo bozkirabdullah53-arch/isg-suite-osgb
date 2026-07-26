@@ -84,19 +84,19 @@ const roleModules={
     'security',
   ],
   safety_specialist:[
-    'dashboard','visits',
+    'visits','dashboard',
     'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler',
     'training','annual_plans','annual_eval_report','documents',
     'security',
   ],
   workplace_physician:[
-    'dashboard','visits',
+    'visits','dashboard',
     'health','employees',
     'annual_plans','annual_eval_report','documents',
     'security',
   ],
   other_health_personnel:[
-    'dashboard','visits',
+    'visits','dashboard',
     'health','employees',
     'annual_plans','documents',
     'security',
@@ -1219,10 +1219,12 @@ function App(){
 
   function goHome(){
     const allowed=modulesForUser(user);
+    const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
     let home='';
     if(allowed.includes('eisa_overview')) home='eisa_overview';
     else if(allowed.includes('eisa')) home='eisa';
     else if(allowed.includes('osgb_dashboard')) home='osgb_dashboard';
+    else if(fieldRoles.includes(user?.role) && allowed.includes('visits')) home='visits';
     else if(allowed.includes('dashboard')) home='dashboard';
     else home=allowed[0]||'';
     if(home) goModule(home);
@@ -1242,6 +1244,7 @@ function App(){
         setUser(u);
         setSummary(s);
         const allowed=modulesForUser(u);
+        const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
         setActive((prev)=>{
           let next='';
           if(verifyCode && allowed.includes('training')) next='training';
@@ -1252,7 +1255,10 @@ function App(){
               if(saved && allowed.includes(saved)) next=saved;
             }catch(_){ /* ignore */ }
           }
-          if(!next) next=allowed[0]||'';
+          if(!next){
+            if(fieldRoles.includes(u.role) && allowed.includes('visits')) next='visits';
+            else next=allowed[0]||'';
+          }
           try{if(next) sessionStorage.setItem('isg_active',next)}catch(_){ /* ignore */ }
           return next;
         });
