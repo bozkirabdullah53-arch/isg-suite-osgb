@@ -1,7 +1,7 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Undo2,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
-import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode} from './api';
+import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
 import {clearOfflineQueue} from './field_offline';
 import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';
 import {OsgbOversightPage} from './osgb_oversight';
@@ -1112,30 +1112,39 @@ function App(){
     if(!logged) return;
     // Oturum açıkken ?egitim-dogrula=... sol menüyü / uygulamayı ASLA bozmasın
     if(verifyCode) clearVerifyQuery();
-    Promise.all([api('/auth/me'),api('/dashboard/summary')]).then(([u,s])=>{
-      setUser(u);
-      setSummary(s);
-      const allowed=roleModules[u.role]||[];
-      setActive((prev)=>{
-        let next='';
-        if(verifyCode && allowed.includes('training')) next='training';
-        else if(prev && allowed.includes(prev)) next=prev;
-        else {
-          try{
-            const saved=sessionStorage.getItem('isg_active');
-            if(saved && allowed.includes(saved)) next=saved;
-          }catch(_){ /* ignore */ }
-        }
-        if(!next) next=allowed[0]||'';
-        try{if(next) sessionStorage.setItem('isg_active',next)}catch(_){ /* ignore */ }
-        return next;
-      });
-    }).catch(()=>{
-      localStorage.removeItem('isg_token');
-      clearOfflineQueue();
-      setRefreshCookieMode(false);
-      setLogged(false);
-    });
+    let cancelled=false;
+    (async()=>{
+      try{
+        await wakeApi();
+        if(cancelled) return;
+        const[u,s]=await Promise.all([api('/auth/me'),api('/dashboard/summary')]);
+        if(cancelled) return;
+        setUser(u);
+        setSummary(s);
+        const allowed=roleModules[u.role]||[];
+        setActive((prev)=>{
+          let next='';
+          if(verifyCode && allowed.includes('training')) next='training';
+          else if(prev && allowed.includes(prev)) next=prev;
+          else {
+            try{
+              const saved=sessionStorage.getItem('isg_active');
+              if(saved && allowed.includes(saved)) next=saved;
+            }catch(_){ /* ignore */ }
+          }
+          if(!next) next=allowed[0]||'';
+          try{if(next) sessionStorage.setItem('isg_active',next)}catch(_){ /* ignore */ }
+          return next;
+        });
+      }catch(_){
+        if(cancelled) return;
+        localStorage.removeItem('isg_token');
+        clearOfflineQueue();
+        setRefreshCookieMode(false);
+        setLogged(false);
+      }
+    })();
+    return ()=>{cancelled=true};
   },[logged,verifyCode]);
 
   // Aktif menü (ör. Eğitimler) her zaman görünür olsun

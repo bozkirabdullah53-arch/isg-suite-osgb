@@ -1,4 +1,4 @@
-const CACHE = "isg-suite-v2";
+const CACHE = "isg-suite-v3";
 const CORE = ["/", "/manifest.webmanifest", "/icon.svg"];
 
 function isCacheableAsset(request) {
@@ -38,6 +38,10 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+
+  const url = new URL(event.request.url);
+  // Cross-origin (Render API vb.): SW'ye hiç dokunma — CORS/credentials bozulmasın
+  if (url.origin !== self.location.origin) return;
 
   // API / hassas istekler: yalnızca network, cache yok
   if (!isCacheableAsset(event.request)) {
