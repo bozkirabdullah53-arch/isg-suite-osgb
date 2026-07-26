@@ -55,9 +55,12 @@ function OverdueBadge() {
   );
 }
 
-function Modal({title, close, children, wide}) {
+function Modal({title, close, children, wide, layer}) {
   return createPortal(
-    <div className="modal-bg risk-modal-bg" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+    <div
+      className={`modal-bg risk-modal-bg${layer === 'top' ? ' risk-modal-top' : ''}`}
+      onMouseDown={(e) => e.target === e.currentTarget && close()}
+    >
       <section className={`modal risk-modal${wide ? ' risk-modal-wide' : ''}`} role="dialog" aria-modal="true">
         <header className="risk-modal-head">
           <div>
@@ -412,6 +415,13 @@ export function RiskPage({user}) {
         severity: h.default_severity || f.severity,
       }));
     } catch (_) { setSuggestions(null); }
+  }
+
+  async function applyHazardFromLibrary(hazard) {
+    if (!hazard?.id) return;
+    await onHazardPick(hazard.id);
+    setLibOpen(false);
+    setOpen(true);
   }
 
   async function save(e) {
@@ -1379,40 +1389,43 @@ export function RiskPage({user}) {
       )}
 
       {libOpen && (
-        <Modal title={`Tehlike Kütüphanesi — ${categories.length} kategori / ~${totalHazards} tehlike`} close={() => setLibOpen(false)} wide>
-          <div style={{display: 'grid', gap: 12}}>
-            <div style={{display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center'}}>
+        <Modal
+          title={`Tehlike Kütüphanesi — ${categories.length} kategori / ~${totalHazards} tehlike`}
+          close={() => setLibOpen(false)}
+          wide
+          layer="top"
+        >
+          <div className="risk-lib-picker">
+            <div className="risk-lib-picker-toolbar">
               {canEdit && (
-                <button type="button" disabled={busy} onClick={seedLibrary}>
-                  {busy ? 'Yükleniyor…' : 'Kütüphaneyi Yenile / Yükle (552 tehlike)'}
+                <button type="button" className="btn" disabled={busy} onClick={seedLibrary}>
+                  {busy ? 'Yükleniyor…' : `Kütüphaneyi Yenile / Yükle (${totalHazards || 552} tehlike)`}
                 </button>
               )}
-              {libMsg && <span style={{fontSize: 13, color: '#087b67'}}>{libMsg}</span>}
+              {libMsg && <span className="risk-lib-picker-msg">{libMsg}</span>}
             </div>
-            <p style={{margin: 0, fontSize: 14, color: '#52677a'}}>
-              Kategoriye tıklayınca o kategorinin tehlikeleri listelenir. Bir tehlikeye tıklayınca yeni risk formuna aktarılır.
+            <p className="risk-lib-picker-help">
+              Soldan kategori seçin, sağdaki tehlikeye tıklayın veya <strong>Seç</strong> ile forma aktarın.
             </p>
-            <div style={{display: 'grid', gridTemplateColumns: '280px 1fr', gap: 12, minHeight: 360}}>
-              <div style={{border: '1px solid #dbe4ee', borderRadius: 10, overflow: 'auto', maxHeight: 420}}>
+            <div className="risk-lib-picker-grid">
+              <div className="risk-lib-picker-cats" role="listbox" aria-label="Tehlike kategorileri">
                 {categories.map((c) => (
                   <button
                     key={c.id}
                     type="button"
-                    className={String(form.category_id) === String(c.id) ? 'active' : ''}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left', padding: '10px 12px',
-                      border: 'none', borderBottom: '1px solid #eef2f6', background: String(form.category_id) === String(c.id) ? '#e8f1fb' : 'transparent', cursor: 'pointer',
-                    }}
+                    role="option"
+                    aria-selected={String(form.category_id) === String(c.id)}
+                    className={`risk-lib-picker-cat${String(form.category_id) === String(c.id) ? ' active' : ''}`}
                     onClick={() => setForm((f) => ({...f, category_id: String(c.id), hazard_id: '', hazard_q: ''}))}
                   >
-                    <strong style={{fontSize: 13}}>{c.name}</strong>
-                    <div style={{fontSize: 12, color: '#64748b'}}>{c.hazard_count || 0} tehlike</div>
+                    <strong>{c.name}</strong>
+                    <span>{c.hazard_count || 0} tehlike</span>
                   </button>
                 ))}
-                {!categories.length && <div className="empty" style={{padding: 16}}>Kategori yok — yükleyin.</div>}
+                {!categories.length && <div className="risk-empty" style={{minHeight: 80}}><p>Kategori yok — yükleyin.</p></div>}
               </div>
-              <div>
-                <div className="search" style={{marginBottom: 8}}>
+              <div className="risk-lib-picker-list">
+                <div className="search risk-lib-picker-search">
                   <Search size={16} />
                   <input
                     placeholder="Kod veya tehlike adı ara (ör. FZK-001, gürültü)..."
@@ -1421,37 +1434,28 @@ export function RiskPage({user}) {
                     disabled={!form.category_id}
                   />
                 </div>
-                <div className="table-wrap" style={{maxHeight: 360, overflow: 'auto'}}>
-                  <table>
-                    <thead>
-                      <tr><th>Kod</th><th>Tehlike</th><th>Varsayılan P/Ş</th><th></th></tr>
-                    </thead>
-                    <tbody>
-                      {hazards.length ? hazards.map((h) => (
-                        <tr key={h.id}>
-                          <td>{h.code}</td>
-                          <td>
-                            <strong>{h.name}</strong>
-                            <div style={{fontSize: 12, color: '#64748b'}}>{h.description?.slice(0, 120)}</div>
-                          </td>
-                          <td>{h.default_probability || '—'} / {h.default_severity || '—'}</td>
-                          <td>
-                            {canEdit && (
-                              <button className="mini" type="button" onClick={() => {
-                                onHazardPick(h.id);
-                                setLibOpen(false);
-                                setOpen(true);
-                              }}>
-                                Seç
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      )) : (
-                        <tr><td colSpan={4} className="empty">{form.category_id ? 'Tehlike bulunamadı' : 'Soldan kategori seçin'}</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+                <div className="risk-lib-picker-items" role="listbox" aria-label="Tehlikeler">
+                  {hazards.length ? hazards.map((h) => (
+                    <button
+                      key={h.id}
+                      type="button"
+                      role="option"
+                      className="risk-lib-picker-item"
+                      onClick={() => applyHazardFromLibrary(h)}
+                    >
+                      <span className="risk-lib-picker-code">{h.code}</span>
+                      <span className="risk-lib-picker-body">
+                        <strong>{h.name}</strong>
+                        {h.description ? <em>{String(h.description).slice(0, 140)}</em> : null}
+                        <small>Varsayılan P/Ş: {h.default_probability || '—'} / {h.default_severity || '—'}</small>
+                      </span>
+                      <span className="risk-lib-picker-pick">Seç</span>
+                    </button>
+                  )) : (
+                    <div className="risk-empty" style={{minHeight: 120}}>
+                      <p>{form.category_id ? 'Tehlike bulunamadı' : 'Soldan kategori seçin'}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
