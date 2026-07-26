@@ -132,6 +132,28 @@ SPECIAL_INSTRUCTOR_ROLES = {
 }
 
 
+def profile_total_hours(profile: dict) -> int:
+    """Özel eğitim toplam ders saati (teorik + uygulamalı)."""
+    return int(profile.get("default_theory") or 0) + int(profile.get("default_practice") or 0)
+
+
+def profile_duration_hint(profile: dict) -> str:
+    theory = int(profile.get("default_theory") or 0)
+    practice = int(profile.get("default_practice") or 0)
+    total = theory + practice
+    if practice:
+        return f"{total} ders saati ({theory} teorik + {practice} uygulamalı)"
+    return f"{total} ders saati ({theory} teorik)"
+
+
+def resolve_special_duration_hours(training) -> int | None:
+    """Özel eğitim ise mevzuat/profil saatini döner; temel İSG ise None."""
+    key = resolve_special_profile_key(training)
+    if not key:
+        return None
+    return profile_total_hours(SPECIAL_TRAINING_PROFILES[key])
+
+
 def special_profiles_for_api() -> list[dict]:
     items = []
     for key, profile in SPECIAL_TRAINING_PROFILES.items():
@@ -153,6 +175,7 @@ def special_profiles_for_api() -> list[dict]:
             "default_theory_hours": theory,
             "default_practice_hours": practice,
             "default_total_hours": theory + practice,
+            "duration_hint": profile_duration_hint(profile),
             "min_total_hours": profile.get("min_total"),
             "practice_required": bool(profile.get("practice_required")),
             "training_method": profile.get("training_method"),
@@ -179,10 +202,12 @@ def special_meta_for_api() -> dict:
 
 DEFAULT_CERTIFICATE_TITLE = "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ"
 DEFAULT_ATTENDANCE_TITLE = "İŞ SAĞLIĞI VE GÜVENLİĞİ TEMEL EĞİTİMİ"
+DEFAULT_TOPICS_HEADER = "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM KONULARI"
+SPECIAL_TOPICS_HEADER = "EĞİTİM PROGRAMI VE KONU SÜRELERİ"
 
 
-def resolve_training_document_titles(training) -> dict[str, str | None]:
-    """Eğitim türüne göre belge / imza formu başlığı (özel eğitim ≠ temel İSG)."""
+def resolve_special_profile_key(training) -> str | None:
+    """Eğitim kaydından özel profil kodunu çözer."""
     haystack = " ".join(
         str(x or "")
         for x in (
@@ -205,14 +230,176 @@ def resolve_training_document_titles(training) -> dict[str, str | None]:
         for marker in markers:
             m = str(marker or "").strip().casefold()
             if m and m in haystack:
-                return {
-                    "certificate_title": str(profile.get("certificate_title") or DEFAULT_CERTIFICATE_TITLE),
-                    "attendance_title": str(profile.get("attendance_title") or DEFAULT_ATTENDANCE_TITLE),
-                    "profile_key": key,
-                }
+                return key
+    return None
 
+
+def resolve_training_document_titles(training) -> dict[str, str | None]:
+    """Eğitim türüne göre belge / imza formu başlığı (özel eğitim ≠ temel İSG)."""
+    key = resolve_special_profile_key(training)
+    if key:
+        profile = SPECIAL_TRAINING_PROFILES[key]
+        return {
+            "certificate_title": str(profile.get("certificate_title") or DEFAULT_CERTIFICATE_TITLE),
+            "attendance_title": str(profile.get("attendance_title") or DEFAULT_ATTENDANCE_TITLE),
+            "profile_key": key,
+        }
     return {
         "certificate_title": DEFAULT_CERTIFICATE_TITLE,
         "attendance_title": DEFAULT_ATTENDANCE_TITLE,
         "profile_key": None,
+    }
+
+
+def _round_to_five(value: float) -> int:
+    return max(5, int(round(float(value) / 5.0) * 5))
+
+
+def weighted_minute_distribution(
+    topics: list[str],
+    target_minutes: int,
+    weights: list[float] | None = None,
+) -> list[tuple[str, int]]:
+    """Konu sürelerini ağırlıklarla, 5 dakikalık birimlerle hedefe dağıtır (Pro)."""
+    topics = list(topics or [])
+    if not topics:
+        return []
+    if weights is None:
+        weights = [1.0] * len(topics)
+    weights = [max(0.1, float(x)) for x in list(weights)[: len(topics)]]
+    if len(weights) < len(topics):
+        weights.extend([1.0] * (len(topics) - len(weights)))
+
+    target_minutes = int(target_minutes)
+    total_weight = sum(weights) or 1.0
+    distribution = [_round_to_five(target_minutes * w / total_weight) for w in weights]
+    diff = target_minutes - sum(distribution)
+
+    order = sorted(range(len(topics)), key=lambda i: (-weights[i], i))
+    while diff >= 5:
+        for i in order:
+            if diff < 5:
+                break
+            distribution[i] += 5
+            diff -= 5
+    while diff <= -5:
+        changed = False
+        for i in reversed(order):
+            if diff > -5:
+                break
+            if distribution[i] > 5:
+                distribution[i] -= 5
+                diff += 5
+                changed = True
+        if not changed:
+            break
+    if diff:
+        distribution[order[0]] += diff
+
+    return list(zip(topics, distribution))
+
+
+def special_topics_with_minutes(
+    profile: dict,
+    theory_hours: int | None = None,
+    practice_hours: int | None = None,
+) -> list[dict]:
+    """Özel eğitim müfredatını ders saati × 45 dk ile dakikalandırır."""
+    theory_hours = int(theory_hours if theory_hours is not None else profile.get("default_theory") or 0)
+    practice_hours = int(
+        practice_hours if practice_hours is not None else profile.get("default_practice") or 0
+    )
+    theory_topics = [(title, weight) for title, mode, weight in profile.get("topics") or [] if mode == "theory"]
+    practice_topics = [
+        (title, weight) for title, mode, weight in profile.get("topics") or [] if mode == "practice"
+    ]
+    result: list[dict] = []
+    if theory_topics and theory_hours:
+        distributed = weighted_minute_distribution(
+            [title for title, _w in theory_topics],
+            theory_hours * 45,
+            [weight for _t, weight in theory_topics],
+        )
+        result.extend({"tur": "Teorik", "konu": title, "dakika": minute} for title, minute in distributed)
+    if practice_topics and practice_hours:
+        distributed = weighted_minute_distribution(
+            [title for title, _w in practice_topics],
+            practice_hours * 45,
+            [weight for _t, weight in practice_topics],
+        )
+        result.extend({"tur": "Uygulama", "konu": title, "dakika": minute} for title, minute in distributed)
+    return result
+
+
+def _topics_to_pdf_columns(topics: list[dict]) -> tuple[list[tuple[int, str]], list[tuple[int, str]]]:
+    """PDF draw_col formatı: (başlık_mı, metin)."""
+    middle = (len(topics) + 1) // 2
+
+    def column(chunk: list[dict]) -> list[tuple[int, str]]:
+        out: list[tuple[int, str]] = []
+        last_type = None
+        for item in chunk:
+            tur = str(item.get("tur") or "")
+            if tur != last_type:
+                out.append((1, tur.upper()))
+                last_type = tur
+            out.append((0, f"- {item.get('konu', '')} - {item.get('dakika', 0)} DK"))
+        return out
+
+    return column(topics[:middle]), column(topics[middle:])
+
+
+def special_topics_summary(profile: dict) -> str:
+    """İmza formu konu özeti."""
+    theory = [t for t, mode, _w in profile.get("topics") or [] if mode == "theory"]
+    practice = [t for t, mode, _w in profile.get("topics") or [] if mode == "practice"]
+    parts: list[str] = []
+    if theory:
+        shown = theory[:8]
+        extra = f" (+{len(theory) - 8})" if len(theory) > 8 else ""
+        parts.append("Teorik: " + "; ".join(shown) + extra)
+    if practice:
+        parts.append("Uygulama: " + "; ".join(practice))
+    return " | ".join(parts) if parts else ""
+
+
+def resolve_training_curriculum(training) -> dict:
+    """Belge / imza formu için başlık + müfredat (özel veya temel)."""
+    titles = resolve_training_document_titles(training)
+    key = titles.get("profile_key")
+    if not key:
+        return {
+            **titles,
+            "is_special": False,
+            "profile": None,
+            "topics_header": DEFAULT_TOPICS_HEADER,
+            "purpose": None,
+            "legal_basis": None,
+            "disclaimer": None,
+            "sol": None,
+            "sag": None,
+            "konu_ozeti": None,
+            "duration_hours": None,
+            "duration_label": None,
+            "duration_hint": None,
+        }
+
+    profile = SPECIAL_TRAINING_PROFILES[key]
+    topics = special_topics_with_minutes(profile)
+    sol, sag = _topics_to_pdf_columns(topics)
+    total = profile_total_hours(profile)
+    return {
+        **titles,
+        "is_special": True,
+        "profile": profile,
+        "topics_header": SPECIAL_TOPICS_HEADER,
+        "purpose": str(profile.get("purpose") or ""),
+        "legal_basis": str(profile.get("legal_basis") or ""),
+        "disclaimer": str(profile.get("disclaimer") or ""),
+        "sol": sol,
+        "sag": sag,
+        "konu_ozeti": special_topics_summary(profile),
+        "duration_hours": total,
+        "duration_label": f"{total} DERS SAAT" if total else None,
+        "duration_hint": profile_duration_hint(profile),
     }

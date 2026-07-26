@@ -17,9 +17,8 @@ const TABS = [
   {id: 'kayitlar', label: 'Kayıtlar'},
 ];
 
-function minTrainingDays(hazardClass) {
-  const hours = HAZARD_HOURS[hazardClass] || 8;
-  return Math.max(1, Math.ceil(hours / MAX_HOURS_PER_DAY));
+function minTrainingDays(hours) {
+  return Math.max(1, Math.ceil((hours || 8) / MAX_HOURS_PER_DAY));
 }
 
 function formatTrainingDates(row) {
@@ -102,6 +101,8 @@ function emptyForm(user) {
     success_verified: true,
     notes: '',
     participant_ids: [],
+    special_duration_hours: null,
+    special_duration_hint: '',
   };
 }
 
@@ -315,10 +316,13 @@ export function TrainingPage({user}) {
     if (f.end_date < f.start_date) {
       return 'Bitiş tarihi başlangıç tarihinden önce olamaz.';
     }
-    const needed = minTrainingDays(f.hazard_class);
+    const hours =
+      Number(f.special_duration_hours) > 0
+        ? Number(f.special_duration_hours)
+        : HAZARD_HOURS[f.hazard_class] || 8;
+    const needed = minTrainingDays(hours);
     const span = calendarDaysInclusive(f.start_date, f.end_date);
     if (span < needed) {
-      const hours = HAZARD_HOURS[f.hazard_class] || 8;
       return (
         `${hours} saatlik eğitim en az ${needed} güne yayılmalıdır ` +
         `(günde en fazla ${MAX_HOURS_PER_DAY} ders saati). Başlangıç–bitiş aralığını genişletin.`
@@ -587,7 +591,10 @@ export function TrainingPage({user}) {
 
   function applySpecialProfile(code) {
     setSpecialProfileCode(code);
-    if (!code) return;
+    if (!code) {
+      setForm((prev) => ({...prev, special_duration_hours: null, special_duration_hint: ''}));
+      return;
+    }
     const profile = specialProfiles.find((p) => p.code === code);
     if (!profile) return;
     const topicLines = (profile.topics || [])
@@ -597,6 +604,17 @@ export function TrainingPage({user}) {
         return `• [${mode}] ${t.title || t.name || ''}`;
       })
       .join('\n');
+    const total =
+      Number(profile.default_total_hours) ||
+      (Number(profile.default_theory_hours || 0) + Number(profile.default_practice_hours || 0));
+    const hint =
+      profile.duration_hint ||
+      (total
+        ? `${total} ders saati (${profile.default_theory_hours || 0} teorik` +
+          (profile.default_practice_hours
+            ? ` + ${profile.default_practice_hours} uygulamalı)`
+            : ')')
+        : '');
     setForm((prev) => ({
       ...prev,
       title: profile.title || prev.title,
@@ -604,10 +622,12 @@ export function TrainingPage({user}) {
       delivery_method: profile.training_method || prev.delivery_method,
       evaluation_method:
         (profile.evaluation_methods && profile.evaluation_methods[0]) || prev.evaluation_method,
+      special_duration_hours: total || null,
+      special_duration_hint: hint,
       notes: [
         profile.purpose || '',
         profile.disclaimer || '',
-        topicLines ? `Konular (${profile.default_total_hours || ''} saat):\n${topicLines}` : '',
+        topicLines ? `Konular (${total || ''} saat):\n${topicLines}` : '',
       ]
         .filter(Boolean)
         .join('\n\n'),
@@ -1000,7 +1020,7 @@ export function TrainingPage({user}) {
               </div>
               <div className="tp-alert warn" style={{marginTop: 10}}>
                 Günde en fazla {MAX_HOURS_PER_DAY} ders saati;
-                {` ${HAZARD_HOURS[form.hazard_class] || 8} saatlik eğitim en az ${minTrainingDays(form.hazard_class)} takvim gününe yayılmalıdır.`}
+                {` ${HAZARD_HOURS[form.hazard_class] || 8} saatlik eğitim en az ${minTrainingDays(HAZARD_HOURS[form.hazard_class] || 8)} takvim gününe yayılmalıdır.`}
               </div>
               <div className="sector-topics" style={{marginTop: 10}}>
                 <strong>4. İş ve İşyerine Özgü Riskler</strong>
@@ -1263,6 +1283,23 @@ export function TrainingPage({user}) {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="tp-label">Süre (otomatik)</label>
+                <input
+                  className="tp-input"
+                  readOnly
+                  value={
+                    form.special_duration_hint ||
+                    (selectedProfile
+                      ? selectedProfile.duration_hint ||
+                        `${selectedProfile.default_total_hours || '?'} ders saati`
+                      : 'Profil seçince süre gelir')
+                  }
+                />
+                <div className="tp-help">
+                  6331 ve ilgili yönetmeliklere göre profil süresi otomatik uygulanır; belgede bu saat basılır.
+                </div>
               </div>
               <div>
                 <label className="tp-label">Eğitici adı soyadı *</label>
@@ -1583,6 +1620,14 @@ export function TrainingPage({user}) {
               setErr('');
               setOkMsg('');
               if (t.id !== 'kayitlar') setDetail(null);
+              if (t.id === 'temel') {
+                setSpecialProfileCode('');
+                setForm((prev) => ({
+                  ...prev,
+                  special_duration_hours: null,
+                  special_duration_hint: '',
+                }));
+              }
               setTab(t.id);
             }}
           >

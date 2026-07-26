@@ -23,6 +23,7 @@ from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 from app.services.training_topics import meta_payload, sektor_kodu_cozumle, sectors_list_for_api
 from app.services.special_training_profiles import special_meta_for_api
+from app.schemas.training import resolve_training_hours
 
 
 router = APIRouter(prefix="/trainings", tags=["Eğitim Yönetimi"])
@@ -266,7 +267,13 @@ def create_training(
         )
         if len(employees) != len(set(payload.participant_ids)):
             raise HTTPException(422, "Katılımcılardan biri firmaya ait değil veya pasif.")
-    hours, years = RULES[payload.hazard_class]
+    _, years = RULES[payload.hazard_class]
+    hours = resolve_training_hours(
+        training_type=payload.training_type,
+        title=payload.title,
+        notes=payload.notes,
+        hazard_class=payload.hazard_class,
+    )
     kod = sektor_kodu_cozumle(payload.sector)
     # Deterministik hash çakışmasın diye uuid ekle (aynı başlık/tarih tekrarında 500 önleme)
     code = None

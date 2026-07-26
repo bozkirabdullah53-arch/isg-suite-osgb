@@ -1,12 +1,24 @@
 from datetime import date, datetime
 from math import ceil
+from types import SimpleNamespace
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.models.entities import TrainingStatus
+from app.services.special_training_profiles import resolve_special_duration_hours
 
 # Bir takvim gününde makul üst ders saati (1 günde 16 saat olmaz)
 MAX_TRAINING_HOURS_PER_DAY = 8
 HAZARD_HOURS = {"Az Tehlikeli": 8, "Tehlikeli": 12, "Çok Tehlikeli": 16}
+
+
+def resolve_training_hours(*, training_type: str, title: str, notes: str | None, hazard_class: str) -> int:
+    """Temel İSG → tehlike sınıfı; özel eğitim → profil mevzuat saati."""
+    special = resolve_special_duration_hours(
+        SimpleNamespace(training_type=training_type, title=title, notes=notes or "")
+    )
+    if special:
+        return int(special)
+    return int(HAZARD_HOURS.get(hazard_class, 8))
 
 
 class TrainingCreate(BaseModel):
@@ -59,7 +71,12 @@ class TrainingCreate(BaseModel):
             self.employer_representative, label="İşveren / vekili"
         )
         self.notes = assert_meaningful_text(self.notes, label="Notlar", min_len=3, required=False)
-        hours = HAZARD_HOURS.get(self.hazard_class, 8)
+        hours = resolve_training_hours(
+            training_type=self.training_type,
+            title=self.title,
+            notes=self.notes,
+            hazard_class=self.hazard_class,
+        )
         calendar_days = (self.end_date - self.start_date).days + 1
         min_days = max(1, ceil(hours / MAX_TRAINING_HOURS_PER_DAY))
         if calendar_days < min_days:

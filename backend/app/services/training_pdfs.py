@@ -14,7 +14,10 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 from app.core.config import settings
-from app.services.special_training_profiles import resolve_training_document_titles
+from app.services.special_training_profiles import (
+    resolve_training_curriculum,
+    resolve_training_document_titles,
+)
 from app.services.training_topics import (
     egitim_konularini_hazirla,
     katilim_formu_konu_ozeti,
@@ -200,7 +203,8 @@ def build_attendance_pdf(*, company_name: str, training, employees: dict) -> byt
     bugun = datetime.now().strftime("%d.%m.%Y")
     kural = tehlike_kurali(training.hazard_class)
     sektor = sektor_kodu_cozumle(training.sector)
-    konu_ozeti = katilim_formu_konu_ozeti(training.hazard_class, sektor)
+    curriculum = resolve_training_curriculum(training)
+    konu_ozeti = curriculum.get("konu_ozeti") or katilim_formu_konu_ozeti(training.hazard_class, sektor)
 
     for page_i in range(total_pages):
         chunk = participants[page_i * per_page : (page_i + 1) * per_page]
@@ -217,6 +221,7 @@ def build_attendance_pdf(*, company_name: str, training, employees: dict) -> byt
             sektor_label=sektor_adi(sektor),
             konu_ozeti=konu_ozeti,
             start_index=page_i * per_page,
+            curriculum=curriculum,
         )
         c.showPage()
     c.save()
@@ -225,8 +230,9 @@ def build_attendance_pdf(*, company_name: str, training, employees: dict) -> byt
 
 
 def _draw_attendance_page(
-    c, w, h, *, company_name, training, employees, chunk, page_no, total_pages, bugun, kural, sektor_label, konu_ozeti, start_index
+    c, w, h, *, company_name, training, employees, chunk, page_no, total_pages, bugun, kural, sektor_label, konu_ozeti, start_index, curriculum=None
 ):
+    curriculum = curriculum or {}
     # PRO: outer slate frame + inner soft frame
     c.setLineWidth(0.9)
     _rgb(c, _SLATE, stroke=True)
@@ -285,12 +291,17 @@ def _draw_attendance_page(
         ("Firma", company_name),
         ("Eğitimin Adı", training.title),
         ("Eğitim Tarihi", _fmt_date_range(training)),
-        ("Eğitim Süresi", kural["sure"]),
-        ("Yenileme Periyodu", kural["yenileme"]),
+        (
+            "Eğitim Süresi",
+            curriculum.get("duration_hint")
+            or curriculum.get("duration_label")
+            or (f"{training.duration_hours} ders saati" if getattr(training, "duration_hours", None) else kural["sure"]),
+        ),
+        ("Yenileme Periyodu", "—" if curriculum.get("is_special") else kural["yenileme"]),
         ("Tehlike Sınıfı", training.hazard_class),
         ("Eğitim Türü", training.training_type),
         ("Eğitim Şekli", training.delivery_method),
-        ("Sektör / İş Kolu", sektor_label),
+        ("Sektör / İş Kolu", "—" if curriculum.get("is_special") else sektor_label),
         ("Eğitim Yeri", training.location or "—"),
         ("Eğitici / Yeterlilik", egitici),
         ("Değerlendirme / Puan", deger),
@@ -325,8 +336,11 @@ def _draw_attendance_page(
     c.drawString(ml + 2 * mm, konu_y_top - 4 * mm, "Eğitimin Amacı:")
     c.setFont(_FONT, 6.2)
     purpose = (
-        "Çalışanların meslek hastalığı ve iş kazasına maruz kalma riskini azaltmak; "
-        "sağlıklı ve güvenli çalışma ortamı oluşturmak."
+        curriculum.get("purpose")
+        or (
+            "Çalışanların meslek hastalığı ve iş kazasına maruz kalma riskini azaltmak; "
+            "sağlıklı ve güvenli çalışma ortamı oluşturmak."
+        )
     )
     for li, line in enumerate(_wrap(c, purpose, uw - 36 * mm, _FONT, 6.2, 2)):
         c.drawString(ml + 32 * mm, konu_y_top - 4 * mm - li * 3.2 * mm, line)
@@ -341,8 +355,11 @@ def _draw_attendance_page(
     c.drawString(ml + 2 * mm, konu_y_top - 20 * mm, "Dayanak:")
     c.setFont(_FONT, 6)
     dayanak = (
-        "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve çalışanların İSG eğitimlerine "
-        "ilişkin mevzuat kapsamında düzenlenmiştir."
+        curriculum.get("legal_basis")
+        or (
+            "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve çalışanların İSG eğitimlerine "
+            "ilişkin mevzuat kapsamında düzenlenmiştir."
+        )
     )
     c.drawString(
         ml + 18 * mm,
@@ -459,7 +476,11 @@ def build_certificates_pdf(*, company_name: str, training, employees: dict) -> b
     egitim_tarihi = _fmt_date_range(training)
     kural = tehlike_kurali(training.hazard_class)
     sektor = sektor_kodu_cozumle(training.sector)
-    sol, sag, _, _ = egitim_konularini_hazirla(training.hazard_class, sektor)
+    curriculum = resolve_training_curriculum(training)
+    if curriculum.get("is_special") and curriculum.get("sol") is not None:
+        sol, sag = curriculum["sol"], curriculum["sag"]
+    else:
+        sol, sag, _, _ = egitim_konularini_hazirla(training.hazard_class, sektor)
 
     for i, p in enumerate(participants, 1):
         e = employees.get(p.employee_id)
@@ -477,6 +498,7 @@ def build_certificates_pdf(*, company_name: str, training, employees: dict) -> b
             sektor=sektor,
             sol=sol,
             sag=sag,
+            curriculum=curriculum,
         )
         c.showPage()
     c.save()
@@ -484,7 +506,10 @@ def build_certificates_pdf(*, company_name: str, training, employees: dict) -> b
     return buf.read()
 
 
-def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_no, bugun, egitim_tarihi, kural, sektor, sol, sag):
+def _draw_certificate_page(
+    c, w, h, *, company_name, training, employee, belge_no, bugun, egitim_tarihi, kural, sektor, sol, sag, curriculum=None
+):
+    curriculum = curriculum or {}
     ml, mr = 8 * mm, 8 * mm
     uw = w - ml - mr
 
@@ -511,7 +536,11 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
 
     c.setFillColorRGB(1, 1, 1)
     titles = resolve_training_document_titles(training)
-    cert_title = titles["certificate_title"] or "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ"
+    cert_title = (
+        curriculum.get("certificate_title")
+        or titles.get("certificate_title")
+        or "TEMEL İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ KATILIM BELGESİ"
+    )
     title_size = 9 if len(cert_title) > 48 else 11
     c.setFont(_FONT_B, title_size)
     c.drawCentredString(w / 2, h - 12 * mm, _fit(c, cert_title, w - 40 * mm, _FONT_B, title_size))
@@ -523,8 +552,13 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
     c.setFont(_FONT, 7)
     c.drawString(ml, h - 33 * mm, f"Belge No: {belge_no}")
     c.drawRightString(w - mr, h - 33 * mm, f"Tarih: {bugun}")
+    sure = curriculum.get("duration_label") or (
+        f"{training.duration_hours} DERS SAAT"
+        if getattr(training, "duration_hours", None)
+        else kural["sure"]
+    )
     meta_parts = [
-        f"Süre: {kural['sure']}",
+        f"Süre: {sure}",
         f"Tür: {training.training_type}",
         f"Şekil: {training.delivery_method}",
     ]
@@ -605,7 +639,8 @@ def _draw_certificate_page(c, w, h, *, company_name, training, employee, belge_n
     c.rect(ml, ty - 6.5 * mm, uw, 6.5 * mm, fill=1, stroke=0)
     _rgb(c, _BLUE, fill=True)
     c.setFont(_FONT_B, 8)
-    c.drawCentredString(w / 2, ty - 4.5 * mm, "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM KONULARI")
+    topics_header = curriculum.get("topics_header") or "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM KONULARI"
+    c.drawCentredString(w / 2, ty - 4.5 * mm, topics_header)
 
     top = ty - 9 * mm
     cw = (uw - 10 * mm) / 2
