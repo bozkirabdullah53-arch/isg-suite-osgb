@@ -546,6 +546,42 @@ def update_package(
     return obj
 
 
+@router.delete("/packages/{package_id}")
+def delete_package(
+    package_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    obj = db.get(EisaPackage, package_id)
+    if not obj:
+        raise HTTPException(404, "Paket bulunamadı.")
+    in_use = db.scalar(
+        select(OsgbSubscription.id).where(OsgbSubscription.package_id == package_id).limit(1)
+    )
+    if in_use:
+        raise HTTPException(
+            409,
+            f"“{obj.name}” silinemedi: aboneliklerde kullanılıyor. "
+            "Önce Pasife Alın veya abonelikleri başka pakete taşıyın.",
+        )
+    name = obj.name
+    code = obj.code
+    db.delete(obj)
+    add_audit_log(
+        db,
+        user=user,
+        action="package_deleted",
+        module="eisa",
+        entity_type="eisa_package",
+        entity_id=str(package_id),
+        description=f"Paket silindi: {name} ({code})",
+        ip_address=_client_ip(request),
+    )
+    db.commit()
+    return {"ok": True, "id": package_id, "deleted": True, "message": f"“{name}” silindi."}
+
+
 @router.get("/payments", response_model=list[EisaPaymentResponse])
 def list_payments(
     osgb_id: int | None = None,

@@ -962,6 +962,23 @@ export function EisaPackagesPage() {
     }
   }
 
+  async function remove(pkg) {
+    if (!window.confirm(`“${pkg.name}” paketini kalıcı silmek istiyor musunuz?\n\nBu işlem geri alınamaz. Abonelikte kullanılan paketler silinemez.`)) {
+      return;
+    }
+    setBusy(true);
+    setMsg('');
+    try {
+      const res = await api(`/eisa/packages/${pkg.id}`, { method: 'DELETE' });
+      await load();
+      setMsg(res?.message || 'Paket silindi.');
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Page
       title="Paket Yönetimi"
@@ -998,9 +1015,14 @@ export function EisaPackagesPage() {
                 <td>{p.max_workplaces}</td>
                 <td>{p.is_active ? 'Aktif' : 'Pasif'}</td>
                 <td>
-                  <button type="button" className="secondary" disabled={busy} onClick={() => toggle(p)}>
-                    {p.is_active ? 'Pasife Al' : 'Aktifleştir'}
-                  </button>
+                  <div className="actions" style={{justifyContent: 'flex-end', flexWrap: 'wrap'}}>
+                    <button type="button" className="secondary" disabled={busy} onClick={() => toggle(p)}>
+                      {p.is_active ? 'Pasife Al' : 'Aktifleştir'}
+                    </button>
+                    <button type="button" className="mini" disabled={busy} onClick={() => remove(p)} style={{background: '#fee2e2', color: '#b91c1c'}}>
+                      Sil
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
