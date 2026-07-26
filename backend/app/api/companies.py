@@ -369,13 +369,18 @@ def create_company(
     obj.site_verify_code = generate_site_verify_code()
     db.add(obj)
     try:
+        # INSERT: boş allowed_company_ids + RLS WITH CHECK çakışmasın
+        from app.core.rls import apply_rls_user, set_rls_bypass
+
+        set_rls_bypass(db, True)
         db.commit()
     except IntegrityError:
         db.rollback()
         raise HTTPException(409, "Bu OSGB kapsamında aynı adlı işyeri zaten kayıtlı.")
+    except Exception:
+        db.rollback()
+        raise
     # Yeni id henüz eski allowed_company_ids listesinde yok; RLS SELECT için yeniden hesapla.
-    from app.core.rls import apply_rls_user
-
     apply_rls_user(db, user)
     db.refresh(obj)
     return obj

@@ -20,11 +20,23 @@ def _set(db: Session, key: str, value: str) -> None:
     db.execute(text("SELECT set_config(:k, :v, true)"), {"k": key, "v": value})
 
 
+def set_rls_bypass(db: Session, enabled: bool = True) -> None:
+    """Geçici RLS bypass (INSERT chicken-egg / kapsam hesabı)."""
+    _set(db, "app.rls_bypass", "1" if enabled else "")
+
+
+def _allowed_csv(ids: list[int] | None) -> str:
+    """Boş CSV yazma — PG `string_to_array('','')::int[]` 500 üretir; sentinel -1 kullan."""
+    if not ids:
+        return "-1"
+    return ",".join(str(int(i)) for i in ids)
+
+
 def _clear_tenant_vars(db: Session) -> None:
     _set(db, "app.current_user_id", "")
     _set(db, "app.rls_admin", "")
     _set(db, "app.rls_bypass", "")
-    _set(db, "app.allowed_company_ids", "")
+    _set(db, "app.allowed_company_ids", "-1")
     _set(db, "app.current_company_id", "")
     _set(db, "app.current_osgb_id", "")
 
@@ -51,7 +63,7 @@ def apply_rls_user(db: Session, user: User | int | None) -> None:
 
     if user.role == UserRole.GLOBAL_ADMIN:
         _set(db, "app.rls_bypass", "1")
-        _set(db, "app.allowed_company_ids", "")
+        _set(db, "app.allowed_company_ids", "-1")
         return
 
     # Firma listesi (assigned_company_ids → workplace_assignments okur).
@@ -63,4 +75,4 @@ def apply_rls_user(db: Session, user: User | int | None) -> None:
         ids = assigned_company_ids(db, user)
     finally:
         _set(db, "app.rls_bypass", "")
-    _set(db, "app.allowed_company_ids", ",".join(str(int(i)) for i in ids) if ids else "")
+    _set(db, "app.allowed_company_ids", _allowed_csv(ids))
