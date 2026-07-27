@@ -839,8 +839,18 @@ async def upload_visit_notebook(
         ".png": "image/png",
     }.get(ext, "application/octet-stream")
     _apply_gps_stamp(obj, gps_lat, gps_lng, gps_accuracy_m)
-    _apply_site_verify(db, obj, db.get(Company, obj.company_id), site_verify_code)
-    obj.status = VisitStatus.COMPLETED
+    # Giriş/çıkış QR ile zaten doğrulandıysa defter yüklemede yeniden QR isteme
+    already_verified = bool(obj.site_verified_at) or bool(obj.checked_in_at)
+    code_given = bool(site_verify_code and str(site_verify_code).strip())
+    if already_verified and not code_given:
+        pass
+    else:
+        _apply_site_verify(db, obj, db.get(Company, obj.company_id), site_verify_code)
+    # Açık giriş varken yalnızca defter ekle; süreyi kapatma (çıkış ayrı)
+    if obj.checked_in_at and not obj.checked_out_at:
+        pass
+    else:
+        obj.status = VisitStatus.COMPLETED
     db.commit()
     db.refresh(obj)
     return obj

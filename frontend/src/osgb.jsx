@@ -1379,7 +1379,18 @@ export function VisitsPage({user}){
  function openCreate(){
   setErr('');setNotebookFile(null);setSiteQr('');setEditing(null);pendingVisitSaveRef.current=false;
   const today=new Date().toISOString().slice(0,10);
-  setForm(f=>({...emptyForm,osgb_id:f.osgb_id||osgbId(user,orgs)||'',visit_date:today}));
+  const open=rows.find(r=>r.checked_in_at&&!r.checked_out_at);
+  const todayPresence=[...rows]
+   .filter(r=>r.checked_in_at&&r.visit_date===today)
+   .sort((a,b)=>(b.id||0)-(a.id||0))[0];
+  const pick=open||todayPresence;
+  setForm(f=>({
+   ...emptyForm,
+   osgb_id:f.osgb_id||osgbId(user,orgs)||'',
+   visit_date:today,
+   company_id:pick?String(pick.company_id):'',
+   subject:pick?.subject||emptyForm.subject,
+  }));
   setOpen(true);
  }
  function openPlan(){
@@ -1410,9 +1421,11 @@ export function VisitsPage({user}){
    if(!form.company_id) throw new Error('İşyeri seçiniz.');
    if(!form.visit_date) throw new Error('Tarih zorunlu.');
    if(!editing&&!notebookFile) throw new Error('Tespit öneri defteri dosyası zorunlu (pdf/jpg/png).');
+   const presence=findPresenceVisit(form.company_id);
+   const presenceOk=!!(presence&&(presence.checked_in_at||presence.site_verified_at));
    const qrRaw=opts.siteCode!=null?opts.siteCode:(siteVerifyRef.current||siteVerifyInput);
-   if(isField&&!editing&&!parseSiteInput(qrRaw)){
-    // Kamera varsa yedek kod istemeden kamerayı aç; okutunca kayıt devam eder
+   // Giriş/çıkış zaten QR ile yapıldıysa yeniden okutma
+   if(isField&&!editing&&!presenceOk&&!parseSiteInput(qrRaw)){
     if(cameraOk){
      pendingVisitSaveRef.current=true;
      setBusy(false);
@@ -1420,7 +1433,7 @@ export function VisitsPage({user}){
      openCameraScan('visit');
      return;
     }
-    throw new Error('İşyeri QR kodu zorunlu. Kamera yoksa kodu yapıştırın.');
+    throw new Error('İşyeri QR kodu zorunlu. Önce giriş/çıkış yapın veya kamerayla okutun.');
    }
    if(notebookFile){
     const ext=(notebookFile.name||'').split('.').pop()?.toLowerCase();
@@ -1441,6 +1454,15 @@ export function VisitsPage({user}){
    let visitId=editing?.id;
    if(editing){
     await api(`/operations/visits/${editing.id}`,{method:'PATCH',body:JSON.stringify(body)});
+   }else if(isField&&presenceOk&&presence?.id){
+    // Aynı gün giriş/çıkış ziyaretine defter ekle — yeni kayıt + QR tekrar yok
+    visitId=presence.id;
+    try{
+     await api(`/operations/visits/${visitId}`,{method:'PATCH',body:JSON.stringify({
+      subject:form.subject||presence.subject,
+      notes:form.notes||presence.notes||null,
+     })});
+    }catch(_){ /* defter yükleme asıl iş */ }
    }else{
     const created=await api('/operations/visits',{method:'POST',body:JSON.stringify({...body,osgb_id:oid})});
     visitId=created.id;
@@ -1449,16 +1471,28 @@ export function VisitsPage({user}){
     const gps=isField?await captureGps():null;
     const extra={...(gps||{})};
     const siteCode=parseSiteInput(qrRaw);
-    if(isField&&siteCode) extra.site_verify_code=siteCode;
+    if(isField&&siteCode&&!presenceOk) extra.site_verify_code=siteCode;
     await uploadFile(`/operations/visits/${visitId}/notebook`,notebookFile,Object.keys(extra).length?extra:undefined);
    }
    setOpen(false);setEditing(null);setNotebookFile(null);setSiteQr('');
    setForm(f=>({...emptyForm,osgb_id:f.osgb_id||oid||''}));
-   setKioskMsg(editing?'Ziyaret güncellendi.':'Defter + QR kaydı tamamlandı ✓');
+   setKioskMsg(presenceOk
+    ?'Defter kaydı tamamlandı ✓ (giriş/çıkış QR’si yeterli — yeniden okutulmadı)'
+    :(editing?'Ziyaret güncellendi.':'Defter + QR kaydı tamamlandı ✓'));
    setErr('');
    await load();
   }catch(ex){setErr(ex.message||'Kayıt başarısız.')}
   finally{setBusy(false)}
+ }
+ function findPresenceVisit(companyId){
+  const cid=Number(companyId);
+  if(!cid) return null;
+  const day=form.visit_date||new Date().toISOString().slice(0,10);
+  const open=rows.find(r=>Number(r.company_id)===cid&&r.checked_in_at&&!r.checked_out_at);
+  if(open) return open;
+  return [...rows]
+   .filter(r=>Number(r.company_id)===cid&&r.checked_in_at&&r.visit_date===day)
+   .sort((a,b)=>(b.id||0)-(a.id||0))[0]||null;
  }
  async function remove(row){
   if(!canEdit) return;
@@ -1610,6 +1644,8 @@ export function VisitsPage({user}){
  const padStart=calDays.length?((calDays[0].weekday+6)%7):0;
  const todayIso=new Date().toISOString().slice(0,10);
  const openOnSite=isField?rows.filter(r=>r.checked_in_at&&!r.checked_out_at):[];
+ const presenceForForm=isField&&form.company_id?findPresenceVisit(form.company_id):null;
+ const presenceOkUi=!!(presenceForForm&&(presenceForForm.checked_in_at||presenceForForm.site_verified_at));
  const fieldQueue=isField?rows.filter(r=>r.status!=='completed'&&!(r.checked_in_at&&!r.checked_out_at)).sort((a,b)=>String(a.visit_date).localeCompare(String(b.visit_date))):[];
  const overdueQueue=fieldQueue.filter(r=>r.visit_date&&r.visit_date<todayIso);
  const todayQueue=fieldQueue.filter(r=>r.visit_date===todayIso);
@@ -1655,9 +1691,10 @@ export function VisitsPage({user}){
     </div>
 
     <div className="field-step">
-     <p className="field-step-label">3 — Defter / ziyaret kaydı</p>
+     <p className="field-step-label">3 — Defter yükle</p>
+     <p style={{margin:'0 0 8px',fontSize:13,color:'#64748b'}}>Giriş/çıkış yaptıysanız QR yeniden istenmez; yalnızca defter dosyası yeter.</p>
      <button type="button" className="field-big-btn field-big-btn-note" disabled={busy} onClick={openCreate}>
-      <Plus size={28}/> Defter yükle + QR
+      <Plus size={28}/> Defter yükle
      </button>
     </div>
 
@@ -1835,31 +1872,43 @@ export function VisitsPage({user}){
     </label>
     {isField&&!editing&&(
      <div style={{gridColumn:'1/-1',display:'grid',gap:8}}>
-      <span style={{fontSize:13,fontWeight:700,color:'#425c67'}}>3) İşyeri QR doğrulama *</span>
-      <button type="button" className="field-big-btn" disabled={busy} onClick={()=>openCameraScan('visit')}>
-       <Camera size={26}/> Kamerayı aç — QR okut
-      </button>
-      {siteVerifyInput?(
-       <p style={{margin:0,fontSize:13,color:'#0f766e',wordBreak:'break-all'}}>QR alındı ✓ Kaydet ile onaylayın (yedek koda gerek yok).</p>
+      <span style={{fontSize:13,fontWeight:700,color:'#425c67'}}>3) İşyeri QR doğrulama{presenceOkUi?'':' *'}</span>
+      {presenceOkUi?(
+       <div style={{padding:'12px 14px',borderRadius:10,background:'#ecfdf5',border:'1px solid #99f6e4',color:'#065f46',fontSize:14,lineHeight:1.45}}>
+        <strong>QR gerekmez.</strong> Bu işyerinde bugün giriş{presenceForForm.checked_out_at?'/çıkış':''} QR ile doğrulanmış.
+        Defter dosyasını seçip Kaydet yeterli.
+       </div>
       ):(
-       <details style={{margin:0}}>
-        <summary
-         style={{cursor:'pointer',fontSize:13,color:'#0f766e',fontWeight:650}}
-         title="Kamera çalışıyorsa bu alana gerek yok. Kaydet’e basınca kamera açılır; QR okutulunca kayıt tamamlanır. Sadece kamera açılamazsa kodu yapıştırın."
-        >
-         Kamera çalışmazsa: kodu yapıştır
-        </summary>
-        <p style={{margin:'8px 0',fontSize:12,color:'#64748b',lineHeight:1.4}}>
-          İşyeri QR metnini (Payload) kopyalayıp yapıştırın. Kamera kullanıyorsanız bu adımı atlayın.
+       <>
+        <p style={{margin:0,fontSize:13,color:'#92400e',lineHeight:1.4}}>
+          Bu işyerinde henüz giriş/çıkış yok. Önce Saha’dan QR ile giriş (ve çıkış) yapın; ya da aşağıdan bir kez okutun.
         </p>
-        <input
-         value={siteVerifyInput}
-         onChange={e=>setSiteQr(e.target.value)}
-         placeholder="QR metnini yapıştırın"
-         autoComplete="off"
-         style={{width:'100%'}}
-        />
-       </details>
+        <button type="button" className="field-big-btn" disabled={busy} onClick={()=>openCameraScan('visit')}>
+         <Camera size={26}/> Kamerayı aç — QR okut
+        </button>
+        {siteVerifyInput?(
+         <p style={{margin:0,fontSize:13,color:'#0f766e',wordBreak:'break-all'}}>QR alındı ✓ Kaydet ile onaylayın.</p>
+        ):(
+         <details style={{margin:0}}>
+          <summary
+           style={{cursor:'pointer',fontSize:13,color:'#0f766e',fontWeight:650}}
+           title="Kamera çalışıyorsa bu alana gerek yok. Önce giriş/çıkış yapmanız önerilir."
+          >
+           Kamera çalışmazsa: kodu yapıştır
+          </summary>
+          <p style={{margin:'8px 0',fontSize:12,color:'#64748b',lineHeight:1.4}}>
+            İşyeri QR metnini yapıştırın. Giriş/çıkış yaptıysanız bu adıma gerek yok — işyerini doğru seçin.
+          </p>
+          <input
+           value={siteVerifyInput}
+           onChange={e=>setSiteQr(e.target.value)}
+           placeholder="QR metnini yapıştırın"
+           autoComplete="off"
+           style={{width:'100%'}}
+          />
+         </details>
+        )}
+       </>
       )}
      </div>
     )}
