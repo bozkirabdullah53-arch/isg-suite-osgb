@@ -1,5 +1,18 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
+
+/** Apex → www: Cloudflare 307, tarayıcı Authorization düşürür → «Oturum doğrulanamadı». */
+(function ensureCanonicalWwwHost(){
+  try{
+    const host=String(window.location.hostname||'').toLowerCase();
+    if(host==='isgsuite.tr' || host==='isgsuite.com.tr'){
+      const next=new URL(window.location.href);
+      next.hostname=`www.${host}`;
+      window.location.replace(next.toString());
+    }
+  }catch{ /* ignore */ }
+})();
+
 import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Undo2,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
 import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
 import {clearOfflineQueue} from './field_offline';

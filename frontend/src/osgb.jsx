@@ -772,6 +772,7 @@ export function ProfessionalsPage({user, onNavigate}){
    const ptype=form.professional_type||tab;
    const email=(form.email||'').trim();
    if(!email){setErr('Giriş için e-posta zorunludur.');setBusy(false);return}
+   if(!editRow && !oid){setErr('OSGB seçilemedi. Sayfayı yenileyip tekrar deneyin.');setBusy(false);return}
    const body={
     full_name:form.full_name,
     email,

@@ -395,6 +395,17 @@ export async function api(path, options = {}) {
         err.httpStatus = response.status;
         err.httpPath = path;
         err.httpMethod = method;
+        if (response.status === 401) {
+          const detail = String(err.message || "");
+          if (/oturum|authenticated|unauthorized|token/i.test(detail)) {
+            try {
+              localStorage.removeItem("isg_token");
+              setRefreshCookieMode(false);
+            } catch { /* ignore */ }
+            err.message =
+              "Oturumunuz geçersiz veya süresi doldu. Çıkış yapıp tekrar giriş yapın; adresi www.isgsuite.tr olarak kullanın.";
+          }
+        }
         throw err;
       }
       if (response.status === 204) return null;
