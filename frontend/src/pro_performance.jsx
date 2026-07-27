@@ -47,58 +47,84 @@ function periodText(period) {
   return '—';
 }
 
-/** İnce SVG skor halkası — skor kutusunun yanında, gürültüsüz */
-function ScoreRing({pct = 0, size = 72, status = 'unknown'}) {
+/** İnce SVG skor halkası — 0% iken de görünür halka */
+function ScoreRing({pct = 0, size = 84, status = 'unknown'}) {
   const p = Math.max(0, Math.min(100, Number(pct) || 0));
-  const r = 28;
+  const r = 30;
   const c = 2 * Math.PI * r;
   const s = statusStyle(status);
-  const dash = (p / 100) * c;
+  const dash = Math.max(p > 0 ? (p / 100) * c : 0, 0);
   return (
-    <svg width={size} height={size} viewBox="0 0 72 72" aria-hidden style={{display: 'block'}}>
-      <circle cx="36" cy="36" r={r} fill="none" stroke="#e2e8f0" strokeWidth="6" />
-      <circle
-        cx="36" cy="36" r={r} fill="none"
-        stroke={s.bar}
-        strokeWidth="6"
-        strokeLinecap="round"
-        strokeDasharray={`${dash} ${c - dash}`}
-        transform="rotate(-90 36 36)"
-        style={{transition: 'stroke-dasharray .6s ease'}}
-      />
-      <text x="36" y="40" textAnchor="middle" fontSize="14" fontWeight="750" fill={s.fg}>
+    <svg width={size} height={size} viewBox="0 0 84 84" aria-hidden style={{display: 'block'}}>
+      <circle cx="42" cy="42" r={r} fill="#f8fafc" stroke="#e2e8f0" strokeWidth="8" />
+      {p > 0 ? (
+        <circle
+          cx="42" cy="42" r={r} fill="none"
+          stroke={s.bar}
+          strokeWidth="8"
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${c - dash}`}
+          transform="rotate(-90 42 42)"
+          style={{transition: 'stroke-dasharray .6s ease'}}
+        />
+      ) : (
+        <circle
+          cx="42" cy="42" r={r} fill="none"
+          stroke="#fda4af"
+          strokeWidth="8"
+          strokeDasharray={`${c * 0.92} ${c * 0.08}`}
+          transform="rotate(-90 42 42)"
+          opacity={0.85}
+        />
+      )}
+      <text x="42" y="46" textAnchor="middle" fontSize="15" fontWeight="800" fill={p > 0 ? s.fg : '#9f1239'}>
         {Math.round(p)}%
       </text>
     </svg>
   );
 }
 
-/** Yatay tamamlanma şeridi — yeşil dolgu, ince */
+/** Çift ton şerit: yeşil = tamam, soft kırmızı = eksik — asla boş çizgi gibi durmaz */
 function ProgressRibbon({done = 0, total = 0, label}) {
   const t = Math.max(0, Number(total) || 0);
   const d = Math.max(0, Math.min(t, Number(done) || 0));
-  const pct = t ? Math.round((100 * d) / t) : 0;
+  const g = Math.max(0, t - d);
+  const okPct = t ? (100 * d) / t : 0;
+  const gapPct = t ? (100 * g) / t : 100;
+  const pct = Math.round(okPct);
   return (
     <div style={{minWidth: 0}}>
       {label ? (
         <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 5, fontSize: 11, color: '#64748b'}}>
           <span>{label}</span>
-          <span style={{fontWeight: 650, color: pct >= 80 ? '#166534' : '#475569'}}>{d}/{t} · %{pct}</span>
+          <span style={{fontWeight: 700, color: pct >= 80 ? '#166534' : pct === 0 ? '#9f1239' : '#475569'}}>
+            {d}/{t || '—'} · %{pct}
+          </span>
         </div>
       ) : null}
-      <div style={{
-        height: 7, borderRadius: 999, background: '#eef2f6', overflow: 'hidden',
-        boxShadow: 'inset 0 1px 2px rgba(15,23,42,.06)',
-      }}>
-        <div style={{
-          height: '100%', width: `${pct}%`, borderRadius: 999,
-          background: pct >= 70
-            ? 'linear-gradient(90deg,#86efac,#16a34a)'
-            : pct >= 35
-              ? 'linear-gradient(90deg,#fde68a,#d97706)'
-              : 'linear-gradient(90deg,#fecaca,#ef4444)',
-          transition: 'width .55s ease',
-        }} />
+      <div
+        title={`Tamam: ${d} · Eksik: ${g}`}
+        style={{
+          display: 'flex', height: 9, borderRadius: 999, overflow: 'hidden',
+          background: '#eef2f6', boxShadow: 'inset 0 1px 2px rgba(15,23,42,.06)',
+        }}
+      >
+        {okPct > 0 ? (
+          <div style={{
+            width: `${okPct}%`, height: '100%',
+            background: 'linear-gradient(90deg,#86efac,#16a34a)',
+            transition: 'width .55s ease',
+          }} />
+        ) : null}
+        {gapPct > 0 ? (
+          <div style={{
+            width: `${gapPct}%`, height: '100%',
+            background: pct === 0
+              ? 'linear-gradient(90deg,#fecdd3,#fb7185)'
+              : 'linear-gradient(90deg,#fed7aa,#fb923c)',
+            transition: 'width .55s ease',
+          }} />
+        ) : null}
       </div>
     </div>
   );
@@ -150,28 +176,34 @@ function WorkGraph({firms = [], completed = [], incomplete = []}) {
       background: 'linear-gradient(180deg,#f8fffb 0%,#ffffff 100%)',
       border: '1px solid #d1fae5',
     }}>
-      <div style={{
-        fontSize: 11, fontWeight: 700, color: '#0f766e', letterSpacing: '.05em',
-        textTransform: 'uppercase', marginBottom: 12,
-      }}>
-        Görev bazlı ilerleme
+      <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center'}}>
+        <div style={{
+          fontSize: 11, fontWeight: 700, color: '#0f766e', letterSpacing: '.05em',
+          textTransform: 'uppercase',
+        }}>
+          Görev bazlı ilerleme
+        </div>
+        <div style={{display: 'flex', gap: 12, fontSize: 11, color: '#64748b'}}>
+          <span><span style={{display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#22c55e', marginRight: 5, verticalAlign: 'middle'}} />Tamam</span>
+          <span><span style={{display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#fb7185', marginRight: 5, verticalAlign: 'middle'}} />Eksik</span>
+        </div>
       </div>
-      <div style={{display: 'grid', gap: 10}}>
+      <div style={{display: 'grid', gap: 12}}>
         {checks.map((c) => {
           const total = c.ok + c.gap;
           return (
-            <div key={c.code} style={{display: 'grid', gridTemplateColumns: 'minmax(120px,1.1fr) minmax(80px,1.4fr) auto', gap: 10, alignItems: 'center'}}>
+            <div key={c.code} style={{display: 'grid', gridTemplateColumns: 'minmax(130px,1.15fr) minmax(100px,1.5fr) auto', gap: 12, alignItems: 'center'}}>
               <div style={{fontSize: 12.5, fontWeight: 650, color: '#334155', lineHeight: 1.3}}>{c.title}</div>
               <ProgressRibbon done={c.ok} total={total || 1} />
-              <div style={{display: 'flex', gap: 4, justifyContent: 'flex-end', minWidth: 52}}>
+              <div style={{display: 'flex', gap: 4, justifyContent: 'flex-end', minWidth: 56}}>
                 {Array.from({length: Math.min(total || 1, 8)}).map((_, i) => (
                   <span
                     key={i}
                     title={i < c.ok ? 'Tamam' : 'Eksik'}
                     style={{
-                      width: 7, height: 7, borderRadius: 2,
-                      background: i < c.ok ? '#22c55e' : '#e2e8f0',
-                      boxShadow: i < c.ok ? '0 0 0 1px rgba(22,163,74,.25)' : 'none',
+                      width: 8, height: 8, borderRadius: 2,
+                      background: i < c.ok ? '#22c55e' : '#fb7185',
+                      opacity: i < c.ok ? 1 : 0.75,
                     }}
                   />
                 ))}
