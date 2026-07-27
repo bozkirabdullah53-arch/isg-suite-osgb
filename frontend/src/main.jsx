@@ -14,7 +14,7 @@ import {createRoot} from 'react-dom/client';
 })();
 
 import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Menu,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
-import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, uploadFile, wakeApi} from './api';
+import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
 import {clearOfflineQueue} from './field_offline';
 import {LoginPasswordInput, PasswordField} from './password_field';
 import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';
@@ -1096,61 +1096,13 @@ function SecurityPage({user}){
   const[mfaCode,setMfaCode]=useState('');
   const[recoveryCodes,setRecoveryCodes]=useState(null);
   const[disableForm,setDisableForm]=useState({password:'',code:''});
-  const[eSign,setESign]=useState(null);
-  const[eSignTitle,setESignTitle]=useState('');
-  const[eSignPreview,setESignPreview]=useState('');
-  const[eSignBusy,setESignBusy]=useState(false);
-  const[eSignMsg,setESignMsg]=useState('');
   const canView=['global_admin','company_admin'].includes(user.role);
   const canBackup=user.role==='company_admin';
   const loadArchives=()=>api('/archives').then(setArchives).catch(e=>setArchMsg(e.message));
   const loadMfa=()=>api('/security/mfa/status').then(setMfaStatus).catch(()=>{});
-  async function loadESign(){
-    try{
-      const s=await api('/security/e-signature');
-      setESign(s);
-      setESignTitle(s.title||'');
-      if(s.has_image){
-        const token=localStorage.getItem('isg_token');
-        const base=(import.meta.env.VITE_API_URL||(window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'?`${window.location.protocol}//${window.location.hostname}:8000/api/v1`:`${window.location.origin}/api/v1`));
-        const res=await fetch(`${base}/security/e-signature/image`,{headers:token?{Authorization:`Bearer ${token}`}:{}});
-        if(res.ok){
-          const blob=await res.blob();
-          setESignPreview(prev=>{if(prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob)});
-        }else setESignPreview('');
-      }else{
-        setESignPreview(prev=>{if(prev) URL.revokeObjectURL(prev); return ''});
-      }
-    }catch(e){setESignMsg(e.message||'E-imza durumu alınamadı')}
-  }
   useEffect(()=>{if(canView)api('/security/audit-logs').then(setLogs)},[]);
   useEffect(()=>{if(canBackup)void loadArchives()},[]);
   useEffect(()=>{void loadMfa()},[]);
-  useEffect(()=>{
-    let cancelled=false;
-    let objectUrl='';
-    (async()=>{
-      try{
-        const s=await api('/security/e-signature');
-        if(cancelled) return;
-        setESign(s);
-        setESignTitle(s.title||'');
-        if(s.has_image){
-          const token=localStorage.getItem('isg_token');
-          const host=window.location.hostname;
-          const base=import.meta.env.VITE_API_URL||((host==='localhost'||host==='127.0.0.1')?`${window.location.protocol}//${host}:8000/api/v1`:`${window.location.origin}/api/v1`);
-          const res=await fetch(`${base}/security/e-signature/image`,{headers:token?{Authorization:`Bearer ${token}`}:{}});
-          if(cancelled) return;
-          if(res.ok){
-            const blob=await res.blob();
-            objectUrl=URL.createObjectURL(blob);
-            setESignPreview(objectUrl);
-          }
-        }
-      }catch(e){if(!cancelled) setESignMsg(e.message||'E-imza durumu alınamadı')}
-    })();
-    return ()=>{cancelled=true; if(objectUrl) URL.revokeObjectURL(objectUrl)};
-  },[]);
   async function save(e){e.preventDefault();setMessage('');try{const r=await api('/security/change-password',{method:'POST',body:JSON.stringify(form)});setMessage(r.message);setForm({current_password:'',new_password:''})}catch(err){setMessage(err.message)}}
   async function logoutAllDevices(){
     if(!window.confirm('Tüm cihazlardaki oturumlar kapatılsın mı?\n\nBu cihaz dahil yeniden giriş yapmanız gerekir.')) return;
@@ -1190,47 +1142,6 @@ function SecurityPage({user}){
       await loadMfa();
       setMessage(r.message||'MFA kapatıldı.');
     }catch(err){setMessage(err.message)}
-  }
-  async function onESignFile(e){
-    const file=e.target.files?.[0];
-    e.target.value='';
-    if(!file) return;
-    setESignBusy(true);setESignMsg('');
-    try{
-      await uploadFile('/security/e-signature/image',file);
-      setESignMsg('İmza görseli kaydedildi. Eğitim imza formunda «Eğitimi Veren» kutusuna basılır.');
-      await loadESign();
-    }catch(err){setESignMsg(err.message||'Yükleme başarısız')}
-    finally{setESignBusy(false)}
-  }
-  async function saveESignTitle(e){
-    e.preventDefault();
-    setESignBusy(true);setESignMsg('');
-    try{
-      const s=await api('/security/e-signature/title',{method:'PUT',body:JSON.stringify({title:eSignTitle})});
-      setESign(s);
-      setESignMsg('Unvan kaydedildi.');
-    }catch(err){setESignMsg(err.message)}
-    finally{setESignBusy(false)}
-  }
-  async function deleteESign(){
-    if(!window.confirm('İmza görseli silinsin mi?')) return;
-    setESignBusy(true);setESignMsg('');
-    try{
-      await api('/security/e-signature/image',{method:'DELETE'});
-      setESignMsg('İmza görseli silindi.');
-      await loadESign();
-    }catch(err){setESignMsg(err.message)}
-    finally{setESignBusy(false)}
-  }
-  async function probeBridge(){
-    setESignBusy(true);setESignMsg('');
-    try{
-      const r=await api('/security/e-signature/bridge-probe',{method:'POST'});
-      setESign(r);
-      setESignMsg(r.probe?.message||`Köprü: ${r.bridge_status||'—'}`);
-    }catch(err){setESignMsg(err.message)}
-    finally{setESignBusy(false)}
   }
   async function createBackup(){
     if(!window.confirm('Kurum verilerinizin tarihli yedeği alınsın mı?\n\nYedek merkezi arşive kaydedilir; EİSA de erişebilir.')) return;
@@ -1325,49 +1236,6 @@ function SecurityPage({user}){
             <button type="submit" className="secondary">MFA kapat</button>
           </form>
         )}
-      </section>
-      <section className="panel">
-        <h3>E-İmza</h3>
-        <p style={{marginTop:0,color:'#64748b',fontSize:13}}>
-          İki katman: <strong>görsel imza</strong> (hemen, PDF’lere basılır) ve
-          <strong> nitelikli köprü</strong> (kartlı e-imza ajanı — sunucuda E_SIGN_BRIDGE_URL).
-          iBYSiS’teki yalnızca HSNSigner notundan daha net: durum, önizleme, denetim kaydı.
-        </p>
-        <div style={{display:'flex',gap:16,flexWrap:'wrap',alignItems:'flex-start'}}>
-          <div style={{
-            width:160,height:72,border:'1px dashed #cbd5e1',borderRadius:8,
-            display:'flex',alignItems:'center',justifyContent:'center',background:'#f8fafc',overflow:'hidden',
-          }}>
-            {eSignPreview
-              ? <img src={eSignPreview} alt="İmza önizleme" style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain'}}/>
-              : <span style={{fontSize:12,color:'#94a3b8'}}>Önizleme yok</span>}
-          </div>
-          <div style={{flex:1,minWidth:200}}>
-            <div style={{fontSize:13,marginBottom:8}}>
-              Görsel: <strong style={{color:eSign?.has_image?'#166534':'#92400e'}}>{eSign?.has_image?'Hazır':'Eksik'}</strong>
-              {' · '}Köprü: <strong>{eSign?.bridge_configured?(eSign.bridge_status||'yapılandırıldı'):'yapılandırılmadı'}</strong>
-            </div>
-            <label className="mini secondary" style={{display:'inline-block',cursor:eSignBusy?'default':'pointer'}}>
-              {eSignBusy?'İşleniyor…':'PNG/JPEG yükle'}
-              <input type="file" accept="image/png,image/jpeg" hidden disabled={eSignBusy} onChange={onESignFile}/>
-            </label>
-            {eSign?.has_image&&(
-              <button type="button" className="mini" style={{marginLeft:8}} disabled={eSignBusy} onClick={deleteESign}>Sil</button>
-            )}
-            <button type="button" className="mini secondary" style={{marginLeft:8}} disabled={eSignBusy} onClick={probeBridge}>
-              Köprü dene
-            </button>
-          </div>
-        </div>
-        <form className="form-grid single" onSubmit={saveESignTitle} style={{marginTop:12}}>
-          <Field label="Kaşe / unvan (opsiyonel)" value={eSignTitle} onChange={e=>setESignTitle(e.target.value)} placeholder="örn. İş Güvenliği Uzmanı"/>
-          <button type="submit" className="mini secondary" disabled={eSignBusy}>Unvanı kaydet</button>
-        </form>
-        {eSignMsg&&<p style={{fontSize:13,color:eSignMsg.toLowerCase().includes('silindi')||eSignMsg.toLowerCase().includes('kaydedildi')?'#166534':'#b91c1c'}}>{eSignMsg}</p>}
-        <p style={{marginBottom:0,fontSize:12,color:'#94a3b8'}}>
-          Eğitim → Katılımcı imza formu PDF’inde «Eğitimi Veren» kutusuna otomatik basılır.
-          Bakanlık İBYS/KATİP canlı API ayrı izin + sunucu anahtarı ister.
-        </p>
       </section>
       <section className="panel">
         <h3>Güvenlik Notları</h3>

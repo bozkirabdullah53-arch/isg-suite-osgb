@@ -156,13 +156,6 @@ class User(Base):
     mfa_secret_encrypted: Mapped[str | None] = mapped_column(String(500), nullable=True)
     mfa_recovery_hashes: Mapped[str | None] = mapped_column(Text, nullable=True)
     token_version: Mapped[int] = mapped_column(Integer, default=0)
-    # E-imza profili: görsel damga (+ opsiyonel nitelikli köprü durumu)
-    e_signature_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    e_signature_storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    e_signature_uploaded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    e_signature_title: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    e_signature_bridge_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
-    e_signature_bridge_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     company: Mapped[Company | None] = relationship(back_populates="users")
 

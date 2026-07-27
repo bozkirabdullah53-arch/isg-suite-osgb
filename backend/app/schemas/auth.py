@@ -49,5 +49,3 @@ class CurrentUserResponse(BaseModel):
     subscription_status: str | None = None
     mfa_enabled: bool = False
     mfa_required: bool = False
-    e_signature_ready: bool = False
-    e_signature_has_image: bool = False

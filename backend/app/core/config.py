@@ -71,8 +71,6 @@ class Settings(BaseSettings):
     ibys_api_key: str | None = None
     katip_api_url: str | None = None
     katip_api_key: str | None = None
-    # Nitelikli e-imza yerel/ajan köprüsü (opsiyonel; örn. http://127.0.0.1:port/health)
-    e_sign_bridge_url: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 

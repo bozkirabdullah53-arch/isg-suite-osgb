@@ -440,15 +440,11 @@ def attendance_pdf(
     ensure_access(db, user, row.company_id)
     company = db.get(Company, row.company_id)
     employees = _employees_map(db, row)
-    from app.services.e_signature import read_signature_bytes
-
-    signer_image = read_signature_bytes(user)
     try:
         pdf_bytes = build_attendance_pdf(
             company_name=company.name if company else str(row.company_id),
             training=row,
             employees=employees,
-            signer_image=signer_image,
         )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc

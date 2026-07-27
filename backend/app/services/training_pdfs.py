@@ -187,7 +187,7 @@ def _stamp_text(training) -> str:
     return (getattr(training, "stamp_text", None) or "").strip() or _DEFAULT_STAMP
 
 
-def build_attendance_pdf(*, company_name: str, training, employees: dict, signer_image: bytes | None = None) -> bytes:
+def build_attendance_pdf(*, company_name: str, training, employees: dict) -> bytes:
     """PRO: KATILIMCI İMZA FORMU (İSG-EĞT-KF-01), 10 kişi/sayfa."""
     _ensure_fonts()
     participants = list(training.participants or [])
@@ -222,7 +222,6 @@ def build_attendance_pdf(*, company_name: str, training, employees: dict, signer
             konu_ozeti=konu_ozeti,
             start_index=page_i * per_page,
             curriculum=curriculum,
-            signer_image=signer_image,
         )
         c.showPage()
     c.save()
@@ -231,7 +230,7 @@ def build_attendance_pdf(*, company_name: str, training, employees: dict, signer
 
 
 def _draw_attendance_page(
-    c, w, h, *, company_name, training, employees, chunk, page_no, total_pages, bugun, kural, sektor_label, konu_ozeti, start_index, curriculum=None, signer_image=None
+    c, w, h, *, company_name, training, employees, chunk, page_no, total_pages, bugun, kural, sektor_label, konu_ozeti, start_index, curriculum=None
 ):
     curriculum = curriculum or {}
     # PRO: outer slate frame + inner soft frame
@@ -439,24 +438,11 @@ def _draw_attendance_page(
         c.setFont(_FONT_B, 7)
         c.setFillColorRGB(0.1, 0.1, 0.1)
         c.drawCentredString(x + box_w / 2, imza_y + imza_h - 10.5 * mm, _fit(c, name or " ", box_w - 6 * mm, _FONT_B, 7))
-        stamped = False
-        if i == 0 and signer_image:
-            from app.services.e_signature import draw_signature_image
-
-            stamped = draw_signature_image(
-                c,
-                image_bytes=signer_image,
-                x=x + 8 * mm,
-                y=imza_y + 6.5 * mm,
-                max_w=box_w - 16 * mm,
-                max_h=9 * mm,
-            )
-        if not stamped:
-            c.setStrokeColorRGB(0.4, 0.4, 0.4)
-            c.line(x + 12 * mm, imza_y + 8 * mm, x + box_w - 12 * mm, imza_y + 8 * mm)
+        c.setStrokeColorRGB(0.4, 0.4, 0.4)
+        c.line(x + 12 * mm, imza_y + 8 * mm, x + box_w - 12 * mm, imza_y + 8 * mm)
         c.setFont(_FONT, 5.8)
         c.setFillColorRGB(0.4, 0.4, 0.4)
-        c.drawCentredString(x + box_w / 2, imza_y + 3.5 * mm, "E-imza / Kaşe" if stamped else "Kaşe / İmza")
+        c.drawCentredString(x + box_w / 2, imza_y + 3.5 * mm, "Kaşe / İmza")
 
     c.setFont(_FONT, 5.5)
     c.setFillColorRGB(0.4, 0.4, 0.4)

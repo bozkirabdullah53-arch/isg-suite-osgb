@@ -459,6 +459,4 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
         subscription_status=sub_status,
         mfa_enabled=bool(getattr(user, "mfa_enabled", False)),
         mfa_required=role_requires_mfa(user.role),
-        e_signature_has_image=bool(getattr(user, "e_signature_storage_path", None)),
-        e_signature_ready=bool(getattr(user, "e_signature_storage_path", None)),
     )
