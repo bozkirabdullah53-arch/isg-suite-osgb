@@ -1,6 +1,6 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {api,downloadFile,uploadFile} from './api';
-import {Camera,Plus,ScanLine} from 'lucide-react';
+import {Camera,Clock3,Plus,ScanLine,TrendingDown,TrendingUp,Wallet} from 'lucide-react';
 import {enqueueOfflineComplete,flushOfflineCompletes,listOfflineCompletes,removeOfflineItem} from './field_offline';
 import {SiteQrCameraModal} from './field_qr_scan';
 import {AppModal} from './ui_modal';
@@ -2317,6 +2317,8 @@ export function FinancePage({user}){
  const[companyFilter,setCompanyFilter]=useState(()=>{
   try{return sessionStorage.getItem('isg_finance_company_id')||''}catch{return ''}
  });
+ const[statusFilter,setStatusFilter]=useState('all'); // all | pending | paid | cancelled
+ const[typeFilter,setTypeFilter]=useState('all'); // all | income | expense
  const[form,setForm]=useState({osgb_id:'',company_id:'',transaction_type:'income',category:'service',amount:0,transaction_date:'',due_date:'',status:'pending',description:''});
  const catLabel={service:'Hizmet',contract:'Sözleşme tahakkuku',salary:'Maaş',expense:'Gider',other:'Diğer'};
  const statusLabel={pending:'Bekliyor',paid:'Ödendi',cancelled:'İptal'};
@@ -2340,7 +2342,20 @@ export function FinancePage({user}){
   }catch(ex){alert(ex.message||'Durum güncellenemedi.')}
   finally{setBusyId(null)}
  }
- const visible=companyFilter?rows.filter(r=>String(r.company_id)===String(companyFilter)):rows;
+ const scoped=companyFilter?rows.filter(r=>String(r.company_id)===String(companyFilter)):rows;
+ const visible=scoped.filter(r=>{
+  if(statusFilter!=='all'&&r.status!==statusFilter) return false;
+  if(typeFilter!=='all'&&r.transaction_type!==typeFilter) return false;
+  return true;
+ });
+ const incomePaid=scoped.filter(x=>x.transaction_type==='income'&&x.status==='paid').reduce((a,b)=>a+(Number(b.amount)||0),0);
+ const expensePaid=scoped.filter(x=>x.transaction_type==='expense'&&x.status==='paid').reduce((a,b)=>a+(Number(b.amount)||0),0);
+ const pendingContract=scoped.filter(x=>x.category==='contract'&&x.status==='pending').reduce((a,b)=>a+(Number(b.amount)||0),0);
+ const pendingAll=scoped.filter(x=>x.status==='pending').reduce((a,b)=>a+(Number(b.amount)||0),0);
+ const net=incomePaid-expensePaid;
+ const flowTotal=incomePaid+expensePaid;
+ const incomeShare=flowTotal?Math.round((100*incomePaid)/flowTotal):0;
+ const filterCompanyName=companyFilter?companies.find(x=>String(x.id)===String(companyFilter))?.name:'';
  async function accrueMonth(){
   if(!form.osgb_id){alert('OSGB seçili değil.');return}
   if(!window.confirm('Aktif sözleşmeler için bu ay tahakkukları oluşturulsun mu?\n(Zaten oluşmuş olanlar atlanır.)')) return;
@@ -2352,42 +2367,143 @@ export function FinancePage({user}){
   }catch(ex){alert(ex.message||'Tahakkuk oluşturulamadı.')}
   finally{setBusyId(null)}
  }
- return <P title="Finans ve Cari Takip" action={<div className="actions" style={{gap:8}}>
-  <button type="button" className="secondary" disabled={busyId==='accrue'} onClick={accrueMonth}>Bu ay tahakkuk</button>
-  <button onClick={()=>setOpen(true)}><Plus/>Finans Kaydı</button>
- </div>}>
-  <div className="finance-summary">
-   <b>Toplam Gelir: {money(visible.filter(x=>x.transaction_type==='income'&&x.status==='paid').reduce((a,b)=>a+b.amount,0))}</b>
-   <b>Toplam Gider: {money(visible.filter(x=>x.transaction_type==='expense'&&x.status==='paid').reduce((a,b)=>a+b.amount,0))}</b>
-   <b>Bekleyen sözleşme tahakkuku: {money(visible.filter(x=>x.category==='contract'&&x.status==='pending').reduce((a,b)=>a+b.amount,0))}</b>
-  </div>
-  <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:12,alignItems:'center'}}>
-   <label className="field" style={{margin:0,minWidth:200}}>
-    <span>İşyeri filtresi</span>
-    <select value={companyFilter} onChange={e=>setCompanyFilter(e.target.value)}>
-     <option value="">Tümü</option>
-     {companies.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
-    </select>
-   </label>
-   {companyFilter&&<button type="button" className="mini secondary" onClick={()=>setCompanyFilter('')}>Filtreyi temizle</button>}
-  </div>
-  <T rows={visible} cols={[
-   {k:'transaction_date',l:'Tarih'},
-   {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||'Genel'},
-   {k:'transaction_type',l:'Tür',f:r=>r.transaction_type==='income'?'Gelir':'Gider'},
-   {k:'category',l:'Kategori',f:r=>catLabel[r.category]||r.category},
-   {k:'amount',l:'Tutar',f:r=>money(r.amount)},
-   {k:'status',l:'Durum',f:r=>statusLabel[r.status]||r.status},
-   {k:'description',l:'Açıklama',f:r=>r.description||'—'},
-   {k:'act',l:'İşlem',f:r=>(
-    <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
-     {r.status==='pending'&&<>
-      <button type="button" className="mini" disabled={busyId===r.id} onClick={()=>setStatus(r,'paid')}>Ödendi</button>
-      <button type="button" className="mini secondary" disabled={busyId===r.id} onClick={()=>setStatus(r,'cancelled')}>İptal</button>
-     </>}
+ const kpiCard=(icon,label,value,tone)=>{
+  const tones={
+   income:{bg:'linear-gradient(135deg,#f0fdf4,#ffffff)',bd:'#bbf7d0',fg:'#166534',ic:'#16a34a'},
+   expense:{bg:'linear-gradient(135deg,#fff1f2,#ffffff)',bd:'#fecdd3',fg:'#9f1239',ic:'#e11d48'},
+   pending:{bg:'linear-gradient(135deg,#fffbeb,#ffffff)',bd:'#fde68a',fg:'#92400e',ic:'#d97706'},
+   net:{bg:'linear-gradient(135deg,#f0fdfa,#ffffff)',bd:'#99f6e4',fg:'#0f766e',ic:'#0d9488'},
+  };
+  const t=tones[tone]||tones.net;
+  return (
+   <article style={{
+    padding:'16px 18px',borderRadius:14,background:t.bg,border:`1px solid ${t.bd}`,
+    display:'grid',gap:8,minWidth:0,
+   }}>
+    <div style={{display:'flex',alignItems:'center',gap:8,color:t.ic,fontSize:12,fontWeight:700,textTransform:'uppercase',letterSpacing:'.04em'}}>
+     {icon}{label}
     </div>
-   )},
-  ]}/>
+    <div style={{fontSize:24,fontWeight:800,color:t.fg,letterSpacing:'-0.02em'}}>{value}</div>
+   </article>
+  );
+ };
+ return <>
+  <div className="page-title" style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+   <div>
+    <h3 style={{margin:0}}>Finans ve Cari Takip</h3>
+    <p style={{margin:'4px 0 0',color:'#64748b',fontSize:13}}>
+     Gelir / gider, sözleşme tahakkuku ve tahsilat durumu — işyeri bazlı cari görünüm.
+     {filterCompanyName?` · Filtre: ${filterCompanyName}`:''}
+    </p>
+   </div>
+   <div className="actions" style={{gap:8}}>
+    <button type="button" className="secondary" disabled={busyId==='accrue'} onClick={accrueMonth}>Bu ay tahakkuk</button>
+    <button type="button" onClick={()=>setOpen(true)}><Plus/>Finans Kaydı</button>
+   </div>
+  </div>
+
+  <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:12,marginBottom:14}}>
+   {kpiCard(<TrendingUp size={15}/>,'Toplam gelir',money(incomePaid),'income')}
+   {kpiCard(<TrendingDown size={15}/>,'Toplam gider',money(expensePaid),'expense')}
+   {kpiCard(<Clock3 size={15}/>,'Bekleyen tahakkuk',money(pendingContract),'pending')}
+   {kpiCard(<Wallet size={15}/>,'Net (ödendi)',money(net),'net')}
+  </div>
+
+  <section className="panel" style={{marginBottom:14,padding:'14px 16px'}}>
+   <div style={{display:'flex',justifyContent:'space-between',gap:10,flexWrap:'wrap',marginBottom:8,fontSize:12,color:'#64748b'}}>
+    <span style={{fontWeight:700,color:'#0f766e',textTransform:'uppercase',letterSpacing:'.04em'}}>Nakit akış oranı (ödendi)</span>
+    <span>
+      <span style={{color:'#166534',fontWeight:700}}>Gelir %{incomeShare||0}</span>
+      {' · '}
+      <span style={{color:'#9f1239',fontWeight:700}}>Gider %{flowTotal?100-incomeShare:0}</span>
+    </span>
+   </div>
+   <div style={{display:'flex',height:10,borderRadius:999,overflow:'hidden',background:'#eef2f6'}}>
+    <div style={{width:`${incomeShare}%`,background:'linear-gradient(90deg,#86efac,#16a34a)',transition:'width .5s ease'}}/>
+    <div style={{width:`${flowTotal?100-incomeShare:0}%`,background:'linear-gradient(90deg,#fda4af,#e11d48)',transition:'width .5s ease'}}/>
+   </div>
+   {pendingAll>0&&(
+    <p style={{margin:'10px 0 0',fontSize:12,color:'#92400e'}}>
+      Bekleyen tüm kayıtlar: <strong>{money(pendingAll)}</strong>
+    </p>
+   )}
+  </section>
+
+  <section className="panel">
+   <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:14,alignItems:'flex-end',justifyContent:'space-between'}}>
+    <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'flex-end'}}>
+     <label className="field" style={{margin:0,minWidth:200}}>
+      <span>İşyeri</span>
+      <select value={companyFilter} onChange={e=>setCompanyFilter(e.target.value)}>
+       <option value="">Tümü</option>
+       {companies.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
+      </select>
+     </label>
+     <label className="field" style={{margin:0,minWidth:140}}>
+      <span>Tür</span>
+      <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}>
+       <option value="all">Tümü</option>
+       <option value="income">Gelir</option>
+       <option value="expense">Gider</option>
+      </select>
+     </label>
+     <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+      {[
+       ['all','Tümü'],
+       ['pending','Bekleyen'],
+       ['paid','Ödenen'],
+       ['cancelled','İptal'],
+      ].map(([id,label])=>(
+       <button
+        key={id}
+        type="button"
+        className={statusFilter===id?'mini':'mini secondary'}
+        onClick={()=>setStatusFilter(id)}
+       >{label}</button>
+      ))}
+     </div>
+     {(companyFilter||statusFilter!=='all'||typeFilter!=='all')&&(
+      <button type="button" className="mini secondary" onClick={()=>{setCompanyFilter('');setStatusFilter('all');setTypeFilter('all')}}>Filtreleri temizle</button>
+     )}
+    </div>
+    <div style={{fontSize:12,color:'#64748b',fontWeight:650}}>{visible.length} kayıt</div>
+   </div>
+
+   <T rows={visible} cols={[
+    {k:'transaction_date',l:'Tarih'},
+    {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||'Genel'},
+    {k:'transaction_type',l:'Tür',f:r=>(
+     <span style={{
+      display:'inline-flex',alignItems:'center',gap:5,padding:'2px 9px',borderRadius:999,fontSize:12,fontWeight:700,
+      background:r.transaction_type==='income'?'#dcfce7':'#ffe4e6',
+      color:r.transaction_type==='income'?'#166534':'#9f1239',
+     }}>
+      {r.transaction_type==='income'?'Gelir':'Gider'}
+     </span>
+    )},
+    {k:'category',l:'Kategori',f:r=>catLabel[r.category]||r.category},
+    {k:'amount',l:'Tutar',f:r=>(
+     <strong style={{color:r.transaction_type==='income'?'#166534':'#9f1239',fontVariantNumeric:'tabular-nums'}}>
+      {money(r.amount)}
+     </strong>
+    )},
+    {k:'status',l:'Durum',f:r=>{
+     const map={pending:{bg:'#fef3c7',fg:'#92400e'},paid:{bg:'#dcfce7',fg:'#166534'},cancelled:{bg:'#e2e8f0',fg:'#475569'}};
+     const s=map[r.status]||map.pending;
+     return <span style={{display:'inline-block',padding:'2px 10px',borderRadius:999,background:s.bg,color:s.fg,fontSize:12,fontWeight:700}}>{statusLabel[r.status]||r.status}</span>;
+    }},
+    {k:'description',l:'Açıklama',f:r=><span style={{fontSize:13,color:'#475569'}}>{r.description||'—'}</span>},
+    {k:'act',l:'İşlem',f:r=>(
+     <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
+      {r.status==='pending'&&<>
+       <button type="button" className="mini" disabled={busyId===r.id} onClick={()=>setStatus(r,'paid')}>Ödendi</button>
+       <button type="button" className="mini secondary" disabled={busyId===r.id} onClick={()=>setStatus(r,'cancelled')}>İptal</button>
+      </>}
+     </div>
+    )},
+   ]}/>
+  </section>
+
   {open&&<M title="Yeni Finans Kaydı" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}>
    <S label="Tür" value={form.transaction_type} onChange={e=>setForm({...form,transaction_type:e.target.value})}><option value="income">Gelir</option><option value="expense">Gider</option></S>
    <S label="İşyeri" value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Genel</option>{companies.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</S>
@@ -2404,5 +2520,5 @@ export function FinancePage({user}){
    <F label="Açıklama" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/>
    <div className="form-actions"><button>Kaydet</button></div>
   </form></M>}
- </P>
+ </>;
 }
