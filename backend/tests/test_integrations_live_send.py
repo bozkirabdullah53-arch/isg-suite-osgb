@@ -81,10 +81,8 @@ def _seed(client: TestClient) -> dict:
     return {"token": r.json()["access_token"], "osgb_id": osgb_id}
 
 
-def test_health_flag_integrations_live_send(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_flag_integrations_live_send(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["integrations_live_send"] == "live-post-v1"
 

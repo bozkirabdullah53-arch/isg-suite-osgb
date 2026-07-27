@@ -81,10 +81,8 @@ def _seed_admin(client: TestClient) -> str:
     return r.json()["access_token"]
 
 
-def test_health_flag_integrations_adapter(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_flag_integrations_adapter(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["integrations_adapter"] == "stub-clients-v1"
     assert body["integrations_dry_run"] == "log-v1"
@@ -105,10 +103,13 @@ def test_integrations_status_missing_credentials_stub(client):
     assert body["adapters"]["katip"]["status"] == "stub"
     assert body["adapters"]["ibys"]["configured"] is False
     assert body["adapters"]["katip"]["configured"] is False
-    # No secrets in response
-    raw = r.text.lower()
+    # Kimlik bilgisi taşıyan alanlar dönmez; "note" serbest metin olduğu için hariç tutulur
+    import json as _json
+
+    raw = _json.dumps({k: v for k, v in body.items() if k != "note"}, ensure_ascii=False).lower()
     assert "api_key" not in raw
     assert "secret" not in raw
+    assert "password" not in raw
 
 
 def test_integrations_status_partial_credentials(client, monkeypatch):

@@ -51,7 +51,9 @@ def _seed_field(client: TestClient) -> tuple[str, dict]:
         VisitStatus,
         WorkplaceAssignment,
     )
+    from app.services.site_verify import generate_site_verify_code
 
+    code = generate_site_verify_code()
     with SessionLocal() as db:
         osgb = OsgbOrganization(
             name="GPS OSGB",
@@ -68,6 +70,7 @@ def _seed_field(client: TestClient) -> tuple[str, dict]:
             sgk_registry_no="SGK-G01",
             hazard_class="Tehlikeli",
             osgb_id=osgb.id,
+            site_verify_code=code,
             is_active=True,
         )
         db.add(company)
@@ -112,7 +115,12 @@ def _seed_field(client: TestClient) -> tuple[str, dict]:
         )
         db.add(visit)
         db.commit()
-        seed = {"visit_id": visit.id, "company_id": company.id, "osgb_id": osgb.id}
+        seed = {
+            "visit_id": visit.id,
+            "company_id": company.id,
+            "osgb_id": osgb.id,
+            "code": code,
+        }
 
     r = client.post("/api/v1/auth/login", json={"email": "uzman@test.com", "password": "TestPass123!"})
     assert r.status_code == 200, r.text
@@ -120,12 +128,19 @@ def _seed_field(client: TestClient) -> tuple[str, dict]:
 
 
 def test_complete_visit_with_gps(client):
+    from app.services.site_verify import build_qr_payload
+
     token, seed = _seed_field(client)
     headers = {"Authorization": f"Bearer {token}"}
     r = client.patch(
         f"/api/v1/operations/visits/{seed['visit_id']}/complete",
         headers=headers,
-        json={"gps_lat": 41.015137, "gps_lng": 28.979530, "gps_accuracy_m": 12.5},
+        json={
+            "site_verify_code": build_qr_payload(seed["company_id"], seed["code"]),
+            "gps_lat": 41.015137,
+            "gps_lng": 28.979530,
+            "gps_accuracy_m": 12.5,
+        },
     )
     assert r.status_code == 200, r.text
     body = r.json()
@@ -137,12 +152,14 @@ def test_complete_visit_with_gps(client):
 
 
 def test_complete_visit_without_gps_still_ok(client):
+    from app.services.site_verify import build_qr_payload
+
     token, seed = _seed_field(client)
     headers = {"Authorization": f"Bearer {token}"}
     r = client.patch(
         f"/api/v1/operations/visits/{seed['visit_id']}/complete",
         headers=headers,
-        json={},
+        json={"site_verify_code": build_qr_payload(seed["company_id"], seed["code"])},
     )
     assert r.status_code == 200, r.text
     assert r.json()["status"] == "completed"

@@ -155,10 +155,8 @@ def _seed(client: TestClient) -> tuple[str, dict]:
     return r.json()["access_token"], seed
 
 
-def test_health_flag_osgb_home_kpis_v3(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_flag_osgb_home_kpis_v3(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["finance_overdue_alert"] == "dashboard-v2"
     assert body["osgb_home_kpis"] == "finance-contracts-sds-v3"
@@ -173,7 +171,7 @@ def test_osgb_dashboard_finance_and_contract_kpis_uncapped(client):
     r = client.get(f"/api/v1/operations/dashboard?osgb_id={seed['osgb_id']}", headers=headers)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["kpi_version"] == "dashboard-finance-contracts-sds-v3"
+    assert body["kpi_version"] == "dashboard-visits-qr-v4"
     assert body["finance_overdue_count"] == seed["overdue_count"]
     assert body["finance_overdue_count"] > 20
     assert body["finance_overdue_amount"] == seed["overdue_amount"]
@@ -265,7 +263,7 @@ def test_osgb_dashboard_sds_due_kpis(client):
     r = client.get(f"/api/v1/operations/dashboard?osgb_id={osgb_id}", headers=headers)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["kpi_version"] == "dashboard-finance-contracts-sds-v3"
+    assert body["kpi_version"] == "dashboard-visits-qr-v4"
     assert body["sds_overdue_count"] == 1
     assert body["sds_due_soon_count"] == 1
     assert any("gecikmis" in (a.get("text") or "") for a in body.get("sds_alerts") or [])

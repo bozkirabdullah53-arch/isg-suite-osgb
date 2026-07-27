@@ -69,10 +69,8 @@ def _seed_admin(client: TestClient) -> tuple[str, dict]:
     return r.json()["access_token"], seed
 
 
-def test_health_flag_crm_convert(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_flag_crm_convert(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["crm_convert"] == "lead-to-contract-v1"
     assert body["contracts_ui"] == "osgb-monitor-v1"

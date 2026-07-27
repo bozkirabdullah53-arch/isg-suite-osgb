@@ -97,10 +97,8 @@ def _seed(client: TestClient) -> dict:
     return {"token": r.json()["access_token"], "company_id": company_id, "plan_id": plan_id}
 
 
-def test_health_annual_eval(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_annual_eval(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["annual_eval_report"] == "annual-eval-v7"
 

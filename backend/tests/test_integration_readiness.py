@@ -130,10 +130,8 @@ def _seed(client: TestClient) -> tuple[str, dict]:
     return r.json()["access_token"], seed
 
 
-def test_health_flag_integration_readiness(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_flag_integration_readiness(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["integration_readiness"] == "checklist-v1"
     assert body["ibys_export"] == "csv-package-v1"

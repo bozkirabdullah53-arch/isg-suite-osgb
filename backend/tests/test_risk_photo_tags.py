@@ -163,10 +163,8 @@ def test_parse_serialize_roundtrip():
     assert "PPE / KKD eksik" in body["labels"]
 
 
-def test_health_flag_risk_photo_tags(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_flag_risk_photo_tags(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["risk_photo_tags"] == "checklist-v1"
     assert body["ghs_label_checklist"] == "ghs-label-checklist-v1"

@@ -136,10 +136,8 @@ def _seed(client: TestClient) -> dict:
         }
 
 
-def test_health_flags_sds_review_reminders(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_flags_sds_review_reminders(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["sds_review_reminders"] == "duty-notify-v1"
     assert body["osgb_mevzuat_link"] == "dashboard-v1"

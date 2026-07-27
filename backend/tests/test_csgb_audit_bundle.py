@@ -180,10 +180,8 @@ def _seed(client: TestClient) -> tuple[str, dict]:
     return r.json()["access_token"], seed
 
 
-def test_health_flag_csgb_company_snapshot(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_flag_csgb_company_snapshot(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["csgb_pack"] == "audit-bundle-v3"
     assert body["csgb_company_snapshot"] == "read-only-v1"

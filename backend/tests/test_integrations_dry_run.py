@@ -97,10 +97,8 @@ def _seed(client: TestClient) -> dict:
     return {"token": r.json()["access_token"], "osgb_id": osgb_id}
 
 
-def test_health_flag_integrations_dry_run(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_flag_integrations_dry_run(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["integrations_dry_run"] == "log-v1"
     assert body["integrations_adapter"] == "stub-clients-v1"

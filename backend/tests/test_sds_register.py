@@ -116,10 +116,8 @@ def _seed_specialist(client: TestClient) -> tuple[str, int]:
     return r.json()["access_token"], company_id
 
 
-def test_health_flag_sds_register(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_flag_sds_register(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["sds_register"] == "chemical-register-v1"
     assert body["ghs_label_checklist"] == "ghs-label-checklist-v1"

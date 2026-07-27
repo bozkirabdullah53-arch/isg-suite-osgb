@@ -91,10 +91,8 @@ def test_build_panel_category_and_search():
     assert any("eğitim" in h["title"].casefold() or "eğitim" in h["summary"].casefold() for h in q["highlights"])
 
 
-def test_health_flag_mevzuat_panel(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_flag_mevzuat_panel(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["mevzuat_panel"] == "highlights-v1"
     assert body["ai_hazard_hint"] == "keyword-v2"

@@ -48,7 +48,7 @@ def client(tmp_path, monkeypatch):
     return TestClient(app)
 
 
-def _seed(client: TestClient) -> tuple[str, int]:
+def _seed(client: TestClient) -> tuple[str, int, int, str]:
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
     from app.models.entities import (
@@ -63,7 +63,9 @@ def _seed(client: TestClient) -> tuple[str, int]:
         VisitStatus,
         WorkplaceAssignment,
     )
+    from app.services.site_verify import generate_site_verify_code
 
+    code = generate_site_verify_code()
     with SessionLocal() as db:
         osgb = OsgbOrganization(
             name="Sig OSGB",
@@ -80,6 +82,7 @@ def _seed(client: TestClient) -> tuple[str, int]:
             sgk_registry_no="SGK-S01",
             hazard_class="Tehlikeli",
             osgb_id=osgb.id,
+            site_verify_code=code,
             is_active=True,
         )
         db.add(company)
@@ -125,19 +128,25 @@ def _seed(client: TestClient) -> tuple[str, int]:
         db.add(visit)
         db.commit()
         vid = visit.id
+        cid = company.id
 
     r = client.post("/api/v1/auth/login", json={"email": "uzman@test.com", "password": "TestPass123!"})
     assert r.status_code == 200, r.text
-    return r.json()["access_token"], vid
+    return r.json()["access_token"], vid, cid, code
 
 
 def test_complete_with_signature(client):
-    token, visit_id = _seed(client)
+    from app.services.site_verify import build_qr_payload
+
+    token, visit_id, company_id, code = _seed(client)
     headers = {"Authorization": f"Bearer {token}"}
     r = client.patch(
         f"/api/v1/operations/visits/{visit_id}/complete",
         headers=headers,
-        json={"signature_data_url": _tiny_png_data_url()},
+        json={
+            "site_verify_code": build_qr_payload(company_id, code),
+            "signature_data_url": _tiny_png_data_url(),
+        },
     )
     assert r.status_code == 200, r.text
     body = r.json()

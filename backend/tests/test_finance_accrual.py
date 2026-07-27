@@ -120,10 +120,8 @@ def _seed_contracts(osgb_id: int) -> dict:
         return {"active_id": active.id, "osgb_id": osgb_id}
 
 
-def test_health_flag_finance_accrual(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_flag_finance_accrual(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["finance_accrual"] == "monthly-v1"
     assert body["finance_overdue_alert"] == "dashboard-v2"

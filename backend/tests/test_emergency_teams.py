@@ -110,10 +110,8 @@ def _seed(client: TestClient) -> dict:
     }
 
 
-def test_health_acil_ekipler_flag(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_acil_ekipler_flag(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["acil_ekipler"] == "emergency-teams-v1"
 

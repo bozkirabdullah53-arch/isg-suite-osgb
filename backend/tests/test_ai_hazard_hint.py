@@ -95,10 +95,8 @@ def test_suggest_empty():
     assert empty["matched"] is False
 
 
-def test_health_flag_ai_hazard_hint(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_flag_ai_hazard_hint(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["ai_hazard_hint"] == "keyword-v2"
     assert body["risk_photo_tags"] == "checklist-v1"

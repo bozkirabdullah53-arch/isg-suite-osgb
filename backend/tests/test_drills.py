@@ -83,10 +83,8 @@ def _seed(client: TestClient) -> dict:
     return {"token": r.json()["access_token"], "company_id": company_id}
 
 
-def test_health_tatbikat_flag(client):
-    r = client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+def test_health_tatbikat_flag(release_flags):
+    body = release_flags
     assert body.get("version")
     assert body["tatbikat"] == "drill-management-v1"
 
