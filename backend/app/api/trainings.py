@@ -430,6 +430,24 @@ def update_training(
     return _load_training(db, training_id)
 
 
+def _resolve_signer_images(db: Session, row: TrainingSession, company: Company | None) -> dict[int, bytes]:
+    """Belge kutularına basılacak e-imza görsellerini kutu sırasına göre çözer.
+
+    İş akışı kuralı: PDF'i kim indirirse indirsin, kutuda yazan ismin KENDİ
+    yüklediği imzası basılır (yanlış kişinin imzasının belgeye karışma riski).
+    Sıra: 0=eğitimi veren, 1=işyeri hekimi. İşveren vekili imzası ıslak kalır.
+    """
+    from app.services.e_signature import find_signature_by_full_name
+
+    osgb_id = getattr(company, "osgb_id", None) if company else None
+    images: dict[int, bytes] = {}
+    for idx, full_name in ((0, row.instructor_name), (1, getattr(row, "workplace_physician", None))):
+        img = find_signature_by_full_name(db, full_name, osgb_id=osgb_id)
+        if img:
+            images[idx] = img
+    return images
+
+
 @router.get("/{training_id}/attendance.pdf")
 def attendance_pdf(
     training_id: int,
@@ -440,15 +458,12 @@ def attendance_pdf(
     ensure_access(db, user, row.company_id)
     company = db.get(Company, row.company_id)
     employees = _employees_map(db, row)
-    from app.services.e_signature import read_signature_bytes
-
-    signer_image = read_signature_bytes(user)
     try:
         pdf_bytes = build_attendance_pdf(
             company_name=company.name if company else str(row.company_id),
             training=row,
             employees=employees,
-            signer_image=signer_image,
+            signer_images=_resolve_signer_images(db, row, company),
         )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
@@ -478,6 +493,7 @@ def certificates_pdf(
             company_name=company.name if company else str(row.company_id),
             training=row,
             employees=employees,
+            signer_images=_resolve_signer_images(db, row, company),
         )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc

@@ -135,3 +135,65 @@ def test_e_signature_upload_status_delete(client):
     dl = client.delete("/api/v1/security/e-signature/image", headers=headers)
     assert dl.status_code == 200
     assert dl.json()["has_image"] is False
+
+
+def _scanned_jpeg(w=400, h=300) -> bytes:
+    """Beyaz zeminli, ortada küçük mürekkep olan tarama benzeri görsel."""
+    img = Image.new("RGB", (w, h), (253, 253, 251))
+    for x in range(160, 240):
+        img.putpixel((x, 150), (18, 36, 74))
+        img.putpixel((x, 151), (18, 36, 74))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    return buf.getvalue()
+
+
+def test_prepared_preview_trims_paper_background(client):
+    """Beyaz zemin şeffaflaşır ve kadraj mürekkebe kırpılır (PDF'te kutuya oturur)."""
+    headers = _seed_and_login(client)
+    up = client.post(
+        "/api/v1/security/e-signature/image",
+        headers=headers,
+        files={"file": ("imza.jpg", _scanned_jpeg(), "image/jpeg")},
+    )
+    assert up.status_code == 200, up.text
+
+    raw = client.get("/api/v1/security/e-signature/image", headers=headers)
+    assert raw.status_code == 200
+    assert Image.open(io.BytesIO(raw.content)).size == (400, 300)
+
+    prepared = client.get("/api/v1/security/e-signature/image?prepared=1", headers=headers)
+    assert prepared.status_code == 200
+    assert prepared.headers["content-type"] == "image/png"
+    img = Image.open(io.BytesIO(prepared.content))
+    assert img.mode == "RGBA"
+    assert img.width < 400 and img.height < 300  # boş kenarlar kırpıldı
+    corner = img.getpixel((0, 0))
+    assert corner[3] == 0  # kâğıt zemini şeffaf
+
+
+def test_pdf_layout_reserves_signature_band():
+    """İmza görseli, kutudaki ad-soyad ve alt etiketle çakışmamalı."""
+    from reportlab.lib.units import mm
+
+    from app.services.e_signature import draw_signature_image
+
+    placed: list[dict] = []
+
+    class FakeCanvas:
+        def drawImage(self, img, x, y, width=None, height=None, **kw):
+            placed.append({"x": x, "y": y, "w": width, "h": height})
+
+    ok = draw_signature_image(
+        FakeCanvas(),
+        image_bytes=_png_bytes(600, 180),
+        x=10 * mm,
+        y=18.2 * mm,
+        max_w=70 * mm,
+        max_h=8.5 * mm,
+    )
+    assert ok and placed
+    box = placed[0]
+    top = box["y"] + box["h"]
+    assert top <= 26.7 * mm + 0.01  # ad-soyad satırının (28mm) altında kalır
+    assert box["y"] >= 17.5 * mm  # alt etiketin (15.5mm) üstünde kalır
