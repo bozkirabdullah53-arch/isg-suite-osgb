@@ -13,7 +13,7 @@ import {createRoot} from 'react-dom/client';
   }catch{ /* ignore */ }
 })();
 
-import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Undo2,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
+import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Menu,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Undo2,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
 import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
 import {clearOfflineQueue} from './field_offline';
 import {LoginPasswordInput, PasswordField} from './password_field';
@@ -134,6 +134,28 @@ function modulesForUser(user){
   }
   return roleModules[user?.role]||[];
 }
+
+/** Mobil alt bar: en sık 4 modül + «Menü» (çok satırlı ızgara içeriği kapatmasın). */
+const mobilePrimaryByRole={
+  global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
+  company_admin:['osgb_dashboard','visits','companies','notifications'],
+  safety_specialist:['visits','risk','training','employees'],
+  workplace_physician:['visits','health','employees','documents'],
+  other_health_personnel:['visits','health','employees','documents'],
+  read_only:['dashboard','annual_eval_report','notifications','security'],
+};
+
+function mobilePrimaryMenu(menu, role, activeId){
+  const preferred=(mobilePrimaryByRole[role]||[]).filter((id)=>menu.some((m)=>m[0]===id));
+  const ids=[...preferred];
+  if(activeId && !ids.includes(activeId) && menu.some((m)=>m[0]===activeId)){
+    if(ids.length>=4) ids[ids.length-1]=activeId;
+    else ids.push(activeId);
+  }
+  const set=new Set(ids.slice(0,4));
+  return menu.filter((m)=>set.has(m[0]));
+}
+
 const menuCatalog={
   eisa_overview:['Genel Bakış',LayoutDashboard],
   eisa_osgb_users:['OSGB Kullanıcıları',Users],
@@ -1310,6 +1332,7 @@ function App(){
     try{return sessionStorage.getItem('isg_active')||''}catch{return ''}
   });
   const[c360Id,setC360Id]=useState(null);
+  const[mobileMoreOpen,setMobileMoreOpen]=useState(false);
   const navRef=useRef(null);
   const[applyMode,setApplyMode]=useState(false);
   const verifyCode=useMemo(()=>{
@@ -1328,6 +1351,7 @@ function App(){
   }
 
   function goModule(id){
+    setMobileMoreOpen(false);
     if(id!=='customer_360') setC360Id(null);
     const allowed=modulesForUser(user);
     if(id && id!=='customer_360' && !allowed.includes(id)){
@@ -1529,8 +1553,9 @@ function App(){
     security:<SecurityPage user={user}/>,
     users:<UserPage user={user}/>,
   };
+  const mobilePrimary=mobilePrimaryMenu(menu, user.role, active);
   return (
-    <div className="app-shell">
+    <div className={`app-shell${mobileMoreOpen?' mobile-nav-open':''}`}>
       <aside>
         <button type="button" className="logo" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfaya dön">
           <img
@@ -1540,7 +1565,7 @@ function App(){
           />
           <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':'İSG Suite OSGB'}</span>
         </button>
-        <nav ref={navRef}>
+        <nav className="nav-desktop" ref={navRef}>
           {menu.map(([id,l,I])=>(
             <button
               key={id}
@@ -1554,10 +1579,59 @@ function App(){
             </button>
           ))}
         </nav>
+        <nav className="nav-mobile-primary" aria-label="Ana menü">
+          {mobilePrimary.map(([id,l,I])=>(
+            <button
+              key={id}
+              type="button"
+              data-nav={id}
+              aria-current={active===id?'page':undefined}
+              className={active===id?'active':''}
+              onClick={()=>goModule(id)}
+              title={l}
+            >
+              <I size={22}/><span>{l}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className={mobileMoreOpen?'active':''}
+            aria-expanded={mobileMoreOpen}
+            aria-controls="mobile-nav-sheet"
+            onClick={()=>setMobileMoreOpen((o)=>!o)}
+            title="Tüm menü"
+          >
+            {mobileMoreOpen?<X size={22}/>:<Menu size={22}/>}
+            <span>{mobileMoreOpen?'Kapat':'Menü'}</span>
+          </button>
+        </nav>
         <button type="button" className="logout" onClick={logout}>
           <LogOut size={19}/><span>Çıkış</span>
         </button>
       </aside>
+      {mobileMoreOpen&&(
+        <>
+          <button type="button" className="mobile-nav-backdrop" aria-label="Menüyü kapat" onClick={()=>setMobileMoreOpen(false)}/>
+          <div className="mobile-nav-sheet" id="mobile-nav-sheet" role="dialog" aria-label="Tüm modüller">
+            <div className="mobile-nav-sheet-head">
+              <strong>Modüller</strong>
+              <button type="button" className="mini secondary" onClick={()=>setMobileMoreOpen(false)}>Kapat</button>
+            </div>
+            <div className="mobile-nav-sheet-grid">
+              {menu.map(([id,l,I])=>(
+                <button
+                  key={id}
+                  type="button"
+                  className={active===id?'active':''}
+                  onClick={()=>goModule(id)}
+                >
+                  <I size={22}/><span>{l}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
       <section className="workspace">
         <header>
           <div>

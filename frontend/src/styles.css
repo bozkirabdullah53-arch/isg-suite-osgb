@@ -381,21 +381,131 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 }
 
   @media (max-width: 620px) {
-  .app-shell { display: block; }
+  .app-shell { display: block; padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
   aside {
     position: fixed;
-    z-index: 10;
+    z-index: 40;
     bottom: 0;
     top: auto;
+    left: 0;
+    right: 0;
     width: 100%;
     height: auto;
     max-height: none;
     border-right: 0;
     border-top: 1px solid #dcebed;
-    padding: 8px;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
     overflow: visible;
+    background: #fff;
+    box-shadow: 0 -8px 28px rgba(15, 42, 52, .12);
   }
   .logo, .logout { display: none; }
+  .nav-desktop { display: none !important; }
+  .nav-mobile-primary {
+    display: flex !important;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 4px;
+    overflow: visible;
+    max-height: none;
+  }
+  .nav-mobile-primary button {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 8px 4px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: #475569;
+    background: transparent;
+  }
+  .nav-mobile-primary button span {
+    display: block;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .nav-mobile-primary button.active {
+    background: #ecfdf5;
+    color: #0f766e;
+    box-shadow: none;
+  }
+  .mobile-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    background: rgba(15, 23, 42, .42);
+    cursor: pointer;
+  }
+  .mobile-nav-sheet {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    max-height: min(72vh, 560px);
+    padding: 12px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+    border-radius: 18px 18px 0 0;
+    background: #fff;
+    box-shadow: 0 -16px 40px rgba(15, 23, 42, .22);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mobile-nav-sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .mobile-nav-sheet-head strong { font-size: 16px; color: #0f172a; }
+  .mobile-nav-sheet-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .mobile-nav-sheet-grid button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 76px;
+    padding: 10px 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+  }
+  .mobile-nav-sheet-grid button span {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .mobile-nav-sheet-grid button.active {
+    background: #ecfdf5;
+    border-color: #99f6e4;
+    color: #0f766e;
+  }
   .header-actions { display: flex; align-items: center; gap: 8px; }
   .header-icon {
     display: inline-flex !important;
@@ -411,20 +521,9 @@ header p { margin: 4px 0 0; color: #6c7f87; }
     cursor: pointer;
   }
   .logout-mobile { color: #9f2d27 !important; background: #fde8e6 !important; }
-  nav {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    overflow-x: auto;
-    overflow-y: hidden;
-    flex: none;
-    max-height: none;
-    gap: 4px;
-  }
-  nav button { padding: 10px 4px; }
-  nav button.active { box-shadow: inset 0 -3px 0 #0f766e; }
   header { padding: 15px 16px; }
   header p, .user-chip span { display: none; }
-  .content { padding: 16px 16px 92px; }
+  .content { padding: 16px 16px calc(88px + env(safe-area-inset-bottom, 0px)); }
   .cards { grid-template-columns: 1fr 1fr; }
   .welcome svg { display: none; }
 }
