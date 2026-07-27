@@ -16,6 +16,8 @@ class HealthRecordCreate(BaseModel):
     physician_name: str | None = Field(default=None, max_length=160)
     summary: str | None = Field(default=None, max_length=2000)
     confidential_note: str | None = Field(default=None, max_length=3000)
+    informed_consent: bool = False
+    restrictions: str | None = Field(default=None, max_length=2000)
     audiometry_date: date | None = None
     audiometry_result: str | None = Field(default=None, max_length=240)
     spirometry_date: date | None = None
@@ -47,6 +49,9 @@ class HealthRecordCreate(BaseModel):
         )
         self.physician_name = assert_person_name(self.physician_name, label="Hekim")
         self.summary = assert_meaningful_text(self.summary, label="Özet", min_len=5, required=False)
+        self.restrictions = assert_meaningful_text(
+            self.restrictions, label="Kısıtlamalar", min_len=3, required=False
+        )
         self.follow_up_note = assert_meaningful_text(
             self.follow_up_note, label="Takip notu", min_len=3, required=False
         )
@@ -61,6 +66,8 @@ class HealthRecordUpdate(BaseModel):
     physician_name: str | None = Field(default=None, max_length=160)
     summary: str | None = Field(default=None, max_length=2000)
     confidential_note: str | None = Field(default=None, max_length=3000)
+    informed_consent: bool | None = None
+    restrictions: str | None = Field(default=None, max_length=2000)
     audiometry_date: date | None = None
     audiometry_result: str | None = Field(default=None, max_length=240)
     spirometry_date: date | None = None
@@ -91,6 +98,9 @@ class HealthRecordResponse(BaseModel):
     physician_name: str | None
     summary: str | None
     confidential_note: str | None = None
+    informed_consent: bool = False
+    informed_consent_at: datetime | None = None
+    restrictions: str | None = None
     audiometry_date: date | None = None
     audiometry_result: str | None = None
     spirometry_date: date | None = None

@@ -40,7 +40,6 @@ router = APIRouter(prefix="/health-records", tags=["Sağlık Kayıtları"])
 
 HEALTH_ROLES = (
     UserRole.GLOBAL_ADMIN,
-    UserRole.COMPANY_ADMIN,
     UserRole.WORKPLACE_PHYSICIAN,
     UserRole.OTHER_HEALTH_PERSONNEL,
 )
@@ -69,6 +68,8 @@ RECORD_TYPE_LABELS = {
     HealthRecordType.JOB_CHANGE: "İş Değişikliği Muayenesi",
     HealthRecordType.NIGHT_WORK: "Gece Çalışması Muayenesi",
     HealthRecordType.HEAVY_HAZARDOUS: "Ağır ve Tehlikeli İşler",
+    HealthRecordType.SPECIAL_RISK: "Özel Risk / Göreve Özgü",
+    HealthRecordType.OCCUPATIONAL_DISEASE_SUSPECT: "Meslek Hastalığı Şüphesi",
     HealthRecordType.LAB_TEST: "Tetkik",
     HealthRecordType.VACCINATION: "Aşı",
     HealthRecordType.FITNESS_REPORT: "Uygunluk Raporu",
@@ -103,6 +104,7 @@ def _to_response(row: HealthRecord, employee: Employee | None, include_confident
     for field in (
         "confidential_note",
         "summary",
+        "restrictions",
         "audiometry_result",
         "spirometry_result",
         "chest_xray_result",
@@ -367,6 +369,9 @@ def create_health_record(
     company = db.get(Company, payload.company_id)
     data = payload.model_dump()
     _guard_confidential_write(user, data)
+    if not data.get("informed_consent"):
+        raise HTTPException(status_code=400, detail="Personel bilgilendirme onayı zorunludur (Pro sağlık formu).")
+    data["informed_consent_at"] = datetime.utcnow()
     if not data.get("next_examination_date"):
         data["next_examination_date"] = default_next_exam(
             payload.examination_date, company.hazard_class if company else None
@@ -379,6 +384,20 @@ def create_health_record(
     data = {k: v for k, v in data.items() if v is not None}
     data = encrypt_payload(data)
     try:
+        # Aynı personel + tür + tarih için çift kayıt engeli (Pro)
+        dup = db.scalar(
+            _active().where(
+                HealthRecord.company_id == payload.company_id,
+                HealthRecord.employee_id == payload.employee_id,
+                HealthRecord.record_type == payload.record_type,
+                HealthRecord.examination_date == payload.examination_date,
+            )
+        )
+        if dup:
+            raise HTTPException(
+                status_code=400,
+                detail="Aynı personel, muayene türü ve tarih için kayıt zaten var.",
+            )
         record = HealthRecord(**data, created_by_id=user.id)
         _apply_lead_eval(record)
         db.add(record)
@@ -523,6 +542,12 @@ def update_health_record(
     ensure_access(db, user, record.company_id)
     updates = payload.model_dump(exclude_unset=True)
     _guard_confidential_write(user, updates)
+    if "informed_consent" in updates:
+        if updates["informed_consent"]:
+            if not record.informed_consent_at:
+                updates["informed_consent_at"] = datetime.utcnow()
+        else:
+            updates["informed_consent_at"] = None
     updates = encrypt_payload(updates)
     for k, v in updates.items():
         setattr(record, k, v)
@@ -572,7 +597,11 @@ def health_form_html(
     exposures = view.exposures if is_physician else None
     summary_txt = view.summary if is_physician else None
     follow_up = view.follow_up_note if is_physician else None
+    restrictions_txt = view.restrictions if is_physician else None
     smart = smart_summary(view, employee) if is_physician else ""
+    consent_txt = "Evet" if record.informed_consent else "Hayır"
+    if record.informed_consent_at:
+        consent_txt += f" ({record.informed_consent_at.strftime('%d.%m.%Y %H:%M')})"
 
     def safe(value) -> str:
         if value is None:
@@ -614,6 +643,7 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 {cell('Sonraki Muayene', str(record.next_examination_date or ''))}
 {cell('İşyeri Hekimi', record.physician_name or '')}
 {cell('Uygunluk', FITNESS_LABELS.get(record.fitness_status, record.fitness_status.value))}
+{cell('Bilgilendirme Onayı', consent_txt)}
 </div>
 <h3>Tetkikler</h3>
 <div class="grid">
@@ -628,8 +658,9 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 <p>{safe(suggested) or '—'}</p>
 <p>{safe(exposures) or '—'}</p>
 <h3>Not / Kısıt / Takip</h3>
-<p>{safe(summary_txt) or '—'}</p>
-<p>{safe(follow_up) or ''}</p>
+<p><strong>Özet:</strong> {safe(summary_txt) or '—'}</p>
+<p><strong>Kısıtlamalar:</strong> {safe(restrictions_txt) or '—'}</p>
+<p><strong>Takip:</strong> {safe(follow_up) or ''}</p>
 {f'<h3>Gizli hekim notu</h3><p>{safe(conf)}</p>' if conf else ''}
 <div class="sign">
 <div>İşyeri Hekimi<br><b>{safe(record.physician_name) or '........................'}</b></div>

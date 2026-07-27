@@ -20,6 +20,7 @@ PREFIX = "enc:v1:"
 SENSITIVE_TEXT_FIELDS: tuple[str, ...] = (
     "confidential_note",
     "summary",
+    "restrictions",
     "audiometry_result",
     "spirometry_result",
     "chest_xray_result",

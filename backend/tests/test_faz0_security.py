@@ -161,6 +161,7 @@ def test_health_confidential_write_locked_for_dsp(client):
             "fitness_status": "fit",
             "summary": "Periyodik muayene ozeti uygun",
             "confidential_note": "Gizli not deneme",
+            "informed_consent": True,
         },
     )
     assert r.status_code == 403
@@ -191,6 +192,7 @@ def test_health_confidential_physician_ok_and_dsp_masked(client):
             "fitness_status": "fit",
             "summary": "Periyodik muayene ozeti uygun",
             "confidential_note": "Gizli hekim notu",
+            "informed_consent": True,
         },
     )
     assert r.status_code in (200, 201), r.text

@@ -4,6 +4,19 @@ from __future__ import annotations
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _isolate_rate_limit():
+    """Hız sınırlayıcı testler arasında taşmasın.
+
+    Sayaç süreç genelinde paylaşıldığı için login yoğun bir dosya, sonraki
+    dosyaların login'lerini 429 ile düşürüyordu (sıra/süre bağımlı rastgele hata).
+    """
+    from app.core.rate_limit import reset_rate_limit_store_for_tests
+
+    reset_rate_limit_store_for_tests()
+    yield
+
+
 @pytest.fixture()
 def release_flags() -> dict:
     """Özellik bayrağı kaydı (P1-07 sonrası).
