@@ -1,3 +1,4 @@
+import {useEffect} from 'react';
 import {createPortal} from 'react-dom';
 import {X} from 'lucide-react';
 
@@ -6,6 +7,14 @@ import {X} from 'lucide-react';
  * Sticky header / content animasyonu altında kesilmeyi önler.
  */
 export function AppModal({title, close, children, wide = false, className = ''}) {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   if (typeof document === 'undefined') return null;
   return createPortal(
     <div
@@ -38,6 +47,14 @@ export function AppModal({title, close, children, wide = false, className = ''})
 
 /** Ham modal-bg sarmalayıcı (özel içerik için) */
 export function PortalOverlay({close, children, className = ''}) {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   if (typeof document === 'undefined') return null;
   return createPortal(
     <div

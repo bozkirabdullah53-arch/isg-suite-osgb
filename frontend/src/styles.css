@@ -597,11 +597,13 @@ html[data-ui-theme="modern"] .eisa-osgb-users tbody tr:hover td:last-child{
   padding:max(16px, 3vh) 20px !important;
   overflow:auto !important;
   -webkit-overflow-scrolling:touch;
+  background:rgba(18,42,52,.52) !important;
 }
 .modal-wide{ width:min(1100px, 100%); }
 .modal{
   margin:auto;
   max-height:min(90vh, 920px);
+  width:min(720px, 100%);
 }
 header.workspace-header,
 .app-shell > .workspace > header{

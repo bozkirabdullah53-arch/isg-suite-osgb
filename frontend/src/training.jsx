@@ -46,31 +46,68 @@ function apiBaseUrl() {
   );
 }
 
+let _sectorsMem = null;
+let _sectorsMemAt = 0;
+const SECTORS_TTL_MS = 60 * 60 * 1000;
+
 async function loadSectorsCatalog() {
+  if (_sectorsMem && Date.now() - _sectorsMemAt < SECTORS_TTL_MS) {
+    return _sectorsMem;
+  }
+  try {
+    const raw = sessionStorage.getItem('isg_sectors_v1');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (
+        parsed?.at &&
+        Date.now() - parsed.at < SECTORS_TTL_MS &&
+        Array.isArray(parsed.data) &&
+        parsed.data.length > 10
+      ) {
+        _sectorsMem = parsed.data;
+        _sectorsMemAt = parsed.at;
+        return parsed.data;
+      }
+    }
+  } catch (_) { /* ignore */ }
+
   const base = apiBaseUrl();
+  let data = [];
 
   // 1) Yeni API /sectors
   try {
-    const r = await fetch(`${base}/trainings/sectors`);
+    const r = await fetch(`${base}/trainings/sectors`, {cache: 'force-cache'});
     if (r.ok) {
-      const data = await r.json();
-      if (Array.isArray(data) && data.length > 10) return data;
+      const json = await r.json();
+      if (Array.isArray(json) && json.length > 10) data = json;
     }
   } catch (_) { /* ignore */ }
 
   // 2) Auth’lu meta
-  try {
-    const meta = await api('/trainings/meta');
-    if (meta?.sectors?.length > 10) return meta.sectors;
-  } catch (_) { /* ignore */ }
+  if (data.length <= 10) {
+    try {
+      const meta = await api('/trainings/meta');
+      if (meta?.sectors?.length > 10) data = meta.sectors;
+    } catch (_) { /* ignore */ }
+  }
 
-  // 3) Statik paket (dizi veya {sectors:[...]})
-  try {
-    const local = await fetch('/training-sectors.json').then((r) => r.json());
-    if (Array.isArray(local) && local.length > 10) return local;
-    if (Array.isArray(local?.sectors) && local.sectors.length > 10) return local.sectors;
-  } catch (_) { /* ignore */ }
-  return [];
+  // 3) Statik paket
+  if (data.length <= 10) {
+    try {
+      const local = await fetch('/training-sectors.json').then((r) => r.json());
+      if (Array.isArray(local) && local.length > 10) data = local;
+      else if (Array.isArray(local?.sectors) && local.sectors.length > 10) data = local.sectors;
+    } catch (_) { /* ignore */ }
+  }
+
+  if (data.length > 10) {
+    _sectorsMem = data;
+    _sectorsMemAt = Date.now();
+    try {
+      sessionStorage.setItem('isg_sectors_v1', JSON.stringify({at: _sectorsMemAt, data}));
+    } catch (_) { /* ignore */ }
+  }
+  return data;
 }
 
 function sectorLabel(sectors, code) {
@@ -278,29 +315,46 @@ export function TrainingPage({user}) {
   }
 
   const load = async (searchQ = q) => {
-    const [c, e, t, sec] = await Promise.all([
-      api('/companies'),
-      api('/employees'),
-      api('/trainings' + (searchQ ? `?q=${encodeURIComponent(searchQ)}` : '')),
-      loadSectorsCatalog(),
-    ]);
-    setCompanies(c);
-    setEmployees(e);
-    setRows(Array.isArray(t) ? t : []);
-    setSectors(sec);
+    setBusy(true);
+    setErr('');
     try {
-      const sp = await api('/trainings/special-profiles');
-      setSpecialProfiles(Array.isArray(sp?.profiles) ? sp.profiles : Array.isArray(sp) ? sp : []);
-    } catch (_) {
-      setSpecialProfiles([]);
-    }
-    if (!form.company_id) {
-      const cid = user.company_id
-        ? String(user.company_id)
-        : c.length === 1
-          ? String(c[0].id)
-          : '';
-      if (cid) setForm((f) => ({...f, company_id: cid}));
+      const preferredCid =
+        form.company_id ||
+        (user.company_id ? String(user.company_id) : '');
+
+      // Önce hafif istekler: firma + eğitim listesi + (önbellekli) sektör
+      const [c, t, sec] = await Promise.all([
+        api('/companies'),
+        api('/trainings' + (searchQ ? `?q=${encodeURIComponent(searchQ)}` : '')),
+        loadSectorsCatalog(),
+      ]);
+      setCompanies(c);
+      setRows(Array.isArray(t) ? t : []);
+      setSectors(sec);
+
+      const cid =
+        preferredCid ||
+        (c.length === 1 ? String(c[0].id) : '');
+      if (cid && !form.company_id) {
+        setForm((f) => ({...f, company_id: cid}));
+      }
+
+      // Tüm firmaların personelini çekme — sadece seçili / tek firma
+      if (cid) {
+        const list = await api(`/employees?company_id=${Number(cid)}&active=true`);
+        setEmployees(Array.isArray(list) ? list : []);
+      } else {
+        setEmployees([]);
+      }
+
+      try {
+        const sp = await api('/trainings/special-profiles');
+        setSpecialProfiles(Array.isArray(sp?.profiles) ? sp.profiles : Array.isArray(sp) ? sp : []);
+      } catch (_) {
+        setSpecialProfiles([]);
+      }
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -1608,6 +1662,11 @@ export function TrainingPage({user}) {
 
   return (
     <div className="training-pro">
+      {busy && (
+        <div className="tp-alert" style={{marginBottom: 12, background: '#eef6ff', color: '#1e3a5f', border: '1px solid #bfdbfe'}}>
+          Veriler yükleniyor… (ilk açılışta API uyanıyorsa 10–30 sn sürebilir)
+        </div>
+      )}
       <div className="tp-tabs" role="tablist">
         {TABS.map((t) => (
           <button
