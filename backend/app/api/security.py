@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -159,6 +159,137 @@ def mfa_disable(
     )
     db.commit()
     return {"message": "MFA kapatıldı."}
+
+
+class ESignatureTitleBody(BaseModel):
+    title: str | None = Field(default=None, max_length=120)
+
+
+@router.get("/e-signature")
+def e_signature_status(user: User = Depends(get_current_user)):
+    from app.services.e_signature import signature_status
+
+    return signature_status(user)
+
+
+@router.post("/e-signature/image")
+async def e_signature_upload(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    file: UploadFile = File(...),
+):
+    from app.services.e_signature import save_signature_image, signature_status
+
+    raw = await file.read()
+    try:
+        save_signature_image(db, user, raw=raw, original_name=file.filename or "imza.png")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    add_audit_log(
+        db,
+        user=user,
+        action="e_signature_uploaded",
+        entity_type="user",
+        entity_id=str(user.id),
+        description="E-imza görseli yüklendi",
+        ip_address=request.client.host if request.client else None,
+        module="security",
+    )
+    db.commit()
+    db.refresh(user)
+    return {"message": "İmza görseli kaydedildi.", **signature_status(user)}
+
+
+@router.put("/e-signature/title")
+def e_signature_title(
+    payload: ESignatureTitleBody,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    from app.services.e_signature import set_signature_title, signature_status
+
+    set_signature_title(db, user, payload.title)
+    add_audit_log(
+        db,
+        user=user,
+        action="e_signature_title_updated",
+        entity_type="user",
+        entity_id=str(user.id),
+        description="E-imza unvanı güncellendi",
+        ip_address=request.client.host if request.client else None,
+        module="security",
+    )
+    db.commit()
+    db.refresh(user)
+    return signature_status(user)
+
+
+@router.delete("/e-signature/image")
+def e_signature_delete(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    from app.services.e_signature import clear_signature_image, signature_status
+
+    clear_signature_image(db, user)
+    add_audit_log(
+        db,
+        user=user,
+        action="e_signature_deleted",
+        entity_type="user",
+        entity_id=str(user.id),
+        description="E-imza görseli silindi",
+        ip_address=request.client.host if request.client else None,
+        module="security",
+    )
+    db.commit()
+    db.refresh(user)
+    return {"message": "İmza görseli silindi.", **signature_status(user)}
+
+
+@router.get("/e-signature/image")
+def e_signature_image(user: User = Depends(get_current_user)):
+    from fastapi.responses import Response
+
+    from app.services.e_signature import read_signature_bytes
+
+    raw = read_signature_bytes(user)
+    if not raw:
+        raise HTTPException(status_code=404, detail="İmza görseli yok.")
+    name = (getattr(user, "e_signature_file_name", None) or "e-imza.png").lower()
+    media = "image/png" if name.endswith(".png") else "image/jpeg"
+    return Response(
+        content=raw,
+        media_type=media,
+        headers={"Cache-Control": "private, max-age=60", "Content-Disposition": "inline"},
+    )
+
+
+@router.post("/e-signature/bridge-probe")
+def e_signature_bridge_probe(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    from app.services.e_signature import probe_bridge, signature_status
+
+    probe = probe_bridge(user, db)
+    add_audit_log(
+        db,
+        user=user,
+        action="e_signature_bridge_probe",
+        entity_type="user",
+        entity_id=str(user.id),
+        description=f"E-imza köprü probe: {probe.get('status')}",
+        ip_address=request.client.host if request.client else None,
+        module="security",
+    )
+    db.commit()
+    db.refresh(user)
+    return {"probe": probe, **signature_status(user)}
 
 
 @router.get("/audit-logs")
