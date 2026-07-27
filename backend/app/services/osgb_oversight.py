@@ -798,19 +798,25 @@ def build_professional_performance(db: Session, professional_id: int) -> dict:
         "other_health_personnel": "Diğer Sağlık Personeli",
     }
 
+    def _pro_identity() -> dict:
+        return {
+            "id": pro.id,
+            "full_name": pro.full_name,
+            "professional_type": pro.professional_type.value,
+            "role_label": type_labels.get(pro.professional_type.value, pro.professional_type.value),
+            "certificate_class": pro.certificate_class,
+            "certificate_number": pro.certificate_number,
+            "certificate_date": pro.certificate_date.isoformat() if pro.certificate_date else None,
+            "email": pro.email,
+            "phone": pro.phone,
+            "is_active": bool(pro.is_active),
+            "osgb_id": pro.osgb_id,
+        }
+
     if not row:
         # Oversight listesinde yok (pasif / filtre) — yine de kimlik dön
         return {
-            "professional": {
-                "id": pro.id,
-                "full_name": pro.full_name,
-                "professional_type": pro.professional_type.value,
-                "role_label": type_labels.get(pro.professional_type.value, pro.professional_type.value),
-                "certificate_class": pro.certificate_class,
-                "certificate_number": pro.certificate_number,
-                "is_active": bool(pro.is_active),
-                "osgb_id": pro.osgb_id,
-            },
+            "professional": _pro_identity(),
             "period": overview.get("period"),
             "legal_basis": overview.get("legal_basis"),
             "performance": {
@@ -867,17 +873,15 @@ def build_professional_performance(db: Session, professional_id: int) -> dict:
 
     completion_pct = round(100 * passed_checks / total_checks) if total_checks else (0 if incomplete else 100)
 
+    identity = _pro_identity()
+    identity["professional_type"] = row["professional_type"]
+    identity["role_label"] = type_labels.get(row["professional_type"], row["professional_type"])
+    identity["certificate_class"] = row.get("certificate_class") or identity["certificate_class"]
+    identity["certificate_number"] = row.get("certificate_number") or identity["certificate_number"]
+    identity["is_active"] = row.get("is_active", identity["is_active"])
+
     return {
-        "professional": {
-            "id": pro.id,
-            "full_name": pro.full_name,
-            "professional_type": row["professional_type"],
-            "role_label": type_labels.get(row["professional_type"], row["professional_type"]),
-            "certificate_class": row.get("certificate_class"),
-            "certificate_number": row.get("certificate_number"),
-            "is_active": row.get("is_active", True),
-            "osgb_id": pro.osgb_id,
-        },
+        "professional": identity,
         "period": overview.get("period"),
         "legal_basis": overview.get("legal_basis"),
         "performance": {

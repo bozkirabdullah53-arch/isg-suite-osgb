@@ -309,6 +309,19 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
             "type": t,
             "label": type_labels[t],
             "count": len(typed),
+            "items": [
+                {
+                    "id": p.id,
+                    "full_name": p.full_name,
+                    "certificate_class": p.certificate_class,
+                    "certificate_number": p.certificate_number,
+                    "email": p.email,
+                    "phone": p.phone,
+                    "is_active": bool(p.is_active),
+                    "assigned": p.id in assigned_pro_ids,
+                }
+                for p in typed
+            ],
         }
         unassigned_by_type[t] = {
             "type": t,

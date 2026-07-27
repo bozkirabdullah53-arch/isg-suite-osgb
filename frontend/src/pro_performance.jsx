@@ -108,10 +108,21 @@ export function ProPerformancePage({user}) {
   useEffect(() => {
     try {
       const preset = sessionStorage.getItem('pro_performance_id');
+      const presetType = sessionStorage.getItem('pro_performance_type');
+      if (presetType && ROLE_TABS.some((t) => t.id === presetType)) {
+        setRoleTab(presetType);
+        sessionStorage.removeItem('pro_performance_type');
+      }
       if (!preset) return;
       sessionStorage.removeItem('pro_performance_id');
       setSelectedId(preset);
       void loadReport(preset);
+      // Tek sayfa odak: rapor alanına kaydır
+      setTimeout(() => {
+        try {
+          document.querySelector('.pro-perf-print')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+        } catch (_) { /* ignore */ }
+      }, 400);
     } catch (_) { /* ignore */ }
   }, []);
 
@@ -121,6 +132,14 @@ export function ProPerformancePage({user}) {
     const p = directory.find((x) => String(x.id) === String(selectedId));
     if (p?.professional_type) setRoleTab(p.professional_type);
   }, [selectedId, directory]);
+
+  // Rapor yüklendiğinde tek sayfa başlığına kaydır
+  useEffect(() => {
+    if (!report) return;
+    try {
+      document.querySelector('.pro-perf-dossier')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+    } catch (_) { /* ignore */ }
+  }, [report?.professional?.id]);
 
   const roleCounts = useMemo(() => {
     const c = {safety_specialist: 0, workplace_physician: 0, other_health_personnel: 0};
@@ -134,6 +153,15 @@ export function ProPerformancePage({user}) {
     () => directory.filter((p) => p.professional_type === roleTab),
     [directory, roleTab],
   );
+
+  const selectOptions = useMemo(() => {
+    const list = [...filtered];
+    if (selectedId && !list.some((p) => String(p.id) === String(selectedId))) {
+      const extra = directory.find((p) => String(p.id) === String(selectedId));
+      if (extra) list.unshift(extra);
+    }
+    return list;
+  }, [filtered, selectedId, directory]);
 
   const perf = report?.performance;
   const st = statusStyle(perf?.status);
@@ -156,9 +184,11 @@ export function ProPerformancePage({user}) {
     <>
       <div className="page-title" style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
         <div>
-          <h3>Performans / İş Tamamlama</h3>
+          <h3>{report?.professional?.full_name ? `Profesyonel: ${report.professional.full_name}` : 'Performans / İş Tamamlama'}</h3>
           <p style={{margin: '4px 0 0', color: '#64748b', fontSize: 13}}>
-            Rol seçin → profesyoneli seçin → atanmış firmalardaki 6331 iş tamamlama raporu.
+            {report
+              ? 'Tek sayfa özet: kimlik, görevlendirmeler, saha/QR ziyaretleri ve 6331 kontrol listesi.'
+              : 'Ana panelden uzman/hekim seçin veya aşağıdan rol → kişi seçin.'}
           </p>
         </div>
         <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
@@ -260,7 +290,7 @@ export function ProPerformancePage({user}) {
             style={{fontWeight: 650}}
           >
             <option value="">Seçiniz…</option>
-            {filtered.map((p) => (
+            {selectOptions.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.full_name}
                 {p.certificate_class ? ` · Sınıf ${p.certificate_class}` : ''}
@@ -284,19 +314,28 @@ export function ProPerformancePage({user}) {
       )}
 
       {report && (
-        <div className="pro-perf-print">
-          <section className="panel" style={{marginBottom: 16}}>
+        <div className="pro-perf-print pro-perf-dossier">
+          <section className="panel" style={{marginBottom: 16, border: '1px solid #99f6e4', background: 'linear-gradient(135deg,#f0fdfa,#ffffff)'}}>
             <div style={{display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start'}}>
               <div>
-                <div style={{fontSize: 12, color: '#64748b', marginBottom: 4}}>
-                  {report.report_title || 'İş Tamamlama / Performans Raporu'}
+                <div style={{fontSize: 12, color: '#0f766e', fontWeight: 700, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '.04em'}}>
+                  Tek sayfa profesyonel özeti
                 </div>
-                <h2 style={{margin: 0, fontSize: 22}}>{report.professional?.full_name}</h2>
+                <h2 style={{margin: 0, fontSize: 24}}>{report.professional?.full_name}</h2>
                 <p style={{margin: '6px 0 0', color: '#475569'}}>
                   {report.professional?.role_label}
                   {report.professional?.certificate_class ? ` · Sınıf ${report.professional.certificate_class}` : ''}
                   {report.professional?.certificate_number ? ` · Belge: ${report.professional.certificate_number}` : ''}
+                  {report.professional?.certificate_date ? ` · Belge tarihi: ${report.professional.certificate_date}` : ''}
                   {report.professional?.is_active === false ? ' · Pasif' : ''}
+                </p>
+                <p style={{margin: '8px 0 0', fontSize: 14, color: '#334155'}}>
+                  {report.professional?.email ? <span>E-posta: {report.professional.email}</span> : null}
+                  {report.professional?.email && report.professional?.phone ? ' · ' : null}
+                  {report.professional?.phone ? <span>Telefon: {report.professional.phone}</span> : null}
+                  {!report.professional?.email && !report.professional?.phone ? (
+                    <span style={{color: '#94a3b8'}}>İletişim bilgisi kayıtlı değil</span>
+                  ) : null}
                 </p>
                 <p style={{margin: '4px 0 0', fontSize: 12, color: '#94a3b8'}}>
                   Dönem: {periodText(report.period)} · Üretim: {report.generated_at}

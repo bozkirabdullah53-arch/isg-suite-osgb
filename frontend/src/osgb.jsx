@@ -166,7 +166,24 @@ export function OsgbDashboard({user, onNavigate}){
  const[liveResult,setLiveResult]=useState(null);
  const[unassignedOpen,setUnassignedOpen]=useState(false);
  const[unassignedType,setUnassignedType]=useState('safety_specialist');
+ const[rosterOpen,setRosterOpen]=useState(false);
+ const[rosterType,setRosterType]=useState('safety_specialist');
  const[contractsOpen,setContractsOpen]=useState(false);
+
+ function openProPage(pro,{type}={}){
+  if(!pro?.id) return;
+  try{
+   sessionStorage.setItem('pro_performance_id',String(pro.id));
+   if(type||pro.professional_type) sessionStorage.setItem('pro_performance_type',String(type||pro.professional_type));
+  }catch(_){}
+  go('pro_performance');
+ }
+ function openRoster(type){
+  setRosterType(type);
+  setRosterOpen(true);
+  setUnassignedOpen(false);
+  setContractsOpen(false);
+ }
 
  async function load(id){
   if(!id){setData(null);setOps(null);setKpis(null);setCsgb(null);setInteg(null);setAdapterStatus(null);return}
@@ -233,6 +250,7 @@ export function OsgbDashboard({user, onNavigate}){
  const byType=data?.professionals_by_type||{};
  const unBy=data?.unassigned_by_type||{};
  const unSelected=unBy[unassignedType]||{count:0,items:[],label:ptypes[unassignedType]};
+ const roster=byType[rosterType]||{count:0,items:[],label:ptypes[rosterType]};
  const contracts=data?.upcoming_contracts||[];
  const sum=ops?.summary||{};
  const rk=kpis?.risk||{};
@@ -630,16 +648,83 @@ export function OsgbDashboard({user, onNavigate}){
 
   <div className="cards osgb-cards" style={{marginBottom:16}}>
    <article className="metric"><span>Müşteri İşyerleri</span><strong>{data?.workplaces??0}</strong></article>
-   <article className="metric"><span>İş Güvenliği Uzmanları</span><strong>{byType.safety_specialist?.count??0}</strong></article>
-   <article className="metric"><span>İşyeri Hekimleri</span><strong>{byType.workplace_physician?.count??0}</strong></article>
-   <article className="metric"><span>Diğer Sağlık Personeli</span><strong>{byType.other_health_personnel?.count??0}</strong></article>
+   <article
+    className="metric"
+    style={{cursor:'pointer',outline:rosterOpen&&rosterType==='safety_specialist'?'2px solid #0f766e':undefined}}
+    onClick={()=>openRoster('safety_specialist')}
+    title="Uzman listesini aç — kişi seçince tek sayfa detay"
+   >
+    <span>İş Güvenliği Uzmanları</span>
+    <strong>{byType.safety_specialist?.count??0}</strong>
+    <small style={{display:'block',marginTop:6,color:'#0f766e',fontSize:11,fontWeight:700}}>Liste / kişi detayı →</small>
+   </article>
+   <article
+    className="metric"
+    style={{cursor:'pointer',outline:rosterOpen&&rosterType==='workplace_physician'?'2px solid #0f766e':undefined}}
+    onClick={()=>openRoster('workplace_physician')}
+    title="Hekim listesini aç — kişi seçince tek sayfa detay"
+   >
+    <span>İşyeri Hekimleri</span>
+    <strong>{byType.workplace_physician?.count??0}</strong>
+    <small style={{display:'block',marginTop:6,color:'#0f766e',fontSize:11,fontWeight:700}}>Liste / kişi detayı →</small>
+   </article>
+   <article
+    className="metric"
+    style={{cursor:'pointer',outline:rosterOpen&&rosterType==='other_health_personnel'?'2px solid #0f766e':undefined}}
+    onClick={()=>openRoster('other_health_personnel')}
+    title="DSP listesini aç — kişi seçince tek sayfa detay"
+   >
+    <span>Diğer Sağlık Personeli</span>
+    <strong>{byType.other_health_personnel?.count??0}</strong>
+    <small style={{display:'block',marginTop:6,color:'#0f766e',fontSize:11,fontWeight:700}}>Liste / kişi detayı →</small>
+   </article>
   </div>
+
+  {rosterOpen&&(
+   <section className="panel" style={{marginBottom:16}}>
+    <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center',marginBottom:12}}>
+     <div>
+      <h3 style={{margin:'0 0 4px'}}>{roster.label||ptypes[rosterType]}</h3>
+      <p style={{margin:0,color:'#64748b',fontSize:13}}>Kişiye tıklayınca tek sayfada kimlik, görevlendirme, saha/QR ziyaretleri ve performans açılır.</p>
+     </div>
+     <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}}>
+      <label className="field" style={{margin:0,minWidth:240}}>
+       <span>Rol</span>
+       <select value={rosterType} onChange={e=>setRosterType(e.target.value)}>
+        <option value="safety_specialist">İş Güvenliği Uzmanları ({byType.safety_specialist?.count??0})</option>
+        <option value="workplace_physician">İşyeri Hekimleri ({byType.workplace_physician?.count??0})</option>
+        <option value="other_health_personnel">Diğer Sağlık Personeli ({byType.other_health_personnel?.count??0})</option>
+       </select>
+      </label>
+      <button type="button" className="mini secondary" onClick={()=>setRosterOpen(false)}>Kapat</button>
+     </div>
+    </div>
+    <T
+     cols={[
+      {k:'full_name',l:'Ad Soyad',f:r=>(
+       <button type="button" className="linkish" style={{fontWeight:700,textAlign:'left'}} onClick={()=>openProPage(r,{type:rosterType})}>
+        {r.full_name}
+       </button>
+      )},
+      {k:'certificate_class',l:'Sınıf',f:r=>r.certificate_class||'—'},
+      {k:'certificate_number',l:'Belge No',f:r=>r.certificate_number||'—'},
+      {k:'email',l:'E-posta',f:r=>r.email||'—'},
+      {k:'phone',l:'Telefon',f:r=>r.phone||'—'},
+      {k:'assigned',l:'Görev',f:r=>r.assigned?'Atanmış':'Atanmamış'},
+      {k:'go',l:'',f:r=>(
+       <button type="button" className="mini" onClick={()=>openProPage(r,{type:rosterType})}>Tek sayfa</button>
+      )},
+     ]}
+     rows={roster.items||[]}
+    />
+   </section>
+  )}
 
   <div className="cards osgb-cards" style={{marginBottom:16}}>
    <article
     className="metric"
     style={{cursor:'pointer', outline: unassignedOpen ? '2px solid #0f766e' : undefined}}
-    onClick={()=>setUnassignedOpen(o=>!o)}
+    onClick={()=>{setUnassignedOpen(o=>!o);setRosterOpen(false);setContractsOpen(false)}}
     title="Tıklayınca atanmamış listesini açar"
    >
     <span>Ataması Yapılmamış</span>
@@ -684,11 +769,18 @@ export function OsgbDashboard({user, onNavigate}){
     </p>
     <T
      cols={[
-      {k:'full_name',l:'Ad Soyad'},
+      {k:'full_name',l:'Ad Soyad',f:r=>(
+       <button type="button" className="linkish" style={{fontWeight:700,textAlign:'left'}} onClick={()=>openProPage(r,{type:unassignedType})}>
+        {r.full_name}
+       </button>
+      )},
       {k:'certificate_class',l:'Sınıf',f:r=>r.certificate_class||'—'},
       {k:'certificate_number',l:'Belge No',f:r=>r.certificate_number||'—'},
       {k:'email',l:'E-posta',f:r=>r.email||'—'},
       {k:'phone',l:'Telefon',f:r=>r.phone||'—'},
+      {k:'go',l:'',f:r=>(
+       <button type="button" className="mini" onClick={()=>openProPage(r,{type:unassignedType})}>Tek sayfa</button>
+      )},
      ]}
      rows={unSelected.items||[]}
     />
