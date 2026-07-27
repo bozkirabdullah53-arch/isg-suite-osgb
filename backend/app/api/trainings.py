@@ -2,6 +2,7 @@ import hashlib
 from datetime import date
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -9,20 +10,29 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.api.company_access import accessible_company_ids_or_empty, ensure_company_access
+from app.api.company_access import (
+    accessible_company_ids_or_empty,
+    effective_company_id,
+    ensure_company_access,
+)
 from app.api.deps import get_current_user, require_roles
 from app.api.files import safe_upload_root
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import Company, Employee, TrainingParticipant, TrainingSession, TrainingStatus, User, UserRole
 from app.schemas.training import TrainingCreate, TrainingResponse, TrainingUpdate, TrainingVerifyResponse
+from app.services.assigned_team import training_defaults
 from app.services.training_employee_import import resolve_or_create_employees
 from app.services.training_excel import parse_employee_upload
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 from app.services.training_topics import meta_payload, sektor_kodu_cozumle, sectors_list_for_api
-from app.services.special_training_profiles import special_meta_for_api
+from app.services import training_validity
+from app.services.special_training_profiles import (
+    resolve_special_duration_hours,
+    special_meta_for_api,
+)
 from app.schemas.training import resolve_training_hours
 
 
@@ -149,6 +159,115 @@ def verify_training(code: str, db: Session = Depends(get_db)):
         participants=participants,
         message="Belge doğrulandı.",
     )
+
+
+def _is_basic_training(row: TrainingSession) -> bool:
+    """Özel eğitim profiline (yüksekte çalışma, hijyen vb.) uymayan = temel İSG."""
+    return not resolve_special_duration_hours(
+        SimpleNamespace(
+            training_type=row.training_type or "",
+            title=row.title or "",
+            notes=row.notes or "",
+        )
+    )
+
+
+@router.get("/assigned-team")
+def training_assigned_team(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """İşyerine görevlendirilmiş uzman/hekim — form alanlarını kendiliğinden doldurur.
+
+    Eğitici ve hekim adının elle yazılması yazım farkı üretiyordu; ad artık
+    görevlendirme kaydından gelir.
+    """
+    effective = effective_company_id(db, user, company_id)
+    ensure_access(db, user, effective)
+    return training_defaults(db, effective)
+
+
+@router.get("/employee-status")
+def employee_training_status(
+    company_id: int | None = None,
+    status: str | None = Query(default=None, pattern="^(never|expired|due_soon|ok)$"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Çalışan bazlı temel eğitim geçerliliği — kimin eğitimi dolmuş?
+
+    Kayıt bazlı `next_training_date` çalışana indirgenir; hiç eğitim almamış
+    personel de listelenir (yönetmelik: işe başlamadan önce eğitim).
+    """
+    effective = effective_company_id(db, user, company_id)
+    ensure_access(db, user, effective)
+
+    employees = list(
+        db.scalars(
+            select(Employee)
+            .where(Employee.company_id == effective, Employee.is_active.is_(True))
+            .order_by(Employee.full_name)
+        ).all()
+    )
+    if not employees:
+        return {
+            "company_id": effective,
+            "summary": training_validity.summarize([]),
+            "rows": [],
+        }
+
+    emp_ids = [e.id for e in employees]
+    pairs = db.execute(
+        select(TrainingParticipant.employee_id, TrainingSession)
+        .join(TrainingSession, TrainingSession.id == TrainingParticipant.training_id)
+        .where(
+            TrainingSession.company_id == effective,
+            TrainingSession.status != TrainingStatus.CANCELLED,
+            TrainingParticipant.employee_id.in_(emp_ids),
+        )
+    ).all()
+
+    latest: dict[int, dict] = {}
+    for employee_id, session in pairs:
+        if not _is_basic_training(session):
+            continue
+        finished = session.end_date or session.start_date
+        current = latest.get(employee_id)
+        if current is None or (finished and finished > current["end"]):
+            latest[employee_id] = {
+                "end": finished,
+                "due": session.next_training_date,
+                "title": session.title,
+                "training_id": session.id,
+            }
+
+    rows: list[dict] = []
+    for employee in employees:
+        last = latest.get(employee.id)
+        state = training_validity.evaluate_employee(
+            hire_date=employee.start_date,
+            last_training_end=last["end"] if last else None,
+            next_due=last["due"] if last else None,
+        )
+        rows.append(
+            {
+                "employee_id": employee.id,
+                "full_name": employee.full_name,
+                "department": employee.department,
+                "job_title": employee.job_title,
+                "hire_date": employee.start_date.isoformat() if employee.start_date else None,
+                "last_training_title": last["title"] if last else None,
+                "last_training_id": last["training_id"] if last else None,
+                **state,
+            }
+        )
+
+    summary = training_validity.summarize(rows)
+    rows.sort(key=training_validity.sort_key)
+    if status:
+        rows = [r for r in rows if r["status"] == status]
+    return {"company_id": effective, "summary": summary, "rows": rows}
 
 
 @router.post("/parse-excel")

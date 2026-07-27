@@ -20,13 +20,11 @@ from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import (
-    AssignmentStatus,
     Branch,
     Company,
     Hazard,
     HazardCategory,
     IsgModule,
-    IsgProfessional,
     IsgRecord,
     ProfessionalType,
     RecordStatus,
@@ -36,7 +34,6 @@ from app.models.entities import (
     RiskRevision,
     User,
     UserRole,
-    WorkplaceAssignment,
     WorkplaceDepartment,
 )
 from app.schemas.risk import (
@@ -61,6 +58,7 @@ from app.schemas.risk import (
     RiskUpdate,
 )
 from app.services.ai_hazard_hint import HINT_ENGINE, suggest_hazard_from_text
+from app.services.assigned_team import team_names
 from app.services.audit import add_audit_log
 from app.services.hazard_seed import seed_hazard_library
 from app.services.risk_photo_tags import (
@@ -106,20 +104,6 @@ def ensure_access(db: Session, user: User, company_id: int) -> None:
     ensure_company_access(db, user, company_id)
 
 
-def _assigned_professional_name(db: Session, company_id: int, ptype: ProfessionalType) -> str | None:
-    """İşyerine aktif görevlendirilmiş uzman/hekim adı (rapor ekip satırı)."""
-    return db.scalar(
-        select(IsgProfessional.full_name)
-        .join(WorkplaceAssignment, WorkplaceAssignment.professional_id == IsgProfessional.id)
-        .where(
-            WorkplaceAssignment.company_id == company_id,
-            WorkplaceAssignment.professional_type == ptype,
-            WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
-        )
-        .order_by(WorkplaceAssignment.id.desc())
-    )
-
-
 def _assessment_context(db: Session, company: Company) -> dict:
     """Belge geçerliliği + değerlendirme ekibi.
 
@@ -129,18 +113,15 @@ def _assessment_context(db: Session, company: Company) -> dict:
         select(func.min(RiskAssessment.created_at)).where(RiskAssessment.company_id == company.id)
     )
     fallback = first_created.date() if hasattr(first_created, "date") else first_created
+    names = team_names(db, company.id)
     return {
         "validity": build_validity(
             hazard_class=company.hazard_class,
             assessment_date=company.risk_assessment_date,
             fallback_date=fallback,
         ),
-        "workplace_physician": _assigned_professional_name(
-            db, company.id, ProfessionalType.WORKPLACE_PHYSICIAN
-        ),
-        "safety_specialist": _assigned_professional_name(
-            db, company.id, ProfessionalType.SAFETY_SPECIALIST
-        ),
+        "workplace_physician": names.get(ProfessionalType.WORKPLACE_PHYSICIAN.value),
+        "safety_specialist": names.get(ProfessionalType.SAFETY_SPECIALIST.value),
         "employer_representative": company.authorized_person,
         "employee_representative": company.risk_team_employee_rep,
         "support_staff": company.risk_team_support_staff,

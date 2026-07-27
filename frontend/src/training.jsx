@@ -14,8 +14,16 @@ const STATUS = {planned: 'Planlandı', completed: 'Tamamlandı', cancelled: 'İp
 const TABS = [
   {id: 'temel', label: 'Temel İSG Eğitimi'},
   {id: 'ozel', label: 'Özel Eğitimler'},
+  {id: 'yenileme', label: 'Yenileme Takibi'},
   {id: 'kayitlar', label: 'Kayıtlar'},
 ];
+
+const STATUS_STYLES = {
+  never: {bg: '#fee2e2', fg: '#991b1b', label: 'Eğitim kaydı yok'},
+  expired: {bg: '#ffedd5', fg: '#9a3412', label: 'Süresi doldu'},
+  due_soon: {bg: '#fef3c7', fg: '#92400e', label: 'Yaklaşıyor'},
+  ok: {bg: '#dcfce7', fg: '#166534', label: 'Geçerli'},
+};
 
 function minTrainingDays(hours) {
   return Math.max(1, Math.ceil((hours || 8) / MAX_HOURS_PER_DAY));
@@ -283,6 +291,15 @@ export function TrainingPage({user}) {
   const [detail, setDetail] = useState(null);
   const [dlBusy, setDlBusy] = useState('');
   const [fileLabel, setFileLabel] = useState('.xlsx, .xlsm veya .csv dosyası seçin');
+  // İşyerine görevlendirilmiş uzman/hekim — ad elle yazılmasın diye
+  const [assignedTeam, setAssignedTeam] = useState(null);
+  const autoFilledRef = useRef({});
+  const [empQuery, setEmpQuery] = useState('');
+  const [empDept, setEmpDept] = useState('');
+  const [renewal, setRenewal] = useState(null);
+  const [renewalFilter, setRenewalFilter] = useState('');
+  const [renewalBusy, setRenewalBusy] = useState(false);
+  const [renewalErr, setRenewalErr] = useState('');
 
   const companyEmployees = useMemo(
     () =>
@@ -294,6 +311,23 @@ export function TrainingPage({user}) {
       ),
     [employees, form.company_id],
   );
+
+  const departmentOptions = useMemo(() => {
+    const set = new Set(
+      companyEmployees.map((e) => (e.department || '').trim()).filter(Boolean),
+    );
+    return [...set].sort((a, b) => a.localeCompare(b, 'tr'));
+  }, [companyEmployees]);
+
+  const visibleEmployees = useMemo(() => {
+    const needle = empQuery.trim().toLocaleLowerCase('tr');
+    return companyEmployees.filter((e) => {
+      if (empDept && (e.department || '').trim() !== empDept) return false;
+      if (!needle) return true;
+      const haystack = `${e.full_name || ''} ${e.job_title || ''} ${e.department || ''}`.toLocaleLowerCase('tr');
+      return haystack.includes(needle);
+    });
+  }, [companyEmployees, empQuery, empDept]);
 
   const allEmployeesSelected = useMemo(() => {
     if (!companyEmployees.length) return false;
@@ -309,6 +343,31 @@ export function TrainingPage({user}) {
       participantKey({participant_ids: form.participant_ids}) !== participantKey(savedPayload),
     [savedTrainingId, savedPayload, form.participant_ids],
   );
+
+  const instructorOptions = useMemo(
+    () => (Array.isArray(assignedTeam?.instructor_options) ? assignedTeam.instructor_options : []),
+    [assignedTeam],
+  );
+
+  const instructorIsCustom = useMemo(
+    () =>
+      instructorOptions.length > 0 &&
+      !instructorOptions.some((o) => o.value === form.instructor_name),
+    [instructorOptions, form.instructor_name],
+  );
+
+  function pickInstructor(value) {
+    if (value === '__custom__') {
+      setForm((f) => ({...f, instructor_name: '', instructor_qualification: ''}));
+      return;
+    }
+    const picked = instructorOptions.find((o) => o.value === value);
+    setForm((f) => ({
+      ...f,
+      instructor_name: value,
+      instructor_qualification: picked?.qualification || f.instructor_qualification,
+    }));
+  }
 
   const filteredSectors = useMemo(() => {
     const list = [...sectors].sort((a, b) =>
@@ -338,6 +397,86 @@ export function TrainingPage({user}) {
     if (user.company_id) return String(user.company_id);
     if (list.length === 1) return String(list[0].id);
     return '';
+  }
+
+  const TEAM_FIELDS = ['instructor_name', 'instructor_qualification', 'workplace_physician', 'employer_representative'];
+
+  /** Görevlendirmeden gelen adları forma yazar; kullanıcının elle yazdığını ezmez. */
+  function applyTeamDefaults(info, {force = false} = {}) {
+    const incoming = info?.defaults || {};
+    const previous = autoFilledRef.current || {};
+    setForm((f) => {
+      const next = {...f};
+      for (const key of TEAM_FIELDS) {
+        const value = incoming[key] || '';
+        const current = f[key] || '';
+        const wasAuto = current === (previous[key] || '');
+        if (force || !current || wasAuto) next[key] = value;
+      }
+      return next;
+    });
+    autoFilledRef.current = TEAM_FIELDS.reduce((acc, key) => {
+      acc[key] = incoming[key] || '';
+      return acc;
+    }, {});
+  }
+
+  async function loadAssignedTeam(companyId, options) {
+    if (!companyId) {
+      setAssignedTeam(null);
+      autoFilledRef.current = {};
+      return null;
+    }
+    try {
+      const info = await api(`/trainings/assigned-team?company_id=${Number(companyId)}`);
+      setAssignedTeam(info);
+      applyTeamDefaults(info, options);
+      return info;
+    } catch (_) {
+      setAssignedTeam(null);
+      return null;
+    }
+  }
+
+  async function loadRenewal(companyId, status) {
+    const cid = companyId || form.company_id;
+    if (!cid) {
+      setRenewal(null);
+      return;
+    }
+    setRenewalBusy(true);
+    setRenewalErr('');
+    try {
+      const params = new URLSearchParams({company_id: String(Number(cid))});
+      if (status) params.set('status', status);
+      setRenewal(await api(`/trainings/employee-status?${params}`));
+    } catch (x) {
+      setRenewal(null);
+      setRenewalErr(x.message || 'Yenileme listesi alınamadı.');
+    } finally {
+      setRenewalBusy(false);
+    }
+  }
+
+  /** Yenileme listesindeki kişileri yeni eğitim formuna taşır. */
+  function planTrainingForListed() {
+    const ids = (renewal?.rows || [])
+      .filter((r) => r.status !== 'ok')
+      .map((r) => Number(r.employee_id));
+    if (!ids.length) return;
+    setSavedTrainingId(null);
+    setSavedPayload(null);
+    setExcelPreview([]);
+    setExcelInfo('');
+    setForm((f) => ({
+      ...f,
+      training_type: 'Yenileme Eğitimi',
+      participant_ids: ids,
+    }));
+    setTab('temel');
+    setOkMsg(
+      `${ids.length} kişi yeni eğitime aktarıldı. Tarih ve eğitici bilgisini kontrol edip kaydedin.`,
+    );
   }
 
   async function refreshEmployees(companyId) {
@@ -377,8 +516,10 @@ export function TrainingPage({user}) {
       if (cid) {
         const list = await api(`/employees?company_id=${Number(cid)}&active=true`);
         setEmployees(Array.isArray(list) ? list : []);
+        await loadAssignedTeam(cid);
       } else {
         setEmployees([]);
+        setAssignedTeam(null);
       }
 
       try {
@@ -396,6 +537,12 @@ export function TrainingPage({user}) {
     load().catch((x) => setErr(x.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (tab !== 'yenileme') return;
+    loadRenewal(form.company_id, renewalFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, form.company_id, renewalFilter]);
 
   function validateDates(f = form) {
     if (!f.start_date || !f.end_date) {
@@ -721,6 +868,17 @@ export function TrainingPage({user}) {
     setForm((f) => ({...f, participant_ids: []}));
   }
 
+  /** Filtredeki kişileri mevcut seçime ekler; görünmeyenleri kaldırmaz. */
+  function selectVisibleEmployees() {
+    setErr('');
+    setOkMsg('');
+    setForm((f) => {
+      const ids = new Set((f.participant_ids || []).map(Number));
+      visibleEmployees.forEach((e) => ids.add(Number(e.id)));
+      return {...f, participant_ids: [...ids]};
+    });
+  }
+
   function toggleParticipant(id) {
     const n = Number(id);
     setForm((f) => {
@@ -932,6 +1090,9 @@ export function TrainingPage({user}) {
                     refreshEmployees(cid).catch((x) =>
                       setErr('Personel listesi alınamadı: ' + (x.message || x)),
                     );
+                    loadAssignedTeam(cid, {force: true});
+                  } else {
+                    setAssignedTeam(null);
                   }
                 }}
               >
@@ -974,13 +1135,36 @@ export function TrainingPage({user}) {
               </div>
               <div>
                 <label className="tp-label">Eğitici adı soyadı *</label>
-                <input
-                  className="tp-input"
-                  value={form.instructor_name}
-                  disabled={!canEdit}
-                  onChange={(e) => setForm({...form, instructor_name: e.target.value})}
-                  placeholder="İSG uzmanı veya işyeri hekimi"
-                />
+                {instructorOptions.length > 0 ? (
+                  <select
+                    className="tp-select"
+                    value={instructorIsCustom ? '__custom__' : form.instructor_name}
+                    disabled={!canEdit}
+                    onChange={(e) => pickInstructor(e.target.value)}
+                  >
+                    {instructorOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.value} — {o.qualification}
+                      </option>
+                    ))}
+                    <option value="__custom__">Başka biri (elle yazacağım)</option>
+                  </select>
+                ) : null}
+                {(instructorOptions.length === 0 || instructorIsCustom) && (
+                  <input
+                    className="tp-input"
+                    style={instructorOptions.length > 0 ? {marginTop: 8} : undefined}
+                    value={form.instructor_name}
+                    disabled={!canEdit}
+                    onChange={(e) => setForm({...form, instructor_name: e.target.value})}
+                    placeholder="İSG uzmanı veya işyeri hekimi"
+                  />
+                )}
+                <div className="tp-help">
+                  {instructorOptions.length > 0
+                    ? 'İşyerine görevlendirilmiş uzman ve hekim listelenir; ad elle yazılmaz.'
+                    : 'Bu işyerine atanmış görevli bulunamadı — adı elle yazın veya Görevlendirmeler ekranından atama yapın.'}
+                </div>
               </div>
               <div>
                 <label className="tp-label">Eğitici unvanı / yeterlilik</label>
@@ -1089,6 +1273,19 @@ export function TrainingPage({user}) {
                 onChange={(e) => setForm({...form, employer_representative: e.target.value})}
                 placeholder="Ad Soyad"
               />
+              <div className="tp-help" style={{marginTop: 8}}>
+                Hekim adı işyerine atanmış görevliden, işveren vekili işyeri kartından gelir.
+                {canEdit && form.company_id && (
+                  <button
+                    type="button"
+                    className="btn-outline-premium"
+                    style={{marginLeft: 8, width: 'auto', minHeight: 30, padding: '0 12px', fontSize: 12}}
+                    onClick={() => loadAssignedTeam(form.company_id, {force: true})}
+                  >
+                    Görevlilerden yeniden doldur
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="field-card">
@@ -1205,10 +1402,62 @@ export function TrainingPage({user}) {
                 </button>
               )}
             </div>
+            {companyEmployees.length > 0 && (
+              <div
+                style={{
+                  display: 'grid', gap: 10, padding: '0 1rem 12px',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+                }}
+              >
+                <div>
+                  <label className="tp-label" htmlFor="tp-personel-ara">Personel ara</label>
+                  <input
+                    id="tp-personel-ara"
+                    className="tp-input"
+                    type="search"
+                    value={empQuery}
+                    placeholder="Ad soyad veya görev"
+                    onChange={(e) => setEmpQuery(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="tp-label" htmlFor="tp-personel-bolum">Bölüm</label>
+                  <select
+                    id="tp-personel-bolum"
+                    className="tp-select"
+                    value={empDept}
+                    onChange={(e) => setEmpDept(e.target.value)}
+                  >
+                    <option value="">Tüm bölümler</option>
+                    {departmentOptions.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+                {canEdit && (empQuery || empDept) && (
+                  <div style={{alignSelf: 'end', display: 'flex', gap: 8}}>
+                    <button
+                      type="button"
+                      className="btn-outline-premium"
+                      style={{width: 'auto', minHeight: 40, padding: '0 14px'}}
+                      onClick={selectVisibleEmployees}
+                      disabled={!visibleEmployees.length}
+                    >
+                      Görünenleri seç ({visibleEmployees.length})
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             {companyEmployees.length ? (
               <>
                 <div className="shared-personnel-list">
-                  {companyEmployees.map((emp) => {
+                  {visibleEmployees.length === 0 && (
+                    <div style={{padding: '8px 4px', fontSize: 13, color: '#6b7d90'}}>
+                      Aramaya uyan personel yok. Filtreyi temizleyin.
+                    </div>
+                  )}
+                  {visibleEmployees.map((emp) => {
                     const checked =
                       form.participant_ids.includes(emp.id) ||
                       form.participant_ids.includes(Number(emp.id));
@@ -1233,6 +1482,9 @@ export function TrainingPage({user}) {
                 </div>
                 <div style={{padding: '0 1rem 1rem', fontSize: 13, color: '#6b7d90'}}>
                   {form.participant_ids.length} / {companyEmployees.length} çalışan seçildi.
+                  {visibleEmployees.length !== companyEmployees.length
+                    ? ` · filtrede ${visibleEmployees.length} kişi görünüyor (seçim korunur)`
+                    : ''}
                   {excelInfo ? ` · ${excelInfo}` : ''}
                 </div>
               </>
@@ -1453,13 +1705,31 @@ export function TrainingPage({user}) {
               </div>
               <div>
                 <label className="tp-label">Eğitici adı soyadı *</label>
-                <input
-                  className="tp-input"
-                  required
-                  value={form.instructor_name}
-                  disabled={!canEdit}
-                  onChange={(e) => setForm({...form, instructor_name: e.target.value})}
-                />
+                {instructorOptions.length > 0 ? (
+                  <select
+                    className="tp-select"
+                    value={instructorIsCustom ? '__custom__' : form.instructor_name}
+                    disabled={!canEdit}
+                    onChange={(e) => pickInstructor(e.target.value)}
+                  >
+                    {instructorOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.value} — {o.qualification}
+                      </option>
+                    ))}
+                    <option value="__custom__">Başka biri (elle yazacağım)</option>
+                  </select>
+                ) : null}
+                {(instructorOptions.length === 0 || instructorIsCustom) && (
+                  <input
+                    className="tp-input"
+                    style={instructorOptions.length > 0 ? {marginTop: 8} : undefined}
+                    required
+                    value={form.instructor_name}
+                    disabled={!canEdit}
+                    onChange={(e) => setForm({...form, instructor_name: e.target.value})}
+                  />
+                )}
               </div>
               <div>
                 <label className="tp-label">Yeterlilik / unvan</label>
@@ -1589,6 +1859,140 @@ export function TrainingPage({user}) {
     );
   }
 
+  /* ───────── Yenileme takibi tab ───────── */
+  function renderYenilemeTab() {
+    const summary = renewal?.summary;
+    const rowsToShow = renewal?.rows || [];
+    const cards = [
+      {key: 'never', value: summary?.never, label: 'Eğitim kaydı yok'},
+      {key: 'expired', value: summary?.expired, label: 'Süresi dolmuş'},
+      {key: 'due_soon', value: summary?.due_soon, label: `${summary?.due_soon_days || 60} gün içinde`},
+      {key: 'ok', value: summary?.ok, label: 'Geçerli'},
+    ];
+    return (
+      <div className="panel-card">
+        <div className="section-title" style={{marginBottom: 6}}>Çalışan Bazlı Takip</div>
+        <h2 style={{margin: '0 0 6px', fontSize: 20}}>Kimin eğitimi dolmuş?</h2>
+        <p className="tp-help" style={{marginTop: 0}}>
+          Temel İSG eğitimi tehlike sınıfına göre az tehlikeli 3, tehlikeli 2, çok tehlikeli 1 yılda bir
+          yenilenir. Hiç eğitim kaydı olmayan personel de listelenir; yönetmelik eğitimin işe başlamadan
+          önce verilmesini şart koşar. Yüksekte çalışma gibi özel eğitimler temel eğitim yerine geçmez.
+        </p>
+
+        {!form.company_id && (
+          <div className="tp-alert">Önce Temel İSG sekmesinden bir işyeri seçin.</div>
+        )}
+        {renewalErr && <div className="tp-alert err">{renewalErr}</div>}
+
+        {summary && (
+          <div
+            style={{
+              display: 'grid', gap: 10, margin: '12px 0 16px',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            }}
+          >
+            {cards.map((c) => {
+              const s = STATUS_STYLES[c.key];
+              const active = renewalFilter === c.key;
+              return (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => setRenewalFilter(active ? '' : c.key)}
+                  style={{
+                    textAlign: 'left', cursor: 'pointer', padding: '12px 14px', borderRadius: 12,
+                    background: s.bg, color: s.fg,
+                    border: active ? `2px solid ${s.fg}` : '1px solid transparent',
+                  }}
+                >
+                  <div style={{fontSize: 26, fontWeight: 800, lineHeight: 1.1}}>{c.value ?? 0}</div>
+                  <div style={{fontSize: 13, fontWeight: 600}}>{c.label}</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {summary && (
+          <div className="tp-help" style={{marginBottom: 12}}>
+            {summary.total_employees} aktif personel · uyumluluk %{summary.compliance_rate}
+            {summary.action_needed > 0 && ` · ${summary.action_needed} kişi için işlem gerekiyor`}
+            {renewalFilter && (
+              <button
+                type="button"
+                className="btn-outline-premium"
+                style={{marginLeft: 8, width: 'auto', minHeight: 30, padding: '0 12px', fontSize: 12}}
+                onClick={() => setRenewalFilter('')}
+              >
+                Filtreyi kaldır
+              </button>
+            )}
+          </div>
+        )}
+
+        {canEdit && rowsToShow.some((r) => r.status !== 'ok') && (
+          <button
+            type="button"
+            className="btn-premium"
+            style={{width: 'auto', minHeight: 44, padding: '0 18px', marginBottom: 14}}
+            onClick={planTrainingForListed}
+          >
+            Listedeki {rowsToShow.filter((r) => r.status !== 'ok').length} kişiyi yeni eğitime aktar
+          </button>
+        )}
+
+        <div style={{overflowX: 'auto'}}>
+          <table className="records-table">
+            <thead>
+              <tr>
+                <th>Personel</th>
+                <th>Bölüm</th>
+                <th>Son eğitim</th>
+                <th>Yenileme tarihi</th>
+                <th>Durum</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rowsToShow.length ? rowsToShow.map((r) => {
+                const s = STATUS_STYLES[r.status] || STATUS_STYLES.ok;
+                return (
+                  <tr key={r.employee_id}>
+                    <td>
+                      {r.full_name}
+                      {r.job_title && (
+                        <div style={{fontSize: 12, color: '#6b7d90'}}>{r.job_title}</div>
+                      )}
+                    </td>
+                    <td>{r.department || '—'}</td>
+                    <td>{r.last_training_end || '—'}</td>
+                    <td>{r.next_due || '—'}</td>
+                    <td>
+                      <span
+                        style={{
+                          display: 'inline-block', padding: '3px 10px', borderRadius: 999,
+                          background: s.bg, color: s.fg, fontSize: 12, fontWeight: 700,
+                        }}
+                      >
+                        {r.status_label || s.label}
+                      </span>
+                      <div style={{fontSize: 12, color: '#6b7d90', marginTop: 4}}>{r.message}</div>
+                    </td>
+                  </tr>
+                );
+              }) : (
+                <tr>
+                  <td colSpan={5}>
+                    {renewalBusy ? 'Yükleniyor…' : 'Gösterilecek personel yok.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
   /* ───────── Kayıtlar tab ───────── */
   function renderKayitlarTab() {
     if (detail) {
@@ -1690,10 +2094,10 @@ export function TrainingPage({user}) {
       );
     }
 
-    return (
-      <div className="panel-card">
-        <div className="section-title" style={{marginBottom: 6}}>Eğitim Kayıtları</div>
-        <h2 style={{margin: '0 0 12px', fontSize: 20}}>Kayıtlı oturumlar</h2>
+  return (
+    <div className="panel-card">
+      <div className="section-title" style={{marginBottom: 6}}>Eğitim Kayıtları</div>
+      <h2 style={{margin: '0 0 12px', fontSize: 20}}>Kayıtlı oturumlar</h2>
         <div style={{display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap'}}>
           <div style={{flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8}}>
             <Search size={18} style={{opacity: 0.5}} />
@@ -1799,6 +2203,7 @@ export function TrainingPage({user}) {
 
       {tab === 'temel' && renderTemelTab()}
       {tab === 'ozel' && renderOzelTab()}
+      {tab === 'yenileme' && renderYenilemeTab()}
       {tab === 'kayitlar' && renderKayitlarTab()}
     </div>
   );
