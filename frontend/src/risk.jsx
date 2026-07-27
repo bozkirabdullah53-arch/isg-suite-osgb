@@ -55,6 +55,39 @@ function OverdueBadge() {
   );
 }
 
+const VALIDITY_STYLES = {
+  expired: {bg: '#fee2e2', border: '#fca5a5', fg: '#991b1b', title: 'Risk değerlendirmesi süresi doldu'},
+  due_soon: {bg: '#fef3c7', border: '#fcd34d', fg: '#92400e', title: 'Risk değerlendirmesi yenileme zamanı yaklaştı'},
+  ok: {bg: '#dcfce7', border: '#86efac', fg: '#166534', title: 'Risk değerlendirmesi geçerli'},
+  unknown: {bg: '#e0f2fe', border: '#93c5fd', fg: '#1e40af', title: 'Risk değerlendirmesi yenileme takibi eksik'},
+};
+
+/** Yönetmelik md.12 — tehlike sınıfına göre 6/4/2 yılda bir yenileme. */
+function ValidityBanner({validity, onFix}) {
+  if (!validity) return null;
+  const s = VALIDITY_STYLES[validity.status] || VALIDITY_STYLES.unknown;
+  return (
+    <div
+      role="status"
+      style={{
+        display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap',
+        background: s.bg, border: `1px solid ${s.border}`, color: s.fg,
+        borderRadius: 12, padding: '10px 14px', marginBottom: 14, fontSize: 13,
+      }}
+    >
+      <div style={{flex: '1 1 320px'}}>
+        <strong style={{display: 'block', marginBottom: 2}}>{s.title}</strong>
+        <span>{validity.message}</span>
+      </div>
+      {onFix && (
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onFix}>
+          Belge künyesi
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Modal({title, close, children, wide, layer}) {
   return createPortal(
     <div
@@ -244,6 +277,10 @@ export function RiskPage({user}) {
   const [hintBusy, setHintBusy] = useState(false);
   const [photoTagCatalog, setPhotoTagCatalog] = useState([]);
   const [selectedPhotoTags, setSelectedPhotoTags] = useState([]);
+  const [docInfo, setDocInfo] = useState(null);
+  const [docForm, setDocForm] = useState({assessment_date: '', employee_representative: '', support_staff: ''});
+  const [docBusy, setDocBusy] = useState(false);
+  const [docMsg, setDocMsg] = useState('');
 
   const effectiveCompanyId = reportCompanyId || user.company_id || companies[0]?.id || '';
 
@@ -256,6 +293,51 @@ export function RiskPage({user}) {
       setStats(null);
     }
   };
+
+  const applyDocInfo = (info) => {
+    setDocInfo(info);
+    setDocForm({
+      assessment_date: info?.assessment_date_source === 'recorded' ? (info.assessment_date || '') : '',
+      employee_representative: info?.team?.employee_representative || '',
+      support_staff: info?.team?.support_staff || '',
+    });
+  };
+
+  const loadDocInfo = async (cid) => {
+    const id = cid || effectiveCompanyId;
+    if (!id) { setDocInfo(null); return; }
+    try {
+      applyDocInfo(await api(`/risks/validity?company_id=${id}`));
+    } catch (_) {
+      setDocInfo(null);
+    }
+  };
+
+  async function saveDocInfo(e) {
+    e.preventDefault();
+    const id = effectiveCompanyId;
+    if (!id) return;
+    setDocBusy(true);
+    setDocMsg('');
+    try {
+      const saved = await api('/risks/assessment-info', {
+        method: 'PUT',
+        body: JSON.stringify({
+          company_id: Number(id),
+          assessment_date: docForm.assessment_date || null,
+          employee_representative: docForm.employee_representative.trim() || null,
+          support_staff: docForm.support_staff.trim() || null,
+        }),
+      });
+      applyDocInfo(saved);
+      await loadStats(id);
+      setDocMsg('Belge künyesi kaydedildi. Raporlarda ve yenileme takibinde görünecek.');
+    } catch (e2) {
+      setDocMsg(e2.message || 'Kaydedilemedi.');
+    } finally {
+      setDocBusy(false);
+    }
+  }
 
   const loadDofs = async (cid) => {
     const id = cid || effectiveCompanyId;
@@ -309,6 +391,7 @@ export function RiskPage({user}) {
     if (cid) {
       await loadDepartments(cid);
       await loadStats(cid);
+      await loadDocInfo(cid);
     }
   };
 
@@ -852,6 +935,10 @@ export function RiskPage({user}) {
 
       {tab === 'panel' && !detail && (
         <>
+          <ValidityBanner
+            validity={docInfo || stats?.validity}
+            onFix={canEdit ? () => setTab('reports') : null}
+          />
           <section className="risk-kpi-grid" aria-label="Risk özeti">
             <div className="risk-kpi">
               <div className="risk-kpi-value">{stats?.total_risks ?? 0}</div>
@@ -1062,6 +1149,68 @@ export function RiskPage({user}) {
             Raporlar
             <span>PDF, Excel ve DÖF listesi çıktıları</span>
           </h2>
+          <ValidityBanner validity={docInfo || stats?.validity} />
+          <article className="panel" style={{marginBottom: 16, padding: 16}}>
+            <h3 style={{margin: '0 0 4px'}}>Belge künyesi</h3>
+            <p style={{margin: '0 0 12px', fontSize: 13, color: '#5b6b7c'}}>
+              Risk değerlendirmesinin tarihi ve değerlendirmeyi yapan ekip, raporun ilk sayfasına ve imza
+              bölümüne basılır. Yenileme süresi bu tarihten işler: az tehlikeli 6, tehlikeli 4, çok tehlikeli
+              2 yıl. İSG uzmanı, işyeri hekimi ve işveren bilgileri görevlendirme ve işyeri kartından
+              otomatik gelir.
+            </p>
+            <form
+              onSubmit={saveDocInfo}
+              style={{display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))'}}
+            >
+              <label className="field">
+                <span>Risk değerlendirme tarihi</span>
+                <input
+                  type="date"
+                  value={docForm.assessment_date}
+                  max={new Date().toISOString().slice(0, 10)}
+                  disabled={!canEdit}
+                  onChange={(e) => setDocForm({...docForm, assessment_date: e.target.value})}
+                />
+              </label>
+              <label className="field">
+                <span>Çalışan temsilcisi</span>
+                <input
+                  type="text"
+                  maxLength={160}
+                  placeholder="Ad Soyad"
+                  value={docForm.employee_representative}
+                  disabled={!canEdit}
+                  onChange={(e) => setDocForm({...docForm, employee_representative: e.target.value})}
+                />
+              </label>
+              <label className="field">
+                <span>Destek elemanı</span>
+                <input
+                  type="text"
+                  maxLength={160}
+                  placeholder="Ad Soyad (varsa)"
+                  value={docForm.support_staff}
+                  disabled={!canEdit}
+                  onChange={(e) => setDocForm({...docForm, support_staff: e.target.value})}
+                />
+              </label>
+              {canEdit && (
+                <div style={{alignSelf: 'end'}}>
+                  <button type="submit" className="btn btn-primary" disabled={docBusy}>
+                    {docBusy ? 'Kaydediliyor…' : 'Künyeyi kaydet'}
+                  </button>
+                </div>
+              )}
+            </form>
+            {docInfo?.team && (
+              <p style={{marginTop: 10, fontSize: 12.5, color: '#5b6b7c'}}>
+                Rapora basılacak ekip — İSG uzmanı: <strong>{docInfo.team.safety_specialist || '—'}</strong> ·
+                {' '}İşyeri hekimi: <strong>{docInfo.team.workplace_physician || '—'}</strong> ·
+                {' '}İşveren/vekili: <strong>{docInfo.team.employer_representative || '—'}</strong>
+              </p>
+            )}
+            {docMsg && <div style={{marginTop: 8, fontSize: 13}}>{docMsg}</div>}
+          </article>
           <div className="risk-report-grid">
             <article className="risk-report-card">
               <h3>Risk PDF</h3>

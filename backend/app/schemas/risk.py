@@ -15,6 +15,25 @@ class HazardHintRequest(BaseModel):
     risk_definition: str | None = Field(default=None, max_length=2000)
 
 
+class RiskAssessmentInfoUpdate(BaseModel):
+    """Risk değerlendirme belgesi künyesi — tarih + ekip (yenileme takibi)."""
+
+    company_id: int
+    assessment_date: date | None = None
+    employee_representative: str | None = Field(default=None, max_length=160)
+    support_staff: str | None = Field(default=None, max_length=160)
+
+    @model_validator(mode="after")
+    def not_in_future(self):
+        if self.assessment_date and self.assessment_date > date.today():
+            raise ValueError("Risk değerlendirme tarihi bugünden ileri olamaz.")
+        for field in ("employee_representative", "support_staff"):
+            value = getattr(self, field)
+            if value is not None:
+                setattr(self, field, value.strip() or None)
+        return self
+
+
 class RiskCreate(BaseModel):
     company_id: int
     branch_id: int | None = None

@@ -20,12 +20,15 @@ from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import (
+    AssignmentStatus,
     Branch,
     Company,
     Hazard,
     HazardCategory,
     IsgModule,
+    IsgProfessional,
     IsgRecord,
+    ProfessionalType,
     RecordStatus,
     RiskAssessment,
     RiskDof,
@@ -33,6 +36,7 @@ from app.models.entities import (
     RiskRevision,
     User,
     UserRole,
+    WorkplaceAssignment,
     WorkplaceDepartment,
 )
 from app.schemas.risk import (
@@ -40,6 +44,7 @@ from app.schemas.risk import (
     DepartmentResponse,
     DepartmentUpdate,
     HazardHintRequest,
+    RiskAssessmentInfoUpdate,
     RiskDofListItem,
     HazardCategoryResponse,
     HazardResponse,
@@ -68,6 +73,7 @@ from app.services.risk_photo_tags import (
 from app.services.risk_reports import build_dof_excel, build_risk_excel, build_risk_pdf
 from app.services.risk_scoring import evaluate, meta_payload
 from app.services.risk_suggestions import get_suggestions
+from app.services.risk_validity import build_validity, document_meta_rows
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 
@@ -98,6 +104,47 @@ REVISION_FIELDS = (
 
 def ensure_access(db: Session, user: User, company_id: int) -> None:
     ensure_company_access(db, user, company_id)
+
+
+def _assigned_professional_name(db: Session, company_id: int, ptype: ProfessionalType) -> str | None:
+    """İşyerine aktif görevlendirilmiş uzman/hekim adı (rapor ekip satırı)."""
+    return db.scalar(
+        select(IsgProfessional.full_name)
+        .join(WorkplaceAssignment, WorkplaceAssignment.professional_id == IsgProfessional.id)
+        .where(
+            WorkplaceAssignment.company_id == company_id,
+            WorkplaceAssignment.professional_type == ptype,
+            WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+        )
+        .order_by(WorkplaceAssignment.id.desc())
+    )
+
+
+def _assessment_context(db: Session, company: Company) -> dict:
+    """Belge geçerliliği + değerlendirme ekibi.
+
+    Belge tarihi girilmemişse ilk risk kaydının tarihi tahmini olarak kullanılır.
+    """
+    first_created = db.scalar(
+        select(func.min(RiskAssessment.created_at)).where(RiskAssessment.company_id == company.id)
+    )
+    fallback = first_created.date() if hasattr(first_created, "date") else first_created
+    return {
+        "validity": build_validity(
+            hazard_class=company.hazard_class,
+            assessment_date=company.risk_assessment_date,
+            fallback_date=fallback,
+        ),
+        "workplace_physician": _assigned_professional_name(
+            db, company.id, ProfessionalType.WORKPLACE_PHYSICIAN
+        ),
+        "safety_specialist": _assigned_professional_name(
+            db, company.id, ProfessionalType.SAFETY_SPECIALIST
+        ),
+        "employer_representative": company.authorized_person,
+        "employee_representative": company.risk_team_employee_rep,
+        "support_staff": company.risk_team_support_staff,
+    }
 
 
 def _upload_root() -> Path:
@@ -523,6 +570,7 @@ def risk_stats(
         ).all()
     )
 
+    company = db.get(Company, effective)
     return {
         "company_id": effective,
         "total_risks": len(risks),
@@ -536,6 +584,71 @@ def risk_stats(
         "levels": level_counts,
         "departments": [{"name": n or "—", "count": int(c)} for n, c in dept_rows],
         "suggested_departments": SUGGESTED_DEPARTMENTS,
+        "validity": _assessment_context(db, company)["validity"] if company else None,
+    }
+
+
+@router.get("/validity")
+def risk_assessment_validity(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Risk değerlendirmesi geçerlilik / yenileme durumu (yönetmelik md.12)."""
+    effective = effective_company_id(db, user, company_id)
+    company = db.get(Company, effective)
+    if not company:
+        raise HTTPException(404, "Firma bulunamadı.")
+    ctx = _assessment_context(db, company)
+    return {
+        "company_id": effective,
+        "company_name": company.name,
+        **ctx["validity"],
+        "team": {
+            "safety_specialist": ctx["safety_specialist"],
+            "workplace_physician": ctx["workplace_physician"],
+            "employer_representative": ctx["employer_representative"],
+            "employee_representative": ctx["employee_representative"],
+            "support_staff": ctx["support_staff"],
+        },
+    }
+
+
+@router.put("/assessment-info")
+def update_assessment_info(
+    payload: RiskAssessmentInfoUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Belge tarihi + çalışan temsilcisi / destek elemanı kaydı."""
+    ensure_access(db, user, payload.company_id)
+    company = db.get(Company, payload.company_id)
+    if not company:
+        raise HTTPException(404, "Firma bulunamadı.")
+    company.risk_assessment_date = payload.assessment_date
+    company.risk_team_employee_rep = payload.employee_representative
+    company.risk_team_support_staff = payload.support_staff
+    add_audit_log(
+        db,
+        user=user,
+        action="UPDATE",
+        entity_type="company",
+        entity_id=str(company.id),
+        description=f"Risk değerlendirme künyesi güncellendi: {company.name}",
+        module="risk",
+    )
+    db.commit()
+    ctx = _assessment_context(db, company)
+    return {
+        "company_id": company.id,
+        **ctx["validity"],
+        "team": {
+            "safety_specialist": ctx["safety_specialist"],
+            "workplace_physician": ctx["workplace_physician"],
+            "employer_representative": ctx["employer_representative"],
+            "employee_representative": ctx["employee_representative"],
+            "support_staff": ctx["support_staff"],
+        },
     }
 
 
@@ -832,12 +945,18 @@ def risk_report_pdf(
     if not risks:
         raise HTTPException(422, "Bu filtreyle raporlanacak risk kaydı yok.")
     branch = db.scalar(select(Branch).where(Branch.company_id == company.id).order_by(Branch.id.asc()))
+    ctx = _assessment_context(db, company)
     pdf = build_risk_pdf(
         company=company,
         risks=risks,
         hazard_map=hazard_map,
-        prepared_by=user.full_name,
+        prepared_by=ctx["safety_specialist"] or user.full_name,
         sgk_no=branch.sgk_registry_no if branch else None,
+        workplace_physician=ctx["workplace_physician"],
+        employer_representative=ctx["employer_representative"],
+        employee_representative=ctx["employee_representative"],
+        support_staff=ctx["support_staff"],
+        validity=ctx["validity"],
     )
     return StreamingResponse(
         BytesIO(pdf),
@@ -858,7 +977,12 @@ def risk_report_excel(
     company, risks, hazard_map = _load_company_risks(db, user, company_id, level, status)
     if not risks:
         raise HTTPException(422, "Bu filtreyle raporlanacak risk kaydı yok.")
-    xlsx = build_risk_excel(company=company, risks=risks, hazard_map=hazard_map)
+    xlsx = build_risk_excel(
+        company=company,
+        risks=risks,
+        hazard_map=hazard_map,
+        validity=_assessment_context(db, company)["validity"],
+    )
     return StreamingResponse(
         BytesIO(xlsx),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

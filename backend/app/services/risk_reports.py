@@ -19,6 +19,8 @@ from reportlab.pdfbase.pdfmetrics import registerFontFamily
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from app.services.risk_validity import METHOD_LABEL, document_meta_rows
+
 PDF_FONT = "Helvetica"
 PDF_FONT_BOLD = "Helvetica-Bold"
 _ASSETS = Path(__file__).resolve().parent.parent / "assets" / "fonts"
@@ -150,6 +152,9 @@ def build_risk_pdf(
     sgk_no: str | None = None,
     workplace_physician: str | None = None,
     employer_representative: str | None = None,
+    employee_representative: str | None = None,
+    support_staff: str | None = None,
+    validity: dict | None = None,
 ) -> bytes:
     """Firma risk değerlendirme PDF raporu."""
     hazard_map = hazard_map or {}
@@ -202,11 +207,22 @@ def build_risk_pdf(
         Paragraph(f"<b>Telefon:</b> {getattr(company, 'phone', None) or '—'}", info),
         Paragraph(f"<b>Adres:</b> {getattr(company, 'address', None) or '—'}", info),
         Paragraph(f"<b>Tehlike Sınıfı:</b> {getattr(company, 'hazard_class', None) or '—'}", info),
-        Paragraph(f"<b>İSG Uzmanı / Hazırlayan:</b> {prepared_by or '—'}", info),
-        Paragraph(f"<b>İşyeri Hekimi:</b> {workplace_physician or '—'}", info),
-        Paragraph(f"<b>İşveren / Vekili:</b> {employer_representative or '—'}", info),
-        Spacer(1, 5 * mm),
+        Spacer(1, 3 * mm),
     ]
+    # Yönetmelik md.15: yöntem, geçerlilik ve değerlendirmeyi yapan ekip belgede yer alır.
+    for label, value in document_meta_rows(
+        validity=validity,
+        prepared_by=prepared_by,
+        workplace_physician=workplace_physician,
+        employer_representative=employer_representative,
+        employee_representative=employee_representative,
+        support_staff=support_staff,
+    ):
+        elements.append(Paragraph(f"<b>{label}:</b> {value}", info))
+    if validity and validity.get("message"):
+        elements.append(Spacer(1, 2 * mm))
+        elements.append(Paragraph(f"<i>{validity['message']}</i>", info))
+    elements.append(Spacer(1, 5 * mm))
 
     total = len(risks)
     risk_levels: dict[str, int] = {}
@@ -336,7 +352,10 @@ def build_risk_pdf(
         ["İSG Uzmanı / Hazırlayan", prepared_by or " ", "Kaşe / İmza"],
         ["İşyeri Hekimi", workplace_physician or " ", "Kaşe / İmza"],
         ["İşveren / Vekili", employer_representative or " ", "Kaşe / İmza"],
+        ["Çalışan Temsilcisi", employee_representative or " ", "İmza"],
     ]
+    if support_staff:
+        sign_data.append(["Destek Elemanı", support_staff, "İmza"])
     sign_table = Table([["Unvan", "Ad Soyad", "Onay"]] + sign_data, colWidths=[160, 180, 130])
     sign_table.setStyle(
         TableStyle(
@@ -359,7 +378,9 @@ def build_risk_pdf(
     return buf.read()
 
 
-def build_risk_excel(*, company, risks, hazard_map: dict | None = None) -> bytes:
+def build_risk_excel(
+    *, company, risks, hazard_map: dict | None = None, validity: dict | None = None
+) -> bytes:
     """Excel: Risk tablosu + DÖF listesi + istatistikler."""
     hazard_map = hazard_map or {}
     wb = openpyxl.Workbook()
@@ -401,7 +422,11 @@ def build_risk_excel(*, company, risks, hazard_map: dict | None = None) -> bytes
     ws["A2"].alignment = Alignment(horizontal="center")
 
     ws.merge_cells("A3:Q3")
-    ws["A3"] = f"Program: {CREATOR_LINE} · 6331 sayılı Kanun kapsamında"
+    method = (validity or {}).get("method") or METHOD_LABEL
+    valid_line = ""
+    if validity and validity.get("valid_until"):
+        valid_line = f" · Geçerlilik: {_fmt_date(validity['valid_until'])}"
+    ws["A3"] = f"Yöntem: {method}{valid_line} · Program: {CREATOR_LINE} · 6331 sayılı Kanun kapsamında"
     ws["A3"].font = Font(size=9, italic=True, color="6c757d")
     ws["A3"].alignment = Alignment(horizontal="center")
 
