@@ -18,9 +18,7 @@ describe("auth_session (P1-01 / P1-09)", () => {
     expect(refreshCookieMode()).toBe(false);
   });
 
-  it("canAttemptTokenRefresh only when flag on and 401 on non-auth path", () => {
-    expect(canAttemptTokenRefresh("/companies", 401)).toBe(false);
-    setRefreshCookieMode(true);
+  it("canAttemptTokenRefresh on 401 for non-auth paths (cookie bayrağı gerekmez)", () => {
     expect(canAttemptTokenRefresh("/companies", 401)).toBe(true);
     expect(canAttemptTokenRefresh("/companies", 403)).toBe(false);
     expect(canAttemptTokenRefresh("/auth/login", 401)).toBe(false);

@@ -1,4 +1,4 @@
-import { canAttemptTokenRefresh, refreshCookieMode, setRefreshCookieMode } from "./auth_session.js";
+import { canAttemptTokenRefresh, setRefreshCookieMode } from "./auth_session.js";
 
 export { setRefreshCookieMode } from "./auth_session.js";
 
@@ -40,8 +40,30 @@ function fetchCredentials(path = "") {
 
 let _refreshInFlight = null;
 
+function accessTokenExpiresSoon(skewSec = 90) {
+  try {
+    const token = localStorage.getItem("isg_token");
+    if (!token || !token.includes(".")) return true;
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    const exp = Number(payload?.exp || 0);
+    if (!exp) return true;
+    return exp * 1000 < Date.now() + skewSec * 1000;
+  } catch {
+    return true;
+  }
+}
+
+function notifyAuthLost() {
+  try {
+    localStorage.removeItem("isg_token");
+    setRefreshCookieMode(false);
+  } catch { /* ignore */ }
+  try {
+    window.dispatchEvent(new CustomEvent("isg:auth-lost"));
+  } catch { /* ignore */ }
+}
+
 async function tryRefreshAccessToken() {
-  if (!refreshCookieMode()) return false;
   if (!_refreshInFlight) {
     _refreshInFlight = (async () => {
       const response = await fetch(`${API_URL}/auth/refresh`, {
@@ -57,6 +79,7 @@ async function tryRefreshAccessToken() {
       const body = await response.json().catch(() => ({}));
       if (body?.access_token) {
         localStorage.setItem("isg_token", body.access_token);
+        setRefreshCookieMode(true);
         return true;
       }
       return false;
@@ -358,7 +381,19 @@ export async function api(path, options = {}) {
   // API yakın zamanda uyandıysa gereksiz 4× retry yapma (sayfa “dakikalarca” bekler)
   const warm = Date.now() - _lastWakeOkAt < 60_000;
   const retries = options._retries ?? (warm ? 1 : 3);
-  const { _retries, _didRefresh, headers: optHeaders, ...fetchOpts } = options;
+  const { _retries, _didRefresh, _didProactiveRefresh, headers: optHeaders, ...fetchOpts } = options;
+
+  // Access JWT süresi dolmak üzereyse önce refresh dene (bayrak yoksa da)
+  if (!_didProactiveRefresh && !_didRefresh && accessTokenExpiresSoon() && localStorage.getItem("isg_token")) {
+    const p = String(path || "");
+    if (!p.startsWith("/auth/login") && !p.startsWith("/auth/refresh") && !p.startsWith("/auth/mfa")) {
+      const ok = await tryRefreshAccessToken();
+      if (ok) {
+        return api(path, {...options, _didProactiveRefresh: true, _retries: retries});
+      }
+    }
+  }
+
   const token = localStorage.getItem("isg_token");
   const method = (fetchOpts.method || "GET").toUpperCase();
   const headers = {...(optHeaders || {})};
@@ -396,15 +431,9 @@ export async function api(path, options = {}) {
         err.httpPath = path;
         err.httpMethod = method;
         if (response.status === 401) {
-          const detail = String(err.message || "");
-          if (/oturum|authenticated|unauthorized|token/i.test(detail)) {
-            try {
-              localStorage.removeItem("isg_token");
-              setRefreshCookieMode(false);
-            } catch { /* ignore */ }
-            err.message =
-              "Oturumunuz geçersiz veya süresi doldu. Çıkış yapıp tekrar giriş yapın; adresi www.isgsuite.tr olarak kullanın.";
-          }
+          notifyAuthLost();
+          err.message =
+            "Oturumunuz geçersiz veya süresi doldu. Lütfen tekrar giriş yapın (adres: www.isgsuite.tr).";
         }
         throw err;
       }

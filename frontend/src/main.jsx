@@ -1357,6 +1357,18 @@ function App(){
     try{sessionStorage.setItem('isg_active','companies')}catch(_){ /* ignore */ }
   }
 
+  useEffect(()=>{
+    function onAuthLost(){
+      clearOfflineQueue();
+      setLogged(false);
+      setUser(null);
+      setSummary(null);
+      setActive('');
+    }
+    window.addEventListener('isg:auth-lost', onAuthLost);
+    return ()=>window.removeEventListener('isg:auth-lost', onAuthLost);
+  },[]);
+
   async function logout(){
     try{
       await api('/auth/logout',{method:'POST'});

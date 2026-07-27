@@ -18,10 +18,9 @@ export function refreshCookieMode() {
   }
 }
 
-/** 401 sonrası /auth/refresh denensin mi? */
+/** 401 sonrası /auth/refresh denensin mi? (bayrak olmasa da cookie denensin) */
 export function canAttemptTokenRefresh(path, status) {
   if (status !== 401) return false;
-  if (!refreshCookieMode()) return false;
   const p = String(path || "");
   if (p.startsWith("/auth/login") || p.startsWith("/auth/refresh") || p.startsWith("/auth/mfa")) {
     return false;
