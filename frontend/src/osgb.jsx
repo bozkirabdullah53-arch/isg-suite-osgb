@@ -59,8 +59,15 @@ function fmtCheckTime(iso){
   try{
     const d=new Date(iso.endsWith('Z')||iso.includes('+')?iso:iso+'Z');
     if(Number.isNaN(d.getTime())) return String(iso).slice(11,16)||'—';
-    return d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit'});
+    return d.toLocaleTimeString('tr-TR',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Istanbul'});
   }catch{return '—'}
+}
+
+/** QR giriş/çıkış: önce ISO zaman (doğru TZ), yoksa HH:MM alanı */
+function fmtVisitClock(iso, hhmm){
+  const fromIso=iso?fmtCheckTime(iso):'';
+  if(fromIso && fromIso!=='—') return fromIso;
+  return hhmm||'—';
 }
 
 function SignaturePad({onChange}){
@@ -1394,9 +1401,9 @@ export function VisitsPage({user}){
    setScanOpen(false);
    const name=companies.find(x=>x.id===res.company_id)?.name||`İşyeri #${res.company_id}`;
    if(mode==='out'){
-    setKioskMsg(`Çıkış kaydedildi — ${name}: ${res.duration_minutes||0} dk (${res.start_time||'—'}–${res.end_time||'—'})`);
+    setKioskMsg(`Çıkış kaydedildi — ${name}: ${res.duration_minutes||0} dk (${fmtVisitClock(res.checked_in_at,res.start_time)}–${fmtVisitClock(res.checked_out_at,res.end_time)})`);
    }else{
-    setKioskMsg(`Giriş kaydedildi — ${name} · ${res.start_time||fmtCheckTime(res.checked_in_at)}`);
+    setKioskMsg(`Giriş kaydedildi — ${name} · ${fmtVisitClock(res.checked_in_at,res.start_time)}`);
    }
    await load(form.osgb_id);
   }catch(ex){setErr(ex.message||'QR işlem başarısız.')}
@@ -1448,7 +1455,7 @@ export function VisitsPage({user}){
        return (
         <div key={r.id}>
          <strong>Şu an sahadasınız</strong>
-         <span>{name} · giriş {r.start_time||fmtCheckTime(r.checked_in_at)}</span>
+         <span>{name} · giriş {fmtVisitClock(r.checked_in_at,r.start_time)}</span>
          <button type="button" disabled={busy} onClick={()=>openCameraScan('out')}>
           <ScanLine size={22}/> Çıkış için QR okut
          </button>
@@ -1587,8 +1594,8 @@ export function VisitsPage({user}){
    {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||r.company_id},
    ...(!isField?[{k:'professional_id',l:'Profesyonel',f:r=>pros.find(x=>x.id===r.professional_id)?.full_name||r.professional_id}]:[]),
    {k:'subject',l:'Konu'},
-   {k:'checked_in_at',l:'Giriş',f:r=>r.start_time||fmtCheckTime(r.checked_in_at)},
-   {k:'checked_out_at',l:'Çıkış',f:r=>r.end_time||fmtCheckTime(r.checked_out_at)},
+   {k:'checked_in_at',l:'Giriş',f:r=>fmtVisitClock(r.checked_in_at,r.start_time)},
+   {k:'checked_out_at',l:'Çıkış',f:r=>fmtVisitClock(r.checked_out_at,r.end_time)},
    {k:'notebook_file_name',l:'Tespit Defteri',f:r=>r.notebook_file_name?<button type="button" className="mini" onClick={()=>downloadNotebook(r)}>{r.notebook_file_name}</button>:'—'},
    {k:'duration_minutes',l:'Süre (dk.)'},
    {k:'status',l:'Durum',f:r=>r.checked_in_at&&!r.checked_out_at?'Sahada':r.status},

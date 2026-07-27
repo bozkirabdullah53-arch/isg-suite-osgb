@@ -1,6 +1,7 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 import base64
 import logging
 import re
@@ -123,7 +124,14 @@ def _open_checkin_visit(db: Session, professional_id: int, company_id: int) -> S
 
 
 def _hhmm(dt: datetime) -> str:
-    return dt.strftime("%H:%M")
+    """Saat dilimi: Europe/Istanbul (naive datetime UTC kabul edilir)."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(ZoneInfo("Europe/Istanbul")).strftime("%H:%M")
+
+
+def _today_tr() -> date:
+    return datetime.now(timezone.utc).astimezone(ZoneInfo("Europe/Istanbul")).date()
 
 
 _DATA_URL_RE = re.compile(r"^data:image/(png|jpeg|jpg);base64,(.+)$", re.IGNORECASE | re.DOTALL)
@@ -528,7 +536,7 @@ def check_in_visit(
         osgb_id=company.osgb_id,
         company_id=company.id,
         professional_id=pro.id,
-        visit_date=now.date(),
+        visit_date=_today_tr(),
         start_time=_hhmm(now),
         end_time=None,
         duration_minutes=0,
