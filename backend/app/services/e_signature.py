@@ -13,7 +13,6 @@ from typing import Any, Literal
 from uuid import uuid4
 
 import httpx
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -60,34 +59,6 @@ def signature_status(user: User) -> dict[str, Any]:
             "modelinden bağımsız, sunucu yapılandırmalı köprü."
         ),
     }
-
-
-def _normalize_name(name: str) -> str:
-    return " ".join(str(name or "").casefold().split())
-
-
-def find_signature_by_full_name(
-    db: Session, full_name: str | None, *, osgb_id: int | None = None
-) -> bytes | None:
-    """Belgede yazılı isme (ör. Eğitimi Veren / İşyeri Hekimi) kayıtlı e-imzayı bulur.
-
-    İş akışı mantığı: PDF'i kim indirdiği değil, belgede adı geçen kişinin
-    KENDİ yüklediği imza görseli basılır. Aksi halde yanlış kişinin imzası
-    belgeye karışabilir (uyumluluk riski). Kiracı (osgb) sınırı zorunludur —
-    isim eşleşmesi başka bir OSGB'nin kullanıcısına asla sızmaz.
-    """
-    target = _normalize_name(full_name)
-    if not target:
-        return None
-    stmt = select(User).where(User.e_signature_storage_path.is_not(None))
-    if osgb_id:
-        stmt = stmt.where(User.osgb_id == osgb_id)
-    else:
-        return None
-    for candidate in db.scalars(stmt).all():
-        if _normalize_name(candidate.full_name) == target:
-            return read_signature_bytes(candidate)
-    return None
 
 
 def read_signature_bytes(user: User) -> bytes | None:
@@ -231,68 +202,18 @@ def probe_bridge(user: User, db: Session | None = None) -> dict[str, Any]:
     return {**result, "checked_at": user.e_signature_bridge_checked_at}
 
 
-WHITE_CUTOFF = 238  # bu parlaklığın üstü kâğıt zemini sayılır
-MAX_UPSCALE = 4.0
-
-
-def prepare_signature_image(image_bytes: bytes):
-    """Taranmış/fotoğraflanmış imzayı belgeye basılmaya hazırlar.
-
-    Kâğıt zemini şeffaflaştırılır ve boş kenarlar kırpılır; aksi halde kutuya
-    beyaz bir dikdörtgen olarak oturur ve mürekkep, kadrajın ortasında küçücük
-    kalır. Dönüş: (PIL image, genişlik, yükseklik) veya None.
-    """
-    try:
-        from PIL import Image, ImageChops
-    except Exception:
-        return None
-    try:
-        img = Image.open(BytesIO(image_bytes))
-        img.load()
-        img = img.convert("RGBA")
-        alpha = img.getchannel("A")
-        ink = img.convert("L").point(lambda v: 0 if v > WHITE_CUTOFF else 255)
-        alpha = ImageChops.multiply(alpha, ink)
-        bbox = alpha.getbbox()
-        if not bbox:
-            return None
-        img.putalpha(alpha)
-        pad = max(2, int(min(img.width, img.height) * 0.02))
-        crop = (
-            max(0, bbox[0] - pad),
-            max(0, bbox[1] - pad),
-            min(img.width, bbox[2] + pad),
-            min(img.height, bbox[3] + pad),
-        )
-        img = img.crop(crop)
-        if img.width < 4 or img.height < 4:
-            return None
-        return img
-    except Exception:
-        return None
-
-
 def draw_signature_image(canvas_obj, *, image_bytes: bytes, x: float, y: float, max_w: float, max_h: float) -> bool:
-    """ReportLab canvas üzerine imza görselini bandın ortasına yerleştir."""
+    """ReportLab canvas üzerine imza görseli yerleştir. Başarısızsa False."""
     try:
         from reportlab.lib.utils import ImageReader
 
-        prepared = prepare_signature_image(image_bytes)
-        img = ImageReader(prepared) if prepared is not None else ImageReader(BytesIO(image_bytes))
+        img = ImageReader(BytesIO(image_bytes))
         iw, ih = img.getSize()
         if iw <= 0 or ih <= 0:
             return False
-        scale = min(max_w / float(iw), max_h / float(ih), MAX_UPSCALE)
+        scale = min(max_w / float(iw), max_h / float(ih), 1.0)
         w, h = iw * scale, ih * scale
-        canvas_obj.drawImage(
-            img,
-            x + (max_w - w) / 2,
-            y + (max_h - h) / 2,
-            width=w,
-            height=h,
-            mask="auto",
-            preserveAspectRatio=True,
-        )
+        canvas_obj.drawImage(img, x + (max_w - w) / 2, y, width=w, height=h, mask="auto", preserveAspectRatio=True)
         return True
     except Exception:
         return False

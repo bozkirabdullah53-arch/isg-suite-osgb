@@ -251,28 +251,16 @@ def e_signature_delete(
 
 
 @router.get("/e-signature/image")
-def e_signature_image(
-    prepared: bool = False,
-    user: User = Depends(get_current_user),
-):
-    """İmza görseli. prepared=1 ise PDF'e basılacak hâli (zemin temiz, kırpılmış)."""
+def e_signature_image(user: User = Depends(get_current_user)):
     from fastapi.responses import Response
 
-    from app.services.e_signature import prepare_signature_image, read_signature_bytes
+    from app.services.e_signature import read_signature_bytes
 
     raw = read_signature_bytes(user)
     if not raw:
         raise HTTPException(status_code=404, detail="İmza görseli yok.")
     name = (getattr(user, "e_signature_file_name", None) or "e-imza.png").lower()
     media = "image/png" if name.endswith(".png") else "image/jpeg"
-    if prepared:
-        img = prepare_signature_image(raw)
-        if img is not None:
-            from io import BytesIO
-
-            buf = BytesIO()
-            img.save(buf, format="PNG")
-            raw, media = buf.getvalue(), "image/png"
     return Response(
         content=raw,
         media_type=media,

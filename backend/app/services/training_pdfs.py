@@ -187,7 +187,7 @@ def _stamp_text(training) -> str:
     return (getattr(training, "stamp_text", None) or "").strip() or _DEFAULT_STAMP
 
 
-def build_attendance_pdf(*, company_name: str, training, employees: dict, signer_images: dict[int, bytes] | None = None) -> bytes:
+def build_attendance_pdf(*, company_name: str, training, employees: dict, signer_image: bytes | None = None) -> bytes:
     """PRO: KATILIMCI İMZA FORMU (İSG-EĞT-KF-01), 10 kişi/sayfa."""
     _ensure_fonts()
     participants = list(training.participants or [])
@@ -222,7 +222,7 @@ def build_attendance_pdf(*, company_name: str, training, employees: dict, signer
             konu_ozeti=konu_ozeti,
             start_index=page_i * per_page,
             curriculum=curriculum,
-            signer_images=signer_images,
+            signer_image=signer_image,
         )
         c.showPage()
     c.save()
@@ -231,7 +231,7 @@ def build_attendance_pdf(*, company_name: str, training, employees: dict, signer
 
 
 def _draw_attendance_page(
-    c, w, h, *, company_name, training, employees, chunk, page_no, total_pages, bugun, kural, sektor_label, konu_ozeti, start_index, curriculum=None, signer_images=None
+    c, w, h, *, company_name, training, employees, chunk, page_no, total_pages, bugun, kural, sektor_label, konu_ozeti, start_index, curriculum=None, signer_image=None
 ):
     curriculum = curriculum or {}
     # PRO: outer slate frame + inner soft frame
@@ -425,10 +425,8 @@ def _draw_attendance_page(
         ("Eğitimi Veren İşyeri Hekimi", physician),
         ("İşveren / İşveren Vekili", employer),
     ]
-    # Kutu yüksekliği tablo alt kenarı (39mm) ile 2mm boşluk bırakacak şekilde seçildi.
-    # Dikey düzen: başlık 32mm · ad 28mm · imza bandı 18.2–26.7mm · alt etiket 15.5mm
     imza_y = 12 * mm
-    imza_h = 25 * mm
+    imza_h = 23 * mm
     box_w = uw / 3
     for i, (title, name) in enumerate(imza_cols):
         x = ml + i * box_w
@@ -440,30 +438,25 @@ def _draw_attendance_page(
         c.drawCentredString(x + box_w / 2, imza_y + imza_h - 5 * mm, title)
         c.setFont(_FONT_B, 7)
         c.setFillColorRGB(0.1, 0.1, 0.1)
-        c.drawCentredString(x + box_w / 2, imza_y + imza_h - 9 * mm, _fit(c, name or " ", box_w - 6 * mm, _FONT_B, 7))
+        c.drawCentredString(x + box_w / 2, imza_y + imza_h - 10.5 * mm, _fit(c, name or " ", box_w - 6 * mm, _FONT_B, 7))
         stamped = False
-        signer_image = (signer_images or {}).get(i)
-        if signer_image:
+        if i == 0 and signer_image:
             from app.services.e_signature import draw_signature_image
 
             stamped = draw_signature_image(
                 c,
                 image_bytes=signer_image,
-                x=x + 10 * mm,
-                y=imza_y + 6.2 * mm,
-                max_w=box_w - 20 * mm,
-                max_h=8.5 * mm,
+                x=x + 8 * mm,
+                y=imza_y + 6.5 * mm,
+                max_w=box_w - 16 * mm,
+                max_h=9 * mm,
             )
         if not stamped:
             c.setStrokeColorRGB(0.4, 0.4, 0.4)
             c.line(x + 12 * mm, imza_y + 8 * mm, x + box_w - 12 * mm, imza_y + 8 * mm)
-        c.setFont(_FONT, 5.5)
+        c.setFont(_FONT, 5.8)
         c.setFillColorRGB(0.4, 0.4, 0.4)
-        c.drawCentredString(
-            x + box_w / 2,
-            imza_y + 3.5 * mm,
-            _fit(c, "E-imza ile imzalandı" if stamped else "Kaşe / İmza", box_w - 8 * mm, _FONT, 5.5),
-        )
+        c.drawCentredString(x + box_w / 2, imza_y + 3.5 * mm, "E-imza / Kaşe" if stamped else "Kaşe / İmza")
 
     c.setFont(_FONT, 5.5)
     c.setFillColorRGB(0.4, 0.4, 0.4)
@@ -481,9 +474,7 @@ def _draw_attendance_page(
     )
 
 
-def build_certificates_pdf(
-    *, company_name: str, training, employees: dict, signer_images: dict[int, bytes] | None = None
-) -> bytes:
+def build_certificates_pdf(*, company_name: str, training, employees: dict) -> bytes:
     """PRO: kişi başı katılım belgesi — 2 sütun konular + dakika."""
     _ensure_fonts()
     participants = list(training.participants or [])
@@ -522,7 +513,6 @@ def build_certificates_pdf(
             sol=sol,
             sag=sag,
             curriculum=curriculum,
-            signer_images=signer_images,
         )
         c.showPage()
     c.save()
@@ -531,22 +521,7 @@ def build_certificates_pdf(
 
 
 def _draw_certificate_page(
-    c,
-    w,
-    h,
-    *,
-    company_name,
-    training,
-    employee,
-    belge_no,
-    bugun,
-    egitim_tarihi,
-    kural,
-    sektor,
-    sol,
-    sag,
-    curriculum=None,
-    signer_images=None,
+    c, w, h, *, company_name, training, employee, belge_no, bugun, egitim_tarihi, kural, sektor, sol, sag, curriculum=None
 ):
     curriculum = curriculum or {}
     ml, mr = 8 * mm, 8 * mm
@@ -663,27 +638,11 @@ def _draw_certificate_page(
         name_size = 8 if len(person or "") < 22 else 7
         c.setFont(_FONT_B, name_size)
         c.drawCentredString(x + box_w / 2, iy + bh - 13 * mm, _fit(c, person or " ", box_w - 4 * mm, _FONT_B, name_size))
-        # İmza bandı: ad (iy+15mm) ile unvan (iy+4mm) arasındaki boşluk
-        stamped = False
-        signer_image = (signer_images or {}).get(i)
-        if signer_image:
-            from app.services.e_signature import draw_signature_image
-
-            stamped = draw_signature_image(
-                c,
-                image_bytes=signer_image,
-                x=x + 8 * mm,
-                y=iy + 6.3 * mm,
-                max_w=box_w - 16 * mm,
-                max_h=7.2 * mm,
-            )
-        if not stamped:
-            c.setStrokeColorRGB(0.4, 0.4, 0.4)
-            c.line(x + 5 * mm, iy + 10 * mm, x + box_w - 5 * mm, iy + 10 * mm)
+        c.setStrokeColorRGB(0.4, 0.4, 0.4)
+        c.line(x + 5 * mm, iy + 10 * mm, x + box_w - 5 * mm, iy + 10 * mm)
         c.setFillColorRGB(0.45, 0.45, 0.45)
         c.setFont(_FONT, 6)
-        label = f"{unvan} · E-imza" if stamped else unvan
-        c.drawCentredString(x + box_w / 2, iy + 4 * mm, _fit(c, label, box_w - 4 * mm, _FONT, 6))
+        c.drawCentredString(x + box_w / 2, iy + 4 * mm, unvan)
 
     # Topics header
     ty = iy - 4 * mm

@@ -1113,7 +1113,7 @@ function SecurityPage({user}){
       if(s.has_image){
         const token=localStorage.getItem('isg_token');
         const base=(import.meta.env.VITE_API_URL||(window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1'?`${window.location.protocol}//${window.location.hostname}:8000/api/v1`:`${window.location.origin}/api/v1`));
-        const res=await fetch(`${base}/security/e-signature/image?prepared=1`,{headers:token?{Authorization:`Bearer ${token}`}:{}});
+        const res=await fetch(`${base}/security/e-signature/image`,{headers:token?{Authorization:`Bearer ${token}`}:{}});
         if(res.ok){
           const blob=await res.blob();
           setESignPreview(prev=>{if(prev) URL.revokeObjectURL(prev); return URL.createObjectURL(blob)});
@@ -1139,7 +1139,7 @@ function SecurityPage({user}){
           const token=localStorage.getItem('isg_token');
           const host=window.location.hostname;
           const base=import.meta.env.VITE_API_URL||((host==='localhost'||host==='127.0.0.1')?`${window.location.protocol}//${host}:8000/api/v1`:`${window.location.origin}/api/v1`);
-          const res=await fetch(`${base}/security/e-signature/image?prepared=1`,{headers:token?{Authorization:`Bearer ${token}`}:{}});
+          const res=await fetch(`${base}/security/e-signature/image`,{headers:token?{Authorization:`Bearer ${token}`}:{}});
           if(cancelled) return;
           if(res.ok){
             const blob=await res.blob();
@@ -1198,7 +1198,7 @@ function SecurityPage({user}){
     setESignBusy(true);setESignMsg('');
     try{
       await uploadFile('/security/e-signature/image',file);
-      setESignMsg('İmza görseli kaydedildi. Katılımcı imza formu ve katılım belgesindeki kutunuza basılır.');
+      setESignMsg('İmza görseli kaydedildi. Eğitim imza formunda «Eğitimi Veren» kutusuna basılır.');
       await loadESign();
     }catch(err){setESignMsg(err.message||'Yükleme başarısız')}
     finally{setESignBusy(false)}
@@ -1334,18 +1334,13 @@ function SecurityPage({user}){
           iBYSiS’teki yalnızca HSNSigner notundan daha net: durum, önizleme, denetim kaydı.
         </p>
         <div style={{display:'flex',gap:16,flexWrap:'wrap',alignItems:'flex-start'}}>
-          <div>
-            <div style={{
-              width:190,height:72,border:'1px solid #cbd5e1',borderRadius:8,
-              display:'flex',alignItems:'center',justifyContent:'center',background:'#f7f9fc',overflow:'hidden',
-            }}>
-              {eSignPreview
-                ? <img src={eSignPreview} alt="İmza önizleme" style={{maxWidth:'90%',maxHeight:'80%',objectFit:'contain'}}/>
-                : <span style={{fontSize:12,color:'#94a3b8'}}>Önizleme yok</span>}
-            </div>
-            <div style={{fontSize:11,color:'#94a3b8',marginTop:4,textAlign:'center',width:190}}>
-              {eSignPreview?'PDF’e bu şekilde basılır':'PNG/JPEG yükleyin'}
-            </div>
+          <div style={{
+            width:160,height:72,border:'1px dashed #cbd5e1',borderRadius:8,
+            display:'flex',alignItems:'center',justifyContent:'center',background:'#f8fafc',overflow:'hidden',
+          }}>
+            {eSignPreview
+              ? <img src={eSignPreview} alt="İmza önizleme" style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain'}}/>
+              : <span style={{fontSize:12,color:'#94a3b8'}}>Önizleme yok</span>}
           </div>
           <div style={{flex:1,minWidth:200}}>
             <div style={{fontSize:13,marginBottom:8}}>
@@ -1370,12 +1365,8 @@ function SecurityPage({user}){
         </form>
         {eSignMsg&&<p style={{fontSize:13,color:eSignMsg.toLowerCase().includes('silindi')||eSignMsg.toLowerCase().includes('kaydedildi')?'#166534':'#b91c1c'}}>{eSignMsg}</p>}
         <p style={{marginBottom:0,fontSize:12,color:'#94a3b8'}}>
-          Nasıl çalışır: Ad-soyadınız bir eğitim kaydında «Eğitimi Veren» veya
-          «İşyeri Hekimi» olarak yazıyorsa, o eğitimin <strong>katılımcı imza formu</strong> ve{' '}
-          <strong>katılım belgesi</strong> PDF’lerini kim indirirse indirsin sizin imzanız
-          otomatik basılır. Ad-soyadınızın eğitim kaydındakiyle birebir aynı olduğundan emin olun.
-          Beyaz zemin ve fazla boşluk otomatik temizlenir; yukarıdaki önizleme PDF’teki hâlidir.
-          Bakanlık İBYS/KATİP canlı gönderimi ayrı izin + sunucu anahtarı gerektirir.
+          Eğitim → Katılımcı imza formu PDF’inde «Eğitimi Veren» kutusuna otomatik basılır.
+          Bakanlık İBYS/KATİP canlı API ayrı izin + sunucu anahtarı ister.
         </p>
       </section>
       <section className="panel">
