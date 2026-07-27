@@ -707,6 +707,10 @@ html[data-ui-theme="modern"] .eisa-osgb-users tbody tr:hover td:last-child{
   -webkit-overflow-scrolling:touch;
   background:rgba(18,42,52,.52) !important;
 }
+/* QR kamera — Defter/AppModal üstünde (200) */
+.modal-bg.site-qr-camera-overlay{
+  z-index:320 !important;
+}
 .modal-wide{ width:min(1100px, 100%); }
 .modal{
   margin:auto;

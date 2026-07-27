@@ -1416,6 +1416,7 @@ export function VisitsPage({user}){
     if(cameraOk){
      pendingVisitSaveRef.current=true;
      setBusy(false);
+     setErr('Kaydetmek için işyeri QR kodunu kamerayla okutun. Okutulunca kayıt otomatik tamamlanır.');
      openCameraScan('visit');
      return;
     }
@@ -1453,6 +1454,8 @@ export function VisitsPage({user}){
    }
    setOpen(false);setEditing(null);setNotebookFile(null);setSiteQr('');
    setForm(f=>({...emptyForm,osgb_id:f.osgb_id||oid||''}));
+   setKioskMsg(editing?'Ziyaret güncellendi.':'Defter + QR kaydı tamamlandı ✓');
+   setErr('');
    await load();
   }catch(ex){setErr(ex.message||'Kayıt başarısız.')}
   finally{setBusy(false)}
@@ -1481,6 +1484,7 @@ export function VisitsPage({user}){
     if(cameraOk){
      pendingCompleteSaveRef.current=true;
      setBusy(false);
+     setErr('Tamamlamak için işyeri QR kodunu kamerayla okutun.');
      openCameraScan('complete');
      return;
     }
@@ -1508,6 +1512,8 @@ export function VisitsPage({user}){
     throw ex;
    }
    setVerifyOpen(false);setVerifyVisitId(null);setCompleteQr('');setSignatureData(null);
+   setKioskMsg('Ziyaret tamamlandı ✓');
+   setErr('');
    await load();
   }catch(ex){setErr(ex.message||'Tamamlanamadı.')}
   finally{setBusy(false)}

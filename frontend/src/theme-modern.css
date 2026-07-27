@@ -545,6 +545,9 @@ html[data-ui-theme="modern"] .modal-bg {
   backdrop-filter: blur(7px);
   animation: m-fade .18s ease both;
 }
+html[data-ui-theme="modern"] .modal-bg.site-qr-camera-overlay {
+  z-index: 320;
+}
 html[data-ui-theme="modern"] .modal {
   background: rgba(255, 255, 255, .93);
   backdrop-filter: blur(26px) saturate(1.4);

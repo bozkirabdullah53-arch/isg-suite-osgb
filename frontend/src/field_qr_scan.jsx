@@ -1,10 +1,11 @@
 import React,{useEffect,useRef,useState} from 'react';
+import {createPortal} from 'react-dom';
 import jsQR from 'jsqr';
 import {QrCode,ScanLine} from 'lucide-react';
 
 /**
- * Mobil saha QR kamera okuyucu — mevcut ziyaret/tamamlama akışına dokunmaz.
- * Destek yoksa veya izin reddedilirse üst bileşen yapıştırma alanını kullanır.
+ * Mobil saha QR kamera okuyucu — body portal + yüksek z-index.
+ * Defter/AppModal (z-index 200) üzerinde görünür.
  */
 export function SiteQrCameraModal({open,mode,onClose,onDetected}){
   const videoRef=useRef(null);
@@ -23,7 +24,7 @@ export function SiteQrCameraModal({open,mode,onClose,onDetected}){
     setCamErr('');
     setHint(
       mode==='out'?'Çıkış için işyeri QR’sını okutun.'
-      :mode==='visit'||mode==='complete'?'İşyeri QR’sını çerçeveye tutun.'
+      :mode==='visit'||mode==='complete'?'İşyeri QR’sını çerçeveye tutun — kayıt için gerekli.'
       :'Giriş için işyeri QR’sını okutun.'
     );
     let cancelled=false;
@@ -87,9 +88,13 @@ export function SiteQrCameraModal({open,mode,onClose,onDetected}){
     };
   },[open,mode]);
 
-  if(!open) return null;
-  return (
-    <div className="modal-bg" style={{zIndex:50}} onMouseDown={e=>{if(e.target===e.currentTarget) onClose?.()}}>
+  if(!open||typeof document==='undefined') return null;
+  return createPortal(
+    <div
+      className="modal-bg site-qr-camera-overlay"
+      style={{zIndex:300}}
+      onMouseDown={e=>{if(e.target===e.currentTarget) onClose?.()}}
+    >
       <section className="modal" style={{maxWidth:520,width:'min(96vw,520px)'}}>
         <header style={{display:'flex',alignItems:'center',gap:10}}>
           <span style={{display:'inline-flex',color:'#0f766e'}} aria-hidden>
@@ -122,6 +127,7 @@ export function SiteQrCameraModal({open,mode,onClose,onDetected}){
           </div>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }
