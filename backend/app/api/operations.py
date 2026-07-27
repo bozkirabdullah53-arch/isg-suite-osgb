@@ -445,6 +445,43 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
             "text": f"{sds_due_soon_count} SDS / PKD gozden gecirme 30 gun icinde",
         })
 
+    # QR / saha ziyaretleri — ServiceVisit (check-in/out + defter) profesyonel performansa da akar
+    month_start = today.replace(day=1)
+    if today.month == 12:
+        month_end = date(today.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        month_end = date(today.year, today.month + 1, 1) - timedelta(days=1)
+    visit_month = list(
+        db.scalars(
+            select(ServiceVisit).where(
+                ServiceVisit.osgb_id == oid,
+                ServiceVisit.visit_date >= month_start,
+                ServiceVisit.visit_date <= month_end,
+            )
+        ).all()
+    )
+    visits_this_month = len(visit_month)
+    visits_qr_checkins = sum(1 for v in visit_month if getattr(v, "checked_in_at", None))
+    visits_completed = sum(
+        1
+        for v in visit_month
+        if (v.status.value if hasattr(v.status, "value") else str(v.status))
+        in (VisitStatus.COMPLETED.value, "COMPLETED", "completed")
+        or bool(getattr(v, "checked_out_at", None))
+    )
+    visits_open_on_site = sum(
+        1
+        for v in visit_month
+        if getattr(v, "checked_in_at", None) and not getattr(v, "checked_out_at", None)
+    )
+    visits_minutes = sum(int(v.duration_minutes or 0) for v in visit_month if int(v.duration_minutes or 0) > 0)
+    visit_alerts = []
+    if visits_open_on_site:
+        visit_alerts.append({
+            "level": "warning",
+            "text": f"{visits_open_on_site} profesyonel sahada (QR giris acik, cikis bekleniyor)",
+        })
+
     return {
         "osgb_id": oid,
         "workplaces": workplaces,
@@ -464,7 +501,13 @@ def osgb_dashboard(osgb_id: int | None = None, db: Session = Depends(get_db), us
         "sds_overdue_count": sds_overdue_count,
         "sds_due_soon_count": sds_due_soon_count,
         "sds_alerts": sds_alerts,
-        "kpi_version": "dashboard-finance-contracts-sds-v3",
+        "visits_this_month": visits_this_month,
+        "visits_qr_checkins": visits_qr_checkins,
+        "visits_completed": visits_completed,
+        "visits_open_on_site": visits_open_on_site,
+        "visits_minutes": visits_minutes,
+        "visit_alerts": visit_alerts,
+        "kpi_version": "dashboard-visits-qr-v4",
     }
 
 

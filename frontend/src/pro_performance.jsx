@@ -487,6 +487,7 @@ export function ProPerformancePage({user}) {
                                   <th>Tarih</th>
                                   <th>Süre</th>
                                   <th>Konu</th>
+                                  <th>QR</th>
                                   <th>Durum</th>
                                   <th>Defter</th>
                                 </tr>
@@ -497,6 +498,13 @@ export function ProPerformancePage({user}) {
                                     <td>{v.visit_date || '—'}</td>
                                     <td>{v.duration_minutes || 0} dk</td>
                                     <td style={{fontSize: 13}}>{v.subject || '—'}</td>
+                                    <td style={{fontSize: 12, whiteSpace: 'nowrap'}}>
+                                      {v.open_on_site
+                                        ? 'Sahada'
+                                        : (v.checked_in_at || v.checked_out_at)
+                                          ? '✓'
+                                          : '—'}
+                                    </td>
                                     <td>{v.status || '—'}</td>
                                     <td>
                                       {v.has_notebook ? (

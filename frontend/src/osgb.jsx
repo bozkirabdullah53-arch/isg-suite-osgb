@@ -481,7 +481,7 @@ export function OsgbDashboard({user, onNavigate}){
     </small>
    </article>
   </div>
-  {((data?.finance_alerts||[]).length>0||(data?.contract_alerts||[]).length>0||(data?.sds_alerts||[]).length>0)&&(
+  {((data?.finance_alerts||[]).length>0||(data?.contract_alerts||[]).length>0||(data?.sds_alerts||[]).length>0||(data?.visit_alerts||[]).length>0)&&(
    <div style={{display:'grid',gap:8,marginBottom:16}}>
     {(data?.finance_alerts||[]).map((a,i)=>(
      <div key={'f'+i} style={{padding:'10px 12px',borderRadius:10,background:a.level==='critical'?'#fee2e2':'#fef3c7',color:a.level==='critical'?'#991b1b':'#92400e',fontSize:13,fontWeight:600,cursor:'pointer'}} onClick={()=>go('finance')}>
@@ -498,14 +498,43 @@ export function OsgbDashboard({user, onNavigate}){
       {a.text}
      </div>
     ))}
+    {(data?.visit_alerts||[]).map((a,i)=>(
+     <div key={'v'+i} style={{padding:'10px 12px',borderRadius:10,background:a.level==='critical'?'#fee2e2':'#fef3c7',color:a.level==='critical'?'#991b1b':'#92400e',fontSize:13,fontWeight:600,cursor:'pointer'}} onClick={()=>go('visits')}>
+      {a.text}
+     </div>
+    ))}
    </div>
   )}
 
   <div className="cards osgb-cards" style={{marginBottom:16}}>
+   <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('visits')} title="Saha takvimine git">
+    <span>Bu Ay Saha Ziyareti</span>
+    <strong>{data?.visits_this_month??'—'}</strong>
+    <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>
+     QR giriş {data?.visits_qr_checkins??0} · Tamamlanan {data?.visits_completed??0}
+    </small>
+   </article>
+   <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('visits')} title="Açık QR girişleri">
+    <span>Şu An Sahada</span>
+    <strong style={{color:(data?.visits_open_on_site||0)>0?'#0f766e':undefined}}>{data?.visits_open_on_site??0}</strong>
+    <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>
+      QR giriş açık, çıkış bekleniyor
+    </small>
+   </article>
+   <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('pro_performance')} title="Performans — saha süresi">
+    <span>Bu Ay Saha Süresi</span>
+    <strong>{data?.visits_minutes!=null?`${data.visits_minutes} dk`:'—'}</strong>
+    <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11,fontWeight:600}}>
+     Uzman / hekim performansına işler
+    </small>
+   </article>
    <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('osgb_oversight')} title="Hizmet denetimine git">
     <span>Kritik Profesyonel</span>
     <strong style={{color:(sum.critical||0)>0?'#b91c1c':undefined}}>{sum.critical??'—'}</strong>
    </article>
+  </div>
+
+  <div className="cards osgb-cards" style={{marginBottom:16}}>
    <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('osgb_oversight')} title="Hizmet denetimine git">
     <span>İzlem Gereken</span>
     <strong style={{color:(sum.warning||0)>0?'#b45309':undefined}}>{sum.warning??'—'}</strong>
@@ -517,6 +546,10 @@ export function OsgbDashboard({user, onNavigate}){
    <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('visits')} title="Saha takvimine git">
     <span>Saha Takvimi</span>
     <strong style={{fontSize:16}}>İzle / Müdahale</strong>
+   </article>
+   <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('pro_performance')} title="Performans raporuna git">
+    <span>Performans</span>
+    <strong style={{fontSize:16}}>Uzman / Hekim</strong>
    </article>
   </div>
 
