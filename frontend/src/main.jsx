@@ -13,7 +13,7 @@ import {createRoot} from 'react-dom/client';
   }catch{ /* ignore */ }
 })();
 
-import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Menu,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Undo2,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
+import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Menu,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
 import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
 import {clearOfflineQueue} from './field_offline';
 import {LoginPasswordInput, PasswordField} from './password_field';
@@ -1424,17 +1424,42 @@ function ThemeToggle({theme,onToggle,floating}){
       title={label}
       aria-label={label}
     >
-      {modern?<Undo2 size={15}/>:<Sparkles size={15}/>}
+      {modern?<Contrast size={15}/>:<Sparkles size={15}/>}
       <span>{modern?'Klasik':'Premium'}</span>
     </button>
   );
 }
+
+/** Menü geçmişi — tarayıcı Geri/İleri uygulamada kalsın */
+function readModuleFromLocation(){
+  try{
+    const h=String(window.location.hash||'').replace(/^#/, '');
+    if(h.startsWith('m=')) return decodeURIComponent(h.slice(2).split('&')[0]||'');
+    if(h.startsWith('/')) return decodeURIComponent(h.slice(1).split(/[?#]/)[0]||'');
+    const q=new URLSearchParams(window.location.search).get('m');
+    if(q) return q;
+  }catch(_){ /* ignore */ }
+  return '';
+}
+function writeModuleToLocation(id,{replace=false}={}){
+  try{
+    const u=new URL(window.location.href);
+    u.searchParams.delete('m');
+    u.hash=id?`m=${encodeURIComponent(id)}`:'';
+    const url=u.pathname+(u.search||'')+(u.hash||'');
+    if(replace) window.history.replaceState({module:id||''},'',url||'/');
+    else window.history.pushState({module:id||''},'',url||'/');
+  }catch(_){ /* ignore */ }
+}
+
 function App(){
   const[uiTheme,toggleUiTheme]=useUiTheme();
   const[logged,setLogged]=useState(!!localStorage.getItem('isg_token'));
   const[user,setUser]=useState(null);
   const[summary,setSummary]=useState(null);
   const[active,setActive]=useState(()=>{
+    const fromUrl=readModuleFromLocation();
+    if(fromUrl) return fromUrl;
     try{return sessionStorage.getItem('isg_active')||''}catch{return ''}
   });
   const[c360Id,setC360Id]=useState(null);
@@ -1456,7 +1481,7 @@ function App(){
     }catch(_){ /* ignore */ }
   }
 
-  function goModule(id){
+  function goModule(id,{replace=false}={}){
     setMobileMoreOpen(false);
     if(id!=='customer_360') setC360Id(null);
     const allowed=modulesForUser(user);
@@ -1468,23 +1493,27 @@ function App(){
       if(home){
         setActive(home);
         try{sessionStorage.setItem('isg_active',home)}catch(_){ /* ignore */ }
+        writeModuleToLocation(home,{replace:true});
       }
       return;
     }
     setActive(id);
     try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
+    writeModuleToLocation(id,{replace});
   }
 
   function openCustomer360(companyId){
     setC360Id(companyId);
     setActive('customer_360');
     try{sessionStorage.setItem('isg_active','customer_360')}catch(_){ /* ignore */ }
+    writeModuleToLocation('customer_360');
   }
 
   function closeCustomer360(){
     setC360Id(null);
     setActive('companies');
     try{sessionStorage.setItem('isg_active','companies')}catch(_){ /* ignore */ }
+    writeModuleToLocation('companies');
   }
 
   useEffect(()=>{
@@ -1541,23 +1570,24 @@ function App(){
         setSummary(s);
         const allowed=modulesForUser(u);
         const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
-        setActive((prev)=>{
-          let next='';
-          if(verifyCode && allowed.includes('training')) next='training';
-          else if(prev && allowed.includes(prev)) next=prev;
-          else {
-            try{
-              const saved=sessionStorage.getItem('isg_active');
-              if(saved && allowed.includes(saved)) next=saved;
-            }catch(_){ /* ignore */ }
-          }
-          if(!next){
-            if(fieldRoles.includes(u.role) && allowed.includes('visits')) next='visits';
-            else next=allowed[0]||'';
-          }
-          try{if(next) sessionStorage.setItem('isg_active',next)}catch(_){ /* ignore */ }
-          return next;
-        });
+        const fromUrl=readModuleFromLocation();
+        let next='';
+        if(verifyCode && allowed.includes('training')) next='training';
+        else if(fromUrl && (fromUrl==='customer_360' || allowed.includes(fromUrl))) next=fromUrl;
+        else if(active && (active==='customer_360' || allowed.includes(active))) next=active;
+        else {
+          try{
+            const saved=sessionStorage.getItem('isg_active');
+            if(saved && (saved==='customer_360' || allowed.includes(saved))) next=saved;
+          }catch(_){ /* ignore */ }
+        }
+        if(!next){
+          if(fieldRoles.includes(u.role) && allowed.includes('visits')) next='visits';
+          else next=allowed[0]||'';
+        }
+        setActive(next);
+        try{if(next) sessionStorage.setItem('isg_active',next)}catch(_){ /* ignore */ }
+        if(next) writeModuleToLocation(next,{replace:true});
       }catch(_){
         if(cancelled) return;
         localStorage.removeItem('isg_token');
@@ -1568,6 +1598,35 @@ function App(){
     })();
     return ()=>{cancelled=true};
   },[logged,verifyCode]);
+
+  // Tarayıcı Geri/İleri: uygulama içinde önceki menüye dön
+  useEffect(()=>{
+    if(!user) return undefined;
+    function onPop(){
+      const id=readModuleFromLocation();
+      const allowed=modulesForUser(user);
+      if(id && (id==='customer_360' || allowed.includes(id))){
+        setActive(id);
+        if(id!=='customer_360') setC360Id(null);
+        try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
+        return;
+      }
+      const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
+      let home='';
+      if(allowed.includes('eisa_overview')) home='eisa_overview';
+      else if(allowed.includes('osgb_dashboard')) home='osgb_dashboard';
+      else if(fieldRoles.includes(user.role) && allowed.includes('visits')) home='visits';
+      else if(allowed.includes('dashboard')) home='dashboard';
+      else home=allowed[0]||'';
+      if(home){
+        setActive(home);
+        try{sessionStorage.setItem('isg_active',home)}catch(_){ /* ignore */ }
+        writeModuleToLocation(home,{replace:true});
+      }
+    }
+    window.addEventListener('popstate',onPop);
+    return ()=>window.removeEventListener('popstate',onPop);
+  },[user]);
 
   // Aktif menü (ör. Eğitimler) her zaman görünür olsun
   useEffect(()=>{
