@@ -127,7 +127,7 @@ class ProfessionalLoginAccount(BaseModel):
     user_id: int
     email: str
     full_name: str
-    temporary_password: str
+    temporary_password: str = ""
     created: bool
     message: str = "Geçici giriş şifresi oluşturuldu. Profesyonel Güvenlik menüsünden değiştirebilir."
 

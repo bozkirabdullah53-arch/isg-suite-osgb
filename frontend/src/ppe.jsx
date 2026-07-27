@@ -86,31 +86,32 @@ export function PpePage({user}) {
 
   const load = async () => {
     setErr('');
-    const [c, e, cat] = await Promise.all([
+    const [c, cat] = await Promise.all([
       api('/companies'),
-      api('/employees'),
       api('/ppe/catalog'),
     ]);
     setCompanies(c);
-    setEmployees(e);
     setCatalog(cat);
     const cid = companyId || user.company_id || c[0]?.id;
     if (cid && !companyId) setCompanyId(String(cid));
     if (!cid) {
       setRows([]);
       setDue(null);
+      setEmployees([]);
       if (user.role === 'global_admin') setErr('KKD listesi için firma seçiniz.');
       return;
     }
     const params = new URLSearchParams({company_id: String(cid)});
     if (q) params.set('q', q);
     if (statusFilter) params.set('status', statusFilter);
-    const [list, summary] = await Promise.all([
+    const [list, summary, e] = await Promise.all([
       api(`/ppe/assignments?${params}`),
       api(`/ppe/due-summary?company_id=${cid}`),
+      api(`/employees?company_id=${Number(cid)}&active=true`),
     ]);
     setRows(list);
     setDue(summary);
+    setEmployees(Array.isArray(e) ? e : []);
   };
 
   useEffect(() => {

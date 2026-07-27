@@ -548,11 +548,10 @@ def create_professional(payload: ProfessionalCreate, db: Session = Depends(get_d
             temporary_password=temp_password,
             created=created,
             message=(
-                "Giriş hesabı oluşturuldu."
+                "Giriş hesabı oluşturuldu. Profesyonel e-posta ve bu şifre ile giriş yapar; isterse Güvenlik menüsünden değiştirir."
                 if created
-                else "Mevcut hesaba yeni geçici şifre atandı."
-            )
-            + " Profesyonel e-posta ve bu şifre ile giriş yapar; isterse Güvenlik menüsünden değiştirir.",
+                else "Mevcut giriş hesabı bağlandı; şifre değiştirilmedi. Profesyonel kendi şifresi veya şifremi unuttum ile giriş yapar."
+            ),
         ),
     )
 

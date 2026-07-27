@@ -196,7 +196,9 @@ function AdminCredentialsModal({ data, onClose }) {
         <header><h3>OSGB Giriş Bilgileri</h3></header>
         <div className="form-grid single">
           <p style={{ marginTop: 0, color: '#64748b' }}>
-            Bu geçici şifreyi OSGB yöneticisine güvenli kanaldan iletin. İlk girişten sonra şifresini değiştirmesini isteyin.
+            {data.temporary_password
+              ? 'Bu geçici şifreyi OSGB yöneticisine güvenli kanaldan iletin. İlk girişten sonra şifresini değiştirmesini isteyin.'
+              : 'Hesap mevcut; şifre değiştirilmedi. Yönetici kendi şifresi veya giriş ekranındaki «Şifremi unuttum» ile devam eder.'}
           </p>
           <p><strong>OSGB:</strong> {data.osgb_name}</p>
           <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -206,18 +208,22 @@ function AdminCredentialsModal({ data, onClose }) {
             }}>E-postayı kopyala</button>
           </p>
           <p><strong>Ad:</strong> {data.full_name}</p>
-          <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span><strong>Geçici şifre:</strong> <code style={{ userSelect: 'all' }}>{data.temporary_password}</code></span>
-            <button type="button" className="mini" onClick={async () => {
-              setCopyMsg((await copyText(data.temporary_password)) ? 'Şifre kopyalandı.' : 'Kopyalanamadı.');
-            }}>Şifreyi kopyala</button>
-          </p>
-          <div className="actions" style={{ gap: 8, flexWrap: 'wrap' }}>
-            <button type="button" className="secondary" onClick={async () => {
-              const text = `Kullanıcı adı: ${data.email}\nGeçici şifre: ${data.temporary_password}`;
-              setCopyMsg((await copyText(text)) ? 'E-posta ve şifre kopyalandı.' : 'Kopyalanamadı.');
-            }}>E-posta + şifreyi kopyala</button>
-          </div>
+          {data.temporary_password ? (
+            <>
+              <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span><strong>Geçici şifre:</strong> <code style={{ userSelect: 'all' }}>{data.temporary_password}</code></span>
+                <button type="button" className="mini" onClick={async () => {
+                  setCopyMsg((await copyText(data.temporary_password)) ? 'Şifre kopyalandı.' : 'Kopyalanamadı.');
+                }}>Şifreyi kopyala</button>
+              </p>
+              <div className="actions" style={{ gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" className="secondary" onClick={async () => {
+                  const text = `Kullanıcı adı: ${data.email}\nGeçici şifre: ${data.temporary_password}`;
+                  setCopyMsg((await copyText(text)) ? 'E-posta ve şifre kopyalandı.' : 'Kopyalanamadı.');
+                }}>E-posta + şifreyi kopyala</button>
+              </div>
+            </>
+          ) : null}
           {copyMsg && <p style={{ color: copyMsg.includes('amadı') ? '#b91c1c' : '#166534', margin: 0 }}>{copyMsg}</p>}
           <p style={{ color: '#166534' }}>{data.message}</p>
           <div className="form-actions">
@@ -519,9 +525,11 @@ export function EisaOsgbUsersPage() {
                 <td>{r.is_active ? 'Aktif' : 'Pasif'}</td>
                 <td>
                   <div className="actions eisa-row-actions">
-                    <button type="button" className="mini secondary" disabled={busy} onClick={() => provisionAdmin(r)}>
-                      {r.has_admin_user ? 'Şifre Sıfırla' : 'Yönetici Oluştur'}
-                    </button>
+                    {!r.has_admin_user ? (
+                      <button type="button" className="mini secondary" disabled={busy} onClick={() => provisionAdmin(r)}>
+                        Yönetici Oluştur
+                      </button>
+                    ) : null}
                     <button type="button" className="mini secondary" disabled={busy} onClick={() => toggleActive(r)}>
                       {r.is_active ? 'Pasife Al' : 'Aktifleştir'}
                     </button>

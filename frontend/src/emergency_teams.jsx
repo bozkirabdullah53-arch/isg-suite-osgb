@@ -156,7 +156,7 @@ export function EmergencyTeamsPage({user}) {
       const [ov, mem, emp] = await Promise.all([
         api(`/emergency-teams/overview?company_id=${cid}`),
         api(`/emergency-teams/assignments?${buildAssignmentQuery(cid)}`),
-        api('/employees'),
+        api(`/employees?company_id=${Number(cid)}&active=true`),
       ]);
       setOverview(ov);
       setMembers(mem || []);

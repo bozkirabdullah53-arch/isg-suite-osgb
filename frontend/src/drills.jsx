@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {Activity, Download, Plus, RefreshCw, Upload} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
@@ -47,24 +47,19 @@ export function DrillsPage({user}) {
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
 
-  const companyEmployees = useMemo(
-    () => employees.filter((e) => String(e.company_id) === String(form.company_id)),
-    [employees, form.company_id],
-  );
+  const companyEmployees = employees;
 
   async function load(nextQ = q) {
     setBusy(true);
     setErr('');
     try {
       const qs = nextQ.trim() ? `?q=${encodeURIComponent(nextQ.trim())}` : '';
-      const [c, e, r, m] = await Promise.all([
+      const [c, r, m] = await Promise.all([
         api('/companies'),
-        api('/employees'),
         api(`/drills${qs}`),
         api('/drills/meta'),
       ]);
       setCompanies(c);
-      setEmployees(e);
       setRows(r);
       setMeta(m || {types: [], statuses: []});
     } catch (ex) {
@@ -74,10 +69,28 @@ export function DrillsPage({user}) {
     }
   }
 
+  async function loadEmployees(cid) {
+    if (!cid) {
+      setEmployees([]);
+      return;
+    }
+    try {
+      const e = await api(`/employees?company_id=${Number(cid)}&active=true`);
+      setEmployees(Array.isArray(e) ? e : []);
+    } catch {
+      setEmployees([]);
+    }
+  }
+
   useEffect(() => {
     void load('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    void loadEmployees(form.company_id || user.company_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.company_id]);
 
   function toggleEmployee(id) {
     setForm((f) => {

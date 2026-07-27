@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,KeyRound,LayoutDashboard,LogOut,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Undo2,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
 import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
 import {clearOfflineQueue} from './field_offline';
+import {LoginPasswordInput, PasswordField} from './password_field';
 import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';
 import {OsgbOversightPage} from './osgb_oversight';
 import {LegalAcceptancesPanel} from './legal_acceptances';
@@ -293,7 +294,7 @@ function Login({done,onApply}){
           {mode==='login'&&(
             <form onSubmit={submitLogin}>
               <label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email" required/>
-              <label>Şifre</label><input value={password} onChange={e=>setPassword(e.target.value)} type="password" required/>
+              <LoginPasswordInput label="Şifre" value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="current-password"/>
               {err&&<div className="error">{err}</div>}
               <button disabled={busy}>Giriş Yap</button>
               <p style={{marginTop:12,fontSize:13}}><button type="button" className="linkish" onClick={()=>{setMode('forgot');setErr('');setMsg('')}}>Şifremi unuttum</button></p>
@@ -312,7 +313,7 @@ function Login({done,onApply}){
           {mode==='reset'&&(
             <form onSubmit={submitReset}>
               <p style={{color:'#64748b',fontSize:14}}>Yeni şifrenizi belirleyin (en az 10 karakter).</p>
-              <label>Yeni şifre</label><input value={newPassword} onChange={e=>setNewPassword(e.target.value)} type="password" minLength={10} required/>
+              <LoginPasswordInput label="Yeni şifre" value={newPassword} onChange={e=>setNewPassword(e.target.value)} minLength={10} required autoComplete="new-password"/>
               {err&&<div className="error">{err}</div>}
               {msg&&<p style={{color:'#166534'}}>{msg}</p>}
               <button disabled={busy}>Şifreyi güncelle</button>
@@ -793,7 +794,7 @@ function UserPage({user}){
       <form className="form-grid" onSubmit={save}>
         <Field label="Ad Soyad" required value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})}/>
         <Field label="E-posta" type="email" required value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/>
-        <Field label="Geçici Şifre" type="password" minLength="10" required value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/>
+        <PasswordField label="Geçici Şifre" minLength="10" required value={form.password} onChange={e=>setForm({...form,password:e.target.value})} autoComplete="new-password"/>
         <Select label="Rol" value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>
           {Object.entries(roles).filter(([k])=>user.role==='global_admin'||k!=='global_admin').map(([k,v])=><option key={k} value={k}>{v}</option>)}
         </Select>
@@ -1054,10 +1055,11 @@ function SecurityPage({user}){
       <section className="panel">
         <h3>Şifre Değiştir</h3>
         <form className="form-grid single" onSubmit={save}>
-          <Field label="Mevcut Şifre" type="password" required value={form.current_password} onChange={e=>setForm({...form,current_password:e.target.value})}/>
-          <Field label="Yeni Şifre" type="password" minLength="10" required value={form.new_password} onChange={e=>setForm({...form,new_password:e.target.value})}/>
+          <PasswordField label="Mevcut Şifre" required value={form.current_password} onChange={e=>setForm({...form,current_password:e.target.value})} autoComplete="current-password"/>
+          <PasswordField label="Yeni Şifre" minLength="10" required value={form.new_password} onChange={e=>setForm({...form,new_password:e.target.value})} autoComplete="new-password"/>
           <Submit/>{message&&<p>{message}</p>}
         </form>
+        <p style={{marginTop:12,color:'#64748b',fontSize:13}}>Yalnızca kendi şifrenizi değiştirebilirsiniz. Hiçbir yönetici (EİSA dahil) başkasının şifresine müdahale edemez.</p>
         <div style={{marginTop:16,paddingTop:12,borderTop:'1px solid #e2e8f0'}}>
           <p style={{marginTop:0,color:'#64748b',fontSize:14}}>Şüpheli giriş veya kayıp cihaz için tüm oturumları kapatın.</p>
           <button type="button" className="secondary" onClick={logoutAllDevices}>Tüm cihazlardan çıkış</button>
@@ -1087,7 +1089,7 @@ function SecurityPage({user}){
         )}
         {mfaStatus.mfa_enabled&&(
           <form className="form-grid single" onSubmit={disableMfa} style={{marginTop:12}}>
-            <Field label="Şifre" type="password" required value={disableForm.password} onChange={e=>setDisableForm({...disableForm,password:e.target.value})}/>
+            <PasswordField label="Şifre" required value={disableForm.password} onChange={e=>setDisableForm({...disableForm,password:e.target.value})} autoComplete="current-password"/>
             <Field label="Authenticator kodu" value={disableForm.code} onChange={e=>setDisableForm({...disableForm,code:e.target.value})} required/>
             <button type="submit" className="secondary">MFA kapat</button>
           </form>
@@ -1098,7 +1100,7 @@ function SecurityPage({user}){
         <ul>
           <li>Yeni şifre en az 10 karakter olmalıdır.</li>
           <li>EİSA / OSGB yöneticilerinde MFA zorunludur.</li>
-          <li>Şifre sıfırlama e-posta ile yapılır (SMTP yapılandırılmışsa).</li>
+          <li>Şifre yalnızca hesap sahibi tarafından değiştirilir veya e-posta ile sıfırlanır; yöneticiler başkasının şifresini göremez/değiştiremez.</li>
           <li>Varsayılan demo şifresi mutlaka değiştirilmelidir.</li>
         </ul>
       </section>

@@ -59,7 +59,11 @@ def provision_osgb_admin(
     full_name: str,
     application: OsgbApplication | None = None,
 ) -> tuple[User, str, bool]:
-    """OSGB yönetici hesabı oluştur veya mevcut hesaba geçici şifre ata."""
+    """OSGB yönetici hesabı oluştur.
+
+    Mevcut hesapta şifre ASLA değiştirilmez (global admin dahil).
+    Şifre yalnızca ilk oluşturmada üretilir; sonrası kullanıcıya aittir.
+    """
     email = email.strip().lower()
     if not email:
         raise HTTPException(422, "Yönetici e-posta adresi gerekli.")
@@ -67,9 +71,9 @@ def provision_osgb_admin(
     if len(name) < 2:
         raise HTTPException(422, "Yönetici adı gerekli.")
 
-    temp_password = generate_temporary_password()
     user = db.scalar(select(User).where(User.email == email))
     created = False
+    temp_password = ""
 
     if user:
         if user.role == UserRole.GLOBAL_ADMIN:
@@ -79,12 +83,9 @@ def provision_osgb_admin(
         user.osgb_id = osgb.id
         user.company_id = None
         user.is_active = True
-        user.hashed_password = get_password_hash(temp_password)
-        # Geçici şifre ile yeniden giriş: eski MFA cihazını kilitlemesin; ilk girişte yeniden kurulsun.
-        user.mfa_enabled = False
-        user.mfa_secret_encrypted = None
-        user.mfa_recovery_hashes = None
+        # Şifre / MFA dokunulmaz — kullanıcı kendi şifresini kullanmaya devam eder.
     else:
+        temp_password = generate_temporary_password()
         user = User(
             email=email,
             full_name=name,
@@ -136,9 +137,9 @@ def provision_professional_login(db: Session, professional) -> tuple[User, str, 
     if len(name) < 2:
         raise HTTPException(422, "Ad soyad gerekli.")
 
-    temp_password = generate_temporary_password()
     user = db.scalar(select(User).where(func.lower(User.email) == email))
     created = False
+    temp_password = ""
 
     if user:
         if user.role == UserRole.GLOBAL_ADMIN:
@@ -152,8 +153,9 @@ def provision_professional_login(db: Session, professional) -> tuple[User, str, 
         user.role = role
         user.osgb_id = professional.osgb_id
         user.is_active = True
-        user.hashed_password = get_password_hash(temp_password)
+        # Mevcut hesabın şifresine dokunulmaz.
     else:
+        temp_password = generate_temporary_password()
         user = User(
             email=email,
             full_name=name[:160],

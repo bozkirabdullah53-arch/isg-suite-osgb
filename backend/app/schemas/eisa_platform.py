@@ -161,7 +161,7 @@ class EisaOsgbAdminProvisionResponse(BaseModel):
     user_id: int
     email: str
     full_name: str
-    temporary_password: str
+    temporary_password: str = ""
     created: bool
     message: str
 

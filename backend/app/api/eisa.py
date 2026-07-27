@@ -129,7 +129,7 @@ def approve(
             full_name=admin_user.full_name,
             temporary_password=temp_password,
             created=created,
-            message="OSGB yönetici hesabı oluşturuldu." if created else "Mevcut hesaba yeni geçici şifre atandı.",
+            message="OSGB yönetici hesabı oluşturuldu." if created else "Hesap zaten vardı; şifre değiştirilmedi. Kullanıcı kendi şifresi veya şifremi unuttum ile giriş yapar.",
         )
         add_audit_log(
             db,
@@ -393,7 +393,7 @@ def provision_osgb_admin_account(
         full_name=admin_user.full_name,
         temporary_password=temp_password,
         created=created,
-        message="OSGB yönetici hesabı oluşturuldu." if created else "Mevcut hesaba yeni geçici şifre atandı.",
+        message="OSGB yönetici hesabı oluşturuldu." if created else "Hesap zaten vardı; şifre değiştirilmedi. Kullanıcı kendi şifresi veya şifremi unuttum ile giriş yapar.",
     )
 
 

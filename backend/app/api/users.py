@@ -130,7 +130,11 @@ def update_user(
         raise HTTPException(403, "Bu kullanıcıyı değiştiremezsiniz.")
 
     data = payload.model_dump(exclude_unset=True)
-    password = data.pop("password", None)
+    if "password" in data or "hashed_password" in data:
+        raise HTTPException(
+            403,
+            "Başkasının şifresi değiştirilemez. Kullanıcı Güvenlik sayfasından veya şifremi unuttum ile güncellemelidir.",
+        )
 
     if "company_id" in data and current.role != UserRole.GLOBAL_ADMIN:
         new_company_id = data["company_id"]
@@ -141,8 +145,6 @@ def update_user(
 
     for k, v in data.items():
         setattr(obj, k, v)
-    if password:
-        obj.hashed_password = get_password_hash(password)
     # OSGB admin kapsamı korunur
     if current.role != UserRole.GLOBAL_ADMIN and current.osgb_id and not obj.osgb_id:
         obj.osgb_id = current.osgb_id

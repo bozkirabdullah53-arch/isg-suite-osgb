@@ -913,23 +913,31 @@ export function ProfessionalsPage({user, onNavigate}){
   </M>}
   {creds&&<M title="Profesyonel Giriş Bilgileri" close={()=>{setCreds(null);setCopyMsg('')}}>
    <div className="form-grid single">
-    <p style={{marginTop:0,color:'#64748b'}}>Bu bilgileri profesyonelle güvenli kanaldan paylaşın. İlk girişten sonra Güvenlik → Şifre Değiştir ile güncelleyebilir.</p>
+    <p style={{marginTop:0,color:'#64748b'}}>
+      {creds.temporary_password
+        ? 'Bu bilgileri profesyonelle güvenli kanaldan paylaşın. İlk girişten sonra Güvenlik → Şifre Değiştir ile güncelleyebilir.'
+        : 'Mevcut giriş hesabı bağlandı; şifre değiştirilmedi. Profesyonel kendi şifresi veya şifremi unuttum ile giriş yapar.'}
+    </p>
     <p style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:0}}>
       <span><strong>Kullanıcı adı (e-posta):</strong> <code>{creds.email}</code></span>
       <button type="button" className="mini secondary" onClick={async()=>{const ok=await copyText(creds.email);setCopyMsg(ok?'E-posta kopyalandı.':'Kopyalanamadı.');}}>E-postayı kopyala</button>
     </p>
     <p><strong>Ad:</strong> {creds.full_name}</p>
-    <p style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:0}}>
-      <span><strong>Geçici şifre:</strong> <code style={{userSelect:'all'}}>{creds.temporary_password}</code></span>
-      <button type="button" className="mini" onClick={async()=>{const ok=await copyText(creds.temporary_password);setCopyMsg(ok?'Şifre kopyalandı.':'Kopyalanamadı.');}}>Şifreyi kopyala</button>
-    </p>
-    <div className="actions" style={{gap:8,flexWrap:'wrap'}}>
-      <button type="button" className="secondary" onClick={async()=>{
-        const text=`Kullanıcı adı: ${creds.email}\nGeçici şifre: ${creds.temporary_password}`;
-        const ok=await copyText(text);
-        setCopyMsg(ok?'E-posta ve şifre kopyalandı.':'Kopyalanamadı.');
-      }}>E-posta + şifreyi kopyala</button>
-    </div>
+    {creds.temporary_password?(
+      <>
+        <p style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:0}}>
+          <span><strong>Geçici şifre:</strong> <code style={{userSelect:'all'}}>{creds.temporary_password}</code></span>
+          <button type="button" className="mini" onClick={async()=>{const ok=await copyText(creds.temporary_password);setCopyMsg(ok?'Şifre kopyalandı.':'Kopyalanamadı.');}}>Şifreyi kopyala</button>
+        </p>
+        <div className="actions" style={{gap:8,flexWrap:'wrap'}}>
+          <button type="button" className="secondary" onClick={async()=>{
+            const text=`Kullanıcı adı: ${creds.email}\nGeçici şifre: ${creds.temporary_password}`;
+            const ok=await copyText(text);
+            setCopyMsg(ok?'E-posta ve şifre kopyalandı.':'Kopyalanamadı.');
+          }}>E-posta + şifreyi kopyala</button>
+        </div>
+      </>
+    ):null}
     {copyMsg&&<p style={{color:copyMsg.includes('amadı')?'#b91c1c':'#166534',margin:0}}>{copyMsg}</p>}
     <p style={{color:'#166534'}}>{creds.message}</p>
     <div className="form-actions"><button type="button" onClick={()=>{setCreds(null);setCopyMsg('')}}>Tamam</button></div>

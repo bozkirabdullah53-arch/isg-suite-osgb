@@ -202,22 +202,32 @@ export function HealthPage({user}) {
     try {
       const sumQs = new URLSearchParams();
       if (isGlobal && companyId) sumQs.set('company_id', companyId);
+      const knownCid = companyId || user.company_id || '';
+      const empQs = new URLSearchParams({active: 'true'});
+      if (knownCid) empQs.set('company_id', String(knownCid));
+
       const [c, e, r, s, m, a] = await Promise.all([
         api('/companies'),
-        api('/employees?active=true'),
+        knownCid ? api(`/employees?${empQs}`) : Promise.resolve([]),
         api(`/health-records?${qs}`),
         api(`/health-records/summary?${sumQs}`),
         api('/health-records/meta'),
         api(`/health-records/analysis?${sumQs}`),
       ]);
+      const nextCid = companyId || String(user.company_id || c[0]?.id || '');
       setCompanies(c);
-      setEmployees(e);
       setRows(r);
       setSummary(s);
       setMeta(m);
       setAnalysis(a);
-      const nextCid = companyId || String(user.company_id || c[0]?.id || '');
       if (!companyId && nextCid) setCompanyId(nextCid);
+
+      if (nextCid && String(knownCid) !== String(nextCid)) {
+        const scoped = await api(`/employees?company_id=${Number(nextCid)}&active=true`);
+        setEmployees(Array.isArray(scoped) ? scoped : []);
+      } else {
+        setEmployees(Array.isArray(e) ? e : []);
+      }
 
       // İşyeri hekimleri: OSGB profesyonelleri + personel listesi
       let hekimler = [];
