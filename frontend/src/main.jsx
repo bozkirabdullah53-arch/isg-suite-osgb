@@ -77,23 +77,28 @@ const roleModules={
     'security', // kendi şifre/MFA — başkasının şifresine müdahale yok
   ],
   // OSGB merkezi: yalnız OSGB yönetimi. Saha modülleri ASLA burada olmamalı.
-  // Sıra: günlük kullanım yoğunluğu (sık → seyrek).
+  // Sıra: günlük operasyon → insan/görev/performans → denetim → ticari → ayarlar.
   company_admin:[
+    // 1) Her gün
     'osgb_dashboard',
     'visits',
-    'osgb_oversight',
-    'capacity_engine',
+    'notifications',
+    'companies',
+    // 2) İnsan, görev, performans (birbirini izler)
     'professionals',
     'assignments',
-    'companies',
-    'notifications',
     'pro_performance',
-    'branches',
+    // 3) Denetim / kapasite / resmi paket
+    'osgb_oversight',
+    'capacity_engine',
+    'csgb_audit',
+    // 4) Ticari
     'crm',
     'contracts',
     'finance',
+    // 5) Kurum & ayarlar (seyrek)
+    'branches',
     'reports',
-    'csgb_audit',
     'mevzuat',
     'users',
     'subscription',
@@ -138,7 +143,7 @@ function modulesForUser(user){
 /** Mobil alt bar: en sık 4 modül + «Menü» (çok satırlı ızgara içeriği kapatmasın). */
 const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
-  company_admin:['osgb_dashboard','visits','companies','notifications'],
+  company_admin:['osgb_dashboard','visits','professionals','notifications'],
   safety_specialist:['visits','risk','training','employees'],
   workplace_physician:['visits','health','employees','documents'],
   other_health_personnel:['visits','health','employees','documents'],

@@ -16,4 +16,5 @@ Bunlar saha rolleri (uzman / hekim / DSP) içindir. OSGB merkezi yalnızca kendi
 
 Kaynak: `frontend/src/main.jsx` → `roleModules.company_admin`.
 
-Menü sırası günlük kullanım yoğunluğuna göredir (sık kullanılan üstte).
+Menü sırası operasyon akışına göredir (sık / günlük üstte):
+Ana Panel → Saha Takvimi → Bildirimler → İşyerleri → Profesyoneller → Görevlendirmeler → Performans → Hizmet Denetimi → Kapasite → ÇSGB → CRM/Sözleşme/Finans → Şube/Rapor/Mevzuat → Kullanıcı/Abonelik/Güvenlik.
