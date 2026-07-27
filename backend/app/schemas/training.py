@@ -100,6 +100,8 @@ class TrainingUpdate(BaseModel):
     employer_representative: str | None = Field(default=None, max_length=160)
     stamp_text: str | None = Field(default=None, max_length=400)
     notes: str | None = Field(default=None, max_length=2000)
+    # Gönderilirse katılımcı listesinin tamamını değiştirir (PDF'ler bu listeyi basar).
+    participant_ids: list[int] | None = None
 
 
 class ParticipantResponse(BaseModel):

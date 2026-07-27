@@ -424,10 +424,44 @@ def update_training(
 ):
     row = _load_training(db, training_id)
     ensure_access(db, user, row.company_id)
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    values = payload.model_dump(exclude_unset=True)
+    new_ids = values.pop("participant_ids", None)
+    for k, v in values.items():
         setattr(row, k, v)
+    if new_ids is not None:
+        _replace_participants(db, row, new_ids)
     db.commit()
     return _load_training(db, training_id)
+
+
+def _replace_participants(db: Session, row: TrainingSession, employee_ids: list[int]) -> None:
+    """Katılımcı listesini verilen kümeye eşitler; kalanların puan/katılım verisi korunur."""
+    wanted = {int(i) for i in employee_ids}
+    if not wanted:
+        raise HTTPException(422, "En az bir katılımcı gerekli; liste boşaltılamaz.")
+    valid = set(
+        db.scalars(
+            select(Employee.id).where(
+                Employee.id.in_(wanted),
+                Employee.company_id == row.company_id,
+                Employee.is_active.is_(True),
+            )
+        ).all()
+    )
+    if valid != wanted:
+        raise HTTPException(422, "Katılımcılardan biri firmaya ait değil veya pasif.")
+    current = {p.employee_id: p for p in row.participants}
+    for eid, participant in current.items():
+        if eid not in wanted:
+            db.delete(participant)
+    for eid in sorted(wanted - current.keys()):
+        db.add(
+            TrainingParticipant(
+                training_id=row.id,
+                employee_id=eid,
+                certificate_number=f"EGT-{row.id:06d}-{eid:06d}",
+            )
+        )
 
 
 @router.get("/{training_id}/attendance.pdf")

@@ -143,9 +143,19 @@ function emptyForm(user) {
   };
 }
 
+function participantKey(payload) {
+  return [...(payload?.participant_ids || [])].map(Number).sort((a, b) => a - b).join(',');
+}
+
+function sameExceptParticipants(a, b) {
+  const strip = (p) => JSON.stringify({...p, participant_ids: undefined});
+  return strip(a) === strip(b);
+}
+
 function EducationOutputPanel({
   savedTrainingId,
   participantCount,
+  selectionDirty,
   dlBusy,
   onDownloadCertificates,
   onDownloadAttendance,
@@ -168,6 +178,12 @@ function EducationOutputPanel({
           {ready ? (
             <p className="tp-help" style={{margin: 0}}>
               Kayıt <strong>#{savedTrainingId}</strong> · {participantCount || 0} katılımcı üzerinden PDF çıktıları hazır.
+              {selectionDirty && (
+                <strong style={{display: 'block', color: '#b45309'}}>
+                  Personel seçimi değişti. PDF’ler kayıttaki listeyi bastığı için önce
+                  «Eğitimi Kaydet ve PDF Hazırla»ya basın.
+                </strong>
+              )}
             </p>
           ) : (
             <p className="tp-help" style={{margin: 0}}>
@@ -261,6 +277,9 @@ export function TrainingPage({user}) {
   const [excelPreview, setExcelPreview] = useState([]);
   const [dragOver, setDragOver] = useState(false);
   const [savedTrainingId, setSavedTrainingId] = useState(null);
+  // Kaydedilen anki payload: seçim değişince kaydı güncelleyip PDF'in eski listeyi
+  // basmasını önler (PDF her zaman veritabanındaki katılımcıları kullanır).
+  const [savedPayload, setSavedPayload] = useState(null);
   const [detail, setDetail] = useState(null);
   const [dlBusy, setDlBusy] = useState('');
   const [fileLabel, setFileLabel] = useState('.xlsx, .xlsm veya .csv dosyası seçin');
@@ -274,6 +293,21 @@ export function TrainingPage({user}) {
           e.is_active !== false,
       ),
     [employees, form.company_id],
+  );
+
+  const allEmployeesSelected = useMemo(() => {
+    if (!companyEmployees.length) return false;
+    const selected = new Set((form.participant_ids || []).map(Number));
+    return companyEmployees.every((e) => selected.has(Number(e.id)));
+  }, [companyEmployees, form.participant_ids]);
+
+  // Kayıttaki katılımcılar ile ekrandaki seçim ayrıştıysa PDF eski listeyi basar.
+  const selectionDirty = useMemo(
+    () =>
+      !!savedTrainingId &&
+      !!savedPayload &&
+      participantKey({participant_ids: form.participant_ids}) !== participantKey(savedPayload),
+    [savedTrainingId, savedPayload, form.participant_ids],
   );
 
   const filteredSectors = useMemo(() => {
@@ -455,16 +489,44 @@ export function TrainingPage({user}) {
       return null;
     }
 
+    const payload = buildPayload(form);
+
+    // Yalnızca katılımcı seçimi değiştiyse yeni kayıt açmak yerine mevcut kaydı
+    // güncelle; aksi halde her tıklamada kopya eğitim oluşur ve PDF eski listeyi basar.
+    if (savedTrainingId && savedPayload && sameExceptParticipants(payload, savedPayload)) {
+      if (participantKey(payload) === participantKey(savedPayload)) {
+        setOkMsg(`Kayıt #${savedTrainingId} güncel (${payload.participant_ids.length} katılımcı). PDF çıktıları hazır.`);
+        return {id: savedTrainingId};
+      }
+      setBusy(true);
+      try {
+        const updated = await api(`/trainings/${savedTrainingId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({participant_ids: payload.participant_ids}),
+        });
+        setSavedPayload(payload);
+        setOkMsg(`Kayıt #${savedTrainingId} güncellendi: ${payload.participant_ids.length} katılımcı.`);
+        await load();
+        return updated;
+      } catch (x) {
+        setErr(x.message || 'Katılımcı listesi güncellenemedi');
+        return null;
+      } finally {
+        setBusy(false);
+      }
+    }
+
     setBusy(true);
     try {
       const created = await api('/trainings', {
         method: 'POST',
-        body: JSON.stringify(buildPayload(form)),
+        body: JSON.stringify(payload),
       });
       const id = created?.id;
       setSavedTrainingId(id || null);
+      setSavedPayload(id ? payload : null);
       await maybeUploadLogo(id);
-      setOkMsg(`Eğitim kaydedildi (#${id}). PDF çıktıları hazır.`);
+      setOkMsg(`Eğitim kaydedildi (#${id}). ${payload.participant_ids.length} katılımcı ile PDF çıktıları hazır.`);
       await load();
       if (switchToRecords) setTab('kayitlar');
       if (!keepForm) {
@@ -472,6 +534,7 @@ export function TrainingPage({user}) {
         setExcelInfo('');
         setExcelPreview([]);
         setSavedTrainingId(null);
+        setSavedPayload(null);
       }
       return created;
     } catch (x) {
@@ -630,6 +693,32 @@ export function TrainingPage({user}) {
     } finally {
       setBusy(false);
     }
+  }
+
+  /** «Seçilen Personelleri Eğitime Ekle»: işaretlenen kişileri kullanır, seçimi değiştirmez. */
+  function applyCheckedEmployees() {
+    setErr('');
+    setOkMsg('');
+    if (!form.company_id) {
+      setErr('Önce Firma seçiniz.');
+      return;
+    }
+    const count = (form.participant_ids || []).length;
+    if (!count) {
+      setErr('Ortak personel listesinden en az bir çalışan işaretleyin (tümü için «Tümünü Seç»).');
+      return;
+    }
+    setExcelPreview([]);
+    setExcelInfo(`${count} kişi ortak personel listesinden işaretlendi`);
+    setOkMsg(`${count} personel eğitime eklendi (yalnızca işaretlediğiniz kişiler).`);
+  }
+
+  function clearParticipants() {
+    setErr('');
+    setOkMsg('');
+    setExcelPreview([]);
+    setExcelInfo('');
+    setForm((f) => ({...f, participant_ids: []}));
   }
 
   function toggleParticipant(id) {
@@ -1106,8 +1195,13 @@ export function TrainingPage({user}) {
                 </div>
               </div>
               {canEdit && companyEmployees.length > 0 && (
-                <button type="button" className="btn-outline-premium" style={{width: 'auto', minHeight: 40, padding: '0 16px'}} onClick={selectAllEmployees}>
-                  Tümünü Seç
+                <button
+                  type="button"
+                  className="btn-outline-premium"
+                  style={{width: 'auto', minHeight: 40, padding: '0 16px'}}
+                  onClick={allEmployeesSelected ? clearParticipants : selectAllEmployees}
+                >
+                  {allEmployeesSelected ? 'Seçimi Temizle' : 'Tümünü Seç'}
                 </button>
               )}
             </div>
@@ -1203,13 +1297,14 @@ export function TrainingPage({user}) {
                 type="button"
                 className="btn-outline-premium"
                 disabled={busy}
-                onClick={selectAllEmployees}
+                onClick={applyCheckedEmployees}
               >
                 <Users size={18} style={{verticalAlign: -3, marginRight: 6}} />
                 Seçilen Personelleri Eğitime Ekle
               </button>
               <div className="tp-help" style={{textAlign: 'center'}}>
-                PC seçeneği Excel/CSV dosyasını okur. Ortak Personel seçeneği işaretlediğiniz çalışanları kullanır.
+                PC seçeneği Excel/CSV dosyasını okur. Ortak Personel seçeneği yalnızca yukarıda
+                işaretlediğiniz çalışanları kullanır; tüm liste için «Tümünü Seç».
               </div>
             </div>
           )}
@@ -1217,6 +1312,7 @@ export function TrainingPage({user}) {
           <EducationOutputPanel
             savedTrainingId={savedTrainingId}
             participantCount={form.participant_ids.length}
+            selectionDirty={selectionDirty}
             dlBusy={dlBusy}
             canEdit={canEdit}
             busy={busy}
@@ -1435,8 +1531,13 @@ export function TrainingPage({user}) {
                   <div className="tp-help">Personel listesinden seçin.</div>
                 </div>
                 {canEdit && (
-                  <button type="button" className="btn-outline-premium" style={{width: 'auto', minHeight: 40, padding: '0 14px'}} onClick={selectAllEmployees}>
-                    Tümünü Seç
+                  <button
+                    type="button"
+                    className="btn-outline-premium"
+                    style={{width: 'auto', minHeight: 40, padding: '0 14px'}}
+                    onClick={allEmployeesSelected ? clearParticipants : selectAllEmployees}
+                  >
+                    {allEmployeesSelected ? 'Seçimi Temizle' : 'Tümünü Seç'}
                   </button>
                 )}
               </div>
@@ -1475,6 +1576,7 @@ export function TrainingPage({user}) {
           <EducationOutputPanel
             savedTrainingId={savedTrainingId}
             participantCount={form.participant_ids.length}
+            selectionDirty={selectionDirty}
             dlBusy={dlBusy}
             canEdit={canEdit}
             busy={busy}
