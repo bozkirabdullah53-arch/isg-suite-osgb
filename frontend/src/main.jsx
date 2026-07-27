@@ -205,7 +205,7 @@ const menuCatalog={
   documents:['Dokümanlar',FileText],
   annual_plans:['Yıllık Plan',ClipboardCheck],
   annual_eval_report:['Yıllık Çalışma Değerlendirme Raporu',FileText],
-  reports:['Raporlar',BarChart3],
+  reports:['OSGB Yönetim Özeti',BarChart3],
   notifications:['Bildirimler',Bell],
   subscription:['Abonelik',CreditCard],
   security:['Güvenlik',KeyRound],
@@ -979,11 +979,112 @@ function DocumentsPage({user}){
   return <Page title="Doküman Yönetimi" action={canEdit?<button onClick={()=>setOpen(true)}><Plus/>Yeni Doküman</button>:null}><SearchBar q={q} setQ={setQ} go={load}/><Table cols={cols} rows={rows}/>{open&&<Modal title="Yeni Doküman Kaydı" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Select label="Kategori" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{Object.entries(documentNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Select><Field label="Doküman Başlığı" required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/><Field label="Dosya Adı" value={form.file_name} onChange={e=>setForm({...form,file_name:e.target.value})}/><Field label="Açıklama" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><Field label="Başlangıç Tarihi" type="date" value={form.valid_from} onChange={e=>setForm({...form,valid_from:e.target.value})}/><Field label="Geçerlilik Sonu" type="date" value={form.valid_until} onChange={e=>setForm({...form,valid_until:e.target.value})}/><Field label="Versiyon" value={form.version} onChange={e=>setForm({...form,version:e.target.value})}/><Submit/></form></Modal>}</Page>
 }
 
-function ReportsPage(){
+function ReportsPage({user, onNavigate}){
   const[data,setData]=useState(null);
-  useEffect(()=>{api('/reports/summary').then(setData)},[]);
-  const items=[['Personel',data?.employee_count],['Açık Risk',data?.open_risks],['İş Kazası',data?.accident_count],['Sağlık Kaydı',data?.health_record_count],['Süresi Geçmiş Doküman',data?.expired_document_count],['Geciken Plan',data?.delayed_plan_count]];
-  return <Page title="Yönetim Raporları"><div className="report-grid">{items.map(([t,v])=><Metric key={t} title={t} value={v??'—'}/>)}</div><section className="panel"><h3>Dışa Aktarım</h3><div className="export-actions"><button onClick={()=>downloadFile('/exports/employees.xlsx','personel-listesi.xlsx')}><Download/>Personel Excel</button><button onClick={()=>downloadFile('/exports/isg-summary.pdf','isg-ozet-raporu.pdf')}><Download/>İSG PDF</button></div></section></Page>
+  const[finance,setFinance]=useState([]);
+  const[err,setErr]=useState('');
+  const isOsgb=['company_admin','global_admin'].includes(user?.role);
+  useEffect(()=>{
+    if(!isOsgb) return;
+    (async()=>{
+      setErr('');
+      try{
+        const orgs=await api('/osgb').catch(()=>[]);
+        const oid=user?.osgb_id||orgs[0]?.id;
+        if(!oid){setData(null);return}
+        const[d,f]=await Promise.all([
+          api(`/operations/dashboard?osgb_id=${oid}`),
+          api(`/operations/finance?osgb_id=${oid}`).catch(()=>[]),
+        ]);
+        setData(d);
+        setFinance(Array.isArray(f)?f:[]);
+      }catch(e){setErr(e.message||'Özet yüklenemedi.')}
+    })();
+  },[user?.id,user?.osgb_id,user?.role]);
+
+  if(!isOsgb){
+    return <Page title="Raporlar"><p>Bu ekran OSGB yönetimi içindir.</p></Page>;
+  }
+
+  const pendingAccrue=(finance||[])
+    .filter(x=>x.category==='contract'&&x.status==='pending')
+    .reduce((a,b)=>a+(Number(b.amount)||0),0);
+  const moneyFmt=v=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY',maximumFractionDigits:0}).format(v||0);
+  const byType=data?.professionals_by_type||{};
+  const go=(mod)=>{ if(typeof onNavigate==='function') onNavigate(mod); };
+  const stamp=new Date().toISOString().slice(0,10);
+  const oid=data?.osgb_id||user?.osgb_id;
+
+  return <>
+    <div className="page-title" style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+      <div>
+        <h3 style={{margin:0}}>OSGB Yönetim Özeti</h3>
+        <p style={{margin:'4px 0 0',color:'#64748b',fontSize:13,maxWidth:720}}>
+          Bu sayfa <strong>saha İSG paneli değildir</strong> (personel / risk / kaza sayıları burada amaçlanmaz).
+          OSGB merkezinin günlük yönetimi için özet ve dışa aktarımlardır: işyerleri, profesyoneller, saha ziyaretleri, finans.
+        </p>
+      </div>
+    </div>
+
+    {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
+
+    <div className="cards osgb-cards" style={{marginBottom:14}}>
+      <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('companies')} title="İşyerlerine git">
+        <span>Müşteri işyeri</span><strong>{data?.workplaces??'—'}</strong>
+      </article>
+      <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('professionals')} title="Profesyonellere git">
+        <span>İSG profesyoneli</span>
+        <strong>
+          {(byType.safety_specialist?.count||0)+(byType.workplace_physician?.count||0)+(byType.other_health_personnel?.count||0)||data?.professionals||'—'}
+        </strong>
+        <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11}}>
+          Uzman {byType.safety_specialist?.count??0} · Hekim {byType.workplace_physician?.count??0} · DSP {byType.other_health_personnel?.count??0}
+        </small>
+      </article>
+      <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('visits')} title="Saha takvimine git">
+        <span>Bu ay saha ziyareti</span><strong>{data?.visits_this_month??data?.visits??'—'}</strong>
+      </article>
+      <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('assignments')} title="Görevlendirmelere git">
+        <span>Ataması yapılmamış</span>
+        <strong style={{color:(data?.unassigned_professionals||0)>0?'#b91c1c':undefined}}>
+          {data?.unassigned_professionals??0}
+        </strong>
+      </article>
+      <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('finance')} title="Finansa git">
+        <span>Bekleyen tahakkuk</span><strong>{moneyFmt(pendingAccrue)}</strong>
+      </article>
+      <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('pro_performance')} title="Performansa git">
+        <span>Performans / iş tamamlama</span><strong style={{fontSize:16}}>Aç →</strong>
+      </article>
+    </div>
+
+    <section className="panel" style={{marginBottom:14,borderLeft:'4px solid #0f766e'}}>
+      <h3 style={{marginTop:0,fontSize:15}}>Ne anlama geliyor?</h3>
+      <ul style={{margin:0,paddingLeft:18,color:'#475569',fontSize:14,lineHeight:1.55}}>
+        <li><strong>Müşteri işyeri:</strong> OSGB’nizin hizmet verdiği firma / şube sayısı.</li>
+        <li><strong>İSG profesyoneli:</strong> Kayıtlı uzman, hekim ve DSP sayısı (işyeri çalışanı / “personel” değil).</li>
+        <li><strong>Saha ziyareti:</strong> Bu ay QR / defter ile işlenen ziyaretler.</li>
+        <li><strong>Ataması yapılmamış:</strong> Henüz işyerine görevlendirilmemiş profesyoneller.</li>
+        <li><strong>Bekleyen tahakkuk:</strong> Ödenmemiş sözleşme tahakkuk tutarı (Finans).</li>
+      </ul>
+      <p style={{margin:'12px 0 0',fontSize:13,color:'#64748b'}}>
+        Eski “Personel / Açık Risk / İş Kazası” kartları kaldırıldı — bunlar saha rollerinin İSG özetine aittir; OSGB menüsünde karışıklık yaratıyordu.
+      </p>
+    </section>
+
+    <section className="panel">
+      <h3 style={{marginTop:0}}>Dışa aktarım & hızlı geçiş</h3>
+      <div className="export-actions" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        <button type="button" disabled={!oid} onClick={()=>downloadFile(`/osgb/professionals/performance/export.csv?osgb_id=${oid}`,`csgb-pro-performans-${oid}-${stamp}.csv`).catch(e=>alert(e.message))}>
+          <Download/> Profesyonel performans CSV
+        </button>
+        <button type="button" className="secondary" onClick={()=>go('csgb_audit')}>ÇSGB belge paketi</button>
+        <button type="button" className="secondary" onClick={()=>go('osgb_oversight')}>Hizmet denetimi</button>
+        <button type="button" className="secondary" onClick={()=>go('pro_performance')}>Performans raporu</button>
+        <button type="button" className="secondary" onClick={()=>go('finance')}>Finans</button>
+      </div>
+    </section>
+  </>;
 }
 
 
@@ -1552,7 +1653,7 @@ function App(){
     documents:<DocumentsPage user={user}/>,
     annual_plans:<AnnualPlansPage user={user}/>,
     annual_eval_report:<AnnualEvalReportPage user={user} onNavigate={goModule}/>,
-    reports:<ReportsPage/>,
+    reports:<ReportsPage user={user} onNavigate={goModule}/>,
     notifications:<NotificationsPage/>,
     subscription:<SubscriptionPage user={user}/>,
     security:<SecurityPage user={user}/>,
