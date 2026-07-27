@@ -539,10 +539,13 @@ def module_kpis(
 def visits_calendar(
     month: str | None = None,
     osgb_id: int | None = None,
+    professional_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Saha takvimi özeti — planlı/gecikmiş ziyaret ve eksik süre uyarıları."""
+    """Saha takvimi özeti — planlı/gecikmiş ziyaret ve eksik süre uyarıları.
+    OSGB yöneticisi professional_id ile tek kişiye süzebilir.
+    """
     pro = None
     if user.role in _FIELD_ROLES:
         pro = find_professional_for_user(db, user)
@@ -554,15 +557,40 @@ def visits_calendar(
     else:
         raise HTTPException(403, "Takvim görüntüleme yetkiniz yok.")
     data = build_visit_calendar(db, osgb_id=oid, month=month)
+
+    # Saha personeli: yalnız kendi ziyaretleri
+    # OSGB: isteğe bağlı professional_id filtresi
+    filter_pid = None
     if pro:
-        pid = pro.id
+        filter_pid = pro.id
+    elif professional_id is not None:
+        target = db.get(IsgProfessional, professional_id)
+        if not target or target.osgb_id != oid:
+            raise HTTPException(404, "Profesyonel bu OSGB’de bulunamadı.")
+        filter_pid = professional_id
+
+    if filter_pid is not None:
+        pid = filter_pid
         for key in ("days", "overdue", "upcoming", "missing"):
             if key == "days":
                 for day in data.get("days", []):
-                    day["visits"] = [v for v in day.get("visits", []) if v.get("professional_id") == pid]
+                    day["visits"] = [v for v in day.get("visits") or [] if v.get("professional_id") == pid]
                     day["visit_count"] = len(day["visits"])
+                    day["planned_count"] = sum(1 for v in day["visits"] if v.get("status") == "planned")
+                    day["completed_count"] = sum(1 for v in day["visits"] if v.get("status") == "completed")
             else:
-                data[key] = [r for r in data.get(key, []) if r.get("professional_id") == pid]
+                data[key] = [r for r in data.get(key) or [] if r.get("professional_id") == pid]
+        # Özet KPI’leri filtrelenmiş güne göre yeniden hesapla
+        visits_flat = [v for day in data.get("days") or [] for v in (day.get("visits") or [])]
+        data["summary"] = {
+            **(data.get("summary") or {}),
+            "total_visits": len(visits_flat),
+            "planned": sum(1 for v in visits_flat if v.get("status") == "planned"),
+            "completed": sum(1 for v in visits_flat if v.get("status") == "completed"),
+            "overdue": len(data.get("overdue") or []),
+            "missing_coverage": len(data.get("missing") or []),
+        }
+        data["filter_professional_id"] = pid
     return data
 
 

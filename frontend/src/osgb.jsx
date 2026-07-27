@@ -175,8 +175,19 @@ export function OsgbDashboard({user, onNavigate}){
   try{
    sessionStorage.setItem('pro_performance_id',String(pro.id));
    if(type||pro.professional_type) sessionStorage.setItem('pro_performance_type',String(type||pro.professional_type));
+   // Takvimde de aynı kişiyi hazır tut (OSGB saha takvimine geçilirse)
+   sessionStorage.setItem('visits_professional_id',String(pro.id));
+   if(type||pro.professional_type) sessionStorage.setItem('visits_professional_type',String(type||pro.professional_type));
   }catch(_){}
   go('pro_performance');
+ }
+ function openProCalendar(pro,{type}={}){
+  if(!pro?.id) return;
+  try{
+   sessionStorage.setItem('visits_professional_id',String(pro.id));
+   if(type||pro.professional_type) sessionStorage.setItem('visits_professional_type',String(type||pro.professional_type));
+  }catch(_){}
+  go('visits');
  }
  function openRoster(type){
   setRosterType(type);
@@ -712,7 +723,10 @@ export function OsgbDashboard({user, onNavigate}){
       {k:'phone',l:'Telefon',f:r=>r.phone||'—'},
       {k:'assigned',l:'Görev',f:r=>r.assigned?'Atanmış':'Atanmamış'},
       {k:'go',l:'',f:r=>(
-       <button type="button" className="mini" onClick={()=>openProPage(r,{type:rosterType})}>Tek sayfa</button>
+       <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+        <button type="button" className="mini" onClick={()=>openProPage(r,{type:rosterType})}>Tek sayfa</button>
+        <button type="button" className="mini secondary" onClick={()=>openProCalendar(r,{type:rosterType})}>Takvim</button>
+       </div>
       )},
      ]}
      rows={roster.items||[]}
@@ -779,7 +793,10 @@ export function OsgbDashboard({user, onNavigate}){
       {k:'email',l:'E-posta',f:r=>r.email||'—'},
       {k:'phone',l:'Telefon',f:r=>r.phone||'—'},
       {k:'go',l:'',f:r=>(
-       <button type="button" className="mini" onClick={()=>openProPage(r,{type:unassignedType})}>Tek sayfa</button>
+       <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+        <button type="button" className="mini" onClick={()=>openProPage(r,{type:unassignedType})}>Tek sayfa</button>
+        <button type="button" className="mini secondary" onClick={()=>openProCalendar(r,{type:unassignedType})}>Takvim</button>
+       </div>
       )},
      ]}
      rows={unSelected.items||[]}
@@ -1334,15 +1351,19 @@ export function VisitsPage({user}){
  const emptyForm={osgb_id:'',company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''};
  const emptyPlan={osgb_id:'',company_id:'',professional_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Planlı saha ziyareti',notes:''};
  const[form,setForm]=useState(emptyForm),[planForm,setPlanForm]=useState(emptyPlan);
+ const[calProId,setCalProId]=useState('');
+ const[calRoleTab,setCalRoleTab]=useState('all'); // all | safety_specialist | workplace_physician | other_health_personnel
  const offlineCtx=()=>offlineScope(user,orgs,form.osgb_id);
  const[offlineQueue,setOfflineQueue]=useState([]);
  const refreshOffline=()=>setOfflineQueue(listOfflineCompletes(offlineCtx()));
  useEffect(()=>{refreshOffline()},[user?.id,user?.osgb_id,form.osgb_id,orgs]);
  const weekday=['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
- async function loadCalendar(oid){
+ async function loadCalendar(oid,proId=calProId){
   try{
-   const q=`?month=${encodeURIComponent(month)}${oid?`&osgb_id=${oid}`:''}`;
-   setCal(await api(`/operations/visits/calendar${q}`));
+   const parts=[`month=${encodeURIComponent(month)}`];
+   if(oid) parts.push(`osgb_id=${oid}`);
+   if(isOsgb&&proId) parts.push(`professional_id=${proId}`);
+   setCal(await api(`/operations/visits/calendar?${parts.join('&')}`));
   }catch(_){setCal(null)}
  }
  const load=async(preferredOid)=>{
@@ -1369,7 +1390,23 @@ export function VisitsPage({user}){
   }catch(ex){setErr(ex.message||'Liste yüklenemedi.');setRows([])}
  };
  useEffect(()=>{load()},[]);
- useEffect(()=>{if(form.osgb_id||isField) loadCalendar(isField?'':Number(form.osgb_id)||'')},[month]);
+ useEffect(()=>{
+  try{
+   const preset=sessionStorage.getItem('visits_professional_id');
+   const presetType=sessionStorage.getItem('visits_professional_type');
+   if(presetType&&['safety_specialist','workplace_physician','other_health_personnel'].includes(presetType)){
+    setCalRoleTab(presetType);
+    sessionStorage.removeItem('visits_professional_type');
+   }
+   if(preset){
+    setCalProId(String(preset));
+    sessionStorage.removeItem('visits_professional_id');
+   }
+  }catch(_){/* ignore */}
+ },[]);
+ useEffect(()=>{
+  if(form.osgb_id||isField) loadCalendar(isField?'':Number(form.osgb_id)||'',calProId);
+ },[month,calProId]);
  function shiftMonth(delta){
   const [y,m]=month.split('-').map(Number);
   const d=new Date(y,m-1+delta,1);
@@ -1639,8 +1676,33 @@ export function VisitsPage({user}){
   setKioskQrInput(code);
   await scanPresence(mode,code);
  }
- const filteredRows=selectedDay?rows.filter(r=>r.visit_date===selectedDay):rows;
- const calDays=cal?.days||[];
+ const filteredRows=rows.filter(r=>{
+  if(selectedDay&&r.visit_date!==selectedDay) return false;
+  if(isOsgb&&calProId&&String(r.professional_id)!==String(calProId)) return false;
+  if(isOsgb&&calRoleTab!=='all'&&!calProId){
+   const p=pros.find(x=>x.id===r.professional_id);
+   if(p&&p.professional_type!==calRoleTab) return false;
+  }
+  return true;
+ });
+ const calPros=pros.filter(p=>calRoleTab==='all'||p.professional_type===calRoleTab)
+  .slice()
+  .sort((a,b)=>String(a.full_name||'').localeCompare(String(b.full_name||''),'tr'));
+ const selectedCalPro=pros.find(p=>String(p.id)===String(calProId));
+ const calDaysRaw=cal?.days||[];
+ const calDays=(!isOsgb||calProId||calRoleTab==='all')
+  ? calDaysRaw
+  : calDaysRaw.map(day=>{
+   const allowed=new Set(pros.filter(p=>p.professional_type===calRoleTab).map(p=>p.id));
+   const visits=(day.visits||[]).filter(v=>allowed.has(v.professional_id));
+   return {
+    ...day,
+    visits,
+    visit_count:visits.length,
+    planned_count:visits.filter(v=>v.status==='planned').length,
+    completed_count:visits.filter(v=>v.status==='completed').length,
+   };
+  });
  const padStart=calDays.length?((calDays[0].weekday+6)%7):0;
  const todayIso=new Date().toISOString().slice(0,10);
  const openOnSite=isField?rows.filter(r=>r.checked_in_at&&!r.checked_out_at):[];
@@ -1745,6 +1807,65 @@ export function VisitsPage({user}){
     )}
    </section>
   )}
+  {isOsgb&&(
+   <section className="panel" style={{marginBottom:12}}>
+    <div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'flex-end'}}>
+     <div style={{flex:'1 1 220px'}}>
+      <h3 style={{margin:'0 0 4px',fontSize:15}}>Kişiye göre saha takvimi</h3>
+      <p style={{margin:0,fontSize:13,color:'#64748b'}}>
+        Önce rol, sonra uzman/hekim/DSP seçin. Takvim ve liste yalnız o kişinin ziyaretlerini gösterir. Günü tıklayınca o güne iner.
+      </p>
+     </div>
+     <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'flex-end'}}>
+      <label className="field" style={{margin:0,minWidth:160}}>
+       <span>Rol</span>
+       <select
+        value={calRoleTab}
+        onChange={e=>{
+         const v=e.target.value;
+         setCalRoleTab(v);
+         setSelectedDay('');
+         if(calProId){
+          const p=pros.find(x=>String(x.id)===String(calProId));
+          if(v!=='all'&&p&&p.professional_type!==v) setCalProId('');
+         }
+        }}
+       >
+        <option value="all">Tümü</option>
+        <option value="safety_specialist">İş Güvenliği Uzmanları</option>
+        <option value="workplace_physician">İşyeri Hekimleri</option>
+        <option value="other_health_personnel">DSP</option>
+       </select>
+      </label>
+      <label className="field" style={{margin:0,minWidth:240}}>
+       <span>Profesyonel</span>
+       <select
+        value={calProId}
+        onChange={e=>{setCalProId(e.target.value);setSelectedDay('')}}
+        style={{fontWeight:650}}
+       >
+        <option value="">Tüm profesyoneller</option>
+        {calPros.map(p=>(
+         <option key={p.id} value={p.id}>
+          {p.full_name}{p.certificate_class?` · ${p.certificate_class}`:''}
+         </option>
+        ))}
+       </select>
+      </label>
+      {calProId&&(
+       <button type="button" className="mini secondary" onClick={()=>{setCalProId('');setSelectedDay('')}}>Filtreyi kaldır</button>
+      )}
+     </div>
+    </div>
+    {selectedCalPro&&(
+     <p style={{margin:'12px 0 0',padding:'10px 12px',borderRadius:10,background:'#ecfdf5',border:'1px solid #99f6e4',color:'#065f46',fontSize:13,fontWeight:650}}>
+      Görüntülenen: {selectedCalPro.full_name}
+      {selectedCalPro.professional_type?` · ${ptypes[selectedCalPro.professional_type]||selectedCalPro.professional_type}`:''}
+      {selectedDay?` · Gün: ${selectedDay}`:''}
+     </p>
+    )}
+   </section>
+  )}
   {isOsgb&&<p style={{margin:'0 0 12px',color:'#475569',fontSize:14}}>Takvimde planlı ziyaretleri izleyin; gecikmiş ve eksik süre uyarılarını kapatın. Saha kaydı uzman/hekim/DSP tarafından defter ile yapılır.</p>}
   {user.role==='global_admin'&&orgs.length>1&&(
    <label className="field" style={{maxWidth:320,marginBottom:12}}>
@@ -1769,7 +1890,11 @@ export function VisitsPage({user}){
    </section>}
    <section className="panel" style={{marginBottom:12}}>
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:12}}>
-     <h3 style={{margin:0,fontSize:16}}>{cal.period} — Saha Takvimi</h3>
+     <h3 style={{margin:0,fontSize:16}}>
+      {cal.period} — Saha Takvimi
+      {selectedCalPro?` · ${selectedCalPro.full_name}`:''}
+      {selectedDay?` · ${selectedDay}`:''}
+     </h3>
      <div style={{display:'flex',gap:8}}>
       <button type="button" className="mini secondary" onClick={()=>shiftMonth(-1)}>← Önceki</button>
       <button type="button" className="mini secondary" onClick={()=>{setMonth(new Date().toISOString().slice(0,7));setSelectedDay('')}}>Bugün</button>

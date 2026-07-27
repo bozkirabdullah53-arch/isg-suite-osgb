@@ -216,7 +216,7 @@ function WorkGraph({firms = [], completed = [], incomplete = []}) {
   );
 }
 
-export function ProPerformancePage({user}) {
+export function ProPerformancePage({user, onNavigate}) {
   const [orgs, setOrgs] = useState([]);
   const [osgbId, setOsgbId] = useState('');
   const [directory, setDirectory] = useState([]);
@@ -383,6 +383,24 @@ export function ProPerformancePage({user}) {
           >
             <RefreshCw size={16} /> Yenile
           </button>
+          {report && (
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                try {
+                  if (selectedId) {
+                    sessionStorage.setItem('visits_professional_id', String(selectedId));
+                    const t = report?.professional?.professional_type;
+                    if (t) sessionStorage.setItem('visits_professional_type', String(t));
+                  }
+                } catch (_) { /* ignore */ }
+                if (typeof onNavigate === 'function') onNavigate('visits');
+              }}
+            >
+              Saha takvimi
+            </button>
+          )}
           {report && (
             <button
               type="button"

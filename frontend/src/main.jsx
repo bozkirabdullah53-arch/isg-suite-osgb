@@ -1520,7 +1520,7 @@ function App(){
     osgb_dashboard:<OsgbDashboard user={user} onNavigate={goModule}/>,
     osgb_oversight:<OsgbOversightPage user={user} onNavigate={goModule}/>,
     capacity_engine:<CapacityEnginePage user={user} onNavigate={goModule}/>,
-    pro_performance:<ProPerformancePage user={user}/>,
+    pro_performance:<ProPerformancePage user={user} onNavigate={goModule}/>,
     csgb_audit:<CsgbAuditPackPage user={user} onNavigate={goModule}/>,
     mevzuat:<MevzuatPanelPage/>,
     professionals:<ProfessionalsPage user={user} onNavigate={goModule}/>,
