@@ -1770,16 +1770,34 @@ export function VisitsPage({user}){
     </label>
     {isField&&!editing&&(
      <div style={{gridColumn:'1/-1',display:'grid',gap:8}}>
-      <span style={{fontSize:13,fontWeight:700,color:'#425c67'}}>3) İşyeri QR *</span>
+      <span style={{fontSize:13,fontWeight:700,color:'#425c67'}}>3) İşyeri QR doğrulama *</span>
+      <p style={{margin:0,fontSize:13,color:'#475569',lineHeight:1.45}}>
+        Sahadaki <strong>işyeri QR kodunu</strong> okutarak ziyaretin gerçekten o işyerinde yapıldığını doğrular.
+        Asıl yol kamera ile okutmaktır; kod otomatik dolar.
+      </p>
       <button type="button" className="field-big-btn" disabled={busy} onClick={()=>openCameraScan('visit')}>
        <Camera size={26}/> Kamerayı aç — QR okut
       </button>
       {siteVerifyInput?(
-       <p style={{margin:0,fontSize:13,color:'#0f766e',wordBreak:'break-all'}}>QR alındı ✓</p>
+       <p style={{margin:0,fontSize:13,color:'#0f766e',wordBreak:'break-all'}}>QR alındı ✓ Kaydedebilirsiniz.</p>
       ):(
-       <p style={{margin:0,fontSize:12,color:'#64748b'}}>Okutunca otomatik dolar. Gerekirse aşağıya yapıştırın.</p>
+       <details style={{margin:0}}>
+        <summary style={{cursor:'pointer',fontSize:13,color:'#0f766e',fontWeight:650}}>
+          Kamera çalışmazsa: kodu buraya yapıştırın
+        </summary>
+        <p style={{margin:'8px 0',fontSize:12,color:'#64748b',lineHeight:1.4}}>
+          İşyerindeki QR’ın altında veya OSGB panelindeki “Payload” metnini kopyalayıp aşağıya yapıştırın.
+          Bu alan yedektir; kamera ile okutunca zaten dolar.
+        </p>
+        <input
+         value={siteVerifyInput}
+         onChange={e=>setSiteVerifyInput(e.target.value)}
+         placeholder="QR metnini buraya yapıştırın"
+         autoComplete="off"
+         style={{width:'100%'}}
+        />
+       </details>
       )}
-      <input required value={siteVerifyInput} onChange={e=>setSiteVerifyInput(e.target.value)} placeholder="Yedek: kod yapıştır" autoComplete="off"/>
      </div>
     )}
     <details className="field-more" style={{gridColumn:'1/-1'}}>
