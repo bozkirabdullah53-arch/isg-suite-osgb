@@ -1309,12 +1309,28 @@ export function VisitsPage({user}){
  const[open,setOpen]=useState(false),[planOpen,setPlanOpen]=useState(false),[verifyOpen,setVerifyOpen]=useState(false),[verifyVisitId,setVerifyVisitId]=useState(null),[verifyCode,setVerifyCode]=useState(''),[signatureData,setSignatureData]=useState(null),[editing,setEditing]=useState(null),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
  const[notebookFile,setNotebookFile]=useState(null);
  const[siteVerifyInput,setSiteVerifyInput]=useState('');
+ const siteVerifyRef=useRef('');
+ const pendingVisitSaveRef=useRef(false);
+ const verifyCodeRef=useRef('');
+ const pendingCompleteSaveRef=useRef(false);
  const[kioskQrInput,setKioskQrInput]=useState('');
  const[kioskMsg,setKioskMsg]=useState('');
  const[scanOpen,setScanOpen]=useState(false);
  const[scanMode,setScanMode]=useState('in');
  const scanModeRef=useRef('in');
  const[showPaste,setShowPaste]=useState(false);
+
+ function setSiteQr(code){
+  const v=String(code||'').trim();
+  siteVerifyRef.current=v;
+  setSiteVerifyInput(v);
+ }
+ function setCompleteQr(code){
+  const v=String(code||'').trim();
+  verifyCodeRef.current=v;
+  setVerifyCode(v);
+ }
+ const cameraOk=typeof navigator!=='undefined'&&!!navigator.mediaDevices?.getUserMedia;
  const emptyForm={osgb_id:'',company_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Periyodik saha ziyareti',notes:''};
  const emptyPlan={osgb_id:'',company_id:'',professional_id:'',visit_date:'',start_time:'09:00',end_time:'10:00',duration_minutes:60,subject:'Planlı saha ziyareti',notes:''};
  const[form,setForm]=useState(emptyForm),[planForm,setPlanForm]=useState(emptyPlan);
@@ -1361,7 +1377,7 @@ export function VisitsPage({user}){
   setSelectedDay('');
  }
  function openCreate(){
-  setErr('');setNotebookFile(null);setSiteVerifyInput('');setEditing(null);
+  setErr('');setNotebookFile(null);setSiteQr('');setEditing(null);pendingVisitSaveRef.current=false;
   const today=new Date().toISOString().slice(0,10);
   setForm(f=>({...emptyForm,osgb_id:f.osgb_id||osgbId(user,orgs)||'',visit_date:today}));
   setOpen(true);
@@ -1385,8 +1401,8 @@ export function VisitsPage({user}){
   });
   setOpen(true);
  }
- async function save(e){
-  e.preventDefault();
+ async function save(e,opts={}){
+  e?.preventDefault?.();
   setErr('');setBusy(true);
   try{
    if(!canEdit) throw new Error('Bu işlem için yetkiniz yok.');
@@ -1394,7 +1410,17 @@ export function VisitsPage({user}){
    if(!form.company_id) throw new Error('İşyeri seçiniz.');
    if(!form.visit_date) throw new Error('Tarih zorunlu.');
    if(!editing&&!notebookFile) throw new Error('Tespit öneri defteri dosyası zorunlu (pdf/jpg/png).');
-   if(isField&&!editing&&!parseSiteInput(siteVerifyInput)) throw new Error('İşyeri QR kodu zorunlu.');
+   const qrRaw=opts.siteCode!=null?opts.siteCode:(siteVerifyRef.current||siteVerifyInput);
+   if(isField&&!editing&&!parseSiteInput(qrRaw)){
+    // Kamera varsa yedek kod istemeden kamerayı aç; okutunca kayıt devam eder
+    if(cameraOk){
+     pendingVisitSaveRef.current=true;
+     setBusy(false);
+     openCameraScan('visit');
+     return;
+    }
+    throw new Error('İşyeri QR kodu zorunlu. Kamera yoksa kodu yapıştırın.');
+   }
    if(notebookFile){
     const ext=(notebookFile.name||'').split('.').pop()?.toLowerCase();
     if(!['pdf','jpg','jpeg','png'].includes(ext||'')) throw new Error('Sadece pdf, jpg veya png yükleyin.');
@@ -1421,10 +1447,11 @@ export function VisitsPage({user}){
    if(notebookFile&&visitId){
     const gps=isField?await captureGps():null;
     const extra={...(gps||{})};
-    if(isField&&siteVerifyInput) extra.site_verify_code=parseSiteInput(siteVerifyInput);
+    const siteCode=parseSiteInput(qrRaw);
+    if(isField&&siteCode) extra.site_verify_code=siteCode;
     await uploadFile(`/operations/visits/${visitId}/notebook`,notebookFile,Object.keys(extra).length?extra:undefined);
    }
-   setOpen(false);setEditing(null);setNotebookFile(null);setSiteVerifyInput('');
+   setOpen(false);setEditing(null);setNotebookFile(null);setSiteQr('');
    setForm(f=>({...emptyForm,osgb_id:f.osgb_id||oid||''}));
    await load();
   }catch(ex){setErr(ex.message||'Kayıt başarısız.')}
@@ -1441,15 +1468,24 @@ export function VisitsPage({user}){
   }catch(ex){setErr(ex.message||'Silinemedi.')}
  }
  async function done(id){
-  setVerifyVisitId(id);setVerifyCode('');setSignatureData(null);setVerifyOpen(true);setErr('');
+  setVerifyVisitId(id);setCompleteQr('');setSignatureData(null);setVerifyOpen(true);setErr('');
+  pendingCompleteSaveRef.current=false;
  }
- async function confirmComplete(e){
+ async function confirmComplete(e,opts={}){
   e?.preventDefault?.();
   if(!verifyVisitId) return;
   setErr('');setBusy(true);
   try{
-   const code=parseSiteInput(verifyCode);
-   if(!code) throw new Error('İşyeri QR kodunu okutun veya kodu girin.');
+   const code=parseSiteInput(opts.siteCode!=null?opts.siteCode:(verifyCodeRef.current||verifyCode));
+   if(!code){
+    if(cameraOk){
+     pendingCompleteSaveRef.current=true;
+     setBusy(false);
+     openCameraScan('complete');
+     return;
+    }
+    throw new Error('İşyeri QR kodunu okutun veya kodu yapıştırın.');
+   }
    if(!signatureData) throw new Error('Saha imzası zorunlu.');
    const gps=await captureGps();
    const payload={...(gps||{}),site_verify_code:code,signature_data_url:signatureData};
@@ -1465,13 +1501,13 @@ export function VisitsPage({user}){
       ...payload,
      });
      refreshOffline();
-     setVerifyOpen(false);setVerifyVisitId(null);setVerifyCode('');setSignatureData(null);
+     setVerifyOpen(false);setVerifyVisitId(null);setCompleteQr('');setSignatureData(null);
      setErr('Çevrimdışı: tamamlama kuyruğa alındı. Bağlantı gelince senkronlayın.');
      return;
     }
     throw ex;
    }
-   setVerifyOpen(false);setVerifyVisitId(null);setVerifyCode('');setSignatureData(null);
+   setVerifyOpen(false);setVerifyVisitId(null);setCompleteQr('');setSignatureData(null);
    await load();
   }catch(ex){setErr(ex.message||'Tamamlanamadı.')}
   finally{setBusy(false)}
@@ -1545,11 +1581,19 @@ export function VisitsPage({user}){
   const mode=scanModeRef.current||scanMode;
   setScanOpen(false);
   if(mode==='visit'){
-    setSiteVerifyInput(code);
+    setSiteQr(code);
+    if(pendingVisitSaveRef.current){
+     pendingVisitSaveRef.current=false;
+     await save(null,{siteCode:code});
+    }
     return;
   }
   if(mode==='complete'){
-    setVerifyCode(code);
+    setCompleteQr(code);
+    if(pendingCompleteSaveRef.current){
+     pendingCompleteSaveRef.current=false;
+     await confirmComplete(null,{siteCode:code});
+    }
     return;
   }
   setKioskQrInput(code);
@@ -1611,7 +1655,12 @@ export function VisitsPage({user}){
      </button>
     </div>
 
-    <button type="button" className="linkish field-paste-toggle" onClick={()=>setShowPaste(v=>!v)}>
+    <button
+     type="button"
+     className="linkish field-paste-toggle"
+     onClick={()=>setShowPaste(v=>!v)}
+     title="Kamera çalışıyorsa gerek yok. Sadece kamera açılamazsa QR kodunu buraya yapıştırıp giriş/çıkış yapın."
+    >
      {showPaste?'Yapıştır alanını gizle':'Kamera yoksa kod yapıştır'}
     </button>
     {showPaste&&(
@@ -1736,63 +1785,71 @@ export function VisitsPage({user}){
    )}]:[])
   ]}/>
   </div>
-  {verifyOpen&&isField&&<M title="Saha doğrulama ve imza" close={()=>{setVerifyOpen(false);setVerifyVisitId(null);setVerifyCode('');setSignatureData(null);setErr('')}}>
-   <form className="form-grid single" onSubmit={confirmComplete}>
+  {verifyOpen&&isField&&<M title="Saha doğrulama ve imza" close={()=>{setVerifyOpen(false);setVerifyVisitId(null);setCompleteQr('');setSignatureData(null);setErr('');pendingCompleteSaveRef.current=false}}>
+   <form className="form-grid single" onSubmit={confirmComplete} noValidate>
     <p style={{margin:0,color:'#334155',fontSize:15,fontWeight:600}}>1) Kamerayla QR okutun · 2) İmzalayın</p>
     <button type="button" className="field-big-btn" disabled={busy} onClick={()=>openCameraScan('complete')} style={{width:'100%',marginBottom:8}}>
      <Camera size={26}/> QR kodu kamerayla okut
     </button>
     {verifyCode?(
-     <p style={{margin:0,fontSize:13,color:'#0f766e',wordBreak:'break-all'}}>QR alındı ✓</p>
+     <p style={{margin:0,fontSize:13,color:'#0f766e',wordBreak:'break-all'}}>QR alındı ✓ Kaydedebilirsiniz.</p>
     ):(
-     <p style={{margin:0,fontSize:12,color:'#64748b'}}>Okutunca buraya yazılır. İsterseniz aşağıya yapıştırın.</p>
+     <details style={{margin:0}}>
+      <summary
+       style={{cursor:'pointer',fontSize:13,color:'#0f766e',fontWeight:650}}
+       title="Kamera çalışıyorsa bu alana gerek yok. Sadece kamera açılamazsa QR metnini buraya yapıştırın."
+      >
+       Kamera çalışmazsa: kodu yapıştır
+      </summary>
+      <input
+       value={verifyCode}
+       onChange={e=>setCompleteQr(e.target.value)}
+       placeholder="QR metnini yapıştırın"
+       autoComplete="off"
+       style={{width:'100%',marginTop:8}}
+      />
+     </details>
     )}
-    <label className="field" style={{gridColumn:'1/-1'}}>
-     <span>Kod (yedek)</span>
-     <input required value={verifyCode} onChange={e=>setVerifyCode(e.target.value)} placeholder="Yapıştır…" autoComplete="off"/>
-    </label>
     <SignaturePad onChange={setSignatureData}/>
     {err&&<p style={{color:'#b91c1c',margin:0}}>{err}</p>}
     <div className="form-actions"><button disabled={busy}>{busy?'Tamamlanıyor…':'Kaydet'}</button></div>
    </form>
   </M>}
-  {open&&canEdit&&(isField||editing)&&<M title={editing?'Saha Ziyaretini Düzenle':'Defter + QR kaydı'} close={()=>{setOpen(false);setEditing(null);setErr('')}}>
-   <form className="form-grid field-visit-form" onSubmit={save}>
+  {open&&canEdit&&(isField||editing)&&<M title={editing?'Saha Ziyaretini Düzenle':'Defter + QR kaydı'} close={()=>{setOpen(false);setEditing(null);setErr('');pendingVisitSaveRef.current=false}}>
+   <form className="form-grid field-visit-form" onSubmit={save} noValidate>
     <S label="1) İşyeri" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})} disabled={isOsgb&&!!editing}>
      <option value="">Seçiniz</option>
      {companies.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}
     </S>
     <label className="field" style={{gridColumn:'1/-1'}}>
      <span>{editing?'2) Defter (opsiyonel)':'2) Tespit öneri defteri (pdf/jpg/png) *'}</span>
-     <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required={!editing} onChange={e=>setNotebookFile(e.target.files?.[0]||null)}/>
+     <input type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e=>setNotebookFile(e.target.files?.[0]||null)}/>
      {notebookFile&&<small style={{color:'#475569'}}>{notebookFile.name}</small>}
      {!notebookFile&&editing?.notebook_file_name&&<small style={{color:'#475569'}}>Mevcut: {editing.notebook_file_name}</small>}
     </label>
     {isField&&!editing&&(
      <div style={{gridColumn:'1/-1',display:'grid',gap:8}}>
       <span style={{fontSize:13,fontWeight:700,color:'#425c67'}}>3) İşyeri QR doğrulama *</span>
-      <p style={{margin:0,fontSize:13,color:'#475569',lineHeight:1.45}}>
-        Sahadaki <strong>işyeri QR kodunu</strong> okutarak ziyaretin gerçekten o işyerinde yapıldığını doğrular.
-        Asıl yol kamera ile okutmaktır; kod otomatik dolar.
-      </p>
       <button type="button" className="field-big-btn" disabled={busy} onClick={()=>openCameraScan('visit')}>
        <Camera size={26}/> Kamerayı aç — QR okut
       </button>
       {siteVerifyInput?(
-       <p style={{margin:0,fontSize:13,color:'#0f766e',wordBreak:'break-all'}}>QR alındı ✓ Kaydedebilirsiniz.</p>
+       <p style={{margin:0,fontSize:13,color:'#0f766e',wordBreak:'break-all'}}>QR alındı ✓ Kaydet ile onaylayın (yedek koda gerek yok).</p>
       ):(
        <details style={{margin:0}}>
-        <summary style={{cursor:'pointer',fontSize:13,color:'#0f766e',fontWeight:650}}>
-          Kamera çalışmazsa: kodu buraya yapıştırın
+        <summary
+         style={{cursor:'pointer',fontSize:13,color:'#0f766e',fontWeight:650}}
+         title="Kamera çalışıyorsa bu alana gerek yok. Kaydet’e basınca kamera açılır; QR okutulunca kayıt tamamlanır. Sadece kamera açılamazsa kodu yapıştırın."
+        >
+         Kamera çalışmazsa: kodu yapıştır
         </summary>
         <p style={{margin:'8px 0',fontSize:12,color:'#64748b',lineHeight:1.4}}>
-          İşyerindeki QR’ın altında veya OSGB panelindeki “Payload” metnini kopyalayıp aşağıya yapıştırın.
-          Bu alan yedektir; kamera ile okutunca zaten dolar.
+          İşyeri QR metnini (Payload) kopyalayıp yapıştırın. Kamera kullanıyorsanız bu adımı atlayın.
         </p>
         <input
          value={siteVerifyInput}
-         onChange={e=>setSiteVerifyInput(e.target.value)}
-         placeholder="QR metnini buraya yapıştırın"
+         onChange={e=>setSiteQr(e.target.value)}
+         placeholder="QR metnini yapıştırın"
          autoComplete="off"
          style={{width:'100%'}}
         />
@@ -1803,11 +1860,11 @@ export function VisitsPage({user}){
     <details className="field-more" style={{gridColumn:'1/-1'}}>
      <summary>Tarih / saat / konu (isteğe bağlı)</summary>
      <div className="form-grid" style={{padding:'10px 0 0'}}>
-      <F label="Tarih" type="date" required value={form.visit_date} onChange={e=>setForm({...form,visit_date:e.target.value})}/>
+      <F label="Tarih" type="date" value={form.visit_date} onChange={e=>setForm({...form,visit_date:e.target.value})}/>
       <F label="Başlangıç" type="time" value={form.start_time} onChange={e=>setForm({...form,start_time:e.target.value})}/>
       <F label="Bitiş" type="time" value={form.end_time} onChange={e=>setForm({...form,end_time:e.target.value})}/>
       <F label="Süre (dk.)" type="number" value={form.duration_minutes} onChange={e=>setForm({...form,duration_minutes:e.target.value})}/>
-      <F label="Ziyaret Konusu" required value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})}/>
+      <F label="Ziyaret Konusu" value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})}/>
       <F label="Notlar" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})}/>
      </div>
     </details>
@@ -1859,7 +1916,11 @@ export function VisitsPage({user}){
    <SiteQrCameraModal
     open={scanOpen}
     mode={scanMode}
-    onClose={()=>setScanOpen(false)}
+    onClose={()=>{
+     pendingVisitSaveRef.current=false;
+     pendingCompleteSaveRef.current=false;
+     setScanOpen(false);
+    }}
     onDetected={onCameraDetected}
    />
   )}
