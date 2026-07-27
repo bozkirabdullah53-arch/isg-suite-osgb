@@ -61,6 +61,7 @@ const roleModules={
     'eisa_archives',
     'eisa_audit_logs',
     'eisa_system_settings',
+    'security', // kendi şifre/MFA — başkasının şifresine müdahale yok
   ],
   // OSGB merkezi: yalnız OSGB yönetimi. Saha modülleri ASLA burada olmamalı.
   // Sıra: günlük kullanım yoğunluğu (sık → seyrek).
@@ -103,7 +104,7 @@ const roleModules={
     'annual_plans','documents',
     'security',
   ],
-  read_only:['dashboard','annual_eval_report','notifications'],
+  read_only:['dashboard','annual_eval_report','notifications','security'],
 };
 
 /** Yalnız otomatik üretilen işyeri QR kiosk hesabı — diğer company_admin menüsü bozulmaz. */
@@ -1544,6 +1545,11 @@ function App(){
             <button type="button" className="header-icon" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfa">
               <LayoutDashboard size={18}/>
             </button>
+            {allowed.includes('security')&&(
+              <button type="button" className="header-icon" onClick={()=>goModule('security')} title="Şifre değiştir / Güvenlik" aria-label="Şifre değiştir">
+                <KeyRound size={18}/>
+              </button>
+            )}
           <div className="user-chip">
             <strong>{user.full_name}</strong>
             <span>{roles[user.role]}</span>

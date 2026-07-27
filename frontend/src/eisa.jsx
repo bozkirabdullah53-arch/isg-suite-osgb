@@ -332,7 +332,7 @@ export function EisaOverviewPage() {
           {dash?.pending_applications != null ? ` — ${dash.pending_applications} bekleyen` : ''}
         </h4>
         <p style={{ marginTop: 0, color: '#64748b' }}>
-          Aşağıdaki listeden başvuruyu onaylayın, reddedin veya kaydı silin. Onayda geçici şifre ekranda gösterilir.
+          Aşağıdaki listeden başvuruyu onaylayın, reddedin veya kaydı silin. Yeni hesapta geçici şifre bir kez gösterilir; mevcut hesapların şifresi değiştirilmez.
         </p>
         <div className="actions" style={{ marginBottom: 12 }}>
           {[
@@ -477,7 +477,7 @@ export function EisaOsgbUsersPage() {
       <div className="eisa-osgb-users">
       <p style={{ marginTop: 0, color: '#64748b' }}>
         Pasife Al geçici olarak dondurur. Sil, OSGB’yi listeden kalıcı kaldırır (önce merkezi yedek alınır).
-        Yönetici hesabı başvuru onayında otomatik oluşur; mevcut OSGB’ler için aşağıdan geçici şifre atayabilirsiniz.
+        Yönetici hesabı başvuru onayında veya «Yönetici Oluştur» ile oluşur. Şifre yalnızca hesap sahibi tarafından (Güvenlik menüsü / şifremi unuttum) değiştirilir.
       </p>
       <div className="eisa-toolbar">
         <SearchBar value={q} onChange={setQ} placeholder="OSGB adı, e-posta, yetki no…" />
