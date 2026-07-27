@@ -47,6 +47,143 @@ function periodText(period) {
   return '—';
 }
 
+/** İnce SVG skor halkası — skor kutusunun yanında, gürültüsüz */
+function ScoreRing({pct = 0, size = 72, status = 'unknown'}) {
+  const p = Math.max(0, Math.min(100, Number(pct) || 0));
+  const r = 28;
+  const c = 2 * Math.PI * r;
+  const s = statusStyle(status);
+  const dash = (p / 100) * c;
+  return (
+    <svg width={size} height={size} viewBox="0 0 72 72" aria-hidden style={{display: 'block'}}>
+      <circle cx="36" cy="36" r={r} fill="none" stroke="#e2e8f0" strokeWidth="6" />
+      <circle
+        cx="36" cy="36" r={r} fill="none"
+        stroke={s.bar}
+        strokeWidth="6"
+        strokeLinecap="round"
+        strokeDasharray={`${dash} ${c - dash}`}
+        transform="rotate(-90 36 36)"
+        style={{transition: 'stroke-dasharray .6s ease'}}
+      />
+      <text x="36" y="40" textAnchor="middle" fontSize="14" fontWeight="750" fill={s.fg}>
+        {Math.round(p)}%
+      </text>
+    </svg>
+  );
+}
+
+/** Yatay tamamlanma şeridi — yeşil dolgu, ince */
+function ProgressRibbon({done = 0, total = 0, label}) {
+  const t = Math.max(0, Number(total) || 0);
+  const d = Math.max(0, Math.min(t, Number(done) || 0));
+  const pct = t ? Math.round((100 * d) / t) : 0;
+  return (
+    <div style={{minWidth: 0}}>
+      {label ? (
+        <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 5, fontSize: 11, color: '#64748b'}}>
+          <span>{label}</span>
+          <span style={{fontWeight: 650, color: pct >= 80 ? '#166534' : '#475569'}}>{d}/{t} · %{pct}</span>
+        </div>
+      ) : null}
+      <div style={{
+        height: 7, borderRadius: 999, background: '#eef2f6', overflow: 'hidden',
+        boxShadow: 'inset 0 1px 2px rgba(15,23,42,.06)',
+      }}>
+        <div style={{
+          height: '100%', width: `${pct}%`, borderRadius: 999,
+          background: pct >= 70
+            ? 'linear-gradient(90deg,#86efac,#16a34a)'
+            : pct >= 35
+              ? 'linear-gradient(90deg,#fde68a,#d97706)'
+              : 'linear-gradient(90deg,#fecaca,#ef4444)',
+          transition: 'width .55s ease',
+        }} />
+      </div>
+    </div>
+  );
+}
+
+/** Detay metninden "28 / 3000" gibi oran çıkarır */
+function parseRatio(detail) {
+  const m = String(detail || '').match(/(\d+(?:[.,]\d+)?)\s*(?:dk|min)?\s*[\/]\s*(\d+(?:[.,]\d+)?)/i);
+  if (!m) return null;
+  const a = Number(String(m[1]).replace(',', '.'));
+  const b = Number(String(m[2]).replace(',', '.'));
+  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= 0) return null;
+  return {done: a, total: b, pct: Math.min(100, Math.round((100 * a) / b))};
+}
+
+/** Görev checklist — yeşil noktalarla kompakt grafik özet */
+function WorkGraph({firms = [], completed = [], incomplete = []}) {
+  const checks = useMemo(() => {
+    const map = new Map();
+    for (const f of firms) {
+      for (const c of f.checks || []) {
+        const key = c.code || c.title;
+        if (!map.has(key)) map.set(key, {code: key, title: c.title || key, ok: 0, gap: 0});
+        const row = map.get(key);
+        if (c.passed) row.ok += 1;
+        else row.gap += 1;
+      }
+    }
+    if (!map.size && (completed.length || incomplete.length)) {
+      const titles = new Set([
+        ...completed.map((x) => x.check_title || x.check_code),
+        ...incomplete.map((x) => x.check_title || x.check_code),
+      ]);
+      for (const t of titles) {
+        if (!t) continue;
+        const ok = completed.filter((x) => (x.check_title || x.check_code) === t).length;
+        const gap = incomplete.filter((x) => (x.check_title || x.check_code) === t).length;
+        map.set(t, {code: t, title: t, ok, gap});
+      }
+    }
+    return [...map.values()];
+  }, [firms, completed, incomplete]);
+
+  if (!checks.length) return null;
+
+  return (
+    <div style={{
+      marginTop: 16, padding: '14px 16px', borderRadius: 12,
+      background: 'linear-gradient(180deg,#f8fffb 0%,#ffffff 100%)',
+      border: '1px solid #d1fae5',
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 700, color: '#0f766e', letterSpacing: '.05em',
+        textTransform: 'uppercase', marginBottom: 12,
+      }}>
+        Görev bazlı ilerleme
+      </div>
+      <div style={{display: 'grid', gap: 10}}>
+        {checks.map((c) => {
+          const total = c.ok + c.gap;
+          return (
+            <div key={c.code} style={{display: 'grid', gridTemplateColumns: 'minmax(120px,1.1fr) minmax(80px,1.4fr) auto', gap: 10, alignItems: 'center'}}>
+              <div style={{fontSize: 12.5, fontWeight: 650, color: '#334155', lineHeight: 1.3}}>{c.title}</div>
+              <ProgressRibbon done={c.ok} total={total || 1} />
+              <div style={{display: 'flex', gap: 4, justifyContent: 'flex-end', minWidth: 52}}>
+                {Array.from({length: Math.min(total || 1, 8)}).map((_, i) => (
+                  <span
+                    key={i}
+                    title={i < c.ok ? 'Tamam' : 'Eksik'}
+                    style={{
+                      width: 7, height: 7, borderRadius: 2,
+                      background: i < c.ok ? '#22c55e' : '#e2e8f0',
+                      boxShadow: i < c.ok ? '0 0 0 1px rgba(22,163,74,.25)' : 'none',
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ProPerformancePage({user}) {
   const [orgs, setOrgs] = useState([]);
   const [osgbId, setOsgbId] = useState('');
@@ -342,35 +479,62 @@ export function ProPerformancePage({user}) {
                   {perf?.unassigned ? ' · Görevlendirme yok' : ''}
                 </p>
               </div>
-              <div style={{
-                minWidth: 140, textAlign: 'center', padding: '16px 20px',
-                borderRadius: 12, background: st.bg, color: st.fg,
-              }}>
-                <div style={{fontSize: 36, fontWeight: 800, lineHeight: 1}}>{perf?.score ?? 0}%</div>
-                <div style={{fontSize: 12, marginTop: 6, fontWeight: 700}}>Skor</div>
-                <div style={{marginTop: 8}}><StatusPill status={perf?.status} /></div>
+              <div style={{display: 'flex', gap: 14, alignItems: 'center'}}>
+                <ScoreRing pct={perf?.score ?? perf?.completion_pct ?? 0} status={perf?.status} />
+                <div style={{
+                  minWidth: 120, textAlign: 'center', padding: '14px 16px',
+                  borderRadius: 12, background: st.bg, color: st.fg,
+                }}>
+                  <div style={{fontSize: 28, fontWeight: 800, lineHeight: 1}}>{perf?.score ?? 0}%</div>
+                  <div style={{fontSize: 11, marginTop: 5, fontWeight: 700, opacity: .85}}>Skor</div>
+                  <div style={{marginTop: 8}}><StatusPill status={perf?.status} /></div>
+                </div>
               </div>
+            </div>
+
+            <div style={{marginTop: 16}}>
+              <ProgressRibbon
+                done={perf?.completed_checks ?? completed.length}
+                total={(perf?.completed_checks ?? completed.length) + (perf?.gap_count ?? incomplete.length)}
+                label="Genel tamamlanma"
+              />
             </div>
 
             <div style={{
               display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-              gap: 10, marginTop: 18,
+              gap: 10, marginTop: 14,
             }}>
               {[
-                ['İşyeri', perf?.firm_count ?? 0],
-                ['Tamamlanan', perf?.completed_checks ?? completed.length],
-                ['Eksik', perf?.gap_count ?? incomplete.length],
-                ['Tamamlanma', `%${perf?.completion_pct ?? 0}`],
-              ].map(([label, val]) => (
-                <div key={label} style={{padding: '12px 14px', background: '#f8fafc', borderRadius: 10}}>
-                  <div style={{fontSize: 11, color: '#64748b'}}>{label}</div>
+                {label: 'İşyeri', val: perf?.firm_count ?? 0, tone: 'neutral'},
+                {label: 'Tamamlanan', val: perf?.completed_checks ?? completed.length, tone: 'ok'},
+                {label: 'Eksik', val: perf?.gap_count ?? incomplete.length, tone: 'gap'},
+                {label: 'Tamamlanma', val: `%${perf?.completion_pct ?? 0}`, tone: 'pct'},
+              ].map((k) => (
+                <div key={k.label} style={{
+                  padding: '12px 14px', borderRadius: 10,
+                  background: k.tone === 'ok' ? '#f0fdf4' : k.tone === 'gap' && Number(k.val) > 0 ? '#fff7ed' : '#f8fafc',
+                  border: k.tone === 'ok' ? '1px solid #bbf7d0' : '1px solid transparent',
+                }}>
+                  <div style={{fontSize: 11, color: '#64748b'}}>{k.label}</div>
                   <div style={{
                     fontSize: 20, fontWeight: 750, marginTop: 2,
-                    color: label === 'Eksik' && Number(val) > 0 ? '#b91c1c' : undefined,
-                  }}>{val}</div>
+                    color: k.tone === 'ok' ? '#166534'
+                      : (k.tone === 'gap' && Number(k.val) > 0) ? '#b91c1c'
+                        : undefined,
+                  }}>{k.val}</div>
+                  {k.tone === 'ok' ? (
+                    <div style={{marginTop: 8, height: 3, borderRadius: 99, background: '#dcfce7', overflow: 'hidden'}}>
+                      <div style={{
+                        height: '100%', width: `${Math.min(100, Number(perf?.completion_pct) || 0)}%`,
+                        background: '#22c55e', borderRadius: 99,
+                      }} />
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
+
+            <WorkGraph firms={firms} completed={completed} incomplete={incomplete} />
           </section>
 
           <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12}}>
@@ -415,15 +579,25 @@ export function ProPerformancePage({user}) {
                       </tr>
                     </thead>
                     <tbody>
-                      {incomplete.map((g, i) => (
-                        <tr key={`inc-${i}`}>
-                          <td>{i + 1}</td>
-                          <td>{g.company_name || '—'}</td>
-                          <td><strong>{g.check_title}</strong></td>
-                          <td style={{fontSize: 13}}>{g.detail}</td>
-                          <td style={{fontSize: 12, color: '#64748b'}}>{g.legal || '—'}</td>
-                        </tr>
-                      ))}
+                      {incomplete.map((g, i) => {
+                        const ratio = parseRatio(g.detail);
+                        return (
+                          <tr key={`inc-${i}`}>
+                            <td>{i + 1}</td>
+                            <td>{g.company_name || '—'}</td>
+                            <td><strong>{g.check_title}</strong></td>
+                            <td style={{fontSize: 13}}>
+                              <div>{g.detail}</div>
+                              {ratio ? (
+                                <div style={{marginTop: 6, maxWidth: 180}}>
+                                  <ProgressRibbon done={ratio.done} total={ratio.total} />
+                                </div>
+                              ) : null}
+                            </td>
+                            <td style={{fontSize: 12, color: '#64748b'}}>{g.legal || '—'}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -452,10 +626,26 @@ export function ProPerformancePage({user}) {
                     </thead>
                     <tbody>
                       {completed.map((g, i) => (
-                        <tr key={`ok-${i}`}>
-                          <td>{g.company_name || '—'}</td>
+                        <tr key={`ok-${i}`} style={{background: i % 2 ? '#f7fdf9' : undefined}}>
+                          <td>
+                            <span style={{
+                              display: 'inline-flex', alignItems: 'center', gap: 6,
+                            }}>
+                              <span style={{
+                                width: 8, height: 8, borderRadius: 99, background: '#22c55e', flexShrink: 0,
+                              }} />
+                              {g.company_name || '—'}
+                            </span>
+                          </td>
                           <td>{g.check_title}</td>
-                          <td style={{fontSize: 13, color: '#475569'}}>{g.detail}</td>
+                          <td style={{fontSize: 13, color: '#475569'}}>
+                            {g.detail}
+                            <div style={{marginTop: 6, maxWidth: 140}}>
+                              <div style={{height: 4, borderRadius: 99, background: '#dcfce7'}}>
+                                <div style={{width: '100%', height: '100%', borderRadius: 99, background: 'linear-gradient(90deg,#86efac,#16a34a)'}} />
+                              </div>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -480,12 +670,19 @@ export function ProPerformancePage({user}) {
                 <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
                   {firms.map((f) => (
                     <div key={f.company_id || f.assignment_id} style={{border: '1px solid #e2e8f0', borderRadius: 10, padding: 14}}>
-                      <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8, alignItems: 'flex-start'}}>
                         <div>
                           <strong>{f.company_name}</strong>
                           {f.hazard_class && (
                             <div style={{fontSize: 12, color: '#64748b'}}>{f.hazard_class}</div>
                           )}
+                          <div style={{marginTop: 8, maxWidth: 220}}>
+                            <ProgressRibbon
+                              done={(f.checks || []).filter((c) => c.passed).length}
+                              total={(f.checks || []).length}
+                              label="Firma kontrolleri"
+                            />
+                          </div>
                         </div>
                         <div style={{textAlign: 'right'}}>
                           <StatusPill status={f.status} />
