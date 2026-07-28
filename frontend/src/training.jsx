@@ -1085,7 +1085,13 @@ export function TrainingPage({user}) {
                   setErr('');
                   setSavedTrainingId(null);
                   const cid = e.target.value;
-                  setForm({...form, company_id: cid, participant_ids: []});
+                  const picked = companies.find((c) => String(c.id) === String(cid));
+                  setForm({
+                    ...form,
+                    company_id: cid,
+                    participant_ids: [],
+                    hazard_class: picked?.hazard_class || form.hazard_class,
+                  });
                   if (cid) {
                     refreshEmployees(cid).catch((x) =>
                       setErr('Personel listesi alınamadı: ' + (x.message || x)),
@@ -1303,6 +1309,13 @@ export function TrainingPage({user}) {
                     <option>Tehlikeli</option>
                     <option>Çok Tehlikeli</option>
                   </select>
+                  {selectedSector?.hazard_class &&
+                    selectedSector.hazard_class !== form.hazard_class && (
+                      <div className="tp-help" style={{color: '#b45309'}}>
+                        Tebliğe göre “{selectedSector.label || selectedSector.name}” sınıfı:{' '}
+                        {selectedSector.hazard_class}
+                      </div>
+                    )}
                 </div>
                 <div>
                   <label className="tp-label">Süre / yenileme</label>
@@ -1346,7 +1359,15 @@ export function TrainingPage({user}) {
                     className="tp-select"
                     value={form.sector}
                     disabled={!canEdit}
-                    onChange={(e) => setForm({...form, sector: e.target.value})}
+                    onChange={(e) => {
+                      const code = e.target.value;
+                      const picked = sectors.find((s) => s.code === code);
+                      setForm({
+                        ...form,
+                        sector: code,
+                        hazard_class: picked?.hazard_class || form.hazard_class,
+                      });
+                    }}
                   >
                     {filteredSectors.length === 0 && <option value="genel_uretim">Yükleniyor…</option>}
                     {filteredSectors.map((s) => (
@@ -1355,7 +1376,10 @@ export function TrainingPage({user}) {
                       </option>
                     ))}
                   </select>
-                  <div className="tp-help">Belgedeki 4. konu başlığı bu seçime göre hazırlanır.</div>
+                  <div className="tp-help">
+                    Belgedeki 4. konu başlığı bu seçime göre hazırlanır; tehlike sınıfı tebliğdeki
+                    karşılığına göre güncellenir.
+                  </div>
                 </div>
               </div>
               <div className="tp-alert warn" style={{marginTop: 10}}>

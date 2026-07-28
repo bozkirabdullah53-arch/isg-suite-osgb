@@ -214,6 +214,155 @@ _SECTOR_RAW: list[tuple[str, str, str, list[str]]] = [
     ('yuksekte_calisma', 'Yüksekte Çalışma Hizmetleri', 'Çok Tehlikeli', ['Düşme önleme sistemleri', 'İskele/platform', 'Rüzgar etkisi', 'Malzeme düşmesi', 'Kurtarma planı']),
 ]
 
+# Katalog aktarımında satırların büyük kısmı varsayılan "Tehlikeli" ile gelmişti.
+# Sınıflar, İş Sağlığı ve Güvenliğine İlişkin İşyeri Tehlike Sınıfları Tebliği
+# (NACE Rev.2) karşılıklarına göre düzeltilir.
+TEHLIKE_SINIFI_DUZELTMELERI: dict[str, str] = {
+    # Yapı işleri (NACE 41-43)
+    "insaat_santiye": "Çok Tehlikeli",
+    "muteahhitlik_taahhut": "Çok Tehlikeli",
+    "yol_altyapi_insaati": "Çok Tehlikeli",
+    "iskele_kalip_yapi_ekipmani": "Çok Tehlikeli",
+    "yuksekte_calisma_cephe": "Çok Tehlikeli",
+    "celik_yapi_metal_konstruksiyon": "Çok Tehlikeli",
+    "asansor_montaj_ve_bakim": "Çok Tehlikeli",
+    "is_makinesi_agir_ekipman": "Çok Tehlikeli",
+    # Madencilik ve taş ocakçılığı (NACE 05-09)
+    "madencilik_maden_ocagi": "Çok Tehlikeli",
+    "tas_ocagi_maden_ocagi": "Çok Tehlikeli",
+    "kapali_maden": "Çok Tehlikeli",
+    # Tersane, liman, demiryolu (NACE 30.11, 52.24, 42.12)
+    "gemi_insa_tersane": "Çok Tehlikeli",
+    "tersane": "Çok Tehlikeli",
+    "tersane_liman_hizmetleri": "Çok Tehlikeli",
+    "liman": "Çok Tehlikeli",
+    "demiryolu": "Çok Tehlikeli",
+    # Metal ana sanayi (NACE 24)
+    "demir_celik_hadde": "Çok Tehlikeli",
+    # Kimya, patlayıcı, petrol, gaz (NACE 19-20, 35.22)
+    "kimya_kimyasal_uretim": "Çok Tehlikeli",
+    "boyahaneler_boya_uretimi": "Çok Tehlikeli",
+    "patlayici": "Çok Tehlikeli",
+    "petrol_rafineri_depolama": "Çok Tehlikeli",
+    "akaryakit_lpg_dolum_istasyonu": "Çok Tehlikeli",
+    "dogalgaz_enerji_dagitim": "Çok Tehlikeli",
+    # Enerji üretim/iletim (NACE 35.11, 33.14)
+    "enerji_jenerator_trafo": "Çok Tehlikeli",
+    "yenilenebilir_enerji": "Çok Tehlikeli",
+    "yenilenebilir_enerji_gunes_ruzgar": "Çok Tehlikeli",
+    "telekomunikasyon_altyapi": "Çok Tehlikeli",
+    # Kauçuk, cam, çimento, yapı malzemesi (NACE 22.1, 23)
+    "plastik_kaucuk": "Çok Tehlikeli",
+    "cam_seramik_porselen": "Çok Tehlikeli",
+    "cam_seramik": "Çok Tehlikeli",
+    "cimento_klinker": "Çok Tehlikeli",
+    "beton_cimento_hazir_beton": "Çok Tehlikeli",
+    "yapi_malzemeleri_uretimi": "Çok Tehlikeli",
+    "kagit_karton_uretimi": "Çok Tehlikeli",
+    "tekstil_dokuma_boyama": "Çok Tehlikeli",
+    "otomotiv": "Çok Tehlikeli",
+    # Ormancılık, balıkçılık, atık, atıksu (NACE 02.20, 03.11, 37-38)
+    "ormancilik": "Çok Tehlikeli",
+    "ormancilik_kereste": "Çok Tehlikeli",
+    "balikcilik_su_urunleri": "Çok Tehlikeli",
+    "atik_yonetimi_geri_donusum": "Çok Tehlikeli",
+    "atik_geri_donusum": "Çok Tehlikeli",
+    "elektronik_atik_bertaraf": "Çok Tehlikeli",
+    "su_atiksu": "Çok Tehlikeli",
+    # Hastane hizmetleri (NACE 86.10)
+    "saglik": "Çok Tehlikeli",
+    "saglik_hastane_klinik": "Çok Tehlikeli",
+    # Büro, finans, bilişim, eğitim, kamu idaresi (NACE 62, 64-66, 69, 82, 84-85)
+    "avukatlik_hukuk_burosu": "Az Tehlikeli",
+    "banka_finans": "Az Tehlikeli",
+    "banka_finans_2": "Az Tehlikeli",
+    "sigorta_broker": "Az Tehlikeli",
+    "cagri_merkezi_contact_center": "Az Tehlikeli",
+    "bilisim_yazilim_it": "Az Tehlikeli",
+    "muhendislik_proje_ofisi": "Az Tehlikeli",
+    "ofis_idari_hizmetler": "Az Tehlikeli",
+    "basin_yayin_medya": "Az Tehlikeli",
+    "organizasyon_etkinlik": "Az Tehlikeli",
+    "egitim_okul_kurs": "Az Tehlikeli",
+    "egitim_kurumu": "Az Tehlikeli",
+    "universite_yuksekogretim": "Az Tehlikeli",
+    "kamu_kurumu_idare": "Az Tehlikeli",
+    # Perakende, konaklama, yeme-içme, kişisel hizmet (NACE 47, 55-56, 93, 96)
+    "market_perakende": "Az Tehlikeli",
+    "perakende": "Az Tehlikeli",
+    "alisveris_merkezi_avm": "Az Tehlikeli",
+    "hirdavat_yapi_market": "Az Tehlikeli",
+    "eczane_medikal_satis": "Az Tehlikeli",
+    "konaklama_otel_pansiyon": "Az Tehlikeli",
+    "turizm": "Az Tehlikeli",
+    "restoran_cafe_mutfak": "Az Tehlikeli",
+    "restoran": "Az Tehlikeli",
+    "guzellik_kuafor_spa": "Az Tehlikeli",
+    "spor_tesisi_fitness": "Az Tehlikeli",
+}
+
+# Aktarımda bazı sektörlere başka bir sektörün konu seti eşlenmişti
+# (ör. hukuk bürosuna kanalizasyon gazı). Bu sektörlerin konuları yeniden yazıldı.
+SEKTOREL_KONU_DUZELTMELERI: dict[str, list[str]] = {
+    "avukatlik_hukuk_burosu": [
+        "Ekranlı araçlarla çalışma, oturma düzeni ve ergonomi",
+        "Arşiv, dosya taşıma ve raf-istif düzeni",
+        "Elektrikli büro ekipmanları ve kablo düzeni",
+        "Yangın, tahliye ve toplanma alanı uygulamaları",
+        "Duruşma-saha ziyaretlerinde yol güvenliği ve psikososyal riskler",
+    ],
+    "bilisim_yazilim_it": [
+        "Ekranlı araçlarla çalışma, göz sağlığı ve mola düzeni",
+        "Oturma düzeni, ergonomi ve tekrarlayan zorlanmalar",
+        "Sistem odası: elektrik, sıcaklık ve yangın riskleri",
+        "Kablo düzeni, kayma-takılma ve düzenli çalışma alanı",
+        "Uzun çalışma saatleri, iş yükü ve psikososyal riskler",
+    ],
+    "kamu_kurumu_idare": [
+        "Ekranlı araçlarla çalışma, oturma düzeni ve ergonomi",
+        "Arşiv, evrak taşıma ve raf-istif güvenliği",
+        "Elektrikli büro ekipmanları ve kayma-takılma riskleri",
+        "Yangın, deprem, tahliye ve toplanma alanları",
+        "Halka açık hizmet alanlarında şiddet ve psikososyal riskler",
+    ],
+    "organizasyon_etkinlik": [
+        "Sahne, truss, ışık-ses kurulumunda yüksekte çalışma",
+        "Geçici elektrik tesisatı, jeneratör ve kablo güvenliği",
+        "Ağır ekipman taşıma, elle kaldırma ve ergonomi",
+        "Kalabalık yönetimi, acil çıkış ve tahliye planı",
+        "Yangın, hava koşulları ve açık alan riskleri",
+    ],
+    "eczane_medikal_satis": [
+        "İlaç ve medikal ürün istifleme, raf ve depo düzeni",
+        "Soğuk zincir, buzdolabı ve ürün taşıma güvenliği",
+        "Hijyen, bulaşıcı hastalık ve kişisel korunma",
+        "Nöbet, gece çalışması, şiddet ve psikososyal riskler",
+        "Yangın, elektrikli cihazlar ve acil durum uygulamaları",
+    ],
+    "guzellik_kuafor_spa": [
+        "Boya, oksidan, keratin ve kozmetik kimyasallara maruziyet",
+        "Havalandırma, solunum koruma ve cilt koruma",
+        "Makas, jilet, elektrikli cihaz ve sıcak yüzey riskleri",
+        "Ayakta çalışma, ergonomi ve tekrarlayan hareketler",
+        "Hijyen, sterilizasyon, kayma-düşme ve yangın güvenliği",
+    ],
+    "spor_tesisi_fitness": [
+        "Ağırlık, kondisyon aleti ve ekipman bakımı güvenliği",
+        "Üye ve çalışan için kayma-düşme, çarpma riskleri",
+        "Havuz/sauna alanlarında kimyasal, biyolojik ve termal riskler",
+        "Elle taşıma, ergonomi ve tekrarlayan zorlanmalar",
+        "İlk yardım, acil durum, yangın ve tahliye uygulamaları",
+    ],
+    "balikcilik_su_urunleri": [
+        "Güvertede kayma-düşme, denize düşme ve kurtarma",
+        "Ağ, halat, vinç ve makara ile çalışmada sıkışma riskleri",
+        "Soğuk, ıslak ortam, ısı stresi ve uzun vardiyalar",
+        "Kesici aletler, biyolojik etkenler ve hijyen",
+        "Soğutma tesisatı, amonyak/gaz kaçağı ve acil durumlar",
+    ],
+}
+
+
 def _topics_with_dk(topics: list[str]) -> list[str]:
     return [t if " DK" in t else f"{t} - 30 DK" for t in topics]
 
@@ -221,9 +370,11 @@ def _topics_with_dk(topics: list[str]) -> list[str]:
 # Build maps
 SEKTOR_SECENEKLERI: list[tuple[str, str]] = [(c, n) for c, n, _, _ in _SECTOR_RAW]
 SEKTOREL_EGITIM_KONULARI: dict[str, list[str]] = {
-    c: _topics_with_dk(topics) for c, _, _, topics in _SECTOR_RAW
+    c: _topics_with_dk(SEKTOREL_KONU_DUZELTMELERI.get(c, topics)) for c, _, _, topics in _SECTOR_RAW
 }
-SEKTOR_TEHLIKE: dict[str, str] = {c: h for c, _, h, _ in _SECTOR_RAW}
+SEKTOR_TEHLIKE: dict[str, str] = {
+    c: TEHLIKE_SINIFI_DUZELTMELERI.get(c, h) for c, _, h, _ in _SECTOR_RAW
+}
 
 
 def tehlike_kurali(tehlike_sinifi: str) -> dict:

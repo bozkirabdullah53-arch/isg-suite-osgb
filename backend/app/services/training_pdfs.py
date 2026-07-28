@@ -506,6 +506,25 @@ def build_certificates_pdf(*, company_name: str, training, employees: dict) -> b
     return buf.read()
 
 
+def certificate_meta_parts(training, *, kural: dict, curriculum: dict | None = None) -> list[str]:
+    """Katılım belgesi üst satırı — süre, tehlike sınıfı, tür, şekil, doğrulama."""
+    curriculum = curriculum or {}
+    sure = curriculum.get("duration_label") or (
+        f"{training.duration_hours} DERS SAAT"
+        if getattr(training, "duration_hours", None)
+        else kural["sure"]
+    )
+    parts = [
+        f"Süre: {sure}",
+        f"Tehlike Sınıfı: {training.hazard_class}",
+        f"Tür: {training.training_type}",
+        f"Şekil: {training.delivery_method}",
+    ]
+    if training.verification_code:
+        parts.append(f"Doğrulama: {training.verification_code}")
+    return parts
+
+
 def _draw_certificate_page(
     c, w, h, *, company_name, training, employee, belge_no, bugun, egitim_tarihi, kural, sektor, sol, sag, curriculum=None
 ):
@@ -547,23 +566,12 @@ def _draw_certificate_page(
     c.setFont(_FONT_B, 9)
     c.drawCentredString(w / 2, h - 19 * mm, company_name or "")
 
-    # Referans — PRO: Belge No / Tarih + yalnızca Süre│Tür│Şekil│Doğrulama
+    # Referans — PRO: Belge No / Tarih + Süre│Tehlike Sınıfı│Tür│Şekil│Doğrulama
     c.setFillColorRGB(0.4, 0.4, 0.4)
     c.setFont(_FONT, 7)
     c.drawString(ml, h - 33 * mm, f"Belge No: {belge_no}")
     c.drawRightString(w - mr, h - 33 * mm, f"Tarih: {bugun}")
-    sure = curriculum.get("duration_label") or (
-        f"{training.duration_hours} DERS SAAT"
-        if getattr(training, "duration_hours", None)
-        else kural["sure"]
-    )
-    meta_parts = [
-        f"Süre: {sure}",
-        f"Tür: {training.training_type}",
-        f"Şekil: {training.delivery_method}",
-    ]
-    if training.verification_code:
-        meta_parts.append(f"Doğrulama: {training.verification_code}")
+    meta_parts = certificate_meta_parts(training, kural=kural, curriculum=curriculum)
     c.setFillColorRGB(0.2, 0.2, 0.2)
     c.drawCentredString(w / 2, h - 38 * mm, _fit(c, "  │  ".join(meta_parts), uw, _FONT, 7))
 
