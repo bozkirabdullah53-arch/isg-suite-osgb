@@ -282,7 +282,7 @@ def company_employer_oversight(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
-    """İşveren / işyeri denetim paneli — salt okunur (müdahale yok)."""
+    """İşveren / işyeri denetim paneli — özet + işveren adımı onayı."""
     ensure_company_access(db, user, company_id)
     obj = db.get(Company, company_id)
     if not obj:

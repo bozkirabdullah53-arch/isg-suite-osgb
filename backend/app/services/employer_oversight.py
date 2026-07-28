@@ -1,7 +1,4 @@
-"""İşveren / işyeri denetim paneli — salt okunur özet.
-
-Müdahale yok: yalnızca ziyaret, iş kalemleri ve ÇSGB hazırlık sinyali.
-"""
+"""İşveren / işyeri denetim paneli — özet + işveren adımı onayı."""
 from __future__ import annotations
 
 from datetime import date
@@ -289,14 +286,19 @@ def build_employer_oversight(db: Session, company: Company, viewer: User | None 
                     }
                 )
             active = next((s for s in step_out if s["status"] == "active"), None)
+            # İşveren adımında kişi adı gösterme — rol etiketi
+            for s in step_out:
+                rl = (s.get("role_label") or "").casefold()
+                if "işveren" in rl or "isveren" in rl:
+                    s["assignee_name"] = "İşveren / işveren vekili"
+                    s["display_as_role"] = True
             can_approve = False
             if viewer and wf.status == "in_progress" and active:
                 role_l = (active.get("role_label") or "").casefold()
                 is_emp = "işveren" in role_l or "isveren" in role_l
-                workplace_admin = (
-                    getattr(viewer.role, "value", str(viewer.role)) == "company_admin"
-                    and getattr(viewer, "company_id", None) == cid
-                )
+                viewer_role = getattr(viewer.role, "value", str(viewer.role))
+                viewer_cid = getattr(viewer, "company_id", None)
+                workplace_admin = viewer_role == "company_admin" and viewer_cid is not None and int(viewer_cid) == int(cid)
                 if active.get("assignee_user_id") == viewer.id or (is_emp and workplace_admin):
                     can_approve = True
             approval_flows.append(
@@ -351,8 +353,8 @@ def build_employer_oversight(db: Session, company: Company, viewer: User | None 
         "verdict_label": verdict_label,
         "notice": (
             "İmza akışı: Uzman → Hekim → İşveren/vekil. "
-            "Sırası gelen kişi kendi hesabıyla onaylar. "
-            "Diğer metrikler salt görüntülemedir."
+            "İşveren adımı sıradaysa işyeri hesabı buradan onaylar; onaylanınca akış kapanır. "
+            "Ziyaret ve hazırlık metrikleri bilgilendirme amaçlıdır."
         ),
-        "read_only": True,
+        "read_only": False,
     }

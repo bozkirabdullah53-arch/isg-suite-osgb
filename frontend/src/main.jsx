@@ -539,7 +539,7 @@ function SiteQrKioskPage({user,onLogout}){
         <p style={{margin:0,opacity:.85,fontSize:14,letterSpacing:'.04em',textTransform:'uppercase'}}>İşyeri paneli</p>
         <h1 style={{margin:'8px 0 4px',fontSize:28,fontWeight:700}}>{title}</h1>
         <p style={{margin:'0 0 16px',opacity:.9,fontSize:14}}>
-          QR: uzman/hekim giriş-çıkış · Denetim: salt görüntüleme (müdahale yok)
+          QR: uzman/hekim giriş-çıkış · Denetim: onayda bekleyenleri onaylayın
         </p>
         <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap',marginBottom:18}}>
           <button type="button" onClick={()=>setTab('qr')} style={{

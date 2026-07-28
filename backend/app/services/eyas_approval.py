@@ -320,7 +320,8 @@ def decide_step(
     is_employer_step = "işveren" in role_l or "isveren" in role_l
     workplace_admin = (
         getattr(user.role, "value", str(user.role)) == "company_admin"
-        and getattr(user, "company_id", None) == wf.company_id
+        and getattr(user, "company_id", None) is not None
+        and int(user.company_id) == int(wf.company_id)
     )
     if step.assignee_user_id != user.id and not (is_employer_step and workplace_admin):
         raise HTTPException(

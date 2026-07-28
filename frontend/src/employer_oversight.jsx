@@ -141,7 +141,16 @@ export function EmployerOversightPanel({companyId, user = null, compact = false,
           </p>
         ) : (
           flows.map((wf) => {
-            const mine = !!wf.can_approve && wf.status === 'in_progress';
+            const waitRole = String(wf.waiting_on || '').toLocaleLowerCase('tr-TR');
+            const waitingEmployer = waitRole.includes('işveren') || waitRole.includes('isveren');
+            const workplaceAdmin =
+              (user?.role === 'company_admin' || user?.role?.value === 'company_admin')
+              && Number(user?.company_id) === Number(companyId);
+            const mine = wf.status === 'in_progress' && (
+              !!wf.can_approve
+              || waitingEmployer && workplaceAdmin
+              || (myId && wf.waiting_user_id === myId)
+            );
             return (
               <div
                 key={wf.id}
@@ -161,28 +170,35 @@ export function EmployerOversightPanel({companyId, user = null, compact = false,
                   gap: 8,
                   marginBottom: mine ? 10 : 0,
                 }}>
-                  {(wf.steps || []).map((s) => (
-                    <div
-                      key={s.id}
-                      style={{
-                        padding: '10px 12px',
-                        borderRadius: 10,
-                        border: dark ? '1px solid rgba(255,255,255,.12)' : '1px solid #e2e8f0',
-                        background: dark ? 'rgba(0,0,0,.2)' : '#f8fafc',
-                      }}
-                    >
-                      <div style={{fontSize: 12, color: muted}}>{s.step_order}. {s.role_label}</div>
-                      <div style={{fontWeight: 600, fontSize: 14}}>{s.assignee_name || `Kullanıcı #${s.assignee_user_id}`}</div>
-                      <div style={{marginTop: 4, fontSize: 13, fontWeight: 700, color: stepColor(s.status, dark)}}>
-                        {stepStatusTr(s.status)}
+                  {(wf.steps || []).map((s) => {
+                    const rl = String(s.role_label || '').toLocaleLowerCase('tr-TR');
+                    const isEmployer = rl.includes('işveren') || rl.includes('isveren');
+                    const displayName = isEmployer
+                      ? 'İşveren / işveren vekili'
+                      : (s.assignee_name || `Kullanıcı #${s.assignee_user_id}`);
+                    return (
+                      <div
+                        key={s.id}
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          border: dark ? '1px solid rgba(255,255,255,.12)' : '1px solid #e2e8f0',
+                          background: dark ? 'rgba(0,0,0,.2)' : '#f8fafc',
+                        }}
+                      >
+                        <div style={{fontSize: 12, color: muted}}>{s.step_order}. {s.role_label}</div>
+                        <div style={{fontWeight: 600, fontSize: 14}}>{displayName}</div>
+                        <div style={{marginTop: 4, fontSize: 13, fontWeight: 700, color: stepColor(s.status, dark)}}>
+                          {stepStatusTr(s.status)}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {mine && (
                   <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
                     <button type="button" className="mini" disabled={busy} onClick={() => void decide(wf.id, true)}>
-                      İşveren olarak onayla
+                      Onayla — akışı tamamla
                     </button>
                     <button type="button" className="mini secondary" disabled={busy} onClick={() => void decide(wf.id, false)}
                       style={dark ? {background: 'rgba(255,255,255,.1)', color: '#fff', border: '1px solid rgba(255,255,255,.3)'} : undefined}
