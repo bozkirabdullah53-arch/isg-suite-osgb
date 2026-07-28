@@ -1753,3 +1753,60 @@ class ESignatureAuditEvent(Base):
     event_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     detail_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class EyasWorkflow(Base):
+    """Eyas Digital Approval — hesap bazlı sıralı dijital onay (nitelikli e-imza değil)."""
+
+    __tablename__ = "eyas_workflows"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    title: Mapped[str] = mapped_column(String(220))
+    document_kind: Mapped[str] = mapped_column(String(80), default="genel")
+    source_document_id: Mapped[int | None] = mapped_column(ForeignKey("document_records.id"), nullable=True)
+    source_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="draft", index=True)
+    current_step_order: Mapped[int] = mapped_column(Integer, default=1)
+    legal_label: Mapped[str] = mapped_column(String(80), default="digital_approval_not_qes")
+    qes_request_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    archive_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class EyasStep(Base):
+    __tablename__ = "eyas_steps"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    workflow_id: Mapped[int] = mapped_column(ForeignKey("eyas_workflows.id"), index=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    step_order: Mapped[int] = mapped_column(Integer)
+    assignee_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    role_label: Mapped[str] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    device_note: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    note: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class EyasEvent(Base):
+    """Tamper-evident olay zinciri (prev_hash → event_hash)."""
+
+    __tablename__ = "eyas_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    workflow_id: Mapped[int] = mapped_column(ForeignKey("eyas_workflows.id"), index=True)
+    step_id: Mapped[int | None] = mapped_column(ForeignKey("eyas_steps.id"), nullable=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    action: Mapped[str] = mapped_column(String(80), index=True)
+    payload_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    event_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

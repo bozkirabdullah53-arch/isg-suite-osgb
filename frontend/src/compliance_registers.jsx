@@ -8,10 +8,17 @@ import {
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
 import {ESignCenterPage} from './esign_center';
+import {EyasDigitalApprovalPage} from './eyas_digital_approval';
 
-/** Belge Onay hub: süreç onayı (mevcut) + e-imza orkestrasyon (Desktop birleşimi). Bozmadan yan yana. */
+/** Belge Onay hub: süreç + e-imza orch + Eyas dijital onay (bayraklı). Mevcut sekmeler bozulmaz. */
 export function BelgeOnayHub({user}) {
   const [tab, setTab] = useState('surec');
+  const [eyasOn, setEyasOn] = useState(false);
+  useEffect(() => {
+    api('/eyas/meta')
+      .then((m) => setEyasOn(!!m?.enabled))
+      .catch(() => setEyasOn(false));
+  }, []);
   return (
     <>
       <div className="actions" style={{marginBottom: 12, gap: 8, display: 'flex', flexWrap: 'wrap'}}>
@@ -21,8 +28,15 @@ export function BelgeOnayHub({user}) {
         <button type="button" className={tab === 'orch' ? '' : 'secondary'} onClick={() => setTab('orch')}>
           E‑İmza Orkestrasyon
         </button>
+        {eyasOn && (
+          <button type="button" className={tab === 'eyas' ? '' : 'secondary'} onClick={() => setTab('eyas')}>
+            Dijital Onay (Eyas)
+          </button>
+        )}
       </div>
-      {tab === 'surec' ? <DocumentApprovalsPage user={user} /> : <ESignCenterPage user={user} />}
+      {tab === 'surec' && <DocumentApprovalsPage user={user} />}
+      {tab === 'orch' && <ESignCenterPage user={user} />}
+      {tab === 'eyas' && eyasOn && <EyasDigitalApprovalPage user={user} mode="full" />}
     </>
   );
 }

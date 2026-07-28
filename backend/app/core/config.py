@@ -75,11 +75,21 @@ class Settings(BaseSettings):
     esign_ocsp_enabled: bool = False
     esign_crl_enabled: bool = False
     esign_tsa_url: str | None = None
+    # Eyas Digital Approval — eklemeli dijital onay; acil kapatma FORCE_OFF
+    eyas_digital_approval_enabled: bool = True
+    eyas_digital_approval_force_off: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
 
 settings = Settings()
+
+
+def eyas_digital_approval_active() -> bool:
+    """Anında kill-switch: FORCE_OFF veya enabled=false ile UI/API kapanır."""
+    if bool(getattr(settings, "eyas_digital_approval_force_off", False)):
+        return False
+    return bool(getattr(settings, "eyas_digital_approval_enabled", True))
 
 _INSECURE_SECRET_KEYS = frozenset({
     "change-me-in-production-at-least-32-characters!",

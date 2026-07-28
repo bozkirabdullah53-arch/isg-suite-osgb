@@ -35,6 +35,7 @@ import {
   DocumentApprovalsPage,
   BelgeOnayHub,
 } from './compliance_registers';
+import {EyasDigitalApprovalPage} from './eyas_digital_approval';
 import {AnnualEvalReportPage} from './annual_eval_report';
 import {Customer360Page} from './customer_360';
 import {CapacityEnginePage} from './capacity_engine';
@@ -91,6 +92,7 @@ const roleModules={
     'osgb_dashboard',
     'visits',
     'notifications',
+    'eyas_inbox',
     'companies',
     // 2) İnsan, görev, performans (birbirini izler)
     'professionals',
@@ -122,6 +124,7 @@ const roleModules={
   workplace_physician:[
     'visits','dashboard',
     'health','employees','ortam_olcum',
+    'eyas_inbox',
     'annual_plans','annual_eval_report','documents',
     'security',
   ],
@@ -214,6 +217,7 @@ const menuCatalog={
   ortam_olcum:['Ortam Ölçüm',Gauge],
   isg_kurulu:['İSG Kurulu',Users],
   belge_onay:['Belge Onay',FileText],
+  eyas_inbox:['Dijital Onay Kutum',FileText],
   training:['Eğitimler',GraduationCap],
   health:['Sağlık',HeartPulse],
   documents:['Dokümanlar',FileText],
@@ -1730,6 +1734,7 @@ function App(){
     ortam_olcum:<WorkplaceMeasurementsPage user={user}/>,
     isg_kurulu:<OhsCommitteePage user={user}/>,
     belge_onay:<BelgeOnayHub user={user}/>,
+    eyas_inbox:<EyasDigitalApprovalPage user={user} mode="inbox"/>,
     training:<TrainingPage user={user}/>,
     health:<HealthPage user={user}/>,
     documents:<DocumentsPage user={user}/>,
