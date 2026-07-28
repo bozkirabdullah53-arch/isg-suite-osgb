@@ -393,19 +393,18 @@ export function EmergencyPlansPage({user}) {
         }}>
           <div>
             <div style={{fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase', color: '#0f766e', fontWeight: 700, marginBottom: 6}}>
-              İşyeri krokisi · TR standart (ISO 7010 / 23601)
+              Akıllı Acil Durum Krokisi · v2.2 Pro (ISO 7010 / 23601)
             </div>
             <div style={{fontSize: 18, fontWeight: 760, color: '#0f172a', marginBottom: 6}}>
               Acil Durum Kroki Studio
             </div>
             <p style={{margin: 0, color: '#475569', fontSize: 14, lineHeight: 1.55, maxWidth: 640}}>
-              Kat planı fotoğrafı yükleyip üzerine Türkçe / standart işaretler koyun; veya mahal-duvar çizerek sıfırdan üretin.
-              Hazır broşür PNG/PDF’si varsa satırdan yükleyin. Poster çıktısında mevzuat özeti yer alır.
+              Kat planı yükleyin, ofis/atölye şablonu veya akıllı tahliye asistanı kullanın; çizgi kaçış okları, ölçü, hilal ilk yardım ve mevzuat paneliyle duvar posteri üretin.
             </p>
           </div>
           <div style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8, fontSize: 13, color: '#334155'}}>
-            <div><strong>A.</strong> Yeni Plan → <em>Kroki Studio</em> → fotoğraf yükle + işaretle</div>
-            <div><strong>B.</strong> Hazır kroki varsa satırda <em>Dosya yükle</em></div>
+            <div><strong>A.</strong> Yeni Plan → plan fotoğrafı veya şablon</div>
+            <div><strong>B.</strong> Akıllı tahliye → kontrol skoru</div>
             <div><strong>C.</strong> PNG poster · kilitle · Eyas onayı</div>
           </div>
         </div>

@@ -306,11 +306,12 @@ def _parse_scene(raw: str | None) -> dict:
 @ep_router.get("/meta")
 def ep_meta(user: User = Depends(get_current_user)):
     return {
-        "engine": "emergency-kroki-v1",
-        "note": "Kat bazlı kroki editörü; ekipler ve tatbikat ile birlikte.",
+        "engine": "emergency-kroki-v2.2",
+        "note": "Kat bazlı kroki + akıllı tahliye asistanı; ekipler ve tatbikat ile birlikte.",
         "symbols": [
-            "exit", "stairs", "assembly", "extinguisher", "hose", "alarm",
-            "firstaid", "aed", "electric", "youarehere", "route", "text", "north",
+            "exit", "door_exit", "stairs", "assembly", "extinguisher", "hose", "alarm",
+            "firstaid", "aed", "electric", "youarehere", "route", "wall", "room",
+            "door", "measure", "text", "north",
         ],
     }
 

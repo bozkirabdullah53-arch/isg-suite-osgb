@@ -5,10 +5,13 @@ import {
 import {API_URL, api, uploadFile} from './api';
 import {
   KROKI_SYMBOLS, SYMBOL_BY_TYPE, SYMBOL_GROUPS, EXTINGUISHER_SUBTYPES, ROOM_PRESETS,
-  createSymbolObject, emptyScene, parseScene, hitTestObject,
+  LINE_TOOLS, createSymbolObject, emptyScene, parseScene, hitTestObject,
 } from './kroki/symbols';
 import {SceneSymbol, SymbolGlyph} from './kroki/glyphs';
 import {MEVZUAT_BLOCKS, SYMBOL_LEGAL_HINT} from './kroki/mevzuat';
+import {
+  buildOfficeTemplate, buildWorkshopTemplate, runSmartPlan, runValidation,
+} from './kroki/smart';
 
 function cloneScene(s) {
   return JSON.parse(JSON.stringify(s));
@@ -50,8 +53,14 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
   const [dirty, setDirty] = useState(false);
   const [legend, setLegend] = useState(null);
   const [bgUrl, setBgUrl] = useState(null);
-  const [rightTab, setRightTab] = useState('ozellik'); // ozellik | mevzuat | lejant
+  const [rightTab, setRightTab] = useState('ozellik'); // ozellik | mevzuat | lejant | kontrol | asistan
   const [helpOpen, setHelpOpen] = useState(false);
+  const [planOpacity, setPlanOpacity] = useState(0.88);
+  const [pixelsPerMeter, setPixelsPerMeter] = useState(100);
+  const [smartMsg, setSmartMsg] = useState('');
+  const [smartConfidence, setSmartConfidence] = useState('');
+  const [occupancy, setOccupancy] = useState(10);
+  const [hazard, setHazard] = useState('normal');
   const undoRef = useRef([]);
   const dragRef = useRef(null);
   const panRef = useRef(null);
@@ -128,7 +137,10 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
       setFloors(fl);
       const active = fl.find((f) => f.id === floorId) || fl[0];
       setFloorId(active.id);
-      setScene(parseScene(active.scene_json));
+      const parsed = parseScene(active.scene_json);
+      setScene(parsed);
+      setPlanOpacity(parsed.meta?.planOpacity ?? 0.88);
+      setPixelsPerMeter(parsed.meta?.pixelsPerMeter ?? 100);
       setDirty(false);
       undoRef.current = [];
       try {
@@ -209,7 +221,10 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
     const fl = floors.find((f) => f.id === id);
     if (!fl) return;
     setFloorId(id);
-    setScene(parseScene(fl.scene_json));
+    const parsed = parseScene(fl.scene_json);
+    setScene(parsed);
+    setPlanOpacity(parsed.meta?.planOpacity ?? 0.88);
+    setPixelsPerMeter(parsed.meta?.pixelsPerMeter ?? 100);
     setSelectedId(null);
     setDirty(false);
     undoRef.current = [];
@@ -229,8 +244,18 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
     }
     try {
       const fl = floors.find((f) => f.id === fid);
+      const current = sceneRef.current;
+      const payload = {
+        ...current,
+        version: 3,
+        meta: {
+          ...(current.meta || {}),
+          planOpacity,
+          pixelsPerMeter,
+        },
+      };
       const body = {
-        scene_json: JSON.stringify(sceneRef.current),
+        scene_json: JSON.stringify(payload),
         width: fl?.width || 1600,
         height: fl?.height || 1000,
       };
@@ -292,7 +317,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
       panRef.current = {x: e.clientX, y: e.clientY, ox: pan.x, oy: pan.y};
       return;
     }
-    if (tool === 'wall' || tool === 'room') {
+    if (LINE_TOOLS.has(tool) || tool === 'room') {
       draftRef.current = {type: tool, x0: world.x, y0: world.y};
       setDraftPreview({type: tool, x0: world.x, y0: world.y, x1: world.x, y1: world.y});
       e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -305,9 +330,6 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
         const label = window.prompt('Metin (Türkçe):', obj.label);
         if (label != null) obj.label = label;
       }
-      if (tool === 'room') {
-        // room without drag fallback
-      }
       applyScene({...scene, objects: [...scene.objects, obj]});
       setSelectedId(obj.id);
       setTool('select');
@@ -316,14 +338,15 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
     const hit = [...(scene.objects || [])].reverse().find((o) => hitTestObject(o, world.x, world.y));
     setSelectedId(hit?.id || null);
     if (hit && editable) {
+      const isLine = LINE_TOOLS.has(hit.type);
       dragRef.current = {
         id: hit.id,
-        ox: world.x - (hit.type === 'room' ? hit.x : hit.type === 'wall' ? hit.x1 : hit.x),
-        oy: world.y - (hit.type === 'room' ? hit.y : hit.type === 'wall' ? hit.y1 : hit.y),
+        ox: world.x - (hit.type === 'room' ? hit.x : isLine ? hit.x1 : hit.x),
+        oy: world.y - (hit.type === 'room' ? hit.y : isLine ? hit.y1 : hit.y),
         start: cloneScene(scene),
         kind: hit.type,
-        wallDx: hit.type === 'wall' ? hit.x2 - hit.x1 : 0,
-        wallDy: hit.type === 'wall' ? hit.y2 - hit.y1 : 0,
+        wallDx: isLine ? hit.x2 - hit.x1 : 0,
+        wallDy: isLine ? hit.y2 - hit.y1 : 0,
       };
     }
   }
@@ -355,7 +378,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
         if (kind === 'room') {
           return {...o, x: Math.round(world.x - ox), y: Math.round(world.y - oy)};
         }
-        if (kind === 'wall') {
+        if (LINE_TOOLS.has(kind)) {
           const nx = Math.round(world.x - ox);
           const ny = Math.round(world.y - oy);
           return {...o, x1: nx, y1: ny, x2: nx + wallDx, y2: ny + wallDy};
@@ -369,9 +392,10 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
   function onSvgPointerUp() {
     if (draftRef.current && draftPreview) {
       const {type, x0, y0, x1, y1} = draftPreview;
-      if (type === 'wall') {
+      if (LINE_TOOLS.has(type)) {
         if (Math.hypot(x1 - x0, y1 - y0) >= 8) {
-          const obj = createSymbolObject('wall', x0, y0, {x2: x1, y2: y1});
+          const obj = createSymbolObject(type, x0, y0, {x2: x1, y2: y1});
+          if (type === 'measure') obj.pixelsPerMeter = pixelsPerMeter;
           applyScene({...scene, objects: [...scene.objects, obj]});
           setSelectedId(obj.id);
         }
@@ -498,16 +522,64 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
     }
   }
 
+  function applyTemplate(kind) {
+    if (!editable) return;
+    if ((scene.objects || []).length && !window.confirm('Mevcut çizim şablonla değiştirilsin mi?')) return;
+    const objs = kind === 'workshop' ? buildWorkshopTemplate() : buildOfficeTemplate();
+    applyScene({...scene, version: 3, objects: objs});
+    setSelectedId(null);
+    setOkMsg(kind === 'workshop' ? 'Atölye şablonu yüklendi.' : 'Ofis şablonu yüklendi.');
+    requestAnimationFrame(() => fitView());
+  }
+
+  function applySmartPlan() {
+    if (!editable) return;
+    const result = runSmartPlan(scene.objects || [], {
+      routesOn: true,
+      equipmentOn: true,
+      legendOn: true,
+      occupancy,
+      hazard,
+      canvasW: floor?.width || 1600,
+      canvasH: floor?.height || 1000,
+      hasBackground: !!bgUrl,
+    });
+    if (result.error) {
+      setErr(result.error);
+      setSmartMsg('');
+      setSmartConfidence(result.confidence || '');
+      setRightTab('asistan');
+      return;
+    }
+    applyScene({...scene, objects: result.objects});
+    setSmartMsg((result.summary || []).join(' '));
+    setSmartConfidence(result.confidence || '');
+    setErr('');
+    setOkMsg('Akıllı tahliye önerileri eklendi — uzman kontrolü yapın.');
+    setRightTab('asistan');
+  }
+
   function drawSignOnCanvas(ctx, o, ox, oy) {
     const meta = SYMBOL_BY_TYPE[o.type] || {color: '#334155', label: o.type, signClass: 'info', short: '?'};
-    if (o.type === 'wall') {
-      ctx.strokeStyle = o.color || '#0f172a';
-      ctx.lineWidth = o.stroke || 10;
-      ctx.lineCap = 'square';
+    if (o.type === 'wall' || o.type === 'route' || o.type === 'measure') {
+      ctx.strokeStyle = o.type === 'route' ? (o.color || '#15803d') : o.type === 'measure' ? '#2563eb' : (o.color || '#0f172a');
+      ctx.lineWidth = o.stroke || (o.type === 'wall' ? 10 : o.type === 'route' ? 8 : 3);
+      ctx.lineCap = o.type === 'wall' ? 'square' : 'round';
+      if (o.type === 'route') ctx.setLineDash([18, 10]);
+      else if (o.type === 'measure') ctx.setLineDash([8, 5]);
+      else ctx.setLineDash([]);
       ctx.beginPath();
       ctx.moveTo(o.x1, o.y1 + oy);
       ctx.lineTo(o.x2, o.y2 + oy);
       ctx.stroke();
+      ctx.setLineDash([]);
+      if (o.type === 'measure') {
+        const meters = Math.hypot(o.x2 - o.x1, o.y2 - o.y1) / (o.pixelsPerMeter || pixelsPerMeter || 100);
+        ctx.fillStyle = '#1d4ed8';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${meters.toFixed(2)} m`, (o.x1 + o.x2) / 2, (o.y1 + o.y2) / 2 + oy - 8);
+      }
       return;
     }
     if (o.type === 'room') {
@@ -655,7 +727,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
         <button type="button" className="mini secondary" onClick={onClose}><ArrowLeft size={14} /> Plan listesi</button>
         <div style={{minWidth: 180}}>
           <div style={{fontSize: 11, letterSpacing: '.05em', textTransform: 'uppercase', color: '#0f766e', fontWeight: 700}}>
-            Kroki Studio · TR standart
+            Kroki Studio · v2.2 Pro
           </div>
           <div style={{fontSize: 16, fontWeight: 750, color: '#0f172a'}}>{plan?.title || 'Acil durum krokisi'}</div>
           <div style={{fontSize: 12, color: '#64748b'}}>Revizyon {plan?.revision_no || '—'} · {floor?.name || 'Kat'}</div>
@@ -745,6 +817,43 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
           onChange={(e) => { void uploadBg(e.target.files?.[0]); e.target.value = ''; }}
         />
         {bgUrl && <span className="badge ok">Plan görseli yüklü</span>}
+        {editable && (
+          <>
+            <button type="button" className="mini secondary" onClick={() => applyTemplate('office')}>Ofis şablonu</button>
+            <button type="button" className="mini secondary" onClick={() => applyTemplate('workshop')}>Atölye şablonu</button>
+            <button type="button" className="mini" onClick={applySmartPlan}>Akıllı tahliye</button>
+          </>
+        )}
+        {bgUrl && (
+          <label style={{display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569'}}>
+            Plan saydamlığı
+            <input
+              type="range" min={25} max={100} value={Math.round(planOpacity * 100)}
+              disabled={!editable}
+              onChange={(e) => {
+                const v = Number(e.target.value) / 100;
+                setPlanOpacity(v);
+                setScene((prev) => ({...prev, meta: {...(prev.meta || {}), planOpacity: v}}));
+                setDirty(true);
+              }}
+            />
+          </label>
+        )}
+        <label style={{display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569'}} title="Ölçü aracı için">
+          1 m =
+          <input
+            type="number" min={20} max={400} value={pixelsPerMeter}
+            disabled={!editable}
+            style={{width: 64}}
+            onChange={(e) => {
+              const v = Math.max(20, Number(e.target.value) || 100);
+              setPixelsPerMeter(v);
+              setScene((prev) => ({...prev, meta: {...(prev.meta || {}), pixelsPerMeter: v}}));
+              setDirty(true);
+            }}
+          />
+          px
+        </label>
         <button type="button" className="mini secondary" onClick={undo} disabled={!undoRef.current.length}>Geri al</button>
       </div>
 
@@ -801,9 +910,15 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
               </select>
             </label>
           )}
-          {(tool === 'wall' || tool === 'room') && (
+          {(LINE_TOOLS.has(tool) || tool === 'room') && (
             <p style={{fontSize: 12, color: '#64748b', marginTop: 8}}>
-              {tool === 'wall' ? 'Sürükleyerek duvar çizin.' : 'Köşeden köşeye sürükleyerek mahal (oda) çizin.'}
+              {tool === 'room'
+                ? 'Köşeden köşeye sürükleyerek mahal çizin.'
+                : tool === 'route'
+                  ? 'Başlangıçtan bitişe sürükleyin — ok yönü çizgi yönüdür.'
+                  : tool === 'measure'
+                    ? 'İki nokta arasında sürükleyin; metre cinsinden ölçer.'
+                    : 'Sürükleyerek duvar çizin.'}
             </p>
           )}
         </aside>
@@ -867,8 +982,8 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
             onPointerLeave={onSvgPointerUp}
           >
             <defs>
-              <marker id="arrowHead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-                <path d="M0,0 L6,3 L0,6 Z" fill="#15803d" />
+              <marker id="krokiArrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+                <path d="M0,0 L8,3 L0,6 Z" fill="#15803d" />
               </marker>
             </defs>
             <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
@@ -880,7 +995,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
                   y={0}
                   width={w}
                   height={h}
-                  opacity={0.92}
+                  opacity={planOpacity}
                   preserveAspectRatio="none"
                 />
               ) : (
@@ -896,11 +1011,16 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
               {(scene.objects || []).map((o) => (
                 <SceneSymbol key={o.id} o={o} selected={o.id === selectedId} />
               ))}
-              {draftPreview && draftPreview.type === 'wall' && (
+              {draftPreview && LINE_TOOLS.has(draftPreview.type) && (
                 <line
                   x1={draftPreview.x0} y1={draftPreview.y0}
                   x2={draftPreview.x1} y2={draftPreview.y1}
-                  stroke="#0f172a" strokeWidth={10} strokeLinecap="square" opacity={0.5}
+                  stroke={draftPreview.type === 'route' ? '#15803d' : draftPreview.type === 'measure' ? '#2563eb' : '#0f172a'}
+                  strokeWidth={draftPreview.type === 'wall' ? 10 : 8}
+                  strokeLinecap={draftPreview.type === 'wall' ? 'square' : 'round'}
+                  strokeDasharray={draftPreview.type === 'wall' ? undefined : '14 8'}
+                  opacity={0.55}
+                  markerEnd={draftPreview.type === 'route' ? 'url(#krokiArrow)' : undefined}
                 />
               )}
               {draftPreview && draftPreview.type === 'room' && (
@@ -928,6 +1048,8 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
           <div style={{display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap'}}>
             {[
               ['ozellik', 'Özellik'],
+              ['kontrol', 'Kontrol'],
+              ['asistan', 'Asistan'],
               ['mevzuat', 'Mevzuat'],
               ['lejant', 'Lejant'],
             ].map(([id, label]) => (
@@ -1008,9 +1130,9 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
                       </select>
                     </label>
                   )}
-                  {['route', 'exit', 'door_exit', 'stairs'].includes(selected.type) && (
+                  {['exit', 'door_exit', 'stairs'].includes(selected.type) && (
                     <div style={{marginBottom: 10}}>
-                      <div style={{fontSize: 12, fontWeight: 650, marginBottom: 6}}>Yön</div>
+                      <div style={{fontSize: 12, fontWeight: 650, marginBottom: 6}}>İşaret yönü</div>
                       <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6}}>
                         {[
                           [0, '→ Sağ'],
@@ -1029,12 +1151,18 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
                           </button>
                         ))}
                       </div>
-                      <p style={{fontSize: 11, color: '#64748b', margin: '6px 0 0'}}>
-                        Tahliye oku / çıkış işareti bu yöne döner.
-                      </p>
                     </div>
                   )}
-                  {selected.type !== 'wall' && selected.type !== 'room' && !['route', 'exit', 'door_exit', 'stairs'].includes(selected.type) && (
+                  {LINE_TOOLS.has(selected.type) && (
+                    <p style={{fontSize: 12, color: '#64748b', marginBottom: 8}}>
+                      {selected.type === 'route'
+                        ? 'Tahliye oku çizgi yönündedir. Silip yeniden çizebilir veya taşıyabilirsiniz.'
+                        : selected.type === 'measure'
+                          ? `Ölçü: ${(Math.hypot(selected.x2 - selected.x1, selected.y2 - selected.y1) / (selected.pixelsPerMeter || pixelsPerMeter || 100)).toFixed(2)} m`
+                          : 'Duvar segmentini sürükleyerek taşıyın.'}
+                    </p>
+                  )}
+                  {selected.type !== 'wall' && selected.type !== 'room' && !LINE_TOOLS.has(selected.type) && !['exit', 'door_exit', 'stairs'].includes(selected.type) && (
                     <label className="field">
                       <span>Döndürme (°)</span>
                       <input
@@ -1053,6 +1181,68 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
                 </>
               )}
             </>
+          )}
+
+          {rightTab === 'kontrol' && (() => {
+            const v = runValidation(scene.objects || [], {hasBackground: !!bgUrl});
+            return (
+              <div>
+                <div style={{fontWeight: 700, fontSize: 13, marginBottom: 8}}>Akıllı kontrol</div>
+                <div style={{marginBottom: 10}}>
+                  <div style={{display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4}}>
+                    <span>Uyum skoru</span>
+                    <strong>{v.pct}%</strong>
+                  </div>
+                  <div style={{height: 8, borderRadius: 99, background: '#e2e8f0', overflow: 'hidden'}}>
+                    <div style={{
+                      width: `${v.pct}%`, height: '100%',
+                      background: v.pct >= 85 ? '#15803d' : v.pct >= 65 ? '#ca8a04' : '#b91c1c',
+                    }} />
+                  </div>
+                </div>
+                <ul style={{margin: 0, paddingLeft: 16, fontSize: 12, lineHeight: 1.55}}>
+                  {v.items.map((c, i) => (
+                    <li key={i} style={{color: c.status === 'ok' ? '#15803d' : c.status === 'warn' ? '#b45309' : '#b91c1c'}}>
+                      {c.status === 'ok' ? '✓' : c.status === 'warn' ? '!' : '✕'} {c.ok ? c.pass : c.fail}
+                    </li>
+                  ))}
+                </ul>
+                <p style={{fontSize: 11, color: '#94a3b8', marginTop: 10}}>
+                  Bu kontrol profesyonel onayın yerine geçmez; saha doğrulaması gerekir.
+                </p>
+              </div>
+            );
+          })()}
+
+          {rightTab === 'asistan' && (
+            <div>
+              <div style={{fontWeight: 700, fontSize: 13, marginBottom: 8}}>Akıllı tahliye asistanı</div>
+              <p style={{fontSize: 12, color: '#64748b', lineHeight: 1.45}}>
+                Çıkış, kapı, oda ve «Siz buradasınız» noktalarından kaçış oku ve ekipman önerir (v2.2 kuralları).
+              </p>
+              <label className="field">
+                <span>Tahmini kişi sayısı</span>
+                <input type="number" min={1} value={occupancy} disabled={!editable} onChange={(e) => setOccupancy(Number(e.target.value) || 1)} />
+              </label>
+              <label className="field">
+                <span>Tehlike sınıfı</span>
+                <select value={hazard} disabled={!editable} onChange={(e) => setHazard(e.target.value)}>
+                  <option value="normal">Normal / az tehlikeli</option>
+                  <option value="high">Çok tehlikeli</option>
+                </select>
+              </label>
+              {editable && (
+                <button type="button" className="mini" style={{width: '100%', marginTop: 8}} onClick={applySmartPlan}>
+                  Önerileri uygula
+                </button>
+              )}
+              {smartConfidence && (
+                <div style={{marginTop: 10, fontSize: 12}}>
+                  Güven: <strong>{smartConfidence}</strong>
+                </div>
+              )}
+              {smartMsg && <p style={{fontSize: 12, color: '#334155', marginTop: 8, lineHeight: 1.45}}>{smartMsg}</p>}
+            </div>
           )}
 
           {rightTab === 'mevzuat' && (

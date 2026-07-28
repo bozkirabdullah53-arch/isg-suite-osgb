@@ -138,13 +138,14 @@ function pictogram(type, subtype) {
 
 export function SymbolGlyph({type, size = 28, subtype, selected = false}) {
   const meta = SYMBOL_BY_TYPE[type] || {color: '#64748b', signClass: 'info', short: '•'};
-  if (type === 'room' || type === 'wall' || type === 'text') {
+  if (type === 'room' || type === 'wall' || type === 'text' || type === 'route' || type === 'measure') {
+    const bg = type === 'wall' ? '#0f172a' : type === 'route' ? '#15803d' : type === 'measure' ? '#2563eb' : '#e2e8f0';
+    const fg = (type === 'wall' || type === 'route' || type === 'measure') ? '#fff' : '#334155';
     return (
       <span
         style={{
           width: size, height: size, borderRadius: 6, display: 'inline-grid', placeItems: 'center',
-          background: type === 'wall' ? '#0f172a' : '#e2e8f0',
-          color: type === 'wall' ? '#fff' : '#334155',
+          background: bg, color: fg,
           fontSize: size * 0.32, fontWeight: 800, border: selected ? '2px solid #fbbf24' : '1px solid #cbd5e1',
         }}
         title={meta.label}
@@ -181,6 +182,41 @@ export function SceneSymbol({o, selected}) {
           strokeWidth={o.stroke || 10}
           strokeLinecap="square"
         />
+      </g>
+    );
+  }
+  if (o.type === 'route') {
+    return (
+      <g>
+        <line
+          x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2}
+          stroke={selected ? '#fbbf24' : (o.color || '#15803d')}
+          strokeWidth={o.stroke || 8}
+          strokeLinecap="round"
+          strokeDasharray="18 10"
+          markerEnd="url(#krokiArrow)"
+        />
+        {o.aiSuggested && (
+          <text x={(o.x1 + o.x2) / 2} y={(o.y1 + o.y2) / 2 - 10} textAnchor="middle" fontSize={11} fill="#b45309" fontWeight="700">
+            öneri
+          </text>
+        )}
+      </g>
+    );
+  }
+  if (o.type === 'measure') {
+    const meters = Math.hypot(o.x2 - o.x1, o.y2 - o.y1) / (o.pixelsPerMeter || 100);
+    return (
+      <g>
+        <line
+          x1={o.x1} y1={o.y1} x2={o.x2} y2={o.y2}
+          stroke={selected ? '#fbbf24' : '#2563eb'}
+          strokeWidth={3}
+          strokeDasharray="8 5"
+        />
+        <text x={(o.x1 + o.x2) / 2} y={(o.y1 + o.y2) / 2 - 8} textAnchor="middle" fontSize={13} fontWeight="800" fill="#1d4ed8">
+          {meters.toFixed(2)} m
+        </text>
       </g>
     );
   }
