@@ -155,17 +155,42 @@ def build_risk_pdf(
     employee_representative: str | None = None,
     support_staff: str | None = None,
     validity: dict | None = None,
+    team_details: dict | None = None,
+    employee_count: int | None = None,
+    document_no: str | None = None,
+    revision_no: str | None = None,
+    revision_reason: str | None = None,
+    scope_note: str | None = None,
+    tax_number: str | None = None,
+    nace_code: str | None = None,
 ) -> bytes:
-    """Firma risk değerlendirme PDF raporu."""
+    """Firma risk değerlendirme PDF raporu — kapak, yöntem, ekip, kayıt, imza."""
+    from app.services.risk_methods import (
+        CONTROL_HIERARCHY,
+        DEFINITIONS,
+        LEGAL_BASIS,
+        PURPOSE,
+        SCOPE,
+        resolve_method,
+    )
+
     hazard_map = hazard_map or {}
+    team_details = team_details or {}
+    method = resolve_method((validity or {}).get("method_code") or getattr(company, "risk_method", None))
+    doc_no = document_no or getattr(company, "risk_document_no", None) or f"RD-{getattr(company, 'id', 0)}"
+    rev_no = revision_no or getattr(company, "risk_revision_no", None) or "00"
+    rev_reason = revision_reason or getattr(company, "risk_revision_reason", None)
+    scope_extra = scope_note or getattr(company, "risk_scope_note", None)
+    prepared_on = datetime.now().strftime("%d.%m.%Y")
+
     buf = BytesIO()
     doc = SimpleDocTemplate(
         buf,
         pagesize=A4,
-        rightMargin=15 * mm,
-        leftMargin=15 * mm,
-        topMargin=20 * mm,
-        bottomMargin=15 * mm,
+        rightMargin=14 * mm,
+        leftMargin=14 * mm,
+        topMargin=16 * mm,
+        bottomMargin=14 * mm,
     )
     styles = getSampleStyleSheet()
     for style in styles.byName.values():
@@ -175,41 +200,75 @@ def build_risk_pdf(
     title_style = ParagraphStyle(
         "RiskTitle",
         parent=styles["Title"],
-        fontSize=18,
+        fontSize=16,
         fontName=PDF_FONT_BOLD,
-        spaceAfter=6,
+        spaceAfter=4,
         textColor=colors.HexColor("#1a5276"),
         alignment=TA_CENTER,
     )
     subtitle = ParagraphStyle(
         "RiskSub",
         parent=styles["Normal"],
-        fontSize=10,
+        fontSize=9,
         fontName=PDF_FONT,
-        spaceAfter=4,
+        spaceAfter=2,
         alignment=TA_CENTER,
         textColor=colors.HexColor("#2c3e50"),
     )
-    info = ParagraphStyle("RiskInfo", parent=styles["Normal"], fontSize=9, fontName=PDF_FONT, spaceAfter=2)
+    info = ParagraphStyle("RiskInfo", parent=styles["Normal"], fontSize=9, fontName=PDF_FONT, spaceAfter=2, leading=12)
     section = ParagraphStyle(
-        "RiskSection", parent=styles["Normal"], fontSize=12, fontName=PDF_FONT_BOLD, spaceAfter=6
+        "RiskSection",
+        parent=styles["Normal"],
+        fontSize=11,
+        fontName=PDF_FONT_BOLD,
+        spaceBefore=4,
+        spaceAfter=6,
+        textColor=colors.HexColor("#1a5276"),
     )
+    body = ParagraphStyle("RiskBody", parent=styles["Normal"], fontSize=8.5, fontName=PDF_FONT, leading=11, spaceAfter=3)
+    cell = ParagraphStyle("RiskCell", parent=styles["Normal"], fontSize=8, fontName=PDF_FONT, leading=10)
 
-    elements = [
+    def _person_line(role_key: str, fallback_name: str | None, fallback_title: str) -> str:
+        detail = team_details.get(role_key) or {}
+        name = detail.get("full_name") or fallback_name or "—"
+        title = detail.get("title") or fallback_title
+        cert = detail.get("certificate_number") or detail.get("certificate_class")
+        if cert:
+            return f"{name} — {title} (Sertifika: {cert})"
+        return f"{name} — {title}"
+
+    elements: list = [
         Paragraph("RİSK DEĞERLENDİRME RAPORU", title_style),
-        Paragraph("6331 Sayılı İş Sağlığı ve Güvenliği Kanunu'na Uygun", subtitle),
-        Paragraph(f"Hazırlanma Tarihi: {datetime.now().strftime('%d.%m.%Y')}", subtitle),
-        Paragraph(f"Program: {CREATOR_LINE}", subtitle),
-        Spacer(1, 8 * mm),
-        Paragraph(f"<b>Firma Adı:</b> {company.name}", info),
-        Paragraph(f"<b>SGK Sicil No:</b> {sgk_no or '—'}", info),
-        Paragraph(f"<b>Yetkili Kişi:</b> {getattr(company, 'authorized_person', None) or '—'}", info),
-        Paragraph(f"<b>Telefon:</b> {getattr(company, 'phone', None) or '—'}", info),
+        Paragraph(str(getattr(company, "name", "") or ""), subtitle),
+        Paragraph("6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve Risk Değerlendirmesi Yönetmeliği kapsamında", subtitle),
+        Paragraph(
+            f"Belge No: {doc_no}  |  Revizyon: {rev_no}  |  Düzenleme: {prepared_on}  |  Program: {CREATOR_LINE}",
+            subtitle,
+        ),
+        Spacer(1, 5 * mm),
+        Paragraph("1. İŞYERİ KÜNYESİ", section),
+        Paragraph(f"<b>İşyeri Ünvanı:</b> {getattr(company, 'name', None) or '—'}", info),
+        Paragraph(
+            f"<b>SGK Sicil No:</b> {sgk_no or getattr(company, 'sgk_registry_no', None) or '—'}  |  "
+            f"<b>Vergi No:</b> {tax_number or getattr(company, 'tax_number', None) or '—'}  |  "
+            f"<b>NACE:</b> {nace_code or getattr(company, 'nace_code', None) or '—'}",
+            info,
+        ),
         Paragraph(f"<b>Adres:</b> {getattr(company, 'address', None) or '—'}", info),
-        Paragraph(f"<b>Tehlike Sınıfı:</b> {getattr(company, 'hazard_class', None) or '—'}", info),
+        Paragraph(
+            f"<b>Telefon:</b> {getattr(company, 'phone', None) or '—'}  |  "
+            f"<b>Tehlike Sınıfı:</b> {getattr(company, 'hazard_class', None) or '—'}  |  "
+            f"<b>Çalışan Sayısı:</b> {employee_count if employee_count is not None else '—'}",
+            info,
+        ),
+        Paragraph(
+            f"<b>İşveren / Yetkili:</b> {employer_representative or getattr(company, 'authorized_person', None) or '—'}",
+            info,
+        ),
         Spacer(1, 3 * mm),
+        Paragraph("2. BELGE KONTROLÜ VE GEÇERLİLİK", section),
     ]
-    # Yönetmelik md.15: yöntem, geçerlilik ve değerlendirmeyi yapan ekip belgede yer alır.
+
     for label, value in document_meta_rows(
         validity=validity,
         prepared_by=prepared_by,
@@ -217,27 +276,167 @@ def build_risk_pdf(
         employer_representative=employer_representative,
         employee_representative=employee_representative,
         support_staff=support_staff,
+        document_no=doc_no,
+        revision_no=rev_no,
+        revision_reason=rev_reason,
     ):
         elements.append(Paragraph(f"<b>{label}:</b> {value}", info))
     if validity and validity.get("message"):
-        elements.append(Spacer(1, 2 * mm))
-        elements.append(Paragraph(f"<i>{validity['message']}</i>", info))
-    elements.append(Spacer(1, 5 * mm))
+        elements.append(Paragraph(f"<i>{validity['message']}</i>", body))
+    triggers = (validity or {}).get("renewal_triggers") or []
+    if triggers:
+        elements.append(Paragraph("<b>Süre beklenmeden yenileme tetikleyicileri (md.12/2):</b>", info))
+        for t in triggers:
+            elements.append(Paragraph(f"• {t}", body))
 
+    elements.extend(
+        [
+            Spacer(1, 3 * mm),
+            Paragraph("3. AMAÇ, KAPSAM VE MEVZUAT DAYANAĞI", section),
+            Paragraph(f"<b>Amaç:</b> {PURPOSE}", body),
+            Paragraph(f"<b>Kapsam:</b> {scope_extra or SCOPE}", body),
+            Paragraph("<b>Yasal dayanak:</b>", info),
+        ]
+    )
+    for law in LEGAL_BASIS:
+        elements.append(Paragraph(f"• {law}", body))
+
+    elements.extend(
+        [
+            Spacer(1, 3 * mm),
+            Paragraph("4. TANIMLAR VE KISALTMALAR", section),
+        ]
+    )
+    for term, meaning in DEFINITIONS:
+        elements.append(Paragraph(f"<b>{term}:</b> {meaning}", body))
+
+    elements.extend(
+        [
+            Spacer(1, 3 * mm),
+            Paragraph("5. YÖNTEM VE SKORLAMA KRİTERLERİ", section),
+            Paragraph(f"<b>Seçilen yöntem:</b> {method['label']}", info),
+            Paragraph(f"<b>Formül:</b> {method['formula']}", info),
+            Paragraph(method["narrative"], body),
+            Paragraph("<b>Olasılık / maruziyet tanımları:</b>", info),
+        ]
+    )
+    for val, txt in method.get("probability_defs") or []:
+        elements.append(Paragraph(f"• {val}: {txt}", body))
+    if not method.get("probability_defs"):
+        elements.append(Paragraph("• Nitel değerlendirme (yönteme özgü skorlama ekip tutanağında).", body))
+    elements.append(Paragraph("<b>Şiddet tanımları:</b>", info))
+    for val, txt in method.get("severity_defs") or []:
+        elements.append(Paragraph(f"• {val}: {txt}", body))
+    if not method.get("severity_defs"):
+        elements.append(Paragraph("• Nitel değerlendirme (yönteme özgü).", body))
+    elements.append(Paragraph("<b>Risk seviyesi / öncelik:</b>", info))
+    for rng, level, note in method.get("levels") or []:
+        elements.append(Paragraph(f"• {rng} → <b>{level}</b>: {note}", body))
+
+    elements.extend(
+        [
+            Spacer(1, 3 * mm),
+            Paragraph("6. ÖNLEM HİYERARŞİSİ VE DÜZELTİCİ FAALİYET İLKELERİ", section),
+        ]
+    )
+    for line in CONTROL_HIERARCHY:
+        elements.append(Paragraph(f"• {line}", body))
+    elements.append(
+        Paragraph(
+            "İlave önlemler sonrası artık risk yeniden değerlendirilir; DÖF ile sorumlu, termin ve durum izlenir. "
+            "Onaylı/imzalı raporlar tarihsel belge olarak korunur; işyeri kartındaki sonraki değişiklikler "
+            "geçmiş raporları otomatik değiştirmez.",
+            body,
+        )
+    )
+
+    elements.append(PageBreak())
+    elements.append(Paragraph("7. RİSK DEĞERLENDİRME EKİBİ (md.15)", section))
+    elements.append(
+        Paragraph(
+            "Aşağıdaki kişiler yönetmelik gereği değerlendirmeye katılır / onaylar. "
+            "Görevlendirme kayıtlarından gelen unvan ve sertifika bilgileri otomatik doldurulur.",
+            body,
+        )
+    )
+    team_rows = [
+        ["Rol / Görev", "Ad Soyad / Unvan / Sertifika", "Sorumluluk", "İmza"],
+        [
+            "İşveren / Vekil",
+            Paragraph(_person_line("employer", employer_representative, "İşveren / Vekil"), cell),
+            "Onay / yetkilendirme",
+            "",
+        ],
+        [
+            "İSG Uzmanı",
+            Paragraph(
+                _person_line("safety_specialist", prepared_by, "İş Güvenliği Uzmanı"),
+                cell,
+            ),
+            "Hazırlama / koordinasyon",
+            "",
+        ],
+        [
+            "İşyeri Hekimi",
+            Paragraph(
+                _person_line("workplace_physician", workplace_physician, "İşyeri Hekimi"),
+                cell,
+            ),
+            "Sağlık boyutu / inceleme",
+            "",
+        ],
+        [
+            "Çalışan Temsilcisi",
+            Paragraph(employee_representative or "—", cell),
+            "Katılım / görüş",
+            "",
+        ],
+        [
+            "Destek Elemanı",
+            Paragraph(support_staff or "—", cell),
+            "Destek / uygulama",
+            "",
+        ],
+        [
+            "Diğer Sağlık Personeli",
+            Paragraph(_person_line("other_health_personnel", None, "DSP"), cell),
+            "Gerektiğinde katılım",
+            "",
+        ],
+    ]
+    team_table = Table(team_rows, colWidths=[85, 200, 100, 70])
+    team_table.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
+                ("FONTNAME", (0, 0), (-1, 0), PDF_FONT_BOLD),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a5276")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 1), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 1), (-1, -1), 10),
+            ]
+        )
+    )
+    elements.append(team_table)
+
+    # Summary
     total = len(risks)
     risk_levels: dict[str, int] = {}
     for r in risks:
         rl = r.risk_level or "Tanımsız"
         risk_levels[rl] = risk_levels.get(rl, 0) + 1
 
-    elements.append(Paragraph("<b>RİSK ÖZETİ</b>", info))
+    elements.append(Spacer(1, 5 * mm))
+    elements.append(Paragraph("8. RİSK ÖZETİ", section))
     summary_data = [["Risk Seviyesi", "Adet", "Yüzde"]]
     for level in ["Çok Yüksek", "Yüksek", "Orta", "Düşük", "Kabul Edilebilir"]:
         count = risk_levels.get(level, 0)
         pct = f"{(count / total * 100):.1f}%" if total else "%0"
         summary_data.append([level, str(count), pct])
-
-    summary_table = Table(summary_data, colWidths=[100, 50, 50])
+    summary_table = Table(summary_data, colWidths=[120, 50, 50])
     summary_table.setStyle(
         TableStyle(
             [
@@ -256,28 +455,46 @@ def build_risk_pdf(
         )
     )
     elements.append(summary_table)
-    elements.append(Spacer(1, 8 * mm))
-    elements.append(PageBreak())
-    elements.append(Paragraph("<b>RİSK DETAY LİSTESİ</b>", section))
-    elements.append(Spacer(1, 3 * mm))
 
-    cell = ParagraphStyle("RiskCell", parent=styles["Normal"], fontSize=8, fontName=PDF_FONT, leading=10)
+    elements.append(PageBreak())
+    elements.append(Paragraph("9. RİSK KAYIT LİSTESİ", section))
+    elements.append(
+        Paragraph(
+            f"Yöntem eksenleri: {method.get('probability_axis')} / {method.get('severity_axis')}. "
+            "Skorlar mevcut kayıt motoruna göredir; Fine-Kinney vb. seçildiğinde skorlama kriterleri "
+            "bölüm 5’te yer alır, saha kayıtları 5×5 ile tutuluyorsa dönüşüm notu ekibe aittir.",
+            body,
+        )
+    )
+    elements.append(Spacer(1, 2 * mm))
 
     for risk in risks:
+        regs = []
+        h = hazard_map.get(getattr(risk, "hazard_id", None))
+        if h and getattr(h, "regulations", None):
+            try:
+                import json
+
+                raw = h.regulations
+                regs = json.loads(raw) if isinstance(raw, str) else (raw or [])
+            except Exception:
+                regs = []
         risk_data = [
             ["Risk Kodu", risk.risk_code],
             ["Bölüm", _dept(risk)],
             ["Faaliyet", Paragraph(str(risk.activity or "—"), cell)],
             ["Tehlike", f"{_hazard_code(risk, hazard_map)} — {_hazard_name(risk, hazard_map)}"],
             ["Risk Tanımı", Paragraph(str(risk.risk_definition or "—"), cell)],
-            ["Etkilenenler", risk.affected_people or "—"],
-            ["Olasılık", str(risk.probability)],
-            ["Şiddet", str(risk.severity)],
+            ["Etkilenenler", risk.affected_people or getattr(risk, "affected_group", None) or "—"],
+            [method.get("probability_axis") or "Olasılık", str(risk.probability)],
+            [method.get("severity_axis") or "Şiddet", str(risk.severity)],
             ["Risk Skoru", str(risk.risk_score)],
             ["Risk Seviyesi", risk.risk_level or "—"],
             ["Termin Tarihi", _fmt_date(risk.term_date)],
             ["Durum", risk.status or "Açık"],
             ["DÖF sayısı", str(len(getattr(risk, "dofs", None) or []))],
+            ["Revizyon (kayıt)", str(getattr(risk, "revision_no", None) or "—")],
+            ["Mevzuat ref.", Paragraph(", ".join(regs) if regs else "—", cell)],
         ]
         risk_table = Table(risk_data, colWidths=[100, 370])
         bg = _level_color(risk.risk_level or "")
@@ -300,6 +517,14 @@ def build_risk_pdf(
         measures = [
             ["Mevcut Önlemler", Paragraph(str(risk.existing_measures or "—"), cell)],
             ["İlave Önlemler", Paragraph(str(risk.additional_measures or "—"), cell)],
+            [
+                "Artık risk",
+                Paragraph(
+                    "İlave önlem / DÖF tamamlandıktan sonra yeniden değerlendirilir "
+                    "(önlem sonrası skor sahada güncellenir).",
+                    cell,
+                ),
+            ],
         ]
         measures_table = Table(measures, colWidths=[100, 370])
         measures_table.setStyle(
@@ -346,16 +571,26 @@ def build_risk_pdf(
         elements.append(Spacer(1, 6 * mm))
 
     elements.append(PageBreak())
-    elements.append(Paragraph("<b>İMZA / ONAY ALANLARI</b>", section))
-    elements.append(Spacer(1, 4 * mm))
+    elements.append(Paragraph("10. İMZA / ONAY", section))
+    elements.append(
+        Paragraph(
+            "Bu belgeyi hazırlayan, inceleyen, katılan ve onaylayan kişiler aşağıda imza altına alır. "
+            "İşveren onayı olmadan risk değerlendirmesi resmi sayılmaz.",
+            body,
+        )
+    )
+    elements.append(Spacer(1, 3 * mm))
     sign_data = [
-        ["İSG Uzmanı / Hazırlayan", prepared_by or " ", "Kaşe / İmza"],
-        ["İşyeri Hekimi", workplace_physician or " ", "Kaşe / İmza"],
-        ["İşveren / Vekili", employer_representative or " ", "Kaşe / İmza"],
-        ["Çalışan Temsilcisi", employee_representative or " ", "İmza"],
+        ["İSG Uzmanı / Hazırlayan", prepared_by or " ", "Kaşe / İmza / Tarih"],
+        ["İşyeri Hekimi", workplace_physician or " ", "Kaşe / İmza / Tarih"],
+        ["İşveren / Vekili", employer_representative or " ", "Kaşe / İmza / Tarih"],
+        ["Çalışan Temsilcisi", employee_representative or " ", "İmza / Tarih"],
     ]
     if support_staff:
-        sign_data.append(["Destek Elemanı", support_staff, "İmza"])
+        sign_data.append(["Destek Elemanı", support_staff, "İmza / Tarih"])
+    dsp = (team_details.get("other_health_personnel") or {}).get("full_name")
+    if dsp:
+        sign_data.append(["Diğer Sağlık Personeli", dsp, "İmza / Tarih"])
     sign_table = Table([["Unvan", "Ad Soyad", "Onay"]] + sign_data, colWidths=[160, 180, 130])
     sign_table.setStyle(
         TableStyle(
@@ -372,6 +607,24 @@ def build_risk_pdf(
         )
     )
     elements.append(sign_table)
+
+    elements.append(Spacer(1, 6 * mm))
+    elements.append(Paragraph("11. DAĞITIM, SAKLAMA VE ARŞİV", section))
+    elements.append(
+        Paragraph(
+            "Dağıtım: İşveren / vekil, İSG uzmanı, işyeri hekimi, çalışan temsilcisi, ilgili birim sorumluları. "
+            "Saklama: İşyerinde erişilebilir; denetim ve müfettiş talebinde sunulur. "
+            "Arşiv: Onaylı PDF/Excel kopyaları tarihsel belge olarak saklanır; sonraki işyeri kartı "
+            "değişiklikleri onaylı sürümü otomatik değiştirmez.",
+            body,
+        )
+    )
+    elements.append(
+        Paragraph(
+            f"Belge kontrol: {doc_no} / Rev {rev_no} / {prepared_on} / {CREATOR_LINE}",
+            body,
+        )
+    )
 
     doc.build(elements, onFirstPage=_add_pdf_footer, onLaterPages=_add_pdf_footer)
     buf.seek(0)
@@ -411,11 +664,16 @@ def build_risk_excel(
     ws["A1"].font = Font(name="Calibri", bold=True, size=14, color="1a5276")
     ws["A1"].alignment = Alignment(horizontal="center")
 
+    doc_no = getattr(company, "risk_document_no", None) or f"RD-{getattr(company, 'id', '')}"
+    rev_no = getattr(company, "risk_revision_no", None) or "00"
     ws.merge_cells("A2:Q2")
     ws["A2"] = (
         f"Yetkili: {getattr(company, 'authorized_person', None) or '—'} | "
         f"Tel: {getattr(company, 'phone', None) or '—'} | "
         f"Tehlike Sınıfı: {getattr(company, 'hazard_class', None) or '—'} | "
+        f"SGK: {getattr(company, 'sgk_registry_no', None) or '—'} | "
+        f"NACE: {getattr(company, 'nace_code', None) or '—'} | "
+        f"Belge: {doc_no} / Rev {rev_no} | "
         f"Tarih: {datetime.now().strftime('%d.%m.%Y')}"
     )
     ws["A2"].font = Font(size=9, color="2c3e50")
@@ -426,7 +684,13 @@ def build_risk_excel(
     valid_line = ""
     if validity and validity.get("valid_until"):
         valid_line = f" · Geçerlilik: {_fmt_date(validity['valid_until'])}"
-    ws["A3"] = f"Yöntem: {method}{valid_line} · Program: {CREATOR_LINE} · 6331 sayılı Kanun kapsamında"
+    assess_line = ""
+    if validity and validity.get("assessment_date"):
+        assess_line = f" · Değerlendirme: {_fmt_date(validity['assessment_date'])}"
+    ws["A3"] = (
+        f"Yöntem: {method}{assess_line}{valid_line} · "
+        f"Program: {CREATOR_LINE} · 6331 sayılı Kanun / Risk Değerlendirmesi Yönetmeliği"
+    )
     ws["A3"].font = Font(size=9, italic=True, color="6c757d")
     ws["A3"].alignment = Alignment(horizontal="center")
 

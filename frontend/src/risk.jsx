@@ -278,9 +278,19 @@ export function RiskPage({user}) {
   const [photoTagCatalog, setPhotoTagCatalog] = useState([]);
   const [selectedPhotoTags, setSelectedPhotoTags] = useState([]);
   const [docInfo, setDocInfo] = useState(null);
-  const [docForm, setDocForm] = useState({assessment_date: '', employee_representative: '', support_staff: ''});
+  const [docForm, setDocForm] = useState({
+    assessment_date: '',
+    employee_representative: '',
+    support_staff: '',
+    method: '5x5_l',
+    document_no: '',
+    revision_no: '00',
+    revision_reason: '',
+    scope_note: '',
+  });
   const [docBusy, setDocBusy] = useState(false);
   const [docMsg, setDocMsg] = useState('');
+  const [riskMethods, setRiskMethods] = useState([]);
 
   const effectiveCompanyId = reportCompanyId || user.company_id || companies[0]?.id || '';
 
@@ -300,6 +310,11 @@ export function RiskPage({user}) {
       assessment_date: info?.assessment_date_source === 'recorded' ? (info.assessment_date || '') : '',
       employee_representative: info?.team?.employee_representative || '',
       support_staff: info?.team?.support_staff || '',
+      method: info?.method_code || '5x5_l',
+      document_no: info?.document_no || '',
+      revision_no: info?.revision_no || '00',
+      revision_reason: info?.revision_reason || '',
+      scope_note: info?.scope_note || '',
     });
   };
 
@@ -327,6 +342,11 @@ export function RiskPage({user}) {
           assessment_date: docForm.assessment_date || null,
           employee_representative: docForm.employee_representative.trim() || null,
           support_staff: docForm.support_staff.trim() || null,
+          method: docForm.method || '5x5_l',
+          document_no: docForm.document_no.trim() || null,
+          revision_no: docForm.revision_no.trim() || null,
+          revision_reason: docForm.revision_reason.trim() || null,
+          scope_note: docForm.scope_note.trim() || null,
         }),
       });
       applyDocInfo(saved);
@@ -376,6 +396,12 @@ export function RiskPage({user}) {
     setBranches(b);
     setCategories(cats);
     setMeta(m);
+    try {
+      const mm = await api('/risks/methods');
+      setRiskMethods(Array.isArray(mm?.methods) ? mm.methods : []);
+    } catch (_) {
+      setRiskMethods([]);
+    }
     const cid = reportCompanyId || user.company_id || c[0]?.id;
     if (cid && !reportCompanyId) setReportCompanyId(cid);
     if (!cid && user.role === 'global_admin') {
@@ -1153,10 +1179,10 @@ export function RiskPage({user}) {
           <article className="panel" style={{marginBottom: 16, padding: 16}}>
             <h3 style={{margin: '0 0 4px'}}>Belge künyesi</h3>
             <p style={{margin: '0 0 12px', fontSize: 13, color: '#5b6b7c'}}>
-              Risk değerlendirmesinin tarihi ve değerlendirmeyi yapan ekip, raporun ilk sayfasına ve imza
-              bölümüne basılır. Yenileme süresi bu tarihten işler: az tehlikeli 6, tehlikeli 4, çok tehlikeli
-              2 yıl. İSG uzmanı, işyeri hekimi ve işveren bilgileri görevlendirme ve işyeri kartından
-              otomatik gelir.
+              Risk değerlendirmesinin tarihi, yöntemi, belge/revizyon numarası ve ekip bilgileri PDF/Excel
+              kapak sayfasına basılır. İşyeri ünvanı, SGK, NACE, tehlike sınıfı, çalışan sayısı ve
+              görevli uzman/hekim işyeri kartı ile görevlendirmeden otomatik gelir. Yenileme: az 6,
+              tehlikeli 4, çok tehlikeli 2 yıl.
             </p>
             <form
               onSubmit={saveDocInfo}
@@ -1170,6 +1196,48 @@ export function RiskPage({user}) {
                   max={new Date().toISOString().slice(0, 10)}
                   disabled={!canEdit}
                   onChange={(e) => setDocForm({...docForm, assessment_date: e.target.value})}
+                />
+              </label>
+              <label className="field">
+                <span>Yöntem</span>
+                <select
+                  value={docForm.method}
+                  disabled={!canEdit}
+                  onChange={(e) => setDocForm({...docForm, method: e.target.value})}
+                >
+                  {(riskMethods.length ? riskMethods : [
+                    {code: '5x5_l', label: '5x5 Matris (L Tipi)'},
+                    {code: 'fine_kinney', label: 'Fine-Kinney'},
+                    {code: 'x_matrix', label: 'X Tipi Matris'},
+                    {code: 'hazop', label: 'HAZOP'},
+                    {code: 'fmea', label: 'FMEA'},
+                    {code: 'what_if', label: 'What-If'},
+                    {code: 'jsa', label: 'JSA / JHA'},
+                  ]).map((m) => (
+                    <option key={m.code} value={m.code}>{m.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Belge No</span>
+                <input
+                  type="text"
+                  maxLength={80}
+                  placeholder="RD-…"
+                  value={docForm.document_no}
+                  disabled={!canEdit}
+                  onChange={(e) => setDocForm({...docForm, document_no: e.target.value})}
+                />
+              </label>
+              <label className="field">
+                <span>Revizyon No</span>
+                <input
+                  type="text"
+                  maxLength={20}
+                  placeholder="00"
+                  value={docForm.revision_no}
+                  disabled={!canEdit}
+                  onChange={(e) => setDocForm({...docForm, revision_no: e.target.value})}
                 />
               </label>
               <label className="field">
@@ -1194,6 +1262,28 @@ export function RiskPage({user}) {
                   onChange={(e) => setDocForm({...docForm, support_staff: e.target.value})}
                 />
               </label>
+              <label className="field" style={{gridColumn: '1 / -1'}}>
+                <span>Revizyon nedeni</span>
+                <input
+                  type="text"
+                  maxLength={500}
+                  placeholder="Örn. yeni makine / kaza sonrası gözden geçirme"
+                  value={docForm.revision_reason}
+                  disabled={!canEdit}
+                  onChange={(e) => setDocForm({...docForm, revision_reason: e.target.value})}
+                />
+              </label>
+              <label className="field" style={{gridColumn: '1 / -1'}}>
+                <span>Kapsam notu (opsiyonel)</span>
+                <input
+                  type="text"
+                  maxLength={2000}
+                  placeholder="Değerlendirmeye dahil bölüm / proses notu"
+                  value={docForm.scope_note}
+                  disabled={!canEdit}
+                  onChange={(e) => setDocForm({...docForm, scope_note: e.target.value})}
+                />
+              </label>
               {canEdit && (
                 <div style={{alignSelf: 'end'}}>
                   <button type="submit" className="btn btn-primary" disabled={docBusy}>
@@ -1207,6 +1297,9 @@ export function RiskPage({user}) {
                 Rapora basılacak ekip — İSG uzmanı: <strong>{docInfo.team.safety_specialist || '—'}</strong> ·
                 {' '}İşyeri hekimi: <strong>{docInfo.team.workplace_physician || '—'}</strong> ·
                 {' '}İşveren/vekili: <strong>{docInfo.team.employer_representative || '—'}</strong>
+                {docInfo.employee_count != null && (
+                  <> · Çalışan: <strong>{docInfo.employee_count}</strong></>
+                )}
               </p>
             )}
             {docMsg && <div style={{marginTop: 8, fontSize: 13}}>{docMsg}</div>}
@@ -1214,7 +1307,7 @@ export function RiskPage({user}) {
           <div className="risk-report-grid">
             <article className="risk-report-card">
               <h3>Risk PDF</h3>
-              <p>Skorlar ve DÖF özeti ile yazdırılabilir rapor.</p>
+              <p>Kapak, yöntem, ekip imzaları, skorlar ve DÖF ile mevzuata uygun rapor.</p>
               <button type="button" className="btn btn-primary" disabled={!!dlBusy} onClick={() => downloadReport('pdf')}>
                 <Download size={14} /> {dlBusy === 'pdf' ? '…' : 'PDF indir'}
               </button>

@@ -109,22 +109,40 @@ def _assessment_context(db: Session, company: Company) -> dict:
 
     Belge tarihi girilmemişse ilk risk kaydının tarihi tahmini olarak kullanılır.
     """
+    from app.models.entities import Employee
+    from app.services.assigned_team import assigned_team
+
     first_created = db.scalar(
         select(func.min(RiskAssessment.created_at)).where(RiskAssessment.company_id == company.id)
     )
     fallback = first_created.date() if hasattr(first_created, "date") else first_created
     names = team_names(db, company.id)
+    team = assigned_team(db, company.id)
+    emp_count = db.scalar(
+        select(func.count()).select_from(Employee).where(
+            Employee.company_id == company.id,
+            Employee.is_active.is_(True),
+        )
+    ) or 0
     return {
         "validity": build_validity(
             hazard_class=company.hazard_class,
             assessment_date=company.risk_assessment_date,
             fallback_date=fallback,
+            method_code=getattr(company, "risk_method", None),
         ),
         "workplace_physician": names.get(ProfessionalType.WORKPLACE_PHYSICIAN.value),
         "safety_specialist": names.get(ProfessionalType.SAFETY_SPECIALIST.value),
         "employer_representative": company.authorized_person,
         "employee_representative": company.risk_team_employee_rep,
         "support_staff": company.risk_team_support_staff,
+        "team_details": team,
+        "employee_count": int(emp_count),
+        "document_no": getattr(company, "risk_document_no", None),
+        "revision_no": getattr(company, "risk_revision_no", None),
+        "revision_reason": getattr(company, "risk_revision_reason", None),
+        "scope_note": getattr(company, "risk_scope_note", None),
+        "method_code": getattr(company, "risk_method", None) or "5x5_l",
     }
 
 
@@ -569,6 +587,14 @@ def risk_stats(
     }
 
 
+@router.get("/methods")
+def risk_methods_meta(user: User = Depends(get_current_user)):
+    """Desteklenen risk değerlendirme yöntemleri (rapor künyesi)."""
+    from app.services.risk_methods import method_choices
+
+    return {"methods": method_choices()}
+
+
 @router.get("/validity")
 def risk_assessment_validity(
     company_id: int | None = None,
@@ -585,6 +611,12 @@ def risk_assessment_validity(
         "company_id": effective,
         "company_name": company.name,
         **ctx["validity"],
+        "document_no": ctx["document_no"],
+        "revision_no": ctx["revision_no"],
+        "revision_reason": ctx["revision_reason"],
+        "scope_note": ctx["scope_note"],
+        "method_code": ctx["method_code"],
+        "employee_count": ctx["employee_count"],
         "team": {
             "safety_specialist": ctx["safety_specialist"],
             "workplace_physician": ctx["workplace_physician"],
@@ -592,6 +624,7 @@ def risk_assessment_validity(
             "employee_representative": ctx["employee_representative"],
             "support_staff": ctx["support_staff"],
         },
+        "team_details": ctx["team_details"],
     }
 
 
@@ -601,14 +634,28 @@ def update_assessment_info(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    """Belge tarihi + çalışan temsilcisi / destek elemanı kaydı."""
+    """Belge tarihi + ekip + yöntem + belge kontrol alanları."""
+    from app.services.risk_methods import METHOD_CATALOG
+
     ensure_access(db, user, payload.company_id)
     company = db.get(Company, payload.company_id)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
+    if payload.method and payload.method not in METHOD_CATALOG:
+        raise HTTPException(422, "Geçersiz risk değerlendirme yöntemi.")
     company.risk_assessment_date = payload.assessment_date
     company.risk_team_employee_rep = payload.employee_representative
     company.risk_team_support_staff = payload.support_staff
+    if payload.method is not None:
+        company.risk_method = payload.method
+    if payload.document_no is not None:
+        company.risk_document_no = payload.document_no
+    if payload.revision_no is not None:
+        company.risk_revision_no = payload.revision_no
+    if payload.revision_reason is not None:
+        company.risk_revision_reason = payload.revision_reason
+    if payload.scope_note is not None:
+        company.risk_scope_note = payload.scope_note
     add_audit_log(
         db,
         user=user,
@@ -623,6 +670,11 @@ def update_assessment_info(
     return {
         "company_id": company.id,
         **ctx["validity"],
+        "document_no": ctx["document_no"],
+        "revision_no": ctx["revision_no"],
+        "revision_reason": ctx["revision_reason"],
+        "scope_note": ctx["scope_note"],
+        "method_code": ctx["method_code"],
         "team": {
             "safety_specialist": ctx["safety_specialist"],
             "workplace_physician": ctx["workplace_physician"],
@@ -927,17 +979,30 @@ def risk_report_pdf(
         raise HTTPException(422, "Bu filtreyle raporlanacak risk kaydı yok.")
     branch = db.scalar(select(Branch).where(Branch.company_id == company.id).order_by(Branch.id.asc()))
     ctx = _assessment_context(db, company)
+    sgk = None
+    if branch and branch.sgk_registry_no:
+        sgk = branch.sgk_registry_no
+    elif company.sgk_registry_no:
+        sgk = company.sgk_registry_no
     pdf = build_risk_pdf(
         company=company,
         risks=risks,
         hazard_map=hazard_map,
         prepared_by=ctx["safety_specialist"] or user.full_name,
-        sgk_no=branch.sgk_registry_no if branch else None,
+        sgk_no=sgk,
         workplace_physician=ctx["workplace_physician"],
         employer_representative=ctx["employer_representative"],
         employee_representative=ctx["employee_representative"],
         support_staff=ctx["support_staff"],
         validity=ctx["validity"],
+        team_details=ctx["team_details"],
+        employee_count=ctx["employee_count"],
+        document_no=ctx["document_no"],
+        revision_no=ctx["revision_no"],
+        revision_reason=ctx["revision_reason"],
+        scope_note=ctx["scope_note"],
+        tax_number=company.tax_number,
+        nace_code=company.nace_code,
     )
     return StreamingResponse(
         BytesIO(pdf),

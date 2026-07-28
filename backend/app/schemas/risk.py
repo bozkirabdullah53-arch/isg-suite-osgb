@@ -16,18 +16,31 @@ class HazardHintRequest(BaseModel):
 
 
 class RiskAssessmentInfoUpdate(BaseModel):
-    """Risk değerlendirme belgesi künyesi — tarih + ekip (yenileme takibi)."""
+    """Risk değerlendirme belgesi künyesi — tarih + ekip + belge kontrolü."""
 
     company_id: int
     assessment_date: date | None = None
     employee_representative: str | None = Field(default=None, max_length=160)
     support_staff: str | None = Field(default=None, max_length=160)
+    method: str | None = Field(default=None, max_length=40)
+    document_no: str | None = Field(default=None, max_length=80)
+    revision_no: str | None = Field(default=None, max_length=20)
+    revision_reason: str | None = Field(default=None, max_length=500)
+    scope_note: str | None = Field(default=None, max_length=2000)
 
     @model_validator(mode="after")
     def not_in_future(self):
         if self.assessment_date and self.assessment_date > date.today():
             raise ValueError("Risk değerlendirme tarihi bugünden ileri olamaz.")
-        for field in ("employee_representative", "support_staff"):
+        for field in (
+            "employee_representative",
+            "support_staff",
+            "method",
+            "document_no",
+            "revision_no",
+            "revision_reason",
+            "scope_note",
+        ):
             value = getattr(self, field)
             if value is not None:
                 setattr(self, field, value.strip() or None)

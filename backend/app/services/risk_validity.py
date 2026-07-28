@@ -22,6 +22,8 @@ RENEWAL_YEARS: dict[str, int] = {
 # Yenileme tarihine bu kadar gün kalınca "yaklaşıyor" sayılır (planlama payı).
 DUE_SOON_DAYS = 90
 
+from app.services.risk_methods import method_label
+
 METHOD_LABEL = "5x5 Matris (L Tipi) — Risk Skoru = Olasılık × Şiddet"
 
 RENEWAL_TRIGGERS = (
@@ -68,6 +70,7 @@ def build_validity(
     assessment_date: date | None,
     fallback_date: date | None = None,
     today: date | None = None,
+    method_code: str | None = None,
 ) -> dict:
     """Belge geçerlilik durumu.
 
@@ -78,6 +81,7 @@ def build_validity(
     years = renewal_years(hazard_class)
     effective = assessment_date or fallback_date
     source = "recorded" if assessment_date else ("estimated" if fallback_date else "missing")
+    method = method_label(method_code) if method_code else METHOD_LABEL
 
     out: dict = {
         "hazard_class": normalize_hazard_class(hazard_class),
@@ -89,7 +93,8 @@ def build_validity(
         "days_left": None,
         "status": "unknown",
         "message": "",
-        "method": METHOD_LABEL,
+        "method": method,
+        "method_code": method_code or "5x5_l",
         "renewal_triggers": list(RENEWAL_TRIGGERS),
     }
 
@@ -153,14 +158,15 @@ def document_meta_rows(
     employer_representative: str | None = None,
     employee_representative: str | None = None,
     support_staff: str | None = None,
+    document_no: str | None = None,
+    revision_no: str | None = None,
+    revision_reason: str | None = None,
 ) -> list[tuple[str, str]]:
-    """Rapor başlığındaki mevzuat künyesi (yöntem + ekip + geçerlilik).
-
-    Yönetmelik md.15, dokümanda değerlendirmeyi yapanların ve kullanılan
-    yöntemin yer almasını ister.
-    """
+    """Rapor başlığındaki mevzuat künyesi (yöntem + ekip + geçerlilik + belge kontrolü)."""
     validity = validity or {}
     rows: list[tuple[str, str]] = [
+        ("Belge No", document_no or "—"),
+        ("Revizyon No", revision_no or "00"),
         ("Kullanılan Yöntem", validity.get("method") or METHOD_LABEL),
         ("Değerlendirme Tarihi", _fmt(validity.get("assessment_date"))),
         ("Geçerlilik / Yenileme Tarihi", _fmt(validity.get("valid_until"))),
@@ -168,6 +174,8 @@ def document_meta_rows(
     years = validity.get("renewal_years")
     if years:
         rows.append(("Yenileme Periyodu", f"{years} yıl (tehlike sınıfı gereği)"))
+    if revision_reason:
+        rows.append(("Revizyon Nedeni", revision_reason))
     rows.extend(
         [
             ("İSG Uzmanı / Hazırlayan", prepared_by or "—"),
