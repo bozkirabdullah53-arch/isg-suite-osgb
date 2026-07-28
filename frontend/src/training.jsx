@@ -57,20 +57,24 @@ function apiBaseUrl() {
 let _sectorsMem = null;
 let _sectorsMemAt = 0;
 const SECTORS_TTL_MS = 60 * 60 * 1000;
+const SECTORS_CACHE_KEY = 'isg_sectors_v3_nace2026';
+const SECTORS_MIN_COUNT = 500; // eski 177 listesini reddet
 
 async function loadSectorsCatalog() {
-  if (_sectorsMem && Date.now() - _sectorsMemAt < SECTORS_TTL_MS) {
+  if (_sectorsMem && _sectorsMem.length >= SECTORS_MIN_COUNT && Date.now() - _sectorsMemAt < SECTORS_TTL_MS) {
     return _sectorsMem;
   }
   try {
-    const raw = sessionStorage.getItem('isg_sectors_v2');
+    sessionStorage.removeItem('isg_sectors_v1');
+    sessionStorage.removeItem('isg_sectors_v2');
+    const raw = sessionStorage.getItem(SECTORS_CACHE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (
         parsed?.at &&
         Date.now() - parsed.at < SECTORS_TTL_MS &&
         Array.isArray(parsed.data) &&
-        parsed.data.length > 10
+        parsed.data.length >= SECTORS_MIN_COUNT
       ) {
         _sectorsMem = parsed.data;
         _sectorsMemAt = parsed.at;
@@ -82,38 +86,38 @@ async function loadSectorsCatalog() {
   const base = apiBaseUrl();
   let data = [];
 
-  // 1) Yeni API /sectors
+  // 1) API — önbelleği kırma (eski 177 response kalmasın)
   try {
-    const r = await fetch(`${base}/trainings/sectors`, {cache: 'force-cache'});
+    const r = await fetch(`${base}/trainings/sectors?v=nace2026`, {cache: 'no-store'});
     if (r.ok) {
       const json = await r.json();
-      if (Array.isArray(json) && json.length > 10) data = json;
+      if (Array.isArray(json) && json.length >= SECTORS_MIN_COUNT) data = json;
     }
   } catch (_) { /* ignore */ }
 
   // 2) Auth’lu meta
-  if (data.length <= 10) {
+  if (data.length < SECTORS_MIN_COUNT) {
     try {
       const meta = await api('/trainings/meta');
-      if (meta?.sectors?.length > 10) data = meta.sectors;
+      if (meta?.sectors?.length >= SECTORS_MIN_COUNT) data = meta.sectors;
     } catch (_) { /* ignore */ }
   }
 
   // 3) Statik paket
-  if (data.length <= 10) {
+  if (data.length < SECTORS_MIN_COUNT) {
     try {
-      const local = await fetch('/training-sectors.json').then((r) => r.json());
-      if (Array.isArray(local) && local.length > 10) data = local;
-      else if (Array.isArray(local?.sectors) && local.sectors.length > 10) data = local.sectors;
+      const local = await fetch('/training-sectors.json?v=nace2026', {cache: 'no-store'}).then((r) => r.json());
+      if (Array.isArray(local) && local.length >= SECTORS_MIN_COUNT) data = local;
+      else if (Array.isArray(local?.sectors) && local.sectors.length >= SECTORS_MIN_COUNT) data = local.sectors;
     } catch (_) { /* ignore */ }
   }
 
-  if (data.length > 10) {
+  if (data.length >= SECTORS_MIN_COUNT) {
     _sectorsMem = data;
     _sectorsMemAt = Date.now();
     try {
-      sessionStorage.setItem('isg_sectors_v2', JSON.stringify({at: _sectorsMemAt, data}));
-    } catch (_) { /* ignore */ }
+      sessionStorage.setItem(SECTORS_CACHE_KEY, JSON.stringify({at: _sectorsMemAt, data}));
+    } catch (_) { /* ignore — quota */ }
   }
   return data;
 }
