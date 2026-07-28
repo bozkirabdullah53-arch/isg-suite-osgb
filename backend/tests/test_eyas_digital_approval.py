@@ -14,6 +14,18 @@ from app.models.entities import Company, OsgbOrganization, User, UserRole
 from app.services import eyas_approval as svc
 
 
+
+
+@pytest.fixture(autouse=True)
+def _ensure_eyas_workflow_source_key(db):
+    """Test DB may lag migrations; EyasWorkflow.source_key is required."""
+    from sqlalchemy import text
+
+    rows = db.execute(text("PRAGMA table_info(eyas_workflows)")).fetchall()
+    if "source_key" not in {r[1] for r in rows}:
+        db.execute(text("ALTER TABLE eyas_workflows ADD COLUMN source_key VARCHAR(160)"))
+        db.commit()
+
 @pytest.fixture()
 def db():
     session = SessionLocal()
@@ -159,3 +171,75 @@ def test_release_marker_present():
     # markers may be nested
     blob = str(infra_detail_payload())
     assert "eyas_digital_approval" in blob
+
+
+def test_workplace_documents_missing_risk(db):
+    from app.services.eyas_workplace import list_approval_documents
+
+    company, *_ = _mk_users(db)
+    catalog = list_approval_documents(db, company.id)
+    risk = next(i for i in catalog["items"] if i["source_key"] == "risk:report")
+    assert risk["readiness"] == "missing"
+    assert "hazır değil" in risk["readiness_detail"].lower() or "yok" in risk["readiness_detail"].lower()
+    assert risk["selectable"] is False
+
+
+def test_workplace_documents_ready_risk(db):
+    from app.models.entities import Hazard, HazardCategory, RiskAssessment
+    from app.services.eyas_workplace import list_approval_documents, resolve_document
+
+    company, uzman, *_ = _mk_users(db)
+    hazard = db.scalar(select(Hazard).limit(1))
+    if not hazard:
+        cat = db.scalar(select(HazardCategory).limit(1))
+        if not cat:
+            cat = HazardCategory(name=f"Cat {int(datetime.utcnow().timestamp())}")
+            db.add(cat)
+            db.flush()
+        hazard = Hazard(
+            category_id=cat.id,
+            code=f"H{int(datetime.utcnow().timestamp()) % 100000}",
+            name="Test Hazard",
+        )
+        db.add(hazard)
+        db.flush()
+    db.add(
+        RiskAssessment(
+            risk_code=f"R{int(datetime.utcnow().timestamp())}",
+            company_id=company.id,
+            hazard_id=hazard.id,
+            activity="Test",
+            risk_definition="Tanım",
+            probability=2,
+            severity=2,
+            risk_score=4,
+            risk_level="Düşük",
+            status="Açık",
+            created_by_id=uzman.id,
+        )
+    )
+    db.commit()
+    catalog = list_approval_documents(db, company.id)
+    risk = next(i for i in catalog["items"] if i["source_key"] == "risk:report")
+    assert risk["readiness"] == "ready"
+    assert risk["selectable"] is True
+    resolved = resolve_document(db, company.id, "risk:report")
+    assert resolved["kind"] == "risk"
+
+
+def test_suggested_assignees_chain_labels(db):
+    from app.services.eyas_workplace import suggested_assignees
+
+    company, *_ = _mk_users(db)
+    out = suggested_assignees(db, company.id)
+    labels = [s["role_label"] for s in out["steps"]]
+    assert labels == ["İş Güvenliği Uzmanı", "İşyeri Hekimi", "İşveren / vekili"]
+
+
+def test_eyas_workplace_routes_mounted():
+    from app.api import eyas
+
+    paths = {getattr(r, "path", None) for r in eyas.router.routes}
+    assert "/eyas/workplaces/{company_id}/documents" in paths
+    assert "/eyas/workplaces/{company_id}/assignees" in paths
+    assert "/eyas/workflows/{workflow_id}/document" in paths

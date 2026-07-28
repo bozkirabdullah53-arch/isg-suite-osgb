@@ -780,18 +780,15 @@ export function DocumentApprovalsPage({user}) {
       </div>
       <section className="panel">
         <p style={{margin: '0 0 12px', color: '#475569', fontSize: 14}}>
-          Onay zinciri takibi + isteğe bağlı OSGB Signer hattı (web → tek kullanımlık talep → Windows agent /
-          PKCS#11 kart → sunucu doğrulama/OCSP/CRL/TSA/kilit/denetim). Mevcut “Onayla”, PDF indirme ve ziyaret
-          canvas imzası değişmez. IBYSIS HSNSigner (16999) ile çakışmaz (bu köprü 17000).
+          Bu ekranda şimdilik yalnızca <b>Onayla</b> kullanın. Sıralı onay (uzman → hekim → işveren) için üstteki
+          <b> Dijital Onay (Eyas)</b> sekmesine geçin. Kart / PDF imza geçici olarak kapalıdır.
         </p>
         <div style={{
           marginBottom: 12, padding: '10px 12px', borderRadius: 8,
-          background: signer.ok ? '#ecfdf5' : '#f8fafc', border: '1px solid #e2e8f0', fontSize: 13,
+          background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 13, color: '#64748b',
         }}>
-          <strong>OSGB Signer:</strong>{' '}
-          {signer.checking ? 'kontrol ediliyor…' : signer.ok
-            ? `Bağlı (${signer.data?.product || 'OSGB Signer'} v${signer.data?.version || '?'}${signer.data?.pkcs11_configured ? ', PKCS#11 hazır' : ''}${signer.data?.demo_mode ? ', demo sertifika' : ''})`
-            : `Kapalı (${signer.error || 'https://127.0.0.1:17000/health'}). Kurulum: tools/isg-suite-signer → KUR.bat`}
+          <strong>Kart / PDF İmzala:</strong> şimdilik pasif (kart yok / hatası var). İleride açılacak.
+          {signer.ok ? ` OSGB Signer bağlı (${signer.data?.version || '?'}${signer.data?.demo_mode ? ', demo' : ''}).` : ''}
         </div>
         {err && <div className="error">{err}</div>}
         <div className="table-wrap">
@@ -816,11 +813,10 @@ export function DocumentApprovalsPage({user}) {
                         <button
                           type="button"
                           className="mini secondary"
-                          disabled={signBusy === r.id}
-                          title={signer.ok ? 'PDF seç → yerel imza → indir + kayda işle' : 'Köprü kapalı'}
-                          onClick={() => void localSign(r)}
+                          disabled
+                          title="Geçici olarak kapalı — kart/PDF imza kullanılmıyor. Onayla veya Eyas sekmesini kullanın."
                         >
-                          {signBusy === r.id ? 'İmzalanıyor…' : 'Kart / PDF İmzala'}
+                          Kart / PDF İmzala (pasif)
                         </button>{' '}
                       </>
                     )}

@@ -1763,6 +1763,7 @@ class EyasWorkflow(Base):
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
     title: Mapped[str] = mapped_column(String(220))
     document_kind: Mapped[str] = mapped_column(String(80), default="genel")
+    source_key: Mapped[str | None] = mapped_column(String(160), nullable=True, index=True)
     source_document_id: Mapped[int | None] = mapped_column(ForeignKey("document_records.id"), nullable=True)
     source_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(40), default="draft", index=True)

@@ -88,6 +88,7 @@ def create_workflow(
     steps: list[dict[str, Any]],
     source_document_id: int | None = None,
     source_sha256: str | None = None,
+    source_key: str | None = None,
     ip: str | None = None,
     user_agent: str | None = None,
 ) -> EyasWorkflow:
@@ -115,6 +116,7 @@ def create_workflow(
         company_id=company_id,
         title=title.strip()[:220],
         document_kind=(document_kind or "genel")[:80],
+        source_key=(source_key or None),
         source_document_id=source_document_id,
         source_sha256=(source_sha256 or None),
         status="in_progress",
