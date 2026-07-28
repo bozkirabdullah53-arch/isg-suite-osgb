@@ -24,6 +24,7 @@ from app.models.entities import (
 )
 from app.services.csgb_audit_pack import build_csgb_audit_pack
 from app.services.company_overview import build_company_overview
+from app.services.eyas_approval import is_employer_role_label, is_workplace_employer_account
 
 
 def build_employer_oversight(db: Session, company: Company, viewer: User | None = None) -> dict[str, Any]:
@@ -288,18 +289,16 @@ def build_employer_oversight(db: Session, company: Company, viewer: User | None 
             active = next((s for s in step_out if s["status"] == "active"), None)
             # İşveren adımında kişi adı gösterme — rol etiketi
             for s in step_out:
-                rl = (s.get("role_label") or "").casefold()
-                if "işveren" in rl or "isveren" in rl:
+                if is_employer_role_label(s.get("role_label") or ""):
                     s["assignee_name"] = "İşveren / işveren vekili"
                     s["display_as_role"] = True
             can_approve = False
             if viewer and wf.status == "in_progress" and active:
-                role_l = (active.get("role_label") or "").casefold()
-                is_emp = "işveren" in role_l or "isveren" in role_l
-                viewer_role = getattr(viewer.role, "value", str(viewer.role))
-                viewer_cid = getattr(viewer, "company_id", None)
-                workplace_admin = viewer_role == "company_admin" and viewer_cid is not None and int(viewer_cid) == int(cid)
-                if active.get("assignee_user_id") == viewer.id or (is_emp and workplace_admin):
+                is_emp = is_employer_role_label(active.get("role_label") or "")
+                is_final = active.get("step_order") == max((x["step_order"] for x in step_out), default=0)
+                if active.get("assignee_user_id") == viewer.id or (
+                    is_workplace_employer_account(viewer, cid) and (is_emp or is_final)
+                ):
                     can_approve = True
             approval_flows.append(
                 {

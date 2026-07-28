@@ -21,6 +21,34 @@ from app.services.audit import add_audit_log
 LEGAL_LABEL = "digital_approval_not_qes"
 
 
+def _role_fold(label: str) -> str:
+    """Türkçe İ/I/ı güvenli karşılaştırma (casefold 'İşveren' → 'işveren' kırılır)."""
+    s = (label or "").replace("\u0130", "i").replace("I", "i").replace("\u0131", "i")
+    return s.casefold().replace("\u0307", "")
+
+
+def is_employer_role_label(label: str) -> bool:
+    s = _role_fold(label)
+    return "işveren" in s or "isveren" in s or "vekil" in s
+
+
+def is_workplace_employer_account(user: User, company_id: int) -> bool:
+    """Son onay yetkisi: işyerine bağlı company_admin (kiosk / işveren vekili)."""
+    role = getattr(user.role, "value", str(user.role))
+    cid = getattr(user, "company_id", None)
+    if cid is None:
+        return False
+    try:
+        if int(cid) != int(company_id):
+            return False
+    except (TypeError, ValueError):
+        return False
+    email = (getattr(user, "email", None) or "").casefold()
+    if email.endswith("@kiosk.isgsuite.tr"):
+        return True
+    return role == "company_admin"
+
+
 def _now() -> datetime:
     return datetime.utcnow()
 
@@ -316,20 +344,24 @@ def decide_step(
     ).first()
     if not step:
         raise HTTPException(409, "Aktif onay adımı yok.")
-    role_l = (step.role_label or "").casefold()
-    is_employer_step = "işveren" in role_l or "isveren" in role_l
-    workplace_admin = (
-        getattr(user.role, "value", str(user.role)) == "company_admin"
-        and getattr(user, "company_id", None) is not None
-        and int(user.company_id) == int(wf.company_id)
-    )
-    if step.assignee_user_id != user.id and not (is_employer_step and workplace_admin):
+    is_employer_step = is_employer_role_label(step.role_label or "")
+    # Zincirin son adımı da işveren onayıdır (etiket farklı yazılmış olsa bile)
+    has_next = db.scalars(
+        select(EyasStep.id).where(
+            EyasStep.workflow_id == wf.id,
+            EyasStep.step_order == step.step_order + 1,
+        )
+    ).first()
+    is_final_step = has_next is None
+    workplace_employer = is_workplace_employer_account(user, wf.company_id)
+    employer_may_decide = workplace_employer and (is_employer_step or is_final_step)
+    if step.assignee_user_id != user.id and not employer_may_decide:
         raise HTTPException(
             403,
-            "Bu adımı yalnızca atanan kullanıcı veya işyeri işveren hesabı onaylayabilir.",
+            "Bu son adımı yalnızca işveren / işveren vekili (işyeri hesabı) onaylayabilir.",
         )
-    # İşyeri işveren paneli: MFA yoksa da işveren adımı onaylanabilir (kiosk / vekil)
-    if not getattr(user, "mfa_enabled", False) and not (is_employer_step and workplace_admin):
+    # İşyeri işveren paneli: MFA yoksa da son adım onaylanabilir (kiosk / vekil)
+    if not getattr(user, "mfa_enabled", False) and not employer_may_decide:
         raise HTTPException(
             403,
             "Dijital onay için hesapta Authenticator (TOTP) MFA açık olmalıdır. Güvenlik menüsünden etkinleştirin.",
