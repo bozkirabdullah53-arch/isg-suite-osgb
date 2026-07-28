@@ -55,6 +55,7 @@ from app.models.entities import (
 from app.models.entities import OsgbOrganization
 from app.schemas.company import CompanyCreate, CompanyCreateResponse, CompanyResponse, CompanyUpdate
 from app.services.company_overview import build_company_overview
+from app.services.employer_oversight import build_employer_oversight
 from app.services.site_verify import (
     build_ephemeral_qr_payload,
     build_qr_payload,
@@ -273,6 +274,20 @@ def company_overview(
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
     return build_company_overview(db, obj)
+
+
+@router.get("/{company_id}/employer-oversight")
+def company_employer_oversight(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+):
+    """İşveren / işyeri denetim paneli — salt okunur (müdahale yok)."""
+    ensure_company_access(db, user, company_id)
+    obj = db.get(Company, company_id)
+    if not obj:
+        raise HTTPException(404, "Firma bulunamadı.")
+    return build_employer_oversight(db, obj)
 
 
 @router.post("/{company_id}/kiosk-login/reset")

@@ -18,6 +18,7 @@ import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMod
 import {clearOfflineQueue} from './field_offline';
 import {LoginPasswordInput, PasswordField} from './password_field';
 import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';
+import {EmployerOversightPage, EmployerOversightPanel} from './employer_oversight';
 import {OsgbOversightPage} from './osgb_oversight';
 import {LegalAcceptancesPanel} from './legal_acceptances';
 import {MembershipsPanel} from './memberships_panel';
@@ -92,6 +93,7 @@ const roleModules={
     'osgb_dashboard',
     'visits',
     'notifications',
+    'employer_oversight',
     'eyas_inbox',
     'companies',
     // 2) İnsan, görev, performans (birbirini izler)
@@ -154,7 +156,7 @@ function modulesForUser(user){
 /** Mobil alt bar: en sık 4 modül + «Menü» (çok satırlı ızgara içeriği kapatmasın). */
 const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
-  company_admin:['osgb_dashboard','visits','professionals','notifications'],
+  company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
   safety_specialist:['visits','belge_onay','risk','training'],
   workplace_physician:['visits','belge_onay','health','employees'],
   other_health_personnel:['visits','health','employees','documents'],
@@ -195,6 +197,7 @@ const menuCatalog={
   professionals:['İSG Profesyonelleri',Stethoscope],
   assignments:['Görevlendirmeler',BriefcaseBusiness],
   visits:['Saha Takvimi',CalendarDays],
+  employer_oversight:['İşyeri Denetim Durumu',ShieldCheck],
   site_qr_kiosk:['İşyeri QR',QrCode],
   crm:['CRM / Teklif',BriefcaseBusiness],
   contracts:['Sözleşmeler',FileText],
@@ -479,9 +482,10 @@ function Field({label,...p}){return <label className="field"><span>{label}</span
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
 function Table({cols,rows,empty='Kayıt bulunamadı.'}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
 
-/** İşyeri kiosk — yalnızca company_id’li company_admin. Menü/aksiyon yok; ephemeral QR yenilenir. */
+/** İşyeri kiosk — QR + salt-okunur denetim durumu. Menü yok; müdahale yok. */
 function SiteQrKioskPage({user,onLogout}){
   const companyId=user?.company_id;
+  const[tab,setTab]=useState('qr');
   const[info,setInfo]=useState(null);
   const[err,setErr]=useState('');
   const[busy,setBusy]=useState(false);
@@ -516,48 +520,75 @@ function SiteQrKioskPage({user,onLogout}){
   };
 
   useEffect(()=>{
+    if(tab!=='qr') return undefined;
     refreshQr();
     return ()=>{
       if(timerRef.current) clearInterval(timerRef.current);
       if(refreshRef.current) clearTimeout(refreshRef.current);
     };
-  },[companyId]);
+  },[companyId,tab]);
 
   const mm=String(Math.floor(remainSec/60)).padStart(2,'0');
   const ss=String(remainSec%60).padStart(2,'0');
   const payload=info?.qr_payload||'';
+  const title=info?.company_name||user?.full_name||'İşyeri';
 
   return (
-    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:24,background:'linear-gradient(160deg,#0f766e 0%,#134e4a 45%,#0f172a 100%)',color:'#f8fafc'}}>
-      <div style={{textAlign:'center',maxWidth:520,width:'100%'}}>
-        <p style={{margin:0,opacity:.85,fontSize:14,letterSpacing:'.04em',textTransform:'uppercase'}}>İşyeri QR kiosk</p>
-        <h1 style={{margin:'8px 0 4px',fontSize:28,fontWeight:700}}>{info?.company_name||user?.full_name||'İşyeri'}</h1>
-        <p style={{margin:'0 0 20px',opacity:.9,fontSize:15}}>Uzman / hekim giriş ve çıkışta bu kodu okutur.</p>
-        <div style={{background:'#fff',borderRadius:16,padding:20,display:'inline-block',boxShadow:'0 20px 50px rgba(0,0,0,.35)'}}>
-          {payload?(
-            <img
-              alt="İşyeri QR"
-              width={320}
-              height={320}
-              style={{display:'block',width:Math.min(320,typeof window!=='undefined'?window.innerWidth-80:320),height:'auto'}}
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(payload)}`}
-            />
-          ):(
-            <div style={{width:280,height:280,display:'grid',placeItems:'center',color:'#64748b'}}>{busy?'Yükleniyor…':'QR yok'}</div>
-          )}
-        </div>
-        <p style={{margin:'18px 0 6px',fontSize:18,fontWeight:600}}>
-          {remainSec>0?`Yenileniyor… ${mm}:${ss}`:(busy?'Yenileniyor…':'—')}
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',padding:'20px 24px 32px',background:'linear-gradient(160deg,#0f766e 0%,#134e4a 45%,#0f172a 100%)',color:'#f8fafc'}}>
+      <div style={{textAlign:'center',maxWidth:720,width:'100%'}}>
+        <p style={{margin:0,opacity:.85,fontSize:14,letterSpacing:'.04em',textTransform:'uppercase'}}>İşyeri paneli</p>
+        <h1 style={{margin:'8px 0 4px',fontSize:28,fontWeight:700}}>{title}</h1>
+        <p style={{margin:'0 0 16px',opacity:.9,fontSize:14}}>
+          QR: uzman/hekim giriş-çıkış · Denetim: salt görüntüleme (müdahale yok)
         </p>
-        {err&&<p style={{color:'#fecaca',marginTop:8}}>{err}</p>}
-        <div style={{marginTop:20,display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
-          <button type="button" className="mini secondary" disabled={busy} onClick={refreshQr} style={{background:'rgba(255,255,255,.12)',color:'#fff',border:'1px solid rgba(255,255,255,.35)'}}>
-            <RefreshCw size={14}/> Şimdi yenile
-          </button>
-          <button type="button" className="mini" onClick={onLogout} style={{background:'#fff',color:'#0f172a'}}>
+        <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap',marginBottom:18}}>
+          <button type="button" onClick={()=>setTab('qr')} style={{
+            background:tab==='qr'?'#fff':'rgba(255,255,255,.12)',
+            color:tab==='qr'?'#0f172a':'#fff',
+            border:'1px solid rgba(255,255,255,.35)',borderRadius:999,padding:'8px 16px',fontWeight:600,
+          }}>QR kiosk</button>
+          <button type="button" onClick={()=>setTab('status')} style={{
+            background:tab==='status'?'#fff':'rgba(255,255,255,.12)',
+            color:tab==='status'?'#0f172a':'#fff',
+            border:'1px solid rgba(255,255,255,.35)',borderRadius:999,padding:'8px 16px',fontWeight:600,
+          }}>Denetim durumu</button>
+          <button type="button" className="mini" onClick={onLogout} style={{background:'rgba(255,255,255,.12)',color:'#fff',border:'1px solid rgba(255,255,255,.35)'}}>
             <LogOut size={14}/> Çıkış
           </button>
         </div>
+
+        {tab==='qr'&&(
+          <>
+            <div style={{background:'#fff',borderRadius:16,padding:20,display:'inline-block',boxShadow:'0 20px 50px rgba(0,0,0,.35)'}}>
+              {payload?(
+                <img
+                  alt="İşyeri QR"
+                  width={320}
+                  height={320}
+                  style={{display:'block',width:Math.min(320,typeof window!=='undefined'?window.innerWidth-80:320),height:'auto'}}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(payload)}`}
+                />
+              ):(
+                <div style={{width:280,height:280,display:'grid',placeItems:'center',color:'#64748b'}}>{busy?'Yükleniyor…':'QR yok'}</div>
+              )}
+            </div>
+            <p style={{margin:'18px 0 6px',fontSize:18,fontWeight:600}}>
+              {remainSec>0?`Yenileniyor… ${mm}:${ss}`:(busy?'Yenileniyor…':'—')}
+            </p>
+            {err&&<p style={{color:'#fecaca',marginTop:8}}>{err}</p>}
+            <div style={{marginTop:16}}>
+              <button type="button" className="mini secondary" disabled={busy} onClick={refreshQr} style={{background:'rgba(255,255,255,.12)',color:'#fff',border:'1px solid rgba(255,255,255,.35)'}}>
+                <RefreshCw size={14}/> Şimdi yenile
+              </button>
+            </div>
+          </>
+        )}
+
+        {tab==='status'&&(
+          <div style={{textAlign:'left',background:'rgba(15,23,42,.45)',borderRadius:16,padding:16,border:'1px solid rgba(255,255,255,.12)'}}>
+            <EmployerOversightPanel companyId={companyId} compact dark />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1737,6 +1768,7 @@ function App(){
     professionals:<ProfessionalsPage user={user} onNavigate={goModule}/>,
     assignments:<AssignmentsPage user={user}/>,
     visits:<VisitsPage user={user} onNavigate={goModule}/>,
+    employer_oversight:<EmployerOversightPage user={user}/>,
     site_qr_kiosk:<SiteQrKioskPage user={user} onLogout={logout}/>,
     crm:<CrmPage user={user} onNavigate={goModule}/>,
     contracts:<ContractsPage user={user}/>,
