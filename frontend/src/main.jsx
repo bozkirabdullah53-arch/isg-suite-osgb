@@ -33,6 +33,7 @@ import {
   WorkplaceMeasurementsPage,
   OhsCommitteePage,
   DocumentApprovalsPage,
+  BelgeOnayHub,
 } from './compliance_registers';
 import {AnnualEvalReportPage} from './annual_eval_report';
 import {Customer360Page} from './customer_360';
@@ -1728,7 +1729,7 @@ function App(){
     periyodik_kontrol:<PeriodicControlsPage user={user}/>,
     ortam_olcum:<WorkplaceMeasurementsPage user={user}/>,
     isg_kurulu:<OhsCommitteePage user={user}/>,
-    belge_onay:<DocumentApprovalsPage user={user}/>,
+    belge_onay:<BelgeOnayHub user={user}/>,
     training:<TrainingPage user={user}/>,
     health:<HealthPage user={user}/>,
     documents:<DocumentsPage user={user}/>,

@@ -1702,3 +1702,54 @@ class ESignArtifact(Base):
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ESignatureRequest(Base):
+    """Nitelikli e-imza orkestrasyonu; özel anahtar/PIN sunucuda tutulmaz."""
+
+    __tablename__ = "e_signature_requests"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    document_id: Mapped[int | None] = mapped_column(ForeignKey("document_records.id"), nullable=True, index=True)
+    document_title: Mapped[str] = mapped_column(String(220))
+    document_kind: Mapped[str] = mapped_column(String(80), default="general", index=True)
+    document_version: Mapped[str] = mapped_column(String(30), default="1")
+    document_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    signing_format: Mapped[str] = mapped_column(String(30), default="PAdES")
+    required_signer_name: Mapped[str] = mapped_column(String(160))
+    required_signer_role: Mapped[str] = mapped_column(String(100))
+    signing_order: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(40), default="draft", index=True)
+    nonce_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    nonce_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    certificate_subject: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    certificate_serial: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    certificate_issuer: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    certificate_valid_from: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    certificate_valid_to: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    certificate_qualified: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    revocation_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    timestamp_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    signature_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    signed_document_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    signed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    verification_status: Mapped[str] = mapped_column(String(40), default="not_verified")
+    failure_reason: Mapped[str | None] = mapped_column(String(1500), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ESignatureAuditEvent(Base):
+    """E-imza işlem zincirinin uygulama denetim izi."""
+
+    __tablename__ = "e_signature_audit_events"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    request_id: Mapped[int] = mapped_column(ForeignKey("e_signature_requests.id"), index=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    event_type: Mapped[str] = mapped_column(String(80), index=True)
+    actor_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    event_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    detail_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

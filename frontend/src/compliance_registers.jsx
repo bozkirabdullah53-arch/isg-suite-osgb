@@ -7,6 +7,25 @@ import {
 } from './isg_signer_agent';
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
+import {ESignCenterPage} from './esign_center';
+
+/** Belge Onay hub: süreç onayı (mevcut) + e-imza orkestrasyon (Desktop birleşimi). Bozmadan yan yana. */
+export function BelgeOnayHub({user}) {
+  const [tab, setTab] = useState('surec');
+  return (
+    <>
+      <div className="actions" style={{marginBottom: 12, gap: 8, display: 'flex', flexWrap: 'wrap'}}>
+        <button type="button" className={tab === 'surec' ? '' : 'secondary'} onClick={() => setTab('surec')}>
+          Süreç Onayı / PDF İmza
+        </button>
+        <button type="button" className={tab === 'orch' ? '' : 'secondary'} onClick={() => setTab('orch')}>
+          E‑İmza Orkestrasyon
+        </button>
+      </div>
+      {tab === 'surec' ? <DocumentApprovalsPage user={user} /> : <ESignCenterPage user={user} />}
+    </>
+  );
+}
 
 function Modal({title, close, children, wide}) {
   return <AppModal title={title} close={close} wide={wide}>{children}</AppModal>;
