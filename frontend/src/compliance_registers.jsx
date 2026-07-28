@@ -1,5 +1,10 @@
 import React, {useEffect, useState} from 'react';
 import {ClipboardCheck, Download, FileWarning, Plus, RefreshCw, Upload, Users} from 'lucide-react';
+import {
+  downloadBase64Pdf,
+  probeIsgSigner,
+  signPdfWithIsgSigner,
+} from './isg_signer_agent';
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
 
@@ -613,6 +618,8 @@ export function DocumentApprovalsPage({user}) {
   const [rows, setRows] = useState([]);
   const [open, setOpen] = useState(false);
   const [err, setErr] = useState('');
+  const [signer, setSigner] = useState({ok: false, checking: true, data: null, error: ''});
+  const [signBusy, setSignBusy] = useState(null);
   const [form, setForm] = useState({
     company_id: user.company_id || '',
     document_title: '',
@@ -622,6 +629,12 @@ export function DocumentApprovalsPage({user}) {
     status: 'Bekliyor',
   });
 
+  async function refreshSigner() {
+    setSigner((s) => ({...s, checking: true}));
+    const r = await probeIsgSigner();
+    setSigner({ok: !!r.ok, checking: false, data: r.data || null, error: r.error || ''});
+  }
+
   async function load() {
     try {
       setRows(await api('/document-approvals'));
@@ -629,7 +642,7 @@ export function DocumentApprovalsPage({user}) {
       setErr(e.message);
     }
   }
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); void refreshSigner(); }, []);
 
   async function save(e) {
     e.preventDefault();
@@ -646,20 +659,95 @@ export function DocumentApprovalsPage({user}) {
     await load();
   }
 
+  async function localSign(row) {
+    if (!signer.ok) {
+      setErr('OSGB Signer bağlı değil. tools/isg-suite-signer → KUR.bat çalıştırın (port 17000).');
+      return;
+    }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/pdf,.pdf';
+    input.onchange = async () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      setSignBusy(row.id);
+      setErr('');
+      try {
+        // 1) Sunucu: tek kullanımlık imza talebi
+        const req = await uploadFile('/esign/requests', file, {
+          company_id: row.company_id,
+          document_title: row.document_title || file.name,
+          document_kind: row.document_kind || 'genel',
+          approval_id: row.id,
+        });
+
+        // 2) Agent: PKCS#11 veya demo (PIN yalnızca yerelde)
+        const buf = await file.arrayBuffer();
+        const usePkcs11 = !!(signer.data && signer.data.pkcs11_configured);
+        let pin;
+        if (usePkcs11) {
+          pin = window.prompt('E-imza kartı PIN (yalnızca bu bilgisayarda kullanılır, sunucuya gitmez):') || '';
+          if (!pin) throw new Error('PIN girilmedi.');
+        }
+        const signed = await signPdfWithIsgSigner(buf, {
+          documentTitle: row.document_title,
+          reason: `OSGB — ${row.document_title}`,
+          requestToken: req.one_time_token,
+          expectedSha256: req.source_sha256,
+          certId: usePkcs11 ? 'pkcs11' : 'demo',
+          pin,
+        });
+
+        // 3) Sunucu: doğrulama · OCSP/CRL · TSA · kilit · denetim
+        await api('/esign/complete', {
+          method: 'POST',
+          body: JSON.stringify({
+            one_time_token: req.one_time_token,
+            signed_pdf_base64: signed.signed_pdf_base64,
+            agent_mode: signed.mode,
+            agent_signature_id: signed.signature_id,
+            signer_cn: signed.signer?.common_name,
+            signer_subject: signed.signer?.subject,
+            cert_serial: signed.signer?.serial,
+            cert_sha256: signed.signer?.sha256,
+            mark_approval: true,
+          }),
+        });
+        downloadBase64Pdf(signed.signed_pdf_base64, `${row.document_title || 'belge'}-imzali.pdf`);
+        await load();
+      } catch (e) {
+        setErr(e.message || 'E-imza hattı başarısız.');
+      } finally {
+        setSignBusy(null);
+      }
+    };
+    input.click();
+  }
+
   return (
     <>
       <div className="page-title">
         <h3>Belge Onay / İmza Hazırlık</h3>
         <div className="actions">
-          <button type="button" className="secondary" onClick={() => void load()}><RefreshCw size={16} /> Yenile</button>
+          <button type="button" className="secondary" onClick={() => { void load(); void refreshSigner(); }}><RefreshCw size={16} /> Yenile</button>
           {canEdit && <button type="button" onClick={() => setOpen(true)}><Plus size={16} /> Onay Kaydı</button>}
         </div>
       </div>
       <section className="panel">
         <p style={{margin: '0 0 12px', color: '#475569', fontSize: 14}}>
-          Resmi belgeler için onay/imza süreci takibi. Nitelikli e-imza (5070) sağlayıcı entegrasyonu ayrıdır;
-          bu ekran müfettiş için onay zinciri kanıtı üretir ve mevcut PDF/canvas imzalarıyla birlikte çalışır.
+          Onay zinciri takibi + isteğe bağlı OSGB Signer hattı (web → tek kullanımlık talep → Windows agent /
+          PKCS#11 kart → sunucu doğrulama/OCSP/CRL/TSA/kilit/denetim). Mevcut “Onayla”, PDF indirme ve ziyaret
+          canvas imzası değişmez. IBYSIS HSNSigner (16999) ile çakışmaz (bu köprü 17000).
         </p>
+        <div style={{
+          marginBottom: 12, padding: '10px 12px', borderRadius: 8,
+          background: signer.ok ? '#ecfdf5' : '#f8fafc', border: '1px solid #e2e8f0', fontSize: 13,
+        }}>
+          <strong>OSGB Signer:</strong>{' '}
+          {signer.checking ? 'kontrol ediliyor…' : signer.ok
+            ? `Bağlı (${signer.data?.product || 'OSGB Signer'} v${signer.data?.version || '?'}${signer.data?.pkcs11_configured ? ', PKCS#11 hazır' : ''}${signer.data?.demo_mode ? ', demo sertifika' : ''})`
+            : `Kapalı (${signer.error || 'https://127.0.0.1:17000/health'}). Kurulum: tools/isg-suite-signer → KUR.bat`}
+        </div>
         {err && <div className="error">{err}</div>}
         <div className="table-wrap">
           <table>
@@ -667,13 +755,31 @@ export function DocumentApprovalsPage({user}) {
             <tbody>
               {rows.length ? rows.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.document_title}</td>
+                  <td>
+                    {r.document_title}
+                    {r.signature_note && <div style={{fontSize: 11, color: '#64748b', marginTop: 4}}>{r.signature_note}</div>}
+                  </td>
                   <td>{r.document_kind}</td>
                   <td>{r.approver_name}</td>
                   <td>{r.approver_role || '—'}</td>
                   <td>{r.status}</td>
                   <td>{r.approved_at || '—'}</td>
-                  <td>{canEdit && r.status !== 'Onaylandı' && <button type="button" className="mini" onClick={() => approve(r.id)}>Onayla</button>}</td>
+                  <td style={{whiteSpace: 'nowrap'}}>
+                    {canEdit && r.status !== 'Onaylandı' && (
+                      <>
+                        <button type="button" className="mini" onClick={() => approve(r.id)}>Onayla</button>{' '}
+                        <button
+                          type="button"
+                          className="mini secondary"
+                          disabled={signBusy === r.id}
+                          title={signer.ok ? 'PDF seç → yerel imza → indir + kayda işle' : 'Köprü kapalı'}
+                          onClick={() => void localSign(r)}
+                        >
+                          {signBusy === r.id ? 'İmzalanıyor…' : 'Kart / PDF İmzala'}
+                        </button>
+                      </>
+                    )}
+                  </td>
                 </tr>
               )) : <tr><td colSpan={7} className="empty">Onay kaydı yok.</td></tr>}
             </tbody>

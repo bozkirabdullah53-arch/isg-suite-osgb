@@ -134,6 +134,7 @@ def infra_detail_payload() -> dict:
         "field_gps": "visit-complete-stamp-v1",
         "field_qr": "workplace-ephemeral-failclosed-backfill-v4",
         "field_signature": "visit-sign-offline-v3",
+        "esign_local_agent": "osgb-signer-pipeline-v1",
         "field_offline": "tenant-bound-v1",
         "tenant_isolation": "osgb-scoped-v1",
         "central_archive": "tenant-backup-v3-domains",

@@ -1650,3 +1650,55 @@ class DocumentApproval(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ESignRequest(Base):
+    """Tek kullanımlık e-imza talebi (web → Windows agent)."""
+
+    __tablename__ = "e_sign_requests"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    approval_id: Mapped[int | None] = mapped_column(ForeignKey("document_approvals.id"), nullable=True)
+    document_title: Mapped[str] = mapped_column(String(220))
+    document_kind: Mapped[str] = mapped_column(String(80), default="genel")
+    source_sha256: Mapped[str] = mapped_column(String(64))
+    source_storage_path: Mapped[str] = mapped_column(String(500))
+    source_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    one_time_token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    token_expires_at: Mapped[datetime] = mapped_column(DateTime)
+    status: Mapped[str] = mapped_column(String(40), default="pending")
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class ESignArtifact(Base):
+    """İmzalı PDF artefaktı + doğrulama / OCSP / TSA / kilit / denetim."""
+
+    __tablename__ = "e_sign_artifacts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    request_id: Mapped[int] = mapped_column(ForeignKey("e_sign_requests.id"), unique=True)
+    approval_id: Mapped[int | None] = mapped_column(ForeignKey("document_approvals.id"), nullable=True)
+    signed_sha256: Mapped[str] = mapped_column(String(64))
+    signed_storage_path: Mapped[str] = mapped_column(String(500))
+    signed_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    signer_cn: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    signer_subject: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    cert_serial: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    cert_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sign_mode: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    agent_signature_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    verification_status: Mapped[str] = mapped_column(String(40), default="pending")
+    ocsp_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    crl_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    timestamp_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    timestamp_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    is_locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    qualified_claim: Mapped[bool] = mapped_column(Boolean, default=False)
+    audit_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)

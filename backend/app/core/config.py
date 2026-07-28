@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     ibys_api_key: str | None = None
     katip_api_url: str | None = None
     katip_api_key: str | None = None
+    # OSGB e-imza hattı (opsiyonel ağ kontrolleri — varsayılan kapalı, güvenli)
+    esign_ocsp_enabled: bool = False
+    esign_crl_enabled: bool = False
+    esign_tsa_url: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 

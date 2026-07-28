@@ -644,3 +644,33 @@ def mark_approved(
     db.commit()
     db.refresh(row)
     return row
+
+
+@da_router.post("/{item_id}/record-local-sign", response_model=DocumentApprovalResponse)
+def record_local_sign(
+    item_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT)),
+):
+    """Yerel ISG Suite Signer sonucunu onay kaydına işler — mevcut onay akışını bozmaz."""
+    row = db.get(DocumentApproval, item_id)
+    if not row:
+        raise HTTPException(404, "Onay kaydı bulunamadı.")
+    ensure_company_access(db, user, row.company_id)
+    sha = str(payload.get("sha256") or "").strip()[:64]
+    signer_cn = str((payload.get("signer") or {}).get("common_name") or payload.get("signer_cn") or "").strip()[:160]
+    mode = str(payload.get("mode") or "").strip()[:40]
+    sig_id = str(payload.get("signature_id") or "").strip()[:32]
+    note = (
+        f"Yerel e-imza köprüsü — {signer_cn or 'imzalayan'}; "
+        f"SHA256={sha or '—'}; mode={mode or '—'}; id={sig_id or '—'}; "
+        f"kullanıcı={user.full_name} ({datetime.utcnow():%d.%m.%Y %H:%M} UTC)"
+    )
+    row.signature_note = note[:1000]
+    if payload.get("mark_approved", True):
+        row.status = "Onaylandı"
+        row.approved_at = date.today()
+    db.commit()
+    db.refresh(row)
+    return row

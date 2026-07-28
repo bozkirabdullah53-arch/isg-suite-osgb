@@ -399,7 +399,14 @@ export async function api(path, options = {}) {
   const headers = {...(optHeaders || {})};
   if (token) headers.Authorization = `Bearer ${token}`;
   // GET'te Content-Type gönderme (gereksiz preflight / proxy sorunlarını azaltır)
-  if (method !== "GET" && method !== "HEAD" && fetchOpts.body != null && !headers["Content-Type"]) {
+  // FormData'da da gönderme — tarayıcı multipart boundary ekler
+  if (
+    method !== "GET" &&
+    method !== "HEAD" &&
+    fetchOpts.body != null &&
+    !headers["Content-Type"] &&
+    !(typeof FormData !== "undefined" && fetchOpts.body instanceof FormData)
+  ) {
     headers["Content-Type"] = "application/json";
   }
 
