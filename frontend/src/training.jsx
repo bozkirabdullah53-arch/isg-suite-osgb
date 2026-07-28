@@ -63,7 +63,7 @@ async function loadSectorsCatalog() {
     return _sectorsMem;
   }
   try {
-    const raw = sessionStorage.getItem('isg_sectors_v1');
+    const raw = sessionStorage.getItem('isg_sectors_v2');
     if (raw) {
       const parsed = JSON.parse(raw);
       if (
@@ -112,7 +112,7 @@ async function loadSectorsCatalog() {
     _sectorsMem = data;
     _sectorsMemAt = Date.now();
     try {
-      sessionStorage.setItem('isg_sectors_v1', JSON.stringify({at: _sectorsMemAt, data}));
+      sessionStorage.setItem('isg_sectors_v2', JSON.stringify({at: _sectorsMemAt, data}));
     } catch (_) { /* ignore */ }
   }
   return data;
@@ -1353,7 +1353,7 @@ export function TrainingPage({user}) {
                 </div>
                 <div style={{gridColumn: '1 / -1'}}>
                   <label className="tp-label">
-                    Sektör / iş kolu ({filteredSectors.length} sektör)
+                    Sektör / iş kolu — NACE ({filteredSectors.length} kayıt)
                   </label>
                   <select
                     className="tp-select"
@@ -1372,13 +1372,13 @@ export function TrainingPage({user}) {
                     {filteredSectors.length === 0 && <option value="genel_uretim">Yükleniyor…</option>}
                     {filteredSectors.map((s) => (
                       <option key={s.code} value={s.code}>
-                        {(s.label || s.name)} [{s.hazard_class || '—'}]
+                        {s.label || `${s.nace || s.code} / ${s.name} / ${s.hazard_class || '—'}`}
                       </option>
                     ))}
                   </select>
                   <div className="tp-help">
-                    Belgedeki 4. konu başlığı bu seçime göre hazırlanır; tehlike sınıfı tebliğdeki
-                    karşılığına göre güncellenir.
+                    Resmi NACE kodu / faaliyet / tehlike sınıfı (2026 tebliğ). Seçince tehlike sınıfı ve
+                    belgedeki 4. konu başlığı buna göre güncellenir.
                   </div>
                 </div>
               </div>
