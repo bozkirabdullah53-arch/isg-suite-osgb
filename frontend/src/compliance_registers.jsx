@@ -10,33 +10,63 @@ import {AppModal} from './ui_modal';
 import {ESignCenterPage} from './esign_center';
 import {EyasDigitalApprovalPage} from './eyas_digital_approval';
 
-/** Belge Onay hub: süreç + e-imza orch + Eyas dijital onay (bayraklı). Mevcut sekmeler bozulmaz. */
+/** Belge Onay hub: varsayılan = Eyas (Uzman→Hekim→İşveren). Eski süreç ayrı sekmede. */
 export function BelgeOnayHub({user}) {
-  const [tab, setTab] = useState('surec');
-  const [eyasOn, setEyasOn] = useState(false);
+  const [tab, setTab] = useState('eyas');
+  const [eyasOn, setEyasOn] = useState(true);
+  const [eyasOpenCreate, setEyasOpenCreate] = useState(false);
+
   useEffect(() => {
     api('/eyas/meta')
-      .then((m) => setEyasOn(!!m?.enabled))
-      .catch(() => setEyasOn(false));
+      .then((m) => {
+        const on = !!m?.enabled;
+        setEyasOn(on);
+        if (!on) setTab('surec');
+      })
+      .catch(() => {
+        setEyasOn(false);
+        setTab('surec');
+      });
   }, []);
+
+  function startEyasFlow() {
+    setTab('eyas');
+    setEyasOpenCreate(true);
+  }
+
   return (
     <>
+      <div className="info" style={{marginBottom: 12}}>
+        <span>
+          <b>İmza / onay akışı:</b> İş Güvenliği Uzmanı → İşyeri Hekimi → İşveren / vekili.
+          İşyeri seçince o işyerinin belgeleri ve onaycıları otomatik gelir. Kart/PDF imza ayrıdır.
+        </span>
+      </div>
       <div className="actions" style={{marginBottom: 12, gap: 8, display: 'flex', flexWrap: 'wrap'}}>
+        {eyasOn && (
+          <button type="button" className={tab === 'eyas' ? '' : 'secondary'} onClick={() => setTab('eyas')}>
+            Onay Akışı (Uzman → Hekim → İşveren)
+          </button>
+        )}
         <button type="button" className={tab === 'surec' ? '' : 'secondary'} onClick={() => setTab('surec')}>
-          Süreç Onayı / PDF İmza
+          Eski kayıt / PDF (pasif kart)
         </button>
         <button type="button" className={tab === 'orch' ? '' : 'secondary'} onClick={() => setTab('orch')}>
           E‑İmza Orkestrasyon
         </button>
-        {eyasOn && (
-          <button type="button" className={tab === 'eyas' ? '' : 'secondary'} onClick={() => setTab('eyas')}>
-            Dijital Onay (Eyas)
-          </button>
-        )}
       </div>
-      {tab === 'surec' && <DocumentApprovalsPage user={user} />}
+      {tab === 'eyas' && eyasOn && (
+        <EyasDigitalApprovalPage
+          user={user}
+          mode="full"
+          autoOpenCreate={eyasOpenCreate}
+          onAutoOpenHandled={() => setEyasOpenCreate(false)}
+        />
+      )}
+      {tab === 'surec' && (
+        <DocumentApprovalsPage user={user} onStartSequentialApproval={eyasOn ? startEyasFlow : undefined} />
+      )}
       {tab === 'orch' && <ESignCenterPage user={user} />}
-      {tab === 'eyas' && eyasOn && <EyasDigitalApprovalPage user={user} mode="full" />}
     </>
   );
 }
@@ -645,7 +675,7 @@ export function OhsCommitteePage({user}) {
 }
 
 /** Belge onay / imza hazırlık (5070 sağlayıcı olmadan süreç) */
-export function DocumentApprovalsPage({user}) {
+export function DocumentApprovalsPage({user, onStartSequentialApproval}) {
   const canEdit = ['safety_specialist', 'global_admin'].includes(user.role);
   const companies = useCompanies(user);
   const [rows, setRows] = useState([]);
@@ -775,7 +805,14 @@ export function DocumentApprovalsPage({user}) {
         <h3>Belge Onay / İmza Hazırlık</h3>
         <div className="actions">
           <button type="button" className="secondary" onClick={() => { void load(); void refreshSigner(); }}><RefreshCw size={16} /> Yenile</button>
-          {canEdit && <button type="button" onClick={() => setOpen(true)}><Plus size={16} /> Onay Kaydı</button>}
+          {canEdit && onStartSequentialApproval && (
+            <button type="button" onClick={() => onStartSequentialApproval()}>
+              <Plus size={16} /> Onay Akışı Başlat (Uzman→Hekim→İşveren)
+            </button>
+          )}
+          {canEdit && !onStartSequentialApproval && (
+            <button type="button" onClick={() => setOpen(true)}><Plus size={16} /> Onay Kaydı</button>
+          )}
         </div>
       </div>
       <section className="panel">

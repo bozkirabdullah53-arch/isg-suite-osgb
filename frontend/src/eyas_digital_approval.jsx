@@ -7,7 +7,7 @@ import {AppModal} from './ui_modal';
  * Eyas Digital Approval — işyeri bazlı belge + sıralı onay.
  * Sıra: İş Güvenliği → Hekim → İşveren/vekil. QES değildir.
  */
-export function EyasDigitalApprovalPage({user, mode = 'full'}) {
+export function EyasDigitalApprovalPage({user, mode = 'full', autoOpenCreate = false, onAutoOpenHandled}) {
   const canCreate = ['global_admin', 'safety_specialist'].includes(user.role);
   const [meta, setMeta] = useState(null);
   const [rows, setRows] = useState([]);
@@ -50,6 +50,30 @@ export function EyasDigitalApprovalPage({user, mode = 'full'}) {
   }
 
   useEffect(() => { void load(); }, []);
+
+  useEffect(() => {
+    if (!autoOpenCreate || !canCreate) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        if (!companies.length) {
+          const cos = await api('/companies');
+          if (cancelled) return;
+          setCompanies(cos);
+          const cid = form.company_id || (cos[0] && cos[0].id) || '';
+          setOpen(true);
+          if (cid) await onWorkplaceChange(String(cid));
+        } else {
+          await openCreate();
+        }
+      } catch (e) {
+        if (!cancelled) setErr(e.message || 'Akış açılamadı');
+      } finally {
+        if (!cancelled && typeof onAutoOpenHandled === 'function') onAutoOpenHandled();
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [autoOpenCreate]);
 
   async function onWorkplaceChange(companyId) {
     setForm({company_id: companyId, source_key: ''});
@@ -253,11 +277,11 @@ export function EyasDigitalApprovalPage({user, mode = 'full'}) {
   return (
     <>
       <div className="page-title">
-        <h3><CheckCircle2 size={20} /> Eyas Digital Approval</h3>
+        <h3><CheckCircle2 size={20} /> Onay Akışı (Uzman → Hekim → İşveren)</h3>
         <div className="actions">
           <button type="button" className="secondary" onClick={() => void load()}><RefreshCw size={16} /> Yenile</button>
           {mode === 'full' && canCreate && (
-            <button type="button" onClick={() => void openCreate()}><Plus size={16} /> Onay Akışı</button>
+            <button type="button" onClick={() => void openCreate()}><Plus size={16} /> Akışı Başlat</button>
           )}
         </div>
       </div>
@@ -286,8 +310,12 @@ export function EyasDigitalApprovalPage({user, mode = 'full'}) {
         )}
       </section>
       {open && (
-        <AppModal title="Yeni Eyas Dijital Onay Akışı" close={() => setOpen(false)} wide>
+        <AppModal title="Onay Akışı Başlat — Uzman → Hekim → İşveren/Vekil" close={() => setOpen(false)} wide>
           <form className="form-grid" onSubmit={create}>
+            <p style={{gridColumn: '1 / -1', margin: 0, color: '#334155', fontSize: 14}}>
+              İşyeri seçin. Belge listesi ve onaycılar (uzman, hekim, işveren/vekil) o işyerinden otomatik gelir.
+              Elle isim yazılmaz. Hazır olmayan rapor seçilemez.
+            </p>
             <label className="field"><span>İşyeri</span>
               <select
                 required
