@@ -25,7 +25,7 @@ export const KROKI_SYMBOLS = [
   {type: 'alarm', label: 'Yangın Alarmı', group: 'Yangın', signClass: 'fire', color: '#b91c1c', short: 'AL', iso: 'F005'},
 
   // Sağlık
-  {type: 'firstaid', label: 'İlk Yardım', group: 'Sağlık', signClass: 'safe', color: '#15803d', short: '+', iso: 'EC003'},
+  {type: 'firstaid', label: 'İlk Yardım (Hilal)', group: 'Sağlık', signClass: 'safe', color: '#15803d', short: '☪', iso: 'EC003-TR'},
   {type: 'aed', label: 'AED / Defibrilatör', group: 'Sağlık', signClass: 'safe', color: '#15803d', short: 'AED', iso: 'EC010'},
 
   // Tesisat / diğer

@@ -54,9 +54,10 @@ function pictogram(type, subtype) {
       );
     case 'route':
       return (
-        <g fill="none" stroke={white} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M8 24 h26" />
-          <path d="M28 16 l10 8 -10 8" />
+        <g fill="none" stroke={white} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 24 h28" />
+          <path d="M26 14 l14 10 -14 10" />
+          <path d="M6 24 h8" opacity="0.55" />
         </g>
       );
     case 'extinguisher': {
@@ -93,10 +94,10 @@ function pictogram(type, subtype) {
         </g>
       );
     case 'firstaid':
+      /* Türkiye: Kızılay hilali (haç değil) — yeşil zemin üzeri beyaz hilal */
       return (
         <g fill={white}>
-          <rect x="20" y="12" width="8" height="24" rx="1" />
-          <rect x="12" y="20" width="24" height="8" rx="1" />
+          <path d="M30.5 9.5a15.2 15.2 0 1 0 0 29 12.2 12.2 0 1 1 0-29z" />
         </g>
       );
     case 'aed':

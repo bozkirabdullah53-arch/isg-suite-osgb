@@ -25,13 +25,15 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
   const [extSubtype, setExtSubtype] = useState('abc');
   const [selectedId, setSelectedId] = useState(null);
   const [pan, setPan] = useState({x: 40, y: 40});
-  const [zoom, setZoom] = useState(0.7);
+  const [zoom, setZoom] = useState(0.95);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [okMsg, setOkMsg] = useState('');
   const [dirty, setDirty] = useState(false);
   const [legend, setLegend] = useState(null);
   const [bgUrl, setBgUrl] = useState(null);
   const [rightTab, setRightTab] = useState('ozellik'); // ozellik | mevzuat | lejant
+  const [helpOpen, setHelpOpen] = useState(false);
   const undoRef = useRef([]);
   const dragRef = useRef(null);
   const panRef = useRef(null);
@@ -40,6 +42,10 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
   const svgRef = useRef(null);
   const saveTimer = useRef(null);
   const fileBgRef = useRef(null);
+  const sceneRef = useRef(scene);
+  const floorIdRef = useRef(floorId);
+  sceneRef.current = scene;
+  floorIdRef.current = floorId;
 
   const floor = floors.find((f) => f.id === floorId) || null;
   const locked = !!plan?.locked_at;
@@ -143,26 +149,39 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
   }
 
   async function saveScene(silent = true) {
-    if (!editable || !floorId) return;
+    const fid = floorIdRef.current;
+    if (!editable || !fid) return false;
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
     setBusy(true);
-    if (!silent) setErr('');
+    if (!silent) {
+      setErr('');
+      setOkMsg('');
+    }
     try {
+      const fl = floors.find((f) => f.id === fid);
       const body = {
-        scene_json: JSON.stringify(scene),
-        width: floor?.width || 1600,
-        height: floor?.height || 1000,
+        scene_json: JSON.stringify(sceneRef.current),
+        width: fl?.width || 1600,
+        height: fl?.height || 1000,
       };
-      const updated = await api(`/emergency-plans/${planId}/floors/${floorId}`, {
+      const updated = await api(`/emergency-plans/${planId}/floors/${fid}`, {
         method: 'PATCH',
         body: JSON.stringify(body),
       });
-      setFloors((prev) => prev.map((f) => (f.id === floorId ? updated : f)));
+      setFloors((prev) => prev.map((f) => (f.id === fid ? updated : f)));
       setDirty(false);
+      if (!silent) setOkMsg('Kroki kaydedildi.');
       try {
         setLegend(await api(`/emergency-plans/${planId}/legend`));
       } catch { /* */ }
+      return true;
     } catch (e) {
       setErr(e.message || 'Kayıt başarısız');
+      setOkMsg('');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -171,7 +190,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
   useEffect(() => {
     if (!dirty || !editable) return undefined;
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => { void saveScene(true); }, 1200);
+    saveTimer.current = setTimeout(() => { void saveScene(true); }, 900);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
@@ -564,6 +583,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
         </div>
         {locked && <span className="badge off">Yayın kilitli</span>}
         {dirty && <span className="badge">Kaydedilmedi</span>}
+        {!dirty && okMsg && <span className="badge ok">{okMsg}</span>}
         <div style={{flex: 1}} />
         <button type="button" className="mini secondary" disabled={busy} onClick={() => void loadAll()}><RefreshCw size={14} /> Yenile</button>
         {canEdit && (
@@ -572,41 +592,44 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
           </button>
         )}
         {editable && (
-          <button type="button" className="mini" disabled={busy || !dirty} onClick={() => void saveScene(false)}>
+          <button
+            type="button"
+            className="mini"
+            disabled={busy}
+            onClick={() => { void saveScene(false); }}
+            title={dirty ? 'Değişiklikleri kaydet' : 'Tekrar kaydet'}
+          >
             <Save size={14} /> Kaydet
           </button>
         )}
         <button type="button" className="mini" disabled={busy} onClick={() => void exportPoster()}>
           <Download size={14} /> Duvar posteri (PNG)
         </button>
+        <button type="button" className="mini secondary" onClick={() => setHelpOpen((v) => !v)}>
+          {helpOpen ? 'Yardımı gizle' : 'Yardım'}
+        </button>
       </div>
 
       {err && <div className="error">{err}</div>}
+      {okMsg && !err && <div className="badge ok" style={{alignSelf: 'flex-start'}}>{okMsg}</div>}
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-        gap: 10,
-        padding: '12px 14px',
-        borderRadius: 12,
-        border: '1px solid #d1e7e3',
-        background: 'linear-gradient(135deg, #f0fdfa 0%, #fff 70%)',
-        fontSize: 13,
-        color: '#334155',
-      }}>
-        <div>
-          <strong style={{color: '#0f766e'}}>1. Kat planı fotoğrafı yükleyin</strong>
-          <div style={{marginTop: 4}}>Mimari kroki, fotoğraf veya tarama — üzerine işaret koyarsınız. Sıfırdan çizmek zorunda değilsiniz.</div>
+      {helpOpen && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: 10,
+          padding: '10px 12px',
+          borderRadius: 12,
+          border: '1px solid #d1e7e3',
+          background: 'linear-gradient(135deg, #f0fdfa 0%, #fff 70%)',
+          fontSize: 13,
+          color: '#334155',
+        }}>
+          <div><strong style={{color: '#0f766e'}}>1.</strong> Kat planı fotoğrafı yükleyin</div>
+          <div><strong style={{color: '#0f766e'}}>2.</strong> İşaretleri yerleştirin; ok yönünü sağ panelden seçin</div>
+          <div><strong style={{color: '#0f766e'}}>3.</strong> Kaydet → PNG poster</div>
         </div>
-        <div>
-          <strong style={{color: '#0f766e'}}>2. Mahal + standart işaret</strong>
-          <div style={{marginTop: 4}}>Atölye / idare odası çizin veya etiketleyin; acil çıkış, söndürücü (ABC/CO₂…) ISO 7010 tarzı Türkçe etiketle.</div>
-        </div>
-        <div>
-          <strong style={{color: '#0f766e'}}>3. Poster alın</strong>
-          <div style={{marginTop: 4}}>PNG duvar posteri + altta mevzuat özeti. Hazır broşür varsa plan listesinden «Dosya yükle».</div>
-        </div>
-      </div>
+      )}
 
       <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
         {floors.map((f) => (
@@ -646,8 +669,14 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
         <button type="button" className="mini secondary" onClick={undo} disabled={!undoRef.current.length}>Geri al</button>
       </div>
 
-      <div className="kroki-editor-grid" style={{display: 'grid', gridTemplateColumns: '210px minmax(0,1fr) 260px', gap: 10, alignItems: 'stretch'}}>
-        <aside className="panel" style={{padding: 10, margin: 0, maxHeight: 580, overflow: 'auto'}}>
+      <div className="kroki-editor-grid" style={{
+        display: 'grid',
+        gridTemplateColumns: '168px minmax(0,1fr) 220px',
+        gap: 8,
+        alignItems: 'stretch',
+        minHeight: 'min(82vh, 920px)',
+      }}>
+        <aside className="panel" style={{padding: 8, margin: 0, maxHeight: 'min(82vh, 920px)', overflow: 'auto'}}>
           <div style={{fontWeight: 700, marginBottom: 8, fontSize: 13}}>Araçlar</div>
           <button
             type="button"
@@ -701,8 +730,12 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
         </aside>
 
         <div
-          className="panel"
-          style={{margin: 0, padding: 0, overflow: 'hidden', height: 580, background: '#f1f5f9', position: 'relative'}}
+          className="panel kroki-canvas-panel"
+          style={{
+            margin: 0, padding: 0, overflow: 'hidden',
+            height: 'min(82vh, 920px)', minHeight: 520,
+            background: '#f1f5f9', position: 'relative',
+          }}
           onWheel={(e) => {
             e.preventDefault();
             setZoom((z) => Math.min(2.5, Math.max(0.25, z * (e.deltaY > 0 ? 0.9 : 1.1))));
@@ -796,11 +829,11 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
           <div style={{position: 'absolute', right: 8, bottom: 8, display: 'flex', gap: 4}}>
             <button type="button" className="mini secondary" onClick={() => setZoom((z) => Math.min(2.5, z * 1.15))}>+</button>
             <button type="button" className="mini secondary" onClick={() => setZoom((z) => Math.max(0.25, z / 1.15))}>−</button>
-            <button type="button" className="mini secondary" onClick={() => { setZoom(0.7); setPan({x: 40, y: 40}); }}>Sıfırla</button>
+            <button type="button" className="mini secondary" onClick={() => { setZoom(0.95); setPan({x: 24, y: 24}); }}>Sıfırla</button>
           </div>
         </div>
 
-        <aside className="panel" style={{padding: 10, margin: 0, maxHeight: 580, overflow: 'auto'}}>
+        <aside className="panel" style={{padding: 8, margin: 0, maxHeight: 'min(82vh, 920px)', overflow: 'auto'}}>
           <div style={{display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap'}}>
             {[
               ['ozellik', 'Özellik'],
@@ -884,7 +917,33 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
                       </select>
                     </label>
                   )}
-                  {selected.type !== 'wall' && selected.type !== 'room' && (
+                  {['route', 'exit', 'door_exit', 'stairs'].includes(selected.type) && (
+                    <div style={{marginBottom: 10}}>
+                      <div style={{fontSize: 12, fontWeight: 650, marginBottom: 6}}>Yön</div>
+                      <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6}}>
+                        {[
+                          [0, '→ Sağ'],
+                          [180, '← Sol'],
+                          [270, '↑ Yukarı'],
+                          [90, '↓ Aşağı'],
+                        ].map(([deg, label]) => (
+                          <button
+                            key={deg}
+                            type="button"
+                            disabled={!editable}
+                            className={(selected.rotation || 0) === deg ? 'mini' : 'mini secondary'}
+                            onClick={() => updateSelected({rotation: deg})}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <p style={{fontSize: 11, color: '#64748b', margin: '6px 0 0'}}>
+                        Tahliye oku / çıkış işareti bu yöne döner.
+                      </p>
+                    </div>
+                  )}
+                  {selected.type !== 'wall' && selected.type !== 'room' && !['route', 'exit', 'door_exit', 'stairs'].includes(selected.type) && (
                     <label className="field">
                       <span>Döndürme (°)</span>
                       <input
