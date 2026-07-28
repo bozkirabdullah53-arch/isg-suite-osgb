@@ -1,4 +1,4 @@
-"""Frontend: OSGB Signer local agent + sunucu e-imza hattı."""
+/** Frontend: OSGB Signer local agent + sunucu e-imza hattı. */
 
 export const OSGB_SIGNER_BASE = 'https://127.0.0.1:17000';
 
