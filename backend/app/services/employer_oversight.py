@@ -14,6 +14,7 @@ from app.models.entities import (
     AnnualPlanItem,
     Company,
     EmergencyPlan,
+    EyasStep,
     EyasWorkflow,
     HealthRecord,
     PpeAssignment,
@@ -21,6 +22,7 @@ from app.models.entities import (
     ServiceVisit,
     TrainingSession,
     TrainingStatus,
+    User,
     VisitStatus,
 )
 from app.services.csgb_audit_pack import build_csgb_audit_pack
@@ -250,6 +252,59 @@ def build_employer_oversight(db: Session, company: Company) -> dict[str, Any]:
     except Exception:
         pass
 
+    # İmza / dijital onay akışları: Uzman → Hekim → İşveren/vekil
+    approval_flows: list[dict[str, Any]] = []
+    try:
+        workflows = list(
+            db.scalars(
+                select(EyasWorkflow)
+                .where(
+                    EyasWorkflow.company_id == cid,
+                    EyasWorkflow.is_active.is_(True),
+                )
+                .order_by(EyasWorkflow.id.desc())
+                .limit(30)
+            ).all()
+        )
+        for wf in workflows:
+            steps = list(
+                db.scalars(
+                    select(EyasStep)
+                    .where(EyasStep.workflow_id == wf.id)
+                    .order_by(EyasStep.step_order)
+                ).all()
+            )
+            step_out = []
+            for st in steps:
+                u = db.get(User, st.assignee_user_id)
+                step_out.append(
+                    {
+                        "id": st.id,
+                        "step_order": st.step_order,
+                        "role_label": st.role_label,
+                        "assignee_user_id": st.assignee_user_id,
+                        "assignee_name": u.full_name if u else None,
+                        "status": st.status,
+                        "decided_at": st.decided_at.isoformat() + "Z" if st.decided_at else None,
+                    }
+                )
+            active = next((s for s in step_out if s["status"] == "active"), None)
+            approval_flows.append(
+                {
+                    "id": wf.id,
+                    "title": wf.title,
+                    "document_kind": wf.document_kind,
+                    "source_key": wf.source_key,
+                    "status": wf.status,
+                    "current_step_order": wf.current_step_order,
+                    "steps": step_out,
+                    "waiting_on": active["role_label"] if active else None,
+                    "waiting_user_id": active["assignee_user_id"] if active else None,
+                }
+            )
+    except Exception:
+        approval_flows = []
+
     # Verdict for single-screen "denetime hazır mı?"
     pct = readiness["pct"]
     if pct >= 80 and work_open == 0:
@@ -279,8 +334,14 @@ def build_employer_oversight(db: Session, company: Company) -> dict[str, Any]:
         },
         "readiness": readiness,
         "team": team,
+        "approval_flows": approval_flows,
+        "approval_chain": ["İş Güvenliği Uzmanı", "İşyeri Hekimi", "İşveren / vekili"],
         "verdict": verdict,
         "verdict_label": verdict_label,
-        "notice": "Salt görüntüleme — kayıt oluşturma, onay veya silme yok. OSGB çalışmalarının durumunu izlemek içindir.",
+        "notice": (
+            "İmza akışı: Uzman → Hekim → İşveren/vekil. "
+            "Sırası gelen kişi kendi hesabıyla onaylar. "
+            "Diğer metrikler salt görüntülemedir."
+        ),
         "read_only": True,
     }

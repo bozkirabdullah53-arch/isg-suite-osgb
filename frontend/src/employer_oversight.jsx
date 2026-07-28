@@ -2,8 +2,23 @@ import React, {useEffect, useState} from 'react';
 import {AlertTriangle, BarChart3, CheckCircle2, RefreshCw, Shield} from 'lucide-react';
 import {api} from './api';
 
-/** Salt okunur işveren / işyeri denetim özeti — müdahale yok. */
-export function EmployerOversightPanel({companyId, compact = false, dark = false}) {
+function stepColor(status, dark) {
+  if (status === 'approved') return dark ? '#4ade80' : '#166534';
+  if (status === 'active') return dark ? '#fbbf24' : '#b45309';
+  if (status === 'rejected') return dark ? '#f87171' : '#b91c1c';
+  return dark ? 'rgba(248,250,252,.55)' : '#64748b';
+}
+
+function stepStatusTr(status) {
+  if (status === 'approved') return 'Onayladı';
+  if (status === 'active') return 'Sırada / bekliyor';
+  if (status === 'rejected') return 'Reddetti';
+  if (status === 'pending') return 'Bekliyor';
+  return status || '—';
+}
+
+/** İşveren / işyeri paneli — imza akışı + denetim özeti. */
+export function EmployerOversightPanel({companyId, user = null, compact = false, dark = false}) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -24,6 +39,30 @@ export function EmployerOversightPanel({companyId, compact = false, dark = false
 
   useEffect(() => { void load(); }, [companyId]);
 
+  async function decide(wfId, approve) {
+    const note = window.prompt(approve ? 'Onay notu (isteğe bağlı):' : 'Red nedeni:') || '';
+    if (!approve && !note.trim()) {
+      setErr('Red için not gerekli.');
+      return;
+    }
+    setBusy(true);
+    setErr('');
+    try {
+      await api(`/eyas/workflows/${wfId}/${approve ? 'approve' : 'reject'}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          note: note || null,
+          device_note: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 200) : null,
+        }),
+      });
+      await load();
+    } catch (e) {
+      setErr(e.message || 'Onay işlemi başarısız');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const fg = dark ? '#f8fafc' : '#0f172a';
   const muted = dark ? 'rgba(248,250,252,.75)' : '#64748b';
   const cardBg = dark ? 'rgba(15,23,42,.55)' : '#fff';
@@ -32,7 +71,7 @@ export function EmployerOversightPanel({companyId, compact = false, dark = false
   if (!companyId) {
     return <p style={{color: muted}}>İşyeri seçilmedi.</p>;
   }
-  if (err) {
+  if (err && !data) {
     return <div className="error" style={dark ? {background: 'rgba(127,29,29,.4)', color: '#fecaca'} : undefined}>{err}</div>;
   }
   if (!data) {
@@ -42,11 +81,13 @@ export function EmployerOversightPanel({companyId, compact = false, dark = false
   const v = data.visits || {};
   const w = data.work || {};
   const r = data.readiness || {};
+  const flows = data.approval_flows || [];
   const visitMax = Math.max(1, v.this_month || 1);
   const workTotal = Math.max(1, (w.done || 0) + (w.open || 0));
   const pct = Math.max(0, Math.min(100, Number(r.pct) || 0));
   const verdictColor =
     data.verdict === 'hazir' ? '#4ade80' : data.verdict === 'kismi' ? '#fbbf24' : '#f87171';
+  const myId = user?.id;
 
   function Bar({label, value, max, color}) {
     const width = Math.round((100 * (value || 0)) / Math.max(1, max));
@@ -67,7 +108,7 @@ export function EmployerOversightPanel({companyId, compact = false, dark = false
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 14, flexWrap: 'wrap'}}>
         <div>
           <div style={{fontSize: compact ? 16 : 20, fontWeight: 700}}>{data.company_name}</div>
-          <div style={{fontSize: 13, color: muted}}>Dönem: {data.period} · Salt görüntüleme</div>
+          <div style={{fontSize: 13, color: muted}}>Dönem: {data.period}</div>
         </div>
         <button
           type="button"
@@ -78,6 +119,82 @@ export function EmployerOversightPanel({companyId, compact = false, dark = false
         >
           <RefreshCw size={14} /> Yenile
         </button>
+      </div>
+
+      {err && (
+        <div className="error" style={{marginBottom: 12, ...(dark ? {background: 'rgba(127,29,29,.4)', color: '#fecaca'} : {})}}>
+          {err}
+        </div>
+      )}
+
+      {/* İmza akışı — en üstte */}
+      <div style={{padding: 14, borderRadius: 12, background: cardBg, border, marginBottom: 16}}>
+        <div style={{fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8}}>
+          <CheckCircle2 size={18} /> İmza / onay akışı
+        </div>
+        <div style={{fontSize: 13, color: muted, marginBottom: 12}}>
+          {(data.approval_chain || []).join(' → ')}
+        </div>
+        {flows.length === 0 ? (
+          <p style={{margin: 0, fontSize: 13, color: muted}}>
+            Bu işyerinde henüz onay akışı yok. Uzman Belge Onay’dan akış başlatınca burada görünür.
+          </p>
+        ) : (
+          flows.map((wf) => {
+            const mine = myId && wf.waiting_user_id === myId && wf.status === 'in_progress';
+            return (
+              <div
+                key={wf.id}
+                style={{
+                  padding: '12px 0',
+                  borderTop: dark ? '1px solid rgba(255,255,255,.1)' : '1px solid #e2e8f0',
+                }}
+              >
+                <div style={{fontWeight: 600, marginBottom: 4}}>{wf.title}</div>
+                <div style={{fontSize: 12, color: muted, marginBottom: 8}}>
+                  {wf.document_kind} · {wf.status}
+                  {wf.waiting_on ? ` · Bekleyen: ${wf.waiting_on}` : ''}
+                </div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: compact ? '1fr' : 'repeat(3, minmax(0, 1fr))',
+                  gap: 8,
+                  marginBottom: mine ? 10 : 0,
+                }}>
+                  {(wf.steps || []).map((s) => (
+                    <div
+                      key={s.id}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: 10,
+                        border: dark ? '1px solid rgba(255,255,255,.12)' : '1px solid #e2e8f0',
+                        background: dark ? 'rgba(0,0,0,.2)' : '#f8fafc',
+                      }}
+                    >
+                      <div style={{fontSize: 12, color: muted}}>{s.step_order}. {s.role_label}</div>
+                      <div style={{fontWeight: 600, fontSize: 14}}>{s.assignee_name || `Kullanıcı #${s.assignee_user_id}`}</div>
+                      <div style={{marginTop: 4, fontSize: 13, fontWeight: 700, color: stepColor(s.status, dark)}}>
+                        {stepStatusTr(s.status)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {mine && (
+                  <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                    <button type="button" className="mini" disabled={busy} onClick={() => void decide(wf.id, true)}>
+                      İşveren olarak onayla
+                    </button>
+                    <button type="button" className="mini secondary" disabled={busy} onClick={() => void decide(wf.id, false)}
+                      style={dark ? {background: 'rgba(255,255,255,.1)', color: '#fff', border: '1px solid rgba(255,255,255,.3)'} : undefined}
+                    >
+                      Reddet
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
 
       <div style={{
@@ -114,14 +231,6 @@ export function EmployerOversightPanel({companyId, compact = false, dark = false
           </div>
           <Bar label="Tamamlanan" value={w.done} max={workTotal} color="#4ade80" />
           <Bar label="Açık / eksik" value={w.open} max={workTotal} color="#f87171" />
-          <div style={{marginTop: 8, fontSize: 12, color: muted}}>
-            {(w.items || []).slice(0, compact ? 4 : 8).map((it) => (
-              <div key={it.kind} style={{display: 'flex', justifyContent: 'space-between', padding: '3px 0'}}>
-                <span>{it.label}</span>
-                <span>{it.done}/{it.count} · {it.status}</span>
-              </div>
-            ))}
-          </div>
         </div>
 
         <div style={{padding: 14, borderRadius: 12, background: cardBg, border}}>
@@ -140,15 +249,6 @@ export function EmployerOversightPanel({companyId, compact = false, dark = false
           </div>
         </div>
       </div>
-
-      {!compact && (r.gaps || []).length > 0 && (
-        <div style={{padding: 14, borderRadius: 12, background: cardBg, border}}>
-          <div style={{fontWeight: 600, marginBottom: 8}}>Öncelikli eksikler</div>
-          <ul style={{margin: 0, paddingLeft: 18, fontSize: 13, color: muted}}>
-            {(r.gaps || []).slice(0, 10).map((g, i) => <li key={i}>{g}</li>)}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
@@ -174,8 +274,7 @@ export function EmployerOversightPage({user}) {
       </div>
       <section className="panel">
         <p style={{marginTop: 0, color: '#64748b', fontSize: 14}}>
-          OSGB hizmetinin işyerinde sağlıklı yürüyüp yürümediğini tek ekranda görün.
-          Kayıt oluşturma / onay / silme yok — yalnızca mevzuata göre hazırlık ve iş durumu.
+          İmza akışı (Uzman → Hekim → İşveren) + ziyaretler + denetime hazırlık. Sırası size geldiyse buradan onaylayabilirsiniz.
         </p>
         {err && <div className="error">{err}</div>}
         {!user.company_id && (
@@ -187,7 +286,7 @@ export function EmployerOversightPage({user}) {
             </select>
           </label>
         )}
-        <EmployerOversightPanel companyId={companyId ? Number(companyId) : null} />
+        <EmployerOversightPanel companyId={companyId ? Number(companyId) : null} user={user} />
       </section>
     </>
   );

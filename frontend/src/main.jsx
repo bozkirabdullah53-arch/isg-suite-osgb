@@ -586,7 +586,7 @@ function SiteQrKioskPage({user,onLogout}){
 
         {tab==='status'&&(
           <div style={{textAlign:'left',background:'rgba(15,23,42,.45)',borderRadius:16,padding:16,border:'1px solid rgba(255,255,255,.12)'}}>
-            <EmployerOversightPanel companyId={companyId} compact dark />
+            <EmployerOversightPanel companyId={companyId} user={user} compact dark />
           </div>
         )}
       </div>
