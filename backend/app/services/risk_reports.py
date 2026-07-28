@@ -624,29 +624,35 @@ def build_risk_pdf(
         )
     )
     elements.append(Spacer(1, 3 * mm))
-    sign_data = [
-        ["İSG Uzmanı / Hazırlayan", prepared_by or " ", "Kaşe / İmza / Tarih"],
-        ["İşyeri Hekimi", workplace_physician or " ", "Kaşe / İmza / Tarih"],
-        ["İşveren / Vekili", employer_representative or " ", "Kaşe / İmza / Tarih"],
-        ["Çalışan Temsilcisi", employee_representative or " ", "İmza / Tarih"],
-    ]
-    if support_staff:
-        sign_data.append(["Destek Elemanı", support_staff, "İmza / Tarih"])
+    # Yatay imza: satır1 unvanlar · satır2 adlar · satır3 imza alanı
+    sign_people = _risk_sign_people(
+        prepared_by=prepared_by,
+        workplace_physician=workplace_physician,
+        employer_representative=employer_representative,
+        employee_representative=employee_representative,
+        support_staff=support_staff,
+    )
     dsp = (team_details.get("other_health_personnel") or {}).get("full_name")
     if dsp:
-        sign_data.append(["Diğer Sağlık Personeli", dsp, "İmza / Tarih"])
-    sign_table = Table([["Unvan", "Ad Soyad", "Onay"]] + sign_data, colWidths=[160, 180, 130])
+        sign_people.append(("Diğer Sağlık\nPersoneli", dsp))
+    titles = [p[0].replace("\n", " ") for p in sign_people]
+    names = [p[1] for p in sign_people]
+    stamps = ["Kaşe / İmza / Tarih"] * len(sign_people)
+    col_w = max(70, int(470 / max(1, len(sign_people))))
+    sign_table = Table([titles, names, stamps], colWidths=[col_w] * len(sign_people))
     sign_table.setStyle(
         TableStyle(
             [
                 ("FONTNAME", (0, 0), (-1, -1), PDF_FONT),
                 ("FONTNAME", (0, 0), (-1, 0), PDF_FONT_BOLD),
+                ("FONTSIZE", (0, 0), (-1, -1), 7),
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1a5276")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING", (0, 1), (-1, -1), 14),
-                ("BOTTOMPADDING", (0, 1), (-1, -1), 14),
+                ("TOPPADDING", (0, 2), (-1, 2), 16),
+                ("BOTTOMPADDING", (0, 2), (-1, 2), 16),
             ]
         )
     )
@@ -685,6 +691,26 @@ def build_risk_pdf(
     return buf.read()
 
 
+def _risk_sign_people(
+    *,
+    prepared_by: str | None = None,
+    workplace_physician: str | None = None,
+    employer_representative: str | None = None,
+    employee_representative: str | None = None,
+    support_staff: str | None = None,
+) -> list[tuple[str, str]]:
+    """(kısa unvan, ad) listesi — yatay imza bloğu için."""
+    people = [
+        ("İSG Uzmanı\n/ Hazırlayan", (prepared_by or "—").strip() or "—"),
+        ("İşyeri\nHekimi", (workplace_physician or "—").strip() or "—"),
+        ("İşveren\n/ Vekili", (employer_representative or "—").strip() or "—"),
+        ("Çalışan\nTemsilcisi", (employee_representative or "—").strip() or "—"),
+    ]
+    if (support_staff or "").strip():
+        people.append(("Destek\nElemanı", support_staff.strip()))
+    return people
+
+
 def _risk_team_footer_line(
     *,
     prepared_by: str | None = None,
@@ -693,20 +719,21 @@ def _risk_team_footer_line(
     employee_representative: str | None = None,
     support_staff: str | None = None,
 ) -> str:
-    """Yazdırma alt bilgisi — her sayfada risk değerlendirme ekibi imza satırı."""
+    """Yazdırma alt bilgisi — her sayfada yatay ekip imza satırı."""
     parts = [
         f"İGU: {(prepared_by or '—').strip() or '—'}",
         f"İH: {(workplace_physician or '—').strip() or '—'}",
-        f"İşveren/Vekil: {(employer_representative or '—').strip() or '—'}",
-        f"Çalışan Temsilcisi: {(employee_representative or '—').strip() or '—'}",
+        f"İşv: {(employer_representative or '—').strip() or '—'}",
+        f"ÇT: {(employee_representative or '—').strip() or '—'}",
     ]
     if (support_staff or "").strip():
         parts.append(f"Destek: {support_staff.strip()}")
-    return "Risk Değ. Ekibi İmza — " + " | ".join(parts)
+    # Excel footer'da \\n satır kırar; yatay tek satır + ikinci satır imza alanı
+    return "İMZA/ONAY (yatay)  " + "  ·  ".join(parts) + "\nKaşe/İmza/Tarih: ________  ________  ________  ________"
 
 
 def _apply_excel_page_chrome(ws, *, team_line: str, doc_label: str = "") -> None:
-    """Her yazdırılan sayfada sayfa no + ekip imza alt bilgisi."""
+    """Her yazdırılan sayfada sayfa no + yatay ekip imza alt bilgisi."""
     ws.page_setup.orientation = "landscape"
     ws.page_setup.paperSize = 9  # A4
     ws.page_setup.fitToPage = True
@@ -715,26 +742,101 @@ def _apply_excel_page_chrome(ws, *, team_line: str, doc_label: str = "") -> None
     ws.page_margins.left = 0.4
     ws.page_margins.right = 0.4
     ws.page_margins.top = 0.5
-    ws.page_margins.bottom = 0.9
+    ws.page_margins.bottom = 1.05
     ws.page_margins.header = 0.2
-    ws.page_margins.footer = 0.5
+    ws.page_margins.footer = 0.65
     ws.oddHeader.center.text = doc_label[:120] if doc_label else ""
     ws.oddHeader.center.font = "Calibri"
     ws.oddHeader.center.size = 8
-    # Sol: ekip imza · Orta: sayfa no · Sağ: program
-    ws.oddFooter.left.text = team_line[:220]
+    # Alt bilgi: yatay ekip + imza boşlukları · sayfa no
+    ws.oddFooter.left.text = (team_line or "")[:255]
     ws.oddFooter.left.font = "Calibri"
-    ws.oddFooter.left.size = 7
+    ws.oddFooter.left.size = 6
     ws.oddFooter.center.text = "Sayfa &P / &N"
     ws.oddFooter.center.font = "Calibri"
     ws.oddFooter.center.size = 8
     ws.oddFooter.right.text = CREATOR_LINE
     ws.oddFooter.right.font = "Calibri"
     ws.oddFooter.right.size = 7
-    ws.evenFooter.left.text = team_line[:220]
+    ws.evenFooter.left.text = (team_line or "")[:255]
     ws.evenFooter.center.text = "Sayfa &P / &N"
     ws.evenFooter.right.text = CREATOR_LINE
     ws.print_options.horizontalCentered = True
+
+
+def _write_excel_horizontal_sign_block(
+    ws,
+    *,
+    start_row: int,
+    people: list[tuple[str, str]],
+    header_font,
+    header_fill,
+    thin,
+    merge_cols: int = 17,
+) -> int:
+    """Yatay imza/onay: her kişi bir sütun (Unvan / Ad / İmza kutusu). Sonraki boş satırı döner."""
+    n = max(1, len(people))
+    # Başlık satırı
+    ws.merge_cells(start_row=start_row, start_column=1, end_row=start_row, end_column=merge_cols)
+    ws.cell(row=start_row, column=1, value="İMZA / ONAY — RİSK DEĞERLENDİRME EKİBİ (yatay)")
+    ws.cell(row=start_row, column=1).font = Font(name="Calibri", bold=True, size=11, color="1a5276")
+
+    note_r = start_row + 1
+    ws.merge_cells(start_row=note_r, start_column=1, end_row=note_r, end_column=merge_cols)
+    ws.cell(
+        row=note_r,
+        column=1,
+        value=(
+            "Hazırlayan / inceleyen / onaylayan kişiler aşağıda imza altına alır. "
+            "İşveren onayı olmadan risk değerlendirmesi resmi sayılmaz. "
+            "Aynı yatay imza düzeni her yazdırılan sayfanın alt bilgisinde de yer alır."
+        ),
+    )
+    ws.cell(row=note_r, column=1).font = Font(name="Calibri", size=8, color="475569")
+    ws.cell(row=note_r, column=1).alignment = Alignment(wrap_text=True)
+    ws.row_dimensions[note_r].height = 28
+
+    # Sütun genişliği: kişi başına ~3 sütun birleştir (A-C, D-F, ...)
+    span = max(2, merge_cols // n)
+    title_row = note_r + 2
+    name_row = title_row + 1
+    sign_row = title_row + 2
+
+    for i, (title, name) in enumerate(people):
+        c0 = 1 + i * span
+        c1 = min(c0 + span - 1, merge_cols)
+        if c0 > merge_cols:
+            break
+        if c1 > c0:
+            ws.merge_cells(start_row=title_row, start_column=c0, end_row=title_row, end_column=c1)
+            ws.merge_cells(start_row=name_row, start_column=c0, end_row=name_row, end_column=c1)
+            ws.merge_cells(start_row=sign_row, start_column=c0, end_row=sign_row, end_column=c1)
+
+        t_cell = ws.cell(row=title_row, column=c0, value=title.replace("\n", " "))
+        t_cell.font = header_font
+        t_cell.fill = header_fill
+        t_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        t_cell.border = thin
+        for c in range(c0, c1 + 1):
+            ws.cell(row=title_row, column=c).border = thin
+            ws.cell(row=title_row, column=c).fill = header_fill
+
+        n_cell = ws.cell(row=name_row, column=c0, value=name)
+        n_cell.font = Font(name="Calibri", size=9, bold=True)
+        n_cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for c in range(c0, c1 + 1):
+            ws.cell(row=name_row, column=c).border = thin
+
+        s_cell = ws.cell(row=sign_row, column=c0, value="Kaşe / İmza / Tarih\n\n")
+        s_cell.font = Font(name="Calibri", size=8, color="6c757d")
+        s_cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
+        for c in range(c0, c1 + 1):
+            ws.cell(row=sign_row, column=c).border = thin
+
+    ws.row_dimensions[title_row].height = 28
+    ws.row_dimensions[name_row].height = 22
+    ws.row_dimensions[sign_row].height = 48
+    return sign_row + 2
 
 
 def _estimate_risk_sheet_pages(risks: list) -> int:
@@ -915,52 +1017,28 @@ def build_risk_excel(
     ws.auto_filter.ref = f"A4:Q{last_data_row}"
     ws.print_title_rows = "1:4"
 
-    # Son sayfa: imza bloğu + sayfa sayısı beyanı (sayfa sonu kırılımı)
+    # Son sayfa: yatay imza bloğu + sayfa sayısı beyanı
     sign_start = last_data_row + 2
     ws.row_breaks.append(Break(id=last_data_row + 1))
-    ws.merge_cells(start_row=sign_start, start_column=1, end_row=sign_start, end_column=8)
-    ws.cell(row=sign_start, column=1, value="İMZA / ONAY — RİSK DEĞERLENDİRME EKİBİ")
-    ws.cell(row=sign_start, column=1).font = Font(name="Calibri", bold=True, size=12, color="1a5276")
-
-    ws.merge_cells(start_row=sign_start + 1, start_column=1, end_row=sign_start + 1, end_column=8)
-    ws.cell(
-        row=sign_start + 1,
-        column=1,
-        value=(
-            "Bu belgeyi hazırlayan, inceleyen, katılan ve onaylayan kişiler aşağıda imza altına alır. "
-            "İşveren onayı olmadan risk değerlendirmesi resmi sayılmaz."
-        ),
+    people = _risk_sign_people(
+        prepared_by=prepared_by,
+        workplace_physician=workplace_physician,
+        employer_representative=employer_representative,
+        employee_representative=employee_representative,
+        support_staff=support_staff,
     )
-    ws.cell(row=sign_start + 1, column=1).alignment = Alignment(wrap_text=True)
-    ws.row_dimensions[sign_start + 1].height = 32
+    after_sign = _write_excel_horizontal_sign_block(
+        ws,
+        start_row=sign_start,
+        people=people,
+        header_font=header_font,
+        header_fill=header_fill,
+        thin=thin,
+        merge_cols=17,
+    )
 
-    sign_headers = ["Unvan", "Ad Soyad", "Kaşe / İmza / Tarih"]
-    sign_rows = [
-        ("İş Güvenliği Uzmanı / Hazırlayan", prepared_by or "—"),
-        ("İşyeri Hekimi", workplace_physician or "—"),
-        ("İşveren / Vekili", employer_representative or "—"),
-        ("Çalışan Temsilcisi", employee_representative or "—"),
-    ]
-    if (support_staff or "").strip():
-        sign_rows.append(("Destek Elemanı", support_staff.strip()))
-    hdr_row = sign_start + 3
-    for col, h in enumerate(sign_headers, 1):
-        cell = ws.cell(row=hdr_row, column=col, value=h)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = thin
-        cell.alignment = header_alignment
-    for i, (title, name) in enumerate(sign_rows):
-        r = hdr_row + 1 + i
-        for col, val in enumerate([title, name, ""], 1):
-            cell = ws.cell(row=r, column=col, value=val)
-            cell.border = thin
-            cell.font = Font(name="Calibri", size=10)
-            cell.alignment = Alignment(vertical="center", wrap_text=True)
-        ws.row_dimensions[r].height = 36
-
-    declare_row = hdr_row + 1 + len(sign_rows) + 2
-    ws.merge_cells(start_row=declare_row, start_column=1, end_row=declare_row, end_column=8)
+    declare_row = after_sign
+    ws.merge_cells(start_row=declare_row, start_column=1, end_row=declare_row, end_column=17)
     declare = (
         f"İş bu risk değerlendirme raporu {page_count} sayfadan oluşur. "
         f"(Yazdırma önizlemesinde Sayfa X / N satırı ile doğrulanır; N farklıysa N esas alınır.)"
@@ -968,15 +1046,15 @@ def build_risk_excel(
     cell = ws.cell(row=declare_row, column=1, value=declare)
     cell.font = Font(name="Calibri", bold=True, size=11, color="1a5276")
     cell.alignment = Alignment(wrap_text=True, vertical="center")
-    ws.row_dimensions[declare_row].height = 36
+    ws.row_dimensions[declare_row].height = 32
 
     note_row = declare_row + 1
-    ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=8)
+    ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=17)
     ws.cell(
         row=note_row,
         column=1,
         value=(
-            "Her yazdırılan sayfanın altında Risk Değerlendirme Ekibi imza satırı ve sayfa numarası yer alır. "
+            "Her yazdırılan sayfanın altında aynı yatay İMZA/ONAY ekip satırı ve sayfa numarası yer alır. "
             f"Belge: {getattr(company, 'risk_document_no', None) or ('RD-' + str(getattr(company, 'id', '') or ''))} · "
             f"Düzenleme: {datetime.now().strftime('%d.%m.%Y %H:%M')} · {CREATOR_LINE}"
         ),

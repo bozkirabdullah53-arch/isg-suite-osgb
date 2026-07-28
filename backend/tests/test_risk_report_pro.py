@@ -151,7 +151,7 @@ def test_risk_excel_has_page_footer_and_last_page_declaration():
     wb = load_workbook(BytesIO(data))
     ws = wb["Risk Değerlendirme"]
     assert "Sayfa &P / &N" in (ws.oddFooter.center.text or "")
-    assert "Risk Değ. Ekibi İmza" in (ws.oddFooter.left.text or "")
+    assert "İMZA/ONAY" in (ws.oddFooter.left.text or "")
     assert "İGU: Uzman A" in (ws.oddFooter.left.text or "")
     # Son sayfa beyanı hücrede
     found = False
@@ -161,6 +161,6 @@ def test_risk_excel_has_page_footer_and_last_page_declaration():
             found = True
             break
     assert found
-    assert "İMZA / ONAY" in "".join(
-        str(c[0] or "") for c in ws.iter_rows(min_row=1, max_col=1, values_only=True)
-    )
+    joined = "".join(str(c[0] or "") for c in ws.iter_rows(min_row=1, max_col=1, values_only=True))
+    assert "İMZA / ONAY" in joined
+    assert "yatay" in joined.lower()
