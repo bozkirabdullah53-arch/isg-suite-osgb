@@ -674,3 +674,19 @@ def record_local_sign(
     db.commit()
     db.refresh(row)
     return row
+
+
+@da_router.delete("/{item_id}")
+def deactivate_approval(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT)),
+):
+    """Belge onay kaydını soft-delete (listeden düşer; e-imza artifact’lara dokunmaz)."""
+    row = db.get(DocumentApproval, item_id)
+    if not row or not row.is_active:
+        raise HTTPException(404, "Onay kaydı bulunamadı.")
+    ensure_company_access(db, user, row.company_id)
+    row.is_active = False
+    db.commit()
+    return {"ok": True}

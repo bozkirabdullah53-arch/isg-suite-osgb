@@ -678,6 +678,18 @@ export function DocumentApprovalsPage({user}) {
     await load();
   }
 
+  async function remove(row) {
+    const title = row.document_title || `#${row.id}`;
+    if (!window.confirm(`“${title}” onay kaydı silinsin mi?`)) return;
+    setErr('');
+    try {
+      await api(`/document-approvals/${row.id}`, {method: 'DELETE'});
+      await load();
+    } catch (e) {
+      setErr(e.message || 'Silinemedi.');
+    }
+  }
+
   async function localSign(row) {
     if (!signer.ok) {
       setErr('OSGB Signer bağlı değil. tools/isg-suite-signer → KUR.bat çalıştırın (port 17000).');
@@ -795,8 +807,13 @@ export function DocumentApprovalsPage({user}) {
                           onClick={() => void localSign(r)}
                         >
                           {signBusy === r.id ? 'İmzalanıyor…' : 'Kart / PDF İmzala'}
-                        </button>
+                        </button>{' '}
                       </>
+                    )}
+                    {canEdit && (
+                      <button type="button" className="mini secondary" onClick={() => void remove(r)} title="Kaydı listeden kaldır">
+                        Sil
+                      </button>
                     )}
                   </td>
                 </tr>
