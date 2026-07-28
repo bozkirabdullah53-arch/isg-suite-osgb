@@ -266,6 +266,26 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
     }
   }
 
+  async function downloadExcel() {
+    setDlBusy(true);
+    setErr('');
+    try {
+      const params = new URLSearchParams();
+      if (typeFilter) params.set('event_type', typeFilter);
+      if (q) params.set('q', q);
+      const tip = (typeFilter || 'tum').replace(/_/g, '-');
+      const stamp = new Date().toISOString().slice(0, 10);
+      await downloadFile(
+        `/incidents/export.xlsx?${params}`,
+        `olay-kayitlari-${tip}-${stamp}.xlsx`,
+      );
+    } catch (x) {
+      setErr(x.message || 'Excel indirilemedi.');
+    } finally {
+      setDlBusy(false);
+    }
+  }
+
   if (detail) {
     return (
       <>
@@ -420,20 +440,25 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
     <>
       <div className="page-title">
         <h3>{pageTitle}</h3>
-        {canEdit && (
-          <button type="button" onClick={() => {
-            setForm(emptyForm(user, typeFilter || defaultType));
-            setErr('');
-            setOpen(true);
-          }}>
-            <Plus /> Yeni Olay Kaydı
+        <div className="actions">
+          <button type="button" className="secondary" disabled={dlBusy} onClick={downloadExcel}>
+            <Download size={16} /> {dlBusy ? 'Excel…' : 'Excel Rapor'}
           </button>
-        )}
+          {canEdit && (
+            <button type="button" onClick={() => {
+              setForm(emptyForm(user, typeFilter || defaultType));
+              setErr('');
+              setOpen(true);
+            }}>
+              <Plus /> Yeni Olay Kaydı
+            </button>
+          )}
+        </div>
       </div>
       <section className="panel">
         <div style={{marginBottom: 12, padding: '10px 12px', background: '#eef5fb', borderRadius: 10, fontSize: 14, lineHeight: 1.5}}>
           PRO uyumlu olay kaydı: sınıflandırma, otomatik uyarı, <strong>5N kök neden</strong> ve <strong>olay DÖF</strong>.
-          Detay satırından PDF indirilir. İş kazasında SGK / kolluk alanları görünür.
+          Listeden Excel, detaydan PDF indirilir. İş kazasında SGK / kolluk alanları görünür.
         </div>
         <div className="search" style={{marginBottom: 12, flexWrap: 'wrap'}}>
           <Search size={19} />
@@ -582,6 +607,22 @@ export function CapaPage({user}) {
   const [q, setQ] = useState('');
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState(user.company_id || '');
+  const [dlBusy, setDlBusy] = useState(false);
+
+  async function downloadExcel() {
+    setDlBusy(true);
+    setErr('');
+    try {
+      const params = new URLSearchParams();
+      if (companyId) params.set('company_id', String(companyId));
+      const stamp = new Date().toISOString().slice(0, 10);
+      await downloadFile(`/incidents/capa-board.xlsx?${params}`, `dof-panosu-${stamp}.xlsx`);
+    } catch (x) {
+      setErr(x.message || 'Excel indirilemedi.');
+    } finally {
+      setDlBusy(false);
+    }
+  }
 
   const load = async () => {
     setErr('');
@@ -661,6 +702,9 @@ export function CapaPage({user}) {
     <>
       <div className="page-title">
         <h3>DÖF Yönetimi</h3>
+        <button type="button" className="secondary" disabled={dlBusy} onClick={downloadExcel}>
+          <Download size={16} /> {dlBusy ? 'Excel…' : 'Excel Rapor'}
+        </button>
       </div>
       <section className="panel">
         <div style={{marginBottom: 12, padding: '10px 12px', background: '#eef5fb', borderRadius: 10, fontSize: 14, lineHeight: 1.5}}>

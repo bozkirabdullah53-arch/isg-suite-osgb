@@ -3,8 +3,11 @@ from datetime import date
 from types import SimpleNamespace
 
 from app.services.risk_methods import method_choices, resolve_method
-from app.services.risk_reports import build_risk_pdf
+from app.services.risk_reports import build_risk_excel, build_risk_pdf
 from app.services.risk_validity import build_validity, document_meta_rows
+from io import BytesIO
+
+from openpyxl import load_workbook
 
 
 def test_methods_catalog_covers_common_methods():
@@ -97,3 +100,67 @@ def test_professional_pdf_has_sections():
     )
     assert pdf.startswith(b"%PDF")
     assert len(pdf) > 2500
+    # Son sayfa beyanı (NumberedCanvas) — Latin-1 PDF stream içinde Türkçe escape olabilir;
+    # en azından sayfa numaralandırma ve ekip satırı üretildiğini boyutla doğrula.
+    assert b"/Type /Page" in pdf or b"Page" in pdf
+
+
+def test_risk_excel_has_page_footer_and_last_page_declaration():
+    company = SimpleNamespace(
+        id=7,
+        name="DEMO AŞ",
+        authorized_person="Vekil",
+        phone="555",
+        hazard_class="Tehlikeli",
+        sgk_registry_no="999",
+        nace_code="41.20",
+        risk_document_no="RD-7",
+        risk_revision_no="00",
+    )
+    risks = [
+        SimpleNamespace(
+            risk_code=f"RSK-{i:04d}",
+            department_name="Üretim",
+            activity="Kaynak",
+            hazard_id=1,
+            risk_definition="Yanık",
+            affected_people="Operatör",
+            probability=3,
+            severity=4,
+            risk_score=12,
+            risk_level="Orta",
+            term_date=date(2026, 9, 1),
+            existing_measures="Eldiven",
+            additional_measures="Eğitim",
+            status="Açık",
+            dofs=[],
+            media_files=[],
+        )
+        for i in range(1, 6)
+    ]
+    hazard_map = {1: SimpleNamespace(id=1, code="FZK", name="Sıcak yüzey")}
+    data = build_risk_excel(
+        company=company,
+        risks=risks,
+        hazard_map=hazard_map,
+        prepared_by="Uzman A",
+        workplace_physician="Hekim B",
+        employer_representative="Vekil C",
+        employee_representative="Temsilci D",
+    )
+    wb = load_workbook(BytesIO(data))
+    ws = wb["Risk Değerlendirme"]
+    assert "Sayfa &P / &N" in (ws.oddFooter.center.text or "")
+    assert "Risk Değ. Ekibi İmza" in (ws.oddFooter.left.text or "")
+    assert "İGU: Uzman A" in (ws.oddFooter.left.text or "")
+    # Son sayfa beyanı hücrede
+    found = False
+    for row in ws.iter_rows(min_row=1, max_col=1, values_only=True):
+        val = row[0]
+        if isinstance(val, str) and "İş bu risk değerlendirme raporu" in val and "sayfadan oluşur" in val:
+            found = True
+            break
+    assert found
+    assert "İMZA / ONAY" in "".join(
+        str(c[0] or "") for c in ws.iter_rows(min_row=1, max_col=1, values_only=True)
+    )

@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
-import {Beaker, Plus, RefreshCw, Tag, Upload} from 'lucide-react';
-import {api, uploadFile} from './api';
+import {Beaker, Download, Plus, RefreshCw, Tag, Upload} from 'lucide-react';
+import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
 
 function Modal({title, close, children}) {
@@ -184,6 +184,20 @@ export function SdsRegisterPage({user}) {
       <div className="page-title">
         <h3>SDS / PKD Sicili</h3>
         <div className="actions">
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={() => {
+              const stamp = new Date().toISOString().slice(0, 10);
+              downloadFile(
+                `/sds/export.xlsx${q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''}`,
+                `sds-sicili-${stamp}.xlsx`,
+              ).catch((e) => setErr(e.message || 'Excel indirilemedi.'));
+            }}
+          >
+            <Download size={16} /> Excel Rapor
+          </button>
           <button type="button" className="secondary" disabled={busy} onClick={() => void load()}>
             <RefreshCw size={16} /> Yenile
           </button>

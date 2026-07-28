@@ -2121,6 +2121,24 @@ export function TrainingPage({user}) {
   return (
     <div className="panel-card">
       <div className="section-title" style={{marginBottom: 6}}>Eğitim Kayıtları</div>
+      <div style={{marginBottom: 12}}>
+        <button
+          type="button"
+          className="btn-outline-premium"
+          style={{width: 'auto', minHeight: 40, padding: '0 14px'}}
+          onClick={() => {
+            const stamp = new Date().toISOString().slice(0, 10);
+            const params = new URLSearchParams();
+            if (form.company_id) params.set('company_id', String(form.company_id));
+            if (q.trim()) params.set('q', q.trim());
+            downloadFile(`/trainings/export.xlsx?${params}`, `egitim-listesi-${stamp}.xlsx`).catch((x) =>
+              setErr(x.message || 'Excel indirilemedi.'),
+            );
+          }}
+        >
+          <Download size={16} style={{marginRight: 6}} /> Excel Rapor
+        </button>
+      </div>
       <h2 style={{margin: '0 0 12px', fontSize: 20}}>Kayıtlı oturumlar</h2>
         <div style={{display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap'}}>
           <div style={{flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', gap: 8}}>

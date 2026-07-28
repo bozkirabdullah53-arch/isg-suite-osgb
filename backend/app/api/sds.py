@@ -2,8 +2,12 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -12,6 +16,7 @@ from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.models.entities import (
     ChemicalProduct,
+    Company,
     DocumentCategory,
     DocumentRecord,
     User,
@@ -106,6 +111,89 @@ def sds_meta(user: User = Depends(get_current_user)):
 @router.get("/ghs-catalog")
 def ghs_label_catalog(user: User = Depends(get_current_user)):
     return {"engine": GHS_ENGINE, "pictograms": ghs_catalog()}
+
+
+@router.get("/export.xlsx")
+def export_sds_xlsx(
+    company_id: int | None = None,
+    q: str | None = Query(default=None, max_length=100),
+    active_only: bool = True,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW_ROLES)),
+):
+    """SDS / kimyasal ürün sicili Excel."""
+    stmt = select(ChemicalProduct).order_by(ChemicalProduct.product_name.asc())
+    company_ids = company_ids_for_query(db, user, company_id)
+    if company_ids == []:
+        rows = []
+    else:
+        if company_ids is not None:
+            stmt = stmt.where(ChemicalProduct.company_id.in_(company_ids))
+        if active_only:
+            stmt = stmt.where(ChemicalProduct.is_active.is_(True))
+        if q:
+            pattern = f"%{q.strip()}%"
+            stmt = stmt.where(
+                or_(
+                    ChemicalProduct.product_name.ilike(pattern),
+                    ChemicalProduct.cas_number.ilike(pattern),
+                )
+            )
+        rows = list(db.scalars(stmt.limit(2000)).all())
+
+    companies = {
+        c.id: c.name
+        for c in db.scalars(
+            select(Company).where(Company.id.in_({r.company_id for r in rows} or {-1}))
+        ).all()
+    }
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "SDS Sicili"
+    headers = [
+        "Firma",
+        "Ürün",
+        "CAS",
+        "SDS Dosyası",
+        "Doküman ID",
+        "Sonraki Gözden Geçirme",
+        "Durum",
+        "GHS Sayısı",
+        "Notlar",
+        "Aktif",
+    ]
+    ws.append(headers)
+    fill = PatternFill("solid", fgColor="0D6EFD")
+    for col, _ in enumerate(headers, 1):
+        cell = ws.cell(1, col)
+        cell.fill = fill
+        cell.font = Font(bold=True, color="FFFFFF")
+    status_tr = {"overdue": "Gecikmiş", "due_soon": "Yaklaşıyor", "ok": "Güncel", "unset": "Tarih yok"}
+    for r in rows:
+        ghs = parse_checklist(getattr(r, "ghs_checklist_json", None))
+        ws.append(
+            [
+                companies.get(r.company_id, str(r.company_id)),
+                r.product_name,
+                r.cas_number or "",
+                "Var" if r.has_sds_file else "Yok",
+                r.document_id or "",
+                r.next_review_date.isoformat() if r.next_review_date else "",
+                status_tr.get(_review_status(r.next_review_date), _review_status(r.next_review_date)),
+                int(ghs["count"]),
+                r.notes or "",
+                "Evet" if r.is_active else "Hayır",
+            ]
+        )
+    stream = BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+    stamp = datetime.now().strftime("%Y%m%d")
+    return StreamingResponse(
+        stream,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="sds-sicili-{stamp}.xlsx"'},
+    )
 
 
 @router.get("/due-summary", response_model=SdsDueSummary)

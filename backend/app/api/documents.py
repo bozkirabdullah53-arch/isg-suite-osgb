@@ -1,13 +1,18 @@
 import logging
+from datetime import datetime
+from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.api.company_access import company_ids_for_query, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
-from app.models.entities import DocumentRecord, User, UserRole
+from app.models.entities import Company, DocumentRecord, User, UserRole
 from app.schemas.document import DocumentCreate, DocumentResponse
 
 logger = logging.getLogger(__name__)
@@ -23,6 +28,89 @@ EDIT_ROLES = (
 
 def ensure_access(db: Session, user: User, company_id: int) -> None:
     ensure_company_access(db, user, company_id)
+
+
+@router.get("/export.xlsx")
+def export_documents_xlsx(
+    company_id: int | None = None,
+    q: str | None = Query(default=None, max_length=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Doküman kayıt defteri Excel."""
+    query = select(DocumentRecord).order_by(DocumentRecord.created_at.desc())
+    company_ids = company_ids_for_query(db, user, company_id)
+    if company_ids == []:
+        rows = []
+    else:
+        if company_ids is not None:
+            query = query.where(DocumentRecord.company_id.in_(company_ids))
+        if q:
+            pattern = f"%{q.strip()}%"
+            query = query.where(
+                or_(DocumentRecord.title.ilike(pattern), DocumentRecord.description.ilike(pattern))
+            )
+        rows = list(db.scalars(query.limit(2000)).all())
+
+    companies = {
+        c.id: c.name
+        for c in db.scalars(
+            select(Company).where(Company.id.in_({r.company_id for r in rows} or {-1}))
+        ).all()
+    }
+    cat_labels = {
+        "general": "Genel",
+        "risk": "Risk",
+        "training": "Eğitim",
+        "health": "Sağlık",
+        "emergency": "Acil Durum",
+        "legal": "Mevzuat",
+        "annual_plan": "Yıllık Plan",
+    }
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Dokümanlar"
+    headers = [
+        "Firma",
+        "Başlık",
+        "Kategori",
+        "Dosya Adı",
+        "Versiyon",
+        "Başlangıç",
+        "Geçerlilik Sonu",
+        "Durum",
+        "Açıklama",
+    ]
+    ws.append(headers)
+    fill = PatternFill("solid", fgColor="0D6EFD")
+    for col, _ in enumerate(headers, 1):
+        cell = ws.cell(1, col)
+        cell.fill = fill
+        cell.font = Font(bold=True, color="FFFFFF")
+    for r in rows:
+        cat = r.category.value if hasattr(r.category, "value") else str(r.category)
+        ws.append(
+            [
+                companies.get(r.company_id, str(r.company_id)),
+                r.title,
+                cat_labels.get(cat, cat),
+                r.file_name or "",
+                r.version or "",
+                r.valid_from.isoformat() if r.valid_from else "",
+                r.valid_until.isoformat() if r.valid_until else "",
+                "Aktif" if r.is_active else "Pasif",
+                r.description or "",
+            ]
+        )
+    stream = BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+    stamp = datetime.now().strftime("%Y%m%d")
+    return StreamingResponse(
+        stream,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="dokuman-kayitlari-{stamp}.xlsx"'},
+    )
 
 
 @router.get("", response_model=list[DocumentResponse])

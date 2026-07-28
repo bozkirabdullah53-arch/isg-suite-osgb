@@ -15,6 +15,13 @@ from app.models.entities import Employee, IsgRecord, User, UserRole
 
 router = APIRouter(prefix="/exports", tags=["Dışa Aktarım"])
 ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
+EMPLOYEE_EXPORT = (
+    UserRole.GLOBAL_ADMIN,
+    UserRole.COMPANY_ADMIN,
+    UserRole.SAFETY_SPECIALIST,
+    UserRole.WORKPLACE_PHYSICIAN,
+    UserRole.OTHER_HEALTH_PERSONNEL,
+)
 
 
 def _scoped_company_ids(user: User, requested: int | None, db: Session) -> list[int] | None:
@@ -35,7 +42,7 @@ def _scoped_company_ids(user: User, requested: int | None, db: Session) -> list[
 def export_employees_excel(
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*ADMIN)),
+    user: User = Depends(require_roles(*EMPLOYEE_EXPORT)),
 ):
     scope = _scoped_company_ids(user, company_id, db)
     if scope is not None and not scope:

@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -323,4 +323,123 @@ def export_txt(
         "\n".join(lines),
         media_type="text/plain; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="tatbikat-tutanagi-{drill_id}.txt"'},
+    )
+
+
+@router.get("/{drill_id}/export.pdf")
+def export_pdf(
+    drill_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW_ROLES)),
+):
+    """Tatbikat tutanağı PDF."""
+    from io import BytesIO
+    from pathlib import Path
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.pdfgen import canvas
+
+    row = _load(db, drill_id)
+    ensure_company_access(db, user, row.company_id)
+    company = db.get(Company, row.company_id)
+    parts = _parse_participants(row.participants_json)
+    names = ", ".join(p.full_name for p in parts) or "—"
+    time_range = "—"
+    if row.start_time or row.end_time:
+        time_range = f"{row.start_time or '?'} – {row.end_time or '?'}"
+
+    font = "Helvetica"
+    bold = "Helvetica-Bold"
+    assets = Path(__file__).resolve().parent.parent / "assets" / "fonts"
+    for regular, bold_path, name, bold_name in (
+        (assets / "DejaVuSans.ttf", assets / "DejaVuSans-Bold.ttf", "DrillDejaVu", "DrillDejaVu-Bold"),
+        (Path(r"C:\Windows\Fonts\arial.ttf"), Path(r"C:\Windows\Fonts\arialbd.ttf"), "DrillArial", "DrillArial-Bold"),
+    ):
+        if regular.exists():
+            try:
+                pdfmetrics.registerFont(TTFont(name, str(regular)))
+                pdfmetrics.registerFont(TTFont(bold_name, str(bold_path if bold_path.exists() else regular)))
+                font, bold = name, bold_name
+                break
+            except Exception:
+                continue
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+    y = height - 20 * mm
+    c.setFont(bold, 14)
+    c.drawString(20 * mm, y, "TATBİKAT TUTANAĞI")
+    y -= 10 * mm
+    c.setFont(font, 10)
+    lines = [
+        f"İşyeri: {company.name if company else row.company_id}",
+        f"Tür: {row.drill_type}",
+        f"Tarih: {row.drill_date}",
+        f"Saat: {time_range}",
+        f"Sorumlu: {row.responsible or '—'}",
+        f"Toplanma alanı: {row.assembly_area or '—'}",
+        f"Durum: {row.status}",
+        f"Katılımcı sayısı: {row.participant_count}",
+        f"Katılımcılar: {names}",
+        f"Fotoğraf: {len(row.photos or [])}",
+        "",
+        "Senaryo:",
+        row.scenario or "—",
+        "",
+        "Eksikler:",
+        row.gaps or "—",
+        "",
+        "Sonuç:",
+        row.result or "—",
+    ]
+
+    def draw_wrapped(text: str, start_y: float) -> float:
+        max_w = width - 40 * mm
+        words = (text or "—").split()
+        line = ""
+        cur = start_y
+        for w in words:
+            trial = f"{line} {w}".strip()
+            if c.stringWidth(trial, font, 10) <= max_w:
+                line = trial
+            else:
+                if cur < 20 * mm:
+                    c.showPage()
+                    c.setFont(font, 10)
+                    cur = height - 20 * mm
+                c.drawString(20 * mm, cur, line)
+                cur -= 5 * mm
+                line = w
+        if line:
+            if cur < 20 * mm:
+                c.showPage()
+                c.setFont(font, 10)
+                cur = height - 20 * mm
+            c.drawString(20 * mm, cur, line)
+            cur -= 5 * mm
+        return cur
+
+    c.setFont(font, 10)
+    for line in lines:
+        if line in ("Senaryo:", "Eksikler:", "Sonuç:"):
+            c.setFont(bold, 10)
+            if y < 20 * mm:
+                c.showPage()
+                y = height - 20 * mm
+            c.drawString(20 * mm, y, line)
+            y -= 6 * mm
+            c.setFont(font, 10)
+            continue
+        y = draw_wrapped(line, y)
+    c.showPage()
+    c.save()
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="tatbikat-tutanagi-{drill_id}.pdf"'},
     )

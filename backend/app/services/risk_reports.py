@@ -9,6 +9,7 @@ import openpyxl
 from openpyxl.drawing.image import Image as XLImage
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.pagebreak import Break
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
@@ -18,6 +19,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import registerFontFamily
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.pdfgen import canvas
 
 from app.services.risk_validity import METHOD_LABEL, document_meta_rows
 
@@ -143,6 +145,48 @@ def _add_pdf_footer(canvas, doc):
     canvas.restoreState()
 
 
+class _RiskPdfCanvas(canvas.Canvas):
+    """Her sayfada ekip imza + sayfa no; son sayfada sayfa sayısı beyanı."""
+
+    def __init__(self, *args, team_line: str = "", **kwargs):
+        self._team_line = team_line or ""
+        self._saved_page_states: list[dict] = []
+        super().__init__(*args, **kwargs)
+
+    def showPage(self):
+        self._saved_page_states.append(
+            {k: v for k, v in self.__dict__.items() if k != "_saved_page_states"}
+        )
+        self._startPage()
+
+    def save(self):
+        total = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self._draw_chrome(total)
+            canvas.Canvas.showPage(self)
+        canvas.Canvas.save(self)
+
+    def _draw_chrome(self, total: int):
+        page = self._pageNumber
+        self.saveState()
+        self.setFont(PDF_FONT, 6)
+        self.setFillColor(colors.HexColor("#6c757d"))
+        width = self._pagesize[0]
+        self.drawString(14 * mm, 12 * mm, (self._team_line or "")[:115])
+        self.drawRightString(width - 14 * mm, 12 * mm, f"Sayfa {page} / {total}")
+        self.drawString(14 * mm, 8 * mm, CREATOR_LINE)
+        if page == total and total > 0:
+            self.setFont(PDF_FONT_BOLD, 8)
+            self.setFillColor(colors.HexColor("#1a5276"))
+            self.drawCentredString(
+                width / 2,
+                18 * mm,
+                f"İş bu risk değerlendirme raporu {total} sayfadan oluşur.",
+            )
+        self.restoreState()
+
+
 def build_risk_pdf(
     *,
     company,
@@ -190,7 +234,7 @@ def build_risk_pdf(
         rightMargin=14 * mm,
         leftMargin=14 * mm,
         topMargin=16 * mm,
-        bottomMargin=14 * mm,
+        bottomMargin=22 * mm,
     )
     styles = getSampleStyleSheet()
     for style in styles.byName.values():
@@ -626,15 +670,103 @@ def build_risk_pdf(
         )
     )
 
-    doc.build(elements, onFirstPage=_add_pdf_footer, onLaterPages=_add_pdf_footer)
+    team_line = _risk_team_footer_line(
+        prepared_by=prepared_by,
+        workplace_physician=workplace_physician,
+        employer_representative=employer_representative,
+        employee_representative=employee_representative,
+        support_staff=support_staff,
+    )
+    doc.build(
+        elements,
+        canvasmaker=lambda *args, **kwargs: _RiskPdfCanvas(*args, team_line=team_line, **kwargs),
+    )
     buf.seek(0)
     return buf.read()
 
 
+def _risk_team_footer_line(
+    *,
+    prepared_by: str | None = None,
+    workplace_physician: str | None = None,
+    employer_representative: str | None = None,
+    employee_representative: str | None = None,
+    support_staff: str | None = None,
+) -> str:
+    """Yazdırma alt bilgisi — her sayfada risk değerlendirme ekibi imza satırı."""
+    parts = [
+        f"İGU: {(prepared_by or '—').strip() or '—'}",
+        f"İH: {(workplace_physician or '—').strip() or '—'}",
+        f"İşveren/Vekil: {(employer_representative or '—').strip() or '—'}",
+        f"Çalışan Temsilcisi: {(employee_representative or '—').strip() or '—'}",
+    ]
+    if (support_staff or "").strip():
+        parts.append(f"Destek: {support_staff.strip()}")
+    return "Risk Değ. Ekibi İmza — " + " | ".join(parts)
+
+
+def _apply_excel_page_chrome(ws, *, team_line: str, doc_label: str = "") -> None:
+    """Her yazdırılan sayfada sayfa no + ekip imza alt bilgisi."""
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.paperSize = 9  # A4
+    ws.page_setup.fitToPage = True
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.page_margins.left = 0.4
+    ws.page_margins.right = 0.4
+    ws.page_margins.top = 0.5
+    ws.page_margins.bottom = 0.9
+    ws.page_margins.header = 0.2
+    ws.page_margins.footer = 0.5
+    ws.oddHeader.center.text = doc_label[:120] if doc_label else ""
+    ws.oddHeader.center.font = "Calibri"
+    ws.oddHeader.center.size = 8
+    # Sol: ekip imza · Orta: sayfa no · Sağ: program
+    ws.oddFooter.left.text = team_line[:220]
+    ws.oddFooter.left.font = "Calibri"
+    ws.oddFooter.left.size = 7
+    ws.oddFooter.center.text = "Sayfa &P / &N"
+    ws.oddFooter.center.font = "Calibri"
+    ws.oddFooter.center.size = 8
+    ws.oddFooter.right.text = CREATOR_LINE
+    ws.oddFooter.right.font = "Calibri"
+    ws.oddFooter.right.size = 7
+    ws.evenFooter.left.text = team_line[:220]
+    ws.evenFooter.center.text = "Sayfa &P / &N"
+    ws.evenFooter.right.text = CREATOR_LINE
+    ws.print_options.horizontalCentered = True
+
+
+def _estimate_risk_sheet_pages(risks: list) -> int:
+    """Yazdırma önizlemesine yakın sayfa tahmini (imza sayfası dahil)."""
+    import math
+
+    n = len(risks)
+    if n <= 0:
+        return 1
+    photo_bonus = 0
+    for r in risks:
+        if _risk_excel_photo_path(r):
+            photo_bonus += 1
+    # Yatay A4, fit-width: başlık+filtre satırları sonrası ~18 satır/sayfa; foto satırı ~2
+    units = n + photo_bonus
+    data_pages = max(1, math.ceil(units / 18))
+    return data_pages + 1  # imza / onay sayfası
+
+
 def build_risk_excel(
-    *, company, risks, hazard_map: dict | None = None, validity: dict | None = None
+    *,
+    company,
+    risks,
+    hazard_map: dict | None = None,
+    validity: dict | None = None,
+    prepared_by: str | None = None,
+    workplace_physician: str | None = None,
+    employer_representative: str | None = None,
+    employee_representative: str | None = None,
+    support_staff: str | None = None,
 ) -> bytes:
-    """Excel: Risk tablosu + DÖF listesi + istatistikler."""
+    """Excel: Risk tablosu + DÖF listesi + istatistikler (+ sayfa imza / sayfa no)."""
     hazard_map = hazard_map or {}
     wb = openpyxl.Workbook()
     wb.properties.creator = CREATOR_LINE
@@ -656,6 +788,16 @@ def build_risk_excel(
         "Yüksek": PatternFill(start_color="f39c12", end_color="f39c12", fill_type="solid"),
         "Çok Yüksek": PatternFill(start_color="e74c3c", end_color="e74c3c", fill_type="solid"),
     }
+
+    team_line = _risk_team_footer_line(
+        prepared_by=prepared_by,
+        workplace_physician=workplace_physician,
+        employer_representative=employer_representative,
+        employee_representative=employee_representative,
+        support_staff=support_staff,
+    )
+    page_count = _estimate_risk_sheet_pages(risks)
+    doc_label = f"Risk Değerlendirme Raporu — {getattr(company, 'name', '')}"
 
     ws = wb.active
     ws.title = "Risk Değerlendirme"
@@ -769,7 +911,80 @@ def build_risk_excel(
     for i, w in enumerate([12, 15, 20, 18, 12, 28, 16, 10, 10, 10, 14, 12, 28, 28, 10, 10, 18], 1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = "A5"
-    ws.auto_filter.ref = f"A4:Q{max(4, 4 + len(risks))}"
+    last_data_row = max(4, 4 + len(risks))
+    ws.auto_filter.ref = f"A4:Q{last_data_row}"
+    ws.print_title_rows = "1:4"
+
+    # Son sayfa: imza bloğu + sayfa sayısı beyanı (sayfa sonu kırılımı)
+    sign_start = last_data_row + 2
+    ws.row_breaks.append(Break(id=last_data_row + 1))
+    ws.merge_cells(start_row=sign_start, start_column=1, end_row=sign_start, end_column=8)
+    ws.cell(row=sign_start, column=1, value="İMZA / ONAY — RİSK DEĞERLENDİRME EKİBİ")
+    ws.cell(row=sign_start, column=1).font = Font(name="Calibri", bold=True, size=12, color="1a5276")
+
+    ws.merge_cells(start_row=sign_start + 1, start_column=1, end_row=sign_start + 1, end_column=8)
+    ws.cell(
+        row=sign_start + 1,
+        column=1,
+        value=(
+            "Bu belgeyi hazırlayan, inceleyen, katılan ve onaylayan kişiler aşağıda imza altına alır. "
+            "İşveren onayı olmadan risk değerlendirmesi resmi sayılmaz."
+        ),
+    )
+    ws.cell(row=sign_start + 1, column=1).alignment = Alignment(wrap_text=True)
+    ws.row_dimensions[sign_start + 1].height = 32
+
+    sign_headers = ["Unvan", "Ad Soyad", "Kaşe / İmza / Tarih"]
+    sign_rows = [
+        ("İş Güvenliği Uzmanı / Hazırlayan", prepared_by or "—"),
+        ("İşyeri Hekimi", workplace_physician or "—"),
+        ("İşveren / Vekili", employer_representative or "—"),
+        ("Çalışan Temsilcisi", employee_representative or "—"),
+    ]
+    if (support_staff or "").strip():
+        sign_rows.append(("Destek Elemanı", support_staff.strip()))
+    hdr_row = sign_start + 3
+    for col, h in enumerate(sign_headers, 1):
+        cell = ws.cell(row=hdr_row, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.border = thin
+        cell.alignment = header_alignment
+    for i, (title, name) in enumerate(sign_rows):
+        r = hdr_row + 1 + i
+        for col, val in enumerate([title, name, ""], 1):
+            cell = ws.cell(row=r, column=col, value=val)
+            cell.border = thin
+            cell.font = Font(name="Calibri", size=10)
+            cell.alignment = Alignment(vertical="center", wrap_text=True)
+        ws.row_dimensions[r].height = 36
+
+    declare_row = hdr_row + 1 + len(sign_rows) + 2
+    ws.merge_cells(start_row=declare_row, start_column=1, end_row=declare_row, end_column=8)
+    declare = (
+        f"İş bu risk değerlendirme raporu {page_count} sayfadan oluşur. "
+        f"(Yazdırma önizlemesinde Sayfa X / N satırı ile doğrulanır; N farklıysa N esas alınır.)"
+    )
+    cell = ws.cell(row=declare_row, column=1, value=declare)
+    cell.font = Font(name="Calibri", bold=True, size=11, color="1a5276")
+    cell.alignment = Alignment(wrap_text=True, vertical="center")
+    ws.row_dimensions[declare_row].height = 36
+
+    note_row = declare_row + 1
+    ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=8)
+    ws.cell(
+        row=note_row,
+        column=1,
+        value=(
+            "Her yazdırılan sayfanın altında Risk Değerlendirme Ekibi imza satırı ve sayfa numarası yer alır. "
+            f"Belge: {getattr(company, 'risk_document_no', None) or ('RD-' + str(getattr(company, 'id', '') or ''))} · "
+            f"Düzenleme: {datetime.now().strftime('%d.%m.%Y %H:%M')} · {CREATOR_LINE}"
+        ),
+    )
+    ws.cell(row=note_row, column=1).font = Font(name="Calibri", size=8, italic=True, color="6c757d")
+    ws.cell(row=note_row, column=1).alignment = Alignment(wrap_text=True)
+
+    _apply_excel_page_chrome(ws, team_line=team_line, doc_label=doc_label)
 
     # DÖF sheet
     ws2 = wb.create_sheet("DÖF Listesi")
@@ -851,9 +1066,8 @@ def build_risk_excel(
     ws3.column_dimensions["A"].width = 20
     ws3.column_dimensions["B"].width = 10
 
-    for sheet in wb.worksheets:
-        sheet.oddFooter.center.text = CREATOR_LINE
-        sheet.oddFooter.right.text = "Sayfa &P / &N"
+    _apply_excel_page_chrome(ws2, team_line=team_line, doc_label=f"DÖF Listesi — {getattr(company, 'name', '')}")
+    _apply_excel_page_chrome(ws3, team_line=team_line, doc_label=f"Risk İstatistikleri — {getattr(company, 'name', '')}")
 
     out = BytesIO()
     wb.save(out)

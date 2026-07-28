@@ -1,7 +1,7 @@
 """Olay kayıtları API — ramak kala / iş kazası / kök neden / olay DÖF."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,7 +12,15 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.company_access import company_ids_for_query, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
-from app.models.entities import Company, IncidentDof, IncidentEvent, IncidentRootCause, User, UserRole
+from app.models.entities import (
+    Company,
+    IncidentDof,
+    IncidentEvent,
+    IncidentRootCause,
+    ProfessionalType,
+    User,
+    UserRole,
+)
 from app.schemas.incident import (
     IncidentCreate,
     IncidentDofComplete,
@@ -23,13 +31,18 @@ from app.schemas.incident import (
     RootCauseResponse,
     RootCauseUpsert,
 )
+from app.services.assigned_team import team_names
 from app.services.incident_meta import (
     EVENT_PREFIX,
     build_auto_warning,
     meta_payload,
     risk_level_for,
 )
-from app.services.incident_reports import build_incident_pdf
+from app.services.incident_reports import (
+    build_capa_board_excel,
+    build_incident_excel,
+    build_incident_pdf,
+)
 
 router = APIRouter(prefix="/incidents", tags=["Olay / Ramak Kala"])
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)
@@ -93,6 +106,158 @@ def incidents_meta(user: User = Depends(get_current_user)):
     return meta_payload()
 
 
+@router.get("/workplace-defaults")
+def incident_workplace_defaults(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """İşyeri kartı + görevlendirmeden olay formu varsayılanları."""
+    ensure_access(db, user, company_id)
+    company = db.get(Company, company_id)
+    if not company:
+        raise HTTPException(404, "Firma bulunamadı.")
+    names = team_names(db, company_id)
+    return {
+        "company_id": company_id,
+        "company_name": company.name,
+        "address": company.address,
+        "sgk_registry_no": company.sgk_registry_no,
+        "hazard_class": company.hazard_class,
+        "safety_specialist": names.get(ProfessionalType.SAFETY_SPECIALIST.value),
+        "workplace_physician": names.get(ProfessionalType.WORKPLACE_PHYSICIAN.value),
+        "employer_representative": company.authorized_person,
+    }
+
+
+@router.get("/export.xlsx")
+def export_incidents_xlsx(
+    event_type: str | None = None,
+    company_id: int | None = None,
+    status: str | None = None,
+    q: str | None = Query(None, max_length=120),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Ramak kala / olay / kaza listesi Excel (filtreli kayıt defteri)."""
+    stmt = (
+        select(IncidentEvent)
+        .options(selectinload(IncidentEvent.root_cause), selectinload(IncidentEvent.dofs))
+        .order_by(IncidentEvent.event_date.desc(), IncidentEvent.id.desc())
+    )
+    company_ids = company_ids_for_query(db, user, company_id)
+    if company_ids == []:
+        rows = []
+    else:
+        if company_ids is not None:
+            stmt = stmt.where(IncidentEvent.company_id.in_(company_ids))
+        if event_type:
+            stmt = stmt.where(IncidentEvent.event_type == event_type)
+        if status:
+            stmt = stmt.where(IncidentEvent.status == status)
+        if q:
+            like = f"%{q.strip()}%"
+            stmt = stmt.where(
+                or_(
+                    IncidentEvent.form_no.ilike(like),
+                    IncidentEvent.short_summary.ilike(like),
+                    IncidentEvent.location.ilike(like),
+                    IncidentEvent.department.ilike(like),
+                    IncidentEvent.classification.ilike(like),
+                )
+            )
+        rows = list(db.scalars(stmt.limit(2000)).unique().all())
+    companies = {
+        c.id: c.name
+        for c in db.scalars(
+            select(Company).where(Company.id.in_({r.company_id for r in rows} or {-1}))
+        ).all()
+    }
+    xlsx = build_incident_excel(rows=rows, company_names=companies)
+    stamp = datetime.now().strftime("%Y%m%d")
+    tip = (event_type or "tum").replace("_", "-")
+    return StreamingResponse(
+        BytesIO(xlsx),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="olay-kayitlari-{tip}-{stamp}.xlsx"'},
+    )
+
+
+@router.get("/capa-board.xlsx")
+def export_capa_board_xlsx(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Olay + risk DÖF birleşik panosu (DÖF Yönetimi ekranı ile aynı kaynak)."""
+    from app.models.entities import RiskAssessment
+
+    company_ids = company_ids_for_query(db, user, company_id)
+    board: list[dict] = []
+
+    inc_stmt = (
+        select(IncidentEvent)
+        .options(selectinload(IncidentEvent.dofs))
+        .order_by(IncidentEvent.event_date.desc())
+    )
+    if company_ids == []:
+        incidents = []
+        risks = []
+    else:
+        if company_ids is not None:
+            inc_stmt = inc_stmt.where(IncidentEvent.company_id.in_(company_ids))
+        incidents = list(db.scalars(inc_stmt.limit(2000)).unique().all())
+        risk_stmt = (
+            select(RiskAssessment)
+            .options(selectinload(RiskAssessment.dofs))
+            .order_by(RiskAssessment.id.desc())
+        )
+        if company_ids is not None:
+            risk_stmt = risk_stmt.where(RiskAssessment.company_id.in_(company_ids))
+        risks = list(db.scalars(risk_stmt.limit(2000)).unique().all())
+
+    for inc in incidents:
+        for d in inc.dofs or []:
+            board.append(
+                {
+                    "source": "Olay",
+                    "code": d.dof_no,
+                    "title": d.finding,
+                    "action": d.corrective_action,
+                    "responsible": d.responsible_person,
+                    "term": d.term_date.isoformat() if d.term_date else "",
+                    "status": d.status,
+                    "priority": d.priority or "—",
+                    "parent": inc.form_no,
+                    "parentSummary": inc.short_summary,
+                }
+            )
+    for r in risks:
+        for d in r.dofs or []:
+            board.append(
+                {
+                    "source": "Risk",
+                    "code": d.dof_code,
+                    "title": d.description,
+                    "action": d.description,
+                    "responsible": d.responsible_person,
+                    "term": d.term_date.isoformat() if getattr(d, "term_date", None) else "",
+                    "status": "Tamamlandı" if d.is_completed else (d.status or "Açık"),
+                    "priority": "—",
+                    "parent": r.risk_code,
+                    "parentSummary": r.activity,
+                }
+            )
+
+    xlsx = build_capa_board_excel(rows=board)
+    stamp = datetime.now().strftime("%Y%m%d")
+    return StreamingResponse(
+        BytesIO(xlsx),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="dof-panosu-{stamp}.xlsx"'},
+    )
+
+
 @router.get("", response_model=list[IncidentResponse])
 def list_incidents(
     event_type: str | None = None,
@@ -141,6 +306,15 @@ def create_incident(
         raise HTTPException(404, "Firma bulunamadı.")
     values = payload.model_dump()
     recorded = values.pop("recorded_by_name", None) or user.full_name
+    # Görevlendirme / işyeri kartından boş alanları doldur (kullanıcı yazmışsa ezme)
+    names = team_names(db, payload.company_id)
+    company = db.get(Company, payload.company_id)
+    if not (values.get("safety_specialist") or "").strip():
+        values["safety_specialist"] = names.get(ProfessionalType.SAFETY_SPECIALIST.value)
+    if not (values.get("workplace_physician") or "").strip():
+        values["workplace_physician"] = names.get(ProfessionalType.WORKPLACE_PHYSICIAN.value)
+    if not (values.get("employer_representative") or "").strip():
+        values["employer_representative"] = company.authorized_person if company else None
     row = IncidentEvent(
         **values,
         form_no=_next_form_no(db, payload.event_type),
@@ -192,6 +366,7 @@ def incident_report_pdf(
     try:
         pdf = build_incident_pdf(
             company_name=company.name if company else str(row.company_id),
+            company=company,
             incident=row,
             root_cause=row.root_cause,
             dofs=row.dofs or [],

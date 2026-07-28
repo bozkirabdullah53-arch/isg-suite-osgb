@@ -162,6 +162,14 @@ export function DrillsPage({user}) {
     }
   }
 
+  async function exportPdf(row) {
+    try {
+      await downloadFile(`/drills/${row.id}/export.pdf`, `tatbikat-tutanagi-${row.id}.pdf`);
+    } catch (ex) {
+      setErr(ex.message || 'PDF indirilemedi.');
+    }
+  }
+
   const companyName = (id) => companies.find((c) => c.id === id)?.name || id;
 
   return (
@@ -238,8 +246,11 @@ export function DrillsPage({user}) {
                 <td>{statusBadge(r.status)}</td>
                 <td>
                   <div className="actions">
+                    <button type="button" className="secondary mini" onClick={() => exportPdf(r)}>
+                      <Download size={14} /> PDF
+                    </button>
                     <button type="button" className="secondary mini" onClick={() => exportTxt(r)}>
-                      <Download size={14} /> Tutanak
+                      TXT
                     </button>
                     {canEdit && (
                       <button type="button" className="secondary mini" disabled={busy} onClick={() => remove(r)}>

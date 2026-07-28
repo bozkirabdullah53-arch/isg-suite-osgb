@@ -1023,11 +1023,17 @@ def risk_report_excel(
     company, risks, hazard_map = _load_company_risks(db, user, company_id, level, status)
     if not risks:
         raise HTTPException(422, "Bu filtreyle raporlanacak risk kaydı yok.")
+    ctx = _assessment_context(db, company)
     xlsx = build_risk_excel(
         company=company,
         risks=risks,
         hazard_map=hazard_map,
-        validity=_assessment_context(db, company)["validity"],
+        validity=ctx["validity"],
+        prepared_by=ctx["safety_specialist"] or user.full_name,
+        workplace_physician=ctx["workplace_physician"],
+        employer_representative=ctx["employer_representative"],
+        employee_representative=ctx["employee_representative"],
+        support_staff=ctx["support_staff"],
     )
     return StreamingResponse(
         BytesIO(xlsx),

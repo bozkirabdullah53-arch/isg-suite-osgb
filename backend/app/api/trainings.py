@@ -1,5 +1,5 @@
 import hashlib
-from datetime import date
+from datetime import date, datetime
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -7,6 +7,8 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -360,6 +362,103 @@ def list_trainings(
             )
         )
     return list(db.scalars(query).unique().all())
+
+
+@router.get("/export.xlsx")
+def export_trainings_xlsx(
+    q: str | None = Query(None, max_length=100),
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Eğitim kayıt listesi Excel."""
+    query = (
+        select(TrainingSession)
+        .options(selectinload(TrainingSession.participants))
+        .order_by(TrainingSession.start_date.desc())
+    )
+    rows: list = []
+    if user.role == UserRole.GLOBAL_ADMIN:
+        if company_id:
+            query = query.where(TrainingSession.company_id == company_id)
+    else:
+        allowed = accessible_company_ids_or_empty(db, user)
+        if not allowed:
+            query = None
+        elif company_id:
+            ensure_access(db, user, company_id)
+            query = query.where(TrainingSession.company_id == company_id)
+        else:
+            query = query.where(TrainingSession.company_id.in_(allowed))
+    if query is not None:
+        if q:
+            p = f"%{q.strip()}%"
+            query = query.where(
+                or_(
+                    TrainingSession.title.ilike(p),
+                    TrainingSession.instructor_name.ilike(p),
+                    TrainingSession.sector.ilike(p),
+                )
+            )
+        rows = list(db.scalars(query.limit(2000)).unique().all())
+    companies = {
+        c.id: c.name
+        for c in db.scalars(
+            select(Company).where(Company.id.in_({r.company_id for r in rows} or {-1}))
+        ).all()
+    }
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Eğitimler"
+    headers = [
+        "Firma",
+        "Başlık",
+        "Tür",
+        "Yöntem",
+        "Başlangıç",
+        "Bitiş",
+        "Süre (saat)",
+        "Tehlike Sınıfı",
+        "Sektör",
+        "Eğitmen",
+        "Katılımcı",
+        "Durum",
+        "Doğrulama Kodu",
+    ]
+    ws.append(headers)
+    fill = PatternFill("solid", fgColor="0D6EFD")
+    for col, _ in enumerate(headers, 1):
+        cell = ws.cell(1, col)
+        cell.fill = fill
+        cell.font = Font(bold=True, color="FFFFFF")
+    for r in rows:
+        st = r.status.value if hasattr(r.status, "value") else str(r.status)
+        ws.append(
+            [
+                companies.get(r.company_id, str(r.company_id)),
+                r.title,
+                r.training_type,
+                r.delivery_method,
+                r.start_date.isoformat() if r.start_date else "",
+                r.end_date.isoformat() if r.end_date else "",
+                r.duration_hours,
+                r.hazard_class,
+                r.sector or "",
+                r.instructor_name,
+                len(r.participants or []),
+                st,
+                r.verification_code or "",
+            ]
+        )
+    stream = BytesIO()
+    wb.save(stream)
+    stream.seek(0)
+    stamp = datetime.now().strftime("%Y%m%d")
+    return StreamingResponse(
+        stream,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="egitim-listesi-{stamp}.xlsx"'},
+    )
 
 
 @router.post("", response_model=TrainingResponse)
