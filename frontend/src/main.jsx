@@ -415,7 +415,10 @@ function Login({done,onApply}){
                         width={200}
                         height={200}
                         style={{borderRadius:12,background:'#fff',padding:8,border:'1px solid #e2e8f0'}}
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(setupInfo.otpauth_uri)}`}
+                        src={
+                          setupInfo.qr_data_url
+                          || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(setupInfo.otpauth_uri)}`
+                        }
                       />
                       <p style={{margin:'8px 0 0',fontSize:12,color:'#64748b'}}>QR okutulamazsa gizli anahtarı kullanın</p>
                     </div>
@@ -1240,7 +1243,29 @@ function SecurityPage({user}){
         )}
         {mfaSetup&&(
           <form className="form-grid single" onSubmit={enableMfa}>
-            <p style={{fontSize:13,wordBreak:'break-all'}}><strong>Gizli anahtar:</strong> <code>{mfaSetup.secret}</code></p>
+            <ol style={{fontSize:13,color:'#475569',paddingLeft:20,margin:'0 0 8px',gridColumn:'1 / -1'}}>
+              <li>Telefonda Google / Microsoft Authenticator’ı açın</li>
+              <li><strong>+</strong> → QR kod tara</li>
+              <li>Aşağıdaki QR’ı okutun; uygulamadaki 6 haneli kodu girin</li>
+            </ol>
+            {(mfaSetup.qr_data_url||mfaSetup.otpauth_uri)&&(
+              <div style={{textAlign:'center',marginBottom:8,gridColumn:'1 / -1'}}>
+                <img
+                  alt="MFA kurulum QR"
+                  width={200}
+                  height={200}
+                  style={{borderRadius:12,background:'#fff',padding:8,border:'1px solid #e2e8f0'}}
+                  src={
+                    mfaSetup.qr_data_url
+                    || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(mfaSetup.otpauth_uri)}`
+                  }
+                />
+                <p style={{margin:'8px 0 0',fontSize:12,color:'#64748b'}}>QR okutulamazsa gizli anahtarı elle girin</p>
+              </div>
+            )}
+            <p style={{fontSize:13,wordBreak:'break-all',background:'#f8fafc',padding:10,borderRadius:8,border:'1px solid #e2e8f0',gridColumn:'1 / -1'}}>
+              <strong>Gizli anahtar:</strong> <code style={{userSelect:'all'}}>{mfaSetup.secret}</code>
+            </p>
             <Field label="Authenticator kodu" value={mfaCode} onChange={e=>setMfaCode(e.target.value)} required/>
             <button type="submit">Etkinleştir</button>
           </form>

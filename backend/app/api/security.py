@@ -72,6 +72,9 @@ def mfa_setup(
     db: Session = Depends(get_db),
     user: User = Depends(get_mfa_setup_user),
 ):
+    import base64
+    import io
+
     import pyotp
 
     if getattr(user, "mfa_enabled", False):
@@ -85,7 +88,22 @@ def mfa_setup(
         user.mfa_enabled = False
         db.commit()
     uri = pyotp.TOTP(secret).provisioning_uri(name=user.email, issuer_name="ISG Suite")
-    return {"secret": secret, "otpauth_uri": uri, "pending": not getattr(user, "mfa_enabled", False)}
+    qr_data_url = None
+    try:
+        import qrcode
+
+        img = qrcode.make(uri)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        qr_data_url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+    except Exception:
+        qr_data_url = None
+    return {
+        "secret": secret,
+        "otpauth_uri": uri,
+        "qr_data_url": qr_data_url,
+        "pending": not getattr(user, "mfa_enabled", False),
+    }
 
 
 @router.post("/mfa/enable")
