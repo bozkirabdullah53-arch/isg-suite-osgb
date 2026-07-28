@@ -14,6 +14,24 @@ function cloneScene(s) {
   return JSON.parse(JSON.stringify(s));
 }
 
+function clampCanvasSize(w, h) {
+  const maxSide = 2400;
+  const scale = Math.min(1, maxSide / Math.max(w, h, 1));
+  return {
+    width: Math.min(8000, Math.max(400, Math.round(w * scale))),
+    height: Math.min(8000, Math.max(400, Math.round(h * scale))),
+  };
+}
+
+function readImageSize(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({width: img.naturalWidth || 0, height: img.naturalHeight || 0});
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
 /** Kat bazlı acil durum kroki editörü — TR işaret + foto üzerine yerleştirme. */
 export function EmergencyKrokiEditor({planId, user, onClose}) {
   const canEdit = ['safety_specialist', 'global_admin'].includes(user?.role);
@@ -40,10 +58,12 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
   const draftRef = useRef(null);
   const [draftPreview, setDraftPreview] = useState(null);
   const svgRef = useRef(null);
+  const canvasPanelRef = useRef(null);
   const saveTimer = useRef(null);
   const fileBgRef = useRef(null);
   const sceneRef = useRef(scene);
   const floorIdRef = useRef(floorId);
+  const sizeSyncRef = useRef('');
   sceneRef.current = scene;
   floorIdRef.current = floorId;
 
@@ -73,6 +93,22 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
     });
     setDirty(true);
   }, [pushUndo]);
+
+  const fitView = useCallback((fw, fh) => {
+    const el = canvasPanelRef.current;
+    const width = fw || floor?.width || 1600;
+    const height = fh || floor?.height || 1000;
+    const vw = el?.clientWidth || 900;
+    const vh = el?.clientHeight || 640;
+    const pad = 20;
+    const z = Math.min((vw - pad * 2) / width, (vh - pad * 2) / height, 2.2);
+    const nz = Math.max(0.12, Number.isFinite(z) ? z : 0.6);
+    setZoom(nz);
+    setPan({
+      x: Math.max(8, (vw - width * nz) / 2),
+      y: Math.max(8, (vh - height * nz) / 2),
+    });
+  }, [floor?.width, floor?.height]);
 
   async function loadAll() {
     setBusy(true);
@@ -109,14 +145,18 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
 
   useEffect(() => { void loadAll(); }, [planId]);
 
+  const bgPath = floor?.background_storage_path || '';
+  const floorW = floor?.width || 1600;
+  const floorH = floor?.height || 1000;
+
   useEffect(() => {
     if (!floorId || !planId) {
       setBgUrl(null);
       return undefined;
     }
-    const fl = floors.find((f) => f.id === floorId);
-    if (!fl?.background_storage_path) {
+    if (!bgPath) {
       setBgUrl(null);
+      requestAnimationFrame(() => fitView(floorW, floorH));
       return undefined;
     }
     let revoked = false;
@@ -125,17 +165,44 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
       headers: token ? {Authorization: `Bearer ${token}`} : {},
     })
       .then((r) => (r.ok ? r.blob() : null))
-      .then((b) => {
+      .then(async (b) => {
         if (!b || revoked) return;
         const u = URL.createObjectURL(b);
         setBgUrl((old) => {
           if (old) URL.revokeObjectURL(old);
           return u;
         });
+        const natural = await readImageSize(u);
+        if (revoked || !natural?.width || !natural?.height) {
+          requestAnimationFrame(() => fitView(floorW, floorH));
+          return;
+        }
+        const next = clampCanvasSize(natural.width, natural.height);
+        const aspectDiff = Math.abs((floorW / floorH) - (next.width / next.height));
+        const sizeKey = `${floorId}:${next.width}x${next.height}`;
+        const needsResize = aspectDiff > 0.04
+          || (floorW === 1600 && floorH === 1000)
+          || Math.abs(floorW - next.width) > 40
+          || Math.abs(floorH - next.height) > 40;
+        if (editable && needsResize && sizeSyncRef.current !== sizeKey) {
+          sizeSyncRef.current = sizeKey;
+          try {
+            const updated = await api(`/emergency-plans/${planId}/floors/${floorId}`, {
+              method: 'PATCH',
+              body: JSON.stringify({width: next.width, height: next.height}),
+            });
+            if (!revoked) {
+              setFloors((prev) => prev.map((f) => (f.id === floorId ? updated : f)));
+              requestAnimationFrame(() => fitView(next.width, next.height));
+              return;
+            }
+          } catch { /* boyut senkronu başarısız olsa da sığdır */ }
+        }
+        if (!revoked) requestAnimationFrame(() => fitView(next.width, next.height));
       })
       .catch(() => setBgUrl(null));
     return () => { revoked = true; };
-  }, [planId, floorId, floors]);
+  }, [planId, floorId, bgPath, floorW, floorH, editable, fitView]);
 
   async function switchFloor(id) {
     if (dirty && editable) await saveScene(false);
@@ -396,7 +463,19 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
     setBusy(true);
     setErr('');
     try {
-      const updated = await uploadFile(`/emergency-plans/${planId}/floors/${floorId}/background`, file);
+      const previewUrl = URL.createObjectURL(file);
+      const natural = await readImageSize(previewUrl);
+      URL.revokeObjectURL(previewUrl);
+      let updated = await uploadFile(`/emergency-plans/${planId}/floors/${floorId}/background`, file);
+      if (natural?.width && natural?.height) {
+        const next = clampCanvasSize(natural.width, natural.height);
+        sizeSyncRef.current = `${floorId}:${next.width}x${next.height}`;
+        updated = await api(`/emergency-plans/${planId}/floors/${floorId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({width: next.width, height: next.height}),
+        });
+        requestAnimationFrame(() => fitView(next.width, next.height));
+      }
       setFloors((prev) => prev.map((f) => (f.id === floorId ? updated : f)));
     } catch (e) {
       setErr(e.message);
@@ -568,7 +647,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
   const h = floor?.height || 1000;
 
   return (
-    <div style={{display: 'flex', flexDirection: 'column', gap: 12, minHeight: '70vh'}}>
+    <div className="kroki-studio-root" style={{display: 'flex', flexDirection: 'column', gap: 10, minHeight: '70vh', width: '100%'}}>
       <div style={{
         display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center',
         paddingBottom: 12, borderBottom: '1px solid #e2e8f0',
@@ -730,15 +809,16 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
         </aside>
 
         <div
+          ref={canvasPanelRef}
           className="panel kroki-canvas-panel"
           style={{
             margin: 0, padding: 0, overflow: 'hidden',
-            height: 'min(82vh, 920px)', minHeight: 520,
-            background: '#f1f5f9', position: 'relative',
+            height: 'min(84vh, 960px)', minHeight: 560,
+            background: '#e8eef3', position: 'relative',
           }}
           onWheel={(e) => {
             e.preventDefault();
-            setZoom((z) => Math.min(2.5, Math.max(0.25, z * (e.deltaY > 0 ? 0.9 : 1.1))));
+            setZoom((z) => Math.min(2.5, Math.max(0.12, z * (e.deltaY > 0 ? 0.9 : 1.1))));
           }}
         >
           {showUploadHint && (
@@ -792,16 +872,27 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
               </marker>
             </defs>
             <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
-              <rect x={0} y={0} width={w} height={h} fill="#fff" stroke="#cbd5e1" />
-              {bgUrl && (
-                <image href={bgUrl} x={0} y={0} width={w} height={h} opacity={0.58} preserveAspectRatio="xMidYMid meet" />
+              <rect x={0} y={0} width={w} height={h} fill="#fff" stroke="#94a3b8" strokeWidth={2} />
+              {bgUrl ? (
+                <image
+                  href={bgUrl}
+                  x={0}
+                  y={0}
+                  width={w}
+                  height={h}
+                  opacity={0.92}
+                  preserveAspectRatio="none"
+                />
+              ) : (
+                <>
+                  {Array.from({length: Math.floor(w / 40) + 1}, (_, i) => (
+                    <line key={`vx${i}`} x1={i * 40} y1={0} x2={i * 40} y2={h} stroke="#e2e8f0" strokeWidth={1} />
+                  ))}
+                  {Array.from({length: Math.floor(h / 40) + 1}, (_, i) => (
+                    <line key={`hy${i}`} x1={0} y1={i * 40} x2={w} y2={i * 40} stroke="#e2e8f0" strokeWidth={1} />
+                  ))}
+                </>
               )}
-              {Array.from({length: Math.floor(w / 40) + 1}, (_, i) => (
-                <line key={`vx${i}`} x1={i * 40} y1={0} x2={i * 40} y2={h} stroke="#e2e8f0" strokeWidth={1} />
-              ))}
-              {Array.from({length: Math.floor(h / 40) + 1}, (_, i) => (
-                <line key={`hy${i}`} x1={0} y1={i * 40} x2={w} y2={i * 40} stroke="#e2e8f0" strokeWidth={1} />
-              ))}
               {(scene.objects || []).map((o) => (
                 <SceneSymbol key={o.id} o={o} selected={o.id === selectedId} />
               ))}
@@ -826,10 +917,10 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
               )}
             </g>
           </svg>
-          <div style={{position: 'absolute', right: 8, bottom: 8, display: 'flex', gap: 4}}>
+          <div style={{position: 'absolute', right: 8, bottom: 8, display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end'}}>
+            <button type="button" className="mini" onClick={() => fitView()}>Sığdır</button>
             <button type="button" className="mini secondary" onClick={() => setZoom((z) => Math.min(2.5, z * 1.15))}>+</button>
-            <button type="button" className="mini secondary" onClick={() => setZoom((z) => Math.max(0.25, z / 1.15))}>−</button>
-            <button type="button" className="mini secondary" onClick={() => { setZoom(0.95); setPan({x: 24, y: 24}); }}>Sıfırla</button>
+            <button type="button" className="mini secondary" onClick={() => setZoom((z) => Math.max(0.12, z / 1.15))}>−</button>
           </div>
         </div>
 
