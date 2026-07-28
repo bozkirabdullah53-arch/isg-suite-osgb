@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class PeriodicControlCreate(BaseModel):
@@ -46,6 +46,18 @@ class PeriodicControlResponse(PeriodicControlCreate):
     review_status: str = "unset"
 
 
+def _validate_plan_dates(plan_date: date | None, next_review_date: date | None) -> None:
+    """Saçma yılları (111111, 222222 vb.) ve tutarsız aralıkları reddet."""
+    lo, hi = date(2000, 1, 1), date(2100, 12, 31)
+    for label, value in (("Plan tarihi", plan_date), ("Gözden geçirme", next_review_date)):
+        if value is None:
+            continue
+        if value < lo or value > hi:
+            raise ValueError(f"{label} 01.01.2000 – 31.12.2100 arasında olmalı.")
+    if plan_date and next_review_date and next_review_date < plan_date:
+        raise ValueError("Gözden geçirme tarihi, plan tarihinden önce olamaz.")
+
+
 class EmergencyPlanCreate(BaseModel):
     company_id: int
     title: str = Field(min_length=2, max_length=220)
@@ -58,6 +70,11 @@ class EmergencyPlanCreate(BaseModel):
     document_id: int | None = None
     status: str = Field(default="Aktif", max_length=40)
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def _dates_ok(self):
+        _validate_plan_dates(self.plan_date, self.next_review_date)
+        return self
 
 
 class EmergencyPlanUpdate(BaseModel):
@@ -72,6 +89,13 @@ class EmergencyPlanUpdate(BaseModel):
     status: str | None = None
     notes: str | None = None
     is_active: bool | None = None
+
+    @model_validator(mode="after")
+    def _dates_ok(self):
+        # Yalnız gönderilen tarih alanlarını kontrol et; ikisi de None ise geç.
+        if self.plan_date is not None or self.next_review_date is not None:
+            _validate_plan_dates(self.plan_date, self.next_review_date)
+        return self
 
 
 class EmergencyPlanResponse(EmergencyPlanCreate):

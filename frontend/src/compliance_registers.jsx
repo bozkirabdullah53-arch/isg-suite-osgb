@@ -90,6 +90,19 @@ function dueBadge(status) {
   return <span className="status-badge badge-muted">Termin yok</span>;
 }
 
+/** ISO yyyy-mm-dd; yıl 2000–2100, takvimde gerçek gün. */
+function isSensibleBizDate(value) {
+  if (!value) return true;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split('-').map(Number);
+  if (y < 2000 || y > 2100) return false;
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+}
+
+const BIZ_DATE_MIN = '2000-01-01';
+const BIZ_DATE_MAX = '2100-12-31';
+
 function useCompanies(user) {
   const [companies, setCompanies] = useState([]);
   useEffect(() => {
@@ -276,6 +289,19 @@ export function EmergencyPlansPage({user}) {
 
   async function save(e) {
     e.preventDefault();
+    setErr('');
+    if (!isSensibleBizDate(form.plan_date)) {
+      setErr('Plan tarihi geçersiz. 2000–2100 arası gerçek bir tarih girin.');
+      return;
+    }
+    if (!isSensibleBizDate(form.next_review_date)) {
+      setErr('Gözden geçirme tarihi geçersiz. 2000–2100 arası gerçek bir tarih girin.');
+      return;
+    }
+    if (form.plan_date && form.next_review_date && form.next_review_date < form.plan_date) {
+      setErr('Gözden geçirme tarihi, plan tarihinden önce olamaz.');
+      return;
+    }
     setBusy(true);
     try {
       const created = await api('/emergency-plans', {
@@ -471,13 +497,28 @@ export function EmergencyPlansPage({user}) {
             </Field>
             <Field label="Başlık" required value={form.title} onChange={(e) => setForm({...form, title: e.target.value})} />
             <Field label="Revizyon" value={form.revision_no} onChange={(e) => setForm({...form, revision_no: e.target.value})} />
-            <Field label="Plan tarihi" type="date" value={form.plan_date} onChange={(e) => setForm({...form, plan_date: e.target.value})} />
-            <Field label="Gözden geçirme" type="date" value={form.next_review_date} onChange={(e) => setForm({...form, next_review_date: e.target.value})} />
+            <Field
+              label="Plan tarihi"
+              type="date"
+              min={BIZ_DATE_MIN}
+              max={BIZ_DATE_MAX}
+              value={form.plan_date}
+              onChange={(e) => setForm({...form, plan_date: e.target.value})}
+            />
+            <Field
+              label="Gözden geçirme"
+              type="date"
+              min={form.plan_date || BIZ_DATE_MIN}
+              max={BIZ_DATE_MAX}
+              value={form.next_review_date}
+              onChange={(e) => setForm({...form, next_review_date: e.target.value})}
+            />
             <Field label="Toplanma alanları" value={form.assembly_areas} onChange={(e) => setForm({...form, assembly_areas: e.target.value})} />
             <label className="field" style={{gridColumn: '1 / -1'}}>
               <span>Senaryo özeti</span>
               <textarea rows={4} value={form.scenario_summary} onChange={(e) => setForm({...form, scenario_summary: e.target.value})} />
             </label>
+            {err && <div className="error" style={{gridColumn: '1 / -1'}}>{err}</div>}
             <div className="form-actions" style={{gridColumn: '1 / -1'}}><button type="submit" disabled={busy}>Kaydet</button></div>
           </form>
         </Modal>
