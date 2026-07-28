@@ -45,3 +45,26 @@ def test_import_compliance_routers():
     assert compliance_registers.wm_router.prefix == "/workplace-measurements"
     assert compliance_registers.oc_router.prefix == "/ohs-committee"
     assert compliance_registers.da_router.prefix == "/document-approvals"
+
+
+def test_emergency_scene_parse_and_empty():
+    from app.api.compliance_registers import EMPTY_SCENE, _parse_scene
+
+    empty = _parse_scene(None)
+    assert empty["objects"] == []
+    assert empty["paths"] == []
+    parsed = _parse_scene(EMPTY_SCENE)
+    assert parsed["version"] == 1
+    rich = _parse_scene('{"version":1,"objects":[{"id":"a","type":"exit","x":1,"y":2}],"paths":[]}')
+    assert len(rich["objects"]) == 1
+    assert rich["objects"][0]["type"] == "exit"
+
+
+def test_kroki_symbol_catalog_meta():
+    from app.api.compliance_registers import ep_meta
+    from types import SimpleNamespace
+
+    meta = ep_meta(user=SimpleNamespace())
+    assert meta["engine"] == "emergency-kroki-v1"
+    assert "exit" in meta["symbols"]
+    assert "extinguisher" in meta["symbols"]

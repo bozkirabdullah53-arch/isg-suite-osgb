@@ -78,11 +78,45 @@ class EmergencyPlanResponse(EmergencyPlanCreate):
     model_config = ConfigDict(from_attributes=True)
     id: int
     kroki_storage_path: str | None = None
+    locked_at: datetime | None = None
     is_active: bool
     created_by_id: int
     created_at: datetime
     updated_at: datetime
     review_status: str = "unset"
+    floor_count: int = 0
+    has_scene: bool = False
+
+
+class EmergencyFloorCreate(BaseModel):
+    name: str = Field(default="Zemin", min_length=1, max_length=120)
+    sort_order: int | None = None
+    width: int = Field(default=1600, ge=400, le=8000)
+    height: int = Field(default=1000, ge=400, le=8000)
+
+
+class EmergencyFloorUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    sort_order: int | None = None
+    width: int | None = Field(default=None, ge=400, le=8000)
+    height: int | None = Field(default=None, ge=400, le=8000)
+    scene_json: str | None = None
+
+
+class EmergencyFloorResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    plan_id: int
+    company_id: int
+    name: str
+    sort_order: int
+    background_file_name: str | None = None
+    background_storage_path: str | None = None
+    scene_json: str | None = None
+    width: int
+    height: int
+    created_at: datetime
+    updated_at: datetime
 
 
 class MeasurementCreate(BaseModel):

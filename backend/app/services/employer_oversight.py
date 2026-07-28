@@ -11,6 +11,7 @@ from app.models.entities import (
     AnnualPlanItem,
     Company,
     EmergencyPlan,
+    EmergencyPlanFloor,
     EyasStep,
     EyasWorkflow,
     HealthRecord,
@@ -106,14 +107,37 @@ def build_employer_oversight(db: Session, company: Company, viewer: User | None 
         or 0
     )
 
-    emergency_n = (
-        db.scalar(
-            select(func.count())
-            .select_from(EmergencyPlan)
-            .where(EmergencyPlan.company_id == cid, EmergencyPlan.is_active.is_(True))
-        )
-        or 0
+    emergency_plans = list(
+        db.scalars(
+            select(EmergencyPlan).where(
+                EmergencyPlan.company_id == cid, EmergencyPlan.is_active.is_(True)
+            )
+        ).all()
     )
+    emergency_n = len(emergency_plans)
+    emergency_with_kroki = 0
+    emergency_locked = 0
+    for ep in emergency_plans:
+        if getattr(ep, "locked_at", None):
+            emergency_locked += 1
+        if ep.kroki_storage_path:
+            emergency_with_kroki += 1
+            continue
+        scene_n = (
+            db.scalar(
+                select(func.count())
+                .select_from(EmergencyPlanFloor)
+                .where(
+                    EmergencyPlanFloor.plan_id == ep.id,
+                    EmergencyPlanFloor.scene_json.is_not(None),
+                    EmergencyPlanFloor.scene_json != "",
+                    EmergencyPlanFloor.scene_json != '{"version":1,"objects":[],"paths":[]}',
+                )
+            )
+            or 0
+        )
+        if scene_n:
+            emergency_with_kroki += 1
     ppe_n = (
         db.scalar(select(func.count()).select_from(PpeAssignment).where(PpeAssignment.company_id == cid))
         or 0
@@ -178,11 +202,16 @@ def build_employer_oversight(db: Session, company: Company, viewer: User | None 
         },
         {
             "kind": "emergency",
-            "label": "Acil durum planı",
-            "done": emergency_n,
-            "open": 0 if emergency_n else 1,
-            "status": "done" if emergency_n else "missing",
+            "label": "Acil durum planı / kroki",
+            "done": emergency_with_kroki,
+            "open": max(0, emergency_n - emergency_with_kroki) + (0 if emergency_n else 1),
+            "status": (
+                "done"
+                if emergency_n and emergency_with_kroki == emergency_n
+                else ("open" if emergency_n else "missing")
+            ),
             "count": emergency_n,
+            "locked": emergency_locked,
         },
         {
             "kind": "ppe",

@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {ClipboardCheck, Download, FileWarning, Plus, RefreshCw, Upload, Users} from 'lucide-react';
+import {ClipboardCheck, Download, FileWarning, Map, Plus, RefreshCw, Upload, Users} from 'lucide-react';
 import {
   downloadBase64Pdf,
   probeIsgSigner,
@@ -9,6 +9,7 @@ import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
 import {ESignCenterPage} from './esign_center';
 import {EyasDigitalApprovalPage} from './eyas_digital_approval';
+import {EmergencyKrokiEditor} from './emergency_kroki_editor';
 
 /** Belge Onay hub: varsayılan = Eyas (Uzman→Hekim→İşveren). Eski süreç ayrı sekmede. */
 export function BelgeOnayHub({user}) {
@@ -249,6 +250,7 @@ export function EmergencyPlansPage({user}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [editPlanId, setEditPlanId] = useState(null);
   const [form, setForm] = useState({
     company_id: user.company_id || '',
     title: 'Acil Durum Planı',
@@ -276,7 +278,7 @@ export function EmergencyPlansPage({user}) {
     e.preventDefault();
     setBusy(true);
     try {
-      await api('/emergency-plans', {
+      const created = await api('/emergency-plans', {
         method: 'POST',
         body: JSON.stringify({
           ...form,
@@ -287,6 +289,7 @@ export function EmergencyPlansPage({user}) {
       });
       setOpen(false);
       await load();
+      if (created?.id) setEditPlanId(created.id);
     } catch (x) {
       setErr(x.message);
     } finally {
@@ -307,6 +310,23 @@ export function EmergencyPlansPage({user}) {
     }
   }
 
+  if (editPlanId) {
+    return (
+      <>
+        <div className="page-title">
+          <h3><Map size={20} style={{marginRight: 8, verticalAlign: 'middle'}} />Acil Durum Kroki Studio</h3>
+        </div>
+        <section className="panel" style={{borderTop: '3px solid #0f766e'}}>
+          <EmergencyKrokiEditor
+            planId={editPlanId}
+            user={user}
+            onClose={() => { setEditPlanId(null); void load(); }}
+          />
+        </section>
+      </>
+    );
+  }
+
   return (
     <>
       <div className="page-title">
@@ -318,35 +338,102 @@ export function EmergencyPlansPage({user}) {
         </div>
       </div>
       <section className="panel">
-        <p style={{margin: '0 0 12px', color: '#475569', fontSize: 14}}>
-          Onaylı acil durum planı, revizyon ve kroki. Mevcut <strong>Acil Ekipler</strong> ve <strong>Tatbikat</strong> kayıtlarıyla birlikte kullanılır; onları değiştirmez.
-        </p>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,1.4fr) minmax(220px,0.8fr)',
+          gap: 16,
+          marginBottom: 18,
+          padding: '16px 18px',
+          borderRadius: 14,
+          border: '1px solid #d1e7e3',
+          background: 'linear-gradient(135deg, #f0fdfa 0%, #f8fafc 55%, #fff 100%)',
+        }}>
+          <div>
+            <div style={{fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase', color: '#0f766e', fontWeight: 700, marginBottom: 6}}>
+              İşyeri krokisi · profesyonel modül
+            </div>
+            <div style={{fontSize: 18, fontWeight: 760, color: '#0f172a', marginBottom: 6}}>
+              Acil Durum Kroki Studio
+            </div>
+            <p style={{margin: 0, color: '#475569', fontSize: 14, lineHeight: 1.55, maxWidth: 640}}>
+              Kat planı üzerine acil çıkış, toplanma alanı, yangın söndürücü ve ilk yardım noktalarını yerleştirin;
+              duvara asılabilir poster üretin. <strong>Acil Ekipler</strong> lejantta, onay için Eyas kaynağı otomatik bağlanır.
+            </p>
+          </div>
+          <div style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8, fontSize: 13, color: '#334155'}}>
+            <div><strong>1.</strong> Plan kaydı oluşturun veya seçin</div>
+            <div><strong>2.</strong> <em>Kroki Studio</em> ile katları çizin</div>
+            <div><strong>3.</strong> PNG poster alın · kilitleyin · onaya gönderin</div>
+          </div>
+        </div>
         {err && <div className="error">{err}</div>}
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Başlık</th><th>Rev</th><th>Plan</th><th>Gözden geçirme</th><th>Toplanma</th><th>Kroki</th><th>Durum</th><th></th></tr>
+              <tr>
+                <th>Plan</th>
+                <th>Rev</th>
+                <th>Tarihler</th>
+                <th>Toplanma</th>
+                <th>Kroki durumu</th>
+                <th>Durum</th>
+                <th style={{minWidth: 220}}>İşlem</th>
+              </tr>
             </thead>
             <tbody>
-              {rows.length ? rows.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.title}</td>
-                  <td>{r.revision_no}</td>
-                  <td>{r.plan_date || '—'}</td>
-                  <td>{r.next_review_date || '—'} {dueBadge(r.review_status)}</td>
-                  <td>{r.assembly_areas || '—'}</td>
-                  <td>{r.kroki_file_name || '—'}</td>
-                  <td>{r.status}</td>
-                  <td>
-                    {canEdit && (
-                      <label className="button secondary mini" style={{cursor: 'pointer'}}>
-                        <Upload size={14} /> Kroki
-                        <input type="file" hidden accept=".png,.jpg,.jpeg,.pdf,.webp" onChange={(e) => { uploadKroki(r, e.target.files?.[0]); e.target.value = ''; }} />
-                      </label>
-                    )}
+              {rows.length ? rows.map((r) => {
+                const krokiReady = !!(r.has_scene || r.kroki_file_name);
+                return (
+                  <tr key={r.id}>
+                    <td>
+                      <div style={{fontWeight: 650}}>{r.title}</div>
+                      <div style={{fontSize: 12, color: '#64748b'}}>{r.floor_count ?? 0} kat</div>
+                    </td>
+                    <td>{r.revision_no}</td>
+                    <td style={{fontSize: 13}}>
+                      <div>Plan: {r.plan_date || '—'}</div>
+                      <div>Gözden geçirme: {r.next_review_date || '—'} {dueBadge(r.review_status)}</div>
+                    </td>
+                    <td>{r.assembly_areas || '—'}</td>
+                    <td>
+                      <div style={{display: 'flex', flexWrap: 'wrap', gap: 6}}>
+                        <span className={`badge ${krokiReady ? 'ok' : 'off'}`}>
+                          {krokiReady ? 'Kroki hazır' : 'Kroki yok'}
+                        </span>
+                        {r.locked_at && <span className="badge off">Kilitli</span>}
+                        {r.kroki_file_name && (
+                          <span style={{fontSize: 12, color: '#64748b'}} title={r.kroki_file_name}>Poster dosyası</span>
+                        )}
+                      </div>
+                    </td>
+                    <td>{r.status}</td>
+                    <td>
+                      <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
+                        <button
+                          type="button"
+                          className="mini"
+                          onClick={() => setEditPlanId(r.id)}
+                          style={{display: 'inline-flex', alignItems: 'center', gap: 6}}
+                        >
+                          <Map size={14} /> Kroki Studio
+                        </button>
+                        {canEdit && (
+                          <label className="button secondary mini" style={{cursor: 'pointer'}} title="Hazır PNG/PDF yükle (opsiyonel)">
+                            <Upload size={14} /> Dosya yükle
+                            <input type="file" hidden accept=".png,.jpg,.jpeg,.pdf,.webp" onChange={(e) => { uploadKroki(r, e.target.files?.[0]); e.target.value = ''; }} />
+                          </label>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }) : (
+                <tr>
+                  <td colSpan={7} className="empty">
+                    Henüz plan yok. Yeni Plan ile kaydı oluşturun; ardından <strong>Kroki Studio</strong> açılır.
                   </td>
                 </tr>
-              )) : <tr><td colSpan={8} className="empty">Plan kaydı yok.</td></tr>}
+              )}
             </tbody>
           </table>
         </div>

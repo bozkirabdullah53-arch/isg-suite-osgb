@@ -5,6 +5,7 @@ backups_qa/
 *.db
 *.sqlite3
 .pytest_cache/
+.tmp-kroki-v2/
 __pycache__/
 *.py[cod]
 .venv/
@@ -27,3 +28,6 @@ backend/.seed-run-out.txt
 backend/_*_test.pdf
 backend/scripts/audit_results.json
 backend/scripts/demo_testers.json
+backend/scripts/demo_matrix_testers.json
+backend/scripts/demo_matrix_mfa.json
+backend/scripts/demo_matrix_provision_run.txt

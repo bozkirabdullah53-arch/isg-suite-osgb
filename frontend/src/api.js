@@ -7,7 +7,7 @@ const isLocalHost =
   (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
 /** Canlıda same-origin /api/v1 (Render rewrite → API). Cross-origin CORS kırılmalarını önler. */
-const API_URL =
+export const API_URL =
   import.meta.env.VITE_API_URL ||
   (isLocalHost
     ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`

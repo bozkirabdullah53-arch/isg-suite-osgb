@@ -1570,10 +1570,33 @@ class EmergencyPlan(Base):
     document_id: Mapped[int | None] = mapped_column(ForeignKey("document_records.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(40), default="Aktif")
     notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    floors: Mapped[list["EmergencyPlanFloor"]] = relationship(
+        back_populates="plan", cascade="all, delete-orphan", order_by="EmergencyPlanFloor.sort_order"
+    )
+
+
+class EmergencyPlanFloor(Base):
+    """Acil durum krokisi — kat / sahne (JSON)."""
+
+    __tablename__ = "emergency_plan_floors"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("emergency_plans.id"), index=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120), default="Zemin")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    background_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    background_storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    scene_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    width: Mapped[int] = mapped_column(Integer, default=1600)
+    height: Mapped[int] = mapped_column(Integer, default=1000)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    plan: Mapped["EmergencyPlan"] = relationship(back_populates="floors")
 
 
 class WorkplaceMeasurement(Base):

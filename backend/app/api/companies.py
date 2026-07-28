@@ -24,6 +24,8 @@ from app.models.entities import (
     DrillRecord,
     EisaArchiveRecord,
     EisaErrorReport,
+    EmergencyPlan,
+    EmergencyPlanFloor,
     EmergencyTeam,
     EmergencyTeamAssignment,
     EmergencyTeamTraining,
@@ -131,6 +133,8 @@ def _purge_company_data(db: Session, company_id: int) -> None:
             EmergencyTeamType.is_system.is_(False),
         )
     )
+    db.execute(delete(EmergencyPlanFloor).where(EmergencyPlanFloor.company_id == company_id))
+    db.execute(delete(EmergencyPlan).where(EmergencyPlan.company_id == company_id))
     db.execute(delete(SiteQrSession).where(SiteQrSession.company_id == company_id))
 
     # Tatbikat

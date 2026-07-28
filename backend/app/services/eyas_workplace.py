@@ -13,6 +13,7 @@ from app.models.entities import (
     Company,
     DocumentRecord,
     EmergencyPlan,
+    EmergencyPlanFloor,
     HealthRecord,
     IsgProfessional,
     PpeAssignment,
@@ -189,14 +190,42 @@ def list_approval_documents(db: Session, company_id: int) -> dict[str, Any]:
         )
     else:
         for p in plans:
-            ready = bool(p.kroki_storage_path or p.document_id or p.scenario_summary)
+            floor_n = (
+                db.scalar(
+                    select(func.count())
+                    .select_from(EmergencyPlanFloor)
+                    .where(EmergencyPlanFloor.plan_id == p.id)
+                )
+                or 0
+            )
+            scene_n = (
+                db.scalar(
+                    select(func.count())
+                    .select_from(EmergencyPlanFloor)
+                    .where(
+                        EmergencyPlanFloor.plan_id == p.id,
+                        EmergencyPlanFloor.scene_json.is_not(None),
+                        EmergencyPlanFloor.scene_json != "",
+                        EmergencyPlanFloor.scene_json != '{"version":1,"objects":[],"paths":[]}',
+                    )
+                )
+                or 0
+            )
+            has_kroki = bool(p.kroki_storage_path) or scene_n > 0
+            locked = bool(getattr(p, "locked_at", None))
+            if has_kroki and (locked or p.document_id):
+                readiness, detail = "ready", "Kroki hazır" + (" (kilitli)" if locked else "")
+            elif has_kroki or p.scenario_summary or floor_n:
+                readiness, detail = "partial", "Kroki/plan var; kilit veya onay eksik olabilir"
+            else:
+                readiness, detail = "partial", "Plan kaydı eksik içerik"
             items.append(
                 _item(
                     kind="emergency",
                     source_key=f"emergency:{p.id}",
                     title=f"{p.title} (Rev {p.revision_no})",
-                    readiness="ready" if ready else "partial",
-                    readiness_detail="Plan içeriği mevcut" if ready else "Plan kaydı eksik içerik",
+                    readiness=readiness,
+                    readiness_detail=detail,
                     source_id=p.id,
                     document_record_id=p.document_id,
                 )

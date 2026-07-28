@@ -214,7 +214,7 @@ const menuCatalog={
   sds:['SDS / PKD',Beaker],
   tatbikat:['Tatbikat Yönetimi',Activity],
   acil_ekipler:['Acil Durum Ekipleri/Destek Elemanları',Users],
-  acil_plan:['Acil Durum Planı',ShieldAlert],
+  acil_plan:['Acil Durum Planı / Kroki',ShieldAlert],
   periyodik_kontrol:['Periyodik Kontrol',ClipboardCheck],
   ortam_olcum:['Ortam Ölçüm',Gauge],
   isg_kurulu:['İSG Kurulu',Users],

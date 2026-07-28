@@ -1,16 +1,17 @@
 """6331 uyum sicilleri API — periyodik kontrol, acil plan, ortam ölçüm, İSG kurulu, belge onay."""
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.company_access import company_ids_for_query, ensure_company_access
@@ -20,6 +21,9 @@ from app.core.database import get_db
 from app.models.entities import (
     DocumentApproval,
     EmergencyPlan,
+    EmergencyPlanFloor,
+    EmergencyTeam,
+    EmergencyTeamAssignment,
     OhsCommitteeMeeting,
     OhsCommitteeMember,
     PeriodicControl,
@@ -34,6 +38,9 @@ from app.schemas.compliance import (
     CommitteeMemberResponse,
     DocumentApprovalCreate,
     DocumentApprovalResponse,
+    EmergencyFloorCreate,
+    EmergencyFloorResponse,
+    EmergencyFloorUpdate,
     EmergencyPlanCreate,
     EmergencyPlanResponse,
     EmergencyPlanUpdate,
@@ -46,6 +53,8 @@ from app.schemas.compliance import (
 )
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
+
+EMPTY_SCENE = '{"version":1,"objects":[],"paths":[]}'
 
 EDIT = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST)
 VIEW = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST, UserRole.WORKPLACE_PHYSICIAN)
@@ -227,9 +236,83 @@ def update_pc(
 ep_router = APIRouter(prefix="/emergency-plans", tags=["Acil Durum Planı"])
 
 
+def _upload_root() -> Path:
+    return Path(settings.upload_dir).resolve()
+
+
+def _safe_upload_path(rel: str) -> Path:
+    root = _upload_root()
+    path = (root / rel.replace("\\", "/")).resolve()
+    if not str(path).startswith(str(root)):
+        raise HTTPException(400, "Geçersiz dosya yolu.")
+    return path
+
+
+def _ep_enrich(db: Session, row: EmergencyPlan) -> EmergencyPlanResponse:
+    item = EmergencyPlanResponse.model_validate(row)
+    item.review_status = _due_status(row.next_review_date)
+    floors = list(
+        db.scalars(
+            select(EmergencyPlanFloor).where(EmergencyPlanFloor.plan_id == row.id)
+        ).all()
+    )
+    item.floor_count = len(floors)
+    item.has_scene = any(
+        (f.scene_json and f.scene_json not in ("", EMPTY_SCENE)) or f.background_storage_path
+        for f in floors
+    ) or bool(row.kroki_storage_path)
+    return item
+
+
+def _get_plan(db: Session, item_id: int, user: User) -> EmergencyPlan:
+    row = db.get(EmergencyPlan, item_id)
+    if not row or not row.is_active:
+        raise HTTPException(404, "Plan bulunamadı.")
+    ensure_company_access(db, user, row.company_id)
+    return row
+
+
+def _get_floor(db: Session, plan_id: int, floor_id: int, user: User) -> tuple[EmergencyPlan, EmergencyPlanFloor]:
+    plan = _get_plan(db, plan_id, user)
+    fl = db.get(EmergencyPlanFloor, floor_id)
+    if not fl or fl.plan_id != plan.id:
+        raise HTTPException(404, "Kat bulunamadı.")
+    return plan, fl
+
+
+def _parse_scene(raw: str | None) -> dict:
+    if not raw:
+        return {"version": 1, "objects": [], "paths": []}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(400, f"Geçersiz scene_json: {exc}") from exc
+    if not isinstance(data, dict):
+        raise HTTPException(400, "scene_json nesne olmalı.")
+    objs = data.get("objects")
+    paths = data.get("paths")
+    if objs is not None and not isinstance(objs, list):
+        raise HTTPException(400, "objects liste olmalı.")
+    if paths is not None and not isinstance(paths, list):
+        raise HTTPException(400, "paths liste olmalı.")
+    if objs is not None and len(objs) > 2000:
+        raise HTTPException(400, "En fazla 2000 nesne.")
+    data.setdefault("version", 1)
+    data.setdefault("objects", objs or [])
+    data.setdefault("paths", paths or [])
+    return data
+
+
 @ep_router.get("/meta")
 def ep_meta(user: User = Depends(get_current_user)):
-    return {"engine": "emergency-plan-v1", "note": "Ekipler ve tatbikat modülleriyle birlikte kullanılır."}
+    return {
+        "engine": "emergency-kroki-v1",
+        "note": "Kat bazlı kroki editörü; ekipler ve tatbikat ile birlikte.",
+        "symbols": [
+            "exit", "stairs", "assembly", "extinguisher", "hose", "alarm",
+            "firstaid", "aed", "electric", "youarehere", "route", "text", "north",
+        ],
+    }
 
 
 @ep_router.get("", response_model=list[EmergencyPlanResponse])
@@ -248,12 +331,7 @@ def list_ep(
     if q:
         like = f"%{q.strip()}%"
         stmt = stmt.where(or_(EmergencyPlan.title.ilike(like), EmergencyPlan.assembly_areas.ilike(like)))
-    out = []
-    for r in db.scalars(stmt.limit(500)).all():
-        item = EmergencyPlanResponse.model_validate(r)
-        item.review_status = _due_status(r.next_review_date)
-        out.append(item)
-    return out
+    return [_ep_enrich(db, r) for r in db.scalars(stmt.limit(500)).all()]
 
 
 @ep_router.post("", response_model=EmergencyPlanResponse)
@@ -265,11 +343,45 @@ def create_ep(
     ensure_company_access(db, user, payload.company_id)
     row = EmergencyPlan(**payload.model_dump(), created_by_id=user.id)
     db.add(row)
+    db.flush()
+    db.add(
+        EmergencyPlanFloor(
+            plan_id=row.id,
+            company_id=row.company_id,
+            name="Zemin",
+            sort_order=0,
+            scene_json=EMPTY_SCENE,
+            width=1600,
+            height=1000,
+        )
+    )
     db.commit()
     db.refresh(row)
-    resp = EmergencyPlanResponse.model_validate(row)
-    resp.review_status = _due_status(row.next_review_date)
-    return resp
+    return _ep_enrich(db, row)
+
+
+@ep_router.get("/export.xlsx")
+def export_ep(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW)),
+):
+    rows = list_ep(company_id=company_id, q=None, db=db, user=user)
+    data = [["Başlık", "Rev", "Plan Tarihi", "Gözden Geçirme", "Toplanma Alanları", "Kroki", "Kat", "Durum", "Özet"]]
+    for r in rows:
+        data.append([
+            r.title,
+            r.revision_no,
+            r.plan_date.isoformat() if r.plan_date else "",
+            r.next_review_date.isoformat() if r.next_review_date else "",
+            r.assembly_areas or "",
+            r.kroki_file_name or "",
+            r.floor_count,
+            r.status,
+            (r.scenario_summary or "")[:200],
+        ])
+    stamp = datetime.now().strftime("%Y%m%d")
+    return _xlsx(data, "Acil Plan", f"acil-durum-plani-{stamp}.xlsx")
 
 
 @ep_router.patch("/{item_id}", response_model=EmergencyPlanResponse)
@@ -279,18 +391,43 @@ def update_ep(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
-    row = db.get(EmergencyPlan, item_id)
-    if not row:
-        raise HTTPException(404, "Plan bulunamadı.")
-    ensure_company_access(db, user, row.company_id)
+    row = _get_plan(db, item_id, user)
+    if row.locked_at:
+        raise HTTPException(409, "Plan kilitli; kroki düzenlenemez.")
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(row, k, v)
     row.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(row)
-    resp = EmergencyPlanResponse.model_validate(row)
-    resp.review_status = _due_status(row.next_review_date)
-    return resp
+    return _ep_enrich(db, row)
+
+
+@ep_router.post("/{item_id}/lock", response_model=EmergencyPlanResponse)
+def lock_ep(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT)),
+):
+    row = _get_plan(db, item_id, user)
+    row.locked_at = datetime.utcnow()
+    row.updated_at = row.locked_at
+    db.commit()
+    db.refresh(row)
+    return _ep_enrich(db, row)
+
+
+@ep_router.post("/{item_id}/unlock", response_model=EmergencyPlanResponse)
+def unlock_ep(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT)),
+):
+    row = _get_plan(db, item_id, user)
+    row.locked_at = None
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return _ep_enrich(db, row)
 
 
 @ep_router.post("/{item_id}/kroki", response_model=EmergencyPlanResponse)
@@ -300,10 +437,7 @@ async def upload_kroki(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
-    row = db.get(EmergencyPlan, item_id)
-    if not row:
-        raise HTTPException(404, "Plan bulunamadı.")
-    ensure_company_access(db, user, row.company_id)
+    row = _get_plan(db, item_id, user)
     name = file.filename or "kroki.png"
     data = await file.read()
     if len(data) > 8_000_000:
@@ -322,32 +456,243 @@ async def upload_kroki(
     row.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(row)
-    resp = EmergencyPlanResponse.model_validate(row)
-    resp.review_status = _due_status(row.next_review_date)
-    return resp
+    return _ep_enrich(db, row)
 
 
-@ep_router.get("/export.xlsx")
-def export_ep(
-    company_id: int | None = None,
+@ep_router.get("/{item_id}/floors", response_model=list[EmergencyFloorResponse])
+def list_floors(
+    item_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*VIEW)),
 ):
-    rows = list_ep(company_id=company_id, q=None, db=db, user=user)
-    data = [["Başlık", "Rev", "Plan Tarihi", "Gözden Geçirme", "Toplanma Alanları", "Kroki", "Durum", "Özet"]]
-    for r in rows:
-        data.append([
-            r.title,
-            r.revision_no,
-            r.plan_date.isoformat() if r.plan_date else "",
-            r.next_review_date.isoformat() if r.next_review_date else "",
-            r.assembly_areas or "",
-            r.kroki_file_name or "",
-            r.status,
-            (r.scenario_summary or "")[:200],
-        ])
-    stamp = datetime.now().strftime("%Y%m%d")
-    return _xlsx(data, "Acil Plan", f"acil-durum-plani-{stamp}.xlsx")
+    plan = _get_plan(db, item_id, user)
+    rows = list(
+        db.scalars(
+            select(EmergencyPlanFloor)
+            .where(EmergencyPlanFloor.plan_id == plan.id)
+            .order_by(EmergencyPlanFloor.sort_order, EmergencyPlanFloor.id)
+        ).all()
+    )
+    return [EmergencyFloorResponse.model_validate(r) for r in rows]
+
+
+@ep_router.post("/{item_id}/floors", response_model=EmergencyFloorResponse)
+def create_floor(
+    item_id: int,
+    payload: EmergencyFloorCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT)),
+):
+    plan = _get_plan(db, item_id, user)
+    if plan.locked_at:
+        raise HTTPException(409, "Plan kilitli.")
+    max_ord = db.scalar(
+        select(func.max(EmergencyPlanFloor.sort_order)).where(EmergencyPlanFloor.plan_id == plan.id)
+    )
+    sort_order = payload.sort_order if payload.sort_order is not None else (max_ord or 0) + 1
+    fl = EmergencyPlanFloor(
+        plan_id=plan.id,
+        company_id=plan.company_id,
+        name=payload.name.strip() or "Kat",
+        sort_order=sort_order,
+        scene_json=EMPTY_SCENE,
+        width=payload.width,
+        height=payload.height,
+    )
+    db.add(fl)
+    plan.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(fl)
+    return EmergencyFloorResponse.model_validate(fl)
+
+
+@ep_router.patch("/{item_id}/floors/{floor_id}", response_model=EmergencyFloorResponse)
+def update_floor(
+    item_id: int,
+    floor_id: int,
+    payload: EmergencyFloorUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT)),
+):
+    plan, fl = _get_floor(db, item_id, floor_id, user)
+    if plan.locked_at:
+        raise HTTPException(409, "Plan kilitli.")
+    data = payload.model_dump(exclude_unset=True)
+    if "scene_json" in data and data["scene_json"] is not None:
+        parsed = _parse_scene(data["scene_json"])
+        data["scene_json"] = json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
+    for k, v in data.items():
+        setattr(fl, k, v)
+    fl.updated_at = datetime.utcnow()
+    plan.updated_at = fl.updated_at
+    db.commit()
+    db.refresh(fl)
+    return EmergencyFloorResponse.model_validate(fl)
+
+
+@ep_router.delete("/{item_id}/floors/{floor_id}")
+def delete_floor(
+    item_id: int,
+    floor_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT)),
+):
+    plan, fl = _get_floor(db, item_id, floor_id, user)
+    if plan.locked_at:
+        raise HTTPException(409, "Plan kilitli.")
+    n = db.scalar(
+        select(func.count()).select_from(EmergencyPlanFloor).where(EmergencyPlanFloor.plan_id == plan.id)
+    ) or 0
+    if n <= 1:
+        raise HTTPException(409, "Son kat silinemez.")
+    db.delete(fl)
+    plan.updated_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True}
+
+
+@ep_router.post("/{item_id}/floors/{floor_id}/background", response_model=EmergencyFloorResponse)
+async def upload_floor_background(
+    item_id: int,
+    floor_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT)),
+):
+    plan, fl = _get_floor(db, item_id, floor_id, user)
+    if plan.locked_at:
+        raise HTTPException(409, "Plan kilitli.")
+    name = file.filename or "plan.png"
+    data = await file.read()
+    if len(data) > 8_000_000:
+        raise HTTPException(413, "Görsel 8 MB sınırını aşıyor.")
+    ext = Path(name).suffix.lower() or ".png"
+    if ext not in (".png", ".jpg", ".jpeg", ".webp"):
+        raise HTTPException(400, "Yalnızca PNG/JPG/WEBP.")
+    assert_safe_upload(data, ext, name)
+    rel = f"{plan.company_id}/emergency-plans/{plan.id}/floor_{fl.id}_{uuid4().hex[:8]}{ext}"
+    if settings.upload_gateway_enabled:
+        persist_relative(data, relative_path=rel, original_name=name)
+    else:
+        target = Path(settings.upload_dir) / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+    fl.background_file_name = name
+    fl.background_storage_path = rel.replace("\\", "/")
+    fl.updated_at = datetime.utcnow()
+    plan.updated_at = fl.updated_at
+    db.commit()
+    db.refresh(fl)
+    return EmergencyFloorResponse.model_validate(fl)
+
+
+@ep_router.get("/{item_id}/floors/{floor_id}/background")
+def get_floor_background(
+    item_id: int,
+    floor_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW)),
+):
+    _plan, fl = _get_floor(db, item_id, floor_id, user)
+    if not fl.background_storage_path:
+        raise HTTPException(404, "Arka plan yok.")
+    path = _safe_upload_path(fl.background_storage_path)
+    if not path.is_file():
+        raise HTTPException(404, "Dosya bulunamadı.")
+    return FileResponse(
+        path,
+        filename=fl.background_file_name or path.name,
+        media_type="image/png",
+    )
+
+
+@ep_router.post("/{item_id}/export-poster", response_model=EmergencyPlanResponse)
+async def export_poster(
+    item_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT)),
+):
+    """Editörden üretilen PNG/PDF posteri — kroki_* alanına yazar."""
+    return await upload_kroki(item_id=item_id, file=file, db=db, user=user)
+
+
+@ep_router.get("/{item_id}/legend")
+def plan_legend(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW)),
+):
+    """Sembol sayıları + acil ekipler özeti (lejant)."""
+    plan = _get_plan(db, item_id, user)
+    floors = list(
+        db.scalars(
+            select(EmergencyPlanFloor)
+            .where(EmergencyPlanFloor.plan_id == plan.id)
+            .order_by(EmergencyPlanFloor.sort_order)
+        ).all()
+    )
+    symbol_counts: dict[str, int] = {}
+    checks = {"exit": 0, "assembly": 0, "extinguisher": 0}
+    for fl in floors:
+        scene = _parse_scene(fl.scene_json)
+        for obj in scene.get("objects") or []:
+            t = str((obj or {}).get("type") or "")
+            if not t:
+                continue
+            symbol_counts[t] = symbol_counts.get(t, 0) + 1
+            if t in checks:
+                checks[t] += 1
+    teams = list(
+        db.scalars(
+            select(EmergencyTeam)
+            .where(EmergencyTeam.company_id == plan.company_id, EmergencyTeam.is_active.is_(True))
+            .order_by(EmergencyTeam.id)
+            .limit(40)
+        ).all()
+    )
+    team_out = []
+    for t in teams:
+        assigns = list(
+            db.scalars(
+                select(EmergencyTeamAssignment)
+                .where(
+                    EmergencyTeamAssignment.team_id == t.id,
+                    EmergencyTeamAssignment.is_active.is_(True),
+                )
+                .limit(20)
+            ).all()
+        )
+        members = []
+        for a in assigns:
+            emp = getattr(a, "employee", None)
+            members.append(
+                {
+                    "name": (emp.full_name if emp else None) or "—",
+                    "role": a.role_title or ("Lider" if a.is_leader else a.membership),
+                    "phone": a.phone or None,
+                }
+            )
+        team_out.append({"id": t.id, "name": t.name, "members": members})
+    missing = []
+    if checks["exit"] < 1:
+        missing.append("En az bir acil çıkış gerekli")
+    if checks["assembly"] < 1:
+        missing.append("Toplanma alanı gerekli")
+    if checks["extinguisher"] < 1:
+        missing.append("Yangın söndürücü önerilir")
+    return {
+        "plan_id": plan.id,
+        "title": plan.title,
+        "revision_no": plan.revision_no,
+        "locked": bool(plan.locked_at),
+        "eyas_source_key": f"emergency:{plan.id}",
+        "symbol_counts": symbol_counts,
+        "checks": checks,
+        "missing": missing,
+        "teams": team_out,
+        "floors": [{"id": f.id, "name": f.name, "sort_order": f.sort_order} for f in floors],
+    }
 
 
 # ─── Ortam ölçüm ───────────────────────────────────────────────────
