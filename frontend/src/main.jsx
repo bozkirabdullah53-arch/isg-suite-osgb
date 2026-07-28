@@ -217,7 +217,7 @@ const menuCatalog={
   ortam_olcum:['Ortam Ölçüm',Gauge],
   isg_kurulu:['İSG Kurulu',Users],
   belge_onay:['Belge Onay',FileText],
-  eyas_inbox:['Dijital Onay Kutum',FileText],
+  eyas_inbox:['Onay Kutum (Hekim/İşveren)',FileText],
   training:['Eğitimler',GraduationCap],
   health:['Sağlık',HeartPulse],
   documents:['Dokümanlar',FileText],
