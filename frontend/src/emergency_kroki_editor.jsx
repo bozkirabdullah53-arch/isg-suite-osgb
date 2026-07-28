@@ -1,40 +1,28 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
-  ArrowLeft, Download, Lock, Plus, RefreshCw, Save, Trash2, Unlock, Upload,
+  ArrowLeft, BookOpen, Download, Lock, Map, Plus, RefreshCw, Save, Trash2, Unlock, Upload,
 } from 'lucide-react';
 import {API_URL, api, uploadFile} from './api';
 import {
-  KROKI_SYMBOLS, SYMBOL_BY_TYPE, SYMBOL_GROUPS, createSymbolObject,
-  emptyScene, parseScene,
+  KROKI_SYMBOLS, SYMBOL_BY_TYPE, SYMBOL_GROUPS, EXTINGUISHER_SUBTYPES, ROOM_PRESETS,
+  createSymbolObject, emptyScene, parseScene, hitTestObject,
 } from './kroki/symbols';
+import {SceneSymbol, SymbolGlyph} from './kroki/glyphs';
+import {MEVZUAT_BLOCKS, SYMBOL_LEGAL_HINT} from './kroki/mevzuat';
 
 function cloneScene(s) {
   return JSON.parse(JSON.stringify(s));
 }
 
-function SymbolGlyph({type, size = 28}) {
-  const meta = SYMBOL_BY_TYPE[type] || {emoji: '•', color: '#64748b'};
-  return (
-    <span
-      style={{
-        width: size, height: size, borderRadius: 8, display: 'inline-grid', placeItems: 'center',
-        background: meta.color, color: '#fff', fontSize: size * 0.45, fontWeight: 800,
-      }}
-      title={meta.label}
-    >
-      {meta.emoji}
-    </span>
-  );
-}
-
-/** Kat bazlı acil durum kroki editörü (SVG, hafif). */
+/** Kat bazlı acil durum kroki editörü — TR işaret + foto üzerine yerleştirme. */
 export function EmergencyKrokiEditor({planId, user, onClose}) {
-  const canEdit = ['safety_specialist', 'global_admin'].includes(user?.role) ;
+  const canEdit = ['safety_specialist', 'global_admin'].includes(user?.role);
   const [plan, setPlan] = useState(null);
   const [floors, setFloors] = useState([]);
   const [floorId, setFloorId] = useState(null);
   const [scene, setScene] = useState(emptyScene());
   const [tool, setTool] = useState('select');
+  const [extSubtype, setExtSubtype] = useState('abc');
   const [selectedId, setSelectedId] = useState(null);
   const [pan, setPan] = useState({x: 40, y: 40});
   const [zoom, setZoom] = useState(0.7);
@@ -43,13 +31,15 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
   const [dirty, setDirty] = useState(false);
   const [legend, setLegend] = useState(null);
   const [bgUrl, setBgUrl] = useState(null);
-  const [showLegend, setShowLegend] = useState(true);
+  const [rightTab, setRightTab] = useState('ozellik'); // ozellik | mevzuat | lejant
   const undoRef = useRef([]);
   const dragRef = useRef(null);
   const panRef = useRef(null);
+  const draftRef = useRef(null);
+  const [draftPreview, setDraftPreview] = useState(null);
   const svgRef = useRef(null);
   const saveTimer = useRef(null);
-  const viewportRef = useRef(null);
+  const fileBgRef = useRef(null);
 
   const floor = floors.find((f) => f.id === floorId) || null;
   const locked = !!plan?.locked_at;
@@ -59,6 +49,12 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
     () => (scene.objects || []).find((o) => o.id === selectedId) || null,
     [scene, selectedId],
   );
+
+  const hasGeometry = useMemo(
+    () => (scene.objects || []).some((o) => o.type === 'room' || o.type === 'wall' || o.type === 'exit'),
+    [scene],
+  );
+  const showUploadHint = editable && !bgUrl && !hasGeometry;
 
   const pushUndo = useCallback((prev) => {
     undoRef.current = [...undoRef.current.slice(-49), cloneScene(prev)];
@@ -132,20 +128,11 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
         });
       })
       .catch(() => setBgUrl(null));
-    return () => {
-      revoked = true;
-    };
+    return () => { revoked = true; };
   }, [planId, floorId, floors]);
 
-  // Prefer api base from api.js pattern
-  useEffect(() => {
-    // reload scene when switching floor (already set in switchFloor)
-  }, [floorId]);
-
   async function switchFloor(id) {
-    if (dirty && editable) {
-      await saveScene(false);
-    }
+    if (dirty && editable) await saveScene(false);
     const fl = floors.find((f) => f.id === id);
     if (!fl) return;
     setFloorId(id);
@@ -181,7 +168,6 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
     }
   }
 
-  // Autosave debounce
   useEffect(() => {
     if (!dirty || !editable) return undefined;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -220,33 +206,39 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
       panRef.current = {x: e.clientX, y: e.clientY, ox: pan.x, oy: pan.y};
       return;
     }
+    if (tool === 'wall' || tool === 'room') {
+      draftRef.current = {type: tool, x0: world.x, y0: world.y};
+      setDraftPreview({type: tool, x0: world.x, y0: world.y, x1: world.x, y1: world.y});
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      return;
+    }
     if (tool !== 'select') {
-      if (tool === 'route') {
-        const obj = createSymbolObject('route', world.x, world.y);
-        applyScene({...scene, objects: [...scene.objects, obj]});
-        setSelectedId(obj.id);
-        setTool('select');
-        return;
-      }
-      const obj = createSymbolObject(tool, world.x, world.y);
+      const extras = tool === 'extinguisher' ? {subtype: extSubtype} : {};
+      const obj = createSymbolObject(tool, world.x, world.y, extras);
       if (tool === 'text') {
-        const label = window.prompt('Metin:', obj.label);
+        const label = window.prompt('Metin (Türkçe):', obj.label);
         if (label != null) obj.label = label;
+      }
+      if (tool === 'room') {
+        // room without drag fallback
       }
       applyScene({...scene, objects: [...scene.objects, obj]});
       setSelectedId(obj.id);
       setTool('select');
       return;
     }
-    // select mode — hit test topmost
-    const hit = [...(scene.objects || [])].reverse().find((o) => {
-      const hw = (o.w || 44) / 2;
-      const hh = (o.h || 44) / 2;
-      return world.x >= o.x - hw && world.x <= o.x + hw && world.y >= o.y - hh && world.y <= o.y + hh;
-    });
+    const hit = [...(scene.objects || [])].reverse().find((o) => hitTestObject(o, world.x, world.y));
     setSelectedId(hit?.id || null);
     if (hit && editable) {
-      dragRef.current = {id: hit.id, ox: world.x - hit.x, oy: world.y - hit.y, start: cloneScene(scene)};
+      dragRef.current = {
+        id: hit.id,
+        ox: world.x - (hit.type === 'room' ? hit.x : hit.type === 'wall' ? hit.x1 : hit.x),
+        oy: world.y - (hit.type === 'room' ? hit.y : hit.type === 'wall' ? hit.y1 : hit.y),
+        start: cloneScene(scene),
+        kind: hit.type,
+        wallDx: hit.type === 'wall' ? hit.x2 - hit.x1 : 0,
+        wallDy: hit.type === 'wall' ? hit.y2 - hit.y1 : 0,
+      };
     }
   }
 
@@ -256,19 +248,70 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
       setPan({x: d.ox + (e.clientX - d.x), y: d.oy + (e.clientY - d.y)});
       return;
     }
+    if (draftRef.current) {
+      const world = clientToWorld(e.clientX, e.clientY);
+      setDraftPreview({
+        type: draftRef.current.type,
+        x0: draftRef.current.x0,
+        y0: draftRef.current.y0,
+        x1: world.x,
+        y1: world.y,
+      });
+      return;
+    }
     if (!dragRef.current || !editable) return;
     const world = clientToWorld(e.clientX, e.clientY);
-    const {id, ox, oy} = dragRef.current;
+    const {id, ox, oy, kind, wallDx, wallDy} = dragRef.current;
     setScene((prev) => ({
       ...prev,
-      objects: prev.objects.map((o) => (
-        o.id === id ? {...o, x: Math.round(world.x - ox), y: Math.round(world.y - oy)} : o
-      )),
+      objects: prev.objects.map((o) => {
+        if (o.id !== id) return o;
+        if (kind === 'room') {
+          return {...o, x: Math.round(world.x - ox), y: Math.round(world.y - oy)};
+        }
+        if (kind === 'wall') {
+          const nx = Math.round(world.x - ox);
+          const ny = Math.round(world.y - oy);
+          return {...o, x1: nx, y1: ny, x2: nx + wallDx, y2: ny + wallDy};
+        }
+        return {...o, x: Math.round(world.x - ox), y: Math.round(world.y - oy)};
+      }),
     }));
     setDirty(true);
   }
 
   function onSvgPointerUp() {
+    if (draftRef.current && draftPreview) {
+      const {type, x0, y0, x1, y1} = draftPreview;
+      if (type === 'wall') {
+        if (Math.hypot(x1 - x0, y1 - y0) >= 8) {
+          const obj = createSymbolObject('wall', x0, y0, {x2: x1, y2: y1});
+          applyScene({...scene, objects: [...scene.objects, obj]});
+          setSelectedId(obj.id);
+        }
+      } else if (type === 'room') {
+        const rx = Math.min(x0, x1);
+        const ry = Math.min(y0, y1);
+        const rw = Math.abs(x1 - x0);
+        const rh = Math.abs(y1 - y0);
+        if (rw >= 24 && rh >= 24) {
+          const preset = window.prompt(
+            `Mahal adı (örn. ${ROOM_PRESETS.slice(0, 4).join(', ')}):`,
+            'Atölye',
+          );
+          const obj = createSymbolObject('room', rx, ry, {
+            w: rw,
+            h: rh,
+            label: (preset && preset.trim()) || 'Mahal',
+          });
+          applyScene({...scene, objects: [...scene.objects, obj]});
+          setSelectedId(obj.id);
+        }
+      }
+      draftRef.current = null;
+      setDraftPreview(null);
+      setTool('select');
+    }
     if (dragRef.current?.start) {
       pushUndo(dragRef.current.start);
     }
@@ -332,6 +375,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
   async function uploadBg(file) {
     if (!file || !editable || !floorId) return;
     setBusy(true);
+    setErr('');
     try {
       const updated = await uploadFile(`/emergency-plans/${planId}/floors/${floorId}/background`, file);
       setFloors((prev) => prev.map((f) => (f.id === floorId ? updated : f)));
@@ -356,6 +400,69 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
     }
   }
 
+  function drawSignOnCanvas(ctx, o, ox, oy) {
+    const meta = SYMBOL_BY_TYPE[o.type] || {color: '#334155', label: o.type, signClass: 'info', short: '?'};
+    if (o.type === 'wall') {
+      ctx.strokeStyle = o.color || '#0f172a';
+      ctx.lineWidth = o.stroke || 10;
+      ctx.lineCap = 'square';
+      ctx.beginPath();
+      ctx.moveTo(o.x1, o.y1 + oy);
+      ctx.lineTo(o.x2, o.y2 + oy);
+      ctx.stroke();
+      return;
+    }
+    if (o.type === 'room') {
+      ctx.fillStyle = 'rgba(248,250,252,0.85)';
+      ctx.strokeStyle = o.color || '#334155';
+      ctx.lineWidth = 2;
+      ctx.fillRect(o.x, o.y + oy, o.w, o.h);
+      ctx.strokeRect(o.x, o.y + oy, o.w, o.h);
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(o.label || 'Mahal', o.x + o.w / 2, o.y + oy + o.h / 2);
+      return;
+    }
+    if (o.type === 'text') {
+      ctx.fillStyle = '#0f172a';
+      ctx.font = '600 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(o.label || 'Metin', o.x, o.y + oy);
+      return;
+    }
+    const bg = meta.signClass === 'fire' ? '#b91c1c'
+      : meta.signClass === 'safe' ? '#15803d'
+        : meta.color;
+    const rw = o.w || 48;
+    const rh = o.h || 48;
+    const x = o.x;
+    const y = o.y + oy;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(((o.rotation || 0) * Math.PI) / 180);
+    ctx.fillStyle = bg;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(-rw / 2, -rh / 2, rw, rh, 4);
+    else ctx.rect(-rw / 2, -rh / 2, rw, rh);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    let short = meta.short || '•';
+    if (o.type === 'extinguisher') {
+      short = (EXTINGUISHER_SUBTYPES.find((s) => s.id === o.subtype) || EXTINGUISHER_SUBTYPES[0]).code;
+    }
+    ctx.fillText(short, 0, 0);
+    ctx.restore();
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(o.label || meta.label, x, y + rh / 2 + 14);
+  }
+
   async function exportPoster() {
     if (!floor) return;
     setBusy(true);
@@ -364,9 +471,10 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
       if (dirty && editable) await saveScene(true);
       const w = floor.width || 1600;
       const h = floor.height || 1000;
+      const footerH = 160;
       const canvas = document.createElement('canvas');
       canvas.width = w;
-      canvas.height = h + 120;
+      canvas.height = h + 100 + footerH;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -375,14 +483,14 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
       ctx.fillText(plan?.title || 'Acil Durum Krokisi', 24, 36);
       ctx.font = '14px sans-serif';
       ctx.fillStyle = '#475569';
-      ctx.fillText(`Rev ${plan?.revision_no || '00'} · ${floor.name}`, 24, 58);
+      ctx.fillText(`Rev ${plan?.revision_no || '00'} · ${floor.name} · TS EN ISO 7010 / 23601 uyumlu işaretler`, 24, 58);
 
       if (bgUrl) {
         await new Promise((resolve) => {
           const img = new Image();
           img.onload = () => {
             ctx.globalAlpha = 0.55;
-            ctx.drawImage(img, 0, 120, w, h);
+            ctx.drawImage(img, 0, 100, w, h);
             ctx.globalAlpha = 1;
             resolve();
           };
@@ -392,61 +500,39 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
       } else {
         ctx.strokeStyle = '#e2e8f0';
         for (let x = 0; x < w; x += 40) {
-          ctx.beginPath(); ctx.moveTo(x, 120); ctx.lineTo(x, 120 + h); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(x, 100); ctx.lineTo(x, 100 + h); ctx.stroke();
         }
         for (let y = 0; y < h; y += 40) {
-          ctx.beginPath(); ctx.moveTo(0, 120 + y); ctx.lineTo(w, 120 + y); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0, 100 + y); ctx.lineTo(w, 100 + y); ctx.stroke();
         }
       }
 
       for (const o of scene.objects || []) {
-        const meta = SYMBOL_BY_TYPE[o.type] || {color: '#334155', emoji: '•', label: o.type};
-        const x = o.x;
-        const y = o.y + 120;
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(((o.rotation || 0) * Math.PI) / 180);
-        ctx.fillStyle = meta.color;
-        const rw = o.w || 44;
-        const rh = o.h || 44;
-        ctx.beginPath();
-        ctx.roundRect?.(-rw / 2, -rh / 2, rw, rh, 8);
-        if (!ctx.roundRect) {
-          ctx.rect(-rw / 2, -rh / 2, rw, rh);
-        }
-        ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.font = '16px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(meta.emoji || '•', 0, 0);
-        ctx.restore();
-        ctx.fillStyle = '#0f172a';
-        ctx.font = '12px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(o.label || meta.label, x, y + (o.h || 44) / 2 + 14);
+        drawSignOnCanvas(ctx, o, 100);
       }
 
-      // mini legend
-      let ly = 80;
+      // Mevzuat şeridi
+      const fy = h + 110;
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, fy - 8, w, footerH);
+      ctx.fillStyle = '#0f766e';
+      ctx.font = 'bold 12px sans-serif';
       ctx.textAlign = 'left';
-      ctx.font = '12px sans-serif';
+      ctx.fillText('Mevzuat dayanağı (özet)', 24, fy + 8);
       ctx.fillStyle = '#334155';
-      const used = [...new Set((scene.objects || []).map((o) => o.type))];
-      used.slice(0, 8).forEach((t, i) => {
-        const m = SYMBOL_BY_TYPE[t];
-        if (!m) return;
-        ctx.fillText(`${m.emoji} ${m.label}`, w - 220, 28 + i * 16);
-        ly = 28 + i * 16;
-      });
-      void ly;
+      ctx.font = '11px sans-serif';
+      const lines = [
+        '6331 İSG K. md. 11–12 · İşyerlerinde Acil Durumlar Hakkında Yönetmelik md. 7–12',
+        'İşyeri Bina ve Eklentileri Yönetmeliği (kaçış yolu / işaretleme)',
+        'İşaretler: TS EN ISO 7010 · Kroki düzeni: TS EN ISO 23601',
+      ];
+      lines.forEach((t, i) => ctx.fillText(t, 24, fy + 28 + i * 16));
 
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
       if (!blob) throw new Error('PNG oluşturulamadı');
       const file = new File([blob], `kroki-${planId}-${floor.name}.png`, {type: 'image/png'});
       const updated = await uploadFile(`/emergency-plans/${planId}/export-poster`, file);
       setPlan(updated);
-      // also download locally
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = file.name;
@@ -471,7 +557,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
         <button type="button" className="mini secondary" onClick={onClose}><ArrowLeft size={14} /> Plan listesi</button>
         <div style={{minWidth: 180}}>
           <div style={{fontSize: 11, letterSpacing: '.05em', textTransform: 'uppercase', color: '#0f766e', fontWeight: 700}}>
-            Kroki Studio
+            Kroki Studio · TR standart
           </div>
           <div style={{fontSize: 16, fontWeight: 750, color: '#0f172a'}}>{plan?.title || 'Acil durum krokisi'}</div>
           <div style={{fontSize: 12, color: '#64748b'}}>Revizyon {plan?.revision_no || '—'} · {floor?.name || 'Kat'}</div>
@@ -497,6 +583,31 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
 
       {err && <div className="error">{err}</div>}
 
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: 10,
+        padding: '12px 14px',
+        borderRadius: 12,
+        border: '1px solid #d1e7e3',
+        background: 'linear-gradient(135deg, #f0fdfa 0%, #fff 70%)',
+        fontSize: 13,
+        color: '#334155',
+      }}>
+        <div>
+          <strong style={{color: '#0f766e'}}>1. Kat planı fotoğrafı yükleyin</strong>
+          <div style={{marginTop: 4}}>Mimari kroki, fotoğraf veya tarama — üzerine işaret koyarsınız. Sıfırdan çizmek zorunda değilsiniz.</div>
+        </div>
+        <div>
+          <strong style={{color: '#0f766e'}}>2. Mahal + standart işaret</strong>
+          <div style={{marginTop: 4}}>Atölye / idare odası çizin veya etiketleyin; acil çıkış, söndürücü (ABC/CO₂…) ISO 7010 tarzı Türkçe etiketle.</div>
+        </div>
+        <div>
+          <strong style={{color: '#0f766e'}}>3. Poster alın</strong>
+          <div style={{marginTop: 4}}>PNG duvar posteri + altta mevzuat özeti. Hazır broşür varsa plan listesinden «Dosya yükle».</div>
+        </div>
+      </div>
+
       <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
         {floors.map((f) => (
           <button
@@ -515,19 +626,28 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
           <button type="button" className="mini secondary" onClick={() => void removeFloor()}><Trash2 size={14} /> Katı sil</button>
         )}
         {editable && (
-          <label className="mini secondary" style={{cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4}}>
-            <Upload size={14} /> Plan görseli
-            <input type="file" hidden accept=".png,.jpg,.jpeg,.webp" onChange={(e) => { void uploadBg(e.target.files?.[0]); e.target.value = ''; }} />
-          </label>
+          <button
+            type="button"
+            className="mini"
+            style={{display: 'inline-flex', alignItems: 'center', gap: 6}}
+            onClick={() => fileBgRef.current?.click()}
+          >
+            <Upload size={14} /> Kat planı / fotoğraf yükle
+          </button>
         )}
-        <button type="button" className="mini secondary" onClick={() => setShowLegend((v) => !v)}>
-          {showLegend ? 'Lejantı gizle' : 'Lejant'}
-        </button>
+        <input
+          ref={fileBgRef}
+          type="file"
+          hidden
+          accept=".png,.jpg,.jpeg,.webp"
+          onChange={(e) => { void uploadBg(e.target.files?.[0]); e.target.value = ''; }}
+        />
+        {bgUrl && <span className="badge ok">Plan görseli yüklü</span>}
         <button type="button" className="mini secondary" onClick={undo} disabled={!undoRef.current.length}>Geri al</button>
       </div>
 
-      <div className="kroki-editor-grid" style={{display: 'grid', gridTemplateColumns: '200px minmax(0,1fr) 240px', gap: 10, alignItems: 'stretch'}}>
-        <aside className="panel" style={{padding: 10, margin: 0, maxHeight: 560, overflow: 'auto'}}>
+      <div className="kroki-editor-grid" style={{display: 'grid', gridTemplateColumns: '210px minmax(0,1fr) 260px', gap: 10, alignItems: 'stretch'}}>
+        <aside className="panel" style={{padding: 10, margin: 0, maxHeight: 580, overflow: 'auto'}}>
           <div style={{fontWeight: 700, marginBottom: 8, fontSize: 13}}>Araçlar</div>
           <button
             type="button"
@@ -552,63 +672,125 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
                   className={tool === s.type ? 'mini' : 'mini secondary'}
                   style={{width: '100%', marginBottom: 4, justifyContent: 'flex-start', gap: 8}}
                   onClick={() => setTool(s.type)}
+                  title={s.iso ? `ISO ${s.iso}` : s.label}
                 >
-                  <SymbolGlyph type={s.type} size={22} /> {s.label}
+                  <SymbolGlyph type={s.type} size={26} subtype={s.type === 'extinguisher' ? extSubtype : undefined} />
+                  <span style={{textAlign: 'left', lineHeight: 1.2}}>
+                    {s.label}
+                    {s.iso && <span style={{display: 'block', fontSize: 10, color: '#94a3b8'}}>{s.iso}</span>}
+                  </span>
                 </button>
               ))}
             </div>
           ))}
+          {tool === 'extinguisher' && (
+            <label className="field" style={{marginTop: 4}}>
+              <span>Söndürücü türü</span>
+              <select value={extSubtype} onChange={(e) => setExtSubtype(e.target.value)}>
+                {EXTINGUISHER_SUBTYPES.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {(tool === 'wall' || tool === 'room') && (
+            <p style={{fontSize: 12, color: '#64748b', marginTop: 8}}>
+              {tool === 'wall' ? 'Sürükleyerek duvar çizin.' : 'Köşeden köşeye sürükleyerek mahal (oda) çizin.'}
+            </p>
+          )}
         </aside>
 
         <div
-          ref={viewportRef}
           className="panel"
-          style={{margin: 0, padding: 0, overflow: 'hidden', height: 560, background: '#f1f5f9', position: 'relative'}}
+          style={{margin: 0, padding: 0, overflow: 'hidden', height: 580, background: '#f1f5f9', position: 'relative'}}
           onWheel={(e) => {
             e.preventDefault();
             setZoom((z) => Math.min(2.5, Math.max(0.25, z * (e.deltaY > 0 ? 0.9 : 1.1))));
           }}
         >
+          {showUploadHint && (
+            <div style={{
+              position: 'absolute', zIndex: 5, inset: 16, display: 'grid', placeItems: 'center',
+              pointerEvents: 'none',
+            }}>
+              <div style={{
+                pointerEvents: 'auto',
+                maxWidth: 420,
+                padding: '22px 24px',
+                borderRadius: 16,
+                background: 'rgba(255,255,255,0.96)',
+                border: '1px solid #99f6e4',
+                boxShadow: '0 12px 40px #0f172a18',
+                textAlign: 'center',
+              }}>
+                <Map size={28} color="#0f766e" style={{marginBottom: 8}} />
+                <div style={{fontWeight: 750, fontSize: 16, marginBottom: 6}}>Broşürü / krokisini buradan üretin</div>
+                <p style={{margin: '0 0 14px', fontSize: 13, color: '#475569', lineHeight: 1.5}}>
+                  En pratik yol: binanın kat planı fotoğrafını veya tarama görselini yükleyin.
+                  Sonra odaları etiketleyip acil çıkış / söndürücü işaretlerini yerleştirin.
+                  İsterseniz soldan <strong>Mahal / Duvar</strong> ile sıfırdan da çizebilirsiniz.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => fileBgRef.current?.click()}
+                  style={{display: 'inline-flex', alignItems: 'center', gap: 8}}
+                >
+                  <Upload size={16} /> Kat planı fotoğrafı yükle
+                </button>
+              </div>
+            </div>
+          )}
           <svg
             ref={svgRef}
             width="100%"
             height="100%"
-            style={{cursor: tool === 'pan' ? 'grab' : (tool === 'select' ? 'default' : 'crosshair'), touchAction: 'none'}}
+            style={{
+              cursor: tool === 'pan' ? 'grab' : (tool === 'select' ? 'default' : 'crosshair'),
+              touchAction: 'none',
+            }}
             onPointerDown={onSvgPointerDown}
             onPointerMove={onSvgPointerMove}
             onPointerUp={onSvgPointerUp}
             onPointerLeave={onSvgPointerUp}
           >
+            <defs>
+              <marker id="arrowHead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                <path d="M0,0 L6,3 L0,6 Z" fill="#15803d" />
+              </marker>
+            </defs>
             <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
               <rect x={0} y={0} width={w} height={h} fill="#fff" stroke="#cbd5e1" />
               {bgUrl && (
-                <image href={bgUrl} x={0} y={0} width={w} height={h} opacity={0.55} preserveAspectRatio="xMidYMid meet" />
+                <image href={bgUrl} x={0} y={0} width={w} height={h} opacity={0.58} preserveAspectRatio="xMidYMid meet" />
               )}
-              {/* grid */}
               {Array.from({length: Math.floor(w / 40) + 1}, (_, i) => (
                 <line key={`vx${i}`} x1={i * 40} y1={0} x2={i * 40} y2={h} stroke="#e2e8f0" strokeWidth={1} />
               ))}
               {Array.from({length: Math.floor(h / 40) + 1}, (_, i) => (
                 <line key={`hy${i}`} x1={0} y1={i * 40} x2={w} y2={i * 40} stroke="#e2e8f0" strokeWidth={1} />
               ))}
-              {(scene.objects || []).map((o) => {
-                const meta = SYMBOL_BY_TYPE[o.type] || {color: '#64748b', emoji: '•', label: o.type};
-                const rw = o.w || 44;
-                const rh = o.h || 44;
-                const sel = o.id === selectedId;
-                return (
-                  <g key={o.id} transform={`translate(${o.x},${o.y}) rotate(${o.rotation || 0})`}>
-                    <rect
-                      x={-rw / 2} y={-rh / 2} width={rw} height={rh} rx={8}
-                      fill={meta.color}
-                      stroke={sel ? '#fbbf24' : '#fff'}
-                      strokeWidth={sel ? 3 : 1}
-                    />
-                    <text textAnchor="middle" dominantBaseline="central" fontSize={16} fill="#fff">{meta.emoji}</text>
-                    <text y={rh / 2 + 14} textAnchor="middle" fontSize={11} fill="#0f172a">{o.label || meta.label}</text>
-                  </g>
-                );
-              })}
+              {(scene.objects || []).map((o) => (
+                <SceneSymbol key={o.id} o={o} selected={o.id === selectedId} />
+              ))}
+              {draftPreview && draftPreview.type === 'wall' && (
+                <line
+                  x1={draftPreview.x0} y1={draftPreview.y0}
+                  x2={draftPreview.x1} y2={draftPreview.y1}
+                  stroke="#0f172a" strokeWidth={10} strokeLinecap="square" opacity={0.5}
+                />
+              )}
+              {draftPreview && draftPreview.type === 'room' && (
+                <rect
+                  x={Math.min(draftPreview.x0, draftPreview.x1)}
+                  y={Math.min(draftPreview.y0, draftPreview.y1)}
+                  width={Math.abs(draftPreview.x1 - draftPreview.x0)}
+                  height={Math.abs(draftPreview.y1 - draftPreview.y0)}
+                  fill="rgba(15,118,110,0.08)"
+                  stroke="#0f766e"
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                />
+              )}
             </g>
           </svg>
           <div style={{position: 'absolute', right: 8, bottom: 8, display: 'flex', gap: 4}}>
@@ -618,52 +800,143 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
           </div>
         </div>
 
-        <aside className="panel" style={{padding: 10, margin: 0, maxHeight: 560, overflow: 'auto'}}>
-          <div style={{fontWeight: 700, marginBottom: 8, fontSize: 13}}>Özellikler</div>
-          {!selected ? (
-            <p style={{fontSize: 13, color: '#64748b'}}>Nesne seçin veya paletten yerleştirin.</p>
-          ) : (
+        <aside className="panel" style={{padding: 10, margin: 0, maxHeight: 580, overflow: 'auto'}}>
+          <div style={{display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap'}}>
+            {[
+              ['ozellik', 'Özellik'],
+              ['mevzuat', 'Mevzuat'],
+              ['lejant', 'Lejant'],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={rightTab === id ? 'mini' : 'mini secondary'}
+                onClick={() => setRightTab(id)}
+              >
+                {id === 'mevzuat' ? <><BookOpen size={12} /> {label}</> : label}
+              </button>
+            ))}
+          </div>
+
+          {rightTab === 'ozellik' && (
             <>
-              <div style={{fontSize: 13, marginBottom: 8}}>
-                <SymbolGlyph type={selected.type} /> {SYMBOL_BY_TYPE[selected.type]?.label || selected.type}
-              </div>
-              <label className="field">
-                <span>Etiket</span>
-                <input
-                  value={selected.label || ''}
-                  disabled={!editable}
-                  onChange={(e) => updateSelected({label: e.target.value})}
-                />
-              </label>
-              <label className="field">
-                <span>Döndürme (°)</span>
-                <input
-                  type="number"
-                  value={selected.rotation || 0}
-                  disabled={!editable}
-                  onChange={(e) => updateSelected({rotation: Number(e.target.value) || 0})}
-                />
-              </label>
-              {editable && (
-                <button type="button" className="mini secondary" style={{marginTop: 8}} onClick={deleteSelected}>
-                  <Trash2 size={14} /> Sil
-                </button>
+              <div style={{fontWeight: 700, marginBottom: 8, fontSize: 13}}>Özellikler</div>
+              {!selected ? (
+                <p style={{fontSize: 13, color: '#64748b'}}>
+                  Paletten işaret seçip krokıye tıklayın. Mahal/duvar için sürükleyin.
+                </p>
+              ) : (
+                <>
+                  <div style={{fontSize: 13, marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center'}}>
+                    <SymbolGlyph type={selected.type} subtype={selected.subtype} size={32} />
+                    <div>
+                      <div style={{fontWeight: 650}}>{SYMBOL_BY_TYPE[selected.type]?.label || selected.type}</div>
+                      {SYMBOL_BY_TYPE[selected.type]?.iso && (
+                        <div style={{fontSize: 11, color: '#64748b'}}>Ref: {SYMBOL_BY_TYPE[selected.type].iso}</div>
+                      )}
+                    </div>
+                  </div>
+                  {SYMBOL_LEGAL_HINT[selected.type] && (
+                    <p style={{fontSize: 11, color: '#0f766e', background: '#f0fdfa', padding: '6px 8px', borderRadius: 8, marginBottom: 8}}>
+                      {SYMBOL_LEGAL_HINT[selected.type]}
+                    </p>
+                  )}
+                  <label className="field">
+                    <span>Türkçe etiket</span>
+                    <input
+                      value={selected.label || ''}
+                      disabled={!editable}
+                      onChange={(e) => updateSelected({label: e.target.value})}
+                    />
+                  </label>
+                  {selected.type === 'extinguisher' && (
+                    <label className="field">
+                      <span>Söndürücü türü</span>
+                      <select
+                        value={selected.subtype || 'abc'}
+                        disabled={!editable}
+                        onChange={(e) => {
+                          const sub = EXTINGUISHER_SUBTYPES.find((s) => s.id === e.target.value);
+                          updateSelected({
+                            subtype: e.target.value,
+                            label: `Yangın Söndürücü (${sub?.code || 'YS'})`,
+                          });
+                        }}
+                      >
+                        {EXTINGUISHER_SUBTYPES.map((s) => (
+                          <option key={s.id} value={s.id}>{s.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {selected.type === 'room' && (
+                    <label className="field">
+                      <span>Hazır mahal adı</span>
+                      <select
+                        disabled={!editable}
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value) updateSelected({label: e.target.value});
+                        }}
+                      >
+                        <option value="">Seç / uygula…</option>
+                        {ROOM_PRESETS.map((r) => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  {selected.type !== 'wall' && selected.type !== 'room' && (
+                    <label className="field">
+                      <span>Döndürme (°)</span>
+                      <input
+                        type="number"
+                        value={selected.rotation || 0}
+                        disabled={!editable}
+                        onChange={(e) => updateSelected({rotation: Number(e.target.value) || 0})}
+                      />
+                    </label>
+                  )}
+                  {editable && (
+                    <button type="button" className="mini secondary" style={{marginTop: 8}} onClick={deleteSelected}>
+                      <Trash2 size={14} /> Sil
+                    </button>
+                  )}
+                </>
               )}
             </>
           )}
 
-          {showLegend && legend && (
-            <div style={{marginTop: 16, borderTop: '1px solid #e2e8f0', paddingTop: 12}}>
+          {rightTab === 'mevzuat' && (
+            <div>
+              <div style={{fontWeight: 700, marginBottom: 8, fontSize: 13}}>Bu plan hangi maddeye göre?</div>
+              <p style={{fontSize: 12, color: '#64748b', marginBottom: 10, lineHeight: 1.45}}>
+                Kroki ve işaretler aşağıdaki mevzuat / standartlara dayandırılır. Poster çıktısında da özet basılır.
+              </p>
+              {MEVZUAT_BLOCKS.map((b) => (
+                <div key={b.id} style={{marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid #e2e8f0'}}>
+                  <div style={{fontWeight: 700, fontSize: 12, color: '#0f172a', marginBottom: 6}}>{b.title}</div>
+                  {b.articles.map((a) => (
+                    <div key={a.ref} style={{fontSize: 11, marginBottom: 6, lineHeight: 1.4}}>
+                      <span style={{color: '#0f766e', fontWeight: 700}}>{a.ref}</span>
+                      <span style={{color: '#475569'}}> — {a.text}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {rightTab === 'lejant' && (
+            <div>
               <div style={{fontWeight: 700, fontSize: 13, marginBottom: 6}}>Lejant / kontrol</div>
-              {(legend.missing || []).length > 0 && (
+              {(legend?.missing || []).length > 0 && (
                 <div className="error" style={{fontSize: 12, marginBottom: 8}}>
                   {(legend.missing || []).map((m) => <div key={m}>{m}</div>)}
                 </div>
               )}
               <div style={{fontSize: 12, color: '#475569', marginBottom: 8}}>
-                Eyas: <code>{legend.eyas_source_key}</code>
+                Eyas: <code>{legend?.eyas_source_key || '—'}</code>
               </div>
-              {(legend.teams || []).slice(0, 6).map((t) => (
+              {(legend?.teams || []).slice(0, 6).map((t) => (
                 <div key={t.id} style={{marginBottom: 8, fontSize: 12}}>
                   <strong>{t.name}</strong>
                   {(t.members || []).slice(0, 4).map((m, i) => (
@@ -673,7 +946,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
                   ))}
                 </div>
               ))}
-              {!legend.teams?.length && (
+              {!legend?.teams?.length && (
                 <p style={{fontSize: 12, color: '#94a3b8'}}>Acil ekipler kaydı yok (Acil Ekipler modülü).</p>
               )}
             </div>

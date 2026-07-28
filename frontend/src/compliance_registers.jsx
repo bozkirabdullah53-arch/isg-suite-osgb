@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {ClipboardCheck, Download, FileWarning, Map, Plus, RefreshCw, Upload, Users} from 'lucide-react';
+import {ClipboardCheck, Download, FileWarning, Map, Plus, RefreshCw, Trash2, Upload, Users} from 'lucide-react';
 import {
   downloadBase64Pdf,
   probeIsgSigner,
@@ -310,6 +310,23 @@ export function EmergencyPlansPage({user}) {
     }
   }
 
+  async function removePlan(row) {
+    if (!canEdit || !row?.id) return;
+    const label = row.title || `Plan #${row.id}`;
+    if (!window.confirm(`«${label}» silinsin mi? Listeden kaldırılır.`)) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await api(`/emergency-plans/${row.id}`, {method: 'DELETE'});
+      if (editPlanId === row.id) setEditPlanId(null);
+      await load();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (editPlanId) {
     return (
       <>
@@ -350,20 +367,20 @@ export function EmergencyPlansPage({user}) {
         }}>
           <div>
             <div style={{fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase', color: '#0f766e', fontWeight: 700, marginBottom: 6}}>
-              İşyeri krokisi · profesyonel modül
+              İşyeri krokisi · TR standart (ISO 7010 / 23601)
             </div>
             <div style={{fontSize: 18, fontWeight: 760, color: '#0f172a', marginBottom: 6}}>
               Acil Durum Kroki Studio
             </div>
             <p style={{margin: 0, color: '#475569', fontSize: 14, lineHeight: 1.55, maxWidth: 640}}>
-              Kat planı üzerine acil çıkış, toplanma alanı, yangın söndürücü ve ilk yardım noktalarını yerleştirin;
-              duvara asılabilir poster üretin. <strong>Acil Ekipler</strong> lejantta, onay için Eyas kaynağı otomatik bağlanır.
+              Kat planı fotoğrafı yükleyip üzerine Türkçe / standart işaretler koyun; veya mahal-duvar çizerek sıfırdan üretin.
+              Hazır broşür PNG/PDF’si varsa satırdan yükleyin. Poster çıktısında mevzuat özeti yer alır.
             </p>
           </div>
           <div style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8, fontSize: 13, color: '#334155'}}>
-            <div><strong>1.</strong> Plan kaydı oluşturun veya seçin</div>
-            <div><strong>2.</strong> <em>Kroki Studio</em> ile katları çizin</div>
-            <div><strong>3.</strong> PNG poster alın · kilitleyin · onaya gönderin</div>
+            <div><strong>A.</strong> Yeni Plan → <em>Kroki Studio</em> → fotoğraf yükle + işaretle</div>
+            <div><strong>B.</strong> Hazır kroki varsa satırda <em>Dosya yükle</em></div>
+            <div><strong>C.</strong> PNG poster · kilitle · Eyas onayı</div>
           </div>
         </div>
         {err && <div className="error">{err}</div>}
@@ -422,6 +439,11 @@ export function EmergencyPlansPage({user}) {
                             <Upload size={14} /> Dosya yükle
                             <input type="file" hidden accept=".png,.jpg,.jpeg,.pdf,.webp" onChange={(e) => { uploadKroki(r, e.target.files?.[0]); e.target.value = ''; }} />
                           </label>
+                        )}
+                        {canEdit && (
+                          <button type="button" className="mini" disabled={busy} onClick={() => void removePlan(r)}>
+                            <Trash2 size={14} /> Sil
+                          </button>
                         )}
                       </div>
                     </td>

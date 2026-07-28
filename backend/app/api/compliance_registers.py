@@ -402,6 +402,20 @@ def update_ep(
     return _ep_enrich(db, row)
 
 
+@ep_router.delete("/{item_id}")
+def delete_ep(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT)),
+):
+    """Plan kaydını soft-delete (listeden düşer; kat/kroki dosyaları yerinde kalır)."""
+    row = _get_plan(db, item_id, user)
+    row.is_active = False
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True}
+
+
 @ep_router.post("/{item_id}/lock", response_model=EmergencyPlanResponse)
 def lock_ep(
     item_id: int,
@@ -643,6 +657,10 @@ def plan_legend(
             symbol_counts[t] = symbol_counts.get(t, 0) + 1
             if t in checks:
                 checks[t] += 1
+            elif t in ("door_exit",):
+                checks["exit"] += 1
+            elif t.startswith("extinguisher"):
+                checks["extinguisher"] += 1
     teams = list(
         db.scalars(
             select(EmergencyTeam)
