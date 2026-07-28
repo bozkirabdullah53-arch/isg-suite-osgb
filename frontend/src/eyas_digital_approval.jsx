@@ -207,6 +207,21 @@ export function EyasDigitalApprovalPage({user, mode = 'full', autoOpenCreate = f
     }
   }
 
+  async function remove(wf) {
+    const title = wf.title || `#${wf.id}`;
+    if (!window.confirm(`“${title}” onay akışı silinsin mi?`)) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await api(`/eyas/workflows/${wf.id}`, {method: 'DELETE'});
+      await load();
+    } catch (x) {
+      setErr(x.message || 'Silinemedi');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (meta && meta.enabled === false) {
     return (
       <section className="panel">
@@ -263,6 +278,20 @@ export function EyasDigitalApprovalPage({user, mode = 'full', autoOpenCreate = f
                       <button type="button" className="mini secondary" disabled={busy} onClick={() => void downloadDoc(w)} title="Kaynak belgeyi indir">
                         <Download size={14} /> Belge
                       </button>
+                    )}
+                    {(canCreate || w.created_by_id === user.id) && mode !== 'inbox' && (
+                      <>
+                        {' '}
+                        <button
+                          type="button"
+                          className="mini secondary"
+                          disabled={busy}
+                          onClick={() => void remove(w)}
+                          title="Akışı listeden kaldır"
+                        >
+                          Sil
+                        </button>
+                      </>
                     )}
                   </td>
                 </tr>

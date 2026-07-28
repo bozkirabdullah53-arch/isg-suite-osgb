@@ -243,3 +243,25 @@ def test_eyas_workplace_routes_mounted():
     assert "/eyas/workplaces/{company_id}/documents" in paths
     assert "/eyas/workplaces/{company_id}/assignees" in paths
     assert "/eyas/workflows/{workflow_id}/document" in paths
+    assert "/eyas/workflows/{workflow_id}" in paths
+
+
+def test_soft_delete_workflow(db, monkeypatch):
+    monkeypatch.setattr(settings, "eyas_digital_approval_force_off", False)
+    monkeypatch.setattr(settings, "eyas_digital_approval_enabled", True)
+    company, uzman, hekim, isveren = _mk_users(db)
+    wf = svc.create_workflow(
+        db,
+        user=uzman,
+        company_id=company.id,
+        title="Silinecek Akış",
+        document_kind="risk",
+        steps=[
+            {"assignee_user_id": uzman.id, "role_label": "İSG Uzmanı"},
+            {"assignee_user_id": hekim.id, "role_label": "İşyeri Hekimi"},
+            {"assignee_user_id": isveren.id, "role_label": "İşveren / vekili"},
+        ],
+    )
+    deleted = svc.soft_delete_workflow(db, workflow_id=wf.id, user=uzman)
+    assert deleted.is_active is False
+    assert deleted.status == "cancelled"

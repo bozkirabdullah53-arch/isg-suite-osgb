@@ -172,6 +172,50 @@ def create_workflow(
     return wf
 
 
+def soft_delete_workflow(
+    db: Session,
+    *,
+    workflow_id: int,
+    user: User,
+    ip: str | None = None,
+    user_agent: str | None = None,
+) -> EyasWorkflow:
+    wf = db.get(EyasWorkflow, workflow_id)
+    if not wf or not wf.is_active:
+        raise HTTPException(404, "Onay akışı bulunamadı.")
+    # Uzman / global admin veya oluşturan silebilir (kilitli dahil — test temizliği)
+    role = getattr(user.role, "value", str(user.role))
+    if role not in {"global_admin", "safety_specialist"} and wf.created_by_id != user.id:
+        raise HTTPException(403, "Bu akışı silme yetkiniz yok.")
+    prev_status = wf.status
+    wf.is_active = False
+    if prev_status == "in_progress":
+        wf.status = "cancelled"
+    wf.updated_at = _now()
+    append_event(
+        db,
+        workflow=wf,
+        actor=user,
+        action="workflow.deleted",
+        payload={"title": wf.title, "previous_status": prev_status},
+        ip=ip,
+        user_agent=user_agent,
+    )
+    add_audit_log(
+        db,
+        user=user,
+        action="eyas.workflow.delete",
+        entity_type="eyas_workflow",
+        entity_id=str(wf.id),
+        description=f"Eyas akışı silindi: {wf.title}",
+        ip_address=ip,
+        module="eyas",
+    )
+    db.commit()
+    db.refresh(wf)
+    return wf
+
+
 def list_steps(db: Session, workflow_id: int) -> list[EyasStep]:
     return list(
         db.scalars(

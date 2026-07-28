@@ -399,3 +399,25 @@ def reject(
         user_agent=_ua(request),
     )
     return _wf_out(db, wf)
+
+
+@router.delete("/workflows/{workflow_id}")
+def delete_workflow(
+    workflow_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW_ROLES)),
+):
+    _require_eyas()
+    wf0 = db.get(EyasWorkflow, workflow_id)
+    if not wf0 or not wf0.is_active:
+        raise HTTPException(404, "Onay akışı bulunamadı.")
+    ensure_company_access(db, user, wf0.company_id)
+    svc.soft_delete_workflow(
+        db,
+        workflow_id=workflow_id,
+        user=user,
+        ip=_client_ip(request),
+        user_agent=_ua(request),
+    )
+    return {"ok": True, "id": workflow_id, "message": "Akış listeden kaldırıldı."}
