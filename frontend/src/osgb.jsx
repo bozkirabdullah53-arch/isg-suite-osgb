@@ -1,6 +1,6 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {api,downloadFile,uploadFile} from './api';
-import {Camera,Clock3,Plus,ScanLine,TrendingDown,TrendingUp,Wallet} from 'lucide-react';
+import {Camera,Clock3,FileCheck2,Plus,ScanLine,TrendingDown,TrendingUp,Wallet} from 'lucide-react';
 import {enqueueOfflineComplete,flushOfflineCompletes,listOfflineCompletes,removeOfflineItem} from './field_offline';
 import {SiteQrCameraModal} from './field_qr_scan';
 import {AppModal} from './ui_modal';
@@ -1317,7 +1317,7 @@ export function AssignmentsPage({user}){
  </P>
 }
 
-export function VisitsPage({user}){
+export function VisitsPage({user, onNavigate}){
  const isField=['safety_specialist','workplace_physician','other_health_personnel'].includes(user.role);
  const isOsgb=['global_admin','company_admin'].includes(user.role);
  const canEdit=isField||isOsgb;
@@ -1759,6 +1759,35 @@ export function VisitsPage({user}){
       <Plus size={28}/> Defter yükle
      </button>
     </div>
+
+    {['safety_specialist','workplace_physician'].includes(user.role) && typeof onNavigate==='function' && (
+     <div className="field-step">
+      <p className="field-step-label">4 — Belge onay / imza</p>
+      <p style={{margin:'0 0 8px',fontSize:13,color:'#64748b'}}>
+       Bu işyerinin risk / eğitim belgelerini sırayla onaylayın: Uzman → Hekim → İşveren/vekil.
+      </p>
+      <button
+       type="button"
+       className="field-big-btn"
+       style={{background:'#0f766e'}}
+       disabled={busy}
+       onClick={()=>onNavigate('belge_onay')}
+      >
+       <FileCheck2 size={28}/> Belge onay akışına git
+      </button>
+      {user.role==='workplace_physician' && (
+       <button
+        type="button"
+        className="field-big-btn field-big-btn-out"
+        style={{marginTop:8}}
+        disabled={busy}
+        onClick={()=>onNavigate('eyas_inbox')}
+       >
+        <FileCheck2 size={28}/> Onay kutum
+       </button>
+      )}
+     </div>
+    )}
 
     <button
      type="button"

@@ -1,4 +1,3 @@
-﻿"""Tek uygulama sÃ¼rÃ¼mÃ¼ â€” health / OpenAPI / system drift Ã¶nleme (P1-11)."""
+﻿"""Tek uygulama sürümü — health / OpenAPI / system drift önleme (P1-11)."""
 
-APP_VERSION = "0.9.236"
-
+APP_VERSION = "0.9.237"
