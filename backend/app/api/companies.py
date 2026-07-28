@@ -287,7 +287,7 @@ def company_employer_oversight(
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
-    return build_employer_oversight(db, obj)
+    return build_employer_oversight(db, obj, viewer=user)
 
 
 @router.post("/{company_id}/kiosk-login/reset")

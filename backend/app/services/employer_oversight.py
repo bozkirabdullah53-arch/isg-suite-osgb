@@ -29,7 +29,7 @@ from app.services.csgb_audit_pack import build_csgb_audit_pack
 from app.services.company_overview import build_company_overview
 
 
-def build_employer_oversight(db: Session, company: Company) -> dict[str, Any]:
+def build_employer_oversight(db: Session, company: Company, viewer: User | None = None) -> dict[str, Any]:
     cid = company.id
     today = date.today()
     period_start = today.replace(day=1)
@@ -289,6 +289,16 @@ def build_employer_oversight(db: Session, company: Company) -> dict[str, Any]:
                     }
                 )
             active = next((s for s in step_out if s["status"] == "active"), None)
+            can_approve = False
+            if viewer and wf.status == "in_progress" and active:
+                role_l = (active.get("role_label") or "").casefold()
+                is_emp = "işveren" in role_l or "isveren" in role_l
+                workplace_admin = (
+                    getattr(viewer.role, "value", str(viewer.role)) == "company_admin"
+                    and getattr(viewer, "company_id", None) == cid
+                )
+                if active.get("assignee_user_id") == viewer.id or (is_emp and workplace_admin):
+                    can_approve = True
             approval_flows.append(
                 {
                     "id": wf.id,
@@ -300,6 +310,7 @@ def build_employer_oversight(db: Session, company: Company) -> dict[str, Any]:
                     "steps": step_out,
                     "waiting_on": active["role_label"] if active else None,
                     "waiting_user_id": active["assignee_user_id"] if active else None,
+                    "can_approve": can_approve,
                 }
             )
     except Exception:

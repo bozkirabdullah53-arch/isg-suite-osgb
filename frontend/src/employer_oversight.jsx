@@ -141,7 +141,7 @@ export function EmployerOversightPanel({companyId, user = null, compact = false,
           </p>
         ) : (
           flows.map((wf) => {
-            const mine = myId && wf.waiting_user_id === myId && wf.status === 'in_progress';
+            const mine = !!wf.can_approve && wf.status === 'in_progress';
             return (
               <div
                 key={wf.id}

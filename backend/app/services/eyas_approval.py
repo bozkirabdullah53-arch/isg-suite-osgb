@@ -301,12 +301,6 @@ def decide_step(
     ip: str | None = None,
     user_agent: str | None = None,
 ) -> EyasWorkflow:
-    if not getattr(user, "mfa_enabled", False):
-        raise HTTPException(
-            403,
-            "Dijital onay için hesapta Authenticator (TOTP) MFA açık olmalıdır. Güvenlik menüsünden etkinleştirin.",
-        )
-
     wf = db.get(EyasWorkflow, workflow_id)
     if not wf or not wf.is_active:
         raise HTTPException(404, "Onay akışı bulunamadı.")
@@ -322,8 +316,23 @@ def decide_step(
     ).first()
     if not step:
         raise HTTPException(409, "Aktif onay adımı yok.")
-    if step.assignee_user_id != user.id:
-        raise HTTPException(403, "Bu adımı yalnızca atanan kullanıcı kendi hesabı ile onaylayabilir.")
+    role_l = (step.role_label or "").casefold()
+    is_employer_step = "işveren" in role_l or "isveren" in role_l
+    workplace_admin = (
+        getattr(user.role, "value", str(user.role)) == "company_admin"
+        and getattr(user, "company_id", None) == wf.company_id
+    )
+    if step.assignee_user_id != user.id and not (is_employer_step and workplace_admin):
+        raise HTTPException(
+            403,
+            "Bu adımı yalnızca atanan kullanıcı veya işyeri işveren hesabı onaylayabilir.",
+        )
+    # İşyeri işveren paneli: MFA yoksa da işveren adımı onaylanabilir (kiosk / vekil)
+    if not getattr(user, "mfa_enabled", False) and not (is_employer_step and workplace_admin):
+        raise HTTPException(
+            403,
+            "Dijital onay için hesapta Authenticator (TOTP) MFA açık olmalıdır. Güvenlik menüsünden etkinleştirin.",
+        )
 
     now = _now()
     step.decided_at = now
