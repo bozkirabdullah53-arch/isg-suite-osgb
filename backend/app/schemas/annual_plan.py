@@ -18,12 +18,15 @@ class AnnualPlanCreate(BaseModel):
     status: AnnualPlanStatus = AnnualPlanStatus.PLANNED
     completion_date: date | None = None
     notes: str | None = Field(default=None, max_length=1500)
+    legal_basis: str | None = Field(default=None, max_length=240)
 
     @model_validator(mode="after")
     def sanitize(self):
         self.activity = assert_meaningful_text(self.activity, label="Faaliyet", min_len=3, required=True)
         self.description = assert_meaningful_text(self.description, label="Açıklama", min_len=3, required=False)
         self.notes = assert_meaningful_text(self.notes, label="Notlar", min_len=3, required=False)
+        if self.legal_basis is not None:
+            self.legal_basis = self.legal_basis.strip() or None
         self.responsible_name = assert_person_name(self.responsible_name, label="Sorumlu")
         self.target_date = assert_event_date(
             self.target_date, label="Hedef tarih", required=False, allow_future_days=800
@@ -51,6 +54,7 @@ class AnnualPlanUpdate(BaseModel):
     status: AnnualPlanStatus | None = None
     completion_date: date | None = None
     notes: str | None = Field(default=None, max_length=1500)
+    legal_basis: str | None = Field(default=None, max_length=240)
 
     @model_validator(mode="after")
     def sanitize(self):
@@ -60,6 +64,8 @@ class AnnualPlanUpdate(BaseModel):
             self.description = assert_meaningful_text(self.description, label="Açıklama", min_len=3, required=False)
         if self.notes is not None:
             self.notes = assert_meaningful_text(self.notes, label="Notlar", min_len=3, required=False)
+        if self.legal_basis is not None:
+            self.legal_basis = self.legal_basis.strip() or None
         if self.responsible_name is not None:
             self.responsible_name = assert_person_name(self.responsible_name, label="Sorumlu")
         if self.target_date is not None:
@@ -92,6 +98,7 @@ class AnnualPlanResponse(BaseModel):
     status: AnnualPlanStatus
     completion_date: date | None = None
     notes: str | None = None
+    legal_basis: str | None = None
     created_by_id: int
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)

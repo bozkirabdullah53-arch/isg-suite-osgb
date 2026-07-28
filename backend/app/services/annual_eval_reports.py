@@ -224,6 +224,11 @@ def build_eval_pdf(
             y = min(y, h - 150)
     line("1. Amaç ve kapsam", 11, True, 14)
     line(f"Bu rapor {year} yılı yıllık çalışma planı faaliyetlerinin gerçekleşme, sapma ve kanıt durumunu değerlendirir.", 9)
+    line(
+        "Mevzuat: İSG Hizmetleri Yönetmeliği (yıllık plan/değerlendirme); 6331 sayılı İSG Kanunu ve ilgili yönetmelikler.",
+        8,
+        gap=14,
+    )
     line("2. Gerçekleşme özeti", 11, True, 14)
     line(
         f"Planlanan: {kpis.get('planned_total')} | Tamam: {kpis.get('tamam')} | Kısmi: {kpis.get('kismi')} | "

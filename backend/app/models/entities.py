@@ -384,6 +384,7 @@ class AnnualPlanItem(Base):
     )
     completion_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str | None] = mapped_column(String(1500), nullable=True)
+    legal_basis: Mapped[str | None] = mapped_column(String(240), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -21,12 +21,16 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models.entities import (
+    AnnualPlanEvaluation,
+    AnnualPlanItem,
     AssignmentStatus,
     Company,
     ServiceContract,
     ServiceVisit,
     WorkplaceAssignment,
 )
+from app.services.annual_plan_pdf import build_annual_plan_pdf
+from app.services.assigned_team import team_names
 from app.services.capacity_engine import build_capacity_overview
 from app.services.csgb_audit_pack import build_csgb_audit_pack
 
@@ -303,6 +307,92 @@ def _contract_rows(db: Session, oid: int, company_id: int | None = None) -> list
     ]
 
 
+def _annual_plan_artifacts(db: Session, company_id: int, year: int | None = None) -> dict[str, bytes]:
+    """İşyeri snapshot için yıllık plan PDF + onaylı değerlendirme PDF (varsa)."""
+    from openpyxl import Workbook
+
+    y = year or date.today().year
+    company = db.get(Company, company_id)
+    if not company:
+        return {}
+    items = list(
+        db.scalars(
+            select(AnnualPlanItem)
+            .where(
+                AnnualPlanItem.company_id == company_id,
+                AnnualPlanItem.year == y,
+                AnnualPlanItem.deleted_at.is_(None),
+            )
+            .order_by(AnnualPlanItem.month, AnnualPlanItem.id)
+        ).all()
+    )
+    out: dict[str, bytes] = {}
+    if items:
+        names = team_names(db, company_id)
+        out[f"06-yillik-plan-{y}.pdf"] = build_annual_plan_pdf(
+            company_name=company.name,
+            year=y,
+            items=items,
+            hazard_class=company.hazard_class,
+            specialist_name=names.get("safety_specialist"),
+            physician_name=names.get("workplace_physician"),
+            employer_name=company.authorized_person,
+        )
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Yıllık Plan"
+        ws.append(
+            ["Ay", "Kategori", "Faaliyet", "Mevzuat", "Sorumlu", "Hedef", "Durum", "Notlar"]
+        )
+        for it in items:
+            st = it.status.value if hasattr(it.status, "value") else str(it.status or "")
+            ws.append(
+                [
+                    it.month,
+                    it.category or "",
+                    it.activity or "",
+                    it.legal_basis or "",
+                    it.responsible_name or "",
+                    it.target_date.isoformat() if it.target_date else "",
+                    st,
+                    it.notes or "",
+                ]
+            )
+        stream = BytesIO()
+        wb.save(stream)
+        out[f"06-yillik-plan-{y}.xlsx"] = stream.getvalue()
+
+    eval_row = db.scalar(
+        select(AnnualPlanEvaluation)
+        .where(
+            AnnualPlanEvaluation.company_id == company_id,
+            AnnualPlanEvaluation.year == y,
+            AnnualPlanEvaluation.is_active.is_(True),
+            AnnualPlanEvaluation.report_status.in_(("onaylandi", "arsiv")),
+        )
+        .order_by(AnnualPlanEvaluation.id.desc())
+    )
+    if eval_row:
+        # Değerlendirme PDF üretimi API katmanında ağır; burada yalnızca meta not bırakılır
+        # (onaylı rapor varsa kanıt olarak JSON özet).
+        out[f"07-yillik-degerlendirme-{y}.json"] = json.dumps(
+            {
+                "evaluation_id": eval_row.id,
+                "year": y,
+                "report_status": eval_row.report_status,
+                "report_date": eval_row.report_date.isoformat() if eval_row.report_date else None,
+                "verify_code": eval_row.verify_code,
+                "specialist_name": eval_row.specialist_name,
+                "physician_name": eval_row.physician_name,
+                "employer_name": eval_row.employer_name,
+                "note": "Onaylı değerlendirme kaydı mevcut; tam PDF yıllık değerlendirme modülünden indirilir.",
+            },
+            ensure_ascii=False,
+            indent=2,
+        ).encode("utf-8")
+    return out
+
+
 def build_csgb_audit_bundle_zip(
     db: Session,
     osgb_id: int | None = None,
@@ -343,7 +433,7 @@ def build_csgb_audit_bundle_zip(
         }
 
     manifest = {
-        "bundle_version": "audit-bundle-v3",
+        "bundle_version": "audit-bundle-v4",
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "osgb_id": oid,
         "osgb_name": osgb.get("name"),
@@ -368,6 +458,13 @@ def build_csgb_audit_bundle_zip(
         },
     }
 
+    annual_files: dict[str, bytes] = {}
+    if company_id is not None:
+        annual_files = _annual_plan_artifacts(db, company_id)
+        for name in annual_files:
+            manifest["files"].append(name)
+        manifest["counts"]["annual_plan_files"] = len(annual_files)
+
     scope_line = (
         f"Kapsam: işyeri snapshot — {scope.get('company_name')} (id={company_id})\n"
         if company_id is not None
@@ -385,7 +482,9 @@ def build_csgb_audit_bundle_zip(
         "- 02-assignments.json      : aktif görevlendirmeler + KATİP no\n"
         "- 03-visits-notebook.json  : saha ziyaretleri (has_notebook bayrağı)\n"
         "- 04-contracts.json        : hizmet sözleşmeleri\n"
-        "- 05-capacity-snapshot.json: 6331 kapasite / asgari süre özeti\n\n"
+        "- 05-capacity-snapshot.json: 6331 kapasite / asgari süre özeti\n"
+        "- 06-yillik-plan-*         : yıllık plan PDF/Excel (işyeri snapshot)\n"
+        "- 07-yillik-degerlendirme-*: onaylı değerlendirme özeti (varsa)\n\n"
         "Not: Gerçek İBYS/KATİP API entegrasyonu yoktur; sistem kayıtlarından üretilir.\n"
     )
 
@@ -423,6 +522,8 @@ def build_csgb_audit_bundle_zip(
             "05-capacity-snapshot.json",
             json.dumps(capacity, ensure_ascii=False, indent=2, default=_json_default),
         )
+        for name, content in annual_files.items():
+            zf.writestr(name, content)
         zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
 
     return buf.getvalue(), filename

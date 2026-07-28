@@ -87,6 +87,17 @@ HIGHLIGHTS: list[dict[str, Any]] = [
         "osgb_tip": "Yıllık plan / tatbikat kalemlerini saha tamamlanma durumundan izleyin.",
     },
     {
+        "id": "yillik-plan",
+        "title": "Yıllık çalışma planı ve değerlendirme",
+        "topic": "Yıllık plan",
+        "summary": (
+            "OSGB/işyeri; yıllık İSG çalışma planını hazırlar, faaliyetleri izler ve yıl sonunda "
+            "değerlendirme raporu düzenler. Plan kalemleri ilgili yönetmeliklerle ilişkilendirilir."
+        ),
+        "instrument": "İş Sağlığı ve Güvenliği Hizmetleri Yönetmeliği — yıllık plan / değerlendirme",
+        "osgb_tip": "Saha ‘Yıllık Plan’ ve ‘Yıllık Değerlendirme Raporu’ modüllerinden takip edin.",
+    },
+    {
         "id": "katip",
         "title": "İSG-KATİP görevlendirme",
         "topic": "KATİP",

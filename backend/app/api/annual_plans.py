@@ -22,6 +22,9 @@ from app.schemas.annual_plan import (
     AnnualPlanResponse,
     AnnualPlanUpdate,
 )
+from app.services.annual_plan_pdf import build_annual_plan_pdf
+from app.services.annual_plan_template import template_for_hazard
+from app.services.assigned_team import team_names
 from app.services.tr_calendar import is_non_working_day, plan_target_date
 
 logger = logging.getLogger(__name__)
@@ -44,23 +47,6 @@ CATEGORIES = {
     "kkd": "KKD",
     "diger": "Diğer",
 }
-
-# PRO planlama_template_items portu
-TEMPLATE = [
-    (1, "yillik_calisma", "Yıllık İSG çalışma planının oluşturulması", "İSG faaliyetlerinin yıl geneline dağıtılması", "İSG Uzmanı / İşveren", "Yıl başında plan hazırlanır."),
-    (1, "egitim", "Yıllık eğitim planının hazırlanması", "Temel İSG, yangın, KKD ve işe özel eğitimlerin planlanması", "İSG Uzmanı", "Çalışan sayısı ve tehlike sınıfına göre revize edilir."),
-    (2, "periyodik", "Elektrik tesisatı / topraklama kontrol planı", "Elektrik tesisatı, pano, topraklama ve paratoner kontrollerinin planlanması", "İdari İşler / Teknik Birim", "Yetkili kişi/kuruluş raporları dosyalanır."),
-    (3, "tatbikat", "Yangın ve tahliye tatbikatı", "Acil durum ekipleriyle birlikte tahliye senaryosunun uygulanması", "İSG Uzmanı / Acil Durum Ekipleri", "Fotoğraflı tutanak alınır."),
-    (4, "saglik", "Sağlık gözetimi takip kontrolü", "İşe giriş/periyodik muayene sürelerinin kontrolü", "İşyeri Hekimi", "Geciken muayeneler raporlanır."),
-    (5, "periyodik", "Kaldırma ekipmanları kontrolü", "Forklift, vinç, caraskal, transpalet, platform kontrolleri", "Bakım / Teknik Birim", "Rapor PDF'leri Periyodik Kontroller modülüne yüklenir."),
-    (6, "yillik_calisma", "Risk değerlendirmesi gözden geçirme", "Yeni faaliyet, ekipman, kaza veya değişiklikler bakımından risklerin gözden geçirilmesi", "İSG Uzmanı / İşveren", "Gerekirse revizyon yapılır."),
-    (7, "kkd", "KKD zimmet ve uygunluk kontrolü", "Baret, gözlük, ayakkabı, eldiven, emniyet kemeri ve diğer KKD'lerin kontrolü", "İSG Uzmanı / Birim Sorumluları", "Eksik/hasarlı KKD yenilenir."),
-    (8, "periyodik", "Raf sistemleri ve depo ekipmanları kontrolü", "Depo rafları, forklift yolları, istifleme ve yükleme alanlarının kontrolü", "Depo Sorumlusu", "Raf etiketi ve kapasite bilgileri kontrol edilir."),
-    (9, "egitim", "Yenileme / işe özel eğitimlerin kontrolü", "Yüksekte çalışma, kimyasal, kaynak, elektrik, forklift gibi işe özel eğitimler", "İSG Uzmanı", "Eksik eğitimler tamamlanır."),
-    (10, "tatbikat", "Acil durum planı ve ekip listesi kontrolü", "Ekip üyeleri, toplanma alanı, tahliye güzergâhı ve acil telefonlar", "İSG Uzmanı", "Plan revizyonu gerekiyorsa Acil Durum modülünde güncellenir."),
-    (11, "yillik_calisma", "Yıl sonu veri toplama", "Eğitim, KKD, sağlık, periyodik kontrol, tespit ve ramak kala kayıtlarının toplanması", "İSG Uzmanı", "Yıllık değerlendirme raporuna hazırlık."),
-    (12, "yillik_calisma", "Yıllık değerlendirme raporu", "Yıl boyunca yapılan İSG faaliyetlerinin değerlendirilmesi", "İSG Uzmanı / İşveren", "Yıl sonu raporu alınır."),
-]
 
 
 def ensure_access(db: Session, user: User, company_id: int) -> None:
@@ -192,17 +178,19 @@ def generate_template(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    """PRO /planlama/generate — aynı yıl için yoksa 6331 şablon maddelerini ekler."""
+    """Aynı yıl için yoksa mevzuat dayanaklı şablon maddelerini ekler (tehlike sınıfına göre)."""
     try:
         ensure_access(db, user, payload.company_id)
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(403, f"Firma erişimi doğrulanamadı: {exc}") from exc
-    if not db.get(Company, payload.company_id):
+    company = db.get(Company, payload.company_id)
+    if not company:
         raise HTTPException(404, "Firma bulunamadı.")
     if payload.year < 2020 or payload.year > 2100:
         raise HTTPException(422, "Geçersiz yıl.")
+    template = template_for_hazard(company.hazard_class)
     existing = list(
         db.scalars(
             _active_stmt().where(
@@ -215,7 +203,7 @@ def generate_template(
     created = 0
     targets: list[str] = []
     try:
-        for month, category, activity, description, responsible, notes in TEMPLATE:
+        for month, category, activity, description, responsible, notes, legal in template:
             key = (month, activity.strip().casefold())
             if key in existing_keys:
                 continue
@@ -254,6 +242,7 @@ def generate_template(
                     target_date=target,
                     status=AnnualPlanStatus.PLANNED,
                     notes=(note_extra[:1500] if note_extra else None),
+                    legal_basis=(legal[:240] if legal else None),
                     created_by_id=user.id,
                 )
             )
@@ -273,14 +262,16 @@ def generate_template(
     return {
         "company_id": payload.company_id,
         "year": payload.year,
+        "hazard_class": company.hazard_class,
         "created": created,
-        "skipped_existing": len(TEMPLATE) - created,
-        "template_size": len(TEMPLATE),
+        "skipped_existing": len(template) - created,
+        "template_size": len(template),
         "workday_adjusted": True,
         "holiday_safe": True,
         "target_dates": targets,
         "message": (
-            f"{created} madde eklendi (tatil/hafta sonu hedefleri iş gününe kaydırıldı)."
+            f"{created} madde eklendi (tehlike sınıfı: {company.hazard_class or '—'}; "
+            "tatil/hafta sonu hedefleri iş gününe kaydırıldı)."
             if created
             else "Tüm şablon maddeleri zaten mevcut — yeni kayıt eklenmedi."
         ),
@@ -330,6 +321,7 @@ def export_plan_xlsx(
             "Kategori",
             "Faaliyet",
             "Açıklama",
+            "Mevzuat Dayanağı",
             "Sorumlu",
             "Hedef Tarih",
             "Durum",
@@ -364,6 +356,7 @@ def export_plan_xlsx(
                 CATEGORIES.get(it.category or "", it.category or ""),
                 it.activity or "",
                 it.description or "",
+                it.legal_basis or "",
                 it.responsible_name or "",
                 it.target_date.isoformat() if it.target_date else "",
                 status_labels.get(st, st),
@@ -371,7 +364,7 @@ def export_plan_xlsx(
                 it.notes or "",
             ]
         )
-    widths = [28, 8, 6, 12, 18, 40, 36, 22, 14, 14, 14, 36]
+    widths = [28, 8, 6, 12, 18, 40, 36, 36, 22, 14, 14, 14, 36]
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
@@ -382,6 +375,46 @@ def export_plan_xlsx(
     return StreamingResponse(
         stream,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@router.get("/export.pdf")
+def export_plan_pdf(
+    year: int | None = None,
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Yıllık çalışma planı — imza kutulu PDF."""
+    y = year or date.today().year
+    effective = effective_company_id(db, user, company_id)
+    company = db.get(Company, effective)
+    if not company:
+        raise HTTPException(404, "Firma bulunamadı.")
+    items = list(
+        db.scalars(
+            _active_stmt()
+            .where(AnnualPlanItem.company_id == effective, AnnualPlanItem.year == y)
+            .order_by(AnnualPlanItem.month, AnnualPlanItem.id)
+        ).all()
+    )
+    if not items:
+        raise HTTPException(404, "Bu yıl için plan maddesi yok. Önce otomatik plan üretin.")
+    names = team_names(db, effective)
+    pdf = build_annual_plan_pdf(
+        company_name=company.name,
+        year=y,
+        items=items,
+        hazard_class=company.hazard_class,
+        specialist_name=names.get("safety_specialist"),
+        physician_name=names.get("workplace_physician"),
+        employer_name=company.authorized_person,
+    )
+    fname = f"yillik-plan-{y}-{effective}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )
 
@@ -417,6 +450,8 @@ def export_plan_txt(
             f"Sorumlu: {it.responsible_name or '—'} | "
             f"Hedef: {it.target_date or '—'} | Durum: {it.status.value}"
         )
+        if it.legal_basis:
+            lines.append(f"   Mevzuat: {it.legal_basis}")
         if it.description:
             lines.append(f"   Aciklama: {it.description}")
     body = "\n".join(lines) + "\n"

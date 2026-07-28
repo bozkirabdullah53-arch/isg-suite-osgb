@@ -83,6 +83,7 @@ function emptyForm(user, year) {
     status: 'planned',
     completion_date: '',
     notes: '',
+    legal_basis: '',
   };
 }
 
@@ -186,6 +187,7 @@ export function AnnualPlansPage({user}) {
       status: row.status || 'planned',
       completion_date: row.completion_date || '',
       notes: row.notes || '',
+      legal_basis: row.legal_basis || '',
     });
     setOpen(true);
   }
@@ -205,6 +207,7 @@ export function AnnualPlansPage({user}) {
         description: form.description || null,
         responsible_name: form.responsible_name || null,
         notes: form.notes || null,
+        legal_basis: form.legal_basis || null,
       };
       if (editing) {
         const {company_id: _c, ...patch} = payload;
@@ -285,6 +288,20 @@ export function AnnualPlansPage({user}) {
     }
   }
 
+  async function exportPdf() {
+    const cid = companyId || user.company_id;
+    if (!cid) {
+      setMessage('PDF için firma seçiniz.');
+      return;
+    }
+    try {
+      const p = new URLSearchParams({year: String(year), company_id: String(cid)});
+      await downloadFile(`/annual-plans/export.pdf?${p}`, `yillik-plan-${year}.pdf`);
+    } catch (err) {
+      setMessage(err.message);
+    }
+  }
+
   const monthBars = summary?.by_month || {};
 
   return (
@@ -297,6 +314,9 @@ export function AnnualPlansPage({user}) {
           </button>
           <button type="button" className="secondary" onClick={exportExcel} disabled={busy}>
             <Download size={16} /> Excel Aktar
+          </button>
+          <button type="button" className="secondary" onClick={exportPdf} disabled={busy}>
+            <Download size={16} /> Plan PDF
           </button>
           {canEdit && (
             <button type="button" className="secondary" onClick={generate} disabled={busy || !companyId}>
@@ -391,6 +411,11 @@ export function AnnualPlansPage({user}) {
                     {r.description && (
                       <div style={{fontSize: 12, color: '#64748b', marginTop: 2}}>{r.description}</div>
                     )}
+                    {r.legal_basis && (
+                      <div style={{fontSize: 11, color: '#334155', marginTop: 4}}>
+                        Mevzuat: {r.legal_basis}
+                      </div>
+                    )}
                   </td>
                   <td>{r.responsible_name || '—'}</td>
                   <td>{r.target_date || '—'}</td>
@@ -407,7 +432,7 @@ export function AnnualPlansPage({user}) {
               )) : (
                 <tr>
                   <td colSpan={canEdit ? 7 : 6} className="empty">
-                    Bu yıl için plan maddesi yok. “Otomatik Plan Üret” ile 6331 şablonunu ekleyebilirsiniz.
+                    Bu yıl için plan maddesi yok. “Otomatik Plan Üret” ile mevzuat dayanaklı şablonu ekleyebilirsiniz.
                   </td>
                 </tr>
               )}
@@ -441,6 +466,12 @@ export function AnnualPlansPage({user}) {
             </Select>
             <Field label="Faaliyet" required value={form.activity} onChange={(e) => setForm({...form, activity: e.target.value})} />
             <TextArea label="Açıklama" value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} />
+            <Field
+              label="Mevzuat dayanağı"
+              value={form.legal_basis}
+              onChange={(e) => setForm({...form, legal_basis: e.target.value})}
+              placeholder="Örn. İSG Hizmetleri Yönetmeliği — yıllık plan"
+            />
             <Field label="Sorumlu" value={form.responsible_name} onChange={(e) => setForm({...form, responsible_name: e.target.value})} />
             <Field label="Hedef Tarih" type="date" value={form.target_date} onChange={(e) => setForm({...form, target_date: e.target.value})} />
             <Select label="Durum" value={form.status} onChange={(e) => setForm({...form, status: e.target.value})}>
