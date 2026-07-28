@@ -2,5 +2,6 @@ fastapi>=0.110
 uvicorn[standard]>=0.27
 cryptography>=42
 endesive>=2.0.9
+attrs>=23.1.0
 pydantic>=2.5
 PyKCS11>=1.5.12
