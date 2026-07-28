@@ -349,6 +349,7 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 .user-chip span { color: #6c7f87; font-size: 12px; margin-top: 3px; }
 
 .content { padding: 28px; max-width: 1400px; margin: 0 auto; }
+.content:has(.kroki-canvas-panel) { max-width: min(1920px, 100%); padding-left: 16px; padding-right: 16px; }
 .welcome {
   display: flex;
   align-items: center;

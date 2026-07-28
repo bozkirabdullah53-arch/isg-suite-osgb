@@ -329,18 +329,18 @@ export function EmergencyPlansPage({user}) {
 
   if (editPlanId) {
     return (
-      <>
+      <div style={{margin: '0 -8px', width: 'calc(100% + 16px)', maxWidth: 'none'}}>
         <div className="page-title">
           <h3><Map size={20} style={{marginRight: 8, verticalAlign: 'middle'}} />Acil Durum Kroki Studio</h3>
         </div>
-        <section className="panel" style={{borderTop: '3px solid #0f766e', padding: 12, maxWidth: '100%'}}>
+        <section className="panel" style={{borderTop: '3px solid #0f766e', padding: 12, maxWidth: 'none'}}>
           <EmergencyKrokiEditor
             planId={editPlanId}
             user={user}
             onClose={() => { setEditPlanId(null); void load(); }}
           />
         </section>
-      </>
+      </div>
     );
   }
 
