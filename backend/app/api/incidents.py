@@ -1,7 +1,7 @@
 """Olay kayıtları API — ramak kala / iş kazası / kök neden / olay DÖF."""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -50,6 +50,27 @@ EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPE
 
 def ensure_access(db: Session, user: User, company_id: int) -> None:
     ensure_company_access(db, user, company_id)
+
+
+def _apply_sgk_process(row: IncidentEvent) -> None:
+    """İş kazasında SGK bildirim süresi (3 takvim günü) ve durum takibi."""
+    if row.event_type != "is_kazasi":
+        row.sgk_due_date = None
+        if not row.sgk_notification_status:
+            row.sgk_notification_status = "gerekmez"
+        return
+    if row.sgk_reported:
+        row.sgk_notification_status = "tamamlandi"
+        if not row.sgk_due_date and row.event_date:
+            row.sgk_due_date = row.event_date + timedelta(days=3)
+        return
+    if row.event_date:
+        row.sgk_due_date = row.event_date + timedelta(days=3)
+    today = date.today()
+    if row.sgk_due_date and row.sgk_due_date < today:
+        row.sgk_notification_status = "gecikti"
+    else:
+        row.sgk_notification_status = "bekliyor"
 
 
 def _apply_scoring(row: IncidentEvent) -> None:
@@ -322,6 +343,7 @@ def create_incident(
         created_by_id=user.id,
     )
     _apply_scoring(row)
+    _apply_sgk_process(row)
     db.add(row)
     db.commit()
     return _load(db, row.id)
@@ -350,6 +372,7 @@ def update_incident(
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(row, k, v)
     _apply_scoring(row)
+    _apply_sgk_process(row)
     db.commit()
     return _load(db, incident_id)
 

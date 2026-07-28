@@ -998,6 +998,8 @@ class IncidentEvent(Base):
     evaluation_text: Mapped[str | None] = mapped_column(String(4000), nullable=True)
     sgk_reported: Mapped[bool] = mapped_column(Boolean, default=False)
     sgk_report_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    sgk_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    sgk_notification_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
     police_reported: Mapped[bool] = mapped_column(Boolean, default=False)
     accident_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     injury_type: Mapped[str | None] = mapped_column(String(220), nullable=True)
@@ -1522,4 +1524,129 @@ class WorkplaceMembership(Base):
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
     role: Mapped[str] = mapped_column(String(40))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+# --- 6331 compliance registers (0062) ---
+
+
+class PeriodicControl(Base):
+    """İş ekipmanı / yangın periyodik kontrol sicili."""
+
+    __tablename__ = "periodic_controls"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    category: Mapped[str] = mapped_column(String(40), index=True)
+    equipment_name: Mapped[str] = mapped_column(String(220))
+    location: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    serial_no: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    last_control_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    next_due_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    control_firm: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    report_ref: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    result: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    document_id: Mapped[int | None] = mapped_column(ForeignKey("document_records.id"), nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class EmergencyPlan(Base):
+    """Acil durum planı + kroki dosyası."""
+
+    __tablename__ = "emergency_plans"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    title: Mapped[str] = mapped_column(String(220))
+    revision_no: Mapped[str] = mapped_column(String(30), default="00")
+    plan_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    next_review_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    assembly_areas: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    scenario_summary: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    kroki_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    kroki_storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    document_id: Mapped[int | None] = mapped_column(ForeignKey("document_records.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="Aktif")
+    notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class WorkplaceMeasurement(Base):
+    """Ortam / hijyen ölçüm defteri."""
+
+    __tablename__ = "workplace_measurements"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    measurement_type: Mapped[str] = mapped_column(String(40), index=True)
+    location: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    measured_at: Mapped[date] = mapped_column(Date)
+    value: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    unit: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    limit_value: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    lab_name: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    report_ref: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    next_due_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    document_id: Mapped[int | None] = mapped_column(ForeignKey("document_records.id"), nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OhsCommitteeMember(Base):
+    """İSG Kurulu / çalışan temsilcisi üyeleri."""
+
+    __tablename__ = "ohs_committee_members"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    role_code: Mapped[str] = mapped_column(String(40))
+    full_name: Mapped[str] = mapped_column(String(160))
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class OhsCommitteeMeeting(Base):
+    """İSG Kurulu toplantı tutanağı."""
+
+    __tablename__ = "ohs_committee_meetings"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    meeting_date: Mapped[date] = mapped_column(Date)
+    agenda: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    decisions: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    attendees: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    next_meeting_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    document_id: Mapped[int | None] = mapped_column(ForeignKey("document_records.id"), nullable=True)
+    notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class DocumentApproval(Base):
+    """Belge onay / imza hazırlık kaydı (5070 nitelikli e-imza sağlayıcısı olmadan süreç takibi)."""
+
+    __tablename__ = "document_approvals"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    document_title: Mapped[str] = mapped_column(String(220))
+    document_kind: Mapped[str] = mapped_column(String(80), default="genel")
+    approver_name: Mapped[str] = mapped_column(String(160))
+    approver_role: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    approved_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    signature_note: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="Bekliyor")
+    document_id: Mapped[int | None] = mapped_column(ForeignKey("document_records.id"), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

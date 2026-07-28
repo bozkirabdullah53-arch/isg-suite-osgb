@@ -20,16 +20,20 @@ from app.models.entities import (
     ChemicalProduct,
     Company,
     DocumentRecord,
+    EmergencyPlan,
     Employee,
     HealthRecord,
+    IncidentEvent,
     IsgProfessional,
     IsgRecord,
     Notification,
     NotificationType,
     OsgbOrganization,
+    PeriodicControl,
     RecordStatus,
     ServiceContract,
     WorkplaceAssignment,
+    WorkplaceMeasurement,
 )
 
 
@@ -281,6 +285,94 @@ def rebuild_company_notifications(db: Session, company_id: int) -> int:
                     + ("" if item.has_sds_file else " SDS dosyası henüz işaretlenmemiş.")
                 ),
                 entity_type="chemical_product",
+                entity_id=str(item.id),
+            )
+        )
+
+    # Periyodik kontrol terminleri
+    for item in db.scalars(
+        select(PeriodicControl).where(
+            PeriodicControl.company_id == company_id,
+            PeriodicControl.is_active.is_(True),
+            PeriodicControl.next_due_date.is_not(None),
+            PeriodicControl.next_due_date <= warning_date,
+        )
+    ).all():
+        overdue = bool(item.next_due_date and item.next_due_date < today)
+        notifications.append(
+            Notification(
+                company_id=company_id,
+                type=NotificationType.CRITICAL if overdue else NotificationType.WARNING,
+                title="Periyodik kontrol" + (" gecikmiş" if overdue else " yaklaşıyor"),
+                message=f"{item.equipment_name} ({item.category}) termin: {item.next_due_date}.",
+                entity_type="periodic_control",
+                entity_id=str(item.id),
+            )
+        )
+
+    # Ortam ölçüm yenileme
+    for item in db.scalars(
+        select(WorkplaceMeasurement).where(
+            WorkplaceMeasurement.company_id == company_id,
+            WorkplaceMeasurement.is_active.is_(True),
+            WorkplaceMeasurement.next_due_date.is_not(None),
+            WorkplaceMeasurement.next_due_date <= warning_date,
+        )
+    ).all():
+        overdue = bool(item.next_due_date and item.next_due_date < today)
+        notifications.append(
+            Notification(
+                company_id=company_id,
+                type=NotificationType.CRITICAL if overdue else NotificationType.WARNING,
+                title="Ortam ölçümü" + (" gecikmiş" if overdue else " yaklaşıyor"),
+                message=f"{item.measurement_type} / {item.location or '—'} termin: {item.next_due_date}.",
+                entity_type="workplace_measurement",
+                entity_id=str(item.id),
+            )
+        )
+
+    # Acil plan gözden geçirme
+    for item in db.scalars(
+        select(EmergencyPlan).where(
+            EmergencyPlan.company_id == company_id,
+            EmergencyPlan.is_active.is_(True),
+            EmergencyPlan.next_review_date.is_not(None),
+            EmergencyPlan.next_review_date <= warning_date,
+        )
+    ).all():
+        overdue = bool(item.next_review_date and item.next_review_date < today)
+        notifications.append(
+            Notification(
+                company_id=company_id,
+                type=NotificationType.CRITICAL if overdue else NotificationType.WARNING,
+                title="Acil durum planı" + (" gecikmiş" if overdue else " gözden geçirme"),
+                message=f"{item.title} (Rev {item.revision_no}) tarih: {item.next_review_date}.",
+                entity_type="emergency_plan",
+                entity_id=str(item.id),
+            )
+        )
+
+    # SGK iş kazası bildirim süresi
+    for item in db.scalars(
+        select(IncidentEvent).where(
+            IncidentEvent.company_id == company_id,
+            IncidentEvent.event_type == "is_kazasi",
+            IncidentEvent.sgk_reported.is_(False),
+            IncidentEvent.sgk_due_date.is_not(None),
+            IncidentEvent.sgk_due_date <= warning_date,
+        )
+    ).all():
+        overdue = bool(item.sgk_due_date and item.sgk_due_date < today)
+        notifications.append(
+            Notification(
+                company_id=company_id,
+                type=NotificationType.CRITICAL if overdue else NotificationType.WARNING,
+                title="SGK bildirimi" + (" gecikti" if overdue else " süresi yaklaşıyor"),
+                message=(
+                    f"{item.form_no} iş kazası — SGK bildirim son tarihi {item.sgk_due_date}. "
+                    "Resmi bildirimi SGK/İBYS üzerinden tamamlayıp kaydı işaretleyin."
+                ),
+                entity_type="incident_sgk",
                 entity_id=str(item.id),
             )
         )

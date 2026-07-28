@@ -27,6 +27,13 @@ import {MevzuatPanelPage} from './mevzuat_panel';
 import {SdsRegisterPage} from './sds_register';
 import {DrillsPage} from './drills';
 import {EmergencyTeamsPage} from './emergency_teams';
+import {
+  PeriodicControlsPage,
+  EmergencyPlansPage,
+  WorkplaceMeasurementsPage,
+  OhsCommitteePage,
+  DocumentApprovalsPage,
+} from './compliance_registers';
 import {AnnualEvalReportPage} from './annual_eval_report';
 import {Customer360Page} from './customer_360';
 import {CapacityEnginePage} from './capacity_engine';
@@ -106,13 +113,14 @@ const roleModules={
   ],
   safety_specialist:[
     'visits','dashboard',
-    'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler',
+    'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler','acil_plan',
+    'periyodik_kontrol','ortam_olcum','isg_kurulu','belge_onay',
     'training','employees','annual_plans','annual_eval_report','documents',
     'security',
   ],
   workplace_physician:[
     'visits','dashboard',
-    'health','employees',
+    'health','employees','ortam_olcum',
     'annual_plans','annual_eval_report','documents',
     'security',
   ],
@@ -200,6 +208,11 @@ const menuCatalog={
   sds:['SDS / PKD',Beaker],
   tatbikat:['Tatbikat Yönetimi',Activity],
   acil_ekipler:['Acil Durum Ekipleri/Destek Elemanları',Users],
+  acil_plan:['Acil Durum Planı',ShieldAlert],
+  periyodik_kontrol:['Periyodik Kontrol',ClipboardCheck],
+  ortam_olcum:['Ortam Ölçüm',Gauge],
+  isg_kurulu:['İSG Kurulu',Users],
+  belge_onay:['Belge Onay',FileText],
   training:['Eğitimler',GraduationCap],
   health:['Sağlık',HeartPulse],
   documents:['Dokümanlar',FileText],
@@ -1711,6 +1724,11 @@ function App(){
     sds:<SdsRegisterPage user={user}/>,
     tatbikat:<DrillsPage user={user}/>,
     acil_ekipler:<EmergencyTeamsPage user={user}/>,
+    acil_plan:<EmergencyPlansPage user={user}/>,
+    periyodik_kontrol:<PeriodicControlsPage user={user}/>,
+    ortam_olcum:<WorkplaceMeasurementsPage user={user}/>,
+    isg_kurulu:<OhsCommitteePage user={user}/>,
+    belge_onay:<DocumentApprovalsPage user={user}/>,
     training:<TrainingPage user={user}/>,
     health:<HealthPage user={user}/>,
     documents:<DocumentsPage user={user}/>,

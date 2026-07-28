@@ -341,6 +341,8 @@ class IncidentResponse(BaseModel):
     evaluation_text: str | None
     sgk_reported: bool
     sgk_report_date: date | None
+    sgk_due_date: date | None = None
+    sgk_notification_status: str | None = None
     police_reported: bool
     accident_type: str | None
     injury_type: str | None

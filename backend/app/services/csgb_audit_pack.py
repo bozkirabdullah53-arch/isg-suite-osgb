@@ -18,16 +18,21 @@ from app.models.entities import (
     Company,
     DocumentCategory,
     DocumentRecord,
+    EmergencyPlan,
     Employee,
     HealthRecord,
     IncidentEvent,
     IsgProfessional,
+    OhsCommitteeMeeting,
+    OhsCommitteeMember,
     OsgbOrganization,
+    PeriodicControl,
     RiskAssessment,
     ServiceContract,
     ServiceVisit,
     TrainingSession,
     WorkplaceAssignment,
+    WorkplaceMeasurement,
 )
 from app.services.capacity_engine import build_capacity_overview
 
@@ -570,6 +575,45 @@ def build_csgb_audit_pack(
         emp_n,
         "Personel kaydı yok.",
         "{n} çalışan kaydı.",
+    )
+
+    pc_n = _count(PeriodicControl, PeriodicControl.is_active.is_(True))
+    ep_n = _count(EmergencyPlan, EmergencyPlan.is_active.is_(True))
+    wm_n = _count(WorkplaceMeasurement, WorkplaceMeasurement.is_active.is_(True))
+    oc_mem = _count(OhsCommitteeMember, OhsCommitteeMember.is_active.is_(True))
+    oc_meet = _count(OhsCommitteeMeeting, OhsCommitteeMeeting.is_active.is_(True))
+
+    _mod(
+        "periyodik_kontrol",
+        "Periyodik kontrol sicili (ekipman / yangın)",
+        "İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliği",
+        pc_n,
+        "Periyodik kontrol kaydı yok.",
+        "{n} periyodik kontrol kaydı.",
+    )
+    _mod(
+        "acil_durum_plani",
+        "Acil durum planı",
+        "İşyerlerinde Acil Durumlar Hakkında Yönetmelik",
+        ep_n,
+        "Acil durum planı kaydı yok (ekipler/tatbikat ayrı değerlendirilir).",
+        "{n} acil durum planı kaydı.",
+    )
+    _mod(
+        "ortam_olcum",
+        "Ortam / hijyen ölçüm kayıtları",
+        "6331 — ortam ölçümleri / maruziyet takibi",
+        wm_n,
+        "Ortam ölçüm kaydı yok.",
+        "{n} ortam ölçüm kaydı.",
+    )
+    _mod(
+        "isg_kurulu",
+        "İSG kurulu / çalışan temsilcisi",
+        "6331 md. 18–22 — İSG kurulu ve temsilci",
+        oc_mem + oc_meet,
+        "Kurul üye / toplantı kaydı yok.",
+        "{n} kurul üye/toplantı kaydı.",
     )
 
     # 13) Doküman arşivi (kategori özeti)
