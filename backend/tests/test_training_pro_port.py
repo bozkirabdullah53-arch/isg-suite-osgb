@@ -1,16 +1,73 @@
 from app.services.special_training_profiles import special_meta_for_api, special_profiles_for_api
-from app.services.training_topics import sectors_list_for_api
+import re
+
+from app.services.training_topics import (
+    SEKTOR_PROFIL,
+    TEHLIKE_EGITIM_KURALLARI,
+    egitim_konularini_hazirla,
+    sectors_list_for_api,
+)
 
 
 def test_pro_sector_catalog_size():
     sectors = sectors_list_for_api()
-    assert len(sectors) >= 150
+    assert len(sectors) == 2142
     codes = {s["code"] for s in sectors}
     assert "genel_uretim" in codes
-    assert "insaat" in codes
-    assert "acik_maden" in codes
-    # legacy Suite kodları korunur
-    assert "yuksekte_calisma" in codes
+    assert "nace_01_48_01" in codes
+    assert "nace_20_59_17" in codes
+    for sector in sectors:
+        assert len(sector["topics"]) == 5
+        assert len(set(sector["topics"])) == 5
+
+
+def test_nace_profiles_are_activity_compatible():
+    expected = {
+        "nace_01_48_01": "aricilik",
+        "nace_08_93_02": "madencilik_maden_ocagi",
+        "nace_20_59_17": "patlayici",
+        "nace_30_11_02": "gemi_insa_tersane",
+        "nace_47_30_01": "akaryakit_lpg_dolum_istasyonu",
+        "nace_75_00_04": "veterinerlik",
+        "nace_91_41_00": "hayvanat_bahcesi",
+        "nace_96_10_03": "camasirhane_kuru_temizleme",
+        "nace_96_30_01": "cenaze_hizmetleri",
+    }
+    for code, profile in expected.items():
+        assert SEKTOR_PROFIL[code] == profile
+
+    bee = next(item for item in sectors_list_for_api() if item["code"] == "nace_01_48_01")
+    joined = " ".join(bee["topics"]).casefold()
+    assert "arı sokmaları" in joined
+    assert "anafilaksi" in joined
+    assert "kovan" in joined
+    assert "körük" in joined
+    assert "sağım" not in joined
+    assert "gübre gaz" not in joined
+
+
+def test_every_nace_activity_has_exact_mandatory_topic_minutes():
+    for sector in sectors_list_for_api():
+        hazard = sector["hazard_class"]
+        sol, sag, total, _hours = egitim_konularini_hazirla(hazard, sector["code"])
+        all_minutes = [
+            int(match.group(1))
+            for _bold, text in sol + sag
+            if (match := re.search(r"-\s*(\d+)\s*DK$", text))
+        ]
+        section_index = next(
+            index for index, (_bold, text) in enumerate(sag) if text.startswith("4. ")
+        )
+        section_minutes = [
+            int(match.group(1))
+            for _bold, text in sag[section_index + 2:]
+            if (match := re.search(r"-\s*(\d+)\s*DK$", text))
+        ]
+        rule = TEHLIKE_EGITIM_KURALLARI[hazard]
+        assert total == sum(all_minutes) == rule["dakika"]
+        assert sum(section_minutes) == rule["dorduncu_bolum_dakika"]
+        assert len(section_minutes) == 5
+        assert all(value > 0 and value % 5 == 0 for value in all_minutes)
 
 
 def test_special_training_profiles_ported():

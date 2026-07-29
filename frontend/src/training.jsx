@@ -57,7 +57,7 @@ function apiBaseUrl() {
 let _sectorsMem = null;
 let _sectorsMemAt = 0;
 const SECTORS_TTL_MS = 60 * 60 * 1000;
-const SECTORS_CACHE_KEY = 'isg_sectors_v3_nace2026';
+const SECTORS_CACHE_KEY = 'isg_sectors_v4_nace2026_risk';
 const SECTORS_MIN_COUNT = 500; // eski 177 listesini reddet
 
 async function loadSectorsCatalog() {
@@ -88,7 +88,7 @@ async function loadSectorsCatalog() {
 
   // 1) API — önbelleği kırma (eski 177 response kalmasın)
   try {
-    const r = await fetch(`${base}/trainings/sectors?v=nace2026`, {cache: 'no-store'});
+    const r = await fetch(`${base}/trainings/sectors?v=nace2026-risk-v4`, {cache: 'no-store'});
     if (r.ok) {
       const json = await r.json();
       if (Array.isArray(json) && json.length >= SECTORS_MIN_COUNT) data = json;
@@ -106,7 +106,7 @@ async function loadSectorsCatalog() {
   // 3) Statik paket
   if (data.length < SECTORS_MIN_COUNT) {
     try {
-      const local = await fetch('/training-sectors.json?v=nace2026', {cache: 'no-store'}).then((r) => r.json());
+      const local = await fetch('/training-sectors.json?v=nace2026-risk-v4', {cache: 'no-store'}).then((r) => r.json());
       if (Array.isArray(local) && local.length >= SECTORS_MIN_COUNT) data = local;
       else if (Array.isArray(local?.sectors) && local.sectors.length >= SECTORS_MIN_COUNT) data = local.sectors;
     } catch (_) { /* ignore */ }
@@ -272,6 +272,7 @@ export function TrainingPage({user}) {
   const excelInputRef = useRef(null);
   const logoInputRef = useRef(null);
   const pendingLogoRef = useRef(null);
+  const sectorPickerRef = useRef(null);
 
   const [tab, setTab] = useState('temel');
   const [companies, setCompanies] = useState([]);
@@ -304,6 +305,8 @@ export function TrainingPage({user}) {
   const [renewalFilter, setRenewalFilter] = useState('');
   const [renewalBusy, setRenewalBusy] = useState(false);
   const [renewalErr, setRenewalErr] = useState('');
+  const [sectorQuery, setSectorQuery] = useState('');
+  const [sectorPickerOpen, setSectorPickerOpen] = useState(false);
 
   const companyEmployees = useMemo(
     () =>
@@ -374,7 +377,12 @@ export function TrainingPage({user}) {
   }
 
   const filteredSectors = useMemo(() => {
-    const list = [...sectors].sort((a, b) =>
+    const needle = sectorQuery.trim().toLocaleLowerCase('tr');
+    const list = sectors.filter((item) => {
+      if (!needle) return true;
+      const searchable = `${item.nace || ''} ${item.name || ''} ${item.label || ''}`.toLocaleLowerCase('tr');
+      return searchable.includes(needle);
+    }).sort((a, b) =>
       String(a.label || a.name || '').localeCompare(String(b.label || b.name || ''), 'tr'),
     );
     return list.sort((a, b) => {
@@ -383,12 +391,33 @@ export function TrainingPage({user}) {
       if (ah !== bh) return ah - bh;
       return String(a.label || a.name || '').localeCompare(String(b.label || b.name || ''), 'tr');
     });
-  }, [sectors, form.hazard_class]);
+  }, [sectors, form.hazard_class, sectorQuery]);
+
+  const visibleSectorResults = useMemo(() => filteredSectors.slice(0, 100), [filteredSectors]);
 
   const selectedSector = useMemo(
     () => sectors.find((s) => s.code === form.sector),
     [sectors, form.sector],
   );
+
+  function pickSector(code) {
+    const picked = sectors.find((item) => item.code === code);
+    setForm((current) => ({
+      ...current,
+      sector: code,
+      hazard_class: picked?.hazard_class || current.hazard_class,
+    }));
+    setSectorQuery('');
+    setSectorPickerOpen(false);
+  }
+
+  useEffect(() => {
+    const closePicker = (event) => {
+      if (!sectorPickerRef.current?.contains(event.target)) setSectorPickerOpen(false);
+    };
+    document.addEventListener('pointerdown', closePicker);
+    return () => document.removeEventListener('pointerdown', closePicker);
+  }, []);
 
   const selectedProfile = useMemo(
     () => specialProfiles.find((p) => p.code === specialProfileCode),
@@ -580,7 +609,7 @@ export function TrainingPage({user}) {
       start_date: f.start_date,
       end_date: f.end_date,
       hazard_class: f.hazard_class,
-      sector: f.sector || 'genel_uretim',
+      sector: f.sector,
       instructor_name: (f.instructor_name || '').trim(),
       instructor_qualification: f.instructor_qualification || null,
       workplace_physician: (f.workplace_physician || '').trim() || null,
@@ -616,6 +645,10 @@ export function TrainingPage({user}) {
     }
     if (!form.company_id) {
       setErr('Firma seçiniz. Uzman yalnızca görevlendirildiği işyerleri için eğitim açabilir.');
+      return null;
+    }
+    if (!form.sector || !selectedSector) {
+      setErr('Sektör / iş kolunu resmî NACE listesinden seçiniz.');
       return null;
     }
     if (!(form.participant_ids || []).length) {
@@ -1306,20 +1339,16 @@ export function TrainingPage({user}) {
                   <select
                     className="tp-select"
                     value={form.hazard_class}
-                    disabled={!canEdit}
-                    onChange={(e) => setForm({...form, hazard_class: e.target.value})}
+                    disabled
+                    aria-label="NACE faaliyetine göre otomatik tehlike sınıfı"
                   >
                     <option>Az Tehlikeli</option>
                     <option>Tehlikeli</option>
                     <option>Çok Tehlikeli</option>
                   </select>
-                  {selectedSector?.hazard_class &&
-                    selectedSector.hazard_class !== form.hazard_class && (
-                      <div className="tp-help" style={{color: '#b45309'}}>
-                        Tebliğe göre “{selectedSector.label || selectedSector.name}” sınıfı:{' '}
-                        {selectedSector.hazard_class}
-                      </div>
-                    )}
+                  <div className="tp-help">
+                    Tehlike sınıfı seçilen resmî NACE faaliyetine göre otomatik belirlenir.
+                  </div>
                 </div>
                 <div>
                   <label className="tp-label">Süre / yenileme</label>
@@ -1359,30 +1388,54 @@ export function TrainingPage({user}) {
                   <label className="tp-label">
                     Sektör / iş kolu — NACE ({filteredSectors.length} kayıt)
                   </label>
-                  <select
-                    className="tp-select"
-                    value={form.sector}
-                    disabled={!canEdit}
-                    onChange={(e) => {
-                      const code = e.target.value;
-                      const picked = sectors.find((s) => s.code === code);
-                      setForm({
-                        ...form,
-                        sector: code,
-                        hazard_class: picked?.hazard_class || form.hazard_class,
-                      });
-                    }}
-                  >
-                    {filteredSectors.length === 0 && <option value="genel_uretim">Yükleniyor…</option>}
-                    {filteredSectors.map((s) => (
-                      <option key={s.code} value={s.code}>
-                        {s.label || `${s.nace || s.code} / ${s.name} / ${s.hazard_class || '—'}`}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="nace-picker" ref={sectorPickerRef}>
+                    <div className="nace-search-wrap">
+                      <Search size={18} aria-hidden="true" />
+                      <input
+                        className="tp-input nace-search-input"
+                        type="search"
+                        value={sectorQuery}
+                        disabled={!canEdit}
+                        placeholder="NACE kodu veya faaliyet adı yazın…"
+                        role="combobox"
+                        aria-expanded={sectorPickerOpen}
+                        aria-controls="training-nace-results"
+                        onFocus={() => setSectorPickerOpen(true)}
+                        onChange={(event) => {
+                          setSectorQuery(event.target.value);
+                          setSectorPickerOpen(true);
+                        }}
+                      />
+                    </div>
+                    {sectorPickerOpen && canEdit && (
+                      <div className="nace-results" id="training-nace-results" role="listbox">
+                        {visibleSectorResults.map((item) => (
+                          <button
+                            key={item.code}
+                            type="button"
+                            className={`nace-result${item.code === form.sector ? ' active' : ''}`}
+                            role="option"
+                            aria-selected={item.code === form.sector}
+                            onClick={() => pickSector(item.code)}
+                          >
+                            {item.label || `${item.nace || item.code} / ${item.name} / ${item.hazard_class || '—'}`}
+                          </button>
+                        ))}
+                        {visibleSectorResults.length === 0 && (
+                          <div className="nace-empty">Aramanızla eşleşen faaliyet bulunamadı.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="nace-selected-label">
+                    {selectedSector
+                      ? selectedSector.label || `${selectedSector.nace || selectedSector.code} / ${selectedSector.name} / ${selectedSector.hazard_class || '—'}`
+                      : 'Henüz NACE faaliyeti seçilmedi.'}
+                  </div>
                   <div className="tp-help">
-                    Resmi NACE kodu / faaliyet / tehlike sınıfı (2026 tebliğ). Seçince tehlike sınıfı ve
-                    belgedeki 4. konu başlığı buna göre güncellenir.
+                    {filteredSectors.length > 100
+                      ? `${filteredSectors.length} sonuç bulundu; ilk 100 sonuç gösteriliyor. Aramayı daraltın.`
+                      : `${filteredSectors.length} faaliyet bulundu. Faaliyet adlarının tamamı okunabilir.`}
                   </div>
                 </div>
               </div>
@@ -1391,9 +1444,15 @@ export function TrainingPage({user}) {
                 {` ${HAZARD_HOURS[form.hazard_class] || 8} saatlik eğitim en az ${minTrainingDays(HAZARD_HOURS[form.hazard_class] || 8)} takvim gününe yayılmalıdır.`}
               </div>
               <div className="sector-topics" style={{marginTop: 10}}>
-                <strong>4. İş ve İşyerine Özgü Riskler</strong>
+                <strong>
+                  {form.hazard_class === 'Az Tehlikeli'
+                    ? '4. Faaliyetin Genel Tehlike ve Riskleri'
+                    : '4. İşe ve İşyerine Özgü Riskler ve Risk Değerlendirmesine Dayalı Konular'}
+                </strong>
                 <div className="tp-help" style={{marginBottom: 6}}>
-                  Sektör seçildiğinde belgeye yazılacak konular:
+                  {selectedSector
+                    ? `${selectedSector.hazard_class} için beş özgün konu belge ve imza formuna aktarılır.`
+                    : 'Sektör seçildiğinde belgeye yazılacak konular:'}
                 </div>
                 {(selectedSector?.topics || []).length ? (
                   <ol style={{margin: 0, paddingLeft: 18}}>

@@ -208,6 +208,55 @@ SEKTOR_GRUPLARI = [
 # agirlik alir; sureler tehlike sinifi kurallarina gore hesaplanir.
 SEKTOREL_EGITIM_KONULARI = {
 
+    "aricilik": [
+        "Arı sokmaları, alerjik reaksiyon ve anafilaksiye acil müdahale",
+        "Koruyucu arıcılık kıyafeti, eldiven ve yüz siperi kullanımı",
+        "Kovanların kaldırılması ve taşınmasında ergonomi",
+        "Körük kullanımında duman, sıcak yüzey ve yangın riskleri",
+        "Açık alanda sıcaklık, güneş, arazi ve ulaşım riskleri",
+    ],
+    "camasirhane_kuru_temizleme": [
+        "Kuru temizleme solventleri ve temizlik kimyasallarıyla güvenli çalışma",
+        "Ütü, pres, kazan, buhar ve sıcak yüzeylerde yanık riskleri",
+        "Çamaşır makineleri, sıkma sistemleri ve hareketli ekipman güvenliği",
+        "Kirli tekstilde biyolojik etkenler, hijyen ve çapraz bulaşma",
+        "Islak zemin, elle taşıma, ergonomi, yangın ve havalandırma",
+    ],
+    "cenaze_hizmetleri": [
+        "Biyolojik etkenler, enfeksiyon riski ve hijyen uygulamaları",
+        "Cenazenin kaldırılması, taşınması ve ergonomik çalışma",
+        "Dezenfektan ve koruyucu kimyasallarla güvenli çalışma",
+        "Kesici-delici aletler, kişisel koruyucu donanım ve atık yönetimi",
+        "Araçla nakil, mezarlık sahası, psikososyal riskler ve acil durumlar",
+    ],
+    "ekipman_kiralama": [
+        "Kiralanan ekipmanın teslim öncesi kontrolü ve güvenli kullanım talimatları",
+        "Yükleme-boşaltma, kaldırma ekipmanı ve araç trafiği riskleri",
+        "Hasarlı ekipman, enerji izolasyonu ve bakım-onarım güvenliği",
+        "Depolama, istifleme, elle taşıma ve ergonomi",
+        "Yakıt, akü, yangın, sızıntı ve acil durum müdahalesi",
+    ],
+    "hayvanat_bahcesi": [
+        "Vahşi hayvan saldırısı, kaçış ve güvenli bariyer sistemleri",
+        "Zoonozlar, biyolojik etkenler, karantina ve hijyen",
+        "Hayvan besleme, bakım ve temizlik çalışmalarında güvenlik",
+        "Ziyaretçi alanları, araç trafiği, kayma-düşme ve kalabalık yönetimi",
+        "Acil yakalama, tahliye, kişisel koruyucu donanım ve ilk yardım",
+    ],
+    "tutun_urunleri_uretimi": [
+        "Tütün tozu, nikotin ve kimyasal katkılara maruziyet",
+        "Kesme, kıyma, kurutma ve paketleme makinelerinde güvenlik",
+        "Yanıcı toz, yangın, patlama ve uygun havalandırma",
+        "Elle taşıma, tekrarlı işler, ergonomi ve gürültü",
+        "Hijyen, kişisel koruyucu donanım ve acil durum uygulamaları",
+    ],
+    "veterinerlik": [
+        "Hayvan ısırması, tekmesi, ezilme ve güvenli sabitleme yöntemleri",
+        "Zoonozlar, biyolojik etkenler, karantina ve hijyen",
+        "Kesici-delici aletler, ilaçlar, anestezik gazlar ve tıbbi atıklar",
+        "Röntgen, sterilizasyon, laboratuvar ve elektrikli ekipman riskleri",
+        "Hayvanların kaldırılması, ergonomi, kişisel koruyucu donanım ve acil müdahale",
+    ],
     "aku_uretimi": [
         "Kurşun ve kurşun bileşikleriyle güvenli çalışma",
         "Sülfürik asit, elektrolit ve kimyasal sıçrama riskleri",
@@ -1283,6 +1332,95 @@ SEKTOR_ADLARI = {
 # Ilk iki konu en kritik, sonraki konu yuksek, son ikisi standart onceliktedir.
 SEKTOREL_KONU_AGIRLIKLARI = (1.35, 1.25, 1.15, 1.0, 1.0)
 
+NACE_BOLUM_PROFILLERI = {
+    "01": "tarim", "02": "ormancilik", "03": "balikcilik_su_urunleri",
+    "05": "madencilik_maden_ocagi", "06": "petrol_dogalgaz",
+    "07": "madencilik_maden_ocagi", "08": "madencilik_maden_ocagi",
+    "09": "madencilik_maden_ocagi", "10": "gida_uretim", "11": "gida_uretim",
+    "12": "tutun_urunleri_uretimi", "13": "tekstil", "14": "tekstil",
+    "15": "ayakkabi_deri_uretimi", "16": "ahsap_mobilya",
+    "17": "kagit_karton_uretimi", "18": "dijital_baski_matbaa",
+    "19": "petrol_rafineri_depolama", "20": "kimya_kimyasal_uretim",
+    "21": "ilac_farmasotik_uretim", "22": "plastik_kaucuk",
+    "23": "cam_seramik", "24": "demir_celik_hadde",
+    "25": "metal_isleme_torna_freze", "26": "elektronik",
+    "27": "elektrik_elektronik_uretim", "28": "makine_imalat",
+    "29": "otomotiv", "30": "otomotiv", "31": "ahsap_mobilya",
+    "32": "genel_uretim", "33": "bakim_onarim_teknik_servis",
+    "35": "enerji_uretim", "36": "su_atiksu", "37": "su_atiksu",
+    "38": "atik_yonetimi_geri_donusum", "39": "atik_yonetimi_geri_donusum",
+    "41": "insaat", "42": "yol_altyapi_insaati", "43": "insaat",
+    "46": "depo_lojistik", "47": "perakende", "49": "karayolu_tasimacilik",
+    "50": "liman", "51": "havacilik", "52": "depo_lojistik",
+    "53": "dagitim_kargo_kurye", "55": "konaklama_otel_pansiyon",
+    "56": "restoran", "58": "basin_yayin_medya", "59": "basin_yayin_medya",
+    "60": "basin_yayin_medya", "61": "telekom", "62": "bilisim_yazilim_it",
+    "63": "bilisim_yazilim_it", "64": "banka_finans", "65": "sigorta_broker",
+    "66": "banka_finans", "68": "ofis", "69": "ofis", "70": "ofis",
+    "71": "muhendislik_proje_ofisi", "72": "laboratuvar",
+    "73": "reklam_tabela_baski", "74": "ofis", "75": "veterinerlik",
+    "77": "ofis", "78": "ofis", "79": "turizm_seyahat",
+    "80": "guvenlik_hizmetleri", "81": "temizlik_facility_management",
+    "82": "ofis", "84": "belediye_kamu_hizmetleri",
+    "85": "egitim_kurumu", "86": "saglik_hastane_klinik",
+    "87": "saglik_hastane_klinik", "88": "saglik_hastane_klinik",
+    "90": "organizasyon_etkinlik", "91": "ofis", "92": "ofis",
+    "93": "spor_tesisi_fitness", "94": "ofis",
+    "95": "bakim_onarim_teknik_servis", "96": "ofis",
+    "97": "temizlik", "98": "temizlik", "99": "ofis",
+}
+
+NACE_ON_EK_PROFILLERI = {
+    "01.48": "aricilik", "01.4": "hayvancilik",
+    "10.51": "sut_sut_urunleri", "10.71": "firin_unlu_mamuller",
+    "10.72": "firin_unlu_mamuller", "13.30": "boyahaneler_boya_uretimi",
+    "15.11": "ayakkabi_deri_uretimi", "18.": "dijital_baski_matbaa",
+    "20.30": "boyahaneler_boya_uretimi", "20.41": "kozmetik_temizlik_urunleri",
+    "20.42": "kozmetik_temizlik_urunleri", "20.51": "patlayici",
+    "20.59.17": "patlayici", "23.1": "cam_seramik",
+    "23.2": "seramik_fayans", "23.3": "seramik_fayans",
+    "23.5": "beton_cimento_hazir_beton", "23.6": "beton_cimento_hazir_beton",
+    "25.30": "patlayici", "25.53": "metal_isleme_torna_freze",
+    "27.3": "kablo_tel_uretimi", "28.22": "is_makinesi_agir_ekipman",
+    "28.24": "makine_imalat", "28.92": "is_makinesi_agir_ekipman",
+    "30.11": "gemi_insa_tersane", "30.12": "gemi_insa_tersane",
+    "30.13": "gemi_insa_tersane", "30.20": "demiryolu",
+    "30.31": "havacilik", "30.32": "havacilik",
+    "32.12": "kuyumculuk_mucevher", "38.3": "atik_geri_donusum",
+    "42.1": "yol_altyapi_insaati", "42.2": "yol_altyapi_insaati",
+    "43.21": "elektrik_tesisat_pano_montaj",
+    "43.22": "bakim_onarim_teknik_servis", "43.99": "insaat_santiye",
+    "47.30": "akaryakit_lpg_dolum_istasyonu",
+    "47.52": "hirdavat_yapi_market", "47.73": "eczane_medikal_satis",
+    "47.74": "eczane_medikal_satis", "47.77": "kuyumculuk_mucevher",
+    "49.1": "demiryolu", "49.2": "demiryolu", "49.5": "petrol_dogalgaz",
+    "52.10": "depo_lojistik", "52.21": "karayolu_tasimacilik",
+    "52.22": "liman", "52.23": "havalimani_yer_hizmetleri",
+    "53.1": "dagitim_kargo_kurye", "53.2": "kurye",
+    "56.": "restoran_cafe_mutfak", "69.1": "avukatlik_hukuk_burosu",
+    "71.2": "laboratuvar_analiz", "75.": "veterinerlik",
+    "77.31": "ekipman_kiralama", "77.32": "ekipman_kiralama",
+    "77.33": "ekipman_kiralama", "77.34": "ekipman_kiralama",
+    "77.35": "ekipman_kiralama", "77.39": "ekipman_kiralama",
+    "81.22.04": "yuksekte_calisma_cephe", "81.30": "tarim",
+    "85.40": "universite_yuksekogretim", "85.51": "spor_tesisi_fitness",
+    "86.23": "tip_dis_klinigi", "86.91": "laboratuvar_analiz",
+    "91.41": "hayvanat_bahcesi", "91.42": "ormancilik",
+    "93.21": "organizasyon_etkinlik", "95.31": "otomotiv_servis_bakim",
+    "95.32": "otomotiv_servis_bakim", "96.10": "camasirhane_kuru_temizleme",
+    "96.21": "guzellik_kuafor_spa", "96.22": "guzellik_kuafor_spa",
+    "96.23": "guzellik_kuafor_spa", "96.30": "cenaze_hizmetleri",
+    "96.99.04": "veterinerlik",
+}
+
+
+def nace_profil_kodu_getir(nace_kodu):
+    nace_kodu = str(nace_kodu or "").strip()
+    for on_ek in sorted(NACE_ON_EK_PROFILLERI, key=len, reverse=True):
+        if nace_kodu.startswith(on_ek):
+            return NACE_ON_EK_PROFILLERI[on_ek]
+    return NACE_BOLUM_PROFILLERI.get(nace_kodu[:2], "")
+
 
 def sektor_secenkleri():
     return [(code, name) for _group, options in SEKTOR_GRUPLARI for code, name in options]
@@ -1299,4 +1437,3 @@ def sektorel_konulari_getir(code):
 def sektor_gecerli_mi(code):
     code = str(code or "").strip()
     return bool(code and code in SEKTOR_ADLARI and code in SEKTOREL_EGITIM_KONULARI)
-

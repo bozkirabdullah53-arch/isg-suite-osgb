@@ -8,24 +8,43 @@ import json
 from pathlib import Path
 import re
 
+from app.services.training_sector_catalog import (
+    SEKTOR_ADLARI as PROFIL_ADLARI,
+    SEKTOREL_EGITIM_KONULARI as PROFIL_KONULARI,
+    SEKTOREL_KONU_AGIRLIKLARI,
+    nace_profil_kodu_getir,
+)
+
 TEHLIKE_EGITIM_KURALLARI = {
     "Az Tehlikeli": {
         "saat": 8,
-        "dakika": 8 * 60,
+        "dakika": 8 * 45,
+        "ilk_uc_dakika": 6 * 45,
+        "dorduncu_bolum_dakika": 2 * 45,
+        "dorduncu_bolum_ders_saati": 2,
+        "dorduncu_bolum_yontem": "Uzaktan, yüz yüze veya karma",
         "sure": "8 DERS SAAT",
         "yenileme": "3 yılda bir yenilenir",
         "yenileme_yil": 3,
     },
     "Tehlikeli": {
         "saat": 12,
-        "dakika": 12 * 60,
+        "dakika": 12 * 45,
+        "ilk_uc_dakika": 9 * 45,
+        "dorduncu_bolum_dakika": 3 * 45,
+        "dorduncu_bolum_ders_saati": 3,
+        "dorduncu_bolum_yontem": "Yüz yüze",
         "sure": "12 DERS SAAT",
         "yenileme": "2 yılda bir yenilenir",
         "yenileme_yil": 2,
     },
     "Çok Tehlikeli": {
         "saat": 16,
-        "dakika": 16 * 60,
+        "dakika": 16 * 45,
+        "ilk_uc_dakika": 12 * 45,
+        "dorduncu_bolum_dakika": 4 * 45,
+        "dorduncu_bolum_ders_saati": 4,
+        "dorduncu_bolum_yontem": "Yüz yüze",
         "sure": "16 DERS SAAT",
         "yenileme": "Her yıl yenilenir",
         "yenileme_yil": 1,
@@ -61,6 +80,7 @@ _SECTOR_RAW: list[tuple[str, str, str, list[str]]] = _load_sector_raw()
 # (NACE Rev.2) karşılıklarına göre düzeltilir.
 TEHLIKE_SINIFI_DUZELTMELERI: dict[str, str] = {
     # Yapı işleri (NACE 41-43)
+    "insaat": "Çok Tehlikeli",
     "insaat_santiye": "Çok Tehlikeli",
     "muteahhitlik_taahhut": "Çok Tehlikeli",
     "yol_altyapi_insaati": "Çok Tehlikeli",
@@ -209,14 +229,35 @@ def _topics_with_dk(topics: list[str]) -> list[str]:
     return [t if " DK" in t else f"{t} - 30 DK" for t in topics]
 
 
-# Build maps
+# Build maps. Resmî tehlike sınıfı doğrudan NACE kaydından, konu profili ise
+# NACE bölüm/alt kod hiyerarşisinden gelir; faaliyet metninde rastlantısal
+# kelime eşleştirmesi yapılmaz.
 SEKTOR_SECENEKLERI: list[tuple[str, str]] = [(c, n) for c, n, _, _ in _SECTOR_RAW]
+
+
+def _nace_kodu(code: str) -> str:
+    return code.removeprefix("nace_").replace("_", ".") if code.startswith("nace_") else ""
+
+
+SEKTOR_PROFIL: dict[str, str] = {
+    code: nace_profil_kodu_getir(_nace_kodu(code)) if code.startswith("nace_") else code
+    for code, _name, _hazard, _topics in _SECTOR_RAW
+}
 SEKTOREL_EGITIM_KONULARI: dict[str, list[str]] = {
-    c: _topics_with_dk(SEKTOREL_KONU_DUZELTMELERI.get(c, topics)) for c, _, _, topics in _SECTOR_RAW
+    code: _topics_with_dk(PROFIL_KONULARI.get(SEKTOR_PROFIL[code], topics))
+    for code, _name, _hazard, topics in _SECTOR_RAW
 }
-SEKTOR_TEHLIKE: dict[str, str] = {
-    c: TEHLIKE_SINIFI_DUZELTMELERI.get(c, h) for c, _, h, _ in _SECTOR_RAW
-}
+SEKTOR_TEHLIKE: dict[str, str] = {code: hazard for code, _name, hazard, _topics in _SECTOR_RAW}
+# Eski OSGB eğitim kayıtları profil kodu saklamış olabilir. Bu kodlar API
+# listesini kalabalıklaştırmadan PDF ve kayıt açma akışında geriye uyumlu kalır.
+SEKTOREL_EGITIM_KONULARI.update({
+    code: _topics_with_dk(SEKTOREL_KONU_DUZELTMELERI.get(code, topics))
+    for code, topics in PROFIL_KONULARI.items()
+})
+SEKTOR_TEHLIKE.update({
+    code: TEHLIKE_SINIFI_DUZELTMELERI.get(code, "Tehlikeli")
+    for code in PROFIL_KONULARI
+})
 
 
 def tehlike_kurali(tehlike_sinifi: str) -> dict:
@@ -226,7 +267,8 @@ def tehlike_kurali(tehlike_sinifi: str) -> dict:
 
 
 def sektor_adi(sektor_kodu: str | None) -> str:
-    return dict(SEKTOR_SECENEKLERI).get(sektor_kodu or "", "Genel Fabrika / Üretim")
+    code = sektor_kodu or ""
+    return dict(SEKTOR_SECENEKLERI).get(code, PROFIL_ADLARI.get(code, ""))
 
 
 def sektor_kodu_cozumle(sektor: str | None) -> str:
@@ -241,6 +283,9 @@ def sektor_kodu_cozumle(sektor: str | None) -> str:
     for kod, ad in SEKTOR_SECENEKLERI:
         if ad.casefold() == raw.casefold():
             return kod
+    for kod, ad in PROFIL_ADLARI.items():
+        if ad.casefold() == raw.casefold():
+            return kod
     if raw in ("01", "02", "03", "04", "05"):
         return "genel_uretim"
     return "genel_uretim"
@@ -248,98 +293,151 @@ def sektor_kodu_cozumle(sektor: str | None) -> str:
 
 def sektorel_konular(sektor_kodu: str | None) -> list[str]:
     kod = sektor_kodu_cozumle(sektor_kodu)
-    return list(SEKTOREL_EGITIM_KONULARI.get(kod, SEKTOREL_EGITIM_KONULARI["genel_uretim"]))
+    return list(SEKTOREL_EGITIM_KONULARI.get(kod, []))
+
+
+def sektor_tehlike_sinifi(sektor_kodu: str | None) -> str:
+    return SEKTOR_TEHLIKE.get(sektor_kodu_cozumle(sektor_kodu), "")
 
 
 def sure_ekini_temizle(konu: str) -> str:
     return re.sub(r"\s*-\s*\d+\s*DK\s*$", "", str(konu or "")).strip()
 
 
-def konu_dakikalarini_hedefe_esitle(konular: list[tuple[int, str]], hedef_dakika: int) -> list[tuple[int, str]]:
-    n = len(konular)
-    if n == 0:
+def _bes_dakikaya_yuvarla(value: float) -> int:
+    return max(5, int(round(float(value) / 5.0) * 5))
+
+
+def agirlikli_dakika_dagitimi(
+    konular: list[str], hedef_dakika: int, agirliklar
+) -> list[tuple[str, int]]:
+    if not konular:
         return []
-    taban = max(5, (hedef_dakika // n // 5) * 5)
-    dagitim = [taban] * n
-    kalan = hedef_dakika - sum(dagitim)
-    i = 0
-    while kalan >= 5:
-        dagitim[i % n] += 5
-        kalan -= 5
-        i += 1
-    if kalan:
-        dagitim[-1] += kalan
-    return [(b, f"{sure_ekini_temizle(m)} - {dk} DK") for (b, m), dk in zip(konular, dagitim)]
+    agirliklar = [max(0.1, float(x)) for x in list(agirliklar)[:len(konular)]]
+    if len(agirliklar) < len(konular):
+        agirliklar.extend([1.0] * (len(konular) - len(agirliklar)))
+    toplam_agirlik = sum(agirliklar) or 1.0
+    dagitim = [
+        _bes_dakikaya_yuvarla(int(hedef_dakika) * weight / toplam_agirlik)
+        for weight in agirliklar
+    ]
+    fark = int(hedef_dakika) - sum(dagitim)
+    siralama = sorted(range(len(konular)), key=lambda i: (-agirliklar[i], i))
+    while fark >= 5:
+        for i in siralama:
+            if fark < 5:
+                break
+            dagitim[i] += 5
+            fark -= 5
+    while fark <= -5:
+        degisti = False
+        for i in reversed(siralama):
+            if fark > -5:
+                break
+            if dagitim[i] > 5:
+                dagitim[i] -= 5
+                fark += 5
+                degisti = True
+        if not degisti:
+            break
+    if fark:
+        dagitim[siralama[0]] += fark
+    return list(zip(konular, dagitim))
+
+
+def _temel_konu_tanimlari():
+    return [
+        ("sol", 1, "1. GENEL KONULAR", 0),
+        ("sol", 0, "a) Çalışma mevzuatı ve temel kavramlar", 1.10),
+        ("sol", 0, "b) Çalışanların yasal hak ve sorumlulukları", 1.05),
+        ("sol", 0, "c) İşyeri temizliği ve düzeni", 0.80),
+        ("sol", 0, "ç) İş kazası ve meslek hastalığından doğan hukuki sonuçlar", 1.05),
+        ("sol", 1, "2. SAĞLIK KONULARI", 0),
+        ("sol", 0, "a) Meslek hastalıklarının sebepleri", 1.10),
+        ("sol", 0, "b) Hastalıktan korunma prensipleri ve korunma tekniklerinin uygulanması", 1.10),
+        ("sol", 0, "c) Biyolojik ve psikososyal risk etmenleri", 0.95),
+        ("sol", 0, "ç) İlk yardım", 0.85),
+        ("sol", 0, "d) Bağımlılık yapıcı maddelerin zararları ve teknoloji bağımlılığı", 0.60),
+        ("sol", 1, "3. TEKNİK KONULAR", 0),
+        ("sol", 0, "a) Kimyasal, fiziksel ve ergonomik risk etmenleri", 1.20),
+        ("sol", 0, "b) Elle kaldırma ve taşıma", 0.85),
+        ("sol", 0, "c) Parlama ve patlama", 1.05),
+        ("sol", 0, "ç) Yangın ve yangından korunma", 1.15),
+        ("sag", 1, "3. TEKNİK KONULAR (DEVAM)", 0),
+        ("sag", 0, "d) İş ekipmanlarının güvenli kullanımı", 1.20),
+        ("sag", 0, "e) Ekranlı araçlarla çalışma", 0.60),
+        ("sag", 0, "f) Elektrik tehlikeleri, riskleri ve önlemleri", 1.05),
+        ("sag", 0, "g) İş kazalarının sebepleri ve korunma prensipleri ile tekniklerinin uygulanması", 1.00),
+        ("sag", 0, "ğ) Sağlık ve güvenlik işaretleri", 0.55),
+        ("sag", 0, "h) Kişisel koruyucu donanım kullanımı", 0.85),
+        ("sag", 0, "ı) İş sağlığı ve güvenliği genel kuralları ve güvenlik kültürü", 0.75),
+        ("sag", 0, "i) Acil durumlar, tahliye ve kurtarma", 1.05),
+    ]
+
+
+def dorduncu_bolum_basligi(tehlike_sinifi: str, buyuk_harf: bool = False) -> str:
+    if (tehlike_sinifi or "").strip() == "Az Tehlikeli":
+        baslik = "4. Faaliyetin Genel Tehlike ve Riskleri"
+    else:
+        baslik = "4. İşe ve İşyerine Özgü Riskler ve Risk Değerlendirmesine Dayalı Konular"
+    return baslik.upper() if buyuk_harf else baslik
 
 
 def egitim_konularini_hazirla(tehlike_sinifi: str, sektor: str | None = None):
     kural = tehlike_kurali(tehlike_sinifi)
-    hedef_dakika = int(kural["dakika"])
-    hedef_saat = int(kural["saat"])
     sektorel = sektorel_konular(sektor)
+    if len(sektorel) != 5:
+        raise ValueError("Geçerli bir NACE faaliyeti seçilmeli ve beş sektörel konu bulunmalıdır.")
 
-    sabit_sol = [
-        (1, "1. GENEL KONULAR"),
-        (0, "a) Çalışma mevzuatı"),
-        (0, "b) Yasal hak ve sorumluluklar"),
-        (0, "c) İşyeri temizliği ve düzeni"),
-        (0, "d) İş kazası hukuki sonuçlar"),
-        (1, "2. TEKNİK KONULAR"),
-        (0, "a) Kimyasal/fiziksel/ergonomik risk"),
-        (0, "b) Elle kaldırma ve taşıma"),
-        (0, "c) Parlama, patlama, yangın"),
-        (0, "d) İş ekipman güvenli kullanım"),
-        (0, "e) Ekranlı araçlar"),
-        (0, "f) Elektrik tehlikeleri/önlem"),
-        (0, "g) İş kazası sebepleri/korunma"),
-        (0, "h) Sağlık ve güvenlik işaretleri"),
-        (0, "ı) Kişisel koruyucu donanım"),
-        (0, "i) İSG kuralları ve güvenlik kültürü"),
-        (0, "j) Acil durum, tahliye, kurtarma"),
-    ]
-    sabit_sag = [
-        (1, "3. SAĞLIK KONULARI"),
-        (0, "a) Meslek hastalıkları sebepleri"),
-        (0, "b) Korunma prensipleri/teknikleri"),
-        (0, "c) Biyolojik/psikososyal risk"),
-        (0, "d) İlk yardım"),
-        (0, "e) Bağımlılık/teknoloji bağımlılığı"),
-        (1, "4. İŞ VE İŞYERİNE ÖZGÜ RİSKLER"),
-        (1, "Risk Değerlendirmesine Dayalı"),
-        (0, "1) Risk değerlendirme durumları"),
-        (0, "2) Acil durum eylem planı"),
-    ]
-    for sira, konu in enumerate(sektorel[:5], start=3):
-        sabit_sag.append((0, f"{sira}) {sure_ekini_temizle(konu)}"))
-
-    tum = [("sol", i, b, m) for i, (b, m) in enumerate(sabit_sol)] + [
-        ("sag", i, b, m) for i, (b, m) in enumerate(sabit_sag)
-    ]
-    dakika_girdiler = [(b, m) for _, _, b, m in tum if not b]
-    dakika_ciktilar = konu_dakikalarini_hedefe_esitle(dakika_girdiler, hedef_dakika)
-
+    tanimlar = _temel_konu_tanimlari()
+    temel_metinler = [metin for _taraf, baslik, metin, _w in tanimlar if not baslik]
+    temel_agirliklar = [w for _taraf, baslik, _metin, w in tanimlar if not baslik]
+    temel_dagitim = iter(
+        agirlikli_dakika_dagitimi(temel_metinler, kural["ilk_uc_dakika"], temel_agirliklar)
+    )
     sol, sag = [], []
-    di = 0
-    for taraf, _, baslik_mi, metin in tum:
-        if baslik_mi:
-            satir = (baslik_mi, metin)
+    for taraf, baslik, metin, _weight in tanimlar:
+        if baslik:
+            satir = (1, metin)
         else:
-            satir = dakika_ciktilar[di]
-            di += 1
+            konu, dakika = next(temel_dagitim)
+            satir = (0, f"{konu} - {dakika} DK")
         (sol if taraf == "sol" else sag).append(satir)
-    return sol, sag, hedef_dakika, hedef_saat
+
+    sektorel_metinler = [
+        f"{index}) {sure_ekini_temizle(konu)}"
+        for index, konu in enumerate(sektorel, start=1)
+    ]
+    sektorel_dagitim = agirlikli_dakika_dagitimi(
+        sektorel_metinler,
+        kural["dorduncu_bolum_dakika"],
+        SEKTOREL_KONU_AGIRLIKLARI,
+    )
+    aciklama = (
+        "Faaliyetin genel tehlike ve riskleri"
+        if (tehlike_sinifi or "").strip() == "Az Tehlikeli"
+        else "Risk değerlendirmesine dayalı"
+    )
+    sag.extend([
+        (1, dorduncu_bolum_basligi(tehlike_sinifi, buyuk_harf=True)),
+        (1, f"{aciklama} · {kural['dorduncu_bolum_ders_saati']} ders saati · {kural['dorduncu_bolum_yontem']}"),
+    ])
+    sag.extend((0, f"{metin} - {dakika} DK") for metin, dakika in sektorel_dagitim)
+    return sol, sag, int(kural["dakika"]), int(kural["saat"])
 
 
 def katilim_formu_konu_ozeti(tehlike_sinifi: str, sektor: str | None = None) -> str:
-    """PRO imza formu konu özeti formatı."""
     sektorel = [sure_ekini_temizle(k) for k in sektorel_konular(sektor)[:5]]
-    ana = (
-        "1. Genel Konular / 2. Teknik Konular / 3. Sağlık Konuları / "
-        "4. İş ve İşyerine Özgü Riskler"
+    if len(sektorel) != 5:
+        raise ValueError("Katılım formu için geçerli sektör konuları bulunamadı.")
+    kural = tehlike_kurali(tehlike_sinifi)
+    return (
+        "1. Genel Konular / 2. Sağlık Konuları / 3. Teknik Konular | "
+        f"{dorduncu_bolum_basligi(tehlike_sinifi)} "
+        f"({kural['dorduncu_bolum_ders_saati']} ders saati, "
+        f"{kural['dorduncu_bolum_yontem']}) | "
+        f"{sektor_adi(sektor)}: {'; '.join(sektorel)}"
     )
-    if sektorel:
-        return ana + " | Sektöre Özgü Başlıklar: " + "; ".join(sektorel)
-    return ana
 
 
 def sectors_list_for_api() -> list[dict]:
@@ -347,12 +445,18 @@ def sectors_list_for_api() -> list[dict]:
     rows = json.loads(path.read_text(encoding="utf-8"))
     items = []
     for row in sorted(rows, key=lambda x: str(x.get("label") or x.get("name") or "").casefold()):
-        topics = [sure_ekini_temizle(t) for t in (row.get("topics") or [])]
+        code = str(row["code"])
+        topics = [sure_ekini_temizle(t) for t in SEKTOREL_EGITIM_KONULARI.get(code, [])]
+        hazard = SEKTOR_TEHLIKE.get(code, str(row["hazard_class"]))
         items.append({
-            "code": row["code"],
+            "code": code,
             "name": row["name"],
-            "label": row.get("label") or f"{row.get('nace','')} / {row['name']} / {row['hazard_class']}",
-            "hazard_class": row["hazard_class"],
+            "label": (
+                f"{row.get('nace')} / {row['name']} / {hazard}"
+                if row.get("nace")
+                else row.get("label") or f"{row['name']} / {hazard}"
+            ),
+            "hazard_class": hazard,
             "nace": row.get("nace"),
             "topics": topics,
         })

@@ -11,7 +11,8 @@ from app.services.training_topics import (
 
 def test_tehlike_rules():
     assert tehlike_kurali("Az Tehlikeli")["saat"] == 8
-    assert tehlike_kurali("Tehlikeli")["dakika"] == 720
+    assert tehlike_kurali("Tehlikeli")["dakika"] == 540
+    assert tehlike_kurali("Tehlikeli")["dorduncu_bolum_dakika"] == 135
     assert tehlike_kurali("Çok Tehlikeli")["yenileme_yil"] == 1
 
 
@@ -81,7 +82,7 @@ def test_katilim_belgesinde_tehlike_sinifi_yazar():
 def test_konular_have_minutes_and_sections():
     sol, sag, toplam_dk, saat = egitim_konularini_hazirla("Çok Tehlikeli", "insaat")
     assert saat == 16
-    assert toplam_dk == 960
+    assert toplam_dk == 720
     assert any(t.startswith("1. GENEL") for _, t in sol)
     assert any("Yüksekte çalışma" in t or "Yüksekte" in t for b, t in sag if not b)
     # dakika etiketli satırlar toplamı ~ hedef
@@ -92,4 +93,4 @@ def test_konular_have_minutes_and_sections():
                 continue
             if " DK" in text:
                 minutes.append(int(text.rsplit("-", 1)[-1].replace("DK", "").strip()))
-    assert sum(minutes) == 960
+    assert sum(minutes) == 720

@@ -29,7 +29,12 @@ from app.services.training_excel import parse_employee_upload
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
-from app.services.training_topics import meta_payload, sektor_kodu_cozumle, sectors_list_for_api
+from app.services.training_topics import (
+    meta_payload,
+    sektor_kodu_cozumle,
+    sektor_tehlike_sinifi,
+    sectors_list_for_api,
+)
 from app.services import training_validity
 from app.services.special_training_profiles import (
     resolve_special_duration_hours,
@@ -471,8 +476,13 @@ def create_training(
     company = db.get(Company, payload.company_id)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
-    if payload.hazard_class not in RULES:
-        raise HTTPException(422, "Geçersiz tehlike sınıfı.")
+    kod = sektor_kodu_cozumle(payload.sector)
+    if not kod:
+        raise HTTPException(422, "Sektör / iş kolu resmî NACE listesinden seçilmelidir.")
+    resmi_tehlike_sinifi = sektor_tehlike_sinifi(kod)
+    etkin_tehlike_sinifi = resmi_tehlike_sinifi or payload.hazard_class
+    if etkin_tehlike_sinifi not in RULES:
+        raise HTTPException(422, "Seçilen NACE faaliyeti için geçerli tehlike sınıfı bulunamadı.")
     if payload.participant_ids:
         employees = list(
             db.scalars(
@@ -485,14 +495,21 @@ def create_training(
         )
         if len(employees) != len(set(payload.participant_ids)):
             raise HTTPException(422, "Katılımcılardan biri firmaya ait değil veya pasif.")
-    _, years = RULES[payload.hazard_class]
+    _, years = RULES[etkin_tehlike_sinifi]
     hours = resolve_training_hours(
         training_type=payload.training_type,
         title=payload.title,
         notes=payload.notes,
-        hazard_class=payload.hazard_class,
+        hazard_class=etkin_tehlike_sinifi,
     )
-    kod = sektor_kodu_cozumle(payload.sector)
+    calendar_days = (payload.end_date - payload.start_date).days + 1
+    min_days = max(1, (hours + 7) // 8)
+    if calendar_days < min_days:
+        raise HTTPException(
+            422,
+            f"{hours} saatlik eğitim en az {min_days} güne yayılmalıdır "
+            "(günde en fazla 8 ders saati).",
+        )
     # Deterministik hash çakışmasın diye uuid ekle (aynı başlık/tarih tekrarında 500 önleme)
     code = None
     for _ in range(12):
@@ -511,6 +528,7 @@ def create_training(
         raise HTTPException(500, "Doğrulama kodu üretilemedi; tekrar deneyin.")
     values = payload.model_dump(exclude={"participant_ids"})
     values["sector"] = kod
+    values["hazard_class"] = etkin_tehlike_sinifi
     if not (values.get("stamp_text") or "").strip():
         values["stamp_text"] = (
             "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve "
