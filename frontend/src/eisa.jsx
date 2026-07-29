@@ -7,6 +7,7 @@ import {
   PRIVACY_NOTICE,
   SERVICE_AGREEMENT,
 } from './legal_docs';
+import { AppModal } from './ui_modal';
 
 export function Page({ title, action, children }) {
   return (
@@ -875,9 +876,7 @@ export function EisaPaymentsPage() {
         </table>
       </div>
       {open && (
-        <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
-          <section className="modal">
-            <header><h3>Manuel Ödeme Kaydı</h3></header>
+        <AppModal title="Manuel Ödeme Kaydı" close={() => setOpen(false)}>
             <form className="form-grid" onSubmit={save}>
               <label className="field"><span>OSGB</span>
                 <select required value={form.osgb_id} onChange={(e) => setForm({ ...form, osgb_id: e.target.value })}>
@@ -901,8 +900,7 @@ export function EisaPaymentsPage() {
                 <button type="submit" disabled={busy}>Kaydet</button>
               </div>
             </form>
-          </section>
-        </div>
+        </AppModal>
       )}
     </Page>
   );
@@ -1038,9 +1036,7 @@ export function EisaPackagesPage() {
         </table>
       </div>
       {open && (
-        <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
-          <section className="modal">
-            <header><h3>Yeni Paket</h3></header>
+        <AppModal title="Yeni Paket" close={() => setOpen(false)}>
             <form className="form-grid" onSubmit={save}>
               <label className="field"><span>Kod</span>
                 <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="ör. standard" />
@@ -1068,8 +1064,7 @@ export function EisaPackagesPage() {
                 <button type="submit" disabled={busy}>Kaydet</button>
               </div>
             </form>
-          </section>
-        </div>
+        </AppModal>
       )}
     </Page>
   );
@@ -1227,9 +1222,7 @@ export function EisaErrorReportsPage() {
         </table>
       </div>
       {detail && (
-        <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setDetail(null)}>
-          <section className="modal" style={{ maxWidth: 720 }}>
-            <header><h3>Rapor #{detail.id}</h3></header>
+        <AppModal title={`Rapor #${detail.id}`} close={() => setDetail(null)}>
             <div style={{ display: 'grid', gap: 8, marginBottom: 12, fontSize: 14 }}>
               <div><strong>Kaynak:</strong> {sourceLabels[detail.source] || detail.source}</div>
               <div><strong>Kullanıcı:</strong> {detail.user_email || '—'} ({detail.user_role || '—'})</div>
@@ -1273,8 +1266,7 @@ export function EisaErrorReportsPage() {
                 <button type="submit" disabled={busy}>Kaydet</button>
               </div>
             </form>
-          </section>
-        </div>
+        </AppModal>
       )}
     </Page>
   );
@@ -1379,9 +1371,7 @@ export function EisaNotificationsPage() {
         </table>
       </div>
       {open && (
-        <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setOpen(false)}>
-          <section className="modal">
-            <header><h3>Yeni Bildirim</h3></header>
+        <AppModal title="Yeni Bildirim" close={() => setOpen(false)}>
             <form className="form-grid" onSubmit={send}>
               <label className="field"><span>Kanal</span>
                 <select value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })}>
@@ -1413,8 +1403,7 @@ export function EisaNotificationsPage() {
                 <button type="submit" disabled={busy}>Gönder</button>
               </div>
             </form>
-          </section>
-        </div>
+        </AppModal>
       )}
     </Page>
   );
