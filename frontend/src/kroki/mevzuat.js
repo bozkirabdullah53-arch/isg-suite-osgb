@@ -47,7 +47,7 @@ export const SYMBOL_LEGAL_HINT = {
   extinguisher: 'ISO 7010 F001 · yangın söndürücü',
   hose: 'ISO 7010 F002 · yangın dolabı / hortum',
   alarm: 'ISO 7010 F005 · yangın alarmı',
-  firstaid: 'İlk yardım — TR uygulamada hilal (Kızılay); yeşil güvenli durum zemini',
+  firstaid: 'İlk yardım — TR uygulamada yeşil tabela, beyaz alan ve kırmızı hilal',
   aed: 'ISO 7010 EC010 · AED / defibrilatör',
   electric: 'Acil elektrik kesme noktası (tesisat)',
   room: 'Kat / mahal tanımlama (atölye, idare vb.)',
