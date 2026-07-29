@@ -14,5 +14,7 @@ describe('İlk yardım kroki işareti', () => {
     expect(markup).toContain('fill="#fff"');
     expect(markup).toContain('fill="#e21b23"');
     expect(markup).toContain('transform="translate(48 0) scale(-1 1)"');
+    expect(markup).toContain('title="İLK YARDIM · EC003-TR"');
+    expect(markup).not.toContain('Hilal');
   });
 });
