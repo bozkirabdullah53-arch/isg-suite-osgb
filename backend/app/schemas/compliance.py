@@ -98,9 +98,28 @@ class EmergencyPlanUpdate(BaseModel):
         return self
 
 
-class EmergencyPlanResponse(EmergencyPlanCreate):
+class EmergencyPlanResponse(BaseModel):
+    """Veritabanı çıktısı.
+
+    Eski kayıtlarda 2000–2100 aralığı dışında tarih bulunabilir. Yeni kayıt
+    doğrulamasını çıktı modeline miras vermek, tek bir eski kaydın tüm listeyi
+    HTTP 500 ile düşürmesine neden olur. Giriş modelleri sıkı kalırken çıktı
+    modeli mevcut veriyi güvenle okuyabilmelidir.
+    """
+
     model_config = ConfigDict(from_attributes=True)
     id: int
+    company_id: int
+    title: str
+    revision_no: str
+    plan_date: date | None = None
+    next_review_date: date | None = None
+    assembly_areas: str | None = None
+    scenario_summary: str | None = None
+    kroki_file_name: str | None = None
+    document_id: int | None = None
+    status: str
+    notes: str | None = None
     kroki_storage_path: str | None = None
     locked_at: datetime | None = None
     is_active: bool
