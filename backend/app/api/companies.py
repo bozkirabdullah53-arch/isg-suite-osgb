@@ -19,11 +19,19 @@ from app.models.entities import (
     Branch,
     Company,
     CompanySubscription,
+    DocumentApproval,
     DocumentRecord,
     DrillPhoto,
     DrillRecord,
     EisaArchiveRecord,
     EisaErrorReport,
+    ESignArtifact,
+    ESignRequest,
+    ESignatureAuditEvent,
+    ESignatureRequest,
+    EyasEvent,
+    EyasStep,
+    EyasWorkflow,
     EmergencyPlan,
     EmergencyPlanFloor,
     EmergencyTeam,
@@ -38,9 +46,11 @@ from app.models.entities import (
     IncidentRootCause,
     IsgRecord,
     Notification,
+    LegalAcceptance,
     ChemicalProduct,
     OhsCommitteeMember,
     OhsCommitteeMeeting,
+    PeriodicControl,
     PpeAssignment,
     PpeAssignmentPhoto,
     RiskAssessment,
@@ -54,6 +64,8 @@ from app.models.entities import (
     User,
     UserRole,
     WorkplaceAssignment,
+    WorkplaceMeasurement,
+    WorkplaceMembership,
     WorkplaceDepartment,
 )
 from app.models.entities import OsgbOrganization
@@ -144,6 +156,25 @@ def _purge_company_data(db: Session, company_id: int) -> None:
     db.execute(delete(OhsCommitteeMeeting).where(OhsCommitteeMeeting.company_id == company_id))
     db.execute(delete(OhsCommitteeMember).where(OhsCommitteeMember.company_id == company_id))
 
+    # Belge onay / e-imza / Eyas zincirleri: çocuk kayıtlar önce silinir.
+    db.execute(delete(EyasEvent).where(EyasEvent.company_id == company_id))
+    db.execute(delete(EyasStep).where(EyasStep.company_id == company_id))
+    db.execute(delete(EyasWorkflow).where(EyasWorkflow.company_id == company_id))
+    db.execute(
+        delete(ESignatureAuditEvent).where(ESignatureAuditEvent.company_id == company_id)
+    )
+    db.execute(delete(ESignArtifact).where(ESignArtifact.company_id == company_id))
+    db.execute(delete(ESignRequest).where(ESignRequest.company_id == company_id))
+    db.execute(delete(ESignatureRequest).where(ESignatureRequest.company_id == company_id))
+    db.execute(delete(DocumentApproval).where(DocumentApproval.company_id == company_id))
+
+    # 6331 kapsamındaki diğer doğrudan firma sicilleri.
+    db.execute(delete(PeriodicControl).where(PeriodicControl.company_id == company_id))
+    db.execute(
+        delete(WorkplaceMeasurement).where(WorkplaceMeasurement.company_id == company_id)
+    )
+    db.execute(delete(WorkplaceMembership).where(WorkplaceMembership.company_id == company_id))
+
     # Tatbikat
     drill_ids = _ids(db, DrillRecord, company_id)
     if drill_ids:
@@ -217,6 +248,11 @@ def _purge_company_data(db: Session, company_id: int) -> None:
     db.execute(update(User).where(User.company_id == company_id).values(company_id=None))
     db.execute(update(AuditLog).where(AuditLog.company_id == company_id).values(company_id=None))
     db.execute(update(Notification).where(Notification.company_id == company_id).values(company_id=None))
+    db.execute(
+        update(LegalAcceptance)
+        .where(LegalAcceptance.company_id == company_id)
+        .values(company_id=None)
+    )
     db.execute(
         update(FinanceTransaction)
         .where(FinanceTransaction.company_id == company_id)
