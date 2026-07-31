@@ -189,7 +189,7 @@ export function HealthPage({user}) {
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
-    if (isGlobal && companyId) p.set('company_id', companyId);
+    if (companyId) p.set('company_id', companyId);
     if (q) p.set('q', q);
     if (typeFilter) p.set('record_type', typeFilter);
     if (overdueOnly) p.set('overdue_only', 'true');
@@ -200,36 +200,49 @@ export function HealthPage({user}) {
     if (!canEdit) return;
     setMessage('');
     try {
-      const sumQs = new URLSearchParams();
-      if (isGlobal && companyId) sumQs.set('company_id', companyId);
-      const knownCid = companyId || user.company_id || '';
-      const empQs = new URLSearchParams({active: 'true'});
-      if (knownCid) empQs.set('company_id', String(knownCid));
+      // Önce kullanıcının yetkili olduğu işyerlerini al. Birden fazla işyeri olan
+      // hekim/DSP kullanıcılarında sağlık uçlarına company_id göndermek zorunludur.
+      const c = await api('/companies');
+      const nextCid = companyId || String(user.company_id || c[0]?.id || '');
+      setCompanies(Array.isArray(c) ? c : []);
 
-      const [c, e, r, s, m, a] = await Promise.all([
-        api('/companies'),
-        knownCid ? api(`/employees?${empQs}`) : Promise.resolve([]),
-        api(`/health-records?${qs}`),
+      if (!nextCid) {
+        setEmployees([]);
+        setRows([]);
+        setSummary(null);
+        setAnalysis(null);
+        setMessage('İşlem yapabilmek için önce bir işyeri seçiniz.');
+        return;
+      }
+
+      if (!companyId) setCompanyId(nextCid);
+
+      const recordQs = new URLSearchParams();
+      recordQs.set('company_id', String(nextCid));
+      if (q) recordQs.set('q', q);
+      if (typeFilter) recordQs.set('record_type', typeFilter);
+      if (overdueOnly) recordQs.set('overdue_only', 'true');
+
+      const sumQs = new URLSearchParams();
+      sumQs.set('company_id', String(nextCid));
+
+      const empQs = new URLSearchParams({active: 'true', company_id: String(nextCid)});
+
+      const [e, r, s, m, a] = await Promise.all([
+        api(`/employees?${empQs}`),
+        api(`/health-records?${recordQs}`),
         api(`/health-records/summary?${sumQs}`),
         api('/health-records/meta'),
         api(`/health-records/analysis?${sumQs}`),
       ]);
-      const nextCid = companyId || String(user.company_id || c[0]?.id || '');
-      setCompanies(c);
-      setRows(r);
+
+      setEmployees(Array.isArray(e) ? e : []);
+      setRows(Array.isArray(r) ? r : []);
       setSummary(s);
       setMeta(m);
       setAnalysis(a);
-      if (!companyId && nextCid) setCompanyId(nextCid);
 
-      if (nextCid && String(knownCid) !== String(nextCid)) {
-        const scoped = await api(`/employees?company_id=${Number(nextCid)}&active=true`);
-        setEmployees(Array.isArray(scoped) ? scoped : []);
-      } else {
-        setEmployees(Array.isArray(e) ? e : []);
-      }
-
-      // İşyeri hekimleri: OSGB profesyonelleri + personel listesi
+      // İşyeri hekimleri: OSGB profesyonelleri + seçilen işyerinin personel listesi
       let hekimler = [];
       try {
         const oid = user.osgb_id || c.find((x) => String(x.id) === String(nextCid))?.osgb_id;
@@ -455,7 +468,7 @@ export function HealthPage({user}) {
 
   function companyQs() {
     const p = new URLSearchParams();
-    if (isGlobal && companyId) p.set('company_id', companyId);
+    if (companyId) p.set('company_id', companyId);
     return p.toString();
   }
 
@@ -523,15 +536,27 @@ export function HealthPage({user}) {
           <button type="button" className="secondary" onClick={load} disabled={busy}><RefreshCw size={16} /> Yenile</button>
           <button type="button" className="secondary" onClick={exportTxt}><Download size={16} /> TXT</button>
           <button type="button" className="secondary" onClick={exportXlsx}><Download size={16} /> Excel</button>
-          <button type="button" onClick={openCreate} disabled={busy}><Plus size={16} /> Yeni Kayıt</button>
+          <button type="button" onClick={openCreate} disabled={busy || !companyId}><Plus size={16} /> Yeni Kayıt</button>
         </div>
       </div>
 
       <section className="panel" style={{marginBottom: 16}}>
         <div className="form-grid" style={{gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', marginBottom: 0}}>
-          {isGlobal && (
-            <Select label="Firma" value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
-              <option value="">Seçiniz</option>
+          {(isGlobal || user.role === 'workplace_physician' || user.role === 'other_health_personnel' || companies.length > 1) && (
+            <Select
+              label="İşyeri"
+              value={companyId}
+              onChange={(e) => {
+                const next = e.target.value;
+                setCompanyId(next);
+                setEmployees([]);
+                setRows([]);
+                setSummary(null);
+                setAnalysis(null);
+                setForm((f) => ({...f, company_id: next, employee_id: ''}));
+              }}
+            >
+              <option value="">İşyeri seçiniz</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           )}
