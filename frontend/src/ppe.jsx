@@ -191,6 +191,16 @@ export function PpePage({user}) {
   if (zimmet) {
     return (
       <>
+        <style>{`
+          @page { size: A4; margin: 12mm 14mm; }
+          @media print {
+            body { background: #fff !important; }
+            .app-shell > aside, .app-shell > section > header, .page-title, .no-print { display: none !important; }
+            .app-shell > section { padding: 0 !important; margin: 0 !important; }
+            #ppe-zimmet-print { box-shadow: none !important; border: none !important; padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+            #ppe-zimmet-print * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          }
+        `}</style>
         <div className="page-title no-print">
           <h3>KKD Zimmet Formu</h3>
           <div className="actions">
@@ -198,49 +208,80 @@ export function PpePage({user}) {
             <button type="button" className="secondary" onClick={() => setZimmet(null)}>Listeye dön</button>
           </div>
         </div>
-        <section className="panel" id="ppe-zimmet-print">
-          <h3 style={{marginTop: 0}}>KKD Zimmet ve Teslim Formu</h3>
-          <div className="form-grid" style={{marginBottom: 16}}>
-            <div className="field"><span>Kayıt No</span><strong>{zimmet.id}</strong></div>
-            <div className="field"><span>Teslim Tarihi</span><strong>{zimmet.delivery_date}</strong></div>
-            <div className="field"><span>Personel</span><strong>{zimmet.employee_name || zimmet.employee_id}</strong></div>
-            <div className="field"><span>Bölüm / Görev</span><strong>{[zimmet.employee_department, zimmet.employee_job_title].filter(Boolean).join(' / ') || '—'}</strong></div>
-            <div className="field"><span>Kategori</span><strong>{zimmet.category}</strong></div>
-            <div className="field"><span>KKD Türü</span><strong>{zimmet.item_type}</strong></div>
-            <div className="field"><span>Adet</span><strong>{zimmet.quantity}</strong></div>
-            <div className="field"><span>Marka / Model / Beden</span><strong>{[zimmet.brand, zimmet.model, zimmet.size].filter(Boolean).join(' ') || '—'}</strong></div>
-            <div className="field"><span>Seri No</span><strong>{zimmet.serial_no || '—'}</strong></div>
-            <div className="field"><span>Yenileme</span><strong>{zimmet.renewal_date || '—'}</strong></div>
-            <div className="field"><span>SKT</span><strong>{zimmet.expiry_date || '—'}</strong></div>
-            <div className="field"><span>Durum</span><strong>{zimmet.status_label}</strong></div>
-            <div className="field" style={{gridColumn: '1 / -1'}}><span>Risk / Kullanım Alanı</span><p>{zimmet.risk_note || '—'}</p></div>
-            <div className="field" style={{gridColumn: '1 / -1'}}><span>Açıklama</span><p>{zimmet.notes || '—'}</p></div>
+        <section className="panel" id="ppe-zimmet-print" style={{maxWidth: 780, margin: '0 auto', background: '#fff', padding: '18px 22px', borderRadius: 0, boxShadow: 'none'}}>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, borderBottom: '2px solid #1e3a5f', paddingBottom: 10}}>
+            <div>
+              <h3 style={{margin: 0, fontSize: 18, color: '#1e3a5f', letterSpacing: 0.5}}>KKD ZİMMET VE TESLİM FORMU</h3>
+              <div style={{fontSize: 11, color: '#64748b', marginTop: 2}}>Kişisel Koruyucu Donanım Teslim Tutanağı</div>
+            </div>
+            <div style={{textAlign: 'right', fontSize: 11, color: '#64748b', lineHeight: 1.6}}>
+              <div>Kayıt No: <strong style={{color: '#1e3a5f'}}>{zimmet.id}</strong></div>
+              <div>Teslim Tarihi: <strong style={{color: '#1e3a5f'}}>{zimmet.delivery_date || '—'}</strong></div>
+            </div>
           </div>
-          <p style={{fontSize: 13, lineHeight: 1.5}}>
-            Yukarıda bilgileri yer alan kişisel koruyucu donanımı eksiksiz teslim aldım.
-            Kullanım, bakım ve muhafaza kurallarına uygun hareket edeceğimi; kayıp, hasar veya
-            yenileme ihtiyacını işverene / İSG birimine bildireceğimi kabul ederim.
-          </p>
-          <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginTop: 28}}>
+
+          <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 12}}>
+            <tbody>
+              {[
+                ['Personel', zimmet.employee_name || zimmet.employee_id || '—', 'Bölüm / Görev', [zimmet.employee_department, zimmet.employee_job_title].filter(Boolean).join(' / ') || '—'],
+                ['Kategori', zimmet.category || '—', 'KKD Türü', zimmet.item_type || '—'],
+                ['Adet', String(zimmet.quantity || 1), 'Marka / Model / Beden', [zimmet.brand, zimmet.model, zimmet.size].filter(Boolean).join(' ') || '—'],
+                ['Seri No', zimmet.serial_no || '—', 'Durum', zimmet.status_label || '—'],
+                ['Yenileme Tarihi', zimmet.renewal_date || '—', 'Son Kullanma Tarihi', zimmet.expiry_date || '—'],
+              ].map(([l1, v1, l2, v2], i) => (
+                <tr key={i} style={{borderBottom: '1px solid #e2e8f0'}}>
+                  <td style={{padding: '6px 8px', fontWeight: 700, color: '#475569', width: '16%', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3}}>{l1}</td>
+                  <td style={{padding: '6px 8px', fontWeight: 500, width: '34%'}}>{v1}</td>
+                  <td style={{padding: '6px 8px', fontWeight: 700, color: '#475569', width: '16%', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3}}>{l2}</td>
+                  <td style={{padding: '6px 8px', fontWeight: 500, width: '34%'}}>{v2}</td>
+                </tr>
+              ))}
+              {zimmet.risk_note && (
+                <tr style={{borderBottom: '1px solid #e2e8f0'}}>
+                  <td colSpan={1} style={{padding: '6px 8px', fontWeight: 700, color: '#475569', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3}}>Risk / Kullanım Alanı</td>
+                  <td colSpan={3} style={{padding: '6px 8px', fontWeight: 500}}>{zimmet.risk_note}</td>
+                </tr>
+              )}
+              {zimmet.notes && (
+                <tr>
+                  <td colSpan={1} style={{padding: '6px 8px', fontWeight: 700, color: '#475569', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.3}}>Açıklama</td>
+                  <td colSpan={3} style={{padding: '6px 8px', fontWeight: 500}}>{zimmet.notes}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          <div style={{border: '1px solid #cbd5e1', borderRadius: 6, padding: '10px 12px', marginBottom: 16, background: '#f8fafc', fontSize: 11.5, lineHeight: 1.55, color: '#334155'}}>
+            <strong style={{fontSize: 12, color: '#1e3a5f'}}>TESLİM ALMA BEYANI</strong><br />
+            Yukarıda bilgileri yer alan kişisel koruyucu donanımı eksiksiz teslim aldım. Kullanım, bakım ve muhafaza kurallarına uygun hareket edeceğimi; kayıp, hasar veya yenileme ihtiyacını işverene / İSG birimine derhal bildireceğimi kabul ve taahhüt ederim.
+          </div>
+
+          <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10}}>
             {[
-              ['Teslim Eden (İSG)', zimmet.delivered_by],
-              ['Teslim Alan (Çalışan)', zimmet.employee_name],
+              ['Teslim Eden (İSG)', zimmet.delivered_by || ''],
+              ['Teslim Alan (Çalışan)', zimmet.employee_name || ''],
               ['İşveren / Vekili', ''],
             ].map(([t, n]) => (
-              <div key={t} style={{border: '1px solid #d0dbe3', borderRadius: 10, padding: 12, minHeight: 90}}>
-                <strong style={{fontSize: 13}}>{t}</strong>
-                <div style={{marginTop: 8}}>{n || ' '}</div>
-                <div style={{marginTop: 28, borderTop: '1px solid #999', paddingTop: 6, fontSize: 12, color: '#666'}}>Kaşe / İmza</div>
+              <div key={t} style={{border: '1px solid #cbd5e1', borderRadius: 6, padding: '8px 10px', minHeight: 80}}>
+                <div style={{fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4}}>{t}</div>
+                <div style={{fontSize: 12, fontWeight: 500, minHeight: 20}}>{n || ''}</div>
+                <div style={{marginTop: 30, borderTop: '1px solid #94a3b8', paddingTop: 4, fontSize: 10, color: '#94a3b8', textAlign: 'center'}}>İmza / Kaşe</div>
               </div>
             ))}
           </div>
+
+          <div style={{marginTop: 14, display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#94a3b8'}}>
+            <span>Bu form 2 nüsha düzenlenir: 1 nüsha çalışana, 1 nüsha İSG birimine verilir.</span>
+            <span>İSG Suite OSGB</span>
+          </div>
+
           {canEdit && (
-            <div className="no-print" style={{marginTop: 16}}>
-              <label className="button secondary" style={{display: 'inline-flex'}}>
-                <Upload size={16} /> Fotoğraf ekle
+            <div className="no-print" style={{marginTop: 14, borderTop: '1px solid #e2e8f0', paddingTop: 10}}>
+              <label className="button secondary" style={{display: 'inline-flex', marginRight: 10}}>
+                <Upload size={14} /> Fotoğraf ekle
                 <input type="file" accept=".png,.jpg,.jpeg,.webp,.gif" hidden disabled={busy} onChange={(e) => onPhoto(zimmet.id, e.target.files?.[0])} />
               </label>
-              <span style={{marginLeft: 10, fontSize: 13, color: '#64748b'}}>{zimmet.photos?.length || 0} fotoğraf</span>
+              <span style={{fontSize: 12, color: '#64748b'}}>{zimmet.photos?.length || 0} fotoğraf</span>
             </div>
           )}
         </section>

@@ -85,6 +85,19 @@ def sync_user_from_professional(db: Session, user: User, *, commit: bool = False
     pro = find_professional_by_identity(db, user)
     if not pro and user.role in _OSGB_FIELD_ROLES:
         pro = find_professional_for_user(db, user)
+    # Son çare: doğrudan global e-posta eşleşmesi
+    if not pro and user.role in _OSGB_FIELD_ROLES:
+        user_email = (user.email or "").strip().casefold()
+        if user_email:
+            pro = db.scalar(
+                select(IsgProfessional)
+                .where(
+                    IsgProfessional.is_active.is_(True),
+                    func.lower(IsgProfessional.email) == user_email,
+                )
+                .order_by(IsgProfessional.id)
+                .limit(1)
+            )
     if not pro:
         return user
 
@@ -223,6 +236,27 @@ def assigned_company_ids(db: Session, user: User) -> list[int]:
 
     if user.role in _OSGB_FIELD_ROLES:
         pro = find_professional_for_user(db, user)
+        # Direkt fallback: e-posta ile global profesyonel arama
+        if not pro:
+            user_email = (user.email or "").strip().casefold()
+            if user_email:
+                pro = db.scalar(
+                    select(IsgProfessional)
+                    .where(
+                        IsgProfessional.is_active.is_(True),
+                        func.lower(IsgProfessional.email) == user_email,
+                    )
+                    .order_by(IsgProfessional.id)
+                    .limit(1)
+                )
+            # Bulunduysa kullanıcının osgb_id ve rolünü senkronize et
+            if pro:
+                user.osgb_id = pro.osgb_id
+                desired_role = _PRO_TYPE_TO_ROLE.get(pro.professional_type)
+                if desired_role:
+                    user.role = desired_role
+                db.commit()
+                db.refresh(user)
         if pro:
             ids = list(
                 db.scalars(
@@ -241,7 +275,19 @@ def assigned_company_ids(db: Session, user: User) -> list[int]:
                     ordered.append(i)
             if ordered:
                 return _merge_membership_companies(db, user, ordered)
-        # Görevlendirme yoksa eski tek-firma hesabı (company_id bağlı uzman)
+        # Görevlendirme yoksa OSGB altındaki firmaları kullan
+        if user.osgb_id:
+            osgb_firmalari = list(
+                db.scalars(
+                    select(Company.id).where(
+                        Company.osgb_id == user.osgb_id,
+                        Company.is_active.is_(True),
+                    )
+                ).all()
+            )
+            if osgb_firmalari:
+                return _merge_membership_companies(db, user, osgb_firmalari)
+        # Eski tek-firma hesabı (company_id bağlı uzman)
         if user.company_id:
             return _merge_membership_companies(db, user, [user.company_id])
         return _merge_membership_companies(db, user, [])
