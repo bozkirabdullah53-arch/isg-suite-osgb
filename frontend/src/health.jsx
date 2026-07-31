@@ -201,7 +201,7 @@ export function HealthPage({user}) {
     setMessage('');
     try {
       const sumQs = new URLSearchParams();
-      if (isGlobal && companyId) sumQs.set('company_id', companyId);
+      if (companyId) sumQs.set('company_id', companyId);
       const knownCid = companyId || user.company_id || '';
       const empQs = new URLSearchParams({active: 'true'});
       if (knownCid) empQs.set('company_id', String(knownCid));
@@ -210,9 +210,9 @@ export function HealthPage({user}) {
         api('/companies'),
         knownCid ? api(`/employees?${empQs}`) : Promise.resolve([]),
         api(`/health-records?${qs}`),
-        api(`/health-records/summary?${sumQs}`),
+        api(`/health-records/summary?${sumQs}`).catch(() => null),
         api('/health-records/meta'),
-        api(`/health-records/analysis?${sumQs}`),
+        api(`/health-records/analysis?${sumQs}`).catch(() => null),
       ]);
       const nextCid = companyId || String(user.company_id || c[0]?.id || '');
       setCompanies(c);

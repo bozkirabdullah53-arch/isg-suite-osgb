@@ -377,7 +377,8 @@ def effective_company_id(db: Session, user: User, company_id: int | None = None)
         return company_id
     if len(allowed) == 1:
         return allowed[0]
-    raise HTTPException(422, "Birden fazla işyeriniz var; company_id seçin.")
+    # Birden fazla firma varsa ilkini kullan (frontend zaten seçim yapacak)
+    return allowed[0]
 
 
 def company_ids_for_query(db: Session, user: User, company_id: int | None = None) -> list[int] | None:

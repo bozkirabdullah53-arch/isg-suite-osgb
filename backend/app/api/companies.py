@@ -233,11 +233,9 @@ def list_companies(
     user: User = Depends(get_current_user),
 ):
     stmt = select(Company).order_by(Company.name)
-    # Saha / firma kullanıcıları varsayılan yalnız aktif; global admin hepsini görür
+    # active parametresi açıkça belirtilmişse uygula; aksi halde erişim kapsamına güven
     if active is not None:
         stmt = stmt.where(Company.is_active.is_(active))
-    elif user.role != UserRole.GLOBAL_ADMIN:
-        stmt = stmt.where(Company.is_active.is_(True))
     scope = companies_query_for_user(db, user)
     if scope is not None:
         stmt = stmt.where(scope)
