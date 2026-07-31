@@ -1,0 +1,462 @@
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+import logging
+
+from app.api.deps import get_current_user, get_mfa_challenge_user, oauth2_scheme
+from app.core.auth_cookies import (
+    REFRESH_COOKIE_NAME,
+    access_token_ttl_minutes,
+    clear_refresh_cookie,
+    refresh_cookie_enabled,
+    set_refresh_cookie,
+)
+from app.core.config import settings
+from app.core.database import get_db
+from app.core.security import create_access_token, create_refresh_token, verify_password
+from app.models.entities import User
+from app.schemas.auth import (
+    CurrentUserResponse,
+    ForgotPasswordRequest,
+    LoginRequest,
+    MfaRestartSetupRequest,
+    MfaVerifyRequest,
+    ResetPasswordRequest,
+    TokenResponse,
+)
+from app.services.auth_security import (
+    clear_throttle,
+    consume_password_reset,
+    create_password_reset,
+    create_purpose_token,
+    get_mfa_secret,
+    is_locked,
+    register_failed_login,
+    register_success_login,
+    role_requires_mfa,
+    send_reset_email,
+    throttle_login,
+    verify_recovery_code,
+)
+from app.services.audit import add_audit_log
+
+router = APIRouter(prefix="/auth", tags=["Kimlik Doğrulama"])
+logger = logging.getLogger(__name__)
+
+
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
+
+
+def _sync_field(db: Session, user: User) -> User:
+    from app.api.company_access import sync_all_assigned_field_roles, sync_user_from_professional
+
+    try:
+        sync_all_assigned_field_roles(db)
+    except Exception:
+        logger.warning("auth _sync_field: bulk role sync failed", exc_info=True)
+        db.rollback()
+    user = db.get(User, user.id) or user
+    return sync_user_from_professional(db, user, commit=True)
+
+
+def _issue_access(user: User, response: Response) -> TokenResponse:
+    tv = int(getattr(user, "token_version", 0) or 0)
+    ttl_min = access_token_ttl_minutes()
+    body = TokenResponse(
+        access_token=create_access_token(str(user.id), token_version=tv, minutes=ttl_min),
+        expires_in=max(60, ttl_min * 60),
+    )
+    if refresh_cookie_enabled():
+        set_refresh_cookie(response, create_refresh_token(str(user.id), token_version=tv))
+        body.refresh_cookie = True
+    return body
+
+
+@router.post("/login", response_model=TokenResponse)
+def login(
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    ip = _client_ip(request)
+    email = str(payload.email).strip().lower()
+    try:
+        throttle_login(email, ip)
+    except ValueError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+
+    user = db.scalar(select(User).where(User.email == payload.email))
+    if user and is_locked(user):
+        register_failed_login(db, user, email=email, ip=ip)
+        db.commit()
+        raise HTTPException(
+            status_code=423,
+            detail="Hesap geçici olarak kilitli. Lütfen daha sonra tekrar deneyin.",
+        )
+
+    if not user or not verify_password(payload.password, user.hashed_password):
+        register_failed_login(db, user, email=email, ip=ip)
+        db.commit()
+        raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı.")
+
+    if not user.is_active:
+        register_failed_login(db, user, email=email, ip=ip)
+        db.commit()
+        raise HTTPException(status_code=401, detail="Hesap pasif. Yöneticinizle iletişime geçin.")
+
+    user = _sync_field(db, user)
+    clear_throttle(email, ip)
+
+    mfa_on = bool(getattr(user, "mfa_enabled", False))
+    mfa_secret = get_mfa_secret(user) if mfa_on else None
+    # MFA bayrağı açık ama gizli anahtar yoksa doğrulama ekranına düşmesin; kurulum zorunlu.
+    if mfa_on and not mfa_secret:
+        user.mfa_enabled = False
+        mfa_on = False
+
+    if mfa_on:
+        register_success_login(db, user, ip=ip)
+        db.commit()
+        return TokenResponse(
+            mfa_required=True,
+            mfa_token=create_purpose_token(
+                str(user.id), "mfa_challenge", minutes=10, token_version=getattr(user, "token_version", 0) or 0
+            ),
+        )
+
+    if role_requires_mfa(user.role) and not mfa_on:
+        register_success_login(db, user, ip=ip)
+        db.commit()
+        return TokenResponse(
+            mfa_setup_required=True,
+            mfa_token=create_purpose_token(
+                str(user.id), "mfa_setup", minutes=30, token_version=getattr(user, "token_version", 0) or 0
+            ),
+        )
+
+    register_success_login(db, user, ip=ip)
+    db.commit()
+    return _issue_access(user, response)
+
+
+@router.post("/mfa/restart-setup", response_model=TokenResponse)
+def restart_mfa_setup(
+    payload: MfaRestartSetupRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Authenticator kurulumu yapılamadıysa: e-posta+şifre ile MFA’yı sıfırlayıp kurulum ekranına düşür."""
+    ip = _client_ip(request)
+    email = str(payload.email).strip().lower()
+    try:
+        throttle_login(email, ip)
+    except ValueError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+
+    user = db.scalar(select(User).where(User.email == payload.email))
+    if not user or not verify_password(payload.password, user.hashed_password):
+        register_failed_login(db, user, email=email, ip=ip)
+        db.commit()
+        raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı.")
+    if not user.is_active:
+        raise HTTPException(status_code=401, detail="Hesap pasif. Yöneticinizle iletişime geçin.")
+    if not role_requires_mfa(user.role):
+        raise HTTPException(status_code=400, detail="Bu hesap için MFA kurulumu gerekmez.")
+
+    user.mfa_enabled = False
+    user.mfa_secret_encrypted = None
+    user.mfa_recovery_hashes = None
+    clear_throttle(email, ip)
+    add_audit_log(
+        db,
+        user=user,
+        action="mfa_restart_setup",
+        entity_type="user",
+        entity_id=str(user.id),
+        description="MFA kurulum yeniden başlatıldı (şifre doğrulamalı)",
+        ip_address=ip,
+        module="auth",
+    )
+    register_success_login(db, user, ip=ip)
+    db.commit()
+    return TokenResponse(
+        mfa_setup_required=True,
+        mfa_token=create_purpose_token(
+            str(user.id), "mfa_setup", minutes=30, token_version=getattr(user, "token_version", 0) or 0
+        ),
+    )
+
+
+@router.post("/mfa/verify", response_model=TokenResponse)
+def verify_mfa_login(
+    payload: MfaVerifyRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_mfa_challenge_user),
+):
+    import pyotp
+
+    if not user.mfa_enabled:
+        raise HTTPException(
+            status_code=403,
+            detail="MFA henüz etkinleştirilmedi. Önce güvenlik ayarlarından MFA’yı tamamlayın.",
+        )
+    code = (payload.code or "").strip().replace(" ", "")
+    secret = get_mfa_secret(user)
+    ok = False
+    if secret:
+        ok = pyotp.TOTP(secret).verify(code, valid_window=2)
+    if not ok:
+        ok = verify_recovery_code(user, code)
+    if not ok:
+        add_audit_log(
+            db,
+            user=user,
+            action="mfa_failed",
+            entity_type="user",
+            entity_id=str(user.id),
+            description="MFA doğrulama başarısız",
+            ip_address=_client_ip(request),
+            module="auth",
+        )
+        db.commit()
+        raise HTTPException(status_code=401, detail="Doğrulama kodu hatalı.")
+    add_audit_log(
+        db,
+        user=user,
+        action="mfa_success",
+        entity_type="user",
+        entity_id=str(user.id),
+        description="MFA doğrulama başarılı",
+        ip_address=_client_ip(request),
+        module="auth",
+    )
+    db.commit()
+    return _issue_access(user, response)
+
+
+@router.post("/refresh", response_model=TokenResponse)
+def refresh_access_token(request: Request, response: Response, db: Session = Depends(get_db)):
+    """HttpOnly refresh cookie → yeni access token. Flag kapalıysa 404."""
+    if not refresh_cookie_enabled():
+        raise HTTPException(404, "Refresh cookie kapalı.")
+    from datetime import datetime, timezone
+
+    from jose import JWTError, jwt
+
+    from app.core.security import ALGORITHM
+    from app.services.token_revoke import is_jti_revoked, revoke_jti
+
+    raw = (request.cookies.get(REFRESH_COOKIE_NAME) or "").strip()
+    if not raw:
+        raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
+    try:
+        payload = jwt.decode(raw, settings.secret_key, algorithms=[ALGORITHM])
+        if (payload.get("purpose") or "") != "refresh":
+            raise HTTPException(401, "Oturum yenilenemedi.")
+        user_id = int(payload.get("sub"))
+        jti = payload.get("jti")
+        tv = int(payload.get("tv") or 0)
+        exp = payload.get("exp")
+    except (JWTError, TypeError, ValueError, HTTPException):
+        clear_refresh_cookie(response)
+        raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
+
+    if jti and is_jti_revoked(db, str(jti)):
+        clear_refresh_cookie(response)
+        raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
+
+    user = db.get(User, user_id)
+    if not user or not user.is_active:
+        clear_refresh_cookie(response)
+        raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
+    if tv != int(getattr(user, "token_version", 0) or 0):
+        clear_refresh_cookie(response)
+        raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
+
+    # Eski refresh'i düşür (rotation)
+    if jti and exp:
+        expires_at = datetime.fromtimestamp(int(exp), tz=timezone.utc).replace(tzinfo=None)
+        revoke_jti(db, jti=str(jti), user_id=user.id, expires_at=expires_at)
+        db.commit()
+
+    return _issue_access(user, response)
+
+
+@router.post("/logout")
+def logout(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    token: str = Depends(oauth2_scheme),
+):
+    """Aktif access token'ı denylist'e yazar; istemci localStorage temizlemeli."""
+    from datetime import datetime, timezone
+
+    from jose import JWTError, jwt
+
+    from app.core.security import ALGORITHM
+    from app.services.token_revoke import revoke_jti
+
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        if jti and exp:
+            expires_at = datetime.fromtimestamp(int(exp), tz=timezone.utc).replace(tzinfo=None)
+            revoke_jti(db, jti=str(jti), user_id=user.id, expires_at=expires_at)
+            add_audit_log(
+                db,
+                user=user,
+                action="logout",
+                entity_type="user",
+                entity_id=str(user.id),
+                description="Oturum sonlandırıldı (token iptal)",
+                ip_address=_client_ip(request),
+                module="auth",
+            )
+            db.commit()
+    except (JWTError, TypeError, ValueError):
+        logger.warning("logout: access jti revoke failed", exc_info=True)
+    # Refresh cookie varsa temizle (flag açıkken)
+    raw = (request.cookies.get(REFRESH_COOKIE_NAME) or "").strip()
+    if raw:
+        try:
+            from jose import JWTError, jwt
+
+            from app.core.security import ALGORITHM
+            from app.services.token_revoke import revoke_jti
+
+            payload = jwt.decode(raw, settings.secret_key, algorithms=[ALGORITHM])
+            jti = payload.get("jti")
+            exp = payload.get("exp")
+            if jti and exp:
+                expires_at = datetime.fromtimestamp(int(exp), tz=timezone.utc).replace(tzinfo=None)
+                revoke_jti(db, jti=str(jti), user_id=user.id, expires_at=expires_at)
+                db.commit()
+        except Exception:
+            logger.warning("logout: refresh jti revoke failed", exc_info=True)
+    clear_refresh_cookie(response)
+    return {"ok": True, "message": "Oturum sonlandırıldı."}
+
+
+@router.post("/logout-all")
+def logout_all_sessions(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Tüm cihazlardaki JWT'leri düşürür (token_version++). Bu istekteki token da geçersiz olur."""
+    from app.services.token_revoke import bump_token_version, prune_expired_denylist
+
+    bump_token_version(user)
+    try:
+        prune_expired_denylist(db)
+    except Exception:
+        logger.warning("logout_all: denylist prune failed", exc_info=True)
+    add_audit_log(
+        db,
+        user=user,
+        action="logout_all",
+        entity_type="user",
+        entity_id=str(user.id),
+        description="Tüm oturumlar sonlandırıldı (token_version)",
+        ip_address=_client_ip(request),
+        module="auth",
+    )
+    db.commit()
+    clear_refresh_cookie(response)
+    return {
+        "ok": True,
+        "message": "Tüm cihazlardaki oturumlar kapatıldı. Lütfen yeniden giriş yapın.",
+        "token_version": int(getattr(user, "token_version", 0) or 0),
+    }
+
+
+@router.post("/forgot-password")
+def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    """Her zaman nötr yanıt — kullanıcı varlığını sızdırma."""
+    user = db.scalar(select(User).where(User.email == payload.email))
+    if user and user.is_active:
+        raw = create_password_reset(db, user)
+        send_reset_email(user.email, raw)
+        add_audit_log(
+            db,
+            user=user,
+            action="password_reset_requested",
+            entity_type="user",
+            entity_id=str(user.id),
+            description="Parola sıfırlama istendi",
+            ip_address=_client_ip(request),
+            module="auth",
+        )
+        db.commit()
+    return {"message": "Eğer hesap varsa sıfırlama bağlantısı e-posta ile gönderildi."}
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    try:
+        user = consume_password_reset(db, payload.token, payload.new_password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    add_audit_log(
+        db,
+        user=user,
+        action="password_reset_completed",
+        entity_type="user",
+        entity_id=str(user.id),
+        description="Parola sıfırlandı",
+        ip_address=_client_ip(request),
+        module="auth",
+    )
+    db.commit()
+    return {"message": "Şifreniz güncellendi. Giriş yapabilirsiniz."}
+
+
+@router.get("/me", response_model=CurrentUserResponse)
+def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from app.api.company_access import sync_user_from_professional
+    from app.models.entities import UserRole
+    from app.services.osgb_subscription import (
+        effective_subscription_status,
+        get_or_create_subscription,
+        resolve_user_osgb_id,
+        subscription_allows_write,
+    )
+
+    user = sync_user_from_professional(db, user, commit=True)
+    is_eisa = user.role == UserRole.GLOBAL_ADMIN
+    sub_status = None
+    write_ok = True
+    if not is_eisa:
+        try:
+            oid = resolve_user_osgb_id(db, user)
+            if oid:
+                sub = get_or_create_subscription(db, oid)
+                eff = effective_subscription_status(sub)
+                sub_status = eff.value
+                write_ok = subscription_allows_write(sub)
+        except Exception:
+            # Lokal/eski kayıtlarda enum uyumsuzluğu oturumu düşürmesin
+            logger.exception("auth/me subscription lookup failed user_id=%s", getattr(user, "id", None))
+            sub_status = None
+            write_ok = True
+    return CurrentUserResponse(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        role=user.role.value,
+        company_id=user.company_id,
+        osgb_id=user.osgb_id,
+        is_eisa=is_eisa,
+        subscription_write_allowed=write_ok,
+        subscription_status=sub_status,
+        mfa_enabled=bool(getattr(user, "mfa_enabled", False)),
+        mfa_required=role_requires_mfa(user.role),
+    )

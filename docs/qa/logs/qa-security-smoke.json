@@ -1,0 +1,61 @@
+{
+  "passed": 9,
+  "failed": 0,
+  "total": 9,
+  "results": [
+    {
+      "test": "no_token_companies",
+      "ok": true,
+      "http": null,
+      "detail": ""
+    },
+    {
+      "test": "bad_bearer",
+      "ok": true,
+      "http": null,
+      "detail": ""
+    },
+    {
+      "test": "empty_login",
+      "ok": true,
+      "http": null,
+      "detail": ""
+    },
+    {
+      "test": "openapi_docs_exposed",
+      "ok": true,
+      "http": null,
+      "detail": "INFO: /docs açık — canlıda kapatılabilir"
+    },
+    {
+      "test": "rate_limit_registered",
+      "ok": true,
+      "http": null,
+      "detail": "['CORSMiddleware', 'SimpleRateLimitMiddleware', 'SecurityHeadersMiddleware']"
+    },
+    {
+      "test": "secret_key_not_trivial_in_qa_env",
+      "ok": true,
+      "http": null,
+      "detail": "len=44"
+    },
+    {
+      "test": "verify_invalid_no_pii",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "path_traversal_/api/v1/files/../main.py",
+      "ok": true,
+      "http": 404,
+      "detail": ""
+    },
+    {
+      "test": "path_traversal_les/..%2F..%2Fetc/passwd",
+      "ok": true,
+      "http": 404,
+      "detail": ""
+    }
+  ]
+}

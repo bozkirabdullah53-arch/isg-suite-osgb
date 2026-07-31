@@ -1,0 +1,17 @@
+{
+  "ran_at": "2026-07-25T21:20:30.669839+00:00",
+  "mode": "dry_run",
+  "restore_writes_enabled": false,
+  "inspect": {
+    "osgb_id": 99,
+    "document_count": 0,
+    "employee_count": 0,
+    "file_entries": 2,
+    "encrypted": false
+  },
+  "dry_run": {
+    "files_touched": 2,
+    "skipped": []
+  },
+  "result": "pass"
+}

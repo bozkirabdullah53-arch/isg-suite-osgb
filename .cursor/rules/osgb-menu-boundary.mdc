@@ -1,0 +1,20 @@
+---
+description: OSGB (company_admin) menüsüne saha/İSG operasyon modülleri ASLA eklenmez
+alwaysApply: true
+---
+
+# OSGB menü sınırı (kalıcı)
+
+`company_admin` (OSGB yöneticisi) menüsüne şu modüller **ASLA** eklenmez; daha önce bilinçli olarak kaldırıldı, geri getirme:
+
+- `employees` (Personel)
+- `dashboard` (İSG Özeti)
+- `risk`, `near_miss`, `accident`, `capa`, `ppe`, `sds`, `tatbikat`, `acil_ekipler`, `annual_eval_report`
+- `training`, `health`, `annual_plans`, `documents`
+
+Bunlar saha rolleri (uzman / hekim / DSP) içindir. OSGB merkezi yalnızca kendi yönetim ekranlarını görür: ana panel, hizmet denetimi, performans, ÇSGB, profesyoneller, görevlendirmeler, saha takvimi, işyerleri/şubeler, CRM, finans, raporlar, bildirimler, kullanıcılar, abonelik, güvenlik.
+
+Kaynak: `frontend/src/main.jsx` → `roleModules.company_admin`.
+
+Menü sırası operasyon akışına göredir (sık / günlük üstte):
+Ana Panel → Saha Takvimi → Bildirimler → İşyerleri → Profesyoneller → Görevlendirmeler → Performans → Hizmet Denetimi → Kapasite → ÇSGB → CRM/Sözleşme/Finans → Şube/Rapor/Mevzuat → Kullanıcı/Abonelik/Güvenlik.

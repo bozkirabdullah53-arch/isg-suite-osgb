@@ -1,0 +1,332 @@
+{
+  "passed": 54,
+  "failed": 0,
+  "total": 54,
+  "results": [
+    {
+      "test": "login_roles",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g6_uzman_eisa_denied",
+      "ok": true,
+      "http": 403,
+      "detail": ""
+    },
+    {
+      "test": "g6_ca_eisa_denied",
+      "ok": true,
+      "http": 403,
+      "detail": "{\"detail\":\"Bu işlem için yetkiniz yok.\"}"
+    },
+    {
+      "test": "g6_ga_eisa_dashboard",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g1_packages_list",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g1_subscriptions_list",
+      "ok": true,
+      "http": 200,
+      "detail": "n=1"
+    },
+    {
+      "test": "g1_osgb_users_list",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g1_submit_reject",
+      "ok": true,
+      "http": 201,
+      "detail": "{\"id\":33,\"name\":\"TEST_QA_OSGB_reject_f84c18b4\",\"authorization_number\":\"QA-AUTH-f84c18b4-01\",\"tax_num"
+    },
+    {
+      "test": "g1_submit_delete",
+      "ok": true,
+      "http": 201,
+      "detail": "{\"id\":34,\"name\":\"TEST_QA_OSGB_delete_f84c18b4\",\"authorization_number\":\"QA-AUTH-f84c18b4-02\",\"tax_num"
+    },
+    {
+      "test": "g1_submit_approve",
+      "ok": true,
+      "http": 201,
+      "detail": "{\"id\":35,\"name\":\"TEST_QA_OSGB_approve_f84c18b4\",\"authorization_number\":\"QA-AUTH-f84c18b4-03\",\"tax_nu"
+    },
+    {
+      "test": "g1_list_pending",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g1_reject",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g1_delete_application",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g1_delete_not_listed",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g1_approve",
+      "ok": true,
+      "http": 200,
+      "detail": "{'application': {'id': 35, 'name': 'TEST_QA_OSGB_approve_f84c18b4', 'authorization_number': 'QA-AUTH-f84c18b4-03', 'tax_"
+    },
+    {
+      "test": "g1_approve_osgb_visible",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g2_osgb_hard_delete",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"ok\":true,\"id\":3,\"deleted\":true,\"message\":\"“TEST_QA_OSGB_approve_f84c18b4” kalıcı silindi.\"}"
+    },
+    {
+      "test": "g2_osgb_gone_from_list",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g2_backup_before_delete_recorded",
+      "ok": true,
+      "http": 200,
+      "detail": "n=39"
+    },
+    {
+      "test": "g4_ga_tenant_backup",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"id\":71,\"kind\":\"tenant_backup\",\"osgb_id\":1,\"company_id\":null,\"entity_type\":\"tenant_backup\",\"entity_"
+    },
+    {
+      "test": "g4_ga_list_archives",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g4_ga_download",
+      "ok": true,
+      "http": 200,
+      "detail": "bytes=8231"
+    },
+    {
+      "test": "g4_ca_cross_archive_denied_or_own",
+      "ok": true,
+      "http": 200,
+      "detail": "403 beklenen (baska OSGB) veya 200 (aynı kapsam)"
+    },
+    {
+      "test": "g4_uzman_archives_denied",
+      "ok": true,
+      "http": 403,
+      "detail": ""
+    },
+    {
+      "test": "g4_ca_backup_own",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"id\":72,\"kind\":\"tenant_backup\",\"osgb_id\":1,\"company_id\":1,\"entity_type\":\"tenant_backup\",\"entity_id\":\"1\",\"original_name\""
+    },
+    {
+      "test": "g4_ca_backup_ok",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g3_osgb_in_subscriptions",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g3_delete_via_subscription_path",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g3_gone_from_subscriptions",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g5_risk_create",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g5_risk_media_upload",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"id\":1,\"risk_id\":21,\"original_name\":\"qa.png\",\"content_type\":\"image/png\",\"created_at\":\"2026-07-20T15"
+    },
+    {
+      "test": "g5_media_delete",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "g5_deleted_file_archived",
+      "ok": true,
+      "http": 200,
+      "detail": "31->32"
+    },
+    {
+      "test": "o2_backup_osgb1",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "o2_osgb2_cannot_download_osgb1_archive",
+      "ok": true,
+      "http": 403,
+      "detail": "{\"detail\":\"Bu arşiv kaydına erişemezsiniz.\"}"
+    },
+    {
+      "test": "o2_osgb2_list_hides_osgb1_archive",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "o3_fixture_align_professional_email",
+      "ok": true,
+      "http": null,
+      "detail": "idempotent"
+    },
+    {
+      "test": "o3_document_create",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "o3_document_file_upload",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"message\":\"Dosya başarıyla yüklendi.\",\"file_name\":\"qa.pdf\"}"
+    },
+    {
+      "test": "o3_document_deactivate",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "o3_document_archived",
+      "ok": true,
+      "http": null,
+      "detail": "32->33"
+    },
+    {
+      "test": "o3_visit_create",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"id\":6,\"osgb_id\":1,\"company_id\":1,\"professional_id\":1,\"visit_date\":\"2026-07-20\",\"start_time\":null,\""
+    },
+    {
+      "test": "o3_notebook_upload1",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"id\":6,\"osgb_id\":1,\"company_id\":1,\"professional_id\":1,\"visit_date\":\"2026-07-20\""
+    },
+    {
+      "test": "o3_notebook_replace",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"id\":6,\"osgb_id\":1,\"company_id\":1,\"professional_id\":1,\"visit_date\":\"2026-07-20\""
+    },
+    {
+      "test": "o3_notebook_archived_on_replace",
+      "ok": true,
+      "http": null,
+      "detail": "33->34"
+    },
+    {
+      "test": "o3_assignment_picked",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "o3_contract_upload1",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"osgb_id\":1,\"company_id\":3,\"professional_id\":3,\"professional_type\":\"other_healt"
+    },
+    {
+      "test": "o3_contract_replace",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "o3_contract_archived_on_replace",
+      "ok": true,
+      "http": null,
+      "detail": "35->36"
+    },
+    {
+      "test": "o3_health_create",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"id\":8,\"company_id\":1,\"employee_id\":95,\"employee_name\":\"TEST_ CRUD Personel\",\"job_title\":\"Operatör\""
+    },
+    {
+      "test": "o3_health_report_upload1",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"id\":8,\"company_id\":1,\"employee_id\":95,\"employee_name\":\"TEST_ CRUD Personel\",\"j"
+    },
+    {
+      "test": "o3_health_report_replace",
+      "ok": true,
+      "http": 200,
+      "detail": ""
+    },
+    {
+      "test": "o3_health_report_archived_on_replace",
+      "ok": true,
+      "http": null,
+      "detail": "36->37"
+    },
+    {
+      "test": "health_flags_eisa_archive",
+      "ok": true,
+      "http": 200,
+      "detail": "v=0.9.77 eisa=eisa-global-admin-v3 arch=tenant-backup-v1"
+    }
+  ],
+  "stamp": "20260720185641"
+}

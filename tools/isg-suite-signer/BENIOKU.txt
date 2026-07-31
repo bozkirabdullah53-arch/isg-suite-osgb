@@ -1,0 +1,26 @@
+OSGB Signer — Yerel E-İmza Köprüsü (Windows)
+
+Mimari
+  OSGB Web → tek kullanımlık imza talebi
+       → OSGB Signer (127.0.0.1:17000, HTTPS)
+       → PKCS#11 / PCSC USB e-imza kartı
+       → imzalı PDF
+       → OSGB sunucusu: doğrulama · OCSP/CRL · zaman damgası · belge kilidi · denetim
+
+HSNSigner (IBYSIS) ile fark
+- Origin: www.isgsuite.tr / isgsuite.tr (IBYSIS'e kilitli değil)
+- Port 17000 — HSNSigner 16999 ile aynı anda çalışır, bozmaz
+- Tek kullanımlık token + hash bütünlüğü
+- PIN yalnızca bu cihazda; sunucuya gitmez
+
+Kurulum
+1) KUR.bat'a çift tıklayın (Python 3 + Add to PATH gerekir).
+2) https://127.0.0.1:17000/health → healthy
+3) www.isgsuite.tr → Belge Onay → köprü Bağlı
+
+Gerçek kart (PKCS#11)
+appsettings.json → Signing.Pkcs11Module = örn.
+  C:\Windows\System32\akisp11.dll
+  (üretici middleware kurulu olmalı)
+
+Demo sertifika akış testi içindir; müfettiş nitelikli imza iddiası taşımaz.

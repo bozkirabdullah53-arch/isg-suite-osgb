@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: isgsuite
+      POSTGRES_USER: isgsuite
+      POSTGRES_PASSWORD: isgsuite_dev_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://isgsuite:isgsuite_dev_password@db:5432/isgsuite
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in your environment}
+      FRONTEND_ORIGIN: http://localhost:5173
+      CLAMAV_HOST: ${CLAMAV_HOST:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_API_URL: http://localhost:8000/api/v1
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  # B-01 opsiyonel: ClamAV — `docker compose up -d clamav` + CLAMAV_HOST=clamav
+  clamav:
+    image: clamav/clamav:stable
+    profiles: ["clamav"]
+    ports:
+      - "3310:3310"
+
+volumes:
+  postgres_data:

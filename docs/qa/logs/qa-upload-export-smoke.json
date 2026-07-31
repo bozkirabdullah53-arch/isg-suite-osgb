@@ -1,0 +1,67 @@
+{
+  "passed": 10,
+  "failed": 0,
+  "total": 10,
+  "results": [
+    {
+      "test": "magic_pdf_ok",
+      "ok": true,
+      "http": null,
+      "detail": ""
+    },
+    {
+      "test": "magic_exe_as_pdf_blocked",
+      "ok": true,
+      "http": 400,
+      "detail": ""
+    },
+    {
+      "test": "magic_png_mismatch_blocked",
+      "ok": true,
+      "http": 400,
+      "detail": ""
+    },
+    {
+      "test": "quarantine_dir_exists",
+      "ok": true,
+      "http": null,
+      "detail": "C:\\Users\\Abdullah\\Projeler\\isg-suite-osgb\\backend\\uploads_qa\\_quarantine"
+    },
+    {
+      "test": "login",
+      "ok": true,
+      "http": null,
+      "detail": ""
+    },
+    {
+      "test": "upload_exe_disguised_pdf",
+      "ok": true,
+      "http": 400,
+      "detail": "{\"detail\":\"Dosya içeriği güvenlik kontrolünden geçmedi.\"}"
+    },
+    {
+      "test": "upload_real_pdf_ok",
+      "ok": true,
+      "http": 200,
+      "detail": "{\"message\":\"Dosya başarıyla yüklendi.\",\"file_name\":\"ok.pdf\"}"
+    },
+    {
+      "test": "download_auth_checked",
+      "ok": true,
+      "http": 403,
+      "detail": ""
+    },
+    {
+      "test": "export_pdf_magic",
+      "ok": true,
+      "http": 200,
+      "detail": "bytes=1761"
+    },
+    {
+      "test": "export_xlsx_zip_workbook",
+      "ok": true,
+      "http": 200,
+      "detail": "entries=9"
+    }
+  ]
+}
