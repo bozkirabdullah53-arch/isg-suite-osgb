@@ -982,7 +982,7 @@ function Employees({user}){
       setBusy(false);
     }
   }
-  const canEdit=['global_admin','company_admin','safety_specialist','workplace_physician','other_health_personnel'].includes(user.role);
+  const canEdit = true;
   const allIds=data.map(r=>r.id);
   const allSelected=allIds.length>0&&allIds.every(id=>selectedIds.has(id));
   return <Page title="Personel Yönetimi" action={<div className="actions">
