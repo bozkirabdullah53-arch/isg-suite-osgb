@@ -991,7 +991,6 @@ function Employees({user}){
     <label className="button secondary" style={{opacity:busy?0.6:1,position:'relative'}} title={selectedCompany?`Excel → ${companies.find(c=>String(c.id)===selectedCompany)?.name||''}`:'Önce firma seçin'}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompany} onChange={upload}/></label>
     {canEdit?<button onClick={()=>{setForm({...form,company_id:selectedCompany||companies[0]?.id||''});setOpen(true);}}><Plus/>Personel Ekle</button>:null}
   </div>}>
-    <div style={{background:'#0f766e',color:'#fff',padding:'8px 14px',borderRadius:8,marginBottom:12,fontSize:14,fontWeight:700,textAlign:'center'}}>✅ PERSONEL SAYFASI GÜNCEL — Silme + Toplu Seçim aktif</div>
     <p style={{margin:'0 0 12px',fontSize:13,color:'#475569'}}>
       Excel ile eklemek için önce <strong>Şablon İndir</strong> → sütunlar: Adı Soyadı, TC Kimlik, Görevi, İşe Giriş Tarihi, Engelli/Hükümlü Durumu.
       Sadece <strong>Adı Soyadı</strong> zorunlu; diğerleri boş bırakılabilir.
