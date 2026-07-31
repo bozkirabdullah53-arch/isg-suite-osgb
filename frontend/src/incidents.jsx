@@ -243,6 +243,27 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
     });
   }
 
+
+  async function deleteIncident(row) {
+    if (!canEdit || !row?.id) return;
+
+    const confirmed = window.confirm(
+      `${row.form_no || "Bu olay kayd?"} kal?c? olarak silinsin mi? Bu i?lem geri al?namaz.`,
+    );
+    if (!confirmed) return;
+
+    setErr("");
+    try {
+      await api(`/incidents/${row.id}`, {method: "DELETE"});
+      if (detail?.id === row.id) {
+        setDetail(null);
+      }
+      await load();
+    } catch (error) {
+      setErr(error.message || "Olay kayd? silinemedi.");
+    }
+  }
+
   async function closeIncident() {
     if (!detail) return;
     await api(`/incidents/${detail.id}`, {method: 'PATCH', body: JSON.stringify({status: 'Kapalı'})});
@@ -544,7 +565,24 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
                     <span className={'badge ' + (r.status === 'Kapalı' ? 'ok' : 'off')}>{r.status}</span>
                   </td>
                   <td>
-                    <button className="mini" type="button" onClick={() => openDetail(r.id)}>Detay</button>
+                    <div style={{display: "flex", gap: 8, flexWrap: "wrap"}}>
+                      <button className="mini" type="button" onClick={() => openDetail(r.id)}>
+                        Detay
+                      </button>
+                      {canEdit && (
+                        <button
+                          className="mini secondary"
+                          type="button"
+                          onClick={() => deleteIncident(r)}
+                          style={{
+                            color: "#b42318",
+                            borderColor: "rgba(180,35,24,.28)",
+                          }}
+                        >
+                          Sil
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )) : (

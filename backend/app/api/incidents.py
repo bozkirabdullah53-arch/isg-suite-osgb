@@ -360,6 +360,34 @@ def get_incident(
     return row
 
 
+@router.delete("/{incident_id}")
+def delete_incident(
+    incident_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Olay kayd?n? k?k neden ve ba?l? D?F kay?tlar?yla birlikte kal?c? siler."""
+    row = _load(db, incident_id)
+    ensure_access(db, user, row.company_id)
+
+    form_no = row.form_no
+
+    for dof in list(row.dofs or []):
+        db.delete(dof)
+
+    if row.root_cause:
+        db.delete(row.root_cause)
+
+    db.delete(row)
+    db.commit()
+
+    return {
+        "ok": True,
+        "id": incident_id,
+        "message": f"{form_no} numaral? olay kayd? kal?c? olarak silindi.",
+    }
+
+
 @router.patch("/{incident_id}", response_model=IncidentResponse)
 def update_incident(
     incident_id: int,
