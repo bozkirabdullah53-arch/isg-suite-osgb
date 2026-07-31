@@ -1,4 +1,5 @@
 import {useEffect, useState} from 'react';
+import {installGlobalInputGuards} from './input_validation';
 
 // UI teması: 'classic' | 'modern' (premium — varsayılan).
 // Tercih localStorage'da saklanır; modern seçiliyse <html data-ui-theme="modern">
@@ -23,6 +24,9 @@ function applyUiTheme(theme) {
 
 // İlk boyamada (login dahil) tema flaşı olmasın diye import anında uygula.
 applyUiTheme(getStoredUiTheme());
+
+// Uygulama genelindeki tarih, saat, sayı ve metin alanlarına ortak doğrulama uygula.
+installGlobalInputGuards();
 
 export function useUiTheme() {
   const [theme, setTheme] = useState(getStoredUiTheme);
