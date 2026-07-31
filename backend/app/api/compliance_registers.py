@@ -913,6 +913,21 @@ def create_meeting(
     return row
 
 
+@oc_router.delete("/meetings/{item_id}")
+def deactivate_meeting(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT)),
+):
+    row = db.get(OhsCommitteeMeeting, item_id)
+    if not row:
+        raise HTTPException(404, "Toplantı bulunamadı.")
+    ensure_company_access(db, user, row.company_id)
+    row.is_active = False
+    db.commit()
+    return {"ok": True}
+
+
 @oc_router.get("/export.xlsx")
 def export_committee(
     company_id: int | None = None,
