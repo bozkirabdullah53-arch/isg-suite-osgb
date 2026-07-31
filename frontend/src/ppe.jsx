@@ -184,6 +184,21 @@ export function PpePage({user}) {
     setZimmet(row);
   }
 
+  async function downloadZimmetPdf() {
+    if (!zimmet?.id) return;
+    setBusy(true);
+    setErr('');
+    try {
+      const safeName = String(zimmet.employee_name || `personel-${zimmet.employee_id}`)
+        .replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]+/g, '-');
+      await downloadFile(`/ppe/assignments/${zimmet.id}/pdf`, `kkd-zimmet-${zimmet.id}-${safeName}.pdf`);
+    } catch (x) {
+      setErr(x.message || 'PDF oluşturulamadı.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function printZimmet() {
     window.print();
   }
@@ -194,12 +209,17 @@ export function PpePage({user}) {
         <div className="page-title no-print">
           <h3>KKD Zimmet Formu</h3>
           <div className="actions">
-            <button type="button" className="secondary" onClick={printZimmet}><Printer size={16} /> Yazdır / PDF</button>
+            <button type="button" className="secondary" disabled={busy} onClick={() => void downloadZimmetPdf()}><Download size={16} /> PDF İndir</button>
+            <button type="button" className="secondary" onClick={printZimmet}><Printer size={16} /> Yazdır</button>
             <button type="button" className="secondary" onClick={() => setZimmet(null)}>Listeye dön</button>
           </div>
         </div>
-        <section className="panel" id="ppe-zimmet-print">
-          <h3 style={{marginTop: 0}}>KKD Zimmet ve Teslim Formu</h3>
+        {err && <div className="error no-print" style={{marginBottom: 12}}>{err}</div>}
+        <section className="panel" id="ppe-zimmet-print" style={{maxWidth: 980, margin: '0 auto', background: '#fff'}}>
+          <div style={{textAlign: 'center', borderBottom: '2px solid #0f766e', paddingBottom: 12, marginBottom: 18}}>
+            <h3 style={{margin: 0, fontSize: 22, color: '#12343b'}}>KKD Zimmet ve Teslim Formu</h3>
+            <div style={{marginTop: 5, color: '#64748b', fontSize: 13}}>Kişisel Koruyucu Donanım Teslim Belgesi · Kayıt No: KKD-{String(zimmet.id).padStart(6, '0')}</div>
+          </div>
           <div className="form-grid" style={{marginBottom: 16}}>
             <div className="field"><span>Kayıt No</span><strong>{zimmet.id}</strong></div>
             <div className="field"><span>Teslim Tarihi</span><strong>{zimmet.delivery_date}</strong></div>
