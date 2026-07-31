@@ -1,3 +1,4 @@
+# Render Blueprint — API build komutu standarttır; geçici PDF patch çalıştırılmaz.
 services:
   - type: web
     name: isg-suite-api
@@ -7,7 +8,6 @@ services:
     startCommand: sh start.sh
     healthCheckPath: /health
     branch: master
-    # P0-03: redeploy'da dosya kaybını azalt (R2 gelene kadar); Dashboard'dan da eklenebilir
     disk:
       name: isg-suite-api-data
       mountPath: /var/data
@@ -15,7 +15,6 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
-      # P0: production sertleştirmesi (SECRET_KEY doğrulama + migration fail-fast)
       - key: ENVIRONMENT
         value: production
       - key: DATABASE_URL
@@ -30,19 +29,16 @@ services:
         value: /var/data/uploads
       - key: BACKUP_DIR
         value: /var/data/backups
-      # Seed admin: Render Dashboard > Environment (sync: false)
       - key: SEED_ADMIN_EMAIL
         sync: false
       - key: SEED_ADMIN_PASSWORD
         sync: false
-      # Redis: rate limit + async (FORCE_OFF kapalı → REDIS_URL ile async on)
       - key: REDIS_URL
         sync: false
       - key: ASYNC_JOBS_FORCE_OFF
         value: "false"
       - key: ASYNC_JOBS_ENABLED
         value: "true"
-      # Object storage (P0-03) — varsayılan local; R2 credential + probe sonrası r2
       - key: OBJECT_STORAGE_BACKEND
         value: "local"
       - key: OBJECT_STORAGE_BUCKET
@@ -57,20 +53,16 @@ services:
         sync: false
       - key: OBJECT_STORAGE_SECRET_KEY
         sync: false
-      # Upload gateway — production kodda açık; acil: UPLOAD_GATEWAY_FORCE_OFF=true
       - key: UPLOAD_GATEWAY_ENABLED
         value: "true"
       - key: UPLOAD_GATEWAY_FORCE_OFF
         value: "false"
-      # P1-01 HttpOnly refresh — production kodda açık; acil kapatma:
-      # AUTH_REFRESH_COOKIE_FORCE_OFF=true
       - key: AUTH_REFRESH_COOKIE_ENABLED
         value: "true"
       - key: ACCESS_TOKEN_EXPIRE_MINUTES_SHORT
         value: "15"
       - key: AUTH_REFRESH_COOKIE_FORCE_OFF
         value: "false"
-      # P0-10 sağlık alan şifreleme — varsayılan kapalı; açmadan önce dedicated key
       - key: HEALTH_FIELD_ENCRYPTION_ENABLED
         value: "false"
       - key: HEALTH_FIELD_ENCRYPTION_KEY
@@ -81,18 +73,15 @@ services:
         value: "true"
       - key: OBJECT_STORAGE_FORCE_LOCAL
         value: "false"
-      # P0-08 yedek — restore kapalı; dedicated key tercih
       - key: BACKUP_RESTORE_ENABLED
         value: "false"
       - key: BACKUP_ENCRYPTION_KEY
         sync: false
       - key: BACKUP_ENCRYPTION_FORCE_OFF
         value: "false"
-      # Optional ClamAV (B-01): set CLAMAV_HOST when clamd is reachable
       - key: CLAMAV_HOST
         sync: false
 
-  # B-03: free-tier sleep önleme — /health ping (UTC, ~$1/ay minimum)
   - type: cron
     name: isg-suite-api-warmup
     runtime: python
@@ -111,18 +100,15 @@ services:
     name: isg-suite-web
     runtime: static
     rootDir: frontend
-    # Global npm pin Render'da sık kırılıyor; Node 20 + npm ci yeterli
     buildCommand: npm ci --no-audit --no-fund && npm run build
     staticPublishPath: dist
     branch: master
     envVars:
       - key: NODE_VERSION
         value: 20.18.0
-      # Same-origin: CORS/3P-cookie yok. Rewrite ile API'ye proxy.
       - key: VITE_API_URL
         value: /api/v1
     routes:
-      # API proxy — SPA catch-all'dan ÖNCE olmalı (POST/GET dahil)
       - type: rewrite
         source: /api/*
         destination: https://isg-suite-api-1u9t.onrender.com/api/*
