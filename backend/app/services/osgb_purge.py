@@ -15,6 +15,8 @@ from app.models.entities import (
     FinanceTransaction,
     IntegrationDryRunLog,
     IsgProfessional,
+    LegalAcceptance,
+    OrganizationMembership,
     OsgbApplication,
     OsgbOrganization,
     OsgbSubscription,
@@ -49,6 +51,17 @@ def purge_osgb(db: Session, osgb_id: int) -> str:
     db.execute(delete(IsgProfessional).where(IsgProfessional.osgb_id == osgb_id))
     # İBYS/KATİP dry-run logları OSGB'ye FK tutar; silinmezse IntegrityError
     db.execute(delete(IntegrationDryRunLog).where(IntegrationDryRunLog.osgb_id == osgb_id))
+
+    # Kullanıcı sözleşme/kabul kayıtları hukuki kayıt olarak korunur; yalnız OSGB bağı koparılır.
+    db.execute(
+        update(LegalAcceptance)
+        .where(LegalAcceptance.osgb_id == osgb_id)
+        .values(osgb_id=None)
+    )
+    # Çoklu OSGB üyelikleri doğrudan organizasyona bağlıdır ve organizasyonla birlikte silinir.
+    db.execute(
+        delete(OrganizationMembership).where(OrganizationMembership.osgb_id == osgb_id)
+    )
 
     db.execute(
         update(OsgbApplication)
