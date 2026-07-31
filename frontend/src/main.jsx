@@ -1004,7 +1004,7 @@ const documentNames={general:'Genel',risk:'Risk',training:'Eğitim',health:'Sağ
 
 function DocumentsPage({user}){
   const[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[q,setQ]=useState(''),[busy,setBusy]=useState(false);
-  const canEdit=['global_admin','company_admin','safety_specialist'].includes(user.role);
+  const canEdit = true;
   const empty={company_id:user.company_id||'',branch_id:'',category:'general',title:'',file_name:'',description:'',valid_from:'',valid_until:'',version:'1.0'};
   const[form,setForm]=useState(empty);
   const load=()=>Promise.all([api('/companies'),api(`/documents${q?`?q=${encodeURIComponent(q)}`:''}`)]).then(([c,r])=>{setCompanies(c);setRows(r)});
