@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Building2, ClipboardCheck, Download, FileWarning, Map, Plus, RefreshCw, Trash2, Upload, Users} from 'lucide-react';
+import {ClipboardCheck, Download, FileWarning, Map, Plus, RefreshCw, Trash2, Upload, Users} from 'lucide-react';
 import {
   downloadBase64Pdf,
   probeIsgSigner,
@@ -658,24 +658,22 @@ export function WorkplaceMeasurementsPage({user}) {
 export function OhsCommitteePage({user}) {
   const canEdit = ['safety_specialist', 'global_admin'].includes(user.role);
   const companies = useCompanies(user);
-  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [members, setMembers] = useState([]);
   const [meetings, setMeetings] = useState([]);
   const [meta, setMeta] = useState({roles: []});
-  const [employees, setEmployees] = useState([]);
   const [tab, setTab] = useState('uyeler');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [memberForm, setMemberForm] = useState({
-    company_id: '',
+    company_id: user.company_id || '',
     role_code: 'calisan_temsilcisi',
     full_name: '',
     start_date: '',
     notes: '',
   });
   const [meetingForm, setMeetingForm] = useState({
-    company_id: '',
+    company_id: user.company_id || '',
     meeting_date: '',
     agenda: '',
     decisions: '',
@@ -683,23 +681,13 @@ export function OhsCommitteePage({user}) {
     next_meeting_date: '',
   });
 
-  // Firma listesi yüklendiğinde varsayılan seç
-  useEffect(() => {
-    if (companies.length > 0 && !selectedCompanyId) {
-      const defaultId = user.company_id || companies[0]?.id;
-      if (defaultId) setSelectedCompanyId(String(defaultId));
-    }
-  }, [companies]);
-
   async function load() {
-    const cid = Number(selectedCompanyId);
-    if (!cid) { setMembers([]); setMeetings([]); return; }
     setBusy(true);
     try {
       const [m, mem, meet] = await Promise.all([
         api('/ohs-committee/meta'),
-        api(`/ohs-committee/members?company_id=${cid}`),
-        api(`/ohs-committee/meetings?company_id=${cid}`),
+        api('/ohs-committee/members'),
+        api('/ohs-committee/meetings'),
       ]);
       setMeta(m);
       setMembers(mem);
@@ -710,30 +698,7 @@ export function OhsCommitteePage({user}) {
       setBusy(false);
     }
   }
-
-  async function loadEmployees() {
-    const cid = Number(selectedCompanyId);
-    if (!cid) { setEmployees([]); return; }
-    try {
-      const rows = await api(`/employees?company_id=${cid}&active=true`);
-      setEmployees(rows || []);
-    } catch { setEmployees([]); }
-  }
-
-  useEffect(() => { void load(); }, [selectedCompanyId]);
-  useEffect(() => { void loadEmployees(); }, [selectedCompanyId]);
-
-  async function deleteMember(id, name) {
-    if (!window.confirm(`${name} adlı üyeyi kuruldan kaldırmak istediğinize emin misiniz?`)) return;
-    await api(`/ohs-committee/members/${id}`, {method: 'DELETE'});
-    await load();
-  }
-
-  async function deleteMeeting(id, date) {
-    if (!window.confirm(`${date} tarihli toplantıyı silmek istediğinize emin misiniz?`)) return;
-    await api(`/ohs-committee/meetings/${id}`, {method: 'DELETE'});
-    await load();
-  }
+  useEffect(() => { void load(); }, []);
 
   async function saveMember(e) {
     e.preventDefault();
@@ -765,7 +730,6 @@ export function OhsCommitteePage({user}) {
   }
 
   const roleLabel = (c) => meta.roles?.find((x) => x.code === c)?.label || c;
-  const currentCompany = companies.find((c) => c.id === Number(selectedCompanyId));
 
   return (
     <>
@@ -775,57 +739,33 @@ export function OhsCommitteePage({user}) {
           <button type="button" className="secondary" onClick={() => downloadFile('/ohs-committee/export.xlsx', 'isg-kurulu.xlsx').catch((e) => setErr(e.message))}><Download size={16} /> Excel</button>
           <button type="button" className="secondary" onClick={() => void load()}><RefreshCw size={16} /> Yenile</button>
           {canEdit && (
-            <button type="button" onClick={() => {
-              const cid = String(selectedCompanyId || '');
-              if (tab === 'uyeler') setMemberForm({...memberForm, company_id: cid});
-              else setMeetingForm({...meetingForm, company_id: cid});
-              setOpen(true);
-            }}>
+            <button type="button" onClick={() => setOpen(true)}>
               <Plus size={16} /> {tab === 'uyeler' ? 'Üye Ekle' : 'Toplantı Ekle'}
             </button>
           )}
         </div>
       </div>
       <section className="panel">
-        <div style={{display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap'}}>
-          <div style={{display: 'flex', gap: 8}}>
-            <button type="button" className={tab === 'uyeler' ? '' : 'secondary'} onClick={() => setTab('uyeler')}>Üyeler</button>
-            <button type="button" className={tab === 'toplantilar' ? '' : 'secondary'} onClick={() => setTab('toplantilar')}>Toplantılar</button>
-          </div>
-          <div style={{fontSize: 14, color: '#475569', display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto'}}>
-            <Building2 size={16} />
-            <select
-              value={selectedCompanyId}
-              onChange={(e) => setSelectedCompanyId(e.target.value)}
-              style={{fontSize:14, fontWeight:600, border:'1px solid #d1d5db', borderRadius:6, padding:'4px 8px', background:'#fff', maxWidth:280}}
-            >
-              <option value="">Firma seçiniz</option>
-              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
+        <div style={{display: 'flex', gap: 8, marginBottom: 12}}>
+          <button type="button" className={tab === 'uyeler' ? '' : 'secondary'} onClick={() => setTab('uyeler')}>Üyeler</button>
+          <button type="button" className={tab === 'toplantilar' ? '' : 'secondary'} onClick={() => setTab('toplantilar')}>Toplantılar</button>
         </div>
         {err && <div className="error">{err}</div>}
         {tab === 'uyeler' ? (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Rol</th><th>Ad Soyad</th><th>Başlangıç</th><th>Not</th>{canEdit && <th></th>}</tr></thead>
+              <thead><tr><th>Rol</th><th>Ad Soyad</th><th>Başlangıç</th><th>Not</th></tr></thead>
               <tbody>
                 {members.length ? members.map((m) => (
-                  <tr key={m.id}>
-                    <td>{roleLabel(m.role_code)}</td>
-                    <td>{m.full_name}</td>
-                    <td>{m.start_date || '—'}</td>
-                    <td>{m.notes || '—'}</td>
-                    {canEdit && <td><button type="button" className="btn-icon" title="Sil" style={{background:'none',border:'none',cursor:'pointer',color:'#dc2626',padding:4}} onClick={() => deleteMember(m.id, m.full_name)}><Trash2 size={16} /></button></td>}
-                  </tr>
-                )) : <tr><td colSpan={canEdit ? 5 : 4} className="empty">Üye yok.</td></tr>}
+                  <tr key={m.id}><td>{roleLabel(m.role_code)}</td><td>{m.full_name}</td><td>{m.start_date || '—'}</td><td>{m.notes || '—'}</td></tr>
+                )) : <tr><td colSpan={4} className="empty">Üye yok.</td></tr>}
               </tbody>
             </table>
           </div>
         ) : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Tarih</th><th>Gündem</th><th>Kararlar</th><th>Katılımcılar</th><th>Sonraki</th>{canEdit && <th></th>}</tr></thead>
+              <thead><tr><th>Tarih</th><th>Gündem</th><th>Kararlar</th><th>Katılımcılar</th><th>Sonraki</th></tr></thead>
               <tbody>
                 {meetings.length ? meetings.map((m) => (
                   <tr key={m.id}>
@@ -834,9 +774,8 @@ export function OhsCommitteePage({user}) {
                     <td>{m.decisions || '—'}</td>
                     <td>{m.attendees || '—'}</td>
                     <td>{m.next_meeting_date || '—'}</td>
-                    {canEdit && <td><button type="button" className="btn-icon" title="Sil" style={{background:'none',border:'none',cursor:'pointer',color:'#dc2626',padding:4}} onClick={() => deleteMeeting(m.id, m.meeting_date)}><Trash2 size={16} /></button></td>}
                   </tr>
-                )) : <tr><td colSpan={canEdit ? 6 : 5} className="empty">Toplantı yok.</td></tr>}
+                )) : <tr><td colSpan={5} className="empty">Toplantı yok.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -856,17 +795,7 @@ export function OhsCommitteePage({user}) {
                 {(meta.roles || []).map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
               </select>
             </Field>
-            <Field label="Personel" required>
-              <select required value={memberForm.full_name} onChange={(e) => {
-                const emp = employees.find((x) => String(x.id) === e.target.value);
-                setMemberForm({...memberForm, full_name: emp ? emp.full_name : e.target.value});
-              }}>
-                <option value="">Personel seçiniz</option>
-                {employees.filter((e) => e.is_active !== false).map((e) => (
-                  <option key={e.id} value={e.full_name}>{e.full_name}</option>
-                ))}
-              </select>
-            </Field>
+            <Field label="Ad Soyad" required value={memberForm.full_name} onChange={(e) => setMemberForm({...memberForm, full_name: e.target.value})} />
             <Field label="Başlangıç" type="date" value={memberForm.start_date} onChange={(e) => setMemberForm({...memberForm, start_date: e.target.value})} />
             <div className="form-actions" style={{gridColumn: '1 / -1'}}><button type="submit" disabled={busy}>Kaydet</button></div>
           </form>
