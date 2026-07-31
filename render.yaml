@@ -111,8 +111,8 @@ services:
     name: isg-suite-web
     runtime: static
     rootDir: frontend
-    # Pre-built dist GitHub'da — Render build yapmaz
-    buildCommand: "true"
+    # Global npm pin Render'da sık kırılıyor; Node 20 + npm ci yeterli
+    buildCommand: npm ci --no-audit --no-fund && npm run build
     staticPublishPath: dist
     branch: master
     envVars:

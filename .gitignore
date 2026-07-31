@@ -11,7 +11,7 @@ __pycache__/
 .venv/
 .env
 node_modules/
-# dist/   -- pre-built for Render static site
+dist/
 .vscode/
 .idea/
 .DS_Store
