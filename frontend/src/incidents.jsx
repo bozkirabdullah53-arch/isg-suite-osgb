@@ -49,6 +49,42 @@ function Check({label, checked, onChange}) {
   );
 }
 
+function FlagCheck({label, checked, onChange, hint}) {
+  return (
+    <label
+      className="field"
+      style={{
+        margin: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '14px 16px',
+        borderRadius: 18,
+        border: checked ? '1px solid rgba(45, 212, 191, 0.55)' : '1px solid rgba(148, 163, 184, 0.20)',
+        background: checked
+          ? 'linear-gradient(145deg, rgba(20,184,166,0.14), rgba(15,23,42,0.05))'
+          : 'linear-gradient(145deg, rgba(255,255,255,0.96), rgba(241,245,249,0.92))',
+        boxShadow: checked
+          ? '0 18px 35px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255,255,255,0.55)'
+          : '0 10px 24px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.9)',
+        cursor: 'pointer',
+        transition: 'all .2s ease',
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={!!checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{width: 18, height: 18, accentColor: '#14b8a6', flex: '0 0 auto'}}
+      />
+      <span style={{display: 'flex', flexDirection: 'column', gap: 2}}>
+        <strong style={{fontSize: 14, lineHeight: 1.35, color: '#173042'}}>{label}</strong>
+        {hint ? <small style={{fontSize: 12, color: '#64748b'}}>{hint}</small> : null}
+      </span>
+    </label>
+  );
+}
+
 function emptyForm(user, eventType) {
   return {
     company_id: user.company_id || '',
@@ -534,7 +570,7 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
               {companyBranches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </Select>
             <Field label="Olay tarihi" type="date" required max={new Date().toISOString().slice(0, 10)} min="2000-01-01" value={form.event_date} onChange={(e) => setForm({...form, event_date: e.target.value})} />
-            <Field label="Saat" value={form.event_time} onChange={(e) => setForm({...form, event_time: e.target.value})} placeholder="14:30" />
+            <Field label="Saat" type="time" value={form.event_time} onChange={(e) => setForm({...form, event_time: e.target.value})} />
             <Field label="Departman / Bölüm" value={form.department} onChange={(e) => setForm({...form, department: e.target.value})} />
             <Field label="Olay yeri" required value={form.location} onChange={(e) => setForm({...form, location: e.target.value})} />
             <Field label="Alan" value={form.area} onChange={(e) => setForm({...form, area: e.target.value})} />
@@ -553,12 +589,37 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
             <Field label="Ekipman" value={form.equipment_used} onChange={(e) => setForm({...form, equipment_used: e.target.value})} />
             <Field label="Kimyasal" value={form.chemical_used} onChange={(e) => setForm({...form, chemical_used: e.target.value})} />
 
-            <Check label="Yaralanma oldu" checked={form.injury_occurred} onChange={(v) => setForm({...form, injury_occurred: v})} />
-            <Check label="Sağlık şikayeti" checked={form.health_complaint} onChange={(v) => setForm({...form, health_complaint: v})} />
-            <Check label="Tıbbi müdahale" checked={form.medical_intervention} onChange={(v) => setForm({...form, medical_intervention: v})} />
-            <Check label="İş göremezlik raporu" checked={form.work_incapacity_report} onChange={(v) => setForm({...form, work_incapacity_report: v})} />
-            <Check label="Ekipman hasarı" checked={form.equipment_damage} onChange={(v) => setForm({...form, equipment_damage: v})} />
-            <Check label="Farklı gelse yaralanma olurdu" checked={form.would_have_injured} onChange={(v) => setForm({...form, would_have_injured: v})} />
+            <div
+              style={{
+                gridColumn: '1 / -1',
+                marginTop: 4,
+                padding: 18,
+                borderRadius: 24,
+                border: '1px solid rgba(45, 212, 191, 0.18)',
+                background: 'linear-gradient(145deg, rgba(255,255,255,0.98), rgba(241,245,249,0.95))',
+                boxShadow: '0 24px 48px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255,255,255,0.92)',
+              }}
+            >
+              <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 14}}>
+                <div>
+                  <div style={{fontSize: 16, fontWeight: 800, color: '#173042'}}>Olay etkileri ve sonuç göstergeleri</div>
+                  <div style={{fontSize: 13, color: '#64748b', marginTop: 4}}>
+                    Olayın kişi, sağlık ve ekipman üzerindeki etkilerini net biçimde işaretleyin.
+                  </div>
+                </div>
+                <div style={{fontSize: 12, color: '#0f766e', fontWeight: 700, padding: '6px 10px', borderRadius: 999, background: 'rgba(20,184,166,0.10)'}}>
+                  Hızlı değerlendirme alanı
+                </div>
+              </div>
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12}}>
+                <FlagCheck label="Yaralanma oldu" hint="Fiziksel yaralanma oluştuysa işaretleyin" checked={form.injury_occurred} onChange={(v) => setForm({...form, injury_occurred: v})} />
+                <FlagCheck label="Sağlık şikayeti" hint="Ağrı, rahatsızlık veya semptom varsa" checked={form.health_complaint} onChange={(v) => setForm({...form, health_complaint: v})} />
+                <FlagCheck label="Tıbbi müdahale" hint="İlk yardım veya medikal destek verildiyse" checked={form.medical_intervention} onChange={(v) => setForm({...form, medical_intervention: v})} />
+                <FlagCheck label="İş göremezlik raporu" hint="Rapor veya istirahat düzenlendiyse" checked={form.work_incapacity_report} onChange={(v) => setForm({...form, work_incapacity_report: v})} />
+                <FlagCheck label="Ekipman hasarı" hint="Makine, araç veya ekipmanda zarar varsa" checked={form.equipment_damage} onChange={(v) => setForm({...form, equipment_damage: v})} />
+                <FlagCheck label="Farklı gelse yaralanma olurdu" hint="Ramak kala niteliği taşıyorsa işaretleyin" checked={form.would_have_injured} onChange={(v) => setForm({...form, would_have_injured: v})} />
+              </div>
+            </div>
 
             <Field label="Olasılık (0-5)" type="number" min="0" max="5" value={form.probability} onChange={(e) => setForm({...form, probability: e.target.value})} />
             <Field label="Şiddet (0-5)" type="number" min="0" max="5" value={form.severity} onChange={(e) => setForm({...form, severity: e.target.value})} />
@@ -770,4 +831,3 @@ export function CapaPage({user}) {
     </>
   );
 }
-
