@@ -39,6 +39,8 @@ from app.models.entities import (
     IsgRecord,
     Notification,
     ChemicalProduct,
+    OhsCommitteeMember,
+    OhsCommitteeMeeting,
     PpeAssignment,
     PpeAssignmentPhoto,
     RiskAssessment,
@@ -136,6 +138,11 @@ def _purge_company_data(db: Session, company_id: int) -> None:
     db.execute(delete(EmergencyPlanFloor).where(EmergencyPlanFloor.company_id == company_id))
     db.execute(delete(EmergencyPlan).where(EmergencyPlan.company_id == company_id))
     db.execute(delete(SiteQrSession).where(SiteQrSession.company_id == company_id))
+
+    # 6331 uyum sicilleri / İSG Kurulu kayıtları. Bunlar doğrudan companies FK
+    # tuttuğu için firma veya OSGB kalıcı silinmeden önce temizlenmelidir.
+    db.execute(delete(OhsCommitteeMeeting).where(OhsCommitteeMeeting.company_id == company_id))
+    db.execute(delete(OhsCommitteeMember).where(OhsCommitteeMember.company_id == company_id))
 
     # Tatbikat
     drill_ids = _ids(db, DrillRecord, company_id)
