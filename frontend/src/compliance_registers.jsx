@@ -658,6 +658,8 @@ export function WorkplaceMeasurementsPage({user}) {
 export function OhsCommitteePage({user}) {
   const canEdit = ['safety_specialist', 'global_admin'].includes(user.role);
   const companies = useCompanies(user);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(user.company_id ? String(user.company_id) : '');
+  const [employees, setEmployees] = useState([]);
   const [members, setMembers] = useState([]);
   const [meetings, setMeetings] = useState([]);
   const [meta, setMeta] = useState({roles: []});
@@ -681,74 +683,158 @@ export function OhsCommitteePage({user}) {
     next_meeting_date: '',
   });
 
-  async function load() {
+  const selectedCompany = companies.find((c) => String(c.id) === String(selectedCompanyId));
+
+  async function load(companyId = selectedCompanyId) {
     setBusy(true);
+    setErr('');
     try {
-      const [m, mem, meet] = await Promise.all([
-        api('/ohs-committee/meta'),
-        api('/ohs-committee/members'),
-        api('/ohs-committee/meetings'),
-      ]);
+      const m = await api('/ohs-committee/meta');
       setMeta(m);
-      setMembers(mem);
-      setMeetings(meet);
+      if (!companyId) {
+        setEmployees([]);
+        setMembers([]);
+        setMeetings([]);
+        return;
+      }
+      const qs = `?company_id=${encodeURIComponent(companyId)}`;
+      const [emp, mem, meet] = await Promise.all([
+        api(`/employees${qs}`),
+        api(`/ohs-committee/members${qs}`),
+        api(`/ohs-committee/meetings${qs}`),
+      ]);
+      setEmployees((emp || []).filter((x) => x.is_active !== false));
+      setMembers(mem || []);
+      setMeetings(meet || []);
     } catch (e) {
-      setErr(e.message);
+      setErr(e.message || 'İSG Kurulu bilgileri yüklenemedi.');
     } finally {
       setBusy(false);
     }
   }
-  useEffect(() => { void load(); }, []);
+
+  useEffect(() => { void load(selectedCompanyId); }, [selectedCompanyId]);
+
+  function chooseCompany(value) {
+    setSelectedCompanyId(value);
+    setOpen(false);
+    setMemberForm({
+      company_id: value,
+      role_code: 'calisan_temsilcisi',
+      full_name: '',
+      start_date: '',
+      notes: '',
+    });
+    setMeetingForm({
+      company_id: value,
+      meeting_date: '',
+      agenda: '',
+      decisions: '',
+      attendees: '',
+      next_meeting_date: '',
+    });
+  }
+
+  function openCreate() {
+    if (!selectedCompanyId) {
+      setErr('Önce işyeri seçmelisiniz.');
+      return;
+    }
+    if (tab === 'uyeler') {
+      setMemberForm((f) => ({...f, company_id: selectedCompanyId, full_name: ''}));
+    } else {
+      setMeetingForm((f) => ({...f, company_id: selectedCompanyId}));
+    }
+    setOpen(true);
+  }
 
   async function saveMember(e) {
     e.preventDefault();
-    await api('/ohs-committee/members', {
-      method: 'POST',
-      body: JSON.stringify({
-        ...memberForm,
-        company_id: Number(memberForm.company_id),
-        start_date: memberForm.start_date || null,
-      }),
-    });
-    setOpen(false);
-    await load();
+    if (!selectedCompanyId || !memberForm.full_name) return;
+    setBusy(true);
+    try {
+      await api('/ohs-committee/members', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...memberForm,
+          company_id: Number(selectedCompanyId),
+          start_date: memberForm.start_date || null,
+        }),
+      });
+      setOpen(false);
+      await load(selectedCompanyId);
+    } catch (e) {
+      setErr(e.message || 'Kurul üyesi kaydedilemedi.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveMeeting(e) {
     e.preventDefault();
-    await api('/ohs-committee/meetings', {
-      method: 'POST',
-      body: JSON.stringify({
-        ...meetingForm,
-        company_id: Number(meetingForm.company_id),
-        meeting_date: meetingForm.meeting_date,
-        next_meeting_date: meetingForm.next_meeting_date || null,
-      }),
-    });
-    setOpen(false);
-    await load();
+    if (!selectedCompanyId) return;
+    setBusy(true);
+    try {
+      await api('/ohs-committee/meetings', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...meetingForm,
+          company_id: Number(selectedCompanyId),
+          meeting_date: meetingForm.meeting_date,
+          next_meeting_date: meetingForm.next_meeting_date || null,
+        }),
+      });
+      setOpen(false);
+      await load(selectedCompanyId);
+    } catch (e) {
+      setErr(e.message || 'Kurul toplantısı kaydedilemedi.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   const roleLabel = (c) => meta.roles?.find((x) => x.code === c)?.label || c;
+  const exportUrl = selectedCompanyId
+    ? `/ohs-committee/export.xlsx?company_id=${encodeURIComponent(selectedCompanyId)}`
+    : '/ohs-committee/export.xlsx';
 
   return (
     <>
       <div className="page-title">
         <h3><Users size={20} style={{marginRight: 8, verticalAlign: 'middle'}} />İSG Kurulu / Temsilci</h3>
         <div className="actions">
-          <button type="button" className="secondary" onClick={() => downloadFile('/ohs-committee/export.xlsx', 'isg-kurulu.xlsx').catch((e) => setErr(e.message))}><Download size={16} /> Excel</button>
-          <button type="button" className="secondary" onClick={() => void load()}><RefreshCw size={16} /> Yenile</button>
+          <button type="button" className="secondary" disabled={!selectedCompanyId || busy} onClick={() => downloadFile(exportUrl, `isg-kurulu-${selectedCompany?.name || 'isyeri'}.xlsx`).catch((e) => setErr(e.message))}><Download size={16} /> Excel</button>
+          <button type="button" className="secondary" disabled={busy} onClick={() => void load(selectedCompanyId)}><RefreshCw size={16} /> Yenile</button>
           {canEdit && (
-            <button type="button" onClick={() => setOpen(true)}>
+            <button type="button" disabled={!selectedCompanyId || busy} onClick={openCreate}>
               <Plus size={16} /> {tab === 'uyeler' ? 'Üye Ekle' : 'Toplantı Ekle'}
             </button>
           )}
         </div>
       </div>
       <section className="panel">
+        <div className="form-grid" style={{gridTemplateColumns: 'minmax(280px, 1fr)', marginBottom: 14}}>
+          <Field label="İşyeri Seç (zorunlu)" required>
+            <select required value={selectedCompanyId} onChange={(e) => chooseCompany(e.target.value)}>
+              <option value="">Kurul işlemi yapılacak işyerini seçiniz</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+        </div>
+
+        {selectedCompanyId ? (
+          <div style={{padding: '12px 14px', marginBottom: 12, borderRadius: 12, background: '#ecfeff', border: '1px solid #99f6e4', color: '#115e59', fontWeight: 700}}>
+            Seçili İşyeri: {selectedCompany?.name || '—'} — {employees.length} personel, {members.length} kurul üyesi, {meetings.length} toplantı
+          </div>
+        ) : (
+          <div style={{padding: '12px 14px', marginBottom: 12, borderRadius: 12, background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', fontWeight: 700}}>
+            Kurul üyelerini ve toplantıları görüntülemek için önce işyeri seçmelisiniz.
+          </div>
+        )}
+
         <div style={{display: 'flex', gap: 8, marginBottom: 12}}>
-          <button type="button" className={tab === 'uyeler' ? '' : 'secondary'} onClick={() => setTab('uyeler')}>Üyeler</button>
-          <button type="button" className={tab === 'toplantilar' ? '' : 'secondary'} onClick={() => setTab('toplantilar')}>Toplantılar</button>
+          <button type="button" className={tab === 'uyeler' ? '' : 'secondary'} onClick={() => setTab('uyeler')}>Üyeler ({members.length})</button>
+          <button type="button" className={tab === 'toplantilar' ? '' : 'secondary'} onClick={() => setTab('toplantilar')}>Toplantılar ({meetings.length})</button>
         </div>
         {err && <div className="error">{err}</div>}
         {tab === 'uyeler' ? (
@@ -756,9 +842,9 @@ export function OhsCommitteePage({user}) {
             <table>
               <thead><tr><th>Rol</th><th>Ad Soyad</th><th>Başlangıç</th><th>Not</th></tr></thead>
               <tbody>
-                {members.length ? members.map((m) => (
+                {selectedCompanyId && members.length ? members.map((m) => (
                   <tr key={m.id}><td>{roleLabel(m.role_code)}</td><td>{m.full_name}</td><td>{m.start_date || '—'}</td><td>{m.notes || '—'}</td></tr>
-                )) : <tr><td colSpan={4} className="empty">Üye yok.</td></tr>}
+                )) : <tr><td colSpan={4} className="empty">{selectedCompanyId ? 'Bu işyerinde kurul üyesi yok.' : 'Önce işyeri seçiniz.'}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -767,7 +853,7 @@ export function OhsCommitteePage({user}) {
             <table>
               <thead><tr><th>Tarih</th><th>Gündem</th><th>Kararlar</th><th>Katılımcılar</th><th>Sonraki</th></tr></thead>
               <tbody>
-                {meetings.length ? meetings.map((m) => (
+                {selectedCompanyId && meetings.length ? meetings.map((m) => (
                   <tr key={m.id}>
                     <td>{m.meeting_date}</td>
                     <td>{m.agenda || '—'}</td>
@@ -775,19 +861,26 @@ export function OhsCommitteePage({user}) {
                     <td>{m.attendees || '—'}</td>
                     <td>{m.next_meeting_date || '—'}</td>
                   </tr>
-                )) : <tr><td colSpan={5} className="empty">Toplantı yok.</td></tr>}
+                )) : <tr><td colSpan={5} className="empty">{selectedCompanyId ? 'Bu işyerinde toplantı yok.' : 'Önce işyeri seçiniz.'}</td></tr>}
               </tbody>
             </table>
           </div>
         )}
       </section>
       {open && tab === 'uyeler' && (
-        <Modal title="Kurul Üyesi" close={() => setOpen(false)}>
+        <Modal title={`Kurul Üyesi — ${selectedCompany?.name || ''}`} close={() => setOpen(false)}>
           <form className="form-grid" onSubmit={saveMember}>
-            <Field label="Firma" required>
-              <select required value={memberForm.company_id} onChange={(e) => setMemberForm({...memberForm, company_id: e.target.value})}>
-                <option value="">Seçiniz</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            <div style={{gridColumn: '1 / -1', padding: '10px 12px', borderRadius: 10, background: '#f0fdfa', color: '#115e59'}}>
+              Kurul üyesi şu işyerine kaydedilecek: <strong>{selectedCompany?.name}</strong>
+            </div>
+            <Field label="Personel" required>
+              <select required value={memberForm.full_name} onChange={(e) => setMemberForm({...memberForm, full_name: e.target.value})}>
+                <option value="">Bu işyerinin personelinden seçiniz</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.full_name}>
+                    {emp.full_name}{emp.job_title ? ` — ${emp.job_title}` : ''}
+                  </option>
+                ))}
               </select>
             </Field>
             <Field label="Rol" required>
@@ -795,21 +888,19 @@ export function OhsCommitteePage({user}) {
                 {(meta.roles || []).map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
               </select>
             </Field>
-            <Field label="Ad Soyad" required value={memberForm.full_name} onChange={(e) => setMemberForm({...memberForm, full_name: e.target.value})} />
             <Field label="Başlangıç" type="date" value={memberForm.start_date} onChange={(e) => setMemberForm({...memberForm, start_date: e.target.value})} />
-            <div className="form-actions" style={{gridColumn: '1 / -1'}}><button type="submit" disabled={busy}>Kaydet</button></div>
+            <Field label="Not" value={memberForm.notes} onChange={(e) => setMemberForm({...memberForm, notes: e.target.value})} />
+            {!employees.length && <div className="error" style={{gridColumn: '1 / -1'}}>Bu işyerinde aktif personel bulunmuyor. Önce Personel sayfasından çalışan ekleyin.</div>}
+            <div className="form-actions" style={{gridColumn: '1 / -1'}}><button type="submit" disabled={busy || !employees.length}>Kaydet</button></div>
           </form>
         </Modal>
       )}
       {open && tab === 'toplantilar' && (
-        <Modal title="Kurul Toplantısı" close={() => setOpen(false)} wide>
+        <Modal title={`Kurul Toplantısı — ${selectedCompany?.name || ''}`} close={() => setOpen(false)} wide>
           <form className="form-grid" onSubmit={saveMeeting}>
-            <Field label="Firma" required>
-              <select required value={meetingForm.company_id} onChange={(e) => setMeetingForm({...meetingForm, company_id: e.target.value})}>
-                <option value="">Seçiniz</option>
-                {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </Field>
+            <div style={{gridColumn: '1 / -1', padding: '10px 12px', borderRadius: 10, background: '#f0fdfa', color: '#115e59'}}>
+              Toplantı şu işyerine kaydedilecek: <strong>{selectedCompany?.name}</strong>
+            </div>
             <Field label="Toplantı tarihi" type="date" required value={meetingForm.meeting_date} onChange={(e) => setMeetingForm({...meetingForm, meeting_date: e.target.value})} />
             <Field label="Sonraki toplantı" type="date" value={meetingForm.next_meeting_date} onChange={(e) => setMeetingForm({...meetingForm, next_meeting_date: e.target.value})} />
             <label className="field" style={{gridColumn: '1 / -1'}}><span>Gündem</span><textarea rows={3} value={meetingForm.agenda} onChange={(e) => setMeetingForm({...meetingForm, agenda: e.target.value})} /></label>
