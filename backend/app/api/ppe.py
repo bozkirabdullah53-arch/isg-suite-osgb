@@ -5,10 +5,19 @@ from datetime import date, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 import uuid
+import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from openpyxl import Workbook
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -37,6 +46,7 @@ from app.schemas.ppe import (
 from app.services.ppe_catalog import catalog_payload, status_label
 
 router = APIRouter(prefix="/ppe", tags=["KKD Takip"])
+logger = logging.getLogger(__name__)
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)
 ALLOWED_PHOTO = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
@@ -205,13 +215,16 @@ def create_assignment(
         b = db.get(Branch, payload.branch_id)
         if not b or b.company_id != payload.company_id:
             raise HTTPException(422, "Şube firmaya ait değil.")
-    row = PpeAssignment(
-        **payload.model_dump(),
-        delivered_by=payload.delivered_by or user.full_name,
-        created_by_id=user.id,
-    )
+    data = payload.model_dump()
+    data["delivered_by"] = payload.delivered_by or user.full_name
+    row = PpeAssignment(**data, created_by_id=user.id)
     db.add(row)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("KKD zimmet kaydı oluşturulamadı")
+        raise HTTPException(500, "KKD zimmet kaydı oluşturulamadı. Lütfen bilgileri kontrol edip tekrar deneyin.")
     row = _load(db, row.id)
     return _to_response(row, emp)
 
@@ -315,6 +328,164 @@ def get_photo(
         photo.storage_path,
         filename=photo.original_name,
         media_type=photo.content_type or "application/octet-stream",
+    )
+
+
+def _pdf_font_name() -> str:
+    candidates = [
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"),
+    ]
+    bold_candidates = [
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"),
+    ]
+    try:
+        normal = next((x for x in candidates if x.exists()), None)
+        bold = next((x for x in bold_candidates if x.exists()), None)
+        if normal and bold:
+            pdfmetrics.registerFont(TTFont("PpeSans", str(normal)))
+            pdfmetrics.registerFont(TTFont("PpeSans-Bold", str(bold)))
+            return "PpeSans"
+    except Exception:
+        logger.exception("PDF yazı tipi yüklenemedi")
+    return "Helvetica"
+
+
+def _fmt_date(value) -> str:
+    return value.strftime("%d.%m.%Y") if value else "—"
+
+
+@router.get("/assignments/{assignment_id}/pdf")
+def assignment_pdf(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    row = _load(db, assignment_id)
+    ensure_access(db, user, row.company_id)
+    employee = db.get(Employee, row.employee_id)
+    company = db.get(Company, row.company_id)
+    branch = db.get(Branch, row.branch_id) if row.branch_id else None
+    if not employee or employee.company_id != row.company_id:
+        raise HTTPException(422, "Zimmet kaydına bağlı personel bulunamadı.")
+
+    font = _pdf_font_name()
+    bold_font = "PpeSans-Bold" if font == "PpeSans" else "Helvetica-Bold"
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "PpeTitle", parent=styles["Title"], fontName=bold_font, fontSize=16,
+        leading=20, alignment=TA_CENTER, textColor=colors.HexColor("#0f3f4a"), spaceAfter=8,
+    )
+    subtitle_style = ParagraphStyle(
+        "PpeSubtitle", parent=styles["Normal"], fontName=font, fontSize=9.5,
+        leading=13, alignment=TA_CENTER, textColor=colors.HexColor("#475569"),
+    )
+    label_style = ParagraphStyle(
+        "PpeLabel", parent=styles["Normal"], fontName=bold_font, fontSize=8.5,
+        leading=11, textColor=colors.HexColor("#334155"),
+    )
+    value_style = ParagraphStyle(
+        "PpeValue", parent=styles["Normal"], fontName=font, fontSize=9,
+        leading=12, textColor=colors.HexColor("#111827"), wordWrap="CJK",
+    )
+    note_style = ParagraphStyle(
+        "PpeNote", parent=styles["Normal"], fontName=font, fontSize=9,
+        leading=13, alignment=TA_LEFT, textColor=colors.HexColor("#1f2937"),
+    )
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4, rightMargin=14*mm, leftMargin=14*mm,
+        topMargin=12*mm, bottomMargin=12*mm,
+        title=f"KKD Zimmet Formu #{row.id}", author="İSG Suite OSGB",
+    )
+    story = []
+    story.append(Paragraph("KİŞİSEL KORUYUCU DONANIM ZİMMET VE TESLİM FORMU", title_style))
+    company_line = company.name if company else f"İşyeri #{row.company_id}"
+    if branch:
+        company_line += f" / {branch.name}"
+    story.append(Paragraph(company_line, subtitle_style))
+    story.append(Paragraph(f"Belge No: KKD-{row.id:06d} &nbsp;&nbsp;|&nbsp;&nbsp; Düzenleme Tarihi: {_fmt_date(date.today())}", subtitle_style))
+    story.append(Spacer(1, 6*mm))
+
+    def cell(label, value):
+        return [Paragraph(label, label_style), Paragraph(str(value or "—"), value_style)]
+
+    info_rows = [
+        [*cell("Personel", employee.full_name), *cell("Görev / Bölüm", " / ".join(x for x in [employee.job_title, employee.department] if x) or "—")],
+        [*cell("Teslim Tarihi", _fmt_date(row.delivery_date)), *cell("Teslim Eden", row.delivered_by or "—")],
+        [*cell("KKD Kategorisi", row.category), *cell("KKD Türü", row.item_type)],
+        [*cell("Adet", row.quantity), *cell("Durum", status_label(row.status))],
+        [*cell("Marka", row.brand), *cell("Model", row.model)],
+        [*cell("Beden", row.size), *cell("Seri No", row.serial_no)],
+        [*cell("Raf Ömrü", row.shelf_life_text), *cell("Garanti", row.warranty_text)],
+        [*cell("Son Kullanma", _fmt_date(row.expiry_date)), *cell("Yenileme / Kontrol", _fmt_date(row.renewal_date))],
+    ]
+    info = Table(info_rows, colWidths=[31*mm, 57*mm, 31*mm, 57*mm], repeatRows=0)
+    info.setStyle(TableStyle([
+        ("VALIGN", (0,0), (-1,-1), "TOP"),
+        ("GRID", (0,0), (-1,-1), 0.45, colors.HexColor("#cbd5e1")),
+        ("BACKGROUND", (0,0), (0,-1), colors.HexColor("#eef7f7")),
+        ("BACKGROUND", (2,0), (2,-1), colors.HexColor("#eef7f7")),
+        ("LEFTPADDING", (0,0), (-1,-1), 6), ("RIGHTPADDING", (0,0), (-1,-1), 6),
+        ("TOPPADDING", (0,0), (-1,-1), 5), ("BOTTOMPADDING", (0,0), (-1,-1), 5),
+    ]))
+    story.append(info)
+    story.append(Spacer(1, 5*mm))
+
+    notes = Table([
+        [Paragraph("Risk / Kullanım Alanı", label_style)],
+        [Paragraph(row.risk_note or "—", value_style)],
+        [Paragraph("Açıklama", label_style)],
+        [Paragraph(row.notes or "—", value_style)],
+    ], colWidths=[176*mm])
+    notes.setStyle(TableStyle([
+        ("GRID", (0,0), (-1,-1), 0.45, colors.HexColor("#cbd5e1")),
+        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#eef7f7")),
+        ("BACKGROUND", (0,2), (-1,2), colors.HexColor("#eef7f7")),
+        ("LEFTPADDING", (0,0), (-1,-1), 7), ("RIGHTPADDING", (0,0), (-1,-1), 7),
+        ("TOPPADDING", (0,0), (-1,-1), 6), ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+    ]))
+    story.append(notes)
+    story.append(Spacer(1, 5*mm))
+    story.append(Paragraph(
+        "Yukarıda tanımı ve özellikleri bulunan kişisel koruyucu donanımı sağlam ve eksiksiz olarak teslim aldım. "
+        "Donanımı verilen eğitim ve talimatlara uygun kullanacağımı, bakım ve muhafazasını sağlayacağımı; kayıp, "
+        "hasar veya yenileme ihtiyacını gecikmeden işverene/İSG birimine bildireceğimi kabul ve taahhüt ederim.",
+        note_style,
+    ))
+    story.append(Spacer(1, 8*mm))
+
+    sig_data = [
+        [Paragraph("TESLİM EDEN", label_style), Paragraph("TESLİM ALAN ÇALIŞAN", label_style), Paragraph("İŞVEREN / VEKİLİ", label_style)],
+        [Paragraph(row.delivered_by or "", value_style), Paragraph(employee.full_name or "", value_style), Paragraph("", value_style)],
+        [Paragraph("Tarih / Kaşe / İmza", subtitle_style), Paragraph("Tarih / İmza", subtitle_style), Paragraph("Tarih / Kaşe / İmza", subtitle_style)],
+    ]
+    sig = Table(sig_data, colWidths=[58.6*mm, 58.6*mm, 58.6*mm], rowHeights=[9*mm, 22*mm, 10*mm])
+    sig.setStyle(TableStyle([
+        ("GRID", (0,0), (-1,-1), 0.55, colors.HexColor("#94a3b8")),
+        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#eef7f7")),
+        ("ALIGN", (0,0), (-1,-1), "CENTER"), ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ("LEFTPADDING", (0,0), (-1,-1), 5), ("RIGHTPADDING", (0,0), (-1,-1), 5),
+    ]))
+    story.append(sig)
+
+    def footer(canvas, doc_obj):
+        canvas.saveState()
+        canvas.setFont(font, 8)
+        canvas.setFillColor(colors.HexColor("#64748b"))
+        canvas.drawString(14*mm, 8*mm, "İSG Suite OSGB — KKD Zimmet Formu")
+        canvas.drawRightString(A4[0]-14*mm, 8*mm, f"Sayfa {doc_obj.page}")
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
+    buf.seek(0)
+    filename = f"kkd-zimmet-{row.id}-{employee.full_name.strip().replace(' ', '-')}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
