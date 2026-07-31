@@ -252,6 +252,16 @@ export function HealthPage({user}) {
   useEffect(() => { load(); }, [qs]);
 
   useEffect(() => {
+    const cid = form.company_id || companyId;
+    if (!cid || !open) return;
+    let cancelled = false;
+    api(`/employees?company_id=${Number(cid)}&active=true`)
+      .then((scoped) => { if (!cancelled) setEmployees(Array.isArray(scoped) ? scoped : []); })
+      .catch(() => { /* ignore */ });
+    return () => { cancelled = true; };
+  }, [form.company_id, companyId, open]);
+
+  useEffect(() => {
     const v = form.blood_lead_value;
     if (v === '' || v == null) {
       setLeadLive(null);
