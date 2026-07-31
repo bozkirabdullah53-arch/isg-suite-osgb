@@ -615,7 +615,6 @@ export function EmergencyTeamsPage({user}) {
                             </button>
                           </>
                         )}
-                      </div>
                     </td>
                   </tr>
                 ))}
