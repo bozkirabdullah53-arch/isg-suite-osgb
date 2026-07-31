@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {Activity, Download, Plus, RefreshCw, Upload} from 'lucide-react';
+import {Activity, Download, Plus, RefreshCw, Search, Upload, X} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
 
@@ -174,6 +174,18 @@ export function DrillsPage({user}) {
 
   return (
     <div className="page">
+      <style>{`
+        .drill-search-panel{display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:10px;border:1px solid #dbe7eb;border-radius:14px;background:linear-gradient(180deg,#fff 0%,#f8fbfc 100%);box-shadow:0 8px 24px rgba(30,64,73,.06)}
+        .drill-search-input-wrap{position:relative;display:flex;align-items:center;flex:1 1 auto;min-width:0;height:44px;border:1px solid #cbdde3;border-radius:11px;background:#fff;transition:border-color .18s ease,box-shadow .18s ease}
+        .drill-search-input-wrap:focus-within{border-color:#14b8a6;box-shadow:0 0 0 4px rgba(20,184,166,.12)}
+        .drill-search-input-wrap>svg{margin-left:14px;color:#5f7b86;flex:0 0 auto}
+        .drill-search-input-wrap input{width:100%;height:100%;min-width:0;border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;padding:0 42px 0 10px!important;font-size:14px;color:#17343d}
+        .drill-search-input-wrap input::placeholder{color:#7d949d;opacity:1}
+        .drill-search-clear{position:absolute;right:8px;width:30px;height:30px;display:grid;place-items:center;padding:0;border:0;border-radius:8px;color:#607984;background:transparent;box-shadow:none}
+        .drill-search-clear:hover{background:#edf5f6;color:#17343d;transform:none}
+        .drill-search-button{height:44px;min-width:104px;display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 18px;border-radius:11px;white-space:nowrap}
+        @media (max-width:640px){.drill-search-panel{align-items:stretch;flex-direction:column;padding:9px}.drill-search-button{width:100%}}
+      `}</style>
       <div className="page-head">
         <div>
           <h2>
@@ -197,14 +209,41 @@ export function DrillsPage({user}) {
       {err && <div className="banner danger">{err}</div>}
       {msg && <div className="banner ok">{msg}</div>}
 
-      <div className="toolbar" style={{marginBottom: 12}}>
-        <input
-          placeholder="Ara: tür, sorumlu, senaryo…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && load(q)}
-        />
-        <button type="button" className="secondary mini" onClick={() => load(q)} disabled={busy}>Ara</button>
+      <div className="drill-search-panel" role="search" aria-label="Tatbikat kayıtlarında ara">
+        <div className="drill-search-input-wrap">
+          <Search size={18} aria-hidden="true" />
+          <input
+            aria-label="Tatbikat ara"
+            placeholder="Tatbikat türü, sorumlu veya senaryo ara..."
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && load(q.trim())}
+          />
+          {q && (
+            <button
+              type="button"
+              className="drill-search-clear"
+              aria-label="Aramayı temizle"
+              title="Aramayı temizle"
+              onClick={() => {
+                setQ('');
+                load('');
+              }}
+              disabled={busy}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          className="drill-search-button"
+          onClick={() => load(q.trim())}
+          disabled={busy}
+        >
+          <Search size={17} />
+          {busy ? 'Aranıyor...' : 'Ara'}
+        </button>
       </div>
 
       <div className="table-wrap">
