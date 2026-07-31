@@ -1,6 +1,6 @@
 from io import BytesIO
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
@@ -130,6 +130,51 @@ def deactivate_employee(
     obj.is_active = False
     db.commit()
     return {"message": "Personel pasife alındı."}
+
+
+@router.post("/bulk-delete")
+def bulk_deactivate_employees(
+    employee_ids: list[int] = Body(..., embed=True),
+    company_id: int = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Seçilen işyerindeki personelleri toplu olarak pasife alır.
+
+    Kalıcı veri kaybını önlemek için kayıtlar fiziksel olarak silinmez; aktif
+    personel listesinden kaldırılır. Başka işyerine ait kimlikler işleme alınmaz.
+    """
+    check_company(db, user, company_id)
+    ids = sorted({int(x) for x in employee_ids if int(x) > 0})
+    if not ids:
+        raise HTTPException(422, "Silinecek personel seçilmedi.")
+    if len(ids) > 1000:
+        raise HTTPException(422, "Tek işlemde en fazla 1000 personel silinebilir.")
+
+    rows = list(
+        db.scalars(
+            select(Employee).where(
+                Employee.id.in_(ids),
+                Employee.company_id == company_id,
+            )
+        ).all()
+    )
+    found_ids = {row.id for row in rows}
+    missing = [employee_id for employee_id in ids if employee_id not in found_ids]
+    if missing:
+        raise HTTPException(409, "Seçilen personellerden bazıları bu işyerine ait değil veya bulunamadı.")
+
+    changed = 0
+    for row in rows:
+        if row.is_active:
+            row.is_active = False
+            changed += 1
+    db.commit()
+    return {
+        "message": f"{changed} personel silindi.",
+        "deleted": changed,
+        "requested": len(ids),
+    }
 
 
 @router.post("/import-excel")
