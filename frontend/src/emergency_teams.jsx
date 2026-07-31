@@ -5,6 +5,7 @@ import {
   FileText,
   Plus,
   RefreshCw,
+  Search,
   ShieldAlert,
   Trash2,
   Upload,
