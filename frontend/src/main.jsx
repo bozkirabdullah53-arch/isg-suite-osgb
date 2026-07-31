@@ -905,6 +905,7 @@ function Employees({user}){
   const[data,setData]=useState([]);
   const[selectedCompanyId,setSelectedCompanyId]=useState(user.company_id?String(user.company_id):'');
   const[selectedBranchId,setSelectedBranchId]=useState('');
+  const[selectedIds,setSelectedIds]=useState([]);
   const[open,setOpen]=useState(false);
   const[q,setQ]=useState('');
   const[busy,setBusy]=useState(false);
@@ -912,6 +913,8 @@ function Employees({user}){
 
   const selectedCompany=companies.find(c=>String(c.id)===String(selectedCompanyId));
   const selectedBranches=branches.filter(b=>String(b.company_id)===String(selectedCompanyId));
+  const visibleIds=data.map(r=>Number(r.id)).filter(Boolean);
+  const allSelected=visibleIds.length>0&&visibleIds.every(id=>selectedIds.includes(id));
 
   async function loadCompanies(){
     const[c,b]=await Promise.all([api('/companies'),api('/branches')]);
@@ -923,11 +926,12 @@ function Employees({user}){
   }
 
   async function loadEmployees(companyId=selectedCompanyId,search=q){
-    if(!companyId){setData([]);return}
+    if(!companyId){setData([]);setSelectedIds([]);return}
     const params=new URLSearchParams({company_id:String(companyId)});
     if(search) params.set('q',search);
     const rows=await api(`/employees?${params.toString()}`);
     setData(rows||[]);
+    setSelectedIds([]);
   }
 
   useEffect(()=>{void loadCompanies()},[]);
@@ -936,6 +940,7 @@ function Employees({user}){
   function chooseCompany(value){
     setSelectedCompanyId(value);
     setSelectedBranchId('');
+    setSelectedIds([]);
     setQ('');
     setData([]);
   }
@@ -944,6 +949,15 @@ function Employees({user}){
     if(selectedCompanyId) return true;
     alert('Personel işlemi yapmadan önce işyeri seçmelisiniz.');
     return false;
+  }
+
+  function toggleSelected(employeeId){
+    const id=Number(employeeId);
+    setSelectedIds(current=>current.includes(id)?current.filter(x=>x!==id):[...current,id]);
+  }
+
+  function toggleAll(){
+    setSelectedIds(allSelected?[]:visibleIds);
   }
 
   function openCreate(){
@@ -967,6 +981,39 @@ function Employees({user}){
       setOpen(false);
       await loadEmployees();
     }catch(ex){alert(ex.message||'Personel kaydedilemedi.')}
+    finally{setBusy(false)}
+  }
+
+  async function deleteOne(row){
+    if(!requireCompany()) return;
+    if(Number(row.company_id)!==Number(selectedCompanyId)){
+      alert('Bu personel seçili işyerine ait değil. İşlem durduruldu.');
+      return;
+    }
+    if(!window.confirm(`“${row.full_name}” adlı personel silinsin mi?\n\nKayıt güvenli şekilde pasife alınacak ve aktif listeden kaldırılacak.`)) return;
+    setBusy(true);
+    try{
+      await api(`/employees/${row.id}`,{method:'DELETE'});
+      await loadEmployees();
+      alert('Personel silindi.');
+    }catch(ex){alert(ex.message||'Personel silinemedi.')}
+    finally{setBusy(false)}
+  }
+
+  async function deleteSelected(){
+    if(!requireCompany()) return;
+    if(!selectedIds.length){alert('Önce silinecek personelleri seçmelisiniz.');return}
+    const companyName=selectedCompany?.name||'seçili işyeri';
+    if(!window.confirm(`${selectedIds.length} personel “${companyName}” işyerinden silinsin mi?\n\nKayıtlar güvenli şekilde pasife alınacak ve aktif listeden kaldırılacak.`)) return;
+    setBusy(true);
+    try{
+      const result=await api('/employees/bulk-delete',{
+        method:'POST',
+        body:JSON.stringify({employee_ids:selectedIds,company_id:Number(selectedCompanyId)}),
+      });
+      await loadEmployees();
+      alert(result?.message||`${selectedIds.length} personel silindi.`);
+    }catch(ex){alert(ex.message||'Seçilen personeller silinemedi.')}
     finally{setBusy(false)}
   }
 
@@ -1008,6 +1055,7 @@ function Employees({user}){
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
     <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Şablon İndir</button>
     <label className="button secondary" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>
+    <button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Sil ({selectedIds.length})</button>
     <button disabled={busy||!selectedCompanyId} onClick={openCreate}><Plus/>Personel Ekle</button>
   </div>}>
     <div className="form-grid" style={{gridTemplateColumns:'minmax(280px,1fr) minmax(220px,.7fr)',marginBottom:14}}>
@@ -1024,6 +1072,7 @@ function Employees({user}){
     {selectedCompanyId
       ? <div style={{padding:'12px 14px',marginBottom:12,borderRadius:12,background:'#ecfeff',border:'1px solid #99f6e4',color:'#115e59',fontWeight:700}}>
           Seçili İşyeri: {selectedCompany?.name||'—'} — {data.length} personel görüntüleniyor
+          {selectedIds.length?` — ${selectedIds.length} personel seçildi`:''}
         </div>
       : <div style={{padding:'12px 14px',marginBottom:12,borderRadius:12,background:'#fff7ed',border:'1px solid #fed7aa',color:'#9a3412',fontWeight:700}}>
           Personel listesi, tekli ekleme ve toplu Excel yükleme için önce işyeri seçmelisiniz.
@@ -1035,13 +1084,15 @@ function Employees({user}){
     </p>
     <SearchBar q={q} setQ={setQ} go={()=>loadEmployees(selectedCompanyId,q)}/>
     <Table cols={[
+      {key:'select',label:<input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Listedeki tüm personelleri seç"/>,render:r=><input type="checkbox" checked={selectedIds.includes(Number(r.id))} onChange={()=>toggleSelected(r.id)} aria-label={`${r.full_name} personelini seç`}/>},
       {key:'full_name',label:'Ad Soyad'},
       {key:'job_title',label:'Görev'},
       {key:'department',label:'Departman'},
       {key:'branch_id',label:'Şube',render:r=>branches.find(b=>b.id===r.branch_id)?.name||'—'},
       {key:'start_date',label:'İşe Giriş'},
       {key:'special_status',label:'Özel Durum',render:r=>r.special_status||'—'},
-      {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>}
+      {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
+      {key:'actions',label:'İşlem',render:r=><button type="button" className="mini secondary" disabled={busy} onClick={()=>deleteOne(r)}>Sil</button>}
     ]} rows={selectedCompanyId?data:[]}/>
 
     {open&&<Modal title={`Yeni Personel — ${selectedCompany?.name||''}`} close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}>
