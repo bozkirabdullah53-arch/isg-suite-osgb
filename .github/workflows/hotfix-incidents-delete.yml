@@ -1,9 +1,9 @@
 name: One-time incident delete hotfix
 
 on:
-  push:
-    paths:
-      - '.github/workflows/hotfix-incidents-delete.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
 
 permissions:
   contents: write
