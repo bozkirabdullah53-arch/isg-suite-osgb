@@ -1,19 +1,9 @@
 """6331 compliance register smoke tests."""
 from datetime import date, timedelta
 from types import SimpleNamespace
-from unittest.mock import MagicMock
-
-import pytest
-from pydantic import ValidationError
 
 from app.api.incidents import _apply_sgk_process
-from app.api.compliance_registers import (
-    COMMITTEE_ROLES,
-    MEASUREMENT_TYPES,
-    PERIODIC_CATEGORIES,
-    _ep_enrich,
-)
-from app.schemas.compliance import EmergencyPlanCreate
+from app.api.compliance_registers import PERIODIC_CATEGORIES, MEASUREMENT_TYPES, COMMITTEE_ROLES
 
 
 def test_meta_catalogs_nonempty():
@@ -75,47 +65,6 @@ def test_kroki_symbol_catalog_meta():
     from types import SimpleNamespace
 
     meta = ep_meta(user=SimpleNamespace())
-    assert meta["engine"] == "emergency-kroki-v2.2"
+    assert meta["engine"] == "emergency-kroki-v1"
     assert "exit" in meta["symbols"]
     assert "extinguisher" in meta["symbols"]
-
-
-def test_emergency_plan_create_rejects_legacy_invalid_date():
-    with pytest.raises(ValidationError):
-        EmergencyPlanCreate(
-            company_id=1,
-            title="Acil Durum Planı",
-            plan_date=date(1111, 1, 1),
-        )
-
-
-def test_emergency_plan_list_enrichment_allows_legacy_invalid_date():
-    legacy = SimpleNamespace(
-        id=7,
-        company_id=1,
-        title="Eski Acil Durum Planı",
-        revision_no="00",
-        plan_date=date(1111, 1, 1),
-        next_review_date=None,
-        assembly_areas=None,
-        scenario_summary=None,
-        kroki_file_name=None,
-        kroki_storage_path=None,
-        document_id=None,
-        status="Aktif",
-        notes=None,
-        locked_at=None,
-        is_active=True,
-        created_by_id=1,
-        created_at=date(2026, 1, 1),
-        updated_at=date(2026, 1, 1),
-    )
-
-    db = MagicMock()
-    db.scalars.return_value.all.return_value = []
-
-    response = _ep_enrich(db, legacy)
-
-    assert response.id == 7
-    assert response.plan_date == date(1111, 1, 1)
-    assert response.floor_count == 0

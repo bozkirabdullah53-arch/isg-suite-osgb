@@ -906,60 +906,20 @@ function Employees({user}){
   const[open,setOpen]=useState(false);
   const[q,setQ]=useState('');
   const[busy,setBusy]=useState(false);
-  const[selectedCompany,setSelectedCompany]=useState(user.company_id?String(user.company_id):'');
-  const[selectedIds,setSelectedIds]=useState(new Set());
-  const[showInactive,setShowInactive]=useState(false);
   const[form,setForm]=useState({company_id:user.company_id||'',branch_id:'',full_name:'',national_id_masked:'',job_title:'',department:'',start_date:'',special_status:''});
-  const load=()=>{
-    const params=new URLSearchParams();
-    if(selectedCompany) params.set('company_id',selectedCompany);
-    if(q) params.set('q',q);
-    if(!showInactive) params.set('active','true');
-    const qs=params.toString();
-    Promise.all([api('/companies'),api('/branches'),api('/employees'+(qs?`?${qs}`:''))]).then(([c,b,e])=>{setCompanies(c);setBranches(b);setData(e||[]);setSelectedIds(new Set())});
-  };
-  useEffect(()=>{void load()},[selectedCompany,q,showInactive]);
-  useEffect(()=>{
-    if(!selectedCompany&&companies.length){
-      const first=companies.find(c=>String(c.id)===String(user.company_id))||companies[0];
-      if(first) setSelectedCompany(String(first.id));
-    }
-  },[companies]);
+  const load=()=>Promise.all([api('/companies'),api('/branches'),api('/employees'+(q?`?q=${encodeURIComponent(q)}`:''))]).then(([c,b,e])=>{setCompanies(c);setBranches(b);setData(e)});
+  useEffect(()=>{void load()},[]);
   async function save(e){
     e.preventDefault();
     const payload={...form,company_id:Number(form.company_id),branch_id:form.branch_id?Number(form.branch_id):null,start_date:form.start_date||null};
     await api('/employees',{method:'POST',body:JSON.stringify(payload)});
-    setOpen(false);setForm({...form,full_name:'',national_id_masked:'',job_title:'',department:'',start_date:'',special_status:''});load();
-  }
-  async function deactivate(id){
-    if(!window.confirm('Bu personel pasife alınsın mı?')) return;
-    setBusy(true);
-    try{ await api(`/employees/${id}`,{method:'DELETE'}); load(); }
-    catch(x){ alert(x.message||'Silme başarısız.'); }
-    finally{ setBusy(false); }
-  }
-  async function bulkDeactivate(){
-    const ids=[...selectedIds];
-    if(!ids.length) return;
-    if(!window.confirm(`${ids.length} personel pasife alınsın mı?`)) return;
-    setBusy(true);
-    try{ await api('/employees/bulk-deactivate',{method:'POST',body:JSON.stringify({ids})}); load(); }
-    catch(x){ alert(x.message||'Toplu silme başarısız.'); }
-    finally{ setBusy(false); }
-  }
-  function toggleSelect(id){
-    setSelectedIds(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
-  }
-  function toggleSelectAll(){
-    const allIds=data.map(r=>r.id);
-    const allSelected=allIds.length>0&&allIds.every(id=>selectedIds.has(id));
-    setSelectedIds(allSelected?new Set():new Set(allIds));
+    setOpen(false);load();
   }
   async function upload(e){
     const f=e.target.files[0];
     e.target.value='';
     if(!f)return;
-    const cid=selectedCompany||form.company_id||companies[0]?.id;
+    const cid=form.company_id||companies[0]?.id;
     if(!cid)return alert('Önce firma seçiniz.');
     setBusy(true);
     try{
@@ -982,75 +942,26 @@ function Employees({user}){
       setBusy(false);
     }
   }
-  const canEdit=['global_admin','company_admin','safety_specialist','workplace_physician','other_health_personnel'].includes(user.role);
-  const allIds=data.map(r=>r.id);
-  const allSelected=allIds.length>0&&allIds.every(id=>selectedIds.has(id));
   return <Page title="Personel Yönetimi" action={<div className="actions">
-    <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile(`/exports/employees.xlsx${selectedCompany?`?company_id=${selectedCompany}`:''}`,'personel-listesi.xlsx')}><Download/>Excel Rapor</button>
+    <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile(`/exports/employees.xlsx${form.company_id?`?company_id=${form.company_id}`:''}`,'personel-listesi.xlsx')}><Download/>Excel Rapor</button>
     <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Şablon İndir</button>
-    <label className="button secondary" style={{opacity:busy?0.6:1,position:'relative'}} title={selectedCompany?`Excel → ${companies.find(c=>String(c.id)===selectedCompany)?.name||''}`:'Önce firma seçin'}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompany} onChange={upload}/></label>
-    {canEdit?<button onClick={()=>{setForm({...form,company_id:selectedCompany||companies[0]?.id||''});setOpen(true);}}><Plus/>Personel Ekle</button>:null}
+    <label className="button secondary" style={{opacity:busy?0.6:1}}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy} onChange={upload}/></label>
+    <button onClick={()=>setOpen(true)}><Plus/>Personel Ekle</button>
   </div>}>
     <p style={{margin:'0 0 12px',fontSize:13,color:'#475569'}}>
       Excel ile eklemek için önce <strong>Şablon İndir</strong> → sütunlar: Adı Soyadı, TC Kimlik, Görevi, İşe Giriş Tarihi, Engelli/Hükümlü Durumu.
       Sadece <strong>Adı Soyadı</strong> zorunlu; diğerleri boş bırakılabilir.
     </p>
-    <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap',marginBottom:12}}>
-      <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13}}>
-        <span style={{fontWeight:600,color:'#334155'}}>Firma:</span>
-        <select value={selectedCompany} onChange={e=>setSelectedCompany(e.target.value)} style={{padding:'6px 10px',borderRadius:8,border:'1px solid #cbd5e1',fontSize:13,minWidth:200}}>
-          <option value="">Tüm Firmalar</option>
-          {companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </label>
-      <SearchBar q={q} setQ={setQ} go={load}/>
-      <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,cursor:'pointer',padding:'7px 12px',background:'#f8fafc',borderRadius:8,border:'1px solid #e2e8f0'}}>
-        <input type="checkbox" checked={showInactive} onChange={e=>setShowInactive(e.target.checked)}/>
-        {showInactive?'Tüm personeller (aktif+pasif)':'Sadece aktif'}
-      </label>
-      {selectedCompany&&<span style={{fontSize:11,color:'#0f766e',fontWeight:600,padding:'5px 10px',background:'#f0fdf4',borderRadius:6,border:'1px solid #bbf7d0'}}>Excel → {companies.find(c=>String(c.id)===selectedCompany)?.name||'Seçili firma'}</span>}
-      {selectedIds.size>0&&canEdit&&(
-        <button type="button" className="mini" style={{background:'#b91c1c',color:'#fff',border:'none',padding:'7px 14px',borderRadius:8,cursor:'pointer',fontWeight:600}} onClick={bulkDeactivate} disabled={busy}>
-          {selectedIds.size} Seçiliyi Pasife Al
-        </button>
-      )}
-    </div>
-    <div style={{overflowX:'auto'}}>
-      <table style={{width:'100%',borderCollapse:'collapse'}}>
-        <thead>
-          <tr style={{borderBottom:'2px solid #e2e8f0'}}>
-            {canEdit&&<th style={{padding:10,textAlign:'center',width:40}}><input type="checkbox" checked={allSelected} onChange={toggleSelectAll}/></th>}
-            <th style={{padding:10,textAlign:'left',fontSize:12,fontWeight:700,color:'#64748b',textTransform:'uppercase'}}>Ad Soyad</th>
-            <th style={{padding:10,textAlign:'left',fontSize:12,fontWeight:700,color:'#64748b',textTransform:'uppercase'}}>Görev</th>
-            <th style={{padding:10,textAlign:'left',fontSize:12,fontWeight:700,color:'#64748b',textTransform:'uppercase'}}>Departman</th>
-            <th style={{padding:10,textAlign:'left',fontSize:12,fontWeight:700,color:'#64748b',textTransform:'uppercase'}}>Şube</th>
-            <th style={{padding:10,textAlign:'left',fontSize:12,fontWeight:700,color:'#64748b',textTransform:'uppercase'}}>İşe Giriş</th>
-            <th style={{padding:10,textAlign:'left',fontSize:12,fontWeight:700,color:'#64748b',textTransform:'uppercase'}}>Özel Durum</th>
-            <th style={{padding:10,textAlign:'left',fontSize:12,fontWeight:700,color:'#64748b',textTransform:'uppercase'}}>Durum</th>
-            {canEdit&&<th style={{padding:10,textAlign:'center',fontSize:12,fontWeight:700,color:'#64748b',textTransform:'uppercase',width:100}}>İşlem</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {data.length?data.map(r=>(
-            <tr key={r.id} style={{borderBottom:'1px solid #f1f5f9',background:selectedIds.has(r.id)?'#f0fdf4':'transparent'}}>
-              {canEdit&&<td style={{padding:10,textAlign:'center'}}><input type="checkbox" checked={selectedIds.has(r.id)} onChange={()=>toggleSelect(r.id)}/></td>}
-              <td style={{padding:10,fontWeight:500}}>{r.full_name}</td>
-              <td style={{padding:10}}>{r.job_title||'—'}</td>
-              <td style={{padding:10}}>{r.department||'—'}</td>
-              <td style={{padding:10}}>{branches.find(b=>b.id===r.branch_id)?.name||'—'}</td>
-              <td style={{padding:10}}>{r.start_date||'—'}</td>
-              <td style={{padding:10}}>{r.special_status||'—'}</td>
-              <td style={{padding:10}}>{r.is_active?<span style={{padding:'3px 10px',borderRadius:999,background:'#dcfce7',color:'#16a34a',fontSize:12,fontWeight:600}}>Aktif</span>:<span style={{padding:'3px 10px',borderRadius:999,background:'#f1f5f9',color:'#64748b',fontSize:12,fontWeight:600}}>Pasif</span>}</td>
-              {canEdit&&<td style={{padding:10,textAlign:'center'}}>
-                {r.is_active?<button type="button" className="mini" style={{background:'#fee2e2',color:'#b91c1c',border:'none',padding:'5px 10px',borderRadius:6,cursor:'pointer',fontSize:12}} onClick={()=>deactivate(r.id)} disabled={busy}>Pasife Al</button>:null}
-              </td>}
-            </tr>
-          )):<tr><td colSpan={canEdit?9:8} style={{padding:20,textAlign:'center',color:'#94a3b8'}}>
-            {selectedCompany?'Bu firmada personel bulunamadı.':'Firma seçiniz.'}
-          </td></tr>}
-        </tbody>
-      </table>
-    </div>
+    <SearchBar q={q} setQ={setQ} go={load}/>
+    <Table cols={[
+      {key:'full_name',label:'Ad Soyad'},
+      {key:'job_title',label:'Görev'},
+      {key:'department',label:'Departman'},
+      {key:'branch_id',label:'Şube',render:r=>branches.find(b=>b.id===r.branch_id)?.name||'—'},
+      {key:'start_date',label:'İşe Giriş'},
+      {key:'special_status',label:'Özel Durum',render:r=>r.special_status||'—'},
+      {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>}
+    ]} rows={data}/>
     {open&&<Modal title="Yeni Personel" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}>
       <Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value,branch_id:''})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select>
       <Select label="Şube" value={form.branch_id} onChange={e=>setForm({...form,branch_id:e.target.value})}><option value="">Şube seçilmedi</option>{branches.filter(b=>String(b.company_id)===String(form.company_id)).map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</Select>

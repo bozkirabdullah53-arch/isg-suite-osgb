@@ -94,15 +94,10 @@ function pictogram(type, subtype) {
         </g>
       );
     case 'firstaid':
-      /* Türkiye uygulaması: yeşil tabela, beyaz alan ve kırmızı hilal. */
+      /* Türkiye: Kızılay hilali (haç değil) — yeşil zemin üzeri beyaz hilal */
       return (
-        <g>
-          <rect x="6" y="6" width="36" height="36" rx="2.5" fill={white} />
-          <path
-            d="M31.5 11.5a13.2 13.2 0 1 0 0 25 10.6 10.6 0 1 1 0-25z"
-            fill="#e21b23"
-            transform="translate(48 0) scale(-1 1)"
-          />
+        <g fill={white}>
+          <path d="M30.5 9.5a15.2 15.2 0 1 0 0 29 12.2 12.2 0 1 1 0-29z" />
         </g>
       );
     case 'aed':

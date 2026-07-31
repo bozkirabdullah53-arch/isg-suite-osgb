@@ -5,7 +5,6 @@ import {
   FileText,
   Plus,
   RefreshCw,
-  Search,
   ShieldAlert,
   Trash2,
   Upload,
@@ -519,89 +518,75 @@ export function EmergencyTeamsPage({user}) {
 
       {/* Members table + filters */}
       {hasTeams && (
-        <section className="panel" style={{borderRadius: 14, border: '1px solid #e2e8f0'}}>
-          <div style={{display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16, alignItems: 'center', padding: '14px 16px', background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', borderRadius: 10, border: '1px solid #e2e8f0'}}>
-            <div style={{position: 'relative', flex: '1 1 260px', minWidth: 200}}>
-              <Search size={16} style={{position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none'}} />
-              <input
-                placeholder="Ad, görev, bölüm, sicil ara…"
-                value={filters.q}
-                onChange={(e) => setFilters({...filters, q: e.target.value})}
-                onKeyDown={(e) => e.key === 'Enter' && reloadMembers()}
-                style={{width: '100%', padding: '9px 12px 9px 36px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, outline: 'none', background: '#fff', boxSizing: 'border-box'}}
-              />
-            </div>
-            <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
-              <label style={{display: 'flex', flexDirection: 'column', gap: 3}}>
-                <span style={{fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5}}>Ekip</span>
-                <select value={filters.team_id} onChange={(e) => setFilters({...filters, team_id: e.target.value})} style={{padding: '8px 28px 8px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#fff', cursor: 'pointer', appearance: 'auto', minWidth: 140}}>
-                  <option value="">Tüm Ekipler</option>
-                  {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
-              <label style={{display: 'flex', flexDirection: 'column', gap: 3}}>
-                <span style={{fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5}}>Üyelik</span>
-                <select value={filters.membership} onChange={(e) => setFilters({...filters, membership: e.target.value})} style={{padding: '8px 28px 8px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#fff', cursor: 'pointer', minWidth: 120}}>
-                  <option value="">Asıl + Yedek</option>
-                  <option value="asil">Asıl</option>
-                  <option value="yedek">Yedek</option>
-                </select>
-              </label>
-              <label style={{display: 'flex', flexDirection: 'column', gap: 3}}>
-                <span style={{fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5}}>Belge</span>
-                <select value={filters.cert_status} onChange={(e) => setFilters({...filters, cert_status: e.target.value})} style={{padding: '8px 28px 8px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#fff', cursor: 'pointer', minWidth: 140}}>
-                  <option value="">Tüm Belgeler</option>
-                  <option value="green">Geçerli</option>
-                  <option value="yellow">30 gün içinde</option>
-                  <option value="red">Süresi dolmuş</option>
-                  <option value="grey">Kayıt yok</option>
-                </select>
-              </label>
-              <label style={{display: 'flex', flexDirection: 'column', gap: 3}}>
-                <span style={{fontSize: 10, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5}}>Vardiya</span>
-                <input
-                  placeholder="Vardiya…"
-                  style={{padding: '8px 10px', borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, background: '#fff', width: 110, outline: 'none'}}
-                  value={filters.shift}
-                  onChange={(e) => setFilters({...filters, shift: e.target.value})}
-                  onKeyDown={(e) => e.key === 'Enter' && reloadMembers()}
-                />
-              </label>
-              <button type="button" onClick={reloadMembers} disabled={busy} style={{padding: '9px 18px', borderRadius: 8, border: 'none', background: '#0f766e', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'flex-end', height: 36, whiteSpace: 'nowrap'}}>
-                <Search size={14} /> Ara
-              </button>
-            </div>
+        <section className="panel">
+          <div className="toolbar" style={{gap: 8, flexWrap: 'wrap', marginBottom: 12}}>
+            <input
+              placeholder="Ara: ad, görev, bölüm, sicil…"
+              value={filters.q}
+              onChange={(e) => setFilters({...filters, q: e.target.value})}
+              onKeyDown={(e) => e.key === 'Enter' && reloadMembers()}
+            />
+            <select value={filters.team_id} onChange={(e) => setFilters({...filters, team_id: e.target.value})}>
+              <option value="">Tüm ekipler</option>
+              {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+            <select value={filters.membership} onChange={(e) => setFilters({...filters, membership: e.target.value})}>
+              <option value="">Asıl + Yedek</option>
+              <option value="asil">Asıl</option>
+              <option value="yedek">Yedek</option>
+            </select>
+            <select value={filters.cert_status} onChange={(e) => setFilters({...filters, cert_status: e.target.value})}>
+              <option value="">Tüm belgeler</option>
+              <option value="green">Geçerli</option>
+              <option value="yellow">30 gün içinde</option>
+              <option value="red">Süresi dolmuş</option>
+              <option value="grey">Kayıt yok</option>
+            </select>
+            <input
+              placeholder="Vardiya"
+              style={{maxWidth: 120}}
+              value={filters.shift}
+              onChange={(e) => setFilters({...filters, shift: e.target.value})}
+              onKeyDown={(e) => e.key === 'Enter' && reloadMembers()}
+            />
+            <button type="button" className="secondary mini" onClick={reloadMembers} disabled={busy}>Filtrele</button>
           </div>
 
-          <div style={{overflowX: 'auto'}}>
-            <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 13}}>
+          <div className="table-wrap">
+            <table>
               <thead>
-                <tr style={{background: '#f8fafc', borderBottom: '2px solid #e2e8f0'}}>
-                  {['Ad Soyad', 'Ekip', 'Üyelik', 'Görev', 'Vardiya', 'Belge Durumu', 'Geçerlilik', ''].map((h, i) => (
-                    <th key={i} style={{padding: '10px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap'}}>{h}</th>
-                  ))}
+                <tr>
+                  <th>Ad Soyad</th>
+                  <th>Ekip</th>
+                  <th>Üyelik</th>
+                  <th>Görev</th>
+                  <th>Vardiya</th>
+                  <th>Belge</th>
+                  <th>Bitiş</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {members.length === 0 && (
-                  <tr><td colSpan={8} style={{padding: 28, textAlign: 'center', color: '#94a3b8', fontSize: 14}}>Bu filtreye uygun üye bulunamadı.</td></tr>
+                  <tr><td colSpan={8} className="muted">Bu filtreye uygun üye bulunamadı.</td></tr>
                 )}
                 {members.map((m) => (
-                  <tr key={m.id} style={{borderBottom: '1px solid #f1f5f9'}}>
-                    <td style={{padding: '10px 12px'}}>
-                      <div style={{fontWeight: 600, color: '#1e293b'}}>{m.employee_name}</div>
-                      <div style={{display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap'}}>
-                        {m.is_leader && <span style={{padding: '2px 8px', borderRadius: 999, background: '#dbeafe', color: '#1d4ed8', fontSize: 11, fontWeight: 600}}>Lider</span>}
-                        {m.warnings?.length > 0 && <span style={{padding: '2px 8px', borderRadius: 999, background: '#fef3c7', color: '#92400e', fontSize: 11, fontWeight: 500}}>{m.warnings[0]}</span>}
-                      </div>
+                  <tr key={m.id}>
+                    <td>
+                      <strong>{m.employee_name}</strong>
+                      {m.is_leader && <span className="status-badge badge-ok" style={{marginLeft: 6}}>Lider</span>}
+                      {m.warnings?.length > 0 && (
+                        <div className="muted" style={{fontSize: 11, color: '#b45309'}}>{m.warnings[0]}</div>
+                      )}
                     </td>
-                    <td style={{padding: '10px 12px', color: '#475569'}}>{m.team_name}</td>
-                    <td style={{padding: '10px 12px'}}>{m.membership === 'asil' ? <span style={{padding: '3px 10px', borderRadius: 999, background: '#dcfce7', color: '#16a34a', fontSize: 12, fontWeight: 600}}>Asıl</span> : <span style={{padding: '3px 10px', borderRadius: 999, background: '#fef3c7', color: '#d97706', fontSize: 12, fontWeight: 600}}>Yedek</span>}</td>
-                    <td style={{padding: '10px 12px', color: '#475569'}}>{m.role_title || '—'}</td>
-                    <td style={{padding: '10px 12px', color: '#475569'}}>{m.shift || '—'}</td>
-                    <td style={{padding: '10px 12px'}}>{certBadge(m.cert_status)}</td>
-                    <td style={{padding: '10px 12px', color: '#475569', fontSize: 12}}>{m.cert_valid_until || '—'}</td>
-                    <td style={{padding: '10px 12px'}}>
+                    <td>{m.team_name}</td>
+                    <td>{m.membership === 'asil' ? 'Asıl' : 'Yedek'}</td>
+                    <td>{m.role_title || '—'}</td>
+                    <td>{m.shift || '—'}</td>
+                    <td>{certBadge(m.cert_status)}</td>
+                    <td>{m.cert_valid_until || '—'}</td>
+                    <td>
+                      <div className="actions">
                         <button type="button" className="secondary mini" onClick={() => letterPdf(m)}>
                           <FileText size={13} /> Yazı
                         </button>
@@ -615,6 +600,7 @@ export function EmergencyTeamsPage({user}) {
                             </button>
                           </>
                         )}
+                      </div>
                     </td>
                   </tr>
                 ))}

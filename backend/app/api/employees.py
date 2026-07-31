@@ -132,25 +132,6 @@ def deactivate_employee(
     return {"message": "Personel pasife alındı."}
 
 
-@router.post("/bulk-deactivate")
-def bulk_deactivate_employees(
-    payload: dict,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
-):
-    ids = payload.get("ids") or []
-    if not ids or not isinstance(ids, list):
-        raise HTTPException(422, "Personel ID listesi gereklidir.")
-    objs = db.scalars(select(Employee).where(Employee.id.in_(ids))).all()
-    deactivated = 0
-    for obj in objs:
-        check_company(db, user, obj.company_id)
-        obj.is_active = False
-        deactivated += 1
-    db.commit()
-    return {"message": f"{deactivated} personel pasife alındı.", "deactivated": deactivated}
-
-
 @router.post("/import-excel")
 async def import_excel(
     company_id: int,

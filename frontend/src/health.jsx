@@ -201,7 +201,7 @@ export function HealthPage({user}) {
     setMessage('');
     try {
       const sumQs = new URLSearchParams();
-      if (companyId) sumQs.set('company_id', companyId);
+      if (isGlobal && companyId) sumQs.set('company_id', companyId);
       const knownCid = companyId || user.company_id || '';
       const empQs = new URLSearchParams({active: 'true'});
       if (knownCid) empQs.set('company_id', String(knownCid));
@@ -210,9 +210,9 @@ export function HealthPage({user}) {
         api('/companies'),
         knownCid ? api(`/employees?${empQs}`) : Promise.resolve([]),
         api(`/health-records?${qs}`),
-        api(`/health-records/summary?${sumQs}`).catch(() => null),
+        api(`/health-records/summary?${sumQs}`),
         api('/health-records/meta'),
-        api(`/health-records/analysis?${sumQs}`).catch(() => null),
+        api(`/health-records/analysis?${sumQs}`),
       ]);
       const nextCid = companyId || String(user.company_id || c[0]?.id || '');
       setCompanies(c);
@@ -250,16 +250,6 @@ export function HealthPage({user}) {
   }
 
   useEffect(() => { load(); }, [qs]);
-
-  useEffect(() => {
-    const cid = form.company_id || companyId;
-    if (!cid || !open) return;
-    let cancelled = false;
-    api(`/employees?company_id=${Number(cid)}&active=true`)
-      .then((scoped) => { if (!cancelled) setEmployees(Array.isArray(scoped) ? scoped : []); })
-      .catch(() => { /* ignore */ });
-    return () => { cancelled = true; };
-  }, [form.company_id, companyId, open]);
 
   useEffect(() => {
     const v = form.blood_lead_value;
