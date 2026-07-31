@@ -38,10 +38,55 @@ from app.services.integrations_live_send import run_live_send
 from app.services import ibys_client, katip_client
 from app.services.mevzuat_panel import build_mevzuat_panel
 from app.services.capacity_engine import build_capacity_overview, sync_assignment_required
+from pydantic import EmailStr, TypeAdapter, ValidationError
 
 router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
 logger = logging.getLogger(__name__)
 ADMIN_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
+
+_email_adapter = TypeAdapter(EmailStr)
+
+def _safe_email(value: str | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        _email_adapter.validate_python(text)
+        return text
+    except ValidationError:
+        logger.warning("Geçersiz e-posta yanıt sırasında temizlendi: %r", value)
+        return None
+
+def _osgb_to_response(obj: OsgbOrganization) -> OsgbResponse:
+    return OsgbResponse(
+        id=obj.id,
+        name=(str(obj.name or '').strip() or f'OSGB #{obj.id}'),
+        authorization_number=(str(obj.authorization_number).strip() if obj.authorization_number else None),
+        tax_number=(str(obj.tax_number).strip() if obj.tax_number else None),
+        responsible_manager=(str(obj.responsible_manager).strip() if obj.responsible_manager else None),
+        email=_safe_email(obj.email),
+        phone=(str(obj.phone).strip() if obj.phone else None),
+        address=(str(obj.address).strip() if obj.address else None),
+        is_active=bool(obj.is_active),
+        created_at=obj.created_at,
+    )
+
+def _professional_to_response(obj: IsgProfessional) -> ProfessionalResponse:
+    return ProfessionalResponse(
+        id=obj.id,
+        osgb_id=obj.osgb_id,
+        full_name=(str(obj.full_name or '').strip() or f'Profesyonel #{obj.id}'),
+        email=_safe_email(obj.email),
+        phone=(str(obj.phone).strip() if obj.phone else None),
+        professional_type=obj.professional_type,
+        certificate_class=(str(obj.certificate_class).strip() if obj.certificate_class else None),
+        certificate_number=(str(obj.certificate_number).strip() if obj.certificate_number else None),
+        certificate_date=obj.certificate_date,
+        is_active=bool(obj.is_active),
+        created_at=obj.created_at,
+    )
 
 def _scope_osgb(user: User, osgb_id: int) -> None:
     """OSGB erişim kontrolü — TenantContext varsa ondan, yoksa user.osgb_id."""
@@ -64,7 +109,7 @@ def list_osgb(db: Session = Depends(get_db), user: User = Depends(get_current_us
         if not oid:
             return []
         stmt = stmt.where(OsgbOrganization.id == oid)
-    return list(db.scalars(stmt).all())
+    return [_osgb_to_response(x) for x in db.scalars(stmt).all()]
 
 @router.post("", response_model=OsgbResponse)
 def create_osgb(payload: OsgbCreate, db: Session = Depends(get_db), _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN))):
@@ -72,7 +117,7 @@ def create_osgb(payload: OsgbCreate, db: Session = Depends(get_db), _: User = De
         raise HTTPException(409, "Bu OSGB zaten kayıtlı.")
     obj = OsgbOrganization(**payload.model_dump())
     db.add(obj); db.commit(); db.refresh(obj)
-    return obj
+    return _osgb_to_response(obj)
 
 
 @router.patch("/{osgb_id}", response_model=OsgbResponse)
@@ -520,14 +565,14 @@ def list_professionals(osgb_id: int | None = None, db: Session = Depends(get_db)
         UserRole.OTHER_HEALTH_PERSONNEL,
     ):
         pro = find_professional_for_user(db, user)
-        return [pro] if pro else []
+        return [_professional_to_response(pro)] if pro else []
     target = osgb_id if user.role == UserRole.GLOBAL_ADMIN else user.osgb_id
     if not target and user.role == UserRole.GLOBAL_ADMIN:
         target = db.scalar(select(OsgbOrganization.id).order_by(OsgbOrganization.id).limit(1))
     if not target:
         return []
     _scope_osgb(user, target)
-    return list(db.scalars(select(IsgProfessional).where(IsgProfessional.osgb_id == target).order_by(IsgProfessional.full_name)).all())
+    return [_professional_to_response(x) for x in db.scalars(select(IsgProfessional).where(IsgProfessional.osgb_id == target).order_by(IsgProfessional.full_name)).all()]
 
 @router.post("/professionals", response_model=ProfessionalCreateResponse)
 def create_professional(payload: ProfessionalCreate, db: Session = Depends(get_db), user: User = Depends(require_roles(*ADMIN_ROLES))):
@@ -539,8 +584,9 @@ def create_professional(payload: ProfessionalCreate, db: Session = Depends(get_d
     link_user_to_professional(db, obj)
     db.commit()
     db.refresh(obj)
+    safe_prof = _professional_to_response(obj)
     return ProfessionalCreateResponse(
-        **ProfessionalResponse.model_validate(obj).model_dump(),
+        **safe_prof.model_dump(),
         login_account=ProfessionalLoginAccount(
             user_id=wp_user.id,
             email=wp_user.email,
@@ -595,7 +641,7 @@ def update_professional(
     link_user_to_professional(db, obj)
     db.commit()
     db.refresh(obj)
-    return obj
+    return _professional_to_response(obj)
 
 
 @router.delete("/professionals/{professional_id}")
