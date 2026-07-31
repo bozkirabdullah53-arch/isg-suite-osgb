@@ -914,8 +914,7 @@ function Employees({user}){
     const params=new URLSearchParams();
     if(selectedCompany) params.set('company_id',selectedCompany);
     if(q) params.set('q',q);
-    if(showInactive) params.set('active','false');
-    else params.set('active','true');
+    if(!showInactive) params.set('active','true');
     const qs=params.toString();
     Promise.all([api('/companies'),api('/branches'),api('/employees'+(qs?`?${qs}`:''))]).then(([c,b,e])=>{setCompanies(c);setBranches(b);setData(e||[]);setSelectedIds(new Set())});
   };
@@ -989,7 +988,7 @@ function Employees({user}){
   return <Page title="Personel Yönetimi" action={<div className="actions">
     <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile(`/exports/employees.xlsx${selectedCompany?`?company_id=${selectedCompany}`:''}`,'personel-listesi.xlsx')}><Download/>Excel Rapor</button>
     <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Şablon İndir</button>
-    <label className="button secondary" style={{opacity:busy?0.6:1}}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy} onChange={upload}/></label>
+    <label className="button secondary" style={{opacity:busy?0.6:1,position:'relative'}} title={selectedCompany?`Excel → ${companies.find(c=>String(c.id)===selectedCompany)?.name||''}`:'Önce firma seçin'}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompany} onChange={upload}/></label>
     {canEdit?<button onClick={()=>{setForm({...form,company_id:selectedCompany||companies[0]?.id||''});setOpen(true);}}><Plus/>Personel Ekle</button>:null}
   </div>}>
     <p style={{margin:'0 0 12px',fontSize:13,color:'#475569'}}>
@@ -1005,10 +1004,11 @@ function Employees({user}){
         </select>
       </label>
       <SearchBar q={q} setQ={setQ} go={load}/>
-      <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,cursor:'pointer'}}>
+      <label style={{display:'flex',alignItems:'center',gap:6,fontSize:13,cursor:'pointer',padding:'7px 12px',background:'#f8fafc',borderRadius:8,border:'1px solid #e2e8f0'}}>
         <input type="checkbox" checked={showInactive} onChange={e=>setShowInactive(e.target.checked)}/>
-        Pasifleri göster
+        {showInactive?'Tüm personeller (aktif+pasif)':'Sadece aktif'}
       </label>
+      {selectedCompany&&<span style={{fontSize:11,color:'#0f766e',fontWeight:600,padding:'5px 10px',background:'#f0fdf4',borderRadius:6,border:'1px solid #bbf7d0'}}>Excel → {companies.find(c=>String(c.id)===selectedCompany)?.name||'Seçili firma'}</span>}
       {selectedIds.size>0&&canEdit&&(
         <button type="button" className="mini" style={{background:'#b91c1c',color:'#fff',border:'none',padding:'7px 14px',borderRadius:8,cursor:'pointer',fontWeight:600}} onClick={bulkDeactivate} disabled={busy}>
           {selectedIds.size} Seçiliyi Pasife Al
