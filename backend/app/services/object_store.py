@@ -1,19 +1,23 @@
-"""Object storage adapter (P0-06) — varsayılan local disk; S3/R2 hazır iskelet.
+"""Object storage adapter — local, güvenli dual ve doğrudan S3/R2 modları.
 
 Mevcut endpoint'ler doğrudan Path yazmaya devam eder.
 Gateway açıkken yazma bu katmandan geçer (local backend = aynı upload_dir düzeni).
 
-S3'e geçiş: OBJECT_STORAGE_BACKEND=s3 + bucket/credential env;
-boto3 yoksa net hata (sessiz fallback yok — yanlış 'başarı' yok).
+Üretimde önerilen geçiş: OBJECT_STORAGE_BACKEND=dual + bucket/credential env.
+Dual mod yerel kopyayı korur, uzak kopyayı boyutuyla doğrular.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Protocol
 
 from fastapi import HTTPException
 
 from app.core.config import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class ObjectStore(Protocol):
@@ -79,7 +83,7 @@ class LocalObjectStore:
 
 
 class S3ObjectStore:
-    """S3-uyumlu iskelet — boto3 isteğe bağlı; production cutover sonraki PR."""
+    """S3 uyumlu R2/S3 istemcisi; her yazmayı HeadObject ile doğrular."""
 
     def __init__(self) -> None:
         try:
@@ -109,8 +113,20 @@ class S3ObjectStore:
         return f"{self.prefix}/{norm}" if self.prefix else norm
 
     def put_bytes(self, key: str, content: bytes) -> str:
-        self._client.put_object(Bucket=self.bucket, Key=self._full_key(key), Body=content)
-        return _normalize_key(key)
+        normalized = _normalize_key(key)
+        full_key = self._full_key(normalized)
+        self._client.put_object(Bucket=self.bucket, Key=full_key, Body=content)
+        metadata = self._client.head_object(Bucket=self.bucket, Key=full_key)
+        remote_size = int(metadata.get("ContentLength", -1))
+        if remote_size != len(content):
+            try:
+                self._client.delete_object(Bucket=self.bucket, Key=full_key)
+            except Exception:
+                logger.exception("Boyutu doğrulanamayan uzak nesne temizlenemedi: %s", full_key)
+            raise RuntimeError(
+                f"Uzak depolama boyut doğrulaması başarısız: beklenen={len(content)}, gelen={remote_size}"
+            )
+        return normalized
 
     def get_bytes(self, key: str) -> bytes:
         try:
@@ -138,6 +154,56 @@ class S3ObjectStore:
         return None
 
 
+class DualObjectStore:
+    """Yerel diski ana kopya tutar, her yazmayı doğrulanmış biçimde R2/S3'e yansıtır.
+
+    Uzak servis geçici olarak erişilemezse çalışan ekranlar yerel disk üzerinden
+    devam eder. Hata loglanır; sonraki yüklemeler tekrar uzak kopya oluşturmayı dener.
+    """
+
+    def __init__(
+        self,
+        local: LocalObjectStore | None = None,
+        remote: S3ObjectStore | None = None,
+    ) -> None:
+        self.local = local or LocalObjectStore()
+        self.remote = remote or S3ObjectStore()
+
+    def put_bytes(self, key: str, content: bytes) -> str:
+        normalized = self.local.put_bytes(key, content)
+        try:
+            self.remote.put_bytes(normalized, content)
+        except Exception as exc:
+            logger.warning(
+                "Uzak depolama aynalama başarısız; yerel kopya korundu: key=%s error=%s",
+                normalized,
+                type(exc).__name__,
+            )
+        return normalized
+
+    def get_bytes(self, key: str) -> bytes:
+        if self.local.exists(key):
+            return self.local.get_bytes(key)
+        return self.remote.get_bytes(key)
+
+    def exists(self, key: str) -> bool:
+        return self.local.exists(key) or self.remote.exists(key)
+
+    def delete(self, key: str) -> None:
+        self.local.delete(key)
+        try:
+            self.remote.delete(key)
+        except Exception as exc:
+            logger.warning(
+                "Uzak depolama silme işlemi ertelendi: key=%s error=%s",
+                _normalize_key(key),
+                type(exc).__name__,
+            )
+
+    def resolve_local_path(self, key: str) -> Path | None:
+        return self.local.resolve_local_path(key)
+
+
 _store: ObjectStore | None = None
 
 
@@ -148,6 +214,8 @@ def get_object_store() -> ObjectStore:
     backend = (settings.object_storage_backend or "local").strip().lower()
     if backend in ("local", "disk", "fs"):
         _store = LocalObjectStore()
+    elif backend == "dual":
+        _store = DualObjectStore()
     elif backend in ("s3", "r2", "minio"):
         _store = S3ObjectStore()
     else:
@@ -162,7 +230,7 @@ def reset_object_store_for_tests() -> None:
 
 def storage_backend_label() -> str:
     backend = (settings.object_storage_backend or "local").strip().lower() or "local"
-    if backend in ("s3", "r2", "minio"):
+    if backend in ("dual", "s3", "r2", "minio"):
         return f"{backend}-ready-v1" if object_storage_config_ok() else f"{backend}-misconfig-v1"
     return f"{backend}-v1"
 
@@ -172,7 +240,7 @@ def object_storage_config_ok() -> bool:
     backend = (settings.object_storage_backend or "local").strip().lower() or "local"
     if backend in ("local", "disk", "fs"):
         return True
-    if backend in ("s3", "r2", "minio"):
+    if backend in ("dual", "s3", "r2", "minio"):
         return remote_object_storage_credentials_ok(backend_hint=backend)
     return False
 
@@ -263,10 +331,7 @@ def probe_object_storage() -> dict:
 
 
 def maybe_auto_cutover_object_storage() -> dict:
-    """Production: credential + HeadBucket OK ise local → r2/s3. Store singleton sıfırlanır."""
-    import logging
-
-    log = logging.getLogger(__name__)
+    """Production: credential + HeadBucket OK ise local → güvenli dual yazma."""
     env = (settings.environment or "").strip().lower()
     if env not in ("production", "prod", "live"):
         return {"status": "skipped-non-prod"}
@@ -286,18 +351,48 @@ def maybe_auto_cutover_object_storage() -> dict:
     if probe.get("status") != "reachable":
         return {"status": "unreachable", "probe": probe}
 
-    endpoint = (settings.object_storage_endpoint or "").strip().lower()
-    if "r2.cloudflarestorage.com" in endpoint or "cloudflarestorage.com" in endpoint:
-        target = "r2"
-    elif endpoint:
-        target = "minio"
-    else:
-        target = "s3"
-
+    target = "dual"
     settings.object_storage_backend = target
     reset_object_store_for_tests()
-    log.info("object storage auto-cutover: local → %s", target)
+    logger.info("object storage auto-cutover: local → %s", target)
     return {"status": "cutover", "backend": target, "probe": probe}
+
+
+def verify_object_storage_write() -> dict:
+    """R2/S3 üzerinde yaz-oku-sil doğrulaması; kalıcı test nesnesi bırakmaz."""
+    import secrets
+    import time
+
+    if not remote_object_storage_credentials_ok():
+        return {"ok": False, "status": "incomplete"}
+
+    payload = secrets.token_bytes(64)
+    key = f"_system/probes/{secrets.token_hex(12)}.bin"
+    started = time.monotonic()
+    remote = S3ObjectStore()
+    try:
+        remote.put_bytes(key, payload)
+        downloaded = remote.get_bytes(key)
+        if downloaded != payload:
+            raise RuntimeError("Uzak depolama içerik doğrulaması başarısız.")
+        return {
+            "ok": True,
+            "status": "write-verified",
+            "verified_bytes": len(payload),
+            "elapsed_ms": int((time.monotonic() - started) * 1000),
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "status": "write-failed",
+            "error_class": type(exc).__name__,
+            "elapsed_ms": int((time.monotonic() - started) * 1000),
+        }
+    finally:
+        try:
+            remote.delete(key)
+        except Exception:
+            logger.warning("R2 doğrulama nesnesi temizlenemedi: %s", key)
 
 
 def persistent_disk_label() -> str:
@@ -368,7 +463,7 @@ def infra_cutover_steps() -> list[dict]:
             "title": "Cloudflare R2 (opsiyonel multi-instance)",
             "hint": (
                 "Disk varken tek instance için zorunlu değil. Multi-instance için: "
-                "OBJECT_STORAGE_* + HeadBucket → auto-cutover."
+                "OBJECT_STORAGE_* + HeadBucket → güvenli dual auto-cutover."
             ),
             "creds_present": remote_ok,
             "probe_status": probe.get("status"),

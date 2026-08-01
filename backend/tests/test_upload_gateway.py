@@ -5,6 +5,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.services import object_store as os_mod
 from app.services import upload_gateway as gw
 
 
@@ -39,3 +40,17 @@ def test_persist_upload_rejects_oversized(tmp_path, monkeypatch):
     with pytest.raises(HTTPException) as exc:
         gw.persist_upload(b"%PDF-1.4 x", company_id=1, extension=".pdf", original_name="a.pdf")
     assert exc.value.status_code == 413
+
+
+def test_delete_relative_removes_local_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "upload_gateway_enabled", True)
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    os_mod.reset_object_store_for_tests()
+    target = gw.persist_relative(
+        b"%PDF-1.4 delete",
+        relative_path="5/reports/a.pdf",
+        original_name="a.pdf",
+    )
+    assert target.exists()
+    gw.delete_relative("5/reports/a.pdf")
+    assert not target.exists()

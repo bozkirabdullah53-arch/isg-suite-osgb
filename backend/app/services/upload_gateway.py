@@ -114,3 +114,20 @@ def persist_relative(
     if local is not None:
         return local
     return upload_root() / key
+
+
+def delete_relative(relative_path: str) -> None:
+    """Gateway ile yazılan nesneyi aktif backend'lerden güvenle siler."""
+    rel = (relative_path or "").replace("\\", "/").strip("/")
+    raw_parts = [p for p in rel.split("/") if p]
+    if not raw_parts or any(p in (".", "..") for p in raw_parts):
+        raise HTTPException(status_code=400, detail="Geçersiz dosya yolu.")
+    key = "/".join(raw_parts)
+    if settings.upload_gateway_enabled:
+        get_object_store().delete(key)
+        return
+    root = upload_root()
+    local = (root / key).resolve()
+    if root not in local.parents:
+        raise HTTPException(status_code=400, detail="Geçersiz dosya yolu.")
+    local.unlink(missing_ok=True)

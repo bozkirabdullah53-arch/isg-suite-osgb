@@ -18,7 +18,7 @@ from app.schemas.osgb import (AssignmentCreate, AssignmentResponse, ContractCrea
                               ProfessionalCreate, ProfessionalCreateResponse, ProfessionalLoginAccount,
                               ProfessionalResponse, ProfessionalUpdate)
 from app.services.osgb_admin import provision_professional_login
-from app.services.upload_gateway import persist_relative
+from app.services.upload_gateway import delete_relative, persist_relative
 from app.services.upload_security import assert_safe_upload
 from app.services.osgb_oversight import (
     build_oversight,
@@ -838,10 +838,7 @@ async def upload_assignment_contract(
                 )
             except Exception:
                 logger.warning("assignment contract: archive-before-replace failed", exc_info=True)
-            try:
-                old.unlink()
-            except OSError:
-                pass
+            delete_relative(obj.contract_storage_path)
     rel = f"{obj.osgb_id}/assignments/{obj.id}_{uuid4().hex[:10]}{ext}"
     if settings.upload_gateway_enabled:
         persist_relative(data, relative_path=rel, original_name=name)

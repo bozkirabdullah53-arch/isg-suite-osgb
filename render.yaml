@@ -44,7 +44,7 @@ services:
       - key: OBJECT_STORAGE_BUCKET
         sync: false
       - key: OBJECT_STORAGE_PREFIX
-        value: "uploads"
+        value: "isg-suite-osgb"
       - key: OBJECT_STORAGE_ENDPOINT
         sync: false
       - key: OBJECT_STORAGE_REGION
