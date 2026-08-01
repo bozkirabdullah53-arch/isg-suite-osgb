@@ -8,12 +8,39 @@ import random
 import re
 from datetime import datetime
 from io import BytesIO
+from pathlib import Path
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
-from app.services.training_topics import egitim_konularini_hazirla, sektor_kodu_cozumle, tehlike_kurali
+from app.services.training_topics import egitim_konularini_hazirla, sektor_kodu_cozumle
+
+
+FONT_REGULAR = "ExamSans"
+FONT_BOLD = "ExamSans-Bold"
+
+
+def _register_fonts() -> None:
+    """PDF içine Türkçe karakterleri eksiksiz destekleyen fontları gömer."""
+    regular_candidates = (
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        Path("/usr/share/fonts/dejavu/DejaVuSans.ttf"),
+    )
+    bold_candidates = (
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        Path("/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"),
+    )
+    regular = next((p for p in regular_candidates if p.exists()), None)
+    bold = next((p for p in bold_candidates if p.exists()), None)
+    if not regular or not bold:
+        raise RuntimeError("Türkçe PDF fontu bulunamadı (DejaVu Sans).")
+    if FONT_REGULAR not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont(FONT_REGULAR, str(regular)))
+    if FONT_BOLD not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont(FONT_BOLD, str(bold)))
 
 
 def _clean_topic(text: str) -> str:
@@ -92,8 +119,8 @@ def _wrap(c, text: str, width: float, font: str, size: float) -> list[str]:
 
 
 def build_exam_pdf(*, company_name: str, training) -> bytes:
+    _register_fonts()
     topics = _topics(training)
-    # Her tıklamada farklı kombinasyon; kapsam daima kayıtlı konu havuzuyla sınırlı.
     rnd = random.Random()
     expanded = (topics * ((15 // len(topics)) + 2))[:]
     rnd.shuffle(expanded)
@@ -102,6 +129,7 @@ def build_exam_pdf(*, company_name: str, training) -> bytes:
 
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
+    c.setTitle("İş Sağlığı ve Güvenliği Eğitim Sınavı")
     w, h = A4
     navy = (11 / 255, 46 / 255, 79 / 255)
     emerald = (15 / 255, 118 / 255, 110 / 255)
@@ -113,13 +141,13 @@ def build_exam_pdf(*, company_name: str, training) -> bytes:
         c.setFillColorRGB(*emerald)
         c.rect(0, h - 31.5 * mm, w, 1.5 * mm, fill=1, stroke=0)
         c.setFillColorRGB(1, 1, 1)
-        c.setFont("Helvetica-Bold", 14)
+        c.setFont(FONT_BOLD, 14)
         c.drawCentredString(w / 2, h - 13 * mm, "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM SINAVI")
-        c.setFont("Helvetica", 8)
+        c.setFont(FONT_REGULAR, 8)
         subtitle = f"{training.hazard_class} • NACE/Sektör: {training.sector or '—'} • 15 Soru"
         c.drawCentredString(w / 2, h - 21 * mm, subtitle)
         c.setFillColorRGB(0.25, 0.3, 0.35)
-        c.setFont("Helvetica", 7)
+        c.setFont(FONT_REGULAR, 7)
         c.drawRightString(w - 15 * mm, 10 * mm, f"Sayfa {page_no}")
 
     header(1)
@@ -127,7 +155,7 @@ def build_exam_pdf(*, company_name: str, training) -> bytes:
     c.setFillColorRGB(*light)
     c.roundRect(14 * mm, y - 25 * mm, w - 28 * mm, 25 * mm, 3 * mm, fill=1, stroke=0)
     c.setFillColorRGB(0.08, 0.14, 0.22)
-    c.setFont("Helvetica-Bold", 8)
+    c.setFont(FONT_BOLD, 8)
     fields = [
         ("Katılımcı Adı Soyadı", ""),
         ("Firma Adı", company_name or ""),
@@ -140,49 +168,48 @@ def build_exam_pdf(*, company_name: str, training) -> bytes:
         x = 18 * mm + col * col_w
         yy = y - 7 * mm - row * 11 * mm
         c.drawString(x, yy, f"{label}:")
-        c.setFont("Helvetica", 8)
+        c.setFont(FONT_REGULAR, 8)
         c.drawString(x + 32 * mm, yy, value)
         c.line(x + 31 * mm, yy - 1.5 * mm, x + col_w - 4 * mm, yy - 1.5 * mm)
-        c.setFont("Helvetica-Bold", 8)
+        c.setFont(FONT_BOLD, 8)
 
     y -= 31 * mm
     page_no = 1
     for qi, q in enumerate(questions, 1):
-        needed = 8 + len(_wrap(c, q["stem"], w - 36 * mm, "Helvetica-Bold", 8.5)) * 4 + 4 * 5
+        needed = 8 + len(_wrap(c, q["stem"], w - 36 * mm, FONT_BOLD, 8.5)) * 4 + 4 * 5
         if y < 25 * mm + needed * mm:
             c.showPage()
             page_no += 1
             header(page_no)
             y = h - 38 * mm
         c.setFillColorRGB(*navy)
-        c.setFont("Helvetica-Bold", 8.5)
-        stem_lines = _wrap(c, f"{qi}. {q['stem']}", w - 32 * mm, "Helvetica-Bold", 8.5)
+        c.setFont(FONT_BOLD, 8.5)
+        stem_lines = _wrap(c, f"{qi}. {q['stem']}", w - 32 * mm, FONT_BOLD, 8.5)
         for line in stem_lines:
             c.drawString(16 * mm, y, line)
             y -= 4.2 * mm
         c.setFillColorRGB(0.16, 0.2, 0.25)
-        c.setFont("Helvetica", 7.5)
+        c.setFont(FONT_REGULAR, 7.5)
         for oi, option in enumerate(q["options"]):
-            lines = _wrap(c, f"{'ABCD'[oi]}) {option}", w - 42 * mm, "Helvetica", 7.5)
+            lines = _wrap(c, f"{'ABCD'[oi]}) {option}", w - 42 * mm, FONT_REGULAR, 7.5)
             for line in lines:
                 c.drawString(22 * mm, y, line)
                 y -= 3.7 * mm
         y -= 3 * mm
 
-    # Cevap anahtarı ayrı son sayfa; değerlendiren için kesilip ayrılabilir.
     c.showPage()
     page_no += 1
     header(page_no)
     c.setFillColorRGB(*navy)
-    c.setFont("Helvetica-Bold", 13)
+    c.setFont(FONT_BOLD, 13)
     c.drawCentredString(w / 2, h - 45 * mm, "CEVAP ANAHTARI")
-    c.setFont("Helvetica-Bold", 10)
+    c.setFont(FONT_BOLD, 10)
     y = h - 60 * mm
     for i, q in enumerate(questions, 1):
         x = 30 * mm + ((i - 1) % 5) * 32 * mm
         yy = y - ((i - 1) // 5) * 15 * mm
         c.drawString(x, yy, f"{i}. {q['answer']}")
-    c.setFont("Helvetica", 7)
+    c.setFont(FONT_REGULAR, 7)
     c.setFillColorRGB(0.35, 0.4, 0.45)
     c.drawCentredString(w / 2, 20 * mm, "Sorular yalnızca bu eğitim kaydındaki konu havuzundan üretilmiştir.")
 
