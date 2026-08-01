@@ -1,10 +1,10 @@
-# Render Blueprint — premium eğitim katılım belgesi çizicisi build sırasında etkinleştirilir.
+# Render Blueprint — premium eğitim belgesi ve sınav üretimi build sırasında etkinleştirilir.
 services:
   - type: web
     name: isg-suite-api
     runtime: python
     rootDir: backend
-    buildCommand: python scripts/activate_premium_training_pdf.py && pip install --upgrade pip && pip install -r requirements.txt
+    buildCommand: python scripts/activate_premium_training_pdf.py && python scripts/activate_training_exam.py && pip install --upgrade pip && pip install -r requirements.txt
     startCommand: sh start.sh
     healthCheckPath: /health
     branch: master
@@ -100,7 +100,7 @@ services:
     name: isg-suite-web
     runtime: static
     rootDir: frontend
-    buildCommand: npm ci --no-audit --no-fund && node scripts/apply_training_color_theme.mjs && npm run build
+    buildCommand: npm ci --no-audit --no-fund && node scripts/apply_training_color_theme.mjs && node scripts/activate_training_exam.mjs && npm run build
     staticPublishPath: dist
     branch: master
     envVars:
