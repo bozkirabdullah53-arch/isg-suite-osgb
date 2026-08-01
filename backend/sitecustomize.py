@@ -1,7 +1,9 @@
-"""Production-safe wording patch for the fourth İSG training topic heading.
+"""Production patches for the İSG training certificate output.
 
-Only the heading text is normalized. Topic contents, order, durations and all
-other legal/document data remain unchanged.
+- Only the fourth topic heading wording is normalized.
+- The certificate renderer is replaced with the approved premium design.
+- Topic contents, order, durations and all legal data remain supplied by the
+  existing application services without modification.
 """
 from __future__ import annotations
 
@@ -19,7 +21,6 @@ NEW_HEADING = "4. İŞE VE İŞYERİNE ÖZGÜ RİSKLER VE RİSK DEĞERLENDİRMES
 
 
 def _replace_heading(value: Any) -> Any:
-    """Recursively replace only the old fourth-section heading text."""
     if isinstance(value, str):
         result = value
         for old in OLD_HEADINGS:
@@ -43,7 +44,6 @@ def _patch_training_topics() -> None:
     except Exception:
         return
 
-    # Normalize module-level constants/collections without touching topic bodies.
     for name, value in list(vars(training_topics).items()):
         if name.startswith("__"):
             continue
@@ -54,7 +54,6 @@ def _patch_training_topics() -> None:
             except Exception:
                 pass
 
-    # Normalize dynamically produced structures used by PDF generation.
     for function_name in (
         "egitim_konularini_hazirla",
         "katilim_formu_konu_ozeti",
@@ -71,4 +70,20 @@ def _patch_training_topics() -> None:
         setattr(training_topics, function_name, wrapped)
 
 
+def _patch_certificate_renderer() -> None:
+    try:
+        from app.services import training_pdfs
+        from app.services.training_pdf_premium import draw_certificate_page
+    except Exception:
+        return
+
+    @wraps(training_pdfs._draw_certificate_page)
+    def premium_renderer(*args, **kwargs):
+        kwargs["tp"] = training_pdfs
+        return draw_certificate_page(*args, **kwargs)
+
+    training_pdfs._draw_certificate_page = premium_renderer
+
+
 _patch_training_topics()
+_patch_certificate_renderer()
