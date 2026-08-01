@@ -8,10 +8,15 @@ if (!fs.existsSync(cssPath)) {
   throw new Error(`training_pro.css bulunamadı: ${cssPath}`);
 }
 
-const current = fs.readFileSync(cssPath, 'utf8');
-if (!current.includes(importLine)) {
-  fs.writeFileSync(cssPath, `${importLine}\n${current}`, 'utf8');
-  console.log('Eğitim lacivert-yeşil tema override dosyası bağlandı.');
-} else {
-  console.log('Eğitim tema override dosyası zaten bağlı.');
-}
+let current = fs.readFileSync(cssPath, 'utf8');
+
+// Eski hatalı yerleşimi temizle. Override dosyası CSS'in en sonunda olmalı;
+// aksi halde training_pro.css içindeki sarı kurallar yeniden baskın gelir.
+current = current
+  .split('\n')
+  .filter((line) => line.trim() !== importLine)
+  .join('\n')
+  .trimEnd();
+
+fs.writeFileSync(cssPath, `${current}\n\n${importLine}\n`, 'utf8');
+console.log('Eğitim lacivert-yeşil tema override dosyası CSS sonuna bağlandı.');
