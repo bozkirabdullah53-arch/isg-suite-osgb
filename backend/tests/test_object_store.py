@@ -62,6 +62,66 @@ def test_r2_config_requires_endpoint(monkeypatch):
     assert os_mod.storage_backend_label() == "r2-ready-v1"
 
 
+def test_dual_config_requires_remote_credentials(monkeypatch):
+    monkeypatch.setattr(settings, "object_storage_backend", "dual")
+    monkeypatch.setattr(settings, "object_storage_bucket", None)
+    assert os_mod.object_storage_config_ok() is False
+
+
+def test_dual_write_keeps_local_and_mirrors(tmp_path):
+    class _Remote:
+        def __init__(self):
+            self.objects = {}
+
+        def put_bytes(self, key, content):
+            self.objects[key] = content
+            return key
+
+        def get_bytes(self, key):
+            return self.objects[key]
+
+        def exists(self, key):
+            return key in self.objects
+
+        def delete(self, key):
+            self.objects.pop(key, None)
+
+        def resolve_local_path(self, key):
+            return None
+
+    remote = _Remote()
+    store = os_mod.DualObjectStore(os_mod.LocalObjectStore(tmp_path), remote)
+    key = store.put_bytes("4/training/a.pdf", b"%PDF-1.4")
+    assert (tmp_path / key).read_bytes() == b"%PDF-1.4"
+    assert remote.objects[key] == b"%PDF-1.4"
+    store.delete(key)
+    assert not (tmp_path / key).exists()
+    assert key not in remote.objects
+
+
+def test_dual_remote_failure_does_not_lose_local_copy(tmp_path):
+    class _Remote:
+        def put_bytes(self, key, content):
+            raise RuntimeError("temporary outage")
+
+        def get_bytes(self, key):
+            raise RuntimeError("temporary outage")
+
+        def exists(self, key):
+            return False
+
+        def delete(self, key):
+            raise RuntimeError("temporary outage")
+
+        def resolve_local_path(self, key):
+            return None
+
+    store = os_mod.DualObjectStore(os_mod.LocalObjectStore(tmp_path), _Remote())
+    key = store.put_bytes("4/training/a.pdf", b"safe")
+    assert (tmp_path / key).read_bytes() == b"safe"
+    assert store.get_bytes(key) == b"safe"
+
+
 def test_s3_without_boto_raises(monkeypatch):
     monkeypatch.setattr(settings, "object_storage_backend", "s3")
     monkeypatch.setattr(settings, "object_storage_bucket", "bucket")
@@ -177,7 +237,7 @@ def test_probe_unreachable_with_mock(monkeypatch):
     assert result["error_class"] == "RuntimeError"
 
 
-def test_auto_cutover_to_r2_when_reachable(monkeypatch):
+def test_auto_cutover_to_dual_when_reachable(monkeypatch):
     import types
 
     monkeypatch.setattr(settings, "environment", "production")
@@ -205,8 +265,8 @@ def test_auto_cutover_to_r2_when_reachable(monkeypatch):
 
     result = os_mod.maybe_auto_cutover_object_storage()
     assert result["status"] == "cutover"
-    assert result["backend"] == "r2"
-    assert settings.object_storage_backend == "r2"
+    assert result["backend"] == "dual"
+    assert settings.object_storage_backend == "dual"
 
 
 def test_persistent_disk_and_cutover_gaps(monkeypatch, tmp_path):

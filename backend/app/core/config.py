@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     health_field_encryption_enabled: bool = False
     health_field_encryption_key: str | None = None
     health_field_encryption_force_off: bool = False
-    # P0-06: credential + HeadBucket OK ise local→r2/s3 (production)
+    # P0-06: credential + HeadBucket OK ise local→dual (production, güvenli aynalama)
     object_storage_auto_cutover: bool = True
     object_storage_force_local: bool = False
     # P1-2 rate limit

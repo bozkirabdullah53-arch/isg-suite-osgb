@@ -72,7 +72,7 @@ from app.services.risk_reports import build_dof_excel, build_risk_excel, build_r
 from app.services.risk_scoring import evaluate, meta_payload
 from app.services.risk_suggestions import get_suggestions
 from app.services.risk_validity import build_validity, document_meta_rows
-from app.services.upload_gateway import persist_relative
+from app.services.upload_gateway import delete_relative, persist_relative
 from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/risks", tags=["Risk Değerlendirme"])
@@ -1512,7 +1512,7 @@ def delete_risk_media(
                 media_id,
                 exc_info=True,
             )
-        path.unlink(missing_ok=True)
+    delete_relative(media.storage_path)
     db.delete(media)
     db.commit()
     return {"ok": True, "id": media_id}

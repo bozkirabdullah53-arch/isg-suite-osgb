@@ -30,7 +30,7 @@ from app.services.site_verify import (
     resolve_company_from_site_code,
     validate_ephemeral_token,
 )
-from app.services.upload_gateway import persist_relative
+from app.services.upload_gateway import delete_relative, persist_relative
 from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/operations", tags=["OSGB Operasyonları"])
@@ -154,11 +154,8 @@ def _apply_signature(obj: ServiceVisit, data_url: str | None):
         raise HTTPException(413, "İmza dosyası çok büyük.")
     if obj.signature_storage_path:
         old = (_upload_root() / obj.signature_storage_path).resolve()
-        if _upload_root() in old.parents and old.exists():
-            try:
-                old.unlink()
-            except OSError:
-                pass
+        if _upload_root() in old.parents:
+            delete_relative(obj.signature_storage_path)
     rel = f"{obj.osgb_id}/visits/{obj.id}_sig_{uuid4().hex[:10]}{ext}"
     if settings.upload_gateway_enabled:
         persist_relative(raw, relative_path=rel, original_name=f"imza{ext}", max_bytes=350_000)
@@ -781,10 +778,7 @@ def _delete_notebook_file(
                 )
             except Exception:
                 logger.warning("visit notebook: archive-before-delete failed", exc_info=True)
-        try:
-            path.unlink()
-        except OSError:
-            pass
+        delete_relative(obj.notebook_storage_path)
 
 
 @router.patch("/visits/{visit_id}", response_model=VisitResponse)

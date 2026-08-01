@@ -33,7 +33,7 @@ from app.services.health_meta import (
     suggest_for_job,
     tetkik_summary,
 )
-from app.services.upload_gateway import persist_relative
+from app.services.upload_gateway import delete_relative, persist_relative
 from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/health-records", tags=["Sağlık Kayıtları"])
@@ -720,10 +720,7 @@ async def upload_health_report(
                     record.id,
                     exc_info=True,
                 )
-            try:
-                old.unlink()
-            except OSError:
-                pass
+            delete_relative(record.report_storage_path)
     rel = f"{record.company_id}/health/{record.id}_{uuid4().hex[:10]}{ext}"
     if settings.upload_gateway_enabled:
         persist_relative(data, relative_path=rel, original_name=name)

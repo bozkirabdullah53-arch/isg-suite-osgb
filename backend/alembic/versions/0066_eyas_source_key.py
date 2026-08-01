@@ -15,11 +15,23 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "eyas_workflows",
-        sa.Column("source_key", sa.String(length=160), nullable=True),
-    )
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    if not insp.has_table("eyas_workflows"):
+        return
+    columns = {item["name"] for item in insp.get_columns("eyas_workflows")}
+    if "source_key" not in columns:
+        op.add_column(
+            "eyas_workflows",
+            sa.Column("source_key", sa.String(length=160), nullable=True),
+        )
 
 
 def downgrade() -> None:
-    op.drop_column("eyas_workflows", "source_key")
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    if not insp.has_table("eyas_workflows"):
+        return
+    columns = {item["name"] for item in insp.get_columns("eyas_workflows")}
+    if "source_key" in columns:
+        op.drop_column("eyas_workflows", "source_key")

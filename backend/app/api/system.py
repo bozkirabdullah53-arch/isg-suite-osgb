@@ -52,9 +52,9 @@ def storage_probe(
         "upload_gateway": "on" if settings.upload_gateway_enabled else "off",
         "probe": result,
         "cutover_hint": (
-            "R2 credential dolduysa OBJECT_STORAGE_BACKEND=r2 yapın (gateway açık kalsın)."
+            "R2 credential dolduysa OBJECT_STORAGE_BACKEND=dual yapın (gateway açık kalsın)."
             if result.get("status") == "reachable"
-            else "Önce Render'a OBJECT_STORAGE_* doldurun; backend local kalsın, probe reachable olunca r2'ye geçin."
+            else "Önce Render'a OBJECT_STORAGE_* doldurun; backend local kalsın, probe reachable olunca dual moda geçin."
         ),
     }
 
