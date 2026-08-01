@@ -100,7 +100,7 @@ services:
     name: isg-suite-web
     runtime: static
     rootDir: frontend
-    buildCommand: npm ci --no-audit --no-fund && npm run build
+    buildCommand: npm ci --no-audit --no-fund && node scripts/apply_training_color_theme.mjs && npm run build
     staticPublishPath: dist
     branch: master
     envVars:
