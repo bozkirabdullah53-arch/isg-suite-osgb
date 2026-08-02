@@ -40,7 +40,9 @@ import {EyasDigitalApprovalPage} from './eyas_digital_approval';
 import {AnnualEvalReportPage} from './annual_eval_report';
 import {Customer360Page} from './customer_360';
 import {CapacityEnginePage} from './capacity_engine';
-import {TrainingPage, TrainingVerifyPage} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
+import {TrainingPage, TrainingVerifyPage, loadSectorsCatalog} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
+import {TrainingQuestionBank} from './training_question_bank';
+import {GLOBAL_ADMIN_MODULES} from './app_module_policy';
 import {AdminSummaryDashboard,DutyDashboard} from './duty_dashboard';
 import {AppModal} from './ui_modal';
 import {
@@ -69,23 +71,7 @@ const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',saf
  * Her rol yalnızca kendi listesini görür; sıra o rolün kullanım yoğunluğuna göredir.
  */
 const roleModules={
-  global_admin:[
-    // SaaS-only EİSA kontrol paneli (operasyon modülleri yok)
-    'eisa_overview',
-    'eisa_osgb_users',
-    'eisa_subscriptions',
-    'eisa_subscriptions_expiring',
-    'eisa_subscriptions_expired',
-    'eisa_payments',
-    'eisa_packages',
-    'eisa_error_reports',
-    'eisa_notifications',
-    'eisa_reports',
-    'eisa_archives',
-    'eisa_audit_logs',
-    'eisa_system_settings',
-    'security', // kendi şifre/MFA — başkasının şifresine müdahale yok
-  ],
+  global_admin:GLOBAL_ADMIN_MODULES,
   // OSGB merkezi: yalnız OSGB yönetimi. Saha modülleri ASLA burada olmamalı.
   // Sıra: günlük operasyon → insan/görev/performans → denetim → ticari → ayarlar.
   company_admin:[
@@ -182,6 +168,7 @@ const menuCatalog={
   eisa_subscriptions_expired:['Süresi Dolan Abonelikler',AlertTriangle],
   eisa_payments:['Finans ve Ödemeler',WalletCards],
   eisa_packages:['Paket Yönetimi',BriefcaseBusiness],
+  eisa_question_bank:['NACE Soru Bankası',BookOpen],
   eisa_error_reports:['Hata Raporları',AlertTriangle],
   eisa_notifications:['Bilgilendirmeler',Bell],
   eisa_reports:['Raporlar',BarChart3],
@@ -231,6 +218,23 @@ const menuCatalog={
   security:['Güvenlik',KeyRound],
   users:['Kullanıcılar',UserCog],
 };
+
+function EisaQuestionBankPage({user}){
+  const[sectors,setSectors]=useState([]);
+
+  useEffect(()=>{
+    let cancelled=false;
+    loadSectorsCatalog().then((rows)=>{
+      if(!cancelled && Array.isArray(rows)) setSectors(rows);
+    }).catch(()=>{
+      // Katalog alınamazsa soru bankasının listeleme ve yönetim işlevleri çalışmayı sürdürür.
+    });
+    return()=>{cancelled=true};
+  },[]);
+
+  return <TrainingQuestionBank user={user} sectors={sectors}/>;
+}
+
 function Login({done,onApply}){
   const resetFromUrl=useMemo(()=>{
     try{return new URLSearchParams(window.location.search).get('sifre-sifirla')}catch{return null}
@@ -1894,6 +1898,7 @@ function App(){
     eisa_archives:<EisaArchivesPage/>,
     eisa_audit_logs:<EisaAuditLogsPage/>,
     eisa_system_settings:<EisaSystemSettingsPage/>,
+    eisa_question_bank:<EisaQuestionBankPage user={user}/>,
     osgb_dashboard:<OsgbDashboard user={user} onNavigate={goModule}/>,
     osgb_oversight:<OsgbOversightPage user={user} onNavigate={goModule}/>,
     capacity_engine:<CapacityEnginePage user={user} onNavigate={goModule}/>,

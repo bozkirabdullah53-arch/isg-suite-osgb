@@ -1,7 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Award, CheckCircle2, ClipboardList, Download, FileSpreadsheet, Search, ShieldCheck, Upload, Users} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
-import {TrainingQuestionBank} from './training_question_bank';
 import './training_pro.css';
 
 const HAZARD_HOURS = {'Az Tehlikeli': 8, Tehlikeli: 12, 'Çok Tehlikeli': 16};
@@ -17,7 +16,6 @@ const TABS = [
   {id: 'ozel', label: 'Özel Eğitimler'},
   {id: 'yenileme', label: 'Yenileme Takibi'},
   {id: 'kayitlar', label: 'Kayıtlar'},
-  {id: 'soru-bankasi', label: 'Soru Bankası', globalAdminOnly: true},
 ];
 
 const STATUS_STYLES = {
@@ -62,7 +60,7 @@ const SECTORS_TTL_MS = 60 * 60 * 1000;
 const SECTORS_CACHE_KEY = 'isg_sectors_v4_nace2026_risk';
 const SECTORS_MIN_COUNT = 500; // eski 177 listesini reddet
 
-async function loadSectorsCatalog() {
+export async function loadSectorsCatalog() {
   if (_sectorsMem && _sectorsMem.length >= SECTORS_MIN_COUNT && Date.now() - _sectorsMemAt < SECTORS_TTL_MS) {
     return _sectorsMem;
   }
@@ -271,7 +269,7 @@ function EducationOutputPanel({
 
 export function TrainingPage({user}) {
   const canEdit = ['global_admin', 'company_admin', 'safety_specialist'].includes(user.role);
-  const visibleTabs = TABS.filter((item) => !item.globalAdminOnly || user.role === 'global_admin');
+  const visibleTabs = TABS;
   const excelInputRef = useRef(null);
   const logoInputRef = useRef(null);
   const pendingLogoRef = useRef(null);
@@ -2313,9 +2311,6 @@ export function TrainingPage({user}) {
       {tab === 'ozel' && renderOzelTab()}
       {tab === 'yenileme' && renderYenilemeTab()}
       {tab === 'kayitlar' && renderKayitlarTab()}
-      {tab === 'soru-bankasi' && user.role === 'global_admin' && (
-        <TrainingQuestionBank user={user} sectors={sectors} />
-      )}
     </div>
   );
 }

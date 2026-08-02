@@ -1,0 +1,18 @@
+export const GLOBAL_ADMIN_MODULES = Object.freeze([
+  // EİSA platform yönetimi: operasyon modülleri bu role açılmaz.
+  'eisa_overview',
+  'eisa_osgb_users',
+  'eisa_subscriptions',
+  'eisa_subscriptions_expiring',
+  'eisa_subscriptions_expired',
+  'eisa_payments',
+  'eisa_packages',
+  'eisa_question_bank',
+  'eisa_error_reports',
+  'eisa_notifications',
+  'eisa_reports',
+  'eisa_archives',
+  'eisa_audit_logs',
+  'eisa_system_settings',
+  'security',
+]);
