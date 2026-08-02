@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     # Eyas Digital Approval — eklemeli dijital onay; acil kapatma FORCE_OFF
     eyas_digital_approval_enabled: bool = True
     eyas_digital_approval_force_off: bool = False
+    # Kaynaklı soru bankasından sınav üretimi — içerik kapsamı tamamlanana kadar kapalı.
+    training_question_bank_exam_enabled: bool = False
+    training_question_bank_exam_force_off: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
@@ -90,6 +93,13 @@ def eyas_digital_approval_active() -> bool:
     if bool(getattr(settings, "eyas_digital_approval_force_off", False)):
         return False
     return bool(getattr(settings, "eyas_digital_approval_enabled", True))
+
+
+def training_question_bank_exam_active() -> bool:
+    """Kapsam tamamlanmadan açılmaz; FORCE_OFF acil durumda her zaman önceliklidir."""
+    if bool(getattr(settings, "training_question_bank_exam_force_off", False)):
+        return False
+    return bool(getattr(settings, "training_question_bank_exam_enabled", False))
 
 _INSECURE_SECRET_KEYS = frozenset({
     "change-me-in-production-at-least-32-characters!",

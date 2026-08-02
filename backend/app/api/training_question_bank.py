@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.company_access import ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
+from app.core.config import training_question_bank_exam_active
 from app.models.entities import (
     TrainingExamSnapshot,
     TrainingQuestion,
@@ -23,6 +24,8 @@ from app.models.entities import (
 )
 from app.schemas.training_question_bank import (
     ExamSnapshotResponse,
+    QuestionBulkImportRequest,
+    QuestionBulkImportResponse,
     QuestionCreate,
     QuestionResponse,
     QuestionUpdate,
@@ -31,6 +34,7 @@ from app.services.training_question_bank import (
     InsufficientQuestionBankError,
     QuestionBankError,
     create_exam_snapshot,
+    question_bank_coverage,
     question_bank_readiness,
     retire_question,
     validate_question_for_publish,
@@ -112,6 +116,27 @@ def _set_sources(row: TrainingQuestion, values) -> None:
     ]
 
 
+def _new_question_row(payload: QuestionCreate, *, created_by_id: int) -> TrainingQuestion:
+    row = TrainingQuestion(
+        question_code=payload.question_code.upper(),
+        version=payload.version,
+        status="draft",
+        topic_code=payload.topic_code.strip(),
+        topic_label=payload.topic_label.strip(),
+        question_text=payload.question_text.strip(),
+        option_a=payload.options[0],
+        option_b=payload.options[1],
+        option_c=payload.options[2],
+        option_d=payload.options[3],
+        correct_option=payload.correct_option,
+        answer_explanation=payload.answer_explanation.strip(),
+        created_by_id=created_by_id,
+    )
+    _set_scopes(row, payload.scopes)
+    _set_sources(row, payload.sources)
+    return row
+
+
 @router.get("/questions", response_model=list[QuestionResponse])
 def list_questions(
     status: str | None = Query(default=None, pattern=r"^(draft|in_review|published|retired)$"),
@@ -128,29 +153,56 @@ def list_questions(
     return [_question_out(row) for row in rows]
 
 
+@router.get("/coverage")
+def coverage_report(
+    q: str | None = Query(default=None, max_length=120),
+    hazard: str | None = Query(
+        default=None, pattern=r"^(Az Tehlikeli|Tehlikeli|Çok Tehlikeli)$"
+    ),
+    status: str = Query(default="all", pattern=r"^(all|blocked|exam_ready|release_ready)$"),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_roles(*MANAGE)),
+):
+    """2.141 NACE faaliyetinin gerçek yayımlanmış soru kapsamını raporlar."""
+    report = question_bank_coverage(db)
+    items = report.pop("items")
+    needle = (q or "").strip().casefold()
+    if needle:
+        items = [
+            item
+            for item in items
+            if needle
+            in " ".join(
+                str(item.get(key) or "") for key in ("nace", "name", "profile")
+            ).casefold()
+        ]
+    if hazard:
+        items = [item for item in items if item["hazard"] == hazard]
+    if status == "blocked":
+        items = [item for item in items if not item["ready"]]
+    elif status == "exam_ready":
+        items = [item for item in items if item["ready"]]
+    elif status == "release_ready":
+        items = [item for item in items if item["release_ready"]]
+    total = len(items)
+    return {
+        **report,
+        "items_total": total,
+        "offset": offset,
+        "limit": limit,
+        "items": items[offset : offset + limit],
+    }
+
+
 @router.post("/questions", response_model=QuestionResponse, status_code=201)
 def create_question(
     payload: QuestionCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*MANAGE)),
 ):
-    row = TrainingQuestion(
-        question_code=payload.question_code.upper(),
-        version=payload.version,
-        status="draft",
-        topic_code=payload.topic_code.strip(),
-        topic_label=payload.topic_label.strip(),
-        question_text=payload.question_text.strip(),
-        option_a=payload.options[0],
-        option_b=payload.options[1],
-        option_c=payload.options[2],
-        option_d=payload.options[3],
-        correct_option=payload.correct_option,
-        answer_explanation=payload.answer_explanation.strip(),
-        created_by_id=user.id,
-    )
-    _set_scopes(row, payload.scopes)
-    _set_sources(row, payload.sources)
+    row = _new_question_row(payload, created_by_id=user.id)
     db.add(row)
     try:
         db.commit()
@@ -158,6 +210,41 @@ def create_question(
         db.rollback()
         raise HTTPException(409, "Bu soru kodu ve sürümü zaten mevcut.") from exc
     return _question_out(_get_question(db, row.id))
+
+
+@router.post("/imports/questions", response_model=QuestionBulkImportResponse, status_code=201)
+def import_question_drafts(
+    payload: QuestionBulkImportRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*MANAGE)),
+):
+    """En fazla 500 doğrulanmış soruyu tek işlemde yalnız taslak olarak içe al."""
+    requested = [(item.question_code.upper(), item.version) for item in payload.items]
+    if len(set(requested)) != len(requested):
+        raise HTTPException(422, "Dosyada aynı soru kodu ve sürümü birden fazla kez bulunuyor.")
+
+    codes = sorted({code for code, _version in requested})
+    existing_rows = db.execute(
+        select(TrainingQuestion.question_code, TrainingQuestion.version).where(
+            TrainingQuestion.question_code.in_(codes)
+        )
+    ).all()
+    conflicts = sorted(set(requested) & {(code, version) for code, version in existing_rows})
+    if conflicts:
+        sample = ", ".join(f"{code} v{version}" for code, version in conflicts[:8])
+        raise HTTPException(
+            409,
+            f"İçe aktarma yapılmadı. Mevcut soru sürümleri bulundu: {sample}",
+        )
+
+    rows = [_new_question_row(item, created_by_id=user.id) for item in payload.items]
+    db.add_all(rows)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, "Toplu içe aktarma çakışma nedeniyle geri alındı.") from exc
+    return QuestionBulkImportResponse(created=len(rows), question_ids=[row.id for row in rows])
 
 
 @router.patch("/questions/{question_id}", response_model=QuestionResponse)
@@ -218,6 +305,19 @@ def publish_question(
     except QuestionBankError as exc:
         raise HTTPException(422, str(exc)) from exc
     now = datetime.utcnow()
+    # Yeni sürüm yayımlandığında aynı soru kodunun önceki sürümleri tekrar
+    # seçilemez. Geçmiş kayıtlar korunur, yalnız aktif havuzdan kaldırılır.
+    previous_versions = db.scalars(
+        select(TrainingQuestion).where(
+            TrainingQuestion.question_code == row.question_code,
+            TrainingQuestion.status == "published",
+            TrainingQuestion.id != row.id,
+        )
+    ).all()
+    for previous in previous_versions:
+        previous.status = "retired"
+        previous.retired_at = now
+        previous.reviewed_by_id = user.id
     row.status = "published"
     row.reviewed_by_id = user.id
     row.reviewed_at = now
@@ -291,7 +391,22 @@ def generate_exam_snapshot(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*GENERATE)),
 ):
+    if not training_question_bank_exam_active():
+        raise HTTPException(
+            503,
+            "Kaynaklı sınav üretimi, NACE kapsama hazırlığı tamamlanana kadar güvenli biçimde kapalıdır.",
+        )
     training = _training_for_user(db, training_id, user)
+    readiness = question_bank_readiness(db, training)
+    if not readiness["release_ready"]:
+        raise HTTPException(
+            422,
+            {
+                "message": "Bu NACE için güçlü yayın eşiği tamamlanmadan sınav üretilemez.",
+                "available": readiness["available"],
+                "required": readiness["release_required"],
+            },
+        )
     try:
         row = create_exam_snapshot(db, training=training, created_by_id=user.id)
     except InsufficientQuestionBankError as exc:

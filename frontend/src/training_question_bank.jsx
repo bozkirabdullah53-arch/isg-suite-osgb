@@ -1,10 +1,13 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
   Archive,
+  AlertTriangle,
+  BarChart3,
   BookOpenCheck,
   CheckCircle2,
   CopyPlus,
   Database,
+  FileDown,
   ExternalLink,
   Pencil,
   Plus,
@@ -13,7 +16,9 @@ import {
   Search,
   Send,
   ShieldCheck,
+  Target,
   Trash2,
+  UploadCloud,
   X,
 } from 'lucide-react';
 import {api} from './api';
@@ -67,6 +72,7 @@ function formatDate(value) {
 
 export function TrainingQuestionBank({user, sectors = []}) {
   const formRef = useRef(null);
+  const importInputRef = useRef(null);
   const storageKey = `isg_training_question_draft_v1_${user?.id || 'admin'}`;
   const [questions, setQuestions] = useState([]);
   const [draft, setDraft] = useState(emptyQuestionDraft);
@@ -78,6 +84,10 @@ export function TrainingQuestionBank({user, sectors = []}) {
   const [actionBusy, setActionBusy] = useState('');
   const [errors, setErrors] = useState([]);
   const [notice, setNotice] = useState('');
+  const [coverage, setCoverage] = useState(null);
+  const [coverageBusy, setCoverageBusy] = useState(false);
+  const [coverageFilter, setCoverageFilter] = useState('blocked');
+  const [coverageQuery, setCoverageQuery] = useState('');
 
   useEffect(() => {
     const saved = safeDraft(localStorage.getItem(storageKey));
@@ -111,8 +121,23 @@ export function TrainingQuestionBank({user, sectors = []}) {
     }
   }
 
+  async function loadCoverage(filter = coverageFilter, queryValue = coverageQuery) {
+    setCoverageBusy(true);
+    try {
+      const params = new URLSearchParams({status: filter, limit: '100'});
+      if (queryValue.trim()) params.set('q', queryValue.trim());
+      const report = await api(`/question-bank/coverage?${params.toString()}`);
+      setCoverage(report || null);
+    } catch (error) {
+      setErrors((current) => [...new Set([...current, error.message || 'NACE kapsama raporu alınamadı.'])]);
+    } finally {
+      setCoverageBusy(false);
+    }
+  }
+
   useEffect(() => {
     loadQuestions();
+    loadCoverage('blocked', '');
   }, []);
 
   const metrics = useMemo(() => {
@@ -170,6 +195,60 @@ export function TrainingQuestionBank({user, sectors = []}) {
       ...current,
       sources: current.sources.map((source, i) => (i === index ? {...source, [key]: value} : source)),
     }));
+  }
+
+  function downloadImportTemplate() {
+    const sample = questionDraftPayload({
+      ...emptyQuestionDraft(),
+      question_code: 'ORNEK-SIL-001',
+      topic_code: 'KONU-KODU',
+      topic_label: 'Konu adı',
+      question_text: 'Bu örnek satırı silip açık ve tek anlamlı soru metnini yazın.',
+      options: {A: 'Doğru seçenek', B: 'Yanlış seçenek 1', C: 'Yanlış seçenek 2', D: 'Yanlış seçenek 3'},
+      answer_explanation: 'Doğru cevabın mevzuata ve güvenli uygulamaya dayanan gerekçesini yazın.',
+      scopes: [{type: 'nace', value: '30.11'}],
+      sources: [{
+        title: 'Resmî kaynak adı',
+        url: 'https://www.resmigazete.gov.tr/',
+        reference: 'Madde / bölüm',
+        effective_date: '',
+      }],
+    });
+    const blob = new Blob([JSON.stringify({items: [sample]}, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'isg-soru-bankasi-sablonu.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importQuestionFile(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setErrors([]);
+    setNotice('');
+    try {
+      if (file.size > 3 * 1024 * 1024) throw new Error('İçe aktarma dosyası en fazla 3 MB olabilir.');
+      const parsed = JSON.parse(await file.text());
+      const items = Array.isArray(parsed) ? parsed : parsed?.items;
+      if (!Array.isArray(items) || items.length < 1 || items.length > 500) {
+        throw new Error('Dosya 1–500 soru içeren bir JSON listesi olmalıdır.');
+      }
+      if (!window.confirm(`${items.length} soru yalnız taslak olarak içe aktarılacak. Devam edilsin mi?`)) return;
+      setActionBusy('import');
+      const result = await api('/question-bank/imports/questions', {
+        method: 'POST',
+        body: JSON.stringify({items}),
+      });
+      setNotice(`${result.created} soru taslak olarak içe aktarıldı. Hiçbiri otomatik yayımlanmadı.`);
+      await loadQuestions();
+    } catch (error) {
+      setErrors([error.message || 'Soru dosyası içe aktarılamadı. Mevcut sorular değiştirilmedi.']);
+    } finally {
+      setActionBusy('');
+      if (importInputRef.current) importInputRef.current.value = '';
+    }
   }
 
   function editQuestion(row, nextVersion = false) {
@@ -234,6 +313,7 @@ export function TrainingQuestionBank({user, sectors = []}) {
       const updated = await api(`/question-bank/questions/${row.id}/${action}`, {method: 'POST'});
       setNotice(`${updated.question_code} ${labels[action]}.`);
       await loadQuestions();
+      await loadCoverage();
     } catch (error) {
       setErrors([error.message || 'İşlem tamamlanamadı.']);
     } finally {
@@ -251,6 +331,14 @@ export function TrainingQuestionBank({user, sectors = []}) {
             Sorular yalnız doğrulanabilir kaynakla kaydedilir, ikinci bir yönetici onayından sonra sınav havuzuna girer.
             Yayımlanan içerik değiştirilemez; düzeltmeler yeni sürüm olarak hazırlanır.
           </p>
+          <div className="qb-hero-actions">
+            <button type="button" onClick={downloadImportTemplate}><FileDown size={16} /> JSON şablonu</button>
+            <button type="button" onClick={() => importInputRef.current?.click()} disabled={!!actionBusy}>
+              <UploadCloud size={16} /> {actionBusy === 'import' ? 'İçe aktarılıyor…' : 'Toplu taslak yükle'}
+            </button>
+            <input ref={importInputRef} type="file" accept="application/json,.json" hidden
+              onChange={importQuestionFile} />
+          </div>
         </div>
         <div className="qb-hero-mark" aria-hidden="true"><Database size={38} /></div>
       </section>
@@ -267,6 +355,82 @@ export function TrainingQuestionBank({user, sectors = []}) {
             <strong>{value}</strong>
           </div>
         ))}
+      </section>
+
+      <section className="panel-card qb-coverage" aria-label="NACE soru kapsamı">
+        <div className="qb-card-head">
+          <div>
+            <div className="section-title">Yayın güvenliği</div>
+            <h2>2.141 NACE kapsama matrisi</h2>
+            <p className="tp-help">
+              Katalog 2.141 resmi NACE faaliyeti ve 1 genel yedek kayıttan oluşur. “Güçlü yayın” her soru grubunda
+              en az 15 onaylı soru bulunduğunu gösterir.
+            </p>
+          </div>
+          <button type="button" className="qb-icon-button" onClick={() => loadCoverage()} disabled={coverageBusy}
+            title="Kapsama raporunu yenile">
+            <RefreshCw size={18} className={coverageBusy ? 'qb-spin' : ''} />
+          </button>
+        </div>
+
+        <div className="qb-coverage-summary">
+          <div><BarChart3 size={20} /><span><strong>{coverage?.nace_total ?? '—'}</strong> Resmi NACE</span></div>
+          <div><BookOpenCheck size={20} /><span><strong>{coverage?.exam_ready_count ?? '—'}</strong> Asgari sınava hazır</span></div>
+          <div><Target size={20} /><span><strong>{coverage?.release_ready_count ?? '—'}</strong> Güçlü yayına hazır</span></div>
+          <div className="is-warning"><AlertTriangle size={20} /><span><strong>{coverage?.blocked_count ?? '—'}</strong> Eksik kapsam</span></div>
+        </div>
+
+        <div className="qb-coverage-progress" aria-label="Güçlü yayın ilerlemesi">
+          <span style={{width: `${coverage?.nace_total ? Math.round((coverage.release_ready_count / coverage.nace_total) * 100) : 0}%`}} />
+        </div>
+
+        <form className="qb-coverage-toolbar" onSubmit={(event) => { event.preventDefault(); loadCoverage(); }}>
+          <div className="qb-search">
+            <Search size={17} />
+            <input value={coverageQuery} onChange={(event) => setCoverageQuery(event.target.value)}
+              placeholder="NACE kodu, faaliyet veya profil ara" />
+          </div>
+          <select className="tp-select" value={coverageFilter} onChange={(event) => {
+            const value = event.target.value;
+            setCoverageFilter(value);
+            loadCoverage(value, coverageQuery);
+          }}>
+            <option value="blocked">Eksik kapsamlar</option>
+            <option value="exam_ready">Asgari sınava hazır</option>
+            <option value="release_ready">Güçlü yayına hazır</option>
+            <option value="all">Tüm NACE faaliyetleri</option>
+          </select>
+          <button type="submit" className="btn-outline-premium" disabled={coverageBusy}>Ara</button>
+        </form>
+
+        <div className="qb-coverage-table-wrap">
+          <table className="qb-coverage-table">
+            <thead><tr><th>NACE / faaliyet</th><th>Profil</th><th>Ortak</th><th>Teknik</th><th>Sektör</th><th>Durum</th></tr></thead>
+            <tbody>
+              {coverageBusy ? (
+                <tr><td colSpan="6" className="qb-table-empty">Kapsam hesaplanıyor…</td></tr>
+              ) : !coverage?.items?.length ? (
+                <tr><td colSpan="6" className="qb-table-empty">Bu filtrede NACE kaydı bulunamadı.</td></tr>
+              ) : coverage.items.map((item) => (
+                <tr key={item.code}>
+                  <td><strong>{item.nace}</strong><span>{item.name}</span><small>{item.hazard}</small></td>
+                  <td>{item.profile}</td>
+                  <td>{item.available?.common ?? 0}</td>
+                  <td>{item.available?.technical ?? 0}</td>
+                  <td>{item.available?.sector ?? 0}</td>
+                  <td>
+                    <span className={item.release_ready ? 'qb-coverage-state is-strong' : item.ready ? 'qb-coverage-state is-minimum' : 'qb-coverage-state is-blocked'}>
+                      {item.release_ready ? 'Güçlü' : item.ready ? 'Asgari' : 'Bloklu'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {coverage?.items_total > coverage?.items?.length && (
+          <p className="tp-help">İlk {coverage.items.length} kayıt gösteriliyor. Arama alanıyla sonucu daraltabilirsiniz.</p>
+        )}
       </section>
 
       {errors.length > 0 && (
@@ -358,14 +522,14 @@ export function TrainingQuestionBank({user, sectors = []}) {
               </button>
             </div>
             <datalist id="qb-sector-options">
-              {sectors.slice(0, 1500).map((sector) => (
+              {sectors.map((sector) => (
                 <option key={sector.code || sector.nace} value={sector.code || sector.nace}>
                   {sector.nace ? `${sector.nace} · ` : ''}{sector.label || sector.name}
                 </option>
               ))}
             </datalist>
             <datalist id="qb-nace-options">
-              {sectors.slice(0, 1500).filter((sector) => sector.nace).map((sector) => (
+              {sectors.filter((sector) => sector.nace).map((sector) => (
                 <option key={`${sector.nace}-${sector.code}`} value={sector.nace}>{sector.label || sector.name}</option>
               ))}
             </datalist>

@@ -110,6 +110,9 @@ export function validateQuestionDraft(draft) {
     if ((type === 'common' && value !== '*') || (type !== 'common' && !value)) {
       errors.push(`${index + 1}. kapsam değeri eksik veya geçersizdir.`);
     }
+    if (type === 'nace' && value && !/^\d{2}(?:\.\d{2}){0,2}$/.test(value)) {
+      errors.push(`${index + 1}. NACE kapsamı 01, 30.11 veya 30.11.01 biçiminde olmalıdır.`);
+    }
     const pair = `${type}:${value.toLocaleLowerCase('tr')}`;
     if (scopePairs.has(pair)) errors.push('Aynı kapsam bir soruya iki kez eklenemez.');
     scopePairs.add(pair);

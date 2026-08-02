@@ -47,6 +47,12 @@ describe('training question bank form rules', () => {
     expect(errors).toContain('kapsam');
   });
 
+  it('rejects ambiguous NACE prefixes that could match a wrong activity', () => {
+    const draft = validDraft();
+    draft.scopes = [{type: 'nace', value: '30.1'}];
+    expect(validateQuestionDraft(draft).join(' ')).toContain('30.11.01 biçiminde');
+  });
+
   it('normalizes API payload without inventing an effective date', () => {
     const draft = validDraft();
     draft.question_code = 'nace-30.11-001';

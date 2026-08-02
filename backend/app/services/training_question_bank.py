@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import re
 import secrets
 from collections import defaultdict
 from datetime import datetime
@@ -17,11 +18,25 @@ from app.models.entities import (
     TrainingQuestion,
     TrainingSession,
 )
-from app.services.training_topics import SEKTOR_PROFIL, sektor_kodu_cozumle
+from app.services.training_topics import (
+    SEKTOR_PROFIL,
+    sektor_kodu_cozumle,
+    sectors_list_for_api,
+)
 
 QUESTION_COUNT = 15
 BUCKET_TARGETS = {"common": 5, "technical": 5, "sector": 5}
+# Kamuya açılmadan önce her grupta en az üç farklı sınav seti bulunmalıdır.
+# Bu eşik sınav üretimindeki asgari 5x3 kuralını değiştirmez; içerik çeşitliliğini
+# ayrı ve ölçülebilir bir yayın kriteri olarak raporlar.
+RELEASE_BUCKET_TARGETS = {"common": 15, "technical": 15, "sector": 15}
 SELECTION_POLICY = "approved-5x3-v1"
+VALID_HAZARDS = frozenset({"Az Tehlikeli", "Tehlikeli", "Çok Tehlikeli"})
+_NACE_PREFIX_RE = re.compile(r"^\d{2}(?:\.\d{2}){0,2}$")
+_CATALOG = tuple(sectors_list_for_api())
+_NACE_CATALOG = tuple(row for row in _CATALOG if row.get("nace"))
+_NACE_VALUES = frozenset(str(row["nace"]) for row in _NACE_CATALOG)
+_SECTOR_VALUES = frozenset(SEKTOR_PROFIL) | frozenset(SEKTOR_PROFIL.values())
 
 
 class QuestionBankError(ValueError):
@@ -52,6 +67,19 @@ def validate_question_for_publish(question: TrainingQuestion) -> None:
         raise QuestionBankError("Doğru cevabın gerekçesi yazılmalıdır.")
     if not question.scopes:
         raise QuestionBankError("En az bir kapsam (ortak, tehlike, sektör veya NACE) seçilmelidir.")
+    for scope in question.scopes:
+        kind = str(scope.scope_type or "").strip()
+        value = str(scope.scope_value or "").strip()
+        if kind == "common" and value != "*":
+            raise QuestionBankError("Ortak soru kapsamının değeri * olmalıdır.")
+        if kind == "hazard" and value not in VALID_HAZARDS:
+            raise QuestionBankError("Tehlike sınıfı Az Tehlikeli, Tehlikeli veya Çok Tehlikeli olmalıdır.")
+        if kind == "sector" and value not in _SECTOR_VALUES:
+            raise QuestionBankError("Sektör kapsamı kayıtlı bir NACE veya sektör profili olmalıdır.")
+        if kind == "nace" and not valid_nace_scope(value):
+            raise QuestionBankError(
+                "NACE kapsamı resmi katalogla eşleşen 2, 4 veya 6 haneli noktalı bir kod olmalıdır."
+            )
     if not question.sources:
         raise QuestionBankError("Yayınlanacak her sorunun en az bir doğrulanabilir kaynağı olmalıdır.")
     for source in question.sources:
@@ -69,6 +97,23 @@ def _nace_value(training: TrainingSession, sector_code: str) -> str:
     return raw if raw and raw[0].isdigit() else ""
 
 
+def valid_nace_scope(value: str) -> bool:
+    """Yalnız resmi katalogda karşılığı olan bölüm/grup/tam NACE öneklerini kabul et."""
+    value = str(value or "").strip()
+    if not _NACE_PREFIX_RE.fullmatch(value):
+        return False
+    return any(nace == value or nace.startswith(f"{value}.") for nace in _NACE_VALUES)
+
+
+def nace_scope_matches(nace: str, scope_value: str) -> bool:
+    """30.11 yalnız 30.11 ve altını kapsar; 30.1 gibi belirsiz eşleşmeler yapılamaz."""
+    nace = str(nace or "").strip()
+    scope_value = str(scope_value or "").strip()
+    if not valid_nace_scope(scope_value):
+        return False
+    return nace == scope_value or nace.startswith(f"{scope_value}.")
+
+
 def _context(training: TrainingSession) -> dict[str, str]:
     sector_code = sektor_kodu_cozumle(training.sector)
     return {
@@ -79,7 +124,7 @@ def _context(training: TrainingSession) -> dict[str, str]:
     }
 
 
-def _candidate_buckets(db: Session, training: TrainingSession) -> dict[str, list[TrainingQuestion]]:
+def _active_published_questions(db: Session) -> list[TrainingQuestion]:
     rows = list(
         db.scalars(
             select(TrainingQuestion)
@@ -87,18 +132,23 @@ def _candidate_buckets(db: Session, training: TrainingSession) -> dict[str, list
                 selectinload(TrainingQuestion.scopes),
                 selectinload(TrainingQuestion.sources),
             )
-            .where(TrainingQuestion.status == "published")
+            .where(TrainingQuestion.status.in_(("published", "retired")))
             .order_by(TrainingQuestion.question_code, TrainingQuestion.version.desc())
-        ).all()
+        ).unique().all()
     )
-    # Aynı kodun yalnız en güncel yayımlanmış sürümü sınava girebilir.
-    latest: dict[str, TrainingQuestion] = {}
+    # Taslak/inceleme sürümü mevcut yayımlanmış sürümü kesmez. Ancak en yeni
+    # tamamlanmış sürüm kaldırılmışsa eski sürüm yanlışlıkla yeniden aktif olmaz.
+    latest_terminal: dict[str, TrainingQuestion] = {}
     for row in rows:
-        latest.setdefault(row.question_code, row)
+        latest_terminal.setdefault(row.question_code, row)
+    return [row for row in latest_terminal.values() if row.status == "published"]
 
-    ctx = _context(training)
+
+def _buckets_for_context(
+    rows: list[TrainingQuestion], ctx: dict[str, str]
+) -> dict[str, list[TrainingQuestion]]:
     buckets: dict[str, list[TrainingQuestion]] = defaultdict(list)
-    for row in latest.values():
+    for row in rows:
         matched: set[str] = set()
         for scope in row.scopes:
             kind, value = scope.scope_type, str(scope.scope_value or "").strip()
@@ -108,7 +158,7 @@ def _candidate_buckets(db: Session, training: TrainingSession) -> dict[str, list
                 matched.add("technical")
             elif kind == "sector" and value in {ctx["sector"], ctx["sector_code"]}:
                 matched.add("sector")
-            elif kind == "nace" and ctx["nace"] and ctx["nace"].startswith(value):
+            elif kind == "nace" and nace_scope_matches(ctx["nace"], value):
                 matched.add("sector")
         # En özel eşleşme önceliklidir; aynı soru iki grupta seçilemez.
         if "sector" in matched:
@@ -120,15 +170,140 @@ def _candidate_buckets(db: Session, training: TrainingSession) -> dict[str, list
     return {name: buckets.get(name, []) for name in BUCKET_TARGETS}
 
 
+def _scope_index(rows: list[TrainingQuestion]) -> dict:
+    """Kapsama raporunda her NACE için tüm soru listesini yeniden taramayı önle."""
+    by_id = {row.id: row for row in rows}
+    common: set[int] = set()
+    hazards: dict[str, set[int]] = defaultdict(set)
+    sectors: dict[str, set[int]] = defaultdict(set)
+    naces: dict[str, set[int]] = defaultdict(set)
+    for row in rows:
+        for scope in row.scopes:
+            kind = str(scope.scope_type or "").strip()
+            value = str(scope.scope_value or "").strip()
+            if kind == "common" and value == "*":
+                common.add(row.id)
+            elif kind == "hazard":
+                hazards[value].add(row.id)
+            elif kind == "sector":
+                sectors[value].add(row.id)
+            elif kind == "nace" and valid_nace_scope(value):
+                naces[value].add(row.id)
+    return {
+        "by_id": by_id,
+        "common": common,
+        "hazards": hazards,
+        "sectors": sectors,
+        "naces": naces,
+    }
+
+
+def _indexed_bucket_counts(index: dict, ctx: dict[str, str]) -> dict[str, int]:
+    """Özgüllük önceliğini koruyarak yalnız küme işlemleriyle sayım yap."""
+    sector_ids = set(index["sectors"].get(ctx["sector"], set()))
+    sector_ids.update(index["sectors"].get(ctx["sector_code"], set()))
+    nace = ctx["nace"]
+    if nace:
+        parts = nace.split(".")
+        for length in range(1, min(len(parts), 3) + 1):
+            sector_ids.update(index["naces"].get(".".join(parts[:length]), set()))
+    technical_ids = set(index["hazards"].get(ctx["hazard"], set())) - sector_ids
+    common_ids = set(index["common"]) - sector_ids - technical_ids
+    return {
+        "common": len(common_ids),
+        "technical": len(technical_ids),
+        "sector": len(sector_ids),
+    }
+
+
+def _candidate_buckets(db: Session, training: TrainingSession) -> dict[str, list[TrainingQuestion]]:
+    return _buckets_for_context(_active_published_questions(db), _context(training))
+
+
+def _counts_and_status(buckets_or_counts: dict) -> dict:
+    counts = {
+        name: value if isinstance(value, int) else len(value)
+        for name, value in buckets_or_counts.items()
+    }
+    exam_ready = all(counts[name] >= needed for name, needed in BUCKET_TARGETS.items())
+    release_ready = all(
+        counts[name] >= needed for name, needed in RELEASE_BUCKET_TARGETS.items()
+    )
+    return {
+        "available": counts,
+        "ready": exam_ready,
+        "release_ready": release_ready,
+        "missing": {
+            name: max(0, BUCKET_TARGETS[name] - counts[name]) for name in BUCKET_TARGETS
+        },
+        "release_missing": {
+            name: max(0, RELEASE_BUCKET_TARGETS[name] - counts[name])
+            for name in RELEASE_BUCKET_TARGETS
+        },
+    }
+
+
 def question_bank_readiness(db: Session, training: TrainingSession) -> dict:
     buckets = _candidate_buckets(db, training)
-    counts = {name: len(rows) for name, rows in buckets.items()}
+    status = _counts_and_status(buckets)
     return {
-        "ready": all(counts[name] >= needed for name, needed in BUCKET_TARGETS.items()),
+        **status,
         "required": dict(BUCKET_TARGETS),
-        "available": counts,
+        "release_required": dict(RELEASE_BUCKET_TARGETS),
         "context": _context(training),
         "policy": SELECTION_POLICY,
+    }
+
+
+def question_bank_coverage(db: Session) -> dict:
+    """Tüm resmi NACE faaliyetleri için asgari ve güçlü yayın kapsamını ölç."""
+    rows = _active_published_questions(db)
+    scope_index = _scope_index(rows)
+    items: list[dict] = []
+    profile_stats: dict[str, dict] = {}
+    for sector in _NACE_CATALOG:
+        code = str(sector.get("code") or "")
+        nace = str(sector.get("nace") or "")
+        profile = SEKTOR_PROFIL.get(code, code)
+        ctx = {
+            "hazard": str(sector.get("hazard_class") or "").strip(),
+            "sector": profile,
+            "sector_code": code,
+            "nace": nace,
+        }
+        status = _counts_and_status(_indexed_bucket_counts(scope_index, ctx))
+        item = {
+            "code": code,
+            "nace": nace,
+            "name": sector.get("name") or sector.get("label") or code,
+            "hazard": ctx["hazard"],
+            "profile": profile,
+            **status,
+        }
+        items.append(item)
+        stats = profile_stats.setdefault(
+            profile,
+            {"profile": profile, "nace_count": 0, "exam_ready_count": 0, "release_ready_count": 0},
+        )
+        stats["nace_count"] += 1
+        stats["exam_ready_count"] += int(status["ready"])
+        stats["release_ready_count"] += int(status["release_ready"])
+
+    exam_ready_count = sum(int(item["ready"]) for item in items)
+    release_ready_count = sum(int(item["release_ready"]) for item in items)
+    return {
+        "catalog_records_total": len(_CATALOG),
+        "nace_total": len(items),
+        "general_fallback_total": len(_CATALOG) - len(items),
+        "profile_total": len(profile_stats),
+        "published_question_total": len(rows),
+        "exam_ready_count": exam_ready_count,
+        "release_ready_count": release_ready_count,
+        "blocked_count": len(items) - exam_ready_count,
+        "required": dict(BUCKET_TARGETS),
+        "release_required": dict(RELEASE_BUCKET_TARGETS),
+        "profiles": sorted(profile_stats.values(), key=lambda row: row["profile"]),
+        "items": items,
     }
 
 

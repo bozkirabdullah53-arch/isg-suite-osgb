@@ -17,7 +17,10 @@ from app.models.entities import (
 from app.services.training_question_bank import (
     InsufficientQuestionBankError,
     create_exam_snapshot,
+    nace_scope_matches,
+    question_bank_coverage,
     question_bank_readiness,
+    valid_nace_scope,
     validate_question_for_publish,
 )
 
@@ -55,11 +58,20 @@ def _seed_training(db: Session) -> tuple[TrainingSession, User]:
     return training, user
 
 
-def _question(db: Session, *, code: str, scope_type: str, scope_value: str, creator: int):
+def _question(
+    db: Session,
+    *,
+    code: str,
+    scope_type: str,
+    scope_value: str,
+    creator: int,
+    version: int = 1,
+    status: str = "published",
+):
     row = TrainingQuestion(
         question_code=code,
-        version=1,
-        status="published",
+        version=version,
+        status=status,
         topic_code=f"topic-{code}",
         topic_label=f"Konu {code}",
         question_text=f"{code} için güvenli çalışma uygulaması hangisidir?",
@@ -89,6 +101,23 @@ def test_publish_validation_rejects_duplicate_options(db: Session):
     row = _question(db, code="BAD-1", scope_type="common", scope_value="*", creator=user.id)
     row.option_b = row.option_a
     with pytest.raises(ValueError, match="farklı"):
+        validate_question_for_publish(row)
+
+
+def test_nace_scope_requires_official_segment_boundary():
+    assert valid_nace_scope("30") is True
+    assert valid_nace_scope("30.11") is True
+    assert valid_nace_scope("30.11.01") is True
+    assert valid_nace_scope("30.1") is False
+    assert valid_nace_scope("99.99") is False
+    assert nace_scope_matches("30.11.01", "30.11") is True
+    assert nace_scope_matches("30.12.01", "30.11") is False
+
+
+def test_publish_validation_rejects_unknown_nace_scope(db: Session):
+    _, user = _seed_training(db)
+    row = _question(db, code="BAD-NACE", scope_type="nace", scope_value="30.1", creator=user.id)
+    with pytest.raises(ValueError, match="NACE kapsamı"):
         validate_question_for_publish(row)
 
 
@@ -126,6 +155,7 @@ def test_approved_bank_creates_frozen_15_question_snapshot_and_answer_key(db: Se
 
     readiness = question_bank_readiness(db, training)
     assert readiness["ready"] is True
+    assert readiness["release_ready"] is False
     assert readiness["available"] == {"common": 5, "technical": 5, "sector": 5}
 
     exam = create_exam_snapshot(db, training=training, created_by_id=user.id)
@@ -145,3 +175,50 @@ def test_approved_bank_creates_frozen_15_question_snapshot_and_answer_key(db: Se
     db.commit()
     db.refresh(exam.items[0])
     assert exam.items[0].question_text == original
+
+
+def test_retired_latest_terminal_version_does_not_reactivate_old_version(db: Session):
+    training, user = _seed_training(db)
+    _question(db, code="VERSIONED", scope_type="common", scope_value="*", creator=user.id)
+    _question(
+        db,
+        code="VERSIONED",
+        scope_type="common",
+        scope_value="*",
+        creator=user.id,
+        version=2,
+        status="retired",
+    )
+    db.commit()
+    readiness = question_bank_readiness(db, training)
+    assert readiness["available"]["common"] == 0
+
+
+def test_coverage_reports_every_official_nace_and_general_fallback(db: Session):
+    report = question_bank_coverage(db)
+    assert report["catalog_records_total"] == 2142
+    assert report["nace_total"] == 2141
+    assert report["general_fallback_total"] == 1
+    assert report["profile_total"] == 90
+    assert report["exam_ready_count"] == 0
+    assert report["release_ready_count"] == 0
+    assert report["blocked_count"] == 2141
+    assert len(report["items"]) == 2141
+
+
+def test_coverage_index_preserves_common_hazard_and_nace_buckets(db: Session):
+    _, user = _seed_training(db)
+    _question(db, code="COV-C", scope_type="common", scope_value="*", creator=user.id)
+    _question(
+        db,
+        code="COV-H",
+        scope_type="hazard",
+        scope_value="Çok Tehlikeli",
+        creator=user.id,
+    )
+    _question(db, code="COV-N", scope_type="nace", scope_value="30.11", creator=user.id)
+    db.commit()
+
+    report = question_bank_coverage(db)
+    item = next(row for row in report["items"] if row["nace"] == "30.11.01")
+    assert item["available"] == {"common": 1, "technical": 1, "sector": 1}

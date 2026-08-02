@@ -67,6 +67,18 @@ class QuestionUpdate(BaseModel):
         return QuestionCreate.options_valid(values)
 
 
+class QuestionBulkImportRequest(BaseModel):
+    """Uzman hazırlığı için toplu taslak; yayımlama yine dört göz onayına bağlıdır."""
+
+    items: list[QuestionCreate] = Field(min_length=1, max_length=500)
+
+
+class QuestionBulkImportResponse(BaseModel):
+    created: int
+    question_ids: list[int]
+    status: Literal["draft"] = "draft"
+
+
 class QuestionResponse(BaseModel):
     id: int
     question_code: str
