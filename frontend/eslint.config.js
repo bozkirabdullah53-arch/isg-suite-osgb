@@ -14,6 +14,8 @@ export default [
       "src/field_offline.js",
       "src/duty_dashboard.jsx",
       "src/legal_docs.jsx",
+      "src/training_question_bank_logic.js",
+      "src/training_question_bank_logic.test.js",
     ],
     languageOptions: {
       ecmaVersion: 2022,

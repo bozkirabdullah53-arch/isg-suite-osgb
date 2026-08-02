@@ -1,6 +1,6 @@
 import enum
 from datetime import date, datetime
-from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -734,6 +734,9 @@ class TrainingSession(Base):
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     participants: Mapped[list["TrainingParticipant"]] = relationship(back_populates="training", cascade="all, delete-orphan")
+    exam_snapshots: Mapped[list["TrainingExamSnapshot"]] = relationship(
+        back_populates="training", cascade="all, delete-orphan"
+    )
 
 
 class TrainingParticipant(Base):
@@ -747,6 +750,124 @@ class TrainingParticipant(Base):
     successful: Mapped[bool | None] = mapped_column(nullable=True)
     certificate_number: Mapped[str | None] = mapped_column(String(30), nullable=True, unique=True)
     training: Mapped["TrainingSession"] = relationship(back_populates="participants")
+
+
+class TrainingQuestion(Base):
+    """Sürümlü, kaynaklı ve yalnız onaylandıktan sonra sınavda kullanılabilen soru."""
+
+    __tablename__ = "training_questions"
+    __table_args__ = (
+        UniqueConstraint("question_code", "version", name="uq_training_question_code_version"),
+        CheckConstraint("correct_option IN ('A','B','C','D')", name="ck_training_question_correct_option"),
+        CheckConstraint("status IN ('draft','in_review','published','retired')", name="ck_training_question_status"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    question_code: Mapped[str] = mapped_column(String(60), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True)
+    topic_code: Mapped[str] = mapped_column(String(100), index=True)
+    topic_label: Mapped[str] = mapped_column(String(300))
+    question_text: Mapped[str] = mapped_column(Text)
+    option_a: Mapped[str] = mapped_column(Text)
+    option_b: Mapped[str] = mapped_column(Text)
+    option_c: Mapped[str] = mapped_column(Text)
+    option_d: Mapped[str] = mapped_column(Text)
+    correct_option: Mapped[str] = mapped_column(String(1))
+    answer_explanation: Mapped[str] = mapped_column(Text)
+    reviewer_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    reviewed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    scopes: Mapped[list["TrainingQuestionScope"]] = relationship(
+        back_populates="question", cascade="all, delete-orphan"
+    )
+    sources: Mapped[list["TrainingQuestionSource"]] = relationship(
+        back_populates="question", cascade="all, delete-orphan"
+    )
+
+
+class TrainingQuestionScope(Base):
+    __tablename__ = "training_question_scopes"
+    __table_args__ = (
+        UniqueConstraint("question_id", "scope_type", "scope_value", name="uq_training_question_scope"),
+        CheckConstraint("scope_type IN ('common','hazard','sector','nace')", name="ck_training_question_scope_type"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    question_id: Mapped[int] = mapped_column(
+        ForeignKey("training_questions.id", ondelete="CASCADE"), index=True
+    )
+    scope_type: Mapped[str] = mapped_column(String(20), index=True)
+    scope_value: Mapped[str] = mapped_column(String(140), default="*", index=True)
+    question: Mapped["TrainingQuestion"] = relationship(back_populates="scopes")
+
+
+class TrainingQuestionSource(Base):
+    __tablename__ = "training_question_sources"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    question_id: Mapped[int] = mapped_column(
+        ForeignKey("training_questions.id", ondelete="CASCADE"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(300))
+    url: Mapped[str] = mapped_column(String(1000))
+    reference: Mapped[str] = mapped_column(String(300))
+    effective_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    checked_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    question: Mapped["TrainingQuestion"] = relationship(back_populates="sources")
+
+
+class TrainingExamSnapshot(Base):
+    """Oluşturulduğu andaki soru ve cevapları donduran denetlenebilir sınav sürümü."""
+
+    __tablename__ = "training_exam_snapshots"
+    __table_args__ = (
+        UniqueConstraint("training_id", "version", name="uq_training_exam_snapshot_version"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    training_id: Mapped[int] = mapped_column(
+        ForeignKey("training_sessions.id", ondelete="CASCADE"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer)
+    question_count: Mapped[int] = mapped_column(Integer, default=15)
+    random_seed: Mapped[str] = mapped_column(String(80))
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)
+    selection_policy: Mapped[str] = mapped_column(String(80), default="approved-5x3-v1")
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    training: Mapped["TrainingSession"] = relationship(back_populates="exam_snapshots")
+    items: Mapped[list["TrainingExamSnapshotItem"]] = relationship(
+        back_populates="exam", cascade="all, delete-orphan", order_by="TrainingExamSnapshotItem.position"
+    )
+
+
+class TrainingExamSnapshotItem(Base):
+    __tablename__ = "training_exam_snapshot_items"
+    __table_args__ = (
+        UniqueConstraint("exam_id", "position", name="uq_training_exam_item_position"),
+        CheckConstraint("correct_option IN ('A','B','C','D')", name="ck_training_exam_correct_option"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    exam_id: Mapped[int] = mapped_column(
+        ForeignKey("training_exam_snapshots.id", ondelete="CASCADE"), index=True
+    )
+    position: Mapped[int] = mapped_column(Integer)
+    question_id: Mapped[int | None] = mapped_column(
+        ForeignKey("training_questions.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    question_code: Mapped[str] = mapped_column(String(60))
+    question_version: Mapped[int] = mapped_column(Integer)
+    topic_code: Mapped[str] = mapped_column(String(100))
+    topic_label: Mapped[str] = mapped_column(String(300))
+    question_text: Mapped[str] = mapped_column(Text)
+    options_json: Mapped[str] = mapped_column(Text)
+    correct_option: Mapped[str] = mapped_column(String(1))
+    answer_explanation: Mapped[str] = mapped_column(Text)
+    sources_json: Mapped[str] = mapped_column(Text)
+    scopes_json: Mapped[str] = mapped_column(Text)
+    exam: Mapped["TrainingExamSnapshot"] = relationship(back_populates="items")
 
 class ServiceVisit(Base):
     __tablename__ = "service_visits"
