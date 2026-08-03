@@ -329,6 +329,116 @@ class HealthRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+
+class PrescriptionStatus(str, enum.Enum):
+    DRAFT = "draft"
+    READY = "ready"
+    SENDING = "sending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CANCELLED = "cancelled"
+
+
+class Prescription(Base):
+    __tablename__ = "prescriptions"
+    __table_args__ = (
+        CheckConstraint(
+            "status in ('draft','ready','sending','approved','rejected','cancelled')",
+            name="ck_prescriptions_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    health_record_id: Mapped[int | None] = mapped_column(ForeignKey("health_records.id"), nullable=True, index=True)
+    physician_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    status: Mapped[PrescriptionStatus] = mapped_column(
+        Enum(
+            PrescriptionStatus,
+            name="prescriptionstatus",
+            values_callable=lambda enum_cls: [item.value for item in enum_cls],
+            native_enum=False,
+            length=24,
+        ),
+        default=PrescriptionStatus.DRAFT,
+        index=True,
+    )
+    prescription_date: Mapped[date] = mapped_column(Date, default=date.today, index=True)
+    diagnosis_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    diagnosis_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    clinical_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    medula_prescription_no: Mapped[str | None] = mapped_column(String(80), nullable=True, unique=True)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cancel_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PrescriptionItem(Base):
+    __tablename__ = "prescription_items"
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="ck_prescription_items_quantity_positive"),
+        CheckConstraint("sort_order >= 0", name="ck_prescription_items_sort_order"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    prescription_id: Mapped[int] = mapped_column(ForeignKey("prescriptions.id", ondelete="CASCADE"), index=True)
+    medication_name: Mapped[str] = mapped_column(String(240))
+    medication_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    dose: Mapped[str] = mapped_column(String(120))
+    frequency: Mapped[str] = mapped_column(String(120))
+    route: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    duration: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    usage_instruction: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PrescriptionSubmission(Base):
+    __tablename__ = "prescription_submissions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    prescription_id: Mapped[int] = mapped_column(ForeignKey("prescriptions.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(40), default="medula")
+    status: Mapped[str] = mapped_column(String(24), default="not_configured", index=True)
+    request_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    response_payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    external_reference: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PrescriptionSubmissionAttempt(Base):
+    __tablename__ = "prescription_submission_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    submission_id: Mapped[int] = mapped_column(ForeignKey("prescription_submissions.id", ondelete="CASCADE"), index=True)
+    attempt_no: Mapped[int] = mapped_column(Integer)
+    outcome: Mapped[str] = mapped_column(String(32), index=True)
+    http_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class MedulaErrorLog(Base):
+    __tablename__ = "medula_error_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    prescription_id: Mapped[int | None] = mapped_column(ForeignKey("prescriptions.id", ondelete="SET NULL"), nullable=True, index=True)
+    submission_id: Mapped[int | None] = mapped_column(ForeignKey("prescription_submissions.id", ondelete="SET NULL"), nullable=True, index=True)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    error_message: Mapped[str] = mapped_column(Text)
+    correlation_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class DocumentCategory(str, enum.Enum):
     GENERAL = "general"
     RISK = "risk"

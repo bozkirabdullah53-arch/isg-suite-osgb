@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships, compliance_registers, esign, esign_orch, eyas, training_question_bank
+from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships, compliance_registers, esign, esign_orch, eyas, training_question_bank, prescriptions
 from app.core.rate_limit import SimpleRateLimitMiddleware
 from app.core.request_id import RequestIdMiddleware, install_request_id_logging
 from app.core.tenant_middleware import TenantContextMiddleware
@@ -131,7 +131,7 @@ _cors_origins=list(dict.fromkeys([
     'https://isgsuite.tr',
 ]))
 app.add_middleware(CORSMiddleware,allow_origins=_cors_origins,allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
-for r in (auth.router,osgb_applications.router,eisa.router,companies.router,branches.router,users.router,employees.router,isg_records.router,health.router,documents.router,annual_plans.router,annual_eval.router,reports.router,security.router,files.router,exports.router,subscriptions.router,notifications.router,system.router,dashboard.router,osgb.router,operations.router,trainings.router,training_question_bank.router,training_question_bank.exam_router,risks.router,incidents.router,ppe.router,sds.router,drills.router,emergency_teams.router,archives.router,legal.router,memberships.router,compliance_registers.pc_router,compliance_registers.ep_router,compliance_registers.wm_router,compliance_registers.oc_router,compliance_registers.da_router,esign.router,esign_orch.router,eyas.router): app.include_router(r,prefix='/api/v1')
+for r in (auth.router,osgb_applications.router,eisa.router,companies.router,branches.router,users.router,employees.router,isg_records.router,health.router,prescriptions.router,documents.router,annual_plans.router,annual_eval.router,reports.router,security.router,files.router,exports.router,subscriptions.router,notifications.router,system.router,dashboard.router,osgb.router,operations.router,trainings.router,training_question_bank.router,training_question_bank.exam_router,risks.router,incidents.router,ppe.router,sds.router,drills.router,emergency_teams.router,archives.router,legal.router,memberships.router,compliance_registers.pc_router,compliance_registers.ep_router,compliance_registers.wm_router,compliance_registers.oc_router,compliance_registers.da_router,esign.router,esign_orch.router,eyas.router): app.include_router(r,prefix='/api/v1')
 @app.get('/health')
 def health():
     from app.services.release_status import public_health_payload
