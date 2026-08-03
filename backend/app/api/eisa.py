@@ -13,6 +13,7 @@ from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.models.entities import (
+    AssignmentStatus,
     AuditLog,
     EisaErrorReport,
     EisaNotificationChannel,
@@ -22,6 +23,8 @@ from app.models.entities import (
     EisaPaymentStatus,
     EisaPlatformNotification,
     EisaSubscriptionPayment,
+    Company,
+    IsgProfessional,
     OsgbApplication,
     OsgbApplicationStatus,
     OsgbOrganization,
@@ -30,6 +33,7 @@ from app.models.entities import (
     SubscriptionStatus,
     User,
     UserRole,
+    WorkplaceAssignment,
 )
 from app.schemas.eisa_platform import (
     EisaAuditLogResponse,
@@ -109,6 +113,31 @@ def get_user_status(
     target = db.scalar(select(User).where(func.lower(User.email) == email).limit(1))
     if not target:
         raise HTTPException(404, "Kullanıcı bulunamadı.")
+
+    professional = db.scalar(
+        select(IsgProfessional)
+        .where(func.lower(IsgProfessional.email) == email)
+        .order_by(IsgProfessional.id)
+        .limit(1)
+    )
+    effective_osgb_id = target.osgb_id or (professional.osgb_id if professional else None)
+    osgb = db.get(OsgbOrganization, effective_osgb_id) if effective_osgb_id else None
+    company = db.get(Company, target.company_id) if target.company_id else None
+
+    assignment_rows = []
+    if professional:
+        assignment_rows = list(
+            db.execute(
+                select(WorkplaceAssignment, Company)
+                .join(Company, Company.id == WorkplaceAssignment.company_id)
+                .where(
+                    WorkplaceAssignment.professional_id == professional.id,
+                    WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+                )
+                .order_by(Company.name)
+            ).all()
+        )
+
     return {
         "user_id": target.id,
         "email": target.email,
@@ -117,8 +146,27 @@ def get_user_status(
         "is_active": bool(target.is_active),
         "is_locked": bool(target.locked_until and target.locked_until > datetime.utcnow()),
         "locked_until": target.locked_until,
-        "osgb_id": target.osgb_id,
+        "osgb_id": effective_osgb_id,
+        "osgb_name": osgb.name if osgb else None,
         "company_id": target.company_id,
+        "company_name": company.name if company else None,
+        "professional_id": professional.id if professional else None,
+        "professional_type": (
+            professional.professional_type.value
+            if professional and hasattr(professional.professional_type, "value")
+            else None
+        ),
+        "professional_active": bool(professional.is_active) if professional else False,
+        "assigned_workplaces": [
+            {"id": workplace.id, "name": workplace.name}
+            for _, workplace in assignment_rows
+        ],
+        "scope_valid": bool(
+            target.role == UserRole.GLOBAL_ADMIN
+            or company
+            or osgb
+            or professional
+        ),
     }
 
 

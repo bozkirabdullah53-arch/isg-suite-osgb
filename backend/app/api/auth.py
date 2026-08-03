@@ -39,6 +39,7 @@ from app.services.auth_security import (
     verify_recovery_code,
 )
 from app.services.audit import add_audit_log
+from app.services.access_scope import ensure_login_scope
 
 router = APIRouter(prefix="/auth", tags=["Kimlik Doğrulama"])
 logger = logging.getLogger(__name__)
@@ -107,6 +108,7 @@ def login(
         raise HTTPException(status_code=401, detail="Hesap pasif. Yöneticinizle iletişime geçin.")
 
     user = _sync_field(db, user)
+    ensure_login_scope(db, user)
     clear_throttle(email, ip)
 
     mfa_on = bool(getattr(user, "mfa_enabled", False))
@@ -162,6 +164,8 @@ def restart_mfa_setup(
         raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı.")
     if not user.is_active:
         raise HTTPException(status_code=401, detail="Hesap pasif. Yöneticinizle iletişime geçin.")
+    user = _sync_field(db, user)
+    ensure_login_scope(db, user)
     if not role_requires_mfa(user.role):
         raise HTTPException(status_code=400, detail="Bu hesap için MFA kurulumu gerekmez.")
 
@@ -199,6 +203,8 @@ def verify_mfa_login(
 ):
     import pyotp
 
+    user = _sync_field(db, user)
+    ensure_login_scope(db, user)
     if not user.mfa_enabled:
         raise HTTPException(
             status_code=403,
@@ -276,6 +282,13 @@ def refresh_access_token(request: Request, response: Response, db: Session = Dep
     if tv != int(getattr(user, "token_version", 0) or 0):
         clear_refresh_cookie(response)
         raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
+
+    user = _sync_field(db, user)
+    try:
+        ensure_login_scope(db, user)
+    except HTTPException:
+        clear_refresh_cookie(response)
+        raise
 
     # Eski refresh'i düşür (rotation)
     if jti and exp:

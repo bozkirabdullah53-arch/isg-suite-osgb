@@ -1802,6 +1802,15 @@ export function EisaSystemSettingsPage() {
           <div style={{ marginTop: 14, padding: 16, border: '1px solid #dbe5ea', borderRadius: 12 }}>
             <p><strong>Ad:</strong> {userStatus.full_name || '—'}</p>
             <p><strong>Rol:</strong> {userStatus.role}</p>
+            <p><strong>Bağlı OSGB:</strong> {userStatus.osgb_name || 'Bağlı değil'}</p>
+            <p><strong>Bağlı işyeri:</strong> {userStatus.company_name || 'Doğrudan bağlı değil'}</p>
+            <p><strong>Profesyonel kaydı:</strong> {userStatus.professional_id ? `Var (#${userStatus.professional_id})` : 'Yok'}</p>
+            <p><strong>Görevli işyerleri:</strong> {
+              Array.isArray(userStatus.assigned_workplaces) && userStatus.assigned_workplaces.length
+                ? userStatus.assigned_workplaces.map((x) => x.name).join(', ')
+                : 'Görevlendirme yok'
+            }</p>
+            <p><strong>Bağlantı durumu:</strong> {userStatus.scope_valid ? 'Geçerli' : 'Eksik / yetim hesap'}</p>
             <p><strong>Durum:</strong> {userStatus.is_active ? 'Aktif' : 'Pasif'}</p>
             <p><strong>Kilit:</strong> {userStatus.is_locked ? 'Kilitli' : 'Kilitli değil'}</p>
             <div className="actions" style={{ gap: 8, flexWrap: 'wrap' }}>
