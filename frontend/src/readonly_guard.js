@@ -92,7 +92,7 @@ function addStagingReviewerForm() {
     try {
       const token = localStorage.getItem('isg_token');
       if (!token) throw new Error('Oturum anahtarı bulunamadı. Yeniden giriş yapın.');
-      const response = await fetch('https://isg-suite-api-staging.onrender.com/users', {
+      const response = await fetch('https://isg-suite-api-staging.onrender.com/api/v1/users', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
