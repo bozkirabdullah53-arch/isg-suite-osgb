@@ -1630,6 +1630,11 @@ export function EisaSystemSettingsPage() {
   const [settings, setSettings] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [adminPasswordForm, setAdminPasswordForm] = useState({
+    email: '',
+    new_password: '',
+    confirm_password: '',
+  });
 
   const load = async () => {
     setBusy(true);
@@ -1668,6 +1673,41 @@ export function EisaSystemSettingsPage() {
     }
   }
 
+  async function resetUserPassword(e) {
+    e.preventDefault();
+    const email = adminPasswordForm.email.trim().toLowerCase();
+    const password = adminPasswordForm.new_password;
+    if (!email) {
+      setMsg('Kullanıcı e-postası zorunludur.');
+      return;
+    }
+    if (password.length < 10) {
+      setMsg('Geçici parola en az 10 karakter olmalıdır.');
+      return;
+    }
+    if (password !== adminPasswordForm.confirm_password) {
+      setMsg('Yeni parola ve tekrar alanı aynı değil.');
+      return;
+    }
+    if (!window.confirm(`${email} kullanıcısı için yeni geçici parola tanımlansın mı? Eski oturumlar kapatılacaktır.`)) {
+      return;
+    }
+    setBusy(true);
+    setMsg('');
+    try {
+      const result = await api('/eisa/users/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ email, new_password: password }),
+      });
+      setAdminPasswordForm({ email: '', new_password: '', confirm_password: '' });
+      setMsg(result?.message || 'Yeni geçici parola tanımlandı.');
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!settings) return <Page title="Sistem Ayarları"><p>Yükleniyor…</p></Page>;
 
   return (
@@ -1691,6 +1731,53 @@ export function EisaSystemSettingsPage() {
           <button type="submit" disabled={busy}>Kaydet</button>
         </div>
       </form>
+
+      <hr style={{ margin: '28px 0', border: 0, borderTop: '1px solid #dbe5ea' }} />
+
+      <section style={{ maxWidth: 620 }}>
+        <h4 style={{ marginBottom: 6 }}>Kullanıcıya Geçici Parola Tanımla</h4>
+        <p style={{ marginTop: 0, color: '#64748b' }}>
+          Mevcut parola hiçbir zaman görüntülenmez. Burada yalnızca yeni bir geçici parola tanımlanır.
+          İşlem denetim kaydına yazılır ve kullanıcının açık oturumları kapatılır.
+        </p>
+        <form className="form-grid" onSubmit={resetUserPassword}>
+          <label className="field"><span>Kullanıcı e-postası</span>
+            <input
+              type="email"
+              required
+              autoComplete="off"
+              value={adminPasswordForm.email}
+              onChange={(e) => setAdminPasswordForm({ ...adminPasswordForm, email: e.target.value })}
+              placeholder="kullanici@ornek.com"
+            />
+          </label>
+          <label className="field"><span>Yeni geçici parola</span>
+            <input
+              type="password"
+              required
+              minLength={10}
+              maxLength={128}
+              autoComplete="new-password"
+              value={adminPasswordForm.new_password}
+              onChange={(e) => setAdminPasswordForm({ ...adminPasswordForm, new_password: e.target.value })}
+            />
+          </label>
+          <label className="field"><span>Yeni geçici parola tekrar</span>
+            <input
+              type="password"
+              required
+              minLength={10}
+              maxLength={128}
+              autoComplete="new-password"
+              value={adminPasswordForm.confirm_password}
+              onChange={(e) => setAdminPasswordForm({ ...adminPasswordForm, confirm_password: e.target.value })}
+            />
+          </label>
+          <div className="form-actions">
+            <button type="submit" disabled={busy}>Geçici Parolayı Tanımla</button>
+          </div>
+        </form>
+      </section>
     </Page>
   );
 }

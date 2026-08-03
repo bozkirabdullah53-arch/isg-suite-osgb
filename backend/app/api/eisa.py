@@ -3,13 +3,15 @@ from datetime import datetime
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
+from app.core.security import get_password_hash
 from app.models.entities import (
     AuditLog,
     EisaErrorReport,
@@ -80,6 +82,59 @@ router = APIRouter(prefix="/eisa", tags=["EİSA Platform"])
 
 def _client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
+
+
+class EisaAdminPasswordResetRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    new_password: str = Field(min_length=10, max_length=128)
+
+
+@router.post("/users/reset-password")
+def admin_reset_user_password(
+    payload: EisaAdminPasswordResetRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    # Mevcut parola okunmaz; yalnızca yeni hash yazılır.
+    email = payload.email.strip().lower()
+    target = db.scalar(select(User).where(func.lower(User.email) == email).limit(1))
+    if not target:
+        raise HTTPException(404, "Kullanıcı bulunamadı.")
+    if target.id == admin.id:
+        raise HTTPException(
+            400,
+            "Kendi parolanızı bu ekrandan değiştiremezsiniz. Güvenlik ekranını kullanın.",
+        )
+    if target.role == UserRole.GLOBAL_ADMIN:
+        raise HTTPException(
+            403,
+            "Başka bir global yöneticinin parolası bu ekrandan değiştirilemez.",
+        )
+
+    target.hashed_password = get_password_hash(payload.new_password)
+    target.failed_login_count = 0
+    target.locked_until = None
+    target.token_version = int(getattr(target, "token_version", 0) or 0) + 1
+
+    add_audit_log(
+        db,
+        user=admin,
+        action="admin_password_reset",
+        module="eisa",
+        entity_type="user",
+        entity_id=str(target.id),
+        description=f"Global yönetici geçici parola tanımladı: {target.email}",
+        ip_address=_client_ip(request),
+    )
+    db.commit()
+
+    return {
+        "ok": True,
+        "user_id": target.id,
+        "email": target.email,
+        "message": "Yeni geçici parola tanımlandı. Eski parola ve açık oturumlar geçersiz kılındı.",
+    }
 
 
 @router.get("/dashboard")
