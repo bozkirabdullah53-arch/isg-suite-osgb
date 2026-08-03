@@ -41,6 +41,7 @@ import {AnnualEvalReportPage} from './annual_eval_report';
 import {Customer360Page} from './customer_360';
 import {CapacityEnginePage} from './capacity_engine';
 import {TrainingPage, TrainingVerifyPage, loadSectorsCatalog} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
+import {PrescriptionPage} from './prescriptions';
 import {TrainingQuestionBank} from './training_question_bank';
 import {GLOBAL_ADMIN_MODULES} from './app_module_policy';
 import {AdminSummaryDashboard,DutyDashboard} from './duty_dashboard';
@@ -111,7 +112,7 @@ const roleModules={
   ],
   workplace_physician:[
     'visits','belge_onay','eyas_inbox','dashboard',
-    'health','employees','ortam_olcum',
+    'health','prescriptions','employees','ortam_olcum',
     'annual_plans','annual_eval_report','documents',
     'security',
   ],
@@ -144,7 +145,7 @@ const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
   company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
   safety_specialist:['visits','belge_onay','risk','training'],
-  workplace_physician:['visits','belge_onay','health','employees'],
+  workplace_physician:['visits','health','prescriptions','employees'],
   other_health_personnel:['visits','health','employees','documents'],
   read_only:['dashboard','annual_eval_report','notifications','security'],
 };
@@ -209,6 +210,7 @@ const menuCatalog={
   eyas_inbox:['Onay Kutum (Hekim/İşveren)',FileText],
   training:['Eğitimler',GraduationCap],
   health:['Sağlık',HeartPulse],
+  prescriptions:['e-Reçete',Pill],
   documents:['Dokümanlar',FileText],
   annual_plans:['Yıllık Plan',ClipboardCheck],
   annual_eval_report:['Yıllık Çalışma Değerlendirme Raporu',FileText],
@@ -1933,6 +1935,7 @@ function App(){
     eyas_inbox:<EyasDigitalApprovalPage user={user} mode="inbox"/>,
     training:<TrainingPage user={user}/>,
     health:<HealthPage user={user}/>,
+      prescriptions:<PrescriptionPage user={user}/>,
     documents:<DocumentsPage user={user}/>,
     annual_plans:<AnnualPlansPage user={user}/>,
     annual_eval_report:<AnnualEvalReportPage user={user} onNavigate={goModule}/>,
