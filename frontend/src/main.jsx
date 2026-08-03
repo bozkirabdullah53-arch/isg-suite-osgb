@@ -1,3 +1,4 @@
+import './readonly_guard.js';
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 

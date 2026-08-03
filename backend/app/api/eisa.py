@@ -1,5 +1,5 @@
 """EİSA — platform üst yönetimi: OSGB başvuru, abonelik, finans, paket, bildirim."""
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -481,6 +481,24 @@ def activate_osgb(
         raise HTTPException(404, "OSGB bulunamadı.")
     org.is_active = True
     org.archived_at = None
+
+    # Kurum yeniden etkinleştirildiğinde askıdaki aboneliği de güvenli biçimde aç.
+    # Veri silinmez; mevcut deneme/dönem süresi uygunsa korunur.
+    sub = get_or_create_subscription(db, osgb_id)
+    now = datetime.utcnow()
+    if sub.status in (
+        SubscriptionStatus.SUSPENDED,
+        SubscriptionStatus.PAST_DUE,
+        SubscriptionStatus.CANCELLED,
+    ):
+        if sub.current_period_ends_at and sub.current_period_ends_at > now:
+            sub.status = SubscriptionStatus.ACTIVE
+        else:
+            sub.status = SubscriptionStatus.TRIAL
+            if not sub.trial_ends_at or sub.trial_ends_at <= now:
+                sub.trial_ends_at = now + timedelta(days=90)
+        sub.updated_at = now
+
     add_audit_log(
         db,
         user=user,

@@ -378,6 +378,11 @@ export function EisaOverviewPage() {
   );
 }
 
+function osgbNeedsActivation(row) {
+  const status = String(row?.effective_status || row?.subscription_status || '').toLowerCase();
+  return !row?.is_active || ['suspended', 'past_due', 'cancelled'].includes(status);
+}
+
 export function EisaOsgbUsersPage() {
   const [rows, setRows] = useState([]);
   const [q, setQ] = useState('');
@@ -404,14 +409,15 @@ export function EisaOsgbUsersPage() {
   useEffect(() => { void load(); }, []);
 
   async function toggleActive(row) {
-    const action = row.is_active ? 'pasife almak' : 'yeniden aktifleştirmek';
+    const shouldActivate = osgbNeedsActivation(row);
+    const action = shouldActivate ? 'yeniden aktifleştirmek' : 'pasife almak';
     if (!window.confirm(`“${row.name}” OSGB hesabını ${action} istiyor musunuz?`)) return;
     setBusy(true);
     try {
-      const path = row.is_active ? 'deactivate' : 'activate';
+      const path = shouldActivate ? 'activate' : 'deactivate';
       await api(`/eisa/osgb-users/${row.id}/${path}`, { method: 'PATCH' });
       await load();
-      setMsg(row.is_active ? 'OSGB pasife alındı.' : 'OSGB aktifleştirildi.');
+      setMsg(shouldActivate ? 'OSGB aktifleştirildi.' : 'OSGB pasife alındı.');
     } catch (e) {
       setMsg(e.message);
     } finally {
@@ -532,7 +538,7 @@ export function EisaOsgbUsersPage() {
                       </button>
                     ) : null}
                     <button type="button" className="mini secondary" disabled={busy} onClick={() => toggleActive(r)}>
-                      {r.is_active ? 'Pasife Al' : 'Aktifleştir'}
+                      {osgbNeedsActivation(r) ? 'Aktife Al' : 'Pasife Al'}
                     </button>
                     <button type="button" className="mini secondary" disabled={busy} onClick={() => deleteOsgb(r)}>
                       Sil
