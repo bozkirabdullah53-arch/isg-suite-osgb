@@ -1635,6 +1635,8 @@ export function EisaSystemSettingsPage() {
     new_password: '',
     confirm_password: '',
   });
+  const [userStatusForm, setUserStatusForm] = useState({ email: 'hekimbir@gmail.com' });
+  const [userStatus, setUserStatus] = useState(null);
 
   const load = async () => {
     setBusy(true);
@@ -1669,6 +1671,47 @@ export function EisaSystemSettingsPage() {
     } catch (e) {
       setMsg(e.message);
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadUserStatus(e) {
+    e?.preventDefault?.();
+    const email = userStatusForm.email.trim().toLowerCase();
+    if (!email) {
+      setMsg('Kullanıcı e-postası zorunludur.');
+      return;
+    }
+    setBusy(true);
+    setMsg('');
+    try {
+      const result = await api('/eisa/users/status', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      });
+      setUserStatus(result);
+    } catch (e) {
+      setUserStatus(null);
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateUserStatus(update) {
+    const email = userStatusForm.email.trim().toLowerCase();
+    if (!email) return;
+    setBusy(true);
+    setMsg('');
+    try {
+      const result = await api('/eisa/users/update-status', {
+        method: 'POST',
+        body: JSON.stringify({ email, ...update }),
+      });
+      setMsg(result?.message || 'Kullanıcı güncellendi.');
+      await loadUserStatus();
+    } catch (e) {
+      setMsg(e.message);
       setBusy(false);
     }
   }
@@ -1731,6 +1774,53 @@ export function EisaSystemSettingsPage() {
           <button type="submit" disabled={busy}>Kaydet</button>
         </div>
       </form>
+
+      <hr style={{ margin: '28px 0', border: 0, borderTop: '1px solid #dbe5ea' }} />
+
+      <section style={{ maxWidth: 720 }}>
+        <h4 style={{ marginBottom: 6 }}>Kullanıcı Durum Yönetimi</h4>
+        <p style={{ marginTop: 0, color: '#64748b' }}>
+          Kullanıcıyı e-postayla bulun, aktif/pasif durumunu yönetin ve hesap kilidini kaldırın.
+        </p>
+        <form className="form-grid" onSubmit={loadUserStatus}>
+          <label className="field"><span>Kullanıcı e-postası</span>
+            <input
+              type="email"
+              required
+              value={userStatusForm.email}
+              onChange={(e) => {
+                setUserStatusForm({ email: e.target.value });
+                setUserStatus(null);
+              }}
+            />
+          </label>
+          <div className="form-actions">
+            <button type="submit" className="secondary" disabled={busy}>Kullanıcıyı Bul</button>
+          </div>
+        </form>
+        {userStatus && (
+          <div style={{ marginTop: 14, padding: 16, border: '1px solid #dbe5ea', borderRadius: 12 }}>
+            <p><strong>Ad:</strong> {userStatus.full_name || '—'}</p>
+            <p><strong>Rol:</strong> {userStatus.role}</p>
+            <p><strong>Durum:</strong> {userStatus.is_active ? 'Aktif' : 'Pasif'}</p>
+            <p><strong>Kilit:</strong> {userStatus.is_locked ? 'Kilitli' : 'Kilitli değil'}</p>
+            <div className="actions" style={{ gap: 8, flexWrap: 'wrap' }}>
+              {!userStatus.is_active ? (
+                <button type="button" disabled={busy} onClick={() => updateUserStatus({ is_active: true })}>
+                  Aktifleştir
+                </button>
+              ) : (
+                <button type="button" className="secondary" disabled={busy} onClick={() => updateUserStatus({ is_active: false })}>
+                  Pasife Al
+                </button>
+              )}
+              <button type="button" className="secondary" disabled={busy} onClick={() => updateUserStatus({ unlock: true })}>
+                Hesap Kilidini Kaldır
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
 
       <hr style={{ margin: '28px 0', border: 0, borderTop: '1px solid #dbe5ea' }} />
 

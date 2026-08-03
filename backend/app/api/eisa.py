@@ -89,6 +89,92 @@ class EisaAdminPasswordResetRequest(BaseModel):
     new_password: str = Field(min_length=10, max_length=128)
 
 
+class EisaUserStatusRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+
+
+class EisaUserStatusUpdate(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    is_active: bool | None = None
+    unlock: bool = False
+
+
+@router.post("/users/status")
+def get_user_status(
+    payload: EisaUserStatusRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    email = payload.email.strip().lower()
+    target = db.scalar(select(User).where(func.lower(User.email) == email).limit(1))
+    if not target:
+        raise HTTPException(404, "Kullanıcı bulunamadı.")
+    return {
+        "user_id": target.id,
+        "email": target.email,
+        "full_name": target.full_name,
+        "role": target.role.value if hasattr(target.role, "value") else str(target.role),
+        "is_active": bool(target.is_active),
+        "is_locked": bool(target.locked_until and target.locked_until > datetime.utcnow()),
+        "locked_until": target.locked_until,
+        "osgb_id": target.osgb_id,
+        "company_id": target.company_id,
+    }
+
+
+@router.post("/users/update-status")
+def update_user_status(
+    payload: EisaUserStatusUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    email = payload.email.strip().lower()
+    target = db.scalar(select(User).where(func.lower(User.email) == email).limit(1))
+    if not target:
+        raise HTTPException(404, "Kullanıcı bulunamadı.")
+    if target.id == admin.id:
+        raise HTTPException(400, "Kendi hesabınızın durumunu bu ekrandan değiştiremezsiniz.")
+    if target.role == UserRole.GLOBAL_ADMIN:
+        raise HTTPException(403, "Başka bir global yönetici hesabı bu ekrandan değiştirilemez.")
+
+    changes = []
+    if payload.is_active is not None:
+        target.is_active = payload.is_active
+        changes.append("aktif" if payload.is_active else "pasif")
+    if payload.unlock:
+        target.failed_login_count = 0
+        target.locked_until = None
+        changes.append("kilit kaldırıldı")
+
+    if not changes:
+        raise HTTPException(400, "Değişiklik seçilmedi.")
+
+    target.token_version = int(getattr(target, "token_version", 0) or 0) + 1
+
+    add_audit_log(
+        db,
+        user=admin,
+        action="admin_user_status_updated",
+        module="eisa",
+        entity_type="user",
+        entity_id=str(target.id),
+        description=f"Kullanıcı durumu güncellendi: {target.email} ({', '.join(changes)})",
+        ip_address=_client_ip(request),
+    )
+    db.commit()
+
+    return {
+        "ok": True,
+        "email": target.email,
+        "is_active": bool(target.is_active),
+        "is_locked": False if payload.unlock else bool(
+            target.locked_until and target.locked_until > datetime.utcnow()
+        ),
+        "message": f"Kullanıcı güncellendi: {', '.join(changes)}.",
+    }
+
+
 @router.post("/users/reset-password")
 def admin_reset_user_password(
     payload: EisaAdminPasswordResetRequest,
