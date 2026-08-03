@@ -1,7 +1,7 @@
-﻿import React,{useEffect,useMemo,useRef,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 
-/** Apex â†’ www: Cloudflare 307, tarayÄ±cÄ± Authorization dÃ¼ÅŸÃ¼rÃ¼r â†’ Â«Oturum doÄŸrulanamadÄ±Â». */
+/** Apex → www: Cloudflare 307, tarayıcı Authorization düşürür → «Oturum doğrulanamadı». */
 (function ensureCanonicalWwwHost(){
   try{
     const host=String(window.location.hostname||'').toLowerCase();
@@ -65,25 +65,25 @@ import {
 import './styles.css';
 import './theme-modern.css';
 import {useUiTheme} from './theme';
-const roles={global_admin:'EÄ°SA YÃ¶netici',company_admin:'OSGB YÃ¶neticisi',safety_specialist:'Ä°SG UzmanÄ±',workplace_physician:'Ä°ÅŸyeri Hekimi',other_health_personnel:'DiÄŸer SaÄŸlÄ±k Personeli',read_only:'Salt Okunur'};
+const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 /**
- * Sol menÃ¼ sÄ±rasÄ± (yukarÄ±â†’aÅŸaÄŸÄ±): ana panel â†’ gÃ¼nlÃ¼k operasyon â†’ master data â†’
- * Ä°SG saha iÅŸleri (risk/olay yoÄŸunluÄŸu) â†’ ticari â†’ rapor/denetim â†’ sistem ayarlarÄ±.
- * Her rol yalnÄ±zca kendi listesini gÃ¶rÃ¼r; sÄ±ra o rolÃ¼n kullanÄ±m yoÄŸunluÄŸuna gÃ¶redir.
+ * Sol menü sırası (yukarı→aşağı): ana panel → günlük operasyon → master data →
+ * İSG saha işleri (risk/olay yoğunluğu) → ticari → rapor/denetim → sistem ayarları.
+ * Her rol yalnızca kendi listesini görür; sıra o rolün kullanım yoğunluğuna göredir.
  */
 const roleModules={
   global_admin:GLOBAL_ADMIN_MODULES,
-  // OSGB merkezi: yalnÄ±z OSGB yÃ¶netimi. Saha modÃ¼lleri ASLA burada olmamalÄ±.
-  // SÄ±ra: gÃ¼nlÃ¼k operasyon â†’ insan/gÃ¶rev/performans â†’ denetim â†’ ticari â†’ ayarlar.
+  // OSGB merkezi: yalnız OSGB yönetimi. Saha modülleri ASLA burada olmamalı.
+  // Sıra: günlük operasyon → insan/görev/performans → denetim → ticari → ayarlar.
   company_admin:[
-    // 1) Her gÃ¼n
+    // 1) Her gün
     'osgb_dashboard',
     'visits',
     'notifications',
     'employer_oversight',
     'eyas_inbox',
     'companies',
-    // 2) Ä°nsan, gÃ¶rev, performans (birbirini izler)
+    // 2) İnsan, görev, performans (birbirini izler)
     'professionals',
     'assignments',
     'pro_performance',
@@ -125,14 +125,14 @@ const roleModules={
   read_only:['dashboard','annual_eval_report','notifications','security'],
 };
 
-/** YalnÄ±z otomatik Ã¼retilen iÅŸyeri QR kiosk hesabÄ± â€” diÄŸer company_admin menÃ¼sÃ¼ bozulmaz. */
+/** Yalnız otomatik üretilen işyeri QR kiosk hesabı — diğer company_admin menüsü bozulmaz. */
 function isWorkplaceKioskUser(user){
   if(user?.role!=='company_admin' || !user.company_id) return false;
   const email=String(user.email||'').toLowerCase();
   return email.endsWith('@kiosk.isgsuite.tr');
 }
 
-/** OSGB / firma admin menÃ¼sÃ¼ aynÄ± kalÄ±r; kiosk hesabÄ± yalnÄ±z QR ekranÄ± gÃ¶rÃ¼r. */
+/** OSGB / firma admin menüsü aynı kalır; kiosk hesabı yalnız QR ekranı görür. */
 function modulesForUser(user){
   if(isWorkplaceKioskUser(user)){
     return ['site_qr_kiosk'];
@@ -140,7 +140,7 @@ function modulesForUser(user){
   return roleModules[user?.role]||[];
 }
 
-/** Mobil alt bar: en sÄ±k 4 modÃ¼l + Â«MenÃ¼Â» (Ã§ok satÄ±rlÄ± Ä±zgara iÃ§eriÄŸi kapatmasÄ±n). */
+/** Mobil alt bar: en sık 4 modül + «Menü» (çok satırlı ızgara içeriği kapatmasın). */
 const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
   company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
@@ -162,63 +162,63 @@ function mobilePrimaryMenu(menu, role, activeId){
 }
 
 const menuCatalog={
-  eisa_overview:['Genel BakÄ±ÅŸ',LayoutDashboard],
-  eisa_osgb_users:['OSGB KullanÄ±cÄ±larÄ±',Users],
-  eisa_subscriptions:['Abonelik YÃ¶netimi',CreditCard],
-  eisa_subscriptions_expiring:['SÃ¼resi YaklaÅŸan Abonelikler',CalendarDays],
-  eisa_subscriptions_expired:['SÃ¼resi Dolan Abonelikler',AlertTriangle],
-  eisa_payments:['Finans ve Ã–demeler',WalletCards],
-  eisa_packages:['Paket YÃ¶netimi',BriefcaseBusiness],
-  eisa_question_bank:['NACE Soru BankasÄ±',BookOpen],
-  eisa_error_reports:['Hata RaporlarÄ±',AlertTriangle],
+  eisa_overview:['Genel Bakış',LayoutDashboard],
+  eisa_osgb_users:['OSGB Kullanıcıları',Users],
+  eisa_subscriptions:['Abonelik Yönetimi',CreditCard],
+  eisa_subscriptions_expiring:['Süresi Yaklaşan Abonelikler',CalendarDays],
+  eisa_subscriptions_expired:['Süresi Dolan Abonelikler',AlertTriangle],
+  eisa_payments:['Finans ve Ödemeler',WalletCards],
+  eisa_packages:['Paket Yönetimi',BriefcaseBusiness],
+  eisa_question_bank:['NACE Soru Bankası',BookOpen],
+  eisa_error_reports:['Hata Raporları',AlertTriangle],
   eisa_notifications:['Bilgilendirmeler',Bell],
   eisa_reports:['Raporlar',BarChart3],
-  eisa_archives:['Merkezi ArÅŸiv',Download],
-  eisa_audit_logs:['Ä°ÅŸlem KayÄ±tlarÄ±',FileText],
-  eisa_system_settings:['Sistem AyarlarÄ±',KeyRound],
+  eisa_archives:['Merkezi Arşiv',Download],
+  eisa_audit_logs:['İşlem Kayıtları',FileText],
+  eisa_system_settings:['Sistem Ayarları',KeyRound],
   osgb_dashboard:['OSGB Ana Panel',LayoutDashboard],
   osgb_oversight:['Hizmet Denetimi',ClipboardCheck],
   capacity_engine:['Kapasite Motoru',Gauge],
   pro_performance:['Performans Raporu',BarChart3],
-  csgb_audit:['Ã‡SGB Belge Paketi',FileText],
-  mevzuat:['Mevzuat Ã–zeti',BookOpen],
-  professionals:['Ä°SG Profesyonelleri',Stethoscope],
-  assignments:['GÃ¶revlendirmeler',BriefcaseBusiness],
+  csgb_audit:['ÇSGB Belge Paketi',FileText],
+  mevzuat:['Mevzuat Özeti',BookOpen],
+  professionals:['İSG Profesyonelleri',Stethoscope],
+  assignments:['Görevlendirmeler',BriefcaseBusiness],
   visits:['Saha Takvimi',CalendarDays],
-  employer_oversight:['Ä°ÅŸyeri Denetim Durumu',ShieldCheck],
-  site_qr_kiosk:['Ä°ÅŸyeri QR',QrCode],
+  employer_oversight:['İşyeri Denetim Durumu',ShieldCheck],
+  site_qr_kiosk:['İşyeri QR',QrCode],
   crm:['CRM / Teklif',BriefcaseBusiness],
-  contracts:['SÃ¶zleÅŸmeler',FileText],
+  contracts:['Sözleşmeler',FileText],
   finance:['Finans',WalletCards],
-  dashboard:['Ä°SG Ã–zeti',BarChart3],
-  companies:['Ä°ÅŸyerleri',Building2],
-  branches:['Åžubeler',GitBranch],
+  dashboard:['İSG Özeti',BarChart3],
+  companies:['İşyerleri',Building2],
+  branches:['Şubeler',GitBranch],
   employees:['Personel',Users],
   risk:['Risk Analizi',ShieldAlert],
   near_miss:['Ramak Kala',AlertTriangle],
-  accident:['Ä°ÅŸ KazalarÄ±',ShieldAlert],
-  capa:['DÃ–F',ClipboardCheck],
+  accident:['İş Kazaları',ShieldAlert],
+  capa:['DÖF',ClipboardCheck],
   ppe:['KKD Takip',HardHat],
   sds:['SDS / PKD',Beaker],
-  tatbikat:['Tatbikat YÃ¶netimi',Activity],
-  acil_ekipler:['Acil Durum Ekipleri/Destek ElemanlarÄ±',Users],
-  acil_plan:['Acil Durum PlanÄ± / Kroki',ShieldAlert],
+  tatbikat:['Tatbikat Yönetimi',Activity],
+  acil_ekipler:['Acil Durum Ekipleri/Destek Elemanları',Users],
+  acil_plan:['Acil Durum Planı / Kroki',ShieldAlert],
   periyodik_kontrol:['Periyodik Kontrol',ClipboardCheck],
-  ortam_olcum:['Ortam Ã–lÃ§Ã¼m',Gauge],
-  isg_kurulu:['Ä°SG Kurulu',Users],
-  belge_onay:['Belge Onay / Ä°mza',FileText],
-  eyas_inbox:['Onay Kutum (Hekim/Ä°ÅŸveren)',FileText],
-  training:['EÄŸitimler',GraduationCap],
-  health:['SaÄŸlÄ±k',HeartPulse],
-  prescriptions:['e-ReÃ§ete',Pill],
-  documents:['DokÃ¼manlar',FileText],
-  annual_plans:['YÄ±llÄ±k Plan',ClipboardCheck],
-  annual_eval_report:['YÄ±llÄ±k Ã‡alÄ±ÅŸma DeÄŸerlendirme Raporu',FileText],
-  reports:['OSGB YÃ¶netim Ã–zeti',BarChart3],
+  ortam_olcum:['Ortam Ölçüm',Gauge],
+  isg_kurulu:['İSG Kurulu',Users],
+  belge_onay:['Belge Onay / İmza',FileText],
+  eyas_inbox:['Onay Kutum (Hekim/İşveren)',FileText],
+  training:['Eğitimler',GraduationCap],
+  health:['Sağlık',HeartPulse],
+  prescriptions:['e-Reçete',Pill],
+  documents:['Dokümanlar',FileText],
+  annual_plans:['Yıllık Plan',ClipboardCheck],
+  annual_eval_report:['Yıllık Çalışma Değerlendirme Raporu',FileText],
+  reports:['OSGB Yönetim Özeti',BarChart3],
   notifications:['Bildirimler',Bell],
   subscription:['Abonelik',CreditCard],
-  security:['GÃ¼venlik',KeyRound],
-  users:['KullanÄ±cÄ±lar',UserCog],
+  security:['Güvenlik',KeyRound],
+  users:['Kullanıcılar',UserCog],
 };
 
 function EisaQuestionBankPage({user}){
@@ -229,7 +229,7 @@ function EisaQuestionBankPage({user}){
     loadSectorsCatalog().then((rows)=>{
       if(!cancelled && Array.isArray(rows)) setSectors(rows);
     }).catch(()=>{
-      // Katalog alÄ±namazsa soru bankasÄ±nÄ±n listeleme ve yÃ¶netim iÅŸlevleri Ã§alÄ±ÅŸmayÄ± sÃ¼rdÃ¼rÃ¼r.
+      // Katalog alınamazsa soru bankasının listeleme ve yönetim işlevleri çalışmayı sürdürür.
     });
     return()=>{cancelled=true};
   },[]);
@@ -272,12 +272,12 @@ function Login({done,onApply}){
           const setup=await apiWithBearer(r.mfa_token,'/security/mfa/setup',{method:'POST'});
           setSetupInfo(setup);setMode('mfa_setup');return
         }catch(setupErr){
-          setErr(setupErr.message||'MFA kurulumu baÅŸlatÄ±lamadÄ±.');
+          setErr(setupErr.message||'MFA kurulumu başlatılamadı.');
           setMode('login');
           return
         }
       }
-      setErr('GiriÅŸ yanÄ±tÄ± beklenmeyen biÃ§imde.');
+      setErr('Giriş yanıtı beklenmeyen biçimde.');
     }catch(x){setErr(x.message)}
     finally{setBusy(false)}
   }
@@ -297,13 +297,13 @@ function Login({done,onApply}){
     setErr('');setMsg('');setBusy(true);
     try{
       if(!email||!password){
-        setErr('Kurulum iÃ§in Ã¶nce giriÅŸ e-posta ve ÅŸifrenizi girin.');
+        setErr('Kurulum için önce giriş e-posta ve şifrenizi girin.');
         setMode('login');
         return;
       }
       const r=await api('/auth/mfa/restart-setup',{method:'POST',body:JSON.stringify({email,password}),_retries:2});
       if(!(r.mfa_setup_required&&r.mfa_token)){
-        setErr('MFA kurulumu baÅŸlatÄ±lamadÄ±.');
+        setErr('MFA kurulumu başlatılamadı.');
         return;
       }
       setMfaToken(r.mfa_token);
@@ -312,7 +312,7 @@ function Login({done,onApply}){
       setSetupInfo(setup);
       setCode('');
       setMode('mfa_setup');
-    }catch(x){setErr(x.message||'MFA kurulumu baÅŸlatÄ±lamadÄ±.')}
+    }catch(x){setErr(x.message||'MFA kurulumu başlatılamadı.')}
     finally{setBusy(false)}
   }
 
@@ -335,7 +335,7 @@ function Login({done,onApply}){
     e.preventDefault();setErr('');setMsg('');setBusy(true);
     try{
       const r=await api('/auth/forgot-password',{method:'POST',body:JSON.stringify({email}),_retries:0});
-      setMsg(r.message||'Ä°stek alÄ±ndÄ±.');
+      setMsg(r.message||'İstek alındı.');
     }catch(x){setErr(x.message)}
     finally{setBusy(false)}
   }
@@ -344,7 +344,7 @@ function Login({done,onApply}){
     e.preventDefault();setErr('');setMsg('');setBusy(true);
     try{
       const r=await api('/auth/reset-password',{method:'POST',body:JSON.stringify({token:resetToken,new_password:newPassword}),_retries:0});
-      setMsg(r.message||'Åžifre gÃ¼ncellendi.');
+      setMsg(r.message||'Şifre güncellendi.');
       setMode('login');
       try{const u=new URL(window.location.href);u.searchParams.delete('sifre-sifirla');window.history.replaceState({},'',u.pathname)}catch{}
     }catch(x){setErr(x.message)}
@@ -354,67 +354,67 @@ function Login({done,onApply}){
   return (
     <main className={mode==='mfa_setup'||mode==='recovery'?'login-shell login-shell--form':'login-shell'}>
       <div className={mode==='mfa_setup'||mode==='recovery'?'login-wrap login-wrap--form':'login-wrap'}>
-        <div className="login-brand"><img src="/eisa-logo-horizontal.png" alt="EÄ°SA PROGRAMLAMA" className="login-eisa-logo"/></div>
+        <div className="login-brand"><img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div>
         <section className="login-card">
-          <h1>Ä°SG Suite</h1>
-          <p>Ä°ÅŸ SaÄŸlÄ±ÄŸÄ± ve GÃ¼venliÄŸi YÃ¶netim Sistemi</p>
+          <h1>İSG Suite</h1>
+          <p>İş Sağlığı ve Güvenliği Yönetim Sistemi</p>
           {mode==='login'&&(
             <form onSubmit={submitLogin}>
               <label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email" required/>
-              <LoginPasswordInput label="Åžifre" value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="current-password"/>
+              <LoginPasswordInput label="Şifre" value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="current-password"/>
               {err&&<div className="error">{err}</div>}
-              <button disabled={busy}>GiriÅŸ Yap</button>
-              <p style={{marginTop:12,fontSize:13}}><button type="button" className="linkish" onClick={()=>{setMode('forgot');setErr('');setMsg('')}}>Åžifremi unuttum</button></p>
+              <button disabled={busy}>Giriş Yap</button>
+              <p style={{marginTop:12,fontSize:13}}><button type="button" className="linkish" onClick={()=>{setMode('forgot');setErr('');setMsg('')}}>Şifremi unuttum</button></p>
             </form>
           )}
           {mode==='forgot'&&(
             <form onSubmit={submitForgot}>
-              <p style={{color:'#64748b',fontSize:14}}>KayÄ±tlÄ± e-posta adresinize sÄ±fÄ±rlama baÄŸlantÄ±sÄ± gÃ¶nderilir.</p>
+              <p style={{color:'#64748b',fontSize:14}}>Kayıtlı e-posta adresinize sıfırlama bağlantısı gönderilir.</p>
               <label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email" required/>
               {err&&<div className="error">{err}</div>}
               {msg&&<p style={{color:'#166534'}}>{msg}</p>}
-              <button disabled={busy}>GÃ¶nder</button>
-              <p style={{marginTop:12,fontSize:13}}><button type="button" className="linkish" onClick={()=>setMode('login')}>GiriÅŸe dÃ¶n</button></p>
+              <button disabled={busy}>Gönder</button>
+              <p style={{marginTop:12,fontSize:13}}><button type="button" className="linkish" onClick={()=>setMode('login')}>Girişe dön</button></p>
             </form>
           )}
           {mode==='reset'&&(
             <form onSubmit={submitReset}>
-              <p style={{color:'#64748b',fontSize:14}}>Yeni ÅŸifrenizi belirleyin (en az 10 karakter).</p>
-              <LoginPasswordInput label="Yeni ÅŸifre" value={newPassword} onChange={e=>setNewPassword(e.target.value)} minLength={10} required autoComplete="new-password"/>
+              <p style={{color:'#64748b',fontSize:14}}>Yeni şifrenizi belirleyin (en az 10 karakter).</p>
+              <LoginPasswordInput label="Yeni şifre" value={newPassword} onChange={e=>setNewPassword(e.target.value)} minLength={10} required autoComplete="new-password"/>
               {err&&<div className="error">{err}</div>}
               {msg&&<p style={{color:'#166534'}}>{msg}</p>}
-              <button disabled={busy}>Åžifreyi gÃ¼ncelle</button>
+              <button disabled={busy}>Şifreyi güncelle</button>
             </form>
           )}
           {mode==='mfa'&&(
             <form onSubmit={submitMfa}>
               <p style={{color:'#64748b',fontSize:14}}>Authenticator kodunu veya kurtarma kodunu girin.</p>
-              <label>DoÄŸrulama kodu</label><input value={code} onChange={e=>setCode(e.target.value)} required/>
+              <label>Doğrulama kodu</label><input value={code} onChange={e=>setCode(e.target.value)} required/>
               {err&&<div className="error">{err}</div>}
-              <button disabled={busy}>DoÄŸrula</button>
+              <button disabled={busy}>Doğrula</button>
               <div style={{marginTop:14,padding:'12px 12px',borderRadius:10,background:'#f0fdfa',border:'1px solid #99f6e4'}}>
                 <p style={{margin:'0 0 10px',fontSize:13,color:'#0f766e',fontWeight:600}}>
-                  Telefonda Authenticator yok / QR gÃ¶rmediniz mi?
+                  Telefonda Authenticator yok / QR görmediniz mi?
                 </p>
                 <button type="button" className="secondary" disabled={busy} onClick={restartMfaSetup} style={{width:'100%',justifyContent:'center'}}>
-                  QR ve gizli anahtarÄ± gÃ¶ster (kurulumu baÅŸlat)
+                  QR ve gizli anahtarı göster (kurulumu başlat)
                 </button>
               </div>
-              <p style={{marginTop:10,fontSize:13}}><button type="button" className="linkish" onClick={()=>{setMode('login');setCode('');setErr('')}}>GiriÅŸe dÃ¶n</button></p>
+              <p style={{marginTop:10,fontSize:13}}><button type="button" className="linkish" onClick={()=>{setMode('login');setCode('');setErr('')}}>Girişe dön</button></p>
             </form>
           )}
           {mode==='mfa_setup'&&(
             <form onSubmit={submitMfaSetup}>
               <p style={{color:'#64748b',fontSize:14,marginTop:0}}>
-                YÃ¶netici hesaplarÄ± iÃ§in MFA zorunludur. QRâ€™Ä± veya gizli anahtarÄ± Authenticatorâ€™a ekleyin; sonra <strong>6 haneli kodu</strong> girin.
+                Yönetici hesapları için MFA zorunludur. QR’ı veya gizli anahtarı Authenticator’a ekleyin; sonra <strong>6 haneli kodu</strong> girin.
               </p>
               {setupInfo?(
                 <>
                   <ol style={{fontSize:13,color:'#475569',paddingLeft:20,margin:'0 0 12px'}}>
-                    <li>Google / Microsoft Authenticator uygulamasÄ±nÄ± aÃ§Ä±n</li>
-                    <li><strong>+</strong> â†’ QR tara veya manuel kurulum anahtarÄ±</li>
-                    <li>AÅŸaÄŸÄ±daki QR / gizli anahtarÄ± kullanÄ±n (doÄŸrulama alanÄ±na deÄŸil)</li>
-                    <li>Uygulamada gÃ¶rÃ¼nen 6 haneli kodu aÅŸaÄŸÄ±ya yazÄ±n</li>
+                    <li>Google / Microsoft Authenticator uygulamasını açın</li>
+                    <li><strong>+</strong> → QR tara veya manuel kurulum anahtarı</li>
+                    <li>Aşağıdaki QR / gizli anahtarı kullanın (doğrulama alanına değil)</li>
+                    <li>Uygulamada görünen 6 haneli kodu aşağıya yazın</li>
                   </ol>
                   {setupInfo.otpauth_uri&&(
                     <div style={{textAlign:'center',marginBottom:12}}>
@@ -428,11 +428,11 @@ function Login({done,onApply}){
                           || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(setupInfo.otpauth_uri)}`
                         }
                       />
-                      <p style={{margin:'8px 0 0',fontSize:12,color:'#64748b'}}>QR okutulamazsa gizli anahtarÄ± kullanÄ±n</p>
+                      <p style={{margin:'8px 0 0',fontSize:12,color:'#64748b'}}>QR okutulamazsa gizli anahtarı kullanın</p>
                     </div>
                   )}
                   <p style={{fontSize:13,wordBreak:'break-all',background:'#f8fafc',padding:10,borderRadius:8,border:'1px solid #e2e8f0'}}>
-                    <strong>Gizli anahtar (Authenticatorâ€™a):</strong><br/>
+                    <strong>Gizli anahtar (Authenticator’a):</strong><br/>
                     <code style={{userSelect:'all',fontSize:14,letterSpacing:'.04em'}}>{setupInfo.secret}</code>
                   </p>
                   <button
@@ -442,16 +442,16 @@ function Login({done,onApply}){
                     onClick={async()=>{
                       try{
                         await navigator.clipboard.writeText(setupInfo.secret||'');
-                        setMsg('Gizli anahtar kopyalandÄ±.');
-                      }catch{setMsg('KopyalanamadÄ± â€” anahtarÄ± elle seÃ§in.')}
+                        setMsg('Gizli anahtar kopyalandı.');
+                      }catch{setMsg('Kopyalanamadı — anahtarı elle seçin.')}
                     }}
-                  >AnahtarÄ± kopyala</button>
+                  >Anahtarı kopyala</button>
                   {msg&&<p style={{color:'#166534',fontSize:13}}>{msg}</p>}
                 </>
               ):(
-                <p style={{color:'#b91c1c',fontSize:14}}>Kurulum anahtarÄ± yÃ¼klenemedi. GiriÅŸe dÃ¶nÃ¼p tekrar deneyin.</p>
+                <p style={{color:'#b91c1c',fontSize:14}}>Kurulum anahtarı yüklenemedi. Girişe dönüp tekrar deneyin.</p>
               )}
-              <label>6 haneli doÄŸrulama kodu</label>
+              <label>6 haneli doğrulama kodu</label>
               <input
                 value={code}
                 onChange={e=>setCode(e.target.value.replace(/\s/g,'').slice(0,8))}
@@ -463,20 +463,20 @@ function Login({done,onApply}){
                 pattern="[0-9A-Za-z-]{6,16}"
                 required
               />
-              <p style={{fontSize:12,color:'#64748b',margin:'6px 0 0'}}>Gizli anahtarÄ± buraya yapÄ±ÅŸtÄ±rmayÄ±n â€” yalnÄ±zca uygulamanÄ±n Ã¼rettiÄŸi kÄ±sa kod.</p>
+              <p style={{fontSize:12,color:'#64748b',margin:'6px 0 0'}}>Gizli anahtarı buraya yapıştırmayın — yalnızca uygulamanın ürettiği kısa kod.</p>
               {err&&<div className="error">{err}</div>}
-              <button disabled={busy||!setupInfo}>MFA etkinleÅŸtir</button>
+              <button disabled={busy||!setupInfo}>MFA etkinleştir</button>
             </form>
           )}
           {mode==='recovery'&&(
             <div>
-              <p style={{color:'#166534'}}>MFA kuruldu. Kurtarma kodlarÄ±nÄ± gÃ¼venli yere kaydedin (bir kez gÃ¶sterilir):</p>
+              <p style={{color:'#166534'}}>MFA kuruldu. Kurtarma kodlarını güvenli yere kaydedin (bir kez gösterilir):</p>
               <ul style={{fontFamily:'monospace',fontSize:13}}>{(recoveryCodes||[]).map(c=><li key={c}>{c}</li>)}</ul>
               <button type="button" onClick={()=>done()}>Devam et</button>
             </div>
           )}
           {mode==='login'&&(
-            <p style={{marginTop:10,marginBottom:0,fontSize:12,color:'#64748b'}}>OSGB merkezi misiniz? <button type="button" className="linkish" onClick={onApply}>BaÅŸvuru formu</button></p>
+            <p style={{marginTop:10,marginBottom:0,fontSize:12,color:'#64748b'}}>OSGB merkezi misiniz? <button type="button" className="linkish" onClick={onApply}>Başvuru formu</button></p>
           )}
         </section>
       </div>
@@ -486,9 +486,9 @@ function Login({done,onApply}){
 function Modal({title,close,children}){return <AppModal title={title} close={close}>{children}</AppModal>}
 function Field({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
-function Table({cols,rows,empty='KayÄ±t bulunamadÄ±.'}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key}>{c.render?c.render(r):String(r[c.key]??'â€”')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
+function Table({cols,rows,empty='Kayıt bulunamadı.'}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
 
-/** Ä°ÅŸyeri kiosk â€” QR + salt-okunur denetim durumu. MenÃ¼ yok; mÃ¼dahale yok. */
+/** İşyeri kiosk — QR + salt-okunur denetim durumu. Menü yok; müdahale yok. */
 function SiteQrKioskPage({user,onLogout}){
   const companyId=user?.company_id;
   const[tab,setTab]=useState('qr');
@@ -521,7 +521,7 @@ function SiteQrKioskPage({user,onLogout}){
       const ms=Math.max(15_000,exp-Date.now()-5_000);
       refreshRef.current=setTimeout(()=>{refreshQr()},ms);
     }catch(ex){
-      setErr(ex.message||'QR yÃ¼klenemedi.');
+      setErr(ex.message||'QR yüklenemedi.');
     }finally{setBusy(false)}
   };
 
@@ -537,15 +537,15 @@ function SiteQrKioskPage({user,onLogout}){
   const mm=String(Math.floor(remainSec/60)).padStart(2,'0');
   const ss=String(remainSec%60).padStart(2,'0');
   const payload=info?.qr_payload||'';
-  const title=info?.company_name||user?.full_name||'Ä°ÅŸyeri';
+  const title=info?.company_name||user?.full_name||'İşyeri';
 
   return (
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',padding:'20px 24px 32px',background:'linear-gradient(160deg,#0f766e 0%,#134e4a 45%,#0f172a 100%)',color:'#f8fafc'}}>
       <div style={{textAlign:'center',maxWidth:720,width:'100%'}}>
-        <p style={{margin:0,opacity:.85,fontSize:14,letterSpacing:'.04em',textTransform:'uppercase'}}>Ä°ÅŸyeri paneli</p>
+        <p style={{margin:0,opacity:.85,fontSize:14,letterSpacing:'.04em',textTransform:'uppercase'}}>İşyeri paneli</p>
         <h1 style={{margin:'8px 0 4px',fontSize:28,fontWeight:700}}>{title}</h1>
         <p style={{margin:'0 0 16px',opacity:.9,fontSize:14}}>
-          QR: uzman/hekim giriÅŸ-Ã§Ä±kÄ±ÅŸ Â· Denetim: onayda bekleyenleri onaylayÄ±n
+          QR: uzman/hekim giriş-çıkış · Denetim: onayda bekleyenleri onaylayın
         </p>
         <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap',marginBottom:18}}>
           <button type="button" onClick={()=>setTab('qr')} style={{
@@ -559,7 +559,7 @@ function SiteQrKioskPage({user,onLogout}){
             border:'1px solid rgba(255,255,255,.35)',borderRadius:999,padding:'8px 16px',fontWeight:600,
           }}>Denetim durumu</button>
           <button type="button" className="mini" onClick={onLogout} style={{background:'rgba(255,255,255,.12)',color:'#fff',border:'1px solid rgba(255,255,255,.35)'}}>
-            <LogOut size={14}/> Ã‡Ä±kÄ±ÅŸ
+            <LogOut size={14}/> Çıkış
           </button>
         </div>
 
@@ -568,23 +568,23 @@ function SiteQrKioskPage({user,onLogout}){
             <div style={{background:'#fff',borderRadius:16,padding:20,display:'inline-block',boxShadow:'0 20px 50px rgba(0,0,0,.35)'}}>
               {payload?(
                 <img
-                  alt="Ä°ÅŸyeri QR"
+                  alt="İşyeri QR"
                   width={320}
                   height={320}
                   style={{display:'block',width:Math.min(320,typeof window!=='undefined'?window.innerWidth-80:320),height:'auto'}}
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(payload)}`}
                 />
               ):(
-                <div style={{width:280,height:280,display:'grid',placeItems:'center',color:'#64748b'}}>{busy?'YÃ¼kleniyorâ€¦':'QR yok'}</div>
+                <div style={{width:280,height:280,display:'grid',placeItems:'center',color:'#64748b'}}>{busy?'Yükleniyor…':'QR yok'}</div>
               )}
             </div>
             <p style={{margin:'18px 0 6px',fontSize:18,fontWeight:600}}>
-              {remainSec>0?`Yenileniyorâ€¦ ${mm}:${ss}`:(busy?'Yenileniyorâ€¦':'â€”')}
+              {remainSec>0?`Yenileniyor… ${mm}:${ss}`:(busy?'Yenileniyor…':'—')}
             </p>
             {err&&<p style={{color:'#fecaca',marginTop:8}}>{err}</p>}
             <div style={{marginTop:16}}>
               <button type="button" className="mini secondary" disabled={busy} onClick={refreshQr} style={{background:'rgba(255,255,255,.12)',color:'#fff',border:'1px solid rgba(255,255,255,.35)'}}>
-                <RefreshCw size={14}/> Åžimdi yenile
+                <RefreshCw size={14}/> Şimdi yenile
               </button>
             </div>
           </>
@@ -628,14 +628,14 @@ function Companies({canEdit, canAdd, onOpen360}){
     setErr('');
     const p=new URLSearchParams();
     if(q) p.set('q',q);
-    // Global yÃ¶netici aktif+pasif gÃ¶rsÃ¼n (backend: active=None)
+    // Global yönetici aktif+pasif görsün (backend: active=None)
     return api('/companies'+(p.toString()?`?${p}`:'')).then(setData).catch(e=>setErr(e.message));
   };
   useEffect(()=>{void load()},[]);
   async function save(e){
     e.preventDefault();setBusy(true);setErr('');
     const payload={...form,sgk_registry_no:(form.sgk_registry_no||'').trim()};
-    if(!payload.sgk_registry_no){setErr('Ä°ÅŸyeri sicil numarasÄ± zorunludur.');setBusy(false);return}
+    if(!payload.sgk_registry_no){setErr('İşyeri sicil numarası zorunludur.');setBusy(false);return}
     try{
       const created=await api('/companies',{method:'POST',body:JSON.stringify(payload)});
       setOpen(false);
@@ -649,10 +649,10 @@ function Companies({canEdit, canAdd, onOpen360}){
   }
   async function act(row,action){
     if(action==='delete'){
-      if(!window.confirm(`â€œ${row.name}â€ iÅŸyerini KALICI olarak silmek istiyor musunuz?\n\nPersonel, eÄŸitim, risk, saÄŸlÄ±k ve diÄŸer baÄŸlÄ± kayÄ±tlar da silinir. Bu iÅŸlem geri alÄ±namaz.`)) return;
+      if(!window.confirm(`“${row.name}” işyerini KALICI olarak silmek istiyor musunuz?\n\nPersonel, eğitim, risk, sağlık ve diğer bağlı kayıtlar da silinir. Bu işlem geri alınamaz.`)) return;
     }else{
-      const labels={deactivate:'pasife almak',activate:'yeniden aktifleÅŸtirmek'};
-      if(!window.confirm(`â€œ${row.name}â€ iÅŸyerini ${labels[action]||action} istiyor musunuz?`)) return;
+      const labels={deactivate:'pasife almak',activate:'yeniden aktifleştirmek'};
+      if(!window.confirm(`“${row.name}” işyerini ${labels[action]||action} istiyor musunuz?`)) return;
     }
     setBusy(true);setErr('');
     try{
@@ -662,13 +662,13 @@ function Companies({canEdit, canAdd, onOpen360}){
         await api(`/companies/${row.id}/${action}`,{method:'PATCH'});
       }
       await load();
-    }catch(ex){setErr(ex.message||'Ä°ÅŸlem baÅŸarÄ±sÄ±z.')}
+    }catch(ex){setErr(ex.message||'İşlem başarısız.')}
     finally{setBusy(false)}
   }
   async function openSiteQr(row){
     setSiteQrBusy(true);setErr('');setSiteQrEphemeral(null);setCopyMsg('');
     try{setSiteQr(await api(`/companies/${row.id}/site-qr`))}
-    catch(ex){setErr(ex.message||'QR yÃ¼klenemedi.');setSiteQr(null)}
+    catch(ex){setErr(ex.message||'QR yüklenemedi.');setSiteQr(null)}
     finally{setSiteQrBusy(false)}
   }
   async function regenSiteQr(){
@@ -682,125 +682,125 @@ function Companies({canEdit, canAdd, onOpen360}){
     if(!siteQr?.company_id) return;
     setSiteQrBusy(true);setErr('');setCopyMsg('');
     try{setSiteQrEphemeral(await api(`/companies/${siteQr.company_id}/site-qr/ephemeral`,{method:'POST'}))}
-    catch(ex){setErr(ex.message||'GeÃ§ici QR oluÅŸturulamadÄ±.');setSiteQrEphemeral(null)}
+    catch(ex){setErr(ex.message||'Geçici QR oluşturulamadı.');setSiteQrEphemeral(null)}
     finally{setSiteQrBusy(false)}
   }
   async function resetKioskLogin(row){
     if(!row?.id) return;
-    if(!window.confirm(`â€œ${row.name}â€ kiosk ÅŸifresi sÄ±fÄ±rlansÄ±n mÄ±?\n\nEski ÅŸifre geÃ§ersiz olur. Yeni ÅŸifre bir kez gÃ¶sterilir â€” iÅŸyerine iletin.`)) return;
+    if(!window.confirm(`“${row.name}” kiosk şifresi sıfırlansın mı?\n\nEski şifre geçersiz olur. Yeni şifre bir kez gösterilir — işyerine iletin.`)) return;
     setBusy(true);setErr('');setCopyMsg('');
     try{
       const acc=await api(`/companies/${row.id}/kiosk-login/reset`,{method:'POST'});
       setCreds(acc);
-    }catch(ex){setErr(ex.message||'Kiosk ÅŸifresi sÄ±fÄ±rlanamadÄ±.')}
+    }catch(ex){setErr(ex.message||'Kiosk şifresi sıfırlanamadı.')}
     finally{setBusy(false)}
   }
-  return <Page title="Firma YÃ¶netimi" action={canAdd&&<button type="button" disabled={busy} onClick={()=>{setErr('');setOpen(true)}}><Plus/>Firma Ekle</button>}>
+  return <Page title="Firma Yönetimi" action={canAdd&&<button type="button" disabled={busy} onClick={()=>{setErr('');setOpen(true)}}><Plus/>Firma Ekle</button>}>
     {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
     <SearchBar q={q} setQ={setQ} go={load}/>
     <Table cols={[
       {key:'name',label:'Firma'},
-      {key:'sgk_registry_no',label:'Ä°ÅŸyeri Sicil No'},
-      {key:'authorized_person',label:'Yetkili KiÅŸi'},
+      {key:'sgk_registry_no',label:'İşyeri Sicil No'},
+      {key:'authorized_person',label:'Yetkili Kişi'},
       {key:'phone',label:'Telefon'},
       {key:'address',label:'Adres'},
-      {key:'hazard_class',label:'Tehlike SÄ±nÄ±fÄ±'},
+      {key:'hazard_class',label:'Tehlike Sınıfı'},
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
       ...(onOpen360?[{key:'c360',label:'360',render:r=>(
-        <button type="button" className="mini" disabled={busy} onClick={()=>onOpen360(r.id)} title="MÃ¼ÅŸteri 360">
+        <button type="button" className="mini" disabled={busy} onClick={()=>onOpen360(r.id)} title="Müşteri 360">
           <Eye size={14} style={{verticalAlign:'middle',marginRight:4}}/>360
         </button>
       )}]:[]),
       ...(canEdit?[{key:'qr',label:'Saha QR',render:r=>(
-        <button type="button" className="mini secondary" disabled={busy||siteQrBusy} onClick={()=>openSiteQr(r)} title="Ä°ÅŸyeri QR kodu">
+        <button type="button" className="mini secondary" disabled={busy||siteQrBusy} onClick={()=>openSiteQr(r)} title="İşyeri QR kodu">
           <QrCode size={14} style={{verticalAlign:'middle',marginRight:4}}/>QR
         </button>
       )}]:[]),
-      ...(canEdit?[{key:'actions',label:'Ä°ÅŸlem',render:r=>(
+      ...(canEdit?[{key:'actions',label:'İşlem',render:r=>(
         <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
           {r.is_active
             ? <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'deactivate')}>Pasife Al</button>
-            : <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>AktifleÅŸtir</button>}
-          <button type="button" className="mini secondary" disabled={busy} onClick={()=>resetKioskLogin(r)} title="Kiosk giriÅŸ ÅŸifresini yenile">Kiosk ÅŸifresi</button>
+            : <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>Aktifleştir</button>}
+          <button type="button" className="mini secondary" disabled={busy} onClick={()=>resetKioskLogin(r)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>
           <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'delete')}>Sil</button>
         </div>
       )}]:[]),
     ]} rows={data}/>
     {open&&<Modal title="Yeni Firma" close={()=>setOpen(false)}>
       <form className="form-grid" onSubmit={save}>
-        <Field label="Firma AdÄ±" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
-        <Field label="Ä°ÅŸyeri Sicil No" required value={form.sgk_registry_no} onChange={e=>setForm({...form,sgk_registry_no:e.target.value})}/>
-        <Field label="Yetkili KiÅŸi" value={form.authorized_person} onChange={e=>setForm({...form,authorized_person:e.target.value})}/>
+        <Field label="Firma Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
+        <Field label="İşyeri Sicil No" required value={form.sgk_registry_no} onChange={e=>setForm({...form,sgk_registry_no:e.target.value})}/>
+        <Field label="Yetkili Kişi" value={form.authorized_person} onChange={e=>setForm({...form,authorized_person:e.target.value})}/>
         <Field label="Telefon" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
         <Field label="Adres" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/>
-        <Select label="Tehlike SÄ±nÄ±fÄ±" value={form.hazard_class} onChange={e=>setForm({...form,hazard_class:e.target.value})}>
-          <option>Az Tehlikeli</option><option>Tehlikeli</option><option>Ã‡ok Tehlikeli</option>
+        <Select label="Tehlike Sınıfı" value={form.hazard_class} onChange={e=>setForm({...form,hazard_class:e.target.value})}>
+          <option>Az Tehlikeli</option><option>Tehlikeli</option><option>Çok Tehlikeli</option>
         </Select>
         {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
         <div className="form-actions"><button type="submit" disabled={busy}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>
       </form>
     </Modal>}
-    {creds&&<Modal title="Ä°ÅŸyeri Kiosk GiriÅŸ Bilgileri" close={()=>{setCreds(null);setCopyMsg('')}}>
+    {creds&&<Modal title="İşyeri Kiosk Giriş Bilgileri" close={()=>{setCreds(null);setCopyMsg('')}}>
       <div className="form-grid single">
         <p style={{marginTop:0,color:'#64748b'}}>
-          Bu e-posta ve ÅŸifre <strong>kalÄ±cÄ±dÄ±r</strong>. Ä°ÅŸyerine bir kez iletin; her giriÅŸte aynÄ± ÅŸifreyi kullanÄ±rlar.
-          Åžifre yalnÄ±zca siz â€œKiosk ÅŸifresini sÄ±fÄ±rlaâ€ derseniz deÄŸiÅŸir.
+          Bu e-posta ve şifre <strong>kalıcıdır</strong>. İşyerine bir kez iletin; her girişte aynı şifreyi kullanırlar.
+          Şifre yalnızca siz “Kiosk şifresini sıfırla” derseniz değişir.
         </p>
         <p style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:0}}>
-          <span><strong>KullanÄ±cÄ± adÄ± (e-posta):</strong> <code>{creds.email}</code></span>
-          <button type="button" className="mini secondary" onClick={async()=>setCopyMsg((await copyText(creds.email))?'E-posta kopyalandÄ±.':'KopyalanamadÄ±.')}>E-postayÄ± kopyala</button>
+          <span><strong>Kullanıcı adı (e-posta):</strong> <code>{creds.email}</code></span>
+          <button type="button" className="mini secondary" onClick={async()=>setCopyMsg((await copyText(creds.email))?'E-posta kopyalandı.':'Kopyalanamadı.')}>E-postayı kopyala</button>
         </p>
         <p><strong>Ad:</strong> {creds.full_name}</p>
         {(creds.password||creds.temporary_password)?(
           <p style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',marginBottom:0}}>
-            <span><strong>Åžifre:</strong> <code style={{userSelect:'all'}}>{creds.password||creds.temporary_password}</code></span>
-            <button type="button" className="mini" onClick={async()=>setCopyMsg((await copyText(creds.password||creds.temporary_password))?'Åžifre kopyalandÄ±.':'KopyalanamadÄ±.')}>Åžifreyi kopyala</button>
+            <span><strong>Şifre:</strong> <code style={{userSelect:'all'}}>{creds.password||creds.temporary_password}</code></span>
+            <button type="button" className="mini" onClick={async()=>setCopyMsg((await copyText(creds.password||creds.temporary_password))?'Şifre kopyalandı.':'Kopyalanamadı.')}>Şifreyi kopyala</button>
           </p>
         ):(
-          <p style={{color:'#b45309'}}>Åžifre bu ekranda bir kez gÃ¶sterilir. Unutulursa listeden â€œKiosk ÅŸifresini sÄ±fÄ±rlaâ€ kullanÄ±n.</p>
+          <p style={{color:'#b45309'}}>Şifre bu ekranda bir kez gösterilir. Unutulursa listeden “Kiosk şifresini sıfırla” kullanın.</p>
         )}
         <div className="actions" style={{gap:8,flexWrap:'wrap'}}>
           <button type="button" className="secondary" onClick={async()=>{
             const pw=creds.password||creds.temporary_password||'';
-            const text=`KullanÄ±cÄ± adÄ±: ${creds.email}\nÅžifre: ${pw}`;
-            setCopyMsg((await copyText(text))?'E-posta ve ÅŸifre kopyalandÄ±.':'KopyalanamadÄ±.');
-          }}>E-posta + ÅŸifreyi kopyala</button>
+            const text=`Kullanıcı adı: ${creds.email}\nŞifre: ${pw}`;
+            setCopyMsg((await copyText(text))?'E-posta ve şifre kopyalandı.':'Kopyalanamadı.');
+          }}>E-posta + şifreyi kopyala</button>
         </div>
-        {copyMsg&&<p style={{color:copyMsg.includes('amadÄ±')?'#b91c1c':'#166534',margin:0}}>{copyMsg}</p>}
+        {copyMsg&&<p style={{color:copyMsg.includes('amadı')?'#b91c1c':'#166534',margin:0}}>{copyMsg}</p>}
         <p style={{color:'#166534'}}>{creds.message}</p>
         <div className="form-actions"><button type="button" onClick={()=>{setCreds(null);setCopyMsg('')}}>Tamam</button></div>
       </div>
     </Modal>}
-    {siteQr&&<Modal title={`Saha QR â€” ${siteQr.company_name}`} close={()=>{setSiteQr(null);setSiteQrEphemeral(null);setCopyMsg('')}}>
+    {siteQr&&<Modal title={`Saha QR — ${siteQr.company_name}`} close={()=>{setSiteQr(null);setSiteQrEphemeral(null);setCopyMsg('')}}>
       <div className="form-grid single">
-        <p style={{marginTop:0,color:'#64748b'}}>KalÄ±cÄ± QR â€” iÅŸyerine asÄ±lÄ±r. Saha personeli ziyaret tamamlarken okutur.</p>
+        <p style={{marginTop:0,color:'#64748b'}}>Kalıcı QR — işyerine asılır. Saha personeli ziyaret tamamlarken okutur.</p>
         <div style={{textAlign:'center'}}>
-          <img alt="Ä°ÅŸyeri QR" width={220} height={220} src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(siteQr.qr_payload)}`}/>
+          <img alt="İşyeri QR" width={220} height={220} src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(siteQr.qr_payload)}`}/>
         </div>
         <p><strong>Kod:</strong> <code>{siteQr.site_verify_code}</code></p>
         <p style={{wordBreak:'break-all',fontSize:13,color:'#475569'}}><strong>Payload:</strong> {siteQr.qr_payload}</p>
         <div className="actions" style={{gap:8,flexWrap:'wrap'}}>
-          <button type="button" className="mini secondary" disabled={siteQrBusy} onClick={async()=>setCopyMsg((await copyText(siteQr.qr_payload))?'Payload kopyalandÄ±.':'KopyalanamadÄ±.')}>Payload kopyala</button>
-          <button type="button" className="mini" disabled={siteQrBusy} onClick={regenSiteQr}><RefreshCw size={14}/> KalÄ±cÄ± kodu yenile</button>
-          <button type="button" className="mini secondary" disabled={siteQrBusy} onClick={createEphemeralSiteQr}><QrCode size={14}/> GeÃ§ici QR (30 dk)</button>
+          <button type="button" className="mini secondary" disabled={siteQrBusy} onClick={async()=>setCopyMsg((await copyText(siteQr.qr_payload))?'Payload kopyalandı.':'Kopyalanamadı.')}>Payload kopyala</button>
+          <button type="button" className="mini" disabled={siteQrBusy} onClick={regenSiteQr}><RefreshCw size={14}/> Kalıcı kodu yenile</button>
+          <button type="button" className="mini secondary" disabled={siteQrBusy} onClick={createEphemeralSiteQr}><QrCode size={14}/> Geçici QR (30 dk)</button>
         </div>
         {siteQrEphemeral&&<>
           <hr style={{border:'none',borderTop:'1px solid #e2e8f0',margin:'8px 0'}}/>
-          <p style={{marginTop:0,color:'#64748b'}}>GeÃ§ici QR â€” sÃ¼resi dolunca veya bir kez kullanÄ±lÄ±nca geÃ§ersiz olur. KalÄ±cÄ± QR deÄŸiÅŸmez.</p>
+          <p style={{marginTop:0,color:'#64748b'}}>Geçici QR — süresi dolunca veya bir kez kullanılınca geçersiz olur. Kalıcı QR değişmez.</p>
           <div style={{textAlign:'center'}}>
-            <img alt="GeÃ§ici iÅŸyeri QR" width={220} height={220} src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(siteQrEphemeral.qr_payload)}`}/>
+            <img alt="Geçici işyeri QR" width={220} height={220} src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(siteQrEphemeral.qr_payload)}`}/>
           </div>
-          <p><strong>BitiÅŸ:</strong> <code>{siteQrEphemeral.expires_at}</code> ({siteQrEphemeral.ttl_minutes} dk, tek kullanÄ±mlÄ±k)</p>
+          <p><strong>Bitiş:</strong> <code>{siteQrEphemeral.expires_at}</code> ({siteQrEphemeral.ttl_minutes} dk, tek kullanımlık)</p>
           <p style={{wordBreak:'break-all',fontSize:13,color:'#475569'}}><strong>Payload:</strong> {siteQrEphemeral.qr_payload}</p>
-          <button type="button" className="mini secondary" disabled={siteQrBusy} onClick={async()=>setCopyMsg((await copyText(siteQrEphemeral.qr_payload))?'GeÃ§ici payload kopyalandÄ±.':'KopyalanamadÄ±.')}>GeÃ§ici payload kopyala</button>
+          <button type="button" className="mini secondary" disabled={siteQrBusy} onClick={async()=>setCopyMsg((await copyText(siteQrEphemeral.qr_payload))?'Geçici payload kopyalandı.':'Kopyalanamadı.')}>Geçici payload kopyala</button>
         </>}
-        {copyMsg&&<p style={{color:copyMsg.includes('amadÄ±')?'#b91c1c':'#166534',margin:0}}>{copyMsg}</p>}
+        {copyMsg&&<p style={{color:copyMsg.includes('amadı')?'#b91c1c':'#166534',margin:0}}>{copyMsg}</p>}
         <div className="form-actions"><button type="button" onClick={()=>{setSiteQr(null);setSiteQrEphemeral(null);setCopyMsg('')}}>Kapat</button></div>
       </div>
     </Modal>}
   </Page>;
 }
-function Branches({user}){const[companies,setCompanies]=useState([]),[data,setData]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState({company_id:user.company_id||'',name:'',sgk_registry_no:'',city:'',address:''});const load=()=>Promise.all([api('/companies'),api('/branches')]).then(([c,b])=>{setCompanies(c);setData(b)});useEffect(()=>{void load()},[]);async function save(e){e.preventDefault();await api('/branches',{method:'POST',body:JSON.stringify({...form,company_id:Number(form.company_id)})});setOpen(false);load()}return <Page title="Åžube YÃ¶netimi" action={<button onClick={()=>setOpen(true)}><Plus/>Åžube Ekle</button>}><Table cols={[{key:'name',label:'Åžube'},{key:'company_id',label:'Firma',render:r=>companies.find(c=>c.id===r.company_id)?.name||r.company_id},{key:'city',label:'Åžehir'},{key:'sgk_registry_no',label:'SGK Sicil No'},{key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>}]} rows={data}/>{open&&<Modal title="Yeni Åžube" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">SeÃ§iniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Field label="Åžube AdÄ±" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/><Field label="Åžehir" value={form.city} onChange={e=>setForm({...form,city:e.target.value})}/><Field label="SGK Sicil No" value={form.sgk_registry_no} onChange={e=>setForm({...form,sgk_registry_no:e.target.value})}/><Field label="Adres" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/><Submit/></form></Modal>}</Page>}
+function Branches({user}){const[companies,setCompanies]=useState([]),[data,setData]=useState([]),[open,setOpen]=useState(false),[form,setForm]=useState({company_id:user.company_id||'',name:'',sgk_registry_no:'',city:'',address:''});const load=()=>Promise.all([api('/companies'),api('/branches')]).then(([c,b])=>{setCompanies(c);setData(b)});useEffect(()=>{void load()},[]);async function save(e){e.preventDefault();await api('/branches',{method:'POST',body:JSON.stringify({...form,company_id:Number(form.company_id)})});setOpen(false);load()}return <Page title="Şube Yönetimi" action={<button onClick={()=>setOpen(true)}><Plus/>Şube Ekle</button>}><Table cols={[{key:'name',label:'Şube'},{key:'company_id',label:'Firma',render:r=>companies.find(c=>c.id===r.company_id)?.name||r.company_id},{key:'city',label:'Şehir'},{key:'sgk_registry_no',label:'SGK Sicil No'},{key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>}]} rows={data}/>{open&&<Modal title="Yeni Şube" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Field label="Şube Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/><Field label="Şehir" value={form.city} onChange={e=>setForm({...form,city:e.target.value})}/><Field label="SGK Sicil No" value={form.sgk_registry_no} onChange={e=>setForm({...form,sgk_registry_no:e.target.value})}/><Field label="Adres" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/><Submit/></form></Modal>}</Page>}
 function UserPage({user}){
   const[companies,setCompanies]=useState([]),[data,setData]=useState([]),[open,setOpen]=useState(false),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
   const[form,setForm]=useState({email:'',full_name:'',password:'',role:'workplace_physician',company_id:user.company_id||''});
@@ -824,7 +824,7 @@ function UserPage({user}){
     finally{setBusy(false)}
   }
   async function setRole(row,role){
-    if(row.id===user.id) return alert('Kendi rolÃ¼nÃ¼zÃ¼ buradan deÄŸiÅŸtiremezsiniz.');
+    if(row.id===user.id) return alert('Kendi rolünüzü buradan değiştiremezsiniz.');
     setErr('');
     try{
       await api(`/users/${row.id}`,{method:'PUT',body:JSON.stringify({role})});
@@ -835,14 +835,14 @@ function UserPage({user}){
     setErr('');setBusy(true);
     try{
       const r=await api('/osgb/sync-field-roles',{method:'POST'});
-      alert(`Rol eÅŸlemesi: ${r.users_linked||0} kullanÄ±cÄ± gÃ¼ncellendi (${r.professionals||0} profesyonel).`);
+      alert(`Rol eşlemesi: ${r.users_linked||0} kullanıcı güncellendi (${r.professionals||0} profesyonel).`);
       await load();
     }catch(ex){setErr(ex.message)}
     finally{setBusy(false)}
   }
   async function suspend(row){
-    if(row.id===user.id) return alert('Kendi hesabÄ±nÄ±zÄ± askÄ±ya alamazsÄ±nÄ±z.');
-    if(!window.confirm(`${row.full_name} askÄ±ya alÄ±nsÄ±n mÄ±? GiriÅŸ yapamaz.`)) return;
+    if(row.id===user.id) return alert('Kendi hesabınızı askıya alamazsınız.');
+    if(!window.confirm(`${row.full_name} askıya alınsın mı? Giriş yapamaz.`)) return;
     setErr('');
     try{await api(`/users/${row.id}/suspend`,{method:'PATCH'});await load()}
     catch(ex){setErr(ex.message)}
@@ -853,8 +853,8 @@ function UserPage({user}){
     catch(ex){setErr(ex.message)}
   }
   async function remove(row){
-    if(row.id===user.id) return alert('Kendi hesabÄ±nÄ±zÄ± silemezsiniz.');
-    if(!window.confirm(`${row.full_name} kalÄ±cÄ± olarak silinsin mi? Bu iÅŸlem geri alÄ±namaz.`)) return;
+    if(row.id===user.id) return alert('Kendi hesabınızı silemezsiniz.');
+    if(!window.confirm(`${row.full_name} kalıcı olarak silinsin mi? Bu işlem geri alınamaz.`)) return;
     setErr('');
     try{await api(`/users/${row.id}`,{method:'DELETE'});await load()}
     catch(ex){setErr(ex.message)}
@@ -868,36 +868,36 @@ function UserPage({user}){
         disabled={r.id===user.id}
         onChange={e=>setRole(r,e.target.value)}
         style={{maxWidth:180}}
-        title="Rol deÄŸiÅŸtir"
+        title="Rol değiştir"
       >
         {Object.entries(roles).filter(([k])=>user.role==='global_admin'||k!=='global_admin').map(([k,v])=><option key={k} value={k}>{v}</option>)}
       </select>
     )},
     {key:'company_id',label:'Firma',render:r=>companies.find(c=>c.id===r.company_id)?.name||'Sistem Geneli'},
     {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
-    {key:'action',label:'Ä°ÅŸlem',render:r=>(
+    {key:'action',label:'İşlem',render:r=>(
       <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
         {r.is_active
-          ? <button type="button" className="mini" disabled={r.id===user.id} onClick={()=>suspend(r)}>AskÄ±ya Al</button>
-          : <button type="button" className="mini" onClick={()=>activate(r)}>AktifleÅŸtir</button>}
+          ? <button type="button" className="mini" disabled={r.id===user.id} onClick={()=>suspend(r)}>Askıya Al</button>
+          : <button type="button" className="mini" onClick={()=>activate(r)}>Aktifleştir</button>}
         <button type="button" className="mini" disabled={r.id===user.id} onClick={()=>remove(r)}>Sil</button>
       </div>
     )},
   ];
-  return <Page title="KullanÄ±cÄ± ve Yetki YÃ¶netimi" action={<div className="actions"><button type="button" className="secondary" disabled={busy} onClick={syncRoles}>Hekim/Uzman Rollerini EÅŸle</button><button onClick={()=>{setErr('');setOpen(true)}}><Plus/>KullanÄ±cÄ± Ekle</button></div>}>
-    <p style={{marginTop:0,color:'#475569',fontSize:14}}>Hekim / uzman / DSP iÃ§in kullanÄ±cÄ± rolÃ¼ <strong>Ä°ÅŸyeri Hekimi</strong> / <strong>Ä°SG UzmanÄ±</strong> / <strong>DSP</strong> olmalÄ±. GÃ¶revlendirme sonrasÄ± e-posta veya ad eÅŸleÅŸirse otomatik dÃ¼zelir; gerekirse aÅŸaÄŸÄ±daki eÅŸle butonunu kullanÄ±n.</p>
+  return <Page title="Kullanıcı ve Yetki Yönetimi" action={<div className="actions"><button type="button" className="secondary" disabled={busy} onClick={syncRoles}>Hekim/Uzman Rollerini Eşle</button><button onClick={()=>{setErr('');setOpen(true)}}><Plus/>Kullanıcı Ekle</button></div>}>
+    <p style={{marginTop:0,color:'#475569',fontSize:14}}>Hekim / uzman / DSP için kullanıcı rolü <strong>İşyeri Hekimi</strong> / <strong>İSG Uzmanı</strong> / <strong>DSP</strong> olmalı. Görevlendirme sonrası e-posta veya ad eşleşirse otomatik düzelir; gerekirse aşağıdaki eşle butonunu kullanın.</p>
     {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
     <Table cols={cols} rows={data}/>
-    {open&&<Modal title="Yeni KullanÄ±cÄ±" close={()=>setOpen(false)}>
+    {open&&<Modal title="Yeni Kullanıcı" close={()=>setOpen(false)}>
       <form className="form-grid" onSubmit={save}>
         <Field label="Ad Soyad" required value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})}/>
         <Field label="E-posta" type="email" required value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/>
-        <PasswordField label="GeÃ§ici Åžifre" minLength="10" required value={form.password} onChange={e=>setForm({...form,password:e.target.value})} autoComplete="new-password"/>
+        <PasswordField label="Geçici Şifre" minLength="10" required value={form.password} onChange={e=>setForm({...form,password:e.target.value})} autoComplete="new-password"/>
         <Select label="Rol" value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>
           {Object.entries(roles).filter(([k])=>user.role==='global_admin'||k!=='global_admin').map(([k,v])=><option key={k} value={k}>{v}</option>)}
         </Select>
         {form.role!=='global_admin'&&<Select label="Firma" value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})} required={!['safety_specialist','workplace_physician','other_health_personnel'].includes(form.role)}>
-          <option value="">SeÃ§iniz / OSGB saha (opsiyonel)</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+          <option value="">Seçiniz / OSGB saha (opsiyonel)</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>}
         {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
         <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>
@@ -953,7 +953,7 @@ function Employees({user}){
 
   function requireCompany(){
     if(selectedCompanyId) return true;
-    alert('Personel iÅŸlemi yapmadan Ã¶nce iÅŸyeri seÃ§melisiniz.');
+    alert('Personel işlemi yapmadan önce işyeri seçmelisiniz.');
     return false;
   }
 
@@ -993,10 +993,10 @@ function Employees({user}){
   async function deleteOne(row){
     if(!requireCompany()) return;
     if(Number(row.company_id)!==Number(selectedCompanyId)){
-      alert('Bu personel seÃ§ili iÅŸyerine ait deÄŸil. Ä°ÅŸlem durduruldu.');
+      alert('Bu personel seçili işyerine ait değil. İşlem durduruldu.');
       return;
     }
-    if(!window.confirm(`â€œ${row.full_name}â€ adlÄ± personel silinsin mi?\n\nKayÄ±t gÃ¼venli ÅŸekilde pasife alÄ±nacak ve aktif listeden kaldÄ±rÄ±lacak.`)) return;
+    if(!window.confirm(`“${row.full_name}” adlı personel silinsin mi?\n\nKayıt güvenli şekilde pasife alınacak ve aktif listeden kaldırılacak.`)) return;
     setBusy(true);
     try{
       await api(`/employees/${row.id}`,{method:'DELETE'});
@@ -1008,9 +1008,9 @@ function Employees({user}){
 
   async function deleteSelected(){
     if(!requireCompany()) return;
-    if(!selectedIds.length){alert('Ã–nce silinecek personelleri seÃ§melisiniz.');return}
-    const companyName=selectedCompany?.name||'seÃ§ili iÅŸyeri';
-    if(!window.confirm(`${selectedIds.length} personel â€œ${companyName}â€ iÅŸyerinden silinsin mi?\n\nKayÄ±tlar gÃ¼venli ÅŸekilde pasife alÄ±nacak ve aktif listeden kaldÄ±rÄ±lacak.`)) return;
+    if(!selectedIds.length){alert('Önce silinecek personelleri seçmelisiniz.');return}
+    const companyName=selectedCompany?.name||'seçili işyeri';
+    if(!window.confirm(`${selectedIds.length} personel “${companyName}” işyerinden silinsin mi?\n\nKayıtlar güvenli şekilde pasife alınacak ve aktif listeden kaldırılacak.`)) return;
     setBusy(true);
     try{
       const result=await api('/employees/bulk-delete',{
@@ -1019,7 +1019,7 @@ function Employees({user}){
       });
       await loadEmployees();
       alert(result?.message||`${selectedIds.length} personel silindi.`);
-    }catch(ex){alert(ex.message||'SeÃ§ilen personeller silinemedi.')}
+    }catch(ex){alert(ex.message||'Seçilen personeller silinemedi.')}
     finally{setBusy(false)}
   }
 
@@ -1028,8 +1028,8 @@ function Employees({user}){
     e.target.value='';
     if(!f)return;
     if(!requireCompany())return;
-    const companyName=selectedCompany?.name||'seÃ§ili iÅŸyeri';
-    if(!window.confirm(`â€œ${companyName}â€ iÅŸyerine toplu personel yÃ¼klenecek.\n\nDosya: ${f.name}\n\nDevam edilsin mi?`)) return;
+    const companyName=selectedCompany?.name||'seçili işyeri';
+    if(!window.confirm(`“${companyName}” işyerine toplu personel yüklenecek.\n\nDosya: ${f.name}\n\nDevam edilsin mi?`)) return;
     setBusy(true);
     try{
       const fd=new FormData();
@@ -1041,77 +1041,77 @@ function Employees({user}){
       const r=await fetch(`${base}/employees/import-excel?${query.toString()}`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd});
       const out=await r.json().catch(()=>({}));
       if(!r.ok){
-        alert(typeof out.detail==='string'?out.detail:(out.detail||'YÃ¼kleme baÅŸarÄ±sÄ±z. Åžablonu indirip tekrar deneyin.'));
+        alert(typeof out.detail==='string'?out.detail:(out.detail||'Yükleme başarısız. Şablonu indirip tekrar deneyin.'));
         return;
       }
       const errN=(out.errors||[]).length;
-      alert(`${out.created||0} personel â€œ${companyName}â€ iÅŸyerine aktarÄ±ldÄ±.${errN?` ${errN} satÄ±r atlandÄ±.`:''}`);
+      alert(`${out.created||0} personel “${companyName}” işyerine aktarıldı.${errN?` ${errN} satır atlandı.`:''}`);
       await loadEmployees();
-    }catch(x){alert(x.message||'YÃ¼kleme baÅŸarÄ±sÄ±z.')}
+    }catch(x){alert(x.message||'Yükleme başarısız.')}
     finally{setBusy(false)}
   }
 
   function exportEmployees(){
     if(!requireCompany()) return;
     downloadFile(`/exports/employees.xlsx?company_id=${selectedCompanyId}`,
-      `personel-listesi-${(selectedCompany?.name||'isyeri').replace(/[^a-zA-Z0-9Ã§ÄŸÄ±Ã¶ÅŸÃ¼Ã‡ÄžÄ°Ã–ÅžÃœ_-]+/g,'-')}.xlsx`);
+      `personel-listesi-${(selectedCompany?.name||'isyeri').replace(/[^a-zA-Z0-9çğıöşüÇĞİÖŞÜ_-]+/g,'-')}.xlsx`);
   }
 
-  return <Page title="Personel YÃ¶netimi" action={<div className="actions">
+  return <Page title="Personel Yönetimi" action={<div className="actions">
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
-    <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Åžablon Ä°ndir</button>
-    <label className="button secondary" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Excel YÃ¼kle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>
-    <button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>SeÃ§ilenleri Sil ({selectedIds.length})</button>
+    <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Şablon İndir</button>
+    <label className="button secondary" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>
+    <button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Sil ({selectedIds.length})</button>
     <button disabled={busy||!selectedCompanyId} onClick={openCreate}><Plus/>Personel Ekle</button>
   </div>}>
     <div className="form-grid" style={{gridTemplateColumns:'minmax(280px,1fr) minmax(220px,.7fr)',marginBottom:14}}>
-      <Select label="Ä°ÅŸyeri SeÃ§ (zorunlu)" required value={selectedCompanyId} onChange={e=>chooseCompany(e.target.value)}>
-        <option value="">Personel iÅŸlemi yapÄ±lacak iÅŸyerini seÃ§iniz</option>
+      <Select label="İşyeri Seç (zorunlu)" required value={selectedCompanyId} onChange={e=>chooseCompany(e.target.value)}>
+        <option value="">Personel işlemi yapılacak işyerini seçiniz</option>
         {companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
       </Select>
-      <Select label="Åžube (isteÄŸe baÄŸlÄ±)" value={selectedBranchId} disabled={!selectedCompanyId} onChange={e=>setSelectedBranchId(e.target.value)}>
-        <option value="">TÃ¼m iÅŸyeri / ÅŸube seÃ§ilmedi</option>
+      <Select label="Şube (isteğe bağlı)" value={selectedBranchId} disabled={!selectedCompanyId} onChange={e=>setSelectedBranchId(e.target.value)}>
+        <option value="">Tüm işyeri / şube seçilmedi</option>
         {selectedBranches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
       </Select>
     </div>
 
     {selectedCompanyId
       ? <div style={{padding:'12px 14px',marginBottom:12,borderRadius:12,background:'#ecfeff',border:'1px solid #99f6e4',color:'#115e59',fontWeight:700}}>
-          SeÃ§ili Ä°ÅŸyeri: {selectedCompany?.name||'â€”'} â€” {data.length} personel gÃ¶rÃ¼ntÃ¼leniyor
-          {selectedIds.length?` â€” ${selectedIds.length} personel seÃ§ildi`:''}
+          Seçili İşyeri: {selectedCompany?.name||'—'} — {data.length} personel görüntüleniyor
+          {selectedIds.length?` — ${selectedIds.length} personel seçildi`:''}
         </div>
       : <div style={{padding:'12px 14px',marginBottom:12,borderRadius:12,background:'#fff7ed',border:'1px solid #fed7aa',color:'#9a3412',fontWeight:700}}>
-          Personel listesi, tekli ekleme ve toplu Excel yÃ¼kleme iÃ§in Ã¶nce iÅŸyeri seÃ§melisiniz.
+          Personel listesi, tekli ekleme ve toplu Excel yükleme için önce işyeri seçmelisiniz.
         </div>}
 
     <p style={{margin:'0 0 12px',fontSize:13,color:'#475569'}}>
-      Her Excel dosyasÄ± yalnÄ±zca yukarÄ±da seÃ§ilen iÅŸyerine aktarÄ±lÄ±r. Ä°ÅŸyerini deÄŸiÅŸtirdiÄŸinizde liste de otomatik olarak o iÅŸyerinin personeline geÃ§er.
-      Åžablon sÃ¼tunlarÄ±: AdÄ± SoyadÄ±, TC Kimlik, GÃ¶revi, Ä°ÅŸe GiriÅŸ Tarihi, Engelli/HÃ¼kÃ¼mlÃ¼ Durumu.
+      Her Excel dosyası yalnızca yukarıda seçilen işyerine aktarılır. İşyerini değiştirdiğinizde liste de otomatik olarak o işyerinin personeline geçer.
+      Şablon sütunları: Adı Soyadı, TC Kimlik, Görevi, İşe Giriş Tarihi, Engelli/Hükümlü Durumu.
     </p>
     <SearchBar q={q} setQ={setQ} go={()=>loadEmployees(selectedCompanyId,q)}/>
     <Table cols={[
-      {key:'select',label:<input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Listedeki tÃ¼m personelleri seÃ§"/>,render:r=><input type="checkbox" checked={selectedIds.includes(Number(r.id))} onChange={()=>toggleSelected(r.id)} aria-label={`${r.full_name} personelini seÃ§`}/>},
+      {key:'select',label:<input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Listedeki tüm personelleri seç"/>,render:r=><input type="checkbox" checked={selectedIds.includes(Number(r.id))} onChange={()=>toggleSelected(r.id)} aria-label={`${r.full_name} personelini seç`}/>},
       {key:'full_name',label:'Ad Soyad'},
-      {key:'job_title',label:'GÃ¶rev'},
+      {key:'job_title',label:'Görev'},
       {key:'department',label:'Departman'},
-      {key:'branch_id',label:'Åžube',render:r=>branches.find(b=>b.id===r.branch_id)?.name||'â€”'},
-      {key:'start_date',label:'Ä°ÅŸe GiriÅŸ'},
-      {key:'special_status',label:'Ã–zel Durum',render:r=>r.special_status||'â€”'},
+      {key:'branch_id',label:'Şube',render:r=>branches.find(b=>b.id===r.branch_id)?.name||'—'},
+      {key:'start_date',label:'İşe Giriş'},
+      {key:'special_status',label:'Özel Durum',render:r=>r.special_status||'—'},
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
-      {key:'actions',label:'Ä°ÅŸlem',render:r=><button type="button" className="mini secondary" disabled={busy} onClick={()=>deleteOne(r)}>Sil</button>}
+      {key:'actions',label:'İşlem',render:r=><button type="button" className="mini secondary" disabled={busy} onClick={()=>deleteOne(r)}>Sil</button>}
     ]} rows={selectedCompanyId?data:[]}/>
 
-    {open&&<Modal title={`Yeni Personel â€” ${selectedCompany?.name||''}`} close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}>
+    {open&&<Modal title={`Yeni Personel — ${selectedCompany?.name||''}`} close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}>
       <div style={{gridColumn:'1/-1',padding:'10px 12px',borderRadius:10,background:'#f0fdfa',color:'#115e59'}}>
-        Personel ÅŸu iÅŸyerine kaydedilecek: <strong>{selectedCompany?.name}</strong>
+        Personel şu işyerine kaydedilecek: <strong>{selectedCompany?.name}</strong>
         {selectedBranchId&&<> / <strong>{selectedBranches.find(b=>String(b.id)===String(selectedBranchId))?.name}</strong></>}
       </div>
       <Field label="Ad Soyad" required value={form.full_name} onChange={e=>setForm({...form,full_name:e.target.value})}/>
       <Field label="T.C. Kimlik (maskeli)" value={form.national_id_masked} onChange={e=>setForm({...form,national_id_masked:e.target.value})}/>
-      <Field label="BranÅŸ / GÃ¶rev" value={form.job_title} onChange={e=>setForm({...form,job_title:e.target.value})}/>
+      <Field label="Branş / Görev" value={form.job_title} onChange={e=>setForm({...form,job_title:e.target.value})}/>
       <Field label="Departman" value={form.department} onChange={e=>setForm({...form,department:e.target.value})}/>
-      <Field label="Ä°ÅŸe GiriÅŸ Tarihi" type="date" value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/>
-      <Field label="Engelli / HÃ¼kÃ¼mlÃ¼ Durumu" value={form.special_status} onChange={e=>setForm({...form,special_status:e.target.value})}/>
+      <Field label="İşe Giriş Tarihi" type="date" value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/>
+      <Field label="Engelli / Hükümlü Durumu" value={form.special_status} onChange={e=>setForm({...form,special_status:e.target.value})}/>
       <Submit disabled={busy}/>
     </form></Modal>}
   </Page>;
@@ -1119,11 +1119,11 @@ function Employees({user}){
 
 
 const moduleConfig={
-  near_miss:{title:'Ramak Kala KayÄ±tlarÄ±',severityLabel:'OlasÄ± Etki'},
-  accident:{title:'Ä°ÅŸ KazasÄ± KayÄ±tlarÄ±',severityLabel:'Kaza Åžiddeti'},
-  capa:{title:'DÃ–F YÃ¶netimi',severityLabel:'Ã–ncelik'}
+  near_miss:{title:'Ramak Kala Kayıtları',severityLabel:'Olası Etki'},
+  accident:{title:'İş Kazası Kayıtları',severityLabel:'Kaza Şiddeti'},
+  capa:{title:'DÖF Yönetimi',severityLabel:'Öncelik'}
 };
-const statusNames={open:'AÃ§Ä±k',in_progress:'Devam Ediyor',completed:'TamamlandÄ±',cancelled:'Ä°ptal'};
+const statusNames={open:'Açık',in_progress:'Devam Ediyor',completed:'Tamamlandı',cancelled:'İptal'};
 
 function IsgModulePage({user,module}){
   const cfg=moduleConfig[module];
@@ -1134,14 +1134,14 @@ function IsgModulePage({user,module}){
   useEffect(()=>{setForm({...empty,module});load()},[module]);
   async function save(e){e.preventDefault();const payload={...form,company_id:Number(form.company_id),branch_id:form.branch_id?Number(form.branch_id):null,event_date:form.event_date||null,due_date:form.due_date||null,probability:form.probability?Number(form.probability):null,impact:form.impact?Number(form.impact):null,participant_count:form.participant_count?Number(form.participant_count):null};await api('/isg-records',{method:'POST',body:JSON.stringify(payload)});setOpen(false);setForm({...empty,module});load()}
   async function complete(id){await api(`/isg-records/${id}`,{method:'PATCH',body:JSON.stringify({status:'completed'})});load()}
-  const cols=[{key:'title',label:'BaÅŸlÄ±k'},{key:'event_date',label:module==='training'?'EÄŸitim Tarihi':'Olay / KayÄ±t Tarihi'},{key:'severity',label:cfg.severityLabel},{key:'responsible_name',label:'Sorumlu'},{key:'status',label:'Durum',render:r=><span className={'badge '+(r.status==='completed'?'ok':'off')}>{statusNames[r.status]}</span>}];
-  if(module==='risk')cols.splice(3,0,{key:'risk_score',label:'Risk PuanÄ±'});
-  cols.push({key:'action',label:'Ä°ÅŸlem',render:r=>r.status!=='completed'?<button className="mini" onClick={()=>complete(r.id)}>Tamamla</button>:'â€”'});
-  return <Page title={cfg.title} action={<button onClick={()=>setOpen(true)}><Plus/>Yeni KayÄ±t</button>}><SearchBar q={q} setQ={setQ} go={load}/><Table cols={cols} rows={data}/>{open&&<Modal title={'Yeni '+cfg.title+' KaydÄ±'} close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value,branch_id:''})}><option value="">SeÃ§iniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Select label="Åžube" value={form.branch_id} onChange={e=>setForm({...form,branch_id:e.target.value})}><option value="">Åžube seÃ§ilmedi</option>{branches.filter(b=>String(b.company_id)===String(form.company_id)).map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</Select><Field label="BaÅŸlÄ±k" required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/><Field label="AÃ§Ä±klama" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><Field label={module==='training'?'EÄŸitim Tarihi':'Olay / KayÄ±t Tarihi'} type="date" value={form.event_date} onChange={e=>setForm({...form,event_date:e.target.value})}/><Field label="Termin Tarihi" type="date" value={form.due_date} onChange={e=>setForm({...form,due_date:e.target.value})}/><Field label="Sorumlu KiÅŸi" value={form.responsible_name} onChange={e=>setForm({...form,responsible_name:e.target.value})}/><Field label={cfg.severityLabel} value={form.severity} onChange={e=>setForm({...form,severity:e.target.value})}/>{module==='risk'&&<><Field label="OlasÄ±lÄ±k (1-5)" type="number" min="1" max="5" value={form.probability} onChange={e=>setForm({...form,probability:e.target.value})}/><Field label="Åžiddet (1-5)" type="number" min="1" max="5" value={form.impact} onChange={e=>setForm({...form,impact:e.target.value})}/></>}{module==='training'&&<Field label="KatÄ±lÄ±mcÄ± SayÄ±sÄ±" type="number" min="0" value={form.participant_count} onChange={e=>setForm({...form,participant_count:e.target.value})}/>}<Submit/></form></Modal>}</Page>
+  const cols=[{key:'title',label:'Başlık'},{key:'event_date',label:module==='training'?'Eğitim Tarihi':'Olay / Kayıt Tarihi'},{key:'severity',label:cfg.severityLabel},{key:'responsible_name',label:'Sorumlu'},{key:'status',label:'Durum',render:r=><span className={'badge '+(r.status==='completed'?'ok':'off')}>{statusNames[r.status]}</span>}];
+  if(module==='risk')cols.splice(3,0,{key:'risk_score',label:'Risk Puanı'});
+  cols.push({key:'action',label:'İşlem',render:r=>r.status!=='completed'?<button className="mini" onClick={()=>complete(r.id)}>Tamamla</button>:'—'});
+  return <Page title={cfg.title} action={<button onClick={()=>setOpen(true)}><Plus/>Yeni Kayıt</button>}><SearchBar q={q} setQ={setQ} go={load}/><Table cols={cols} rows={data}/>{open&&<Modal title={'Yeni '+cfg.title+' Kaydı'} close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value,branch_id:''})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Select label="Şube" value={form.branch_id} onChange={e=>setForm({...form,branch_id:e.target.value})}><option value="">Şube seçilmedi</option>{branches.filter(b=>String(b.company_id)===String(form.company_id)).map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</Select><Field label="Başlık" required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/><Field label="Açıklama" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><Field label={module==='training'?'Eğitim Tarihi':'Olay / Kayıt Tarihi'} type="date" value={form.event_date} onChange={e=>setForm({...form,event_date:e.target.value})}/><Field label="Termin Tarihi" type="date" value={form.due_date} onChange={e=>setForm({...form,due_date:e.target.value})}/><Field label="Sorumlu Kişi" value={form.responsible_name} onChange={e=>setForm({...form,responsible_name:e.target.value})}/><Field label={cfg.severityLabel} value={form.severity} onChange={e=>setForm({...form,severity:e.target.value})}/>{module==='risk'&&<><Field label="Olasılık (1-5)" type="number" min="1" max="5" value={form.probability} onChange={e=>setForm({...form,probability:e.target.value})}/><Field label="Şiddet (1-5)" type="number" min="1" max="5" value={form.impact} onChange={e=>setForm({...form,impact:e.target.value})}/></>}{module==='training'&&<Field label="Katılımcı Sayısı" type="number" min="0" value={form.participant_count} onChange={e=>setForm({...form,participant_count:e.target.value})}/>}<Submit/></form></Modal>}</Page>
 }
 
 
-const documentNames={general:'Genel',risk:'Risk',training:'EÄŸitim',health:'SaÄŸlÄ±k',emergency:'Acil Durum',legal:'Mevzuat',annual_plan:'YÄ±llÄ±k Plan'};
+const documentNames={general:'Genel',risk:'Risk',training:'Eğitim',health:'Sağlık',emergency:'Acil Durum',legal:'Mevzuat',annual_plan:'Yıllık Plan'};
 
 function DocumentsPage({user}){
   const[companies,setCompanies]=useState([]),[rows,setRows]=useState([]),[open,setOpen]=useState(false),[q,setQ]=useState(''),[busy,setBusy]=useState(false);
@@ -1152,7 +1152,7 @@ function DocumentsPage({user}){
   useEffect(()=>{load()},[]);
   async function save(e){e.preventDefault();const payload={...form,company_id:Number(form.company_id),branch_id:null,valid_from:form.valid_from||null,valid_until:form.valid_until||null};await api('/documents',{method:'POST',body:JSON.stringify(payload)});setOpen(false);setForm(empty);load()}
   async function deactivate(id){
-    if(!window.confirm('DokÃ¼man pasife alÄ±nsÄ±n mÄ±?\n\nBaÄŸlÄ± dosya merkezi arÅŸive kopyalanÄ±r; EÄ°SA eriÅŸebilir.')) return;
+    if(!window.confirm('Doküman pasife alınsın mı?\n\nBağlı dosya merkezi arşive kopyalanır; EİSA erişebilir.')) return;
     setBusy(true);
     try{
       await api(`/documents/${id}/deactivate`,{method:'PATCH'});
@@ -1161,18 +1161,18 @@ function DocumentsPage({user}){
     finally{setBusy(false)}
   }
   const cols=[
-    {key:'title',label:'DokÃ¼man'},
+    {key:'title',label:'Doküman'},
     {key:'category',label:'Kategori',render:r=>documentNames[r.category]},
-    {key:'file_name',label:'Dosya AdÄ±'},
+    {key:'file_name',label:'Dosya Adı'},
     {key:'version',label:'Versiyon'},
-    {key:'valid_until',label:'GeÃ§erlilik Sonu'},
+    {key:'valid_until',label:'Geçerlilik Sonu'},
     {key:'is_active',label:'Durum',render:r=>r.is_active===false?'Pasif':'Aktif'},
     ...(canEdit?[{key:'act',label:'',render:r=>r.is_active===false?null:<button type="button" className="mini secondary" disabled={busy} onClick={()=>deactivate(r.id)}>Pasife Al</button>}]:[]),
   ];
-  return <Page title="DokÃ¼man YÃ¶netimi" action={<div className="actions">
+  return <Page title="Doküman Yönetimi" action={<div className="actions">
     <button type="button" className="secondary" onClick={()=>downloadFile(`/documents/export.xlsx${q?`?q=${encodeURIComponent(q)}`:''}`,`dokuman-kayitlari-${new Date().toISOString().slice(0,10)}.xlsx`)}><Download/>Excel Rapor</button>
-    {canEdit?<button onClick={()=>setOpen(true)}><Plus/>Yeni DokÃ¼man</button>:null}
-  </div>}><SearchBar q={q} setQ={setQ} go={load}/><Table cols={cols} rows={rows}/>{open&&<Modal title="Yeni DokÃ¼man KaydÄ±" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">SeÃ§iniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Select label="Kategori" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{Object.entries(documentNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Select><Field label="DokÃ¼man BaÅŸlÄ±ÄŸÄ±" required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/><Field label="Dosya AdÄ±" value={form.file_name} onChange={e=>setForm({...form,file_name:e.target.value})}/><Field label="AÃ§Ä±klama" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><Field label="BaÅŸlangÄ±Ã§ Tarihi" type="date" value={form.valid_from} onChange={e=>setForm({...form,valid_from:e.target.value})}/><Field label="GeÃ§erlilik Sonu" type="date" value={form.valid_until} onChange={e=>setForm({...form,valid_until:e.target.value})}/><Field label="Versiyon" value={form.version} onChange={e=>setForm({...form,version:e.target.value})}/><Submit/></form></Modal>}</Page>
+    {canEdit?<button onClick={()=>setOpen(true)}><Plus/>Yeni Doküman</button>:null}
+  </div>}><SearchBar q={q} setQ={setQ} go={load}/><Table cols={cols} rows={rows}/>{open&&<Modal title="Yeni Doküman Kaydı" close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}><Select label="Firma" required value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})}><option value="">Seçiniz</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</Select><Select label="Kategori" value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{Object.entries(documentNames).map(([k,v])=><option key={k} value={k}>{v}</option>)}</Select><Field label="Doküman Başlığı" required value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/><Field label="Dosya Adı" value={form.file_name} onChange={e=>setForm({...form,file_name:e.target.value})}/><Field label="Açıklama" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/><Field label="Başlangıç Tarihi" type="date" value={form.valid_from} onChange={e=>setForm({...form,valid_from:e.target.value})}/><Field label="Geçerlilik Sonu" type="date" value={form.valid_until} onChange={e=>setForm({...form,valid_until:e.target.value})}/><Field label="Versiyon" value={form.version} onChange={e=>setForm({...form,version:e.target.value})}/><Submit/></form></Modal>}</Page>
 }
 
 function ReportsPage({user, onNavigate}){
@@ -1194,12 +1194,12 @@ function ReportsPage({user, onNavigate}){
         ]);
         setData(d);
         setFinance(Array.isArray(f)?f:[]);
-      }catch(e){setErr(e.message||'Ã–zet yÃ¼klenemedi.')}
+      }catch(e){setErr(e.message||'Özet yüklenemedi.')}
     })();
   },[user?.id,user?.osgb_id,user?.role]);
 
   if(!isOsgb){
-    return <Page title="Raporlar"><p>Bu ekran OSGB yÃ¶netimi iÃ§indir.</p></Page>;
+    return <Page title="Raporlar"><p>Bu ekran OSGB yönetimi içindir.</p></Page>;
   }
 
   const pendingAccrue=(finance||[])
@@ -1214,10 +1214,10 @@ function ReportsPage({user, onNavigate}){
   return <>
     <div className="page-title" style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
       <div>
-        <h3 style={{margin:0}}>OSGB YÃ¶netim Ã–zeti</h3>
+        <h3 style={{margin:0}}>OSGB Yönetim Özeti</h3>
         <p style={{margin:'4px 0 0',color:'#64748b',fontSize:13,maxWidth:720}}>
-          Bu sayfa <strong>saha Ä°SG paneli deÄŸildir</strong> (personel / risk / kaza sayÄ±larÄ± burada amaÃ§lanmaz).
-          OSGB merkezinin gÃ¼nlÃ¼k yÃ¶netimi iÃ§in Ã¶zet ve dÄ±ÅŸa aktarÄ±mlardÄ±r: iÅŸyerleri, profesyoneller, saha ziyaretleri, finans.
+          Bu sayfa <strong>saha İSG paneli değildir</strong> (personel / risk / kaza sayıları burada amaçlanmaz).
+          OSGB merkezinin günlük yönetimi için özet ve dışa aktarımlardır: işyerleri, profesyoneller, saha ziyaretleri, finans.
         </p>
       </div>
     </div>
@@ -1225,23 +1225,23 @@ function ReportsPage({user, onNavigate}){
     {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
 
     <div className="cards osgb-cards" style={{marginBottom:14}}>
-      <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('companies')} title="Ä°ÅŸyerlerine git">
-        <span>MÃ¼ÅŸteri iÅŸyeri</span><strong>{data?.workplaces??'â€”'}</strong>
+      <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('companies')} title="İşyerlerine git">
+        <span>Müşteri işyeri</span><strong>{data?.workplaces??'—'}</strong>
       </article>
       <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('professionals')} title="Profesyonellere git">
-        <span>Ä°SG profesyoneli</span>
+        <span>İSG profesyoneli</span>
         <strong>
-          {(byType.safety_specialist?.count||0)+(byType.workplace_physician?.count||0)+(byType.other_health_personnel?.count||0)||data?.professionals||'â€”'}
+          {(byType.safety_specialist?.count||0)+(byType.workplace_physician?.count||0)+(byType.other_health_personnel?.count||0)||data?.professionals||'—'}
         </strong>
         <small style={{display:'block',marginTop:6,color:'#64748b',fontSize:11}}>
-          Uzman {byType.safety_specialist?.count??0} Â· Hekim {byType.workplace_physician?.count??0} Â· DSP {byType.other_health_personnel?.count??0}
+          Uzman {byType.safety_specialist?.count??0} · Hekim {byType.workplace_physician?.count??0} · DSP {byType.other_health_personnel?.count??0}
         </small>
       </article>
       <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('visits')} title="Saha takvimine git">
-        <span>Bu ay saha ziyareti</span><strong>{data?.visits_this_month??data?.visits??'â€”'}</strong>
+        <span>Bu ay saha ziyareti</span><strong>{data?.visits_this_month??data?.visits??'—'}</strong>
       </article>
-      <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('assignments')} title="GÃ¶revlendirmelere git">
-        <span>AtamasÄ± yapÄ±lmamÄ±ÅŸ</span>
+      <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('assignments')} title="Görevlendirmelere git">
+        <span>Ataması yapılmamış</span>
         <strong style={{color:(data?.unassigned_professionals||0)>0?'#b91c1c':undefined}}>
           {data?.unassigned_professionals??0}
         </strong>
@@ -1250,31 +1250,31 @@ function ReportsPage({user, onNavigate}){
         <span>Bekleyen tahakkuk</span><strong>{moneyFmt(pendingAccrue)}</strong>
       </article>
       <article className="metric" style={{cursor:'pointer'}} onClick={()=>go('pro_performance')} title="Performansa git">
-        <span>Performans / iÅŸ tamamlama</span><strong style={{fontSize:16}}>AÃ§ â†’</strong>
+        <span>Performans / iş tamamlama</span><strong style={{fontSize:16}}>Aç →</strong>
       </article>
     </div>
 
     <section className="panel" style={{marginBottom:14,borderLeft:'4px solid #0f766e'}}>
       <h3 style={{marginTop:0,fontSize:15}}>Ne anlama geliyor?</h3>
       <ul style={{margin:0,paddingLeft:18,color:'#475569',fontSize:14,lineHeight:1.55}}>
-        <li><strong>MÃ¼ÅŸteri iÅŸyeri:</strong> OSGBâ€™nizin hizmet verdiÄŸi firma / ÅŸube sayÄ±sÄ±.</li>
-        <li><strong>Ä°SG profesyoneli:</strong> KayÄ±tlÄ± uzman, hekim ve DSP sayÄ±sÄ± (iÅŸyeri Ã§alÄ±ÅŸanÄ± / â€œpersonelâ€ deÄŸil).</li>
-        <li><strong>Saha ziyareti:</strong> Bu ay QR / defter ile iÅŸlenen ziyaretler.</li>
-        <li><strong>AtamasÄ± yapÄ±lmamÄ±ÅŸ:</strong> HenÃ¼z iÅŸyerine gÃ¶revlendirilmemiÅŸ profesyoneller.</li>
-        <li><strong>Bekleyen tahakkuk:</strong> Ã–denmemiÅŸ sÃ¶zleÅŸme tahakkuk tutarÄ± (Finans).</li>
+        <li><strong>Müşteri işyeri:</strong> OSGB’nizin hizmet verdiği firma / şube sayısı.</li>
+        <li><strong>İSG profesyoneli:</strong> Kayıtlı uzman, hekim ve DSP sayısı (işyeri çalışanı / “personel” değil).</li>
+        <li><strong>Saha ziyareti:</strong> Bu ay QR / defter ile işlenen ziyaretler.</li>
+        <li><strong>Ataması yapılmamış:</strong> Henüz işyerine görevlendirilmemiş profesyoneller.</li>
+        <li><strong>Bekleyen tahakkuk:</strong> Ödenmemiş sözleşme tahakkuk tutarı (Finans).</li>
       </ul>
       <p style={{margin:'12px 0 0',fontSize:13,color:'#64748b'}}>
-        Eski â€œPersonel / AÃ§Ä±k Risk / Ä°ÅŸ KazasÄ±â€ kartlarÄ± kaldÄ±rÄ±ldÄ± â€” bunlar saha rollerinin Ä°SG Ã¶zetine aittir; OSGB menÃ¼sÃ¼nde karÄ±ÅŸÄ±klÄ±k yaratÄ±yordu.
+        Eski “Personel / Açık Risk / İş Kazası” kartları kaldırıldı — bunlar saha rollerinin İSG özetine aittir; OSGB menüsünde karışıklık yaratıyordu.
       </p>
     </section>
 
     <section className="panel">
-      <h3 style={{marginTop:0}}>DÄ±ÅŸa aktarÄ±m & hÄ±zlÄ± geÃ§iÅŸ</h3>
+      <h3 style={{marginTop:0}}>Dışa aktarım & hızlı geçiş</h3>
       <div className="export-actions" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
         <button type="button" disabled={!oid} onClick={()=>downloadFile(`/osgb/professionals/performance/export.csv?osgb_id=${oid}`,`csgb-pro-performans-${oid}-${stamp}.csv`).catch(e=>alert(e.message))}>
           <Download/> Profesyonel performans CSV
         </button>
-        <button type="button" className="secondary" onClick={()=>go('csgb_audit')}>Ã‡SGB belge paketi</button>
+        <button type="button" className="secondary" onClick={()=>go('csgb_audit')}>ÇSGB belge paketi</button>
         <button type="button" className="secondary" onClick={()=>go('osgb_oversight')}>Hizmet denetimi</button>
         <button type="button" className="secondary" onClick={()=>go('pro_performance')}>Performans raporu</button>
         <button type="button" className="secondary" onClick={()=>go('finance')}>Finans</button>
@@ -1301,11 +1301,11 @@ function SecurityPage({user}){
   useEffect(()=>{void loadMfa()},[]);
   async function save(e){e.preventDefault();setMessage('');try{const r=await api('/security/change-password',{method:'POST',body:JSON.stringify(form)});setMessage(r.message);setForm({current_password:'',new_password:''})}catch(err){setMessage(err.message)}}
   async function logoutAllDevices(){
-    if(!window.confirm('TÃ¼m cihazlardaki oturumlar kapatÄ±lsÄ±n mÄ±?\n\nBu cihaz dahil yeniden giriÅŸ yapmanÄ±z gerekir.')) return;
+    if(!window.confirm('Tüm cihazlardaki oturumlar kapatılsın mı?\n\nBu cihaz dahil yeniden giriş yapmanız gerekir.')) return;
     setMessage('');
     try{
       const r=await api('/auth/logout-all',{method:'POST'});
-      setMessage(r.message||'TÃ¼m oturumlar kapatÄ±ldÄ±.');
+      setMessage(r.message||'Tüm oturumlar kapatıldı.');
       localStorage.removeItem('isg_token');
       localStorage.removeItem('isg_mfa_setup_token');
       clearOfflineQueue();
@@ -1327,7 +1327,7 @@ function SecurityPage({user}){
       setRecoveryCodes(r.recovery_codes||[]);
       setMfaSetup(null);setMfaCode('');
       await loadMfa();
-      setMessage(r.message||'MFA etkinleÅŸtirildi.');
+      setMessage(r.message||'MFA etkinleştirildi.');
     }catch(err){setMessage(err.message)}
   }
   async function disableMfa(e){
@@ -1336,15 +1336,15 @@ function SecurityPage({user}){
       const r=await api('/security/mfa/disable',{method:'POST',body:JSON.stringify(disableForm)});
       setDisableForm({password:'',code:''});
       await loadMfa();
-      setMessage(r.message||'MFA kapatÄ±ldÄ±.');
+      setMessage(r.message||'MFA kapatıldı.');
     }catch(err){setMessage(err.message)}
   }
   async function createBackup(){
-    if(!window.confirm('Kurum verilerinizin tarihli yedeÄŸi alÄ±nsÄ±n mÄ±?\n\nYedek merkezi arÅŸive kaydedilir; EÄ°SA de eriÅŸebilir.')) return;
+    if(!window.confirm('Kurum verilerinizin tarihli yedeği alınsın mı?\n\nYedek merkezi arşive kaydedilir; EİSA de erişebilir.')) return;
     setArchBusy(true);setArchMsg('');
     try{
       await api('/archives/backup',{method:'POST',body:JSON.stringify({})});
-      setArchMsg('Yedek oluÅŸturuldu.');
+      setArchMsg('Yedek oluşturuldu.');
       await loadArchives();
     }catch(e){setArchMsg(e.message)}
     finally{setArchBusy(false)}
@@ -1362,52 +1362,52 @@ function SecurityPage({user}){
         `Yedek: ${p.archive_name||id}`,
         `Tarih: ${p.created_at||'-'}`,
         `OSGB: ${p.osgb_name||p.osgb_id||'-'}`,
-        `Ä°ÅŸyeri: ${(p.companies||[]).map(c=>c.name).join(', ')||'-'}`,
-        `DokÃ¼man meta: ${p.document_count||0} | Personel meta: ${p.employee_count||0}`,
-        `Dosya sayÄ±sÄ± (Ã¶rnek listelenen): ${(p.file_entries||[]).length}`,
-        `GerÃ§ek restore aÃ§Ä±k mÄ±: ${p.restore_enabled?'EVET':'HAYIR (gÃ¼venlik â€” kapalÄ±)'}`,
+        `İşyeri: ${(p.companies||[]).map(c=>c.name).join(', ')||'-'}`,
+        `Doküman meta: ${p.document_count||0} | Personel meta: ${p.employee_count||0}`,
+        `Dosya sayısı (örnek listelenen): ${(p.file_entries||[]).length}`,
+        `Gerçek restore açık mı: ${p.restore_enabled?'EVET':'HAYIR (güvenlik — kapalı)'}`,
         '',
         ...(p.notes||[]),
       ];
       window.alert(lines.join('\n'));
-      setArchMsg('Restore planÄ± gÃ¶sterildi (yazma yok).');
+      setArchMsg('Restore planı gösterildi (yazma yok).');
     }catch(e){setArchMsg(e.message)}
     finally{setArchBusy(false)}
   }
-  const cols=[{key:'created_at',label:'Tarih'},{key:'action',label:'Ä°ÅŸlem'},{key:'entity_type',label:'KayÄ±t TÃ¼rÃ¼'},{key:'description',label:'AÃ§Ä±klama'},{key:'ip_address',label:'IP'}];
+  const cols=[{key:'created_at',label:'Tarih'},{key:'action',label:'İşlem'},{key:'entity_type',label:'Kayıt Türü'},{key:'description',label:'Açıklama'},{key:'ip_address',label:'IP'}];
   const archCols=[
     {key:'created_at',label:'Tarih',render:r=>new Date(r.created_at).toLocaleString('tr-TR')},
-    {key:'kind',label:'TÃ¼r',render:r=>r.kind==='tenant_backup'?'Kurum yedeÄŸi':'Silinen dosya arÅŸivi'},
+    {key:'kind',label:'Tür',render:r=>r.kind==='tenant_backup'?'Kurum yedeği':'Silinen dosya arşivi'},
     {key:'original_name',label:'Dosya'},
     {key:'size_bytes',label:'Boyut',render:r=>`${Math.max(1,Math.round((r.size_bytes||0)/1024))} KB`},
     {key:'notes',label:'Not'},
     {key:'dl',label:'',render:r=>(
       <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
-        <button type="button" className="mini secondary" disabled={archBusy} onClick={()=>downloadArchive(r.id,r.original_name)}>Ä°ndir</button>
-        {r.kind==='tenant_backup'&&<button type="button" className="mini" disabled={archBusy} onClick={()=>showRestorePlan(r.id)}>Ä°Ã§eriÄŸi gÃ¶r</button>}
+        <button type="button" className="mini secondary" disabled={archBusy} onClick={()=>downloadArchive(r.id,r.original_name)}>İndir</button>
+        {r.kind==='tenant_backup'&&<button type="button" className="mini" disabled={archBusy} onClick={()=>showRestorePlan(r.id)}>İçeriği gör</button>}
       </div>
     )},
   ];
-  return <Page title="GÃ¼venlik ve Denetim">
+  return <Page title="Güvenlik ve Denetim">
     <div className="security-grid">
       <section className="panel">
-        <h3>Åžifre DeÄŸiÅŸtir</h3>
+        <h3>Şifre Değiştir</h3>
         <form className="form-grid single" onSubmit={save}>
-          <PasswordField label="Mevcut Åžifre" required value={form.current_password} onChange={e=>setForm({...form,current_password:e.target.value})} autoComplete="current-password"/>
-          <PasswordField label="Yeni Åžifre" minLength="10" required value={form.new_password} onChange={e=>setForm({...form,new_password:e.target.value})} autoComplete="new-password"/>
+          <PasswordField label="Mevcut Şifre" required value={form.current_password} onChange={e=>setForm({...form,current_password:e.target.value})} autoComplete="current-password"/>
+          <PasswordField label="Yeni Şifre" minLength="10" required value={form.new_password} onChange={e=>setForm({...form,new_password:e.target.value})} autoComplete="new-password"/>
           <Submit/>{message&&<p>{message}</p>}
         </form>
-        <p style={{marginTop:12,color:'#64748b',fontSize:13}}>YalnÄ±zca kendi ÅŸifrenizi deÄŸiÅŸtirebilirsiniz. HiÃ§bir yÃ¶netici (EÄ°SA dahil) baÅŸkasÄ±nÄ±n ÅŸifresine mÃ¼dahale edemez.</p>
+        <p style={{marginTop:12,color:'#64748b',fontSize:13}}>Yalnızca kendi şifrenizi değiştirebilirsiniz. Hiçbir yönetici (EİSA dahil) başkasının şifresine müdahale edemez.</p>
         <div style={{marginTop:16,paddingTop:12,borderTop:'1px solid #e2e8f0'}}>
-          <p style={{marginTop:0,color:'#64748b',fontSize:14}}>ÅžÃ¼pheli giriÅŸ veya kayÄ±p cihaz iÃ§in tÃ¼m oturumlarÄ± kapatÄ±n.</p>
-          <button type="button" className="secondary" onClick={logoutAllDevices}>TÃ¼m cihazlardan Ã§Ä±kÄ±ÅŸ</button>
+          <p style={{marginTop:0,color:'#64748b',fontSize:14}}>Şüpheli giriş veya kayıp cihaz için tüm oturumları kapatın.</p>
+          <button type="button" className="secondary" onClick={logoutAllDevices}>Tüm cihazlardan çıkış</button>
         </div>
       </section>
       <section className="panel">
-        <h3>Ä°ki AdÄ±mlÄ± DoÄŸrulama (MFA)</h3>
+        <h3>İki Adımlı Doğrulama (MFA)</h3>
         <p style={{color:'#64748b',marginTop:0}}>
-          Durum: {mfaStatus.mfa_enabled?'AÃ§Ä±k':'KapalÄ±'}
-          {mfaStatus.mfa_required?' Â· Bu rol iÃ§in zorunlu':''}
+          Durum: {mfaStatus.mfa_enabled?'Açık':'Kapalı'}
+          {mfaStatus.mfa_required?' · Bu rol için zorunlu':''}
         </p>
         {!mfaStatus.mfa_enabled&&!mfaSetup&&(
           <button type="button" onClick={startMfa}>MFA kur</button>
@@ -1415,9 +1415,9 @@ function SecurityPage({user}){
         {mfaSetup&&(
           <form className="form-grid single" onSubmit={enableMfa}>
             <ol style={{fontSize:13,color:'#475569',paddingLeft:20,margin:'0 0 8px',gridColumn:'1 / -1'}}>
-              <li>Telefonda Google / Microsoft Authenticatorâ€™Ä± aÃ§Ä±n</li>
-              <li><strong>+</strong> â†’ QR kod tara</li>
-              <li>AÅŸaÄŸÄ±daki QRâ€™Ä± okutun; uygulamadaki 6 haneli kodu girin</li>
+              <li>Telefonda Google / Microsoft Authenticator’ı açın</li>
+              <li><strong>+</strong> → QR kod tara</li>
+              <li>Aşağıdaki QR’ı okutun; uygulamadaki 6 haneli kodu girin</li>
             </ol>
             {(mfaSetup.qr_data_url||mfaSetup.otpauth_uri)&&(
               <div style={{textAlign:'center',marginBottom:8,gridColumn:'1 / -1'}}>
@@ -1431,51 +1431,51 @@ function SecurityPage({user}){
                     || `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(mfaSetup.otpauth_uri)}`
                   }
                 />
-                <p style={{margin:'8px 0 0',fontSize:12,color:'#64748b'}}>QR okutulamazsa gizli anahtarÄ± elle girin</p>
+                <p style={{margin:'8px 0 0',fontSize:12,color:'#64748b'}}>QR okutulamazsa gizli anahtarı elle girin</p>
               </div>
             )}
             <p style={{fontSize:13,wordBreak:'break-all',background:'#f8fafc',padding:10,borderRadius:8,border:'1px solid #e2e8f0',gridColumn:'1 / -1'}}>
               <strong>Gizli anahtar:</strong> <code style={{userSelect:'all'}}>{mfaSetup.secret}</code>
             </p>
             <Field label="Authenticator kodu" value={mfaCode} onChange={e=>setMfaCode(e.target.value)} required/>
-            <button type="submit">EtkinleÅŸtir</button>
+            <button type="submit">Etkinleştir</button>
           </form>
         )}
         {recoveryCodes&&(
           <div>
-            <p>Kurtarma kodlarÄ± (bir kez gÃ¶sterilir):</p>
+            <p>Kurtarma kodları (bir kez gösterilir):</p>
             <ul style={{fontFamily:'monospace',fontSize:13}}>{recoveryCodes.map(c=><li key={c}>{c}</li>)}</ul>
           </div>
         )}
         {mfaStatus.mfa_enabled&&(
           <form className="form-grid single" onSubmit={disableMfa} style={{marginTop:12}}>
-            <PasswordField label="Åžifre" required value={disableForm.password} onChange={e=>setDisableForm({...disableForm,password:e.target.value})} autoComplete="current-password"/>
+            <PasswordField label="Şifre" required value={disableForm.password} onChange={e=>setDisableForm({...disableForm,password:e.target.value})} autoComplete="current-password"/>
             <Field label="Authenticator kodu" value={disableForm.code} onChange={e=>setDisableForm({...disableForm,code:e.target.value})} required/>
             <button type="submit" className="secondary">MFA kapat</button>
           </form>
         )}
       </section>
       <section className="panel">
-        <h3>GÃ¼venlik NotlarÄ±</h3>
+        <h3>Güvenlik Notları</h3>
         <ul>
-          <li>Yeni ÅŸifre en az 10 karakter olmalÄ±dÄ±r.</li>
-          <li>EÄ°SA / OSGB yÃ¶neticilerinde MFA zorunludur.</li>
-          <li>Åžifre yalnÄ±zca hesap sahibi tarafÄ±ndan deÄŸiÅŸtirilir veya e-posta ile sÄ±fÄ±rlanÄ±r; yÃ¶neticiler baÅŸkasÄ±nÄ±n ÅŸifresini gÃ¶remez/deÄŸiÅŸtiremez.</li>
-          <li>VarsayÄ±lan demo ÅŸifresi mutlaka deÄŸiÅŸtirilmelidir.</li>
+          <li>Yeni şifre en az 10 karakter olmalıdır.</li>
+          <li>EİSA / OSGB yöneticilerinde MFA zorunludur.</li>
+          <li>Şifre yalnızca hesap sahibi tarafından değiştirilir veya e-posta ile sıfırlanır; yöneticiler başkasının şifresini göremez/değiştiremez.</li>
+          <li>Varsayılan demo şifresi mutlaka değiştirilmelidir.</li>
         </ul>
       </section>
     </div>
-    {canBackup&&<section className="panel" style={{marginTop:16}}><div className="page-title" style={{marginBottom:12}}><h3 style={{margin:0,fontSize:18}}>Kurum Yedekleme</h3><button type="button" disabled={archBusy} onClick={createBackup}>{archBusy?'Yedekleniyorâ€¦':'Yedek OluÅŸtur'}</button></div><p style={{marginTop:0,color:'#64748b'}}>Yedekler tarihli olarak merkezi arÅŸive kaydedilir. <strong>Ä°Ã§eriÄŸi gÃ¶r</strong> ile yedekte ne olduÄŸunu yazmadan incelersiniz. CanlÄ±ya otomatik geri yÃ¼kleme kapalÄ±dÄ±r.</p>{archMsg&&<p style={{color:archMsg.includes('oluÅŸtur')||archMsg.includes('gÃ¶sterildi')?'#166534':'#b91c1c'}}>{archMsg}</p>}<Table cols={archCols} rows={archives} empty="HenÃ¼z yedek yok."/></section>}
+    {canBackup&&<section className="panel" style={{marginTop:16}}><div className="page-title" style={{marginBottom:12}}><h3 style={{margin:0,fontSize:18}}>Kurum Yedekleme</h3><button type="button" disabled={archBusy} onClick={createBackup}>{archBusy?'Yedekleniyor…':'Yedek Oluştur'}</button></div><p style={{marginTop:0,color:'#64748b'}}>Yedekler tarihli olarak merkezi arşive kaydedilir. <strong>İçeriği gör</strong> ile yedekte ne olduğunu yazmadan incelersiniz. Canlıya otomatik geri yükleme kapalıdır.</p>{archMsg&&<p style={{color:archMsg.includes('oluştur')||archMsg.includes('gösterildi')?'#166534':'#b91c1c'}}>{archMsg}</p>}<Table cols={archCols} rows={archives} empty="Henüz yedek yok."/></section>}
     <LegalAcceptancesPanel/>
     <MembershipsPanel user={user}/>
-    {canView&&<section className="panel"><h3>Denetim KayÄ±tlarÄ±</h3><Table cols={cols} rows={logs}/></section>}
+    {canView&&<section className="panel"><h3>Denetim Kayıtları</h3><Table cols={cols} rows={logs}/></section>}
   </Page>
 }
 
 
-const notificationTypeNames={info:'Bilgi',warning:'UyarÄ±',critical:'Kritik',success:'BaÅŸarÄ±lÄ±'};
-const planNames={demo:'Demo',starter:'BaÅŸlangÄ±Ã§',professional:'Profesyonel',enterprise:'Kurumsal'};
-const subscriptionStatusNames={trial:'Deneme',active:'Aktif',past_due:'Salt Okunur',suspended:'AskÄ±da',cancelled:'Ä°ptal'};
+const notificationTypeNames={info:'Bilgi',warning:'Uyarı',critical:'Kritik',success:'Başarılı'};
+const planNames={demo:'Demo',starter:'Başlangıç',professional:'Profesyonel',enterprise:'Kurumsal'};
+const subscriptionStatusNames={trial:'Deneme',active:'Aktif',past_due:'Salt Okunur',suspended:'Askıda',cancelled:'İptal'};
 
 function NotificationsPage(){
   const[rows,setRows]=useState([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
@@ -1485,7 +1485,7 @@ function NotificationsPage(){
     setBusy(true);setMessage('');
     try{
       const r=await api('/notifications/refresh',{method:'POST'});
-      setMessage(`${r.count} bildirim oluÅŸturuldu. ${r.message||''}`);
+      setMessage(`${r.count} bildirim oluşturuldu. ${r.message||''}`);
       await load();
     }catch(e){setMessage(e.message)}
     finally{setBusy(false)}
@@ -1493,19 +1493,19 @@ function NotificationsPage(){
   async function read(id){await api(`/notifications/${id}/read`,{method:'PATCH'});load()}
   const cols=[
     {key:'type',label:'Seviye',render:r=><span className={'notice '+r.type}>{notificationTypeNames[r.type]}</span>},
-    {key:'title',label:'BaÅŸlÄ±k'},
-    {key:'message',label:'AÃ§Ä±klama'},
+    {key:'title',label:'Başlık'},
+    {key:'message',label:'Açıklama'},
     {key:'created_at',label:'Tarih',render:r=>String(r.created_at||'').slice(0,16).replace('T',' ')},
-    {key:'action',label:'Ä°ÅŸlem',render:r=>r.is_read?'Okundu':<button type="button" className="mini" onClick={()=>read(r.id)}>Okundu Yap</button>},
+    {key:'action',label:'İşlem',render:r=>r.is_read?'Okundu':<button type="button" className="mini" onClick={()=>read(r.id)}>Okundu Yap</button>},
   ];
-  return <Page title="Bildirim Merkezi" action={<button type="button" disabled={busy} onClick={refresh}><RefreshCw/>{busy?'TaranÄ±yor...':'SÃ¼releri Kontrol Et'}</button>}>
+  return <Page title="Bildirim Merkezi" action={<button type="button" disabled={busy} onClick={refresh}><RefreshCw/>{busy?'Taranıyor...':'Süreleri Kontrol Et'}</button>}>
     <p style={{marginTop:0,color:'#64748b',fontSize:13,maxWidth:720}}>
-      Bu merkez otomatik sÃ¼re uyarÄ±sÄ± Ã¼retir: gÃ¶revlendirme / sÃ¶zleÅŸme bitiÅŸi, KATÄ°P no eksikliÄŸi,
-      atanmamÄ±ÅŸ profesyonel, dokÃ¼man geÃ§erliliÄŸi, saÄŸlÄ±k muayenesi, geciken yÄ±llÄ±k plan ve SDS / PKD
-      gÃ¶zden geÃ§irme terminleri. Liste boÅŸsa Â«SÃ¼releri Kontrol EtÂ» ile tarayÄ±n; gerÃ§ek kayÄ±t yoksa bilgi bildirimi gelir.
+      Bu merkez otomatik süre uyarısı üretir: görevlendirme / sözleşme bitişi, KATİP no eksikliği,
+      atanmamış profesyonel, doküman geçerliliği, sağlık muayenesi, geciken yıllık plan ve SDS / PKD
+      gözden geçirme terminleri. Liste boşsa «Süreleri Kontrol Et» ile tarayın; gerçek kayıt yoksa bilgi bildirimi gelir.
     </p>
-    {message&&<p style={{color:message.includes('oluÅŸturuldu')?'#166534':'#b91c1c'}}>{message}</p>}
-    <Table cols={cols} rows={rows} empty="HenÃ¼z bildirim yok. SÃ¼releri Kontrol Et ile tarayÄ±n."/>
+    {message&&<p style={{color:message.includes('oluşturuldu')?'#166534':'#b91c1c'}}>{message}</p>}
+    <Table cols={cols} rows={rows} empty="Henüz bildirim yok. Süreleri Kontrol Et ile tarayın."/>
   </Page>;
 }
 
@@ -1517,17 +1517,17 @@ function SubscriptionPage({user}){
     api('/subscriptions/osgb/current').then(setData).catch(e=>setError(e.message));
   },[isEisa]);
   if(isEisa){
-    return <Page title="Abonelik ve Paket"><p>OSGB abonelikleri <strong>EÄ°SA Platform</strong> menÃ¼sÃ¼nden yÃ¶netilir.</p></Page>;
+    return <Page title="Abonelik ve Paket"><p>OSGB abonelikleri <strong>EİSA Platform</strong> menüsünden yönetilir.</p></Page>;
   }
   if(error)return <Page title="Abonelik ve Paket"><p>{error}</p></Page>;
-  if(!data)return <Page title="Abonelik ve Paket"><p>Abonelik bilgileri yÃ¼kleniyor...</p></Page>;
+  if(!data)return <Page title="Abonelik ve Paket"><p>Abonelik bilgileri yükleniyor...</p></Page>;
   const end=data.effective_status==='trial'?data.trial_ends_at:data.current_period_ends_at;
-  const planLabel=data.plan==='standard'?'Standart (TÃ¼m ModÃ¼ller)':(planNames[data.plan]||data.plan);
+  const planLabel=data.plan==='standard'?'Standart (Tüm Modüller)':(planNames[data.plan]||data.plan);
   return <Page title="Abonelik ve Paket">
-    {!data.write_allowed&&<div className="error" style={{marginBottom:12}}>Salt okunur mod: abonelik sÃ¼resi doldu. Veri giriÅŸi kapalÄ± â€” EÄ°SA ile iletiÅŸime geÃ§in.</div>}
+    {!data.write_allowed&&<div className="error" style={{marginBottom:12}}>Salt okunur mod: abonelik süresi doldu. Veri girişi kapalı — EİSA ile iletişime geçin.</div>}
     <div className="subscription-card"><div><span>Mevcut Paket</span><h2>{planLabel}</h2><p className={'subscription-status '+data.effective_status}>{subscriptionStatusNames[data.effective_status]||data.effective_status}</p></div><CreditCard size={54}/></div>
-    <div className="report-grid"><Metric title="Azami KullanÄ±cÄ±" value={data.max_users}/><Metric title="Azami Ä°ÅŸyeri" value={data.max_workplaces||data.max_employees}/><Metric title="BitiÅŸ Tarihi" value={end?new Date(end).toLocaleDateString('tr-TR'):'â€”'}/></div>
-    <section className="panel inner"><h3>Paket yÃ¶netimi</h3><p>Abonelik ve Ã¶deme iÅŸlemleri EÄ°SA platform yÃ¶netimi tarafÄ±ndan yÃ¼rÃ¼tÃ¼lÃ¼r.</p></section>
+    <div className="report-grid"><Metric title="Azami Kullanıcı" value={data.max_users}/><Metric title="Azami İşyeri" value={data.max_workplaces||data.max_employees}/><Metric title="Bitiş Tarihi" value={end?new Date(end).toLocaleDateString('tr-TR'):'—'}/></div>
+    <section className="panel inner"><h3>Paket yönetimi</h3><p>Abonelik ve ödeme işlemleri EİSA platform yönetimi tarafından yürütülür.</p></section>
   </Page>
 }
 
@@ -1537,13 +1537,13 @@ function Dashboard({summary, user, onNavigate}){
   const field=['safety_specialist','workplace_physician','other_health_personnel'];
   if(field.includes(user?.role)){
     if(typeof DutyDashboard!=='function'){
-      return <section className="panel"><h3>Ä°SG Ã–zeti</h3><p style={{color:'#b91c1c'}}>Saha paneli yÃ¼klenemedi. SayfayÄ± yenileyin (Ctrl+F5).</p></section>;
+      return <section className="panel"><h3>İSG Özeti</h3><p style={{color:'#b91c1c'}}>Saha paneli yüklenemedi. Sayfayı yenileyin (Ctrl+F5).</p></section>;
     }
     return <DutyDashboard user={user} summary={summary} onNavigate={onNavigate}/>;
   }
   return <AdminSummaryDashboard summary={summary}/>;
 }
-function Metric({title,value}){return <article className="metric"><span>{title}</span><strong>{value??'â€”'}</strong></article>}
+function Metric({title,value}){return <article className="metric"><span>{title}</span><strong>{value??'—'}</strong></article>}
 
 class ErrorBoundary extends React.Component{
   constructor(props){super(props);this.state={err:null}}
@@ -1552,7 +1552,7 @@ class ErrorBoundary extends React.Component{
     console.error('UI ErrorBoundary',err,info);
     reportClientError({
       source:'ui_crash',
-      title:'Sayfa Ã§Ã¶kmesi',
+      title:'Sayfa çökmesi',
       message:String(err?.message||err),
       stack_trace:[err?.stack,info?.componentStack].filter(Boolean).join('\n\n'),
       page_path:typeof window!=='undefined'?window.location.pathname:null,
@@ -1562,12 +1562,12 @@ class ErrorBoundary extends React.Component{
     if(this.state.err){
       return (
         <section className="panel" style={{margin:16}}>
-          <h3 style={{marginTop:0,color:'#991b1b'}}>Sayfa yÃ¼klenemedi</h3>
+          <h3 style={{marginTop:0,color:'#991b1b'}}>Sayfa yüklenemedi</h3>
           <p style={{color:'#64748b'}}>{String(this.state.err?.message||this.state.err)}</p>
-          <p style={{color:'#64748b',fontSize:13}}>Hata EÄ°SA destek paneline iletildi.</p>
+          <p style={{color:'#64748b',fontSize:13}}>Hata EİSA destek paneline iletildi.</p>
           <div className="actions">
-            <button type="button" onClick={()=>{this.setState({err:null});this.props.onHome?.()}}>Ana panele dÃ¶n</button>
-            <button type="button" className="secondary" onClick={()=>window.location.reload()}>SayfayÄ± yenile</button>
+            <button type="button" onClick={()=>{this.setState({err:null});this.props.onHome?.()}}>Ana panele dön</button>
+            <button type="button" className="secondary" onClick={()=>window.location.reload()}>Sayfayı yenile</button>
           </div>
         </section>
       );
@@ -1589,7 +1589,7 @@ function ReportIssueButton(){
         method:'POST',
         body:JSON.stringify({
           source:'user_report',
-          title:form.title.trim()||'KullanÄ±cÄ± sorun bildirimi',
+          title:form.title.trim()||'Kullanıcı sorun bildirimi',
           user_note:form.user_note.trim()||null,
           message:form.user_note.trim()||null,
           page_path:window.location.pathname,
@@ -1597,10 +1597,10 @@ function ReportIssueButton(){
       });
       setForm({title:'',user_note:''});
       setOpen(false);
-      setMsg('Bildiriminiz alÄ±ndÄ±. TeÅŸekkÃ¼rler.');
+      setMsg('Bildiriminiz alındı. Teşekkürler.');
       setTimeout(()=>setMsg(''),4000);
     }catch(err){
-      setMsg(err.message||'GÃ¶nderilemedi');
+      setMsg(err.message||'Gönderilemedi');
     }finally{
       setBusy(false);
     }
@@ -1614,16 +1614,16 @@ function ReportIssueButton(){
       {open && (
         <AppModal title="Sorun bildir" close={() => setOpen(false)}>
             <form className="form-grid" onSubmit={submit}>
-              <label className="field"><span>BaÅŸlÄ±k</span>
-                <input required minLength={2} value={form.title} onChange={(ev)=>setForm({...form,title:ev.target.value})} placeholder="KÄ±sa Ã¶zet"/>
+              <label className="field"><span>Başlık</span>
+                <input required minLength={2} value={form.title} onChange={(ev)=>setForm({...form,title:ev.target.value})} placeholder="Kısa özet"/>
               </label>
-              <label className="field"><span>AÃ§Ä±klama</span>
-                <textarea required minLength={5} rows={4} value={form.user_note} onChange={(ev)=>setForm({...form,user_note:ev.target.value})} placeholder="Ne yaptÄ±nÄ±z, ne oldu?"/>
+              <label className="field"><span>Açıklama</span>
+                <textarea required minLength={5} rows={4} value={form.user_note} onChange={(ev)=>setForm({...form,user_note:ev.target.value})} placeholder="Ne yaptınız, ne oldu?"/>
               </label>
               {msg ? <p style={{color:'#b91c1c',margin:0}}>{msg}</p> : null}
               <div className="form-actions">
-                <button type="button" className="secondary" onClick={()=>setOpen(false)}>Ä°ptal</button>
-                <button type="submit" disabled={busy}>GÃ¶nder</button>
+                <button type="button" className="secondary" onClick={()=>setOpen(false)}>İptal</button>
+                <button type="submit" disabled={busy}>Gönder</button>
               </div>
             </form>
         </AppModal>
@@ -1633,7 +1633,7 @@ function ReportIssueButton(){
 }
 function ThemeToggle({theme,onToggle,floating}){
   const modern=theme==='modern';
-  const label=modern?'Klasik arayÃ¼ze dÃ¶n':'Premium arayÃ¼ze geÃ§';
+  const label=modern?'Klasik arayüze dön':'Premium arayüze geç';
   return (
     <button
       type="button"
@@ -1648,7 +1648,7 @@ function ThemeToggle({theme,onToggle,floating}){
   );
 }
 
-/** MenÃ¼ geÃ§miÅŸi â€” tarayÄ±cÄ± Geri/Ä°leri uygulamada kalsÄ±n */
+/** Menü geçmişi — tarayıcı Geri/İleri uygulamada kalsın */
 function readModuleFromLocation(){
   try{
     const h=String(window.location.hash||'').replace(/^#/, '');
@@ -1704,7 +1704,7 @@ function App(){
     if(id!=='customer_360') setC360Id(null);
     const allowed=modulesForUser(user);
     if(id && id!=='customer_360' && !allowed.includes(id)){
-      // Yetkisiz / menÃ¼de olmayan modÃ¼l â€” ana panele dÃ¼ÅŸ
+      // Yetkisiz / menüde olmayan modül — ana panele düş
       const home=allowed.includes('osgb_dashboard')
         ? 'osgb_dashboard'
         : (allowed.includes('dashboard') ? 'dashboard' : (allowed[0]||''));
@@ -1749,7 +1749,7 @@ function App(){
   async function logout(){
     try{
       await api('/auth/logout',{method:'POST'});
-    }catch(_){ /* aÄŸ hatasÄ± olsa da yerel oturumu kapat */ }
+    }catch(_){ /* ağ hatası olsa da yerel oturumu kapat */ }
     localStorage.removeItem('isg_token');
     localStorage.removeItem('isg_mfa_setup_token');
     clearOfflineQueue();
@@ -1775,7 +1775,7 @@ function App(){
 
   useEffect(()=>{
     if(!logged) return;
-    // Oturum aÃ§Ä±kken ?egitim-dogrula=... sol menÃ¼yÃ¼ / uygulamayÄ± ASLA bozmasÄ±n
+    // Oturum açıkken ?egitim-dogrula=... sol menüyü / uygulamayı ASLA bozmasın
     if(verifyCode) clearVerifyQuery();
     let cancelled=false;
     (async()=>{
@@ -1817,7 +1817,7 @@ function App(){
     return ()=>{cancelled=true};
   },[logged,verifyCode]);
 
-  // TarayÄ±cÄ± Geri/Ä°leri: uygulama iÃ§inde Ã¶nceki menÃ¼ye dÃ¶n
+  // Tarayıcı Geri/İleri: uygulama içinde önceki menüye dön
   useEffect(()=>{
     if(!user) return undefined;
     function onPop(){
@@ -1846,14 +1846,14 @@ function App(){
     return ()=>window.removeEventListener('popstate',onPop);
   },[user]);
 
-  // Aktif menÃ¼ (Ã¶r. EÄŸitimler) her zaman gÃ¶rÃ¼nÃ¼r olsun
+  // Aktif menü (ör. Eğitimler) her zaman görünür olsun
   useEffect(()=>{
     if(!active || !navRef.current) return;
     const btn=navRef.current.querySelector(`button[data-nav="${active}"]`);
     if(btn) btn.scrollIntoView({block:'nearest',behavior:'smooth'});
   },[active,user]);
 
-  // Kamuya aÃ§Ä±k doÄŸrulama: yalnÄ±zca GÄ°RÄ°Åž YOKKEN (dÄ±ÅŸ denetÃ§i). GiriÅŸliyken shell korunur.
+  // Kamuya açık doğrulama: yalnızca GİRİŞ YOKKEN (dış denetçi). Girişliyken shell korunur.
   if(verifyCode && !logged){
     return (
       <TrainingVerifyPage
@@ -1872,7 +1872,7 @@ function App(){
       <ThemeToggle theme={uiTheme} onToggle={toggleUiTheme} floating/>
     </>
   );
-  if(!user) return <div className="loading">Sistem yÃ¼kleniyor...</div>;
+  if(!user) return <div className="loading">Sistem yükleniyor...</div>;
   const allowed=modulesForUser(user);
   const isWorkplaceKiosk=isWorkplaceKioskUser(user);
   if(isWorkplaceKiosk){
@@ -1949,13 +1949,13 @@ function App(){
   return (
     <div className={`app-shell${mobileMoreOpen?' mobile-nav-open':''}`}>
       <aside>
-        <button type="button" className="logo" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfaya dÃ¶n">
+        <button type="button" className="logo" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfaya dön">
           <img
             src="/eisa-logo-icon.png"
-            alt="EÄ°SA PROGRAMLAMA"
+            alt="EİSA PROGRAMLAMA"
             className="sidebar-logo eisa-logo-icon"
           />
-          <span className="logo-caption">{user.role==='global_admin'?'EÄ°SA Platform':'Ä°SG Suite OSGB'}</span>
+          <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':'İSG Suite OSGB'}</span>
         </button>
         <nav className="nav-desktop" ref={navRef}>
           {menu.map(([id,l,I])=>(
@@ -1971,7 +1971,7 @@ function App(){
             </button>
           ))}
         </nav>
-        <nav className="nav-mobile-primary" aria-label="Ana menÃ¼">
+        <nav className="nav-mobile-primary" aria-label="Ana menü">
           {mobilePrimary.map(([id,l,I])=>(
             <button
               key={id}
@@ -1991,22 +1991,22 @@ function App(){
             aria-expanded={mobileMoreOpen}
             aria-controls="mobile-nav-sheet"
             onClick={()=>setMobileMoreOpen((o)=>!o)}
-            title="TÃ¼m menÃ¼"
+            title="Tüm menü"
           >
             {mobileMoreOpen?<X size={22}/>:<Menu size={22}/>}
-            <span>{mobileMoreOpen?'Kapat':'MenÃ¼'}</span>
+            <span>{mobileMoreOpen?'Kapat':'Menü'}</span>
           </button>
         </nav>
         <button type="button" className="logout" onClick={logout}>
-          <LogOut size={19}/><span>Ã‡Ä±kÄ±ÅŸ</span>
+          <LogOut size={19}/><span>Çıkış</span>
         </button>
       </aside>
       {mobileMoreOpen&&(
         <>
-          <button type="button" className="mobile-nav-backdrop" aria-label="MenÃ¼yÃ¼ kapat" onClick={()=>setMobileMoreOpen(false)}/>
-          <div className="mobile-nav-sheet" id="mobile-nav-sheet" role="dialog" aria-label="TÃ¼m modÃ¼ller">
+          <button type="button" className="mobile-nav-backdrop" aria-label="Menüyü kapat" onClick={()=>setMobileMoreOpen(false)}/>
+          <div className="mobile-nav-sheet" id="mobile-nav-sheet" role="dialog" aria-label="Tüm modüller">
             <div className="mobile-nav-sheet-head">
-              <strong>ModÃ¼ller</strong>
+              <strong>Modüller</strong>
               <button type="button" className="mini secondary" onClick={()=>setMobileMoreOpen(false)}>Kapat</button>
             </div>
             <div className="mobile-nav-sheet-grid">
@@ -2027,8 +2027,8 @@ function App(){
       <section className="workspace">
         <header>
           <div>
-            <h2>{user.role==='global_admin'?'EÄ°SA Platform':'Ä°SG Suite OSGB'}</h2>
-            <p>{user.role==='global_admin'?'OSGB abonelik ve platform yÃ¶netimi':'OSGB Operasyon ve Ä°ÅŸ SaÄŸlÄ±ÄŸÄ± GÃ¼venliÄŸi YÃ¶netimi'}</p>
+            <h2>{user.role==='global_admin'?'EİSA Platform':'İSG Suite OSGB'}</h2>
+            <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
           </div>
           <div className="header-actions">
             <ThemeToggle theme={uiTheme} onToggle={toggleUiTheme}/>
@@ -2037,7 +2037,7 @@ function App(){
               <LayoutDashboard size={18}/>
             </button>
             {allowed.includes('security')&&(
-              <button type="button" className="header-icon" onClick={()=>goModule('security')} title="Åžifre deÄŸiÅŸtir / GÃ¼venlik" aria-label="Åžifre deÄŸiÅŸtir">
+              <button type="button" className="header-icon" onClick={()=>goModule('security')} title="Şifre değiştir / Güvenlik" aria-label="Şifre değiştir">
                 <KeyRound size={18}/>
               </button>
             )}
@@ -2045,7 +2045,7 @@ function App(){
             <strong>{user.full_name}</strong>
             <span>{roles[user.role]}</span>
             </div>
-            <button type="button" className="header-icon logout-mobile" onClick={logout} title="Ã‡Ä±kÄ±ÅŸ" aria-label="Ã‡Ä±kÄ±ÅŸ">
+            <button type="button" className="header-icon logout-mobile" onClick={logout} title="Çıkış" aria-label="Çıkış">
               <LogOut size={18}/>
             </button>
           </div>
@@ -2053,7 +2053,7 @@ function App(){
         <main className="content">
           {!user.is_eisa && user.subscription_write_allowed===false && (
             <div className="readonly-banner" role="status">
-              Salt okunur mod: abonelik sÃ¼resi doldu. Veri giriÅŸi kapalÄ± â€” EÄ°SA ile iletiÅŸime geÃ§in.
+              Salt okunur mod: abonelik süresi doldu. Veri girişi kapalı — EİSA ile iletişime geçin.
             </div>
           )}
           <ErrorBoundary key={active==='customer_360'?`c360-${c360Id}`:(active||'none')} onHome={goHome}>
@@ -2061,9 +2061,9 @@ function App(){
               <Customer360Page companyId={c360Id} onBack={closeCustomer360} onNavigate={goModule} user={user}/>
             ) : pages[active] || (
               <section className="panel">
-                <h3 style={{marginTop:0}}>ModÃ¼l bulunamadÄ±</h3>
-                <p style={{color:'#64748b'}}>Bu sayfa rolÃ¼nÃ¼z iÃ§in tanÄ±mlÄ± deÄŸil veya geÃ§ersiz.</p>
-                <button type="button" onClick={goHome}>Ana panele dÃ¶n</button>
+                <h3 style={{marginTop:0}}>Modül bulunamadı</h3>
+                <p style={{color:'#64748b'}}>Bu sayfa rolünüz için tanımlı değil veya geçersiz.</p>
+                <button type="button" onClick={goHome}>Ana panele dön</button>
               </section>
             )}
           </ErrorBoundary>
@@ -2080,4 +2080,3 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
     navigator.serviceWorker.register("/sw.js").catch(console.error);
   });
 }
-
