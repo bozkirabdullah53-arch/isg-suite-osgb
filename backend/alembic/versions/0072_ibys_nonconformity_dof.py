@@ -6,7 +6,7 @@ Revises: 0071
 from alembic import op
 import sqlalchemy as sa
 revision="0072_ibys_nonconformity_dof"
-down_revision="0071"
+down_revision="0068"
 branch_labels=None
 depends_on=None
 
