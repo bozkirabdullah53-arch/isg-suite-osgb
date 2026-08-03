@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 import logging
 
@@ -87,7 +87,7 @@ def login(
     except ValueError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
 
-    user = db.scalar(select(User).where(User.email == payload.email))
+    user = db.scalar(select(User).where(func.lower(User.email) == email))
     if user and is_locked(user):
         register_failed_login(db, user, email=email, ip=ip)
         db.commit()
@@ -155,7 +155,7 @@ def restart_mfa_setup(
     except ValueError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
 
-    user = db.scalar(select(User).where(User.email == payload.email))
+    user = db.scalar(select(User).where(func.lower(User.email) == email))
     if not user or not verify_password(payload.password, user.hashed_password):
         register_failed_login(db, user, email=email, ip=ip)
         db.commit()
@@ -381,7 +381,7 @@ def logout_all_sessions(
 @router.post("/forgot-password")
 def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
     """Her zaman nötr yanıt — kullanıcı varlığını sızdırma."""
-    user = db.scalar(select(User).where(User.email == payload.email))
+    user = db.scalar(select(User).where(func.lower(User.email) == email))
     if user and user.is_active:
         raw = create_password_reset(db, user)
         send_reset_email(user.email, raw)
