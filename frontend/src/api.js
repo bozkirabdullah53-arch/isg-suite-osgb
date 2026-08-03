@@ -437,10 +437,8 @@ export async function api(path, options = {}) {
         err.httpStatus = response.status;
         err.httpPath = path;
         err.httpMethod = method;
-        if (response.status === 401) {
+        if (response.status === 401 && path !== "/auth/login") {
           notifyAuthLost();
-          err.message =
-            "Oturumunuz geçersiz veya süresi doldu. Lütfen tekrar giriş yapın (adres: www.isgsuite.tr).";
         }
         throw err;
       }
