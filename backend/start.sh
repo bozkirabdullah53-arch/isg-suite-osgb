@@ -8,7 +8,7 @@ echo "ENVIRONMENT=${ENVIRONMENT:-development}"
 
 ENV_LC=$(printf '%s' "${ENVIRONMENT:-development}" | tr '[:upper:]' '[:lower:]')
 
-echo "=== Activating staging training features ==="
+echo "=== Activating approved training features ==="
 python scripts/activate_premium_training_pdf.py
 python scripts/activate_training_exam.py
 

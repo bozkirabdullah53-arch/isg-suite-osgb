@@ -10,6 +10,7 @@ from app.core.tenant_middleware import TenantContextMiddleware
 from app.core.access_log import StructuredAccessLogMiddleware
 from app.core.subscription_middleware import OsgbSubscriptionWriteMiddleware
 from app.core.config import settings, validate_runtime_settings
+from app.core.cors_policy import build_cors_origins, is_production_environment
 from app.core.database import Base, SessionLocal, engine
 from app.core.version import APP_VERSION
 from app.services.seed import seed_admin, seed_demo_osgbs
@@ -99,7 +100,7 @@ async def lifespan(_:FastAPI):
         except Exception:
             logger.exception("site_verify_code backfill failed at startup")
     yield
-_is_prod = (settings.environment or '').strip().lower() in {'production', 'prod', 'live'}
+_is_prod = is_production_environment(settings.environment)
 app=FastAPI(
     title=settings.app_name,
     version=APP_VERSION,
@@ -122,14 +123,10 @@ app.add_middleware(
     requests_per_minute=settings.rate_limit_rpm,
     auth_requests_per_minute=settings.rate_limit_auth_rpm,
 )
-_cors_origins=list(dict.fromkeys([
-    settings.frontend_origin,
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'https://isg-suite-web-1u9t.onrender.com',
-    'https://www.isgsuite.tr',
-    'https://isgsuite.tr',
-]))
+_cors_origins=build_cors_origins(
+    environment=settings.environment,
+    frontend_origin=settings.frontend_origin,
+)
 app.add_middleware(CORSMiddleware,allow_origins=_cors_origins,allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
 for r in (auth.router,osgb_applications.router,eisa.router,companies.router,branches.router,users.router,employees.router,isg_records.router,health.router,prescriptions.router,documents.router,annual_plans.router,annual_eval.router,reports.router,security.router,files.router,exports.router,subscriptions.router,notifications.router,system.router,dashboard.router,osgb.router,operations.router,trainings.router,training_question_bank.router,training_question_bank.exam_router,risks.router,incidents.router,ppe.router,sds.router,drills.router,emergency_teams.router,archives.router,legal.router,memberships.router,compliance_registers.pc_router,compliance_registers.ep_router,compliance_registers.wm_router,compliance_registers.oc_router,compliance_registers.da_router,esign.router,esign_orch.router,eyas.router): app.include_router(r,prefix='/api/v1')
 @app.get('/health')
