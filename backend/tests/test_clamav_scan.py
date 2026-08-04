@@ -1,15 +1,57 @@
 from unittest import mock
 
-from app.services.clamav_scan import clamav_status_label, is_clamav_configured, scan_bytes
+from app.services.clamav_scan import (
+    clamav_readiness,
+    clamav_status_label,
+    is_clamav_configured,
+    is_clamav_required,
+    scan_bytes,
+)
 
 
-def test_not_configured(monkeypatch):
+def test_not_configured_optional_rollout(monkeypatch):
     monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", None)
+    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_required", False)
     assert not is_clamav_configured()
+    assert not is_clamav_required()
     assert clamav_status_label() == "disabled"
     clean, detail = scan_bytes(b"any")
     assert clean is True
     assert detail == "skipped"
+    readiness = clamav_readiness()
+    assert readiness["scan_policy"] == "optional-rollout"
+    assert readiness["upload_allowed_without_antivirus"] is True
+    assert readiness["ready"] is False
+
+
+def test_required_without_host_fails_closed(monkeypatch):
+    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", None)
+    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_required", True)
+
+    assert is_clamav_required()
+    assert not is_clamav_configured()
+    assert clamav_status_label() == "required-missing"
+    clean, detail = scan_bytes(b"any")
+    assert clean is False
+    assert detail == "clamav_required_unconfigured"
+    readiness = clamav_readiness()
+    assert readiness["scan_policy"] == "enforced"
+    assert readiness["upload_allowed_without_antivirus"] is False
+    assert readiness["ready"] is False
+
+
+def test_configured_unprobed_readiness_does_not_open_network(monkeypatch):
+    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", "clamav.internal")
+    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_required", True)
+    readiness = clamav_readiness(probe=False)
+    assert readiness == {
+        "required": True,
+        "configured": True,
+        "status": "configured-unprobed",
+        "scan_policy": "enforced",
+        "upload_allowed_without_antivirus": False,
+        "ready": True,
+    }
 
 
 def test_status_reachable(monkeypatch):
@@ -33,6 +75,7 @@ def test_status_reachable(monkeypatch):
 
     monkeypatch.setattr("app.services.clamav_scan.socket.create_connection", lambda *_a, **_k: FakeSock())
     assert clamav_status_label() == "reachable"
+    assert clamav_readiness(probe=True)["ready"] is True
 
 
 def test_status_unreachable(monkeypatch):
@@ -42,6 +85,7 @@ def test_status_unreachable(monkeypatch):
         mock.Mock(side_effect=OSError("connection refused")),
     )
     assert clamav_status_label() == "unreachable"
+    assert clamav_readiness(probe=True)["ready"] is False
 
 
 def test_instream_ok(monkeypatch):
