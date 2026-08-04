@@ -78,7 +78,7 @@ def pg_session():
 
 def test_alembic_head_applied(pg_session: Session):
     ver = pg_session.execute(text("SELECT version_num FROM alembic_version")).scalar()
-    assert ver == "0075_rls_critical_module_expansion"
+    assert ver == "0075_rls_critical_expand"
 
 
 def test_same_name_different_osgb_allowed(pg_session: Session):
