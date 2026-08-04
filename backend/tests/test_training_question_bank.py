@@ -16,6 +16,7 @@ from app.models.entities import (
 )
 from app.services.training_question_bank import (
     InsufficientQuestionBankError,
+    _curated_buckets,
     create_exam_snapshot,
     nace_scope_matches,
     question_bank_coverage,
@@ -23,6 +24,7 @@ from app.services.training_question_bank import (
     valid_nace_scope,
     validate_question_for_publish,
 )
+from app.services.training_topics import sectors_list_for_api
 
 
 @pytest.fixture()
@@ -153,6 +155,38 @@ def test_pdf_only_curated_fallback_creates_snapshot_without_mutating_bank(db: Se
     assert db.query(TrainingQuestion).count() == 0
 
 
+def test_curated_fallback_covers_every_official_nace_record():
+    checked = 0
+    for sector in sectors_list_for_api():
+        if not sector.get("nace"):
+            continue
+        training = TrainingSession(
+            hazard_class=sector["hazard_class"],
+            sector=sector["code"],
+        )
+        bucket = _curated_buckets(training)["sector"]
+        assert len(bucket) >= 5, (
+            sector["nace"],
+            sector["code"],
+            sector.get("profile"),
+        )
+        checked += 1
+    assert checked == 2141
+
+
+def test_battery_nace_uses_battery_sector_questions():
+    training = TrainingSession(
+        hazard_class="Çok Tehlikeli",
+        sector="nace_27_20_01",
+    )
+    codes = {
+        question["question_code"]
+        for question in _curated_buckets(training)["sector"]
+    }
+    assert codes
+    assert all(code.startswith("TR-SEK-AKU-") for code in codes)
+
+
 def test_approved_bank_creates_frozen_15_question_snapshot_and_answer_key(db: Session):
     training, user = _seed_training(db)
     for i in range(5):
@@ -219,7 +253,7 @@ def test_coverage_reports_every_official_nace_and_general_fallback(db: Session):
     assert report["catalog_records_total"] == 2142
     assert report["nace_total"] == 2141
     assert report["general_fallback_total"] == 1
-    assert report["profile_total"] == 90
+    assert report["profile_total"] == 91
     assert report["exam_ready_count"] == 0
     assert report["release_ready_count"] == 0
     assert report["blocked_count"] == 2141

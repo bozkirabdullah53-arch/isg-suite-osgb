@@ -1,0 +1,604 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-TARIM-001",
+      "version": 1,
+      "topic_code": "TRAKTOR-ROPS",
+      "topic_label": "Traktör devrilmesi",
+      "question_text": "Traktör devrilmesine karşı en etkili koruma hangisidir?",
+      "options": [
+        "Devrilmeye karşı koruyucu yapı ve emniyet kemerinin birlikte kullanılması",
+        "Sadece düşük hızda sürmek",
+        "Kabinsiz traktör kullanmak",
+        "Eğimli arazide yanlamasına ilerlemek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Devrilmeye karşı koruyucu yapı, emniyet kemeriyle birlikte kullanıldığında operatörün korunmasını sağlar.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Traktörlerde devrilmeye karşı koruyucu yapı ve emniyet kemeri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-002",
+      "version": 1,
+      "topic_code": "KUYRUK-MILI",
+      "topic_label": "Kuyruk mili güvenliği",
+      "question_text": "Traktör kuyruk miliyle çalışmada hangisi doğrudur?",
+      "options": [
+        "Koruyucu çıkarılarak çalışılabilir",
+        "Mil ve bağlantılar uygun muhafaza altında olmalıdır",
+        "Bol kıyafet kullanmak uygundur",
+        "Makine çalışırken bağlantıya müdahale edilebilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Dönen kuyruk mili ciddi sarılma riski taşır; koruyucu muhafaza olmadan çalıştırılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Kuyruk mili ve döner parçalar"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-003",
+      "version": 1,
+      "topic_code": "PESTISIT-KKD",
+      "topic_label": "Bitki koruma ürünleri",
+      "question_text": "Bitki koruma ürünü hazırlanırken hangisi uygulanmalıdır?",
+      "options": [
+        "Rüzgâr yönü dikkate alınmamalıdır",
+        "Etiket okunmadan karışım yapılmalıdır",
+        "Etikete ve güvenlik talimatına uygun KKD kullanılmalıdır",
+        "Ürün elle karıştırılmalıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Bitki koruma ürünleri etikete, kullanım talimatına ve gerekli kişisel koruyucu donanıma uygun kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Tarım ve Orman Bakanlığı – Bitki Koruma Ürünleri",
+          "url": "https://www.tarimorman.gov.tr/Konu/1438/Bitki-Koruma-Urunleri",
+          "reference": "Bitki koruma ürünlerinde etiket, kullanım talimatı ve KKD"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-004",
+      "version": 1,
+      "topic_code": "PESTISIT-DEPO",
+      "topic_label": "Pestisit depolama",
+      "question_text": "Bitki koruma ürünleri nasıl saklanmalıdır?",
+      "options": [
+        "Gıda ve yemlerle birlikte",
+        "İçecek şişelerinde",
+        "Açık alanda güneş altında",
+        "Kilitli, etiketli ve gıda-yemden ayrı bir depoda"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Pestisitler yetkisiz erişime kapalı, etiketli ve gıda ile yemlerden ayrı tutulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Tarım ve Orman Bakanlığı – Bitki Koruma Ürünleri",
+          "url": "https://www.tarimorman.gov.tr/Konu/1438/Bitki-Koruma-Urunleri",
+          "reference": "Pestisitlerin güvenli depolanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-005",
+      "version": 1,
+      "topic_code": "MAKINE-SIKISMA",
+      "topic_label": "Tarım makinesi sıkışması",
+      "question_text": "Biçerdöver veya balya makinesinde sıkışan malzeme nasıl çıkarılmalıdır?",
+      "options": [
+        "Makine durdurulup enerji kaynakları güvenli şekilde izole edildikten sonra",
+        "Makine çalışırken elle",
+        "Sadece eldivenle",
+        "Başka biri kumandadayken"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Sıkışma giderme öncesi makine tamamen durmalı ve beklenmedik hareket önlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Tarım makinelerinde sıkışma giderme ve enerji izolasyonu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-006",
+      "version": 1,
+      "topic_code": "HAYVAN-DAVRANISI",
+      "topic_label": "Hayvan davranışı",
+      "question_text": "Büyükbaş hayvanlarla çalışmada hangisi doğrudur?",
+      "options": [
+        "Hayvana arkadan sessizce yaklaşmak",
+        "Kaçış alanı bırakmak ve hayvanın görüş alanını dikkate almak",
+        "Hayvanı dar alanda sıkıştırmak",
+        "Yüksek sesle ani hareket yapmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Hayvan davranışları öngörülemez olabilir; yaklaşım ve yönlendirme kontrollü yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Hayvan kaynaklı çarpma, sıkıştırma ve tekme riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-007",
+      "version": 1,
+      "topic_code": "ZOONOZ",
+      "topic_label": "Zoonotik hastalıklar",
+      "question_text": "Hayvancılık işlerinde biyolojik riskleri azaltmada hangisi uygundur?",
+      "options": [
+        "Yaraları açık bırakmak",
+        "Koruyucu aşıları reddetmek",
+        "El hijyeni, uygun KKD ve sağlık gözetimi uygulamak",
+        "Hasta hayvanlarla korumasız çalışmak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Hayvanlardan insanlara bulaşabilecek hastalıklara karşı hijyen, KKD ve sağlık gözetimi gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Zoonozlar ve biyolojik riskler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-008",
+      "version": 1,
+      "topic_code": "SILO",
+      "topic_label": "Silo ve kapalı alan",
+      "question_text": "Silo veya gübre çukuruna girişte hangisi yapılmamalıdır?",
+      "options": [
+        "Gaz ölçümü yapmak",
+        "Havalandırma sağlamak",
+        "Gözcü bulundurmak",
+        "İzinsiz ve ölçüm yapılmadan tek başına girmek"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Kapalı alanlarda oksijen yetersizliği ve toksik gaz riski nedeniyle kontrollü giriş gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Silo, gübre çukuru ve kapalı alan riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-009",
+      "version": 1,
+      "topic_code": "GUNES-SICAK",
+      "topic_label": "Sıcak ve güneş",
+      "question_text": "Açık alanda sıcak havada çalışmada hangisi uygundur?",
+      "options": [
+        "Gölgeli dinlenme, yeterli su ve çalışma saatlerinin düzenlenmesi",
+        "Su tüketimini azaltmak",
+        "Öğle saatlerinde kesintisiz çalışmak",
+        "Kalın ve hava geçirmeyen kıyafet kullanmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Sıcak stresinde sıvı alımı, gölgeli dinlenme ve iş organizasyonu temel önlemlerdir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Sıcak stresi ve açık alanda çalışma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-010",
+      "version": 1,
+      "topic_code": "ELLE-TASIMA",
+      "topic_label": "Elle taşıma",
+      "question_text": "Yem çuvalı veya ürün kasası taşınırken hangisi doğrudur?",
+      "options": [
+        "Yük görüşü kapatacak şekilde taşınmalıdır",
+        "Taşıma yardımcısı veya ekip desteği kullanılmalı, yük vücuda yakın tutulmalıdır",
+        "Belden ani kaldırılmalıdır",
+        "Tek elle taşınmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Ağır ve hacimli yüklerde mekanik yardımcılar ve uygun kaldırma tekniği kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Tarımda elle taşıma ve kas-iskelet riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-011",
+      "version": 1,
+      "topic_code": "ELEKTRIK",
+      "topic_label": "Elektrik güvenliği",
+      "question_text": "Sulama pompası ve elektrikli ekipmanlarda hangisi doğrudur?",
+      "options": [
+        "Hasarlı kablo kullanılabilir",
+        "Islak elle müdahale edilebilir",
+        "Kaçak akım koruması ve uygun topraklama sağlanmalıdır",
+        "Prizler açıkta bırakılmalıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Nemli ortamlarda elektrik çarpması riskine karşı uygun koruma ve topraklama gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Sulama sistemleri ve elektrik güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-012",
+      "version": 1,
+      "topic_code": "KIMYASAL-KARISIM",
+      "topic_label": "Kimyasal karışım",
+      "question_text": "Farklı bitki koruma ürünlerinin karıştırılması için hangisi doğrudur?",
+      "options": [
+        "Her ürün birbiriyle karıştırılabilir",
+        "Karışım oranı göz kararı belirlenebilir",
+        "Etiketsiz kap kullanılabilir",
+        "Sadece etiket ve yetkili talimata uygun karışım yapılmalıdır"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Uyumsuz ürünlerin karıştırılması tehlikeli reaksiyon ve etkisizlik oluşturabilir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Tarım ve Orman Bakanlığı – Bitki Koruma Ürünleri",
+          "url": "https://www.tarimorman.gov.tr/Konu/1438/Bitki-Koruma-Urunleri",
+          "reference": "Karışabilirlik ve etiket talimatları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-013",
+      "version": 1,
+      "topic_code": "KESICI-ALETLER",
+      "topic_label": "Kesici el aletleri",
+      "question_text": "Budama makası, orak veya motorlu testere kullanımında hangisi uygundur?",
+      "options": [
+        "Aletin bakımını yapmak ve işe uygun koruyucu donanım kullanmak",
+        "Kör aletle daha fazla kuvvet uygulamak",
+        "Koruyucuları çıkarmak",
+        "Aleti açık şekilde taşımak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Kesici aletler bakımlı olmalı, güvenli taşınmalı ve uygun KKD ile kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Kesici tarım aletleri ve güvenli kullanım"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-014",
+      "version": 1,
+      "topic_code": "GUBRE-GAZI",
+      "topic_label": "Gübre ve gaz riski",
+      "question_text": "Kapalı gübre depolarında veya çukurlarında hangisi doğrudur?",
+      "options": [
+        "Koku yoksa gaz riski yoktur",
+        "Gaz ölçümü ve havalandırma yapılmadan giriş yapılmamalıdır",
+        "Ateşle kontrol yapılabilir",
+        "Tek başına çalışmak uygundur"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Gübre kaynaklı gazlar toksik veya boğucu olabilir; ölçüm ve kontrollü giriş gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Gübre çukurlarında hidrojen sülfür ve oksijen yetersizliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TARIM-015",
+      "version": 1,
+      "topic_code": "ACIL-DURUM",
+      "topic_label": "Acil durum",
+      "question_text": "Tarım işletmesinin acil durum planında hangisi özellikle değerlendirilmelidir?",
+      "options": [
+        "Sadece hasat takvimi",
+        "Yalnız çalışan kıyafetleri",
+        "Yangın, kimyasal dökülme, makine kazası, hayvan saldırısı ve uzak konumda iletişim",
+        "Sadece ürün miktarı"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Tarım işyerlerinde dağınık saha ve uzak çalışma noktaları acil yardım planında dikkate alınmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tarim_ziraat"
+        },
+        {
+          "type": "sector",
+          "value": "tarim"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik_ciftlik"
+        },
+        {
+          "type": "sector",
+          "value": "hayvancilik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Acil Durumlar Hakkında Mevzuat",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Tarım işletmelerinde acil durum ve iletişim"
+        }
+      ]
+    }
+  ]
+}

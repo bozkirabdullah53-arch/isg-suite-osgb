@@ -1,0 +1,544 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-PLASTIK-001",
+      "version": 1,
+      "topic_code": "ENJEKSIYON-KALIP",
+      "topic_label": "Enjeksiyon makinesi kalıp bölgesi",
+      "question_text": "Plastik enjeksiyon makinesinde kalıp bölgesine erişim için hangisi doğrudur?",
+      "options": [
+        "Koruyucular ve emniyet kilitleri devrede olmalı, tehlikeli hareket durmadan erişim olmamalıdır",
+        "Makine yavaş moddaysa elle müdahale edilebilir",
+        "Sadece deneyimli çalışan koruyucuyu iptal edebilir",
+        "Kalıp bölgesine erişimde enerji kesmeye gerek yoktur"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Kalıp kapanma bölgesi ezilme ve sıkışma riski taşır; koruyucu ve kilitleme sistemleri devrede olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://www.csgb.gov.tr/Media/2hdhcy1v/plastik-sekt%C3%B6r%C3%BC-rehberi.pdf",
+          "reference": "Enjeksiyon makinelerinde kalıp kapanma bölgesi ve koruyucular"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-002",
+      "version": 1,
+      "topic_code": "EKED",
+      "topic_label": "Enerji kontrolü",
+      "question_text": "Enjeksiyon veya ekstrüzyon makinesinde bakım öncesinde hangisi yapılmalıdır?",
+      "options": [
+        "Sadece acil durdurmaya basılmalıdır",
+        "Elektrik, hidrolik, pnömatik ve termal enerjiler güvenli şekilde izole edilmelidir",
+        "Makine düşük hızda bırakılmalıdır",
+        "Ana şalter açık kalmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Bakım ve temizlikte beklenmedik hareketi önlemek için tüm enerji kaynakları kontrol altına alınmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://www.csgb.gov.tr/Media/2hdhcy1v/plastik-sekt%C3%B6r%C3%BC-rehberi.pdf",
+          "reference": "Bakımda enerji izolasyonu ve kilitleme"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-003",
+      "version": 1,
+      "topic_code": "SICAK-YUZEY",
+      "topic_label": "Sıcak yüzeyler",
+      "question_text": "Ekstrüder rezistansları ve eriyik plastikle çalışırken temel risk hangisidir?",
+      "options": [
+        "Yalnız gürültü",
+        "Sadece kayma",
+        "Yanık ve sıcak malzeme sıçraması",
+        "Sadece elektrik kesintisi"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Eriyik polimer ve ısıtılmış ekipman ciddi yanıklara neden olabilir; uygun koruyucu ve çalışma yöntemi gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://www.csgb.gov.tr/Media/2hdhcy1v/plastik-sekt%C3%B6r%C3%BC-rehberi.pdf",
+          "reference": "Ekstrüzyon makinelerinde sıcak yüzey ve eriyik plastik"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-004",
+      "version": 1,
+      "topic_code": "PURJOR",
+      "topic_label": "Pürjör ve temizleme işlemi",
+      "question_text": "Makine pürjörleme işleminde hangisi yapılmamalıdır?",
+      "options": [
+        "Sıçrama alanı sınırlandırılmalıdır",
+        "Uygun yüz ve el koruması kullanılmalıdır",
+        "Çalışan güvenli mesafede durmalıdır",
+        "Eriyik plastiğin çıkış yönünde durulmalıdır"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Pürjör sırasında sıcak ve basınçlı eriyik plastik ani sıçrama yapabilir; çıkış hattında durulmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://www.csgb.gov.tr/Media/2hdhcy1v/plastik-sekt%C3%B6r%C3%BC-rehberi.pdf",
+          "reference": "Pürjör işleminde sıcak malzeme sıçraması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-005",
+      "version": 1,
+      "topic_code": "GRANUL-KAYMA",
+      "topic_label": "Granül döküntüsü",
+      "question_text": "Zemine dökülen plastik granüller için en doğru uygulama hangisidir?",
+      "options": [
+        "Alanı işaretleyip granülleri hemen toplamak",
+        "Döküntüyü vardiya sonuna bırakmak",
+        "Üzerini kartonla kapatmak",
+        "Sadece çalışanları sözlü uyarmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Granüller zeminde bilye etkisi oluşturarak ciddi kayma ve düşme riski yaratır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://www.csgb.gov.tr/Media/2hdhcy1v/plastik-sekt%C3%B6r%C3%BC-rehberi.pdf",
+          "reference": "Granül döküntüleri ve kayma riski"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-006",
+      "version": 1,
+      "topic_code": "KIMYASAL",
+      "topic_label": "Katkı maddeleri ve kimyasallar",
+      "question_text": "Pigment, solvent veya katkı maddeleriyle çalışırken hangisi doğrudur?",
+      "options": [
+        "Kimyasallar etiketsiz kaplara aktarılabilir",
+        "Güvenlik bilgi formuna uygun depolama, havalandırma ve KKD uygulanmalıdır",
+        "Tüm kimyasallar aynı dolapta tutulmalıdır",
+        "Toz maskesi her durumda yeterlidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kimyasalın özelliğine göre etiketleme, uyumlu depolama, mühendislik kontrolü ve uygun KKD gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://www.csgb.gov.tr/Media/2hdhcy1v/plastik-sekt%C3%B6r%C3%BC-rehberi.pdf",
+          "reference": "Katkı maddeleri, pigmentler ve kimyasal maruziyet"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-007",
+      "version": 1,
+      "topic_code": "TOZ-DUMAN",
+      "topic_label": "Toz ve proses dumanı",
+      "question_text": "Plastik üretiminde toz ve proses dumanı maruziyetini azaltmada öncelikli yöntem hangisidir?",
+      "options": [
+        "Sadece kişisel maske kullanmak",
+        "Kapıları kapatmak",
+        "Kaynağında emiş ve etkili havalandırma sağlamak",
+        "Çalışma süresini kayıt altına almak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Kirleticinin kaynağında yakalanması, kişisel koruyucudan önce gelen temel kontrol yöntemidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://www.csgb.gov.tr/Media/2hdhcy1v/plastik-sekt%C3%B6r%C3%BC-rehberi.pdf",
+          "reference": "Proses dumanları, tozlar ve lokal havalandırma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-008",
+      "version": 1,
+      "topic_code": "KIRMA-MAKINESI",
+      "topic_label": "Kırma ve granülatör",
+      "question_text": "Plastik kırma makinesine sıkışan malzeme nasıl çıkarılmalıdır?",
+      "options": [
+        "Makine çalışırken çubukla itilmelidir",
+        "Sadece eldivenle elle çekilmelidir",
+        "Kapak sensörü geçici olarak iptal edilmelidir",
+        "Makine durdurulup enerji izole edildikten sonra güvenli yöntemle çıkarılmalıdır"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Dönen bıçaklı ekipmanda sıkışma giderme öncesi tam duruş ve enerji izolasyonu gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://www.csgb.gov.tr/Media/2hdhcy1v/plastik-sekt%C3%B6r%C3%BC-rehberi.pdf",
+          "reference": "Kırma makinelerinde döner bıçaklar ve sıkışma giderme"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-009",
+      "version": 1,
+      "topic_code": "ROBOT",
+      "topic_label": "Robotlu hücre",
+      "question_text": "Robotlu enjeksiyon hücresinde güvenli çalışma için hangisi gereklidir?",
+      "options": [
+        "Koruyucu çit, kilitli kapı ve güvenli durdurma sistemi",
+        "Robot yavaşsa açık alanda çalışma",
+        "Sadece zemine çizgi çekmek",
+        "Uyarı levhasını kaldırmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Robot hareket alanına kontrolsüz erişim engellenmeli ve kapı açıldığında güvenli duruş sağlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://www.csgb.gov.tr/Media/2hdhcy1v/plastik-sekt%C3%B6r%C3%BC-rehberi.pdf",
+          "reference": "Robotlu enjeksiyon hücrelerinde çevreleme ve kilitleme"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-010",
+      "version": 1,
+      "topic_code": "KALIP-DEGISIMI",
+      "topic_label": "Kalıp değişimi",
+      "question_text": "Ağır enjeksiyon kalıbının değiştirilmesinde hangisi doğrudur?",
+      "options": [
+        "Kalıp elle dengelenmelidir",
+        "Uygun kapasiteli kaldırma ekipmanı ve onaylı bağlantı elemanları kullanılmalıdır",
+        "Kalıp askıda bırakılmalıdır",
+        "Kaldırma alanına herkes girebilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Ağır kalıplar uygun kaldırma ekipmanıyla, kapasite kontrolü ve güvenli bağlantı yapılarak taşınmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://www.csgb.gov.tr/Media/2hdhcy1v/plastik-sekt%C3%B6r%C3%BC-rehberi.pdf",
+          "reference": "Kalıp değişimi, kaldırma ve askıda yük"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-011",
+      "version": 1,
+      "topic_code": "STATIK-ELEKTRIK",
+      "topic_label": "Statik elektrik",
+      "question_text": "Yanıcı solvent kullanılan plastik proseslerinde statik elektrik riskine karşı hangisi uygulanmalıdır?",
+      "options": [
+        "Plastik kaplar rastgele kullanılmalıdır",
+        "Topraklama gereksizdir",
+        "Uygun topraklama ve eşpotansiyel bağlantı sağlanmalıdır",
+        "Ortam nemi tamamen sıfırlanmalıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Statik yük birikimi kıvılcım kaynağı olabilir; uygun topraklama ve bağlantı önlemleri gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://www.csgb.gov.tr/Media/zxzh5vqk/kau%C3%A7uk-ve-plastik-%C3%BCr%C3%BCnler-imalat%C4%B1-i%C5%9F-kolunda-risk-esasl%C4%B1-programl%C4%B1-tefti%C5%9F.pdf",
+          "reference": "Statik elektrik, solvent ve patlama riski"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-012",
+      "version": 1,
+      "topic_code": "GURULTU",
+      "topic_label": "Gürültü",
+      "question_text": "Kırıcı ve granülatörlerin oluşturduğu gürültü için hangisi en doğru yaklaşımdır?",
+      "options": [
+        "Sadece kulak tıkacı dağıtmak",
+        "Makineyi daha hızlı çalıştırmak",
+        "Kapıları açık bırakmak",
+        "Önce kaynağında azaltma ve izolasyon, sonra gerekli KKD kullanmak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Gürültü kontrolünde mühendislik önlemleri kişisel koruyuculardan önce değerlendirilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Gürültü kontrol hiyerarşisi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-013",
+      "version": 1,
+      "topic_code": "BASINCLI-SISTEM",
+      "topic_label": "Hidrolik ve pnömatik sistemler",
+      "question_text": "Hidrolik hortumda kaçak fark edildiğinde hangisi yapılmalıdır?",
+      "options": [
+        "Makine durdurulmalı, basınç boşaltılmalı ve yetkili bakım yapılmalıdır",
+        "Kaçak elle kontrol edilmelidir",
+        "Hortum bantla sarılmalıdır",
+        "Basınç artırılmalıdır"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Basınçlı sıvı cilt altına nüfuz edebilir; kaçak elle aranmaz ve sistem basınçsızlaştırılır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Basınçlı akışkanlar ve hortum arızaları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-014",
+      "version": 1,
+      "topic_code": "ERGONOMI",
+      "topic_label": "Ergonomi ve tekrarlı işler",
+      "question_text": "Ürün ayıklama ve paketleme hattında ergonomik riski azaltmak için hangisi uygundur?",
+      "options": [
+        "Çalışma yüksekliği değiştirilemez",
+        "İş istasyonu uygun yüksekliğe ayarlanmalı, erişim mesafesi azaltılmalı ve iş rotasyonu planlanmalıdır",
+        "Çalışan sürekli aynı pozisyonda kalmalıdır",
+        "Molalar kaldırılmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Tekrarlı hareket, uzanma ve statik duruşlar iş istasyonu tasarımı ve organizasyonla azaltılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Tekrarlı hareketler ve kas-iskelet sistemi riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PLASTIK-015",
+      "version": 1,
+      "topic_code": "YANGIN",
+      "topic_label": "Yangın ve yanıcı yük",
+      "question_text": "Plastik hammadde ve mamul depolarında hangisi doğrudur?",
+      "options": [
+        "Yangın çıkışları stokla kapatılabilir",
+        "İstif yüksekliği sınırsızdır",
+        "Ateşleme kaynakları kontrol edilmeli, çıkışlar açık tutulmalı ve yangın yüküne uygun önlem alınmalıdır",
+        "Söndürme ekipmanının önü malzemeyle kapatılabilir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Plastikler yüksek yangın yükü oluşturabilir; istif, çıkışlar ve ateşleme kaynakları kontrollü olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "plastik_enjeksiyon_ekstruzyon"
+        },
+        {
+          "type": "sector",
+          "value": "plastik_kaucuk"
+        },
+        {
+          "type": "sector",
+          "value": "lastik_kaucuk"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Plastik Sektörü Resmî Kaynağı",
+          "url": "https://www.csgb.gov.tr/Media/zxzh5vqk/kau%C3%A7uk-ve-plastik-%C3%BCr%C3%BCnler-imalat%C4%B1-i%C5%9F-kolunda-risk-esasl%C4%B1-programl%C4%B1-tefti%C5%9F.pdf",
+          "reference": "Plastik depolarında yangın yükü ve istif"
+        }
+      ]
+    }
+  ]
+}

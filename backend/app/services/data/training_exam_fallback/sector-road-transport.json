@@ -1,0 +1,544 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-NAKLIYE-001",
+      "version": 1,
+      "topic_code": "SEFER-ONCESI-KONTROL",
+      "topic_label": "Sefer öncesi araç kontrolü",
+      "question_text": "Kamyon, tır, otobüs veya minibüsle sefere çıkmadan önce hangisi yapılmalıdır?",
+      "options": [
+        "Lastik, fren, aydınlatma, kapılar, acil durum donanımı ve aracın genel güvenliği kontrol edilmelidir",
+        "Sadece yakıt seviyesi kontrol edilmelidir",
+        "Arızalar sefer sonunda bildirilmelidir",
+        "Kontrol yalnız şehirler arası seferlerde yapılmalıdır"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yük ve yolcu taşıyan araçlarda sefer öncesi sistematik güvenlik kontrolü yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. UAB – Karayolu Taşıma Mevzuatı",
+          "url": "https://uhdgm.uab.gov.tr/yonetmelikler",
+          "reference": "Taşıtların güvenli ve mevzuata uygun kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-002",
+      "version": 1,
+      "topic_code": "TAKOGRAF",
+      "topic_label": "Sayısal takograf",
+      "question_text": "Sayısal takografın temel işlevi hangisidir?",
+      "options": [
+        "Yükün ağırlığını ölçmek",
+        "Araç hızı, kat edilen mesafe ile sürüş, mola ve dinlenme sürelerini kaydetmek",
+        "Yolcu sayısını hesaplamak",
+        "Yakıt tüketimini otomatik sınırlamak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Sayısal takograf, ticari yolcu ve eşya taşımacılığında sürüş faaliyetlerini kaydeder.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. UAB – Sayısal Takograf SSS",
+          "url": "https://uhdgm.uab.gov.tr/sikca-sorulan-sorular-ve-cevaplar",
+          "reference": "Sayısal takografın tanımı ve işlevi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-003",
+      "version": 1,
+      "topic_code": "SURUCU-KARTI",
+      "topic_label": "Sürücü kartı",
+      "question_text": "Sayısal takograf bulunan araçta sürücü kartı için hangisi doğrudur?",
+      "options": [
+        "Başka sürücünün kartı kullanılabilir",
+        "Kart yalnız denetimde takılır",
+        "Sürücü kendi kartını usulüne uygun kullanmalıdır",
+        "Kart kullanımı işletmenin tercihine bağlıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Sürücü kartı kişiye özeldir ve sürüş faaliyetlerinin doğru kaydı için kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. UAB – Sayısal Takograf SSS",
+          "url": "https://uhdgm.uab.gov.tr/sikca-sorulan-sorular-ve-cevaplar",
+          "reference": "Sürücü kartının kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-004",
+      "version": 1,
+      "topic_code": "YORGUNLUK",
+      "topic_label": "Sürücü yorgunluğu",
+      "question_text": "Uzun yol veya yoğun şehir içi sürüşte yorgunluk belirtileri başladığında hangisi yapılmamalıdır?",
+      "options": [
+        "Güvenli yerde mola vermek",
+        "Sefer planını yeniden değerlendirmek",
+        "Durumu işletmeye bildirmek",
+        "Cam açıp müzik sesini yükselterek sürüşe devam etmek"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Geçici uyarıcı yöntemler yorgunluğu gidermez; güvenli mola ve dinlenme gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Yorgunluk ve dikkat azalması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-005",
+      "version": 1,
+      "topic_code": "YUK-BAGLAMA",
+      "topic_label": "Yük bağlama ve sabitleme",
+      "question_text": "Yükün araç üzerinde güvenli taşınması için hangisi doğrudur?",
+      "options": [
+        "Yükün ağırlığına, şekline ve taşıma koşullarına uygun sabitleme ekipmanı kullanılmalıdır",
+        "Yalnız branda yeterlidir",
+        "Kısa mesafede sabitlemeye gerek yoktur",
+        "Hasarlı bağlama ekipmanı kullanılabilir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yük sabitleme yöntemi, yükün özelliklerine ve seyir kuvvetlerine uygun olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. UAB – Karayolu Taşıma Mevzuatı",
+          "url": "https://uhdgm.uab.gov.tr/yonetmelikler",
+          "reference": "Eşya taşımacılığında yük güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-006",
+      "version": 1,
+      "topic_code": "BAGLAMA-EKIPMANI",
+      "topic_label": "Bağlama ekipmanı",
+      "question_text": "Bağlama kayışı, zincir veya gerdirme ekipmanı için hangisi doğrudur?",
+      "options": [
+        "Etiketi okunmasa da kullanılabilir",
+        "Kesik, aşınmış veya deformasyona uğramış ekipman kullanımdan alınmalıdır",
+        "Düğüm atılarak onarılabilir",
+        "Kapasitesinin üzerinde kullanılabilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Hasarlı veya kapasitesi belirsiz ekipman yük kayması ve kopma riski oluşturur.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Yük bağlama ekipmanlarının kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-007",
+      "version": 1,
+      "topic_code": "YOLCU-INIS-BINIS",
+      "topic_label": "Yolcu iniş-biniş güvenliği",
+      "question_text": "Otobüs veya minibüste yolcu iniş-binişi için hangisi doğrudur?",
+      "options": [
+        "Araç tamamen durmadan kapılar açılabilir",
+        "Yolcular trafik şeridinde indirilebilir",
+        "Araç güvenli yerde tam durmalı, kapılar kontrollü açılmalı ve hareket öncesi kapanmalıdır",
+        "Hareket halindeyken yolcu alınabilir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "İniş-biniş yalnız güvenli duruşta ve kapı kontrolü sağlanarak yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. UAB – Karayolu Taşıma Mevzuatı",
+          "url": "https://uhdgm.uab.gov.tr/yonetmelikler",
+          "reference": "Yolcu taşımacılığında güvenli iniş-biniş"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-008",
+      "version": 1,
+      "topic_code": "AYAKTA-YOLCU",
+      "topic_label": "Yolcu güvenliği",
+      "question_text": "Yolcu taşıma aracında hangisi yapılmamalıdır?",
+      "options": [
+        "Tutunma donanımlarını kullanılabilir durumda tutmak",
+        "Koridor ve çıkışları açık tutmak",
+        "Ani hareketlerden kaçınmak",
+        "Araç kapasitesini ve güvenli taşımayı bozacak şekilde yolcu almak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Kapasite aşımı ve geçişlerin kapanması tahliye ile sürüş güvenliğini olumsuz etkiler.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. UAB – Karayolu Taşıma Mevzuatı",
+          "url": "https://uhdgm.uab.gov.tr/yonetmelikler",
+          "reference": "Yolcu kapasitesi ve güvenli taşıma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-009",
+      "version": 1,
+      "topic_code": "ACIL-CIKIS",
+      "topic_label": "Acil çıkış ve donanım",
+      "question_text": "Otobüs veya yolcu servisinde acil çıkışlar için hangisi doğrudur?",
+      "options": [
+        "Acil çıkışlar erişilebilir, işaretli ve kullanılabilir durumda tutulmalıdır",
+        "Bagajla kapatılabilir",
+        "Yalnız denetimde kontrol edilir",
+        "Cam kırma aparatları kaldırılabilir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Acil çıkışların ve tahliye donanımının erişilebilir olması gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Yolcu araçlarında acil tahliye"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-010",
+      "version": 1,
+      "topic_code": "YUKLEME-BOSALTMA",
+      "topic_label": "Yükleme ve boşaltma",
+      "question_text": "Yükleme-boşaltma sırasında araç hareketini önlemek için hangisi uygundur?",
+      "options": [
+        "Motor sürekli çalıştırılmalıdır",
+        "Park freni uygulanmalı ve gerektiğinde takoz veya yanaşma sabitleme sistemi kullanılmalıdır",
+        "Araç anahtarı kontakta bırakılmalıdır",
+        "Sürücü araçtan habersiz ayrılmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Beklenmedik araç hareketi rampa ve yükleme alanlarında ciddi ezilme riski oluşturur.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Yükleme rampalarında araç sabitleme"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-011",
+      "version": 1,
+      "topic_code": "KOR-NOKTA",
+      "topic_label": "Kör nokta ve manevra",
+      "question_text": "Kamyon, tır ve otobüslerin kör noktalarında yaya güvenliği için hangisi doğrudur?",
+      "options": [
+        "Yayalar araca yakın yürümelidir",
+        "Sürücü yalnız aynalara güvenmelidir",
+        "Yaya-araç yolları ayrılmalı ve manevrada görüş destek sistemleri kullanılmalıdır",
+        "Geri manevrada uyarı gerekmez"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Ağır vasıtalarda geniş kör noktalar vardır; fiziksel ayrım ve görüş destekleri gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Ağır araçlarda kör nokta ve geri manevra"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-012",
+      "version": 1,
+      "topic_code": "YOLCU-DAVRANISI",
+      "topic_label": "Yolcu ve sürücü etkileşimi",
+      "question_text": "Sürücünün seyir sırasında yolcuyla tartışması veya dikkatinin dağılması halinde hangisi yapılmamalıdır?",
+      "options": [
+        "Güvenli noktada durmak",
+        "Gerekirse merkezden destek istemek",
+        "Sürüşe odaklanmak",
+        "Hareket halinde tartışmayı sürdürmek"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Yolcu kaynaklı dikkat dağınıklığı güvenli sürüşü bozabilir; olay güvenli duruşta yönetilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Psikososyal risk ve dikkat dağınıklığı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-013",
+      "version": 1,
+      "topic_code": "ARAC-USTU-CALISMA",
+      "topic_label": "Araç üstünde çalışma",
+      "question_text": "Dorse, kasa veya otobüs tavanında çalışırken hangisi doğrudur?",
+      "options": [
+        "Düşme riski değerlendirilerek güvenli erişim ve düşmeye karşı koruma sağlanmalıdır",
+        "Lastik üzerine basarak çıkılmalıdır",
+        "Islak yüzeyde çalışmaya devam edilmelidir",
+        "Araç hareket halindeyken üstte bulunulabilir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Araç üstü çalışmalar düşme riski taşır; güvenli erişim ve koruma gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Araç üstünde yüksekte çalışma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-014",
+      "version": 1,
+      "topic_code": "YOLCU-ACIL-DURUM",
+      "topic_label": "Yolcu taşımada acil durum",
+      "question_text": "Yolcu taşıyan araçta yangın veya duman fark edildiğinde hangisi uygundur?",
+      "options": [
+        "Seyre devam etmek",
+        "Araç güvenli yerde durdurulmalı, yolcular tahliye edilmeli ve acil yardım süreci başlatılmalıdır",
+        "Yolcular araç içinde bekletilmelidir",
+        "Kapılar kilitlenmelidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Öncelik aracı güvenli konuma almak, yolcuları tahliye etmek ve yardım çağırmaktır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Yolcu araçlarında yangın ve tahliye"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-NAKLIYE-015",
+      "version": 1,
+      "topic_code": "SEFER-PLANLAMA",
+      "topic_label": "Güvenli sefer planlama",
+      "question_text": "Yük ve yolcu taşımacılığında güvenli sefer planında hangisi birlikte değerlendirilmelidir?",
+      "options": [
+        "Yalnız teslimat veya varış saati",
+        "Sadece yakıt maliyeti",
+        "Sürüş-dinlenme düzeni, hava-yol koşulları, rota, araç, yük veya yolcu özellikleri ve güvenli duruş noktaları",
+        "Sadece işletmenin ticari talebi"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Sefer planı, süre baskısından bağımsız olarak sürücü, yolcu ve yük güvenliğini kapsamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "karayolu_tasimacilik"
+        },
+        {
+          "type": "sector",
+          "value": "nakliye_karayolu_tasimaciligi"
+        },
+        {
+          "type": "sector",
+          "value": "toplu_tasima_ulasim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. UAB – Sayısal Takograf ve Karayolu Taşıma Mevzuatı",
+          "url": "https://uhdgm.uab.gov.tr/sikca-sorulan-sorular-ve-cevaplar",
+          "reference": "Sürüş, mola ve dinlenme kayıtlarının güvenli sefer planındaki rolü"
+        }
+      ]
+    }
+  ]
+}

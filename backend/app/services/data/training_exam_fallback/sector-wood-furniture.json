@@ -1,0 +1,544 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-AHSAP-001",
+      "version": 1,
+      "topic_code": "DAIRE-TESTERE",
+      "topic_label": "Daire testere güvenliği",
+      "question_text": "Daire testereyle çalışmaya başlamadan önce hangisi kontrol edilmelidir?",
+      "options": [
+        "Koruyucu kapağın ve yarma bıçağının yerinde ve çalışır olması",
+        "Kesim hızının en yüksek seviyede olması",
+        "Malzemenin elle sabitlenmesi",
+        "Koruyucunun çıkarılması"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Dönen testere bıçağına erişimi azaltan koruyucular ve yarma bıçağı devrede olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Daire testerelerde koruyucu ve yarma bıçağı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-002",
+      "version": 1,
+      "topic_code": "ITME-CUBUGU",
+      "topic_label": "İtme aparatı",
+      "question_text": "Küçük ahşap parçaların daire testerede kesiminde hangisi uygundur?",
+      "options": [
+        "Parçayı çıplak elle bıçağa yaklaştırmak",
+        "İtme çubuğu veya uygun besleme aparatı kullanmak",
+        "Koruyucuyu kaldırmak",
+        "Parçayı ters yönde beslemek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Ellerin kesici bölgeye yaklaşmasını önlemek için uygun itme aparatı kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Kesici makinelerde güvenli besleme"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-003",
+      "version": 1,
+      "topic_code": "TOZ-EMIS",
+      "topic_label": "Ahşap tozu",
+      "question_text": "Zımpara ve kesim işlemlerinde oluşan ahşap tozunu azaltmada öncelikli yöntem hangisidir?",
+      "options": [
+        "Sadece kapıları açmak",
+        "Yalnız toz maskesi kullanmak",
+        "Kaynağında emiş sistemi kurmak",
+        "Vardiya sonunda süpürmek"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Ahşap tozu kaynağında emilmeli; genel havalandırma ve uygun temizlikle desteklenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Ahşap tozu ve lokal emiş"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-004",
+      "version": 1,
+      "topic_code": "BASINCLI-HAVA",
+      "topic_label": "Temizlik yöntemi",
+      "question_text": "Ahşap tozunun basınçlı havayla çalışanın üzerinden temizlenmesi neden uygun değildir?",
+      "options": [
+        "Makineyi yavaşlatır",
+        "Malzemenin rengini değiştirir",
+        "Zemini ıslatır",
+        "Tozu havaya kaldırarak solunum ve göz maruziyetini artırır"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Basınçlı hava tozu yeniden havalandırır ve yaralanma riskini artırır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Basınçlı havayla temizlik ve toz maruziyeti"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-005",
+      "version": 1,
+      "topic_code": "YANGIN",
+      "topic_label": "Yangın ve patlama",
+      "question_text": "Ahşap tozu birikiminin temel tehlikesi hangisidir?",
+      "options": [
+        "Yangın ve uygun koşullarda toz patlaması riski",
+        "Sadece kötü koku",
+        "Yalnız görüş azalması",
+        "Sadece makine gürültüsü"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "İnce ahşap tozu yanıcıdır; birikim ve ateşleme kaynakları kontrol edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Yanıcı ahşap tozu ve yangın riski"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-006",
+      "version": 1,
+      "topic_code": "BOYA-VERNIK",
+      "topic_label": "Boya ve vernik",
+      "question_text": "Boya, vernik ve tiner kullanılan alanda hangisi doğrudur?",
+      "options": [
+        "Ürünler açık kapta tutulabilir",
+        "Etkili havalandırma sağlanmalı ve ateşleme kaynakları uzaklaştırılmalıdır",
+        "Sigara içilebilir",
+        "Tüm ürünler etiketsiz tutulabilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Uçucu ve yanıcı kimyasallar kapalı sistem, havalandırma ve ateşleme kaynağı kontrolü gerektirir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Solvent, boya ve vernik güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-007",
+      "version": 1,
+      "topic_code": "KIMYASAL-DEPO",
+      "topic_label": "Kimyasal depolama",
+      "question_text": "Mobilya üretiminde kullanılan solvent ve yapıştırıcılar nasıl saklanmalıdır?",
+      "options": [
+        "İçecek şişelerinde",
+        "Isı kaynağı yanında",
+        "Etiketli, kapalı ve uyumlu depolama koşullarında",
+        "Acil çıkış önünde"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Kimyasallar güvenlik bilgi formuna uygun, etiketli ve yanıcı maddelere uygun dolap veya alanda saklanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Solvent ve yapıştırıcıların depolanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-008",
+      "version": 1,
+      "topic_code": "SIKISMA",
+      "topic_label": "Makine sıkışması",
+      "question_text": "Planya veya kalınlık makinesinde sıkışan parça nasıl çıkarılmalıdır?",
+      "options": [
+        "Makine çalışırken elle çekilmelidir",
+        "Uzun çubukla itilmelidir",
+        "Koruyucu devre dışı bırakılmalıdır",
+        "Makine durdurulup enerji izole edildikten sonra çıkarılmalıdır"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Sıkışma giderme öncesinde hareket tamamen durmalı ve enerji kaynakları güvenli şekilde izole edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Sıkışma giderme ve enerji izolasyonu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-009",
+      "version": 1,
+      "topic_code": "FREZE",
+      "topic_label": "Freze ve profil makineleri",
+      "question_text": "Freze makinesinde parça geri tepmesini azaltmak için hangisi uygundur?",
+      "options": [
+        "Uygun siper, baskı aparatı ve doğru besleme yönü kullanmak",
+        "Parçayı gelişigüzel beslemek",
+        "Koruyucuyu kaldırmak",
+        "Kör kesici kullanmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Doğru besleme yönü, kesici uygunluğu ve baskı aparatları geri tepme riskini azaltır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Freze makinelerinde geri tepme ve koruyucular"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-010",
+      "version": 1,
+      "topic_code": "GURULTU",
+      "topic_label": "Gürültü",
+      "question_text": "Ahşap işleme makinelerinin gürültüsünde en doğru yaklaşım hangisidir?",
+      "options": [
+        "Sadece kulak tıkacı dağıtmak",
+        "Önce kaynağında azaltma ve izolasyon, sonra gerekli kulak koruyucuyu kullanmak",
+        "Makineleri daha hızlı çalıştırmak",
+        "Kapıları kapatmakla yetinmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Gürültü kontrolünde mühendislik ve organizasyonel önlemler kişisel koruyucudan önce değerlendirilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Gürültü kontrol hiyerarşisi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-011",
+      "version": 1,
+      "topic_code": "EL-ALETLERI",
+      "topic_label": "El aletleri",
+      "question_text": "El tipi zımpara veya dekupaj testeresinde kablo hasarı fark edilirse ne yapılmalıdır?",
+      "options": [
+        "Bantla sarılıp kullanılmalıdır",
+        "Yalnız kuru ortamda kullanılmalıdır",
+        "Kullanımdan alınmalı ve yetkili kişi tarafından onarılmalıdır",
+        "Düşük hızda çalıştırılmalıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Hasarlı elektrikli el aletleri kullanım dışı bırakılmalı ve yetkili müdahale sağlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Elektrikli el aletlerinde kablo ve gövde hasarı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-012",
+      "version": 1,
+      "topic_code": "ISTIF",
+      "topic_label": "Levha ve kereste istifi",
+      "question_text": "MDF, sunta ve kereste istifinde hangisi yanlıştır?",
+      "options": [
+        "İstifi dengeli yapmak",
+        "Raf kapasitesine uymak",
+        "Ağır levhaları güvenli destekle depolamak",
+        "Geçiş yolunu ve acil çıkışı kapatmak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Malzeme istifi dengeli olmalı; geçiş yolları ve acil çıkışlar açık tutulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Levha, kereste ve raf istifi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-013",
+      "version": 1,
+      "topic_code": "ELLE-TASIMA",
+      "topic_label": "Elle taşıma",
+      "question_text": "Büyük MDF levhaların taşınmasında hangisi uygundur?",
+      "options": [
+        "Taşıma arabası, vakumlu kaldırıcı veya ekip çalışması kullanmak",
+        "Tek kişinin görüşü kapalı şekilde taşıması",
+        "Levhaları sürüklemek",
+        "Belden ani kaldırmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Büyük ve ağır levhalar mekanik yardımcılar veya yeterli ekip desteğiyle taşınmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Ağır ve geniş levhaların ergonomik taşınması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-014",
+      "version": 1,
+      "topic_code": "BAKIM",
+      "topic_label": "Bakım ve koruyucular",
+      "question_text": "Makine koruyucusu arızalandığında hangisi yapılmalıdır?",
+      "options": [
+        "Makine düşük hızda kullanılmalıdır",
+        "Makine kullanımdan alınmalı ve koruyucu onarılmadan çalıştırılmamalıdır",
+        "Sadece deneyimli çalışan kullanmalıdır",
+        "Uyarı levhası yeterlidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Koruyucu sistem arızalıysa ekipman güvenli duruma getirilmeden üretime devam edilmemelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Koruyucu sistem arızaları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AHSAP-015",
+      "version": 1,
+      "topic_code": "ACIL-DURUM",
+      "topic_label": "Acil durum",
+      "question_text": "Mobilya üretim tesisinin acil durum planında hangisi özellikle değerlendirilmelidir?",
+      "options": [
+        "Sadece vardiya listesi",
+        "Yalnız makine sayısı",
+        "Ahşap tozu, solventler, boya alanları, yangın yükü ve tahliye yolları",
+        "Sadece çalışan kıyafetleri"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Ahşap tozu ve yanıcı kimyasallar yangın yükünü artırır; plan buna göre hazırlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "agac_isleri_marangozluk"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya_uretimi"
+        },
+        {
+          "type": "sector",
+          "value": "ahsap_mobilya"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Acil Durumlar Hakkında Mevzuat",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Ahşap ve mobilya işyerlerinde yangın ve tahliye"
+        }
+      ]
+    }
+  ]
+}

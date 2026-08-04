@@ -1,0 +1,484 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-TEMIZLIK-001",
+      "version": 1,
+      "topic_code": "KIMYASAL-KARISIM",
+      "topic_label": "Kimyasal karışım",
+      "question_text": "Çamaşır suyu ile asit içeren bir temizlik ürününün karıştırılması neden tehlikelidir?",
+      "options": [
+        "Zehirli gaz oluşmasına yol açabilir",
+        "Sadece kötü koku yapar",
+        "Temizlik etkisini artırır",
+        "Yalnız zemine zarar verir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Hipoklorit içeren ürünlerin asitlerle karışması toksik gaz açığa çıkarabilir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Temizlik kimyasallarının güvenli kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-002",
+      "version": 1,
+      "topic_code": "GBF-ETIKET",
+      "topic_label": "Güvenlik bilgi formu ve etiket",
+      "question_text": "Temizlik kimyasalları için hangisi doğrudur?",
+      "options": [
+        "Etiket çıkarılabilir",
+        "Ürün etiketi ve güvenlik bilgi formundaki talimatlar uygulanmalıdır",
+        "İçecek şişesine aktarılabilir",
+        "Tüm ürünler aynı şekilde kullanılabilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kimyasalın tehlikeleri ve korunma yöntemleri etiket ve güvenlik bilgi formundan takip edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kimyasal etiketleri ve güvenlik bilgi formları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-003",
+      "version": 1,
+      "topic_code": "ISLAK-ZEMIN",
+      "topic_label": "Islak zemin",
+      "question_text": "Yeni silinmiş bir alanda en doğru uygulama hangisidir?",
+      "options": [
+        "Alan açık bırakılmalıdır",
+        "Sadece çalışanlara sözlü bilgi verilmelidir",
+        "Kayma tehlikesi işaretlenmeli ve mümkünse geçiş sınırlandırılmalıdır",
+        "Zemin kuruyana kadar ışıklar kapatılmalıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Islak zeminlerde kayma riskine karşı uyarı ve geçiş kontrolü sağlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kayma ve düşme riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-004",
+      "version": 1,
+      "topic_code": "MERDIVEN",
+      "topic_label": "Merdiven kullanımı",
+      "question_text": "Yüksek bir yüzeyi temizlerken hangisi yapılmamalıdır?",
+      "options": [
+        "Uygun merdiven kullanmak",
+        "Merdiveni sağlam zemine kurmak",
+        "Üç nokta temasını korumak",
+        "Sandalye veya masa üzerine çıkarak çalışmak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Yükseğe erişimde uygunsuz mobilyalar yerine işe uygun erişim ekipmanı kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Merdiven ve erişim ekipmanları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-005",
+      "version": 1,
+      "topic_code": "KKD",
+      "topic_label": "Kişisel koruyucu donanım",
+      "question_text": "Kimyasal temizlik işinde KKD nasıl seçilmelidir?",
+      "options": [
+        "Ürünün tehlikesine ve işe uygun olarak",
+        "Sadece çalışanın tercihine göre",
+        "Tüm işler için aynı şekilde",
+        "Yalnız görünüşüne göre"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Eldiven, gözlük ve diğer KKD kullanılan kimyasalın özelliğine göre seçilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Temizlik işlerinde uygun KKD seçimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-006",
+      "version": 1,
+      "topic_code": "HAVALANDIRMA",
+      "topic_label": "Havalandırma",
+      "question_text": "Yoğun kimyasal kullanılan kapalı bir alanda hangisi doğrudur?",
+      "options": [
+        "Kapı ve pencereler kapatılmalıdır",
+        "Yeterli havalandırma sağlanmalıdır",
+        "Koku kaybolana kadar beklemek yeterlidir",
+        "Sadece maske takmak yeterlidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kimyasal buharların birikmesini önlemek için etkili havalandırma gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Kimyasal buharlar ve havalandırma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-007",
+      "version": 1,
+      "topic_code": "ELEKTRIK",
+      "topic_label": "Elektrik güvenliği",
+      "question_text": "Islak zeminde elektrikli temizlik makinesi kullanırken hangisi gereklidir?",
+      "options": [
+        "Uzatma kablosu su içinde kalabilir",
+        "Hasarlı kablo bantla sarılabilir",
+        "Kablolar ve fişler sağlam olmalı, uygun elektriksel koruma bulunmalıdır",
+        "Makine ıslak elle fişe takılabilir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Nemli ortamlarda elektrik çarpması riskine karşı ekipman ve bağlantılar sağlam olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Elektrikli temizlik makineleri ve kablo güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-008",
+      "version": 1,
+      "topic_code": "MAKINE-BAKIM",
+      "topic_label": "Makine bakımı",
+      "question_text": "Zemin temizleme makinesinde sıkışma veya arıza olduğunda hangisi yapılmamalıdır?",
+      "options": [
+        "Makineyi durdurmak",
+        "Enerjiyi kesmek",
+        "Yetkili bakım çağırmak",
+        "Makine çalışırken elle müdahale etmek"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Sıkışma ve arızalarda enerji kesilmeden dönen veya hareketli parçalara müdahale edilmemelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Temizlik makinelerinde bakım ve enerji izolasyonu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-009",
+      "version": 1,
+      "topic_code": "KESICI-ATIK",
+      "topic_label": "Kesici-delici atıklar",
+      "question_text": "Çöp torbasında kırık cam veya kesici atık şüphesi varsa hangisi uygundur?",
+      "options": [
+        "Elle bastırarak kontrol etmek",
+        "Torbayı gövdeye yakın taşımak",
+        "Torbayı elle sıkıştırmak",
+        "Uygun ekipmanla ve delinmeye dayanıklı yöntemle toplamak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Kesici-delici atıklar elle sıkıştırılmamalı; uygun kap ve ekipmanla taşınmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kesici ve delici atıklarla çalışma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-010",
+      "version": 1,
+      "topic_code": "BIYOLOJIK",
+      "topic_label": "Biyolojik risk",
+      "question_text": "Tuvalet ve sağlık alanlarının temizliğinde hangisi doğrudur?",
+      "options": [
+        "El hijyeni, uygun eldiven ve kontaminasyon kontrolü uygulanmalıdır",
+        "Eldiven tekrar tekrar yıkanarak kullanılmalıdır",
+        "Kirli bez tüm alanlarda kullanılmalıdır",
+        "Temizlik sonrası el yıkamaya gerek yoktur"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Biyolojik riskli alanlarda uygun hijyen, eldiven ve malzeme ayrımı gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Biyolojik riskler ve hijyen"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-011",
+      "version": 1,
+      "topic_code": "ERGONOMI",
+      "topic_label": "Ergonomi",
+      "question_text": "Paspaslama ve süpürme işlerinde kas-iskelet riskini azaltmak için hangisi uygundur?",
+      "options": [
+        "Sap boyunu uygun ayarlamak ve çalışma yönünü değiştirmek",
+        "Sürekli belden eğilmek",
+        "Aynı kolu kesintisiz kullanmak",
+        "Ağır kovayı tek elle taşımak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Ayarlanabilir ekipman ve iş rotasyonu tekrarlı hareket yükünü azaltır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Temizlik işlerinde ergonomi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-012",
+      "version": 1,
+      "topic_code": "ELLE-TASIMA",
+      "topic_label": "Elle taşıma",
+      "question_text": "Dolu temizlik kovası veya atık torbası taşınırken hangisi doğrudur?",
+      "options": [
+        "Yük tek elle ve gövdeden uzakta taşınmalıdır",
+        "Taşıma arabası kullanılmalı veya yük azaltılmalıdır",
+        "Belden ani kaldırılmalıdır",
+        "Görüş kapalı şekilde taşınmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Ağır ve hacimli yükler mekanik yardımcıyla veya daha küçük parçalara bölünerek taşınmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Elle taşıma ve kas-iskelet riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-013",
+      "version": 1,
+      "topic_code": "DEPOLAMA",
+      "topic_label": "Kimyasal depolama",
+      "question_text": "Temizlik kimyasalları nasıl depolanmalıdır?",
+      "options": [
+        "Gıda ve içeceklerle birlikte",
+        "Acil çıkış önünde",
+        "Etiketli, kapalı ve uyumlu ürünler ayrı tutulacak şekilde",
+        "Güneş altında açık kapta"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Kimyasallar etiketli, kapalı ve uyumsuz ürünler ayrılmış biçimde depolanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Temizlik kimyasallarının depolanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-014",
+      "version": 1,
+      "topic_code": "ATIK-AYIRMA",
+      "topic_label": "Atıkların ayrılması",
+      "question_text": "Temizlik sırasında atık ayrımı için hangisi doğrudur?",
+      "options": [
+        "Tüm atıklar tek torbaya konulmalıdır",
+        "Tehlikeli, kesici ve evsel atıklar uygun kaplarda ayrı toplanmalıdır",
+        "Kimyasal atık lavaboya dökülebilir",
+        "Etiketsiz kap kullanılabilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Atık türleri risklerine göre ayrı, uygun ve etiketli kaplarda toplanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Atıkların güvenli ayrılması ve toplanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEMIZLIK-015",
+      "version": 1,
+      "topic_code": "ACIL-DURUM",
+      "topic_label": "Acil durum",
+      "question_text": "Temizlik kimyasalının göze sıçraması durumunda hangisi doğrudur?",
+      "options": [
+        "Gözü kapalı tutmak",
+        "Kimyasalı başka ürünle nötralize etmek",
+        "Güvenlik bilgi formuna uygun şekilde derhal yıkamak ve tıbbi yardım prosedürünü uygulamak",
+        "Çalışmaya devam etmek"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Göz temasında ürün talimatına uygun acil yıkama ve tıbbi değerlendirme gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "temizlik_facility_management"
+        },
+        {
+          "type": "sector",
+          "value": "temizlik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Mevzuat ve Acil Durum Kaynakları",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Kimyasal sıçramalarda ilk müdahale"
+        }
+      ]
+    }
+  ]
+}

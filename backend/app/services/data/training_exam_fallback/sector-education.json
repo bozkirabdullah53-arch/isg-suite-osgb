@@ -1,0 +1,484 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-EGITIM-001",
+      "version": 1,
+      "topic_code": "TAHLIYE",
+      "topic_label": "Okul tahliyesi",
+      "question_text": "Okulda acil tahliye planlanırken hangisi özellikle dikkate alınmalıdır?",
+      "options": [
+        "Öğrencilerin yaşları, hareket kabiliyetleri, sınıf yerleşimi ve toplanma alanı",
+        "Yalnız öğretmen sayısı",
+        "Sadece bina rengi",
+        "Yalnız ders programı"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Tahliye planı; öğrenci gruplarının özelliklerini, engelli bireyleri, kat yerleşimini, görevli personeli ve toplanma alanlarını kapsamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. MEB – Okul ve Kurumlarda İş Güvenliği Rehberi",
+          "url": "https://erzurum.meb.gov.tr/meb_iys_dosyalar/2026_04/69d38cd64425a568245066_OKUL_VE_KURUMLARDA_IS_GUVENLIGI_ONLEMLERI_REHBERI_sonn.pdf",
+          "reference": "Okullarda acil durum, tahliye, toplanma ve görev dağılımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-002",
+      "version": 1,
+      "topic_code": "MERDIVEN-KORKULUK",
+      "topic_label": "Merdiven ve korkuluk güvenliği",
+      "question_text": "Okul merdivenlerinde düşme riskini azaltmada hangisi doğrudur?",
+      "options": [
+        "Merdivenlere malzeme bırakmak",
+        "Korkulukları sağlam tutmak, basamakları kaymaz hâle getirmek ve geçişi açık tutmak",
+        "Basamak kenarlarını görünmez bırakmak",
+        "Merdiven aydınlatmasını kapatmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Merdiven ve sahanlıklar engelsiz, yeterli aydınlatılmış, kaymaz ve sağlam korkuluklu olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. MEB – Okul ve Kurumlarda İş Güvenliği Rehberi",
+          "url": "https://erzurum.meb.gov.tr/meb_iys_dosyalar/2026_04/69d38cd64425a568245066_OKUL_VE_KURUMLARDA_IS_GUVENLIGI_ONLEMLERI_REHBERI_sonn.pdf",
+          "reference": "Merdiven, korkuluk, kayma ve düşme riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-003",
+      "version": 1,
+      "topic_code": "SINIF-DUZENI",
+      "topic_label": "Sınıf ve koridor düzeni",
+      "question_text": "Sınıf ve koridorlarda güvenli düzen için hangisi uygulanmalıdır?",
+      "options": [
+        "Geçiş yollarını dolaplarla daraltmak",
+        "Çıkış kapılarını kilitlemek",
+        "Geçişleri açık tutmak ve devrilebilecek dolapları sabitlemek",
+        "Ağır malzemeleri yüksek raflara koymak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Geçiş yolları ve çıkışlar açık tutulmalı; dolap, pano ve raflar devrilmeye karşı sabitlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. MEB – Okul ve Kurumlarda İş Güvenliği Rehberi",
+          "url": "https://erzurum.meb.gov.tr/meb_iys_dosyalar/2026_04/69d38cd64425a568245066_OKUL_VE_KURUMLARDA_IS_GUVENLIGI_ONLEMLERI_REHBERI_sonn.pdf",
+          "reference": "Sınıf ve koridorlarda düzen, devrilme ve kaçış güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-004",
+      "version": 1,
+      "topic_code": "LAB-KIMYASAL",
+      "topic_label": "Laboratuvar kimyasalları",
+      "question_text": "Okul laboratuvarında kimyasallar nasıl saklanmalıdır?",
+      "options": [
+        "Etiketsiz içecek şişelerinde",
+        "Tümü aynı dolapta",
+        "Öğrencilerin kolay erişeceği açık raflarda",
+        "Uyumluluklarına göre ayrılmış, etiketli ve kilitli uygun dolaplarda"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Kimyasallar orijinal veya uygun etiketli kaplarda, uyumluluklarına göre ayrılarak ve yetkisiz erişim engellenerek depolanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. MEB – Okul ve Kurumlarda İş Güvenliği Rehberi",
+          "url": "https://erzurum.meb.gov.tr/meb_iys_dosyalar/2026_04/69d38cd64425a568245066_OKUL_VE_KURUMLARDA_IS_GUVENLIGI_ONLEMLERI_REHBERI_sonn.pdf",
+          "reference": "Laboratuvar kimyasallarının etiketlenmesi, ayrılması ve güvenli depolanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-005",
+      "version": 1,
+      "topic_code": "LAB-KKD",
+      "topic_label": "Laboratuvar kişisel koruyucuları",
+      "question_text": "Kimyasal sıçrama riski bulunan okul laboratuvarında temel göz koruması hangisidir?",
+      "options": [
+        "Uygun koruyucu gözlük",
+        "Güneş gözlüğü",
+        "Numaralı gözlük tek başına",
+        "Şapka"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Deneyin riskine göre uygun koruyucu gözlük, laboratuvar önlüğü ve gerektiğinde eldiven kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. MEB – Okul ve Kurumlarda İş Güvenliği Rehberi",
+          "url": "https://erzurum.meb.gov.tr/meb_iys_dosyalar/2026_04/69d38cd64425a568245066_OKUL_VE_KURUMLARDA_IS_GUVENLIGI_ONLEMLERI_REHBERI_sonn.pdf",
+          "reference": "Laboratuvar deneylerinde risk temelli KKD kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-006",
+      "version": 1,
+      "topic_code": "ATOLYE-MAKINE",
+      "topic_label": "Atölye makine güvenliği",
+      "question_text": "Mesleki eğitim atölyesindeki makinenin koruyucusu çıkarılmışsa ne yapılmalıdır?",
+      "options": [
+        "Makine düşük hızda kullanılmalıdır",
+        "Makine kullanımdan alınmalı ve koruyucu sistemi tamamlanmadan çalıştırılmamalıdır",
+        "Yalnız deneyimli öğrenci kullanmalıdır",
+        "Uyarı levhası asılması yeterlidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Makine koruyucuları çalışır durumda olmadan ekipman kullanılmamalı; arıza yetkili kişiye bildirilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Eğitim atölyelerinde makine koruyucuları ve güvenli kullanım"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-007",
+      "version": 1,
+      "topic_code": "ATOLYE-GOZETIM",
+      "topic_label": "Öğrenci gözetimi",
+      "question_text": "Öğrencilerin atölye veya laboratuvar uygulamasına başlamasından önce hangisi gereklidir?",
+      "options": [
+        "Yalnız yoklama alınması",
+        "Sadece malzeme dağıtılması",
+        "Tehlikeler, güvenli çalışma yöntemi, acil durum ve kullanılacak KKD konusunda bilgilendirme",
+        "Öğrencilerin kendi yöntemini belirlemesi"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Öğrencilere işe özgü güvenlik kuralları uygulama öncesinde açıklanmalı ve çalışma yetkili öğretmen gözetiminde yürütülmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. MEB – Okul ve Kurumlarda İş Güvenliği Rehberi",
+          "url": "https://erzurum.meb.gov.tr/meb_iys_dosyalar/2026_04/69d38cd64425a568245066_OKUL_VE_KURUMLARDA_IS_GUVENLIGI_ONLEMLERI_REHBERI_sonn.pdf",
+          "reference": "Atölye ve laboratuvarda öğrenci bilgilendirmesi ve gözetimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-008",
+      "version": 1,
+      "topic_code": "ELEKTRIK",
+      "topic_label": "Elektrik güvenliği",
+      "question_text": "Sınıfta kırık priz kapağı veya açıkta iletken fark edildiğinde ne yapılmalıdır?",
+      "options": [
+        "Bantlanıp kullanılmaya devam edilmelidir",
+        "Öğrencilerden dikkatli olması istenmelidir",
+        "Yalnız gün sonunda bildirilmelidir",
+        "Alan güvenli hâle getirilip enerji kesilmeli ve yetkili teknik birime bildirilmelidir"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Elektrik tehlikesi derhal kontrol altına alınmalı; arızalı bölüm yetkisiz kişilerden izole edilerek yetkili personelce onarılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. MEB – Okul ve Kurumlarda İş Güvenliği Rehberi",
+          "url": "https://erzurum.meb.gov.tr/meb_iys_dosyalar/2026_04/69d38cd64425a568245066_OKUL_VE_KURUMLARDA_IS_GUVENLIGI_ONLEMLERI_REHBERI_sonn.pdf",
+          "reference": "Okullarda elektrik tesisatı, priz ve taşınabilir ekipman güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-009",
+      "version": 1,
+      "topic_code": "YANGIN",
+      "topic_label": "Yangın güvenliği",
+      "question_text": "Okul koridorlarındaki yangın dolabı ve söndürücülerin önü nasıl olmalıdır?",
+      "options": [
+        "Sürekli erişilebilir ve engelsiz",
+        "Dolap ve sıralarla kapatılabilir",
+        "Sadece tatbikat gününde boşaltılmalıdır",
+        "Öğrencilerin erişemeyeceği şekilde tamamen gizlenmelidir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yangın ekipmanlarına erişim hiçbir zaman engellenmemeli; ekipman görünür ve işaretli tutulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. MEB – Okul ve Kurumlarda İş Güvenliği Rehberi",
+          "url": "https://erzurum.meb.gov.tr/meb_iys_dosyalar/2026_04/69d38cd64425a568245066_OKUL_VE_KURUMLARDA_IS_GUVENLIGI_ONLEMLERI_REHBERI_sonn.pdf",
+          "reference": "Yangın ekipmanlarına erişim ve kaçış yolları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-010",
+      "version": 1,
+      "topic_code": "SERVIS-TRAFIK",
+      "topic_label": "Okul giriş-çıkış ve servis güvenliği",
+      "question_text": "Okul servisleriyle yaya öğrencilerin aynı alanda hareket ettiği yerde en uygun uygulama hangisidir?",
+      "options": [
+        "Öğrencileri araçların arasından geçirmek",
+        "Araç ve yaya yollarını ayırmak, hız ve manevra düzeni oluşturmak",
+        "Servislerin geri manevrasını kontrolsüz bırakmak",
+        "Giriş alanındaki işaretleri kaldırmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Araç ve yaya yolları mümkün olduğunca ayrılmalı; hız, park, geri manevra ve öğrenci indirme-bindirme kuralları belirlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. MEB – Okul ve Kurumlarda İş Güvenliği Rehberi",
+          "url": "https://erzurum.meb.gov.tr/meb_iys_dosyalar/2026_04/69d38cd64425a568245066_OKUL_VE_KURUMLARDA_IS_GUVENLIGI_ONLEMLERI_REHBERI_sonn.pdf",
+          "reference": "Okul giriş-çıkışında servis, trafik ve yaya güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-011",
+      "version": 1,
+      "topic_code": "BAHCE-OYUN",
+      "topic_label": "Bahçe ve oyun alanı",
+      "question_text": "Okul bahçesindeki oyun ekipmanları için hangisi gereklidir?",
+      "options": [
+        "Sadece görünüşünün güzel olması",
+        "Kırık parçaların yerinde bırakılması",
+        "Düzenli kontrol, sağlam ankraj ve darbe emici uygun zemin",
+        "Keskin kenarların boyayla kapatılması"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Oyun ekipmanları düzenli kontrol edilmeli; gevşek, kırık veya keskin parçalar giderilmeli ve düşme alanı uygun olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. MEB – Okul ve Kurumlarda İş Güvenliği Rehberi",
+          "url": "https://erzurum.meb.gov.tr/meb_iys_dosyalar/2026_04/69d38cd64425a568245066_OKUL_VE_KURUMLARDA_IS_GUVENLIGI_ONLEMLERI_REHBERI_sonn.pdf",
+          "reference": "Bahçe ve oyun alanlarında ekipman, zemin ve düşme güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-012",
+      "version": 1,
+      "topic_code": "TEMIZLIK-KIMYASALI",
+      "topic_label": "Temizlik kimyasalları",
+      "question_text": "Okulda temizlik kimyasallarının güvenli kullanımı için hangisi doğrudur?",
+      "options": [
+        "Çamaşır suyu ile asitli ürünü karıştırmak",
+        "Kimyasalları yiyecek kaplarına aktarmak",
+        "Depo kapısını sürekli açık bırakmak",
+        "Ürünleri etiketli tutmak, karıştırmamak ve yetkisiz erişimi engellemek"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Temizlik kimyasalları karıştırılmamalı, etiketli tutulmalı ve öğrenci erişiminden uzak güvenli alanda saklanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. MEB – Okul ve Kurumlarda İş Güvenliği Rehberi",
+          "url": "https://erzurum.meb.gov.tr/meb_iys_dosyalar/2026_04/69d38cd64425a568245066_OKUL_VE_KURUMLARDA_IS_GUVENLIGI_ONLEMLERI_REHBERI_sonn.pdf",
+          "reference": "Temizlik kimyasallarının karıştırılmaması ve güvenli depolanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-013",
+      "version": 1,
+      "topic_code": "BULASICI-HASTALIK",
+      "topic_label": "Bulaşıcı hastalıkların kontrolü",
+      "question_text": "Okulda bulaşıcı hastalıkların yayılımını azaltmada hangisi uygundur?",
+      "options": [
+        "El hijyeni, yüzey temizliği, havalandırma ve belirlenen sağlık prosedürlerini uygulamak",
+        "Sınıfları sürekli kapalı tutmak",
+        "Ortak havluyu tüm öğrencilerin kullanması",
+        "Belirtileri görmezden gelmek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "El hijyeni, düzenli temizlik, uygun havalandırma ve sağlık otoritelerinin prosedürleri birlikte uygulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. MEB – Okulda Sağlığın Korunması ve Geliştirilmesi Programı",
+          "url": "https://okulsagligi.meb.gov.tr/www/okul-sagligi-hizmetleri-isbirligi-protokolu-okulda-sagligin-korunmasi-ve-gelistirilmesi-programi-uygulama-kilavuzu/icerik/50",
+          "reference": "Okul sağlığı, hijyen, havalandırma ve bulaşıcı hastalıkların kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-014",
+      "version": 1,
+      "topic_code": "SIDDET-PSIKOSOSYAL",
+      "topic_label": "Şiddet ve psikososyal riskler",
+      "question_text": "Okulda şiddet, tehdit veya akran zorbalığı riskine karşı kurumsal yaklaşım hangisidir?",
+      "options": [
+        "Olayları kayıt dışı bırakmak",
+        "Erken bildirim, görevli ekip, güvenli müdahale ve rehberlik desteği oluşturmak",
+        "Öğrencilerin kendi aralarında çözmesini beklemek",
+        "Yalnız kamera yerleştirmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Olayların erken bildirilmesi, değerlendirilmesi, güvenli müdahale ve rehberlik desteği içeren sistematik süreç kurulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. MEB – Okul ve Kurumlarda İş Güvenliği Rehberi",
+          "url": "https://erzurum.meb.gov.tr/meb_iys_dosyalar/2026_04/69d38cd64425a568245066_OKUL_VE_KURUMLARDA_IS_GUVENLIGI_ONLEMLERI_REHBERI_sonn.pdf",
+          "reference": "Okullarda şiddet, psikososyal risk, olay bildirimi ve müdahale"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-EGITIM-015",
+      "version": 1,
+      "topic_code": "TATBIKAT",
+      "topic_label": "Acil durum tatbikatı",
+      "question_text": "Okul acil durum tatbikatının temel amacı hangisidir?",
+      "options": [
+        "Sadece belge düzenlemek",
+        "Ders süresini kısaltmak",
+        "Tahliye planını, görev dağılımını ve uygulamadaki eksikleri sınamak",
+        "Yalnız yöneticileri değerlendirmek"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Tatbikatlar planın uygulanabilirliğini, tahliye süresini, iletişimi ve görev dağılımını test etmek için yapılır; sonuçlar kayıt altına alınmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "egitim_okul_kurs"
+        },
+        {
+          "type": "sector",
+          "value": "egitim_kurumu"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Acil Durumlar ve Çalışan Eğitimleri Rehberleri",
+          "url": "https://www.csgb.gov.tr/isggm/yayinlar-ve-afisler/",
+          "reference": "Tatbikatların planlı yapılması, değerlendirilmesi ve iyileştirme faaliyetleri"
+        }
+      ]
+    }
+  ]
+}
