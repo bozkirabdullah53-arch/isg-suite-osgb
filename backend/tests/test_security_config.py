@@ -5,6 +5,12 @@ from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from app.core.config import validate_runtime_settings, settings
+from app.core.cors_policy import (
+    APPROVED_PRODUCTION_ORIGINS,
+    LOCAL_DEVELOPMENT_ORIGINS,
+    build_cors_origins,
+    is_production_environment,
+)
 from app.core.rate_limit import SimpleRateLimitMiddleware, rate_limit_backend
 from app.main import app
 
@@ -175,3 +181,42 @@ def test_qa_env_allows_test_secret(monkeypatch):
     monkeypatch.setattr(settings, "environment", "qa")
     monkeypatch.setattr(settings, "secret_key", "qa-test-secret-key-at-least-32-characters-ok")
     validate_runtime_settings()
+
+
+def test_production_cors_aliases_exclude_local_origins():
+    for environment in ("production", "prod", "live", " Production "):
+        origins = build_cors_origins(
+            environment=environment,
+            frontend_origin="https://www.isgsuite.tr",
+        )
+        assert all(origin not in origins for origin in LOCAL_DEVELOPMENT_ORIGINS)
+        assert is_production_environment(environment)
+
+
+def test_non_production_cors_keeps_local_origins():
+    for environment in ("development", "staging", "test", ""):
+        origins = build_cors_origins(
+            environment=environment,
+            frontend_origin="https://staging.example.test",
+        )
+        assert all(origin in origins for origin in LOCAL_DEVELOPMENT_ORIGINS)
+        assert not is_production_environment(environment)
+
+
+def test_configured_cors_origin_is_preserved():
+    custom_origin = "https://customer.example.test"
+    origins = build_cors_origins(
+        environment="production",
+        frontend_origin=custom_origin,
+    )
+    assert origins[0] == custom_origin
+    assert all(origin in origins for origin in APPROVED_PRODUCTION_ORIGINS)
+
+
+def test_cors_origins_are_trimmed_and_deduplicated():
+    origins = build_cors_origins(
+        environment="production",
+        frontend_origin="  https://www.isgsuite.tr  ",
+    )
+    assert origins.count("https://www.isgsuite.tr") == 1
+    assert "" not in origins
