@@ -24,16 +24,19 @@ def _replace_heading(value: Any) -> Any:
         result = value
         for old in OLD_HEADINGS:
             result = result.replace(old, NEW_HEADING)
-        return result
+        return value if result == value else result
     if isinstance(value, list):
-        return [_replace_heading(item) for item in value]
+        replaced = [_replace_heading(item) for item in value]
+        return value if replaced == value else replaced
     if isinstance(value, tuple):
-        return tuple(_replace_heading(item) for item in value)
+        replaced = tuple(_replace_heading(item) for item in value)
+        return value if replaced == value else replaced
     if isinstance(value, dict):
-        return {
+        replaced = {
             _replace_heading(key): _replace_heading(item)
             for key, item in value.items()
         }
+        return value if replaced == value else replaced
     return value
 
 
