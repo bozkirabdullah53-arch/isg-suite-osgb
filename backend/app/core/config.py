@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     clamav_host: str | None = None
     clamav_port: int = 3310
     clamav_timeout_sec: float = 30.0
+    # Açıldığında antivirüs yapılandırılmadan production başlamaz ve tarama atlanmaz.
+    clamav_required: bool = False
     # P0 upload gateway — production'da apply_production_rollout açar
     upload_gateway_enabled: bool = False
     # Acil kapatma: UPLOAD_GATEWAY_FORCE_OFF=true (production override'ı iptal)
@@ -101,6 +103,7 @@ def training_question_bank_exam_active() -> bool:
         return False
     return bool(getattr(settings, "training_question_bank_exam_enabled", False))
 
+
 _INSECURE_SECRET_KEYS = frozenset({
     "change-me-in-production-at-least-32-characters!",
     "change-me",
@@ -122,7 +125,7 @@ apply_production_rollout()
 
 
 def validate_runtime_settings() -> None:
-    """Üretimde zayıf/varsayılan SECRET_KEY ile başlamayı engelle."""
+    """Üretimde zayıf secret veya zorunlu antivirüs eksiğiyle başlamayı engelle."""
     env = (settings.environment or "").strip().lower()
     if env not in ("production", "prod", "live"):
         return
@@ -131,4 +134,11 @@ def validate_runtime_settings() -> None:
         raise RuntimeError(
             "Production ortamında güçlü SECRET_KEY zorunludur (.env / Render env). "
             "Varsayılan anahtarla başlatılamaz."
+        )
+    if bool(getattr(settings, "clamav_required", False)) and not (
+        getattr(settings, "clamav_host", None) or ""
+    ).strip():
+        raise RuntimeError(
+            "CLAMAV_REQUIRED=true iken CLAMAV_HOST zorunludur. "
+            "Antivirüs taraması olmadan production başlatılamaz."
         )
