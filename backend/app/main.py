@@ -14,8 +14,12 @@ from app.core.cors_policy import build_cors_origins, is_production_environment
 from app.core.database import Base, SessionLocal, engine
 from app.core.version import APP_VERSION
 from app.services.seed import seed_admin, seed_demo_osgbs
+from app.services.training_runtime_patches import install_training_runtime_patches
 
 logger = logging.getLogger(__name__)
+_training_runtime_status = install_training_runtime_patches()
+logger.info("training runtime patches: %s", _training_runtime_status)
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self,request,call_next):
         response=await call_next(request)
