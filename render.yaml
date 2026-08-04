@@ -1,10 +1,10 @@
-# Render Blueprint — premium eğitim belgesi kaynak kontrollüdür; sınav uyumluluk aktivasyonu build sırasında doğrulanır.
+# Render Blueprint — eğitim belgesi ve sınav davranışları kaynak kontrollüdür; build kaynak dosyaları değiştirmez.
 services:
   - type: web
     name: isg-suite-api
     runtime: python
     rootDir: backend
-    buildCommand: python scripts/activate_training_exam.py && pip install --upgrade pip && pip install -r requirements.txt
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: sh start.sh
     healthCheckPath: /health
     branch: master
