@@ -243,11 +243,11 @@ function EducationOutputPanel({
             onClick={onDownloadExam}
           >
             <ShieldCheck size={18} />
-            {dlBusy === 'exam' ? 'Hazırlanıyor…' : 'Sınav Oluştur (15 Soru)'}
+            {dlBusy === 'exam' ? 'Hazırlanıyor…' : 'Sınav Oluştur (20 Soru)'}
           </button>
         ) : (
           <div className="education-output-disabled" aria-disabled="true">
-            Sınav Oluştur (15 Soru)
+            Sınav Oluştur (20 Soru)
           </div>
         )}
         {ready ? (
