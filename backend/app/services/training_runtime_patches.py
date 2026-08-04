@@ -1,4 +1,4 @@
-"""Source-controlled runtime patches for approved training document behavior.
+"""Source-controlled runtime patches for approved training behavior.
 
 The project historically rewrote Python source files during Render builds. This
 module installs the same approved behavior in memory, idempotently, so the code
@@ -7,6 +7,7 @@ executed in production remains traceable to the repository.
 from __future__ import annotations
 
 from functools import wraps
+import sys
 from typing import Any
 
 OLD_HEADINGS = (
@@ -17,6 +18,27 @@ OLD_HEADINGS = (
     "Faaliyetin genel tehlike ve riskleri",
 )
 NEW_HEADING = "4. İŞE VE İŞYERİNE ÖZGÜ RİSKLER VE RİSK DEĞERLENDİRMESİNE DAYALI KONULAR"
+
+SECTOR_QUESTION_ALIASES = {
+    "elektrik_elektronik_uretim": "enerji_jenerator_trafo",
+    "elektronik": "enerji_jenerator_trafo",
+    "elektrik_tesisat_pano_montaj": "enerji_jenerator_trafo",
+    "elektrik_bakim": "enerji_jenerator_trafo",
+    "aku_uretimi": "aku_uretimi",
+    "karayolu_tasimacilik": "depo_lojistik",
+    "nakliye_karayolu_tasimaciligi": "depo_lojistik",
+    "dagitim_kargo_kurye": "depo_lojistik",
+    "e_ticaret_depo_fulfillment": "depo_lojistik",
+    "fabrika_genel_imalat": "genel_uretim",
+}
+
+BATTERY_TRAINING_TOPICS = (
+    "Kurşun tozu ve dumanı maruziyeti, mühendislik kontrolleri, hijyen ve sağlık gözetimi",
+    "Sülfürik asitle güvenli çalışma, sıçrama, dökülme, acil duş ve göz duşu",
+    "Akü şarjında hidrojen gazı, havalandırma, patlama ve ateşleme kaynakları",
+    "Elektrik, kısa devre, makine güvenliği ve bakımda enerji izolasyonu",
+    "Elle taşıma, yangın, acil durum, tahliye ve periyodik kontroller",
+)
 
 
 def _replace_heading(value: Any) -> Any:
@@ -38,6 +60,61 @@ def _replace_heading(value: Any) -> Any:
         }
         return value if replaced == value else replaced
     return value
+
+
+def _patch_sector_profile_resolution() -> str:
+    """Install the approved NACE→central-profile resolver without file writes."""
+    from app.services import training_topics
+
+    current = training_topics.sektor_kodu_cozumle
+    if getattr(current, "_source_controlled_sector_resolver_active", False):
+        return "already-active"
+
+    def source_controlled_resolver(sektor: str | None) -> str:
+        if not sektor:
+            return "genel_uretim"
+        raw = sektor.strip()
+        if raw in training_topics.SEKTOR_PROFIL:
+            return training_topics.SEKTOR_PROFIL[raw]
+        if raw in training_topics.SEKTOREL_EGITIM_KONULARI:
+            return raw
+        nace_code = "nace_" + raw.replace(".", "_")
+        if nace_code in training_topics.SEKTOR_PROFIL:
+            return training_topics.SEKTOR_PROFIL[nace_code]
+        if nace_code in training_topics.SEKTOREL_EGITIM_KONULARI:
+            return nace_code
+        for kod, ad in training_topics.SEKTOR_SECENEKLERI:
+            if ad.casefold() == raw.casefold():
+                return training_topics.SEKTOR_PROFIL.get(kod, kod)
+        for kod, ad in training_topics.PROFIL_ADLARI.items():
+            if ad.casefold() == raw.casefold():
+                return kod
+        if raw in ("01", "02", "03", "04", "05"):
+            return "genel_uretim"
+        return "genel_uretim"
+
+    source_controlled_resolver._source_controlled_sector_resolver_active = True
+    training_topics.sektor_kodu_cozumle = source_controlled_resolver
+
+    topics_builder = getattr(training_topics, "_topics_with_dk", None)
+    if not callable(topics_builder):
+        raise RuntimeError("Eğitim konu oluşturucusu bulunamadı.")
+    training_topics.SEKTOR_PROFIL["nace_27_20_01"] = "aku_uretimi"
+    training_topics.SEKTOREL_EGITIM_KONULARI["aku_uretimi"] = topics_builder(
+        list(BATTERY_TRAINING_TOPICS)
+    )
+
+    # Uvicorn/sitecustomize dışı test veya yardımcı başlangıçlarında daha önce
+    # import edilmiş doğrudan fonksiyon referanslarını da aynı davranışa bağla.
+    for module_name in (
+        "app.services.training_pdfs",
+        "app.services.training_question_bank",
+        "app.api.trainings",
+    ):
+        module = sys.modules.get(module_name)
+        if module is not None and hasattr(module, "sektor_kodu_cozumle"):
+            setattr(module, "sektor_kodu_cozumle", source_controlled_resolver)
+    return "active"
 
 
 def _patch_training_topics() -> str:
@@ -70,6 +147,55 @@ def _patch_training_topics() -> str:
     return "active" if wrapped_count else "already-active"
 
 
+def _patch_question_bank_candidates() -> str:
+    """Install approved sector aliases and safe general-production fallback."""
+    from app.services import training_question_bank as question_bank
+
+    # FastAPI açık kurulumu sitecustomize sonrasında çalışsa bile yayın
+    # doğrulamasının güncel profil kümesini görmesini sağla.
+    question_bank._SECTOR_VALUES = (
+        frozenset(question_bank._SECTOR_VALUES)
+        | frozenset(question_bank.SEKTOR_PROFIL)
+        | frozenset(question_bank.SEKTOR_PROFIL.values())
+        | frozenset(question_bank.SEKTOREL_EGITIM_KONULARI)
+    )
+
+    current = question_bank._candidate_buckets
+    if getattr(current, "_source_controlled_candidate_buckets_active", False):
+        return "already-active"
+
+    def source_controlled_candidate_buckets(db, training):
+        rows = question_bank._published_questions_for_training(db, training)
+        ctx = question_bank._context(training)
+        buckets = question_bank._buckets_for_context(rows, ctx)
+        if len(buckets["sector"]) >= question_bank.BUCKET_TARGETS["sector"]:
+            return buckets
+
+        preferred = (
+            SECTOR_QUESTION_ALIASES.get(ctx["sector_code"])
+            or SECTOR_QUESTION_ALIASES.get(ctx["sector"])
+        )
+        candidates = [preferred, "genel_uretim"] if preferred else ["genel_uretim"]
+        existing = {row.id for row in buckets["sector"]}
+        for scope_value in candidates:
+            if not scope_value:
+                continue
+            fallback_ctx = dict(ctx)
+            fallback_ctx["sector"] = scope_value
+            fallback_ctx["sector_code"] = scope_value
+            for row in question_bank._buckets_for_context(rows, fallback_ctx)["sector"]:
+                if row.id not in existing:
+                    buckets["sector"].append(row)
+                    existing.add(row.id)
+                if len(buckets["sector"]) >= question_bank.BUCKET_TARGETS["sector"]:
+                    return buckets
+        return buckets
+
+    source_controlled_candidate_buckets._source_controlled_candidate_buckets_active = True
+    question_bank._candidate_buckets = source_controlled_candidate_buckets
+    return "active"
+
+
 def _patch_certificate_renderer() -> str:
     from app.services import training_pdfs
     from app.services.training_pdf_premium import draw_certificate_page
@@ -89,8 +215,10 @@ def _patch_certificate_renderer() -> str:
 
 
 def install_training_runtime_patches() -> dict[str, str]:
-    """Install approved training topic and certificate behavior idempotently."""
+    """Install approved training behavior idempotently and without file writes."""
     return {
+        "sector_profiles": _patch_sector_profile_resolution(),
         "topics": _patch_training_topics(),
+        "question_candidates": _patch_question_bank_candidates(),
         "premium_certificate": _patch_certificate_renderer(),
     }
