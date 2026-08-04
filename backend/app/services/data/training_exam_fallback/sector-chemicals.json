@@ -1,0 +1,544 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-KIMYA-001",
+      "version": 1,
+      "topic_code": "KIMYASAL-SDS",
+      "topic_label": "Güvenlik Bilgi Formu",
+      "question_text": "Bir kimyasal madde kullanılmadan önce tehlikeleri, maruziyet kontrolleri ve acil durum bilgileri öncelikle hangi belgeden öğrenilmelidir?",
+      "options": [
+        "Sevkiyat irsaliyesinden",
+        "Güvenlik Bilgi Formundan (SDS)",
+        "Makine bakım kartından",
+        "Vardiya çizelgesinden"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "SDS; maddenin sınıflandırması, maruziyet kontrolleri, depolama, ilk yardım, yangın ve dökülme müdahalesi gibi temel güvenlik bilgilerini içerir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Malzeme Güvenlik Bilgi Formları ve Kimyasal Riskler",
+          "url": "https://www.csgb.gov.tr/isggm/yayinlar-ve-afisler/",
+          "reference": "Kimyasalların güvenli kullanımında SDS/MSDS bilgilerinin esas alınması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-002",
+      "version": 1,
+      "topic_code": "IKAME",
+      "topic_label": "İkame ve kontrol hiyerarşisi",
+      "question_text": "Tehlikeli bir solventin oluşturduğu riski azaltmada öncelikli yaklaşım hangisidir?",
+      "options": [
+        "Yalnız solunum maskesi vermek",
+        "Mümkünse daha az tehlikeli bir madde veya prosesle ikame etmek",
+        "Çalışma süresini kayıt altına almak",
+        "Kimyasal kabını daha büyük seçmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kimyasal risklerde öncelik tehlikeyi ortadan kaldırmak veya daha az tehlikeli maddeyle ikame etmektir; mühendislik önlemleri ve KKD daha sonraki basamaklardır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Kimyasallara Bağlı Meslek Hastalıkları ve Önleme",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "İkame, kapsülleme, havalandırma ve KKD sıralaması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-003",
+      "version": 1,
+      "topic_code": "ETIKETLEME",
+      "topic_label": "Kimyasal etiketleme",
+      "question_text": "Bir kimyasalın çalışma kabına aktarılması hâlinde aşağıdakilerden hangisi yapılmalıdır?",
+      "options": [
+        "Kabın etiketsiz bırakılması",
+        "İçeriği ve tehlikeleri gösterecek uygun etiketleme yapılması",
+        "Sadece kabın renginin değiştirilmesi",
+        "Kimyasal adının yalnız vardiya defterine yazılması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İkincil kaplar dâhil kimyasal kapları, içeriğin ve tehlikelerin anlaşılmasını sağlayacak biçimde etiketlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Tehlikeli Malzemeyi Etiketlemeyi Unutma",
+          "url": "https://www.csgb.gov.tr/isggm/yayinlar-ve-afisler/",
+          "reference": "Kimyasal maddelerin uygun kap ve etiketle tanımlanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-004",
+      "version": 1,
+      "topic_code": "DEPOLAMA-UYUMSUZLUK",
+      "topic_label": "Uyumsuz kimyasalların depolanması",
+      "question_text": "Kimyasal depolamada temel güvenlik kuralı hangisidir?",
+      "options": [
+        "Tüm kimyasalları aynı rafta depolamak",
+        "Uyumsuz kimyasalları özelliklerine göre ayırmak ve uygun koşullarda depolamak",
+        "Etiketleri sökerek raf düzeni sağlamak",
+        "Ağır kapları en üst rafa koymak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Asit, baz, oksitleyici, yanıcı ve reaktif maddeler uyumlulukları değerlendirilerek ayrılmalı; sızıntı ve ikincil kaplama tedbirleri uygulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Kimyasalların Güvenli Depolanması",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kimyasal uyumluluk, ayırma, kaplama ve güvenli depolama ilkeleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-005",
+      "version": 1,
+      "topic_code": "YANICI-SIVI",
+      "topic_label": "Yanıcı sıvılar",
+      "question_text": "Yanıcı solventlerin kullanıldığı alanda yangın ve patlama riskini azaltmada hangisi gereklidir?",
+      "options": [
+        "Kapları açık bırakmak",
+        "Ateşleme kaynaklarını kontrol etmek, kapalı sistem ve uygun havalandırma kullanmak",
+        "Solventleri elektrik panosu yanında depolamak",
+        "Dökülen solventi buharlaşmaya bırakmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Yanıcı solvent buharları ateşleme kaynaklarıyla temas ettiğinde yangın veya patlama oluşturabilir; kapalı sistem, havalandırma ve ateşleme kontrolü gereklidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Boya Sektöründe Solvent Kullanımı",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Solvent buharı, yangın-patlama tehlikesi ve teknik kontrol önlemleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-006",
+      "version": 1,
+      "topic_code": "PATLAYICI-ORTAM",
+      "topic_label": "Patlayıcı ortam",
+      "question_text": "Yanıcı buhar oluşabilecek bir proses alanında kullanılacak elektrikli ekipman için temel şart hangisidir?",
+      "options": [
+        "Sadece yeni olması",
+        "Bölge sınıflandırmasına ve patlayıcı ortam şartlarına uygun ekipman seçilmesi",
+        "Metal gövdeli olması",
+        "Yalnız düşük voltajla çalışması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Patlayıcı ortam oluşabilecek bölgelerde ekipman, bölge sınıflandırmasına ve ilgili koruma seviyesine uygun seçilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Patlayıcı Ortamlarda İş Güvenliği",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Bölge sınıflandırması, ateşleme kaynakları ve uygun ekipman seçimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-007",
+      "version": 1,
+      "topic_code": "STATIK-ELEKTRIK",
+      "topic_label": "Statik elektrik ve topraklama",
+      "question_text": "Yanıcı sıvı transferinde statik elektrik kaynaklı tutuşmayı önlemek için hangisi uygulanmalıdır?",
+      "options": [
+        "Plastik hortumu zeminde sürüklemek",
+        "İletken bağlantı, eşpotansiyel bağlama ve uygun topraklama sağlamak",
+        "Transfer hızını artırmak",
+        "Kapları açık bırakmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Yanıcı sıvı transferinde yük birikimi kıvılcım oluşturabilir; uygun bağlama ve topraklama statik elektrik riskini azaltır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Patlayıcı Ortamlarda İş Güvenliği",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Statik elektrik, eşpotansiyel bağlama ve topraklama tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-008",
+      "version": 1,
+      "topic_code": "LOKAL-EMIS",
+      "topic_label": "Lokal emiş havalandırması",
+      "question_text": "Karıştırma veya dolum sırasında oluşan solvent buharını kontrol etmede en etkili teknik yöntem hangisidir?",
+      "options": [
+        "Yalnız genel pencere havalandırması",
+        "Buharı oluştuğu noktada yakalayan lokal emiş sistemi",
+        "Çalışanların daha hızlı çalışması",
+        "Yalnız koku giderici kullanılması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kimyasal buharlar kaynağında yakalanmalı; lokal emiş sistemi, genel havalandırma ve proses kapatma ile desteklenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Endüstriyel Havalandırmaya Giriş",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kirleticilerin kaynağında yakalanması ve lokal emiş tasarımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-009",
+      "version": 1,
+      "topic_code": "DOKULME-MUDAHALE",
+      "topic_label": "Kimyasal dökülme",
+      "question_text": "Tehlikeli kimyasal dökülmesinde ilk doğru yaklaşım hangisidir?",
+      "options": [
+        "Kimyasalı çıplak elle toplamak",
+        "Alanı güvenli hâle getirip SDS ve acil durum prosedürüne göre uygun ekipmanla müdahale etmek",
+        "Kimyasalı kanalizasyona yıkamak",
+        "Üzerini kartonla kapatmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Dökülmede maddenin özelliği belirlenmeli, alan izole edilmeli ve yalnız eğitimli kişiler uygun emici, nötralizan ve KKD ile prosedüre göre müdahale etmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Kimyasal Riskleri Görmezden Gelmeyin",
+          "url": "https://www.csgb.gov.tr/isggm/yayinlar-ve-afisler/",
+          "reference": "Kimyasal dökülme, maruziyet ve acil müdahale tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-010",
+      "version": 1,
+      "topic_code": "ACIL-DUS-GOZ",
+      "topic_label": "Acil duş ve göz duşu",
+      "question_text": "Aşındırıcı kimyasal sıçrama riski bulunan alanda hangi acil ekipman bulunmalıdır?",
+      "options": [
+        "Yalnız yangın battaniyesi",
+        "Kolay erişilebilir ve çalışır durumda acil duş ile göz duşu",
+        "Sadece el yıkama lavabosu",
+        "Yalnız ilk yardım çantası"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Aşındırıcı kimyasalın göz veya ciltle temasında gecikmeden bol suyla yıkama gerekir; acil duş ve göz duşunun erişimi engellenmemelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Kimya Sektörü İSG Rehberleri",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kimyasal sıçramalarda acil duş, göz duşu ve ilk müdahale"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-011",
+      "version": 1,
+      "topic_code": "KAPALI-SISTEM",
+      "topic_label": "Kapalı sistem ve proses güvenliği",
+      "question_text": "Toksik veya uçucu kimyasalların üretim prosesinde maruziyeti azaltmada hangisi önceliklidir?",
+      "options": [
+        "Açık kaplarda işlem yapmak",
+        "Prosesi mümkün olduğunca kapalı sistem içinde yürütmek",
+        "Yalnız vardiya süresini azaltmak",
+        "Kimyasala parfüm eklemek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kapalı sistem ve kapsülleme, kimyasalın çalışma ortamına yayılmasını kaynağında sınırlar ve toplu korunma sağlar.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Kimyasallara Bağlı Meslek Hastalıkları ve Önleme",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Kapsülleme ve havalandırma ile kimyasal maruziyetin önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-012",
+      "version": 1,
+      "topic_code": "MARUZIYET-OLCUM",
+      "topic_label": "Kişisel maruziyet ölçümü",
+      "question_text": "Bir kimyasal için ölçüm sonucunun mesleki maruziyet sınır değeriyle karşılaştırılabilmesi için hangi ölçüm türü esas alınmalıdır?",
+      "options": [
+        "Sabit noktadan yapılan genel ortam ölçümü",
+        "Çalışanın solunum bölgesinden yapılan kişisel maruziyet ölçümü",
+        "Dış ortam hava ölçümü",
+        "Depo sıcaklık ölçümü"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Mesleki maruziyet sınır değerleri çalışanın solunum bölgesindeki zaman ağırlıklı maruziyeti ifade eder; sabit nokta ortam ölçümü tek başına bu karşılaştırma için yeterli değildir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Ölçüm Sonuçlarının Mesleki Maruziyet Sınır Değerleri ile Kıyaslanması",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/laboratuvar-yetkilendirme/",
+          "reference": "Sınır değer karşılaştırmasında kişisel maruziyet ölçümünün kullanılması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-013",
+      "version": 1,
+      "topic_code": "KKD-SECIM",
+      "topic_label": "Kimyasala uygun KKD",
+      "question_text": "Kimyasal eldiven seçimi nasıl yapılmalıdır?",
+      "options": [
+        "Her kimyasal için aynı eldiven kullanılarak",
+        "SDS, geçirgenlik-dayanım bilgileri ve kullanım süresi dikkate alınarak",
+        "Yalnız eldivenin kalınlığına bakılarak",
+        "Rengine göre seçilerek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Eldiven malzemelerinin kimyasallara dayanımı farklıdır; seçim SDS ve üretici geçirgenlik verileri esas alınarak yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Kimyasal Maddeler ve KKD Mevzuatı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Kimyasal riske uygun kişisel koruyucu donanım seçimi ve kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-014",
+      "version": 1,
+      "topic_code": "SAGLIK-GOZETIMI",
+      "topic_label": "Sağlık gözetimi",
+      "question_text": "Kimyasal maruziyet bulunan işlerde sağlık gözetimi nasıl planlanmalıdır?",
+      "options": [
+        "Tüm çalışanlara aynı tetkik uygulanarak",
+        "Risk değerlendirmesi, kullanılan kimyasallar ve maruziyet profiline göre işyeri hekimi tarafından",
+        "Yalnız işe girişte bir kez",
+        "Çalışanın talebi olmadıkça yapılmadan"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Sağlık gözetimi; kimyasalın etkileri, maruziyet yolu, düzeyi ve çalışanın kişisel özellikleri dikkate alınarak risk temelli planlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Kimya Ürünleri İmalatında İş Sağlığı Gözetimi Rehberi",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kimyasal maruziyete göre risk temelli sağlık gözetimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-KIMYA-015",
+      "version": 1,
+      "topic_code": "ATIK-YONETIMI",
+      "topic_label": "Kimyasal atık yönetimi",
+      "question_text": "Kimyasal atıkların yönetiminde hangisi doğrudur?",
+      "options": [
+        "Uyumsuz atıkları aynı kapta karıştırmak",
+        "Atıkları özelliklerine göre ayırmak, etiketlemek ve uygun kaplarda geçici depolamak",
+        "Atıkları lavaboya dökmek",
+        "Etiketsiz açık kaplarda bekletmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kimyasal atıklar tehlike özelliklerine göre ayrılmalı, uyumsuz maddeler karıştırılmamalı, kaplar kapalı ve etiketli tutulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "kimya_kimyasal_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "kimyasal_boya"
+        },
+        {
+          "type": "sector",
+          "value": "boyahaneler_boya_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Kimyasalların Güvenli Depolanması ve Kimya Sektörü Rehberleri",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kimyasal atıkların ayrılması, etiketlenmesi ve güvenli geçici depolanması"
+        }
+      ]
+    }
+  ]
+}

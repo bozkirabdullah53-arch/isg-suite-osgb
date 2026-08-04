@@ -1,0 +1,544 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-OTOMOTIV-001",
+      "version": 1,
+      "topic_code": "ARAC-LIFT",
+      "topic_label": "Araç kaldırma lifti",
+      "question_text": "Araç kaldırma liftine araç alınmadan önce hangisi yapılmalıdır?",
+      "options": [
+        "Lift kapasitesi, kaldırma noktaları ve araç ağırlığı kontrol edilmelidir",
+        "Araç mümkün olan en hızlı şekilde kaldırılmalıdır",
+        "Kaldırma kolları rastgele yerleştirilmelidir",
+        "Araç içinde çalışan bırakılmalıdır"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Araç, üreticinin belirttiği kaldırma noktalarından ve lift kapasitesi aşılmadan kaldırılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Araç liftlerinde kapasite, konumlandırma ve güvenli kaldırma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-002",
+      "version": 1,
+      "topic_code": "LIFT-ALTINDA-CALISMA",
+      "topic_label": "Lift altında çalışma",
+      "question_text": "Lift üzerindeki aracın altında çalışmaya başlamadan önce hangisi doğrudur?",
+      "options": [
+        "Yalnız el freni çekilmelidir",
+        "Lift kilitleri devreye alınmalı ve aracın dengesi kontrol edilmelidir",
+        "Araç motoru çalışır durumda bırakılmalıdır",
+        "Tekerlerden biri yere temas etmelidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Mekanik emniyet kilitleri devrede olmalı ve araç dengeli biçimde sabitlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Kaldırılmış araç altında çalışma ve mekanik emniyet"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-003",
+      "version": 1,
+      "topic_code": "AKU",
+      "topic_label": "Akü güvenliği",
+      "question_text": "Kurşun-asit akü üzerinde çalışırken hangisi uygundur?",
+      "options": [
+        "Kıvılcım çıkaran alet kullanmak",
+        "Akü kutup başlarını metal cisimle kısa devre etmek",
+        "Göz-yüz koruyucu kullanmak ve ortamı havalandırmak",
+        "Aküyü açık alev yanında şarj etmek"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Akülerde asit sıçraması ve hidrojen gazı nedeniyle göz-yüz koruması, havalandırma ve ateşten uzak çalışma gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Akü asidi, hidrojen gazı ve elektriksel riskler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-004",
+      "version": 1,
+      "topic_code": "YAKIT",
+      "topic_label": "Yakıt güvenliği",
+      "question_text": "Yakıt sistemi üzerinde çalışırken hangisi kesinlikle yapılmamalıdır?",
+      "options": [
+        "Uygun kap kullanmak",
+        "Dökülmeleri hemen temizlemek",
+        "Ateşleme kaynaklarını ortamdan uzaklaştırmak",
+        "Sigara içmek veya açık alev kullanmak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Benzin ve yakıt buharları kolay tutuşabildiği için ateş ve kıvılcım kaynakları yasaklanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Yanıcı sıvılar ve ateşleme kaynakları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-005",
+      "version": 1,
+      "topic_code": "EGZOZ",
+      "topic_label": "Egzoz gazları",
+      "question_text": "Kapalı serviste motor çalıştırılması gerekiyorsa hangisi uygulanmalıdır?",
+      "options": [
+        "Egzoz emiş sistemi kullanılmalı ve genel havalandırma sağlanmalıdır",
+        "Kapılar kapalı tutulmalıdır",
+        "Motor uzun süre rölantide bırakılmalıdır",
+        "Yalnız maske takılması yeterlidir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Egzoz gazları kaynağından emilmeli ve ortam yeterli şekilde havalandırılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Motor egzozu, karbonmonoksit ve havalandırma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-006",
+      "version": 1,
+      "topic_code": "BASINCLI-HAVA",
+      "topic_label": "Basınçlı hava",
+      "question_text": "Basınçlı hava tabancasının çalışanların üzerini temizlemek amacıyla kullanılması için hangisi doğrudur?",
+      "options": [
+        "Düşük basınçta serbestçe kullanılabilir",
+        "Vücuda yöneltilmemelidir",
+        "Yalnız gözler kapatılmalıdır",
+        "Kulaklık takılması yeterlidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Basınçlı hava cilt, göz ve kulak yaralanmalarına yol açabileceğinden vücuda yöneltilmemelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Basınçlı hava ve pnömatik ekipman güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-007",
+      "version": 1,
+      "topic_code": "LASTIK",
+      "topic_label": "Lastik şişirme",
+      "question_text": "Ağır araç lastiği şişirilirken en güvenli uygulama hangisidir?",
+      "options": [
+        "Çalışan lastiğin tam karşısında durmalıdır",
+        "Basınç göstergesi kullanılmamalıdır",
+        "Uygun şişirme kafesi ve uzaktan kumandalı hortum kullanılmalıdır",
+        "Lastik önerilen basıncın üzerinde şişirilmelidir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Ağır araç lastiklerinde patlama riski nedeniyle şişirme kafesi ve güvenli mesafeden kontrol gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Basınçlı lastiklerin güvenli şişirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-008",
+      "version": 1,
+      "topic_code": "KAYNAK-KESME",
+      "topic_label": "Kaynak ve kesme",
+      "question_text": "Araç üzerinde kaynak yapılmadan önce hangisi yapılmamalıdır?",
+      "options": [
+        "Yanıcı malzemeleri uzaklaştırmak",
+        "Yangın söndürücü hazır bulundurmak",
+        "Yakıt ve elektrik sistemini değerlendirmek",
+        "Yakıt kaçağı varken kaynak yapmak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Yakıt kaçağı bulunan veya yanıcı buhar oluşabilecek araçta sıcak çalışma yapılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Otomotiv Yan Sanayisinde İSG Teftiş Raporu",
+          "url": "https://www.csgb.gov.tr/Media/xi0adsat/ana-metal-sanayisi-fabrikasyon-metal-%C3%BCr%C3%BCnlerin-imalat%C4%B1-ve-otomotiv-yan-sanayisinde-i%C5%9F-sa%C4%9Fl%C4%B1%C4%9F%C4%B1-ve-g%C3%BCvenli%C4%9Fi-programl%C4%B1-tefti%C5%9Fi-sonu%C3%A7-raporu.pdf",
+          "reference": "Sıcak çalışma, yangın ve patlama riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-009",
+      "version": 1,
+      "topic_code": "EL-ALETLERI",
+      "topic_label": "El aletleri",
+      "question_text": "Taşlama makinesi kullanılmadan önce hangisi kontrol edilmelidir?",
+      "options": [
+        "Koruyucu siper, disk uygunluğu ve hasar durumu",
+        "Yalnız kablo rengi",
+        "Çalışanın kıdemi",
+        "Atölye kapısının açık olması"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Diskin makineye uygunluğu, hasarsız oluşu ve koruyucu siperin yerinde bulunması kontrol edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Taşlama makinelerinde disk ve koruyucu kontrolleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-010",
+      "version": 1,
+      "topic_code": "KIMYASAL",
+      "topic_label": "Kimyasal ürünler",
+      "question_text": "Fren temizleyici, solvent ve benzeri kimyasallar nasıl saklanmalıdır?",
+      "options": [
+        "Etiketsiz kaplarda",
+        "Etiketli, kapalı ve uyumlu depolama koşullarında",
+        "İçecek şişelerinde",
+        "Isı kaynağı yanında"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kimyasallar etiketli kaplarda, güvenlik bilgi formuna uygun ve ateşleme kaynaklarından uzakta tutulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Solvent ve temizlik kimyasallarının güvenli depolanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-011",
+      "version": 1,
+      "topic_code": "ATIK-YAG",
+      "topic_label": "Atık yağ",
+      "question_text": "Atık motor yağıyla ilgili hangisi doğrudur?",
+      "options": [
+        "Kanalizasyona dökülebilir",
+        "Zemine serpilerek toz bastırılabilir",
+        "Etiketli ve sızdırmaz kapta, uygun alanda biriktirilmelidir",
+        "Diğer tüm atıklarla karıştırılmalıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Atık yağlar sızdırmaz ve etiketli kaplarda, dökülmeye karşı önlem alınmış alanda ayrı toplanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Atık yağ, sızıntı ve çevresel maruziyet kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-012",
+      "version": 1,
+      "topic_code": "KRİKO",
+      "topic_label": "Kriko kullanımı",
+      "question_text": "Yalnız hidrolik krikoyla kaldırılmış aracın altında çalışmak neden güvenli değildir?",
+      "options": [
+        "Araç kirlenir",
+        "Kriko ağırdır",
+        "Çalışma yavaşlar",
+        "Kriko arızası veya kaçak nedeniyle araç düşebilir"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Krikoyla kaldırılan araç uygun kapasitede sehpa veya mekanik destekle emniyete alınmadan altında çalışılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Kriko ve destek sehpası kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-013",
+      "version": 1,
+      "topic_code": "ERGONOMI",
+      "topic_label": "Ergonomi",
+      "question_text": "Ağır şanzıman veya motor parçasının sökülmesinde hangisi uygundur?",
+      "options": [
+        "Uygun kaldırma aparatı veya transmisyon krikosu kullanmak",
+        "Parçayı elle tutmaya çalışmak",
+        "Tek çalışanla kaldırmak",
+        "Parçayı aniden serbest bırakmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Ağır ve dengesiz parçalar uygun kaldırma aparatıyla desteklenerek sökülmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Elle taşıma ve ağır parça kaldırma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-014",
+      "version": 1,
+      "topic_code": "PERIYODIK-KONTROL",
+      "topic_label": "Periyodik kontrol",
+      "question_text": "Araç liftleri ve kaldırma ekipmanları için hangisi doğrudur?",
+      "options": [
+        "Sadece arıza olduğunda kontrol edilir",
+        "Mevzuata ve ilgili standartlara uygun periyodik kontrolleri yetkili kişilerce yapılmalıdır",
+        "Kullanıcı kontrolü her zaman yeterlidir",
+        "Kontrol belgesi gerekmez"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Periyodik kontrole tabi ekipmanların kontrolleri yetkili kişilerce ve belirlenen esaslara göre yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – 23 Aralık 2025 İş Ekipmanları Yönetmelik Değişikliği",
+          "url": "https://www.csgb.gov.tr/isggm/tr/duyurular/24122025/",
+          "reference": "Periyodik kontrol kapsamı ve yetkili kişiler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTOMOTIV-015",
+      "version": 1,
+      "topic_code": "DUZEN-TEMIZLIK",
+      "topic_label": "Atölye düzeni",
+      "question_text": "Otomotiv servisinde geçiş yolları ve çalışma alanları için hangisi doğrudur?",
+      "options": [
+        "Hortum ve kablolar geçiş yolunda bırakılabilir",
+        "Dökülen yağ vardiya sonunda temizlenebilir",
+        "Geçiş yolları açık tutulmalı, yağ döküntüleri hemen temizlenmeli ve ekipman düzenli yerleştirilmelidir",
+        "Yedek parçalar acil çıkış önüne konabilir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "İyi düzen ve temizlik; kayma, takılma, düşme ve acil çıkışların kapanması risklerini azaltır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "otomotiv_servis_bakim"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv_yedek_parca"
+        },
+        {
+          "type": "sector",
+          "value": "otomotiv"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Atölyelerde düzen, temizlik ve geçiş yolları"
+        }
+      ]
+    }
+  ]
+}

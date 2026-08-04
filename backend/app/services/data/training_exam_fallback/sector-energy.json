@@ -1,0 +1,604 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-ENERJI-001",
+      "version": 1,
+      "topic_code": "ENERJI-IZOLASYONU",
+      "topic_label": "Enerji izolasyonu",
+      "question_text": "Elektrik panosunda bakım öncesinde hangisi yapılmalıdır?",
+      "options": [
+        "Enerji kesilmeli, tekrar enerjilenme önlenmeli ve gerilim yokluğu doğrulanmalıdır",
+        "Sadece anahtar kapatılmalıdır",
+        "Pano kapağı açık bırakılmalıdır",
+        "Çalışmaya başlamadan önce yalnız sözlü uyarı yapılmalıdır"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Elektrik bakımında enerji kesme, kilitleme/etiketleme ve gerilim yokluğu doğrulaması birlikte uygulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Elektrik bakımında enerji izolasyonu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-002",
+      "version": 1,
+      "topic_code": "YETKILENDIRME",
+      "topic_label": "Yetkilendirme",
+      "question_text": "Elektrik tesisatına müdahaleyi kim yapmalıdır?",
+      "options": [
+        "Her çalışan",
+        "Yetkili ve yeterli eğitim almış personel",
+        "Sadece vardiya amiri",
+        "İşyeri dışından herhangi biri"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Elektrik işleri, görevlendirilmiş ve yeterliliği bulunan kişilerce yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Elektrik işlerinde yetkilendirme"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-003",
+      "version": 1,
+      "topic_code": "GERILIM-YOKLUGU",
+      "topic_label": "Gerilim yokluğunun doğrulanması",
+      "question_text": "Enerji kesildikten sonra çalışmaya başlamadan önce hangisi gereklidir?",
+      "options": [
+        "Sadece sigortaya bakmak",
+        "Kablonun rengini kontrol etmek",
+        "Uygun ölçü aletiyle gerilim yokluğunu doğrulamak",
+        "Eldiven takmak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Devrenin enerjisiz olduğu uygun ölçü aletiyle doğrulanmadan çalışmaya başlanmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Gerilim yokluğunun doğrulanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-004",
+      "version": 1,
+      "topic_code": "CANLI-CALISMA",
+      "topic_label": "Canlı çalışma",
+      "question_text": "Elektrik tesisatında canlı çalışma için hangisi yanlıştır?",
+      "options": [
+        "Yalnız zorunlu ve kontrollü koşullarda değerlendirilmelidir",
+        "Yetkili personel görev almalıdır",
+        "Uygun prosedür ve KKD kullanılmalıdır",
+        "Kolaylık sağladığı için rutin yöntem olarak seçilmelidir"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Canlı çalışma istisnai olmalı; enerjisiz çalışma öncelikli yöntemdir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Canlı elektrik çalışmalarında risk kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-005",
+      "version": 1,
+      "topic_code": "TOPRAKLAMA",
+      "topic_label": "Topraklama",
+      "question_text": "Elektrikli ekipmanlarda koruyucu topraklamanın temel amacı nedir?",
+      "options": [
+        "Kaçak akım durumunda dokunma gerilimi riskini azaltmak",
+        "Enerji tüketimini artırmak",
+        "Ekipmanı daha hızlı çalıştırmak",
+        "Sigortayı devre dışı bırakmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Koruyucu topraklama, arıza akımının güvenli yoldan iletilmesine yardımcı olur.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Koruyucu topraklama ve elektrik çarpması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-006",
+      "version": 1,
+      "topic_code": "KACAK-AKIM",
+      "topic_label": "Kaçak akım koruması",
+      "question_text": "Kaçak akım koruma düzeni için hangisi doğrudur?",
+      "options": [
+        "Her türlü elektrik riskini tek başına ortadan kaldırır",
+        "Uygun seçilmeli, test edilmeli ve diğer koruma önlemleriyle birlikte kullanılmalıdır",
+        "Topraklama yerine geçer",
+        "Bakım gerektirmez"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kaçak akım koruması tamamlayıcıdır; uygun seçim, test ve bakım gerektirir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kaçak akım koruma düzenleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-007",
+      "version": 1,
+      "topic_code": "ARK-FLAS",
+      "topic_label": "Ark parlaması",
+      "question_text": "Elektrik panosunda ark parlaması riskini azaltmada hangisi uygundur?",
+      "options": [
+        "Pano kapağını açık tutmak",
+        "Uygunsuz sigorta kullanmak",
+        "Enerjisiz çalışma, uygun koruma ve güvenli mesafe uygulamak",
+        "Metal takılarla çalışmak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Ark parlaması riski enerjisiz çalışma, uygun ekipman ve prosedürlerle azaltılır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Ark parlaması ve elektriksel yanıklar"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-008",
+      "version": 1,
+      "topic_code": "JENERATOR-EGZOZ",
+      "topic_label": "Jeneratör egzozu",
+      "question_text": "Kapalı alanda jeneratör çalıştırılması neden tehlikelidir?",
+      "options": [
+        "Sadece gürültü nedeniyle",
+        "Yakıt tüketimi arttığı için",
+        "Titreşim nedeniyle",
+        "Karbonmonoksit birikimi ve zehirlenme riski nedeniyle"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Jeneratör egzozu karbonmonoksit içerir; kapalı alanda çalıştırılmamalı ve uygun havalandırma sağlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Jeneratör egzozu ve karbonmonoksit"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-009",
+      "version": 1,
+      "topic_code": "JENERATOR-YAKIT",
+      "topic_label": "Jeneratör yakıtı",
+      "question_text": "Jeneratöre yakıt ikmali için hangisi doğrudur?",
+      "options": [
+        "Motor durdurulmalı, sıcak yüzeylerden ve ateşleme kaynaklarından uzak dolum yapılmalıdır",
+        "Motor çalışırken dolum yapılabilir",
+        "Yakıt dökülmesi önemsenmeyebilir",
+        "Sigara içilebilir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yakıt ikmali motor kapalı ve yüzeyler güvenli sıcaklıktayken yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Jeneratörlerde yakıt ve yangın riski"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-010",
+      "version": 1,
+      "topic_code": "TRAFO-ALANI",
+      "topic_label": "Trafo alanı",
+      "question_text": "Trafo odası veya enerji dağıtım alanı için hangisi uygundur?",
+      "options": [
+        "Depo olarak kullanılmalıdır",
+        "Yetkisiz giriş engellenmeli, alan işaretlenmeli ve geçişler açık tutulmalıdır",
+        "Kapı kilitsiz bırakılmalıdır",
+        "Yanıcı malzeme biriktirilmelidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Trafo alanlarında kontrollü erişim, düzen ve yangın yükünün azaltılması gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Trafo odalarında erişim ve düzen"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-011",
+      "version": 1,
+      "topic_code": "KABLO-HASARI",
+      "topic_label": "Kablo ve bağlantılar",
+      "question_text": "Hasarlı kablo veya gevşek bağlantı fark edildiğinde ne yapılmalıdır?",
+      "options": [
+        "Bantla sarılıp kullanılmalıdır",
+        "Yalnız kuru havada kullanılmalıdır",
+        "Ekipman kullanımdan alınmalı ve yetkili bakım yapılmalıdır",
+        "Yük azaltılarak çalıştırılmalıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Hasarlı elektrik bağlantıları yangın ve elektrik çarpması riski oluşturur; kullanım durdurulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Elektrik kabloları ve bağlantı arızaları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-012",
+      "version": 1,
+      "topic_code": "METAL-TAKI",
+      "topic_label": "Kişisel riskler",
+      "question_text": "Elektrik panosunda çalışırken hangisi yapılmamalıdır?",
+      "options": [
+        "Uygun yalıtkan el aleti kullanmak",
+        "Yetkisiz kişileri uzak tutmak",
+        "Çalışma alanını düzenlemek",
+        "Metal takı ve iletken aksesuarlarla çalışmak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Metal takılar kısa devre ve yanık riskini artırabilir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Elektrik işlerinde iletken kişisel aksesuarlar"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-013",
+      "version": 1,
+      "topic_code": "YUKSEKTE-CALISMA",
+      "topic_label": "Direk ve yüksekte çalışma",
+      "question_text": "Elektrik direği veya yüksek platformda çalışma için hangisi uygundur?",
+      "options": [
+        "Düşmeye karşı uygun sistem, güvenli erişim ve kurtarma planı kullanmak",
+        "Merdiveni sabitlemeden çalışmak",
+        "Tek başına ve haberleşmesiz çalışmak",
+        "Uygun olmayan ankraj kullanmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yüksekte elektrik işlerinde düşmeye karşı koruma ve acil kurtarma düzeni birlikte planlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Mevzuat ve İSG Kaynakları",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Elektrik işlerinde yüksekte çalışma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-014",
+      "version": 1,
+      "topic_code": "AKU-ODASI",
+      "topic_label": "Akü odası",
+      "question_text": "Akü odalarında hangisi doğrudur?",
+      "options": [
+        "Açık alev kullanılabilir",
+        "Havalandırma sağlanmalı, kıvılcım kaynakları kontrol edilmeli ve uygun göz-yüz koruması kullanılmalıdır",
+        "Asit döküntüsü suyla gelişi güzel yayılmalıdır",
+        "Metal aletler kutup başları üzerine bırakılmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Aküler hidrojen gazı ve asit sıçraması riski oluşturur; havalandırma ve ateşleme kontrolü gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Akü odalarında hidrojen ve asit riski"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ENERJI-015",
+      "version": 1,
+      "topic_code": "ACIL-DURUM",
+      "topic_label": "Acil durum",
+      "question_text": "Elektrik kaynaklı yangında hangisi doğrudur?",
+      "options": [
+        "Önce su kullanılmalıdır",
+        "Enerji kesilmeden metal ekipmanla müdahale edilmelidir",
+        "Mümkünse enerji güvenli şekilde kesilmeli ve uygun söndürme yöntemi uygulanmalıdır",
+        "Pano kapağı açılarak hava verilmelidir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Elektrik kaynaklı yangınlarda enerji güvenli biçimde kesilmeli ve uygun söndürücü kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "enerji_jenerator_trafo"
+        },
+        {
+          "type": "sector",
+          "value": "enerji_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_tesisat_pano_montaj"
+        },
+        {
+          "type": "sector",
+          "value": "elektrik_bakim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Mevzuat ve Acil Durum Kaynakları",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Elektrik yangınları ve acil müdahale"
+        }
+      ]
+    }
+  ]
+}

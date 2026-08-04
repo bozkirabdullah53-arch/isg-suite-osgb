@@ -1,0 +1,484 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-ATIK-001",
+      "version": 1,
+      "topic_code": "ATIK-AYIRMA",
+      "topic_label": "Atıkların ayrılması",
+      "question_text": "Atık kabul ve ayrıştırma alanında hangisi doğrudur?",
+      "options": [
+        "Tehlikeli, kesici-delici, biyolojik ve evsel atıklar uygun şekilde ayrı toplanmalıdır",
+        "Tüm atıklar tek konteynere konulmalıdır",
+        "Etiketsiz kaplar kullanılmalıdır",
+        "Sızıntılı ambalajlar doğrudan elle taşınmalıdır"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Atıklar özelliklerine ve risklerine göre uygun, etiketli kaplarda ayrı toplanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Atıkların güvenli ayrılması ve toplanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-002",
+      "version": 1,
+      "topic_code": "KESICI-DELICI",
+      "topic_label": "Kesici-delici atıklar",
+      "question_text": "Kesici-delici atıkların toplanmasında hangisi uygundur?",
+      "options": [
+        "Torba elle sıkıştırılmalıdır",
+        "Delinmeye dayanıklı ve kapaklı uygun kutu kullanılmalıdır",
+        "Atıklar açık kovada tutulmalıdır",
+        "Çalışan eldivensiz toplamalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kesici-delici atıklar delinmeye dayanıklı ve kapatılabilir kaplarda toplanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kesici-delici atık güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-003",
+      "version": 1,
+      "topic_code": "KONVEYOR",
+      "topic_label": "Konveyör güvenliği",
+      "question_text": "Ayırma bandında güvenli çalışma için hangisi gereklidir?",
+      "options": [
+        "Bant çalışırken temizlik yapılmalıdır",
+        "Koruyucular sökülmelidir",
+        "Sıkışma noktaları korunmalı ve acil durdurma sistemi erişilebilir olmalıdır",
+        "Çalışan bant üzerine çıkmalıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Konveyörlerde tambur ve sıkışma noktaları korunmalı, acil durdurma sistemi çalışır olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Konveyörlerde sıkışma noktaları ve acil durdurma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-004",
+      "version": 1,
+      "topic_code": "SIKISMA-GIDERME",
+      "topic_label": "Sıkışma giderme",
+      "question_text": "Balyalama veya kırma makinesinde sıkışan malzeme nasıl çıkarılmalıdır?",
+      "options": [
+        "Makine çalışırken elle",
+        "Uzun çubukla itilerek",
+        "Koruyucu iptal edilerek",
+        "Makine durdurulup enerji izole edildikten sonra"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Sıkışma giderme öncesinde makine tam durmalı ve tüm enerji kaynakları güvenli şekilde izole edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Sıkışma giderme ve enerji izolasyonu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-005",
+      "version": 1,
+      "topic_code": "BİYOLOJİK-RİSK",
+      "topic_label": "Biyolojik risk",
+      "question_text": "Karışık atıkla çalışan personel için hangisi doğrudur?",
+      "options": [
+        "El hijyeni, uygun KKD ve sağlık gözetimi uygulanmalıdır",
+        "Yaralar açık bırakılmalıdır",
+        "Kirli eldivenle yemek yenebilir",
+        "Çalışma sonrası el yıkamaya gerek yoktur"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Karışık atıklar biyolojik ajan içerebilir; hijyen, KKD ve sağlık gözetimi gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Atık işlerinde biyolojik riskler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-006",
+      "version": 1,
+      "topic_code": "TOZ",
+      "topic_label": "Toz maruziyeti",
+      "question_text": "Kırma, eleme ve ayrıştırma sırasında oluşan tozu azaltmada öncelikli yöntem hangisidir?",
+      "options": [
+        "Sadece maske dağıtmak",
+        "Kaynağında emiş veya uygun bastırma sistemi kullanmak",
+        "Kapıları kapatmak",
+        "Vardiya sonunda süpürmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Toz kaynağında kontrol edilmeli; solunum koruması tamamlayıcı önlem olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Atık işleme tesislerinde toz kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-007",
+      "version": 1,
+      "topic_code": "KİMYASAL-SIZINTI",
+      "topic_label": "Kimyasal sızıntı",
+      "question_text": "Kimyasal içerdiği düşünülen sızıntılı bir atık kabında hangisi yapılmalıdır?",
+      "options": [
+        "Kabı koklayarak tanımak",
+        "Elle açmak",
+        "Alanı sınırlandırmak ve uygun prosedürle yetkili ekibe bildirmek",
+        "İçeriği lavaboya dökmek"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Tanımsız veya sızıntılı kimyasal atıklara kontrolsüz müdahale edilmemelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Tanımsız kimyasal atık ve sızıntı yönetimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-008",
+      "version": 1,
+      "topic_code": "YANGIN",
+      "topic_label": "Yangın riski",
+      "question_text": "Atık depolama alanında hangisi yapılmamalıdır?",
+      "options": [
+        "Yanıcı atıkları uygun şekilde ayırmak",
+        "Ateşleme kaynaklarını kontrol etmek",
+        "Geçişleri açık tutmak",
+        "Sıcak çalışma izni olmadan kaynak yapmak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Atıklar yüksek yangın yükü oluşturabilir; sıcak çalışma kontrolsüz yapılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Atık depolarında yangın ve sıcak çalışma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-009",
+      "version": 1,
+      "topic_code": "LİTYUM-PİL",
+      "topic_label": "Lityum pil ve batarya",
+      "question_text": "Hasarlı veya şişmiş lityum pil fark edildiğinde hangisi uygundur?",
+      "options": [
+        "Diğer atıklardan ayırmak ve uygun güvenli alana almak",
+        "Delerek boşaltmak",
+        "Suyla dolu kapta rastgele bekletmek",
+        "Evsel atıkla karıştırmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Hasarlı lityum piller kısa devre ve termal kaçak riski taşır; ayrı ve kontrollü yönetilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Lityum pil ve batarya yangın riski"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-010",
+      "version": 1,
+      "topic_code": "FORKLİFT",
+      "topic_label": "Forklift ve saha trafiği",
+      "question_text": "Atık tesisinde forklift kullanımı için hangisi doğrudur?",
+      "options": [
+        "Yaya yolları araç yoluyla aynı olmalıdır",
+        "Araç-yaya yolları ayrılmalı ve geri manevra kontrolü sağlanmalıdır",
+        "Yetkisiz kişiler forklift kullanabilir",
+        "Yük görüşü kapatsa da hız azaltmaya gerek yoktur"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Forklift trafiği; yaya ayrımı, hız kontrolü ve görüş kısıtında ek önlemlerle yönetilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Forklift ve saha trafiği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-011",
+      "version": 1,
+      "topic_code": "PRES-BALYA",
+      "topic_label": "Balyalama presi",
+      "question_text": "Balyalama presinde hangisi doğrudur?",
+      "options": [
+        "Kapak sensörü iptal edilebilir",
+        "Pres çalışırken malzeme elle düzeltilebilir",
+        "Koruyucular ve emniyet kilitleri devrede olmalıdır",
+        "Acil durdurma sistemi gereksizdir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Pres ve balyalama makineleri ezilme riski taşır; koruyucu ve kilit sistemleri devrede olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Pres ve balyalama makinelerinde koruyucular"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-012",
+      "version": 1,
+      "topic_code": "ELLE-TASIMA",
+      "topic_label": "Elle taşıma",
+      "question_text": "Ağır atık torbası veya parçanın taşınmasında hangisi yanlıştır?",
+      "options": [
+        "Taşıma arabası kullanmak",
+        "Yükü küçültmek",
+        "Ekip desteği almak",
+        "Belden ani kaldırmak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Ağır ve hacimli yükler mekanik yardımcıyla veya ekip desteğiyle taşınmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Atık işlerinde elle taşıma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-013",
+      "version": 1,
+      "topic_code": "KKD",
+      "topic_label": "Kişisel koruyucu donanım",
+      "question_text": "Atık ayrıştırma işinde KKD nasıl seçilmelidir?",
+      "options": [
+        "Atığın türü, kesilme, biyolojik ve kimyasal risklere göre",
+        "Sadece hava sıcaklığına göre",
+        "Tüm çalışanlara aynı şekilde",
+        "Sadece görünüşüne göre"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Eldiven, gözlük, solunum koruması ve diğer KKD maruziyet türüne göre seçilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Atık işlerinde uygun KKD seçimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-014",
+      "version": 1,
+      "topic_code": "HİJYEN",
+      "topic_label": "Hijyen",
+      "question_text": "Atık işleme tesisinde hangisi doğrudur?",
+      "options": [
+        "Yemek alanı çalışma alanıyla aynı olmalıdır",
+        "El yıkama, soyunma ve temiz-kirli alan ayrımı sağlanmalıdır",
+        "Kirli iş kıyafeti eve götürülmelidir",
+        "Koruyucu eldivenle yemek yenebilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Hijyen tesisleri ve temiz-kirli alan ayrımı, çapraz bulaşmayı azaltır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Atık işlerinde kişisel hijyen"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-ATIK-015",
+      "version": 1,
+      "topic_code": "ACİL-DURUM",
+      "topic_label": "Acil durum",
+      "question_text": "Atık tesisinin acil durum planında hangisi özellikle değerlendirilmelidir?",
+      "options": [
+        "Sadece vardiya çizelgesi",
+        "Yalnız makine sayısı",
+        "Yangın, kimyasal sızıntı, biyolojik maruziyet, makine kazası ve tahliye",
+        "Sadece atık miktarı"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Atık tesislerinde yangın, sızıntı, biyolojik maruziyet ve makine kazaları için hazırlık gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "atik_yonetimi_geri_donusum"
+        },
+        {
+          "type": "sector",
+          "value": "atik_geri_donusum"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Mevzuat ve Acil Durum Kaynakları",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Atık tesislerinde acil durum senaryoları"
+        }
+      ]
+    }
+  ]
+}

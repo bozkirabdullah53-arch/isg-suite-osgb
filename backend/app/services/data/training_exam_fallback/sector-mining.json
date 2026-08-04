@@ -1,0 +1,544 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-MADEN-001",
+      "version": 1,
+      "topic_code": "SAHA-GIRIS",
+      "topic_label": "Saha giriş kontrolü",
+      "question_text": "Maden veya taş ocağı sahasına girişte hangisi doğrudur?",
+      "options": [
+        "Yetkisiz kişilerin kontrollü alanlara girişi engellenmeli ve ziyaretçiler bilgilendirilmelidir",
+        "Sadece çalışan kartı taşımak yeterlidir",
+        "Ziyaretçiler tek başına dolaşabilir",
+        "Uyarı levhaları kaldırılabilir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Maden sahalarında kontrollü giriş, bilgilendirme ve refakat düzeni oluşturulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Yeraltı ve Yerüstü Maden İşletmelerinde İSG Rehberi",
+          "url": "https://www.csgb.gov.tr/rtb/yayinlar/diger-yayinlar/",
+          "reference": "Saha girişleri ve yetkisiz erişimin önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-002",
+      "version": 1,
+      "topic_code": "ŞEV-GÜVENLİĞİ",
+      "topic_label": "Şev güvenliği",
+      "question_text": "Açık ocakta şev veya kademe yakınında çalışırken hangisi uygundur?",
+      "options": [
+        "Şev dibinde uzun süre beklemek",
+        "Şev stabilitesi izlenmeli, çatlak ve taş düşmesi bulguları derhal bildirilmelidir",
+        "Yağış sonrası kontrol yapılmamalıdır",
+        "Tehlikeli alan işaretlenmeden çalışılabilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Şevlerde çatlak, gevşek kaya ve su etkileri düzenli izlenmeli; riskli alanlar kapatılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Yeraltı ve Yerüstü Maden İşletmelerinde İSG Rehberi",
+          "url": "https://www.csgb.gov.tr/rtb/yayinlar/diger-yayinlar/",
+          "reference": "Şev stabilitesi ve taş düşmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-003",
+      "version": 1,
+      "topic_code": "PATLATMA",
+      "topic_label": "Patlatma güvenliği",
+      "question_text": "Patlatma öncesinde hangisi yapılmalıdır?",
+      "options": [
+        "Patlatma alanında ekipman bırakılmalıdır",
+        "Sadece siren çalınmalıdır",
+        "Alan boşaltılmalı, güvenlik mesafesi sağlanmalı ve yetkili kişinin talimatı uygulanmalıdır",
+        "Patlatma saati çalışanlardan gizlenmelidir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Patlatma işleri yalnız yetkili kişilerce, alan boşaltma ve uyarı prosedürleriyle yürütülmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Yeraltı ve Yerüstü Maden İşletmelerinde İSG Rehberi",
+          "url": "https://www.csgb.gov.tr/rtb/yayinlar/diger-yayinlar/",
+          "reference": "Patlatma alanı, uyarı ve yetkilendirme"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-004",
+      "version": 1,
+      "topic_code": "PATLAMAMIŞ-LAĞIM",
+      "topic_label": "Patlamamış delik",
+      "question_text": "Patlatma sonrasında patlamamış delik şüphesi varsa hangisi yapılmamalıdır?",
+      "options": [
+        "Alan işaretlenmelidir",
+        "Yetkili kişiye haber verilmelidir",
+        "Alan erişime kapatılmalıdır",
+        "Çalışan kendi imkânıyla deliğe müdahale etmelidir"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Patlamamış deliklere yalnız yetkili ve uzman personel prosedüre uygun müdahale etmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Yeraltı ve Yerüstü Maden İşletmelerinde İSG Rehberi",
+          "url": "https://www.csgb.gov.tr/rtb/yayinlar/diger-yayinlar/",
+          "reference": "Patlamamış delik ve misfire yönetimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-005",
+      "version": 1,
+      "topic_code": "İŞ-MAKİNESİ",
+      "topic_label": "İş makineleri",
+      "question_text": "Maden sahasında iş makinesi geri manevrası için hangisi doğrudur?",
+      "options": [
+        "Görüş kısıtlıysa işaretçi, kamera veya uygun uyarı sistemi kullanılmalıdır",
+        "Korna gereksizdir",
+        "Yaya yolları araç yolu ile aynı olmalıdır",
+        "Operatör emniyet kemeri kullanmamalıdır"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Görüş kısıtlı alanlarda geri manevra; fiziksel ayrım, uyarı sistemi ve gerektiğinde işaretçiyle yönetilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Mobil iş ekipmanları ve geri manevra"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-006",
+      "version": 1,
+      "topic_code": "TRAFİK",
+      "topic_label": "Saha trafiği",
+      "question_text": "Ocak içi trafik düzeninde hangisi doğrudur?",
+      "options": [
+        "Yayalar araç yollarını serbestçe kullanabilir",
+        "Araç ve yaya yolları mümkün olduğunca ayrılmalı, hız ve geçiş kuralları belirlenmelidir",
+        "Trafik levhaları yalnız gece kullanılmalıdır",
+        "Kavşaklarda öncelik kuralına gerek yoktur"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Maden sahasında ağır araç trafiği belirlenmiş güzergâh, hız limiti ve yaya ayrımıyla yönetilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Yeraltı ve Yerüstü Maden İşletmelerinde İSG Rehberi",
+          "url": "https://www.csgb.gov.tr/rtb/yayinlar/diger-yayinlar/",
+          "reference": "Ocak içi trafik ve yaya güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-007",
+      "version": 1,
+      "topic_code": "TOZ",
+      "topic_label": "Toz maruziyeti",
+      "question_text": "Kırma-eleme ve delme işlerinde toz maruziyetini azaltmada öncelikli yöntem hangisidir?",
+      "options": [
+        "Sadece toz maskesi dağıtmak",
+        "Çalışma süresini uzatmak",
+        "Sulu bastırma veya kaynağında emiş sistemi kullanmak",
+        "Kapıları kapatmak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Toz kaynağında bastırılmalı veya emilmeli; uygun solunum korumasıyla desteklenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Maden tozları ve silika maruziyeti"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-008",
+      "version": 1,
+      "topic_code": "GÜRÜLTÜ-TİTREŞİM",
+      "topic_label": "Gürültü ve titreşim",
+      "question_text": "Kırıcı, delici ve ağır ekipmanlarda hangisi yanlış uygulamadır?",
+      "options": [
+        "Bakım yapmak",
+        "Titreşim sönümleyici sistem kullanmak",
+        "Maruziyet süresini düzenlemek",
+        "Sadece KKD verip mühendislik önlemlerini değerlendirmemek"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Gürültü ve titreşim önce kaynağında azaltılmalı; KKD tamamlayıcı önlem olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Gürültü ve titreşim kontrol hiyerarşisi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-009",
+      "version": 1,
+      "topic_code": "KONVEYÖR",
+      "topic_label": "Konveyör güvenliği",
+      "question_text": "Konveyör bant yakınında güvenli çalışma için hangisi gereklidir?",
+      "options": [
+        "Dönen tambur ve nip noktalarında koruyucu bulunmalı, acil durdurma sistemi erişilebilir olmalıdır",
+        "Bant çalışırken temizlik yapılmalıdır",
+        "Koruyucular sökülmelidir",
+        "Çalışan bant üzerinden geçmelidir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Konveyörlerde sıkışma noktaları korunmalı ve acil durdurma sistemi çalışır durumda olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Konveyörlerde tambur, nip noktası ve acil durdurma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-010",
+      "version": 1,
+      "topic_code": "BAKIM-EKED",
+      "topic_label": "Bakım ve enerji izolasyonu",
+      "question_text": "Kırıcı veya konveyörde bakım öncesinde hangisi yapılmalıdır?",
+      "options": [
+        "Sadece kumanda düğmesi kapatılmalıdır",
+        "Tüm enerji kaynakları izole edilmeli, kilitleme ve etiketleme uygulanmalıdır",
+        "Makine boşta çalıştırılmalıdır",
+        "Başka bir çalışan gözcü olursa enerji kesilmeyebilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Bakımda elektriksel, mekanik, hidrolik ve potansiyel enerji kaynakları güvenli şekilde izole edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Bakımda enerji izolasyonu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-011",
+      "version": 1,
+      "topic_code": "TAŞ-DÜŞMESİ",
+      "topic_label": "Taş düşmesi",
+      "question_text": "Şev dibi veya kırma ünitesi çevresinde taş düşmesi riskine karşı hangisi uygundur?",
+      "options": [
+        "Baret tek başına yeterlidir",
+        "Tehlikeli alan altında beklemek",
+        "Gevşek malzeme kontrollü uzaklaştırılmalı ve alan bariyerle sınırlandırılmalıdır",
+        "Sadece uyarı yazısı asılmalıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Taş düşmesi riski fiziksel ayırma, kontrollü temizleme ve güvenli mesafeyle azaltılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Yeraltı ve Yerüstü Maden İşletmelerinde İSG Rehberi",
+          "url": "https://www.csgb.gov.tr/rtb/yayinlar/diger-yayinlar/",
+          "reference": "Taş düşmesi ve tehlikeli alan kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-012",
+      "version": 1,
+      "topic_code": "YANGIN-YAKIT",
+      "topic_label": "Yakıt ve yangın",
+      "question_text": "Akaryakıt dolum alanında hangisi yapılmamalıdır?",
+      "options": [
+        "Motoru durdurmak",
+        "Dökülmeye karşı ekipman bulundurmak",
+        "Ateşleme kaynaklarını uzaklaştırmak",
+        "Sigara içmek veya açık alev kullanmak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Yakıt buharları kolay tutuşabilir; dolum alanında ateşleme kaynakları kesinlikle engellenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Yeraltı ve Yerüstü Maden İşletmelerinde İSG Rehberi",
+          "url": "https://www.csgb.gov.tr/rtb/yayinlar/diger-yayinlar/",
+          "reference": "Yakıt dolum alanı ve yangın riski"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-013",
+      "version": 1,
+      "topic_code": "KKD",
+      "topic_label": "Kişisel koruyucu donanım",
+      "question_text": "Maden sahasında KKD seçimi nasıl yapılmalıdır?",
+      "options": [
+        "Risk değerlendirmesine, işe ve maruziyete uygun olarak",
+        "Çalışanın kişisel tercihine göre",
+        "Tüm işler için tek tip olarak",
+        "Sadece vardiya amirinin kararına göre"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "KKD; işe özgü riskler, uygunluk, ergonomi ve kullanım koşulları dikkate alınarak seçilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isggm/yayinlar-ve-afisler/",
+          "reference": "Maden işlerinde uygun KKD seçimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-014",
+      "version": 1,
+      "topic_code": "ACİL-DURUM",
+      "topic_label": "Acil durum",
+      "question_text": "Maden sahası acil durum planında hangisi bulunmalıdır?",
+      "options": [
+        "Sadece yönetici telefonları",
+        "Kaza, göçük, yangın, patlatma olayı, araç kazası ve haberleşme düzeni",
+        "Yalnız vardiya çizelgesi",
+        "Sadece yangın tüpü listesi"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Acil durum planı sahaya özgü senaryoları, görevleri, iletişimi ve kurtarma düzenini kapsamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Mevzuat ve Acil Durum Kaynakları",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Maden sahalarında acil durum organizasyonu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-MADEN-015",
+      "version": 1,
+      "topic_code": "VARDİYA-DEVİR",
+      "topic_label": "Vardiya değişimi",
+      "question_text": "Maden işletmesinde vardiya değişiminde hangisi doğrudur?",
+      "options": [
+        "Sadece üretim miktarı aktarılmalıdır",
+        "Arızalar kayıt dışı bırakılmalıdır",
+        "Tehlikeler, arızalar, kapalı alanlar ve devam eden işler yazılı veya kayıtlı biçimde devredilmelidir",
+        "Yeni vardiya sahayı kontrol etmeden işe başlamalıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Vardiya devri; sahadaki güncel tehlikelerin ve devam eden işlerin eksiksiz aktarılmasını sağlamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "madencilik_maden_ocagi"
+        },
+        {
+          "type": "sector",
+          "value": "acik_maden"
+        },
+        {
+          "type": "sector",
+          "value": "tas_ocagi_maden_ocagi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Yeraltı ve Yerüstü Maden İşletmelerinde İSG Rehberi",
+          "url": "https://www.csgb.gov.tr/rtb/yayinlar/diger-yayinlar/",
+          "reference": "Vardiya devri ve saha iletişimi"
+        }
+      ]
+    }
+  ]
+}

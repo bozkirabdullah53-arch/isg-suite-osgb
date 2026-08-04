@@ -1,0 +1,484 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-OTEL-001",
+      "version": 1,
+      "topic_code": "KAT-HIZMETLERI",
+      "topic_label": "Kat hizmetleri ergonomisi",
+      "question_text": "Otel odası temizliğinde yatak yaparken bel zorlanmasını azaltmak için hangisi doğrudur?",
+      "options": [
+        "Yatağın çevresinde uygun çalışma alanı bırakmak ve mümkün olduğunca nötr duruş kullanmak",
+        "Belden sürekli eğilmek",
+        "Tek elle ağır yatak kaldırmak",
+        "Temizlik arabasını odanın dışında bırakmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Çalışma yüksekliği ve erişim düzenlenmeli, zorlayıcı eğilme ve uzanma hareketleri azaltılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ergonomik Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Kat hizmetlerinde tekrarlayan hareketler ve bel zorlanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-002",
+      "version": 1,
+      "topic_code": "TEMIZLIK-KIMYASALI",
+      "topic_label": "Temizlik kimyasalları",
+      "question_text": "Otel temizlik kimyasalları için hangisi doğrudur?",
+      "options": [
+        "İçecek şişelerine aktarılabilir",
+        "Etiketli tutulmalı, birbirine karıştırılmamalı ve yetkisiz erişime kapalı saklanmalıdır",
+        "Depo kapısı sürekli açık bırakılmalıdır",
+        "Kimyasal güvenlik bilgi formuna gerek yoktur"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Temizlik kimyasalları uygun etiketli kaplarda, uyumsuz ürünlerden ayrı ve güvenli depoda saklanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Temizlik kimyasallarının güvenli kullanımı ve depolanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-003",
+      "version": 1,
+      "topic_code": "KAYMA-DUSME",
+      "topic_label": "Kayma ve düşme",
+      "question_text": "Lobi veya koridorda zemin ıslakken hangisi yapılmalıdır?",
+      "options": [
+        "Temizlik bitene kadar alan açık bırakılmalıdır",
+        "Yalnız sözlü uyarı yeterlidir",
+        "Alan işaretlenmeli, mümkünse sınırlandırılmalı ve zemin hızla kurutulmalıdır",
+        "Islak alan halıyla kapatılmalıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Islak zemin riski işaretleme, alan kontrolü ve hızlı kurutma ile yönetilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Konaklama tesislerinde kayma ve düşme riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-004",
+      "version": 1,
+      "topic_code": "CAMAŞIRHANE",
+      "topic_label": "Çamaşırhane güvenliği",
+      "question_text": "Otel çamaşırhanesinde döner tamburlu ekipman çalışırken hangisi yapılmamalıdır?",
+      "options": [
+        "Koruyucu kapakların kapalı tutulması",
+        "Bakım öncesi enerjinin kesilmesi",
+        "Yetkisiz müdahalenin önlenmesi",
+        "Makine çalışırken kapağın zorla açılması"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Döner parçalı makinelerde kapak ve koruyucular devre dışı bırakılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Çamaşırhane makinelerinde koruyucu sistemler ve enerji izolasyonu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-005",
+      "version": 1,
+      "topic_code": "CAMAŞIR-TASIMA",
+      "topic_label": "Çamaşır taşıma ergonomisi",
+      "question_text": "Ağır çamaşır torbalarının taşınmasında en uygun yöntem hangisidir?",
+      "options": [
+        "Taşıma arabası kullanmak ve yükü kapasite sınırında tutmak",
+        "Torbayı tek omuzda taşımak",
+        "Belden ani kaldırmak",
+        "Görüşü kapatacak kadar yüklemek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Ağır veya hacimli çamaşırlar taşıma arabasıyla, dengeli yüklenerek taşınmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ergonomik Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Çamaşırhane ve kat hizmetlerinde elle taşıma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-006",
+      "version": 1,
+      "topic_code": "MUTFAK",
+      "topic_label": "Otel mutfağı güvenliği",
+      "question_text": "Otel mutfağında kızgın yağ yangınında hangisi doğrudur?",
+      "options": [
+        "Yanan yağa su dökmek",
+        "Enerjiyi güvenli biçimde kesmek ve uygun söndürme ekipmanını kullanmak",
+        "Kabı taşımaya çalışmak",
+        "Yangını bezle bastırmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kızgın yağ yangınında su kullanılmamalı; uygun söndürme ekipmanı ve acil durum prosedürü uygulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Yangın ve Acil Durum Dokümanları",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Pişirme yağı yangınları ve uygun müdahale"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-007",
+      "version": 1,
+      "topic_code": "HAVUZ-KIMYASALI",
+      "topic_label": "Havuz kimyasalları",
+      "question_text": "Havuz bakımında klor bazlı ürünlerle asitli ürünler neden karıştırılmamalıdır?",
+      "options": [
+        "Suyu bulanıklaştırdığı için",
+        "Yüzeyi aşındırdığı için",
+        "Tehlikeli gaz çıkışı oluşturabileceği için",
+        "Kokuyu azalttığı için"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Klorlu ve asitli ürünlerin karışması toksik gaz oluşumuna yol açabilir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Kimyasal Risk Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Havuz kimyasalları, uyumsuzluk ve toksik gaz riski"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-008",
+      "version": 1,
+      "topic_code": "HAVUZ-GUVENLIGI",
+      "topic_label": "Havuz alanı güvenliği",
+      "question_text": "Havuz çevresinde kayma ve boğulma riskini azaltmada hangisi uygundur?",
+      "options": [
+        "Zemini sürekli ıslak bırakmak",
+        "Uyarı işaretlerini kaldırmak",
+        "Gözetimi yalnız yoğun saatlerde yapmak",
+        "Kaymaz zemin, uygun bariyer, görünür kurallar ve yeterli gözetim sağlamak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Havuz çevresinde fiziksel önlemler, açık kurallar ve etkin gözetim birlikte uygulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Kültür ve Turizm Bakanlığı – Turizm Tesisleri Nitelikleri",
+          "url": "https://yigm.ktb.gov.tr/TR-9851/turizm-tesislerinin-belgelendirilmesine-ve-niteliklerine-iliskin-yonetmelik.html",
+          "reference": "Havuz ve ortak kullanım alanlarında güvenlik düzenlemeleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-009",
+      "version": 1,
+      "topic_code": "YANGIN-TAHLIYE",
+      "topic_label": "Yangın ve tahliye",
+      "question_text": "Otelde acil tahliye planı hazırlanırken hangisi dikkate alınmalıdır?",
+      "options": [
+        "Konukların yönlendirilmesi, kat planları, engelli bireyler, gece vardiyası ve toplanma alanları",
+        "Yalnız çalışan sayısı",
+        "Sadece mutfak bölümü",
+        "Yalnız yangın tüpü sayısı"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Konaklama tesislerinde tahliye planı çalışanlarla birlikte konukların güvenli yönlendirilmesini kapsamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Acil Durumlar Hakkında Mevzuat",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Konuk bulunan işyerlerinde tahliye ve görev dağılımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-010",
+      "version": 1,
+      "topic_code": "YALNIZ-CALISMA",
+      "topic_label": "Gece ve yalnız çalışma",
+      "question_text": "Gece vardiyasında tek başına çalışan resepsiyon personeli için hangisi uygundur?",
+      "options": [
+        "İletişim cihazını kapatmak",
+        "Acil iletişim, alarm ve düzenli kontrol sistemi oluşturmak",
+        "Olayları kayıt dışı bırakmak",
+        "Kapıları sürekli açık tutmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Yalnız çalışanlar için alarm, iletişim, kontrol ve acil yardım düzeni kurulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Psikososyal ve Organizasyonel Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Yalnız çalışma, şiddet riski ve acil iletişim"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-011",
+      "version": 1,
+      "topic_code": "SIDDET",
+      "topic_label": "Konuk kaynaklı şiddet",
+      "question_text": "Konuk kaynaklı tehdit veya şiddet riskine karşı hangi yaklaşım uygundur?",
+      "options": [
+        "Çalışanın olayı tek başına çözmesi",
+        "Olayları gizlemek",
+        "Alarm-bildirim prosedürü, güvenlik desteği ve olay kaydı oluşturmak",
+        "Yalnız kamera yerleştirmek"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Şiddet riski için önleyici prosedür, alarm, destek ve olay sonrası kayıt sistemi kurulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Psikososyal Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Üçüncü kişi şiddeti ve olay yönetimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-012",
+      "version": 1,
+      "topic_code": "ELEKTRIK",
+      "topic_label": "Elektrik güvenliği",
+      "question_text": "Misafir odasında hasarlı priz veya elektrikli cihaz fark edilirse ne yapılmalıdır?",
+      "options": [
+        "Kullanıma devam edilmelidir",
+        "Üzeri kapatılmalıdır",
+        "Misafire dikkatli olması söylenmelidir",
+        "Kullanımdan alınmalı ve yetkili teknik birime bildirilmelidir"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Hasarlı elektrikli ekipman ve prizler derhal kullanımdan alınmalı ve yetkili personelce onarılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Konaklama tesislerinde elektrikli ekipman güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-013",
+      "version": 1,
+      "topic_code": "ASANSOR",
+      "topic_label": "Asansör güvenliği",
+      "question_text": "Otelde asansör arızası bildirildiğinde hangisi doğrudur?",
+      "options": [
+        "Asansörü kullanımdan almak, işaretlemek ve yetkili servise bildirmek",
+        "Yavaş kullanmak",
+        "Kapıyı açık bırakmak",
+        "Misafirlerin kendi kararına bırakmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Arızalı asansör kullanılmamalı, alan güvenli hâle getirilmeli ve yetkili servise bildirilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Asansörlerde arıza, bakım ve yetkili müdahale"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-014",
+      "version": 1,
+      "topic_code": "LEGIONELLA",
+      "topic_label": "Su sistemi hijyeni",
+      "question_text": "Otel su sistemlerinde biyolojik riskleri azaltmada hangisi uygundur?",
+      "options": [
+        "Kullanılmayan hatları sürekli kapalı tutmak",
+        "Sıcak-soğuk su sistemini planlı bakım, sıcaklık kontrolü ve kayıtla yönetmek",
+        "Duş başlıklarını hiç temizlememek",
+        "Depoları kontrolsüz bırakmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Su sistemleri düzenli bakım, temizlik, sıcaklık kontrolü ve kayıtlarla yönetilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Biyolojik Riskler",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Konaklama tesislerinde su sistemleri ve biyolojik risk kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OTEL-015",
+      "version": 1,
+      "topic_code": "DEPO-ISTIF",
+      "topic_label": "Depo ve istif güvenliği",
+      "question_text": "Otel deposunda güvenli istif için hangisi doğrudur?",
+      "options": [
+        "Ağır malzemeleri üst raflara koymak",
+        "Koridorları malzemeyle daraltmak",
+        "Raf kapasitesine uymak, ağır malzemeleri alt raflarda tutmak ve geçişleri açık bırakmak",
+        "Yangın ekipmanının önünü kapatmak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Depolarda raf kapasitesi aşılmamalı, istif dengeli olmalı ve geçişler açık tutulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "konaklama_otel_pansiyon"
+        },
+        {
+          "type": "sector",
+          "value": "turizm"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Depo, raf, istif ve düşen cisim riskleri"
+        }
+      ]
+    }
+  ]
+}

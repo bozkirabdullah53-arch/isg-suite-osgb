@@ -1,0 +1,544 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-TEKSTIL-001",
+      "version": 1,
+      "topic_code": "PAMUK-TOZU",
+      "topic_label": "Pamuk ve tekstil tozu",
+      "question_text": "Pamuk veya elyaf tozuna maruziyeti azaltmada öncelikli teknik önlem hangisidir?",
+      "options": [
+        "Tozu kaynağında yakalayan lokal emiş ve kapalı transfer sistemi kullanmak",
+        "Yalnız maske vermek",
+        "Çalışma hızını artırmak",
+        "Tozu basınçlı havayla dağıtmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Tekstil tozu kaynağında kontrol edilmeli; lokal emiş, kapalı sistem ve uygun genel havalandırma birlikte uygulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Tekstil Sektörü İSGYS ve Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/5qdnbvi1/tekstil-sektoer%C3%BC-isgys-rehberi-by-25-09-2024.pdf",
+          "reference": "Tekstil tozu, lokal emiş ve kaynakta kontrol"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-002",
+      "version": 1,
+      "topic_code": "GURULTU",
+      "topic_label": "Gürültü maruziyeti",
+      "question_text": "Dokuma makinelerinin bulunduğu alanda gürültü riskini azaltmada ilk tercih hangisidir?",
+      "options": [
+        "Yalnız kulak tıkacı dağıtmak",
+        "Makineleri susturmak, yalıtmak ve bakımını yapmak",
+        "Çalışanları daha hızlı çalıştırmak",
+        "Kapıları sürekli açık bırakmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Gürültü önce kaynağında azaltılmalı; mühendislik tedbirleri yetersiz kaldığında uygun işitme koruyucuları kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Tekstil Sektörü İSGYS ve Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/5qdnbvi1/tekstil-sektoer%C3%BC-isgys-rehberi-by-25-09-2024.pdf",
+          "reference": "Dokuma makinelerinde gürültünün kaynağında kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-003",
+      "version": 1,
+      "topic_code": "MAKINE-KORUYUCU",
+      "topic_label": "Makine koruyucuları",
+      "question_text": "Dokuma, örme veya tarak makinesindeki hareketli parçalar için hangisi gereklidir?",
+      "options": [
+        "Yalnız uyarı levhası",
+        "Operatörün dikkatli olması",
+        "Erişimi önleyen uygun koruyucu ve emniyet tertibatı",
+        "Makinenin düşük hızda çalıştırılması"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Hareketli, dönen ve sıkıştırma noktaları fiziksel koruyucu ve uygun emniyet tertibatlarıyla güvenli hâle getirilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Hareketli parçalara erişimin önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-004",
+      "version": 1,
+      "topic_code": "EKED",
+      "topic_label": "Enerji izolasyonu",
+      "question_text": "Tekstil makinesinde iplik sıkışması giderilmeden önce hangi işlem yapılmalıdır?",
+      "options": [
+        "Makine yalnız yavaşlatılmalıdır",
+        "Acil durdurmaya basmak her durumda yeterlidir",
+        "Operatör makinenin yanında beklemelidir",
+        "Tüm enerji kaynakları kesilmeli, kilitlenmeli ve sıfır enerji doğrulanmalıdır"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Elektrik, pnömatik ve mekanik enerji kaynakları güvenli biçimde izole edilmeden sıkışma giderme veya bakım yapılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Bakım ve sıkışma gidermede güvenli durdurma ve enerji izolasyonu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-005",
+      "version": 1,
+      "topic_code": "KIMYASAL-BOYAMA",
+      "topic_label": "Boya ve terbiye kimyasalları",
+      "question_text": "Boyahane ve terbiye bölümünde kimyasallar kullanılmadan önce hangi bilgi kaynağı incelenmelidir?",
+      "options": [
+        "Güvenlik Bilgi Formu ve üretici talimatı",
+        "Sevkiyat irsaliyesi",
+        "Vardiya çizelgesi",
+        "Makine bakım kartı"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "SDS; kimyasalın tehlikeleri, maruziyet kontrolleri, depolama, ilk yardım ve dökülme müdahalesi bilgilerini içerir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Tekstil Sektörü İSGYS ve Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/5qdnbvi1/tekstil-sektoer%C3%BC-isgys-rehberi-by-25-09-2024.pdf",
+          "reference": "Boyahane kimyasalları, SDS ve güvenli kullanım"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-006",
+      "version": 1,
+      "topic_code": "KIMYASAL-DEPOLAMA",
+      "topic_label": "Kimyasal depolama",
+      "question_text": "Tekstil boyahanesinde asit, baz ve oksitleyici kimyasallar nasıl depolanmalıdır?",
+      "options": [
+        "Tümü aynı rafta",
+        "Uyumluluklarına göre ayrılmış, etiketli ve uygun ikincil kaplama içinde",
+        "Etiketsiz kaplarda",
+        "Acil çıkış önünde"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Uyumsuz kimyasallar ayrılmalı, kaplar etiketli tutulmalı ve dökülme yayılımını sınırlayan ikincil kaplama kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Kimyasal Maddelerle Çalışmalarda Sağlık ve Güvenlik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Uyumsuz kimyasalların ayrılması ve güvenli depolanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-007",
+      "version": 1,
+      "topic_code": "ACIL-DUS",
+      "topic_label": "Acil duş ve göz duşu",
+      "question_text": "Aşındırıcı kimyasal sıçrama riski bulunan boyahane alanında hangisi kolay erişilebilir olmalıdır?",
+      "options": [
+        "Yalnız ilk yardım çantası",
+        "Sadece el yıkama lavabosu",
+        "Acil duş ve göz duşu",
+        "Yalnız yangın battaniyesi"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Kimyasal temasında gecikmeden bol suyla yıkama gerektiğinden acil duş ve göz duşu erişilebilir ve çalışır durumda olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Tekstil Sektörü İSGYS ve Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/5qdnbvi1/tekstil-sektoer%C3%BC-isgys-rehberi-by-25-09-2024.pdf",
+          "reference": "Kimyasal sıçrama ve acil yıkama ekipmanları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-008",
+      "version": 1,
+      "topic_code": "ERGONOMI",
+      "topic_label": "Dikiş ve paketlemede ergonomi",
+      "question_text": "Dikiş operatörlerinde boyun, omuz ve bel zorlanmasını azaltmada hangisi uygundur?",
+      "options": [
+        "Yalnız bel kemeri kullanmak",
+        "Sandalyeyi sabitlemek",
+        "Çalışma hızını sürekli artırmak",
+        "Ayarlanabilir sandalye ve masa, uygun aydınlatma ve düzenli mola"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "İş istasyonu çalışana göre ayarlanmalı; oturma, erişim, pedal ve görsel çalışma koşulları ergonomik düzenlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Tekstil Sektöründe İş Sağlığı Gözetimi Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/etcf2y1f/tekstil-sekt%C3%B6r%C3%BCnde-i%C5%9F-sa%C4%9Fl%C4%B1%C4%9F%C4%B1-g%C3%B6zetimi-rehberi.pdf",
+          "reference": "Dikiş işlerinde kas-iskelet riskleri ve ergonomik düzenleme"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-009",
+      "version": 1,
+      "topic_code": "KESICI-ALET",
+      "topic_label": "Kesim makineleri ve bıçaklar",
+      "question_text": "Kumaş kesim makinesi kullanılırken temel güvenlik uygulaması hangisidir?",
+      "options": [
+        "Uygun koruyucu ve kesilmeye dayanıklı el koruması kullanmak",
+        "Bıçağa çıplak elle yaklaşmak",
+        "Koruyucuyu çıkarmak",
+        "Makineyi temizlik sırasında çalıştırmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Kesici bölgeye erişim sınırlandırılmalı; işe uygun el koruması ve üretici talimatları uygulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Tekstil Sektörü İSGYS ve Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/5qdnbvi1/tekstil-sektoer%C3%BC-isgys-rehberi-by-25-09-2024.pdf",
+          "reference": "Kesim makineleri, bıçak ve el yaralanmalarının önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-010",
+      "version": 1,
+      "topic_code": "YANGIN-LIF",
+      "topic_label": "Lif ve kumaş yangını",
+      "question_text": "Tekstil üretiminde yangın riskini azaltmada hangisi önceliklidir?",
+      "options": [
+        "Yangın kapılarını açık sabitlemek",
+        "Lif ve toz birikimini önlemek, ateşleme kaynaklarını kontrol etmek",
+        "Kaçış yollarını malzemeyle doldurmak",
+        "Söndürücülerin önünü kapatmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Yanıcı lif, kumaş ve toz birikimi azaltılmalı; sıcak çalışma ve elektriksel ateşleme kaynakları kontrol edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Tekstil Sektörü İSGYS ve Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/5qdnbvi1/tekstil-sektoer%C3%BC-isgys-rehberi-by-25-09-2024.pdf",
+          "reference": "Yanıcı lif ve kumaşlar, yangın yükü ve ateşleme kaynakları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-011",
+      "version": 1,
+      "topic_code": "STATIK-ELEKTRIK",
+      "topic_label": "Statik elektrik",
+      "question_text": "Sentetik liflerin işlendiği alanda statik elektrik riskini azaltmak için hangisi yapılmalıdır?",
+      "options": [
+        "Havalandırmayı kapatmak",
+        "Plastik yüzeyleri artırmak",
+        "Uygun topraklama ve eşpotansiyel bağlama sağlamak",
+        "Metal parçaları yalıtımsız bırakmak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Topraklama, eşpotansiyel bağlama ve uygun proses koşulları statik yük birikimi ve kıvılcım riskini azaltır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Tekstil Sektörü İSGYS ve Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/5qdnbvi1/tekstil-sektoer%C3%BC-isgys-rehberi-by-25-09-2024.pdf",
+          "reference": "Sentetik liflerde statik elektrik ve tutuşma riski"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-012",
+      "version": 1,
+      "topic_code": "KAYMA-DUSME",
+      "topic_label": "Islak zemin ve geçiş yolları",
+      "question_text": "Boyahane ve yıkama alanlarında kayma-düşme riskini azaltmada hangisi etkilidir?",
+      "options": [
+        "Yalnız uyarı levhası",
+        "Malzemeleri kaçış yolunda istiflemek",
+        "Suyu zeminde bırakmak",
+        "Drenajı iyileştirmek, dökülmeleri hemen temizlemek ve geçişleri açık tutmak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Risk kaynağında kontrol edilmeli; drenaj, düzenli temizlik ve engelsiz geçiş yolları sağlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Tekstil Sektörü İSGYS ve Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/5qdnbvi1/tekstil-sektoer%C3%BC-isgys-rehberi-by-25-09-2024.pdf",
+          "reference": "Islak zemin, düzen, temizlik ve güvenli geçişler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-013",
+      "version": 1,
+      "topic_code": "BUHAR-SICAK",
+      "topic_label": "Buhar ve sıcak yüzeyler",
+      "question_text": "Boya kazanı, ramöz veya buhar hattında yanık riskini azaltmada hangisi doğrudur?",
+      "options": [
+        "Sıcak yüzeyleri yalıtmak ve kaçakları gidermek",
+        "Yalnız eldiven vermek",
+        "Buhar kaçağını vardiya sonunda bildirmek",
+        "Koruyucu kaplamaları çıkarmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Sıcak yüzey ve buhar hatları yalıtılmalı, korunmalı ve kaçaklar gecikmeden giderilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Tekstil Sektörü İSGYS ve Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/5qdnbvi1/tekstil-sektoer%C3%BC-isgys-rehberi-by-25-09-2024.pdf",
+          "reference": "Ramöz, kazan ve buhar hatlarında termal riskler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-014",
+      "version": 1,
+      "topic_code": "SAGLIK-GOZETIMI",
+      "topic_label": "Sağlık gözetimi",
+      "question_text": "Tekstil çalışanlarının sağlık gözetimi nasıl planlanmalıdır?",
+      "options": [
+        "Herkese aynı tetkik uygulanarak",
+        "Bölüm, görev ve maruziyetlere göre işyeri hekimi tarafından risk temelli",
+        "Yalnız işe girişte bir kez",
+        "Sadece çalışan talep ederse"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Toz, gürültü, kimyasal, ergonomi ve vardiya gibi maruziyetler dikkate alınarak görev bazlı sağlık gözetimi planlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Tekstil Sektöründe İş Sağlığı Gözetimi Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/etcf2y1f/tekstil-sekt%C3%B6r%C3%BCnde-i%C5%9F-sa%C4%9Fl%C4%B1%C4%9F%C4%B1-g%C3%B6zetimi-rehberi.pdf",
+          "reference": "Görev ve maruziyet bazlı sağlık gözetimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-TEKSTIL-015",
+      "version": 1,
+      "topic_code": "ACIL-DURUM",
+      "topic_label": "Tahliye ve acil çıkışlar",
+      "question_text": "Tekstil işletmesinde tahliye güvenliği için hangisi zorunlu bir uygulamadır?",
+      "options": [
+        "Acil çıkışların önünü malzemeyle kapatmak",
+        "Yangın kapılarını kilitlemek",
+        "Kaçış yollarını ve acil çıkışları sürekli açık ve işaretli tutmak",
+        "Tahliye planını yalnız yöneticilerin bilmesi"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Kaçış yolları ve acil çıkışlar her zaman engelsiz, görünür ve işaretli olmalı; çalışanlar tahliye düzeni konusunda eğitilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "tekstil_dokuma_boyama"
+        },
+        {
+          "type": "sector",
+          "value": "tekstil"
+        },
+        {
+          "type": "sector",
+          "value": "hazir_giyim_konfeksiyon"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Tekstil Sektörü İSGYS ve Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/5qdnbvi1/tekstil-sektoer%C3%BC-isgys-rehberi-by-25-09-2024.pdf",
+          "reference": "Yangın, tahliye, kaçış yolları ve acil durum organizasyonu"
+        }
+      ]
+    }
+  ]
+}

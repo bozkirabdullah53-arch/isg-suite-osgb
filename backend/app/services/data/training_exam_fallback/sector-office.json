@@ -1,0 +1,484 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-OFIS-001",
+      "version": 1,
+      "topic_code": "EKRANLI-ARAC",
+      "topic_label": "Ekranlı araçlarla çalışma",
+      "question_text": "Bilgisayar ekranı nasıl konumlandırılmalıdır?",
+      "options": [
+        "Ekranın üst kenarı yaklaşık göz hizasında ve doğrudan karşıda olacak şekilde",
+        "Ekran masanın en sağ köşesinde olacak şekilde",
+        "Ekran mümkün olduğunca aşağıda olacak şekilde",
+        "Ekran pencereye dönük olacak şekilde"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Ekran doğrudan karşıda, uygun görüş mesafesinde ve üst kenarı yaklaşık göz hizasında olacak şekilde yerleştirilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ekranlı Araçlarla Çalışmalarda Sağlık ve Güvenlik",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Ekran konumu, görüş mesafesi ve çalışma duruşu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-002",
+      "version": 1,
+      "topic_code": "SANDALYE-AYARI",
+      "topic_label": "Ofis sandalyesi ayarı",
+      "question_text": "Ergonomik oturma düzeninde hangisi doğrudur?",
+      "options": [
+        "Ayaklar havada kalmalıdır",
+        "Bel desteklenmeli, ayaklar yere veya ayak desteğine basmalı ve dizler uygun açıda olmalıdır",
+        "Sırtlık kullanılmamalıdır",
+        "Masa yüksekliği sabit kabul edilmelidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Sandalye yüksekliği, bel desteği ve ayak desteği çalışana göre ayarlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ergonomik Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Ofis ergonomisi, sandalye ve oturma düzeni"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-003",
+      "version": 1,
+      "topic_code": "MOLA-HAREKET",
+      "topic_label": "Ekranlı çalışmada dinlenme",
+      "question_text": "Uzun süre ekran başında çalışan biri için en uygun uygulama hangisidir?",
+      "options": [
+        "Hiç ara vermeden çalışmak",
+        "Yalnız öğle arasında dinlenmek",
+        "Düzenli kısa aralar vermek ve duruşu değiştirmek",
+        "Ekrana daha yakından bakmak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Düzenli kısa aralar, göz yorgunluğunu ve kas-iskelet zorlanmasını azaltır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ekranlı Araçlarla Çalışmalarda Sağlık ve Güvenlik",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Ara dinlenmeleri, duruş değişikliği ve göz sağlığı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-004",
+      "version": 1,
+      "topic_code": "AYDINLATMA",
+      "topic_label": "Ofis aydınlatması",
+      "question_text": "Ofiste ekran parlamasını azaltmak için hangisi uygundur?",
+      "options": [
+        "Ekranı doğrudan pencereye çevirmek",
+        "Aydınlatmayı tamamen kapatmak",
+        "Parlaklığı en yüksek seviyeye çıkarmak",
+        "Ekranı ışık kaynağına dik açıyla konumlandırmak ve yansımayı kontrol etmek"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Ekran ile pencere ve aydınlatma kaynakları uygun konumlandırılmalı; yansıma ve kamaşma önlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ekranlı Araçlarla Çalışmalarda Sağlık ve Güvenlik",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Yansıma, kamaşma ve uygun aydınlatma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-005",
+      "version": 1,
+      "topic_code": "ELEKTRIK-KABLO",
+      "topic_label": "Elektrik ve kablo güvenliği",
+      "question_text": "Ofiste uzatma kabloları ve çoklu prizler için hangisi doğrudur?",
+      "options": [
+        "Aşırı yüklenmemeli, hasarlı olanlar kullanılmamalı ve kablolar geçiş yolunda bırakılmamalıdır",
+        "Birbirine zincirleme bağlanmalıdır",
+        "Halı altından geçirilmelidir",
+        "Arızalı priz bantlanarak kullanılmalıdır"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Priz ve uzatma sistemleri aşırı yüklenmemeli; hasarlı ekipman kullanımdan alınmalı ve kablolar takılma riski yaratmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Elektrik Tehlikeleri ve İş Ekipmanları",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Ofislerde elektrikli ekipman, priz ve kablo güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-006",
+      "version": 1,
+      "topic_code": "YANGIN",
+      "topic_label": "Ofis yangın güvenliği",
+      "question_text": "Ofislerde yangın güvenliği açısından hangisi gereklidir?",
+      "options": [
+        "Acil çıkışların önüne dosya dolabı koymak",
+        "Kaçış yollarını açık tutmak ve yangın ekipmanlarına erişimi engellememek",
+        "Yangın kapılarını açık sabitlemek",
+        "Söndürücüleri görünmeyecek yere koymak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kaçış yolları ve yangın ekipmanları her zaman erişilebilir olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Yangın ve Acil Durum Yayınları",
+          "url": "https://www.csgb.gov.tr/isggm/yayinlar-ve-afisler/",
+          "reference": "Ofislerde kaçış yolları, acil çıkışlar ve yangın ekipmanları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-007",
+      "version": 1,
+      "topic_code": "DEV-RILME",
+      "topic_label": "Dolap ve raf güvenliği",
+      "question_text": "Yüksek dosya dolaplarında devrilme riskini azaltmak için ne yapılmalıdır?",
+      "options": [
+        "Ağır dosyalar üst raflara konulmalıdır",
+        "Tüm çekmeceler aynı anda açılmalıdır",
+        "Dolap sabitlenmeli ve ağır malzemeler alt raflara yerleştirilmelidir",
+        "Dolap geçiş yoluna yerleştirilmelidir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Dolaplar sabitlenmeli, ağır malzemeler alt bölümlerde tutulmalı ve aynı anda birden fazla çekmece açılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ofislerde İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Dolap, raf ve devrilme risklerinin kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-008",
+      "version": 1,
+      "topic_code": "KAYMA-TAKILMA",
+      "topic_label": "Kayma ve takılma",
+      "question_text": "Ofiste kayma ve takılma riskini azaltmada hangisi en etkilidir?",
+      "options": [
+        "Islak zemini vardiya sonunda temizlemek",
+        "Yalnız uyarı levhası asmak",
+        "Kabloları zeminde bırakmak",
+        "Geçiş yollarını açık tutmak, dökülmeleri hemen temizlemek ve kabloları düzenlemek"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Düzen, temizlik ve geçiş yollarının açık tutulması kayma ve takılma riskini azaltır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ofislerde İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Düzen, temizlik, kayma ve takılma riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-009",
+      "version": 1,
+      "topic_code": "ELLE-TASIMA",
+      "topic_label": "Elle taşıma",
+      "question_text": "Ağır arşiv kutularının taşınmasında doğru yöntem hangisidir?",
+      "options": [
+        "Yükü mümkün olduğunca vücuda yakın tutmak ve gerekirse taşıma yardımcısı kullanmak",
+        "Kutuyu gövdeden uzakta taşımak",
+        "Belden eğilerek kaldırmak",
+        "Tek seferde mümkün olan en fazla yükü taşımak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yük vücuda yakın tutulmalı, uygun kaldırma tekniği uygulanmalı ve mekanik yardımcılar kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ergonomik Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Ofislerde elle taşıma ve kas-iskelet riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-010",
+      "version": 1,
+      "topic_code": "PSIKOSOSYAL",
+      "topic_label": "Psikososyal riskler",
+      "question_text": "Ofiste aşırı iş yükü ve rol belirsizliğini azaltmada hangisi uygundur?",
+      "options": [
+        "Çalışanlar arasında sürekli rekabet oluşturmak",
+        "Görev ve sorumlulukları açık tanımlamak ve iş yükünü dengeli planlamak",
+        "İletişimi sınırlandırmak",
+        "Molaları kaldırmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Görevlerin açık tanımlanması, adil iş yükü ve etkili iletişim psikososyal riskleri azaltır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Psikososyal Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "İş yükü, rol belirsizliği ve örgütsel iletişim"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-011",
+      "version": 1,
+      "topic_code": "ILK-YARDIM",
+      "topic_label": "İlk yardım düzeni",
+      "question_text": "Ofiste ilk yardım organizasyonu için hangisi gereklidir?",
+      "options": [
+        "İlk yardım çantasının kilitli odada tutulması",
+        "Yalnız yöneticinin ilk yardım bilmesi",
+        "İlk yardım malzemelerinin erişilebilir olması ve eğitimli ilk yardımcıların belirlenmesi",
+        "Acil numaraların gizli tutulması"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "İlk yardım malzemeleri erişilebilir olmalı, eğitimli ilk yardımcılar ve acil iletişim bilgileri bilinmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İlk Yardım ve Acil Durum Yayınları",
+          "url": "https://www.csgb.gov.tr/isggm/yayinlar-ve-afisler/",
+          "reference": "İlk yardımcı, ilk yardım malzemeleri ve acil iletişim"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-012",
+      "version": 1,
+      "topic_code": "ACIL-DURUM",
+      "topic_label": "Acil durum planı",
+      "question_text": "Ofis acil durum planında hangisi bulunmalıdır?",
+      "options": [
+        "Yalnız bina adresi",
+        "Yalnız yangın tüpü sayısı",
+        "Sadece çalışan isimleri",
+        "Tahliye yolları, toplanma alanı, görevli kişiler ve iletişim düzeni"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Acil durum planı tahliye, toplanma, görevlendirme ve iletişim süreçlerini kapsamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Acil Durumlar Hakkında Mevzuat",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Acil durum planı, tahliye ve görevlendirme"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-013",
+      "version": 1,
+      "topic_code": "HAVALANDIRMA",
+      "topic_label": "İç hava kalitesi",
+      "question_text": "Ofiste iç hava kalitesini korumak için hangisi uygulanmalıdır?",
+      "options": [
+        "Havalandırma sisteminin bakımını yapmak ve yeterli taze hava sağlamak",
+        "Havalandırmayı sürekli kapalı tutmak",
+        "Koku gidericiyle sorunu gizlemek",
+        "Filtreleri değiştirmemek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yeterli taze hava ve düzenli bakım, iç hava kalitesi ve çalışan konforu için gereklidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ofislerde İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "İç hava kalitesi, havalandırma ve bakım"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-014",
+      "version": 1,
+      "topic_code": "EKIPMAN-ARIZA",
+      "topic_label": "Ofis ekipmanı arızaları",
+      "question_text": "Fotokopi makinesi veya elektrikli ofis ekipmanında yanık kokusu fark edilirse ne yapılmalıdır?",
+      "options": [
+        "Kullanıma devam edilmelidir",
+        "Ekipman güvenli biçimde kapatılıp kullanımdan alınmalı ve yetkili birime bildirilmelidir",
+        "Üzerine su dökülmelidir",
+        "Yalnız pencere açılmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Arızalı ekipman kullanılmamalı, güvenli biçimde enerjisi kesilmeli ve yetkili teknik birime bildirilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Arızalı ekipmanın kullanımdan alınması ve yetkili kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-OFIS-015",
+      "version": 1,
+      "topic_code": "DEPREM",
+      "topic_label": "Deprem güvenliği",
+      "question_text": "Ofiste deprem sırasında hangisi doğrudur?",
+      "options": [
+        "Pencerelere doğru koşmak",
+        "Asansörü kullanmak",
+        "Çök-kapan-tutun uygulayıp sarsıntı sonrası güvenli tahliye yapmak",
+        "Merdivenlere topluca koşmak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Sarsıntı sırasında düşen cisimlerden korunmak için çök-kapan-tutun uygulanmalı; tahliye sarsıntı sonrasında yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "ofis_idari_hizmetler"
+        },
+        {
+          "type": "sector",
+          "value": "ofis"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Acil Durum ve Tahliye Yayınları",
+          "url": "https://www.csgb.gov.tr/isggm/yayinlar-ve-afisler/",
+          "reference": "Deprem sırasında korunma ve sarsıntı sonrası tahliye"
+        }
+      ]
+    }
+  ]
+}

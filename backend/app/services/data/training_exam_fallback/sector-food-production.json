@@ -1,0 +1,604 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-GIDA-001",
+      "version": 1,
+      "topic_code": "HIJYEN-EL",
+      "topic_label": "El hijyeni",
+      "question_text": "Gıda üretim alanına giren çalışanın el hijyeni açısından ilk yapması gereken uygulama hangisidir?",
+      "options": [
+        "Ellerini uygun yöntemle yıkayıp kurutmak ve gerekiyorsa dezenfekte etmek",
+        "Yalnız eldiven takmak",
+        "Ellerini sadece suyla durulamak",
+        "Üretim alanına girdikten sonra yıkamak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Eldiven kullanımı el yıkamanın yerine geçmez. Eller uygun yöntemle yıkanmalı, kurulanmalı ve işletme prosedürüne göre dezenfekte edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Gıda Sektörü İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Gıda üretiminde hijyen, bulaşma kontrolü ve çalışan uygulamaları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-002",
+      "version": 1,
+      "topic_code": "CAPRAZ-BULASMA",
+      "topic_label": "Çapraz bulaşma",
+      "question_text": "Çiğ ve pişmiş ürünlerin aynı alanda işlendiği bir tesiste çapraz bulaşmayı azaltmada en etkili uygulama hangisidir?",
+      "options": [
+        "Tüm ürünleri aynı ekipmanla işlemek",
+        "Çiğ ve pişmiş ürün akışını, ekipmanını ve personel hareketini ayırmak",
+        "Yalnız ortam kokusunu gidermek",
+        "Ürünleri aynı rafta bekletmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Çiğ ve pişmiş ürünler için alan, ekipman, araç ve personel akışlarının ayrılması; biyolojik bulaşmanın önlenmesinde temel uygulamadır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Gıda Sektörü İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Çiğ-pişmiş ürün ayrımı ve çapraz bulaşmanın önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-003",
+      "version": 1,
+      "topic_code": "MAKINE-KORUYUCU",
+      "topic_label": "Gıda makinelerinde koruyucular",
+      "question_text": "Hamur yoğurma, kıyma veya dilimleme makinesinde hareketli parçaya erişim nasıl önlenmelidir?",
+      "options": [
+        "Operatörün dikkatli olmasıyla",
+        "Makineyi düşük hızda çalıştırarak",
+        "Uygun koruyucu, kapak ve emniyet kilidi kullanarak",
+        "Yalnız uyarı levhası asarak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Dönen ve kesici parçalara erişim; koruyucu, kapak, emniyet kilidi ve güvenli besleme düzeni ile önlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Hareketli parçalara erişimin koruyucu ve emniyet tertibatlarıyla önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-004",
+      "version": 1,
+      "topic_code": "TEMIZLIK-ENERJI",
+      "topic_label": "Temizlikte enerji izolasyonu",
+      "question_text": "Bir gıda makinesinin iç kısmı temizlenmeden önce hangi işlem yapılmalıdır?",
+      "options": [
+        "Makine yalnız yavaşlatılmalıdır",
+        "Makine manuel moda alınmalıdır",
+        "Acil durdurma düğmesine basmak yeterlidir",
+        "Tüm enerji kaynakları kesilmeli, kilitlenmeli ve sıfır enerji doğrulanmalıdır"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Elektrik, hidrolik, pnömatik ve mekanik enerji kaynakları güvenli biçimde izole edilmeden temizlik veya bakım yapılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Temizlik ve bakım öncesi enerji izolasyonu ve güvenli durdurma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-005",
+      "version": 1,
+      "topic_code": "KAYMA-DUSME",
+      "topic_label": "Islak zemin güvenliği",
+      "question_text": "Gıda üretim alanlarında kayma ve düşme riskini azaltmada hangisi önceliklidir?",
+      "options": [
+        "Drenajı iyileştirmek, dökülmeleri hemen temizlemek ve kaymaz yüzey kullanmak",
+        "Islak zemini yalnız uyarı levhasıyla belirtmek",
+        "Çalışanların daha yavaş yürümesini istemek",
+        "Yalnız kaymaz ayakkabı vermek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Risk kaynağında kontrol edilmelidir. Uygun drenaj, düzenli temizlik ve kaymaz zemin; yalnız KKD kullanımından daha etkilidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Gıda Sektörü İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Islak zeminler, drenaj, temizlik ve kayma-düşme riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-006",
+      "version": 1,
+      "topic_code": "BIYOLOJIK-RISK",
+      "topic_label": "Biyolojik riskler",
+      "question_text": "Bozulmuş hammadde veya kontamine ürünle çalışmada biyolojik riski azaltmak için hangisi yapılmalıdır?",
+      "options": [
+        "Ürün diğer hammaddelerle karıştırılmalıdır",
+        "Ürün ayrılmalı, temas sınırlandırılmalı ve hijyen prosedürü uygulanmalıdır",
+        "Yalnız ortam havalandırılmalıdır",
+        "Ürünün kokusu giderilmelidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kontamine ürün karantinaya alınmalı, temas kontrollü yürütülmeli, uygun temizlik-dezenfeksiyon ve kişisel hijyen önlemleri uygulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Biyolojik ve Sağlık Riskleri",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Biyolojik etkenlere maruziyetin önlenmesi ve hijyen tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-007",
+      "version": 1,
+      "topic_code": "KIMYASAL-TEMIZLIK",
+      "topic_label": "Temizlik kimyasalları",
+      "question_text": "Gıda tesisinde temizlik ve dezenfeksiyon kimyasalları nasıl kullanılmalıdır?",
+      "options": [
+        "Etiketsiz kaplara aktarılarak",
+        "Gıda hammaddeleriyle aynı rafta depolanarak",
+        "Güvenlik Bilgi Formu ve üretici talimatına uygun, etiketli ve ayrı depolanarak",
+        "Farklı kimyasallar karıştırılarak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Temizlik kimyasalları etiketli tutulmalı, SDS ve üretici talimatına göre kullanılmalı ve gıda maddelerinden ayrı depolanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Kimyasal Maddelerle Çalışmalarda Sağlık ve Güvenlik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Kimyasalların etiketlenmesi, güvenli kullanımı ve ayrı depolanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-008",
+      "version": 1,
+      "topic_code": "SICAK-YUZEY",
+      "topic_label": "Sıcak yüzey ve buhar",
+      "question_text": "Fırın, kazan veya buhar hattında yanık riskini azaltmada hangisi doğrudur?",
+      "options": [
+        "Buhar kaçaklarının çalışma sonunda kontrol edilmesi",
+        "Çalışanların yalnız dikkatli olması",
+        "Yalnız eldiven kullanılması",
+        "Sıcak yüzeylerin yalıtılması, işaretlenmesi ve temasın engellenmesi"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Sıcak yüzey ve buhar hatları yalıtılmalı, korunmalı, işaretlenmeli ve kaçaklar gecikmeden giderilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Gıda Sektörü İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Sıcak yüzey, buhar, kazan ve termal yanık riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-009",
+      "version": 1,
+      "topic_code": "SOGUK-ORTAM",
+      "topic_label": "Soğuk ortam çalışması",
+      "question_text": "Soğuk hava deposunda çalışanların korunmasında hangisi birlikte uygulanmalıdır?",
+      "options": [
+        "Uygun termal giysi, çalışma-dinlenme düzeni ve sıcak alana erişim",
+        "Yalnız kalın eldiven",
+        "Kapıların sürekli açık tutulması",
+        "Çalışma süresinin kayıt altına alınmaması"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Soğuk stresinde uygun termal KKD, maruziyet süresinin düzenlenmesi, molalar ve sıcak dinlenme alanları birlikte planlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Fiziksel Riskler ve Sağlık",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Soğuk ortam maruziyeti, termal korunma ve çalışma-dinlenme düzeni"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-010",
+      "version": 1,
+      "topic_code": "UN-TOZU",
+      "topic_label": "Un ve organik toz",
+      "question_text": "Unlu mamul üretiminde un tozuna maruziyeti azaltmada öncelikli teknik önlem hangisidir?",
+      "options": [
+        "Torbayı yüksekten boşaltmak",
+        "Kapalı boşaltma ve kaynağında emiş sistemi kullanmak",
+        "Tozu basınçlı havayla dağıtmak",
+        "Yalnız maske vermek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Un tozu solunum hassasiyeti ve patlayıcı toz riski oluşturabilir. Kapalı aktarım, düşükten boşaltma ve lokal emiş önceliklidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Toz ve Gıda Sektörü Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Un ve organik toz maruziyeti, lokal emiş ve kapalı aktarım"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-011",
+      "version": 1,
+      "topic_code": "PATLAYICI-TOZ",
+      "topic_label": "Patlayıcı toz ortamı",
+      "question_text": "Un, şeker veya nişasta tozunun yoğun oluştuğu alanda patlama riskini azaltmak için hangisi yapılmalıdır?",
+      "options": [
+        "Toz birikimine izin vermek",
+        "Elektrikli ekipmanları rastgele seçmek",
+        "Ateşleme kaynaklarını kontrol etmek, uygun temizlik ve havalandırma sağlamak",
+        "Basınçlı havayla tozu ortama yaymak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Yanıcı toz birikimi önlenmeli, ateşleme kaynakları kontrol edilmeli ve gerekirse patlayıcı ortam bölgelendirmesine uygun ekipman kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Patlayıcı Ortam ve Kimyasal Risk Mevzuatı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Yanıcı toz, ateşleme kaynakları ve patlayıcı ortam önlemleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-012",
+      "version": 1,
+      "topic_code": "KESICI-ALET",
+      "topic_label": "Kesici aletlerle çalışma",
+      "question_text": "Bıçakla doğrama veya parçalama işinde güvenli uygulama hangisidir?",
+      "options": [
+        "Bıçağı keskin olmayan hâlde kullanmak",
+        "Bıçağı tezgâh kenarında bırakmak",
+        "Bıçağı cepte taşımak",
+        "Kesme yönünü vücuttan uzağa çevirmek ve uygun kesilmeye dayanıklı el koruması kullanmak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Kesici aletler uygun biçimde muhafaza edilmeli, kesme yönü vücuttan uzağa olmalı ve işe uygun el koruması kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Gıda Sektörü İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Bıçak ve kesici alet yaralanmalarının önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-013",
+      "version": 1,
+      "topic_code": "ERGONOMI-TEKRAR",
+      "topic_label": "Tekrarlayan iş ve ergonomi",
+      "question_text": "Paketleme hattında tekrarlayan hareketlere bağlı kas-iskelet riskini azaltmada hangisi uygundur?",
+      "options": [
+        "İş istasyonunu çalışan boyuna göre ayarlamak ve görev rotasyonu uygulamak",
+        "Hattın hızını sürekli artırmak",
+        "Çalışanın aynı hareketi kesintisiz sürdürmesi",
+        "Yalnız bel kemeri kullanmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Çalışma yüksekliği, erişim mesafesi, hat hızı ve görev çeşitliliği ergonomik biçimde düzenlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ergonomik Riskler ve Sağlık",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Tekrarlayan işler, iş istasyonu düzeni ve görev rotasyonu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-014",
+      "version": 1,
+      "topic_code": "AMONYAK-SOGUTMA",
+      "topic_label": "Amonyaklı soğutma sistemleri",
+      "question_text": "Amonyak kullanılan soğutma tesisinde kaçak riskine karşı temel hazırlık hangisidir?",
+      "options": [
+        "Yalnız kokuya güvenmek",
+        "Gaz algılama, uygun havalandırma, acil durum planı ve eğitimli müdahale ekibi",
+        "Tesis kapılarını kilitlemek",
+        "Kaçak sırasında sistemi manuel olarak yakından kontrol etmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Amonyak toksik ve aşındırıcıdır. Sabit algılama, havalandırma, alarm, tahliye ve eğitimli müdahale düzeni gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Gıda ve Soğutma Sistemleri Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Amonyak kaçağı, gaz algılama, havalandırma ve acil müdahale"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GIDA-015",
+      "version": 1,
+      "topic_code": "PERIYODIK-KONTROL",
+      "topic_label": "Periyodik kontrol",
+      "question_text": "Gıda tesisindeki kaldırma ekipmanı, basınçlı kap veya buhar kazanı için hangisi doğrudur?",
+      "options": [
+        "Yalnız arıza olduğunda kontrol gerekir",
+        "Günlük kontrol yeterlidir",
+        "Mevzuatta belirtilen ekipmanlar yetkili kişilerce periyodik kontrol edilmeli ve raporlanmalıdır",
+        "Kontrolü herhangi bir çalışan yapabilir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Mevzuatta periyodik kontrole tabi tutulan ekipmanlar, yetkili kişilerce kontrol edilmeli ve geçerli rapor düzenlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "gida_uretimi_isleme"
+        },
+        {
+          "type": "sector",
+          "value": "gida_uretim"
+        },
+        {
+          "type": "sector",
+          "value": "firin_unlu_mamuller"
+        },
+        {
+          "type": "sector",
+          "value": "sut_sut_urunleri"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanları Yönetmeliği Değişikliği Duyurusu",
+          "url": "https://www.csgb.gov.tr/isggm/tr/duyurular/24122025/",
+          "reference": "23 Aralık 2025 değişikliği; periyodik kontrole tabi ekipman ve yetkili kişi şartları"
+        }
+      ]
+    }
+  ]
+}

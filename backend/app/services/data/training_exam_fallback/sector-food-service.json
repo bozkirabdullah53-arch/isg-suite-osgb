@@ -1,0 +1,484 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-RESTORAN-001",
+      "version": 1,
+      "topic_code": "KAYMA-DUSME",
+      "topic_label": "Kayma ve düşme",
+      "question_text": "Mutfakta zemine yağ döküldüğünde ilk güvenli uygulama hangisidir?",
+      "options": [
+        "Alanı sınırlandırıp dökülmeyi hemen uygun yöntemle temizlemek",
+        "Dökülmeyi vardiya sonuna bırakmak",
+        "Üzerini kartonla kapatmak",
+        "Sadece sözlü uyarı yapmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yağlı veya ıslak zemin derhal izole edilmeli, uygun uyarı konulmalı ve kaymayı önleyecek yöntemle temizlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Mutfaklarda düzen, temizlik, kayma ve düşme riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-002",
+      "version": 1,
+      "topic_code": "BIÇAK",
+      "topic_label": "Bıçak güvenliği",
+      "question_text": "Mutfak bıçaklarının güvenli kullanımıyla ilgili hangisi doğrudur?",
+      "options": [
+        "Bıçakları su dolu evyede bırakmak",
+        "Kesme işlemini sabit kesme tahtasında ve kesme yönünü vücuttan uzağa doğru yapmak",
+        "Kör bıçakla daha fazla kuvvet uygulamak",
+        "Bıçağı açık şekilde cepte taşımak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Bıçaklar uygun kesme yüzeyinde kullanılmalı, kesme yönü vücuttan uzak olmalı ve bıçaklar güvenli şekilde muhafaza edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kesici aletler, el yaralanmaları ve güvenli muhafaza"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-003",
+      "version": 1,
+      "topic_code": "YANIK-HASLANMA",
+      "topic_label": "Yanık ve haşlanma",
+      "question_text": "Sıcak yağ veya kaynar sıvı taşınırken hangisi uygundur?",
+      "options": [
+        "Kap tamamen doldurulmalıdır",
+        "Hızlı hareket edilmelidir",
+        "Kap güvenli seviyede doldurulmalı, taşıma yolu açık olmalı ve uygun tutacak kullanılmalıdır",
+        "Sıcak kap çıplak elle taşınmalıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Sıcak sıvılar kontrollü miktarda, güvenli kapla ve açık bir güzergâhta taşınmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Mutfaklarda sıcak yüzey, sıcak sıvı ve haşlanma riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-004",
+      "version": 1,
+      "topic_code": "FRITOZ",
+      "topic_label": "Fritöz güvenliği",
+      "question_text": "Fritöz yangınında hangisi kesinlikle yapılmamalıdır?",
+      "options": [
+        "Enerji kaynağını güvenli şekilde kesmek",
+        "Uygun yangın söndürme ekipmanını kullanmak",
+        "Yangın prosedürünü uygulamak",
+        "Yanan yağa su dökmek"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Yanan yağa su dökülmesi ani buharlaşma ve yağın sıçramasıyla yangının büyümesine neden olabilir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Yangın ve Acil Durum Dokümanları",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Pişirme yağı yangınlarında su kullanılmaması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-005",
+      "version": 1,
+      "topic_code": "HAVALANDIRMA",
+      "topic_label": "Davlumbaz ve havalandırma",
+      "question_text": "Mutfak davlumbazı ve yağ filtreleri için hangisi doğrudur?",
+      "options": [
+        "Düzenli temizlenmeli ve bakımı yapılmalıdır",
+        "Yağ birikmesi normal kabul edilmelidir",
+        "Filtreler çıkarılarak çalıştırılmalıdır",
+        "Sadece koku oluştuğunda temizlenmelidir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yağ birikimi yangın ve hava kalitesi riski oluşturduğundan davlumbaz, kanal ve filtreler planlı şekilde temizlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Davlumbaz, yağ birikimi, yangın ve havalandırma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-006",
+      "version": 1,
+      "topic_code": "GAZ-KACAGI",
+      "topic_label": "LPG ve doğal gaz güvenliği",
+      "question_text": "Mutfakta gaz kokusu fark edildiğinde hangisi doğrudur?",
+      "options": [
+        "Elektrik anahtarını açıp kapatmak",
+        "Ateş ve kıvılcım oluşturmadan gazı güvenli şekilde kesmek, ortamı havalandırmak ve yetkili birime haber vermek",
+        "Kokuyu parfümle bastırmak",
+        "Ocağı yakarak gazı tüketmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Gaz kaçağında kıvılcım oluşturabilecek işlemlerden kaçınılmalı, gaz kesilmeli, ortam havalandırılmalı ve yetkili müdahale sağlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Mutfaklarda LPG, doğal gaz ve patlama riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-007",
+      "version": 1,
+      "topic_code": "MAKINE-KORUYUCU",
+      "topic_label": "Mutfak makineleri",
+      "question_text": "Kıyma makinesi veya dilimleme makinesinin koruyucusu çıkarılmışsa ne yapılmalıdır?",
+      "options": [
+        "Düşük hızda kullanılmalıdır",
+        "Sadece deneyimli çalışan kullanmalıdır",
+        "Makine kullanımdan alınmalı ve koruyucu tamamlanmadan çalıştırılmamalıdır",
+        "Eldiven takılması yeterlidir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Makine koruyucuları olmadan ekipman çalıştırılmamalı; arıza yetkili teknik personelce giderilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Mutfak makinelerinde koruyucu donanım ve güvenli kullanım"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-008",
+      "version": 1,
+      "topic_code": "ELEKTRIK",
+      "topic_label": "Elektrik güvenliği",
+      "question_text": "Islak elle elektrikli mutfak ekipmanına müdahale edilmesi neden sakıncalıdır?",
+      "options": [
+        "Ekipman ağırlaşır",
+        "Yiyecek kalitesi bozulur",
+        "Temizlik süresi uzar",
+        "Elektrik çarpması riskini artırır"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Islaklık elektrik akımının vücuttan geçişini kolaylaştırarak elektrik çarpması riskini artırır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Elektrikli mutfak ekipmanları ve nemli ortam riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-009",
+      "version": 1,
+      "topic_code": "CAPRAZ-BULASMA",
+      "topic_label": "Çapraz bulaşma",
+      "question_text": "Çiğ tavuk hazırlanan kesme tahtasıyla pişmiş gıdanın hazırlanması için hangisi doğrudur?",
+      "options": [
+        "Çiğ ve pişmiş gıdalar için ayrı veya uygun şekilde temizlenip dezenfekte edilmiş ekipman kullanılmalıdır",
+        "Aynı tahta temizlenmeden kullanılabilir",
+        "Tahtanın yalnızca kurulanması yeterlidir",
+        "Sadece bıçak değiştirilmelidir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Çiğ ve tüketime hazır gıdalar arasında ekipman ayrımı veya etkili temizlik-dezenfeksiyon yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Tarım ve Orman Bakanlığı – Toplu Tüketim Yerleri İçin Hijyen Esasları",
+          "url": "https://www.tarimorman.gov.tr/GKGM/Menu/132/Gida-Isletmesi",
+          "reference": "Çiğ ve pişmiş gıdalar arasında çapraz bulaşmanın önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-010",
+      "version": 1,
+      "topic_code": "EL-HIJYENI",
+      "topic_label": "El hijyeni",
+      "question_text": "Gıda hazırlayan çalışanın el hijyenini hangi durumda yenilemesi gerekir?",
+      "options": [
+        "Yalnız vardiya başında",
+        "Çiğ gıdaya, çöpe veya paraya temas ettikten sonra",
+        "Sadece eldiven yırtıldığında",
+        "Günde bir kez"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Çiğ gıda, atık, para, temizlik işi veya tuvalet sonrası eller uygun şekilde yıkanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Tarım ve Orman Bakanlığı – Toplu Tüketim Yerleri İçin Hijyen Esasları",
+          "url": "https://www.tarimorman.gov.tr/GKGM/Menu/132/Gida-Isletmesi",
+          "reference": "Personel hijyeni ve el yıkama gerektiren durumlar"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-011",
+      "version": 1,
+      "topic_code": "ALERJEN",
+      "topic_label": "Alerjen bildirimi",
+      "question_text": "Restoran ve toplu tüketim yerlerinde alerjen bilgisiyle ilgili hangisi doğrudur?",
+      "options": [
+        "Alerjen bilgisi yalnız mutfak personeline verilir",
+        "Alerjen bildirimi isteğe bağlıdır",
+        "Alerjen bilgisi müşteriye sipariş öncesinde erişilebilir şekilde sunulmalıdır",
+        "Sadece paketli ürünlerde gereklidir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Toplu tüketim yerlerinde mevzuatta belirtilen alerjen bilgileri tüketiciye sipariş öncesinde sunulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Tarım ve Orman Bakanlığı – Toplu Tüketim Yerlerinde Alerjen Bildirimi",
+          "url": "https://guvenilirgida.tarimorman.gov.tr/Haber/Detay/17279",
+          "reference": "Toplu tüketim yerlerinde 14 alerjen hakkında tüketicinin bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-012",
+      "version": 1,
+      "topic_code": "SOGUK-ZINCIR",
+      "topic_label": "Soğuk zincir",
+      "question_text": "Soğukta muhafaza edilmesi gereken gıdalar için hangisi doğrudur?",
+      "options": [
+        "Oda sıcaklığında uzun süre bekletilebilir",
+        "Sıcak ürünlerle aynı kapta tutulabilir",
+        "Soğutucu kapısı sürekli açık bırakılmalıdır",
+        "Uygun sıcaklıkta saklanmalı ve sıcaklık kayıtları izlenmelidir"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Soğuk zincir korunmalı, sıcaklıklar takip edilmeli ve uygunsuzluklar kayıt altına alınmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Tarım ve Orman Bakanlığı – Toplu Tüketim Yerleri İçin Hijyen Esasları",
+          "url": "https://www.tarimorman.gov.tr/GKGM/Menu/132/Gida-Isletmesi",
+          "reference": "Soğuk muhafaza, sıcaklık kontrolü ve kayıt"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-013",
+      "version": 1,
+      "topic_code": "ELLE-TASIMA",
+      "topic_label": "Elle taşıma",
+      "question_text": "Ağır tencere veya malzeme kasasının taşınmasında hangisi uygundur?",
+      "options": [
+        "Yükü vücuda yakın tutmak ve gerektiğinde taşıma yardımcısı veya ekip desteği kullanmak",
+        "Belden ani şekilde kaldırmak",
+        "Tek elle taşımak",
+        "Görüşü kapatacak şekilde yüklemek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Ağır veya hacimli yüklerde uygun kaldırma tekniği, taşıma arabası ve ekip desteği kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ergonomik Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Mutfak ve servis işlerinde elle taşıma ve kas-iskelet riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-014",
+      "version": 1,
+      "topic_code": "TEMIZLIK-KIMYASALI",
+      "topic_label": "Temizlik kimyasalları",
+      "question_text": "Mutfak temizliğinde kullanılan kimyasallar için hangisi doğrudur?",
+      "options": [
+        "Gıda kaplarına aktarılabilir",
+        "Etiketli tutulmalı, gıdalardan ayrı saklanmalı ve birbiriyle karıştırılmamalıdır",
+        "İçecek şişelerinde saklanabilir",
+        "Depo kapısı açık bırakılmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Temizlik kimyasalları orijinal veya uygun etiketli kaplarda, gıdalardan ayrı ve yetkisiz erişime kapalı şekilde saklanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Temizlik kimyasallarının etiketlenmesi ve güvenli depolanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-RESTORAN-015",
+      "version": 1,
+      "topic_code": "ACIL-DURUM",
+      "topic_label": "Acil durum ve tahliye",
+      "question_text": "Restoran acil durum planı hazırlanırken hangisi dikkate alınmalıdır?",
+      "options": [
+        "Sadece çalışan sayısı",
+        "Yalnız mutfak ekipmanı",
+        "Müşteri tahliyesi, LPG/doğal gaz, yangın riski, toplanma alanı ve görevli personel",
+        "Sadece vardiya listesi"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Restoranlarda çalışanlarla birlikte müşterilerin tahliyesi, gaz ve yangın riskleri, görev dağılımı ve toplanma alanı planlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "restoran_cafe_mutfak"
+        },
+        {
+          "type": "sector",
+          "value": "restoran"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Acil Durumlar Hakkında Mevzuat",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Müşteri bulunan işyerlerinde tahliye, yangın ve görev dağılımı"
+        }
+      ]
+    }
+  ]
+}

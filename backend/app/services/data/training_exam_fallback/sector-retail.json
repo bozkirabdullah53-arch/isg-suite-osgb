@@ -1,0 +1,484 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-PERAKENDE-001",
+      "version": 1,
+      "topic_code": "KAYMA-DUSME",
+      "topic_label": "Kayma ve düşme",
+      "question_text": "Market veya mağazada zemine sıvı döküldüğünde ilk güvenli uygulama hangisidir?",
+      "options": [
+        "Alanı izole edip dökülmeyi hemen temizlemek",
+        "Dökülmeyi vardiya sonuna bırakmak",
+        "Yalnız sözlü uyarı yapmak",
+        "Üzerini kartonla kapatmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Dökülme alanı derhal çevrilmeli, uygun işaretleme yapılmalı ve zemin güvenli yöntemle temizlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Perakende Sektörü Rehberlik ve Bilgilendirme",
+          "url": "https://www.csgb.gov.tr/rtb/haberler/08052026/",
+          "reference": "Perakende işyerlerinde standart güvenli uygulamaların şubelere yaygınlaştırılması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-002",
+      "version": 1,
+      "topic_code": "RAF-ISTIF",
+      "topic_label": "Raf ve istif güvenliği",
+      "question_text": "Raflara ürün yerleştirilirken hangisi doğrudur?",
+      "options": [
+        "Ağır ürünleri en üst rafa koymak",
+        "Raf kapasitesine uymak ve ağır ürünleri alt seviyelerde tutmak",
+        "Ürünleri raf kenarından taşırmak",
+        "Hasarlı rafı kullanmaya devam etmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Raf kapasitesi aşılmamalı, ağır ürünler alt seviyelere yerleştirilmeli ve hasarlı raflar kullanımdan alınmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Raf, istif, düşen cisim ve devrilme riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-003",
+      "version": 1,
+      "topic_code": "MERDIVEN",
+      "topic_label": "Portatif merdiven kullanımı",
+      "question_text": "Yüksek raftan ürün almak için hangisi kullanılmalıdır?",
+      "options": [
+        "Tekerlekli sandalye",
+        "Ürün kasası",
+        "Uygun, sağlam ve kaymaya karşı güvenli portatif merdiven",
+        "Rafın kendisi"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Yüksek raflara erişimde işe uygun, sağlam ve güvenli merdiven kullanılmalı; kasa veya sandalye üzerine çıkılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Portatif merdivenlerin güvenli seçimi ve kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-004",
+      "version": 1,
+      "topic_code": "ELLE-TASIMA",
+      "topic_label": "Elle taşıma",
+      "question_text": "Ağır koli zeminden kaldırılırken doğru yöntem hangisidir?",
+      "options": [
+        "Belden eğilip ani kaldırmak",
+        "Yükü gövdeden uzakta tutmak",
+        "Koliyi tek elle taşımak",
+        "Dizleri bükmek, yükü vücuda yakın tutmak ve gerektiğinde yardım almak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Yük vücuda yakın tutulmalı, uygun kaldırma tekniği uygulanmalı ve ağır yüklerde mekanik yardım veya ekip desteği kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ergonomik Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Perakende işlerinde elle taşıma ve kas-iskelet riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-005",
+      "version": 1,
+      "topic_code": "PALET-TRANSPALET",
+      "topic_label": "Transpalet güvenliği",
+      "question_text": "Manuel transpalet kullanılırken hangisi doğrudur?",
+      "options": [
+        "Yükün dengeli ve kapasite sınırları içinde taşınması",
+        "Transpalet üzerinde yolcu taşınması",
+        "Eğimde kontrolsüz bırakılması",
+        "Görüşü tamamen kapatan yükle hızlı gidilmesi"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yük dengeli yerleştirilmeli, kapasite aşılmamalı, geçiş yolu kontrol edilmeli ve transpalet yolcu taşımak için kullanılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Transpalet ve yük taşıma ekipmanlarının güvenli kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-006",
+      "version": 1,
+      "topic_code": "KESICI-ALET",
+      "topic_label": "Koli açma ve kesici aletler",
+      "question_text": "Koli açma bıçağı kullanılırken hangisi güvenlidir?",
+      "options": [
+        "Bıçağı açık şekilde cepte taşımak",
+        "Kesme yönünü vücuttan uzağa çevirmek ve bıçağı kullanım sonrası kapatmak",
+        "Kör bıçakla daha fazla kuvvet uygulamak",
+        "Bıçağı tezgâh kenarında açık bırakmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kesme yönü vücuttan uzağa olmalı, uygun güvenlikli bıçak kullanılmalı ve bıçak kapalı biçimde muhafaza edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Koli açma, kesici aletler ve el yaralanmalarının önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-007",
+      "version": 1,
+      "topic_code": "SOGUK-DEPO",
+      "topic_label": "Soğuk oda güvenliği",
+      "question_text": "Soğuk odaya giren çalışanın içeride mahsur kalmasını önlemek için hangisi gereklidir?",
+      "options": [
+        "Kapının dışarıdan kilitlenmesi",
+        "Aydınlatmanın kapatılması",
+        "İçeriden açılabilir kapı, alarm ve düzenli kontrol sistemi",
+        "Tek başına ve habersiz çalışma"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Soğuk oda kapısı içeriden açılabilmeli; alarm, iletişim ve yalnız çalışmayı kontrol eden düzen bulunmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Soğuk oda, mahsur kalma ve termal maruziyet riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-008",
+      "version": 1,
+      "topic_code": "YANGIN-KACIS",
+      "topic_label": "Yangın ve kaçış yolları",
+      "question_text": "Mağazada acil çıkış ve kaçış yolları için hangisi doğrudur?",
+      "options": [
+        "Kampanya ürünleriyle daraltılabilir",
+        "Depolama amacıyla kullanılabilir",
+        "Yalnız denetim günlerinde boşaltılmalıdır",
+        "Sürekli açık, engelsiz ve görünür işaretli tutulmalıdır"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Kaçış yolları ve acil çıkışlar çalışma süresince engelsiz, erişilebilir ve uygun işaretli olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Acil Durum ve Yangın Mevzuatı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Perakende işyerlerinde tahliye, kaçış yolları ve acil çıkışlar"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-009",
+      "version": 1,
+      "topic_code": "ELEKTRIK",
+      "topic_label": "Elektrik güvenliği",
+      "question_text": "Hasarlı uzatma kablosu veya priz fark edildiğinde ne yapılmalıdır?",
+      "options": [
+        "Kullanımdan almak ve yetkili birime bildirmek",
+        "Bantlayıp kullanmaya devam etmek",
+        "Üzerini ürünle kapatmak",
+        "Yalnız vardiya sonunda bildirmek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Hasarlı elektrikli ekipman derhal kullanımdan alınmalı ve yetkili teknik personelce kontrol edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Hasarlı elektrikli ekipmanın kullanımdan alınması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-010",
+      "version": 1,
+      "topic_code": "MUSTERİ-SIDDET",
+      "topic_label": "Müşteri kaynaklı şiddet",
+      "question_text": "Müşteri kaynaklı şiddet veya tehdit riskini azaltmada hangisi uygundur?",
+      "options": [
+        "Çalışanın olayı tek başına çözmesi",
+        "Alarm-bildirim düzeni, güvenli çalışma prosedürü ve çalışan eğitimi",
+        "Olayların kayda alınmaması",
+        "Kasada tek başına gece çalışmanın teşvik edilmesi"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Şiddet riski değerlendirilmeli; alarm, iletişim, güvenlik desteği ve olay sonrası raporlama süreçleri kurulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Psikososyal Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Üçüncü kişi şiddeti, yalnız çalışma ve olay bildirimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-011",
+      "version": 1,
+      "topic_code": "KASA-ERGONOMI",
+      "topic_label": "Kasa ergonomisi",
+      "question_text": "Uzun süre kasada çalışanların ergonomik riskini azaltmak için hangisi yapılmalıdır?",
+      "options": [
+        "Sürekli aynı yöne uzanmak",
+        "Molaları kaldırmak",
+        "Çalışma yüksekliğini ayarlamak, oturma desteği sağlamak ve görev rotasyonu uygulamak",
+        "Ekranı görüş alanı dışına koymak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Kasa iş istasyonu çalışana göre ayarlanmalı; tekrarlayan hareketler, uzanma ve uzun süre ayakta kalma görev rotasyonuyla azaltılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ergonomik Riskler",
+          "url": "https://www.csgb.gov.tr/rtb/yayinlar/proje-yayinlari/",
+          "reference": "Perakende ve kasa işlerinde ergonomik düzenleme"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-012",
+      "version": 1,
+      "topic_code": "DEPO-DUZEN",
+      "topic_label": "Arka depo düzeni",
+      "question_text": "Mağaza arka deposunda güvenli düzen için hangisi doğrudur?",
+      "options": [
+        "Koridorlara ürün yığmak",
+        "Yangın ekipmanının önünü kapatmak",
+        "Ürünleri tavana dayamak",
+        "Geçiş yollarını açık tutmak ve istifi dengeli yapmak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Depo geçişleri açık tutulmalı, istif dengeli olmalı ve yangın ekipmanı ile elektrik panolarına erişim engellenmemelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Depolama, istif, erişim ve düzen-temizlik"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-013",
+      "version": 1,
+      "topic_code": "GIDA-HIJYEN",
+      "topic_label": "Gıda satışında hijyen",
+      "question_text": "Paketlenmemiş gıdayla temas eden çalışanın el hijyeni açısından doğru uygulaması hangisidir?",
+      "options": [
+        "Ellerini uygun şekilde yıkamak ve görev değişimlerinde hijyen prosedürünü uygulamak",
+        "Eldiveni gün boyu değiştirmemek",
+        "Yalnız suyla kısa süre durulamak",
+        "Parayla temas sonrası doğrudan gıdaya dokunmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "El hijyeni, görev değişimi ve para-gıda temasının ayrılması çapraz bulaşma riskini azaltır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Gıda satışı, kişisel hijyen ve çapraz bulaşma kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-014",
+      "version": 1,
+      "topic_code": "ACIL-DURUM",
+      "topic_label": "Acil durum organizasyonu",
+      "question_text": "Perakende işyerinde acil durum planı hangisini kapsamalıdır?",
+      "options": [
+        "Yalnız mağaza adresini",
+        "Tahliye, toplanma alanı, görevli kişiler ve müşteri yönlendirmesini",
+        "Sadece çalışan listesini",
+        "Yalnız yangın tüpü sayısını"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Acil durum planı çalışanlarla birlikte müşterilerin güvenli tahliyesini, görevlendirmeleri ve iletişimi kapsamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Acil Durumlar Hakkında Mevzuat",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Müşteri bulunan işyerlerinde tahliye ve acil durum görevlendirmeleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-PERAKENDE-015",
+      "version": 1,
+      "topic_code": "PERIYODIK-KONTROL",
+      "topic_label": "Ekipman periyodik kontrolü",
+      "question_text": "Perakende işyerindeki yük asansörü veya kaldırma ekipmanının periyodik kontrolü için hangisi doğrudur?",
+      "options": [
+        "Herhangi bir çalışan kontrol raporu düzenleyebilir",
+        "Yalnız arızalandığında kontrol edilir",
+        "EK-III kapsamındaki ekipman yetkili kişilerce kontrol edilmeli ve raporlanmalıdır",
+        "Günlük gözlem her durumda yeterlidir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Periyodik kontrole tabi ekipmanlar ilgili düzenlemeye göre yetkili kişilerce kontrol edilmeli ve geçerli rapor düzenlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "market_perakende"
+        },
+        {
+          "type": "sector",
+          "value": "perakende"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanları Yönetmeliği Değişikliği Duyurusu",
+          "url": "https://www.csgb.gov.tr/isggm/tr/duyurular/24122025/",
+          "reference": "23 Aralık 2025 değişikliği; EK-III ekipmanlarında yetkili kişi ve raporlama"
+        }
+      ]
+    }
+  ]
+}
