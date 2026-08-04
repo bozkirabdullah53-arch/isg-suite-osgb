@@ -54,6 +54,56 @@ elif new_resolver not in topics_text:
 topics_path.write_text(topics_text, encoding='utf-8')
 print('All NACE records now resolve to central sector profiles.')
 
+# Soru bankasında henüz birebir 15'lik paketi olmayan profiller için yakın paket
+# eşlemesi ve güvenli genel üretim fallback'i uygula. Ortak/teknik dağılım değişmez.
+qb_path = Path('app/services/training_question_bank.py')
+qb_text = qb_path.read_text(encoding='utf-8')
+old_candidate = '''def _candidate_buckets(db: Session, training: TrainingSession) -> dict[str, list[TrainingQuestion]]:
+    return _buckets_for_context(_active_published_questions(db), _context(training))
+'''
+new_candidate = '''def _candidate_buckets(db: Session, training: TrainingSession) -> dict[str, list[TrainingQuestion]]:
+    rows = _active_published_questions(db)
+    ctx = _context(training)
+    buckets = _buckets_for_context(rows, ctx)
+    if len(buckets["sector"]) >= BUCKET_TARGETS["sector"]:
+        return buckets
+
+    aliases = {
+        "elektrik_elektronik_uretim": "enerji_jenerator_trafo",
+        "elektronik": "enerji_jenerator_trafo",
+        "elektrik_tesisat_pano_montaj": "enerji_jenerator_trafo",
+        "elektrik_bakim": "enerji_jenerator_trafo",
+        "aku_uretimi": "aku_uretimi",
+        "karayolu_tasimacilik": "depo_lojistik",
+        "nakliye_karayolu_tasimaciligi": "depo_lojistik",
+        "dagitim_kargo_kurye": "depo_lojistik",
+        "e_ticaret_depo_fulfillment": "depo_lojistik",
+        "fabrika_genel_imalat": "genel_uretim",
+    }
+    preferred = aliases.get(ctx["sector_code"]) or aliases.get(ctx["sector"])
+    candidates = [preferred, "genel_uretim"] if preferred else ["genel_uretim"]
+    existing = {row.id for row in buckets["sector"]}
+    for scope_value in candidates:
+        if not scope_value:
+            continue
+        fallback_ctx = dict(ctx)
+        fallback_ctx["sector"] = scope_value
+        fallback_ctx["sector_code"] = scope_value
+        for row in _buckets_for_context(rows, fallback_ctx)["sector"]:
+            if row.id not in existing:
+                buckets["sector"].append(row)
+                existing.add(row.id)
+            if len(buckets["sector"]) >= BUCKET_TARGETS["sector"]:
+                return buckets
+    return buckets
+'''
+if old_candidate in qb_text:
+    qb_text = qb_text.replace(old_candidate, new_candidate)
+elif new_candidate not in qb_text:
+    raise RuntimeError('_candidate_buckets gövdesi beklenen yapıda değil')
+qb_path.write_text(qb_text, encoding='utf-8')
+print('Sector question aliases and safe fallback activated.')
+
 # Sınav endpoint'ini yayımlanmış soru bankası + snapshot üreticisine bağla.
 path = Path('app/api/trainings.py')
 text = path.read_text(encoding='utf-8')
