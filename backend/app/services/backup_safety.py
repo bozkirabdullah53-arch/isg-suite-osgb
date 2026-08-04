@@ -70,3 +70,22 @@ def validate_zip_safety(zf: zipfile.ZipFile) -> dict[str, int]:
         "file_count": file_count,
         "uncompressed_bytes": total,
     }
+
+
+def validate_backup_archive(path: Path) -> dict[str, int]:
+    """Decrypt when needed and run ZIP safety checks without restoring anything."""
+    from app.services.backup_restore import _decrypt_if_needed
+
+    work = _decrypt_if_needed(path)
+    cleanup = work != path
+    try:
+        if not zipfile.is_zipfile(work):
+            raise HTTPException(status_code=400, detail="Yedek ZIP değil veya bozuk.")
+        with zipfile.ZipFile(work, "r") as zf:
+            return validate_zip_safety(zf)
+    finally:
+        if cleanup:
+            try:
+                work.unlink(missing_ok=True)
+            except OSError:
+                pass
