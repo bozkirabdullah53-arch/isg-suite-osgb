@@ -18,7 +18,7 @@ def training_exam_pdf(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Seçili NACE, tehlike sınıfı ve eğitim konu havuzundan 15 soruluk sınav üretir."""
+    """Yayımlanmış soru bankasından 5 ortak + 5 teknik + 5 sektör soruluk sabit sınav üretir."""
     row = _load_training(db, training_id)
     ensure_access(db, user, row.company_id)
     company = db.get(Company, row.company_id)
@@ -26,6 +26,8 @@ def training_exam_pdf(
         pdf_bytes = build_exam_pdf(
             company_name=company.name if company else str(row.company_id),
             training=row,
+            db=db,
+            created_by_id=user.id,
         )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
@@ -38,6 +40,18 @@ def training_exam_pdf(
     )
 '''
     text = text.rstrip() + block + '\n'
+else:
+    old = '''        pdf_bytes = build_exam_pdf(
+            company_name=company.name if company else str(row.company_id),
+            training=row,
+        )'''
+    new = '''        pdf_bytes = build_exam_pdf(
+            company_name=company.name if company else str(row.company_id),
+            training=row,
+            db=db,
+            created_by_id=user.id,
+        )'''
+    text = text.replace(old, new)
 
 path.write_text(text, encoding='utf-8')
-print('Training exam endpoint activated.')
+print('Training snapshot exam endpoint activated.')
