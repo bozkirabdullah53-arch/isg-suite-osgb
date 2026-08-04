@@ -20,6 +20,7 @@ from app.models.entities import (
 )
 from app.services.training_topics import (
     SEKTOR_PROFIL,
+    SEKTOREL_EGITIM_KONULARI,
     sektor_kodu_cozumle,
     sectors_list_for_api,
 )
@@ -40,6 +41,7 @@ _NACE_SECTION_PREFIXES = {"F": ("41", "42", "43")}
 _SECTOR_VALUES = (
     frozenset(SEKTOR_PROFIL)
     | frozenset(SEKTOR_PROFIL.values())
+    | frozenset(SEKTOREL_EGITIM_KONULARI)
     | frozenset(_NACE_SECTION_PREFIXES)
 )
 
