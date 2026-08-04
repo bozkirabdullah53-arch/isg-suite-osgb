@@ -59,6 +59,18 @@ def storage_probe(
     }
 
 
+@router.get("/health-crypto-inventory")
+def health_crypto_inventory(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """Sağlık şifreleme geçiş envanteri — yalnız sayım, içerik/anahtar yok."""
+    _ = user
+    from app.services.health_crypto_inventory import build_health_crypto_inventory
+
+    return build_health_crypto_inventory(db)
+
+
 @router.post("/health-crypto-backfill")
 def health_crypto_backfill(
     dry_run: bool = True,
