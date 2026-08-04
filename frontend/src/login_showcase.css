@@ -311,8 +311,16 @@
 @media (min-width: 1280px) {
   .login-showcase,
   .login-showcase + .login-wrap { width: 392px; }
-  .login-showcase { top: calc(50% + 26px); }
-  .login-showcase + .login-wrap .login-card { min-height: 478px; }
+  .login-showcase { top: 50%; }
+  .login-showcase + .login-wrap .login-card {
+    display: flex;
+    min-height: 478px;
+    flex-direction: column;
+  }
+  .login-showcase + .login-wrap .login-brand--card {
+    margin-top: auto;
+    padding-top: 18px;
+  }
 }
 
 /* Tablet: form yerleşimine katılmadan, giriş kartının altında kompakt vitrin. */
