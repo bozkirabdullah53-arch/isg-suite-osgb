@@ -36,7 +36,12 @@ _NACE_PREFIX_RE = re.compile(r"^\d{2}(?:\.\d{2}){0,2}$")
 _CATALOG = tuple(sectors_list_for_api())
 _NACE_CATALOG = tuple(row for row in _CATALOG if row.get("nace"))
 _NACE_VALUES = frozenset(str(row["nace"]) for row in _NACE_CATALOG)
-_SECTOR_VALUES = frozenset(SEKTOR_PROFIL) | frozenset(SEKTOR_PROFIL.values())
+_NACE_SECTION_PREFIXES = {"F": ("41", "42", "43")}
+_SECTOR_VALUES = (
+    frozenset(SEKTOR_PROFIL)
+    | frozenset(SEKTOR_PROFIL.values())
+    | frozenset(_NACE_SECTION_PREFIXES)
+)
 
 
 class QuestionBankError(ValueError):
@@ -105,6 +110,18 @@ def valid_nace_scope(value: str) -> bool:
     return any(nace == value or nace.startswith(f"{value}.") for nace in _NACE_VALUES)
 
 
+def sector_scope_matches(ctx: dict[str, str], scope_value: str) -> bool:
+    """İç profil kodlarını ve desteklenen NACE bölüm kodlarını eşleştir."""
+    value = str(scope_value or "").strip()
+    if value in {ctx["sector"], ctx["sector_code"]}:
+        return True
+    nace = str(ctx.get("nace") or "").strip()
+    return bool(nace) and any(
+        nace == prefix or nace.startswith(f"{prefix}.")
+        for prefix in _NACE_SECTION_PREFIXES.get(value, ())
+    )
+
+
 def nace_scope_matches(nace: str, scope_value: str) -> bool:
     """30.11 yalnız 30.11 ve altını kapsar; 30.1 gibi belirsiz eşleşmeler yapılamaz."""
     nace = str(nace or "").strip()
@@ -156,7 +173,7 @@ def _buckets_for_context(
                 matched.add("common")
             elif kind == "hazard" and value.casefold() == ctx["hazard"].casefold():
                 matched.add("technical")
-            elif kind == "sector" and value in {ctx["sector"], ctx["sector_code"]}:
+            elif kind == "sector" and sector_scope_matches(ctx, value):
                 matched.add("sector")
             elif kind == "nace" and nace_scope_matches(ctx["nace"], value):
                 matched.add("sector")
@@ -204,6 +221,9 @@ def _indexed_bucket_counts(index: dict, ctx: dict[str, str]) -> dict[str, int]:
     sector_ids.update(index["sectors"].get(ctx["sector_code"], set()))
     nace = ctx["nace"]
     if nace:
+        for section, prefixes in _NACE_SECTION_PREFIXES.items():
+            if any(nace == prefix or nace.startswith(f"{prefix}.") for prefix in prefixes):
+                sector_ids.update(index["sectors"].get(section, set()))
         parts = nace.split(".")
         for length in range(1, min(len(parts), 3) + 1):
             sector_ids.update(index["naces"].get(".".join(parts[:length]), set()))
