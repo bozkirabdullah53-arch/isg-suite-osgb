@@ -1,18 +1,60 @@
 from pathlib import Path
 
-# NACE -> özel eğitim profili eşlemeleri. Bu eşleme hem belge konularını hem
-# yayımlanmış soru bankası kapsamını aynı sektör profiline bağlar.
+# Tüm NACE kayıtlarını merkezi sektör profiline dönüştür.
+# Böylece eğitim belgesi ve soru bankası aynı profil kodunu kullanır.
 topics_path = Path('app/services/training_topics.py')
 topics_text = topics_path.read_text(encoding='utf-8')
-profile_marker = '    raw = str(sektor or "").strip()\n'
-profile_patch = '''    raw = str(sektor or "").strip()\n    explicit_nace_profiles = {\n        "nace_27_20_01": "aku_uretimi",\n        "27.20.01": "aku_uretimi",\n    }\n    if raw in explicit_nace_profiles:\n        return explicit_nace_profiles[raw]\n'''
-if '"nace_27_20_01": "aku_uretimi"' not in topics_text:
-    if profile_marker not in topics_text:
-        raise RuntimeError('sektor_kodu_cozumle başlangıcı bulunamadı')
-    topics_text = topics_text.replace(profile_marker, profile_patch, 1)
-    topics_path.write_text(topics_text, encoding='utf-8')
-    print('NACE 27.20.01 -> aku_uretimi profile mapping activated.')
+old_resolver = '''def sektor_kodu_cozumle(sektor: str | None) -> str:
+    if not sektor:
+        return "genel_uretim"
+    raw = sektor.strip()
+    if raw in SEKTOREL_EGITIM_KONULARI:
+        return raw
+    nace_code = "nace_" + raw.replace(".", "_")
+    if nace_code in SEKTOREL_EGITIM_KONULARI:
+        return nace_code
+    for kod, ad in SEKTOR_SECENEKLERI:
+        if ad.casefold() == raw.casefold():
+            return kod
+    for kod, ad in PROFIL_ADLARI.items():
+        if ad.casefold() == raw.casefold():
+            return kod
+    if raw in ("01", "02", "03", "04", "05"):
+        return "genel_uretim"
+    return "genel_uretim"
+'''
+new_resolver = '''def sektor_kodu_cozumle(sektor: str | None) -> str:
+    if not sektor:
+        return "genel_uretim"
+    raw = sektor.strip()
+    # Katalogdaki NACE kaydı varsa doğrudan bağlı olduğu merkezi profile dön.
+    if raw in SEKTOR_PROFIL:
+        return SEKTOR_PROFIL[raw]
+    if raw in SEKTOREL_EGITIM_KONULARI:
+        return raw
+    nace_code = "nace_" + raw.replace(".", "_")
+    if nace_code in SEKTOR_PROFIL:
+        return SEKTOR_PROFIL[nace_code]
+    if nace_code in SEKTOREL_EGITIM_KONULARI:
+        return nace_code
+    for kod, ad in SEKTOR_SECENEKLERI:
+        if ad.casefold() == raw.casefold():
+            return SEKTOR_PROFIL.get(kod, kod)
+    for kod, ad in PROFIL_ADLARI.items():
+        if ad.casefold() == raw.casefold():
+            return kod
+    if raw in ("01", "02", "03", "04", "05"):
+        return "genel_uretim"
+    return "genel_uretim"
+'''
+if old_resolver in topics_text:
+    topics_text = topics_text.replace(old_resolver, new_resolver)
+elif new_resolver not in topics_text:
+    raise RuntimeError('sektor_kodu_cozumle gövdesi beklenen yapıda değil')
+topics_path.write_text(topics_text, encoding='utf-8')
+print('All NACE records now resolve to central sector profiles.')
 
+# Sınav endpoint'ini yayımlanmış soru bankası + snapshot üreticisine bağla.
 path = Path('app/api/trainings.py')
 text = path.read_text(encoding='utf-8')
 
