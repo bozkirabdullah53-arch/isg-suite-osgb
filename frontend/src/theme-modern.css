@@ -152,7 +152,8 @@ html[data-ui-theme="modern"] .login-shell::after {
 }
 html[data-ui-theme="modern"] .login-wrap { position: relative; z-index: 1; }
 @media (min-width: 1181px) {
-  html[data-ui-theme="modern"] .login-wrap { transform: translateX(-120px); }
+  /* Sol vitrin, merkez giriş ve sağ İSG sahnesi dengesi: giriş gerçek ekran merkezinde kalır. */
+  html[data-ui-theme="modern"] .login-wrap { transform: none; }
   html[data-ui-theme="modern"] .login-wrap--apply { transform: none; }
 }
 html[data-ui-theme="modern"] .login-brand {
