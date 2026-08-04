@@ -1,0 +1,424 @@
+{
+  "items": [
+    {
+      "question_code": "TR-COKTEK-001",
+      "version": 1,
+      "topic_code": "YUKSEKTE-CALISMA-TANIM",
+      "topic_label": "Yüksekte çalışma",
+      "question_text": "Mevzuata göre yüksekte çalışma hangi durumu ifade eder?",
+      "options": [
+        "Yalnız üç metreden daha yüksek yerlerde yapılan işleri",
+        "Seviye farkı bulunan ve düşme sonucu yaralanma ihtimali olan her türlü alandaki çalışmayı",
+        "Sadece bina çatısında yapılan işleri",
+        "Yalnız iskele üzerinde yapılan işleri"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Yüksekte çalışma, sabit bir metre sınırına bağlı değildir. Seviye farkının ve düşme sonucu yaralanma ihtimalinin bulunduğu her türlü alan bu kapsamdadır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı – Yüksekte Çalışma",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/yuksekte-calisma/",
+          "reference": "Yüksekte çalışmanın tanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-002",
+      "version": 1,
+      "topic_code": "YUKSEKTE-KORUNMA-HIYERARSISI",
+      "topic_label": "Yüksekte çalışmada korunma hiyerarşisi",
+      "question_text": "Yüksekte çalışma riskine karşı öncelikli yaklaşım hangisidir?",
+      "options": [
+        "Her çalışana yalnız emniyet kemeri vermek",
+        "Mümkünse işi yüksekte yapma ihtiyacını ortadan kaldırmak; mümkün değilse toplu korunma önlemlerine öncelik vermek",
+        "Çalışma süresini uzatmak",
+        "Düşme olduktan sonra önlem almak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Öncelik tehlikeyi ortadan kaldırmaktır. Bu mümkün değilse güvenli platform, korkuluk ve güvenlik ağı gibi toplu korunma önlemleri kişisel düşüş durdurma sistemlerinden önce değerlendirilir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı – Yüksekte Çalışma",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/yuksekte-calisma/",
+          "reference": "Kontrol önlemleri hiyerarşisi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-003",
+      "version": 1,
+      "topic_code": "YUKSEKTE-EGITIM",
+      "topic_label": "Yüksekte çalışma eğitimi",
+      "question_text": "Yüksekte çalışacak personele hangi konularda eğitim verilmelidir?",
+      "options": [
+        "Yalnız işin bitiş saati hakkında",
+        "Yüksekte çalışma tehlikeleri, riskler, kontrol tedbirleri ve güvenli çalışma yöntemleri hakkında",
+        "Sadece kullanılan malzemenin fiyatı hakkında",
+        "Yalnız genel şirket kuralları hakkında"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Yüksekte çalışacak çalışanların işe özgü tehlikeler, düşmenin önlenmesi, kullanılan ekipman ve güvenli çalışma yöntemleri konusunda eğitilmesi gerekir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı – Yüksekte Çalışmaya Yönelik Temel Eğitim",
+          "url": "https://guvenliinsaat.csgb.gov.tr/haberler/yuksekte-calismaya-yonelik-temel-egitime-dair-bilinmesi-gerekenler/",
+          "reference": "Yapı İşlerinde İSG Yönetmeliği Ek-4, yüksekte çalışma eğitimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-004",
+      "version": 1,
+      "topic_code": "ISKELE-KONTROL",
+      "topic_label": "İskele güvenliği",
+      "question_text": "İskele kullanılmadan önce en doğru uygulama hangisidir?",
+      "options": [
+        "Sadece çalışanların gözle bakması",
+        "Kurulumun uygunluğu, taşıma kapasitesi, bağlantılar, platformlar ve düşmeye karşı koruyucuların yetkin kişilerce kontrol edilmesi",
+        "Korkulukların sökülmesi",
+        "İskele etiketlerinin dikkate alınmaması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İskeleler güvenli kurulum, taşıma kapasitesi, sabitleme, platform bütünlüğü ve kenar koruma bakımından kontrol edilmeden kullanıma açılmamalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliği",
+          "url": "https://www.csgb.gov.tr/isggm/tr/duyurular/24122025/",
+          "reference": "İskelelerin periyodik kontrolleri ve yetkili kişiler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-005",
+      "version": 1,
+      "topic_code": "KALDIRMA-YUK-ALTI",
+      "topic_label": "Kaldırma operasyonları",
+      "question_text": "Kaldırılmış bir yükün altında çalışma veya geçiş için hangisi doğrudur?",
+      "options": [
+        "Yük sabit görünüyorsa serbesttir",
+        "Zorunlu ve özel güvenlik tedbirleri dışında kaldırılmış yük altında bulunulmamalıdır",
+        "Sadece baret takmak yeterlidir",
+        "Operatör izin verirse her zaman geçilebilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Askıdaki yükün düşmesi veya hareket etmesi ölümcül sonuç doğurabilir. Kaldırma alanı sınırlandırılmalı ve çalışanlar askıdaki yükün altında bulundurulmamalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Yük kaldırmada güvenli kullanım ilkeleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-006",
+      "version": 1,
+      "topic_code": "KALDIRMA-PERIYODIK-KONTROL",
+      "topic_label": "Kaldırma ekipmanı periyodik kontrolü",
+      "question_text": "Kaldırma ve iletme ekipmanlarının periyodik kontrolü için hangisi doğrudur?",
+      "options": [
+        "Herhangi bir çalışan tarafından yapılabilir",
+        "Mevzuatta belirtilen yetkiye sahip kişilerce ve öngörülen şartlarda yapılmalıdır",
+        "Sadece arıza olduğunda yapılır",
+        "Kontrol raporu düzenlenmesine gerek yoktur"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Periyodik kontrole tabi kaldırma ekipmanları yalnız yetkili kişilerce, ilgili standart ve mevzuat şartlarına göre kontrol edilmelidir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliğinde 23 Aralık 2025 Tarihli Değişiklik",
+          "url": "https://www.csgb.gov.tr/isggm/tr/duyurular/24122025/",
+          "reference": "Kaldırma ve iletme ekipmanları; periyodik kontrol yetkisi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-007",
+      "version": 1,
+      "topic_code": "KAZI-GOCUK",
+      "topic_label": "Kazı ve göçük güvenliği",
+      "question_text": "Göçük riski bulunan kazıda temel güvenlik yaklaşımı hangisidir?",
+      "options": [
+        "Kazı kenarına malzeme yığmak",
+        "Zemin ve kazı koşullarına uygun şev, iksa veya koruyucu sistem kurmak ve güvenli giriş-çıkış sağlamak",
+        "Kazıya yalnız gece girmek",
+        "Kazı duvarlarını kontrol etmeden çalışmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kazılarda göçük riski zemin özellikleri, derinlik, su ve çevresel yükler dikkate alınarak şevlendirme, iksa veya uygun koruyucu sistemlerle kontrol edilmelidir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Yapı İşlerinde İş Sağlığı ve Güvenliği Yönetmeliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Kazı işleri ve göçüğün önlenmesine ilişkin hükümler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-008",
+      "version": 1,
+      "topic_code": "KAZI-KENAR-YUKU",
+      "topic_label": "Kazı kenarında yükleme",
+      "question_text": "Kazıdan çıkan malzeme ve ağır ekipmanlar nereye yerleştirilmelidir?",
+      "options": [
+        "Kazı kenarının hemen üzerine",
+        "Kazı duvarına ek yük ve göçük riski oluşturmayacak güvenli mesafeye",
+        "Kazı içine",
+        "Giriş merdiveninin önüne"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kazı kenarındaki malzeme ve ekipman yükleri kazı duvarına ilave basınç uygular. Bu nedenle güvenli mesafe bırakılmalı ve malzemenin kazıya düşmesi önlenmelidir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Yapı İşlerinde İş Sağlığı ve Güvenliği Yönetmeliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Kazı çevresinin ve kazı kenarlarının güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-009",
+      "version": 1,
+      "topic_code": "ELEKTRIK-ENERJI-HATTI",
+      "topic_label": "Enerji hatları yakınında çalışma",
+      "question_text": "Enerji nakil hattı yakınında çalışma planlanırken öncelikli işlem hangisidir?",
+      "options": [
+        "Hattın enerjili olup olmadığını varsaymak",
+        "Hattın konumunu ve gerilimini belirlemek; mümkünse enerjiyi kestirmek, değilse güvenli mesafe ve koruyucu önlemleri sağlamak",
+        "Metal merdiveni hatta yaklaştırmak",
+        "Çalışanları bilgilendirmemek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Enerji hatları yakınında temas veya ark riski bulunur. Hatlar önceden belirlenmeli, mümkünse enerjisiz bırakılmalı; bu mümkün değilse güvenli yaklaşma mesafesi ve fiziksel koruma sağlanmalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Yapı İşlerinde İş Sağlığı ve Güvenliği Yönetmeliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Enerji dağıtım tesisleri ve elektrik riskleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-010",
+      "version": 1,
+      "topic_code": "KAPALI-ALAN-GAZ-OLCUMU",
+      "topic_label": "Kapalı alan çalışması",
+      "question_text": "Kapalı alana girişten önce hangi kontrol yapılmalıdır?",
+      "options": [
+        "Yalnız alanın büyüklüğü ölçülmelidir",
+        "Oksijen seviyesi ile yanıcı ve toksik gazlar uygun cihazlarla ölçülmeli, sonuçlar güvenli olmalıdır",
+        "Sadece aydınlatma açılmalıdır",
+        "Alan koklanarak kontrol edilmelidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kapalı alanlarda oksijen yetersizliği, zehirli gaz ve patlayıcı atmosfer riski bulunabilir. Giriş öncesi ve gerektiğinde çalışma boyunca uygun atmosfer ölçümü yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İnşaat Sektöründe İş Sağlığı ve Güvenliği Mevzuatı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Kapalı alan, kimyasal maruziyet ve patlayıcı ortam hükümleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-011",
+      "version": 1,
+      "topic_code": "KAPALI-ALAN-KURTARMA",
+      "topic_label": "Kapalı alanda acil kurtarma",
+      "question_text": "Kapalı alan çalışmasında acil kurtarma için hangisi doğrudur?",
+      "options": [
+        "Acil durumda eğitimsiz çalışan hemen içeri girmelidir",
+        "Çalışma öncesinde gözetim, iletişim ve uygun ekipman içeren kurtarma planı hazırlanmalıdır",
+        "Yalnız cep telefonu yeterlidir",
+        "Kurtarma planı olaydan sonra hazırlanmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kapalı alana kontrolsüz kurtarma amacıyla girmek ikinci bir kazaya yol açabilir. Giriş öncesinde eğitimli ekip, iletişim, gözetim ve kurtarma ekipmanları planlanmalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İşyerlerinde Acil Durumlar Hakkında Yönetmelik ve İlgili Teknik Mevzuat",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Acil durum hazırlığı ve kurtarma düzenlemeleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-012",
+      "version": 1,
+      "topic_code": "PATLAYICI-ORTAM-KAYNAK",
+      "topic_label": "Patlayıcı ortam güvenliği",
+      "question_text": "Patlayıcı ortam oluşma ihtimali bulunan işyerinde öncelikli yaklaşım hangisidir?",
+      "options": [
+        "Tutuşturucu kaynakları artırmak",
+        "Patlayıcı ortam oluşmasını önlemek; mümkün değilse tutuşturmayı ve patlamanın etkilerini kontrol etmek",
+        "Alanı işaretlemeden kullanmak",
+        "Sadece yangın tüpü bulundurmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Patlamadan korunmada öncelik patlayıcı atmosferin oluşmasını önlemek, sonra tutuşturucu kaynakları kontrol etmek ve olası patlamanın etkilerini azaltmaktır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların Patlayıcı Ortamların Tehlikelerinden Korunması Hakkında Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Patlamaların önlenmesi ve patlamadan korunma"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-013",
+      "version": 1,
+      "topic_code": "PATLAYICI-ORTAM-EKIPMAN",
+      "topic_label": "Patlayıcı ortamda ekipman seçimi",
+      "question_text": "Patlayıcı ortam sınıflandırması yapılan bir bölgede kullanılacak ekipman için hangisi doğrudur?",
+      "options": [
+        "Her türlü elektrikli ekipman kullanılabilir",
+        "Bölge sınıfına ve patlayıcı ortam özelliklerine uygun ekipman seçilmelidir",
+        "Yalnız ikinci el ekipman seçilmelidir",
+        "Ekipmanın uygunluk işareti önemli değildir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Patlayıcı atmosfer bulunan bölgelerde ekipman seçimi bölge sınıflandırmasına, gaz veya tozun özelliklerine ve tutuşturma riskine uygun olmalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların Patlayıcı Ortamların Tehlikelerinden Korunması Hakkında Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Tehlikeli bölgelerin sınıflandırılması ve ekipman seçimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-014",
+      "version": 1,
+      "topic_code": "ASBEST-SUPHE",
+      "topic_label": "Asbest şüphesi",
+      "question_text": "Yıkım veya bakım öncesinde asbestli malzeme bulunduğundan şüphe edilirse ne yapılmalıdır?",
+      "options": [
+        "Malzeme hemen kırılmalıdır",
+        "Çalışma durdurulmalı, yetkin kişi tarafından değerlendirme ve gerektiğinde numune analizi yapılmalıdır",
+        "Toz oluşması için malzeme kuru süpürülmelidir",
+        "Çalışanlara bilgi verilmemelidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Asbest şüphesinde malzeme bozulmadan önce yetkin değerlendirme yapılmalı ve gerektiğinde numune alınmalıdır. Kontrolsüz müdahale havaya kanserojen lif yayabilir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı İSGÜM – Asbest",
+          "url": "https://www.csgb.gov.tr/isgum/asbest/",
+          "reference": "Asbestli malzeme şüphesinde değerlendirme ve numune süreci"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-COKTEK-015",
+      "version": 1,
+      "topic_code": "ASBEST-YETKILI-CALISMA",
+      "topic_label": "Asbest söküm çalışması",
+      "question_text": "Asbest söküm işi kimler tarafından yürütülmelidir?",
+      "options": [
+        "İşyerindeki herhangi bir çalışan tarafından",
+        "Gerekli eğitim ve yetkinliğe sahip asbest söküm uzmanı gözetiminde, eğitimli çalışanlar tarafından",
+        "Yalnız bina sahibi tarafından",
+        "Eğitim almamış taşeron çalışanlar tarafından"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Asbestle ilgili söküm, yıkım, bakım ve uzaklaştırma işleri özel eğitim ve yetkinlik gerektirir. İşler yetkili asbest söküm uzmanı gözetiminde eğitimli çalışanlarca yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Çok Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı İSGÜM – Asbest",
+          "url": "https://www.csgb.gov.tr/isgum/asbest/",
+          "reference": "Asbest söküm uzmanlığı ve eğitimli çalışan şartı"
+        }
+      ]
+    }
+  ]
+}

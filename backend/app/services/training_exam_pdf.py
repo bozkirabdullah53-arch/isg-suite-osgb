@@ -51,7 +51,15 @@ def _load_or_create_snapshot(db: Session, training, created_by_id: int) -> Train
     )
     if snapshot is not None:
         return snapshot
-    return create_exam_snapshot(db, training=training, created_by_id=created_by_id)
+    # The managed PDF action remains usable while the reviewed database bank is
+    # being expanded. Bundled questions are used only to fill missing buckets;
+    # they are frozen into the snapshot without mutating or publishing DB rows.
+    return create_exam_snapshot(
+        db,
+        training=training,
+        created_by_id=created_by_id,
+        allow_curated_fallback=True,
+    )
 
 
 def _wrap(c, text: str, width: float, font: str, size: float) -> list[str]:

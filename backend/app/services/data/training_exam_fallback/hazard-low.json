@@ -1,0 +1,424 @@
+{
+  "items": [
+    {
+      "question_code": "TR-AZTEK-001",
+      "version": 1,
+      "topic_code": "EKRAN-MOLA-DUZENI",
+      "topic_label": "Ekranlı araçlarda çalışma düzeni",
+      "question_text": "Ekranlı araçlarla çalışan bir personelin günlük çalışma düzeni nasıl planlanmalıdır?",
+      "options": [
+        "Hiç ara verilmeden kesintisiz çalışacak şekilde",
+        "Çalışmanın düzenli aralıklarla ara verilerek veya iş değiştirilerek bölünmesiyle",
+        "Yalnız öğle arasında dinlenilecek şekilde",
+        "Sadece çalışan talep ederse ara verilecek şekilde"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Ekranlı araçlarla yapılan çalışmalar, operatörün göz ve kas-iskelet yükünü azaltacak biçimde düzenli aralıklarla ara verilerek veya iş değişikliği sağlanarak bölünmelidir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Ekranlı Araçlarla Çalışmalarda Sağlık ve Güvenlik Önlemleri Hakkında Yönetmelik",
+          "url": "https://www.lexpera.com.tr/mevzuat/yonetmelikler/ekranli-araclarla-calismalarda-saglik-ve-guvenlik-onlemleri-hakkinda-yonetmelik-2013-28620-4",
+          "reference": "Madde 7 – Günlük çalışma düzeni"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-002",
+      "version": 1,
+      "topic_code": "EKRAN-GOZ-MUAYENESI",
+      "topic_label": "Ekranlı araçlarda göz sağlığı",
+      "question_text": "Ekranlı araçlarla çalışanların göz muayenesi hangi durumda sağlanmalıdır?",
+      "options": [
+        "Sadece iş kazası olursa",
+        "İşe başlamadan önce ve düzenli aralıklarla; görme güçlüğü ortaya çıktığında da",
+        "Sadece çalışan gözlük kullanıyorsa",
+        "Yalnız emeklilik öncesinde"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Ekranlı araçlarla çalışacak kişilere işe başlamadan önce, düzenli aralıklarla ve görme güçlüğü ortaya çıktığında göz muayenesi imkânı sağlanmalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Ekranlı Araçlarla Çalışmalarda Sağlık ve Güvenlik Önlemleri Hakkında Yönetmelik",
+          "url": "https://www.lexpera.com.tr/mevzuat/yonetmelikler/ekranli-araclarla-calismalarda-saglik-ve-guvenlik-onlemleri-hakkinda-yonetmelik-2013-28620-4",
+          "reference": "Madde 9 – Gözlerin korunması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-003",
+      "version": 1,
+      "topic_code": "EKRAN-AYDINLATMA",
+      "topic_label": "Ekranlı araçlarda aydınlatma",
+      "question_text": "Ekranlı araç kullanılan çalışma alanında aydınlatma nasıl olmalıdır?",
+      "options": [
+        "Ekranda parlama ve yansımaya neden olacak kadar güçlü",
+        "Çalışanın gözünü kamaştırmayacak ve ekranda yansıma oluşturmayacak şekilde",
+        "Yalnız ekran ışığı kullanılacak şekilde",
+        "Pencereler tamamen açık bırakılacak şekilde"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Aydınlatma, ekran ve diğer ekipmanların kullanımı sırasında parlama, yansıma ve göz kamaşmasına yol açmayacak şekilde düzenlenmelidir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Ekranlı Araçlarla Çalışmalarda Sağlık ve Güvenlik Önlemleri Hakkında Yönetmelik",
+          "url": "https://www.lexpera.com.tr/mevzuat/yonetmelikler/ekranli-araclarla-calismalarda-saglik-ve-guvenlik-onlemleri-hakkinda-yonetmelik-2013-28620-4",
+          "reference": "Ek-1 – Aydınlatma, yansıma ve parlama"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-004",
+      "version": 1,
+      "topic_code": "ERGONOMI-SANDALYE",
+      "topic_label": "Ergonomik çalışma sandalyesi",
+      "question_text": "Ekranlı araçla çalışan bir kişinin sandalyesi için hangisi doğrudur?",
+      "options": [
+        "Sabit ve ayarsız olmalıdır",
+        "Dengeli, hareket özgürlüğü sağlayan ve yüksekliği ayarlanabilir olmalıdır",
+        "Sırt desteği bulunmamalıdır",
+        "Yalnız metal malzemeden yapılmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Çalışma sandalyesi dengeli olmalı, çalışana rahat hareket imkânı sağlamalı ve oturma yüksekliği ayarlanabilmelidir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Ekranlı Araçlarla Çalışmalarda Sağlık ve Güvenlik Önlemleri Hakkında Yönetmelik",
+          "url": "https://www.lexpera.com.tr/mevzuat/yonetmelikler/ekranli-araclarla-calismalarda-saglik-ve-guvenlik-onlemleri-hakkinda-yonetmelik-2013-28620-4",
+          "reference": "Ek-1 – Çalışma sandalyesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-005",
+      "version": 1,
+      "topic_code": "ELLE-TASIMA-ONLEME",
+      "topic_label": "Elle taşımanın önlenmesi",
+      "question_text": "Elle taşıma işlerinde işverenin ilk tercih etmesi gereken önlem hangisidir?",
+      "options": [
+        "Yükü daha hızlı taşımayı istemek",
+        "Elle taşımayı mümkün olduğunca önlemek ve mekanik sistemlerden yararlanmak",
+        "Yükleri çalışanlar arasında yarıştırarak taşımak",
+        "Yükün ağırlığını çalışanlara bildirmemek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İşveren, yüklerin elle taşınmasına gerek duyulmayacak şekilde işi organize etmeli ve mümkünse uygun mekanik araçlar kullanmalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Elle Taşıma İşleri Yönetmeliği",
+          "url": "https://www.lexpera.com.tr/resmi-gazete/metin/elle-tasima-isleri-yonetmeligi-28717",
+          "reference": "Madde 5 – Genel yükümlülük"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-006",
+      "version": 1,
+      "topic_code": "ELLE-TASIMA-RISK",
+      "topic_label": "Elle taşımada risk etkenleri",
+      "question_text": "Aşağıdakilerden hangisi elle taşıma sırasında bel ve sırt incinmesi riskini artırır?",
+      "options": [
+        "Yükün vücuda yakın tutulması",
+        "Yükün çok ağır, büyük veya kavranması zor olması",
+        "Taşıma yolunun açık olması",
+        "Uygun yardımcı ekipman kullanılması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Ağır, büyük, dengesiz veya kavranması zor yükler çalışanlarda özellikle bel ve sırt incinmesi riskini artırır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Elle Taşıma İşleri Yönetmeliği",
+          "url": "https://www.lexpera.com.tr/resmi-gazete/metin/elle-tasima-isleri-yonetmeligi-28717",
+          "reference": "Ek-1 – Yükle ilgili risk faktörleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-007",
+      "version": 1,
+      "topic_code": "ACIL-DURUM-PLAN",
+      "topic_label": "Acil durum planı",
+      "question_text": "Acil durum planının hazırlanması hangi işyerleri için gereklidir?",
+      "options": [
+        "Sadece çok tehlikeli işyerleri için",
+        "Çalışanı bulunan tüm işyerleri için",
+        "Sadece elliden fazla çalışanı olan işyerleri için",
+        "Yalnız kamu işyerleri için"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Acil durum planı, 6331 sayılı Kanun kapsamındaki çalışanı bulunan işyerlerinde işyerinin özellikleri dikkate alınarak hazırlanır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İşyerlerinde Acil Durumlar Hakkında Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/haberler/insaatlarda-acil-durumlari-yonetin-tahliyeyi-sansa-birakmayin/",
+          "reference": "Acil durum planının hazırlanması ve kapsamı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-008",
+      "version": 1,
+      "topic_code": "ACIL-CIKIS",
+      "topic_label": "Acil çıkış ve kaçış yolları",
+      "question_text": "Acil çıkış ve kaçış yolları için hangisi doğrudur?",
+      "options": [
+        "Malzeme depolamak için kullanılabilir",
+        "Her zaman açık ve kullanılabilir durumda tutulmalıdır",
+        "Yalnız denetim günlerinde açık tutulmalıdır",
+        "Kapıları içeriden kilitli olmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Acil çıkış ve kaçış yolları engellenmemeli; acil durumda çalışanların güvenli ve hızlı tahliyesine imkân verecek durumda tutulmalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İşyeri Bina ve Eklentilerinde Alınacak Sağlık ve Güvenlik Önlemlerine İlişkin Yönetmelik",
+          "url": "https://www.lexpera.com.tr/resmi-gazete/metin/isyeri-bina-ve-eklentilerinde-alinacak-saglik-ve-guvenlik-onlemlerine-iliskin-yonetmelik-28710",
+          "reference": "Ek-1 – Acil çıkış yolları ve kapıları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-009",
+      "version": 1,
+      "topic_code": "KAYMA-TAKILMA",
+      "topic_label": "Kayma ve takılmanın önlenmesi",
+      "question_text": "İşyeri zeminlerinde kayma ve takılma riskini azaltmak için hangisi yapılmalıdır?",
+      "options": [
+        "Geçiş yollarına kablo ve kutu bırakılmalıdır",
+        "Zeminler düzenli, temiz, sağlam ve engellerden arındırılmış tutulmalıdır",
+        "Dökülen sıvılar çalışma sonunda temizlenmelidir",
+        "Aydınlatma azaltılmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Zeminler ve geçiş yolları güvenli, temiz ve düzenli tutulmalı; kayma veya takılmaya yol açabilecek engeller derhal giderilmelidir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İşyeri Bina ve Eklentilerinde Alınacak Sağlık ve Güvenlik Önlemlerine İlişkin Yönetmelik",
+          "url": "https://www.lexpera.com.tr/resmi-gazete/metin/isyeri-bina-ve-eklentilerinde-alinacak-saglik-ve-guvenlik-onlemlerine-iliskin-yonetmelik-28710",
+          "reference": "Ek-1 – Zeminler, geçiş yolları ve çalışma yerleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-010",
+      "version": 1,
+      "topic_code": "ELEKTRIK-HASARLI-KABLO",
+      "topic_label": "Temel elektrik güvenliği",
+      "question_text": "Hasarlı elektrik kablosu veya priz görüldüğünde çalışan ne yapmalıdır?",
+      "options": [
+        "Kullanmaya devam etmelidir",
+        "Ekipmanı kullanmamalı, enerjiyi güvenli şekilde kestirip yetkili kişiye bildirmelidir",
+        "Kabloyu bantlayıp hemen çalıştırmalıdır",
+        "Arızayı gizlemelidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Hasarlı elektrik ekipmanları kullanılmamalı; arıza yetkili kişiye bildirilmeli ve güvenli hale getirilmeden yeniden devreye alınmamalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliği",
+          "url": "https://www.csgb.gov.tr/isggm/tr/duyurular/24122025/",
+          "reference": "İş ekipmanlarının güvenli kullanımı, bakım ve uygunluk yükümlülükleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-011",
+      "version": 1,
+      "topic_code": "IS-EKIPMANI-TALIMAT",
+      "topic_label": "İş ekipmanı kullanım talimatı",
+      "question_text": "Bir iş ekipmanını kullanacak çalışana ne sağlanmalıdır?",
+      "options": [
+        "Yalnız ekipmanın marka bilgisi",
+        "Ekipmanın güvenli kullanımına ilişkin yeterli bilgi, eğitim ve gerektiğinde yazılı talimat",
+        "Sadece satın alma faturası",
+        "Yalnız bakım personelinin telefon numarası"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İş ekipmanını kullanacak çalışanlara ekipmandan kaynaklanan riskler, korunma yolları ve güvenli kullanım hakkında yeterli bilgi ve eğitim verilmelidir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Çalışan eğitimi ve kullanım talimatları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-012",
+      "version": 1,
+      "topic_code": "IS-EKIPMANI-BAKIM",
+      "topic_label": "İş ekipmanı bakımı",
+      "question_text": "İş ekipmanlarının güvenliğini korumak için hangisi gereklidir?",
+      "options": [
+        "Sadece ilk satın alındığında kontrol edilmesi",
+        "Kullanım süresince uygun bakım ve gerekli kontrollerin yaptırılması",
+        "Arıza çıkana kadar hiçbir işlem yapılmaması",
+        "Bakım kayıtlarının tutulmaması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İş ekipmanının güvenli durumu yalnız ilk kurulumda değil, kullanım süresince uygun bakım ve gerekli kontrollerle sürdürülmelidir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Bakım ve periyodik kontrol"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-013",
+      "version": 1,
+      "topic_code": "YANGIN-TUPU-SECIM",
+      "topic_label": "Yangın söndürücü seçimi",
+      "question_text": "Yangın söndürücü seçilirken en önemli hususlardan biri nedir?",
+      "options": [
+        "Tüpün yalnız rengi",
+        "İşyerindeki yanıcı madde ve oluşabilecek yangın sınıfı",
+        "Tüpün en ucuz olması",
+        "Tüpün kapıya en uzak yerde olması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Yangın söndürücü tipi, işyerinde bulunan yanıcı maddeler ve meydana gelebilecek yangın sınıfı dikkate alınarak seçilmelidir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – Yangın",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/yangin/",
+          "reference": "Yanıcı malzemeye göre yangın tüpü seçimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-014",
+      "version": 1,
+      "topic_code": "ACIL-TATBIKAT",
+      "topic_label": "Acil durum tatbikatı",
+      "question_text": "Acil durum planının uygulanabilirliğini görmek için ne yapılmalıdır?",
+      "options": [
+        "Plan yalnız dosyada saklanmalıdır",
+        "Tatbikat yapılmalı, aksaklıklar belirlenmeli ve gerekli düzeltmeler yapılmalıdır",
+        "Sadece yöneticiler planı okumalıdır",
+        "Acil durum gerçekleşene kadar hiçbir uygulama yapılmamalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Acil durum tatbikatları planın işleyişini test eder; tespit edilen eksiklikler doğrultusunda plan ve uygulamalar güncellenmelidir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İşyerlerinde Acil Durumlar Hakkında Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/haberler/insaatlarda-acil-durumlari-yonetin-tahliyeyi-sansa-birakmayin/",
+          "reference": "Tatbikat ve acil durum planının güncellenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-AZTEK-015",
+      "version": 1,
+      "topic_code": "EGITIM-AZ-TEHLIKELI",
+      "topic_label": "Az tehlikeli işyerlerinde eğitim",
+      "question_text": "Az tehlikeli işyerlerinde temel iş sağlığı ve güvenliği eğitimi en geç hangi aralıkla yenilenmelidir?",
+      "options": [
+        "Her ay",
+        "En geç üç yılda bir",
+        "Beş yılda bir",
+        "Yalnız iş kazası olursa"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Güncel düzenlemeye göre az tehlikeli işyerlerinde temel İSG eğitimi en geç üç yılda bir yenilenmelidir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Az Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı – İSG Genel Müdürlüğü Sıkça Sorulan Sorular",
+          "url": "https://www.csgb.gov.tr/tr/sikca-sorulan-sorular/is-sagligi-ve-guvenligi-genel-mudurlugu/",
+          "reference": "Soru 130 – Tehlike sınıflarına göre eğitim süreleri ve tekrar periyotları"
+        }
+      ]
+    }
+  ]
+}

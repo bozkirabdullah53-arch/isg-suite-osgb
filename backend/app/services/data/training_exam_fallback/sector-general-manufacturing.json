@@ -1,0 +1,424 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-GENURET-001",
+      "version": 1,
+      "topic_code": "MAKINE-KORUYUCU",
+      "topic_label": "Makine koruyucuları",
+      "question_text": "Bir üretim makinesinin hareketli parçalarına çalışanların erişimini önlemede öncelikli yaklaşım hangisidir?",
+      "options": [
+        "Yalnız uyarı levhası asmak",
+        "Tehlikeli bölgeyi uygun koruyucu ve emniyet tertibatlarıyla erişilemez hâle getirmek",
+        "Çalışanlara daha hızlı çalışmasını söylemek",
+        "Makine çevresine yalnızca zemin çizgisi çekmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Hareketli parçalardan kaynaklanan sıkışma, ezilme ve kapılma risklerinde öncelik; tehlikeli bölgeye erişimi fiziksel koruyucu ve uygun emniyet tertibatlarıyla önlemektir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "İş ekipmanının işe uygun seçilmesi ve kullanım sırasında güvenliğinin sağlanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-002",
+      "version": 1,
+      "topic_code": "EKIPMAN-UYGUNLUK",
+      "topic_label": "İşe uygun ekipman seçimi",
+      "question_text": "İşveren, fabrikada kullanılacak bir iş ekipmanını seçerken öncelikle neyi değerlendirmelidir?",
+      "options": [
+        "Sadece satın alma fiyatını",
+        "İşyerinin özel çalışma şartlarını ve ekipmanın oluşturabileceği sağlık ve güvenlik tehlikelerini",
+        "Yalnız ekipmanın rengini",
+        "Çalışanların kıdem süresini"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İş ekipmanı, yapılacak işe ve işyerinin özel koşullarına uygun seçilmeli; kullanımının çalışanlar için ek bir tehlike oluşturmaması sağlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "İş ekipmanı seçiminde özel çalışma şartları ve sağlık-güvenlik tehlikelerinin dikkate alınması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-003",
+      "version": 1,
+      "topic_code": "EKIPMAN-TALIMAT-EGITIM",
+      "topic_label": "Ekipman talimatı ve eğitim",
+      "question_text": "Bir makineyi kullanmakla görevlendirilen çalışana aşağıdakilerden hangisi sağlanmalıdır?",
+      "options": [
+        "Yalnız sözlü üretim hedefi",
+        "Kullanım riskleri, korunma yolları ve gerektiğinde yazılı kullanım talimatı hakkında eğitim ve bilgi",
+        "Sadece vardiya çizelgesi",
+        "Yalnız bakım firmasının telefon numarası"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Çalışana kullandığı ekipmanın riskleri ve bu risklerden kaçınma yolları öğretilmeli; imalatçı kılavuzu dikkate alınarak gerekli talimatlar hazırlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "İş ekipmanını kullanan çalışanlara yeterli bilgi, talimat ve risk eğitimi verilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-004",
+      "version": 1,
+      "topic_code": "BAKIM-EKED",
+      "topic_label": "Bakımda enerji izolasyonu",
+      "question_text": "Bir makinede bakım veya arıza giderme işlemine başlamadan önce en güvenli uygulama hangisidir?",
+      "options": [
+        "Makineyi yavaş moda almak",
+        "Enerji kaynaklarını ayırmak, kilitlemek, etiketlemek ve enerjisizliği doğrulamak",
+        "Acil durdurma düğmesine basıp hemen çalışmaya başlamak",
+        "Yanına bir gözlemci koymak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Bakım sırasında beklenmeyen çalışmayı ve depolanmış enerjinin boşalmasını önlemek için enerji kaynakları güvenli biçimde izole edilmeli, kilitlenmeli, etiketlenmeli ve doğrulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Rehberlik ve Teftiş Başkanlığı – Ekipman Bakım ve Onarımında İSG: EKED",
+          "url": "https://www.csgb.gov.tr/rtb/yayinlar/proje-yayinlari/",
+          "reference": "Ekipman bakım ve onarımında enerji kontrolü, kilitleme ve etiketleme uygulamaları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-005",
+      "version": 1,
+      "topic_code": "PERIYODIK-KONTROL",
+      "topic_label": "Periyodik kontrol",
+      "question_text": "Periyodik kontrole tabi bir iş ekipmanının kontrolü kim tarafından yapılmalıdır?",
+      "options": [
+        "Herhangi bir vardiya çalışanı tarafından",
+        "İlgili mevzuata göre periyodik kontrol yapmaya yetkili kişi tarafından",
+        "Yalnız satın alma sorumlusu tarafından",
+        "Ekipmanı en uzun süredir kullanan çalışan tarafından"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Periyodik kontrole tabi ekipmanların muayene, deney ve testleri; mevzuatta belirtilen nitelikleri taşıyan ve bu konuda yetkili kişilerce yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarının Periyodik Kontrolleri Hakkında SSS",
+          "url": "https://www.csgb.gov.tr/tr/sikca-sorulan-sorular/is-sagligi-ve-guvenligi-genel-mudurlugu/",
+          "reference": "Periyodik kontrollerin uygun mezuniyet ve yetki şartlarını taşıyan kişilerce yapılması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-006",
+      "version": 1,
+      "topic_code": "KALDIRMA-YUK",
+      "topic_label": "Kaldırma ve taşıma",
+      "question_text": "Vinç veya benzeri kaldırma ekipmanıyla yük kaldırılırken aşağıdakilerden hangisi doğrudur?",
+      "options": [
+        "Çalışanlar yükün altında bekleyebilir",
+        "Yükün altında veya düşme alanında çalışan bulunmamalı ve kaldırma işi planlanmalıdır",
+        "Yük salınımı elle durdurulmalıdır",
+        "Kapasite etiketi okunamıyorsa tahmini yük kaldırılabilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kaldırma operasyonunda yük düşmesi ve salınım riskleri nedeniyle çalışanlar yükün altında veya tehlike alanında bulunmamalı; kapasite ve operasyon koşulları önceden değerlendirilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Yüklerin kaldırılmasında kullanılan iş ekipmanlarının güvenli kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-007",
+      "version": 1,
+      "topic_code": "FORKLIFT-TRAFIK",
+      "topic_label": "Forklift ve yaya güvenliği",
+      "question_text": "Fabrika içinde forkliftlerle yayaların aynı alanda bulunduğu yerlerde en etkili düzenleme hangisidir?",
+      "options": [
+        "Forkliftlerin sürekli korna çalması",
+        "Yaya ve araç yollarının mümkün olduğunca fiziksel olarak ayrılması ve geçişlerin işaretlenmesi",
+        "Yayaların forklifte yol vermesinin sözlü olarak söylenmesi",
+        "Forklift hızının operatöre bırakılması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Araç-yaya çarpışmalarını önlemede temel yaklaşım; güzergâhların ayrılması, kontrollü geçiş noktaları, görüş alanı, hız ve trafik düzeninin birlikte yönetilmesidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Kendinden hareketli iş ekipmanları ile güvenli çalışma ve saha düzeni"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-008",
+      "version": 1,
+      "topic_code": "ISTIF-DEPO",
+      "topic_label": "İstifleme güvenliği",
+      "question_text": "Paletli malzemelerin güvenli istiflenmesinde aşağıdakilerden hangisi esastır?",
+      "options": [
+        "Koridorlara taşacak şekilde istif yapmak",
+        "Zemin ve raf kapasitesine uygun, dengeli ve devrilmeyecek biçimde istif yapmak",
+        "Ağır yükleri en üst rafa koymak",
+        "Hasarlı paletleri kullanmaya devam etmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İstifler; zemin ve raf taşıma kapasitesi, yükün ağırlık merkezi, palet bütünlüğü ve güvenli koridor genişliği dikkate alınarak devrilmeyecek şekilde oluşturulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Mevzuat Listesi",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "İşyeri düzeni, iş ekipmanları ve elle taşıma işlerine ilişkin güvenlik düzenlemeleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-009",
+      "version": 1,
+      "topic_code": "ELLE-TASIMA",
+      "topic_label": "Elle taşıma ve ergonomi",
+      "question_text": "Elle taşıma risklerini azaltmada öncelikli yöntem hangisidir?",
+      "options": [
+        "Çalışana bel kemeri vermek",
+        "Taşıma işini mümkün olduğunca mekanik ekipmanla ortadan kaldırmak veya azaltmak",
+        "Yükü daha hızlı kaldırmak",
+        "Yalnız deneyimli çalışanlara taşıtmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Ergonomik risk yönetiminde öncelik, tehlikeli elle taşıma işini mekanik yardımcılarla ortadan kaldırmak veya azaltmaktır; eğitim ve doğru teknikler destekleyici önlemlerdir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İşyerlerinde Ergonomik Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Ağır kaldırma, zorlayıcı duruş ve tekrarlayan hareketlerin ergonomik önlemlerle azaltılması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-010",
+      "version": 1,
+      "topic_code": "GURULTU-KAYNAK",
+      "topic_label": "Gürültü kontrolü",
+      "question_text": "Gürültülü bir üretim hattında risk kontrolünde ilk tercih hangisidir?",
+      "options": [
+        "Yalnız kulak tıkacı dağıtmak",
+        "Gürültüyü kaynağında azaltmak ve teknik-toplu korunma önlemleri uygulamak",
+        "Çalışanların daha kısa konuşmasını istemek",
+        "Gürültü ölçümü yapmadan vardiya değiştirmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Gürültü riskinde öncelik, daha sessiz ekipman, bakım, izolasyon ve kapatma gibi kaynağa ve yayılım yoluna yönelik teknik önlemlerdir; kulak koruyucular tamamlayıcıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Mevzuat Listesi",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Çalışanların gürültüyle ilgili risklerden korunmasına ilişkin mevzuat ve kontrol hiyerarşisi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-011",
+      "version": 1,
+      "topic_code": "KIMYASAL-SDS",
+      "topic_label": "Kimyasal güvenliği",
+      "question_text": "Üretimde kullanılan bir kimyasalın tehlikeleri ve güvenli kullanım bilgileri öncelikle hangi belgeden öğrenilir?",
+      "options": [
+        "Sevkiyat irsaliyesinden",
+        "Güvenlik Bilgi Formundan (SDS)",
+        "Vardiya çizelgesinden",
+        "Makine bakım kartından"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Güvenlik Bilgi Formu; kimyasalın sınıflandırması, maruziyet kontrolleri, depolama, ilk yardım, yangın ve dökülme müdahalesi gibi temel güvenlik bilgilerini içerir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Mevzuat Listesi",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Kimyasal maddelerle çalışma ile maddelerin sınıflandırılması, etiketlenmesi ve ambalajlanmasına ilişkin düzenlemeler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-012",
+      "version": 1,
+      "topic_code": "YANGIN-YANICI",
+      "topic_label": "Yangın ve yanıcı maddeler",
+      "question_text": "Yanıcı sıvı kullanılan bir üretim alanında yangın riskini azaltmak için hangisi yapılmalıdır?",
+      "options": [
+        "Kapları açık bırakmak",
+        "Ateşleme kaynaklarını kontrol etmek, uygun kapalı depolama ve havalandırma sağlamak",
+        "Dökülen sıvıyı talaşla örtüp bekletmek",
+        "Yanıcı sıvıları elektrik panosu yanında depolamak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Yanıcı sıvılarda buhar oluşumu, statik elektrik ve ateşleme kaynakları birlikte değerlendirilmelidir; kapalı depolama, havalandırma, sızıntı kontrolü ve uygun ekipman gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Mevzuat Listesi",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Kimyasal maddeler ve patlayıcı ortam tehlikelerinden korunmaya ilişkin düzenlemeler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-013",
+      "version": 1,
+      "topic_code": "ACIL-DURDURMA",
+      "topic_label": "Acil durdurma",
+      "question_text": "Bir makinenin acil durdurma tertibatı için aşağıdakilerden hangisi doğrudur?",
+      "options": [
+        "Normal üretim durdurma düğmesinin yerine sürekli kullanılmalıdır",
+        "Tehlikeli durumda makineyi mümkün olan en kısa sürede güvenli biçimde durdurmaya yardımcı olmalıdır",
+        "Yalnız bakım personelinin ulaşabileceği kapalı dolapta olmalıdır",
+        "Üzerindeki işaretin görünür olması gerekli değildir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Acil durdurma, tehlikeli bir durumda makinenin oluşturduğu riski hızla azaltmaya yarayan tamamlayıcı bir emniyet tertibatıdır; normal durdurmanın yerine kullanılmaz.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "İş ekipmanının güvenli kullanımı ve çalışanlara zarar vermeyecek durumda bulundurulması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-014",
+      "version": 1,
+      "topic_code": "ARIZA-BILDIRIM",
+      "topic_label": "Arıza ve uygunsuzluk yönetimi",
+      "question_text": "Bir çalışan makine koruyucusunun hasarlı olduğunu fark ettiğinde ne yapmalıdır?",
+      "options": [
+        "Üretim aksamaması için çalışmaya devam etmelidir",
+        "Ekipmanı güvenli şekilde durdurmalı veya kullandırmamalı ve uygunsuzluğu yetkili kişiye bildirmelidir",
+        "Koruyucuyu geçici olarak sökmelidir",
+        "Hasarı vardiya sonunda sözlü olarak söylemesi yeterlidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Hasarlı koruyucu ciddi yaralanma riski oluşturur. Ekipman güvenli duruma alınmalı, yetkisiz kullanım engellenmeli ve onarım tamamlanmadan tekrar devreye sokulmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "İş ekipmanının kullanım süresince uygun bakım yapılarak güvenli durumda tutulması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-GENURET-015",
+      "version": 1,
+      "topic_code": "DUZEN-TEMIZLIK",
+      "topic_label": "İşyeri düzeni ve temizlik",
+      "question_text": "Üretim alanında kayma, takılma ve düşme riskini azaltmak için en doğru uygulama hangisidir?",
+      "options": [
+        "Geçiş yollarını geçici depolama alanı olarak kullanmak",
+        "Dökülmeleri hemen temizlemek, kablo ve malzemeleri geçiş yollarından kaldırmak ve yolları açık tutmak",
+        "Yalnız uyarı levhası koymak",
+        "Temizliği sadece haftalık bakım gününe bırakmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Geçiş yollarının açık tutulması, dökülmelerin gecikmeden temizlenmesi ve malzeme-kablo düzeninin sağlanması kayma ve takılma kaynaklı kazaları doğrudan azaltır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "genel_uretim"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Mevzuat Listesi",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "İşyeri bina ve eklentileri, sağlık ve güvenlik işaretleri ile iş ekipmanlarına ilişkin düzenlemeler"
+        }
+      ]
+    }
+  ]
+}

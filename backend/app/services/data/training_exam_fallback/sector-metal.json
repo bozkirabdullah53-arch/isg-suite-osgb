@@ -1,0 +1,544 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-METAL-001",
+      "version": 1,
+      "topic_code": "MAKINE-KORUYUCU",
+      "topic_label": "Makine koruyucuları",
+      "question_text": "Torna, freze veya matkap tezgâhında dönen parçalara temas riskini önlemede temel uygulama hangisidir?",
+      "options": [
+        "Operatörün dikkatli olması",
+        "Uygun sabit veya hareketli koruyucu ile tehlikeli bölgeye erişimin engellenmesi",
+        "Makinenin daha düşük hızda çalıştırılması",
+        "Tezgâh çevresine yalnız uyarı levhası asılması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Dönen mil, ayna, kayış-kasnak ve kesici bölgeye erişim; uygun koruyucu ve emniyet tertibatlarıyla önlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "İş ekipmanlarının güvenli kullanımı, koruyucular ve tehlikeli bölgelere erişimin önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-002",
+      "version": 1,
+      "topic_code": "TORNA-AYNA",
+      "topic_label": "Torna güvenliği",
+      "question_text": "Torna tezgâhında iş parçası bağlandıktan sonra çalıştırmadan önce yapılması gereken kritik kontrol hangisidir?",
+      "options": [
+        "Ayna anahtarının aynadan çıkarıldığının ve parçanın güvenli bağlandığının doğrulanması",
+        "Kesici takımın elle tutulması",
+        "Koruyucunun açık bırakılması",
+        "Tezgâhın en yüksek devirde denenmesi"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Ayna anahtarının unutulması veya parçanın yetersiz bağlanması, yüksek hızda fırlama ve ağır yaralanma riski oluşturur.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Makine ve tezgâhların işe uygun, güvenli ve talimatlara uygun kullanılması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-003",
+      "version": 1,
+      "topic_code": "TALAS-TEMIZLIK",
+      "topic_label": "Talaş temizliği",
+      "question_text": "Torna veya freze tezgâhında oluşan metal talaşları nasıl temizlenmelidir?",
+      "options": [
+        "Elle ve makine çalışırken",
+        "Basınçlı havayı çalışanın üzerine yönelterek",
+        "Makine durdurulduktan sonra uygun fırça, kanca veya yardımcı araçla",
+        "Bezle dönen parçaya yaklaşarak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Keskin ve sıcak talaşlar elle temas, göz yaralanması ve kapılma riski taşır; makine durdurulmalı ve uygun yardımcı araç kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "İş ekipmanının güvenli durdurulması ve bakım-temizlik işlemlerinin güvenli yapılması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-004",
+      "version": 1,
+      "topic_code": "TASLAMA",
+      "topic_label": "Taşlama güvenliği",
+      "question_text": "Sabit taşlama tezgâhında çalışmaya başlamadan önce hangisi kontrol edilmelidir?",
+      "options": [
+        "Taşın uygunluğu, hasarsızlığı, koruyucusu ve dayama aralığı",
+        "Yalnız motorun rengi",
+        "Koruyucunun sökülmüş olması",
+        "Taşın yan yüzeyinde çalışma yapılması"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Taşın çatlak veya uygunsuz olması ve dayama aralığının fazla bulunması; taş patlaması, sıkışma ve parça fırlaması riskini artırır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "İş ekipmanının işe uygunluğu, koruyucular ve kullanım öncesi güvenlik kontrolleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-005",
+      "version": 1,
+      "topic_code": "KAYNAK-DUMANI",
+      "topic_label": "Kaynak dumanı",
+      "question_text": "Kaynak dumanına maruziyeti azaltmada öncelikli teknik önlem hangisidir?",
+      "options": [
+        "Yalnız cerrahi maske kullanmak",
+        "Dumanı kaynağında yakalayan lokal emiş sistemi kurmak",
+        "Kaynakçının daha hızlı çalışması",
+        "Kapıları kapatmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kaynak dumanı mümkün olduğunca oluştuğu noktada lokal emişle yakalanmalı; genel havalandırma ve uygun solunum koruması destekleyici olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Mevzuatı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Kimyasal maddelere ve kaynak dumanlarına maruziyette teknik kontrol ve havalandırma önlemleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-006",
+      "version": 1,
+      "topic_code": "KAYNAK-GOZ-YUZ",
+      "topic_label": "Kaynak ışını ve sıçrama",
+      "question_text": "Elektrik ark kaynağında göz ve yüzün korunması için hangisi kullanılmalıdır?",
+      "options": [
+        "Sıradan güneş gözlüğü",
+        "Kaynak yöntemine uygun filtre dereceli kaynak başlığı veya yüz siperi",
+        "Şeffaf numarasız gözlük",
+        "Yalnız baret"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Ark ışını; ultraviyole, kızılötesi ışınım ve sıcak metal sıçraması oluşturur. Uygun filtreli kaynak başlığı ve gerekli tamamlayıcı KKD kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Mevzuatı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Kişisel koruyucu donanım ve optik radyasyondan korunmaya ilişkin düzenlemeler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-007",
+      "version": 1,
+      "topic_code": "SICAK-CALISMA",
+      "topic_label": "Sıcak çalışma izni",
+      "question_text": "Yanıcı maddelerin bulunabileceği bir alanda kaynak veya kesme yapılmadan önce ne yapılmalıdır?",
+      "options": [
+        "İş hemen başlatılmalıdır",
+        "Sıcak çalışma izni düzenlenmeli, yanıcılar uzaklaştırılmalı ve yangın önlemleri alınmalıdır",
+        "Yalnız kapı açılmalıdır",
+        "Kaynak makinesi daha düşük akıma alınmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kaynak ve kesme kıvılcım, sıcak metal ve ısı üretir. Alan kontrolü, yanıcıların uzaklaştırılması, söndürme imkânı ve yangın gözcülüğü planlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Mevzuatı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Yangın, patlayıcı ortam ve kimyasal risklerden korunmaya ilişkin düzenlemeler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-008",
+      "version": 1,
+      "topic_code": "GAZ-TUPU",
+      "topic_label": "Basınçlı gaz tüpleri",
+      "question_text": "Oksijen ve yanıcı gaz tüplerinin güvenli kullanımında hangisi doğrudur?",
+      "options": [
+        "Tüpler yatay ve sabitlenmeden tutulmalıdır",
+        "Tüpler dik, devrilmeye karşı sabitlenmiş ve ısı kaynaklarından uzakta tutulmalıdır",
+        "Oksijen bağlantılarına yağ sürülmelidir",
+        "Tüpler vanasından kaldırılmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Basınçlı tüpler devrilmeye karşı sabitlenmeli, darbeye ve ısıya karşı korunmalı; oksijen donanımında yağ ve gres kullanılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Mevzuatı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Basınçlı ekipman, kimyasal maddeler ve yangın güvenliğine ilişkin düzenlemeler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-009",
+      "version": 1,
+      "topic_code": "KAPALI-ALAN-KAYNAK",
+      "topic_label": "Kapalı alanda kaynak",
+      "question_text": "Kapalı alanda kaynak çalışmasına başlamadan önce en kritik hazırlık hangisidir?",
+      "options": [
+        "Yalnız kaynak akımını düşürmek",
+        "Atmosfer ölçümü, havalandırma, çalışma izni ve kurtarma planı hazırlamak",
+        "Kapıyı kilitlemek",
+        "Çalışanı tek başına göndermek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kapalı alanlarda oksijen yetersizliği, toksik gaz ve yangın riski bulunabilir; ölçüm, havalandırma, gözetim ve kurtarma düzeni olmadan çalışma yapılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Mevzuatı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Kimyasal maruziyet, patlayıcı ortam ve acil durum yükümlülükleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-010",
+      "version": 1,
+      "topic_code": "ENERJI-IZOLASYONU",
+      "topic_label": "Kilitleme ve etiketleme",
+      "question_text": "Pres veya CNC tezgâhında bakım yapılırken beklenmeyen çalışmayı önlemek için hangi yöntem uygulanmalıdır?",
+      "options": [
+        "Acil durdurma düğmesine basmakla yetinmek",
+        "Tüm enerji kaynaklarını ayırmak, kilitlemek, etiketlemek ve sıfır enerjiyi doğrulamak",
+        "Makineyi manuel moda almak",
+        "Operatöre makineyi açmamasını söylemek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Elektrik, hidrolik, pnömatik ve depolanmış mekanik enerji izole edilmeden bakım yapılması sıkışma ve ezilme riski doğurur.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Rehberlik ve Teftiş Başkanlığı – Proje Yayınları",
+          "url": "https://www.csgb.gov.tr/rtb/yayinlar/proje-yayinlari/",
+          "reference": "Ekipman bakım ve onarımında enerji kontrolü, kilitleme ve etiketleme uygulamaları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-011",
+      "version": 1,
+      "topic_code": "PRES-KALIP",
+      "topic_label": "Pres ve kalıp değişimi",
+      "question_text": "Pres kalıbı değiştirilirken temel güvenlik koşulu hangisidir?",
+      "options": [
+        "Presin yalnız yavaşlatılması",
+        "Enerji izolasyonu yapılıp kalıbın güvenli şekilde desteklenmesi ve yetkili kişilerce değiştirilmesi",
+        "Kalıbın elle tutulması",
+        "Koruyucuların iptal edilmesi"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kalıp değişiminde pres hareketi, kalıp düşmesi ve depolanmış enerji riskleri birlikte kontrol edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Bakım, ayar ve parça değişiminde iş ekipmanının güvenli duruma alınması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-012",
+      "version": 1,
+      "topic_code": "KALDIRMA-SAPAN",
+      "topic_label": "Kaldırma ve sapanlama",
+      "question_text": "Ağır bir makine parçası vinçle kaldırılmadan önce hangisi doğrulanmalıdır?",
+      "options": [
+        "Yalnız operatörün deneyimi",
+        "Yük ağırlığı, ağırlık merkezi, ekipman kapasitesi ve sapanların uygunluğu",
+        "Yükün boyası",
+        "Kaldırmanın mümkün olan en hızlı şekilde yapılması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Güvenli kaldırma için yükün ağırlığı ve ağırlık merkezi bilinmeli; vinç, kanca ve sapan kapasitesi ile bağlantı şekli uygun olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Yük kaldırmada kullanılan iş ekipmanlarının güvenli seçimi ve kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-013",
+      "version": 1,
+      "topic_code": "GURULTU",
+      "topic_label": "Gürültü kontrolü",
+      "question_text": "Metal işleme atölyesinde yüksek gürültü için öncelikli kontrol yaklaşımı hangisidir?",
+      "options": [
+        "Yalnız kulaklık vermek",
+        "Daha sessiz proses, bakım, izolasyon ve kabinleme gibi kaynağa yönelik önlemler almak",
+        "Çalışanları daha hızlı döndürmek",
+        "Ölçüm yapmadan mola vermek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Gürültü riski önce kaynağında ve yayılım yolunda teknik önlemlerle azaltılmalı; işitme koruyucular tamamlayıcı olarak kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Mevzuatı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Çalışanların gürültü ile ilgili risklerden korunmasına ilişkin kontrol hiyerarşisi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-014",
+      "version": 1,
+      "topic_code": "METAL-TOZU",
+      "topic_label": "Metal tozu ve havalandırma",
+      "question_text": "Taşlama ve metal yüzey işlemlerinde oluşan tozun kontrolünde hangisi önceliklidir?",
+      "options": [
+        "Tozu zeminde biriktirmek",
+        "Kaynağında emiş, uygun havalandırma ve düzenli güvenli temizlik sağlamak",
+        "Basınçlı havayla ortama yaymak",
+        "Yalnız pencereyi açmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Metal tozu solunum maruziyeti ve bazı proseslerde yangın-patlama riski yaratabilir; kaynağında emiş ve uygun temizlik gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Mevzuatı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Toz, kimyasal madde ve patlayıcı ortam risklerinden korunmaya ilişkin düzenlemeler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-METAL-015",
+      "version": 1,
+      "topic_code": "PERIYODIK-KONTROL",
+      "topic_label": "Periyodik kontrol ve kayıt",
+      "question_text": "Periyodik kontrole tabi metal işleme veya kaldırma ekipmanında kontrol süreci için hangisi doğrudur?",
+      "options": [
+        "Kontrolü herhangi bir çalışan yapabilir",
+        "Mevzuatta belirtilen ekipmanlar yetkili kişilerce kontrol edilmeli ve geçerli rapor düzenlenmelidir",
+        "Yalnız arıza olduğunda kontrol gerekir",
+        "Sözlü kontrol yeterlidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Periyodik kontrole tabi ekipmanlar, güncel mevzuattaki yetki ve raporlama şartlarına göre kontrol edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "metal_isleme_torna_freze"
+        },
+        {
+          "type": "sector",
+          "value": "kaynakli_imalat"
+        },
+        {
+          "type": "sector",
+          "value": "makine_imalat"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanları Yönetmeliği Değişikliği Duyurusu",
+          "url": "https://www.csgb.gov.tr/isggm/tr/duyurular/24122025/",
+          "reference": "23 Aralık 2025 değişikliği: periyodik kontrole tabi ekipmanlar, yetkili kişiler ve İSG-KATİP sözleşme süreci"
+        }
+      ]
+    }
+  ]
+}
