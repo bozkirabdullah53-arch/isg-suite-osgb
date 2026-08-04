@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import delete, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -72,6 +72,11 @@ from app.models.entities import OsgbOrganization
 from app.schemas.company import CompanyCreate, CompanyCreateResponse, CompanyResponse, CompanyUpdate
 from app.services.company_overview import build_company_overview
 from app.services.employer_oversight import build_employer_oversight
+from app.services.workplace_status import build_workplace_status
+from app.services.workplace_status_reports import (
+    build_workplace_status_excel,
+    build_workplace_status_pdf,
+)
 from app.services.site_verify import (
     build_ephemeral_qr_payload,
     build_qr_payload,
@@ -321,6 +326,70 @@ def company_overview(
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
     return build_company_overview(db, obj)
+
+
+@router.get("/{company_id}/status")
+def workplace_status(
+    company_id: int,
+    response: Response,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Tek işyerinin birleşik, gerçek zamanlı durum merkezi.
+
+    OSGB yöneticisi kendi OSGB'sini; işveren kendi işyerini; uzman, hekim ve
+    DSP yalnız aktif görevlendirildiği işyerlerini görebilir.
+    """
+    ensure_company_access(db, user, company_id)
+    obj = db.get(Company, company_id)
+    if not obj:
+        raise HTTPException(404, "Firma bulunamadı.")
+    response.headers["Cache-Control"] = "no-store"
+    return build_workplace_status(db, obj, viewer=user)
+
+
+@router.get("/{company_id}/status/report.xlsx")
+def workplace_status_report_excel(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    ensure_company_access(db, user, company_id)
+    obj = db.get(Company, company_id)
+    if not obj:
+        raise HTTPException(404, "Firma bulunamadı.")
+    data = build_workplace_status_excel(build_workplace_status(db, obj, viewer=user))
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="workplace-status-{company_id}.xlsx"',
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get("/{company_id}/status/report.pdf")
+def workplace_status_report_pdf(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    ensure_company_access(db, user, company_id)
+    obj = db.get(Company, company_id)
+    if not obj:
+        raise HTTPException(404, "Firma bulunamadı.")
+    data = build_workplace_status_pdf(build_workplace_status(db, obj, viewer=user))
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="workplace-status-{company_id}.pdf"',
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.get("/{company_id}/employer-oversight")

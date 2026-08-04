@@ -394,6 +394,7 @@ def logout_all_sessions(
 @router.post("/forgot-password")
 def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
     """Her zaman nötr yanıt — kullanıcı varlığını sızdırma."""
+    email = str(payload.email).strip().lower()
     user = db.scalar(select(User).where(func.lower(User.email) == email))
     if user and user.is_active:
         raw = create_password_reset(db, user)

@@ -40,7 +40,7 @@ import {
 } from './compliance_registers';
 import {EyasDigitalApprovalPage} from './eyas_digital_approval';
 import {AnnualEvalReportPage} from './annual_eval_report';
-import {Customer360Page} from './customer_360';
+import {Customer360Page, WorkplaceStatusPage} from './customer_360';
 import {CapacityEnginePage} from './capacity_engine';
 import {TrainingPage, TrainingVerifyPage, loadSectorsCatalog} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
 import {PrescriptionPage} from './prescriptions';
@@ -85,6 +85,7 @@ const roleModules={
     'employer_oversight',
     'eyas_inbox',
     'companies',
+    'workplace_status',
     // 2) İnsan, görev, performans (birbirini izler)
     'professionals',
     'assignments',
@@ -106,25 +107,25 @@ const roleModules={
     'security',
   ],
   safety_specialist:[
-    'visits','belge_onay','dashboard',
+    'visits','belge_onay','dashboard','workplace_status',
     'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler','acil_plan',
     'periyodik_kontrol','ortam_olcum','isg_kurulu',
     'training','employees','annual_plans','annual_eval_report','documents',
     'security',
   ],
   workplace_physician:[
-    'visits','belge_onay','eyas_inbox','dashboard',
+    'visits','belge_onay','eyas_inbox','dashboard','workplace_status',
     'health','prescriptions','employees','ortam_olcum',
     'annual_plans','annual_eval_report','documents',
     'security',
   ],
   other_health_personnel:[
-    'visits','dashboard',
+    'visits','dashboard','workplace_status',
     'health','employees',
     'annual_plans','documents',
     'security',
   ],
-  read_only:['dashboard','annual_eval_report','notifications','security'],
+  read_only:['dashboard','workplace_status','annual_eval_report','notifications','security'],
 };
 
 /** Yalnız otomatik üretilen işyeri QR kiosk hesabı — diğer company_admin menüsü bozulmaz. */
@@ -188,6 +189,7 @@ const menuCatalog={
   assignments:['Görevlendirmeler',BriefcaseBusiness],
   visits:['Saha Takvimi',CalendarDays],
   employer_oversight:['İşyeri Denetim Durumu',ShieldCheck],
+  workplace_status:['İşyeri Durum Merkezi',ClipboardCheck],
   site_qr_kiosk:['İşyeri QR',QrCode],
   crm:['CRM / Teklif',BriefcaseBusiness],
   contracts:['Sözleşmeler',FileText],
@@ -1921,6 +1923,7 @@ function App(){
     assignments:<AssignmentsPage user={user}/>,
     visits:<VisitsPage user={user} onNavigate={goModule}/>,
     employer_oversight:<EmployerOversightPage user={user}/>,
+    workplace_status:<WorkplaceStatusPage user={user} onNavigate={goModule}/>,
     site_qr_kiosk:<SiteQrKioskPage user={user} onLogout={logout}/>,
     crm:<CrmPage user={user} onNavigate={goModule}/>,
     contracts:<ContractsPage user={user}/>,
