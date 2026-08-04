@@ -1,5 +1,8 @@
 from unittest import mock
 
+import pytest
+
+from app.core.config import settings, validate_runtime_settings
 from app.services.clamav_scan import (
     clamav_readiness,
     clamav_status_label,
@@ -10,8 +13,8 @@ from app.services.clamav_scan import (
 
 
 def test_not_configured_optional_rollout(monkeypatch):
-    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", None)
-    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_required", False)
+    monkeypatch.setattr(settings, "clamav_host", None)
+    monkeypatch.setattr(settings, "clamav_required", False)
     assert not is_clamav_configured()
     assert not is_clamav_required()
     assert clamav_status_label() == "disabled"
@@ -25,8 +28,8 @@ def test_not_configured_optional_rollout(monkeypatch):
 
 
 def test_required_without_host_fails_closed(monkeypatch):
-    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", None)
-    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_required", True)
+    monkeypatch.setattr(settings, "clamav_host", None)
+    monkeypatch.setattr(settings, "clamav_required", True)
 
     assert is_clamav_required()
     assert not is_clamav_configured()
@@ -40,9 +43,28 @@ def test_required_without_host_fails_closed(monkeypatch):
     assert readiness["ready"] is False
 
 
+def test_production_required_without_host_blocks_startup(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "secret_key", "strong-production-secret-key-at-least-32-chars")
+    monkeypatch.setattr(settings, "clamav_required", True)
+    monkeypatch.setattr(settings, "clamav_host", None)
+
+    with pytest.raises(RuntimeError, match="CLAMAV_HOST"):
+        validate_runtime_settings()
+
+
+def test_non_production_required_without_host_does_not_block_startup(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "staging")
+    monkeypatch.setattr(settings, "secret_key", "staging-secret-key-at-least-32-characters")
+    monkeypatch.setattr(settings, "clamav_required", True)
+    monkeypatch.setattr(settings, "clamav_host", None)
+
+    validate_runtime_settings()
+
+
 def test_configured_unprobed_readiness_does_not_open_network(monkeypatch):
-    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", "clamav.internal")
-    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_required", True)
+    monkeypatch.setattr(settings, "clamav_host", "clamav.internal")
+    monkeypatch.setattr(settings, "clamav_required", True)
     readiness = clamav_readiness(probe=False)
     assert readiness == {
         "required": True,
@@ -55,7 +77,7 @@ def test_configured_unprobed_readiness_does_not_open_network(monkeypatch):
 
 
 def test_status_reachable(monkeypatch):
-    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", "127.0.0.1")
+    monkeypatch.setattr(settings, "clamav_host", "127.0.0.1")
 
     class FakeSock:
         def __enter__(self):
@@ -79,7 +101,7 @@ def test_status_reachable(monkeypatch):
 
 
 def test_status_unreachable(monkeypatch):
-    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", "127.0.0.1")
+    monkeypatch.setattr(settings, "clamav_host", "127.0.0.1")
     monkeypatch.setattr(
         "app.services.clamav_scan.socket.create_connection",
         mock.Mock(side_effect=OSError("connection refused")),
@@ -89,7 +111,7 @@ def test_status_unreachable(monkeypatch):
 
 
 def test_instream_ok(monkeypatch):
-    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", "127.0.0.1")
+    monkeypatch.setattr(settings, "clamav_host", "127.0.0.1")
 
     class FakeSock:
         def __enter__(self):
@@ -114,7 +136,7 @@ def test_instream_ok(monkeypatch):
 
 
 def test_instream_found(monkeypatch):
-    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", "127.0.0.1")
+    monkeypatch.setattr(settings, "clamav_host", "127.0.0.1")
 
     class FakeSock:
         def __enter__(self):
@@ -139,7 +161,7 @@ def test_instream_found(monkeypatch):
 
 
 def test_unreachable(monkeypatch):
-    monkeypatch.setattr("app.services.clamav_scan.settings.clamav_host", "127.0.0.1")
+    monkeypatch.setattr(settings, "clamav_host", "127.0.0.1")
     monkeypatch.setattr(
         "app.services.clamav_scan.socket.create_connection",
         mock.Mock(side_effect=OSError("connection refused")),
