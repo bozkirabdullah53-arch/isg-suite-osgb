@@ -1,4 +1,4 @@
-"""Yayımlanmış soru bankası snapshot'ından 15 soruluk denetlenebilir sınav PDF'i üretir."""
+"""Sabit 5 temel ve mevcut 15 banka sorusundan denetlenebilir sınav PDF'i üretir."""
 from __future__ import annotations
 
 import json
@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.entities import TrainingExamSnapshot
-from app.services.training_question_bank import create_exam_snapshot
+from app.services.training_question_bank import QUESTION_COUNT, create_exam_snapshot
 
 FONT_REGULAR = "ExamSans"
 FONT_BOLD = "ExamSans-Bold"
@@ -49,7 +49,11 @@ def _load_or_create_snapshot(db: Session, training, created_by_id: int) -> Train
         .order_by(TrainingExamSnapshot.version.desc())
         .limit(1)
     )
-    if snapshot is not None:
+    if (
+        snapshot is not None
+        and snapshot.question_count == QUESTION_COUNT
+        and len(snapshot.items) == QUESTION_COUNT
+    ):
         return snapshot
     # The managed PDF action remains usable while the reviewed database bank is
     # being expanded. Bundled questions are used only to fill missing buckets;
@@ -82,6 +86,8 @@ def _wrap(c, text: str, width: float, font: str, size: float) -> list[str]:
 def _bucket_label(scopes_json: str) -> str:
     scopes = json.loads(scopes_json or "[]")
     kinds = {str(row.get("type") or "") for row in scopes}
+    if "foundation" in kinds:
+        return "Temel İSG"
     if "sector" in kinds or "nace" in kinds:
         return "Sektör"
     if "hazard" in kinds:
@@ -93,8 +99,10 @@ def build_exam_pdf(*, company_name: str, training, db: Session, created_by_id: i
     _register_fonts()
     snapshot = _load_or_create_snapshot(db, training, created_by_id)
     items = list(snapshot.items)
-    if len(items) != 15:
-        raise RuntimeError(f"Sınav snapshot soru sayısı 15 değil: {len(items)}")
+    if len(items) != QUESTION_COUNT:
+        raise RuntimeError(
+            f"Sınav snapshot soru sayısı {QUESTION_COUNT} değil: {len(items)}"
+        )
 
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
@@ -113,7 +121,10 @@ def build_exam_pdf(*, company_name: str, training, db: Session, created_by_id: i
         c.setFont(FONT_BOLD, 14)
         c.drawCentredString(w / 2, h - 13 * mm, "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM SINAVI")
         c.setFont(FONT_REGULAR, 7.5)
-        subtitle = f"{training.hazard_class} • Sektör: {training.sector or '—'} • 15 Soru • Sürüm {snapshot.version}"
+        subtitle = (
+            f"{training.hazard_class} • Sektör: {training.sector or '—'} • "
+            f"{QUESTION_COUNT} Soru • Sürüm {snapshot.version}"
+        )
         c.drawCentredString(w / 2, h - 21 * mm, subtitle)
         c.setFillColorRGB(0.25, 0.3, 0.35)
         c.setFont(FONT_REGULAR, 7)
