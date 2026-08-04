@@ -425,12 +425,13 @@ def create_exam_snapshot(
             )
         )
     db.add(exam)
-    db.commit()
-    return db.scalar(
-        select(TrainingExamSnapshot)
-        .options(selectinload(TrainingExamSnapshot.items))
-        .where(TrainingExamSnapshot.id == exam.id)
-    )
+    # Transaction ownership belongs to the API boundary. Committing here expires
+    # both ``exam`` and the caller's ``training`` object and also clears PostgreSQL
+    # SET LOCAL RLS context. The PDF builder still needs both objects, so an inner
+    # commit can make the first exam request stall while SQLAlchemy tries to reload
+    # expired rows without the request's tenant context.
+    db.flush()
+    return exam
 
 
 def retire_question(question: TrainingQuestion, *, reviewer_id: int) -> None:
