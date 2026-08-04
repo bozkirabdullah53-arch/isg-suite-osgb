@@ -67,6 +67,8 @@ describe('LoginShowcase', () => {
     expect(css).toMatch(/@media \(max-width:\s*620px\)/);
     expect(css).toMatch(/@media \(max-height:\s*760px\) and \(max-width:\s*1279px\)/);
     expect(css).toMatch(/@media \(prefers-reduced-motion:\s*reduce\)/);
-    expect(css).not.toMatch(/\.login-(?:shell|wrap|card)(?!-showcase)/);
+    expect(css).toMatch(/\.login-showcase \+ \.login-wrap \{ width:\s*392px; \}/);
+    expect(css).toMatch(/\.login-showcase \+ \.login-wrap \.login-card \{ min-height:\s*478px; \}/);
+    expect(css).not.toMatch(/\.login-shell/);
   });
 });
