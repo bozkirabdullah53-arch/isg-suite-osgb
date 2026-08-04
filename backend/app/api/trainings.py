@@ -763,7 +763,7 @@ def training_exam_pdf(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Yayımlanmış soru bankasından 5 ortak + 5 teknik + 5 sektör soruluk sınav üretir."""
+    """5 sabit temel + mevcut 5 ortak + 5 teknik + 5 sektör soruluk sınav üretir."""
     row = _load_training(db, training_id)
     ensure_access(db, user, row.company_id)
     company = db.get(Company, row.company_id)
