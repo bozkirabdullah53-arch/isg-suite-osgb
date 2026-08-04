@@ -1,20 +1,23 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {
   AlertTriangle,
+  ArrowRight,
   ArrowLeft,
   Building2,
   CalendarDays,
   ClipboardCheck,
+  Download,
   FileText,
   HardHat,
   HeartPulse,
+  Printer,
   RefreshCw,
   ShieldAlert,
   Stethoscope,
   Users,
   WalletCards,
 } from 'lucide-react';
-import {api} from './api';
+import {api, downloadFile} from './api';
 
 const STATUS_LABELS = {ok: 'Uygun', warning: 'İzlem', critical: 'Kritik', unknown: 'Belirsiz'};
 const EVENT_LABELS = {
@@ -101,7 +104,7 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
     setBusy(true);
     setErr('');
     try {
-      const res = await api(`/companies/${companyId}/overview`);
+      const res = await api(`/companies/${companyId}/status`);
       setData(res);
     } catch (e) {
       setErr(e.message || 'Özet yüklenemedi.');
@@ -116,30 +119,61 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
   const c = data?.company;
   const counts = data?.counts || {};
   const compliance = data?.compliance || {};
+  const statusCenter = data?.status_center || {};
+
+  function goToModule(moduleId) {
+    if (!moduleId || !onNavigate) return;
+    try { sessionStorage.setItem('isg_status_company_id', String(companyId)); } catch (_) { /* ignore */ }
+    onNavigate(moduleId);
+  }
+
+  async function exportReport(type) {
+    setErr('');
+    try {
+      await downloadFile(
+        `/companies/${companyId}/status/report.${type}`,
+        `isyeri-durum-${companyId}.${type}`,
+      );
+    } catch (e) {
+      setErr(e.message || 'Rapor oluşturulamadı.');
+    }
+  }
 
   return (
     <div className="page">
       <header className="page-head" style={{marginBottom: 16}}>
         <div style={{display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap'}}>
-          <button type="button" className="mini secondary" onClick={onBack} style={{marginTop: 4}}>
-            <ArrowLeft size={16} style={{verticalAlign: 'middle', marginRight: 4}} />
-            İşyerleri
-          </button>
+          {onBack && (
+            <button type="button" className="mini secondary" onClick={onBack} style={{marginTop: 4}}>
+              <ArrowLeft size={16} style={{verticalAlign: 'middle', marginRight: 4}} />
+              İşyerleri
+            </button>
+          )}
           <div style={{flex: 1, minWidth: 240}}>
             <h2 style={{margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 8}}>
               <Building2 size={22} />
-              {c?.name || 'Müşteri 360'}
+              {c?.name || 'İşyeri Durum Merkezi'}
             </h2>
             <p style={{margin: 0, color: '#64748b', fontSize: 13}}>
-              Tek ekranda operasyon, uyumluluk ve İSG özeti
+              İşyeri Durum Merkezi · gerçek üretim kayıtlarından birleşik görünüm
               {c?.sgk_registry_no ? ` · Sicil: ${c.sgk_registry_no}` : ''}
               {c?.hazard_class ? ` · ${c.hazard_class}` : ''}
             </p>
           </div>
-          <button type="button" className="mini" disabled={busy} onClick={load}>
-            <RefreshCw size={14} style={{verticalAlign: 'middle', marginRight: 4}} />
-            Yenile
-          </button>
+          <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+            <button type="button" className="mini secondary" disabled={busy} onClick={() => void exportReport('pdf')}>
+              <Download size={14} style={{verticalAlign: 'middle', marginRight: 4}} />PDF
+            </button>
+            <button type="button" className="mini secondary" disabled={busy} onClick={() => void exportReport('xlsx')}>
+              <Download size={14} style={{verticalAlign: 'middle', marginRight: 4}} />Excel
+            </button>
+            <button type="button" className="mini secondary" onClick={() => window.print()}>
+              <Printer size={14} style={{verticalAlign: 'middle', marginRight: 4}} />Yazdır
+            </button>
+            <button type="button" className="mini" disabled={busy} onClick={load}>
+              <RefreshCw size={14} style={{verticalAlign: 'middle', marginRight: 4}} />Yenile
+            </button>
+          </div>
         </div>
       </header>
 
@@ -148,6 +182,28 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
 
       {data && (
         <>
+          <section className="panel" style={{marginBottom: 16, borderLeft: `4px solid ${statusCenter.overall_status === 'critical' ? '#dc2626' : statusCenter.overall_status === 'warning' ? '#d97706' : '#16a34a'}`}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', flexWrap: 'wrap'}}>
+              <div>
+                <h3 style={{margin: '0 0 4px'}}>Genel uyum durumu</h3>
+                <p style={{margin: 0, color: '#475569'}}>{statusCenter.overall_label || 'Hesaplanıyor'}</p>
+              </div>
+              <div style={{textAlign: 'right'}}>
+                <strong style={{fontSize: 28, color: '#0f4c81'}}>%{statusCenter.completion_pct ?? 0}</strong>
+                <div style={{fontSize: 12, color: '#64748b'}}>ölçülebilir süreç tamamlanması</div>
+              </div>
+            </div>
+            <div className="cards osgb-cards" style={{marginTop: 14}}>
+              <Metric label="Tamamlanan" value={statusCenter.summary?.completed || 0} />
+              <Metric label="Eksik" value={statusCenter.summary?.missing || 0} tone={statusCenter.summary?.missing ? 'danger' : undefined} />
+              <Metric label="Gecikmiş" value={statusCenter.summary?.overdue || 0} tone={statusCenter.summary?.overdue ? 'danger' : undefined} />
+              <Metric label="Yaklaşan" value={statusCenter.summary?.due_soon || 0} tone={statusCenter.summary?.due_soon ? 'warn' : undefined} />
+            </div>
+            <p style={{margin: '12px 0 0', fontSize: 12, color: '#64748b'}}>
+              İBYS durumu: Resmî doğrulama ve kabul bekleniyor. Bu ekran “İBYS Ready” beyanı değildir.
+            </p>
+          </section>
+
           {(data.alerts || []).length > 0 && (
             <section className="panel" style={{marginBottom: 16, borderLeft: '4px solid #dc2626'}}>
               <h3 style={{margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 8}}>
@@ -161,6 +217,47 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
               </ul>
             </section>
           )}
+
+          <Panel title="Eksikler, tamamlanan süreçler ve sorumlular" icon={ClipboardCheck}>
+            <SimpleTable
+              cols={[
+                {key: 'title', label: 'Süreç'},
+                {key: 'status_label', label: 'Durum', render: (r) => (
+                  <span style={{fontWeight: 700, color: r.critical ? '#b91c1c' : r.status === 'completed' ? '#166534' : '#92400e'}}>
+                    {r.status_label}
+                  </span>
+                )},
+                {key: 'detail', label: 'Gerçek veri sonucu'},
+                {key: 'responsible_role', label: 'Sorumlu'},
+                {key: 'module', label: 'Kaynak', render: (r) => (
+                  <button type="button" className="mini secondary" onClick={() => goToModule(r.module)}>
+                    Modüle git <ArrowRight size={13} style={{verticalAlign: 'middle'}} />
+                  </button>
+                )},
+              ]}
+              rows={statusCenter.items || []}
+              empty="Durum verisi bulunamadı."
+            />
+          </Panel>
+
+          <Panel title="Yaklaşan ve gecikmiş terminler" icon={CalendarDays}>
+            <SimpleTable
+              cols={[
+                {key: 'source', label: 'Kaynak'},
+                {key: 'title', label: 'Konu'},
+                {key: 'due_date', label: 'Termin'},
+                {key: 'days_left', label: 'Kalan gün', render: (r) => (
+                  <strong style={{color: r.days_left < 0 ? '#b91c1c' : r.days_left <= 30 ? '#b45309' : undefined}}>{r.days_left}</strong>
+                )},
+                {key: 'responsible_role', label: 'Sorumlu'},
+                {key: 'module', label: 'İşlem', render: (r) => (
+                  <button type="button" className="mini secondary" onClick={() => goToModule(r.module)}>Aç</button>
+                )},
+              ]}
+              rows={statusCenter.deadlines || []}
+              empty="Takip edilen yaklaşan veya gecikmiş termin yok."
+            />
+          </Panel>
 
           <div className="cards osgb-cards" style={{marginBottom: 16}}>
             <Metric label="Personel" value={counts.employees} />
@@ -325,6 +422,45 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
             </Panel>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+export function WorkplaceStatusPage({user, onNavigate}) {
+  const [companies, setCompanies] = useState([]);
+  const [companyId, setCompanyId] = useState(user?.company_id ? String(user.company_id) : '');
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    api('/companies?active=true')
+      .then((rows) => {
+        if (cancelled) return;
+        const list = Array.isArray(rows) ? rows : [];
+        setCompanies(list);
+        setCompanyId((current) => current || (list[0]?.id ? String(list[0].id) : ''));
+      })
+      .catch((e) => { if (!cancelled) setErr(e.message || 'İşyerleri yüklenemedi.'); });
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <div className="page">
+      <section className="panel" style={{marginBottom: 16}}>
+        <label style={{display: 'grid', gap: 6, maxWidth: 520}}>
+          <strong>İşyeri seçin</strong>
+          <select value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
+            <option value="">Erişilebilir işyeri yok</option>
+            {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+          </select>
+        </label>
+        {err && <p style={{color: '#b91c1c', marginBottom: 0}}>{err}</p>}
+      </section>
+      {companyId ? (
+        <Customer360Page companyId={Number(companyId)} onNavigate={onNavigate} />
+      ) : (
+        <section className="panel"><p className="empty">Rolünüze atanmış aktif işyeri bulunamadı.</p></section>
       )}
     </div>
   );
