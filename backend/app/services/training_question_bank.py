@@ -9,13 +9,14 @@ import secrets
 from collections import defaultdict
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.entities import (
     TrainingExamSnapshot,
     TrainingExamSnapshotItem,
     TrainingQuestion,
+    TrainingQuestionScope,
     TrainingSession,
 )
 from app.services.training_topics import (
@@ -163,6 +164,78 @@ def _active_published_questions(db: Session) -> list[TrainingQuestion]:
     return [row for row in latest_terminal.values() if row.status == "published"]
 
 
+def _published_questions_for_training(
+    db: Session, training: TrainingSession
+) -> list[TrainingQuestion]:
+    """Load only question versions that can match one training.
+
+    Exam generation used to hydrate the entire published bank plus every scope
+    and source, then discard almost all rows in Python. That becomes unbounded
+    as NACE coverage grows. Filter by indexed scope columns first while keeping
+    terminal-version semantics (a retired latest version cannot reactivate an
+    older published version).
+    """
+    ctx = _context(training)
+    sector_values = {
+        ctx["sector"],
+        ctx["sector_code"],
+        "genel_uretim",
+        "enerji_jenerator_trafo",
+        "aku_uretimi",
+        "depo_lojistik",
+    }
+    nace = ctx["nace"]
+    nace_values: set[str] = set()
+    if nace:
+        parts = nace.split(".")
+        nace_values.update(".".join(parts[:length]) for length in range(1, min(3, len(parts)) + 1))
+        for section, prefixes in _NACE_SECTION_PREFIXES.items():
+            if any(nace == prefix or nace.startswith(f"{prefix}.") for prefix in prefixes):
+                sector_values.add(section)
+
+    scope_filters = [
+        and_(
+            TrainingQuestionScope.scope_type == "common",
+            TrainingQuestionScope.scope_value.in_(("", "*")),
+        ),
+        and_(
+            TrainingQuestionScope.scope_type == "hazard",
+            TrainingQuestionScope.scope_value == ctx["hazard"],
+        ),
+        and_(
+            TrainingQuestionScope.scope_type == "sector",
+            TrainingQuestionScope.scope_value.in_(sector_values),
+        ),
+    ]
+    if nace_values:
+        scope_filters.append(
+            and_(
+                TrainingQuestionScope.scope_type == "nace",
+                TrainingQuestionScope.scope_value.in_(nace_values),
+            )
+        )
+
+    rows = list(
+        db.scalars(
+            select(TrainingQuestion)
+            .join(TrainingQuestion.scopes)
+            .options(
+                selectinload(TrainingQuestion.scopes),
+                selectinload(TrainingQuestion.sources),
+            )
+            .where(
+                TrainingQuestion.status.in_(("published", "retired")),
+                or_(*scope_filters),
+            )
+            .order_by(TrainingQuestion.question_code, TrainingQuestion.version.desc())
+        ).unique().all()
+    )
+    latest_terminal: dict[str, TrainingQuestion] = {}
+    for row in rows:
+        latest_terminal.setdefault(row.question_code, row)
+    return [row for row in latest_terminal.values() if row.status == "published"]
+
+
 def _buckets_for_context(
     rows: list[TrainingQuestion], ctx: dict[str, str]
 ) -> dict[str, list[TrainingQuestion]]:
@@ -239,7 +312,7 @@ def _indexed_bucket_counts(index: dict, ctx: dict[str, str]) -> dict[str, int]:
 
 
 def _candidate_buckets(db: Session, training: TrainingSession) -> dict[str, list[TrainingQuestion]]:
-    return _buckets_for_context(_active_published_questions(db), _context(training))
+    return _buckets_for_context(_published_questions_for_training(db, training), _context(training))
 
 
 def _counts_and_status(buckets_or_counts: dict) -> dict:

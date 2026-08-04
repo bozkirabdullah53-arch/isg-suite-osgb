@@ -77,10 +77,10 @@ print('Battery training topics aligned with lead-risk question pack.')
 qb_path = Path('app/services/training_question_bank.py')
 qb_text = qb_path.read_text(encoding='utf-8')
 old_candidate = '''def _candidate_buckets(db: Session, training: TrainingSession) -> dict[str, list[TrainingQuestion]]:
-    return _buckets_for_context(_active_published_questions(db), _context(training))
+    return _buckets_for_context(_published_questions_for_training(db, training), _context(training))
 '''
 new_candidate = '''def _candidate_buckets(db: Session, training: TrainingSession) -> dict[str, list[TrainingQuestion]]:
-    rows = _active_published_questions(db)
+    rows = _published_questions_for_training(db, training)
     ctx = _context(training)
     buckets = _buckets_for_context(rows, ctx)
     if len(buckets["sector"]) >= BUCKET_TARGETS["sector"]:
