@@ -63,11 +63,15 @@ def test_refresh_cookie_flow_when_enabled(client, monkeypatch):
     monkeypatch.setattr("app.core.auth_cookies.refresh_cookie_enabled", lambda: True)
 
     with SessionLocal() as db:
+        osgb = OsgbOrganization(name="Refresh Test OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
         u = User(
             email="refresh@test.com",
             full_name="Refresh User",
             hashed_password=get_password_hash("TestPass123!"),
             role=UserRole.READ_ONLY,
+            osgb_id=osgb.id,
             is_active=True,
             token_version=0,
         )

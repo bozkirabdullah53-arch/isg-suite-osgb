@@ -14,7 +14,7 @@ from app.core.tenant_context import (
     set_tenant,
     tenant_from_user,
 )
-from app.models.entities import User, UserRole
+from app.models.entities import OsgbOrganization, User, UserRole
 
 
 @pytest.fixture(autouse=True)
@@ -56,11 +56,15 @@ def _login(client: TestClient) -> str:
     from app.core.database import SessionLocal
 
     with SessionLocal() as db:
+        osgb = OsgbOrganization(name="Legal Test OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
         u = User(
             email="legal@test.com",
             full_name="Legal User",
             hashed_password=get_password_hash("TestPass123!"),
             role=UserRole.READ_ONLY,
+            osgb_id=osgb.id,
             is_active=True,
         )
         db.add(u)
