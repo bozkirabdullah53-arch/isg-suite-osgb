@@ -1,5 +1,18 @@
 from pathlib import Path
 
+# NACE -> özel eğitim profili eşlemeleri. Bu eşleme hem belge konularını hem
+# yayımlanmış soru bankası kapsamını aynı sektör profiline bağlar.
+topics_path = Path('app/services/training_topics.py')
+topics_text = topics_path.read_text(encoding='utf-8')
+profile_marker = '    raw = str(sektor or "").strip()\n'
+profile_patch = '''    raw = str(sektor or "").strip()\n    explicit_nace_profiles = {\n        "nace_27_20_01": "aku_uretimi",\n        "27.20.01": "aku_uretimi",\n    }\n    if raw in explicit_nace_profiles:\n        return explicit_nace_profiles[raw]\n'''
+if '"nace_27_20_01": "aku_uretimi"' not in topics_text:
+    if profile_marker not in topics_text:
+        raise RuntimeError('sektor_kodu_cozumle başlangıcı bulunamadı')
+    topics_text = topics_text.replace(profile_marker, profile_patch, 1)
+    topics_path.write_text(topics_text, encoding='utf-8')
+    print('NACE 27.20.01 -> aku_uretimi profile mapping activated.')
+
 path = Path('app/api/trainings.py')
 text = path.read_text(encoding='utf-8')
 
