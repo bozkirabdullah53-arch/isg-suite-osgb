@@ -1,0 +1,424 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-F-001",
+      "version": 1,
+      "topic_code": "YAPI-SGP",
+      "topic_label": "Sağlık ve güvenlik planı",
+      "question_text": "Yapı işlerinde sağlık ve güvenlik planı ne zaman hazırlanmalıdır?",
+      "options": [
+        "İş tamamlandıktan sonra",
+        "Projenin hazırlık aşamasında hazırlanmalı ve yapı işi süresince güncellenip uygulanmalıdır",
+        "Yalnız iş kazası meydana gelirse",
+        "Sadece elliden fazla çalışan varsa"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Sağlık ve güvenlik planı, muhtemel riskler ile alınacak tedbirlerin daha iş başlamadan planlanmasını sağlar; proje süresince değişen koşullara göre güncellenir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – Sağlık ve Güvenlik Planı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik-ve-guvenlik-plani/",
+          "reference": "Sağlık ve güvenlik planının hazırlık aşamasında hazırlanması ve proje boyunca güncellenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-002",
+      "version": 1,
+      "topic_code": "YAPI-KOORDINASYON",
+      "topic_label": "Şantiyede İSG koordinasyonu",
+      "question_text": "Aynı yapı alanında birden fazla işveren veya alt işveren çalışıyorsa sağlık ve güvenlik planının temel işlevlerinden biri nedir?",
+      "options": [
+        "Sadece maliyet hesabı yapmak",
+        "Farklı işverenler ve çalışma ekipleri arasındaki sağlık ve güvenlik koordinasyonunu sağlamak",
+        "Yalnız çalışma saatlerini kaydetmek",
+        "Sadece malzeme siparişi oluşturmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Birden fazla ekibin eş zamanlı çalışması yeni ve ortak riskler doğurur. Plan; görev, yöntem, zamanlama ve taraflar arası koordinasyonu belirlemelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – Sağlık ve Güvenlik Planı",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik-ve-guvenlik-plani/",
+          "reference": "Farklı işverenler, alt işverenler ve ekipler arasında koordinasyon"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-003",
+      "version": 1,
+      "topic_code": "YAPI-KENAR-KORUMA",
+      "topic_label": "Kat kenarları ve boşluklar",
+      "question_text": "Döşeme kenarları ve yapı içindeki düşme tehlikesi bulunan boşluklar için öncelikli tedbir hangisidir?",
+      "options": [
+        "Yalnız uyarı yazısı asmak",
+        "Standarda uygun geçici kenar koruma sistemi veya eşdeğer toplu korunma tedbiri kurmak",
+        "Çalışanların dikkatli olmasını söylemek",
+        "Sadece baret kullandırmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kat kenarları ve boşluklarda düşme riski mümkün olduğunca toplu korunma sistemleriyle kontrol edilmelidir. Uyarı levhası veya yalnız KKD yeterli değildir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Yapı İşlerinde İş Sağlığı ve Güvenliği Yönetmeliğinde Değişiklik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/haberler/yapi-islerinde-is-sagligi-ve-guvenligi-yonetmeliginde-degisiklik-yapildi/",
+          "reference": "Geçici kenar koruma sistemlerinin standartlara uygunluğu ve asgari şartları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-004",
+      "version": 1,
+      "topic_code": "YAPI-GUVENLIK-AGI",
+      "topic_label": "Güvenlik ağları",
+      "question_text": "Yapı işinde güvenlik ağı kullanılıyorsa hangisi doğrudur?",
+      "options": [
+        "Herhangi bir ip ağı kullanılabilir",
+        "Ağ, ilgili standarda uygun olmalı ve kurulum, kullanım ve söküm koşulları üretici talimatı ile projeye uygun yürütülmelidir",
+        "Ağın bağlantı noktaları kontrol edilmez",
+        "Ağ yalnız görsel amaçla kurulabilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Güvenlik ağı bir düşüş durdurma sistemidir. Standarda uygun ürün, doğru ankraj, uygun açıklık ve düzenli kontrol olmadan beklenen korumayı sağlayamaz.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Yapı İşlerinde İş Sağlığı ve Güvenliği Yönetmeliğinde Değişiklik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/haberler/yapi-islerinde-is-sagligi-ve-guvenligi-yonetmeliginde-degisiklik-yapildi/",
+          "reference": "Güvenlik ağlarının standartlara uygunluğu; kurulum, kullanım ve söküm şartları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-005",
+      "version": 1,
+      "topic_code": "YAPI-ISKELE-UYGUNLUK",
+      "topic_label": "Cephe iskelesi uygunluğu",
+      "question_text": "Cephe iskelesinin güvenli kullanımında hangisi gereklidir?",
+      "options": [
+        "Eksik platformlarla kullanılabilir",
+        "İşe ve projeye uygun kurulması, stabilitesinin sağlanması, platform ve korkuluklarının eksiksiz olması",
+        "Çapraz bağlantıların sökülmesi",
+        "Taşıma kapasitesinin bilinmemesi"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İskele; uygun proje ve kurulum, yeterli stabilite, tam platform, güvenli erişim ve kenar koruma unsurlarıyla birlikte kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – İş Ekipmanları",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Yüksekte geçici işlerde kullanılan iş ekipmanları ve yapı iskeleleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-006",
+      "version": 1,
+      "topic_code": "YAPI-KALIP-DESTEK",
+      "topic_label": "Kalıp ve taşıyıcı iskele",
+      "question_text": "Beton dökümünden önce kalıp ve taşıyıcı kalıp iskelesi için hangi kontrol yapılmalıdır?",
+      "options": [
+        "Yalnız yüzey rengi kontrol edilmelidir",
+        "Projesine uygunluk, taşıma kapasitesi, bağlantılar, dikmeler ve zemine oturma durumu kontrol edilmelidir",
+        "Dikmelerin bir kısmı sökülmelidir",
+        "Kontrol beton dökümünden sonra yapılmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Taze betonun yükü, ekipman ve çalışma yükleri kalıp sistemine aktarılır. Projeye aykırı veya yetersiz destek göçmeye neden olabilir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – Mevzuat",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Bina inşaatlarında kalıp ve taşıyıcı kalıp iskelelerinin tasarım, hesap ve yapım esasları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-007",
+      "version": 1,
+      "topic_code": "YAPI-DONATI-FILIZ",
+      "topic_label": "Donatı filizleri",
+      "question_text": "Açıkta kalan dik donatı filizlerinin oluşturduğu saplanma riskine karşı ne yapılmalıdır?",
+      "options": [
+        "Filizler görünür olduğu için önlem alınmamalıdır",
+        "Uygun koruyucu başlık, kapatma veya mühendislik tedbiriyle saplanma riski giderilmelidir",
+        "Sadece boya ile işaretlenmelidir",
+        "Filizlerin yanına malzeme yığılmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Açıkta kalan donatı uçları düşme veya çarpma halinde ağır saplanma yaralanmalarına yol açabilir. Uygun fiziksel koruma sağlanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – Yapı İşleri Mevzuatı ve İyi Uygulamalar",
+          "url": "https://guvenliinsaat.csgb.gov.tr/",
+          "reference": "Kalıp, demir ve betonarme işlerinde düşme ve saplanma risklerinin kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-008",
+      "version": 1,
+      "topic_code": "YAPI-BETON-POMPA",
+      "topic_label": "Beton pompası operasyonu",
+      "question_text": "Beton pompası kurulurken en önemli güvenlik kontrollerinden biri hangisidir?",
+      "options": [
+        "Denge ayaklarını kapalı tutmak",
+        "Zemin taşıma kapasitesini, denge ayaklarını, enerji hatlarını ve bom hareket alanını kontrol etmek",
+        "Pompayı eğimli zeminde rastgele kurmak",
+        "Bom altından çalışan geçirmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Beton pompasında devrilme, enerji hattına temas ve bom altında ezilme riski vardır. Kurulum alanı ve operasyon sahası önceden kontrol edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – İş Ekipmanları",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Kendinden hareketli ve kaldırma işlerinde kullanılan iş ekipmanlarının güvenli kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-009",
+      "version": 1,
+      "topic_code": "YAPI-KAZI-ALTYAPI",
+      "topic_label": "Kazı öncesi altyapı kontrolü",
+      "question_text": "Kazı çalışmasına başlamadan önce yer altındaki hatlar için ne yapılmalıdır?",
+      "options": [
+        "Hatların olmadığı varsayılmalıdır",
+        "Elektrik, gaz, su ve diğer altyapı hatlarının yeri belirlenmeli ve gerekli koruyucu tedbirler alınmalıdır",
+        "Sadece kazı operatörüne sözlü bilgi verilmelidir",
+        "Kazı başladıktan sonra araştırılmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Yer altı tesisatına kontrolsüz temas; elektrik çarpması, gaz kaçağı, patlama, su baskını ve hizmet kesintisine yol açabilir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – Kazı İşleri",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/kazi-isleri/",
+          "reference": "Kazı öncesi çalışma alanı ve mevcut altyapı risklerinin değerlendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-010",
+      "version": 1,
+      "topic_code": "YAPI-KAZI-GOCUK",
+      "topic_label": "Kanal kazılarında göçük",
+      "question_text": "Kanal kazısında yan duvarların göçmesini önlemek için hangi yöntem uygulanmalıdır?",
+      "options": [
+        "Kazı kenarına ağır yük koymak",
+        "Zemin ve çevre koşullarına göre uygun şev veya statik hesabı yapılmış destek ve iksa sistemi kullanmak",
+        "Kazı duvarlarını dik bırakmak",
+        "Yağış sonrası kontrol yapmamak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Şev ve destek sistemi; zemin yapısı, su, titreşim, hava koşulları ve çevredeki yükler dikkate alınarak belirlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – Kazı İşleri",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/kazi-isleri/",
+          "reference": "Kazı yüzeyleri, uygun şev açıları ve statik hesabı yapılmış destek sistemleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-011",
+      "version": 1,
+      "topic_code": "YAPI-YIKIM-PLAN",
+      "topic_label": "Yıkım planlaması",
+      "question_text": "Yıkım işine başlamadan önce hangisi yapılmalıdır?",
+      "options": [
+        "Yapı rastgele bir noktadan yıkılmalıdır",
+        "Yapının özellikleri değerlendirilerek uygun yıkım yöntemi ve güvenli çalışma planı yetkin kişilerce belirlenmelidir",
+        "Taşıyıcı elemanlar gelişigüzel kesilmelidir",
+        "Çevre güvenliği çalışma başladıktan sonra kurulmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Yıkım sırası ve yöntemi yapının taşıyıcı sistemi ile çevresel risklere göre planlanmalıdır. Plansız müdahale kontrolsüz göçmeye yol açabilir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – Yıkım İşleri",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/yikim-isleri/",
+          "reference": "Uygun yıkım metodunun seçilmesi ve uzman kişi tarafından yıkım planı hazırlanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-012",
+      "version": 1,
+      "topic_code": "YAPI-SILIKA-TOZU",
+      "topic_label": "Silika tozu",
+      "question_text": "Beton veya taş kesme sırasında solunabilir silika tozunu azaltmak için hangi yöntem daha uygundur?",
+      "options": [
+        "Kuru kesim yapıp tozu ortama yaymak",
+        "Uygun ıslak çalışma veya kaynağında emiş sistemi kullanmak",
+        "Sadece işi hızlandırmak",
+        "Tozu basınçlı havayla temizlemek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Beton ve taş kesme yüksek miktarda solunabilir silika tozu oluşturabilir. Islak yöntem ve lokal emiş, tozu kaynağında azaltan teknik önlemlerdir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – İnşaat Sektöründe Sağlık Tehlikeleri",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Beton ve silika içeren malzemelerin kesilmesiyle oluşan solunabilir toz maruziyeti"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-013",
+      "version": 1,
+      "topic_code": "YAPI-ARAC-YAYA",
+      "topic_label": "Şantiye araç-yaya trafiği",
+      "question_text": "Şantiyede iş makineleri ile yayaların çarpışma riskini azaltmak için hangisi yapılmalıdır?",
+      "options": [
+        "Araç ve yaya yolları aynı bırakılmalıdır",
+        "Mümkün olduğunca araç ve yaya yolları ayrılmalı, kör noktalar ve manevra alanları kontrol edilmelidir",
+        "Geri vites ikazları kapatılmalıdır",
+        "Yayalar çalışma alanında rastgele yürümelidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Fiziksel ayrım, yönlendirme, hız kontrolü, görünürlük ve manevra düzeni; hareketli iş ekipmanlarının yayalara çarpma riskini azaltır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – İş Ekipmanları",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Kendinden hareketli iş ekipmanlarında güvenli çalışma ve saha düzeni"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-014",
+      "version": 1,
+      "topic_code": "YAPI-DUSEN-CISIM",
+      "topic_label": "Düşen cisimlerden korunma",
+      "question_text": "Üst seviyelerde çalışma yapılırken alt seviyedeki çalışanları düşen cisimlerden korumak için hangisi uygulanmalıdır?",
+      "options": [
+        "Alt bölge açık tutulmalıdır",
+        "Çalışma alanı sınırlandırılmalı; malzemeler sabitlenmeli ve uygun koruyucu platform, ağ veya benzeri tedbirler alınmalıdır",
+        "Yalnız baret takılması yeterlidir",
+        "Malzemeler kat kenarına bırakılmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Düşen cisim riski kaynağında önlenmeli; alt bölgeye erişim kontrolü ve uygun toplu koruma tedbirleri birlikte uygulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – Yüksekte Çalışma",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/yuksekte-calisma/",
+          "reference": "Yüksekte yapılan işlerde toplu korunma ve çalışma alanının güvenliği"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-F-015",
+      "version": 1,
+      "topic_code": "YAPI-SOSYAL-TESIS",
+      "topic_label": "Şantiye sosyal tesisleri",
+      "question_text": "Yapı işyerinde çalışanlar için hangi olanakların uygun ve hijyenik biçimde sağlanması gerekir?",
+      "options": [
+        "Yalnız içme suyu",
+        "İşin niteliğine göre tuvalet, yıkanma, lavabo, soyunma ve dinlenme alanları",
+        "Sadece yönetici odası",
+        "Yalnız açık alanda yemek yeri"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Şantiye sosyal tesisleri çalışanların hijyen, kişisel temizlik, kıyafet değişimi ve dinlenme ihtiyaçlarını güvenli ve sağlıklı şekilde karşılamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "F"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Güvenli İnşaat – Sosyal Tesisler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/",
+          "reference": "Şantiyelerde tuvalet, yıkanma, lavabo, soyunma ve dinlenme alanları"
+        }
+      ]
+    }
+  ]
+}

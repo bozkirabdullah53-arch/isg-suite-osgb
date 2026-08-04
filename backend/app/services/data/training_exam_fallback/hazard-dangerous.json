@@ -1,0 +1,424 @@
+{
+  "items": [
+    {
+      "question_code": "TR-TEHTEK-001",
+      "version": 1,
+      "topic_code": "KIMYASAL-IKAME",
+      "topic_label": "Tehlikeli kimyasallarda ikame",
+      "question_text": "Tehlikeli bir kimyasal maddeyle çalışmada öncelikli korunma yaklaşımı hangisidir?",
+      "options": [
+        "Yalnız kişisel koruyucu donanım vermek",
+        "Mümkünse tehlikeli maddeyi veya işlemi daha az tehlikeli olanla değiştirmek",
+        "Kimyasalın adını çalışanlardan gizlemek",
+        "Sadece çalışma süresini uzatmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Risk kontrolünde öncelik, tehlikeli kimyasalın kullanılmasını önlemek veya daha az tehlikeli madde ya da yöntemle ikame etmektir. Kişisel koruyucu donanım, toplu ve teknik önlemlerden sonra değerlendirilir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Kimyasal Maddelerle Çalışmalarda Sağlık ve Güvenlik Önlemleri Hakkında Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Risklerin önlenmesi ve azaltılması; ikame ilkesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-002",
+      "version": 1,
+      "topic_code": "KIMYASAL-GBF",
+      "topic_label": "Güvenlik bilgi formu",
+      "question_text": "Tehlikeli kimyasal kullanılmadan önce çalışanların hangi bilgiye erişmesi sağlanmalıdır?",
+      "options": [
+        "Yalnız ürünün satış fiyatına",
+        "Güvenlik bilgi formundaki tehlikeler, korunma ve acil durum bilgilerine",
+        "Sadece üretici şirketin reklamına",
+        "Yalnız ambalajın rengine"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Çalışanlar kimyasalın tehlikeleri, güvenli kullanım koşulları, kişisel korunma, ilk yardım, yangın ve dökülme önlemleri hakkında bilgilendirilmelidir. Güvenlik bilgi formu bu bilgilerin temel kaynaklarındandır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Kimyasal Maddelerle Çalışmalarda Sağlık ve Güvenlik Önlemleri Hakkında Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Çalışanların bilgilendirilmesi ve eğitimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-003",
+      "version": 1,
+      "topic_code": "KIMYASAL-ETIKET",
+      "topic_label": "Kimyasal etiketleme",
+      "question_text": "Bir kimyasal madde başka bir kaba aktarılmışsa en doğru uygulama hangisidir?",
+      "options": [
+        "Kabı etiketsiz bırakmak",
+        "Kabı içeriği ve tehlikeleri anlaşılacak şekilde uygun biçimde etiketlemek",
+        "Yalnız kapağını açık bırakmak",
+        "Kabın üzerine sadece çalışan adını yazmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kimyasal kapların içeriği ve tehlikeleri açıkça tanımlanmalıdır. Etiketsiz veya yanlış etiketli kaplar maruziyet, yanlış kullanım ve acil durum riskini artırır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Maddelerin ve Karışımların Sınıflandırılması, Etiketlenmesi ve Ambalajlanması Hakkında Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Tehlikeli maddelerin ve karışımların etiketlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-004",
+      "version": 1,
+      "topic_code": "KIMYASAL-HAVALANDIRMA",
+      "topic_label": "Kimyasal maruziyette havalandırma",
+      "question_text": "Kimyasal buhar veya gaz oluşan bir işlemde hangi önlem daha etkilidir?",
+      "options": [
+        "Buharı çalışma alanına yaymak",
+        "Kirleticiyi kaynağında yakalayan uygun lokal emiş sistemi kullanmak",
+        "Pencereleri sürekli kapalı tutmak",
+        "Çalışan sayısını artırmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kimyasal kirleticilerin çalışma ortamına yayılmadan kaynağında kontrol edilmesi gerekir. Uygun lokal emiş ve kapalı sistemler, maruziyeti azaltan temel teknik önlemlerdir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Kimyasal Maddelerle Çalışmalarda Sağlık ve Güvenlik Önlemleri Hakkında Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Teknik ve toplu korunma önlemleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-005",
+      "version": 1,
+      "topic_code": "MARUZIYET-OLCUMU",
+      "topic_label": "Kişisel maruziyet ölçümü",
+      "question_text": "Bir kimyasal maruziyet sonucunun mesleki maruziyet sınır değeriyle karşılaştırılabilmesi için hangi ölçüm esas alınmalıdır?",
+      "options": [
+        "Sadece işyeri dışındaki hava ölçümü",
+        "Çalışanın solunum bölgesini temsil eden kişisel maruziyet ölçümü",
+        "Yalnız üretim miktarı",
+        "Sadece ortam sıcaklığı"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Mesleki maruziyet sınır değerleriyle karşılaştırma için çalışanın solunum bölgesini temsil eden kişisel maruziyet ölçümü gerekir. Sabit noktadaki ortam ölçümü risk değerlendirmesine veri sağlayabilir ancak tek başına kişisel maruziyeti göstermez.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı İSGÜM – Laboratuvar Yetkilendirme",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/laboratuvar-yetkilendirme/",
+          "reference": "Ölçüm sonuçlarının mesleki maruziyet sınır değerleri ile kıyaslanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-006",
+      "version": 1,
+      "topic_code": "KIMYASAL-DOKULME",
+      "topic_label": "Kimyasal dökülme müdahalesi",
+      "question_text": "Tehlikeli kimyasal dökülmesinde ilk yapılması gerekenlerden biri hangisidir?",
+      "options": [
+        "Eğitimsiz çalışanların hemen alana girmesi",
+        "Alanı güvenli hale getirip yetkisiz kişileri uzaklaştırmak ve belirlenmiş acil durum prosedürünü uygulamak",
+        "Kimyasalı kanalizasyona dökmek",
+        "Dökülmeyi gizlemek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kimyasal dökülmelerde alan izole edilmeli, uygun kişisel koruma sağlanmalı ve güvenlik bilgi formu ile işyeri acil durum prosedüründeki talimatlar uygulanmalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Kimyasal Maddelerle Çalışmalarda Sağlık ve Güvenlik Önlemleri Hakkında Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Kaza ve acil durumlarla ilgili düzenlemeler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-007",
+      "version": 1,
+      "topic_code": "GURULTU-KAYNAKTA-KONTROL",
+      "topic_label": "Gürültünün kaynağında kontrolü",
+      "question_text": "Gürültü riskini azaltmada öncelikli yöntem hangisidir?",
+      "options": [
+        "Yalnız kulak koruyucu dağıtmak",
+        "Gürültüyü kaynağında azaltmak, daha sessiz ekipman veya uygun mühendislik önlemleri kullanmak",
+        "Çalışanların birbirleriyle konuşmasını yasaklamak",
+        "Makinenin bakımını geciktirmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Gürültü riskinde öncelik kaynağın ortadan kaldırılması veya teknik ve organizasyonel önlemlerle maruziyetin azaltılmasıdır. Kulak koruyucular tamamlayıcı bir önlemdir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların Gürültü ile İlgili Risklerden Korunmalarına Dair Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Maruziyetin önlenmesi ve azaltılması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-008",
+      "version": 1,
+      "topic_code": "GURULTU-SAGLIK-GOZETIMI",
+      "topic_label": "Gürültü ve işitme sağlığı",
+      "question_text": "Gürültülü ortamda çalışanlarda sağlık gözetiminin temel amaçlarından biri nedir?",
+      "options": [
+        "Çalışanın üretim hızını ölçmek",
+        "Gürültüye bağlı işitme etkilerini erken belirlemek ve korunma önlemlerini değerlendirmek",
+        "Yalnız izin günlerini hesaplamak",
+        "Makinenin elektrik tüketimini ölçmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Sağlık gözetimi, gürültüye bağlı işitme etkilerinin erken saptanmasına ve işyerindeki risk kontrol önlemlerinin yeterliliğinin değerlendirilmesine katkı sağlar.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların Gürültü ile İlgili Risklerden Korunmalarına Dair Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Sağlık gözetimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-009",
+      "version": 1,
+      "topic_code": "MAKINE-KORUYUCU",
+      "topic_label": "Makine koruyucuları",
+      "question_text": "Bir makinenin hareketli parçasındaki koruyucu için hangisi doğrudur?",
+      "options": [
+        "Üretimi hızlandırmak amacıyla çıkarılabilir",
+        "Keyfî olarak çıkarılmamalı veya etkisiz hale getirilmemelidir",
+        "Sadece denetim günü takılmalıdır",
+        "Çalışan isterse devre dışı bırakılabilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Makine koruyucuları tehlikeli hareketli parçalara erişimi önler. Çalışanlar güvenlik donanımlarını doğru kullanmalı, keyfî olarak çıkarmamalı veya değiştirmemelidir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı – Görev ve Sorumluluklar",
+          "url": "https://guvenliinsaat.csgb.gov.tr/sektor-hakkinda/gorev-ve-sorumluklar/",
+          "reference": "Çalışanların makine güvenlik donanımlarını doğru kullanma yükümlülüğü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-010",
+      "version": 1,
+      "topic_code": "BAKIM-ENERJI-IZOLASYONU",
+      "topic_label": "Bakımda enerji izolasyonu",
+      "question_text": "Makine bakım veya temizlik işine başlamadan önce en güvenli uygulama hangisidir?",
+      "options": [
+        "Makine çalışırken müdahale etmek",
+        "Enerji kaynaklarını güvenli şekilde kesmek, beklenmedik çalışmayı önlemek ve yetkisiz müdahaleyi engellemek",
+        "Yalnız acil durdurma düğmesine güvenmek",
+        "Koruyucuları tamamen söküp alanı terk etmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Bakım ve temizlik sırasında makinenin beklenmedik biçimde çalışması ciddi yaralanmalara yol açabilir. Enerji kaynakları güvenli biçimde izole edilmeli ve yeniden devreye alma kontrol altında tutulmalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "İş ekipmanının güvenli kullanımı, bakım ve talimatlar"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-011",
+      "version": 1,
+      "topic_code": "IS-EKIPMANI-UYGUNLUK",
+      "topic_label": "İşe uygun ekipman seçimi",
+      "question_text": "İş ekipmanı seçilirken hangisi dikkate alınmalıdır?",
+      "options": [
+        "Sadece satın alma fiyatı",
+        "Yapılacak iş, çalışma koşulları, mevcut tehlikeler ve ekipmanın ek risk oluşturup oluşturmadığı",
+        "Yalnız ekipmanın rengi",
+        "Sadece operatörün kişisel tercihi"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İş ekipmanı yapılacak işe ve çalışma koşullarına uygun seçilmeli; kullanımı çalışanlar için ek bir sağlık ve güvenlik riski oluşturmamalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı – İş Ekipmanları",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "İşverenin ekipman seçimi ve güvenli kullanım sorumluluğu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-012",
+      "version": 1,
+      "topic_code": "PERIYODIK-KONTROL",
+      "topic_label": "İş ekipmanlarında periyodik kontrol",
+      "question_text": "Periyodik kontrole tabi bir iş ekipmanının kontrolü kim tarafından yapılmalıdır?",
+      "options": [
+        "İşyerindeki herhangi bir çalışan tarafından",
+        "İlgili mevzuatta belirtilen nitelik ve yetkiye sahip kişi tarafından",
+        "Sadece ekipmanı kullanan operatör tarafından",
+        "Yalnız satın alma görevlisi tarafından"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Periyodik kontroller, ilgili ekipman grubu için mevzuatta belirtilen yetkinliğe sahip kişilerce, öngörülen yöntem ve aralıklara uygun yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliğinde 23 Aralık 2025 Tarihli Değişiklik",
+          "url": "https://www.csgb.gov.tr/isggm/tr/duyurular/24122025/",
+          "reference": "Periyodik kontrole tabi ekipmanlar ve yetkili kişiler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-013",
+      "version": 1,
+      "topic_code": "KKD-RISK-DEGERLENDIRMESI",
+      "topic_label": "KKD seçimi",
+      "question_text": "Kişisel koruyucu donanım seçimi neye göre yapılmalıdır?",
+      "options": [
+        "Yalnız en ucuz ürüne göre",
+        "Risk değerlendirmesi, yapılan iş, çalışma koşulları ve kullanıcının özelliklerine göre",
+        "Sadece ürünün görünüşüne göre",
+        "Her iş için aynı donanım seçilerek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "KKD, mevcut riske uygun koruma sağlamalı, çalışma koşullarına ve kullanıcıya uygun olmalı ve kendisi yeni bir risk oluşturmamalıdır.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Kişisel Koruyucu Donanımların İşyerlerinde Kullanılması Hakkında Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "KKD değerlendirmesi ve seçimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-014",
+      "version": 1,
+      "topic_code": "KKD-SON-CIKAR",
+      "topic_label": "Korunma hiyerarşisinde KKD",
+      "question_text": "Kişisel koruyucu donanım hangi durumda kullanılmalıdır?",
+      "options": [
+        "Risk kaynağında tamamen ortadan kaldırılabiliyorsa bile tek önlem olarak",
+        "Riskler toplu korunma, teknik veya organizasyonel önlemlerle yeterince önlenemediğinde tamamlayıcı olarak",
+        "Sadece ziyaretçiler geldiğinde",
+        "Çalışan talep etmese hiçbir zaman"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "KKD, risklerin toplu korunma, teknik tedbir veya iş organizasyonu ile yeterince önlenemediği durumlarda kullanılır. Korunma hiyerarşisinde ilk tercih değildir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Kişisel Koruyucu Donanımların İşyerlerinde Kullanılması Hakkında Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/kisisel-koruyucu-donanimlar/",
+          "reference": "KKD kullanımının genel ilkeleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEHTEK-015",
+      "version": 1,
+      "topic_code": "TEHLIKELI-MESLEKI-EGITIM",
+      "topic_label": "Mesleki eğitim zorunluluğu",
+      "question_text": "Mesleki eğitim zorunluluğu bulunan tehlikeli bir işte çalışan kişi için hangisi doğrudur?",
+      "options": [
+        "İşe ilişkin mesleki eğitim belgesi aranmadan çalıştırılabilir",
+        "Yapacağı işe uygun mesleki eğitim aldığını belgelemelidir",
+        "Yalnız sözlü beyan yeterlidir",
+        "Sadece işyerindeki kıdemi yeterlidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Mesleki eğitim zorunluluğu kapsamındaki tehlikeli ve çok tehlikeli işlerde çalışanların, yapacakları işe uygun mesleki eğitim aldıklarını belgelemeleri gerekir.",
+      "scopes": [
+        {
+          "type": "hazard",
+          "value": "Tehlikeli"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Tehlikeli ve Çok Tehlikeli Sınıfta Yer Alan İşlerde Çalıştırılacakların Mesleki Eğitimlerine Dair Yönetmelik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Mesleki eğitim belgesi zorunluluğu"
+        }
+      ]
+    }
+  ]
+}

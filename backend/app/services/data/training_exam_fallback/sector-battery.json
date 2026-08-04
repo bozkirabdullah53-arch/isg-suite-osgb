@@ -1,0 +1,424 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-AKU-001",
+      "version": 1,
+      "topic_code": "KURSUN-KAYNAK",
+      "topic_label": "Kurşun maruziyetinin kontrolü",
+      "question_text": "Akü üretiminde kurşun tozu ve dumanına maruziyeti azaltmada öncelikli yaklaşım hangisidir?",
+      "options": [
+        "Prosesi kapatmak, kaynağında emiş sağlamak ve yayılımı önlemek",
+        "Yalnız solunum maskesi dağıtmak",
+        "Çalışma süresini kayıt altına almak",
+        "Üretim alanını daha sık süpürmek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Kurşun maruziyetinde öncelik, kirleticiyi kaynağında kontrol eden kapalı proses ve lokal emiş gibi toplu korunma önlemleridir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – İş Hijyeni ve Kimyasal Risk Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kurşun tozu ve dumanının kaynağında kontrolü, kapalı proses ve lokal emiş"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-002",
+      "version": 1,
+      "topic_code": "KURSUN-HIJYEN",
+      "topic_label": "Kurşunla çalışmada kişisel hijyen",
+      "question_text": "Kurşunla çalışılan alanda kişisel hijyen açısından hangisi doğrudur?",
+      "options": [
+        "Üretim alanında yemek yenebilir",
+        "Yemek öncesi el-yüz yıkama, ayrı soyunma alanı ve kontamine kıyafet yönetimi uygulanmalıdır",
+        "Kirli iş elbisesi eve götürülebilir",
+        "Eldiven kullanılıyorsa el yıkamaya gerek yoktur"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kurşunun ağız yoluyla alınmasını ve işyeri dışına taşınmasını önlemek için kişisel hijyen, ayrı giyinme alanları ve kontamine kıyafetlerin kontrollü yönetimi gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Meslek Hastalıkları ve Kimyasal Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Kurşunun sindirim yoluyla alınmasının ve işyeri dışına taşınmasının önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-003",
+      "version": 1,
+      "topic_code": "KURSUN-TEMIZLIK",
+      "topic_label": "Kurşunlu toz temizliği",
+      "question_text": "Kurşunlu toz bulunan yüzeylerin temizliğinde hangi yöntem tercih edilmelidir?",
+      "options": [
+        "Kuru süpürme",
+        "Basınçlı hava ile üfleme",
+        "Uygun endüstriyel vakum veya ıslak temizleme",
+        "Tozu zeminde biriktirme"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Kuru süpürme ve basınçlı hava tozu yeniden havaya kaldırır. Uygun filtreli vakum veya ıslak yöntem maruziyeti azaltır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – İş Hijyeni Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Tehlikeli tozların yeniden havalanmasını önleyen temizlik yöntemleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-004",
+      "version": 1,
+      "topic_code": "MARUZIYET-OLCUM",
+      "topic_label": "Kurşun maruziyet ölçümü",
+      "question_text": "Kurşun maruziyetinin mesleki sınır değerle karşılaştırılmasında hangi ölçüm esas alınmalıdır?",
+      "options": [
+        "Sadece sabit nokta koku değerlendirmesi",
+        "Yalnız bina dışı hava ölçümü",
+        "Depo sıcaklık ölçümü",
+        "Çalışanın solunum bölgesinden yapılan kişisel maruziyet ölçümü"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Mesleki maruziyet sınırları, çalışanın solunum bölgesindeki kişisel maruziyet sonuçlarıyla değerlendirilir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – İş Hijyeni Ölçüm ve Analizleri",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kişisel maruziyet ölçümü ve maruziyet profilinin oluşturulması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-005",
+      "version": 1,
+      "topic_code": "SAGLIK-GOZETIMI",
+      "topic_label": "Kurşun için sağlık gözetimi",
+      "question_text": "Kurşun maruziyeti bulunan çalışanların sağlık gözetimi nasıl planlanmalıdır?",
+      "options": [
+        "Risk değerlendirmesi, maruziyet düzeyi ve işyeri hekiminin değerlendirmesine göre periyodik izlem yapılmalıdır",
+        "Tüm çalışanlara yalnız işe girişte bir kez uygulanmalıdır",
+        "Sadece çalışan şikâyet ederse yapılmalıdır",
+        "Yalnız akciğer grafisi yeterlidir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Sağlık gözetimi risk temelli olmalı; maruziyetin özelliği ve düzeyi ile biyolojik izlem gereksinimi işyeri hekimince değerlendirilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Meslek Hastalıkları ve Sağlık Gözetimi",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Kimyasal maruziyetlerde risk temelli sağlık gözetimi ve biyolojik izlem"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-006",
+      "version": 1,
+      "topic_code": "SULFURIK-ASIT",
+      "topic_label": "Sülfürik asitle çalışma",
+      "question_text": "Sülfürik asitle dolum veya transfer sırasında temel korunma yaklaşımı hangisidir?",
+      "options": [
+        "Açık kaplarla hızlı transfer",
+        "Kapalı transfer, sıçrama önleme, uygun havalandırma ve kimyasala dayanıklı KKD",
+        "Yalnız pamuklu eldiven",
+        "Asit kabını etiketsiz bırakmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Sülfürik asit aşındırıcıdır. Kapalı transfer, sıçrama kontrolü, uygun ekipman ve kimyasala dayanıklı göz-yüz, el ve vücut koruması birlikte uygulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Kimyasal Maddelerle Çalışmalarda Sağlık ve Güvenlik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Aşındırıcı kimyasallarda kapalı transfer, sıçrama önleme ve uygun KKD"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-007",
+      "version": 1,
+      "topic_code": "ACIL-DUS",
+      "topic_label": "Acil duş ve göz duşu",
+      "question_text": "Asit sıçrama riski bulunan alanda hangi acil ekipman kolay erişilebilir olmalıdır?",
+      "options": [
+        "Yalnız yangın battaniyesi",
+        "Sadece el yıkama lavabosu",
+        "Acil duş ve göz duşu",
+        "Yalnız ilk yardım çantası"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Asit temasında gecikmeden bol suyla yıkama gerektiğinden acil duş ve göz duşu çalışır, engelsiz ve kolay erişilebilir olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Kimyasal Risk ve Acil Müdahale Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Aşındırıcı kimyasal sıçramalarında acil duş ve göz duşu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-008",
+      "version": 1,
+      "topic_code": "ASIT-DOKULME",
+      "topic_label": "Asit dökülmesine müdahale",
+      "question_text": "Sülfürik asit dökülmesinde doğru ilk yaklaşım hangisidir?",
+      "options": [
+        "Asidi kanalizasyona suyla sürüklemek",
+        "Dökülmenin kendiliğinden kurumasını beklemek",
+        "Çıplak elle emici malzeme sermek",
+        "Alanı izole edip SDS ve dökülme prosedürüne göre eğitimli personelle müdahale etmek"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Dökülme alanı güvenli hâle getirilmeli; yalnız eğitimli kişiler uygun KKD, emici veya nötralizasyon malzemesiyle prosedüre göre müdahale etmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Kimyasalların Güvenli Kullanımı",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Kimyasal dökülme alanının izolasyonu ve prosedüre uygun müdahale"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-009",
+      "version": 1,
+      "topic_code": "HIDROJEN-GAZI",
+      "topic_label": "Hidrojen gazı ve patlama",
+      "question_text": "Akü şarj alanında hidrojen gazı birikmesini önlemede en etkili önlem hangisidir?",
+      "options": [
+        "Yeterli ve sürekli havalandırma sağlamak",
+        "Yalnız uyarı levhası asmak",
+        "Şarj cihazlarını kapalı dolaba almak",
+        "Alanı daha sıcak tutmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Şarj sırasında oluşabilecek hidrojen gazı uygun havalandırmayla seyreltilmeli; patlayıcı karışım oluşmasına izin verilmemelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Patlayıcı Ortam ve Kimyasal Risk Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Akü şarjında hidrojen oluşumu, havalandırma ve patlayıcı ortamın önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-010",
+      "version": 1,
+      "topic_code": "ATESLEME-KAYNAKLARI",
+      "topic_label": "Şarj alanında ateşleme kaynakları",
+      "question_text": "Akü şarj alanında hangisi yasaklanmalı veya sıkı biçimde kontrol edilmelidir?",
+      "options": [
+        "Havalandırma sistemi",
+        "Kıvılcım, açık alev, sigara ve uygun olmayan elektrikli ekipman",
+        "Göz duşu",
+        "Gaz algılama sistemi"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Hidrojen-hava karışımı kıvılcım veya açık alevle tutuşabilir. Ateşleme kaynakları ortadan kaldırılmalı ve ekipman uygun seçilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Patlayıcı Ortamlarda Sağlık ve Güvenlik",
+          "url": "https://guvenliinsaat.csgb.gov.tr/mevzuat/",
+          "reference": "Ateşleme kaynaklarının kontrolü ve uygun ekipman seçimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-011",
+      "version": 1,
+      "topic_code": "ELEKTRIK-KISA-DEVRE",
+      "topic_label": "Elektrik ve kısa devre",
+      "question_text": "Akü kutupları üzerinde çalışırken kısa devre riskini azaltmak için hangisi yapılmalıdır?",
+      "options": [
+        "Islak eldiven kullanılmalıdır",
+        "Kutup başları metal anahtarla köprülenmelidir",
+        "Metal takılar çıkarılmalı ve yalıtımlı el aletleri kullanılmalıdır",
+        "Kutuplar açıkta bırakılmalıdır"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Aküler yüksek kısa devre akımı üretebilir. Metal takılar çıkarılmalı, kutuplar korunmalı ve yalıtımlı el aletleri kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Elektrik Tehlikeleri ve İş Ekipmanları",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Akümülatörlerde kısa devre, ark ve elektriksel temas risklerinin kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-012",
+      "version": 1,
+      "topic_code": "EKED-BAKIM",
+      "topic_label": "Bakımda enerji izolasyonu",
+      "question_text": "Akü üretim makinesinde bakım veya sıkışma giderme işleminden önce ne yapılmalıdır?",
+      "options": [
+        "Makine yalnız yavaşlatılmalıdır",
+        "Operatör makinenin yanında beklemelidir",
+        "Acil durdurma düğmesine basmak yeterlidir",
+        "Tüm enerji kaynakları kesilmeli, kilitlenmeli ve sıfır enerji doğrulanmalıdır"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Elektrik, pnömatik, hidrolik ve mekanik enerjiler güvenli biçimde izole edilmeden bakım veya sıkışma giderme yapılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB Rehberlik ve Teftiş – EKED",
+          "url": "https://www.csgb.gov.tr/rtb/yayinlar/proje-yayinlari/",
+          "reference": "Ekipman bakım ve onarımında enerji kesme, kilitleme ve doğrulama"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-013",
+      "version": 1,
+      "topic_code": "ERGONOMI",
+      "topic_label": "Elle taşıma ve ergonomi",
+      "question_text": "Ağır akülerin elle taşınmasında kas-iskelet riskini azaltmada öncelikli yöntem hangisidir?",
+      "options": [
+        "Mekanik kaldırma-taşıma yardımcıları kullanmak",
+        "Aküyü tek kişiyle hızlı taşımak",
+        "Yalnız bel kemeri vermek",
+        "Taşıma mesafesini uzatmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Ağır ve kavranması zor aküler için kaldırma aparatı, konveyör veya uygun taşıma arabası kullanılmalı; elle taşıma en aza indirilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Ergonomik Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Elle taşımanın azaltılması ve mekanik yardımcıların kullanılması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-014",
+      "version": 1,
+      "topic_code": "YANGIN-ACIL",
+      "topic_label": "Yangın ve acil durum",
+      "question_text": "Akü üretim veya şarj alanında acil durum hazırlığı için hangisi birlikte planlanmalıdır?",
+      "options": [
+        "Yalnız söndürücü sayısı",
+        "Alarm, tahliye, uygun söndürme, kimyasal dökülme ve ilk yardım düzeni",
+        "Sadece çalışan listesi",
+        "Yalnız güvenlik kamerası"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Acil durum planı yangın, patlama, asit dökülmesi, kimyasal temas ve tahliye senaryolarını birlikte kapsamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB İSGÜM – Kimyasal Risk ve Acil Durum Dokümanları",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Yangın, patlama, asit dökülmesi ve tahliye senaryolarının planlanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-AKU-015",
+      "version": 1,
+      "topic_code": "PERIYODIK-KONTROL",
+      "topic_label": "Akümülatör ve tesisat kontrolleri",
+      "question_text": "Akümülatör ve ilgili elektrik tesisatlarının periyodik kontrolü için hangisi doğrudur?",
+      "options": [
+        "Herhangi bir çalışan rapor düzenleyebilir",
+        "Yalnız arıza olduğunda kontrol edilir",
+        "İlgili mevzuat kapsamındaki kontroller yetkili kişilerce yapılmalı ve raporlanmalıdır",
+        "Günlük görsel kontrol her durumda yeterlidir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Akümülatör ve elektrikle ilgili tesisatların periyodik kontrolleri, ilgili düzenlemelerde belirtilen yetkili kişilerce yapılmalı ve kayıt altına alınmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "aku_uretimi"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanları Yönetmeliği Değişikliği Duyurusu",
+          "url": "https://www.csgb.gov.tr/isggm/tr/duyurular/24122025/",
+          "reference": "23 Aralık 2025 değişikliği; akümülatör ve elektrik tesisatlarında yetkili kişi ve periyodik kontrol şartları"
+        }
+      ]
+    }
+  ]
+}

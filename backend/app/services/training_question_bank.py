@@ -8,6 +8,8 @@ import re
 import secrets
 from collections import defaultdict
 from datetime import datetime
+from functools import lru_cache
+from pathlib import Path
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
@@ -33,6 +35,7 @@ BUCKET_TARGETS = {"common": 5, "technical": 5, "sector": 5}
 # ayrı ve ölçülebilir bir yayın kriteri olarak raporlar.
 RELEASE_BUCKET_TARGETS = {"common": 15, "technical": 15, "sector": 15}
 SELECTION_POLICY = "approved-5x3-v1"
+CURATED_FALLBACK_POLICY = "approved-db-plus-curated-5x3-v1"
 VALID_HAZARDS = frozenset({"Az Tehlikeli", "Tehlikeli", "Çok Tehlikeli"})
 _NACE_PREFIX_RE = re.compile(r"^\d{2}(?:\.\d{2}){0,2}$")
 _CATALOG = tuple(sectors_list_for_api())
@@ -45,6 +48,24 @@ _SECTOR_VALUES = (
     | frozenset(SEKTOREL_EGITIM_KONULARI)
     | frozenset(_NACE_SECTION_PREFIXES)
 )
+_CURATED_DATA_DIR = Path(__file__).resolve().parent / "data" / "training_exam_fallback"
+_CURATED_HAZARD_PACKS = {
+    "Az Tehlikeli": "hazard-low.json",
+    "Tehlikeli": "hazard-dangerous.json",
+    "Çok Tehlikeli": "hazard-very-dangerous.json",
+}
+_CURATED_SECTOR_PACKS = (
+    "sector-battery.json",
+    "sector-construction.json",
+    "sector-general-manufacturing.json",
+    "sector-health.json",
+    "sector-logistics.json",
+    "sector-metal.json",
+)
+_CURATED_SECTOR_ALIASES = {
+    "fabrika_genel_imalat": "genel_uretim",
+    "makine_imalati": "makine_imalat",
+}
 
 
 class QuestionBankError(ValueError):
@@ -445,21 +466,152 @@ def _snapshot_item(question: TrainingQuestion, position: int, rnd: random.Random
     }
 
 
+@lru_cache(maxsize=None)
+def _curated_pack(file_name: str) -> tuple[dict, ...]:
+    """Load and fail closed on malformed bundled, source-reviewed questions."""
+    path = _CURATED_DATA_DIR / file_name
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Yedek sınav soru paketi okunamadı: {file_name}") from exc
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(items, list) or len(items) < 5:
+        raise RuntimeError(f"Yedek sınav soru paketi geçersiz: {file_name}")
+    for item in items:
+        options = item.get("options") if isinstance(item, dict) else None
+        sources = item.get("sources") if isinstance(item, dict) else None
+        scopes = item.get("scopes") if isinstance(item, dict) else None
+        required = (
+            (
+                item.get("question_code"),
+                item.get("topic_code"),
+                item.get("topic_label"),
+                item.get("question_text"),
+                item.get("answer_explanation"),
+            )
+            if isinstance(item, dict)
+            else ()
+        )
+        if (
+            len(required) != 5
+            or any(not str(value or "").strip() for value in required)
+            or not isinstance(options, list)
+            or len(options) != 4
+            or len({str(value).strip().casefold() for value in options}) != 4
+            or item.get("correct_option") not in "ABCD"
+            or not isinstance(sources, list)
+            or not sources
+            or any(not str(source.get("url") or "").startswith("https://") for source in sources)
+            or not isinstance(scopes, list)
+            or not scopes
+        ):
+            raise RuntimeError(f"Yedek sınav soru paketi içeriği geçersiz: {file_name}")
+    return tuple(items)
+
+
+def _curated_buckets(training: TrainingSession) -> dict[str, list[dict]]:
+    ctx = _context(training)
+    common = list(_curated_pack("common.json"))
+    hazard_file = _CURATED_HAZARD_PACKS.get(ctx["hazard"])
+    technical = list(_curated_pack(hazard_file)) if hazard_file else []
+    sector_ctx = dict(ctx)
+    sector_ctx["sector_code"] = _CURATED_SECTOR_ALIASES.get(
+        ctx["sector_code"], ctx["sector_code"]
+    )
+    sector_ctx["sector"] = _CURATED_SECTOR_ALIASES.get(ctx["sector"], ctx["sector"])
+    sector: list[dict] = []
+    for file_name in _CURATED_SECTOR_PACKS:
+        for item in _curated_pack(file_name):
+            if any(
+                (
+                    scope.get("type") == "sector"
+                    and sector_scope_matches(sector_ctx, scope.get("value", ""))
+                )
+                or (
+                    scope.get("type") == "nace"
+                    and nace_scope_matches(ctx["nace"], scope.get("value", ""))
+                )
+                for scope in item["scopes"]
+            ):
+                sector.append(item)
+    return {"common": common, "technical": technical, "sector": sector}
+
+
+def _curated_snapshot_item(question: dict, position: int, rnd: random.Random) -> dict:
+    original = dict(zip("ABCD", question["options"], strict=True))
+    shuffled = list(original.items())
+    rnd.shuffle(shuffled)
+    options = {"ABCD"[i]: text for i, (_old_key, text) in enumerate(shuffled)}
+    correct = next(
+        "ABCD"[i]
+        for i, (old_key, _text) in enumerate(shuffled)
+        if old_key == question["correct_option"]
+    )
+    return {
+        "position": position,
+        "question_id": None,
+        "question_code": question["question_code"],
+        "question_version": int(question.get("version") or 1),
+        "topic_code": question["topic_code"],
+        "topic_label": question["topic_label"],
+        "question_text": question["question_text"],
+        "options": options,
+        "correct_option": correct,
+        "answer_explanation": question["answer_explanation"],
+        "sources": question["sources"],
+        "scopes": question["scopes"],
+    }
+
+
 def create_exam_snapshot(
-    db: Session, *, training: TrainingSession, created_by_id: int
+    db: Session,
+    *,
+    training: TrainingSession,
+    created_by_id: int,
+    allow_curated_fallback: bool = False,
 ) -> TrainingExamSnapshot:
     buckets = _candidate_buckets(db, training)
-    counts = {name: len(rows) for name, rows in buckets.items()}
+    curated = (
+        _curated_buckets(training)
+        if allow_curated_fallback
+        else {name: [] for name in BUCKET_TARGETS}
+    )
+    counts = {
+        name: len(
+            {row.question_code for row in buckets[name]}
+            | {str(row["question_code"]) for row in curated[name]}
+        )
+        for name in BUCKET_TARGETS
+    }
     if any(counts[name] < needed for name, needed in BUCKET_TARGETS.items()):
         raise InsufficientQuestionBankError(counts)
 
     seed = secrets.token_hex(16)
     rnd = random.Random(seed)
-    selected: list[TrainingQuestion] = []
+    selected: list[tuple[str, TrainingQuestion | dict]] = []
+    used_codes: set[str] = set()
+    used_curated = False
     for name, needed in BUCKET_TARGETS.items():
-        selected.extend(rnd.sample(buckets[name], needed))
+        db_rows = [row for row in buckets[name] if row.question_code not in used_codes]
+        chosen_db = rnd.sample(db_rows, min(needed, len(db_rows)))
+        selected.extend(("database", row) for row in chosen_db)
+        used_codes.update(row.question_code for row in chosen_db)
+        missing = needed - len(chosen_db)
+        if missing:
+            fallback_rows = [
+                row for row in curated[name] if str(row["question_code"]) not in used_codes
+            ]
+            chosen_fallback = rnd.sample(fallback_rows, missing)
+            selected.extend(("curated", row) for row in chosen_fallback)
+            used_codes.update(str(row["question_code"]) for row in chosen_fallback)
+            used_curated = True
     rnd.shuffle(selected)
-    items = [_snapshot_item(question, i, rnd) for i, question in enumerate(selected, start=1)]
+    items = [
+        _snapshot_item(question, i, rnd)
+        if origin == "database"
+        else _curated_snapshot_item(question, i, rnd)
+        for i, (origin, question) in enumerate(selected, start=1)
+    ]
 
     canonical = json.dumps(items, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -477,7 +629,7 @@ def create_exam_snapshot(
         question_count=QUESTION_COUNT,
         random_seed=seed,
         content_hash=content_hash,
-        selection_policy=SELECTION_POLICY,
+        selection_policy=CURATED_FALLBACK_POLICY if used_curated else SELECTION_POLICY,
         created_by_id=created_by_id,
     )
     for item in items:

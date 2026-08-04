@@ -1,0 +1,424 @@
+{
+  "items": [
+    {
+      "question_code": "TR-ORTAK-001",
+      "version": 1,
+      "topic_code": "ISVEREN-SORUMLULUGU",
+      "topic_label": "İşverenin genel yükümlülüğü",
+      "question_text": "İşverenin iş sağlığı ve güvenliği hizmetini dışarıdan bir uzman veya OSGB'den alması kendi sorumluluğunu nasıl etkiler?",
+      "options": [
+        "Sorumluluk tamamen hizmet sağlayıcıya geçer.",
+        "İşverenin kanuni sorumluluğu devam eder.",
+        "Sorumluluk çalışanlara paylaştırılır.",
+        "Sorumluluk yalnız iş güvenliği uzmanına geçer."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İşyeri dışındaki uzman kişi veya kuruluşlardan hizmet alınması, işverenin iş sağlığı ve güvenliği sorumluluğunu ortadan kaldırmaz.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 4/2, sayfa 2"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-002",
+      "version": 1,
+      "topic_code": "ISG-MALIYETI",
+      "topic_label": "İSG tedbirlerinin maliyeti",
+      "question_text": "İş sağlığı ve güvenliği tedbirlerinin maliyeti konusunda aşağıdaki ifadelerden hangisi doğrudur?",
+      "options": [
+        "Maliyet çalışan ve işveren arasında eşit paylaşılır.",
+        "Kişisel koruyucu donanımın maliyeti çalışandan kesilir.",
+        "Çalışan yalnız eğitim maliyetini karşılar.",
+        "İşveren bu maliyeti çalışanlara yansıtamaz."
+      ],
+      "correct_option": "D",
+      "answer_explanation": "6331 sayılı Kanun, iş sağlığı ve güvenliği tedbirlerinin maliyetinin çalışanlara yansıtılmasını açıkça yasaklar.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 4/4, sayfa 2"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-003",
+      "version": 1,
+      "topic_code": "RISK-DEGERLENDIRMESI",
+      "topic_label": "Risk değerlendirmesi yükümlülüğü",
+      "question_text": "İşyerinde iş sağlığı ve güvenliği yönünden risk değerlendirmesini yapmak veya yaptırmak kimin yükümlülüğüdür?",
+      "options": [
+        "İşverenin",
+        "Yalnız çalışan temsilcisinin",
+        "Sadece işyeri hekiminin",
+        "Yalnız denetim makamının"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "İşveren, işyerinde iş sağlığı ve güvenliği yönünden risk değerlendirmesi yapmak veya yaptırmakla yükümlüdür.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 10/1, sayfa 6"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-004",
+      "version": 1,
+      "topic_code": "TEHLIKE-SINIFI",
+      "topic_label": "İşyeri tehlike sınıfının belirlenmesi",
+      "question_text": "Bir işyerinin tehlike sınıfı belirlenirken esas olarak hangi faaliyet dikkate alınır?",
+      "options": [
+        "İşyerindeki en yeni makine",
+        "Çalışanların yaş ortalaması",
+        "İşyerinde yapılan asıl iş",
+        "İşyerinin bulunduğu ilin nüfusu"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "İşyeri tehlike sınıfının tespitinde, işyerinde yürütülen yan faaliyetler değil yapılan asıl iş dikkate alınır.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 9/2, sayfa 5"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-005",
+      "version": 1,
+      "topic_code": "ACIL-TAHLIYE",
+      "topic_label": "Ciddi ve yakın tehlikede tahliye",
+      "question_text": "Ciddi, yakın ve önlenemeyen bir tehlike ortaya çıktığında çalışanların yapması gereken temel davranış hangisidir?",
+      "options": [
+        "İşi bırakıp önceden belirlenen güvenli yere gitmek",
+        "Tehlike bölgesinde amir gelene kadar beklemek",
+        "Kişisel eşyalarını topladıktan sonra binadan ayrılmak",
+        "Üretim tamamlanıncaya kadar çalışmayı sürdürmek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Ciddi, yakın ve önlenemeyen tehlikede çalışanların işi bırakarak çalışma yerinden ayrılması ve güvenli yere gidebilmesi için gerekli düzenlemeler önceden yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 12/1-a, sayfa 7"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-006",
+      "version": 1,
+      "topic_code": "CALISMAKTAN-KACINMA",
+      "topic_label": "Çalışmaktan kaçınma hakkı",
+      "question_text": "Kurul veya işveren ciddi ve yakın tehlike talebini haklı bulduğunda çalışan hangi hakka sahiptir?",
+      "options": [
+        "Ücretsiz izne ayrılmak zorundadır.",
+        "Tedbirler alınıncaya kadar hakları korunarak çalışmaktan kaçınabilir.",
+        "Yalnız yıllık izin kullanarak işten uzaklaşabilir.",
+        "İş sözleşmesini hemen feshetmek zorundadır."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Talebin kabul edilmesi halinde çalışan, gerekli tedbirler alınıncaya kadar çalışmaktan kaçınabilir; bu sürede ücreti ve diğer hakları korunur.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 13/2, sayfa 7"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-007",
+      "version": 1,
+      "topic_code": "SAGLIK-GOZETIMI",
+      "topic_label": "Çalışanların sağlık gözetimi",
+      "question_text": "Aşağıdaki durumlardan hangisinde çalışanın sağlık muayenesinin yapılması kanuni olarak öngörülmüştür?",
+      "options": [
+        "Sadece çalışan isterse ve iş dışında",
+        "Yalnız işyerinin adresi değiştiğinde",
+        "İşe girişte ve iş değişikliğinde",
+        "Sadece yıllık izin dönüşünde"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Sağlık muayenesi işe girişte, iş değişikliğinde ve Kanunda belirtilen diğer sağlık gözetimi hallerinde yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 15/1-b, sayfa 8"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-008",
+      "version": 1,
+      "topic_code": "ISE-UYGUNLUK",
+      "topic_label": "Tehlikeli işlerde işe uygunluk",
+      "question_text": "Tehlikeli ve çok tehlikeli sınıfta yer alan işlerde çalışan ne olmadan işe başlatılamaz?",
+      "options": [
+        "Yıllık izin formu olmadan",
+        "Servis kartı olmadan",
+        "Fazla çalışma onayı olmadan",
+        "Yapacağı işe uygun olduğunu belirten sağlık raporu olmadan"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Tehlikeli ve çok tehlikeli işlerde çalışacak kişiler, yapacakları işe uygun olduklarını belirten sağlık raporu olmadan işe başlatılamaz.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 15/2, sayfa 9"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-009",
+      "version": 1,
+      "topic_code": "EGITIM-SURESI-MALIYETI",
+      "topic_label": "Eğitim süresi ve maliyeti",
+      "question_text": "İş sağlığı ve güvenliği eğitiminin süresi ve maliyetiyle ilgili doğru uygulama hangisidir?",
+      "options": [
+        "Eğitim mesai dışında ve ücretsiz yapılır.",
+        "Eğitim süresi çalışma süresinden sayılır ve maliyeti çalışana yüklenemez.",
+        "Eğitim maliyeti yalnız yeni çalışanlardan alınır.",
+        "Eğitimde geçen süre yıllık izinden düşülür."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kanuna göre eğitim maliyeti çalışana yansıtılamaz ve eğitimde geçen süre çalışma süresinden sayılır.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 17/7, sayfa 10"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-010",
+      "version": 1,
+      "topic_code": "MAKINE-GUVENLIGI",
+      "topic_label": "Makine ve güvenlik donanımları",
+      "question_text": "Çalışanın makine ve ekipmanlardaki güvenlik donanımlarıyla ilgili yükümlülüğü hangisidir?",
+      "options": [
+        "Güvenlik donanımlarını doğru kullanmak ve keyfi olarak çıkarmamak",
+        "Üretimi hızlandırmak için güvenlik donanımını devre dışı bırakmak",
+        "Koruyucuları yalnız denetim günlerinde kullanmak",
+        "Arızalı güvenlik donanımıyla çalışmaya devam etmek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Çalışanlar makine ve ekipmanları kurallara uygun kullanmalı, güvenlik donanımlarını keyfi olarak çıkarmamalı veya değiştirmemelidir.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 19/2-a, sayfa 10-11"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-011",
+      "version": 1,
+      "topic_code": "KKD-KULLANIMI",
+      "topic_label": "Kişisel koruyucu donanım",
+      "question_text": "Çalışanın kendisine sağlanan kişisel koruyucu donanımla ilgili temel yükümlülüğü nedir?",
+      "options": [
+        "Sadece denetim sırasında kullanmak",
+        "Başka bir çalışana vermek",
+        "Doğru kullanmak ve korumak",
+        "İstediği şekilde değiştirmek"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Çalışan, kendisine sağlanan kişisel koruyucu donanımı verilen eğitim ve talimatlara uygun biçimde doğru kullanmalı ve korumalıdır.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 19/2-b, sayfa 11"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-012",
+      "version": 1,
+      "topic_code": "TEHLIKE-BILDIRIMI",
+      "topic_label": "Ciddi tehlike ve eksiklik bildirimi",
+      "question_text": "Çalışan ciddi ve yakın bir tehlike veya koruma tedbirlerinde eksiklik gördüğünde ne yapmalıdır?",
+      "options": [
+        "Vardiya sonuna kadar beklemelidir.",
+        "Sadece iş arkadaşlarına söylemelidir.",
+        "Tehlikeyi kendi başına gizlemelidir.",
+        "İşverene veya çalışan temsilcisine derhal haber vermelidir."
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Çalışan, ciddi ve yakın tehlikeyi veya koruma tedbirlerindeki eksikliği işverene ya da çalışan temsilcisine gecikmeden bildirmelidir.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 19/2-c, sayfa 11"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-013",
+      "version": 1,
+      "topic_code": "CALISAN-KATILIMI",
+      "topic_label": "Çalışanların görüş ve katılımı",
+      "question_text": "İş sağlığı ve güvenliği açısından yeni teknoloji veya iş ekipmanı seçilirken çalışanlara hangi imkân sağlanmalıdır?",
+      "options": [
+        "Yalnız seçim tamamlandıktan sonra bilgi verilmelidir.",
+        "Sağlık ve güvenliğe etkileri konusunda görüşleri alınmalıdır.",
+        "Çalışanların bu konuda görüş bildirmesi engellenmelidir.",
+        "Konu yalnız satın alma birimine bırakılmalıdır."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İşveren, yeni teknolojiler ve seçilecek iş ekipmanının sağlık ve güvenliğe etkileri konusunda çalışanların veya temsilcilerinin görüşlerini almalıdır.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 18/1-b, sayfa 10"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-014",
+      "version": 1,
+      "topic_code": "EGITIM-ICERIGI",
+      "topic_label": "Eğitim içeriğinin işe uyarlanması",
+      "question_text": "Temel iş sağlığı ve güvenliği eğitiminin içeriği hazırlanırken aşağıdakilerden hangisi birlikte dikkate alınmalıdır?",
+      "options": [
+        "Çalışanın görevi, kullanılan ekipman, çalışma ortamı ve sektörel riskler",
+        "Yalnız işyerinin ticari unvanı",
+        "Sadece eğiticinin kişisel tercihi",
+        "Yalnız çalışanların kıdem yılı"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Eğitim içeriği; çalışanın görevi, kullanılan iş ekipmanı, çalışma ortamı, işyerinin faaliyet alanı, tehlike sınıfı ve işyerine özgü riskler dikkate alınarak hazırlanmalıdır.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı – İSG Genel Müdürlüğü Sıkça Sorulan Sorular",
+          "url": "https://www.csgb.gov.tr/tr/sikca-sorulan-sorular/is-sagligi-ve-guvenligi-genel-mudurlugu/",
+          "reference": "Soru 142: eğitim içeriğinin faaliyet alanı, tehlike sınıfı, görevler ve işyerine özgü risklere uygunluğu"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-015",
+      "version": 1,
+      "topic_code": "ISE-OZGUL-EGITIM",
+      "topic_label": "İşe ve işyerine özgü eğitim",
+      "question_text": "Tehlikeli ve çok tehlikeli işyerlerinde temel eğitimin işe özgü riskleri kapsayan bölümü hangi yöntemle verilmelidir?",
+      "options": [
+        "Yalnız e-posta gönderilerek",
+        "Sadece yazılı doküman bırakılarak",
+        "Yüz yüze eğitim yöntemiyle",
+        "Eğitim verilmeden yalnız imza alınarak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Güncel Bakanlık açıklamasına göre tehlikeli ve çok tehlikeli işyerlerinde temel eğitimin işe özgü riskleri kapsayan dördüncü konu başlığı yüz yüze verilmelidir.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı – İSG Genel Müdürlüğü Sıkça Sorulan Sorular",
+          "url": "https://www.csgb.gov.tr/tr/sikca-sorulan-sorular/is-sagligi-ve-guvenligi-genel-mudurlugu/",
+          "reference": "Soru 135: temel eğitimde 4. konu başlığının tehlikeli ve çok tehlikeli işyerlerinde yüz yüze verilmesi"
+        }
+      ]
+    }
+  ]
+}

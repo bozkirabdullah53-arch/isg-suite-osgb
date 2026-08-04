@@ -1,0 +1,544 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-LOJ-001",
+      "version": 1,
+      "topic_code": "FORKLIFT-OPERATOR",
+      "topic_label": "Forklift operatör yetkinliği",
+      "question_text": "Forklift kim tarafından kullanılmalıdır?",
+      "options": [
+        "İşverenin sözlü izin verdiği herhangi bir çalışan",
+        "Yalnız bakım personeli",
+        "Uygun eğitim ve yetkinliğe sahip, görevlendirilmiş operatör",
+        "Depoda en kıdemli çalışan"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Forklift, yalnız kullanım riskleri konusunda eğitilmiş, yetkin ve işveren tarafından görevlendirilmiş kişilerce kullanılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Forkliftlerle Güvenli Çalışma Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/s3zfua54/forkliftlerle-guevenli-%C3%A7al%C4%B1%C5%9Fma-rehberi.pdf",
+          "reference": "Operatör eğitimi, yetkinlik ve güvenli kullanım"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-002",
+      "version": 1,
+      "topic_code": "FORKLIFT-GUNLUK-KONTROL",
+      "topic_label": "Kullanım öncesi kontrol",
+      "question_text": "Forklift vardiya başında kullanılmadan önce hangisi yapılmalıdır?",
+      "options": [
+        "Lastik, fren, direksiyon, çatal, ikaz ve güvenlik sistemlerini kapsayan kullanım öncesi kontrol",
+        "Yalnız yakıt seviyesine bakılması",
+        "Önce yük kaldırılarak denenmesi",
+        "Sadece dış temizliğinin yapılması"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Kullanım öncesi kontrol, arızaların çalışmaya başlamadan fark edilmesini sağlar; güvenliği etkileyen arızalı forklift kullanılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Forkliftlerle Güvenli Çalışma Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/s3zfua54/forkliftlerle-guevenli-%C3%A7al%C4%B1%C5%9Fma-rehberi.pdf",
+          "reference": "Günlük kontrol ve arızalı ekipmanın kullanımdan alınması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-003",
+      "version": 1,
+      "topic_code": "YAYA-ARAC-AYRIMI",
+      "topic_label": "Forklift-yaya trafiği",
+      "question_text": "Depoda forklift ile yaya çarpışma riskini azaltmada en etkili uygulama hangisidir?",
+      "options": [
+        "Yayaların forklift sesini dinlemesi",
+        "Forkliftlerin sürekli korna çalması",
+        "Yalnız hız sınırı levhası asılması",
+        "Yaya yolları ile araç yollarının fiziksel ve görsel olarak ayrılması"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Mümkün olan yerlerde yaya ve araç trafiği bariyer, işaretleme, kontrollü geçiş ve trafik planıyla ayrılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Forkliftlerle Güvenli Çalışma Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/s3zfua54/forkliftlerle-guevenli-%C3%A7al%C4%B1%C5%9Fma-rehberi.pdf",
+          "reference": "Forklift-yaya ayrımı, trafik planı ve kontrollü geçişler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-004",
+      "version": 1,
+      "topic_code": "HIZ-KOR-NOKTA",
+      "topic_label": "Hız ve kör noktalar",
+      "question_text": "Forklift operatörü kör köşe veya görüşün sınırlı olduğu bir geçide yaklaşırken ne yapmalıdır?",
+      "options": [
+        "Hızlanarak geçişi kısa tutmalıdır",
+        "Hızını düşürmeli, ikaz vermeli ve geçişin güvenli olduğunu doğrulamalıdır",
+        "Çatalları yükseltmelidir",
+        "Yalnız aynaya bakmalıdır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kör noktalarda hız azaltma, sesli ikaz, ayna ve geçiş kontrolü çarpışma riskini düşürür.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Forkliftlerle Güvenli Çalışma Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/s3zfua54/forkliftlerle-guevenli-%C3%A7al%C4%B1%C5%9Fma-rehberi.pdf",
+          "reference": "Kör noktalar, görüş kısıtı, hız kontrolü ve uyarı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-005",
+      "version": 1,
+      "topic_code": "YUK-TASIMA",
+      "topic_label": "Forkliftle yük taşıma",
+      "question_text": "Forkliftle yük taşınırken çatalların konumu nasıl olmalıdır?",
+      "options": [
+        "Görüşü artırmak için omuz yüksekliğinde",
+        "Yükün altından çıkarılmış şekilde",
+        "Yere yakın, yük dengeli ve görüşü engellemeyecek güvenli konumda",
+        "Mümkün olan en yüksek seviyede"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Yükün yere yakın taşınması ağırlık merkezini alçaltır ve devrilme riskini azaltır; yük dengeli ve güvenli bağlanmış olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Forkliftlerle Güvenli Çalışma Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/s3zfua54/forkliftlerle-guevenli-%C3%A7al%C4%B1%C5%9Fma-rehberi.pdf",
+          "reference": "Yükün dengeli, görüşü engellemeyecek ve yere yakın taşınması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-006",
+      "version": 1,
+      "topic_code": "KAPASITE-YUK-MERKEZI",
+      "topic_label": "Kapasite ve yük merkezi",
+      "question_text": "Forkliftin güvenli kaldırma kapasitesi değerlendirilirken hangileri birlikte dikkate alınmalıdır?",
+      "options": [
+        "Yalnız yükün hacmi",
+        "Operatörün tecrübesi ve vardiya süresi",
+        "Sadece forkliftin boş ağırlığı",
+        "Yük ağırlığı, yük merkezi, kaldırma yüksekliği ve ataşman etkisi"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Nominal kapasite; yük merkezi, kaldırma yüksekliği ve kullanılan ataşmana göre değişebilir. Kapasite levhası aşılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Forkliftlerle Güvenli Çalışma Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/s3zfua54/forkliftlerle-guevenli-%C3%A7al%C4%B1%C5%9Fma-rehberi.pdf",
+          "reference": "Kapasite levhası, yük merkezi ve ataşmanların kapasiteye etkisi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-007",
+      "version": 1,
+      "topic_code": "RAMPA-KULLANIM",
+      "topic_label": "Rampada forklift kullanımı",
+      "question_text": "Yüklü forkliftle rampada hareket edilirken genel güvenli yön hangisidir?",
+      "options": [
+        "Yük rampa yukarı tarafında kalacak şekilde hareket etmek",
+        "Yük rampa aşağı tarafında kalacak şekilde hareket etmek",
+        "Rampayı çapraz geçmek",
+        "Rampada dönüş yapmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yükün rampa yukarı tarafında tutulması dengeyi korur; rampada dönüş ve çapraz hareket devrilme riskini artırır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Forkliftlerle Güvenli Çalışma Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/s3zfua54/forkliftlerle-guevenli-%C3%A7al%C4%B1%C5%9Fma-rehberi.pdf",
+          "reference": "Rampalarda güvenli sürüş ve devrilmenin önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-008",
+      "version": 1,
+      "topic_code": "FORKLIFT-YOLCU",
+      "topic_label": "Forkliftte yolcu taşınması",
+      "question_text": "Standart bir forkliftte yolcu taşınması konusunda hangisi doğrudur?",
+      "options": [
+        "Kısa mesafede taşınabilir",
+        "Yalnız depo içinde taşınabilir",
+        "Operatör koltuğunun yanında ayakta taşınabilir",
+        "Üretici tarafından tasarlanmış güvenli koltuk yoksa yolcu taşınmamalıdır"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Forkliftler yolcu taşımak için tasarlanmamışsa ilave kişi taşınması düşme, ezilme ve çarpışma riski oluşturur.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Forkliftlerle Güvenli Çalışma Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/s3zfua54/forkliftlerle-guevenli-%C3%A7al%C4%B1%C5%9Fma-rehberi.pdf",
+          "reference": "Forklift üzerinde yetkisiz yolcu taşınmasının önlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-009",
+      "version": 1,
+      "topic_code": "RAF-ISTIF",
+      "topic_label": "Raf ve istif güvenliği",
+      "question_text": "Depo raflarında güvenli istifleme için hangisi uygulanmalıdır?",
+      "options": [
+        "Ağır yükleri üst raflara koymak",
+        "Raf kapasitesine uymak, yükleri dengeli yerleştirmek ve hasarlı rafları kullanımdan almak",
+        "Raf önlerini geçici depolama alanı yapmak",
+        "Taşan yükleri bağlamadan bırakmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Raf kapasitesi aşılmamalı, yükler dengeli yerleştirilmeli ve darbe veya deformasyon bulunan raflar kontrol edilmeden kullanılmamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İSG Dokümanları ve Depolama Rehberleri",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Raf kapasitesi, istif dengesi ve hasarlı rafların yönetimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-010",
+      "version": 1,
+      "topic_code": "YUKLEME-RAMPASI",
+      "topic_label": "Yükleme rampası güvenliği",
+      "question_text": "Kamyon kasasına forkliftle giriş yapılmadan önce hangi kontrol zorunludur?",
+      "options": [
+        "Yalnız kasanın temizliği",
+        "Aracın motorunun çalışıyor olması",
+        "Aracın hareket etmeye karşı sabitlenmesi ve köprü/rampa kapasitesi ile yerleşiminin doğrulanması",
+        "Forklift korna sesinin duyulması"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Araç hareketi veya yükleme köprüsünün kayması, forkliftin düşmesine yol açabilir; teker takozu, park freni ve köprü güvenliği doğrulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Forkliftlerle Güvenli Çalışma Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/s3zfua54/forkliftlerle-guevenli-%C3%A7al%C4%B1%C5%9Fma-rehberi.pdf",
+          "reference": "Araç kasasına giriş, yükleme köprüsü ve aracın sabitlenmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-011",
+      "version": 1,
+      "topic_code": "ASILI-YUK",
+      "topic_label": "Askıdaki ve kaldırılmış yük",
+      "question_text": "Kaldırılmış forklift çatalları veya yükün altında bulunma konusunda hangisi doğrudur?",
+      "options": [
+        "Yük hafifse altında durulabilir",
+        "Operatör izin verirse geçilebilir",
+        "Yalnız baretle geçilebilir",
+        "Kaldırılmış çatalların ve yükün altında hiç kimse bulunmamalıdır"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Hidrolik arıza, yük kayması veya ekipman hareketi sonucu ezilme meydana gelebilir; kaldırılmış yükün altına girilmez.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Forkliftlerle Güvenli Çalışma Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/s3zfua54/forkliftlerle-guevenli-%C3%A7al%C4%B1%C5%9Fma-rehberi.pdf",
+          "reference": "Kaldırılmış çatal ve yük altında bulunmanın yasaklanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-012",
+      "version": 1,
+      "topic_code": "ELLE-TASIMA",
+      "topic_label": "Elle taşıma ve ergonomi",
+      "question_text": "Depoda elle taşıma riskini azaltmada öncelikli yöntem hangisidir?",
+      "options": [
+        "Yükü tek seferde taşımak",
+        "Mekanik taşıma yardımcıları kullanmak ve işi ergonomik olarak düzenlemek",
+        "Çalışana yalnız bel kemeri vermek",
+        "Taşıma hızını artırmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Transpalet, kaldırma masası ve konveyör gibi yardımcılar kullanılarak elle taşıma azaltılmalı; yük, mesafe ve çalışma yüksekliği ergonomik düzenlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Sağlık Tehlikeleri ve Ergonomik Riskler",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/saglik/",
+          "reference": "Elle taşımanın azaltılması ve mekanik yardımcıların kullanılması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-013",
+      "version": 1,
+      "topic_code": "SARJ-YAKIT",
+      "topic_label": "Akü şarjı ve yakıt ikmali",
+      "question_text": "Elektrikli forklift akülerinin şarj edildiği alan için hangisi gereklidir?",
+      "options": [
+        "Uygun havalandırma, ateşleme kaynaklarının kontrolü ve kimyasal sıçramaya karşı tedbirler",
+        "Kapalı ve havasız bir oda",
+        "Yanıcı malzeme deposuyla aynı alan",
+        "Yalnız uyarı levhası"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Şarj sırasında hidrojen gazı ve elektrolit riski oluşabilir; havalandırma, kıvılcım kontrolü, göz-yüz koruması ve dökülme tedbirleri gerekir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Forkliftlerle Güvenli Çalışma Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/s3zfua54/forkliftlerle-guevenli-%C3%A7al%C4%B1%C5%9Fma-rehberi.pdf",
+          "reference": "Akü şarj alanı, havalandırma, yangın ve kimyasal sıçrama önlemleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-014",
+      "version": 1,
+      "topic_code": "PERIYODIK-KONTROL",
+      "topic_label": "Forklift periyodik kontrolü",
+      "question_text": "Forklift periyodik kontrolü için hangisi doğrudur?",
+      "options": [
+        "Yalnız arıza sonrasında yapılır",
+        "Herhangi bir operatör rapor düzenleyebilir",
+        "Mevzuattaki şartlara göre yetkili kişi tarafından yapılır ve raporlanır",
+        "Günlük kontrol periyodik kontrol yerine geçer"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Forklift, kaldırma ve iletme ekipmanı kapsamında ilgili mevzuata göre yetkili kişilerce periyodik olarak kontrol edilmelidir; günlük kontrol bunun yerine geçmez.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanları Yönetmeliği Değişikliği Duyurusu",
+          "url": "https://www.csgb.gov.tr/isggm/tr/duyurular/24122025/",
+          "reference": "23 Aralık 2025 değişikliği; periyodik kontrole tabi ekipman ve yetkili kişi şartları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-LOJ-015",
+      "version": 1,
+      "topic_code": "ACIL-DURUM",
+      "topic_label": "Depo acil durum ve kaçış yolları",
+      "question_text": "Depoda yangın ve tahliye güvenliği açısından hangisi zorunlu bir uygulamadır?",
+      "options": [
+        "Acil çıkışların ve yangın ekipmanlarının önünü boş tutmak",
+        "Paletleri kaçış yollarında geçici olarak bırakmak",
+        "Yangın kapılarını açık sabitlemek",
+        "Acil çıkış levhalarını raf arkasında bırakmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Kaçış yolları, acil çıkışlar, yangın dolapları ve söndürücüler her zaman erişilebilir olmalı; istifleme bu alanları engellememelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "depo_lojistik"
+        },
+        {
+          "type": "sector",
+          "value": "depolama_lojistik_depo"
+        },
+        {
+          "type": "sector",
+          "value": "e_ticaret_depo_fulfillment"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İSG Dokümanları ve Depolama Rehberleri",
+          "url": "https://www.csgb.gov.tr/isgum/hizli-erisim/%C4%B1sg-dokumanlari/",
+          "reference": "Depolarda yangın güvenliği, kaçış yolları ve acil ekipmana erişim"
+        }
+      ]
+    }
+  ]
+}

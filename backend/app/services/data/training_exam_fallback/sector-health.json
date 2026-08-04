@@ -1,0 +1,484 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-SAGLIK-001",
+      "version": 1,
+      "topic_code": "KESICI-DELICI",
+      "topic_label": "Kesici-delici alet güvenliği",
+      "question_text": "Kullanılmış enjektör iğnesiyle ilgili doğru uygulama hangisidir?",
+      "options": [
+        "Kapağını yeniden takmadan uygun kesici-delici atık kutusuna bırakmak",
+        "İğneyi bükerek atmak",
+        "İğnenin kapağını iki elle yeniden takmak",
+        "İğneyi evsel atık kutusuna atmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Kullanılmış iğnelerin kapağı yeniden takılmamalı; iğne doğrudan delinmeye dayanıklı kesici-delici atık kutusuna atılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Sağlık Bakanlığı – Kesici Delici Alet Yaralanmalarından Korunma Talimatı",
+          "url": "https://cankiriiasb.saglik.gov.tr/TR-264616/kesici-delici-alet-yaralanmalarindan-korunma-ve-izleme-talimati.html",
+          "reference": "İğne kapağının yeniden takılmaması ve kesici-delici atık kutusu kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-002",
+      "version": 1,
+      "topic_code": "KAN-VUCUT-SIVISI",
+      "topic_label": "Kan ve vücut sıvısı maruziyeti",
+      "question_text": "Göze kan veya vücut sıvısı sıçraması olduğunda ilk yaklaşım hangisidir?",
+      "options": [
+        "Gözü kapatıp beklemek",
+        "Gözü bol su veya uygun yıkama solüsyonuyla yıkayıp olayı derhal bildirmek",
+        "Göze antiseptik dökmek",
+        "Yalnız vardiya sonunda bildirmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Mukozal temas sonrası bölge gecikmeden yıkanmalı ve kurumun maruziyet sonrası değerlendirme-izlem süreci başlatılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Sağlık Bakanlığı – Sağlık Hizmeti İlişkili Viral Hepatitler",
+          "url": "https://hsgm.saglik.gov.tr/depo/birimler/bulasici-hastaliklar-ve-erken-uyari-db/Dokumanlar/Sunumlar/TVHKP_Saglik_Hizmeti_Iliskili_Viral_Hepatitler.pdf",
+          "reference": "Kan ve vücut sıvısı temasında ilk müdahale ve bildirim"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-003",
+      "version": 1,
+      "topic_code": "EL-HIJYENI",
+      "topic_label": "El hijyeni",
+      "question_text": "Sağlık hizmetinde eldiven kullanımıyla ilgili hangisi doğrudur?",
+      "options": [
+        "Eldiven el hijyeninin yerine geçer",
+        "Aynı eldiven farklı hastalarda kullanılabilir",
+        "Eldiven çıkarıldıktan sonra el hijyeni uygulanmalıdır",
+        "Eldiven kirlenmedikçe gün boyu kullanılabilir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Eldiven kullanımı el hijyeninin yerine geçmez; eldiven çıkarıldıktan sonra uygun el hijyeni uygulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Hastanelerde İş Sağlığı ve Güvenliği Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/guslr2s0/kamu-hastanelerinde-isg-rehberi.pdf",
+          "reference": "Sağlık çalışanlarında el hijyeni ve kişisel koruyucu uygulamalar"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-004",
+      "version": 1,
+      "topic_code": "IZOLASYON",
+      "topic_label": "İzolasyon önlemleri",
+      "question_text": "Bulaşıcı hastalık şüphesi bulunan hastada uygulanacak izolasyon türü nasıl belirlenmelidir?",
+      "options": [
+        "Yalnız hastanın yaşına göre",
+        "Sadece ziyaretçi sayısına göre",
+        "Odanın büyüklüğüne göre",
+        "Bulaşma yoluna ve risk değerlendirmesine göre"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Temas, damlacık veya hava yolu izolasyonu; etkenin bulaşma yolu ve maruziyet riskine göre belirlenmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Hastanelerde İş Sağlığı ve Güvenliği Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/guslr2s0/kamu-hastanelerinde-isg-rehberi.pdf",
+          "reference": "Biyolojik risklerde bulaşma yoluna göre izolasyon önlemleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-005",
+      "version": 1,
+      "topic_code": "BIYOLOJIK-RISK",
+      "topic_label": "Biyolojik risk değerlendirmesi",
+      "question_text": "Bir sağlık kuruluşunda biyolojik risk değerlendirmesi yapılırken hangisi dikkate alınmalıdır?",
+      "options": [
+        "Etkenlerin tümü, bulaşma yolları, maruziyet süresi ve çalışan grupları",
+        "Yalnız çalışan sayısı",
+        "Sadece bina yaşı",
+        "Yalnız kullanılan eldiven sayısı"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Biyolojik risk değerlendirmesi; olası etkenleri, bulaş yollarını, maruziyet düzeyini ve hassas çalışan gruplarını kapsamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Sağlık Bakanlığı – Biyolojik Etkenlere Maruziyet Risklerinin Önlenmesi Hakkında Yönetmelik",
+          "url": "https://casem.saglik.gov.tr/depo/Mevzuat/biyolojik_etken.pdf",
+          "reference": "Biyolojik etkenlerin tümünün ve maruziyet koşullarının değerlendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-006",
+      "version": 1,
+      "topic_code": "SOLUNUM-KORUMA",
+      "topic_label": "Solunum koruyucu seçimi",
+      "question_text": "Hava yoluyla bulaş riski bulunan bir işlemde solunum koruyucu nasıl seçilmelidir?",
+      "options": [
+        "Rengine göre",
+        "Risk değerlendirmesi, bulaş yolu ve yapılacak işleme göre",
+        "Yalnız çalışanın tercihine göre",
+        "Her durumda cerrahi maske yeterli kabul edilerek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Solunum koruyucu seçimi, etkenin bulaş yolu ve aerosol oluşturma ihtimali dikkate alınarak yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Hastanelerde İş Sağlığı ve Güvenliği Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/guslr2s0/kamu-hastanelerinde-isg-rehberi.pdf",
+          "reference": "Bulaş yoluna göre uygun solunum koruyucu seçimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-007",
+      "version": 1,
+      "topic_code": "STERILIZASYON-KIMYASAL",
+      "topic_label": "Sterilizasyon kimyasalları",
+      "question_text": "Sterilizasyon veya dezenfeksiyonda kullanılan kimyasallarla çalışmada öncelikli teknik önlem hangisidir?",
+      "options": [
+        "Kabı açık bırakmak",
+        "Yalnız koku giderici kullanmak",
+        "Kapalı sistem ve uygun lokal havalandırma kullanmak",
+        "Kimyasalları etiketsiz kaba aktarmak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Uçucu veya toksik sterilizasyon kimyasalları kapalı sistem ve uygun havalandırmayla kaynağında kontrol edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Hastanelerde İş Sağlığı ve Güvenliği Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/guslr2s0/kamu-hastanelerinde-isg-rehberi.pdf",
+          "reference": "Sterilizasyon ve dezenfeksiyon kimyasallarının güvenli kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-008",
+      "version": 1,
+      "topic_code": "SITOTOKSIK",
+      "topic_label": "Sitotoksik ilaç güvenliği",
+      "question_text": "Sitotoksik ilaç hazırlanırken hangisi uygulanmalıdır?",
+      "options": [
+        "Açık tezgahta hazırlama",
+        "Dökülmeyi sıradan bezle temizleme",
+        "İlaç kabını etiketsiz bırakma",
+        "Uygun biyolojik güvenlik kabini, kontrollü alan ve işe uygun KKD kullanımı"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Sitotoksik ilaçlar kontrollü ortamda, uygun kabin ve KKD ile hazırlanmalı; dökülmeler özel prosedüre göre yönetilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Hastanelerde İş Sağlığı ve Güvenliği Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/guslr2s0/kamu-hastanelerinde-isg-rehberi.pdf",
+          "reference": "Sitotoksik ilaç hazırlama, maruziyet kontrolü ve dökülme yönetimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-009",
+      "version": 1,
+      "topic_code": "RADYASYON",
+      "topic_label": "İyonlaştırıcı radyasyon",
+      "question_text": "İyonlaştırıcı radyasyondan korunmanın temel ilkeleri hangileridir?",
+      "options": [
+        "Süreyi azaltma, mesafeyi artırma ve uygun zırhlama",
+        "Yalnız kurşun önlük kullanma",
+        "Cihazı daha uzun süre çalıştırma",
+        "Kapıları açık bırakma"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Maruziyet süresinin azaltılması, kaynaktan uzaklığın artırılması ve uygun zırhlama temel korunma ilkeleridir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Hastanelerde İş Sağlığı ve Güvenliği Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/guslr2s0/kamu-hastanelerinde-isg-rehberi.pdf",
+          "reference": "Radyasyonla çalışmada süre, mesafe ve zırhlama ilkeleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-010",
+      "version": 1,
+      "topic_code": "HASTA-TASIMA",
+      "topic_label": "Hasta taşıma ergonomisi",
+      "question_text": "Hastanın yataktan sedyeye alınmasında kas-iskelet riskini azaltmada en uygun yöntem hangisidir?",
+      "options": [
+        "Hastayı tek kişinin hızla kaldırması",
+        "Mekanik yardımcı kullanmak ve ekip hâlinde planlı transfer yapmak",
+        "Yalnız bel kemeri kullanmak",
+        "Hastayı çekerek taşımak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Hasta transferlerinde kaldırma cihazı, kaydırma ekipmanı ve yeterli personelle planlı hareket uygulanmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Hastanelerde İş Sağlığı ve Güvenliği Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/guslr2s0/kamu-hastanelerinde-isg-rehberi.pdf",
+          "reference": "Hasta taşıma ve transferlerinde ergonomik risklerin azaltılması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-011",
+      "version": 1,
+      "topic_code": "SIDDET",
+      "topic_label": "Sağlık çalışanına şiddet",
+      "question_text": "Şiddet riski yüksek bir birimde öncelikli kurumsal uygulama hangisidir?",
+      "options": [
+        "Çalışanın olayı kişisel olarak çözmesi",
+        "Yalnız kamera kaydı",
+        "Risk değerlendirmesi, alarm-bildirim sistemi, güvenli alan düzeni ve olay sonrası destek",
+        "Olayların bildirilmemesi"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Şiddet riski sistematik olarak değerlendirilmeli; erken uyarı, bildirim, güvenlik ve olay sonrası destek süreçleri oluşturulmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Sağlık Bakanlığı – Çalışan Sağlığı ve Güvenliği Komitesi",
+          "url": "https://bilecikiasb.saglik.gov.tr/TR-260833/calisan-sagligi-ve-guvenligi-komitesi.html",
+          "reference": "Şiddet, Beyaz Kod, güvenlik raporlama ve düzeltici faaliyetler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-012",
+      "version": 1,
+      "topic_code": "ATIK-YONETIMI",
+      "topic_label": "Tıbbi atık yönetimi",
+      "question_text": "Tıbbi atıkların güvenli yönetiminde hangisi doğrudur?",
+      "options": [
+        "Tüm atıkları aynı torbada toplamak",
+        "Atık kaplarını aşırı doldurmak",
+        "Kesici-delici atıkları torbaya atmak",
+        "Atıkları kaynağında türüne göre ayırmak ve uygun kaplarda toplamak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Tıbbi, evsel, kimyasal ve kesici-delici atıklar kaynağında ayrılmalı ve uygun, etiketli kaplarda biriktirilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Hastanelerde İş Sağlığı ve Güvenliği Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/guslr2s0/kamu-hastanelerinde-isg-rehberi.pdf",
+          "reference": "Sağlık kuruluşlarında atıkların kaynağında ayrılması ve güvenli toplanması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-013",
+      "version": 1,
+      "topic_code": "TUP-GAZ",
+      "topic_label": "Tıbbi gaz tüpleri",
+      "question_text": "Tıbbi gaz tüplerinin güvenli depolanması için hangisi gereklidir?",
+      "options": [
+        "Dik, sabitlenmiş, etiketli ve uyumsuz gazlar ayrılmış şekilde depolamak",
+        "Tüpleri ısı kaynağı yanında tutmak",
+        "Tüpleri yatay ve sabitlemeden bırakmak",
+        "Vanaları açık bırakmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Gaz tüpleri devrilmeye karşı sabitlenmeli, ısı ve darbeden korunmalı, içerikleri tanımlı ve uyumsuz gazlardan ayrılmış olmalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Hastanelerde İş Sağlığı ve Güvenliği Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/guslr2s0/kamu-hastanelerinde-isg-rehberi.pdf",
+          "reference": "Tıbbi gaz tüplerinin güvenli depolanması ve taşınması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-014",
+      "version": 1,
+      "topic_code": "ELEKTRIK-EKIPMAN",
+      "topic_label": "Tıbbi elektrikli ekipman",
+      "question_text": "Tıbbi elektrikli ekipmanda hasarlı kablo veya kaçak şüphesi fark edildiğinde ne yapılmalıdır?",
+      "options": [
+        "Ekipmanı kullanmaya devam etmek",
+        "Ekipmanı kullanımdan almak, işaretlemek ve yetkili birime bildirmek",
+        "Kabloyu bantlayıp kullanmak",
+        "Yalnız vardiya sonunda haber vermek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Güvenliği etkileyen arızalı ekipman derhal kullanımdan alınmalı ve yetkili teknik personel tarafından kontrol edilmelidir.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği",
+          "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/",
+          "reference": "Arızalı elektrikli ekipmanın kullanımdan alınması ve yetkili kontrolü"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-SEK-SAGLIK-015",
+      "version": 1,
+      "topic_code": "ACIL-DURUM",
+      "topic_label": "Hastane acil durum planı",
+      "question_text": "Hastane acil durum planı hazırlanırken hangisi dikkate alınmalıdır?",
+      "options": [
+        "Yalnız bina tahliyesi",
+        "Sadece çalışan sayısı",
+        "Hasta hareket kabiliyeti, kritik birimler, tıbbi gazlar, yangın ve kesintisiz hizmet gereksinimi",
+        "Yalnız ziyaretçi girişleri"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Hastane acil durum planı; hareket kısıtlı hastaları, yoğun bakım ve ameliyathane gibi kritik birimleri, tıbbi gazları ve hizmet sürekliliğini kapsamalıdır.",
+      "scopes": [
+        {
+          "type": "sector",
+          "value": "saglik_hastane_klinik"
+        },
+        {
+          "type": "sector",
+          "value": "saglik"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Hastanelerde İş Sağlığı ve Güvenliği Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/guslr2s0/kamu-hastanelerinde-isg-rehberi.pdf",
+          "reference": "Hastanelerde yangın, tahliye, kritik birimler ve hizmet sürekliliği"
+        }
+      ]
+    }
+  ]
+}

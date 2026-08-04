@@ -133,6 +133,26 @@ def test_insufficient_bank_blocks_exam_instead_of_generic_fallback(db: Session):
         create_exam_snapshot(db, training=training, created_by_id=user.id)
 
 
+def test_pdf_only_curated_fallback_creates_snapshot_without_mutating_bank(db: Session):
+    training, user = _seed_training(db)
+    training.sector = "genel_uretim"
+    db.commit()
+
+    exam = create_exam_snapshot(
+        db,
+        training=training,
+        created_by_id=user.id,
+        allow_curated_fallback=True,
+    )
+
+    assert exam.question_count == 15
+    assert len(exam.items) == 15
+    assert exam.selection_policy == "approved-db-plus-curated-5x3-v1"
+    assert {item.question_id for item in exam.items} == {None}
+    assert len({item.question_code for item in exam.items}) == 15
+    assert db.query(TrainingQuestion).count() == 0
+
+
 def test_approved_bank_creates_frozen_15_question_snapshot_and_answer_key(db: Session):
     training, user = _seed_training(db)
     for i in range(5):
