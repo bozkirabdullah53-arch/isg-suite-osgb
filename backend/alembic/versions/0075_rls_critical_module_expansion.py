@@ -1,6 +1,6 @@
 """Expand tenant RLS to critical modules added after the original policy set.
 
-Revision ID: 0075_rls_critical_module_expansion
+Revision ID: 0075_rls_critical_expand
 Revises: 0074_rls_policy_reconcile
 
 This revision protects ten non-null company-scoped tables and the e-prescription
@@ -11,7 +11,7 @@ from __future__ import annotations
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0075_rls_critical_module_expansion"
+revision = "0075_rls_critical_expand"
 down_revision = "0074_rls_policy_reconcile"
 branch_labels = None
 depends_on = None
