@@ -14,6 +14,26 @@ from app.services.training_runtime_patches import (
 )
 
 
+def test_python_startup_does_not_eagerly_import_training_runtime():
+    backend_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "print(int('app.services.training_runtime_patches' in sys.modules))"
+            ),
+        ],
+        cwd=backend_root,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.stdout.strip() == "0"
+
+
 def test_training_runtime_installation_is_idempotent():
     install_training_runtime_patches()
     renderer = training_pdfs._draw_certificate_page
