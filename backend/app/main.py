@@ -122,14 +122,18 @@ app.add_middleware(
     requests_per_minute=settings.rate_limit_rpm,
     auth_requests_per_minute=settings.rate_limit_auth_rpm,
 )
-_cors_origins=list(dict.fromkeys([
+_cors_origins=[
     settings.frontend_origin,
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
     'https://isg-suite-web-1u9t.onrender.com',
     'https://www.isgsuite.tr',
     'https://isgsuite.tr',
-]))
+]
+if not _is_prod:
+    _cors_origins.extend([
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+    ])
+_cors_origins=list(dict.fromkeys(origin for origin in _cors_origins if origin))
 app.add_middleware(CORSMiddleware,allow_origins=_cors_origins,allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
 for r in (auth.router,osgb_applications.router,eisa.router,companies.router,branches.router,users.router,employees.router,isg_records.router,health.router,prescriptions.router,documents.router,annual_plans.router,annual_eval.router,reports.router,security.router,files.router,exports.router,subscriptions.router,notifications.router,system.router,dashboard.router,osgb.router,operations.router,trainings.router,training_question_bank.router,training_question_bank.exam_router,risks.router,incidents.router,ppe.router,sds.router,drills.router,emergency_teams.router,archives.router,legal.router,memberships.router,compliance_registers.pc_router,compliance_registers.ep_router,compliance_registers.wm_router,compliance_registers.oc_router,compliance_registers.da_router,esign.router,esign_orch.router,eyas.router): app.include_router(r,prefix='/api/v1')
 @app.get('/health')
