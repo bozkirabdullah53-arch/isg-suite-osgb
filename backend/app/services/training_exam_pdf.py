@@ -1,11 +1,7 @@
-"""NACE, tehlike sınıfı ve kayıtlı eğitim konularından 15 soruluk İSG sınavı üretir.
-
-Veritabanına yazmaz; yalnızca mevcut eğitim kaydını okuyup PDF döndürür.
-"""
+"""Yayımlanmış soru bankası snapshot'ından 15 soruluk denetlenebilir sınav PDF'i üretir."""
 from __future__ import annotations
 
-import random
-import re
+import json
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -15,16 +11,17 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
 
-from app.services.training_topics import egitim_konularini_hazirla, sektor_kodu_cozumle
-
+from app.models.entities import TrainingExamSnapshot
+from app.services.training_question_bank import create_exam_snapshot
 
 FONT_REGULAR = "ExamSans"
 FONT_BOLD = "ExamSans-Bold"
 
 
 def _register_fonts() -> None:
-    """PDF içine Türkçe karakterleri eksiksiz destekleyen fontları gömer."""
     regular_candidates = (
         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
         Path("/usr/share/fonts/dejavu/DejaVuSans.ttf"),
@@ -43,62 +40,18 @@ def _register_fonts() -> None:
         pdfmetrics.registerFont(TTFont(FONT_BOLD, str(bold)))
 
 
-def _clean_topic(text: str) -> str:
-    text = re.sub(r"\s*-\s*\d+\s*DK\s*$", "", str(text), flags=re.I).strip()
-    text = re.sub(r"^[a-zçğıöşü]\)\s*", "", text, flags=re.I)
-    text = re.sub(r"^\d+[.)]\s*", "", text)
-    return text.strip(" .")
-
-
-def _topics(training) -> list[str]:
-    sector = sektor_kodu_cozumle(training.sector)
-    sol, sag, _, _ = egitim_konularini_hazirla(training.hazard_class, sector)
-    result: list[str] = []
-    for is_heading, text in list(sol) + list(sag):
-        if is_heading:
-            continue
-        topic = _clean_topic(text)
-        if topic and topic not in result:
-            result.append(topic)
-    if not result:
-        result = [
-            "İş sağlığı ve güvenliği temel kuralları",
-            "Risklerden korunma prensipleri",
-            "Acil durum ve tahliye",
-            "Kişisel koruyucu donanım kullanımı",
-            "İş kazalarının önlenmesi",
-        ]
-    return result
-
-
-def _question(topic: str, index: int, rnd: random.Random) -> dict:
-    stems = [
-        "{topic} konusunda çalışan için en doğru uygulama hangisidir?",
-        "{topic} ile ilgili riskleri azaltmak için öncelikle ne yapılmalıdır?",
-        "{topic} kapsamında güvenli çalışma davranışı hangisidir?",
-        "{topic} konusunda aşağıdaki ifadelerden hangisi doğrudur?",
-    ]
-    correct = [
-        "Risk değerlendirmesi ve işyeri talimatlarına uygun çalışmak",
-        "Tehlikeyi kaynağında kontrol edip gerekli koruyucu önlemleri uygulamak",
-        "Eğitim, talimat ve güvenli çalışma prosedürlerine uymak",
-        "Uygunsuzluğu bildirip güvenli yöntem belirlenmeden işe devam etmemek",
-    ][index % 4]
-    wrong = [
-        "İşi hızlandırmak için koruyucu önlemleri geçici olarak kaldırmak",
-        "Yalnızca kaza olduktan sonra önlem almak",
-        "Tehlikeyi fark etse bile çalışmaya aynı şekilde devam etmek",
-        "Kişisel deneyimi yazılı talimatların önünde tutmak",
-        "Koruyucu donanımı sadece denetim sırasında kullanmak",
-    ]
-    distractors = rnd.sample(wrong, 3)
-    options = [correct] + distractors
-    rnd.shuffle(options)
-    return {
-        "stem": stems[index % len(stems)].format(topic=topic),
-        "options": options,
-        "answer": "ABCD"[options.index(correct)],
-    }
+def _load_or_create_snapshot(db: Session, training, created_by_id: int) -> TrainingExamSnapshot:
+    """Aynı eğitim tekrar indirildiğinde sınav içeriğini değiştirme."""
+    snapshot = db.scalar(
+        select(TrainingExamSnapshot)
+        .options(selectinload(TrainingExamSnapshot.items))
+        .where(TrainingExamSnapshot.training_id == training.id)
+        .order_by(TrainingExamSnapshot.version.desc())
+        .limit(1)
+    )
+    if snapshot is not None:
+        return snapshot
+    return create_exam_snapshot(db, training=training, created_by_id=created_by_id)
 
 
 def _wrap(c, text: str, width: float, font: str, size: float) -> list[str]:
@@ -118,14 +71,22 @@ def _wrap(c, text: str, width: float, font: str, size: float) -> list[str]:
     return lines
 
 
-def build_exam_pdf(*, company_name: str, training) -> bytes:
+def _bucket_label(scopes_json: str) -> str:
+    scopes = json.loads(scopes_json or "[]")
+    kinds = {str(row.get("type") or "") for row in scopes}
+    if "sector" in kinds or "nace" in kinds:
+        return "Sektör"
+    if "hazard" in kinds:
+        return "Teknik"
+    return "Ortak"
+
+
+def build_exam_pdf(*, company_name: str, training, db: Session, created_by_id: int) -> bytes:
     _register_fonts()
-    topics = _topics(training)
-    rnd = random.Random()
-    expanded = (topics * ((15 // len(topics)) + 2))[:]
-    rnd.shuffle(expanded)
-    selected = expanded[:15]
-    questions = [_question(topic, i, rnd) for i, topic in enumerate(selected)]
+    snapshot = _load_or_create_snapshot(db, training, created_by_id)
+    items = list(snapshot.items)
+    if len(items) != 15:
+        raise RuntimeError(f"Sınav snapshot soru sayısı 15 değil: {len(items)}")
 
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
@@ -143,8 +104,8 @@ def build_exam_pdf(*, company_name: str, training) -> bytes:
         c.setFillColorRGB(1, 1, 1)
         c.setFont(FONT_BOLD, 14)
         c.drawCentredString(w / 2, h - 13 * mm, "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM SINAVI")
-        c.setFont(FONT_REGULAR, 8)
-        subtitle = f"{training.hazard_class} • NACE/Sektör: {training.sector or '—'} • 15 Soru"
+        c.setFont(FONT_REGULAR, 7.5)
+        subtitle = f"{training.hazard_class} • Sektör: {training.sector or '—'} • 15 Soru • Sürüm {snapshot.version}"
         c.drawCentredString(w / 2, h - 21 * mm, subtitle)
         c.setFillColorRGB(0.25, 0.3, 0.35)
         c.setFont(FONT_REGULAR, 7)
@@ -175,24 +136,25 @@ def build_exam_pdf(*, company_name: str, training) -> bytes:
 
     y -= 31 * mm
     page_no = 1
-    for qi, q in enumerate(questions, 1):
-        needed = 8 + len(_wrap(c, q["stem"], w - 36 * mm, FONT_BOLD, 8.5)) * 4 + 4 * 5
-        if y < 25 * mm + needed * mm:
+    for item in items:
+        options = json.loads(item.options_json)
+        stem_lines = _wrap(c, f"{item.position}. {item.question_text}", w - 32 * mm, FONT_BOLD, 8.5)
+        option_lines = sum(len(_wrap(c, f"{key}) {value}", w - 42 * mm, FONT_REGULAR, 7.5)) for key, value in options.items())
+        needed_mm = len(stem_lines) * 4.2 + option_lines * 3.7 + 7
+        if y < (25 + needed_mm) * mm:
             c.showPage()
             page_no += 1
             header(page_no)
             y = h - 38 * mm
         c.setFillColorRGB(*navy)
         c.setFont(FONT_BOLD, 8.5)
-        stem_lines = _wrap(c, f"{qi}. {q['stem']}", w - 32 * mm, FONT_BOLD, 8.5)
         for line in stem_lines:
             c.drawString(16 * mm, y, line)
             y -= 4.2 * mm
         c.setFillColorRGB(0.16, 0.2, 0.25)
         c.setFont(FONT_REGULAR, 7.5)
-        for oi, option in enumerate(q["options"]):
-            lines = _wrap(c, f"{'ABCD'[oi]}) {option}", w - 42 * mm, FONT_REGULAR, 7.5)
-            for line in lines:
+        for key in "ABCD":
+            for line in _wrap(c, f"{key}) {options[key]}", w - 42 * mm, FONT_REGULAR, 7.5):
                 c.drawString(22 * mm, y, line)
                 y -= 3.7 * mm
         y -= 3 * mm
@@ -203,15 +165,17 @@ def build_exam_pdf(*, company_name: str, training) -> bytes:
     c.setFillColorRGB(*navy)
     c.setFont(FONT_BOLD, 13)
     c.drawCentredString(w / 2, h - 45 * mm, "CEVAP ANAHTARI")
-    c.setFont(FONT_BOLD, 10)
+    c.setFont(FONT_BOLD, 9)
     y = h - 60 * mm
-    for i, q in enumerate(questions, 1):
-        x = 30 * mm + ((i - 1) % 5) * 32 * mm
-        yy = y - ((i - 1) // 5) * 15 * mm
-        c.drawString(x, yy, f"{i}. {q['answer']}")
-    c.setFont(FONT_REGULAR, 7)
+    for i, item in enumerate(items, 1):
+        x = 25 * mm + ((i - 1) % 5) * 34 * mm
+        yy = y - ((i - 1) // 5) * 14 * mm
+        c.drawString(x, yy, f"{i}. {item.correct_option} ({_bucket_label(item.scopes_json)})")
+
+    c.setFont(FONT_REGULAR, 6.5)
     c.setFillColorRGB(0.35, 0.4, 0.45)
-    c.drawCentredString(w / 2, 20 * mm, "Sorular yalnızca bu eğitim kaydındaki konu havuzundan üretilmiştir.")
+    c.drawCentredString(w / 2, 27 * mm, f"Politika: {snapshot.selection_policy} • İçerik özeti: {snapshot.content_hash[:16]}")
+    c.drawCentredString(w / 2, 20 * mm, "Sınav yalnız yayımlanmış soru bankasından oluşturulmuş ve snapshot olarak sabitlenmiştir.")
 
     c.save()
     return buf.getvalue()
