@@ -235,7 +235,11 @@ function EisaQuestionBankPage({user}){
     return()=>{cancelled=true};
   },[]);
 
-  return <TrainingQuestionBank user={user} sectors={sectors}/>;
+  return (
+    <div className="training-pro eisa-question-bank-page">
+      <TrainingQuestionBank user={user} sectors={sectors}/>
+    </div>
+  );
 }
 
 function Login({done,onApply}){

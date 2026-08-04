@@ -481,6 +481,42 @@
   gap: 1rem;
 }
 
+/* EİSA merkezi soru bankası aynı tasarım dilini kullanır; geniş yönetim
+   ekranlarında veri yoğunluğunu dengeler, dar ekranlarda güvenle küçülür. */
+.training-pro.eisa-question-bank-page {
+  width: 100%;
+  max-width: 1440px;
+  padding-inline: clamp(0px, 1vw, 14px);
+}
+
+.training-pro.eisa-question-bank-page .panel-card,
+.training-pro.eisa-question-bank-page .qb-metric,
+.training-pro.eisa-question-bank-page .qb-question-card,
+.training-pro.eisa-question-bank-page .qb-fieldset,
+.training-pro.eisa-question-bank-page .tp-input,
+.training-pro.eisa-question-bank-page .tp-select,
+.training-pro.eisa-question-bank-page button {
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.training-pro.eisa-question-bank-page .tp-input:hover:not(:disabled),
+.training-pro.eisa-question-bank-page .tp-select:hover:not(:disabled) {
+  border-color: #b8c8d9;
+}
+
+.training-pro.eisa-question-bank-page .qb-icon-button:hover:not(:disabled),
+.training-pro.eisa-question-bank-page .qb-link-button:hover:not(:disabled),
+.training-pro.eisa-question-bank-page .qb-card-actions button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(15, 39, 68, 0.1);
+}
+
+.training-pro.eisa-question-bank-page .tp-grid-2 > *,
+.training-pro.eisa-question-bank-page .qb-card-head > *,
+.training-pro.eisa-question-bank-page .qb-question-top > * {
+  min-width: 0;
+}
+
 .training-pro .qb-hero {
   display: flex;
   align-items: center;
