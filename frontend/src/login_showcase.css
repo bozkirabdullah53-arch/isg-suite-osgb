@@ -307,6 +307,13 @@
   to { transform: scaleX(1); }
 }
 
+/* Masaüstünde giriş/üyelik kartı, tanıtım kartının mevcut ölçüsünü aynen kullanır. */
+@media (min-width: 1280px) {
+  .login-showcase,
+  .login-showcase + .login-wrap { width: 392px; }
+  .login-showcase + .login-wrap .login-card { min-height: 478px; }
+}
+
 /* Tablet: form yerleşimine katılmadan, giriş kartının altında kompakt vitrin. */
 @media (max-width: 1279px) {
   .login-showcase {
