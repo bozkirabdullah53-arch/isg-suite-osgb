@@ -151,6 +151,15 @@ def _patch_question_bank_candidates() -> str:
     """Install approved sector aliases and safe general-production fallback."""
     from app.services import training_question_bank as question_bank
 
+    # FastAPI açık kurulumu sitecustomize sonrasında çalışsa bile yayın
+    # doğrulamasının güncel profil kümesini görmesini sağla.
+    question_bank._SECTOR_VALUES = (
+        frozenset(question_bank._SECTOR_VALUES)
+        | frozenset(question_bank.SEKTOR_PROFIL)
+        | frozenset(question_bank.SEKTOR_PROFIL.values())
+        | frozenset(question_bank.SEKTOREL_EGITIM_KONULARI)
+    )
+
     current = question_bank._candidate_buckets
     if getattr(current, "_source_controlled_candidate_buckets_active", False):
         return "already-active"
