@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/apply_training_color_theme.mjs && node scripts/activate_training_exam.mjs && vite build",
+    "build": "node scripts/apply_training_color_theme.mjs && node scripts/activate_training_exam.mjs && node scripts/activate_training_participant_feedback.mjs && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
