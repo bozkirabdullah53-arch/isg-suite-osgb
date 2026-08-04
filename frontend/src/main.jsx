@@ -18,6 +18,7 @@ import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness
 import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
 import {clearOfflineQueue} from './field_offline';
 import {LoginPasswordInput, PasswordField} from './password_field';
+import {LoginShowcase} from './login_showcase';
 import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';
 import {EmployerOversightPage, EmployerOversightPanel} from './employer_oversight';
 import {OsgbOversightPage} from './osgb_oversight';
@@ -358,6 +359,7 @@ function Login({done,onApply}){
 
   return (
     <main className={mode==='mfa_setup'||mode==='recovery'?'login-shell login-shell--form':'login-shell'}>
+      {mode==='login'&&<LoginShowcase/>}
       <div className={mode==='mfa_setup'||mode==='recovery'?'login-wrap login-wrap--form':'login-wrap'}>
         <div className="login-brand"><img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div>
         <section className="login-card">
