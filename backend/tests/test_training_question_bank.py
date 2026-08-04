@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.database import Base
 from app.models.entities import (
     Company,
+    TrainingExamSnapshot,
     TrainingQuestion,
     TrainingQuestionScope,
     TrainingQuestionSource,
@@ -15,7 +16,9 @@ from app.models.entities import (
     UserRole,
 )
 from app.services.training_question_bank import (
+    FOUNDATIONAL_QUESTION_COUNT,
     InsufficientQuestionBankError,
+    QUESTION_COUNT,
     _curated_buckets,
     create_exam_snapshot,
     nace_scope_matches,
@@ -24,6 +27,7 @@ from app.services.training_question_bank import (
     valid_nace_scope,
     validate_question_for_publish,
 )
+from app.services.training_exam_pdf import _load_or_create_snapshot, build_exam_pdf
 from app.services.training_topics import sectors_list_for_api
 
 
@@ -147,11 +151,18 @@ def test_pdf_only_curated_fallback_creates_snapshot_without_mutating_bank(db: Se
         allow_curated_fallback=True,
     )
 
-    assert exam.question_count == 15
-    assert len(exam.items) == 15
-    assert exam.selection_policy == "approved-db-plus-curated-5x3-v1"
+    assert exam.question_count == QUESTION_COUNT == 20
+    assert len(exam.items) == QUESTION_COUNT
+    assert exam.selection_policy == "foundation-5-plus-approved-db-curated-5x3-v1"
     assert {item.question_id for item in exam.items} == {None}
-    assert len({item.question_code for item in exam.items}) == 15
+    assert len({item.question_code for item in exam.items}) == QUESTION_COUNT
+    assert [item.question_code for item in exam.items[:FOUNDATIONAL_QUESTION_COUNT]] == [
+        "TR-TEMEL-ISG-001",
+        "TR-TEMEL-ISG-002",
+        "TR-TEMEL-ISG-003",
+        "TR-TEMEL-ISG-004",
+        "TR-TEMEL-ISG-005",
+    ]
     assert db.query(TrainingQuestion).count() == 0
 
 
@@ -187,7 +198,7 @@ def test_battery_nace_uses_battery_sector_questions():
     assert all(code.startswith("TR-SEK-AKU-") for code in codes)
 
 
-def test_approved_bank_creates_frozen_15_question_snapshot_and_answer_key(db: Session):
+def test_approved_bank_preserves_existing_15_after_fixed_foundational_five(db: Session):
     training, user = _seed_training(db)
     for i in range(5):
         _question(db, code=f"C-{i}", scope_type="common", scope_value="*", creator=user.id)
@@ -213,22 +224,110 @@ def test_approved_bank_creates_frozen_15_question_snapshot_and_answer_key(db: Se
     assert readiness["available"] == {"common": 5, "technical": 5, "sector": 5}
 
     exam = create_exam_snapshot(db, training=training, created_by_id=user.id)
-    assert exam.question_count == 15
-    assert len(exam.items) == 15
-    assert [item.position for item in exam.items] == list(range(1, 16))
+    assert exam.question_count == QUESTION_COUNT == 20
+    assert len(exam.items) == QUESTION_COUNT
+    assert [item.position for item in exam.items] == list(range(1, QUESTION_COUNT + 1))
     assert len(exam.content_hash) == 64
-    assert len({item.question_code for item in exam.items}) == 15
-    for item in exam.items:
+    assert len({item.question_code for item in exam.items}) == QUESTION_COUNT
+    assert [item.question_code for item in exam.items[:FOUNDATIONAL_QUESTION_COUNT]] == [
+        "TR-TEMEL-ISG-001",
+        "TR-TEMEL-ISG-002",
+        "TR-TEMEL-ISG-003",
+        "TR-TEMEL-ISG-004",
+        "TR-TEMEL-ISG-005",
+    ]
+    dynamic_items = exam.items[FOUNDATIONAL_QUESTION_COUNT:]
+    assert len(dynamic_items) == 15
+    assert sum(item.question_code.startswith("C-") for item in dynamic_items) == 5
+    assert sum(item.question_code.startswith("H-") for item in dynamic_items) == 5
+    assert sum(item.question_code.startswith("S-") for item in dynamic_items) == 5
+    for item in dynamic_items:
         options = __import__("json").loads(item.options_json)
         assert options[item.correct_option] == f"{item.question_code} doğru güvenli uygulama"
 
     # Banka sorusu sonradan taslakta değişse bile sınav kopyası değişmez.
-    original = exam.items[0].question_text
-    bank_row = db.get(TrainingQuestion, exam.items[0].question_id)
+    frozen_item = next(item for item in exam.items if item.question_id is not None)
+    original = frozen_item.question_text
+    bank_row = db.get(TrainingQuestion, frozen_item.question_id)
     bank_row.question_text = "Sonradan değiştirilen banka metni"
     db.commit()
-    db.refresh(exam.items[0])
-    assert exam.items[0].question_text == original
+    db.refresh(frozen_item)
+    assert frozen_item.question_text == original
+
+
+def test_foundational_five_keep_same_order_options_and_answers_in_every_exam(db: Session):
+    training, user = _seed_training(db)
+    training.sector = "genel_uretim"
+    db.commit()
+
+    first = create_exam_snapshot(
+        db,
+        training=training,
+        created_by_id=user.id,
+        allow_curated_fallback=True,
+    )
+    second = create_exam_snapshot(
+        db,
+        training=training,
+        created_by_id=user.id,
+        allow_curated_fallback=True,
+    )
+
+    def signature(snapshot):
+        return [
+            (
+                item.position,
+                item.question_code,
+                item.question_text,
+                item.options_json,
+                item.correct_option,
+                item.scopes_json,
+            )
+            for item in snapshot.items[:FOUNDATIONAL_QUESTION_COUNT]
+        ]
+
+    assert signature(first) == signature(second)
+    assert all('"foundation"' in item.scopes_json for item in first.items[:5])
+
+
+def test_existing_15_question_snapshot_is_upgraded_without_deleting_history(db: Session):
+    training, user = _seed_training(db)
+    old = TrainingExamSnapshot(
+        training_id=training.id,
+        version=1,
+        question_count=15,
+        random_seed="legacy-seed",
+        content_hash="0" * 64,
+        selection_policy="approved-db-plus-curated-5x3-v1",
+        created_by_id=user.id,
+    )
+    db.add(old)
+    db.commit()
+
+    upgraded = _load_or_create_snapshot(db, training, user.id)
+
+    assert upgraded.version == 2
+    assert upgraded.question_count == QUESTION_COUNT
+    assert len(upgraded.items) == QUESTION_COUNT
+    assert db.get(TrainingExamSnapshot, old.id) is old
+
+
+def test_exam_pdf_is_generated_with_twenty_questions(db: Session):
+    training, user = _seed_training(db)
+    training.sector = "genel_uretim"
+    db.commit()
+
+    pdf = build_exam_pdf(
+        company_name="Tersane Test",
+        training=training,
+        db=db,
+        created_by_id=user.id,
+    )
+
+    assert pdf.startswith(b"%PDF")
+    snapshot = _load_or_create_snapshot(db, training, user.id)
+    assert snapshot.question_count == QUESTION_COUNT
+    assert len(snapshot.items) == QUESTION_COUNT
 
 
 def test_retired_latest_terminal_version_does_not_reactivate_old_version(db: Session):
