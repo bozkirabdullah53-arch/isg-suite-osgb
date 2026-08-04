@@ -22,6 +22,7 @@ EXPECTED_RLS_TABLES = {
     "chemical_products",
     "companies",
     "company_subscriptions",
+    "document_approvals",
     "document_records",
     "drill_records",
     "e_sign_artifacts",
@@ -29,16 +30,28 @@ EXPECTED_RLS_TABLES = {
     "e_signature_audit_events",
     "e_signature_requests",
     "emergency_plan_floors",
+    "emergency_plans",
     "emergency_team_assignments",
     "emergency_teams",
     "employees",
+    "eyas_events",
+    "eyas_steps",
+    "eyas_workflows",
     "health_records",
     "incident_events",
     "isg_records",
     "legal_acceptances",
+    "medula_error_logs",
     "notifications",
+    "ohs_committee_meetings",
+    "ohs_committee_members",
     "organization_memberships",
+    "periodic_controls",
     "ppe_assignments",
+    "prescription_items",
+    "prescription_submission_attempts",
+    "prescription_submissions",
+    "prescriptions",
     "risk_assessments",
     "service_contracts",
     "service_visits",
@@ -46,6 +59,7 @@ EXPECTED_RLS_TABLES = {
     "training_sessions",
     "workplace_assignments",
     "workplace_departments",
+    "workplace_measurements",
     "workplace_memberships",
 }
 
@@ -64,7 +78,7 @@ def pg_session():
 
 def test_alembic_head_applied(pg_session: Session):
     ver = pg_session.execute(text("SELECT version_num FROM alembic_version")).scalar()
-    assert ver == "0074_rls_policy_reconcile"
+    assert ver == "0075_rls_critical_expand"
 
 
 def test_same_name_different_osgb_allowed(pg_session: Session):
