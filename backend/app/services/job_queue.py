@@ -92,6 +92,7 @@ def register_handler(name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
 
 
 def _handler_reference(fn: Callable[..., Any]) -> str | None:
+    """Return importable module:qualname; closures/lambdas stay process-local."""
     module = getattr(fn, "__module__", "") or ""
     qualname = getattr(fn, "__qualname__", "") or ""
     if not module or not qualname or "<locals>" in qualname or "<lambda>" in qualname:
@@ -198,7 +199,14 @@ def get_job(job_id: str) -> JobRecord | None:
         return None
 
 
-def _run_job(job_id: str, name: str, args: tuple, kwargs: dict, *, handler_ref: str | None = None) -> None:
+def _run_job(
+    job_id: str,
+    name: str,
+    args: tuple,
+    kwargs: dict,
+    *,
+    handler_ref: str | None = None,
+) -> None:
     rec = _jobs.get(job_id)
     if not rec:
         rec = get_job(job_id)
@@ -208,6 +216,7 @@ def _run_job(job_id: str, name: str, args: tuple, kwargs: dict, *, handler_ref: 
             _jobs[job_id] = rec
     if rec.status in _TERMINAL_STATUSES:
         return
+
     rec.status = JobStatus.RUNNING
     rec.error = None
     _persist(rec)
@@ -260,6 +269,7 @@ def _lease_heartbeat(r, job_id: str, token: str, stop: threading.Event) -> None:
 
 
 def _recover_expired_jobs(r, *, now: float | None = None) -> int:
+    """Move expired processing jobs back to pending when no run lock remains."""
     current = time_module.time() if now is None else now
     recovered = 0
     try:
@@ -295,6 +305,7 @@ def _run_claimed_redis_job(r, job_id: str) -> None:
     if rec and rec.status in _TERMINAL_STATUSES:
         _ack_redis_job(r, job_id)
         return
+
     payload = _load_redis_payload(r, job_id)
     if not payload:
         rec = rec or JobRecord(id=job_id, name="unknown")
@@ -306,37 +317,57 @@ def _run_claimed_redis_job(r, job_id: str) -> None:
         _persist(rec)
         _ack_redis_job(r, job_id)
         return
+
     token = uuid.uuid4().hex
     lock_key = f"{_RUN_LOCK_PREFIX}{job_id}"
     if not r.set(lock_key, token, nx=True, ex=_LEASE_SEC):
+        # Başka worker işi yürütüyor; bu yinelenen claim'i temizle.
         try:
             r.lrem(_PROCESSING_KEY, 1, job_id)
         except Exception:
             logger.exception("Duplicate job claim cleanup failed: %s", job_id)
         return
+
     r.zadd(_LEASES_KEY, {job_id: time_module.time() + _LEASE_SEC})
     stop = threading.Event()
-    heartbeat = threading.Thread(target=_lease_heartbeat, args=(r, job_id, token, stop), name=f"isg-job-heartbeat-{job_id[:8]}", daemon=True)
+    heartbeat = threading.Thread(
+        target=_lease_heartbeat,
+        args=(r, job_id, token, stop),
+        name=f"isg-job-heartbeat-{job_id[:8]}",
+        daemon=True,
+    )
     heartbeat.start()
     try:
-        _run_job(job_id, str(payload.get("name") or ""), tuple(payload.get("args") or []), dict(payload.get("kwargs") or {}), handler_ref=(payload.get("handler") or None))
+        _run_job(
+            job_id,
+            str(payload.get("name") or ""),
+            tuple(payload.get("args") or []),
+            dict(payload.get("kwargs") or {}),
+            handler_ref=(payload.get("handler") or None),
+        )
     finally:
         stop.set()
         _ack_redis_job(r, job_id, token=token)
 
 
 def _consume_legacy_job(r) -> bool:
+    """Best-effort compatibility for queue entries created before v2."""
     popped = r.rpop(_LEGACY_PENDING_KEY)
     if not popped:
         return False
     try:
         payload = json.loads(popped)
         job_id = str(payload["id"])
-        name = str(payload.get("name") or "")
         handler_ref = payload.get("handler")
-        if not handler_ref and _HANDLERS.get(name):
-            handler_ref = _handler_reference(_HANDLERS[name])
-        _run_job(job_id, name, tuple(payload.get("args") or []), dict(payload.get("kwargs") or {}), handler_ref=handler_ref)
+        if not handler_ref:
+            handler_ref = _handler_reference(_HANDLERS.get(str(payload.get("name") or ""))) if _HANDLERS.get(str(payload.get("name") or "")) else None
+        _run_job(
+            job_id,
+            str(payload.get("name") or ""),
+            tuple(payload.get("args") or []),
+            dict(payload.get("kwargs") or {}),
+            handler_ref=handler_ref,
+        )
     except Exception:
         logger.exception("Legacy Redis job could not be processed")
     return True
@@ -381,7 +412,8 @@ def _ensure_worker() -> None:
     with _lock:
         if _worker_started:
             return
-        threading.Thread(target=_worker_loop, name="isg-job-worker", daemon=True).start()
+        t = threading.Thread(target=_worker_loop, name="isg-job-worker", daemon=True)
+        t.start()
         _worker_started = True
 
 
@@ -390,7 +422,16 @@ def _enqueue_redis(r, rec: JobRecord, name: str, fn: Callable[..., Any], args: t
     if not handler_ref:
         logger.warning("Job handler is not importable; using process-local queue: %s", name)
         return False
-    payload = json.dumps({"id": rec.id, "name": name, "handler": handler_ref, "args": list(args), "kwargs": kwargs}, default=str)
+    payload = json.dumps(
+        {
+            "id": rec.id,
+            "name": name,
+            "handler": handler_ref,
+            "args": list(args),
+            "kwargs": kwargs,
+        },
+        default=str,
+    )
     try:
         r.set(f"{_PAYLOAD_PREFIX}{rec.id}", payload, ex=_JOB_TTL_SEC)
         r.lpush(_PENDING_KEY, rec.id)
@@ -405,6 +446,7 @@ def _enqueue_redis(r, rec: JobRecord, name: str, fn: Callable[..., Any], args: t
 
 
 def enqueue(name: str, fn: Callable[..., Any], *args, **kwargs) -> JobRecord:
+    """İş kuyruğa alır. Flag kapalıysa hemen çalıştırır."""
     register_handler(name, fn)
     job_id = uuid.uuid4().hex
     rec = JobRecord(id=job_id, name=name)

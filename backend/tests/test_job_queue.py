@@ -132,7 +132,7 @@ def test_redis_enqueue_persists_importable_handler_reference(monkeypatch):
     assert payload["args"] == [7]
 
 
-def test_expired_processing_job_is_requeued():
+def test_expired_processing_job_is_requeued(monkeypatch):
     fake = _FakeRedis()
     job_id = "expired-job"
     fake.lists[jq._PROCESSING_KEY] = [job_id]
