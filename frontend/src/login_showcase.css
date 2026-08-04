@@ -311,6 +311,7 @@
 @media (min-width: 1280px) {
   .login-showcase,
   .login-showcase + .login-wrap { width: 392px; }
+  .login-showcase { top: calc(50% + 26px); }
   .login-showcase + .login-wrap .login-card { min-height: 478px; }
 }
 
