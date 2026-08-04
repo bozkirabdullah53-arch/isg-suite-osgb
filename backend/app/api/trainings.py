@@ -27,6 +27,7 @@ from app.services.assigned_team import training_defaults
 from app.services.training_employee_import import resolve_or_create_employees
 from app.services.training_excel import parse_employee_upload
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
+from app.services.training_exam_pdf import build_exam_pdf
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 from app.services.training_topics import (
@@ -753,4 +754,34 @@ def certificates_pdf(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="egitim-{training_id}-katilim-belgeleri.pdf"'},
+    )
+
+
+@router.get("/{training_id}/exam.pdf")
+def training_exam_pdf(
+    training_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Yayımlanmış soru bankasından 5 ortak + 5 teknik + 5 sektör soruluk sınav üretir."""
+    row = _load_training(db, training_id)
+    ensure_access(db, user, row.company_id)
+    company = db.get(Company, row.company_id)
+    try:
+        pdf_bytes = build_exam_pdf(
+            company_name=company.name if company else str(row.company_id),
+            training=row,
+            db=db,
+            created_by_id=user.id,
+        )
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(422, str(exc)) from exc
+    except RuntimeError as exc:
+        db.rollback()
+        raise HTTPException(500, str(exc)) from exc
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="egitim-{training_id}-isg-sinavi.pdf"'},
     )

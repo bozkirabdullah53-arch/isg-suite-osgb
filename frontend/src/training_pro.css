@@ -363,6 +363,15 @@
   background: linear-gradient(90deg, #0f2744, #204b79);
 }
 
+.training-pro .education-output-button--exam {
+  background: linear-gradient(135deg, #0f766e 0%, #0b2e4f 100%);
+  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.18);
+}
+
+.training-pro .education-output-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .training-pro .education-output-disabled {
   min-height: 58px;
   border-radius: 16px;
