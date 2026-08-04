@@ -774,6 +774,7 @@ def training_exam_pdf(
             db=db,
             created_by_id=user.id,
         )
+        db.commit()
     except ValueError as exc:
         db.rollback()
         raise HTTPException(422, str(exc)) from exc

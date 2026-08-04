@@ -410,8 +410,11 @@ def generate_exam_snapshot(
     try:
         row = create_exam_snapshot(db, training=training, created_by_id=user.id)
     except InsufficientQuestionBankError as exc:
+        db.rollback()
         raise HTTPException(422, {"message": str(exc), "available": exc.counts}) from exc
-    return _exam_out(row)
+    payload = _exam_out(row)
+    db.commit()
+    return payload
 
 
 @exam_router.get("/{training_id}/exam-snapshots/latest", response_model=ExamSnapshotResponse)
