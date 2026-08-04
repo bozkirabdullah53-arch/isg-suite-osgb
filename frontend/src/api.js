@@ -502,7 +502,7 @@ export async function authBlobUrl(path) {
   return URL.createObjectURL(blob);
 }
 
-export async function downloadFile(path, filename) {
+export async function downloadFile(path, filename, {timeoutMs = 90_000} = {}) {
   await wakeApi();
   const token = localStorage.getItem("isg_token");
   let response;
@@ -511,10 +511,17 @@ export async function downloadFile(path, filename) {
       headers: token ? {Authorization: `Bearer ${token}`} : {},
       mode: "cors",
       credentials: fetchCredentials(path),
+      signal: requestSignal(timeoutMs),
     });
   } catch (e) {
     if (isNetworkError(e)) {
-      throw new Error("Sunucuya bağlanılamadı. Birkaç saniye bekleyip tekrar deneyin.");
+      const timedOut = String(e?.name || "").toLowerCase() === "timeouterror" ||
+        String(e?.message || "").toLowerCase().includes("timeout");
+      throw new Error(
+        timedOut
+          ? "Belge sunucuda zamanında oluşturulamadı. İşlem durduruldu; tekrar deneyin veya soru havuzunu kontrol edin."
+          : "Sunucuya bağlanılamadı. Birkaç saniye bekleyip tekrar deneyin.",
+      );
     }
     throw e;
   }

@@ -171,6 +171,7 @@ function EducationOutputPanel({
   dlBusy,
   onDownloadCertificates,
   onDownloadAttendance,
+  onDownloadExam,
   onSaveAndPrepare,
   canEdit,
   busy,
@@ -232,6 +233,21 @@ function EducationOutputPanel({
         ) : (
           <div className="education-output-disabled" aria-disabled="true">
             Sertifika PDF (Katılım Belgeleri)
+          </div>
+        )}
+        {ready ? (
+          <button
+            type="button"
+            className="education-output-button education-output-button--exam"
+            disabled={!!dlBusy}
+            onClick={onDownloadExam}
+          >
+            <ShieldCheck size={18} />
+            {dlBusy === 'exam' ? 'Hazırlanıyor…' : 'Sınav Oluştur (15 Soru)'}
+          </button>
+        ) : (
+          <div className="education-output-disabled" aria-disabled="true">
+            Sınav Oluştur (15 Soru)
           </div>
         )}
         {ready ? (
@@ -755,6 +771,22 @@ export function TrainingPage({user}) {
       } else {
         setErr('Katılım belgesi PDF indirilemedi: ' + msg);
       }
+    } finally {
+      setDlBusy('');
+    }
+  }
+
+  async function downloadExam(id) {
+    setErr('');
+    setDlBusy('exam');
+    try {
+      await downloadFile(
+        `/trainings/${id}/exam.pdf`,
+        `egitim-${id}-isg-sinavi.pdf`,
+        {timeoutMs: 60_000},
+      );
+    } catch (x) {
+      setErr('Sınav PDF oluşturulamadı: ' + (x.message || x));
     } finally {
       setDlBusy('');
     }
@@ -1658,6 +1690,7 @@ export function TrainingPage({user}) {
             busy={busy}
             onDownloadCertificates={() => downloadCertificates(savedTrainingId)}
             onDownloadAttendance={() => downloadAttendance(savedTrainingId)}
+            onDownloadExam={() => downloadExam(savedTrainingId)}
             onSaveAndPrepare={() => saveTraining({keepForm: true})}
           />
         </div>
@@ -1940,6 +1973,7 @@ export function TrainingPage({user}) {
             busy={busy}
             onDownloadCertificates={() => downloadCertificates(savedTrainingId)}
             onDownloadAttendance={() => downloadAttendance(savedTrainingId)}
+            onDownloadExam={() => downloadExam(savedTrainingId)}
             onSaveAndPrepare={() => saveTraining({keepForm: true})}
           />
         </div>
