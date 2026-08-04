@@ -51,8 +51,26 @@ if old_resolver in topics_text:
     topics_text = topics_text.replace(old_resolver, new_resolver)
 elif new_resolver not in topics_text:
     raise RuntimeError('sektor_kodu_cozumle gövdesi beklenen yapıda değil')
+
+# Akü/batarya eğitimi ile soru paketi aynı konu omurgasını kullanır.
+# NACE 27.20.01 doğrudan aku_uretimi profiline bağlanır.
+aku_override = '''
+
+# STAGING: Akü/batarya konu-soru bütünlüğü
+SEKTOR_PROFIL["nace_27_20_01"] = "aku_uretimi"
+SEKTOREL_EGITIM_KONULARI["aku_uretimi"] = _topics_with_dk([
+    "Kurşun tozu ve dumanı maruziyeti, mühendislik kontrolleri, hijyen ve sağlık gözetimi",
+    "Sülfürik asitle güvenli çalışma, sıçrama, dökülme, acil duş ve göz duşu",
+    "Akü şarjında hidrojen gazı, havalandırma, patlama ve ateşleme kaynakları",
+    "Elektrik, kısa devre, makine güvenliği ve bakımda enerji izolasyonu",
+    "Elle taşıma, yangın, acil durum, tahliye ve periyodik kontroller",
+])
+'''
+if '# STAGING: Akü/batarya konu-soru bütünlüğü' not in topics_text:
+    topics_text = topics_text.rstrip() + aku_override + '\n'
 topics_path.write_text(topics_text, encoding='utf-8')
 print('All NACE records now resolve to central sector profiles.')
+print('Battery training topics aligned with lead-risk question pack.')
 
 # Soru bankasında henüz birebir 15'lik paketi olmayan profiller için yakın paket
 # eşlemesi ve güvenli genel üretim fallback'i uygula. Ortak/teknik dağılım değişmez.
