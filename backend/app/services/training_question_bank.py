@@ -28,14 +28,16 @@ from app.services.training_topics import (
     sectors_list_for_api,
 )
 
-QUESTION_COUNT = 15
+FOUNDATIONAL_QUESTION_COUNT = 5
+EXISTING_QUESTION_COUNT = 15
+QUESTION_COUNT = FOUNDATIONAL_QUESTION_COUNT + EXISTING_QUESTION_COUNT
 BUCKET_TARGETS = {"common": 5, "technical": 5, "sector": 5}
 # Kamuya açılmadan önce her grupta en az üç farklı sınav seti bulunmalıdır.
 # Bu eşik sınav üretimindeki asgari 5x3 kuralını değiştirmez; içerik çeşitliliğini
 # ayrı ve ölçülebilir bir yayın kriteri olarak raporlar.
 RELEASE_BUCKET_TARGETS = {"common": 15, "technical": 15, "sector": 15}
-SELECTION_POLICY = "approved-5x3-v1"
-CURATED_FALLBACK_POLICY = "approved-db-plus-curated-5x3-v1"
+SELECTION_POLICY = "foundation-5-plus-approved-5x3-v1"
+CURATED_FALLBACK_POLICY = "foundation-5-plus-approved-db-curated-5x3-v1"
 VALID_HAZARDS = frozenset({"Az Tehlikeli", "Tehlikeli", "Çok Tehlikeli"})
 _NACE_PREFIX_RE = re.compile(r"^\d{2}(?:\.\d{2}){0,2}$")
 _CATALOG = tuple(sectors_list_for_api())
@@ -564,6 +566,20 @@ def _curated_pack(file_name: str) -> tuple[dict, ...]:
     return tuple(items)
 
 
+def _foundational_questions() -> tuple[dict, ...]:
+    """Return the five fixed questions that lead every sector exam."""
+    questions = _curated_pack("foundation.json")
+    if len(questions) != FOUNDATIONAL_QUESTION_COUNT:
+        raise RuntimeError(
+            "Temel İSG soru paketi tam olarak "
+            f"{FOUNDATIONAL_QUESTION_COUNT} soru içermelidir."
+        )
+    codes = [str(row["question_code"]) for row in questions]
+    if len(set(codes)) != FOUNDATIONAL_QUESTION_COUNT:
+        raise RuntimeError("Temel İSG soru kodları benzersiz olmalıdır.")
+    return questions
+
+
 def _curated_buckets(training: TrainingSession) -> dict[str, list[dict]]:
     ctx = _context(training)
     common = list(_curated_pack("common.json"))
@@ -618,6 +634,25 @@ def _curated_snapshot_item(question: dict, position: int, rnd: random.Random) ->
     }
 
 
+def _fixed_foundational_snapshot_item(question: dict, position: int) -> dict:
+    """Freeze one foundational question without changing its option order."""
+    options = dict(zip("ABCD", question["options"], strict=True))
+    return {
+        "position": position,
+        "question_id": None,
+        "question_code": question["question_code"],
+        "question_version": int(question.get("version") or 1),
+        "topic_code": question["topic_code"],
+        "topic_label": question["topic_label"],
+        "question_text": question["question_text"],
+        "options": options,
+        "correct_option": question["correct_option"],
+        "answer_explanation": question["answer_explanation"],
+        "sources": question["sources"],
+        "scopes": question["scopes"],
+    }
+
+
 def create_exam_snapshot(
     db: Session,
     *,
@@ -643,8 +678,9 @@ def create_exam_snapshot(
 
     seed = secrets.token_hex(16)
     rnd = random.Random(seed)
+    foundational = _foundational_questions()
     selected: list[tuple[str, TrainingQuestion | dict]] = []
-    used_codes: set[str] = set()
+    used_codes: set[str] = {str(row["question_code"]) for row in foundational}
     used_curated = False
     for name, needed in BUCKET_TARGETS.items():
         db_rows = [row for row in buckets[name] if row.question_code not in used_codes]
@@ -662,11 +698,17 @@ def create_exam_snapshot(
             used_curated = True
     rnd.shuffle(selected)
     items = [
+        _fixed_foundational_snapshot_item(question, position)
+        for position, question in enumerate(foundational, start=1)
+    ]
+    items.extend([
         _snapshot_item(question, i, rnd)
         if origin == "database"
         else _curated_snapshot_item(question, i, rnd)
-        for i, (origin, question) in enumerate(selected, start=1)
-    ]
+        for i, (origin, question) in enumerate(
+            selected, start=FOUNDATIONAL_QUESTION_COUNT + 1
+        )
+    ])
 
     canonical = json.dumps(items, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
