@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, training_nace, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions
+from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, training_nace, training_question_selection_audit, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions
 from app.core.rate_limit import SimpleRateLimitMiddleware
 from app.core.request_id import RequestIdMiddleware, install_request_id_logging
 from app.core.tenant_middleware import TenantContextMiddleware
@@ -15,10 +15,13 @@ from app.core.database import Base, SessionLocal, engine
 from app.core.version import APP_VERSION
 from app.services.seed import seed_admin, seed_demo_osgbs
 from app.services.training_runtime_patches import install_training_runtime_patches
+from app.services.training_question_selection_v2 import install_exact_nace_question_selection
 
 logger = logging.getLogger(__name__)
 _training_runtime_status = install_training_runtime_patches()
+_training_question_selection_status = install_exact_nace_question_selection()
 logger.info("training runtime patches: %s", _training_runtime_status)
+logger.info("training exact NACE question selection: %s", _training_question_selection_status)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -146,6 +149,7 @@ for router in (
     operations.router,
     trainings.router,
     training_nace.router,
+    training_question_selection_audit.router,
     training_question_bank.router,
     training_question_bank.exam_router,
     risks.router,
