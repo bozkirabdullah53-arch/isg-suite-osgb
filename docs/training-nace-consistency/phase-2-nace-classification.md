@@ -31,13 +31,15 @@ Yeni kayıtlar için sınıflandırma yalnız tam katalog anahtarı veya tam NAC
 - doğrulama durumu
 - kaynak sınıflandırmanın JSON kopyası
 
+## Doğrulama durumları
+
+- `verified`: Kesin NACE, tehlike sınıfı, beş eğitim konusu ve kontrollü profil risk eşlemesi mevcut.
+- `review_required`: Kesin NACE, tehlike sınıfı ve eğitim konuları mevcut; fakat profil için denetlenmiş teknik risk etiketleri eksik. Sistem ana sektör veya metin benzerliğinden risk uydurmaz.
+- `legacy_unverified`: Tarihsel kayıtta kesin NACE kimliği bulunmuyor.
+
 ## Legacy yaklaşımı
 
-Eski eğitim kayıtlarında yalnız profil kodu varsa sistem kesin NACE tahmin etmez. Bu kayıtlar:
-
-`legacy_unverified`
-
-olarak işaretlenir. Böylece tarihsel kayıtlar silinmez, başka bir NACE'ye yanlış bağlanmaz ve yönetici raporunda açıkça görülebilir.
+Eski eğitim kayıtlarında yalnız profil kodu varsa sistem kesin NACE tahmin etmez. Bu kayıtlar `legacy_unverified` olarak işaretlenir. Böylece tarihsel kayıtlar silinmez, başka bir NACE'ye yanlış bağlanmaz ve yönetici raporunda açıkça görülebilir.
 
 ## Katmanlı sınıflandırma
 
@@ -48,7 +50,7 @@ olarak işaretlenir. Böylece tarihsel kayıtlar silinmez, başka bir NACE'ye ya
 5. Açık teknik risk etiketleri
 6. Tehlike sınıfına bağlı zorunlu süre
 
-Teknik riskler faaliyet adındaki rastlantısal kelimelerle belirlenmez. Önce denetlenmiş profil eşlemesi, profil özelinde eşleme yoksa resmî NACE bölüm ailesi kullanılır. Kullanılan bütün değerler snapshot içinde saklanır.
+Teknik riskler faaliyet adındaki rastlantısal kelimelerle belirlenmez. Yalnız kontrollü profil eşlemesi kullanılabilir. Profil için risk eşlemesi yoksa ana NACE bölümünden genel risk aktarılmaz; kayıt `review_required` olur ve eksiklik snapshot içinde açıkça saklanır.
 
 ## Güvenlik ve izolasyon
 
@@ -60,4 +62,4 @@ Teknik riskler faaliyet adındaki rastlantısal kelimelerle belirlenmez. Önce d
 
 ## Faz 2 sınırı
 
-Bu faz soru seçme algoritmasını veya sertifika ön kontrolünü henüz değiştirmez. Bunlar sırasıyla Faz 3–5 ve Faz 6–9 kapsamında, bu doğrulanmış snapshot temel alınarak uygulanacaktır. Böylece çalışan PDF ve sınav akışı tek kontrolsüz değişiklikle bozulmaz.
+Bu faz soru seçme algoritmasını veya sertifika ön kontrolünü henüz değiştirmez. Bunlar sırasıyla Faz 3–5 ve Faz 6–9 kapsamında, bu sınıflandırma snapshot'ı temel alınarak uygulanacaktır. `review_required` ve `legacy_unverified` kayıtların sınav/sertifika üretiminde nasıl bloke edileceği sonraki fazların zorunlu doğrulama katmanında ele alınacaktır. Böylece çalışan PDF ve sınav akışı tek kontrolsüz değişiklikle bozulmaz.
