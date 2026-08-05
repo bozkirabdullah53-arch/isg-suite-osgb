@@ -47,7 +47,7 @@ def _first_catalog_key_for_profile(profile: str) -> str:
     raise AssertionError(f"Content profile not found in catalog: {profile}")
 
 
-def test_every_official_catalog_row_has_identity_hazard_topics_and_auditable_status():
+def test_every_official_catalog_row_is_fully_verified_and_auditable():
     rows = _official_catalog_rows()
     assert rows
     seen_keys: set[str] = set()
@@ -65,7 +65,13 @@ def test_every_official_catalog_row_has_identity_hazard_topics_and_auditable_sta
             "Çok Tehlikeli",
         }
         assert len(result.training_topics) == 5
-        assert result.classification_status in {"verified", "review_required"}
+        assert result.classification_status == "verified"
+        assert result.technical_risk_tags
+        assert result.source_snapshot["risk_mapping"] == {
+            "status": "verified",
+            "source": "controlled_profile_map_v1",
+            "review_reasons": [],
+        }
 
 
 def test_non_nace_catalog_options_are_not_accepted_as_exact_nace():
@@ -135,14 +141,22 @@ def test_duration_is_derived_from_resolved_hazard_class():
     assert result.required_duration_minutes == result.required_duration_hours * 45
 
 
-def test_unreviewed_profile_does_not_receive_main_sector_risk_fallback():
-    key = _first_catalog_key("62.")
+@pytest.mark.parametrize(
+    ("profile", "required_risks"),
+    [
+        ("bilisim_yazilim_it", {"display_screen", "server_room", "psychosocial"}),
+        ("guzellik_kuafor_spa", {"cosmetic_chemicals", "skin_exposure", "sterilization"}),
+        ("petrol_dogalgaz", {"flammable_gases", "atex", "confined_space"}),
+        ("veterinerlik", {"animal_attack", "zoonoses", "anesthetic_gases"}),
+    ],
+)
+def test_reviewed_profile_risks_are_explicit_and_sector_specific(
+    profile: str, required_risks: set[str]
+):
+    key = _first_catalog_key_for_profile(profile)
     result = resolve_exact_nace(key)
-    assert result.classification_status == "review_required"
-    assert result.technical_risk_tags == ()
-    assert result.source_snapshot["risk_mapping"]["review_reasons"] == [
-        "technical_risk_tags_missing"
-    ]
+    assert result.classification_status == "verified"
+    assert required_risks <= set(result.technical_risk_tags)
 
 
 @pytest.mark.parametrize(
