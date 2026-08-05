@@ -63,7 +63,7 @@ def _replace_heading(value: Any) -> Any:
 
 
 def _apply_exact_nace_topic_corrections(training_topics) -> int:
-    """Copy reviewed profile corrections to every exact NACE catalog key."""
+    """Install reviewed exact-NACE topic and technical-risk overrides."""
     topics_builder = getattr(training_topics, "_topics_with_dk", None)
     corrections = getattr(training_topics, "SEKTOREL_KONU_DUZELTMELERI", {})
     if not callable(topics_builder):
@@ -83,6 +83,10 @@ def _apply_exact_nace_topic_corrections(training_topics) -> int:
     training_topics.SEKTOR_PROFIL["nace_27_20_01"] = "aku_uretimi"
     training_topics.SEKTOREL_EGITIM_KONULARI["aku_uretimi"] = battery_topics
     training_topics.SEKTOREL_EGITIM_KONULARI["nace_27_20_01"] = battery_topics
+
+    from app.services.training_nace_risk_catalog import apply_reviewed_risk_profiles
+
+    apply_reviewed_risk_profiles()
     return changed
 
 
