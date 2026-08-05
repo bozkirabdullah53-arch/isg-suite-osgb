@@ -17,11 +17,8 @@ from app.models.entities import (
     UserRole,
 )
 from app.models.training_nace import TrainingNaceSnapshot
+from app.services import training_question_bank as question_bank
 from app.services.training_nace_classification import resolve_exact_nace
-from app.services.training_question_bank import (
-    create_exam_snapshot,
-    question_bank_readiness,
-)
 from app.services.training_question_selection_v2 import (
     STRICT_DB_POLICY,
     install_exact_nace_question_selection,
@@ -200,7 +197,7 @@ def test_verified_snapshot_strict_mode_rejects_general_production_questions(
         sector_scope="genel_uretim",
     )
 
-    readiness = question_bank_readiness(db, training)
+    readiness = question_bank.question_bank_readiness(db, training)
     assert readiness["available"] == {"common": 5, "technical": 5, "sector": 0}
     assert readiness["ready"] is False
 
@@ -223,11 +220,13 @@ def test_verified_snapshot_strict_mode_accepts_reviewed_profile_scope(
         sector_scope=classification.content_profile_code,
     )
 
-    readiness = question_bank_readiness(db, training)
+    readiness = question_bank.question_bank_readiness(db, training)
     assert readiness["available"] == {"common": 5, "technical": 5, "sector": 5}
     assert readiness["ready"] is True
 
-    exam = create_exam_snapshot(db, training=training, created_by_id=user.id)
+    exam = question_bank.create_exam_snapshot(
+        db, training=training, created_by_id=user.id
+    )
     assert exam.selection_policy == STRICT_DB_POLICY
     assert exam.question_count == 20
     assert len(exam.items) == 20
@@ -245,7 +244,7 @@ def test_legacy_training_keeps_backward_compatible_selection(
         sector_scope="genel_uretim",
     )
 
-    readiness = question_bank_readiness(db, training)
+    readiness = question_bank.question_bank_readiness(db, training)
     assert readiness["ready"] is True
     assert readiness["available"] == {"common": 5, "technical": 5, "sector": 5}
 
@@ -267,7 +266,7 @@ def test_feature_flag_off_preserves_current_behavior_for_verified_snapshot(
         sector_scope="genel_uretim",
     )
 
-    readiness = question_bank_readiness(db, training)
+    readiness = question_bank.question_bank_readiness(db, training)
     assert readiness["ready"] is True
     assert readiness["available"]["sector"] == 5
 
@@ -288,7 +287,4 @@ def test_audit_identifies_curated_alias_only_sector_questions(
     assert audit["verified_snapshot"] is True
     assert audit["legacy"]["curated"]["sector"] >= 5
     assert audit["alias_only_sector_question_count"] >= 5
-    assert all(
-        code not in set(audit["strict"].get("sector_question_codes", []))
-        for code in audit["alias_only_sector_question_codes"]
-    )
+    assert audit["strict"]["curated"]["sector"] < audit["legacy"]["curated"]["sector"]
