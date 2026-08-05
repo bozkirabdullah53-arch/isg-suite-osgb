@@ -63,7 +63,7 @@ def _replace_heading(value: Any) -> Any:
 
 
 def _patch_sector_profile_resolution() -> str:
-    """Install the approved NACE→central-profile resolver without file writes."""
+    """Preserve exact NACE identity while retaining legacy profile readability."""
     from app.services import training_topics
 
     current = training_topics.sektor_kodu_cozumle
@@ -74,18 +74,20 @@ def _patch_sector_profile_resolution() -> str:
         if not sektor:
             return "genel_uretim"
         raw = sektor.strip()
-        if raw in training_topics.SEKTOR_PROFIL:
-            return training_topics.SEKTOR_PROFIL[raw]
+        # Exact catalog keys must remain exact. Downstream services may obtain
+        # the content profile from SEKTOR_PROFIL without destroying identity.
         if raw in training_topics.SEKTOREL_EGITIM_KONULARI:
             return raw
+        if raw in training_topics.SEKTOR_PROFIL:
+            return raw
         nace_code = "nace_" + raw.replace(".", "_")
-        if nace_code in training_topics.SEKTOR_PROFIL:
-            return training_topics.SEKTOR_PROFIL[nace_code]
         if nace_code in training_topics.SEKTOREL_EGITIM_KONULARI:
+            return nace_code
+        if nace_code in training_topics.SEKTOR_PROFIL:
             return nace_code
         for kod, ad in training_topics.SEKTOR_SECENEKLERI:
             if ad.casefold() == raw.casefold():
-                return training_topics.SEKTOR_PROFIL.get(kod, kod)
+                return kod
         for kod, ad in training_topics.PROFIL_ADLARI.items():
             if ad.casefold() == raw.casefold():
                 return kod
@@ -216,9 +218,14 @@ def _patch_certificate_renderer() -> str:
 
 def install_training_runtime_patches() -> dict[str, str]:
     """Install approved training behavior idempotently and without file writes."""
+    from app.services.training_nace_classification import (
+        install_training_nace_snapshot_hooks,
+    )
+
     return {
         "sector_profiles": _patch_sector_profile_resolution(),
         "topics": _patch_training_topics(),
         "question_candidates": _patch_question_bank_candidates(),
         "premium_certificate": _patch_certificate_renderer(),
+        "nace_snapshots": install_training_nace_snapshot_hooks(),
     }
