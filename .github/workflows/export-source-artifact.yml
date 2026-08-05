@@ -22,7 +22,7 @@ jobs:
           git ls-files -z | tar --null -czf ../repository-source.tgz -T -
           mkdir -p artifacts/source-export
           cp ../repository-source.tgz artifacts/source-export/repository-source.tgz
-          sha256sum artifacts/source-export/repository-source.tgz > artifacts/source-export/repository-source.tgz.sha256
+          (cd artifacts/source-export && sha256sum repository-source.tgz > repository-source.tgz.sha256)
       - name: Upload source artifact
         uses: actions/upload-artifact@v4
         with:
