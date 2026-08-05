@@ -8,8 +8,7 @@ echo "ENVIRONMENT=${ENVIRONMENT:-development}"
 
 ENV_LC=$(printf '%s' "${ENVIRONMENT:-development}" | tr '[:upper:]' '[:lower:]')
 
-echo "=== Activating approved training features ==="
-python scripts/activate_training_exam.py
+echo "=== Approved training features are source-controlled ==="
 
 echo "=== Running database migrations ==="
 if alembic upgrade head; then
