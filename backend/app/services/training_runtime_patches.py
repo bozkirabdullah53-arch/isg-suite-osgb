@@ -62,10 +62,39 @@ def _replace_heading(value: Any) -> Any:
     return value
 
 
+def _apply_exact_nace_topic_corrections(training_topics) -> int:
+    """Install reviewed exact-NACE topic and technical-risk overrides."""
+    topics_builder = getattr(training_topics, "_topics_with_dk", None)
+    corrections = getattr(training_topics, "SEKTOREL_KONU_DUZELTMELERI", {})
+    if not callable(topics_builder):
+        raise RuntimeError("Eğitim konu oluşturucusu bulunamadı.")
+
+    changed = 0
+    for exact_key, profile_code in list(training_topics.SEKTOR_PROFIL.items()):
+        corrected = corrections.get(profile_code)
+        if not corrected:
+            continue
+        expected = topics_builder(list(corrected))
+        if training_topics.SEKTOREL_EGITIM_KONULARI.get(exact_key) != expected:
+            training_topics.SEKTOREL_EGITIM_KONULARI[exact_key] = expected
+            changed += 1
+
+    battery_topics = topics_builder(list(BATTERY_TRAINING_TOPICS))
+    training_topics.SEKTOR_PROFIL["nace_27_20_01"] = "aku_uretimi"
+    training_topics.SEKTOREL_EGITIM_KONULARI["aku_uretimi"] = battery_topics
+    training_topics.SEKTOREL_EGITIM_KONULARI["nace_27_20_01"] = battery_topics
+
+    from app.services.training_nace_risk_catalog import apply_reviewed_risk_profiles
+
+    apply_reviewed_risk_profiles()
+    return changed
+
+
 def _patch_sector_profile_resolution() -> str:
-    """Install the approved NACE→central-profile resolver without file writes."""
+    """Preserve stored catalog keys while retaining legacy profile resolution."""
     from app.services import training_topics
 
+    _apply_exact_nace_topic_corrections(training_topics)
     current = training_topics.sektor_kodu_cozumle
     if getattr(current, "_source_controlled_sector_resolver_active", False):
         return "already-active"
@@ -74,9 +103,12 @@ def _patch_sector_profile_resolution() -> str:
         if not sektor:
             return "genel_uretim"
         raw = sektor.strip()
-        if raw in training_topics.SEKTOR_PROFIL:
-            return training_topics.SEKTOR_PROFIL[raw]
+        # Stored exact catalog keys remain exact so the training identity is not
+        # destroyed. Legacy raw numeric NACE input keeps the approved historical
+        # content-profile behavior for backward compatibility.
         if raw in training_topics.SEKTOREL_EGITIM_KONULARI:
+            return raw
+        if raw in training_topics.SEKTOR_PROFIL:
             return raw
         nace_code = "nace_" + raw.replace(".", "_")
         if nace_code in training_topics.SEKTOR_PROFIL:
@@ -85,7 +117,7 @@ def _patch_sector_profile_resolution() -> str:
             return nace_code
         for kod, ad in training_topics.SEKTOR_SECENEKLERI:
             if ad.casefold() == raw.casefold():
-                return training_topics.SEKTOR_PROFIL.get(kod, kod)
+                return kod
         for kod, ad in training_topics.PROFIL_ADLARI.items():
             if ad.casefold() == raw.casefold():
                 return kod
@@ -95,14 +127,6 @@ def _patch_sector_profile_resolution() -> str:
 
     source_controlled_resolver._source_controlled_sector_resolver_active = True
     training_topics.sektor_kodu_cozumle = source_controlled_resolver
-
-    topics_builder = getattr(training_topics, "_topics_with_dk", None)
-    if not callable(topics_builder):
-        raise RuntimeError("Eğitim konu oluşturucusu bulunamadı.")
-    training_topics.SEKTOR_PROFIL["nace_27_20_01"] = "aku_uretimi"
-    training_topics.SEKTOREL_EGITIM_KONULARI["aku_uretimi"] = topics_builder(
-        list(BATTERY_TRAINING_TOPICS)
-    )
 
     # Uvicorn/sitecustomize dışı test veya yardımcı başlangıçlarında daha önce
     # import edilmiş doğrudan fonksiyon referanslarını da aynı davranışa bağla.
@@ -216,9 +240,14 @@ def _patch_certificate_renderer() -> str:
 
 def install_training_runtime_patches() -> dict[str, str]:
     """Install approved training behavior idempotently and without file writes."""
+    from app.services.training_nace_classification import (
+        install_training_nace_snapshot_hooks,
+    )
+
     return {
         "sector_profiles": _patch_sector_profile_resolution(),
         "topics": _patch_training_topics(),
         "question_candidates": _patch_question_bank_candidates(),
         "premium_certificate": _patch_certificate_renderer(),
+        "nace_snapshots": install_training_nace_snapshot_hooks(),
     }

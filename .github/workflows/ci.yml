@@ -21,6 +21,22 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - name: Install
         run: pip install -r requirements.txt
+      - name: NACE classification coverage
+        env:
+          ENVIRONMENT: development
+          SECRET_KEY: ci-secret-key-at-least-32-characters-long
+          DATABASE_URL: sqlite:///./ci_test.db
+          PYTHONPATH: .
+        run: |
+          python scripts/audit_training_nace_classification.py
+          python scripts/list_training_nace_review_profiles.py | tee nace-review-profiles.jsonl
+      - name: Upload NACE review profile summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: nace-review-profiles
+          path: backend/nace-review-profiles.jsonl
+          if-no-files-found: error
+          retention-days: 7
       - name: Pytest (SQLite smoke)
         env:
           ENVIRONMENT: development
@@ -34,6 +50,7 @@ jobs:
           tests/test_rate_limit_runtime_fallback.py
           tests/test_health_crypto_inventory.py
           tests/test_training_runtime_patches.py
+          tests/test_training_nace_classification.py
           tests/test_committee_professional.py
           tests/test_company_access.py
           tests/test_clamav_scan.py
@@ -88,10 +105,11 @@ jobs:
         run: alembic upgrade head
       - name: Postgres schema parity
         run: python scripts/ci_postgres_parity.py
-      - name: Pytest (Postgres parity + committee workflow)
+      - name: Pytest (Postgres parity + training NACE + committee workflow)
         run: >
           pytest -q
           tests/test_ci_postgres_parity.py
+          tests/test_training_nace_classification.py
           tests/test_committee_workflow.py
 
   frontend:

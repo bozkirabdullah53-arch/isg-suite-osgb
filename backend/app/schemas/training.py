@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.models.entities import TrainingStatus
 from app.services.special_training_profiles import resolve_special_duration_hours
+from app.services.training_nace_classification import resolve_exact_nace
 
 # Bir takvim gününde makul üst ders saati (1 günde 16 saat olmaz)
 MAX_TRAINING_HOURS_PER_DAY = 8
@@ -31,7 +32,7 @@ class TrainingCreate(BaseModel):
     start_date: date
     end_date: date
     hazard_class: str
-    sector: str | None = Field(default=None, max_length=120)
+    sector: str = Field(min_length=4, max_length=140)
     instructor_name: str = Field(min_length=3, max_length=160)
     instructor_qualification: str | None = Field(default=None, max_length=220)
     workplace_physician: str | None = Field(default=None, max_length=160)
@@ -71,6 +72,14 @@ class TrainingCreate(BaseModel):
             self.employer_representative, label="İşveren / vekili"
         )
         self.notes = assert_meaningful_text(self.notes, label="Notlar", min_len=3, required=False)
+
+        # Exact NACE identity is mandatory for every new training. The hazard
+        # class is derived from the same catalog row; client-supplied values
+        # cannot create an inconsistent NACE/hazard pair.
+        classification = resolve_exact_nace(self.sector)
+        self.sector = str(classification.catalog_key)
+        self.hazard_class = str(classification.hazard_class)
+
         hours = resolve_training_hours(
             training_type=self.training_type,
             title=self.title,
