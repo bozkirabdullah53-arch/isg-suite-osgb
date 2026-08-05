@@ -9,6 +9,7 @@ from app.services.training_nace_classification import (
     classify_legacy,
     resolve_exact_nace,
 )
+from app.services.training_topics import sektorel_konular
 
 
 def _all_catalog_rows() -> list[dict]:
@@ -31,6 +32,14 @@ def _first_catalog_key(prefix: str) -> str:
         if str(row.get("nace") or "").startswith(prefix):
             return str(row["code"])
     raise AssertionError(f"NACE prefix not found in catalog: {prefix}")
+
+
+def _first_catalog_key_for_profile(profile: str) -> str:
+    for row in _official_catalog_rows():
+        key = str(row["code"])
+        if resolve_exact_nace(key).content_profile_code == profile:
+            return key
+    raise AssertionError(f"Content profile not found in catalog: {profile}")
 
 
 def test_every_official_catalog_row_has_identity_hazard_topics_and_auditable_status():
@@ -129,6 +138,47 @@ def test_unreviewed_profile_does_not_receive_main_sector_risk_fallback():
     assert result.source_snapshot["risk_mapping"]["review_reasons"] == [
         "technical_risk_tags_missing"
     ]
+
+
+@pytest.mark.parametrize(
+    ("profile", "required_terms", "forbidden_terms"),
+    [
+        (
+            "avukatlik_hukuk_burosu",
+            ("ekranlı araçlarla çalışma", "ergonomi", "arşiv"),
+            ("kanalizasyon", "klor", "atıksu"),
+        ),
+        (
+            "guzellik_kuafor_spa",
+            ("kozmetik kimyasallar", "sterilizasyon", "cilt koruma"),
+            ("lpg", "kızgın yağ", "mutfak"),
+        ),
+        (
+            "bilisim_yazilim_it",
+            ("ekranlı araçlarla çalışma", "sistem odası", "kablo düzeni"),
+            ("forklift", "kaynak dumanı", "iskele"),
+        ),
+    ],
+)
+def test_corrected_canonical_topics_override_unrelated_catalog_topics(
+    profile: str,
+    required_terms: tuple[str, ...],
+    forbidden_terms: tuple[str, ...],
+):
+    key = _first_catalog_key_for_profile(profile)
+    result = resolve_exact_nace(key)
+    canonical_topics = tuple(sektorel_konular(key))
+    joined = " ".join(result.training_topics).casefold()
+
+    assert result.training_topics == canonical_topics
+    assert result.source_snapshot["topic_mapping"] == {
+        "source": "canonical_training_topics_v1",
+        "catalog_topics_overridden": True,
+    }
+    for term in required_terms:
+        assert term.casefold() in joined
+    for term in forbidden_terms:
+        assert term.casefold() not in joined
 
 
 def test_training_create_canonicalizes_exact_nace_and_hazard_class():
