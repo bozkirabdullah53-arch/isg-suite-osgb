@@ -92,7 +92,7 @@ def _candidate_key(source_type: str, source_id: int | str, company_id: int) -> s
 
 
 def _member_rows(db: Session, company_id: int) -> list[dict]:
-    return list(db.execute(text("""
+    rows = db.execute(text("""
         SELECT id, company_id, role_code, full_name, start_date, end_date, notes,
                employee_id, user_id, branch_id, identity_key, source_type, source_ref,
                job_title_snapshot, professional_role_snapshot, email_snapshot,
@@ -100,7 +100,8 @@ def _member_rows(db: Session, company_id: int) -> list[dict]:
         FROM ohs_committee_members
         WHERE company_id = :company_id AND is_active = true
         ORDER BY is_mandatory DESC, role_code, full_name, id
-    """), {"company_id": company_id}).mappings())
+    """), {"company_id": company_id}).mappings()
+    return [dict(row) for row in rows]
 
 
 def _missing_mandatory(db: Session, company_id: int) -> list[str]:
