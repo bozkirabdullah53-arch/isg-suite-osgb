@@ -12,6 +12,7 @@ from app.models.entities import ArchiveKind, EisaArchiveRecord, User, UserRole
 from app.services.archive_store import create_tenant_backup, resolve_archive_path
 from app.services.audit import add_audit_log
 from app.services.backup_restore import inspect_backup_file, restore_files_from_backup
+from app.services.backup_safety import validate_backup_archive, verify_archive_checksum
 from app.services.job_queue import JobStatus, async_jobs_enabled, enqueue
 
 router = APIRouter(prefix="/archives", tags=["Yedekleme ve Arşiv"])
@@ -64,7 +65,6 @@ def _assert_can_access(db: Session, user: User, row: EisaArchiveRecord) -> None:
         return
     if user.role != UserRole.COMPANY_ADMIN:
         raise HTTPException(403, "Arşive erişim yetkiniz yok.")
-    # P1-03: TenantContext ikinci hat
     try:
         from app.core.tenant_context import assert_company_access, assert_osgb_access, current_tenant
 
@@ -82,6 +82,19 @@ def _assert_can_access(db: Session, user: User, row: EisaArchiveRecord) -> None:
     if user.company_id and row.company_id == user.company_id:
         return
     raise HTTPException(403, "Bu arşiv kaydına erişemezsiniz.")
+
+
+def _archive_preflight(
+    row: EisaArchiveRecord,
+    path,
+    *,
+    validate_zip: bool,
+) -> dict:
+    checksum_status = verify_archive_checksum(path, row.checksum)
+    result: dict = {"checksum": checksum_status}
+    if validate_zip:
+        result["zip_safety"] = validate_backup_archive(path)
+    return result
 
 
 @router.get("", response_model=list[ArchiveResponse])
@@ -198,6 +211,7 @@ def download_archive(
         path = resolve_archive_path(row)
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
+    _archive_preflight(row, path, validate_zip=False)
     return FileResponse(path, filename=row.original_name or path.name)
 
 
@@ -218,8 +232,10 @@ def archive_restore_plan(
         path = resolve_archive_path(row)
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
-    plan = inspect_backup_file(path, archive_name=row.original_name)
-    return plan.to_dict()
+    integrity = _archive_preflight(row, path, validate_zip=True)
+    plan = inspect_backup_file(path, archive_name=row.original_name).to_dict()
+    plan["integrity"] = integrity
+    return plan
 
 
 @router.post("/{archive_id}/restore")
@@ -240,11 +256,13 @@ def archive_restore(
         path = resolve_archive_path(row)
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
+    integrity = _archive_preflight(row, path, validate_zip=True)
     result = restore_files_from_backup(
         path,
         dry_run=payload.dry_run,
         confirm=payload.confirm,
     )
+    result["integrity"] = integrity
     add_audit_log(
         db,
         user=user,
