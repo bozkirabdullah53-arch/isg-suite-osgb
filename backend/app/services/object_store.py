@@ -5,6 +5,7 @@ Gateway açıkken yazma bu katmandan geçer (local backend = aynı upload_dir d�
 
 Üretimde önerilen geçiş: OBJECT_STORAGE_BACKEND=dual + bucket/credential env.
 Dual mod yerel kopyayı korur, uzak kopyayı boyutuyla doğrular.
+OBJECT_STORAGE_REMOTE_REQUIRED=true ise uzak doğrulama başarısız yazma kabul edilmez.
 """
 from __future__ import annotations
 
@@ -18,6 +19,10 @@ from app.core.config import settings
 
 
 logger = logging.getLogger(__name__)
+
+
+def remote_mirror_required() -> bool:
+    return bool(getattr(settings, "object_storage_remote_required", False))
 
 
 class ObjectStore(Protocol):
@@ -157,8 +162,9 @@ class S3ObjectStore:
 class DualObjectStore:
     """Yerel diski ana kopya tutar, her yazmayı doğrulanmış biçimde R2/S3'e yansıtır.
 
-    Uzak servis geçici olarak erişilemezse çalışan ekranlar yerel disk üzerinden
-    devam eder. Hata loglanır; sonraki yüklemeler tekrar uzak kopya oluşturmayı dener.
+    Varsayılan rollout modunda uzak servis geçici olarak erişilemezse yerel kopya
+    korunur. OBJECT_STORAGE_REMOTE_REQUIRED=true olduğunda ise yazma atomik olarak
+    başarısız sayılır ve yerel değişiklik eski durumuna geri döndürülür.
     """
 
     def __init__(
@@ -170,10 +176,27 @@ class DualObjectStore:
         self.remote = remote or S3ObjectStore()
 
     def put_bytes(self, key: str, content: bytes) -> str:
-        normalized = self.local.put_bytes(key, content)
+        normalized = _normalize_key(key)
+        had_previous = self.local.exists(normalized)
+        previous = self.local.get_bytes(normalized) if had_previous else None
+        normalized = self.local.put_bytes(normalized, content)
         try:
             self.remote.put_bytes(normalized, content)
         except Exception as exc:
+            if remote_mirror_required():
+                try:
+                    if had_previous and previous is not None:
+                        self.local.put_bytes(normalized, previous)
+                    else:
+                        self.local.delete(normalized)
+                except Exception:
+                    logger.exception(
+                        "Uzak aynalama hatası sonrası yerel rollback başarısız: key=%s",
+                        normalized,
+                    )
+                raise RuntimeError(
+                    "Uzak depolama aynalaması zorunlu; dosya kabul edilmedi."
+                ) from exc
             logger.warning(
                 "Uzak depolama aynalama başarısız; yerel kopya korundu: key=%s error=%s",
                 normalized,
@@ -190,6 +213,11 @@ class DualObjectStore:
         return self.local.exists(key) or self.remote.exists(key)
 
     def delete(self, key: str) -> None:
+        if remote_mirror_required():
+            # Uzak silme başarısızsa yerel kopyayı koru; kısmi silme kabul edilmez.
+            self.remote.delete(key)
+            self.local.delete(key)
+            return
         self.local.delete(key)
         try:
             self.remote.delete(key)
@@ -230,16 +258,18 @@ def reset_object_store_for_tests() -> None:
 
 def storage_backend_label() -> str:
     backend = (settings.object_storage_backend or "local").strip().lower() or "local"
+    suffix = "-required" if remote_mirror_required() else ""
     if backend in ("dual", "s3", "r2", "minio"):
-        return f"{backend}-ready-v1" if object_storage_config_ok() else f"{backend}-misconfig-v1"
-    return f"{backend}-v1"
+        state = "ready-v2" if object_storage_config_ok() else "misconfig-v2"
+        return f"{backend}{suffix}-{state}"
+    return f"{backend}{suffix}-v2"
 
 
 def object_storage_config_ok() -> bool:
     """S3/R2 seçildiyse bucket + credential (+ R2 için endpoint) zorunlu; local her zaman OK."""
     backend = (settings.object_storage_backend or "local").strip().lower() or "local"
     if backend in ("local", "disk", "fs"):
-        return True
+        return not remote_mirror_required()
     if backend in ("dual", "s3", "r2", "minio"):
         return remote_object_storage_credentials_ok(backend_hint=backend)
     return False
@@ -274,8 +304,10 @@ def probe_object_storage() -> dict:
         backend_hint=backend if backend in ("s3", "r2", "minio") else None
     ):
         return {
-            "ok": True,
-            "status": "local" if backend in ("local", "disk", "fs") else "incomplete",
+            "ok": not remote_mirror_required(),
+            "status": "required-missing" if remote_mirror_required() else (
+                "local" if backend in ("local", "disk", "fs") else "incomplete"
+            ),
             "remote": "skipped",
             "active_backend": backend,
         }
@@ -330,32 +362,90 @@ def probe_object_storage() -> dict:
         }
 
 
+def object_storage_durability_readiness(*, probe: bool = False) -> dict:
+    """Secret-free durability state for release gates and admin diagnostics."""
+    backend = (settings.object_storage_backend or "local").strip().lower() or "local"
+    credentials = remote_object_storage_credentials_ok(
+        backend_hint=backend if backend in ("s3", "r2", "minio") else None
+    )
+    probe_result = (
+        probe_object_storage()
+        if probe and credentials
+        else {"status": "configured-unprobed" if credentials else "not-configured"}
+    )
+    remote_active = backend in ("dual", "s3", "r2", "minio")
+    remote_ready = credentials and probe_result.get("status") in {
+        "configured-unprobed",
+        "reachable",
+    }
+    required = remote_mirror_required()
+    return {
+        "required": required,
+        "active_backend": backend,
+        "credentials_configured": credentials,
+        "probe_status": probe_result.get("status"),
+        "persistent_disk": persistent_disk_label(),
+        "remote_active": remote_active,
+        "remote_ready": remote_ready,
+        "write_policy": "remote-required" if required else "local-fallback-allowed",
+        "ready": (
+            remote_active and remote_ready
+            if required
+            else (persistent_disk_label() == "mounted-v1" or remote_ready)
+        ),
+    }
+
+
 def maybe_auto_cutover_object_storage() -> dict:
     """Production: credential + HeadBucket OK ise local → güvenli dual yazma."""
     env = (settings.environment or "").strip().lower()
     if env not in ("production", "prod", "live"):
         return {"status": "skipped-non-prod"}
+
+    required = remote_mirror_required()
     if bool(getattr(settings, "object_storage_force_local", False)):
+        if required:
+            raise RuntimeError(
+                "Uzak object storage zorunluyken force-local kullanılamaz."
+            )
         return {"status": "force-local"}
     if not bool(getattr(settings, "object_storage_auto_cutover", True)):
+        backend = (settings.object_storage_backend or "local").strip().lower() or "local"
+        if required and backend in ("local", "disk", "fs"):
+            raise RuntimeError(
+                "Uzak object storage zorunlu fakat auto-cutover kapalı ve backend local."
+            )
         return {"status": "auto-cutover-off"}
 
     backend = (settings.object_storage_backend or "local").strip().lower() or "local"
     if backend not in ("local", "disk", "fs"):
+        if required:
+            probe = probe_object_storage()
+            if probe.get("status") != "reachable":
+                raise RuntimeError("Zorunlu uzak object storage erişilemiyor.")
+            return {"status": "remote-required-ready", "backend": backend, "probe": probe}
         return {"status": "already-remote", "backend": backend}
 
     if not remote_object_storage_credentials_ok():
+        if required:
+            raise RuntimeError("Zorunlu uzak object storage credential eksik.")
         return {"status": "no-creds"}
 
     probe = probe_object_storage()
     if probe.get("status") != "reachable":
+        if required:
+            raise RuntimeError("Zorunlu uzak object storage probe başarısız.")
         return {"status": "unreachable", "probe": probe}
 
     target = "dual"
     settings.object_storage_backend = target
     reset_object_store_for_tests()
     logger.info("object storage auto-cutover: local → %s", target)
-    return {"status": "cutover", "backend": target, "probe": probe}
+    return {
+        "status": "cutover-required" if required else "cutover",
+        "backend": target,
+        "probe": probe,
+    }
 
 
 def verify_object_storage_write() -> dict:
@@ -397,8 +487,6 @@ def verify_object_storage_write() -> dict:
 
 def persistent_disk_label() -> str:
     """UPLOAD_DIR /var/data altında ise Render persistent disk varsay."""
-    from pathlib import Path
-
     candidates = [(settings.upload_dir or "").replace("\\", "/").strip()]
     try:
         candidates.append(str(Path(settings.upload_dir).resolve()).replace("\\", "/"))
@@ -417,21 +505,17 @@ def persistent_disk_label() -> str:
 
 
 def infra_cutover_remaining() -> list[str]:
-    """Bloklayan boşluklar — disk mounted veya uzak storage varsa boş (tek instance %100)."""
-    label = storage_backend_label()
-    if not label.startswith("local"):
+    """Bloklayan depolama boşlukları."""
+    readiness = object_storage_durability_readiness(probe=False)
+    if readiness["ready"]:
         return []
-    if persistent_disk_label() == "mounted-v1":
-        return []
-    if remote_object_storage_credentials_ok() and probe_object_storage().get("status") == "reachable":
-        return []
-    return ["durable_storage"]
+    return ["remote_object_storage"] if remote_mirror_required() else ["durable_storage"]
 
 
 def infra_cutover_optional() -> list[str]:
-    """İsteğe bağlı iyileştirmeler ( %100’ü bloklamaz )."""
+    """İsteğe bağlı iyileştirmeler (zorunlu uzak ayna açıksa artık opsiyonel değildir)."""
     opts: list[str] = []
-    if storage_backend_label().startswith("local"):
+    if not remote_mirror_required() and storage_backend_label().startswith("local"):
         opts.append("object_storage_r2_multi_instance")
     if not bool(settings.backup_restore_enabled):
         opts.append("backup_restore_writes_off_by_design")
@@ -439,45 +523,48 @@ def infra_cutover_optional() -> list[str]:
 
 
 def hardening_complete_label() -> str:
-    """Boş remaining ⇒ complete-v1."""
-    return "complete-v1" if not infra_cutover_remaining() else "in-progress"
+    """Boş remaining ⇒ complete-v2."""
+    return "complete-v2" if not infra_cutover_remaining() else "in-progress"
 
 
 def infra_cutover_steps() -> list[dict]:
-    """GA için adımlar — disk yeterli; R2 opsiyonel."""
+    """GA için depolama adımları; uzak zorunluluk açıldığında blocking olur."""
     disk_ok = persistent_disk_label() == "mounted-v1"
     remote_ok = remote_object_storage_credentials_ok()
     probe = probe_object_storage() if remote_ok else {"status": "no-creds"}
-    remote_live = (not storage_backend_label().startswith("local")) or probe.get("status") == "reachable"
-    steps = [
+    remote_live = (
+        (not storage_backend_label().startswith("local"))
+        and probe.get("status") == "reachable"
+    ) or (
+        storage_backend_label().startswith("local")
+        and probe.get("status") == "reachable"
+    )
+    required = remote_mirror_required()
+    return [
         {
             "id": "persistent_disk",
-            "status": "done" if disk_ok else "pending",
+            "status": "done" if disk_ok else ("optional" if remote_live else "pending"),
             "title": "Render persistent disk",
             "hint": "UPLOAD_DIR=/var/data/uploads ve BACKUP_DIR=/var/data/backups",
-            "blocking": True,
+            "blocking": not remote_live,
         },
         {
             "id": "object_storage_r2",
-            "status": "done" if remote_live else ("optional" if disk_ok else "pending"),
-            "title": "Cloudflare R2 (opsiyonel multi-instance)",
+            "status": "done" if remote_live else ("pending" if required or not disk_ok else "optional"),
+            "title": "Cloudflare R2 / S3 uzak ayna",
             "hint": (
-                "Disk varken tek instance için zorunlu değil. Multi-instance için: "
-                "OBJECT_STORAGE_* + HeadBucket → güvenli dual auto-cutover."
+                "OBJECT_STORAGE_* + HeadBucket + yaz/oku/sil doğrulaması. "
+                "OBJECT_STORAGE_REMOTE_REQUIRED=true olduğunda mirror hatası fail-closed olur."
             ),
             "creds_present": remote_ok,
             "probe_status": probe.get("status"),
-            "blocking": False,
+            "blocking": required,
         },
         {
             "id": "backup_restore_staging_drill",
-            "status": "done",
-            "title": "Restore dry-run (yazma prod'da kapalı)",
-            "hint": (
-                "Dry-run her zaman açık; BACKUP_RESTORE_ENABLED prod'da kapalı kalmalı. "
-                "python scripts/backup_restore_drill.py"
-            ),
-            "blocking": False,
+            "status": "pending",
+            "title": "Gerçek staging backup/restore dry-run tatbikatı",
+            "hint": "Tenant yedeği üret, checksum doğrula ve restore dry-run kanıtı kaydet.",
+            "blocking": True,
         },
     ]
-    return steps
