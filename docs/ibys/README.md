@@ -2,6 +2,14 @@
 
 Bu klasör, İSG Suite OSGB yazılımının Çalışma ve Sosyal Güvenlik Bakanlığı İş Sağlığı ve Güvenliği Genel Müdürlüğüne yapılacak İBYS entegratör başvurusu için hazırlanmıştır.
 
+## Güncel kanıt durumu
+
+- Kanıt bazlı başvuru hazırlığı: **%81**
+- Teknik profil, fail-closed ZIP, ön kontrol ve katı kanıt defteri: tamamlandı.
+- GitHub Actions gerçek dış anonim yetkilendirme smoke: tamamlandı.
+- Şirket profili ve zorunlu belgeler tamamlandığında doğrulanmış eşik: **%96**
+- Hukuk/KVKK, yetkili imza ve randevu paketi onayı tamamlandığında hedef: **%100**
+
 ## Kritik sınır
 
 Bu dosya **Bakanlık tescili veya resmî İBYS teknik uygunluğu iddia etmez**. Bakanlığın güncel resmî veri seti, servis sözleşmesi, kimlik doğrulama yöntemi ve test ortamı erişimi henüz projeye teslim edilmemiştir.
@@ -16,6 +24,7 @@ Başvuru hazırlığı iki ayrı kapıdan oluşur:
 - `BASVURU_DOSYASI_KONTROL_LISTESI.md`: Kurumsal, hukuki ve teknik evrakların sahiplik/durum listesi.
 - `BASVURU_SAHIBI_BILGI_VE_BELGE_FORMU.md`: Gerçek şirket bilgileri, yetkili/teknik irtibat ve zorunlu belge teslim formu.
 - `KANIT_KAPILARI_KAPANIS_FORMU.md`: Hukuk/KVKK, dış yetki smoke, yetkili imza ve İSGGM randevu onaylarının kanıtlı kapanış formu.
+- `EXTERNAL_AUTH_SMOKE_KANITI.md`: Gerçek GitHub runner dış smoke sonucu, run/artifact/hash zinciri ve kapsam sınırı.
 - `TEKNIK_UYGUNLUK_MATRISI.md`: Mevcut sistem kabiliyetleri ile başvuru kanıtlarının eşlemesi.
 - `DEMO_KABUL_SENARYOLARI.md`: Bakanlık sunumu/test görüşmesi için kabul ve ret senaryoları.
 - `RESMI_SOZLESME_TESLIM_TUTANAGI.md`: Resmî veri şeması ve servis sözleşmesi alındığında doldurulacak kontrol tutanağı.
@@ -61,7 +70,7 @@ Araç:
 - Korunan rota `401/403` dışında yanıt verirse veya veri işareti sızdırırsa başarısız olur.
 - Kanıt JSON’unu `evidence_sha256` ile mühürler.
 
-Smoke kanıtı başarılı olduktan sonra dosyanın SHA-256 değeri `evidence-ledger.json` içindeki `external_authorization_smoke` kapısına yazılır.
+Otomatik GitHub Actions smoke run `30982016480` başarıyla tamamlanmıştır. Üç korunan rota `401` döndürmüş; taşınabilir dosya checksum’u ve iç kanıt mührü bağımsız olarak doğrulanmıştır. Ayrıntılar `EXTERNAL_AUTH_SMOKE_KANITI.md` dosyasındadır.
 
 ## Kanıt defteri doğrulaması
 
