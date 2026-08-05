@@ -1,5 +1,5 @@
 {
-  "manifest_version": "1.2.0",
+  "manifest_version": "1.3.0",
   "scope": "ibys_integrator_application_preparation",
   "official_registration_claim": false,
   "measurement_note": "Başvuru dosyasının hazırlanma oranıdır; Bakanlık teknik uygunluk veya tescil oranı değildir.",
@@ -14,7 +14,7 @@
     },
     {
       "code": "candidate_data_profile",
-      "title": "Aday veri-seti profili, doğrulama, idempotency ve ön kontrol",
+      "title": "Aday veri-seti profili, doğrulama, idempotency ve kanıt motoru",
       "weight": 20,
       "completed": 20,
       "status": "ready",
@@ -25,8 +25,10 @@
         "submission envelope",
         "fail-closed application bundle",
         "preflight v1 score and gap report",
-        "CI #427",
-        "Render staging ad390f35702c1d4742b4e9da2273077b5cee8c06 live"
+        "strict evidence-ledger validation",
+        "sensitive-key rejection",
+        "CI #440 and CI #442",
+        "Render staging 60d8c1ddbacf087765498e066bd8662a0dc6e248 live"
       ]
     },
     {
@@ -46,20 +48,20 @@
     },
     {
       "code": "demo_acceptance",
-      "title": "Demo ve kabul senaryoları",
+      "title": "Demo, kabul ve dış yetkilendirme senaryoları",
       "weight": 10,
-      "completed": 9,
-      "status": "staging_verified_external_auth_smoke_pending",
+      "completed": 10,
+      "status": "ready",
       "evidence": [
-        "CI #427",
-        "anonymous preflight request rejected with 401/403 in FastAPI integration test",
-        "sensitive report and tax number non-disclosure test",
-        "Render staging live",
-        "migration OK",
-        "application startup complete",
-        "route registration tests"
-      ],
-      "pending": ["gerçek dış tarayıcı/API ile yetkisiz erişim smoke", "kanıt ekran görüntüleri"]
+        "FastAPI anonymous request 401/403 integration tests",
+        "sensitive report and tax-number non-disclosure tests",
+        "GitHub Actions external anonymous staging smoke run 30982016480",
+        "three protected routes returned 401",
+        "portable file checksum verified",
+        "internal evidence SHA-256 verified",
+        "artifact digest sha256:897eb69b95ee1eaaae844cacc81624efe8f2fc0dcff6dabf05d9ce0abc8afb9b",
+        "Render staging live, migration OK, application startup complete"
+      ]
     },
     {
       "code": "ministry_contract_request",
@@ -75,7 +77,12 @@
       "weight": 15,
       "completed": 0,
       "status": "applicant_documents_required",
-      "evidence": ["başvuru sahibi bilgi ve belge formu", "otomatik belge adı/gap kontrolü", "SHA-256 manifest üretimi"],
+      "evidence": [
+        "başvuru sahibi bilgi ve belge formu",
+        "otomatik belge adı/gap kontrolü",
+        "SHA-256 manifest üretimi",
+        "evidence-ledger template"
+      ],
       "pending": ["ticaret sicili", "faaliyet belgesi", "vergi levhası", "imza sirküleri", "yetkili ve teknik irtibat yazısı"]
     },
     {
@@ -95,19 +102,36 @@
     }
   ],
   "score": {
-    "completed": 80,
+    "completed": 81,
     "total": 100,
-    "percent": 80
+    "percent": 81
   },
   "gates": {
     "technical_ci_and_staging": true,
     "preflight_engine_staging_live": true,
+    "strict_evidence_validation_available": true,
     "anonymous_authorization_ci_test": true,
+    "external_authorization_smoke_completed": true,
     "corporate_documents_verified": false,
     "legal_kvkk_review_completed": false,
     "application_letter_signed": false,
     "appointment_request_ready": true,
-    "external_authorization_smoke_completed": false
+    "appointment_package_approved": false
+  },
+  "external_authorization_smoke_evidence": {
+    "workflow_run_id": "30982016480",
+    "artifact_id": "8920503915",
+    "artifact_name": "ibys-external-auth-smoke-f2c7c0b8d0bdd3c18057f189d85a54688c15f2de",
+    "artifact_digest": "sha256:897eb69b95ee1eaaae844cacc81624efe8f2fc0dcff6dabf05d9ce0abc8afb9b",
+    "evidence_file_sha256": "a8529faea8972793c0aded069588d1d6329643806db33943b043d2c111a74efd",
+    "evidence_internal_sha256": "aecf4aa9d5025cba6ad669416d4e06664eec2098684c3fea50cf37eeb24f73c3",
+    "tested_at": "2026-08-05T06:38:07.869494+00:00",
+    "target": "https://isg-suite-api-staging.onrender.com",
+    "checks": 3,
+    "all_denied_with_401": true,
+    "credentials_sent": false,
+    "response_bodies_stored": false,
+    "leaked_markers": false
   },
   "score_policy": {
     "technical_base": 80,
@@ -117,6 +141,10 @@
     "external_authorization_smoke": 1,
     "signed_application_letter": 1,
     "approved_appointment_package": 1
+  },
+  "next_verified_thresholds": {
+    "complete_company_profile_and_documents": 96,
+    "legal_kvkk_signature_and_appointment_approval": 100
   },
   "external_post_application_gate": {
     "official_contract_received": false,
