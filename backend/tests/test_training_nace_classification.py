@@ -75,6 +75,16 @@ def test_duration_is_derived_from_resolved_hazard_class():
     assert result.required_duration_minutes == result.required_duration_hours * 45
 
 
+def test_unreviewed_profile_does_not_receive_main_sector_risk_fallback():
+    key = _first_catalog_key("62.")
+    result = resolve_exact_nace(key)
+    assert result.classification_status == "review_required"
+    assert result.technical_risk_tags == ()
+    assert result.source_snapshot["risk_mapping"]["review_reasons"] == [
+        "technical_risk_tags_missing"
+    ]
+
+
 def test_training_create_canonicalizes_exact_nace_and_hazard_class():
     key = _first_catalog_key("41.")
     classification = resolve_exact_nace(key)
