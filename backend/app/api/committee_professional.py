@@ -1,4 +1,4 @@
-"""Professional OHS committee API with integrity, approval workflow and history."""
+"""Professional OHS committee API with integrity, approval, signatures and history."""
 from __future__ import annotations
 
 import hashlib
@@ -18,13 +18,22 @@ from sqlalchemy.orm import Session
 from app.api.company_access import ensure_company_access
 from app.api.deps import require_roles
 from app.core.database import get_db
-from app.models.entities import Company, Employee, OhsCommitteeMeeting, User, UserRole
+from app.models.entities import Company, Employee, EyasStep, User, UserRole
 from app.services.assigned_team import assigned_team
 from app.services.committee_meeting_pdf import build_committee_meeting_pdf
+from app.services.committee_signature import (
+    artifact_bytes_by_id,
+    create_signature_request,
+    final_signed_bytes,
+    signature_source,
+)
 from app.services.committee_workflow import (
     approval_members_for_pdf,
+    assert_can_manage,
+    can_manage_company,
     invalidate_approval_for_material_change,
     remove_member,
+    snapshot_members,
     submit_for_approval,
     work_queue,
     work_queue_item,
@@ -143,7 +152,7 @@ def _member_rows(db: Session, company_id: int) -> list[dict]:
                is_mandatory, is_active, created_at,
                removed_at, removed_by_id, removal_reason_code, removal_reason_text
         FROM ohs_committee_members
-        WHERE company_id = :company_id AND is_active = true
+        WHERE company_id=:company_id AND is_active=true
         ORDER BY is_mandatory DESC, role_code, full_name, id
     """), {"company_id": company_id}).mappings()
     return [dict(row) for row in rows]
@@ -157,25 +166,27 @@ def _find_duplicate_member_id(
     employee_id: int | None,
     user_id: int | None,
 ) -> int | None:
-    predicates = ["identity_key = :identity_key"]
+    predicates = ["identity_key=:identity_key"]
     params: dict[str, int | str] = {"company_id": company_id, "identity_key": identity_key}
     if employee_id is not None:
-        predicates.append("employee_id = :employee_id")
+        predicates.append("employee_id=:employee_id")
         params["employee_id"] = employee_id
     if user_id is not None:
-        predicates.append("user_id = :user_id")
+        predicates.append("user_id=:user_id")
         params["user_id"] = user_id
-    statement = text(f"""
-        SELECT id FROM ohs_committee_members
-        WHERE company_id=:company_id AND is_active=true
-          AND ({' OR '.join(predicates)}) LIMIT 1
-    """)
-    return db.execute(statement, params).scalar()
+    return db.execute(
+        text(f"""
+            SELECT id FROM ohs_committee_members
+             WHERE company_id=:company_id AND is_active=true
+               AND ({' OR '.join(predicates)}) LIMIT 1
+        """),
+        params,
+    ).scalar()
 
 
 def _missing_mandatory(db: Session, company_id: int) -> list[str]:
-    roles = {r["role_code"] for r in _member_rows(db, company_id)}
-    return [ROLE_LABELS[r] for r in ("isveren_vekili", "igu", "hekim") if r not in roles]
+    roles = {row["role_code"] for row in _member_rows(db, company_id)}
+    return [ROLE_LABELS[code] for code in ("isveren_vekili", "igu", "hekim") if code not in roles]
 
 
 def _meeting_row(db: Session, meeting_id: int) -> dict:
@@ -188,6 +199,10 @@ def _meeting_row(db: Session, meeting_id: int) -> dict:
     return dict(row)
 
 
+def _initials(name: str | None) -> str:
+    return "".join(part[:1] for part in (name or "?").split()[:2]).upper()
+
+
 @router.get("/candidates")
 def committee_candidates(
     company_id: int,
@@ -198,7 +213,7 @@ def committee_candidates(
     company = db.get(Company, company_id)
     if not company:
         raise HTTPException(404, "İşyeri bulunamadı.")
-    existing = {r.get("identity_key") for r in _member_rows(db, company_id) if r.get("identity_key")}
+    existing = {row.get("identity_key") for row in _member_rows(db, company_id) if row.get("identity_key")}
     team = assigned_team(db, company_id)
     mandatory = []
     employer_name = (company.authorized_person or "").strip()
@@ -206,40 +221,55 @@ def committee_candidates(
         key = _candidate_key("employer", company_id, company_id)
         mandatory.append({
             "identity_key": key, "source_type": "employer", "source_id": company_id,
-            "full_name": employer_name, "job_title": "İşveren / İşveren Vekili",
-            "professional_role": "İşveren", "suggested_role_code": "isveren_vekili",
-            "mandatory": True, "assigned": True, "selected": key in existing,
-            "company_id": company_id, "company_name": company.name,
+            "full_name": employer_name, "initials": _initials(employer_name),
+            "job_title": "İşveren / İşveren Vekili", "professional_role": "İşveren",
+            "suggested_role_code": "isveren_vekili", "mandatory": True,
+            "assigned": True, "selected": key in existing, "company_id": company_id,
+            "company_name": company.name,
         })
     else:
-        mandatory.append({"missing": True, "suggested_role_code": "isveren_vekili", "mandatory": True, "message": "İşveren veya işveren vekili bilgisi bulunamadı."})
+        mandatory.append({
+            "missing": True, "suggested_role_code": "isveren_vekili", "mandatory": True,
+            "message": "İşveren veya işveren vekili bilgisi bulunamadı.",
+        })
     for team_key, role_code, missing_message in (
         ("safety_specialist", "igu", "Bu işyerine iş güvenliği uzmanı atanmamış."),
         ("workplace_physician", "hekim", "Bu işyerine işyeri hekimi atanmamış."),
     ):
         person = team.get(team_key)
         if not person:
-            mandatory.append({"missing": True, "suggested_role_code": role_code, "mandatory": True, "message": missing_message})
+            mandatory.append({
+                "missing": True, "suggested_role_code": role_code,
+                "mandatory": True, "message": missing_message,
+            })
             continue
         key = _candidate_key("professional", person["professional_id"], company_id)
         mandatory.append({
-            "identity_key": key, "source_type": "professional", "source_id": person["professional_id"],
-            "source_ref": str(person.get("assignment_id") or ""), "full_name": person["full_name"],
+            "identity_key": key, "source_type": "professional",
+            "source_id": person["professional_id"],
+            "source_ref": str(person.get("assignment_id") or ""),
+            "full_name": person["full_name"], "initials": _initials(person["full_name"]),
             "job_title": person.get("title"), "professional_role": ROLE_LABELS[role_code],
             "suggested_role_code": role_code, "mandatory": True, "assigned": True,
             "selected": key in existing, "company_id": company_id, "company_name": company.name,
         })
-    employees = list(db.scalars(select(Employee).where(Employee.company_id == company_id, Employee.is_active.is_(True)).order_by(Employee.full_name)).all())
+    employees = list(
+        db.scalars(
+            select(Employee)
+            .where(Employee.company_id == company_id, Employee.is_active.is_(True))
+            .order_by(Employee.full_name)
+        ).all()
+    )
     other = []
     for employee in employees:
         key = _candidate_key("employee", employee.id, company_id)
         other.append({
             "identity_key": key, "source_type": "employee", "source_id": employee.id,
-            "full_name": employee.full_name, "job_title": employee.job_title,
-            "department": employee.department, "branch_id": employee.branch_id,
-            "suggested_role_code": "calisan_temsilcisi", "mandatory": False,
-            "assigned": True, "selected": key in existing, "company_id": company_id,
-            "company_name": company.name,
+            "full_name": employee.full_name, "initials": _initials(employee.full_name),
+            "job_title": employee.job_title, "department": employee.department,
+            "branch_id": employee.branch_id, "suggested_role_code": "calisan_temsilcisi",
+            "mandatory": False, "assigned": True, "selected": key in existing,
+            "company_id": company_id, "company_name": company.name,
         })
     return {
         "company_id": company_id, "company_name": company.name, "mandatory": mandatory,
@@ -258,6 +288,7 @@ def committee_members_detail(
     rows = _member_rows(db, company_id)
     for row in rows:
         row["role_label"] = ROLE_LABELS.get(row["role_code"], row["role_code"])
+        row["initials"] = _initials(row.get("full_name"))
     return rows
 
 
@@ -267,7 +298,7 @@ def create_validated_member(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*MANAGE)),
 ):
-    ensure_company_access(db, user, payload.company_id)
+    assert_can_manage(db, user, payload.company_id)
     company = db.get(Company, payload.company_id)
     if not company:
         raise HTTPException(404, "İşyeri bulunamadı.")
@@ -288,7 +319,10 @@ def create_validated_member(
         job_title = employee.job_title
     elif payload.source_type == "professional":
         team = assigned_team(db, payload.company_id)
-        matched = next((value for value in team.values() if value and int(value["professional_id"]) == int(payload.source_id)), None)
+        matched = next(
+            (value for value in team.values() if value and int(value["professional_id"]) == int(payload.source_id)),
+            None,
+        )
         if not matched:
             raise HTTPException(422, "Uzman/hekim bu işyerinde aktif görevlendirilmiş değil.")
         identity_key = _candidate_key("professional", matched["professional_id"], payload.company_id)
@@ -315,11 +349,17 @@ def create_validated_member(
         normalized_email = _normalize(payload.corporate_email)
         identity_key = f"manual:{payload.company_id}:{hashlib.sha256(normalized_email.encode()).hexdigest()[:24]}"
         full_name, email = payload.full_name.strip(), payload.corporate_email.strip().lower()
-    duplicate = _find_duplicate_member_id(db, company_id=payload.company_id, identity_key=identity_key, employee_id=employee_id, user_id=user_id)
+    duplicate = _find_duplicate_member_id(
+        db,
+        company_id=payload.company_id,
+        identity_key=identity_key,
+        employee_id=employee_id,
+        user_id=user_id,
+    )
     if duplicate:
         raise HTTPException(409, "Bu kişi bu kurulda zaten üye olarak kayıtlıdır.")
     try:
-        row = db.execute(text("""
+        row_id = db.execute(text("""
             INSERT INTO ohs_committee_members
                 (company_id, role_code, full_name, start_date, notes, is_active, created_by_id, created_at,
                  employee_id, user_id, branch_id, identity_key, source_type, source_ref,
@@ -330,18 +370,24 @@ def create_validated_member(
                  :job_title, :professional_role, :email, :is_mandatory)
             RETURNING id
         """), {
-            "company_id": payload.company_id, "role_code": payload.role_code, "full_name": full_name,
-            "start_date": payload.start_date, "notes": payload.notes, "created_by_id": user.id,
-            "created_at": datetime.utcnow(), "employee_id": employee_id, "user_id": user_id,
-            "branch_id": branch_id, "identity_key": identity_key, "source_type": payload.source_type,
-            "source_ref": source_ref, "job_title": job_title, "professional_role": professional_role,
-            "email": email, "is_mandatory": is_mandatory,
+            "company_id": payload.company_id, "role_code": payload.role_code,
+            "full_name": full_name, "start_date": payload.start_date, "notes": payload.notes,
+            "created_by_id": user.id, "created_at": datetime.utcnow(),
+            "employee_id": employee_id, "user_id": user_id, "branch_id": branch_id,
+            "identity_key": identity_key, "source_type": payload.source_type,
+            "source_ref": source_ref, "job_title": job_title,
+            "professional_role": professional_role, "email": email,
+            "is_mandatory": is_mandatory,
         }).scalar_one()
         db.commit()
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(409, "Bu kişi bu kurulda zaten üye olarak kayıtlıdır.") from exc
-    return {"id": row, "identity_key": identity_key, "full_name": full_name, "role_code": payload.role_code, "role_label": ROLE_LABELS[payload.role_code], "is_mandatory": is_mandatory}
+    return {
+        "id": row_id, "identity_key": identity_key, "full_name": full_name,
+        "role_code": payload.role_code, "role_label": ROLE_LABELS[payload.role_code],
+        "is_mandatory": is_mandatory,
+    }
 
 
 @router.post("/members/{member_id}/remove")
@@ -353,8 +399,12 @@ def remove_committee_member(
     user: User = Depends(require_roles(*MANAGE)),
 ):
     return remove_member(
-        db, member_id=member_id, user=user, reason_code=payload.reason_code,
-        reason_text=payload.reason_text, ip=_client_ip(request),
+        db,
+        member_id=member_id,
+        user=user,
+        reason_code=payload.reason_code,
+        reason_text=payload.reason_text,
+        ip=_client_ip(request),
     )
 
 
@@ -367,10 +417,13 @@ def remove_committee_member_compat(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*MANAGE)),
 ):
-    """Backward-compatible route; historical data is still soft-preserved."""
     return remove_member(
-        db, member_id=member_id, user=user, reason_code=reason_code,
-        reason_text=reason_text, ip=_client_ip(request),
+        db,
+        member_id=member_id,
+        user=user,
+        reason_code=reason_code,
+        reason_text=reason_text,
+        ip=_client_ip(request),
     )
 
 
@@ -380,17 +433,20 @@ def create_validated_meeting(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT)),
 ):
-    ensure_company_access(db, user, payload.company_id)
+    assert_can_manage(db, user, payload.company_id)
     missing = _missing_mandatory(db, payload.company_id)
     if payload.status.casefold() in OFFICIAL_STATUSES and missing:
         raise HTTPException(409, f"Kurul eksik. Zorunlu üyeler: {', '.join(missing)}")
     members = _member_rows(db, payload.company_id)
     snapshot = [{
-        "member_id": m["id"], "identity_key": m.get("identity_key"), "full_name": m["full_name"],
-        "role_code": m["role_code"], "role_label": ROLE_LABELS.get(m["role_code"], m["role_code"]),
-        "job_title": m.get("job_title_snapshot"), "professional_role": m.get("professional_role_snapshot"),
+        "member_id": member["id"], "identity_key": member.get("identity_key"),
+        "full_name": member["full_name"], "role_code": member["role_code"],
+        "role_label": ROLE_LABELS.get(member["role_code"], member["role_code"]),
+        "job_title": member.get("job_title_snapshot"),
+        "professional_role": member.get("professional_role_snapshot"),
         "attendance_status": "Belirtilmedi", "signature_status": "İmzalanmadı",
-    } for m in members]
+    } for member in members]
+    now = datetime.utcnow()
     row_id = db.execute(text("""
         INSERT INTO ohs_committee_meetings
             (company_id, meeting_date, agenda, decisions, attendees, next_meeting_date, notes, is_active,
@@ -404,14 +460,15 @@ def create_validated_meeting(
              :approval_status, 1, :created_at)
         RETURNING id
     """), {
-        **payload.model_dump(), "attendees": ", ".join(m["full_name"] for m in members),
-        "created_by_id": user.id, "created_at": datetime.utcnow(),
+        **payload.model_dump(), "attendees": ", ".join(member["full_name"] for member in members),
+        "created_by_id": user.id, "created_at": now,
         "snapshot": json.dumps(snapshot, ensure_ascii=False),
         "approval_status": "incomplete" if missing else "draft",
     }).scalar_one()
     db.commit()
     return {
-        "id": row_id, "status": payload.status, "approval_status": "incomplete" if missing else "draft",
+        "id": row_id, "status": payload.status,
+        "approval_status": "incomplete" if missing else "draft",
         "member_count": len(snapshot), "missing_mandatory": missing,
     }
 
@@ -430,7 +487,7 @@ def committee_meeting_detail(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*VIEW)),
 ):
-    return work_queue_item(db, meeting_id, user=user, include_manager=True)
+    return work_queue_item(db, meeting_id, user=user)
 
 
 @router.post("/meetings/{meeting_id}/submit-approval")
@@ -441,8 +498,37 @@ def submit_committee_meeting(
     user: User = Depends(require_roles(*MANAGE)),
 ):
     return submit_for_approval(
-        db, meeting_id=meeting_id, user=user, ip=_client_ip(request),
+        db,
+        meeting_id=meeting_id,
+        user=user,
+        ip=_client_ip(request),
         user_agent=(request.headers.get("user-agent") or "")[:500] or None,
+    )
+
+
+@router.post("/meetings/{meeting_id}/signature-request")
+def request_committee_signature(
+    meeting_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW)),
+):
+    return create_signature_request(
+        db, meeting_id=meeting_id, user=user, ip=_client_ip(request)
+    )
+
+
+@router.get("/meetings/{meeting_id}/signature-source")
+def download_committee_signature_source(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW)),
+):
+    raw, filename = signature_source(db, meeting_id, user)
+    return StreamingResponse(
+        BytesIO(raw),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -455,33 +541,126 @@ def update_committee_meeting(
     user: User = Depends(require_roles(*MANAGE)),
 ):
     meeting = _meeting_row(db, meeting_id)
-    ensure_company_access(db, user, meeting["company_id"])
+    assert_can_manage(db, user, meeting["company_id"])
     data = payload.model_dump(exclude_unset=True)
     if not data:
-        return work_queue_item(db, meeting_id, user=user, include_manager=True)
-    if data.get("status", meeting.get("status", "draft")).casefold() in OFFICIAL_STATUSES:
+        return work_queue_item(db, meeting_id, user=user)
+    target_status = str(data.get("status") or meeting.get("status") or "draft").casefold()
+    if target_status in OFFICIAL_STATUSES:
         missing = _missing_mandatory(db, meeting["company_id"])
         if missing:
             raise HTTPException(409, f"Kurul eksik. Zorunlu üyeler: {', '.join(missing)}")
-    changed_material = [key for key in MATERIAL_FIELDS if key in data and data[key] != meeting.get(key)]
+    changed_material = [
+        key for key in MATERIAL_FIELDS
+        if key in data and data[key] != meeting.get(key)
+    ]
     if changed_material and meeting.get("approval_workflow_id"):
         invalidate_approval_for_material_change(
-            db, meeting_id=meeting_id, user=user, changed_fields=changed_material,
+            db,
+            meeting_id=meeting_id,
+            user=user,
+            changed_fields=changed_material,
             ip=_client_ip(request),
         )
     allowed = set(MeetingUpdate.model_fields)
     assignments = []
     params: dict[str, object] = {"id": meeting_id, "updated_at": datetime.utcnow()}
     for key, value in data.items():
-        if key not in allowed:
-            continue
-        assignments.append(f"{key}=:{key}")
-        params[key] = value
+        if key in allowed:
+            assignments.append(f"{key}=:{key}")
+            params[key] = value
     if assignments:
         assignments.append("updated_at=:updated_at")
-        db.execute(text(f"UPDATE ohs_committee_meetings SET {', '.join(assignments)} WHERE id=:id"), params)
+        db.execute(
+            text(f"UPDATE ohs_committee_meetings SET {', '.join(assignments)} WHERE id=:id"),
+            params,
+        )
         db.commit()
-    return work_queue_item(db, meeting_id, user=user, include_manager=True)
+    return work_queue_item(db, meeting_id, user=user)
+
+
+def _authorize_version(db: Session, user: User, version_row: dict) -> None:
+    ensure_company_access(db, user, version_row["company_id"])
+    if can_manage_company(db, user, version_row["company_id"]):
+        return
+    workflow_id = version_row.get("approval_workflow_id")
+    if workflow_id and db.scalar(
+        select(EyasStep.id).where(
+            EyasStep.workflow_id == workflow_id,
+            EyasStep.assignee_user_id == user.id,
+        ).limit(1)
+    ):
+        return
+    signed = db.scalar(text("""
+        SELECT id FROM ohs_committee_signature_steps
+         WHERE meeting_id=:meeting_id AND document_version=:version
+           AND signer_user_id=:user_id LIMIT 1
+    """), {
+        "meeting_id": version_row["meeting_id"],
+        "version": version_row["document_version"],
+        "user_id": user.id,
+    })
+    if not signed:
+        raise HTTPException(403, "Bu tarihsel toplantı sürümüne erişim yetkiniz yok.")
+
+
+@router.get("/meetings/{meeting_id}/versions")
+def list_committee_meeting_versions(
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW)),
+):
+    meeting = _meeting_row(db, meeting_id)
+    work_queue_item(db, meeting_id, user=user)
+    rows = db.execute(text("""
+        SELECT id, meeting_id, company_id, document_version,
+               approval_workflow_id, final_signature_artifact_id,
+               pdf_sha256, archive_reason, created_at
+          FROM ohs_committee_meeting_versions
+         WHERE meeting_id=:meeting_id
+         ORDER BY document_version DESC
+    """), {"meeting_id": meeting["id"]}).mappings().all()
+    return [dict(row) for row in rows]
+
+
+@router.get("/meetings/{meeting_id}/versions/{document_version}/pdf")
+def historical_committee_meeting_pdf(
+    meeting_id: int,
+    document_version: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW)),
+):
+    row = db.execute(text("""
+        SELECT * FROM ohs_committee_meeting_versions
+         WHERE meeting_id=:meeting_id AND document_version=:version
+    """), {"meeting_id": meeting_id, "version": document_version}).mappings().first()
+    if not row:
+        raise HTTPException(404, "Tarihsel toplantı sürümü bulunamadı.")
+    version_row = dict(row)
+    _authorize_version(db, user, version_row)
+    if version_row.get("final_signature_artifact_id"):
+        signed = artifact_bytes_by_id(db, int(version_row["final_signature_artifact_id"]))
+        if signed:
+            return StreamingResponse(
+                BytesIO(signed), media_type="application/pdf",
+                headers={"Content-Disposition": f'attachment; filename="OHS_Committee_Meeting_{meeting_id}_v{document_version}_signed.pdf"'},
+            )
+    try:
+        meeting = json.loads(version_row["meeting_snapshot_json"])
+        members = json.loads(version_row.get("member_snapshot_json") or "[]")
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise HTTPException(409, "Tarihsel toplantı snapshotı okunamadı.") from exc
+    members = approval_members_for_pdf(db, meeting, members)
+    company = db.get(Company, version_row["company_id"])
+    pdf = build_committee_meeting_pdf(
+        company={"name": company.name if company else "—", "address": getattr(company, "address", None)},
+        meeting=meeting,
+        members=members,
+    )
+    return StreamingResponse(
+        BytesIO(pdf), media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="OHS_Committee_Meeting_{meeting_id}_v{document_version}.pdf"'},
+    )
 
 
 @router.get("/meetings/{meeting_id}/pdf")
@@ -491,26 +670,24 @@ def committee_meeting_pdf(
     user: User = Depends(require_roles(*VIEW)),
 ):
     meeting = _meeting_row(db, meeting_id)
-    # Participants and authorized managers only; prevents broad same-company PDF browsing.
-    work_queue_item(db, meeting_id, user=user, include_manager=True)
+    work_queue_item(db, meeting_id, user=user)
+    version = int(meeting.get("document_version") or 1)
+    signed = final_signed_bytes(db, meeting_id, version)
+    if signed:
+        digest = hashlib.sha256(signed).hexdigest()
+        return StreamingResponse(
+            BytesIO(signed), media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="OHS_Committee_Meeting_{meeting_id}_v{version}_signed.pdf"',
+                "X-Document-SHA256": digest,
+            },
+        )
     company = db.get(Company, meeting["company_id"])
-    snapshot_raw = meeting.get("member_snapshot_json")
-    if snapshot_raw:
-        try:
-            members = json.loads(snapshot_raw)
-        except json.JSONDecodeError:
-            members = []
-    else:
-        members = [{
-            "identity_key": m.get("identity_key"), "full_name": m["full_name"], "role_code": m["role_code"],
-            "role_label": ROLE_LABELS.get(m["role_code"], m["role_code"]),
-            "job_title": m.get("job_title_snapshot"), "professional_role": m.get("professional_role_snapshot"),
-            "attendance_status": "Belirtilmedi", "signature_status": "İmzalanmadı",
-        } for m in _member_rows(db, meeting["company_id"])]
-    members = approval_members_for_pdf(db, meeting, members)
+    members = approval_members_for_pdf(db, meeting, snapshot_members(meeting))
     pdf = build_committee_meeting_pdf(
         company={"name": company.name if company else "—", "address": getattr(company, "address", None)},
-        meeting=meeting, members=members,
+        meeting=meeting,
+        members=members,
     )
     digest = hashlib.sha256(pdf).hexdigest()
     db.execute(
@@ -522,7 +699,6 @@ def committee_meeting_pdf(
     safe_no = re.sub(r"[^A-Za-z0-9_-]+", "_", str(meeting.get("meeting_no") or meeting_id))[:30]
     meeting_date = meeting.get("meeting_date")
     stamp = meeting_date.isoformat() if hasattr(meeting_date, "isoformat") else str(meeting_date)
-    version = meeting.get("document_version") or 1
     filename = f"OHS_Committee_Meeting_{safe_company}_{safe_no}_{stamp}_v{version}.pdf"
     return StreamingResponse(
         BytesIO(pdf), media_type="application/pdf",
