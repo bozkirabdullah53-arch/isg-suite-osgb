@@ -1,46 +1,64 @@
-# Faz 3 Kullanıcı Kabul Testi
+# Eğitim Faz 3–6 Kabul Testi Kontrol Listesi
 
-Bu kontrol listesi yalnız Faz 3 soru seçimi içindir. Strict özellik bayrağı kapalıyken mevcut canlı sınav davranışı değişmez.
+## A. Geriye uyumluluk
 
-## A. Snapshot doğrulama
+- [ ] Cutover öncesi legacy eğitim açılıyor.
+- [ ] Cutover öncesi verified eğitimde mevcut sınav PDF'si yeniden indirilebiliyor.
+- [ ] Cutover öncesi eğitimde mevcut sertifika PDF davranışı korunuyor.
+- [ ] Tarihsel sınav snapshot sürümü ve content hash değişmiyor.
 
-1. Yeni ve tam NACE seçilmiş bir eğitim açın.
-2. `GET /api/v1/trainings/{training_id}/nace-classification` çağrısında:
-   - `persisted=true`
-   - `classification_status=verified`
-   - `catalog_key=nace_...`
-   - tam NACE kodu ve içerik profili
-   göründüğünü doğrulayın.
+## B. Yeni NACE sınavı
 
-## B. Soru seçimi audit raporu
+- [ ] Cutover sonrası tam NACE ile yeni eğitim oluşturuluyor.
+- [ ] `exam-selection-audit` strict enforced döndürüyor.
+- [ ] Sınav toplam 20 soru içeriyor.
+- [ ] İlk 5 soru sabit temel İSG soruları.
+- [ ] Son 15 soru seçilen NACE snapshot'ındaki beş konuyla ilişkili.
+- [ ] `genel_uretim` veya başka sektör alias sorusu bulunmuyor.
+- [ ] Sınav policy değeri `exact-nace-snapshot-foundation-5-plus-work-specific-15-v2`.
+- [ ] Aynı snapshot yeniden indirildiğinde soru metinleri değişmiyor.
 
-1. `GET /api/v1/trainings/{training_id}/exam-selection-audit` çağrısını yapın.
-2. `verified_snapshot=true` olmalıdır.
-3. `legacy` ve `strict` sayaçlarını karşılaştırın.
-4. `legacy_ready_but_strict_blocked=true` ise sınav yalnız alias/genel fallback sayesinde tamamlanabiliyor demektir.
-5. `alias_only_sector_question_codes` alanındaki sorular ilgili eğitim için strict seçimde kullanılmayacaktır.
+## C. Katılım ve sonuç girişi
 
-## C. Bayrak kapalı regresyonu
+- [ ] Eğitim ekranında “Katılım ve Sonuçları Yönet” paneli görünüyor.
+- [ ] Katılmayan kişiye puan girilemiyor.
+- [ ] Katılan kişiye 0–100 arasında puan girilebiliyor.
+- [ ] Toplu kayıt önceki final doğrulamasını kaldırıyor.
+- [ ] Eksik puanla kesinleştirme reddediliyor.
+- [ ] Başarı, puan ve geçme puanından otomatik hesaplanıyor.
+- [ ] Başarısız kişi eğitim kaydında kalıyor fakat belgeye hak kazanamıyor.
 
-Render ortamında `TRAINING_EXACT_NACE_EXAM_STRICT` tanımlı değilken veya `false` iken:
+## D. Belge üretimi
 
-- Mevcut sınav PDF davranışı değişmemelidir.
-- Tarihsel snapshot tekrar indirildiğinde aynı içerik gelmelidir.
-- Legacy eğitimlerde mevcut fallback çalışmaya devam etmelidir.
+- [ ] Eğitim tamamlanmadan sertifika düğmesi kilitli.
+- [ ] Katılım doğrulanmadan belge üretilemiyor.
+- [ ] Sınav sonuçları doğrulanmadan belge üretilemiyor.
+- [ ] En az bir başarılı katılımcı yoksa belge üretilemiyor.
+- [ ] PDF yalnız başarılı ve katılmış kişileri içeriyor.
+- [ ] PDF'deki belge numarası veritabanındaki certificate number ile aynı.
+- [ ] Kamuya açık doğrulama yalnız hak kazanan kişileri gösteriyor.
 
-## D. Kontrollü strict test
+## E. Teknik doğrulama
 
-Yalnız staging/canary ortamında:
+- [x] 2.141 NACE sınıflandırma testi
+- [x] Her NACE için 15 benzersiz işe özgü soru testi
+- [x] SQLite tam backend testi
+- [x] PostgreSQL Alembic upgrade
+- [x] PostgreSQL ORM–migration parity
+- [x] PostgreSQL regresyonları
+- [x] Frontend test
+- [x] Frontend lint
+- [x] Frontend build
+- [x] Frontend E2E smoke
+- [x] Frontend dependency audit
+- [x] Cutover öncesi davranışı koruma testi
+- [x] Feature-flag rollback testi
 
-```text
-TRAINING_EXACT_NACE_EXAM_STRICT=true
-```
+## F. Canlı gözlem
 
-- Verified eğitimde `genel_uretim` veya ilgisiz alias sorusu seçilmemelidir.
-- Exact NACE, NACE öneki veya incelenmiş içerik profiline ait yeterli soru varsa sınav hazırlanmalıdır.
-- Yeterli soru yoksa sistem açık hata vermeli; ilgisiz soruyla sınavı tamamlamamalıdır.
-- Legacy eğitimler aynı davranışı sürdürmelidir.
-
-## E. Üretim açma kararı
-
-Strict mod ancak hedef NACE/profillerin tamamında `strict.ready=true` olduktan ve sınav PDF'leri uzman tarafından içerik yönünden incelendikten sonra üretimde açılmalıdır.
+- [ ] Render API deploy `live`.
+- [ ] Render web deploy `live`.
+- [ ] `/health` 200.
+- [ ] Startup loglarında iki training guard aktif.
+- [ ] Deploy sonrasında yeni 5xx artışı yok.
+- [ ] Rollback SHA ve bayrak kapatma komutu kayıtlı.
