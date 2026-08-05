@@ -463,7 +463,7 @@ def work_queue_item(db: Session, meeting_id: int, *, user: User) -> dict[str, An
         pending_action = "approve"
     elif (workflow and workflow["status"] == "in_progress") or (signature_workflow and signature_workflow["status"] == "in_progress"):
         pending_action = "wait"
-    elif can_manage and (not workflow or meeting.get("approval_status") in {"draft", "rejected", "revision_required", "incomplete"}):
+    elif can_manage and (not workflow or meeting.get("approval_status") in {"draft", "rejected", "returned_for_correction", "revision_required", "incomplete"}):
         pending_action = "submit"
     else:
         pending_action = "none"

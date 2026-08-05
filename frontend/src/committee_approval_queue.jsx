@@ -12,6 +12,7 @@ const STATUS_LABELS = {
   waiting_for_approval: 'Onay Bekliyor',
   approved: 'Onaylandı',
   rejected: 'Reddedildi',
+  returned_for_correction: 'Düzeltmeye İade Edildi',
   revision_required: 'Yeniden Onay Gerekli',
   waiting_for_signature: 'İmza Bekliyor',
   not_signed: 'İmzalanmadı',
@@ -29,7 +30,7 @@ function statusLabel(value) {
 function statusTone(value) {
   if (['approved', 'signed', 'locked'].includes(value)) return 'success';
   if (['rejected', 'invalidated'].includes(value)) return 'danger';
-  if (['incomplete', 'revision_required'].includes(value)) return 'warning';
+  if (['incomplete', 'revision_required', 'returned_for_correction'].includes(value)) return 'warning';
   if (['waiting_for_review', 'waiting_for_approval', 'waiting_for_signature', 'in_progress', 'active'].includes(value)) return 'info';
   return 'neutral';
 }
@@ -113,7 +114,7 @@ export function CommitteeApprovalQueue({user, companyId = '', compact = false, o
 
   async function decide() {
     if (!decision || busy) return;
-    if (decision.action === 'reject' && !note.trim()) {
+    if (decision.action !== 'approve' && !note.trim()) {
       setErr('Red veya düzeltmeye iade için gerekçe zorunludur.');
       return;
     }
@@ -124,15 +125,26 @@ export function CommitteeApprovalQueue({user, companyId = '', compact = false, o
     }
     setBusy(true); setErr(''); setSuccess('');
     try {
-      await api(`/eyas/workflows/${workflowId}/${decision.action === 'approve' ? 'approve' : 'reject'}`, {
-        method: 'POST',
-        body: JSON.stringify({
-          note: note.trim() || null,
-          device_note: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 200) : null,
-        }),
-      });
+      const deviceNote = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 200) : null;
+      if (decision.action === 'return') {
+        await api(`/ohs-committee/meetings/${decision.row.id}/return-correction`, {
+          method: 'POST',
+          body: JSON.stringify({reason: note.trim(), device_note: deviceNote}),
+        });
+      } else {
+        await api(`/eyas/workflows/${workflowId}/${decision.action === 'approve' ? 'approve' : 'reject'}`, {
+          method: 'POST',
+          body: JSON.stringify({note: note.trim() || null, device_note: deviceNote}),
+        });
+      }
       setDecision(null); setNote('');
-      setSuccess(decision.action === 'approve' ? 'Onay adımınız tamamlandı.' : 'Toplantı gerekçeli olarak reddedildi ve taslağa döndü.');
+      setSuccess(
+        decision.action === 'approve'
+          ? 'Onay adımınız tamamlandı.'
+          : decision.action === 'return'
+            ? 'Toplantı gerekçeli olarak düzeltmeye iade edildi.'
+            : 'Toplantı gerekçeli olarak reddedildi ve taslağa döndü.'
+      );
       await load();
       if (onChanged) onChanged();
     } catch (error) {
@@ -232,7 +244,8 @@ export function CommitteeApprovalQueue({user, companyId = '', compact = false, o
               <button type="button" className="secondary" onClick={() => downloadFile(row.pdf_path, `ISG_Kurulu_${row.id}_v${row.document_version}.pdf`).catch((error) => setErr(error.message))}><Download size={15} /> PDF</button>
               {row.pending_action === 'submit' && row.can_manage && <button type="button" disabled={busy} onClick={() => void submit(row)}><Send size={15} /> Onaya Gönder</button>}
               {row.pending_action === 'approve' && <button type="button" disabled={busy} onClick={() => openDecision(row, 'approve')}><CheckCircle2 size={15} /> Onayla</button>}
-              {row.pending_action === 'approve' && <button type="button" className="danger" disabled={busy} onClick={() => openDecision(row, 'reject')}><XCircle size={15} /> Reddet / İade</button>}
+              {row.pending_action === 'approve' && <button type="button" className="warning-secondary" disabled={busy} onClick={() => openDecision(row, 'return')}><RefreshCw size={15} /> Düzeltmeye İade</button>}
+              {row.pending_action === 'approve' && <button type="button" className="danger" disabled={busy} onClick={() => openDecision(row, 'reject')}><XCircle size={15} /> Reddet</button>}
               {row.pending_action === 'sign' && <button type="button" disabled={busy} onClick={() => void sign(row)}><FileSignature size={15} /> Elektronik İmzala</button>}
               {row.pending_action === 'wait' && <span className="committee-flow-wait"><Clock3 size={15} /> Sıranız bekleniyor</span>}
             </div>
@@ -256,15 +269,15 @@ export function CommitteeApprovalQueue({user, companyId = '', compact = false, o
         </div>
       </AppModal>}
 
-      {decision && <AppModal title={decision.action === 'approve' ? 'Toplantıyı Onayla' : 'Toplantıyı Reddet / Düzeltmeye İade Et'} close={() => !busy && setDecision(null)}>
+      {decision && <AppModal title={decision.action === 'approve' ? 'Toplantıyı Onayla' : decision.action === 'return' ? 'Toplantıyı Düzeltmeye İade Et' : 'Toplantıyı Reddet'} close={() => !busy && setDecision(null)}>
         <div className="committee-decision-dialog">
           <div className={`committee-decision-icon ${decision.action}`}>
             {decision.action === 'approve' ? <CheckCircle2 /> : <XCircle />}
           </div>
           <h3>{decision.row.title}</h3>
-          <p>{decision.action === 'approve' ? 'Belgeyi incelediğinizi ve kendi onay adımınızı tamamladığınızı doğrulayın.' : 'Toplantının neden reddedildiğini veya hangi düzeltmenin gerektiğini açıkça yazın.'}</p>
-          <label className="field"><span>{decision.action === 'approve' ? 'Onay notu (isteğe bağlı)' : 'Red / düzeltme gerekçesi (zorunlu)'}</span><textarea rows={4} value={note} onChange={(event) => setNote(event.target.value)} /></label>
-          <div className="form-actions"><button type="button" className="secondary" disabled={busy} onClick={() => setDecision(null)}>Vazgeç</button><button type="button" className={decision.action === 'approve' ? '' : 'danger'} disabled={busy || (decision.action === 'reject' && !note.trim())} onClick={() => void decide()}>{busy ? 'İşleniyor…' : decision.action === 'approve' ? 'Onayımı Tamamla' : 'Gerekçeli Olarak İade Et'}</button></div>
+          <p>{decision.action === 'approve' ? 'Belgeyi incelediğinizi ve kendi onay adımınızı tamamladığınızı doğrulayın.' : decision.action === 'return' ? 'Toplantıda yapılması gereken düzeltmeleri açık ve uygulanabilir biçimde yazın.' : 'Toplantının neden reddedildiğini açıkça yazın.'}</p>
+          <label className="field"><span>{decision.action === 'approve' ? 'Onay notu (isteğe bağlı)' : decision.action === 'return' ? 'Düzeltme gerekçesi (zorunlu)' : 'Red gerekçesi (zorunlu)'}</span><textarea rows={4} value={note} onChange={(event) => setNote(event.target.value)} /></label>
+          <div className="form-actions"><button type="button" className="secondary" disabled={busy} onClick={() => setDecision(null)}>Vazgeç</button><button type="button" className={decision.action === 'approve' ? '' : 'danger'} disabled={busy || (decision.action !== 'approve' && !note.trim())} onClick={() => void decide()}>{busy ? 'İşleniyor…' : decision.action === 'approve' ? 'Onayımı Tamamla' : decision.action === 'return' ? 'Düzeltmeye İade Et' : 'Gerekçeli Olarak Reddet'}</button></div>
         </div>
       </AppModal>}
     </section>

@@ -11,7 +11,7 @@ from sqlalchemy import text
 from app.api.committee_professional import _find_duplicate_member_id
 from app.core.database import SessionLocal
 from app.models.entities import Company, ESignRequest, EyasStep, EyasWorkflow, User, UserRole
-from app.services import committee_signature, committee_workflow
+from app.services import committee_correction, committee_signature, committee_workflow
 
 
 def _token() -> str:
@@ -452,3 +452,70 @@ def test_signature_request_cannot_be_completed_by_another_participant():
         with pytest.raises(HTTPException) as forbidden:
             committee_signature.authorize_completion(db, request, users["physician"])
         assert forbidden.value.status_code == 403
+
+
+
+def test_return_for_correction_has_distinct_status_and_audit():
+    with SessionLocal() as db:
+        company, users = _create_company_and_users(db)
+        users["specialist"].mfa_enabled = True
+        db.commit()
+        meeting_id = _insert_meeting(db, company.id, users["admin"].id)
+        workflow = EyasWorkflow(
+            company_id=company.id,
+            title="Düzeltmeye İade Kurul Akışı",
+            document_kind="ohs_committee_meeting",
+            source_document_id=None,
+            source_sha256="d" * 64,
+            status="in_progress",
+            current_step_order=1,
+            created_by_id=users["admin"].id,
+            is_active=True,
+        )
+        db.add(workflow)
+        db.flush()
+        db.add_all([
+            EyasStep(
+                workflow_id=workflow.id,
+                company_id=company.id,
+                step_order=index,
+                assignee_user_id=users[key].id,
+                role_label=role_label,
+                status="active" if index == 1 else "pending",
+            )
+            for index, key, role_label in (
+                (1, "specialist", "İş Güvenliği Uzmanı"),
+                (2, "physician", "İşyeri Hekimi"),
+                (3, "employer", "İşveren / vekili"),
+            )
+        ])
+        db.execute(
+            text("UPDATE ohs_committee_meetings SET approval_workflow_id=:workflow_id, approval_status='waiting_for_review' WHERE id=:id"),
+            {"workflow_id": workflow.id, "id": meeting_id},
+        )
+        db.commit()
+
+        result = committee_correction.return_for_correction(
+            db,
+            meeting_id=meeting_id,
+            user=users["specialist"],
+            reason="Gündem maddesi sorumlu ve termin bilgisiyle düzeltilmelidir.",
+            device_note="pytest",
+        )
+        assert result["approval_status"] == "returned_for_correction"
+        status, approval_status = db.execute(
+            text("SELECT status, approval_status FROM ohs_committee_meetings WHERE id=:id"),
+            {"id": meeting_id},
+        ).one()
+        assert status == "draft"
+        assert approval_status == "returned_for_correction"
+        step_status, step_note = db.execute(
+            text("SELECT status, note FROM eyas_steps WHERE workflow_id=:workflow_id AND step_order=1"),
+            {"workflow_id": workflow.id},
+        ).one()
+        assert step_status == "rejected"
+        assert step_note.startswith("[DÜZELTMEYE İADE]")
+        assert db.scalar(
+            text("SELECT id FROM audit_logs WHERE action='committee.meeting.return_for_correction' AND entity_id=:entity_id ORDER BY id DESC LIMIT 1"),
+            {"entity_id": str(meeting_id)},
+        )

@@ -20,6 +20,7 @@ from app.api.deps import require_roles
 from app.core.database import get_db
 from app.models.entities import Company, Employee, EyasStep, User, UserRole
 from app.services.assigned_team import assigned_team
+from app.services.committee_correction import return_for_correction
 from app.services.committee_meeting_pdf import build_committee_meeting_pdf
 from app.services.committee_signature import (
     artifact_bytes_by_id,
@@ -90,6 +91,11 @@ class MemberSelection(BaseModel):
 class MemberRemovalBody(BaseModel):
     reason_code: str = Field(min_length=3, max_length=60)
     reason_text: str | None = Field(default=None, max_length=1000)
+
+
+class CorrectionBody(BaseModel):
+    reason: str = Field(min_length=3, max_length=1000)
+    device_note: str | None = Field(default=None, max_length=240)
 
 
 class MeetingValidatedCreate(BaseModel):
@@ -501,6 +507,25 @@ def submit_committee_meeting(
         db,
         meeting_id=meeting_id,
         user=user,
+        ip=_client_ip(request),
+        user_agent=(request.headers.get("user-agent") or "")[:500] or None,
+    )
+
+
+@router.post("/meetings/{meeting_id}/return-correction")
+def return_committee_meeting_for_correction(
+    meeting_id: int,
+    payload: CorrectionBody,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW)),
+):
+    return return_for_correction(
+        db,
+        meeting_id=meeting_id,
+        user=user,
+        reason=payload.reason,
+        device_note=payload.device_note,
         ip=_client_ip(request),
         user_agent=(request.headers.get("user-agent") or "")[:500] or None,
     )
