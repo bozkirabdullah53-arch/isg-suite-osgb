@@ -1,0 +1,31 @@
+name: Export Source Artifact
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - ".github/workflows/export-source-artifact.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Package repository source
+        run: |
+          tar --exclude=.git --exclude='frontend/node_modules' --exclude='backend/.venv' -czf repository-source.tgz .
+          sha256sum repository-source.tgz > repository-source.tgz.sha256
+      - name: Upload source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repository-source-${{ github.sha }}
+          path: |
+            repository-source.tgz
+            repository-source.tgz.sha256
+          if-no-files-found: error
+          retention-days: 1
