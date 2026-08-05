@@ -88,8 +88,11 @@ jobs:
         run: alembic upgrade head
       - name: Postgres schema parity
         run: python scripts/ci_postgres_parity.py
-      - name: Pytest (Postgres parity)
-        run: pytest -q tests/test_ci_postgres_parity.py
+      - name: Pytest (Postgres parity + committee workflow)
+        run: >
+          pytest -q
+          tests/test_ci_postgres_parity.py
+          tests/test_committee_workflow.py
 
   frontend:
     runs-on: ubuntu-latest
