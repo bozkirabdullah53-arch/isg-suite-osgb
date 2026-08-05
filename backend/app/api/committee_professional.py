@@ -104,6 +104,38 @@ def _member_rows(db: Session, company_id: int) -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def _find_duplicate_member_id(
+    db: Session,
+    *,
+    company_id: int,
+    identity_key: str,
+    employee_id: int | None,
+    user_id: int | None,
+) -> int | None:
+    """Return an active duplicate without sending untyped NULL binds to PostgreSQL."""
+    predicates = ["identity_key = :identity_key"]
+    params: dict[str, int | str] = {
+        "company_id": company_id,
+        "identity_key": identity_key,
+    }
+    if employee_id is not None:
+        predicates.append("employee_id = :employee_id")
+        params["employee_id"] = employee_id
+    if user_id is not None:
+        predicates.append("user_id = :user_id")
+        params["user_id"] = user_id
+
+    statement = text(f"""
+        SELECT id
+        FROM ohs_committee_members
+        WHERE company_id = :company_id
+          AND is_active = true
+          AND ({' OR '.join(predicates)})
+        LIMIT 1
+    """)
+    return db.execute(statement, params).scalar()
+
+
 def _missing_mandatory(db: Session, company_id: int) -> list[str]:
     roles = {r["role_code"] for r in _member_rows(db, company_id)}
     return [ROLE_LABELS[r] for r in ("isveren_vekili", "igu", "hekim") if r not in roles]
@@ -265,7 +297,13 @@ def create_validated_member(
         identity_key = f"manual:{payload.company_id}:{hashlib.sha256(normalized_email.encode()).hexdigest()[:24]}"
         full_name, email = payload.full_name.strip(), payload.corporate_email.strip().lower()
 
-    duplicate = db.execute(text("SELECT id FROM ohs_committee_members WHERE company_id=:company_id AND is_active=true AND (identity_key=:identity_key OR (:employee_id IS NOT NULL AND employee_id=:employee_id) OR (:user_id IS NOT NULL AND user_id=:user_id)) LIMIT 1"), {"company_id": payload.company_id, "identity_key": identity_key, "employee_id": employee_id, "user_id": user_id}).scalar()
+    duplicate = _find_duplicate_member_id(
+        db,
+        company_id=payload.company_id,
+        identity_key=identity_key,
+        employee_id=employee_id,
+        user_id=user_id,
+    )
     if duplicate:
         raise HTTPException(409, "Bu kişi bu kurulda zaten üye olarak kayıtlıdır.")
 
