@@ -30,8 +30,9 @@ def test_under_fifty_employees_flags_committee_for_context_review_without_changi
     assert result["priority_count"] == 2
     assert result["score_changed"] is False
     assert result["contextual_review_count"] == 1
-    assert "50 çalışan eşiğine" in result["contextual_notes"][0]["detail"]
-    assert "altı aydan fazla" in result["contextual_notes"][0]["detail"]
+    detail = result["contextual_notes"][0]["detail"].casefold()
+    assert "50 çalışan eşiğine" in detail
+    assert "altı aydan fazla" in detail
 
     by_code = {item["code"]: item for item in result["priority_items"]}
     assert by_code["risk_degerlendirme"]["action_module"] == "risk"
