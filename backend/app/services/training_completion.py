@@ -1,16 +1,17 @@
 """Training result finalization and certificate eligibility guard.
 
 Strict enforcement applies only to trainings with a persisted/verified NACE
-snapshot and only when ``TRAINING_COMPLETION_STRICT=true``. Legacy records keep
-their historical behavior. No historical PDF or exam snapshot is modified.
+snapshot, when ``TRAINING_COMPLETION_STRICT=true``, and optionally only after the
+ISO timestamp in ``TRAINING_COMPLETION_STRICT_AFTER``. This cutover preserves all
+pre-existing training and certificate workflows. No historical PDF or exam
+snapshot is modified.
 """
 from __future__ import annotations
 
 import os
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from io import BytesIO
-from types import SimpleNamespace
 from typing import Any
 
 from reportlab.lib.pagesizes import A4, landscape
@@ -22,6 +23,7 @@ from app.models.entities import TrainingParticipant, TrainingSession, TrainingSt
 from app.models.training_nace import TrainingNaceSnapshot
 
 STRICT_ENV = "TRAINING_COMPLETION_STRICT"
+STRICT_AFTER_ENV = "TRAINING_COMPLETION_STRICT_AFTER"
 
 _original_certificate_builder = None
 
@@ -29,6 +31,19 @@ _original_certificate_builder = None
 def completion_strict_active() -> bool:
     value = str(os.getenv(STRICT_ENV, "false") or "").strip().casefold()
     return value in {"1", "true", "yes", "on"}
+
+
+def _strict_after() -> datetime | None:
+    raw = str(os.getenv(STRICT_AFTER_ENV, "") or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
 
 
 def verified_snapshot(db: Session, training: TrainingSession) -> TrainingNaceSnapshot | None:
@@ -40,6 +55,20 @@ def verified_snapshot(db: Session, training: TrainingSession) -> TrainingNaceSna
             TrainingNaceSnapshot.classification_status == "verified",
         )
     )
+
+
+def completion_strict_applies(
+    db: Session, training: TrainingSession
+) -> tuple[bool, TrainingNaceSnapshot | None]:
+    snapshot = verified_snapshot(db, training)
+    if not completion_strict_active() or snapshot is None:
+        return False, snapshot
+    cutover = _strict_after()
+    if cutover is not None:
+        created_at = getattr(snapshot, "created_at", None)
+        if created_at is None or created_at < cutover:
+            return False, snapshot
+    return True, snapshot
 
 
 def exam_required(training: TrainingSession) -> bool:
@@ -101,40 +130,56 @@ def _participant_check(
     }
 
 
+def _legacy_preflight(
+    training: TrainingSession,
+    participants: list[TrainingParticipant],
+    *,
+    snapshot: TrainingNaceSnapshot | None,
+) -> dict[str, Any]:
+    before_cutover = snapshot is not None
+    warning = (
+        "Eğitim strict geçiş tarihinden önce oluşturulduğu için mevcut belge davranışı korunur."
+        if before_cutover
+        else "Persisted/verified NACE snapshot bulunmadığı için legacy davranış korunur."
+    )
+    return {
+        "training_id": training.id,
+        "strict_flag_enabled": completion_strict_active(),
+        "strict_applicable": snapshot is not None,
+        "strict_enforced": False,
+        "strict_after": os.getenv(STRICT_AFTER_ENV) or None,
+        "mode": "verified_pre_cutover_compatibility" if before_cutover else "legacy_compatibility",
+        "ready_for_certificates": bool(participants),
+        "training_blockers": [],
+        "warnings": [warning],
+        "participant_total": len(participants),
+        "eligible_count": len(participants),
+        "ineligible_count": 0,
+        "participants": [
+            {
+                "participant_id": p.id,
+                "employee_id": p.employee_id,
+                "attended": p.attended,
+                "score": p.score,
+                "stored_successful": p.successful,
+                "computed_successful": p.successful,
+                "certificate_number": p.certificate_number,
+                "eligible": True,
+                "reasons": [],
+            }
+            for p in participants
+        ],
+    }
+
+
 def completion_preflight(db: Session, training: TrainingSession) -> dict[str, Any]:
-    snapshot = verified_snapshot(db, training)
+    enforced, snapshot = completion_strict_applies(db, training)
     participants = list(training.participants or [])
-    strict_applicable = snapshot is not None
     needs_exam = exam_required(training)
     passing = training.passing_score
 
-    if not strict_applicable:
-        return {
-            "training_id": training.id,
-            "strict_flag_enabled": completion_strict_active(),
-            "strict_applicable": False,
-            "mode": "legacy_compatibility",
-            "ready_for_certificates": bool(participants),
-            "training_blockers": [],
-            "warnings": ["Persisted/verified NACE snapshot bulunmadığı için legacy davranış korunur."],
-            "participant_total": len(participants),
-            "eligible_count": len(participants),
-            "ineligible_count": 0,
-            "participants": [
-                {
-                    "participant_id": p.id,
-                    "employee_id": p.employee_id,
-                    "attended": p.attended,
-                    "score": p.score,
-                    "stored_successful": p.successful,
-                    "computed_successful": p.successful,
-                    "certificate_number": p.certificate_number,
-                    "eligible": True,
-                    "reasons": [],
-                }
-                for p in participants
-            ],
-        }
+    if not enforced:
+        return _legacy_preflight(training, participants, snapshot=snapshot)
 
     blockers: list[str] = []
     warnings: list[str] = []
@@ -171,6 +216,8 @@ def completion_preflight(db: Session, training: TrainingSession) -> dict[str, An
         "training_id": training.id,
         "strict_flag_enabled": completion_strict_active(),
         "strict_applicable": True,
+        "strict_enforced": True,
+        "strict_after": os.getenv(STRICT_AFTER_ENV) or None,
         "mode": "verified_nace_completion",
         "nace": snapshot.nace_code,
         "catalog_key": snapshot.catalog_key,
@@ -318,11 +365,8 @@ def install_training_completion_guard() -> dict[str, str]:
 
     def guarded_builder(*, company_name: str, training, employees: dict) -> bytes:
         db = object_session(training)
-        if (
-            not completion_strict_active()
-            or db is None
-            or verified_snapshot(db, training) is None
-        ):
+        applies, _snapshot = completion_strict_applies(db, training) if db is not None else (False, None)
+        if not applies:
             return _original_certificate_builder(
                 company_name=company_name,
                 training=training,
@@ -352,4 +396,5 @@ def install_training_completion_guard() -> dict[str, str]:
     return {
         "certificate_guard": "active",
         "strict_flag": str(completion_strict_active()).lower(),
+        "strict_after": os.getenv(STRICT_AFTER_ENV) or "",
     }
