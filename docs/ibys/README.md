@@ -20,21 +20,68 @@ Başvuru hazırlığı iki ayrı kapıdan oluşur:
 - `DEMO_KABUL_SENARYOLARI.md`: Bakanlık sunumu/test görüşmesi için kabul ve ret senaryoları.
 - `RESMI_SOZLESME_TESLIM_TUTANAGI.md`: Resmî veri şeması ve servis sözleşmesi alındığında doldurulacak kontrol tutanağı.
 - `company-profile.template.json`: Gerçek şirket bilgileri için repoya alınmayan profil şablonu.
+- `evidence-ledger.template.json`: Belge ve nihai kanıt kapıları için hassas veri içermeyen kanıt defteri şablonu.
 - `application-manifest.json`: Makine tarafından okunabilir başvuru durumu, puan politikası ve kapanış kapıları.
 
-## Teknik demo API'leri
+## Teknik demo ve doğrulama API'leri
 
 Yalnız global yönetici ve OSGB yöneticisi rolleri erişebilir:
 
 - `GET /api/v1/ibys-application/profile`
 - `GET /api/v1/ibys-application/readiness`
 - `POST /api/v1/ibys-application/preflight`
+- `POST /api/v1/ibys-application/evidence/validate`
+- `POST /api/v1/ibys-application/preflight/verified`
 - `POST /api/v1/ibys-application/validate/{dataset_code}`
 - `POST /api/v1/ibys-application/envelope/{dataset_code}`
 
 Bu uç noktalar harici İBYS çağrısı yapmaz. Aday kayıtları zorunlu alan, deterministik fingerprint ve idempotency açısından doğrular.
 
-`preflight` uç noktası şirket profil değerlerini yanıta geri koymadan eksik alanları, eksik belge gruplarını, kanıt kapılarını, başvuru ZIP'i üretilebilirliğini ve %80–%100 hazırlık puanını gösterir. Boolean onay kapıları yetkili kullanıcı beyanıdır; nihai dosyada belge/audit kanıtıyla doğrulanmalıdır.
+`preflight` uç noktası şirket profil değerlerini yanıta geri koymadan eksik alanları, eksik belge gruplarını, kanıt kapılarını, başvuru ZIP'i üretilebilirliğini ve %80–%100 hazırlık puanını gösterir. Bu uç noktadaki boolean kapılar yalnız ön çalışma içindir.
+
+Nihai kapanışta `evidence/validate` ve `preflight/verified` kullanılmalıdır. Katı mod; doğrulayan kişi, saat dilimli ISO tarih, kanıt referansı ve geçerli SHA-256 bulunmayan bir kapıya puan vermez. Kanıt defterinde vergi/MERSİS/TCKN, parola, secret, API anahtarı veya token anahtarı bulunursa doğrulama reddedilir.
+
+## Dış yetkilendirme smoke kanıtı
+
+Staging veya üretim ortamında korunan başvuru rotalarının anonim kullanıcıya veri vermediğini doğrulamak için:
+
+```bash
+cd backend
+python scripts/ibys_external_auth_smoke.py \
+  --base-url https://isg-suite-api-staging.onrender.com \
+  --output ../docs/ibys/kanitlar/external-auth-smoke.json
+```
+
+Araç:
+
+- Yalnız HTTPS hedefi kabul eder.
+- URL içinde kullanıcı adı, parola, query veya fragment bulunmasını reddeder.
+- Authorization başlığı göndermez.
+- Yanıt gövdesini kanıt dosyasına kaydetmez.
+- Korunan rota `401/403` dışında yanıt verirse veya veri işareti sızdırırsa başarısız olur.
+- Kanıt JSON’unu `evidence_sha256` ile mühürler.
+
+Smoke kanıtı başarılı olduktan sonra dosyanın SHA-256 değeri `evidence-ledger.json` içindeki `external_authorization_smoke` kapısına yazılır.
+
+## Kanıt defteri doğrulaması
+
+`evidence-ledger.template.json` güvenli çalışma alanında `evidence-ledger.json` adıyla kopyalanır ve gerçek kanıt referanslarıyla doldurulur. Gerçek şirket profili ve kanıt defteri şu komutla doğrulanır:
+
+```bash
+cd backend
+python scripts/validate_ibys_application_evidence.py \
+  --company-profile ../docs/ibys/company-profile.json \
+  --evidence-ledger ../docs/ibys/evidence-ledger.json \
+  --output ../docs/ibys/kanitlar/verified-preflight-report.json
+```
+
+Komut ancak:
+
+- Şirket profili eksiksizse,
+- Dört zorunlu kurumsal belge geçerli kanıt bilgileriyle doğrulanmışsa,
+- Hukuk/KVKK, dış smoke, dilekçe imzası ve randevu paketi kapıları kanıtlarıyla kapanmışsa
+
+`ready_for_submission=true` ve `%100` sonucu verir. Rapor şirket profil değerlerini geri yazmaz.
 
 ## İmzaya hazır başvuru ZIP'i
 
@@ -62,11 +109,12 @@ Başvuru hazırlığı %100 sayılabilmesi için:
 
 - Teknik aday profil ve demo kabul paketi CI + staging üzerinde doğrulanmış olmalı.
 - Kurumsal evraklar yetkili kişi tarafından temin edilip kontrol edilmeli.
-- Başvuru dilekçesi imzaya hazır olmalı.
+- Başvuru dilekçesi yetkili tarafından imzalanmalı.
 - KVKK/veri güvenliği ve sistem mimarisi ekleri hazırlanmalı ve yetkili onayı alınmalı.
 - İSGGM ile resmî veri sözleşmesi/test ortamı talep yazısı hazırlanmalı.
 - Randevu talep iletişim metni ve sunum gündemi nihai olarak onaylanmalı.
 - Dış ortamda yetkisiz erişim ve rol kapsamı smoke kanıtı tamamlanmalı.
 - Dört nihai kanıt kapısı tarih, doğrulayan kişi, kanıt referansı ve SHA-256 ile kapatılmalı.
+- Katı doğrulama raporu `%100` ve `ready_for_submission=true` üretmeli.
 
 Resmî İBYS uygunluğu ise ancak Bakanlık sözleşmesi ve kabul testleri tamamlandıktan sonra ayrıca ilan edilebilir.
