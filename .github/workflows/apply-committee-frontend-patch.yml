@@ -24,15 +24,15 @@ jobs:
           python-version: "3.12"
       - name: Apply idempotent patch
         run: python scripts/patch_committee_frontend.py
-      - name: Commit generated module changes
+      - name: Commit generated frontend changes
         shell: bash
         run: |
-          if git diff --quiet; then
-            echo "No generated changes"
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend/src/compliance_registers.jsx frontend/src/theme-modern.css .github/workflows/ci.yml
+          git add frontend/src/compliance_registers.jsx frontend/src/theme-modern.css
+          if git diff --cached --quiet; then
+            echo "No generated frontend changes"
+            exit 0
+          fi
           git commit -m "fix(committee): apply professional member selection UI"
           git push origin HEAD:${{ github.head_ref }}
