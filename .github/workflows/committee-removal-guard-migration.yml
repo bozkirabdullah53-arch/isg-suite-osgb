@@ -1,0 +1,36 @@
+name: Committee removal guard migration
+
+on:
+  push:
+    branches:
+      - agent/committee-eyas-workflow-removal-2026-08-05
+    paths:
+      - scripts/patch_committee_removal_guard.py
+      - .github/workflows/committee-removal-guard-migration.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/committee-eyas-workflow-removal-2026-08-05
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Apply removal guard
+        run: python scripts/patch_committee_removal_guard.py
+      - name: Commit generated source
+        run: |
+          if git diff --quiet -- frontend/src/ohs_committee_page.jsx; then
+            echo "Removal guard already applied."
+            exit 0
+          fi
+          git config user.name "isg-suite-automation"
+          git config user.email "automation@isgsuite.tr"
+          git add frontend/src/ohs_committee_page.jsx
+          git commit -m "fix(committee): prevent duplicate member removal submissions"
+          git push origin HEAD:agent/committee-eyas-workflow-removal-2026-08-05
