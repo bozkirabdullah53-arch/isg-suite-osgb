@@ -107,9 +107,32 @@ def upgrade() -> None:
         op.create_index("ix_committee_signature_signer_status", "ohs_committee_signature_steps", ["signer_user_id", "status"])
         op.create_index("ix_committee_signature_request", "ohs_committee_signature_steps", ["esign_request_id"], unique=True)
 
+    if not sa.inspect(bind).has_table("ohs_committee_meeting_versions"):
+        op.create_table(
+            "ohs_committee_meeting_versions",
+            sa.Column("id", sa.Integer(), primary_key=True),
+            sa.Column("meeting_id", sa.Integer(), sa.ForeignKey("ohs_committee_meetings.id"), nullable=False),
+            sa.Column("company_id", sa.Integer(), sa.ForeignKey("companies.id"), nullable=False),
+            sa.Column("document_version", sa.Integer(), nullable=False),
+            sa.Column("meeting_snapshot_json", sa.Text(), nullable=False),
+            sa.Column("member_snapshot_json", sa.Text(), nullable=True),
+            sa.Column("approval_workflow_id", sa.Integer(), sa.ForeignKey("eyas_workflows.id"), nullable=True),
+            sa.Column("final_signature_artifact_id", sa.Integer(), sa.ForeignKey("e_sign_artifacts.id"), nullable=True),
+            sa.Column("pdf_sha256", sa.String(64), nullable=True),
+            sa.Column("archive_reason", sa.String(120), nullable=False, server_default="material_change"),
+            sa.Column("created_by_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=True),
+            sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+            sa.UniqueConstraint("meeting_id", "document_version", name="uq_committee_meeting_version"),
+        )
+        op.create_index("ix_committee_meeting_versions_company", "ohs_committee_meeting_versions", ["company_id", "meeting_id"])
+
     _enable_company_rls(
         "ohs_committee_signature_steps",
         "ohs_committee_signature_steps_company_scope",
+    )
+    _enable_company_rls(
+        "ohs_committee_meeting_versions",
+        "ohs_committee_meeting_versions_company_scope",
     )
 
 
