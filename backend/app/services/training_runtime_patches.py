@@ -63,7 +63,7 @@ def _replace_heading(value: Any) -> Any:
 
 
 def _patch_sector_profile_resolution() -> str:
-    """Preserve exact NACE identity while retaining legacy profile readability."""
+    """Preserve stored catalog keys while retaining legacy profile resolution."""
     from app.services import training_topics
 
     current = training_topics.sektor_kodu_cozumle
@@ -74,16 +74,17 @@ def _patch_sector_profile_resolution() -> str:
         if not sektor:
             return "genel_uretim"
         raw = sektor.strip()
-        # Exact catalog keys must remain exact. Downstream services may obtain
-        # the content profile from SEKTOR_PROFIL without destroying identity.
+        # Stored exact catalog keys remain exact so the training identity is not
+        # destroyed. Legacy raw numeric NACE input keeps the approved historical
+        # content-profile behavior for backward compatibility.
         if raw in training_topics.SEKTOREL_EGITIM_KONULARI:
             return raw
         if raw in training_topics.SEKTOR_PROFIL:
             return raw
         nace_code = "nace_" + raw.replace(".", "_")
-        if nace_code in training_topics.SEKTOREL_EGITIM_KONULARI:
-            return nace_code
         if nace_code in training_topics.SEKTOR_PROFIL:
+            return training_topics.SEKTOR_PROFIL[nace_code]
+        if nace_code in training_topics.SEKTOREL_EGITIM_KONULARI:
             return nace_code
         for kod, ad in training_topics.SEKTOR_SECENEKLERI:
             if ad.casefold() == raw.casefold():
@@ -192,6 +193,10 @@ def _patch_question_bank_candidates() -> str:
                 if len(buckets["sector"]) >= question_bank.BUCKET_TARGETS["sector"]:
                     return buckets
         return buckets
+
+    source_controlled_candidate_buckets._source_controlled_candidate_buckets_active = True
+    question_bank._candidate_buckets = source_controlled_candidate_buckets
+    return buckets
 
     source_controlled_candidate_buckets._source_controlled_candidate_buckets_active = True
     question_bank._candidate_buckets = source_controlled_candidate_buckets
