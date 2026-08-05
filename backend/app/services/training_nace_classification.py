@@ -26,7 +26,7 @@ from app.services.training_topics import (
     sektor_adi,
 )
 
-CLASSIFICATION_SCHEMA_VERSION = "nace-training-v1"
+CLASSIFICATION_SCHEMA_VERSION = "nace-training-v2"
 VALID_HAZARD_CLASSES = frozenset(TEHLIKE_EGITIM_KURALLARI)
 _EXACT_NACE_RE = re.compile(r"^\d{2}(?:\.\d{2}){1,2}$")
 
@@ -56,9 +56,9 @@ _SECTION_RANGES: tuple[tuple[str, str, int, int], ...] = (
     ("U", "Uluslararası Örgütler ve Temsilciliklerinin Faaliyetleri", 99, 99),
 )
 
-# Explicit profile families. These are structural mappings, not activity-name
-# similarity. Division defaults are used only where no reviewed profile override
-# exists, and the result remains visible in the snapshot for audit.
+# Controlled profile mappings. No main-section fallback is allowed: where an
+# exact profile has not been reviewed, the snapshot remains ``review_required``
+# instead of receiving broad or potentially unrelated risk tags.
 _PROFILE_RISK_TAGS: dict[str, tuple[str, ...]] = {
     "insaat": ("working_at_height", "scaffolding", "excavation", "lifting", "temporary_electricity", "site_traffic"),
     "insaat_santiye": ("working_at_height", "scaffolding", "excavation", "lifting", "temporary_electricity", "site_traffic"),
@@ -95,30 +95,6 @@ _PROFILE_RISK_TAGS: dict[str, tuple[str, ...]] = {
     "su_atiksu": ("biological_agents", "confined_space", "toxic_gases", "chemical_treatment", "drowning"),
     "ofis": ("display_screen", "ergonomics", "fire", "electrical", "psychosocial"),
     "ofis_idari_hizmetler": ("display_screen", "ergonomics", "fire", "electrical", "psychosocial"),
-}
-
-_DIVISION_DEFAULT_RISKS: dict[str, tuple[str, ...]] = {
-    "A": ("machinery", "biological_agents", "weather", "manual_handling"),
-    "B": ("mobile_plant", "dust", "ground_control", "explosives"),
-    "C": ("machinery", "energy_isolation", "noise", "manual_handling"),
-    "D": ("electrical", "energy_isolation", "fire", "process_safety"),
-    "E": ("biological_agents", "chemical_exposure", "confined_space", "machinery"),
-    "F": ("working_at_height", "excavation", "lifting", "temporary_electricity"),
-    "G": ("storage", "manual_handling", "slips_trips", "fire"),
-    "H": ("traffic", "loading", "manual_handling", "vehicle_safety"),
-    "I": ("fire", "food_hygiene", "hot_surfaces", "slips_trips"),
-    "J": ("display_screen", "ergonomics", "electrical", "psychosocial"),
-    "K": ("display_screen", "ergonomics", "fire", "psychosocial"),
-    "L": ("display_screen", "lone_work", "fire", "slips_trips"),
-    "M": ("display_screen", "ergonomics", "field_work", "psychosocial"),
-    "N": ("manual_handling", "slips_trips", "chemical_exposure", "lone_work"),
-    "O": ("display_screen", "public_contact", "fire", "psychosocial"),
-    "P": ("public_contact", "fire", "ergonomics", "biological_agents"),
-    "Q": ("biological_agents", "manual_handling", "sharps", "violence"),
-    "R": ("crowd_management", "temporary_structures", "fire", "manual_handling"),
-    "S": ("public_contact", "chemical_exposure", "ergonomics", "slips_trips"),
-    "T": ("domestic_work", "manual_handling", "chemical_exposure", "lone_work"),
-    "U": ("display_screen", "travel", "security", "psychosocial"),
 }
 
 _SPECIAL_RISKS: dict[str, tuple[str, ...]] = {
@@ -256,9 +232,15 @@ def resolve_exact_nace(value: str | None) -> NaceClassification:
     description = str(row.get("name") or "").strip()
     hazard = str(row.get("hazard_class") or "").strip()
     profile = str(SEKTOR_PROFIL.get(catalog_key) or "").strip()
-    topics = tuple(str(item).strip() for item in (row.get("topics") or []) if str(item).strip())
+    topics = tuple(
+        str(item).strip() for item in (row.get("topics") or []) if str(item).strip()
+    )
     if not topics:
-        topics = tuple(str(item).strip() for item in sektorel_konular(catalog_key) if str(item).strip())
+        topics = tuple(
+            str(item).strip()
+            for item in sektorel_konular(catalog_key)
+            if str(item).strip()
+        )
 
     errors: list[str] = []
     if not catalog_key.startswith("nace_"):
@@ -282,9 +264,9 @@ def resolve_exact_nace(value: str | None) -> NaceClassification:
     if not section_code:
         raise ValueError("NACE bölüm sınıflandırması çözümlenemedi.")
     subsector, activity_group = _codes(nace_code)
-    risk_tags = _PROFILE_RISK_TAGS.get(profile) or _DIVISION_DEFAULT_RISKS.get(section_code, ())
-    if not risk_tags:
-        raise ValueError("Seçilen NACE faaliyeti için doğrulanabilir teknik risk etiketi bulunamadı.")
+    risk_tags = tuple(_PROFILE_RISK_TAGS.get(profile, ()))
+    risk_mapping_status = "verified" if risk_tags else "review_required"
+    special_risks = tuple(_SPECIAL_RISKS.get(profile, ())) if risk_tags else ()
 
     duration = TEHLIKE_EGITIM_KURALLARI[hazard]
     source_snapshot = {
@@ -295,8 +277,13 @@ def resolve_exact_nace(value: str | None) -> NaceClassification:
         "content_profile_code": profile,
         "content_profile_name": SEKTOR_ADLARI.get(profile) or sektor_adi(profile),
         "section": {"code": section_code, "name": section_name},
+        "risk_mapping": {
+            "status": risk_mapping_status,
+            "source": "controlled_profile_map_v1" if risk_tags else None,
+            "review_reasons": [] if risk_tags else ["technical_risk_tags_missing"],
+        },
         "technical_risk_tags": list(risk_tags),
-        "special_risks": list(_SPECIAL_RISKS.get(profile, ())),
+        "special_risks": list(special_risks),
         "training_topics": list(topics),
         "duration_rule": {
             "hazard_class": hazard,
@@ -316,11 +303,11 @@ def resolve_exact_nace(value: str | None) -> NaceClassification:
         content_profile_name=SEKTOR_ADLARI.get(profile) or sektor_adi(profile),
         hazard_class=hazard,
         training_topics=topics,
-        technical_risk_tags=tuple(risk_tags),
-        special_risks=tuple(_SPECIAL_RISKS.get(profile, ())),
+        technical_risk_tags=risk_tags,
+        special_risks=special_risks,
         required_duration_minutes=int(duration["dakika"]),
         required_duration_hours=int(duration["saat"]),
-        classification_status="verified",
+        classification_status=risk_mapping_status,
         catalog_version=CLASSIFICATION_SCHEMA_VERSION,
         catalog_hash=_catalog_hash(source_snapshot),
         source_snapshot=source_snapshot,
