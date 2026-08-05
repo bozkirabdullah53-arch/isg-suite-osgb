@@ -4,12 +4,15 @@ Legacy records keep the historical selector. When
 ``TRAINING_EXACT_NACE_EXAM_STRICT=true`` and a persisted/verified NACE snapshot
 exists, new exam snapshots use five fixed foundational questions plus fifteen
 source-controlled questions generated from the snapshot's five frozen
-work-specific topics. Existing exam snapshots are never rewritten.
+work-specific topics. ``TRAINING_EXACT_NACE_EXAM_STRICT_AFTER`` can limit the
+new behavior to snapshots created after a cutover timestamp, preserving all
+pre-existing exams and download workflows.
 """
 from __future__ import annotations
 
 import os
 import sys
+from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Callable
 
@@ -25,6 +28,7 @@ from app.services.training_exact_question_factory import (
 )
 
 STRICT_ENV = "TRAINING_EXACT_NACE_EXAM_STRICT"
+STRICT_AFTER_ENV = "TRAINING_EXACT_NACE_EXAM_STRICT_AFTER"
 _CONTEXT_ATTR = "_verified_exact_nace_exam_context_v2"
 
 _legacy_candidate_buckets: Callable | None = None
@@ -38,9 +42,22 @@ def exact_nace_exam_strict_active() -> bool:
     return value in {"1", "true", "yes", "on"}
 
 
-def _verified_snapshot_context(
+def _strict_after() -> datetime | None:
+    raw = str(os.getenv(STRICT_AFTER_ENV, "") or "").strip()
+    if not raw:
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
+
+
+def _verified_snapshot(
     db: Session, training: TrainingSession
-) -> dict[str, str] | None:
+) -> TrainingNaceSnapshot | None:
     if not getattr(training, "id", None):
         return None
     snapshot = db.scalar(
@@ -50,15 +67,42 @@ def _verified_snapshot_context(
     )
     if snapshot is None or snapshot.classification_status != "verified":
         return None
+    if not str(snapshot.catalog_key or "").startswith("nace_"):
+        return None
+    return snapshot
+
+
+def _snapshot_context(snapshot: TrainingNaceSnapshot | None) -> dict[str, str] | None:
+    if snapshot is None:
+        return None
     required = {
         "hazard": str(snapshot.hazard_class or "").strip(),
         "sector": str(snapshot.content_profile_code or "").strip(),
         "sector_code": str(snapshot.catalog_key or "").strip(),
         "nace": str(snapshot.nace_code or "").strip(),
     }
-    if not all(required.values()) or not required["sector_code"].startswith("nace_"):
-        return None
-    return required
+    return required if all(required.values()) else None
+
+
+def _verified_snapshot_context(
+    db: Session, training: TrainingSession
+) -> dict[str, str] | None:
+    return _snapshot_context(_verified_snapshot(db, training))
+
+
+def exact_nace_exam_strict_applies(
+    db: Session, training: TrainingSession
+) -> tuple[bool, dict[str, str] | None]:
+    snapshot = _verified_snapshot(db, training)
+    ctx = _snapshot_context(snapshot)
+    if not exact_nace_exam_strict_active() or snapshot is None or ctx is None:
+        return False, ctx
+    cutover = _strict_after()
+    if cutover is not None:
+        created_at = getattr(snapshot, "created_at", None)
+        if created_at is None or created_at < cutover:
+            return False, ctx
+    return True, ctx
 
 
 def _question_code(row: Any) -> str:
@@ -132,7 +176,9 @@ def question_selection_audit(db: Session, training: TrainingSession) -> dict[str
     """Compare historical alias selection with exact-NACE snapshot selection."""
     from app.services import training_question_bank as question_bank
 
-    ctx = _verified_snapshot_context(db, training)
+    applies, ctx = exact_nace_exam_strict_applies(db, training)
+    if ctx is None:
+        ctx = _verified_snapshot_context(db, training)
     legacy_candidate = _legacy_candidate_buckets or question_bank._candidate_buckets
     legacy_curated = _legacy_curated_buckets or question_bank._curated_buckets
 
@@ -151,6 +197,8 @@ def question_selection_audit(db: Session, training: TrainingSession) -> dict[str
         return {
             "training_id": training.id,
             "strict_flag_enabled": exact_nace_exam_strict_active(),
+            "strict_enforced": False,
+            "strict_after": os.getenv(STRICT_AFTER_ENV) or None,
             "selection_mode": "legacy_unverified",
             "verified_snapshot": False,
             "context": None,
@@ -190,10 +238,16 @@ def question_selection_audit(db: Session, training: TrainingSession) -> dict[str
     return {
         "training_id": training.id,
         "strict_flag_enabled": exact_nace_exam_strict_active(),
+        "strict_enforced": applies,
+        "strict_after": os.getenv(STRICT_AFTER_ENV) or None,
         "selection_mode": (
             "exact_nace_snapshot_5_plus_15"
-            if exact_nace_exam_strict_active()
-            else "legacy_compatibility"
+            if applies
+            else (
+                "verified_pre_cutover_compatibility"
+                if exact_nace_exam_strict_active()
+                else "legacy_compatibility"
+            )
         ),
         "verified_snapshot": True,
         "context": ctx,
@@ -241,8 +295,8 @@ def install_exact_nace_question_selection() -> dict[str, str]:
 
     @wraps(current_candidate)
     def snapshot_candidate_buckets(db: Session, training: TrainingSession):
-        ctx = _verified_snapshot_context(db, training)
-        if not exact_nace_exam_strict_active() or ctx is None:
+        applies, ctx = exact_nace_exam_strict_applies(db, training)
+        if not applies or ctx is None:
             if hasattr(training, _CONTEXT_ATTR):
                 delattr(training, _CONTEXT_ATTR)
             return _legacy_candidate_buckets(db, training)
@@ -255,7 +309,7 @@ def install_exact_nace_question_selection() -> dict[str, str]:
     @wraps(_legacy_curated_buckets)
     def snapshot_curated_buckets(training: TrainingSession):
         ctx = getattr(training, _CONTEXT_ATTR, None)
-        if exact_nace_exam_strict_active() and isinstance(ctx, dict):
+        if isinstance(ctx, dict):
             return _strict_curated_buckets(question_bank, ctx)
         return _legacy_curated_buckets(training)
 
@@ -264,7 +318,8 @@ def install_exact_nace_question_selection() -> dict[str, str]:
 
     @wraps(_legacy_question_bank_readiness)
     def snapshot_readiness(db: Session, training: TrainingSession):
-        if exact_nace_exam_strict_active() and _verified_snapshot_context(db, training):
+        applies, _ctx = exact_nace_exam_strict_applies(db, training)
+        if applies:
             return exact_question_readiness(db, training)
         return _legacy_question_bank_readiness(db, training)
 
@@ -275,12 +330,12 @@ def install_exact_nace_question_selection() -> dict[str, str]:
     def snapshot_create_exam(*args, **kwargs):
         db = kwargs.get("db") or (args[0] if args else None)
         training = kwargs.get("training")
-        if (
-            exact_nace_exam_strict_active()
-            and db is not None
-            and training is not None
-            and _verified_snapshot_context(db, training)
-        ):
+        applies, _ctx = (
+            exact_nace_exam_strict_applies(db, training)
+            if db is not None and training is not None
+            else (False, None)
+        )
+        if applies:
             return create_exact_nace_exam_snapshot(
                 db,
                 training=training,
@@ -308,4 +363,5 @@ def install_exact_nace_question_selection() -> dict[str, str]:
         "create_exam_snapshot": "active",
         "question_bank_readiness": "active",
         "strict_flag": str(exact_nace_exam_strict_active()).lower(),
+        "strict_after": os.getenv(STRICT_AFTER_ENV) or "",
     }
