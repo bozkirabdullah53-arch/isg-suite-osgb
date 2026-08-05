@@ -62,10 +62,35 @@ def _replace_heading(value: Any) -> Any:
     return value
 
 
+def _apply_exact_nace_topic_corrections(training_topics) -> int:
+    """Copy reviewed profile corrections to every exact NACE catalog key."""
+    topics_builder = getattr(training_topics, "_topics_with_dk", None)
+    corrections = getattr(training_topics, "SEKTOREL_KONU_DUZELTMELERI", {})
+    if not callable(topics_builder):
+        raise RuntimeError("Eğitim konu oluşturucusu bulunamadı.")
+
+    changed = 0
+    for exact_key, profile_code in list(training_topics.SEKTOR_PROFIL.items()):
+        corrected = corrections.get(profile_code)
+        if not corrected:
+            continue
+        expected = topics_builder(list(corrected))
+        if training_topics.SEKTOREL_EGITIM_KONULARI.get(exact_key) != expected:
+            training_topics.SEKTOREL_EGITIM_KONULARI[exact_key] = expected
+            changed += 1
+
+    battery_topics = topics_builder(list(BATTERY_TRAINING_TOPICS))
+    training_topics.SEKTOR_PROFIL["nace_27_20_01"] = "aku_uretimi"
+    training_topics.SEKTOREL_EGITIM_KONULARI["aku_uretimi"] = battery_topics
+    training_topics.SEKTOREL_EGITIM_KONULARI["nace_27_20_01"] = battery_topics
+    return changed
+
+
 def _patch_sector_profile_resolution() -> str:
     """Preserve stored catalog keys while retaining legacy profile resolution."""
     from app.services import training_topics
 
+    _apply_exact_nace_topic_corrections(training_topics)
     current = training_topics.sektor_kodu_cozumle
     if getattr(current, "_source_controlled_sector_resolver_active", False):
         return "already-active"
@@ -98,14 +123,6 @@ def _patch_sector_profile_resolution() -> str:
 
     source_controlled_resolver._source_controlled_sector_resolver_active = True
     training_topics.sektor_kodu_cozumle = source_controlled_resolver
-
-    topics_builder = getattr(training_topics, "_topics_with_dk", None)
-    if not callable(topics_builder):
-        raise RuntimeError("Eğitim konu oluşturucusu bulunamadı.")
-    training_topics.SEKTOR_PROFIL["nace_27_20_01"] = "aku_uretimi"
-    training_topics.SEKTOREL_EGITIM_KONULARI["aku_uretimi"] = topics_builder(
-        list(BATTERY_TRAINING_TOPICS)
-    )
 
     # Uvicorn/sitecustomize dışı test veya yardımcı başlangıçlarında daha önce
     # import edilmiş doğrudan fonksiyon referanslarını da aynı davranışa bağla.
