@@ -53,7 +53,21 @@ jobs:
             exit_code=$?
             sleep 15
           done
-          sha256sum "$EVIDENCE_DIR/evidence.json" > "$EVIDENCE_DIR/evidence.json.sha256"
+          (
+            cd "$EVIDENCE_DIR"
+            sha256sum evidence.json > evidence.json.sha256
+            sha256sum -c evidence.json.sha256
+          )
+          PYTHONPATH=backend python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from app.services.ibys_external_auth_smoke import verify_smoke_evidence_hash
+
+          evidence = json.loads((Path(os.environ["EVIDENCE_DIR"]) / "evidence.json").read_text(encoding="utf-8"))
+          if not verify_smoke_evidence_hash(evidence):
+              raise SystemExit("evidence self-hash verification failed")
+          PY
           exit "$exit_code"
 
       - name: Write workflow evidence metadata
