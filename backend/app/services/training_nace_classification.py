@@ -26,7 +26,7 @@ from app.services.training_topics import (
     sektor_adi,
 )
 
-CLASSIFICATION_SCHEMA_VERSION = "nace-training-v2"
+CLASSIFICATION_SCHEMA_VERSION = "nace-training-v3"
 VALID_HAZARD_CLASSES = frozenset(TEHLIKE_EGITIM_KURALLARI)
 _EXACT_NACE_RE = re.compile(r"^\d{2}(?:\.\d{2}){1,2}$")
 
@@ -232,15 +232,14 @@ def resolve_exact_nace(value: str | None) -> NaceClassification:
     description = str(row.get("name") or "").strip()
     hazard = str(row.get("hazard_class") or "").strip()
     profile = str(SEKTOR_PROFIL.get(catalog_key) or "").strip()
-    topics = tuple(
+    catalog_topics = tuple(
         str(item).strip() for item in (row.get("topics") or []) if str(item).strip()
     )
-    if not topics:
-        topics = tuple(
-            str(item).strip()
-            for item in sektorel_konular(catalog_key)
-            if str(item).strip()
-        )
+    topics = tuple(
+        str(item).strip()
+        for item in sektorel_konular(catalog_key)
+        if str(item).strip()
+    )
 
     errors: list[str] = []
     if not catalog_key.startswith("nace_"):
@@ -277,6 +276,12 @@ def resolve_exact_nace(value: str | None) -> NaceClassification:
         "content_profile_code": profile,
         "content_profile_name": SEKTOR_ADLARI.get(profile) or sektor_adi(profile),
         "section": {"code": section_code, "name": section_name},
+        "topic_mapping": {
+            "source": "canonical_training_topics_v1",
+            "catalog_topics_overridden": catalog_topics != topics,
+        },
+        "catalog_topics": list(catalog_topics),
+        "training_topics": list(topics),
         "risk_mapping": {
             "status": risk_mapping_status,
             "source": "controlled_profile_map_v1" if risk_tags else None,
@@ -284,7 +289,6 @@ def resolve_exact_nace(value: str | None) -> NaceClassification:
         },
         "technical_risk_tags": list(risk_tags),
         "special_risks": list(special_risks),
-        "training_topics": list(topics),
         "duration_rule": {
             "hazard_class": hazard,
             "minutes": int(duration["dakika"]),
