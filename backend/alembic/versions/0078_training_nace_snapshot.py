@@ -95,51 +95,20 @@ def upgrade() -> None:
                 "training_id", name="uq_training_nace_snapshot_training"
             ),
         )
-        op.create_index(
-            "ix_training_nace_snapshots_training_id",
-            "training_nace_snapshots",
-            ["training_id"],
-        )
-        op.create_index(
-            "ix_training_nace_snapshots_company_id",
-            "training_nace_snapshots",
-            ["company_id"],
-        )
-        op.create_index(
-            "ix_training_nace_snapshots_branch_id",
-            "training_nace_snapshots",
-            ["branch_id"],
-        )
-        op.create_index(
-            "ix_training_nace_snapshots_catalog_key",
-            "training_nace_snapshots",
-            ["catalog_key"],
-        )
-        op.create_index(
-            "ix_training_nace_snapshots_nace_code",
-            "training_nace_snapshots",
-            ["nace_code"],
-        )
-        op.create_index(
-            "ix_training_nace_snapshots_profile",
-            "training_nace_snapshots",
-            ["content_profile_code"],
-        )
-        op.create_index(
-            "ix_training_nace_snapshots_status",
-            "training_nace_snapshots",
-            ["classification_status"],
-        )
-        op.create_index(
-            "ix_training_nace_snapshots_hash",
-            "training_nace_snapshots",
-            ["catalog_hash"],
-        )
-        op.create_index(
-            "ix_training_nace_snapshots_created_at",
-            "training_nace_snapshots",
-            ["created_at"],
-        )
+        for index_name, columns in (
+            ("ix_training_nace_snapshots_training_id", ["training_id"]),
+            ("ix_training_nace_snapshots_company_id", ["company_id"]),
+            ("ix_training_nace_snapshots_branch_id", ["branch_id"]),
+            ("ix_training_nace_snapshots_catalog_key", ["catalog_key"]),
+            ("ix_training_nace_snapshots_nace_code", ["nace_code"]),
+            ("ix_training_nace_snapshots_section", ["nace_section_code"]),
+            ("ix_training_nace_snapshots_profile", ["content_profile_code"]),
+            ("ix_training_nace_snapshots_hazard", ["hazard_class"]),
+            ("ix_training_nace_snapshots_status", ["classification_status"]),
+            ("ix_training_nace_snapshots_hash", ["catalog_hash"]),
+            ("ix_training_nace_snapshots_created_at", ["created_at"]),
+        ):
+            op.create_index(index_name, "training_nace_snapshots", columns)
 
     _enable_company_rls(
         "training_nace_snapshots",
