@@ -5,6 +5,11 @@ import json
 import re
 from collections import defaultdict
 
+from app.services import training_topics
+from app.services.training_runtime_patches import _apply_exact_nace_topic_corrections
+
+_apply_exact_nace_topic_corrections(training_topics)
+
 from app.services.training_nace_classification import resolve_exact_nace
 from app.services.training_topics import sectors_list_for_api
 
