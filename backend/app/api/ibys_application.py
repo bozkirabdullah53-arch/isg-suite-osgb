@@ -9,6 +9,10 @@ from pydantic import BaseModel, Field
 from app.api.deps import require_roles
 from app.core.version import APP_VERSION
 from app.models.entities import User, UserRole
+from app.services.ibys_application_evidence import (
+    assess_verified_application_preflight,
+    validate_evidence_ledger,
+)
 from app.services.ibys_application_preflight import assess_application_preflight
 from app.services.ibys_application_profile import (
     application_profile_readiness,
@@ -36,6 +40,14 @@ class ApplicationPreflightRequest(BaseModel):
     external_authorization_smoke_completed: bool = False
     application_letter_signed: bool = False
     appointment_package_approved: bool = False
+
+
+class EvidenceValidationRequest(BaseModel):
+    evidence_ledger: dict[str, Any] = Field(default_factory=dict)
+
+
+class VerifiedApplicationPreflightRequest(EvidenceValidationRequest):
+    company_profile: dict[str, Any] = Field(default_factory=dict)
 
 
 def _scoped_osgb_id(user: User, requested: int | None) -> int | None:
@@ -69,7 +81,7 @@ def ibys_application_preflight(
     payload: ApplicationPreflightRequest,
     _: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
-    """Şirket profili, belge adları ve kanıt kapılarıyla %100 ön kontrol raporu üretir."""
+    """Şirket profili, belge adları ve beyan kapılarıyla ön kontrol raporu üretir."""
     return assess_application_preflight(
         payload.company_profile,
         attachment_filenames=payload.attachment_filenames,
@@ -77,6 +89,27 @@ def ibys_application_preflight(
         external_authorization_smoke_completed=payload.external_authorization_smoke_completed,
         application_letter_signed=payload.application_letter_signed,
         appointment_package_approved=payload.appointment_package_approved,
+    )
+
+
+@router.post("/evidence/validate")
+def ibys_application_evidence_validate(
+    payload: EvidenceValidationRequest,
+    _: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """Kanıt defterini SHA-256, tarih, doğrulayan ve hassas veri sınırlarıyla doğrular."""
+    return validate_evidence_ledger(payload.evidence_ledger)
+
+
+@router.post("/preflight/verified")
+def ibys_application_verified_preflight(
+    payload: VerifiedApplicationPreflightRequest,
+    _: User = Depends(require_roles(*ADMIN_ROLES)),
+):
+    """Puanı beyanlardan değil doğrulanmış kanıt defterinden türeten katı ön kontrol."""
+    return assess_verified_application_preflight(
+        payload.company_profile,
+        payload.evidence_ledger,
     )
 
 
