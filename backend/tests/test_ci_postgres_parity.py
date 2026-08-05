@@ -80,7 +80,7 @@ def pg_session():
 
 def test_alembic_head_applied(pg_session: Session):
     ver = pg_session.execute(text("SELECT version_num FROM alembic_version")).scalar()
-    assert ver == "0077_committee_approval"
+    assert ver == "0078_training_nace_registry"
 
 
 def test_same_name_different_osgb_allowed(pg_session: Session):
@@ -127,6 +127,69 @@ def test_expected_rls_policies_are_enabled_and_forced(pg_session: Session):
         assert row["rls_enabled"] is True, table_name
         assert row["force_rls"] is True, table_name
         assert row["policy_count"] == 1, table_name
+
+
+def test_training_nace_registry_schema_and_constraints(pg_session: Session):
+    inspector = inspect(pg_session.bind)
+    assert inspector.has_table("training_nace_catalog_versions")
+    assert inspector.has_table("training_nace_catalog_entries")
+
+    version_columns = {
+        column["name"] for column in inspector.get_columns("training_nace_catalog_versions")
+    }
+    assert {
+        "version_code",
+        "content_hash",
+        "source_label",
+        "source_url",
+        "status",
+        "entry_count",
+        "created_by_id",
+        "created_at",
+        "activated_by_id",
+        "activated_at",
+    } <= version_columns
+
+    entry_columns = {
+        column["name"] for column in inspector.get_columns("training_nace_catalog_entries")
+    }
+    assert {
+        "version_id",
+        "nace_code",
+        "nace_key",
+        "description",
+        "division_code",
+        "activity_group_code",
+        "main_sector_code",
+        "main_sector_name",
+        "profile_code",
+        "profile_name",
+        "hazard_class",
+        "risk_tags_json",
+        "special_risks_json",
+        "topics_json",
+        "lesson_hours",
+        "instruction_minutes",
+        "scheduled_minutes",
+        "sector_lesson_hours",
+        "sector_instruction_minutes",
+        "sector_scheduled_minutes",
+        "mapping_status",
+        "validation_errors_json",
+    } <= entry_columns
+
+    version_uqs = inspector.get_unique_constraints("training_nace_catalog_versions")
+    assert any(
+        constraint.get("name") == "uq_training_nace_catalog_content_hash"
+        and set(constraint.get("column_names") or []) == {"content_hash"}
+        for constraint in version_uqs
+    )
+    entry_uqs = inspector.get_unique_constraints("training_nace_catalog_entries")
+    assert any(
+        constraint.get("name") == "uq_training_nace_catalog_entry"
+        and set(constraint.get("column_names") or []) == {"version_id", "nace_code"}
+        for constraint in entry_uqs
+    )
 
 
 def test_committee_approval_schema_and_constraints(pg_session: Session):
