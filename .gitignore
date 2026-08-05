@@ -16,6 +16,10 @@ dist/
 .idea/
 .DS_Store
 docs/qa/backups/
+# İBYS başvurusuna ait gerçek şirket bilgileri ve belgeler repoya girmez
+docs/ibys/company-profile.json
+docs/ibys/kurumsal-ekler/
+docs/ibys/*.zip
 # QA / geçici çıktılar (repo kökü)
 .pytest-out.txt
 .pytest-exit.txt
