@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships, compliance_registers, esign, esign_orch, eyas, training_question_bank, prescriptions
+from app.api import auth, branches, companies, dashboard, employees, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, operations, trainings, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions
 from app.core.rate_limit import SimpleRateLimitMiddleware
 from app.core.request_id import RequestIdMiddleware, install_request_id_logging
 from app.core.tenant_middleware import TenantContextMiddleware
@@ -40,25 +40,21 @@ async def lifespan(_: FastAPI):
     install_request_id_logging()
     try:
         from app.services.health_field_crypto import enable_health_crypto_for_production
-
         logger.info("health crypto rollout: %s", enable_health_crypto_for_production())
     except Exception:
         logger.exception("health crypto rollout failed at startup")
     try:
         from app.services.backup_restore import enable_backup_crypto_for_production
-
         logger.info("backup crypto rollout: %s", enable_backup_crypto_for_production())
     except Exception:
         logger.exception("backup crypto rollout failed at startup")
     try:
         from app.services.object_store import maybe_auto_cutover_object_storage
-
         logger.info("object storage rollout: %s", maybe_auto_cutover_object_storage())
     except Exception:
         logger.exception("object storage auto-cutover failed at startup")
         if bool(getattr(settings, "object_storage_remote_required", False)):
             raise
-    # Schema: production = alembic-only (start.sh). create_all/repair yalnız local/dev.
     _boot_env = (settings.environment or "").strip().lower()
     if _boot_env in ("production", "prod", "live"):
         logger.info("production boot: skipping create_all/schema_repair (alembic-only)")
@@ -66,7 +62,6 @@ async def lifespan(_: FastAPI):
         Base.metadata.create_all(bind=engine)
         try:
             from app.services.schema_repair import repair_schema
-
             repair_schema()
         except Exception:
             logger.exception("schema_repair failed at startup")
@@ -80,14 +75,12 @@ async def lifespan(_: FastAPI):
             from sqlalchemy import func, select
             from app.models.entities import HazardCategory
             from app.services.hazard_seed import seed_hazard_library
-
             if (db.scalar(select(func.count()).select_from(HazardCategory)) or 0) == 0:
                 seed_hazard_library(db)
         except Exception:
             logger.exception("hazard_seed failed at startup")
         try:
             from app.api.company_access import sync_all_assigned_field_roles
-
             sync_all_assigned_field_roles(db)
         except Exception:
             logger.exception("sync_all_assigned_field_roles failed at startup")
@@ -95,14 +88,7 @@ async def lifespan(_: FastAPI):
             from sqlalchemy import select
             from app.models.entities import Company
             from app.services.site_verify import ensure_company_site_verify_code
-
-            missing = list(
-                db.scalars(
-                    select(Company).where(
-                        (Company.site_verify_code.is_(None)) | (Company.site_verify_code == "")
-                    )
-                ).all()
-            )
+            missing = list(db.scalars(select(Company).where((Company.site_verify_code.is_(None)) | (Company.site_verify_code == ""))).all())
             for company in missing:
                 ensure_company_site_verify_code(db, company)
             if missing:
@@ -124,7 +110,6 @@ app = FastAPI(
 )
 
 from app.core.validation_tr import register_turkish_validation
-
 register_turkish_validation(app)
 
 app.add_middleware(SecurityHeadersMiddleware)
@@ -132,22 +117,9 @@ app.add_middleware(StructuredAccessLogMiddleware)
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(TenantContextMiddleware)
 app.add_middleware(OsgbSubscriptionWriteMiddleware)
-app.add_middleware(
-    SimpleRateLimitMiddleware,
-    requests_per_minute=settings.rate_limit_rpm,
-    auth_requests_per_minute=settings.rate_limit_auth_rpm,
-)
-_cors_origins = build_cors_origins(
-    environment=settings.environment,
-    frontend_origin=settings.frontend_origin,
-)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=settings.rate_limit_rpm, auth_requests_per_minute=settings.rate_limit_auth_rpm)
+_cors_origins = build_cors_origins(environment=settings.environment, frontend_origin=settings.frontend_origin)
+app.add_middleware(CORSMiddleware, allow_origins=_cors_origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 for router in (
     auth.router,
     osgb_applications.router,
@@ -187,6 +159,7 @@ for router in (
     compliance_registers.pc_router,
     compliance_registers.ep_router,
     compliance_registers.wm_router,
+    committee_professional.router,
     compliance_registers.oc_router,
     compliance_registers.da_router,
     esign.router,
@@ -199,5 +172,4 @@ for router in (
 @app.get("/health")
 def health():
     from app.services.release_status import public_health_payload
-
     return public_health_payload()
