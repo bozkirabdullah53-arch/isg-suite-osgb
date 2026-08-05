@@ -89,10 +89,21 @@ jobs:
       - name: Postgres schema parity
         run: python scripts/ci_postgres_parity.py
       - name: Pytest (Postgres parity + committee workflow)
-        run: >
-          pytest -q
-          tests/test_ci_postgres_parity.py
-          tests/test_committee_workflow.py
+        shell: bash
+        run: |
+          set -o pipefail
+          pytest -q -vv \
+            tests/test_ci_postgres_parity.py \
+            tests/test_committee_workflow.py \
+            2>&1 | tee committee-postgres-test.log
+      - name: Upload committee PostgreSQL test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: committee-postgres-test-evidence
+          path: backend/committee-postgres-test.log
+          if-no-files-found: error
+          retention-days: 7
 
   frontend:
     runs-on: ubuntu-latest
