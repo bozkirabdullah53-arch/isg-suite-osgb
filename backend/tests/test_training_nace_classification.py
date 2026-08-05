@@ -11,21 +11,30 @@ from app.services.training_nace_classification import (
 )
 
 
-def _catalog_rows() -> list[dict]:
+def _all_catalog_rows() -> list[dict]:
     from app.services.training_topics import sectors_list_for_api
 
     return list(sectors_list_for_api())
 
 
+def _official_catalog_rows() -> list[dict]:
+    return [
+        row
+        for row in _all_catalog_rows()
+        if str(row.get("code") or "").startswith("nace_")
+        and str(row.get("nace") or "").strip()
+    ]
+
+
 def _first_catalog_key(prefix: str) -> str:
-    for row in _catalog_rows():
+    for row in _official_catalog_rows():
         if str(row.get("nace") or "").startswith(prefix):
             return str(row["code"])
     raise AssertionError(f"NACE prefix not found in catalog: {prefix}")
 
 
-def test_every_catalog_row_has_exact_identity_hazard_topics_and_auditable_status():
-    rows = _catalog_rows()
+def test_every_official_catalog_row_has_identity_hazard_topics_and_auditable_status():
+    rows = _official_catalog_rows()
     assert rows
     seen_keys: set[str] = set()
     seen_nace_codes: set[str] = set()
@@ -43,6 +52,18 @@ def test_every_catalog_row_has_exact_identity_hazard_topics_and_auditable_status
         }
         assert len(result.training_topics) == 5
         assert result.classification_status in {"verified", "review_required"}
+
+
+def test_non_nace_catalog_options_are_not_accepted_as_exact_nace():
+    options = [
+        row
+        for row in _all_catalog_rows()
+        if not str(row.get("code") or "").startswith("nace_")
+    ]
+    assert options
+    for row in options:
+        with pytest.raises(ValueError):
+            resolve_exact_nace(str(row.get("code") or ""))
 
 
 def test_exact_construction_nace_is_verified_and_keeps_identity():
