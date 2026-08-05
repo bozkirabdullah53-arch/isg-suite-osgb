@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {AlertTriangle, CalendarPlus, Download, Filter, Plus, RefreshCw, Search, ShieldCheck, Trash2, UserCheck, Users, XCircle} from 'lucide-react';
 import {api, downloadFile} from './api';
 import {AppModal} from './ui_modal';
@@ -40,6 +40,7 @@ export function OhsCommitteePage({user}) {
   const [roleFilter, setRoleFilter] = useState('');
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [removingMember, setRemovingMember] = useState(null);
+  const removalInFlight = useRef(false);
   const [removalForm, setRemovalForm] = useState({reason_code: 'assignment_ended', reason_text: ''});
   const [memberForm, setMemberForm] = useState({role_code: 'calisan_temsilcisi', start_date: '', notes: ''});
   const [meetingForm, setMeetingForm] = useState({
@@ -155,11 +156,12 @@ export function OhsCommitteePage({user}) {
 
   async function confirmRemove(event) {
     event.preventDefault();
-    if (!removingMember || busy) return;
+    if (!removingMember || busy || removalInFlight.current) return;
     if (removalForm.reason_code === 'other' && !removalForm.reason_text.trim()) {
       setErr('“Diğer” nedeni seçildiğinde açıklama zorunludur.');
       return;
     }
+    removalInFlight.current = true;
     setBusy(true); setErr(''); setSuccess('');
     try {
       const result = await api(`/ohs-committee/members/${removingMember.id}/remove`, {
@@ -172,6 +174,7 @@ export function OhsCommitteePage({user}) {
     } catch (error) {
       setErr(error.message || 'Üyelik sonlandırılamadı. Sayfa durumu korunmuştur.');
     } finally {
+      removalInFlight.current = false;
       setBusy(false);
     }
   }
