@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 
 from app.services.training_nace_classification import resolve_exact_nace
 from app.services.training_topics import sectors_list_for_api
@@ -33,6 +33,14 @@ def main() -> int:
     profiles: Counter[str] = Counter()
     invalid_official: list[dict[str, str]] = []
     review_required: list[dict[str, str]] = []
+    review_by_profile: dict[str, dict] = defaultdict(
+        lambda: {
+            "nace_count": 0,
+            "content_profile_name": "",
+            "training_topics": [],
+            "sample_nace": [],
+        }
+    )
 
     for row in official_rows:
         key = str(row.get("code") or "").strip()
@@ -49,17 +57,37 @@ def main() -> int:
             )
             continue
         statuses[result.classification_status] += 1
-        profiles[str(result.content_profile_code or "missing")] += 1
+        profile = str(result.content_profile_code or "missing")
+        profiles[profile] += 1
         if result.classification_status == "review_required":
-            review_required.append(
-                {
-                    "catalog_key": str(result.catalog_key or ""),
-                    "nace_code": str(result.nace_code or ""),
-                    "description": str(result.nace_description or ""),
-                    "content_profile": str(result.content_profile_code or ""),
-                }
+            item = {
+                "catalog_key": str(result.catalog_key or ""),
+                "nace_code": str(result.nace_code or ""),
+                "description": str(result.nace_description or ""),
+                "content_profile": profile,
+            }
+            review_required.append(item)
+            profile_row = review_by_profile[profile]
+            profile_row["nace_count"] += 1
+            profile_row["content_profile_name"] = str(
+                result.content_profile_name or ""
             )
+            profile_row["training_topics"] = list(result.training_topics)
+            if len(profile_row["sample_nace"]) < 3:
+                profile_row["sample_nace"].append(
+                    {
+                        "nace_code": item["nace_code"],
+                        "description": item["description"],
+                    }
+                )
 
+    review_profile_rows = [
+        {"content_profile": profile, **details}
+        for profile, details in sorted(
+            review_by_profile.items(),
+            key=lambda pair: (-int(pair[1]["nace_count"]), pair[0]),
+        )
+    ]
     payload = {
         "catalog_option_count": len(all_rows),
         "official_nace_count": len(official_rows),
@@ -70,7 +98,8 @@ def main() -> int:
         "status_counts": dict(sorted(statuses.items())),
         "profile_count": len(profiles),
         "review_required_count": len(review_required),
-        "review_required_sample": review_required[:50],
+        "review_required_profile_count": len(review_profile_rows),
+        "review_required_by_profile": review_profile_rows,
         "invalid_official": invalid_official,
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
