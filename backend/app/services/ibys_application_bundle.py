@@ -122,7 +122,7 @@ def validate_required_attachments(paths: Iterable[Path]) -> dict[str, str]:
 
 
 def _default_docs_dir() -> Path:
-    return Path(__file__).resolve().parents[4] / "docs" / "ibys"
+    return Path(__file__).resolve().parents[3] / "docs" / "ibys"
 
 
 def build_application_bundle(
