@@ -11,13 +11,38 @@ from app.services.training_nace_classification import (
 )
 
 
-def _first_catalog_key(prefix: str) -> str:
+def _catalog_rows() -> list[dict]:
     from app.services.training_topics import sectors_list_for_api
 
-    for row in sectors_list_for_api():
+    return list(sectors_list_for_api())
+
+
+def _first_catalog_key(prefix: str) -> str:
+    for row in _catalog_rows():
         if str(row.get("nace") or "").startswith(prefix):
             return str(row["code"])
     raise AssertionError(f"NACE prefix not found in catalog: {prefix}")
+
+
+def test_every_catalog_row_has_exact_identity_hazard_topics_and_auditable_status():
+    rows = _catalog_rows()
+    assert rows
+    seen_keys: set[str] = set()
+    seen_nace_codes: set[str] = set()
+    for row in rows:
+        result = resolve_exact_nace(str(row["code"]))
+        assert result.catalog_key not in seen_keys
+        assert result.nace_code not in seen_nace_codes
+        seen_keys.add(str(result.catalog_key))
+        seen_nace_codes.add(str(result.nace_code))
+        assert result.nace_description
+        assert result.hazard_class in {
+            "Az Tehlikeli",
+            "Tehlikeli",
+            "Çok Tehlikeli",
+        }
+        assert len(result.training_topics) == 5
+        assert result.classification_status in {"verified", "review_required"}
 
 
 def test_exact_construction_nace_is_verified_and_keeps_identity():
