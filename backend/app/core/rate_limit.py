@@ -5,7 +5,7 @@ Sertleştirme:
 - /api/v1/auth/* daha düşük limit
 - X-Forwarded-For
 - 429 + Retry-After
-- REDIS_URL yoksa veya Redis hata verirse bellek içi (canlı bozulmaz)
+- REDIS_URL yoksa veya Redis hata verirse bellek içi koruma devam eder
 """
 from __future__ import annotations
 
@@ -86,7 +86,6 @@ class RedisRateLimitStore:
         self._client = client
 
     async def hit(self, key: str, *, limit: int, window_sec: int = 60) -> tuple[bool, int]:
-        # Saniye bucket: aynı pencerede tüm worker'lar aynı sayacı paylaşır
         bucket = int(time()) // window_sec
         rkey = f"{_REDIS_KEY_PREFIX}{key}:{bucket}"
         count = int(await self._client.incr(rkey))
@@ -176,12 +175,15 @@ class SimpleRateLimitMiddleware(BaseHTTPMiddleware):
             else getattr(settings, "rate_limit_auth_rpm", 30)
         )
         self._store = store
+        self._runtime_fallback = MemoryRateLimitStore()
 
     @property
     def store(self) -> RateLimitStore:
         return self._store if self._store is not None else get_rate_limit_store()
 
     async def dispatch(self, request, call_next):
+        global _backend_name
+
         path = request.url.path or "/"
         if _is_exempt(path):
             return await call_next(request)
@@ -193,9 +195,13 @@ class SimpleRateLimitMiddleware(BaseHTTPMiddleware):
         try:
             allowed, retry = await self.store.hit(key, limit=limit, window_sec=60)
         except Exception as exc:
-            # Redis transient hata → isteği düşürme (fail-open), bir sonraki istekte memory'ye düşülebilir
-            logger.warning("Rate limit store error (fail-open): %s", exc)
-            allowed, retry = True, 0
+            logger.warning("Rate limit store error; using memory fallback: %s", exc)
+            _backend_name = "memory-fallback"
+            allowed, retry = await self._runtime_fallback.hit(
+                key,
+                limit=limit,
+                window_sec=60,
+            )
         if not allowed:
             return JSONResponse(
                 {"detail": "Çok fazla istek gönderildi. Lütfen kısa süre sonra tekrar deneyin."},

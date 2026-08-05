@@ -1,13 +1,23 @@
-"""Optional ClamAV INSTREAM scan (TCP clamd). Disabled when CLAMAV_HOST is unset."""
+"""ClamAV INSTREAM scan (TCP clamd) with explicit enforcement policy.
+
+- CLAMAV_REQUIRED=false + host unset: optional rollout, scan is skipped.
+- CLAMAV_REQUIRED=true + host unset: fail closed.
+- Host configured but unreachable/unexpected: fail closed.
+"""
 from __future__ import annotations
 
 import socket
 import struct
 import time
+from typing import Any
 
 from app.core.config import settings
 
 _CHUNK = 64 * 1024
+
+
+def is_clamav_required() -> bool:
+    return bool(getattr(settings, "clamav_required", False))
 
 
 def is_clamav_configured() -> bool:
@@ -15,10 +25,10 @@ def is_clamav_configured() -> bool:
 
 
 def clamav_status_label() -> str:
-    """disabled | reachable | unreachable — host yoksa ağ yok; /health'te çağırma maliyeti düşük."""
+    """disabled | required-missing | reachable | unreachable."""
     host = (settings.clamav_host or "").strip()
     if not host:
-        return "disabled"
+        return "required-missing" if is_clamav_required() else "disabled"
     port = int(settings.clamav_port or 3310)
     timeout = min(2.0, float(settings.clamav_timeout_sec or 30.0))
     try:
@@ -39,10 +49,31 @@ def clamav_status_label() -> str:
         return "unreachable"
 
 
+def clamav_readiness(*, probe: bool = False) -> dict[str, Any]:
+    """Secret-free antivirus rollout state for admin/health reporting."""
+    configured = is_clamav_configured()
+    required = is_clamav_required()
+    status = clamav_status_label() if probe or not configured else "configured-unprobed"
+    return {
+        "required": required,
+        "configured": configured,
+        "status": status,
+        "scan_policy": (
+            "enforced"
+            if required
+            else "optional-rollout"
+        ),
+        "upload_allowed_without_antivirus": not required,
+        "ready": configured and (status in {"configured-unprobed", "reachable"}),
+    }
+
+
 def scan_bytes(content: bytes) -> tuple[bool, str]:
-    """Return (clean, detail). clean=False → reject upload."""
+    """Return (clean, detail). clean=False means upload must be rejected."""
     host = (settings.clamav_host or "").strip()
     if not host:
+        if is_clamav_required():
+            return False, "clamav_required_unconfigured"
         return True, "skipped"
     port = int(settings.clamav_port or 3310)
     timeout = float(settings.clamav_timeout_sec or 30.0)

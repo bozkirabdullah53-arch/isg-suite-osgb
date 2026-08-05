@@ -30,6 +30,9 @@ jobs:
         run: >
           pytest -q
           tests/test_security_config.py
+          tests/test_object_storage_remote_required.py
+          tests/test_rate_limit_runtime_fallback.py
+          tests/test_health_crypto_inventory.py
           tests/test_training_runtime_patches.py
           tests/test_company_access.py
           tests/test_clamav_scan.py

@@ -1,6 +1,7 @@
 """Backup restore plan — yazmadan inceleme + gated restore."""
 from __future__ import annotations
 
+import hashlib
 import json
 import zipfile
 from pathlib import Path
@@ -10,6 +11,7 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.services import backup_restore as br
+from app.services import backup_safety as bs
 
 
 def _make_zip(tmp: Path) -> Path:
@@ -169,7 +171,6 @@ def test_enable_backup_crypto_force_off(monkeypatch):
 
 def test_backup_decrypt_falls_back_to_secret_after_dedicated(tmp_path, monkeypatch):
     import base64
-    import hashlib
 
     from cryptography.fernet import Fernet
 
@@ -181,7 +182,7 @@ def test_backup_decrypt_falls_back_to_secret_after_dedicated(tmp_path, monkeypat
     zpath = _make_zip(tmp_path)
     digest = hashlib.sha256(secret.encode("utf-8")).digest()
     enc = tmp_path / "legacy.zip.enc"
-    enc.write_bytes(Fernet(base64.urlsafe_b64encode(digest)).encrypt(zpath.read_bytes()))
+    enc.write_bytes(Fernet(__import__("base64").urlsafe_b64encode(digest)).encrypt(zpath.read_bytes()))
     monkeypatch.setattr(settings, "backup_encryption_key", dedicated)
     monkeypatch.setattr(settings, "backup_encryption_secret_fallback", False)
     plan = br.inspect_backup_file(enc)
@@ -196,7 +197,6 @@ def test_backup_restore_drill_dry_run(tmp_path, monkeypatch):
     dry = br.restore_files_from_backup(zpath, dry_run=True)
     assert plan.osgb_id == 1
     assert dry["files_touched"] >= 1
-    # yazma hâlâ kapalı
     with pytest.raises(HTTPException) as exc:
         br.restore_files_from_backup(zpath, dry_run=False, confirm="RESTORE")
     assert exc.value.status_code == 403
@@ -211,3 +211,51 @@ def test_restore_write_still_blocked_when_crypto_ready(tmp_path, monkeypatch):
     with pytest.raises(HTTPException) as exc:
         br.restore_files_from_backup(zpath, dry_run=False, confirm="RESTORE")
     assert exc.value.status_code == 403
+
+
+def test_archive_checksum_verification_and_tamper_detection(tmp_path):
+    zpath = _make_zip(tmp_path)
+    checksum = hashlib.sha256(zpath.read_bytes()).hexdigest()
+    assert bs.verify_archive_checksum(zpath, checksum) == "verified"
+    assert bs.verify_archive_checksum(zpath, None) == "not-recorded"
+
+    zpath.write_bytes(zpath.read_bytes() + b"tampered")
+    with pytest.raises(HTTPException) as exc:
+        bs.verify_archive_checksum(zpath, checksum)
+    assert exc.value.status_code == 409
+
+
+def test_zip_safety_preflight_accepts_normal_backup(tmp_path):
+    zpath = _make_zip(tmp_path)
+    result = bs.validate_backup_archive(zpath)
+    assert result["file_count"] == 5
+    assert result["uncompressed_bytes"] > 0
+
+
+def test_zip_safety_rejects_duplicate_paths(tmp_path):
+    zpath = tmp_path / "duplicate.zip"
+    with zipfile.ZipFile(zpath, "w") as zf:
+        zf.writestr("files/1/a.txt", b"first")
+        zf.writestr("files/1/a.txt", b"second")
+    with pytest.raises(HTTPException) as exc:
+        bs.validate_backup_archive(zpath)
+    assert exc.value.status_code == 400
+
+
+def test_zip_safety_rejects_entry_over_limit(tmp_path, monkeypatch):
+    monkeypatch.setattr(bs, "MAX_ZIP_ENTRY_UNCOMPRESSED_BYTES", 4)
+    zpath = tmp_path / "large-entry.zip"
+    with zipfile.ZipFile(zpath, "w") as zf:
+        zf.writestr("files/1/a.txt", b"12345")
+    with pytest.raises(HTTPException) as exc:
+        bs.validate_backup_archive(zpath)
+    assert exc.value.status_code == 413
+
+
+def test_zip_safety_rejects_path_traversal(tmp_path):
+    zpath = tmp_path / "traversal.zip"
+    with zipfile.ZipFile(zpath, "w") as zf:
+        zf.writestr("../escape.txt", b"bad")
+    with pytest.raises(HTTPException) as exc:
+        bs.validate_backup_archive(zpath)
+    assert exc.value.status_code == 400

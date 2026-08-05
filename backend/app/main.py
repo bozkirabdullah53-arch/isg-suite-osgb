@@ -20,19 +20,22 @@ logger = logging.getLogger(__name__)
 _training_runtime_status = install_training_runtime_patches()
 logger.info("training runtime patches: %s", _training_runtime_status)
 
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self,request,call_next):
-        response=await call_next(request)
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
         response.headers.update({
-            'X-Content-Type-Options':'nosniff',
-            'X-Frame-Options':'DENY',
-            'Referrer-Policy':'strict-origin-when-cross-origin',
-            'Permissions-Policy':'camera=(self), microphone=(), geolocation=(self)',
-            'Strict-Transport-Security':'max-age=31536000; includeSubDomains',
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Referrer-Policy": "strict-origin-when-cross-origin",
+            "Permissions-Policy": "camera=(self), microphone=(), geolocation=(self)",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
         })
         return response
+
+
 @asynccontextmanager
-async def lifespan(_:FastAPI):
+async def lifespan(_: FastAPI):
     validate_runtime_settings()
     install_request_id_logging()
     try:
@@ -53,6 +56,8 @@ async def lifespan(_:FastAPI):
         logger.info("object storage rollout: %s", maybe_auto_cutover_object_storage())
     except Exception:
         logger.exception("object storage auto-cutover failed at startup")
+        if bool(getattr(settings, "object_storage_remote_required", False)):
+            raise
     # Schema: production = alembic-only (start.sh). create_all/repair yalnız local/dev.
     _boot_env = (settings.environment or "").strip().lower()
     if _boot_env in ("production", "prod", "live"):
@@ -75,12 +80,14 @@ async def lifespan(_:FastAPI):
             from sqlalchemy import func, select
             from app.models.entities import HazardCategory
             from app.services.hazard_seed import seed_hazard_library
+
             if (db.scalar(select(func.count()).select_from(HazardCategory)) or 0) == 0:
                 seed_hazard_library(db)
         except Exception:
             logger.exception("hazard_seed failed at startup")
         try:
             from app.api.company_access import sync_all_assigned_field_roles
+
             sync_all_assigned_field_roles(db)
         except Exception:
             logger.exception("sync_all_assigned_field_roles failed at startup")
@@ -104,17 +111,20 @@ async def lifespan(_:FastAPI):
         except Exception:
             logger.exception("site_verify_code backfill failed at startup")
     yield
+
+
 _is_prod = is_production_environment(settings.environment)
-app=FastAPI(
+app = FastAPI(
     title=settings.app_name,
     version=APP_VERSION,
     lifespan=lifespan,
-    docs_url=None if _is_prod else '/docs',
-    redoc_url=None if _is_prod else '/redoc',
-    openapi_url=None if _is_prod else '/openapi.json',
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
+    openapi_url=None if _is_prod else "/openapi.json",
 )
 
 from app.core.validation_tr import register_turkish_validation
+
 register_turkish_validation(app)
 
 app.add_middleware(SecurityHeadersMiddleware)
@@ -127,13 +137,67 @@ app.add_middleware(
     requests_per_minute=settings.rate_limit_rpm,
     auth_requests_per_minute=settings.rate_limit_auth_rpm,
 )
-_cors_origins=build_cors_origins(
+_cors_origins = build_cors_origins(
     environment=settings.environment,
     frontend_origin=settings.frontend_origin,
 )
-app.add_middleware(CORSMiddleware,allow_origins=_cors_origins,allow_credentials=True,allow_methods=['*'],allow_headers=['*'])
-for r in (auth.router,osgb_applications.router,eisa.router,companies.router,branches.router,users.router,employees.router,isg_records.router,health.router,prescriptions.router,documents.router,annual_plans.router,annual_eval.router,reports.router,security.router,files.router,exports.router,subscriptions.router,notifications.router,system.router,dashboard.router,osgb.router,operations.router,trainings.router,training_question_bank.router,training_question_bank.exam_router,risks.router,incidents.router,ppe.router,sds.router,drills.router,emergency_teams.router,archives.router,legal.router,memberships.router,compliance_registers.pc_router,compliance_registers.ep_router,compliance_registers.wm_router,compliance_registers.oc_router,compliance_registers.da_router,esign.router,esign_orch.router,eyas.router): app.include_router(r,prefix='/api/v1')
-@app.get('/health')
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+for router in (
+    auth.router,
+    osgb_applications.router,
+    eisa.router,
+    companies.router,
+    branches.router,
+    users.router,
+    employees.router,
+    isg_records.router,
+    health.router,
+    prescriptions.router,
+    documents.router,
+    annual_plans.router,
+    annual_eval.router,
+    reports.router,
+    security.router,
+    files.router,
+    exports.router,
+    subscriptions.router,
+    notifications.router,
+    system.router,
+    dashboard.router,
+    osgb.router,
+    operations.router,
+    trainings.router,
+    training_question_bank.router,
+    training_question_bank.exam_router,
+    risks.router,
+    incidents.router,
+    ppe.router,
+    sds.router,
+    drills.router,
+    emergency_teams.router,
+    archives.router,
+    legal.router,
+    memberships.router,
+    compliance_registers.pc_router,
+    compliance_registers.ep_router,
+    compliance_registers.wm_router,
+    compliance_registers.oc_router,
+    compliance_registers.da_router,
+    esign.router,
+    esign_orch.router,
+    eyas.router,
+):
+    app.include_router(router, prefix="/api/v1")
+
+
+@app.get("/health")
 def health():
     from app.services.release_status import public_health_payload
+
     return public_health_payload()

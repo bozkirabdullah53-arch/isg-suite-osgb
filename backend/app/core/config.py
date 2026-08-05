@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     clamav_host: str | None = None
     clamav_port: int = 3310
     clamav_timeout_sec: float = 30.0
+    # Açıldığında antivirüs yapılandırılmadan production başlamaz ve tarama atlanmaz.
+    clamav_required: bool = False
     # P0 upload gateway — production'da apply_production_rollout açar
     upload_gateway_enabled: bool = False
     # Acil kapatma: UPLOAD_GATEWAY_FORCE_OFF=true (production override'ı iptal)
@@ -42,6 +44,8 @@ class Settings(BaseSettings):
     object_storage_region: str | None = None
     object_storage_access_key: str | None = None
     object_storage_secret_key: str | None = None
+    # Açıldığında local-only veya başarısız dual mirror kabul edilmez.
+    object_storage_remote_required: bool = False
     # P0-05 geçici saha QR süresi (dakika) — kısa TTL + tek kullanım
     site_qr_ephemeral_ttl_minutes: int = 5
     # P0-08 geri yükleme — varsayılan kapalı (yalnızca plan her zaman açık)
@@ -101,6 +105,7 @@ def training_question_bank_exam_active() -> bool:
         return False
     return bool(getattr(settings, "training_question_bank_exam_enabled", False))
 
+
 _INSECURE_SECRET_KEYS = frozenset({
     "change-me-in-production-at-least-32-characters!",
     "change-me",
@@ -122,7 +127,7 @@ apply_production_rollout()
 
 
 def validate_runtime_settings() -> None:
-    """Üretimde zayıf/varsayılan SECRET_KEY ile başlamayı engelle."""
+    """Üretimde zayıf secret veya zorunlu altyapı eksiğiyle başlamayı engelle."""
     env = (settings.environment or "").strip().lower()
     if env not in ("production", "prod", "live"):
         return
@@ -132,3 +137,26 @@ def validate_runtime_settings() -> None:
             "Production ortamında güçlü SECRET_KEY zorunludur (.env / Render env). "
             "Varsayılan anahtarla başlatılamaz."
         )
+    if bool(getattr(settings, "clamav_required", False)) and not (
+        getattr(settings, "clamav_host", None) or ""
+    ).strip():
+        raise RuntimeError(
+            "CLAMAV_REQUIRED=true iken CLAMAV_HOST zorunludur. "
+            "Antivirüs taraması olmadan production başlatılamaz."
+        )
+
+    if bool(getattr(settings, "object_storage_remote_required", False)):
+        bucket = (settings.object_storage_bucket or "").strip()
+        access = (settings.object_storage_access_key or "").strip()
+        secret = (settings.object_storage_secret_key or "").strip()
+        endpoint = (settings.object_storage_endpoint or "").strip()
+        region = (settings.object_storage_region or "").strip()
+        if bool(getattr(settings, "object_storage_force_local", False)):
+            raise RuntimeError(
+                "OBJECT_STORAGE_REMOTE_REQUIRED=true iken OBJECT_STORAGE_FORCE_LOCAL kullanılamaz."
+            )
+        if not (bucket and access and secret and (endpoint or region)):
+            raise RuntimeError(
+                "OBJECT_STORAGE_REMOTE_REQUIRED=true iken bucket, access key, secret key "
+                "ve endpoint veya region zorunludur."
+            )
