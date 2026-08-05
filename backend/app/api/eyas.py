@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.api.company_access import company_ids_for_query, ensure_company_access
@@ -57,8 +57,8 @@ def _ua(request: Request) -> str | None:
 
 
 def _assignee_name(db: Session, user_id: int) -> str | None:
-    u = db.get(User, user_id)
-    return u.full_name if u else None
+    user = db.get(User, user_id)
+    return user.full_name if user else None
 
 
 def _step_out(db: Session, step: EyasStep) -> EyasStepOut:
@@ -80,34 +80,41 @@ def _step_out(db: Session, step: EyasStep) -> EyasStepOut:
     )
 
 
-def _doc_path(wf: EyasWorkflow) -> str | None:
-    if not wf.source_key:
+def _doc_path(db: Session, workflow: EyasWorkflow) -> str | None:
+    if workflow.document_kind == "ohs_committee_meeting":
+        meeting_id = db.scalar(
+            text("SELECT id FROM ohs_committee_meetings WHERE approval_workflow_id=:workflow_id AND is_active=true"),
+            {"workflow_id": workflow.id},
+        )
+        if meeting_id:
+            return f"/api/v1/ohs-committee/meetings/{meeting_id}/pdf"
+    if not workflow.source_key:
         return None
-    return f"/api/v1/eyas/workflows/{wf.id}/document"
+    return f"/api/v1/eyas/workflows/{workflow.id}/document"
 
 
-def _wf_out(db: Session, wf: EyasWorkflow) -> EyasWorkflowOut:
-    steps = svc.list_steps(db, wf.id)
+def _wf_out(db: Session, workflow: EyasWorkflow) -> EyasWorkflowOut:
+    steps = svc.list_steps(db, workflow.id)
     return EyasWorkflowOut(
-        id=wf.id,
-        company_id=wf.company_id,
-        title=wf.title,
-        document_kind=wf.document_kind,
-        source_key=getattr(wf, "source_key", None),
-        source_document_id=wf.source_document_id,
-        source_sha256=wf.source_sha256,
-        status=wf.status,
-        current_step_order=wf.current_step_order,
-        legal_label=wf.legal_label,
-        qes_request_id=wf.qes_request_id,
-        archive_path=wf.archive_path,
-        locked_at=wf.locked_at,
-        created_by_id=wf.created_by_id,
-        is_active=wf.is_active,
-        created_at=wf.created_at,
-        updated_at=wf.updated_at,
-        steps=[_step_out(db, s) for s in steps],
-        document_download_path=_doc_path(wf),
+        id=workflow.id,
+        company_id=workflow.company_id,
+        title=workflow.title,
+        document_kind=workflow.document_kind,
+        source_key=getattr(workflow, "source_key", None),
+        source_document_id=workflow.source_document_id,
+        source_sha256=workflow.source_sha256,
+        status=workflow.status,
+        current_step_order=workflow.current_step_order,
+        legal_label=workflow.legal_label,
+        qes_request_id=workflow.qes_request_id,
+        archive_path=workflow.archive_path,
+        locked_at=workflow.locked_at,
+        created_by_id=workflow.created_by_id,
+        is_active=workflow.is_active,
+        created_at=workflow.created_at,
+        updated_at=workflow.updated_at,
+        steps=[_step_out(db, step) for step in steps],
+        document_download_path=_doc_path(db, workflow),
     )
 
 
@@ -147,7 +154,7 @@ def list_workflows(
 ):
     _require_eyas()
     ids = company_ids_for_query(db, user, company_id)
-    stmt = (
+    statement = (
         select(EyasWorkflow)
         .where(EyasWorkflow.is_active.is_(True))
         .order_by(EyasWorkflow.id.desc())
@@ -155,18 +162,18 @@ def list_workflows(
     if ids == []:
         return []
     if ids is not None:
-        stmt = stmt.where(EyasWorkflow.company_id.in_(ids))
+        statement = statement.where(EyasWorkflow.company_id.in_(ids))
     if user.role == UserRole.COMPANY_ADMIN:
         own_ids = {
-            s.workflow_id
-            for s in db.scalars(
+            step.workflow_id
+            for step in db.scalars(
                 select(EyasStep).where(EyasStep.assignee_user_id == user.id)
             ).all()
         }
-        rows = list(db.scalars(stmt.limit(300)).all())
-        rows = [w for w in rows if w.created_by_id == user.id or w.id in own_ids]
-        return [_wf_out(db, w) for w in rows[:100]]
-    return [_wf_out(db, w) for w in db.scalars(stmt.limit(100)).all()]
+        rows = list(db.scalars(statement.limit(300)).all())
+        rows = [row for row in rows if row.created_by_id == user.id or row.id in own_ids]
+        return [_wf_out(db, row) for row in rows[:100]]
+    return [_wf_out(db, row) for row in db.scalars(statement.limit(100)).all()]
 
 
 @router.get("/inbox", response_model=list[EyasWorkflowOut])
@@ -177,16 +184,16 @@ def inbox(
     _require_eyas()
     ids = company_ids_for_query(db, user, None)
     steps = svc.inbox_for_user(db, user, ids)
-    out: list[EyasWorkflowOut] = []
+    output: list[EyasWorkflowOut] = []
     seen: set[int] = set()
-    for st in steps:
-        if st.workflow_id in seen:
+    for step in steps:
+        if step.workflow_id in seen:
             continue
-        wf = db.get(EyasWorkflow, st.workflow_id)
-        if wf:
-            out.append(_wf_out(db, wf))
-            seen.add(wf.id)
-    return out
+        workflow = db.get(EyasWorkflow, step.workflow_id)
+        if workflow:
+            output.append(_wf_out(db, workflow))
+            seen.add(workflow.id)
+    return output
 
 
 @router.post("/workflows", response_model=EyasWorkflowOut)
@@ -198,83 +205,65 @@ def create_workflow(
 ):
     _require_eyas()
     ensure_company_access(db, user, payload.company_id)
-
     title = (payload.title or "").strip()
     document_kind = (payload.document_kind or "genel").strip() or "genel"
     source_key = (payload.source_key or "").strip() or None
     source_document_id = payload.source_document_id
-    steps_in = [s.model_dump() for s in (payload.steps or [])]
-
+    steps_in = [step.model_dump() for step in (payload.steps or [])]
     if source_key:
         try:
-            doc = workplace.resolve_document(db, payload.company_id, source_key)
+            document = workplace.resolve_document(db, payload.company_id, source_key)
         except KeyError:
             raise HTTPException(422, "Seçilen belge bu işyerinde bulunamadı.") from None
-        if doc.get("readiness") != "ready":
+        if document.get("readiness") != "ready":
             raise HTTPException(
                 422,
-                doc.get("readiness_detail") or "Rapor hazır değil. Önce ilgili modülde belgeyi tamamlayın.",
+                document.get("readiness_detail") or "Rapor hazır değil. Önce ilgili modülde belgeyi tamamlayın.",
             )
-        title = title or doc["title"]
-        document_kind = doc["kind"]
-        if doc.get("document_record_id"):
-            source_document_id = doc["document_record_id"]
-
+        title = title or document["title"]
+        document_kind = document["kind"]
+        if document.get("document_record_id"):
+            source_document_id = document["document_record_id"]
     if not title or len(title) < 2:
         raise HTTPException(422, "Belge seçin veya başlık girin.")
-
     if not steps_in:
         suggested = workplace.suggested_assignees(db, payload.company_id)
         built = []
-        for st in suggested["steps"]:
-            uid = st.get("suggested_user_id")
-            if not uid:
-                warn = "; ".join(st.get("warnings") or []) or st["role_label"]
-                raise HTTPException(
-                    422,
-                    f"Onaycı eksik ({st['role_label']}): {warn}",
-                )
-            built.append(
-                {
-                    "assignee_user_id": uid,
-                    "role_label": st["role_label"],
-                    "step_order": st["step_order"],
-                }
-            )
+        for step in suggested["steps"]:
+            user_id = step.get("suggested_user_id")
+            if not user_id:
+                warning = "; ".join(step.get("warnings") or []) or step["role_label"]
+                raise HTTPException(422, f"Onaycı eksik ({step['role_label']}): {warning}")
+            built.append({
+                "assignee_user_id": user_id,
+                "role_label": step["role_label"],
+                "step_order": step["step_order"],
+            })
         steps_in = built
     elif payload.auto_assignees and source_key:
-        # İşyeri akışı: görevlendirmeden doldur; gönderilen adımlar override eder
         suggested = workplace.suggested_assignees(db, payload.company_id)
         built = []
-        for st in suggested["steps"]:
-            uid = st.get("suggested_user_id")
-            if not uid:
-                warn = "; ".join(st.get("warnings") or []) or st["role_label"]
-                raise HTTPException(
-                    422,
-                    f"Onaycı eksik ({st['role_label']}): {warn}",
-                )
-            built.append(
-                {
-                    "assignee_user_id": uid,
-                    "role_label": st["role_label"],
-                    "step_order": st["step_order"],
-                }
-            )
-        for i, s in enumerate(steps_in[:3]):
-            if s.get("assignee_user_id"):
-                built[i]["assignee_user_id"] = int(s["assignee_user_id"])
-                if s.get("role_label"):
-                    built[i]["role_label"] = s["role_label"]
+        for step in suggested["steps"]:
+            user_id = step.get("suggested_user_id")
+            if not user_id:
+                warning = "; ".join(step.get("warnings") or []) or step["role_label"]
+                raise HTTPException(422, f"Onaycı eksik ({step['role_label']}): {warning}")
+            built.append({
+                "assignee_user_id": user_id,
+                "role_label": step["role_label"],
+                "step_order": step["step_order"],
+            })
+        for index, step in enumerate(steps_in[:3]):
+            if step.get("assignee_user_id"):
+                built[index]["assignee_user_id"] = int(step["assignee_user_id"])
+                if step.get("role_label"):
+                    built[index]["role_label"] = step["role_label"]
         steps_in = built
-
     if source_key and len(steps_in) < 3:
         raise HTTPException(422, "Üç onaycı gerekli: İş Güvenliği → Hekim → İşveren/vekil.")
-
     if not steps_in:
         raise HTTPException(422, "En az bir onay adımı gerekli.")
-
-    wf = svc.create_workflow(
+    workflow = svc.create_workflow(
         db,
         user=user,
         company_id=payload.company_id,
@@ -287,7 +276,7 @@ def create_workflow(
         ip=_client_ip(request),
         user_agent=_ua(request),
     )
-    return _wf_out(db, wf)
+    return _wf_out(db, workflow)
 
 
 @router.get("/workflows/{workflow_id}", response_model=EyasWorkflowOut)
@@ -297,11 +286,11 @@ def get_workflow(
     user: User = Depends(require_roles(*VIEW_ROLES)),
 ):
     _require_eyas()
-    wf = db.get(EyasWorkflow, workflow_id)
-    if not wf or not wf.is_active:
+    workflow = db.get(EyasWorkflow, workflow_id)
+    if not workflow or not workflow.is_active:
         raise HTTPException(404, "Onay akışı bulunamadı.")
-    ensure_company_access(db, user, wf.company_id)
-    return _wf_out(db, wf)
+    ensure_company_access(db, user, workflow.company_id)
+    return _wf_out(db, workflow)
 
 
 @router.get("/workflows/{workflow_id}/document")
@@ -310,21 +299,31 @@ def get_workflow_document(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*VIEW_ROLES)),
 ):
-    """Onaylı belgenin kaynak PDF/dosyasına yönlendir (işyeri modülünden)."""
     _require_eyas()
-    wf = db.get(EyasWorkflow, workflow_id)
-    if not wf or not wf.is_active:
+    workflow = db.get(EyasWorkflow, workflow_id)
+    if not workflow or not workflow.is_active:
         raise HTTPException(404, "Onay akışı bulunamadı.")
-    ensure_company_access(db, user, wf.company_id)
-    if not wf.source_key:
+    ensure_company_access(db, user, workflow.company_id)
+    if workflow.document_kind == "ohs_committee_meeting":
+        meeting_id = db.scalar(
+            text("SELECT id FROM ohs_committee_meetings WHERE approval_workflow_id=:workflow_id AND is_active=true"),
+            {"workflow_id": workflow.id},
+        )
+        if not meeting_id:
+            raise HTTPException(404, "Kurul toplantısı bağlantısı bulunamadı.")
+        return RedirectResponse(
+            url=f"/api/v1/ohs-committee/meetings/{meeting_id}/pdf",
+            status_code=307,
+        )
+    if not workflow.source_key:
         raise HTTPException(404, "Bu akışa bağlı belge kaynağı yok.")
     try:
-        doc = workplace.resolve_document(db, wf.company_id, wf.source_key)
+        document = workplace.resolve_document(db, workflow.company_id, workflow.source_key)
     except KeyError:
         raise HTTPException(404, "Kaynak belge bulunamadı.") from None
-    if doc.get("readiness") == "missing":
-        raise HTTPException(422, doc.get("readiness_detail") or "Rapor hazır değil.")
-    path = doc.get("download_path")
+    if document.get("readiness") == "missing":
+        raise HTTPException(422, document.get("readiness_detail") or "Rapor hazır değil.")
+    path = document.get("download_path")
     if not path:
         raise HTTPException(422, "Bu belge için indirme yolu yok.")
     return RedirectResponse(url=path, status_code=307)
@@ -337,16 +336,24 @@ def list_events(
     user: User = Depends(require_roles(*VIEW_ROLES)),
 ):
     _require_eyas()
-    wf = db.get(EyasWorkflow, workflow_id)
-    if not wf:
+    workflow = db.get(EyasWorkflow, workflow_id)
+    if not workflow:
         raise HTTPException(404, "Onay akışı bulunamadı.")
-    ensure_company_access(db, user, wf.company_id)
-    rows = list(
+    ensure_company_access(db, user, workflow.company_id)
+    return list(
         db.scalars(
-            select(EyasEvent).where(EyasEvent.workflow_id == workflow_id).order_by(EyasEvent.id)
+            select(EyasEvent)
+            .where(EyasEvent.workflow_id == workflow_id)
+            .order_by(EyasEvent.id)
         ).all()
     )
-    return rows
+
+
+def _sync_committee(db: Session, workflow: EyasWorkflow, user: User) -> None:
+    if workflow.document_kind != "ohs_committee_meeting":
+        return
+    from app.services.committee_workflow import sync_from_eyas_transition
+    sync_from_eyas_transition(db, workflow, user)
 
 
 @router.post("/workflows/{workflow_id}/approve", response_model=EyasWorkflowOut)
@@ -358,11 +365,11 @@ def approve(
     user: User = Depends(require_roles(*VIEW_ROLES)),
 ):
     _require_eyas()
-    wf0 = db.get(EyasWorkflow, workflow_id)
-    if not wf0:
+    current = db.get(EyasWorkflow, workflow_id)
+    if not current:
         raise HTTPException(404, "Onay akışı bulunamadı.")
-    ensure_company_access(db, user, wf0.company_id)
-    wf = svc.decide_step(
+    ensure_company_access(db, user, current.company_id)
+    workflow = svc.decide_step(
         db,
         workflow_id=workflow_id,
         user=user,
@@ -372,7 +379,8 @@ def approve(
         ip=_client_ip(request),
         user_agent=_ua(request),
     )
-    return _wf_out(db, wf)
+    _sync_committee(db, workflow, user)
+    return _wf_out(db, workflow)
 
 
 @router.post("/workflows/{workflow_id}/reject", response_model=EyasWorkflowOut)
@@ -384,11 +392,11 @@ def reject(
     user: User = Depends(require_roles(*VIEW_ROLES)),
 ):
     _require_eyas()
-    wf0 = db.get(EyasWorkflow, workflow_id)
-    if not wf0:
+    current = db.get(EyasWorkflow, workflow_id)
+    if not current:
         raise HTTPException(404, "Onay akışı bulunamadı.")
-    ensure_company_access(db, user, wf0.company_id)
-    wf = svc.decide_step(
+    ensure_company_access(db, user, current.company_id)
+    workflow = svc.decide_step(
         db,
         workflow_id=workflow_id,
         user=user,
@@ -398,7 +406,8 @@ def reject(
         ip=_client_ip(request),
         user_agent=_ua(request),
     )
-    return _wf_out(db, wf)
+    _sync_committee(db, workflow, user)
+    return _wf_out(db, workflow)
 
 
 @router.delete("/workflows/{workflow_id}")
@@ -409,10 +418,12 @@ def delete_workflow(
     user: User = Depends(require_roles(*VIEW_ROLES)),
 ):
     _require_eyas()
-    wf0 = db.get(EyasWorkflow, workflow_id)
-    if not wf0 or not wf0.is_active:
+    workflow = db.get(EyasWorkflow, workflow_id)
+    if not workflow or not workflow.is_active:
         raise HTTPException(404, "Onay akışı bulunamadı.")
-    ensure_company_access(db, user, wf0.company_id)
+    ensure_company_access(db, user, workflow.company_id)
+    if workflow.document_kind == "ohs_committee_meeting":
+        raise HTTPException(409, "Kurul toplantısı onay akışı bu ekrandan silinemez; belge sürümleme kuralları uygulanmalıdır.")
     svc.soft_delete_workflow(
         db,
         workflow_id=workflow_id,
