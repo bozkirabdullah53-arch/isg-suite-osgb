@@ -1,4 +1,4 @@
-"""0.9.115 — ÇSGB denetim paketi (audit-bundle-v3) + işyeri salt-okunur snapshot."""
+"""ÇSGB checklist v3 + ZIP manifest v4 + işyeri salt-okunur snapshot."""
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -245,7 +245,7 @@ def test_csgb_company_scoped_pack_and_bundle(client):
         assert "manifest.json" in names
         assert "01-checklist.pdf" in names
         manifest = zf.read("manifest.json").decode("utf-8")
-        assert "audit-bundle-v3" in manifest
+        assert "audit-bundle-v4" in manifest
         assert "company" in manifest
         visits = zf.read("03-visits-notebook.json").decode("utf-8")
         assert '"with_notebook": 1' in visits or '"with_notebook":1' in visits
@@ -276,4 +276,4 @@ def test_csgb_audit_bundle_zip_download(client):
         assert "has_notebook" in visits
         assert '"with_notebook": 1' in visits or '"with_notebook":1' in visits
         man = zf.read("manifest.json").decode("utf-8")
-        assert "audit-bundle-v3" in man
+        assert "audit-bundle-v4" in man
