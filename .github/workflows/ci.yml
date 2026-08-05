@@ -27,7 +27,9 @@ jobs:
           SECRET_KEY: ci-secret-key-at-least-32-characters-long
           DATABASE_URL: sqlite:///./ci_test.db
           PYTHONPATH: .
-        run: python scripts/audit_training_nace_classification.py
+        run: |
+          python scripts/audit_training_nace_classification.py
+          python scripts/list_training_nace_review_profiles.py
       - name: Pytest (SQLite smoke)
         env:
           ENVIRONMENT: development
