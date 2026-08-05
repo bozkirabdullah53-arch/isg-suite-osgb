@@ -304,7 +304,9 @@ def submit_for_approval(
             }
             for p in participants
         ],
-        source_document_id=meeting_id,
+        # source_document_id is reserved for document_records. The committee
+        # meeting links to this workflow through approval_workflow_id.
+        source_document_id=None,
         source_sha256=source_sha256,
         source_key=None,
         ip=ip,
@@ -351,9 +353,15 @@ def submit_for_approval(
 
 
 def sync_from_eyas_transition(db: Session, workflow: EyasWorkflow, actor: User) -> None:
-    if workflow.document_kind != "ohs_committee_meeting" or not workflow.source_document_id:
+    if workflow.document_kind != "ohs_committee_meeting":
         return
-    meeting = meeting_row(db, int(workflow.source_document_id))
+    meeting_id = db.scalar(
+        text("SELECT id FROM ohs_committee_meetings WHERE approval_workflow_id=:workflow_id AND is_active=true"),
+        {"workflow_id": workflow.id},
+    )
+    if not meeting_id:
+        return
+    meeting = meeting_row(db, int(meeting_id))
     steps = list(
         db.scalars(
             select(EyasStep)

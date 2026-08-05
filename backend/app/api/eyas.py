@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.api.company_access import company_ids_for_query, ensure_company_access
@@ -80,9 +80,14 @@ def _step_out(db: Session, step: EyasStep) -> EyasStepOut:
     )
 
 
-def _doc_path(workflow: EyasWorkflow) -> str | None:
-    if workflow.document_kind == "ohs_committee_meeting" and workflow.source_document_id:
-        return f"/api/v1/ohs-committee/meetings/{workflow.source_document_id}/pdf"
+def _doc_path(db: Session, workflow: EyasWorkflow) -> str | None:
+    if workflow.document_kind == "ohs_committee_meeting":
+        meeting_id = db.scalar(
+            text("SELECT id FROM ohs_committee_meetings WHERE approval_workflow_id=:workflow_id AND is_active=true"),
+            {"workflow_id": workflow.id},
+        )
+        if meeting_id:
+            return f"/api/v1/ohs-committee/meetings/{meeting_id}/pdf"
     if not workflow.source_key:
         return None
     return f"/api/v1/eyas/workflows/{workflow.id}/document"
@@ -109,7 +114,7 @@ def _wf_out(db: Session, workflow: EyasWorkflow) -> EyasWorkflowOut:
         created_at=workflow.created_at,
         updated_at=workflow.updated_at,
         steps=[_step_out(db, step) for step in steps],
-        document_download_path=_doc_path(workflow),
+        document_download_path=_doc_path(db, workflow),
     )
 
 
@@ -299,9 +304,15 @@ def get_workflow_document(
     if not workflow or not workflow.is_active:
         raise HTTPException(404, "Onay akışı bulunamadı.")
     ensure_company_access(db, user, workflow.company_id)
-    if workflow.document_kind == "ohs_committee_meeting" and workflow.source_document_id:
+    if workflow.document_kind == "ohs_committee_meeting":
+        meeting_id = db.scalar(
+            text("SELECT id FROM ohs_committee_meetings WHERE approval_workflow_id=:workflow_id AND is_active=true"),
+            {"workflow_id": workflow.id},
+        )
+        if not meeting_id:
+            raise HTTPException(404, "Kurul toplantısı bağlantısı bulunamadı.")
         return RedirectResponse(
-            url=f"/api/v1/ohs-committee/meetings/{workflow.source_document_id}/pdf",
+            url=f"/api/v1/ohs-committee/meetings/{meeting_id}/pdf",
             status_code=307,
         )
     if not workflow.source_key:
