@@ -6,7 +6,6 @@ OSGB Signer request/artifact. Completed artifacts are never deleted.
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
@@ -233,17 +232,15 @@ def create_signature_request(
         relative = pipe.store_esign_bytes(meeting["company_id"], "source", source)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
-    token = pipe.new_one_time_token()
-    title = meeting.get("title") or f"İSG Kurulu Toplantısı #{meeting_id}"
     request_row = ESignRequest(
         company_id=meeting["company_id"],
         approval_id=None,
-        document_title=title[:220],
+        document_title=(meeting.get("title") or f"İSG Kurulu Toplantısı #{meeting_id}")[:220],
         document_kind="ohs_committee_meeting",
         source_sha256=pipe.sha256_hex(source),
         source_storage_path=relative,
         source_bytes=len(source),
-        one_time_token=token,
+        one_time_token=pipe.new_one_time_token(),
         token_expires_at=pipe.token_expiry(),
         status="pending",
         created_by_id=user.id,
@@ -251,11 +248,7 @@ def create_signature_request(
     db.add(request_row)
     db.flush()
     db.execute(
-        text("""
-            UPDATE ohs_committee_signature_steps
-               SET esign_request_id=:request_id
-             WHERE id=:step_id AND status='active'
-        """),
+        text("UPDATE ohs_committee_signature_steps SET esign_request_id=:request_id WHERE id=:step_id AND status='active'"),
         {"request_id": request_row.id, "step_id": step["id"]},
     )
     add_audit_log(
@@ -386,19 +379,12 @@ def complete_signature_step(
         )
     else:
         db.execute(
-            text("""
-                UPDATE ohs_committee_meetings
-                   SET signature_status='signed', status='signed', updated_at=:now
-                 WHERE id=:id
-            """),
+            text("UPDATE ohs_committee_meetings SET signature_status='signed', status='signed', updated_at=:now WHERE id=:id"),
             {"now": signed_at, "id": link["meeting_id"]},
         )
         signer_ids = list(
             db.scalars(
-                text("""
-                    SELECT signer_user_id FROM ohs_committee_signature_steps
-                     WHERE meeting_id=:meeting_id AND document_version=:version
-                """),
+                text("SELECT signer_user_id FROM ohs_committee_signature_steps WHERE meeting_id=:meeting_id AND document_version=:version"),
                 {"meeting_id": link["meeting_id"], "version": version},
             ).all()
         )
@@ -431,11 +417,16 @@ def final_signed_artifact(db: Session, meeting_id: int, document_version: int) -
     return db.get(ESignArtifact, artifact_id) if artifact_id else None
 
 
-def final_signed_bytes(db: Session, meeting_id: int, document_version: int) -> bytes | None:
-    artifact = final_signed_artifact(db, meeting_id, document_version)
+def artifact_bytes_by_id(db: Session, artifact_id: int) -> bytes | None:
+    artifact = db.get(ESignArtifact, artifact_id)
     if not artifact:
         return None
     try:
         return pipe.read_stored(artifact.signed_storage_path)
     except Exception:
         return None
+
+
+def final_signed_bytes(db: Session, meeting_id: int, document_version: int) -> bytes | None:
+    artifact = final_signed_artifact(db, meeting_id, document_version)
+    return artifact_bytes_by_id(db, artifact.id) if artifact else None
