@@ -37,7 +37,7 @@ jobs:
           path: backend/nace-review-profiles.jsonl
           if-no-files-found: error
           retention-days: 7
-      - name: Pytest (SQLite smoke)
+      - name: Pytest (SQLite smoke + complete training workflow)
         env:
           ENVIRONMENT: development
           SECRET_KEY: ci-secret-key-at-least-32-characters-long
@@ -51,6 +51,13 @@ jobs:
           tests/test_health_crypto_inventory.py
           tests/test_training_runtime_patches.py
           tests/test_training_nace_classification.py
+          tests/test_training_question_bank.py
+          tests/test_training_exact_question_factory.py
+          tests/test_training_question_selection_v2.py
+          tests/test_training_question_selection_smoke_script.py
+          tests/test_training_completion.py
+          tests/test_training_strict_cutover.py
+          tests/test_training_rules.py
           tests/test_committee_professional.py
           tests/test_company_access.py
           tests/test_clamav_scan.py
