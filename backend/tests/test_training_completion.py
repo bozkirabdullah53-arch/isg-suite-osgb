@@ -28,6 +28,12 @@ from app.services.training_nace_classification import resolve_exact_nace
 install_training_completion_guard()
 
 
+@pytest.fixture(autouse=True)
+def strict_completion(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("TRAINING_COMPLETION_STRICT", "true")
+    monkeypatch.delenv("TRAINING_COMPLETION_STRICT_AFTER", raising=False)
+
+
 @pytest.fixture()
 def db() -> Session:
     engine = create_engine("sqlite:///:memory:")
@@ -103,6 +109,7 @@ def test_preflight_blocks_unfinalized_verified_training(db: Session):
     training, _user, _employees, _participants = _seed_verified(db)
     result = completion_preflight(db, training)
     assert result["strict_applicable"] is True
+    assert result["strict_enforced"] is True
     assert result["ready_for_certificates"] is False
     assert "Eğitim tamamlandı durumuna alınmamış." in result["training_blockers"]
     assert result["eligible_count"] == 0
@@ -140,10 +147,7 @@ def test_finalize_fails_closed_when_attendee_score_missing(db: Session):
         finalize_training_results(db, training)
 
 
-def test_strict_certificate_pdf_blocks_before_finalize(
-    db: Session, monkeypatch: pytest.MonkeyPatch
-):
-    monkeypatch.setenv("TRAINING_COMPLETION_STRICT", "true")
+def test_strict_certificate_pdf_blocks_before_finalize(db: Session):
     training, _user, employees, _participants = _seed_verified(db)
     employee_map = {employee.id: employee for employee in employees}
     with pytest.raises(ValueError, match="Katılım belgesi üretilemez"):
@@ -154,10 +158,7 @@ def test_strict_certificate_pdf_blocks_before_finalize(
         )
 
 
-def test_strict_certificate_pdf_contains_only_eligible_people(
-    db: Session, monkeypatch: pytest.MonkeyPatch
-):
-    monkeypatch.setenv("TRAINING_COMPLETION_STRICT", "true")
+def test_strict_certificate_pdf_contains_only_eligible_people(db: Session):
     training, _user, employees, participants = _seed_verified(db)
     participants[0].attended = True
     participants[0].score = 90
@@ -173,15 +174,10 @@ def test_strict_certificate_pdf_contains_only_eligible_people(
         employees={employee.id: employee for employee in employees},
     )
     assert pdf.startswith(b"%PDF")
-    # One eligible participant means one certificate page. /Type /Pages is the
-    # page tree; /Type /Page is the actual rendered page.
     assert pdf.count(b"/Type /Page") <= 2
 
 
-def test_legacy_training_keeps_existing_certificate_behavior(
-    db: Session, monkeypatch: pytest.MonkeyPatch
-):
-    monkeypatch.setenv("TRAINING_COMPLETION_STRICT", "true")
+def test_legacy_training_keeps_existing_certificate_behavior(db: Session):
     company = Company(name="Legacy Belge Test", hazard_class="Az Tehlikeli")
     user = User(
         email="legacy-completion@example.com",
