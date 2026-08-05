@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from fastapi.testclient import TestClient
+
 from app.services.ibys_application_preflight import (
     PREFLIGHT_VERSION,
     assess_application_preflight,
@@ -99,3 +101,18 @@ def test_preflight_route_is_registered():
 
     paths = {route.path for route in app.routes}
     assert "/api/v1/ibys-application/preflight" in paths
+
+
+def test_preflight_route_rejects_anonymous_request_without_leaking_report():
+    from app.main import app
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/ibys-application/preflight",
+            json={"company_profile": _profile(), "attachment_filenames": _attachments()},
+        )
+
+    assert response.status_code in {401, 403}
+    body = response.text
+    assert "application_preparation_percent" not in body
+    assert _profile()["tax_number"] not in body
