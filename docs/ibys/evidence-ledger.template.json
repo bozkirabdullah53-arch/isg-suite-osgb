@@ -1,0 +1,67 @@
+{
+  "application_reference": "",
+  "corporate_documents": [
+    {
+      "code": "trade_registry",
+      "filename": "ticaret-sicil-gazetesi.pdf",
+      "verified_by": "",
+      "verified_at": "",
+      "evidence_reference": "",
+      "sha256": ""
+    },
+    {
+      "code": "activity_certificate",
+      "filename": "faaliyet-belgesi.pdf",
+      "verified_by": "",
+      "verified_at": "",
+      "evidence_reference": "",
+      "sha256": ""
+    },
+    {
+      "code": "tax_certificate",
+      "filename": "vergi-levhasi.pdf",
+      "verified_by": "",
+      "verified_at": "",
+      "evidence_reference": "",
+      "sha256": ""
+    },
+    {
+      "code": "signature_circular",
+      "filename": "imza-sirkuleri.pdf",
+      "verified_by": "",
+      "verified_at": "",
+      "evidence_reference": "",
+      "sha256": ""
+    }
+  ],
+  "gates": {
+    "legal_kvkk_approval": {
+      "completed": false,
+      "verified_by": "",
+      "verified_at": "",
+      "evidence_reference": "",
+      "sha256": ""
+    },
+    "external_authorization_smoke": {
+      "completed": false,
+      "verified_by": "",
+      "verified_at": "",
+      "evidence_reference": "",
+      "sha256": ""
+    },
+    "application_letter_signature": {
+      "completed": false,
+      "verified_by": "",
+      "verified_at": "",
+      "evidence_reference": "",
+      "sha256": ""
+    },
+    "appointment_package_approval": {
+      "completed": false,
+      "verified_by": "",
+      "verified_at": "",
+      "evidence_reference": "",
+      "sha256": ""
+    }
+  }
+}

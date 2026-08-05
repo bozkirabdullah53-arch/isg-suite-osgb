@@ -1,5 +1,5 @@
 {
-  "manifest_version": "1.1.0",
+  "manifest_version": "1.2.0",
   "scope": "ibys_integrator_application_preparation",
   "official_registration_claim": false,
   "measurement_note": "Başvuru dosyasının hazırlanma oranıdır; Bakanlık teknik uygunluk veya tescil oranı değildir.",
@@ -14,11 +14,20 @@
     },
     {
       "code": "candidate_data_profile",
-      "title": "Aday veri-seti profili, doğrulama ve idempotency",
+      "title": "Aday veri-seti profili, doğrulama, idempotency ve ön kontrol",
       "weight": 20,
       "completed": 20,
       "status": "ready",
-      "evidence": ["12 dataset registry", "required field validation", "record fingerprint", "submission envelope", "CI #412"]
+      "evidence": [
+        "12 dataset registry",
+        "required field validation",
+        "record fingerprint",
+        "submission envelope",
+        "fail-closed application bundle",
+        "preflight v1 score and gap report",
+        "CI #427",
+        "Render staging ad390f35702c1d4742b4e9da2273077b5cee8c06 live"
+      ]
     },
     {
       "code": "security_kvkk_dossier",
@@ -26,7 +35,13 @@
       "weight": 15,
       "completed": 13,
       "status": "legal_review_pending",
-      "evidence": ["teknik veri envanteri", "olay müdahale prosedürü", "saklama-imha taslağı", "sağlık verisi şifreleme"],
+      "evidence": [
+        "teknik veri envanteri",
+        "olay müdahale prosedürü",
+        "saklama-imha taslağı",
+        "sağlık verisi şifreleme",
+        "kanıt kapıları kapanış formu"
+      ],
       "pending": ["hukuki sebeplerin onayı", "kesin saklama süreleri", "bağımsız pentest özeti"]
     },
     {
@@ -35,8 +50,16 @@
       "weight": 10,
       "completed": 9,
       "status": "staging_verified_external_auth_smoke_pending",
-      "evidence": ["CI #412", "Render staging live", "migration OK", "application startup complete", "route registration tests"],
-      "pending": ["gerçek tarayıcı/API ile yetkisiz erişim smoke", "kanıt ekran görüntüleri"]
+      "evidence": [
+        "CI #427",
+        "anonymous preflight request rejected with 401/403 in FastAPI integration test",
+        "sensitive report and tax number non-disclosure test",
+        "Render staging live",
+        "migration OK",
+        "application startup complete",
+        "route registration tests"
+      ],
+      "pending": ["gerçek dış tarayıcı/API ile yetkisiz erişim smoke", "kanıt ekran görüntüleri"]
     },
     {
       "code": "ministry_contract_request",
@@ -52,6 +75,7 @@
       "weight": 15,
       "completed": 0,
       "status": "applicant_documents_required",
+      "evidence": ["başvuru sahibi bilgi ve belge formu", "otomatik belge adı/gap kontrolü", "SHA-256 manifest üretimi"],
       "pending": ["ticaret sicili", "faaliyet belgesi", "vergi levhası", "imza sirküleri", "yetkili ve teknik irtibat yazısı"]
     },
     {
@@ -60,7 +84,13 @@
       "weight": 10,
       "completed": 8,
       "status": "identity_and_signature_pending",
-      "evidence": ["başvuru dilekçesi taslağı", "randevu talep metni", "görüşme gündemi", "teknik kanıt raporu"],
+      "evidence": [
+        "başvuru dilekçesi taslağı",
+        "randevu talep metni",
+        "görüşme gündemi",
+        "teknik kanıt raporu",
+        "kanıt kapıları kapanış formu"
+      ],
       "pending": ["şirket unvanı/vergi/MERSİS", "yetkili imza", "randevu gönderimi", "nihai sunum PDF"]
     }
   ],
@@ -71,16 +101,27 @@
   },
   "gates": {
     "technical_ci_and_staging": true,
+    "preflight_engine_staging_live": true,
+    "anonymous_authorization_ci_test": true,
     "corporate_documents_verified": false,
     "legal_kvkk_review_completed": false,
     "application_letter_signed": false,
     "appointment_request_ready": true,
     "external_authorization_smoke_completed": false
   },
+  "score_policy": {
+    "technical_base": 80,
+    "complete_company_profile": 5,
+    "verified_corporate_documents": 10,
+    "legal_kvkk_approval": 2,
+    "external_authorization_smoke": 1,
+    "signed_application_letter": 1,
+    "approved_appointment_package": 1
+  },
   "external_post_application_gate": {
     "official_contract_received": false,
     "included_in_application_preparation_score": false,
     "note": "Resmî veri sözleşmesi ve Bakanlık kabul testleri başvurudan sonraki ayrı teknik aşamadır."
   },
-  "target_definition": "Başvuru hazırlığı %100: teknik paket CI/staging doğrulanmış, kurumsal evraklar doğrulanmış, hukuk/KVKK onayı tamamlanmış, dilekçe imzaya hazır ve İSGGM randevu talep paketi tamamlanmış. Resmî teknik sözleşme ve tescil bundan sonraki ayrı aşamadır."
+  "target_definition": "Başvuru hazırlığı %100: teknik paket CI/staging doğrulanmış, kurumsal evraklar doğrulanmış, hukuk/KVKK onayı tamamlanmış, dilekçe imzalanmış, dış yetki smoke kanıtlanmış ve İSGGM randevu talep paketi nihai onaylanmış olmalıdır. Resmî teknik sözleşme ve tescil bundan sonraki ayrı aşamadır."
 }
