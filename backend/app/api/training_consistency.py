@@ -68,20 +68,6 @@ def catalog_report(
     }
 
 
-@router.get("/catalog/{nace_code}")
-def catalog_entry(
-    nace_code: str,
-    _user: User = Depends(require_roles(*ADMIN)),
-):
-    normalized = normalize_nace_code(nace_code)
-    if not normalized:
-        raise HTTPException(422, "Geçerli altılı NACE kodu girilmelidir.")
-    row = next((item for item in build_registry() if item.nace_code == normalized), None)
-    if not row:
-        raise HTTPException(404, "NACE kodu katalogda bulunamadı.")
-    return row.payload()
-
-
 @router.post("/catalog/materialize", status_code=201)
 def materialize_catalog(
     db: Session = Depends(get_db),
@@ -120,3 +106,17 @@ def legacy_report(
     _user: User = Depends(require_roles(*ADMIN)),
 ):
     return legacy_training_report(db)
+
+
+@router.get("/catalog/{nace_code}")
+def catalog_entry(
+    nace_code: str,
+    _user: User = Depends(require_roles(*ADMIN)),
+):
+    normalized = normalize_nace_code(nace_code)
+    if not normalized:
+        raise HTTPException(422, "Geçerli altılı NACE kodu girilmelidir.")
+    row = next((item for item in build_registry() if item.nace_code == normalized), None)
+    if not row:
+        raise HTTPException(404, "NACE kodu katalogda bulunamadı.")
+    return row.payload()
