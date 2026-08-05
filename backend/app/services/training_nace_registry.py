@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.services.training_sector_catalog import nace_profil_kodu_getir
 from app.services.training_topics import PROFIL_ADLARI, sectors_list_for_api
 
 CATALOG_SCHEMA_VERSION = "nace-training-registry-v1"
@@ -234,7 +235,11 @@ def classify_catalog_row(row: dict[str, Any]) -> NaceClassification:
         "sector_scheduled_minutes": 0,
     })
 
-    profile = str(row.get("profile") or "").strip()
+    profile = str(
+        row.get("profile")
+        or (nace_profil_kodu_getir(exact) if exact != "00.00.00" else "")
+        or ""
+    ).strip()
     if not profile:
         errors.append("missing_profile")
     topics = _topic_titles(row.get("topics"))
