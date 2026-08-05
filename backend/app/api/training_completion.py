@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
@@ -25,9 +24,8 @@ from app.models.entities import (
 from app.schemas.training import TrainingVerifyResponse
 from app.services.training_completion import (
     completion_preflight,
-    completion_strict_active,
+    completion_strict_applies,
     finalize_training_results,
-    verified_snapshot,
 )
 
 router = APIRouter(prefix="/trainings", tags=["Eğitim Tamamlama ve Belgelendirme"])
@@ -220,8 +218,8 @@ def finalize_training(
     return completion_preflight(db, _training(db, training_id))
 
 
-# This route is registered before the legacy verify route. Legacy records retain
-# the old participant visibility; verified records expose only eligible holders.
+# Registered before the legacy verify route. Pre-cutover and legacy records keep
+# their previous public verification behavior.
 @router.get(
     "/verify/{code}",
     response_model=TrainingVerifyResponse,
@@ -247,7 +245,7 @@ def verify_completed_training(code: str, db: Session = Depends(get_db)):
             message="Bu kodla eşleşen eğitim belgesi bulunamadı.",
         )
 
-    strict = completion_strict_active() and verified_snapshot(db, training) is not None
+    strict, _snapshot = completion_strict_applies(db, training)
     if strict:
         preflight = completion_preflight(db, training)
         eligible_ids = {
