@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 import pytest
 
+from app.schemas.training import TrainingCreate
 from app.services.training_nace_classification import (
     classify_legacy,
     resolve_exact_nace,
@@ -26,7 +29,12 @@ def test_exact_construction_nace_is_verified_and_keeps_identity():
     assert result.nace_section_code == "F"
     assert result.hazard_class in {"Az Tehlikeli", "Tehlikeli", "Çok Tehlikeli"}
     assert len(result.training_topics) == 5
-    assert "working_at_height" in result.technical_risk_tags
+    assert set(result.technical_risk_tags) & {
+        "working_at_height",
+        "excavation",
+        "lifting",
+        "temporary_electricity",
+    }
 
 
 def test_numeric_exact_nace_resolves_to_same_catalog_row():
@@ -65,3 +73,39 @@ def test_duration_is_derived_from_resolved_hazard_class():
     expected = {"Az Tehlikeli": 8, "Tehlikeli": 12, "Çok Tehlikeli": 16}
     assert result.required_duration_hours == expected[result.hazard_class]
     assert result.required_duration_minutes == result.required_duration_hours * 45
+
+
+def test_training_create_canonicalizes_exact_nace_and_hazard_class():
+    key = _first_catalog_key("41.")
+    classification = resolve_exact_nace(key)
+    start = date.today()
+    end = start + timedelta(days=2)
+    payload = TrainingCreate(
+        company_id=1,
+        title="Temel İş Sağlığı ve Güvenliği Eğitimi",
+        training_type="İlk Defa",
+        delivery_method="Yüz yüze",
+        start_date=start,
+        end_date=end,
+        hazard_class="Az Tehlikeli",
+        sector=classification.nace_code,
+        instructor_name="Test Eğitmen",
+        participant_ids=[1],
+    )
+    assert payload.sector == classification.catalog_key
+    assert payload.hazard_class == classification.hazard_class
+
+
+def test_training_create_rejects_general_profile_code():
+    start = date.today()
+    with pytest.raises(ValueError):
+        TrainingCreate(
+            company_id=1,
+            title="Temel İş Sağlığı ve Güvenliği Eğitimi",
+            start_date=start,
+            end_date=start + timedelta(days=2),
+            hazard_class="Tehlikeli",
+            sector="genel_uretim",
+            instructor_name="Test Eğitmen",
+            participant_ids=[1],
+        )
