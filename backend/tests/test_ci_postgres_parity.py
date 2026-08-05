@@ -228,13 +228,110 @@ def test_new_committee_history_tables_hide_cross_tenant_rows(pg_session: Session
     pg_session.add_all([company_a, company_b])
     pg_session.flush()
     user = User(
-        full_name="CI Committee User",
-        email="ci-committee-user@example.test",
-        password_hash="not-used",
+        email="committee-rls@example.test",
+        full_name="Committee RLS User",
+        hashed_password="test-hash",
         role=UserRole.GLOBAL_ADMIN,
         is_active=True,
     )
     pg_session.add(user)
     pg_session.flush()
+    meeting_ids = []
+    for company in (company_a, company_b):
+        meeting_ids.append(
+            pg_session.execute(
+                text("""
+                    INSERT INTO ohs_committee_meetings
+                        (company_id, meeting_date, is_active, created_by_id, created_at,
+                         status, signature_status, approval_status, document_version)
+                    VALUES
+                        (:company_id, CURRENT_DATE, true, :user_id, CURRENT_TIMESTAMP,
+                         'draft', 'not_signed', 'draft', 1)
+                    RETURNING id
+                """),
+                {"company_id": company.id, "user_id": user.id},
+            ).scalar_one()
+        )
+    for company, meeting_id in zip((company_a, company_b), meeting_ids, strict=True):
+        pg_session.execute(
+            text("""
+                INSERT INTO ohs_committee_meeting_versions
+                    (meeting_id, company_id, document_version, meeting_snapshot_json,
+                     archive_reason, created_by_id, created_at)
+                VALUES
+                    (:meeting_id, :company_id, 1, '{}', 'ci', :user_id, CURRENT_TIMESTAMP)
+            """),
+            {"meeting_id": meeting_id, "company_id": company.id, "user_id": user.id},
+        )
+    pg_session.flush()
 
-    # Existing remainder of the test file is intentionally preserved below.
+    pg_session.execute(
+        text("""
+            DO $$
+            BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ci_committee_rls_reader') THEN
+                CREATE ROLE ci_committee_rls_reader NOLOGIN NOSUPERUSER NOBYPASSRLS;
+              END IF;
+            END
+            $$;
+        """)
+    )
+    pg_session.execute(text("GRANT USAGE ON SCHEMA public TO ci_committee_rls_reader"))
+    pg_session.execute(text("GRANT SELECT ON TABLE ohs_committee_meeting_versions TO ci_committee_rls_reader"))
+    pg_session.execute(text("SET LOCAL ROLE ci_committee_rls_reader"))
+    pg_session.execute(text("SELECT set_config('app.current_user_id', '9101', true)"))
+    pg_session.execute(
+        text("SELECT set_config('app.allowed_company_ids', :allowed, true)"),
+        {"allowed": str(company_a.id)},
+    )
+    pg_session.execute(text("SELECT set_config('app.rls_bypass', '', true)"))
+    visible = pg_session.execute(
+        text("SELECT company_id FROM ohs_committee_meeting_versions ORDER BY company_id")
+    ).scalars().all()
+    pg_session.execute(text("RESET ROLE"))
+    assert visible == [company_a.id]
+
+
+def test_companies_rls_hides_cross_tenant_rows_for_non_bypass_role(pg_session: Session):
+    from app.models.entities import Company, OsgbOrganization
+
+    osgb_a = OsgbOrganization(name="CI RLS OSGB A", is_active=True)
+    osgb_b = OsgbOrganization(name="CI RLS OSGB B", is_active=True)
+    pg_session.add_all([osgb_a, osgb_b])
+    pg_session.flush()
+    company_a = Company(name="CI RLS Company A", osgb_id=osgb_a.id, is_active=True)
+    company_b = Company(name="CI RLS Company B", osgb_id=osgb_b.id, is_active=True)
+    pg_session.add_all([company_a, company_b])
+    pg_session.flush()
+
+    pg_session.execute(
+        text(
+            """
+            DO $$
+            BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ci_rls_reader') THEN
+                CREATE ROLE ci_rls_reader NOLOGIN NOSUPERUSER NOBYPASSRLS;
+              END IF;
+            END
+            $$;
+            """
+        )
+    )
+    pg_session.execute(text("GRANT USAGE ON SCHEMA public TO ci_rls_reader"))
+    pg_session.execute(text("GRANT SELECT ON TABLE companies TO ci_rls_reader"))
+    pg_session.execute(text("SET LOCAL ROLE ci_rls_reader"))
+    pg_session.execute(text("SELECT set_config('app.current_user_id', '9001', true)"))
+    pg_session.execute(
+        text("SELECT set_config('app.allowed_company_ids', :allowed, true)"),
+        {"allowed": str(company_a.id)},
+    )
+    pg_session.execute(text("SELECT set_config('app.rls_bypass', '', true)"))
+    pg_session.execute(text("SELECT set_config('app.rls_admin', '', true)"))
+
+    visible = pg_session.execute(
+        text("SELECT id FROM companies WHERE id IN (:a, :b) ORDER BY id"),
+        {"a": company_a.id, "b": company_b.id},
+    ).scalars().all()
+    pg_session.execute(text("RESET ROLE"))
+
+    assert visible == [company_a.id]
