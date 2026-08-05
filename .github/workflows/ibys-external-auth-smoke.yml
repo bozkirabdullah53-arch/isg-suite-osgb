@@ -1,0 +1,113 @@
+name: IBYS External Authorization Smoke
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - ".github/workflows/ibys-external-auth-smoke.yml"
+      - "backend/app/api/ibys_application.py"
+      - "backend/app/services/ibys_external_auth_smoke.py"
+      - "backend/scripts/ibys_external_auth_smoke.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ibys-external-auth-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  anonymous-staging-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      TARGET_URL: https://isg-suite-api-staging.onrender.com
+      EVIDENCE_DIR: artifacts/ibys-external-auth-smoke
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install minimal smoke dependency
+        run: python -m pip install httpx==0.28.1
+
+      - name: Run anonymous external authorization smoke
+        shell: bash
+        run: |
+          mkdir -p "$EVIDENCE_DIR"
+          exit_code=3
+          for attempt in $(seq 1 8); do
+            echo "Anonymous smoke attempt ${attempt}/8"
+            if python backend/scripts/ibys_external_auth_smoke.py \
+              --base-url "$TARGET_URL" \
+              --timeout 20 \
+              --output "$EVIDENCE_DIR/evidence.json"; then
+              exit_code=0
+              break
+            fi
+            exit_code=$?
+            sleep 15
+          done
+          (
+            cd "$EVIDENCE_DIR"
+            sha256sum evidence.json > evidence.json.sha256
+            sha256sum -c evidence.json.sha256
+          )
+          PYTHONPATH=backend python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          from app.services.ibys_external_auth_smoke import verify_smoke_evidence_hash
+
+          evidence = json.loads((Path(os.environ["EVIDENCE_DIR"]) / "evidence.json").read_text(encoding="utf-8"))
+          if not verify_smoke_evidence_hash(evidence):
+              raise SystemExit("evidence self-hash verification failed")
+          PY
+          exit "$exit_code"
+
+      - name: Write workflow evidence metadata
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p "$EVIDENCE_DIR"
+          python - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          out = Path(os.environ["EVIDENCE_DIR"]) / "workflow-metadata.json"
+          out.write_text(
+              json.dumps(
+                  {
+                      "workflow": "IBYS External Authorization Smoke",
+                      "repository": os.environ.get("GITHUB_REPOSITORY"),
+                      "repository_sha": os.environ.get("GITHUB_SHA"),
+                      "run_id": os.environ.get("GITHUB_RUN_ID"),
+                      "run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+                      "event_name": os.environ.get("GITHUB_EVENT_NAME"),
+                      "target_url": os.environ.get("TARGET_URL"),
+                      "recorded_at": datetime.now(timezone.utc).isoformat(),
+                      "contains_credentials": False,
+                      "official_registration_claim": False,
+                  },
+                  ensure_ascii=False,
+                  indent=2,
+              ),
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload immutable smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ibys-external-auth-smoke-${{ github.sha }}
+          path: artifacts/ibys-external-auth-smoke/
+          if-no-files-found: error
+          retention-days: 90
