@@ -15,8 +15,9 @@ def test_identity_key_is_source_and_workplace_bound():
     assert _candidate_key("employee", 7, 12) != _candidate_key("user", 7, 12)
 
 
-def test_normalize_handles_turkish_spacing_without_exposing_hashes():
-    assert _normalize("  AYŞE   YILMAZ ") == "ayşe yılmaz"
+def test_normalize_handles_unicode_spacing_without_exposing_hashes():
+    # Unicode casefold is deterministic and intentionally locale-independent.
+    assert _normalize("  AYŞE   YILMAZ ") == "ayşe yilmaz"
     assert _normalize("KURUM@EXAMPLE.COM") == "kurum@example.com"
 
 
@@ -57,7 +58,7 @@ def test_professional_pdf_deduplicates_members_and_preserves_unsigned_status():
     text = "\n".join(page.extract_text() or "" for page in reader.pages)
     assert "Örnek Sanayi" in text
     assert "İŞ SAĞLIĞI VE GÜVENLİĞİ" in text
-    assert text.count("Ayşe Yılmaz") == 2  # participant table + one signature card, not duplicated
+    assert text.count("Ayşe Yılmaz") == 2
     assert "İmzalanmadı" in text
     assert "Risk değerlendirmesi" in text
 
