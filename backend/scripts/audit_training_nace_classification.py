@@ -93,7 +93,9 @@ def main() -> int:
             key=lambda pair: (-int(pair[1]["nace_count"]), pair[0]),
         )
     ]
+    coverage_complete = not invalid_official and not review_required
     payload = {
+        "coverage_complete": coverage_complete,
         "catalog_option_count": len(all_rows),
         "official_nace_count": len(official_rows),
         "resolved_official_count": len(official_rows) - len(invalid_official),
@@ -108,7 +110,7 @@ def main() -> int:
         "invalid_official": invalid_official,
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
-    return 1 if invalid_official else 0
+    return 0 if coverage_complete else 1
 
 
 if __name__ == "__main__":
