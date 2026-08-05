@@ -1,4 +1,4 @@
-"""0.9.124 — İBYS/KATİP/ÇSGB entegrasyon hazırlık checklist (stub, salt okunur).
+"""İBYS/KATİP/ÇSGB entegrasyon hazırlık checklist (stub, salt okunur).
 
 Gerçek İBYS / İSG-KATİP API bağlantısı yok; mevcut CSV paket, KATİP eksik listesi
 ve ÇSGB denetim paketi özetinden hazırlık durumu üretilir.
@@ -9,7 +9,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.services.csgb_audit_pack import build_csgb_audit_dashboard_summary
+from app.services.csgb_audit_pack import build_csgb_audit_pack
+from app.services.csgb_readiness_advice import build_csgb_readiness_advice
 from app.services.ibys_export import EXPORT_VERSION, build_ibys_export_summary
 from app.services.katip_prep import PREP_VERSION, build_katip_prep
 
@@ -19,11 +20,12 @@ READINESS_VERSION = "checklist-v1"
 def build_integration_readiness(db: Session, *, osgb_id: int | None = None) -> dict[str, Any]:
     ibys = build_ibys_export_summary(db, osgb_id=osgb_id)
     katip = build_katip_prep(db, osgb_id=osgb_id)
-    csgb = build_csgb_audit_dashboard_summary(db, osgb_id=osgb_id)
+    csgb_pack = build_csgb_audit_pack(db, osgb_id=osgb_id)
 
     ibys_sum = ibys.get("summary") or {}
     companies = int(ibys_sum.get("companies") or 0)
     employees = int(ibys_sum.get("employees") or 0)
+    active_employees = int(ibys_sum.get("active_employees") or 0)
     # CSV export capability always exists (stub); data presence is informational.
     ibys_item = {
         "code": "ibys_csv_export",
@@ -36,6 +38,7 @@ def build_integration_readiness(db: Session, *, osgb_id: int | None = None) -> d
         ),
         "companies": companies,
         "employees": employees,
+        "active_employees": active_employees,
         "export_version": EXPORT_VERSION,
     }
 
@@ -64,8 +67,16 @@ def build_integration_readiness(db: Session, *, osgb_id: int | None = None) -> d
         "prep_version": PREP_VERSION,
     }
 
-    readiness_pct = int(csgb.get("readiness_pct") or (csgb.get("summary") or {}).get("readiness_pct") or 0)
-    csgb_gaps = int(csgb.get("gap_count") or len(csgb.get("missing_items") or []))
+    csgb_sum = csgb_pack.get("summary") or {}
+    readiness_pct = int(csgb_sum.get("readiness_pct") or 0)
+    missing_items = list(csgb_pack.get("missing_items") or [])
+    csgb_gaps = len(missing_items)
+    advice = build_csgb_readiness_advice(
+        missing_items=missing_items,
+        active_employees=active_employees,
+        company_count=companies,
+    )
+
     if readiness_pct >= 70 and csgb_gaps == 0:
         csgb_status, csgb_ok = "ready", True
         csgb_detail = f"ÇSGB paketi hazır · %{readiness_pct}"
@@ -75,6 +86,18 @@ def build_integration_readiness(db: Session, *, osgb_id: int | None = None) -> d
     else:
         csgb_status, csgb_ok = "missing" if readiness_pct < 20 else "partial", False
         csgb_detail = f"ÇSGB paketi eksik/kısmi · %{readiness_pct} · öncelik {csgb_gaps}"
+
+    first_titles = [
+        str(item.get("title") or "").strip()
+        for item in advice.get("first_actions") or []
+        if str(item.get("title") or "").strip()
+    ][:3]
+    if first_titles:
+        csgb_detail += f" · ilk adımlar: {', '.join(first_titles)}"
+    contextual_review_count = int(advice.get("contextual_review_count") or 0)
+    if contextual_review_count:
+        csgb_detail += f" · bağlamsal inceleme {contextual_review_count}"
+
     csgb_item = {
         "code": "csgb_pack",
         "title": "ÇSGB denetim paketi",
@@ -83,7 +106,13 @@ def build_integration_readiness(db: Session, *, osgb_id: int | None = None) -> d
         "detail": csgb_detail,
         "readiness_pct": readiness_pct,
         "gap_count": csgb_gaps,
-        "bundle_version": csgb.get("bundle_version"),
+        "bundle_version": csgb_pack.get("bundle_version"),
+        "advice_version": advice.get("advice_version"),
+        "priority_items": advice.get("priority_items") or [],
+        "first_actions": advice.get("first_actions") or [],
+        "contextual_notes": advice.get("contextual_notes") or [],
+        "contextual_review_count": contextual_review_count,
+        "score_changed": False,
     }
 
     checklist = [ibys_item, katip_item, csgb_item]
@@ -109,6 +138,8 @@ def build_integration_readiness(db: Session, *, osgb_id: int | None = None) -> d
             "items_total": len(checklist),
             "katip_gap_count": gap_count,
             "csgb_readiness_pct": readiness_pct,
+            "csgb_priority_count": csgb_gaps,
+            "csgb_contextual_review_count": contextual_review_count,
             "ibys_csv_export": True,
         },
         "overall_ready": items_ok == len(checklist),
