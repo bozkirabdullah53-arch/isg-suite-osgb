@@ -16,16 +16,17 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
-      - name: Package repository source
+      - name: Package tracked repository source
+        shell: bash
         run: |
-          tar --exclude=.git --exclude='frontend/node_modules' --exclude='backend/.venv' -czf repository-source.tgz .
-          sha256sum repository-source.tgz > repository-source.tgz.sha256
+          git ls-files -z | tar --null -czf ../repository-source.tgz -T -
+          sha256sum ../repository-source.tgz > ../repository-source.tgz.sha256
       - name: Upload source artifact
         uses: actions/upload-artifact@v4
         with:
           name: repository-source-${{ github.sha }}
           path: |
-            repository-source.tgz
-            repository-source.tgz.sha256
+            ../repository-source.tgz
+            ../repository-source.tgz.sha256
           if-no-files-found: error
           retention-days: 1
