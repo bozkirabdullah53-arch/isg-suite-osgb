@@ -1,5 +1,5 @@
 {
-  "manifest_version": "1.0.0",
+  "manifest_version": "1.1.0",
   "scope": "ibys_integrator_application_preparation",
   "official_registration_claim": false,
   "measurement_note": "Başvuru dosyasının hazırlanma oranıdır; Bakanlık teknik uygunluk veya tescil oranı değildir.",
@@ -16,25 +16,27 @@
       "code": "candidate_data_profile",
       "title": "Aday veri-seti profili, doğrulama ve idempotency",
       "weight": 20,
-      "completed": 16,
-      "status": "ci_pending",
-      "evidence": ["12 dataset registry", "required field validation", "record fingerprint", "submission envelope"]
+      "completed": 20,
+      "status": "ready",
+      "evidence": ["12 dataset registry", "required field validation", "record fingerprint", "submission envelope", "CI #412"]
     },
     {
       "code": "security_kvkk_dossier",
       "title": "Bilgi güvenliği ve KVKK teknik ekleri",
       "weight": 15,
-      "completed": 11,
-      "status": "partial",
-      "pending": ["tam veri envanteri", "saklama-imha tablosu", "olay müdahale eki", "bağımsız pentest özeti"]
+      "completed": 13,
+      "status": "legal_review_pending",
+      "evidence": ["teknik veri envanteri", "olay müdahale prosedürü", "saklama-imha taslağı", "sağlık verisi şifreleme"],
+      "pending": ["hukuki sebeplerin onayı", "kesin saklama süreleri", "bağımsız pentest özeti"]
     },
     {
       "code": "demo_acceptance",
       "title": "Demo ve kabul senaryoları",
       "weight": 10,
-      "completed": 6,
-      "status": "staging_pending",
-      "pending": ["CI", "staging deploy", "rol/scope API testi", "kanıt ekran görüntüleri"]
+      "completed": 9,
+      "status": "staging_verified_external_auth_smoke_pending",
+      "evidence": ["CI #412", "Render staging live", "migration OK", "application startup complete", "route registration tests"],
+      "pending": ["gerçek tarayıcı/API ile yetkisiz erişim smoke", "kanıt ekran görüntüleri"]
     },
     {
       "code": "ministry_contract_request",
@@ -42,7 +44,7 @@
       "weight": 10,
       "completed": 10,
       "status": "ready",
-      "evidence": ["teslim tutanağı", "teknik soru listesi", "uyarlama kapıları"]
+      "evidence": ["teslim tutanağı", "teknik soru listesi", "uyarlama kapıları", "güncel evrak teyidi talebi"]
     },
     {
       "code": "corporate_documents",
@@ -56,22 +58,29 @@
       "code": "application_and_appointment",
       "title": "Başvuru dilekçesi, randevu talebi ve sunum",
       "weight": 10,
-      "completed": 5,
-      "status": "identity_fields_pending",
-      "pending": ["şirket unvanı/vergi/MERSİS", "yetkili imza", "randevu tarihi", "nihai sunum PDF"]
+      "completed": 8,
+      "status": "identity_and_signature_pending",
+      "evidence": ["başvuru dilekçesi taslağı", "randevu talep metni", "görüşme gündemi", "teknik kanıt raporu"],
+      "pending": ["şirket unvanı/vergi/MERSİS", "yetkili imza", "randevu gönderimi", "nihai sunum PDF"]
     }
   ],
   "score": {
-    "completed": 68,
+    "completed": 80,
     "total": 100,
-    "percent": 68
+    "percent": 80
   },
   "gates": {
-    "technical_ci_and_staging": false,
+    "technical_ci_and_staging": true,
     "corporate_documents_verified": false,
+    "legal_kvkk_review_completed": false,
     "application_letter_signed": false,
-    "appointment_request_ready": false,
-    "official_contract_received": false
+    "appointment_request_ready": true,
+    "external_authorization_smoke_completed": false
   },
-  "target_definition": "Başvuru hazırlığı %100: teknik paket CI/staging doğrulanmış, kurumsal evraklar doğrulanmış, dilekçe imzaya hazır ve İSGGM randevu talep paketi tamamlanmış. Resmî teknik sözleşme ve tescil bundan sonraki ayrı aşamadır."
+  "external_post_application_gate": {
+    "official_contract_received": false,
+    "included_in_application_preparation_score": false,
+    "note": "Resmî veri sözleşmesi ve Bakanlık kabul testleri başvurudan sonraki ayrı teknik aşamadır."
+  },
+  "target_definition": "Başvuru hazırlığı %100: teknik paket CI/staging doğrulanmış, kurumsal evraklar doğrulanmış, hukuk/KVKK onayı tamamlanmış, dilekçe imzaya hazır ve İSGGM randevu talep paketi tamamlanmış. Resmî teknik sözleşme ve tescil bundan sonraki ayrı aşamadır."
 }
