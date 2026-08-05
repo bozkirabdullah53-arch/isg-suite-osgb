@@ -14,11 +14,13 @@ Başvuru hazırlığı iki ayrı kapıdan oluşur:
 ## Dosya indeksi
 
 - `BASVURU_DOSYASI_KONTROL_LISTESI.md`: Kurumsal, hukuki ve teknik evrakların sahiplik/durum listesi.
+- `BASVURU_SAHIBI_BILGI_VE_BELGE_FORMU.md`: Gerçek şirket bilgileri, yetkili/teknik irtibat ve zorunlu belge teslim formu.
+- `KANIT_KAPILARI_KAPANIS_FORMU.md`: Hukuk/KVKK, dış yetki smoke, yetkili imza ve İSGGM randevu onaylarının kanıtlı kapanış formu.
 - `TEKNIK_UYGUNLUK_MATRISI.md`: Mevcut sistem kabiliyetleri ile başvuru kanıtlarının eşlemesi.
 - `DEMO_KABUL_SENARYOLARI.md`: Bakanlık sunumu/test görüşmesi için kabul ve ret senaryoları.
 - `RESMI_SOZLESME_TESLIM_TUTANAGI.md`: Resmî veri şeması ve servis sözleşmesi alındığında doldurulacak kontrol tutanağı.
 - `company-profile.template.json`: Gerçek şirket bilgileri için repoya alınmayan profil şablonu.
-- `application-manifest.json`: Makine tarafından okunabilir başvuru durumu ve kapanış kapıları.
+- `application-manifest.json`: Makine tarafından okunabilir başvuru durumu, puan politikası ve kapanış kapıları.
 
 ## Teknik demo API'leri
 
@@ -65,5 +67,6 @@ Başvuru hazırlığı %100 sayılabilmesi için:
 - İSGGM ile resmî veri sözleşmesi/test ortamı talep yazısı hazırlanmalı.
 - Randevu talep iletişim metni ve sunum gündemi nihai olarak onaylanmalı.
 - Dış ortamda yetkisiz erişim ve rol kapsamı smoke kanıtı tamamlanmalı.
+- Dört nihai kanıt kapısı tarih, doğrulayan kişi, kanıt referansı ve SHA-256 ile kapatılmalı.
 
 Resmî İBYS uygunluğu ise ancak Bakanlık sözleşmesi ve kabul testleri tamamlandıktan sonra ayrıca ilan edilebilir.
