@@ -196,10 +196,6 @@ def _patch_question_bank_candidates() -> str:
 
     source_controlled_candidate_buckets._source_controlled_candidate_buckets_active = True
     question_bank._candidate_buckets = source_controlled_candidate_buckets
-    return buckets
-
-    source_controlled_candidate_buckets._source_controlled_candidate_buckets_active = True
-    question_bank._candidate_buckets = source_controlled_candidate_buckets
     return "active"
 
 
