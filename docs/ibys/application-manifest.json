@@ -1,0 +1,77 @@
+{
+  "manifest_version": "1.0.0",
+  "scope": "ibys_integrator_application_preparation",
+  "official_registration_claim": false,
+  "measurement_note": "Başvuru dosyasının hazırlanma oranıdır; Bakanlık teknik uygunluk veya tescil oranı değildir.",
+  "categories": [
+    {
+      "code": "architecture_security",
+      "title": "Mimari, tenant ve temel güvenlik kanıtları",
+      "weight": 20,
+      "completed": 20,
+      "status": "ready",
+      "evidence": ["47 FORCE RLS", "RBAC", "CI/CD", "audit log", "production health"]
+    },
+    {
+      "code": "candidate_data_profile",
+      "title": "Aday veri-seti profili, doğrulama ve idempotency",
+      "weight": 20,
+      "completed": 16,
+      "status": "ci_pending",
+      "evidence": ["12 dataset registry", "required field validation", "record fingerprint", "submission envelope"]
+    },
+    {
+      "code": "security_kvkk_dossier",
+      "title": "Bilgi güvenliği ve KVKK teknik ekleri",
+      "weight": 15,
+      "completed": 11,
+      "status": "partial",
+      "pending": ["tam veri envanteri", "saklama-imha tablosu", "olay müdahale eki", "bağımsız pentest özeti"]
+    },
+    {
+      "code": "demo_acceptance",
+      "title": "Demo ve kabul senaryoları",
+      "weight": 10,
+      "completed": 6,
+      "status": "staging_pending",
+      "pending": ["CI", "staging deploy", "rol/scope API testi", "kanıt ekran görüntüleri"]
+    },
+    {
+      "code": "ministry_contract_request",
+      "title": "Resmî veri sözleşmesi ve test erişimi talep paketi",
+      "weight": 10,
+      "completed": 10,
+      "status": "ready",
+      "evidence": ["teslim tutanağı", "teknik soru listesi", "uyarlama kapıları"]
+    },
+    {
+      "code": "corporate_documents",
+      "title": "Başvuru sahibi şirket evrakları",
+      "weight": 15,
+      "completed": 0,
+      "status": "applicant_documents_required",
+      "pending": ["ticaret sicili", "faaliyet belgesi", "vergi levhası", "imza sirküleri", "yetkili ve teknik irtibat yazısı"]
+    },
+    {
+      "code": "application_and_appointment",
+      "title": "Başvuru dilekçesi, randevu talebi ve sunum",
+      "weight": 10,
+      "completed": 5,
+      "status": "identity_fields_pending",
+      "pending": ["şirket unvanı/vergi/MERSİS", "yetkili imza", "randevu tarihi", "nihai sunum PDF"]
+    }
+  ],
+  "score": {
+    "completed": 68,
+    "total": 100,
+    "percent": 68
+  },
+  "gates": {
+    "technical_ci_and_staging": false,
+    "corporate_documents_verified": false,
+    "application_letter_signed": false,
+    "appointment_request_ready": false,
+    "official_contract_received": false
+  },
+  "target_definition": "Başvuru hazırlığı %100: teknik paket CI/staging doğrulanmış, kurumsal evraklar doğrulanmış, dilekçe imzaya hazır ve İSGGM randevu talep paketi tamamlanmış. Resmî teknik sözleşme ve tescil bundan sonraki ayrı aşamadır."
+}
