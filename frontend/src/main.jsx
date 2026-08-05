@@ -34,11 +34,11 @@ import {
   PeriodicControlsPage,
   EmergencyPlansPage,
   WorkplaceMeasurementsPage,
-  OhsCommitteePage,
   DocumentApprovalsPage,
   BelgeOnayHub,
 } from './compliance_registers';
-import {EyasDigitalApprovalPage} from './eyas_digital_approval';
+import {OhsCommitteePage} from './ohs_committee_page';
+import {EyasDigitalApprovalPage} from './eyas_digital_approval_v2';
 import {AnnualEvalReportPage} from './annual_eval_report';
 import {Customer360Page, WorkplaceStatusPage} from './customer_360';
 import {CapacityEnginePage} from './capacity_engine';

@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -43,8 +43,10 @@ EXPECTED_RLS_TABLES = {
     "legal_acceptances",
     "medula_error_logs",
     "notifications",
+    "ohs_committee_meeting_versions",
     "ohs_committee_meetings",
     "ohs_committee_members",
+    "ohs_committee_signature_steps",
     "organization_memberships",
     "periodic_controls",
     "ppe_assignments",
@@ -78,7 +80,7 @@ def pg_session():
 
 def test_alembic_head_applied(pg_session: Session):
     ver = pg_session.execute(text("SELECT version_num FROM alembic_version")).scalar()
-    assert ver == "0075_rls_critical_expand"
+    assert ver == "0077_committee_approval"
 
 
 def test_same_name_different_osgb_allowed(pg_session: Session):
@@ -125,6 +127,122 @@ def test_expected_rls_policies_are_enabled_and_forced(pg_session: Session):
         assert row["rls_enabled"] is True, table_name
         assert row["force_rls"] is True, table_name
         assert row["policy_count"] == 1, table_name
+
+
+def test_committee_approval_schema_and_constraints(pg_session: Session):
+    inspector = inspect(pg_session.bind)
+    meeting_columns = {column["name"] for column in inspector.get_columns("ohs_committee_meetings")}
+    assert {
+        "approval_workflow_id",
+        "approval_status",
+        "approval_current_step",
+        "document_version",
+        "approval_submitted_at",
+        "approval_completed_at",
+        "approval_invalidated_at",
+        "updated_at",
+    } <= meeting_columns
+
+    member_columns = {column["name"] for column in inspector.get_columns("ohs_committee_members")}
+    assert {
+        "removed_at",
+        "removed_by_id",
+        "removal_reason_code",
+        "removal_reason_text",
+        "removal_document_version",
+    } <= member_columns
+
+    assert inspector.has_table("ohs_committee_signature_steps")
+    assert inspector.has_table("ohs_committee_meeting_versions")
+
+    signature_uqs = inspector.get_unique_constraints("ohs_committee_signature_steps")
+    assert any(
+        constraint.get("name") == "uq_committee_signature_version_step"
+        and set(constraint.get("column_names") or []) == {"meeting_id", "document_version", "step_order"}
+        for constraint in signature_uqs
+    )
+    version_uqs = inspector.get_unique_constraints("ohs_committee_meeting_versions")
+    assert any(
+        constraint.get("name") == "uq_committee_meeting_version"
+        and set(constraint.get("column_names") or []) == {"meeting_id", "document_version"}
+        for constraint in version_uqs
+    )
+
+
+def test_new_committee_history_tables_hide_cross_tenant_rows(pg_session: Session):
+    from app.models.entities import Company, OsgbOrganization, User, UserRole
+
+    osgb_a = OsgbOrganization(name="CI Committee RLS A", is_active=True)
+    osgb_b = OsgbOrganization(name="CI Committee RLS B", is_active=True)
+    pg_session.add_all([osgb_a, osgb_b])
+    pg_session.flush()
+    company_a = Company(name="CI Committee Company A", osgb_id=osgb_a.id, is_active=True)
+    company_b = Company(name="CI Committee Company B", osgb_id=osgb_b.id, is_active=True)
+    pg_session.add_all([company_a, company_b])
+    pg_session.flush()
+    user = User(
+        email="committee-rls@example.test",
+        full_name="Committee RLS User",
+        hashed_password="test-hash",
+        role=UserRole.GLOBAL_ADMIN,
+        is_active=True,
+    )
+    pg_session.add(user)
+    pg_session.flush()
+    meeting_ids = []
+    for company in (company_a, company_b):
+        meeting_ids.append(
+            pg_session.execute(
+                text("""
+                    INSERT INTO ohs_committee_meetings
+                        (company_id, meeting_date, is_active, created_by_id, created_at,
+                         status, signature_status, approval_status, document_version)
+                    VALUES
+                        (:company_id, CURRENT_DATE, true, :user_id, CURRENT_TIMESTAMP,
+                         'draft', 'not_signed', 'draft', 1)
+                    RETURNING id
+                """),
+                {"company_id": company.id, "user_id": user.id},
+            ).scalar_one()
+        )
+    for company, meeting_id in zip((company_a, company_b), meeting_ids, strict=True):
+        pg_session.execute(
+            text("""
+                INSERT INTO ohs_committee_meeting_versions
+                    (meeting_id, company_id, document_version, meeting_snapshot_json,
+                     archive_reason, created_by_id, created_at)
+                VALUES
+                    (:meeting_id, :company_id, 1, '{}', 'ci', :user_id, CURRENT_TIMESTAMP)
+            """),
+            {"meeting_id": meeting_id, "company_id": company.id, "user_id": user.id},
+        )
+    pg_session.flush()
+
+    pg_session.execute(
+        text("""
+            DO $$
+            BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ci_committee_rls_reader') THEN
+                CREATE ROLE ci_committee_rls_reader NOLOGIN NOSUPERUSER NOBYPASSRLS;
+              END IF;
+            END
+            $$;
+        """)
+    )
+    pg_session.execute(text("GRANT USAGE ON SCHEMA public TO ci_committee_rls_reader"))
+    pg_session.execute(text("GRANT SELECT ON TABLE ohs_committee_meeting_versions TO ci_committee_rls_reader"))
+    pg_session.execute(text("SET LOCAL ROLE ci_committee_rls_reader"))
+    pg_session.execute(text("SELECT set_config('app.current_user_id', '9101', true)"))
+    pg_session.execute(
+        text("SELECT set_config('app.allowed_company_ids', :allowed, true)"),
+        {"allowed": str(company_a.id)},
+    )
+    pg_session.execute(text("SELECT set_config('app.rls_bypass', '', true)"))
+    visible = pg_session.execute(
+        text("SELECT company_id FROM ohs_committee_meeting_versions ORDER BY company_id")
+    ).scalars().all()
+    pg_session.execute(text("RESET ROLE"))
+    assert visible == [company_a.id]
 
 
 def test_companies_rls_hides_cross_tenant_rows_for_non_bypass_role(pg_session: Session):
