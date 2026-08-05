@@ -4,6 +4,11 @@ from datetime import date, timedelta
 
 import pytest
 
+from app.services import training_topics
+from app.services.training_runtime_patches import _apply_exact_nace_topic_corrections
+
+_apply_exact_nace_topic_corrections(training_topics)
+
 from app.schemas.training import TrainingCreate
 from app.services.training_nace_classification import (
     classify_legacy,
