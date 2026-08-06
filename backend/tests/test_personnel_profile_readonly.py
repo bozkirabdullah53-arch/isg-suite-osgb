@@ -101,23 +101,12 @@ def test_rollout_is_disabled_by_default_and_force_off_always_wins(monkeypatch):
     assert profile_config.personnel_profile_rollout(35)["active"] is False
 
 
-def test_optional_sensitive_subfeatures_require_company_gate_and_separate_flag(monkeypatch):
+def test_phase_two_config_does_not_offer_restricted_or_external_sharing_flags():
     settings = profile_config.personnel_profile_settings
-    monkeypatch.setattr(settings, "personnel_profile_card_enabled", True)
-    monkeypatch.setattr(settings, "personnel_profile_card_force_off", False)
-    monkeypatch.setattr(settings, "personnel_profile_card_pilot_company_ids", "35")
-    monkeypatch.setattr(settings, "personnel_profile_restricted_data_enabled", False)
-    monkeypatch.setattr(settings, "personnel_profile_external_sharing_enabled", False)
-
-    assert profile_config.personnel_profile_restricted_data_active(35) is False
-    assert profile_config.personnel_profile_external_sharing_active(35) is False
-
-    monkeypatch.setattr(settings, "personnel_profile_restricted_data_enabled", True)
-    monkeypatch.setattr(settings, "personnel_profile_external_sharing_enabled", True)
-    assert profile_config.personnel_profile_restricted_data_active(35) is True
-    assert profile_config.personnel_profile_external_sharing_active(35) is True
-    assert profile_config.personnel_profile_restricted_data_active(36) is False
-    assert profile_config.personnel_profile_external_sharing_active(36) is False
+    assert not hasattr(settings, "personnel_profile_restricted_data_enabled")
+    assert not hasattr(settings, "personnel_profile_external_sharing_enabled")
+    assert not hasattr(profile_config, "personnel_profile_restricted_data_active")
+    assert not hasattr(profile_config, "personnel_profile_external_sharing_active")
 
 
 def test_national_identity_is_never_returned_raw():
