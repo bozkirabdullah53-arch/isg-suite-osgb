@@ -33,6 +33,8 @@ def main() -> int:
         "token_denylist",
         "site_qr_sessions",
         "health_records",
+        "training_nace_snapshots",
+        "training_presentation_versions",
     ]
     missing = [t for t in required_tables if not insp.has_table(t)]
     if missing:
@@ -81,6 +83,56 @@ def main() -> int:
         if "token_version" not in user_cols:
             print("FAIL: users.token_version missing")
             return 1
+
+        presentation_columns = {
+            column["name"] for column in insp.get_columns("training_presentation_versions")
+        }
+        expected_presentation_columns = {
+            "training_id",
+            "company_id",
+            "version",
+            "status",
+            "manifest_json",
+            "manifest_hash",
+            "catalog_hash",
+            "pptx_storage_key",
+            "pdf_storage_key",
+            "created_by_id",
+            "approved_by_id",
+            "archived_at",
+        }
+        missing_presentation_columns = sorted(
+            expected_presentation_columns - presentation_columns
+        )
+        if missing_presentation_columns:
+            print(
+                "FAIL: training_presentation_versions columns missing:",
+                ", ".join(missing_presentation_columns),
+            )
+            return 1
+
+        presentation_uqs = insp.get_unique_constraints(
+            "training_presentation_versions"
+        )
+        version_unique = any(
+            set(item.get("column_names") or []) == {"training_id", "version"}
+            for item in presentation_uqs
+        )
+        if not version_unique:
+            print("FAIL: presentation (training_id, version) unique missing")
+            print(" unique_constraints=", presentation_uqs)
+            return 1
+
+        if conn.dialect.name == "postgresql":
+            rls = conn.execute(
+                text(
+                    "SELECT relrowsecurity, relforcerowsecurity "
+                    "FROM pg_class WHERE oid = 'training_presentation_versions'::regclass"
+                )
+            ).one()
+            if not bool(rls[0]) or not bool(rls[1]):
+                print("FAIL: presentation RLS/FORCE RLS missing")
+                return 1
 
     print("OK: postgres parity checks passed")
     return 0
