@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date
+from hashlib import sha256
 from io import BytesIO
 
 from fastapi import (
@@ -10,16 +11,20 @@ from fastapi import (
     File,
     Form,
     Header,
+    HTTPException,
     Query,
     UploadFile,
 )
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.core.personnel_profile_config import personnel_profile_card_active
 from app.models.entities import User
+from app.models.personnel_profile_document import PersonnelProfileDocument
 from app.schemas.personnel_profile_document import (
     PersonnelProfileDocumentArchive,
     PersonnelProfileDocumentMetadata,
@@ -33,6 +38,7 @@ from app.services.personnel_profile_document import (
     list_latest_profile_documents,
     list_profile_document_versions,
     load_profile_document_content,
+    normalize_idempotency_key,
     upload_profile_document_version,
 )
 from app.services.personnel_profile_file_security import prepare_profile_upload
@@ -81,8 +87,6 @@ class _TrackedObjectStore:
 
 def _require_document_writes_active(company_id: int) -> None:
     if not personnel_profile_card_active(company_id):
-        from fastapi import HTTPException
-
         raise HTTPException(
             status_code=409,
             detail={
@@ -93,6 +97,31 @@ def _require_document_writes_active(company_id: int) -> None:
                 ),
             },
         )
+
+
+def _same_retry_request(
+    row: PersonnelProfileDocument,
+    *,
+    metadata: PersonnelProfileDocumentMetadata,
+    safe_content: bytes,
+) -> bool:
+    return (
+        row.checksum_sha256 == sha256(safe_content).hexdigest()
+        and row.document_kind == metadata.document_kind
+        and row.category == metadata.category
+        and row.title == metadata.title
+        and row.document_number == metadata.document_number
+        and row.issuing_organization == metadata.issuing_organization
+        and row.issue_date == metadata.issue_date
+        and row.valid_from == metadata.valid_from
+        and row.expiration_date == metadata.expiration_date
+        and bool(row.no_expiration) == bool(metadata.no_expiration)
+        and row.access_classification == metadata.access_classification
+        and (
+            metadata.document_key is None
+            or row.document_key == str(metadata.document_key)
+        )
+    )
 
 
 @router.post("/{profile_id}/documents/upload")
@@ -136,7 +165,9 @@ async def upload_profile_document(
         access_classification=access_classification,
         change_reason=change_reason,
     )
+    normalized_idempotency = normalize_idempotency_key(idempotency_key)
     tracked_store = _TrackedObjectStore(get_object_store())
+    safe_content = b""
     try:
         content = await file.read(MAX_PROFILE_DOCUMENT_BYTES + 1)
         safe_content = prepare_profile_upload(
@@ -149,13 +180,36 @@ async def upload_profile_document(
             user=user,
             profile_id=profile_id,
             metadata=metadata,
-            idempotency_key=idempotency_key,
+            idempotency_key=normalized_idempotency,
             filename=file.filename or "upload",
             content=safe_content,
             store=tracked_store,
         )
         db.commit()
         db.refresh(row)
+    except IntegrityError as exc:
+        db.rollback()
+        tracked_store.cleanup_created()
+        existing = db.scalar(
+            select(PersonnelProfileDocument)
+            .where(
+                PersonnelProfileDocument.profile_id == profile_id,
+                PersonnelProfileDocument.idempotency_key == normalized_idempotency,
+            )
+            .limit(1)
+        )
+        if existing and _same_retry_request(
+            existing,
+            metadata=metadata,
+            safe_content=safe_content,
+        ):
+            row = existing
+            created = False
+        else:
+            raise HTTPException(
+                409,
+                "Belge aynı anda güncellendi veya Idempotency-Key farklı bir istekte kullanıldı.",
+            ) from exc
     except Exception:
         db.rollback()
         tracked_store.cleanup_created()
