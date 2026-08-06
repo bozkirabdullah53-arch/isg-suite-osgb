@@ -1,0 +1,87 @@
+name: Training Presentation Rollout CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  rollout-backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      ENVIRONMENT: development
+      SECRET_KEY: ci-secret-key-at-least-32-characters-long
+      DATABASE_URL: sqlite:///./rollout_ci.db
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Pilot, force-off, history and approval tests
+        run: >
+          pytest -q
+          tests/test_training_presentation_rollout.py
+          tests/test_training_presentation_readiness.py
+          tests/test_training_presentation_versions.py
+          tests/test_training_presentation_generation.py
+          tests/test_training_presentation_approval.py
+          tests/test_training_presentation_approval_api.py
+          tests/test_training_presentation_api_phase4.py
+          tests/test_training_presentation_renderer.py
+          tests/test_training_presentation_contract.py
+      - name: Rollout runbook safety contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("../docs/nace-training-presentation/phase-7-rollout-rollback.md")
+          text = path.read_text(encoding="utf-8")
+          required = [
+              "NACE_TRAINING_PRESENTATION_ENABLED=false",
+              "NACE_TRAINING_PRESENTATION_FORCE_OFF=true",
+              "NACE_TRAINING_PRESENTATION_PILOT_COMPANY_IDS=",
+              "1440 × 900",
+              "1024 × 768",
+              "768 × 1024",
+              "390 × 844",
+              "Veritabanı downgrade gerektirmez",
+              "ilk pilot kullanıcının açık kabulü",
+          ]
+          missing = [value for value in required if value not in text]
+          assert not missing, f"Rollout runbook eksik güvenlik maddeleri: {missing}"
+          print("OK: rollout and rollback runbook safety contract")
+          PY
+
+  rollout-frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Presentation unit tests
+        run: npx vitest run src/training_presentation_readiness_logic.test.js
+      - name: Lint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+      - name: Desktop, laptop, tablet and mobile E2E
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test e2e/training-presentation-ui.spec.js

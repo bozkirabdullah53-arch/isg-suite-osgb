@@ -184,10 +184,10 @@ def approve_presentation_version(
     esign_request_id: int | None = None,
 ) -> TrainingPresentationApproval:
     """Create one immutable approval and lock the generated version."""
-    if not nace_training_presentation_active():
+    if not nace_training_presentation_active(getattr(row, "company_id", None)):
         raise PresentationApprovalError(
-            "feature_disabled",
-            "NACE eğitim sunumu onayı güvenli varsayılan nedeniyle kapalıdır.",
+            "pilot_access_denied",
+            "NACE eğitim sunumu onayı bu şirket için kontrollü pilot erişimine açık değildir.",
         )
     role = _role_value(user)
     if role not in APPROVAL_ROLES:
@@ -271,10 +271,10 @@ def archive_presentation_version(
     row: TrainingPresentationVersion,
     user: User,
 ) -> TrainingPresentationVersion:
-    if not nace_training_presentation_active():
+    if not nace_training_presentation_active(getattr(row, "company_id", None)):
         raise PresentationApprovalError(
-            "feature_disabled",
-            "NACE eğitim sunumu arşivleme işlemi kapalıdır.",
+            "pilot_access_denied",
+            "NACE eğitim sunumu arşivleme işlemi bu şirket için açık değildir.",
         )
     if _role_value(user) not in APPROVAL_ROLES:
         raise PresentationApprovalError("archive_role_forbidden", "Bu rol sunumu arşivleyemez.")

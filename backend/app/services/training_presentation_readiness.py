@@ -7,7 +7,10 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import nace_training_presentation_active
+from app.core.config import (
+    nace_training_presentation_active,
+    nace_training_presentation_rollout,
+)
 from app.models.entities import TrainingSession
 from app.models.training_nace import TrainingNaceSnapshot
 from app.services.training_exact_question_factory import exact_question_readiness
@@ -19,7 +22,7 @@ from app.services.training_presentation_contract import (
 )
 from app.services.training_presentation_renderer import RENDERER_VERSION
 
-READINESS_VERSION = "nace-training-presentation-readiness-v3"
+READINESS_VERSION = "nace-training-presentation-readiness-v4"
 
 
 def _json_list(raw: str | None) -> list[str]:
@@ -68,7 +71,15 @@ def build_presentation_readiness_payload(
     snapshot: TrainingNaceSnapshot | None,
     exam_readiness: dict[str, Any] | None,
     enabled: bool,
+    rollout: dict[str, object] | None = None,
 ) -> dict[str, Any]:
+    rollout_state = dict(rollout or {
+        "global_enabled": enabled,
+        "force_off": False,
+        "allowlist_configured": enabled,
+        "pilot_company": enabled,
+        "active": enabled,
+    })
     topics = _json_list(snapshot.training_topics_json) if snapshot else []
     technical_risks = _json_list(snapshot.technical_risk_tags_json) if snapshot else []
     special_risks = _json_list(snapshot.special_risks_json) if snapshot else []
@@ -89,12 +100,23 @@ def build_presentation_readiness_payload(
     cancelled = _status_value(training) == "cancelled"
     contract = _contract_state()
 
+    if bool(rollout_state.get("force_off")):
+        rollout_detail = "Acil force-off etkin; mevcut eğitim akışı aynen devam eder."
+    elif not bool(rollout_state.get("global_enabled")):
+        rollout_detail = "Global özellik bayrağı kapalı; mevcut eğitim akışı aynen devam eder."
+    elif not bool(rollout_state.get("allowlist_configured")):
+        rollout_detail = "Pilot şirket allowlist'i boş; güvenli biçimde hiçbir şirkete açılmaz."
+    elif not bool(rollout_state.get("pilot_company")):
+        rollout_detail = "Bu şirket kontrollü pilot allowlist'inde değildir."
+    else:
+        rollout_detail = "Global flag, force-off ve pilot şirket kontrolleri başarılı."
+
     checks = [
         {
             "code": "feature_flag",
-            "label": "Sunum özelliği",
+            "label": "Kontrollü pilot erişimi",
             "ok": enabled,
-            "detail": "Özellik kontrollü kullanım için açık." if enabled else "Güvenli varsayılan nedeniyle kapalı; mevcut eğitim akışı aynen devam eder.",
+            "detail": rollout_detail,
         },
         {
             "code": "verified_nace_snapshot",
@@ -164,6 +186,13 @@ def build_presentation_readiness_payload(
         "generation_allowed": generation_allowed,
         "renderer_version": RENDERER_VERSION,
         "core_training_unaffected": True,
+        "rollout": {
+            "global_enabled": bool(rollout_state.get("global_enabled")),
+            "force_off": bool(rollout_state.get("force_off")),
+            "allowlist_configured": bool(rollout_state.get("allowlist_configured")),
+            "pilot_company": bool(rollout_state.get("pilot_company")),
+            "active": bool(rollout_state.get("active")),
+        },
         "classification": {
             "persisted": snapshot is not None,
             "status": classification_status,
@@ -193,7 +222,7 @@ def build_presentation_readiness_payload(
         "blockers": blockers,
         "warnings": warnings,
         "next_action": (
-            "Özellik kapalı; mevcut eğitim/sınav/PDF/sertifika işlemlerine devam edin."
+            "Kontrollü pilot erişimi kapalı; mevcut eğitim/sınav/PDF/sertifika işlemlerine devam edin."
             if not enabled else (
                 "Hazırlık tamamlandı. İçerik önizlemesi açabilir veya yeni bir sunum sürümü oluşturabilirsiniz."
                 if generation_allowed else "Eksik hazırlık kontrollerini tamamlayın; eğitim ve belge işlemleri etkilenmez."
@@ -212,9 +241,11 @@ def training_presentation_readiness(
             TrainingNaceSnapshot.training_id == training.id
         )
     )
+    rollout = nace_training_presentation_rollout(getattr(training, "company_id", None))
     return build_presentation_readiness_payload(
         training=training,
         snapshot=snapshot,
         exam_readiness=exact_question_readiness(db, training),
-        enabled=nace_training_presentation_active(),
+        enabled=nace_training_presentation_active(getattr(training, "company_id", None)),
+        rollout=rollout,
     )

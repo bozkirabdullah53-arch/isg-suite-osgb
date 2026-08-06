@@ -104,7 +104,7 @@ def version_payload(row: TrainingPresentationVersion, *, include_manifest: bool 
         "failed_at": row.failed_at,
         "archived_at": row.archived_at,
         "read_only_source_snapshot": True,
-        "renderer_available": False,
+        "renderer_available": True,
         "storage_write": False,
     }
     if include_manifest:
@@ -148,10 +148,10 @@ def create_draft_version(
     created_by_id: int | None,
 ) -> TrainingPresentationVersion:
     """Create one new immutable draft; no render, file or object-store write."""
-    if not nace_training_presentation_active():
+    if not nace_training_presentation_active(getattr(training, "company_id", None)):
         raise PresentationVersionError(
-            "feature_disabled",
-            "NACE eğitim sunumu özelliği güvenli varsayılan nedeniyle kapalıdır.",
+            "pilot_access_denied",
+            "NACE eğitim sunumu bu şirket için kontrollü pilot erişimine açık değildir.",
         )
 
     snapshot = db.scalar(

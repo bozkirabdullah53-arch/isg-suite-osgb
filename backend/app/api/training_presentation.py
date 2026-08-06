@@ -1,4 +1,4 @@
-"""Optional NACE training presentation API — safe Phase 1–6 boundary."""
+"""Optional NACE training presentation API — safe Phase 1–7 boundary."""
 from __future__ import annotations
 
 from io import BytesIO
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.api.company_access import ensure_company_access
 from app.api.deps import get_current_user, require_roles
+from app.core.config import nace_training_presentation_active
 from app.core.database import get_db
 from app.models.entities import TrainingSession, User, UserRole
 from app.models.training_nace import TrainingNaceSnapshot
@@ -77,9 +78,23 @@ def _version_or_404(db: Session, *, training_id: int, version_id: int):
     return row
 
 
+def _ensure_pilot_access(training: TrainingSession) -> None:
+    if nace_training_presentation_active(getattr(training, "company_id", None)):
+        return
+    raise HTTPException(
+        409,
+        {
+            "code": "pilot_access_denied",
+            "message": "NACE eğitim sunumu bu şirket için kontrollü pilot erişimine açık değildir.",
+            "core_training_unaffected": True,
+        },
+    )
+
+
 def _generation_http_error(exc: PresentationGenerationError) -> HTTPException:
     client_conflicts = {
         "feature_disabled",
+        "pilot_access_denied",
         "invalid_version_status",
         "invalid_manifest_json",
         "invalid_manifest_hash",
@@ -153,6 +168,7 @@ def presentation_manifest_preview(
 ):
     training = _training_or_404(db, training_id)
     ensure_company_access(db, user, training.company_id)
+    _ensure_pilot_access(training)
     snapshot = db.scalar(
         select(TrainingNaceSnapshot).where(
             TrainingNaceSnapshot.training_id == training.id
@@ -213,6 +229,7 @@ def create_presentation_version(
 ):
     training = _training_or_404(db, training_id)
     ensure_company_access(db, user, training.company_id)
+    _ensure_pilot_access(training)
     try:
         row = create_draft_version(
             db,
@@ -255,6 +272,7 @@ def render_presentation_version(
 ):
     training = _training_or_404(db, training_id)
     ensure_company_access(db, user, training.company_id)
+    _ensure_pilot_access(training)
     row = _version_or_404(db, training_id=training.id, version_id=version_id)
     try:
         generated = generate_and_store_version(db, row=row)
@@ -293,6 +311,7 @@ def approve_presentation(
 ):
     training = _training_or_404(db, training_id)
     ensure_company_access(db, user, training.company_id)
+    _ensure_pilot_access(training)
     row = _version_or_404(db, training_id=training.id, version_id=version_id)
     try:
         approval = approve_presentation_version(
@@ -335,6 +354,7 @@ def archive_presentation(
 ):
     training = _training_or_404(db, training_id)
     ensure_company_access(db, user, training.company_id)
+    _ensure_pilot_access(training)
     row = _version_or_404(db, training_id=training.id, version_id=version_id)
     try:
         archived = archive_presentation_version(db, row=row, user=user)

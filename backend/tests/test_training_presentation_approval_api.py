@@ -58,6 +58,10 @@ def _user():
     return SimpleNamespace(id=9, role="safety_specialist", company_id=35, full_name="Test Uzman")
 
 
+def _enable_pilot(monkeypatch):
+    monkeypatch.setattr(api, "nace_training_presentation_active", lambda *_: True)
+
+
 def test_approval_get_is_company_scoped_and_read_only(monkeypatch):
     db = MagicMock()
     db.get.return_value = _training()
@@ -83,12 +87,34 @@ def test_approval_get_is_company_scoped_and_read_only(monkeypatch):
     db.commit.assert_not_called()
 
 
+def test_write_endpoint_denies_non_pilot_before_service_call(monkeypatch):
+    db = MagicMock()
+    db.get.return_value = _training()
+    monkeypatch.setattr(api, "ensure_company_access", lambda *_args, **_kwargs: 35)
+    monkeypatch.setattr(api, "nace_training_presentation_active", lambda *_: False)
+    approve = MagicMock()
+    monkeypatch.setattr(api, "approve_presentation_version", approve)
+    payload = api.PresentationApprovalRequest(
+        approval_method="application_approval",
+        confirmed_manifest_hash="c" * 64,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        api.approve_presentation(101, 501, payload, db=db, user=_user())
+    assert exc.value.status_code == 409
+    assert exc.value.detail["code"] == "pilot_access_denied"
+    assert exc.value.detail["core_training_unaffected"] is True
+    approve.assert_not_called()
+    db.commit.assert_not_called()
+
+
 def test_application_approval_passes_exact_hash_and_commits(monkeypatch):
     db = MagicMock()
     db.get.return_value = _training()
     row = _version()
     approval = _approval()
     monkeypatch.setattr(api, "ensure_company_access", lambda *_args, **_kwargs: 35)
+    _enable_pilot(monkeypatch)
     monkeypatch.setattr(api, "get_presentation_version", lambda *_args, **_kwargs: row)
     captured = {}
 
@@ -124,6 +150,7 @@ def test_approval_error_rolls_back_and_reports_core_workflow_unchanged(monkeypat
     db = MagicMock()
     db.get.return_value = _training()
     monkeypatch.setattr(api, "ensure_company_access", lambda *_args, **_kwargs: 35)
+    _enable_pilot(monkeypatch)
     monkeypatch.setattr(api, "get_presentation_version", lambda *_args, **_kwargs: _version())
 
     def reject(*_args, **_kwargs):
@@ -150,6 +177,7 @@ def test_unavailable_verified_esign_returns_service_error_without_core_effect(mo
     db = MagicMock()
     db.get.return_value = _training()
     monkeypatch.setattr(api, "ensure_company_access", lambda *_args, **_kwargs: 35)
+    _enable_pilot(monkeypatch)
     monkeypatch.setattr(api, "get_presentation_version", lambda *_args, **_kwargs: _version())
 
     def reject(*_args, **_kwargs):
@@ -178,6 +206,7 @@ def test_archive_uses_company_access_commits_and_returns_approval(monkeypatch):
     row = _version(status="approved")
     approval = _approval()
     monkeypatch.setattr(api, "ensure_company_access", lambda *_args, **_kwargs: 35)
+    _enable_pilot(monkeypatch)
     monkeypatch.setattr(api, "get_presentation_version", lambda *_args, **_kwargs: row)
 
     def archive(_db, **kwargs):
