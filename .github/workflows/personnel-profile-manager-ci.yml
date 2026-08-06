@@ -169,15 +169,20 @@ jobs:
       - name: Install
         run: npm ci
       - name: Profile unit tests
-        run: npx vitest run src/personnel_profile_readonly_logic.test.js src/personnel_profile_manager_logic.test.js
+        run: >
+          npx vitest run
+          src/personnel_profile_readonly_logic.test.js
+          src/personnel_profile_manager_logic.test.js
+          src/personnel_profile_documents_logic.test.js
+          src/personnel_profile_documents_bridge.test.js
       - name: Lint and build
         run: |
           npm run lint
           npm run build
-      - name: Full manager desktop and mobile E2E
+      - name: Full manager desktop, mobile and documents E2E
         run: |
           npx playwright install --with-deps chromium
-          npx playwright test e2e/personnel-profile-sidebar.spec.js
+          npx playwright test e2e/personnel-profile-sidebar.spec.js e2e/personnel-profile-documents.spec.js
       - name: Upload profile E2E diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
