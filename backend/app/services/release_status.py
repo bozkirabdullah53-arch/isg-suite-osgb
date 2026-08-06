@@ -166,6 +166,7 @@ def infra_detail_payload() -> dict:
         "csgb_pack": "audit-bundle-v3",
         "csgb_company_snapshot": "read-only-v1",
         "pro_performance_export": "csv-v1",
+        "pro_performance_excel": "xlsx-v1",
         "notifications": "osgb-deadline-eval-v2",
         "rate_limit": f"rpm-{settings.rate_limit_rpm}-auth-{settings.rate_limit_auth_rpm}-xff-{rate_limit_backend()}",
         "secret_key_guard": "prod-block-default",
