@@ -6,6 +6,7 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import settings
 from app.core.database import Base
 from app.models import entities  # noqa: F401
+from app.models import personnel_profile  # noqa: F401
 from app.models import training_nace  # noqa: F401
 from app.models import training_presentation  # noqa: F401
 from app.models import training_presentation_approval  # noqa: F401
