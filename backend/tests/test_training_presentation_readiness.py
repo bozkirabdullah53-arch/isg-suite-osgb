@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
+import pytest
+from fastapi import HTTPException
+
+from app.api import training_presentation as presentation_api
 from app.core import config
 from app.services.training_presentation_readiness import (
     READINESS_VERSION,
@@ -134,3 +139,52 @@ def test_cancelled_training_stays_blocked_even_with_verified_snapshot():
     )
     assert any(item["code"] == "training_not_cancelled" for item in payload["blockers"])
     assert payload["core_training_unaffected"] is True
+
+
+def test_readiness_endpoint_uses_existing_company_access_boundary(monkeypatch):
+    db = MagicMock()
+    training = _training()
+    db.get.return_value = training
+    user = SimpleNamespace(id=9, company_id=35, osgb_id=4, role="company_admin")
+    checked: list[int] = []
+
+    monkeypatch.setattr(
+        presentation_api,
+        "ensure_company_access",
+        lambda _db, _user, company_id: checked.append(company_id),
+    )
+    monkeypatch.setattr(
+        presentation_api,
+        "training_presentation_readiness",
+        lambda _db, *, training: {"training_id": training.id, "enabled": False},
+    )
+
+    result = presentation_api.presentation_readiness(101, db=db, user=user)
+    assert checked == [35]
+    assert result == {"training_id": 101, "enabled": False}
+
+
+def test_readiness_endpoint_propagates_forbidden_company_access(monkeypatch):
+    db = MagicMock()
+    db.get.return_value = _training()
+    user = SimpleNamespace(id=9, company_id=99, osgb_id=4, role="company_admin")
+
+    def deny(*_args, **_kwargs):
+        raise HTTPException(403, "Bu firmaya erişim yetkiniz yok.")
+
+    monkeypatch.setattr(presentation_api, "ensure_company_access", deny)
+    with pytest.raises(HTTPException) as exc:
+        presentation_api.presentation_readiness(101, db=db, user=user)
+    assert exc.value.status_code == 403
+
+
+def test_readiness_endpoint_returns_404_for_unknown_training():
+    db = MagicMock()
+    db.get.return_value = None
+    with pytest.raises(HTTPException) as exc:
+        presentation_api.presentation_readiness(
+            999,
+            db=db,
+            user=SimpleNamespace(id=9, role="global_admin"),
+        )
+    assert exc.value.status_code == 404
