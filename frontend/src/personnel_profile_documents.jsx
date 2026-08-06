@@ -60,8 +60,9 @@ function DocumentIcon({kind}){
 
 function formatDate(value){
   if(!value) return '';
-  const date=new Date(`${value}T00:00:00`);
-  if(Number.isNaN(date.getTime())) return value;
+  const raw=String(value);
+  const date=new Date(raw.includes('T')?raw:`${raw}T00:00:00`);
+  if(Number.isNaN(date.getTime())) return raw;
   return new Intl.DateTimeFormat('tr-TR').format(date);
 }
 
@@ -95,6 +96,7 @@ export function PersonnelProfileDocumentsPanel({profileId,canWrite,onError,onMes
       const payload=await api(`/personnel-profiles/${encodeURIComponent(profileId)}/documents?include_archived=${showArchived?'true':'false'}`,{_retries:1});
       const rows=asDocumentRows(payload);
       setDocuments(rows);
+      onError?.('');
       onCountChange?.(rows.filter((row)=>row.lifecycle_status!=='archived').length);
     }catch(error){
       onError?.(error?.message||'Personel belgeleri yüklenemedi.');
@@ -137,7 +139,7 @@ export function PersonnelProfileDocumentsPanel({profileId,canWrite,onError,onMes
     });
     setFile(null);
     if(fileInputRef.current) fileInputRef.current.value='';
-    document.querySelector('.ppd-upload-card')?.scrollIntoView({behavior:'smooth',block:'start'});
+    fileInputRef.current?.closest('.ppd-upload-card')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
 
   async function submitUpload(event){
@@ -170,8 +172,9 @@ export function PersonnelProfileDocumentsPanel({profileId,canWrite,onError,onMes
 
   async function archiveDocument(row){
     if(!canWrite||!profileId||!row?.document_key) return;
-    const reason=window.prompt('Arşivleme gerekçesini yazın:','Belge kullanım dışı kaldı');
+    const reason=String(window.prompt('Arşivleme gerekçesini yazın:','Belge kullanım dışı kaldı')||'').trim();
     if(!reason) return;
+    if(reason.length<3){onError?.('Arşivleme gerekçesi en az 3 karakter olmalıdır.');return}
     setActionBusy(true);onError?.('');onMessage?.('');
     try{
       await api(`/personnel-profiles/${encodeURIComponent(profileId)}/documents/${encodeURIComponent(row.document_key)}/archive`,{
@@ -199,7 +202,8 @@ export function PersonnelProfileDocumentsPanel({profileId,canWrite,onError,onMes
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      window.setTimeout(()=>URL.revokeObjectURL(url),0);
+      const completedUrl=url;
+      window.setTimeout(()=>URL.revokeObjectURL(completedUrl),1000);
       url='';
       onMessage?.(`Belge sürüm ${row.version} indirildi.`);
     }catch(error){onError?.(error?.message||'Belge indirilemedi.')}
@@ -210,7 +214,7 @@ export function PersonnelProfileDocumentsPanel({profileId,canWrite,onError,onMes
   }
 
   async function openVersions(row){
-    setActionBusy(true);onError?.('');
+    setActionBusy(true);onError?.('');onMessage?.('');
     try{
       const payload=await api(`/personnel-profiles/${encodeURIComponent(profileId)}/documents/${encodeURIComponent(row.document_key)}/versions`,{_retries:1});
       setVersions(asDocumentRows(payload));
