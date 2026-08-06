@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.personnel_profile_documents import router as documents_router
 from app.core.database import get_db
 from app.core.personnel_profile_config import personnel_profile_card_active
 from app.models.entities import User
@@ -75,3 +76,6 @@ def archive_profile_entry(
         "version": row.version,
         "lifecycle_status": row.lifecycle_status,
     }
+
+
+router.include_router(documents_router)
