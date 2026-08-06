@@ -15,6 +15,7 @@ from app.services.training_presentation_readiness import (
     READINESS_VERSION,
     build_presentation_readiness_payload,
 )
+from app.services.training_presentation_renderer import RENDERER_VERSION
 
 
 def _training(*, status: str = "planned"):
@@ -89,15 +90,17 @@ def test_disabled_feature_is_invisible_and_never_blocks_core_training():
     assert payload["visible"] is False
     assert payload["read_only"] is True
     assert payload["manifest_preview_supported"] is True
-    assert payload["generation_supported"] is False
+    assert payload["generation_supported"] is True
     assert payload["generation_allowed"] is False
+    assert payload["renderer_version"] == RENDERER_VERSION
     assert payload["core_training_unaffected"] is True
     blocker_codes = {item["code"] for item in payload["blockers"]}
-    assert "feature_flag" in blocker_codes
-    assert "presentation_renderer" in blocker_codes
+    assert blocker_codes == {"feature_flag"}
+    renderer = next(item for item in payload["checks"] if item["code"] == "presentation_renderer")
+    assert renderer["ok"] is True
 
 
-def test_verified_snapshot_uses_approved_contract_but_waits_for_renderer():
+def test_verified_snapshot_and_renderer_are_ready_when_feature_is_enabled():
     payload = build_presentation_readiness_payload(
         training=_training(),
         snapshot=_snapshot(),
@@ -118,8 +121,10 @@ def test_verified_snapshot_uses_approved_contract_but_waits_for_renderer():
     assert len(contract["contract_hash"]) == 64
     assert contract["output_formats"] == ["pptx", "pdf"]
     assert contract["tracking_issue"] == 76
-    assert [item["code"] for item in payload["blockers"]] == ["presentation_renderer"]
-    assert payload["generation_allowed"] is False
+    assert payload["blockers"] == []
+    assert payload["generation_supported"] is True
+    assert payload["generation_allowed"] is True
+    assert "sunum sürümü" in payload["next_action"].lower()
 
 
 def test_legacy_or_incomplete_nace_is_never_invented_or_treated_as_ready():
@@ -140,7 +145,8 @@ def test_legacy_or_incomplete_nace_is_never_invented_or_treated_as_ready():
     assert "technical_risks" in blocker_codes
     assert "exact_exam_readiness" in blocker_codes
     assert "template_contract" not in blocker_codes
-    assert "presentation_renderer" in blocker_codes
+    assert "presentation_renderer" not in blocker_codes
+    assert payload["generation_allowed"] is False
 
 
 def test_cancelled_training_stays_blocked_even_with_verified_snapshot():
@@ -151,6 +157,7 @@ def test_cancelled_training_stays_blocked_even_with_verified_snapshot():
         enabled=True,
     )
     assert any(item["code"] == "training_not_cancelled" for item in payload["blockers"])
+    assert payload["generation_allowed"] is False
     assert payload["core_training_unaffected"] is True
 
 
