@@ -205,7 +205,7 @@ def test_professional_profile_is_osgb_scoped_idempotent_and_not_workplace_scoped
         profile_id=profile.id,
         payload=PersonnelContactVersionCreate(
             contact_type="corporate_email",
-            contact_value="hekim@bozkir-osgb.test",
+            contact_value="hekim@bozkir-osgb.com",
         ),
     )
     db.commit()
