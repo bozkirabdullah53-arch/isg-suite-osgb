@@ -138,10 +138,10 @@ def generate_and_store_version(
     store: ObjectStore | None = None,
 ) -> TrainingPresentationVersion:
     """Render and atomically persist both outputs for a draft/failed version."""
-    if not nace_training_presentation_active():
+    if not nace_training_presentation_active(getattr(row, "company_id", None)):
         raise PresentationGenerationError(
-            "feature_disabled",
-            "NACE eğitim sunumu üretimi güvenli varsayılan nedeniyle kapalıdır.",
+            "pilot_access_denied",
+            "NACE eğitim sunumu üretimi bu şirket için kontrollü pilot erişimine açık değildir.",
         )
     if row.status not in {"draft", "failed"}:
         raise PresentationGenerationError(
