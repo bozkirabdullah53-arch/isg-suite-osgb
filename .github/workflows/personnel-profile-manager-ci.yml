@@ -5,11 +5,13 @@ on:
     branches: [master]
     paths:
       - "backend/app/api/personnel_profile*.py"
-      - "backend/app/models/personnel_profile.py"
+      - "backend/app/models/personnel_profile*.py"
       - "backend/app/schemas/personnel_profile*.py"
       - "backend/app/services/personnel_profile*.py"
       - "backend/tests/test_personnel_profile*.py"
-      - "backend/alembic/versions/0081_personnel_profiles.py"
+      - "backend/alembic/versions/008*_personnel_profile*.py"
+      - "backend/alembic/env.py"
+      - "backend/scripts/ci_postgres_parity.py"
       - "frontend/src/personnel_profile*"
       - "frontend/e2e/personnel-profile*.spec.js"
       - "frontend/index.html"
@@ -18,11 +20,13 @@ on:
     branches: [master]
     paths:
       - "backend/app/api/personnel_profile*.py"
-      - "backend/app/models/personnel_profile.py"
+      - "backend/app/models/personnel_profile*.py"
       - "backend/app/schemas/personnel_profile*.py"
       - "backend/app/services/personnel_profile*.py"
       - "backend/tests/test_personnel_profile*.py"
-      - "backend/alembic/versions/0081_personnel_profiles.py"
+      - "backend/alembic/versions/008*_personnel_profile*.py"
+      - "backend/alembic/env.py"
+      - "backend/scripts/ci_postgres_parity.py"
       - "frontend/src/personnel_profile*"
       - "frontend/e2e/personnel-profile*.spec.js"
       - "frontend/index.html"
@@ -48,12 +52,13 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - name: Install
         run: pip install -r requirements.txt
-      - name: Profile security and management tests
+      - name: Profile security, management and document tests
         run: >
           pytest -q
           tests/test_personnel_profile_readonly.py
           tests/test_personnel_profile_core.py
           tests/test_personnel_profile_management.py
+          tests/test_personnel_profile_documents.py
           tests/test_company_access.py
           tests/test_tenant_context.py
 
@@ -95,11 +100,12 @@ jobs:
         run: |
           alembic upgrade head
           python scripts/ci_postgres_parity.py
-      - name: Profile core and management tests
+      - name: Profile core, management and document tests
         run: >
           pytest -q
           tests/test_personnel_profile_core.py
           tests/test_personnel_profile_management.py
+          tests/test_personnel_profile_documents.py
       - name: Existing tables and isolated profile tables remain intact
         run: |
           python - <<'PY'
@@ -116,10 +122,35 @@ jobs:
               "personnel_profile_contacts",
               "personnel_profile_competencies",
               "personnel_profile_experiences",
+              "personnel_profile_documents",
           ):
               assert inspector.has_table(table), table
           print("OK: existing identities and isolated profile tables coexist")
           PY
+      - name: Isolated document migration rollback gate
+        run: |
+          alembic downgrade 0081_personnel_profile_core
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, inspect
+          engine = create_engine(os.environ["DATABASE_URL"])
+          inspector = inspect(engine)
+          assert not inspector.has_table("personnel_profile_documents")
+          for table in (
+              "employees",
+              "isg_professionals",
+              "users",
+              "workplace_assignments",
+              "personnel_profiles",
+              "personnel_profile_contacts",
+              "personnel_profile_competencies",
+              "personnel_profile_experiences",
+          ):
+              assert inspector.has_table(table), table
+          print("OK: 0082 downgrade removes only the document table")
+          PY
+          alembic upgrade head
+          python scripts/ci_postgres_parity.py
 
   profile-frontend:
     runs-on: ubuntu-latest
