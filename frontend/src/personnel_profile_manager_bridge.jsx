@@ -2,7 +2,7 @@ import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {api} from './api';
 import {shouldRenderPersonnelProfileEntry} from './personnel_profile_readonly_logic';
-import {PersonnelProfileManagerPage} from './personnel_profile_manager';
+import {PersonnelProfileManagerWithDocuments} from './personnel_profile_documents_bridge';
 import './personnel_profile_manager_bridge.css';
 
 let mounted=null;
@@ -71,7 +71,7 @@ function mountManager({osgbId,pilotCompanyIds,user}){
   const onKeydown=(event)=>{if(event.key==='Escape') closeManager()};
   mounted={host,root,onKeydown};
   root.render(
-    <PersonnelProfileManagerPage
+    <PersonnelProfileManagerWithDocuments
       user={user}
       context={{osgbId,pilotCompanyIds}}
       onClose={closeManager}
