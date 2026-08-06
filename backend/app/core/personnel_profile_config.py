@@ -86,19 +86,19 @@ def personnel_profile_rollout(company_id: int | None) -> dict[str, bool]:
     }
 
 
-def personnel_profile_restricted_data_active() -> bool:
-    """Restricted veri bu fazda ve hukuki readiness tamamlanana kadar kapalıdır."""
+def personnel_profile_restricted_data_active(company_id: int | None) -> bool:
+    """Restricted veri şirket kapısı ve ayrı hukuki flag olmadan aktif değildir."""
 
     return bool(
-        personnel_profile_card_active(None)
+        personnel_profile_card_active(company_id)
         and getattr(personnel_profile_settings, "personnel_profile_restricted_data_enabled", False)
     )
 
 
-def personnel_profile_external_sharing_active() -> bool:
-    """Dış paylaşım ayrı hukuki/operasyonel onay olmadan aktif değildir."""
+def personnel_profile_external_sharing_active(company_id: int | None) -> bool:
+    """Dış paylaşım şirket kapısı ve ayrı onay flag'i olmadan aktif değildir."""
 
     return bool(
-        personnel_profile_card_active(None)
+        personnel_profile_card_active(company_id)
         and getattr(personnel_profile_settings, "personnel_profile_external_sharing_enabled", False)
     )
