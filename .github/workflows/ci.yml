@@ -61,6 +61,9 @@ jobs:
           tests/test_training_presentation_readiness.py
           tests/test_training_presentation_contract.py
           tests/test_training_presentation_versions.py
+          tests/test_training_presentation_renderer.py
+          tests/test_training_presentation_generation.py
+          tests/test_training_presentation_api_phase4.py
           tests/test_csgb_readiness_advice.py
           tests/test_integration_readiness.py
           tests/test_csgb_audit_bundle.py
@@ -125,6 +128,7 @@ jobs:
           tests/test_ci_postgres_parity.py
           tests/test_training_nace_classification.py
           tests/test_training_presentation_versions.py
+          tests/test_training_presentation_generation.py
           tests/test_committee_workflow.py
       - name: Presentation migration downgrade isolation
         run: |
