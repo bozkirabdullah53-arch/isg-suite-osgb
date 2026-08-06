@@ -126,6 +126,25 @@ jobs:
           tests/test_training_nace_classification.py
           tests/test_training_presentation_versions.py
           tests/test_committee_workflow.py
+      - name: Presentation migration downgrade isolation
+        run: |
+          alembic downgrade 0078_training_nace
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, inspect
+          url = os.environ["DATABASE_URL"]
+          engine = create_engine(url)
+          inspector = inspect(engine)
+          assert not inspector.has_table("training_presentation_versions")
+          assert inspector.has_table("training_sessions")
+          assert inspector.has_table("training_nace_snapshots")
+          assert inspector.has_table("training_exam_snapshots")
+          print("OK: presentation downgrade removed only the isolated presentation table")
+          PY
+      - name: Presentation migration re-upgrade parity
+        run: |
+          alembic upgrade head
+          python scripts/ci_postgres_parity.py
 
   frontend:
     runs-on: ubuntu-latest
