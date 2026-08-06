@@ -17,12 +17,12 @@ function patchFile(relativePath,marker,apply){
     source=source.replace(pattern,after);
   };
   source=`${marker}\n${source}`;
-  source=apply({source,replaceExact,replaceRegex,setSource:(value)=>{source=value;}})??source;
+  apply({replaceExact,replaceRegex,getSource:()=>source,setSource:(value)=>{source=value;}});
   writeFileSync(target,source,'utf8');
   console.log(`${relativePath} OSGB professional-only scope applied.`);
 }
 
-patchFile('../src/personnel_profile_manager.jsx','// OSGB_PROFESSIONAL_CARDS_ONLY_V2',({source,replaceExact,replaceRegex,setSource})=>{
+patchFile('../src/personnel_profile_manager.jsx','// OSGB_PROFESSIONAL_CARDS_ONLY_V2',({replaceExact,replaceRegex,getSource,setSource})=>{
   replaceExact('  buildPersonnelSubjects,','  buildOsgbProfessionalSubjects,','logic import');
   replaceExact("  const[companies,setCompanies]=useState([]);\n",'', 'companies state');
   replaceExact("  const[professionals,setProfessionals]=useState([]);\n",'', 'professionals state');
@@ -84,22 +84,26 @@ patchFile('../src/personnel_profile_manager.jsx','// OSGB_PROFESSIONAL_CARDS_ONL
   replaceExact('aria-label="Personel kartı bölümleri"','aria-label="Profesyonel kartı bölümleri"','tabs aria');
   replaceExact("<strong>{summary.companyName}</strong>","<strong>{row.company_name||row.companyName||`İşyeri #${row.company_id||''}`}</strong>",'assignment company');
 
-  source=source.replaceAll('/personnel-profiles/','/osgb-personnel-profiles/');
-  setSource(source);
-  if(source.includes('/employees?company_id=')||source.includes('Personel + aktif atanmış profesyoneller')||source.includes('const[companyId')||source.includes('/personnel-profiles/')){
-    throw new Error('OSGB manager patch failed closed: workplace employee/company route remains.');
+  let current=getSource().replaceAll('/personnel-profiles/','/osgb-personnel-profiles/');
+  setSource(current);
+  const leftovers={
+    employeeRoute:current.includes('/employees?company_id='),
+    mergedHeading:current.includes('Personel + aktif atanmış profesyoneller'),
+    companyState:current.includes('const[companyId'),
+    legacyProfileRoute:current.includes('/personnel-profiles/'),
+  };
+  if(Object.values(leftovers).some(Boolean)){
+    throw new Error(`OSGB manager patch failed closed: ${JSON.stringify(leftovers)}`);
   }
-  return source;
 });
 
-patchFile('../src/personnel_profile_documents.jsx','// OSGB_PROFESSIONAL_DOCUMENTS_ONLY_V1',({source,setSource})=>{
-  source=source.replaceAll('/personnel-profiles/','/osgb-personnel-profiles/');
-  setSource(source);
-  if(source.includes('/personnel-profiles/')) throw new Error('OSGB document patch failed closed.');
-  return source;
+patchFile('../src/personnel_profile_documents.jsx','// OSGB_PROFESSIONAL_DOCUMENTS_ONLY_V1',({getSource,setSource})=>{
+  const current=getSource().replaceAll('/personnel-profiles/','/osgb-personnel-profiles/');
+  setSource(current);
+  if(current.includes('/personnel-profiles/')) throw new Error('OSGB document patch failed closed.');
 });
 
-patchFile('../src/personnel_profile_readonly_bridge.js','// OSGB_PROFESSIONAL_NAV_ONLY_V1',({source,replaceExact,replaceRegex,setSource})=>{
+patchFile('../src/personnel_profile_readonly_bridge.js','// OSGB_PROFESSIONAL_NAV_ONLY_V1',({replaceExact,replaceRegex,getSource,setSource})=>{
   replaceExact(
 `import {\n  employmentStatusLabel,\n  formatProfileDate,\n  normalizeEmployeeRows,\n  normalizePersonnelProfileSummary,\n  normalizeProfessionalRows,\n  shouldRenderPersonnelProfileEntry,\n} from './personnel_profile_readonly_logic';`,
 `import {\n  employmentStatusLabel,\n  formatProfileDate,\n  normalizePersonnelProfileSummary,\n} from './personnel_profile_readonly_logic';\nimport {buildOsgbProfessionalSubjects} from './personnel_profile_manager_logic';`,
@@ -126,7 +130,7 @@ patchFile('../src/personnel_profile_readonly_bridge.js','// OSGB_PROFESSIONAL_NA
   );
   replaceRegex(
     /async function openNavigationCenter\(osgbId\) \{[\s\S]*?\n\}\n\nasync function attachNavigationEntries/,
-`async function openNavigationCenter(osgbId) {\n  osgbContextCache.delete(osgbId);\n  const context = await activeProfessionalContext(osgbId);\n  if (!context?.active) throw new Error('Dijital Profesyonel Kartı bu OSGB için aktif değil.');\n  openDialog({\n    title: 'OSGB Profesyonel Dijital Kartları',\n    subtitle: \`${'${context.rows.length}'} OSGB profesyoneli\`,\n    rows: context.rows,\n    emptyMessage: 'OSGB bünyesinde aktif İSG profesyoneli bulunamadı.',\n    loadSummary: (row) => api(\`/osgb-personnel-profiles/professional/\${row.id}/summary\`),\n  });\n}\n\nasync function attachNavigationEntries`,
+`async function openNavigationCenter(osgbId) {\n  osgbContextCache.delete(osgbId);\n  const context = await activeProfessionalContext(osgbId);\n  if (!context?.active) throw new Error('Dijital Profesyonel Kartı bu OSGB için aktif değil.');\n  openDialog({\n    title: 'OSGB Profesyonel Dijital Kartları',\n    subtitle: \`\${context.rows.length} OSGB profesyoneli\`,\n    rows: context.rows,\n    emptyMessage: 'OSGB bünyesinde aktif İSG profesyoneli bulunamadı.',\n    loadSummary: (row) => api(\`/osgb-personnel-profiles/professional/\${row.id}/summary\`),\n  });\n}\n\nasync function attachNavigationEntries`,
     'navigation center',
   );
   replaceExact("  if (!context?.pilotCompanyIds?.length) {","  if (!context?.active) {",'navigation readiness');
@@ -138,10 +142,15 @@ patchFile('../src/personnel_profile_readonly_bridge.js','// OSGB_PROFESSIONAL_NA
 `    const employeeHeading = pageHeading('Personel Yönetimi');\n    if (employeeHeading) {\n      removeEntriesExcept('');\n      return;\n    }`,
     'disable workplace employee entry',
   );
-  source=source.replaceAll('/personnel-profiles/professional/','/osgb-personnel-profiles/professional/');
-  setSource(source);
-  if(source.includes('/employees?company_id=')||source.includes('pilotCompanyIds')||source.includes('normalizeEmployeeRows')||source.includes('normalizeProfessionalRows')){
-    throw new Error('OSGB navigation patch failed closed: workplace employee/pilot company code remains.');
+  const current=getSource().replaceAll('/personnel-profiles/professional/','/osgb-personnel-profiles/professional/');
+  setSource(current);
+  const leftovers={
+    employeeRoute:current.includes('/employees?company_id='),
+    pilotCompany:current.includes('pilotCompanyIds'),
+    employeeNormalizer:current.includes('normalizeEmployeeRows'),
+    assignmentNormalizer:current.includes('normalizeProfessionalRows'),
+  };
+  if(Object.values(leftovers).some(Boolean)){
+    throw new Error(`OSGB navigation patch failed closed: ${JSON.stringify(leftovers)}`);
   }
-  return source;
 });
