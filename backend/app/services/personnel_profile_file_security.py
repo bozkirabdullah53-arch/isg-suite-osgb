@@ -59,6 +59,8 @@ def _sanitize_profile_photo(content: bytes, extension: str) -> bytes:
             else:
                 raise HTTPException(400, "Desteklenmeyen profil fotoğrafı türü.")
             sanitized = output.getvalue()
+    except Image.DecompressionBombError as exc:
+        raise HTTPException(400, "Profil fotoğrafı piksel sınırını aşıyor.") from exc
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise HTTPException(
             400,
