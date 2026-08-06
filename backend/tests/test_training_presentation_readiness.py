@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -9,6 +10,7 @@ from fastapi import HTTPException
 
 from app.api import training_presentation as presentation_api
 from app.core import config
+from app.services.training_presentation_contract import CONTRACT_VERSION, TEMPLATE_VERSION
 from app.services.training_presentation_readiness import (
     READINESS_VERSION,
     build_presentation_readiness_payload,
@@ -20,6 +22,9 @@ def _training(*, status: str = "planned"):
         id=101,
         company_id=35,
         branch_id=None,
+        title="Temel İş Sağlığı ve Güvenliği Eğitimi",
+        start_date=date(2026, 8, 6),
+        end_date=date(2026, 8, 6),
         hazard_class="Tehlikeli",
         status=status,
     )
@@ -44,6 +49,8 @@ def _snapshot(*, status: str = "verified", topics: list[str] | None = None):
             ["display_screen", "server_room", "psychosocial"], ensure_ascii=False
         ),
         special_risks_json=json.dumps(["uzun_sureli_ekran"], ensure_ascii=False),
+        required_duration_hours=8,
+        required_duration_minutes=360,
     )
 
 
@@ -81,13 +88,16 @@ def test_disabled_feature_is_invisible_and_never_blocks_core_training():
     assert payload["enabled"] is False
     assert payload["visible"] is False
     assert payload["read_only"] is True
+    assert payload["manifest_preview_supported"] is True
     assert payload["generation_supported"] is False
     assert payload["generation_allowed"] is False
     assert payload["core_training_unaffected"] is True
-    assert any(item["code"] == "feature_flag" for item in payload["blockers"])
+    blocker_codes = {item["code"] for item in payload["blockers"]}
+    assert "feature_flag" in blocker_codes
+    assert "presentation_renderer" in blocker_codes
 
 
-def test_verified_snapshot_reports_source_data_but_waits_for_template_approval():
+def test_verified_snapshot_uses_approved_contract_but_waits_for_renderer():
     payload = build_presentation_readiness_payload(
         training=_training(),
         snapshot=_snapshot(),
@@ -101,13 +111,14 @@ def test_verified_snapshot_reports_source_data_but_waits_for_template_approval()
     assert len(payload["source_data"]["training_topics"]) == 5
     assert len(payload["source_data"]["technical_risk_tags"]) == 3
     assert payload["source_data"]["exam_readiness"]["ready"] is True
-    assert payload["template_contract"] == {
-        "status": "pending_specialist_approval",
-        "version": None,
-        "output_formats": [],
-        "tracking_issue": 76,
-    }
-    assert [item["code"] for item in payload["blockers"]] == ["template_contract"]
+    contract = payload["template_contract"]
+    assert contract["status"] == "approved_for_implementation"
+    assert contract["version"] == CONTRACT_VERSION
+    assert contract["template_version"] == TEMPLATE_VERSION
+    assert len(contract["contract_hash"]) == 64
+    assert contract["output_formats"] == ["pptx", "pdf"]
+    assert contract["tracking_issue"] == 76
+    assert [item["code"] for item in payload["blockers"]] == ["presentation_renderer"]
     assert payload["generation_allowed"] is False
 
 
@@ -128,6 +139,8 @@ def test_legacy_or_incomplete_nace_is_never_invented_or_treated_as_ready():
     assert "five_training_topics" in blocker_codes
     assert "technical_risks" in blocker_codes
     assert "exact_exam_readiness" in blocker_codes
+    assert "template_contract" not in blocker_codes
+    assert "presentation_renderer" in blocker_codes
 
 
 def test_cancelled_training_stays_blocked_even_with_verified_snapshot():

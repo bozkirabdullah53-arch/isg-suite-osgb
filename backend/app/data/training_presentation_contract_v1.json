@@ -1,0 +1,282 @@
+{
+  "contract_version": "nace-training-presentation-contract-v1",
+  "status": "approved_for_implementation",
+  "approved_at": "2026-08-06",
+  "tracking_issue": 76,
+  "language": "tr-TR",
+  "outputs": {
+    "primary": "pptx",
+    "companions": ["pdf"],
+    "pdf_strategy": "native-renderer-from-same-manifest",
+    "office_conversion_allowed": false,
+    "reason": "PPTX sunum için düzenlenebilir ana çıktı; PDF aynı değişmez içerik manifestinden ayrı ve deterministik üretilir. Render ortamında Office/LibreOffice bağımlılığı kurulmaz."
+  },
+  "layout": {
+    "aspect_ratio": "16:9",
+    "target_slide_count": 22,
+    "minimum_slide_count": 18,
+    "maximum_slide_count": 32,
+    "maximum_bullets_per_slide": 6,
+    "maximum_words_per_bullet": 18,
+    "maximum_title_characters": 80,
+    "speaker_notes_required": true,
+    "source_footer_required": true
+  },
+  "source_policy": {
+    "allowed_source_types": [
+      "frozen_nace_snapshot",
+      "controlled_training_topics",
+      "controlled_risk_catalog",
+      "approved_question_bank",
+      "official_legislation",
+      "official_csgb_guidance",
+      "workplace_specific_user_input"
+    ],
+    "forbidden_source_types": [
+      "unreviewed_web_content",
+      "cross_sector_fallback",
+      "legacy_sector_guess",
+      "model_only_assertion",
+      "unsourced_technical_claim"
+    ],
+    "workplace_input_rule": "İşyeri girdisi yalnız taslak olarak etiketlenir ve iş güvenliği uzmanı onayı olmadan yayınlanamaz.",
+    "legal_claim_rule": "Her mevzuat iddiası source_registry içindeki resmi kaynağa ve madde/soru referansına bağlanmalıdır.",
+    "technical_claim_rule": "Her teknik risk ve kontrol tedbiri dondurulmuş risk etiketi, onaylı sektör rehberi veya uzman onaylı işyeri girdisiyle izlenebilir olmalıdır.",
+    "no_invention_rule": "Eksik veri uydurulmaz; ilgili bölüm bloke edilir veya açıkça kapsam dışı gösterilir."
+  },
+  "source_registry": [
+    {
+      "source_id": "tr-law-6331",
+      "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+      "publisher": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı",
+      "url": "https://www.csgb.gov.tr/media/2670/6331_isgkanunu_tr.pdf",
+      "reference": "Madde 4, 10, 16, 17 ve 18",
+      "source_type": "official_legislation",
+      "checked_at": "2026-08-06"
+    },
+    {
+      "source_id": "tr-training-regulation-2026",
+      "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik",
+      "publisher": "T.C. Resmî Gazete",
+      "url": "https://www.resmigazete.gov.tr/eskiler/2026/04/20260402-2.htm",
+      "reference": "2 Nisan 2026, Sayı 33212",
+      "source_type": "official_legislation",
+      "checked_at": "2026-08-06"
+    },
+    {
+      "source_id": "csgb-training-faq-2026",
+      "title": "İSG Genel Müdürlüğü Sıkça Sorulan Sorular",
+      "publisher": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı",
+      "url": "https://www.csgb.gov.tr/tr/sikca-sorulan-sorular/is-sagligi-ve-guvenligi-genel-mudurlugu/",
+      "reference": "Soru 126, 127, 130, 131, 133, 137, 138 ve 143",
+      "source_type": "official_csgb_guidance",
+      "checked_at": "2026-08-06"
+    },
+    {
+      "source_id": "csgb-training-guide",
+      "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimleri Uygulama Rehberi",
+      "publisher": "T.C. Çalışma ve Sosyal Güvenlik Bakanlığı / İSGGM",
+      "url": "https://www.csgb.gov.tr/isggm/yayinlar-ve-afisler/",
+      "reference": "Rehberler bölümü",
+      "source_type": "official_csgb_guidance",
+      "checked_at": "2026-08-06"
+    }
+  ],
+  "sections": [
+    {
+      "section_id": "cover",
+      "title": "Kapak",
+      "order": 10,
+      "minimum_slides": 1,
+      "maximum_slides": 1,
+      "required": true,
+      "sources": ["frozen_nace_snapshot", "workplace_specific_user_input"],
+      "required_fields": ["training_title", "company_name", "nace_code", "nace_description", "hazard_class", "training_date"],
+      "content_rule": "Kurumsal logo opsiyoneldir; eğitim ve NACE kimliği açıkça gösterilir."
+    },
+    {
+      "section_id": "learning_objectives",
+      "title": "Eğitimin amacı ve öğrenme hedefleri",
+      "order": 20,
+      "minimum_slides": 1,
+      "maximum_slides": 1,
+      "required": true,
+      "sources": ["controlled_training_topics", "official_csgb_guidance"],
+      "required_fields": ["training_topics"],
+      "content_rule": "Hedefler ölçülebilir davranış fiilleriyle yazılır; sertifika veya sınav sonucunu garanti eden ifade kullanılmaz."
+    },
+    {
+      "section_id": "legal_basis",
+      "title": "Mevzuat ve sorumluluklar",
+      "order": 30,
+      "minimum_slides": 1,
+      "maximum_slides": 2,
+      "required": true,
+      "sources": ["official_legislation", "official_csgb_guidance"],
+      "required_fields": ["legal_source_ids"],
+      "content_rule": "Kısa özet kullanılır; her iddia resmi kaynak kimliği ve referansıyla dipnotlanır."
+    },
+    {
+      "section_id": "nace_identity",
+      "title": "İşyeri faaliyeti ve NACE kimliği",
+      "order": 40,
+      "minimum_slides": 1,
+      "maximum_slides": 1,
+      "required": true,
+      "sources": ["frozen_nace_snapshot"],
+      "required_fields": ["catalog_key", "nace_code", "nace_description", "hazard_class", "content_profile_code", "catalog_hash"],
+      "content_rule": "Legacy veya tahmini sektör etiketi kullanılamaz."
+    },
+    {
+      "section_id": "training_plan",
+      "title": "Eğitim planı ve süre",
+      "order": 50,
+      "minimum_slides": 1,
+      "maximum_slides": 1,
+      "required": true,
+      "sources": ["frozen_nace_snapshot", "official_legislation"],
+      "required_fields": ["required_duration_hours", "training_topics"],
+      "content_rule": "Ders saati ve toplam süre güncel 2026 düzenlemesine göre kaynaklandırılır; kayıttaki gerçek süre değiştirilmez."
+    },
+    {
+      "section_id": "foundation_ohs",
+      "title": "Temel İSG ilkeleri",
+      "order": 60,
+      "minimum_slides": 2,
+      "maximum_slides": 3,
+      "required": true,
+      "sources": ["official_legislation", "approved_question_bank"],
+      "required_fields": ["foundation_question_count"],
+      "content_rule": "Hak ve sorumluluklar, tehlike-risk, bildirim ve güvenli davranış ana çerçevesi verilir."
+    },
+    {
+      "section_id": "work_specific_topics",
+      "title": "İşe ve işyerine özgü beş konu",
+      "order": 70,
+      "minimum_slides": 5,
+      "maximum_slides": 10,
+      "required": true,
+      "sources": ["controlled_training_topics", "controlled_risk_catalog", "official_csgb_guidance"],
+      "required_fields": ["training_topics"],
+      "content_rule": "Beş dondurulmuş konunun her biri en az bir slaytta ele alınır; başka sektörden konu eklenmez."
+    },
+    {
+      "section_id": "technical_risks",
+      "title": "Teknik ve özel riskler",
+      "order": 80,
+      "minimum_slides": 2,
+      "maximum_slides": 4,
+      "required": true,
+      "sources": ["controlled_risk_catalog", "frozen_nace_snapshot"],
+      "required_fields": ["technical_risk_tags"],
+      "content_rule": "Riskler faaliyet ve iş adımıyla ilişkilendirilir; özel risk yoksa bu durum açıkça belirtilir."
+    },
+    {
+      "section_id": "control_measures",
+      "title": "Kontrol tedbirleri ve güvenli çalışma",
+      "order": 90,
+      "minimum_slides": 2,
+      "maximum_slides": 4,
+      "required": true,
+      "sources": ["controlled_risk_catalog", "official_csgb_guidance", "workplace_specific_user_input"],
+      "required_fields": ["technical_risk_tags"],
+      "content_rule": "Kontrol hiyerarşisi uygulanır; işyerine özgü ek tedbirler uzman onayı ister."
+    },
+    {
+      "section_id": "ppe",
+      "title": "Kişisel koruyucu donanım",
+      "order": 100,
+      "minimum_slides": 1,
+      "maximum_slides": 2,
+      "required": true,
+      "sources": ["controlled_risk_catalog", "workplace_specific_user_input"],
+      "required_fields": ["technical_risk_tags"],
+      "content_rule": "KKD son kontrol katmanı olarak anlatılır; işyerinde kullanılmayan ürün kesin gereklilik gibi gösterilmez."
+    },
+    {
+      "section_id": "emergency",
+      "title": "Acil durum, tahliye ve bildirim",
+      "order": 110,
+      "minimum_slides": 1,
+      "maximum_slides": 2,
+      "required": true,
+      "sources": ["official_legislation", "workplace_specific_user_input"],
+      "required_fields": ["emergency_placeholders"],
+      "content_rule": "Toplanma yeri, acil numara ve özel prosedürler işyeri verisi yoksa yer tutucu ve onay bekliyor olarak gösterilir."
+    },
+    {
+      "section_id": "assessment",
+      "title": "Bilgi kontrolü ve değerlendirme",
+      "order": 120,
+      "minimum_slides": 1,
+      "maximum_slides": 2,
+      "required": true,
+      "sources": ["approved_question_bank"],
+      "required_fields": ["foundation_question_count", "work_specific_question_count"],
+      "content_rule": "Mevcut 5 temel + 15 işe özgü sınav yapısı değiştirilmez; sunum yalnız hazırlık/özet soruları gösterebilir."
+    },
+    {
+      "section_id": "summary",
+      "title": "Özet ve güvenli davranış taahhüdü",
+      "order": 130,
+      "minimum_slides": 1,
+      "maximum_slides": 1,
+      "required": true,
+      "sources": ["controlled_training_topics", "controlled_risk_catalog"],
+      "required_fields": ["training_topics", "technical_risk_tags"],
+      "content_rule": "En kritik davranışlar özetlenir; hukuki feragat veya çalışana sorumluluk devri yapılmaz."
+    },
+    {
+      "section_id": "sources_and_version",
+      "title": "Kaynaklar ve sürüm bilgisi",
+      "order": 140,
+      "minimum_slides": 1,
+      "maximum_slides": 2,
+      "required": true,
+      "sources": ["official_legislation", "official_csgb_guidance", "frozen_nace_snapshot"],
+      "required_fields": ["contract_version", "catalog_version", "catalog_hash", "source_ids"],
+      "content_rule": "Kaynak kimlikleri, kontrol tarihi, şablon sürümü ve içerik hash'i gösterilir."
+    }
+  ],
+  "visual_policy": {
+    "reuse_existing_theme": true,
+    "allowed_logo_sources": ["company_uploaded_logo", "osgb_uploaded_logo"],
+    "remote_image_download": false,
+    "stock_image_default": false,
+    "generated_image_default": false,
+    "image_license_metadata_required": true,
+    "decorative_image_limit_per_slide": 1,
+    "forbidden": ["neon_palette", "unrelated_dark_theme", "heavy_animation", "random_gradients", "unlicensed_images"]
+  },
+  "manifest_policy": {
+    "canonical_json": "UTF-8, sorted keys, compact separators",
+    "hash_algorithm": "sha256",
+    "hash_inputs": [
+      "contract_version",
+      "template_version",
+      "frozen_nace_snapshot",
+      "training_topics",
+      "technical_risk_tags",
+      "special_risks",
+      "approved_workplace_inputs",
+      "source_registry_versions",
+      "ordered_slide_manifest"
+    ],
+    "historical_rule": "Üretilmiş/onaylanmış manifest yerinde değiştirilmez; değişiklik yeni sürüm oluşturur."
+  },
+  "fail_closed": {
+    "blocking_conditions": [
+      "feature_disabled",
+      "missing_verified_nace_snapshot",
+      "missing_nace_code_or_description",
+      "training_topic_count_not_five",
+      "missing_technical_risk_tags",
+      "missing_or_unapproved_legal_source",
+      "cross_sector_fallback_detected",
+      "unsourced_claim_detected",
+      "invalid_manifest_hash"
+    ],
+    "non_blocking_for_core_training": true,
+    "user_message": "Sunum hazırlanamadı. Eğitim, sınav, PDF ve sertifika işlemleriniz etkilenmedi. Eksik veya doğrulanmamış sunum kaynaklarını kontrol edin."
+  }
+}
