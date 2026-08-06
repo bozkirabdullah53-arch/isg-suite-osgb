@@ -1,9 +1,10 @@
 """Read-only readiness for the optional NACE-aligned training presentation.
 
-Phase 1 deliberately creates no database record, presentation file or storage
-write. The service only evaluates the existing frozen NACE snapshot and exact
-exam readiness. Core training, exam, PDF and certificate workflows must never
-be blocked by this optional feature.
+Phase 1 and Phase 2 deliberately create no database record, presentation file
+or storage write. The service evaluates the existing frozen NACE snapshot,
+exact exam readiness and source-controlled content contract. Core training,
+exam, PDF and certificate workflows must never be blocked by this optional
+feature.
 """
 from __future__ import annotations
 
@@ -17,10 +18,14 @@ from app.core.config import nace_training_presentation_active
 from app.models.entities import TrainingSession
 from app.models.training_nace import TrainingNaceSnapshot
 from app.services.training_exact_question_factory import exact_question_readiness
+from app.services.training_presentation_contract import (
+    CONTRACT_VERSION,
+    TEMPLATE_VERSION,
+    PresentationContractError,
+    presentation_contract_payload,
+)
 
-READINESS_VERSION = "nace-training-presentation-readiness-v1"
-TEMPLATE_CONTRACT_VERSION = None
-TEMPLATE_CONTRACT_STATUS = "pending_specialist_approval"
+READINESS_VERSION = "nace-training-presentation-readiness-v2"
 
 
 def _json_list(raw: str | None) -> list[str]:
@@ -36,6 +41,34 @@ def _json_list(raw: str | None) -> list[str]:
 def _status_value(training: TrainingSession) -> str:
     raw = getattr(training, "status", "")
     return str(getattr(raw, "value", raw) or "").strip().lower()
+
+
+def _contract_state() -> dict[str, Any]:
+    try:
+        payload = presentation_contract_payload()
+    except PresentationContractError as exc:
+        return {
+            "ok": False,
+            "status": "invalid",
+            "version": None,
+            "template_version": None,
+            "contract_hash": None,
+            "output_formats": [],
+            "detail": str(exc),
+        }
+    outputs = payload.get("outputs") or {}
+    return {
+        "ok": True,
+        "status": str(payload.get("status") or "approved_for_implementation"),
+        "version": payload.get("contract_version"),
+        "template_version": payload.get("template_version"),
+        "contract_hash": payload.get("contract_hash"),
+        "output_formats": [
+            outputs.get("primary"),
+            *(outputs.get("companions") or []),
+        ],
+        "detail": "PPTX ana ve PDF yardımcı çıktı için içerik sözleşmesi onaylandı.",
+    }
 
 
 def build_presentation_readiness_payload(
@@ -65,6 +98,7 @@ def build_presentation_readiness_payload(
     exam = dict(exam_readiness or {})
     exam_ready = bool(exam.get("ready"))
     cancelled = _status_value(training) == "cancelled"
+    contract = _contract_state()
 
     checks = [
         {
@@ -129,9 +163,15 @@ def build_presentation_readiness_payload(
         },
         {
             "code": "template_contract",
-            "label": "Uzman onaylı sunum şablonu",
+            "label": "Uzman onaylı içerik ve şablon sözleşmesi",
+            "ok": bool(contract["ok"]),
+            "detail": str(contract["detail"]),
+        },
+        {
+            "code": "presentation_renderer",
+            "label": "PPTX/PDF üretim servisi",
             "ok": False,
-            "detail": "Çıktı biçimi ve slayt içerik sözleşmesi henüz uzman onayından geçmedi.",
+            "detail": "Faz 4 üretim servisi henüz uygulanmadı; bu aşamada yalnız manifest önizlemesi vardır.",
         },
     ]
 
@@ -145,7 +185,7 @@ def build_presentation_readiness_payload(
         warnings.append(
             {
                 "code": "special_risks_empty",
-                "detail": "Özel risk listesi boş; bu durum içerik sözleşmesinde kapsam dışı veya eksik olarak kararlaştırılmalı.",
+                "detail": "Özel risk listesi boş; manifestte açıkça boş olarak gösterilir ve risk uydurulmaz.",
             }
         )
 
@@ -157,6 +197,7 @@ def build_presentation_readiness_payload(
         "enabled": enabled,
         "visible": enabled,
         "read_only": True,
+        "manifest_preview_supported": bool(contract["ok"]),
         "generation_supported": False,
         "generation_allowed": False,
         "core_training_unaffected": True,
@@ -178,9 +219,11 @@ def build_presentation_readiness_payload(
             "exam_readiness": exam,
         },
         "template_contract": {
-            "status": TEMPLATE_CONTRACT_STATUS,
-            "version": TEMPLATE_CONTRACT_VERSION,
-            "output_formats": [],
+            "status": contract["status"],
+            "version": contract["version"] or CONTRACT_VERSION,
+            "template_version": contract["template_version"] or TEMPLATE_VERSION,
+            "contract_hash": contract["contract_hash"],
+            "output_formats": [item for item in contract["output_formats"] if item],
             "tracking_issue": 76,
         },
         "checks": checks,
@@ -189,7 +232,7 @@ def build_presentation_readiness_payload(
         "next_action": (
             "Özellik kapalı; mevcut eğitim/sınav/PDF/sertifika işlemlerine devam edin."
             if not enabled
-            else "Sunum üretimi için önce GitHub #76 içerik ve şablon sözleşmesini uzman onayına tamamlayın."
+            else "İçerik sözleşmesi hazır. Gerçek dosya üretimi için Faz 3 sürüm modeli ve Faz 4 renderer tamamlanmalıdır."
         ),
     }
 
