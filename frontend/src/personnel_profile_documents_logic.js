@@ -138,7 +138,12 @@ export function verificationLabel(value) {
 }
 
 export function safeDocumentFilename(row) {
-  const base = String(row?.title || 'personel-belgesi')
+  const transliterated = String(row?.title || 'personel-belgesi')
+    .replace(/[ıİşŞğĞüÜöÖçÇ]/g, (character) => ({
+      ı: 'i', İ: 'I', ş: 's', Ş: 'S', ğ: 'g', Ğ: 'G',
+      ü: 'u', Ü: 'U', ö: 'o', Ö: 'O', ç: 'c', Ç: 'C',
+    })[character]);
+  const base = transliterated
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
