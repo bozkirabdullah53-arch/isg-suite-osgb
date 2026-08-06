@@ -145,3 +145,13 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           npx playwright test e2e/personnel-profile-sidebar.spec.js
+      - name: Upload profile E2E diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: personnel-profile-manager-e2e-diagnostics
+          path: |
+            frontend/test-results
+            frontend/playwright-report
+          if-no-files-found: warn
+          retention-days: 7
