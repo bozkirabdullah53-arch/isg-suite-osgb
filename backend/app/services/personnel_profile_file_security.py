@@ -18,6 +18,12 @@ from app.services.upload_security import assert_safe_upload
 _MAX_IMAGE_EDGE = 2048
 _MAX_IMAGE_PIXELS = 40_000_000
 _MAX_DOCX_UNCOMPRESSED = 50 * 1024 * 1024
+_KIND_BYTE_LIMITS = {
+    "profile_photo": 5 * 1024 * 1024,
+    "cv": 10 * 1024 * 1024,
+    "qualification": 15 * 1024 * 1024,
+    "certificate": 15 * 1024 * 1024,
+}
 
 
 def _sanitize_profile_photo(content: bytes, extension: str) -> bytes:
@@ -89,6 +95,17 @@ def prepare_profile_upload(
     document_kind: str,
 ) -> bytes:
     """Return safe bytes without changing the original filename contract."""
+
+    limit = _KIND_BYTE_LIMITS.get(document_kind)
+    if limit is None:
+        raise HTTPException(400, "Desteklenmeyen profil belge türü.")
+    if not content:
+        raise HTTPException(400, "Boş dosya yüklenemez.")
+    if len(content) > limit:
+        raise HTTPException(
+            413,
+            f"Dosya bu kategori için {limit // (1024 * 1024)} MB sınırını aşıyor.",
+        )
 
     extension = Path(filename or "").suffix.lower()
     if document_kind == "profile_photo":
