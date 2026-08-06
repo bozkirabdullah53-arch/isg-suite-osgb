@@ -9,10 +9,12 @@ from datetime import date
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, TypeAdapter, model_validator
 
 from app.core.input_rules import assert_meaningful_text, clean_text
 
+
+_EMAIL_ADAPTER = TypeAdapter(EmailStr)
 
 SubjectType = Literal["employee", "professional"]
 ContactType = Literal[
@@ -81,7 +83,7 @@ class PersonnelContactVersionCreate(VersionedEntryInput):
         if not value:
             raise ValueError("İletişim bilgisi zorunludur.")
         if self.contact_type in {"corporate_email", "alternative_email"}:
-            self.contact_value = str(EmailStr._validate(value))
+            self.contact_value = str(_EMAIL_ADAPTER.validate_python(value))
         else:
             digits = "".join(ch for ch in value if ch.isdigit())
             if len(digits) < 10 or len(digits) > 15:
