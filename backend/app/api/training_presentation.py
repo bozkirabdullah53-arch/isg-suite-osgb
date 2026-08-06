@@ -116,7 +116,11 @@ def _approval_http_error(exc: PresentationApprovalError) -> HTTPException:
 
 def _version_with_approval(db: Session, row, *, include_manifest: bool = False) -> dict:
     payload = version_payload(row, include_manifest=include_manifest)
-    approval = get_presentation_approval(db, presentation_version_id=row.id)
+    raw_status = getattr(row, "status", "")
+    status = str(getattr(raw_status, "value", raw_status) or "").lower()
+    approval = None
+    if status in {"approved", "archived"}:
+        approval = get_presentation_approval(db, presentation_version_id=row.id)
     payload["approval"] = approval_payload(approval) if approval else None
     return payload
 
