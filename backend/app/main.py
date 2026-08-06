@@ -3,7 +3,13 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
-from app.api import auth, branches, companies, dashboard, employees, personnel_profiles, personnel_profile_management, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, professional_performance_exports, operations, trainings, training_nace, training_completion, training_presentation, training_question_selection_audit, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions
+
+# Apply the additive OSGB professional metadata/service compatibility layer before
+# profile routers bind service functions. Existing workplace modules are untouched.
+from app.services.personnel_profile_osgb_scope import install_osgb_service_overrides
+install_osgb_service_overrides()
+
+from app.api import auth, branches, companies, dashboard, employees, personnel_profiles, personnel_profile_management, personnel_profile_osgb, personnel_profile_osgb_documents, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, professional_performance_exports, operations, trainings, training_nace, training_completion, training_presentation, training_question_selection_audit, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions
 from app.core.rate_limit import SimpleRateLimitMiddleware
 from app.core.request_id import RequestIdMiddleware, install_request_id_logging
 from app.core.tenant_middleware import TenantContextMiddleware
@@ -134,6 +140,9 @@ for router in (
     branches.router,
     users.router,
     employees.router,
+    personnel_profile_osgb.osgb_router,
+    personnel_profile_osgb_documents.router,
+    personnel_profile_osgb.profile_router,
     personnel_profiles.router,
     personnel_profile_management.router,
     isg_records.router,

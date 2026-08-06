@@ -12,8 +12,11 @@ on:
       - "backend/alembic/versions/008*_personnel_profile*.py"
       - "backend/alembic/env.py"
       - "backend/scripts/ci_postgres_parity.py"
+      - "backend/start.sh"
       - "frontend/src/personnel_profile*"
+      - "frontend/scripts/patch_osgb_professional_cards_only.mjs"
       - "frontend/e2e/personnel-profile*.spec.js"
+      - "frontend/package.json"
       - "frontend/index.html"
       - ".github/workflows/personnel-profile-manager-ci.yml"
   pull_request:
@@ -27,8 +30,11 @@ on:
       - "backend/alembic/versions/008*_personnel_profile*.py"
       - "backend/alembic/env.py"
       - "backend/scripts/ci_postgres_parity.py"
+      - "backend/start.sh"
       - "frontend/src/personnel_profile*"
+      - "frontend/scripts/patch_osgb_professional_cards_only.mjs"
       - "frontend/e2e/personnel-profile*.spec.js"
+      - "frontend/package.json"
       - "frontend/index.html"
       - ".github/workflows/personnel-profile-manager-ci.yml"
 
@@ -52,12 +58,13 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - name: Install
         run: pip install -r requirements.txt
-      - name: Profile security, management and document tests
+      - name: Profile security, OSGB scope, management and document tests
         run: >
           pytest -q
           tests/test_personnel_profile_readonly.py
           tests/test_personnel_profile_core.py
           tests/test_personnel_profile_management.py
+          tests/test_personnel_profile_osgb_scope.py
           tests/test_personnel_profile_documents.py
           tests/test_personnel_profile_file_security.py
           tests/test_company_access.py
@@ -101,18 +108,19 @@ jobs:
         run: |
           alembic upgrade head
           python scripts/ci_postgres_parity.py
-      - name: Profile core, management and document tests
+      - name: Profile core, OSGB scope, management and document tests
         run: >
           pytest -q
           tests/test_personnel_profile_core.py
           tests/test_personnel_profile_management.py
+          tests/test_personnel_profile_osgb_scope.py
           tests/test_personnel_profile_documents.py
           tests/test_personnel_profile_file_security.py
-      - name: Existing tables and isolated profile tables remain intact
+      - name: OSGB and workplace profile scopes coexist
         run: |
           python - <<'PY'
           import os
-          from sqlalchemy import create_engine, inspect
+          from sqlalchemy import create_engine, inspect, text
           engine = create_engine(os.environ["DATABASE_URL"])
           inspector = inspect(engine)
           for table in (
@@ -127,9 +135,18 @@ jobs:
               "personnel_profile_documents",
           ):
               assert inspector.has_table(table), table
-          print("OK: existing identities and isolated profile tables coexist")
+          columns = {item["name"]: item for item in inspector.get_columns("personnel_profiles")}
+          assert columns["company_id"]["nullable"] is True
+          assert "legacy_company_id" in columns
+          unique_names = {item.get("name") for item in inspector.get_unique_constraints("personnel_profiles")}
+          assert "uq_personnel_profile_osgb_professional" in unique_names
+          assert "uq_personnel_profile_company_professional" not in unique_names
+          with engine.connect() as connection:
+              revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
+          assert revision == "0083_profile_osgb_scope", revision
+          print("OK: OSGB professional and workplace employee profile scopes coexist")
           PY
-      - name: Isolated document migration rollback gate
+      - name: Isolated profile migration rollback gate
         run: |
           alembic downgrade 0081_personnel_profile_core
           python - <<'PY'
@@ -149,7 +166,9 @@ jobs:
               "personnel_profile_experiences",
           ):
               assert inspector.has_table(table), table
-          print("OK: 0082 downgrade removes only the document table")
+          columns = {item["name"] for item in inspector.get_columns("personnel_profiles")}
+          assert "legacy_company_id" not in columns
+          print("OK: OSGB scope and document migrations roll back without removing existing identity tables")
           PY
           alembic upgrade head
           python scripts/ci_postgres_parity.py
@@ -173,13 +192,14 @@ jobs:
           npx vitest run
           src/personnel_profile_readonly_logic.test.js
           src/personnel_profile_manager_logic.test.js
+          src/personnel_profile_osgb_scope.test.js
           src/personnel_profile_documents_logic.test.js
           src/personnel_profile_documents_bridge.test.js
       - name: Lint and build
         run: |
           npm run lint
           npm run build
-      - name: Full manager desktop, mobile and documents E2E
+      - name: OSGB-only manager desktop, mobile and documents E2E
         run: |
           npx playwright install --with-deps chromium
           npx playwright test e2e/personnel-profile-sidebar.spec.js e2e/personnel-profile-documents.spec.js

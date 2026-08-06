@@ -1,6 +1,7 @@
 import {
   normalizeEmployeeRows,
   normalizeProfessionalRows,
+  professionalTypeLabel,
 } from './personnel_profile_readonly_logic';
 
 export const PROFILE_MANAGER_TABS = [
@@ -16,9 +17,41 @@ export const PROFILE_MANAGER_TABS = [
 ];
 
 export function asRows(payload) {
-  return Array.isArray(payload) ? payload : Array.isArray(payload?.rows) ? payload.rows : [];
+  return Array.isArray(payload) ? payload : Array.isArray(payload?.rows) ? payload.rows : Array.isArray(payload?.items) ? payload.items : [];
 }
 
+export function buildOsgbProfessionalSubjects(professionals, osgbId) {
+  const allowed = new Set(['safety_specialist', 'workplace_physician', 'other_health_personnel']);
+  return asRows(professionals)
+    .map((row) => {
+      const professionalType = String(row?.professional_type || '').trim().toLowerCase();
+      return {
+        id: Number(row?.id || 0),
+        fullName: String(row?.full_name || '').trim(),
+        professionalType,
+        professionalTypeLabel: professionalTypeLabel(professionalType),
+        certificateClass: String(row?.certificate_class || '').trim(),
+        active: row?.is_active !== false,
+        rowOsgbId: Number(row?.osgb_id || 0),
+      };
+    })
+    .filter((row) => row.id > 0 && row.fullName)
+    .filter((row) => row.rowOsgbId === Number(osgbId))
+    .filter((row) => allowed.has(row.professionalType))
+    .filter((row) => row.active)
+    .map((row) => ({
+      ...row,
+      subjectType: 'professional',
+      subjectKey: `professional:${row.id}`,
+      osgbId: Number(osgbId),
+      companyId: null,
+      subtitle: row.professionalTypeLabel,
+    }))
+    .sort((a, b) => String(a.fullName).localeCompare(String(b.fullName), 'tr'));
+}
+
+// Legacy workplace builder is retained for backward compatibility. The OSGB page
+// no longer calls it, so workplace Employee records cannot enter OSGB cards.
 export function buildPersonnelSubjects({employees, professionals, assignments, companyId}) {
   const normalizedEmployees = normalizeEmployeeRows(employees).map((row) => ({
     ...row,
@@ -90,7 +123,7 @@ export function buildProfileHistory(snapshot = {}) {
       entryKey: null,
       version: 1,
       status: source.profile.status || 'active',
-      title: 'Dijital personel kartı oluşturuldu',
+      title: 'Dijital profesyonel kartı oluşturuldu',
       createdAt: source.profile.created_at,
     });
   }

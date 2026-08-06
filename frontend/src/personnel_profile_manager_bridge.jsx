@@ -1,7 +1,6 @@
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {api} from './api';
-import {shouldRenderPersonnelProfileEntry} from './personnel_profile_readonly_logic';
 import {PersonnelProfileManagerWithDocuments} from './personnel_profile_documents_bridge';
 import './personnel_profile_manager_bridge.css';
 
@@ -9,27 +8,21 @@ let mounted=null;
 let resizing=false;
 
 function rows(payload){
-  return Array.isArray(payload)?payload:Array.isArray(payload?.rows)?payload.rows:[];
+  return Array.isArray(payload)?payload:Array.isArray(payload?.rows)?payload.rows:Array.isArray(payload?.items)?payload.items:[];
 }
 
 async function resolveContext(){
-  const[osgbPayload,companyPayload,user]=await Promise.all([
+  const[osgbPayload,user]=await Promise.all([
     api('/osgb',{_retries:1}),
-    api('/companies',{_retries:1}),
     api('/auth/me',{_retries:1}),
   ]);
   const osgbId=Number(rows(osgbPayload)[0]?.id||0);
   if(!osgbId) throw new Error('OSGB kapsamı bulunamadı.');
-  const companyIds=rows(companyPayload).map((row)=>Number(row?.id||0)).filter((id)=>id>0).slice(0,50);
-  const readiness=await Promise.all(companyIds.map(async(companyId)=>{
-    try{
-      const payload=await api(`/personnel-profiles/readiness?company_id=${encodeURIComponent(companyId)}`,{_retries:1});
-      return shouldRenderPersonnelProfileEntry(payload)?companyId:null;
-    }catch{return null}
-  }));
-  const pilotCompanyIds=readiness.filter((id)=>Number(id)>0);
-  if(!pilotCompanyIds.length) throw new Error('Dijital Personel Kartı bu OSGB için aktif değil.');
-  return {osgbId,pilotCompanyIds,user};
+  const readiness=await api(`/osgb-personnel-profiles/readiness?osgb_id=${encodeURIComponent(osgbId)}`,{_retries:1});
+  if(!readiness?.enabled||!readiness?.visible||readiness?.scope!=='osgb_professionals_only'){
+    throw new Error('Dijital Profesyonel Kartı bu OSGB için aktif değil.');
+  }
+  return {osgbId,user};
 }
 
 function positionHost(){
@@ -59,13 +52,13 @@ function closeManager(){
   if(returnFocus instanceof HTMLElement) returnFocus.focus();
 }
 
-function mountManager({osgbId,pilotCompanyIds,user}){
+function mountManager({osgbId,user}){
   closeManager();
   const host=document.createElement('div');
   host.className='ppm-bridge-host';
   host.setAttribute('data-personnel-profile-manager','true');
   host.setAttribute('role','region');
-  host.setAttribute('aria-label','Dijital Personel Yönetimi');
+  host.setAttribute('aria-label','OSGB Dijital Profesyonel Kartları');
   document.body.appendChild(host);
   const root=createRoot(host);
   const onKeydown=(event)=>{if(event.key==='Escape') closeManager()};
@@ -73,7 +66,7 @@ function mountManager({osgbId,pilotCompanyIds,user}){
   root.render(
     <PersonnelProfileManagerWithDocuments
       user={user}
-      context={{osgbId,pilotCompanyIds}}
+      context={{osgbId}}
       onClose={closeManager}
     />,
   );
@@ -91,7 +84,7 @@ async function openManager(button){
     if(mobileClose instanceof HTMLElement) mobileClose.click();
     mountManager(context);
   }catch(error){
-    window.alert(error?.message||'Dijital Personel Yönetimi açılamadı.');
+    window.alert(error?.message||'Dijital Profesyonel Kartları açılamadı.');
   }finally{
     button?.removeAttribute('aria-busy');
   }
