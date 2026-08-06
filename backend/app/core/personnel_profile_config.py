@@ -2,6 +2,7 @@
 
 Bu modül mevcut ana Settings sınıfını veya çalışan personel akışlarını değiştirmez.
 Feature varsayılan olarak kapalıdır; şirket allowlist'i boşsa hiçbir şirket aktif olmaz.
+Restricted veri ve dış paylaşım bu fazın koduna dahil edilmez.
 """
 from __future__ import annotations
 
@@ -12,8 +13,6 @@ class PersonnelProfileSettings(BaseSettings):
     personnel_profile_card_enabled: bool = False
     personnel_profile_card_force_off: bool = False
     personnel_profile_card_pilot_company_ids: str = ""
-    personnel_profile_restricted_data_enabled: bool = False
-    personnel_profile_external_sharing_enabled: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 
@@ -84,21 +83,3 @@ def personnel_profile_rollout(company_id: int | None) -> dict[str, bool]:
         "pilot_company": pilot_company,
         "active": bool(global_enabled and not force_off and pilot_company),
     }
-
-
-def personnel_profile_restricted_data_active(company_id: int | None) -> bool:
-    """Restricted veri şirket kapısı ve ayrı hukuki flag olmadan aktif değildir."""
-
-    return bool(
-        personnel_profile_card_active(company_id)
-        and getattr(personnel_profile_settings, "personnel_profile_restricted_data_enabled", False)
-    )
-
-
-def personnel_profile_external_sharing_active(company_id: int | None) -> bool:
-    """Dış paylaşım şirket kapısı ve ayrı onay flag'i olmadan aktif değildir."""
-
-    return bool(
-        personnel_profile_card_active(company_id)
-        and getattr(personnel_profile_settings, "personnel_profile_external_sharing_enabled", False)
-    )
