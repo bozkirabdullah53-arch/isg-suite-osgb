@@ -1,12 +1,14 @@
-"""Dijital Personel Kartı Faz 2 — salt okunur, migration içermeyen API.
+"""Dijital Personel Kartı API.
 
-Mevcut personel/profesyonel endpointlerini değiştirmez. Feature kapalıyken yalnız
-readiness teşhisi kullanılabilir; profil özetleri fail-closed biçimde reddedilir.
+Faz 2 salt okunur özetleri korunur. Faz 3, mevcut Employee/IsgProfessional/User
+kayıtlarını değiştirmeden açık özne bağlantılı profil kökü ve normal profesyonel
+bilgi sürümleri ekler. Restricted veri, dosya, CV veya dış paylaşım içermez.
 """
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.company_access import ensure_company_access, find_professional_for_user
@@ -25,6 +27,22 @@ from app.models.entities import (
     User,
     UserRole,
     WorkplaceAssignment,
+)
+from app.models.personnel_profile import PersonnelProfile
+from app.schemas.personnel_profile import (
+    PersonnelCompetencyVersionCreate,
+    PersonnelContactVersionCreate,
+    PersonnelExperienceVersionCreate,
+    PersonnelProfileInitialize,
+)
+from app.services.personnel_profile_core import (
+    append_competency_version,
+    append_contact_version,
+    append_experience_version,
+    archive_personnel_profile,
+    get_profile_or_404,
+    initialize_personnel_profile,
+    profile_snapshot,
 )
 from app.services.personnel_profile_readonly import (
     build_employee_profile_summary,
@@ -87,7 +105,7 @@ def _ensure_professional_access(
     if user.role == UserRole.GLOBAL_ADMIN:
         return
     if user.role == UserRole.COMPANY_ADMIN:
-        if not user.osgb_id or int(user.osgb_id) != int(professional.osgb_id):
+        if user.osgb_id and int(user.osgb_id) != int(professional.osgb_id):
             raise HTTPException(403, "Bu profesyonel profilini görüntüleyemezsiniz.")
         return
     if user.role in _FIELD_ROLES:
@@ -96,6 +114,43 @@ def _ensure_professional_access(
             raise HTTPException(403, "Yalnızca kendi profesyonel profilinizi görüntüleyebilirsiniz.")
         return
     raise HTTPException(403, "Bu profesyonel profilini görüntüleme yetkiniz yok.")
+
+
+def _ensure_extended_profile_read_access(
+    db: Session,
+    user: User,
+    profile: PersonnelProfile,
+) -> None:
+    ensure_company_access(db, user, profile.company_id)
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return
+    if user.role == UserRole.COMPANY_ADMIN:
+        if user.osgb_id and int(user.osgb_id) != int(profile.osgb_id):
+            raise HTTPException(403, "Bu personel profilini görüntüleyemezsiniz.")
+        return
+    if user.role in _FIELD_ROLES and profile.subject_type == "professional":
+        own = find_professional_for_user(db, user)
+        if own and profile.professional_id and int(own.id) == int(profile.professional_id):
+            return
+    raise HTTPException(
+        403,
+        "Genişletilmiş personel profili yalnız yetkili yönetici veya profil sahibi profesyonel tarafından görüntülenebilir.",
+    )
+
+
+def _commit_with_duplicate_retry(db: Session, operation):
+    try:
+        result = operation()
+        db.commit()
+        return result
+    except IntegrityError:
+        db.rollback()
+        result = operation()
+        db.commit()
+        return result
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.get("/readiness")
@@ -175,3 +230,140 @@ def professional_profile_summary(
         active_assignment_count=active_assignment_count,
         rollout=rollout,
     )
+
+
+@router.post("")
+def initialize_profile(
+    payload: PersonnelProfileInitialize,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Mevcut bir özneye açık bağla, backfill yapmadan profil kökü oluşturur."""
+
+    _require_profile_active(payload.company_id)
+
+    def operation():
+        return initialize_personnel_profile(db, user=user, payload=payload)
+
+    profile, created = _commit_with_duplicate_retry(db, operation)
+    db.refresh(profile)
+    return {
+        "created": created,
+        "profile": profile_snapshot(db, profile)["profile"],
+        "privacy": profile_snapshot(db, profile)["privacy"],
+    }
+
+
+@router.get("/{profile_id}")
+def get_extended_profile(
+    profile_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Yetkili tarihsel erişim; feature kapansa bile mevcut profil okunabilir."""
+
+    profile = get_profile_or_404(db, profile_id)
+    _ensure_extended_profile_read_access(db, user, profile)
+    return profile_snapshot(db, profile)
+
+
+@router.post("/{profile_id}/contacts")
+def add_contact_version(
+    profile_id: int,
+    payload: PersonnelContactVersionCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    profile = get_profile_or_404(db, profile_id)
+    _require_profile_active(profile.company_id)
+
+    def operation():
+        return append_contact_version(
+            db, user=user, profile_id=profile_id, payload=payload
+        )
+
+    row, created = _commit_with_duplicate_retry(db, operation)
+    db.refresh(row)
+    return {
+        "created": created,
+        "id": row.id,
+        "entry_key": row.entry_key,
+        "version": row.version,
+        "verification_status": row.verification_status,
+        "lifecycle_status": row.lifecycle_status,
+    }
+
+
+@router.post("/{profile_id}/competencies")
+def add_competency_version(
+    profile_id: int,
+    payload: PersonnelCompetencyVersionCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    profile = get_profile_or_404(db, profile_id)
+    _require_profile_active(profile.company_id)
+
+    def operation():
+        return append_competency_version(
+            db, user=user, profile_id=profile_id, payload=payload
+        )
+
+    row, created = _commit_with_duplicate_retry(db, operation)
+    db.refresh(row)
+    return {
+        "created": created,
+        "id": row.id,
+        "entry_key": row.entry_key,
+        "version": row.version,
+        "verification_status": row.verification_status,
+        "lifecycle_status": row.lifecycle_status,
+    }
+
+
+@router.post("/{profile_id}/experiences")
+def add_experience_version(
+    profile_id: int,
+    payload: PersonnelExperienceVersionCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    profile = get_profile_or_404(db, profile_id)
+    _require_profile_active(profile.company_id)
+
+    def operation():
+        return append_experience_version(
+            db, user=user, profile_id=profile_id, payload=payload
+        )
+
+    row, created = _commit_with_duplicate_retry(db, operation)
+    db.refresh(row)
+    return {
+        "created": created,
+        "id": row.id,
+        "entry_key": row.entry_key,
+        "version": row.version,
+        "lifecycle_status": row.lifecycle_status,
+    }
+
+
+@router.post("/{profile_id}/archive")
+def archive_profile(
+    profile_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    profile = get_profile_or_404(db, profile_id)
+    _require_profile_active(profile.company_id)
+    try:
+        archive_personnel_profile(db, user=user, profile=profile)
+        db.commit()
+        db.refresh(profile)
+    except Exception:
+        db.rollback()
+        raise
+    return {
+        "id": profile.id,
+        "status": profile.status,
+        "archived_at": profile.archived_at.isoformat() if profile.archived_at else None,
+    }
