@@ -16,6 +16,8 @@ export default [
       "src/legal_docs.jsx",
       "src/training_question_bank_logic.js",
       "src/training_question_bank_logic.test.js",
+      "src/personnel_profile*.js",
+      "src/personnel_profile*.jsx",
     ],
     languageOptions: {
       ecmaVersion: 2022,

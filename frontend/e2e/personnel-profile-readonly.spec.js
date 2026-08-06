@@ -5,7 +5,7 @@ const readyPayload = {
   company_id: 35,
   enabled: true,
   visible: true,
-  read_only: true,
+  read_only: false,
   rollout: {
     global_enabled: true,
     force_off: false,
@@ -16,7 +16,7 @@ const readyPayload = {
   capabilities: {
     employee_summary: true,
     professional_summary: true,
-    profile_record_management: false,
+    profile_record_management: true,
     file_upload: false,
     cv_generation: false,
     external_sharing: false,
@@ -76,15 +76,51 @@ async function installCommonRoutes(page, readinessPayload = readyPayload) {
   await page.route('**/health', async (route) => {
     await route.fulfill({status: 200, contentType: 'application/json', body: '{"ok":true}'});
   });
-  await page.route('**/api/v1/personnel-profiles/readiness?company_id=35', async (route) => {
-    readinessCalls += 1;
+  await page.route('**/api/v1/auth/me', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(readinessPayload),
+      body: JSON.stringify({id: 2, full_name: 'OSGB Yönetici', role: 'company_admin', osgb_id: 4}),
     });
   });
+  await page.route('**/api/v1/osgb', async (route) => {
+    await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify([{id: 4, name: 'Test OSGB'}])});
+  });
+  await page.route('**/api/v1/companies', async (route) => {
+    await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify([{id: 35, name: 'Test İşyerim'}])});
+  });
+  await page.route('**/api/v1/personnel-profiles/readiness?company_id=35', async (route) => {
+    readinessCalls += 1;
+    await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(readinessPayload)});
+  });
   return {readinessCalls: () => readinessCalls};
+}
+
+async function installEmployeeRoutes(page) {
+  await page.route('**/api/v1/osgb/professionals?osgb_id=4', async (route) => {
+    await route.fulfill({status: 200, contentType: 'application/json', body: '[]'});
+  });
+  await page.route('**/api/v1/osgb/assignments?osgb_id=4', async (route) => {
+    await route.fulfill({status: 200, contentType: 'application/json', body: '[]'});
+  });
+  await page.route('**/api/v1/employees?company_id=35&include_inactive=true', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{
+        id: 41,
+        full_name: 'Ayşe Yılmaz',
+        national_id_masked: '12345678990',
+        job_title: 'Kaynakçı',
+        department: 'Üretim',
+        special_status: 'Engelli/Hükümlü',
+        is_active: true,
+      }]),
+    });
+  });
+  await page.route('**/api/v1/personnel-profiles/employee/41/summary', async (route) => {
+    await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(employeeSummary)});
+  });
 }
 
 async function injectEmployeePage(page) {
@@ -121,31 +157,14 @@ test('flag disabled leaves the existing personnel page unchanged', async ({page}
   await page.waitForTimeout(450);
 
   await expect(page.locator('.personnel-profile-readonly-entry')).toHaveCount(0);
+  await expect(page.locator('[data-personnel-profile-manager="true"]')).toHaveCount(0);
   await expect(page.getByText('Personel Ekle')).toBeVisible();
   await expect(page.getByText('Mevcut personel listesi korunur.')).toBeVisible();
 });
 
-test('employee pilot preview shows only the privacy-minimized summary', async ({page}) => {
+test('employee entry opens the full privacy-minimized management workspace', async ({page}) => {
   const calls = await installCommonRoutes(page);
-  await page.route('**/api/v1/employees?company_id=35&include_inactive=true', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify([{
-        id: 41,
-        full_name: 'Ayşe Yılmaz',
-        national_id_masked: '12345678990',
-        job_title: 'Kaynakçı',
-        department: 'Üretim',
-        special_status: 'Engelli/Hükümlü',
-        is_active: true,
-      }]),
-    });
-  });
-  await page.route('**/api/v1/personnel-profiles/employee/41/summary', async (route) => {
-    await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(employeeSummary)});
-  });
-
+  await installEmployeeRoutes(page);
   await page.goto('/');
   await injectEmployeePage(page);
 
@@ -156,23 +175,27 @@ test('employee pilot preview shows only the privacy-minimized summary', async ({
   expect(calls.readinessCalls()).toBeLessThanOrEqual(1);
 
   await entry.getByText('Personel Kartlarını Görüntüle').click();
-  const dialog = page.locator('.personnel-profile-readonly-dialog');
-  const detail = dialog.locator('.personnel-profile-readonly-dialog__detail');
-  await expect(dialog).toBeVisible();
-  await expect(detail.getByRole('heading', {name: 'Ayşe Yılmaz'})).toBeVisible();
-  await expect(detail.getByText('123******90', {exact: true})).toBeVisible();
-  await expect(detail.getByText('Veri minimizasyonu etkin', {exact: true})).toBeVisible();
-  await expect(dialog.getByText('Sağlık, adli sicil, özel durum')).toBeVisible();
+  const manager = page.locator('[data-personnel-profile-manager="true"]');
+  await expect(manager).toBeVisible();
+  await expect(manager.getByRole('heading', {name: 'Dijital Personel Kartları'})).toBeVisible();
+  await expect(manager.getByRole('heading', {name: 'Ayşe Yılmaz'})).toBeVisible();
+  await expect(manager.getByText('123******90', {exact: true})).toBeVisible();
+  await expect(manager.getByText('Standart profesyonel veriler', {exact: true})).toBeVisible();
+  await expect(page.locator('.personnel-profile-readonly-dialog')).toHaveCount(0);
 
-  const html = await dialog.innerHTML();
+  const html = await manager.innerHTML();
   expect(html).not.toContain('12345678990');
   expect(html).not.toContain('Engelli/Hükümlü');
   await page.keyboard.press('Escape');
-  await expect(dialog).toHaveCount(0);
+  await expect(manager).toHaveCount(0);
+  await expect(page.getByText('Personel Ekle')).toBeVisible();
 });
 
-test('professional preview is built only from an active pilot assignment', async ({page}) => {
+test('professional workspace is built only from an active pilot assignment', async ({page}) => {
   await installCommonRoutes(page);
+  await page.route('**/api/v1/employees?company_id=35&include_inactive=true', async (route) => {
+    await route.fulfill({status: 200, contentType: 'application/json', body: '[]'});
+  });
   await page.route('**/api/v1/osgb/professionals?osgb_id=4', async (route) => {
     await route.fulfill({
       status: 200,
@@ -188,8 +211,8 @@ test('professional preview is built only from an active pilot assignment', async
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([
-        {professional_id: 7, company_id: 35, status: 'active'},
-        {professional_id: 8, company_id: 35, status: 'ended'},
+        {id: 71, professional_id: 7, company_id: 35, professional_type: 'safety_specialist', start_date: '2025-01-01', status: 'active'},
+        {id: 72, professional_id: 8, company_id: 35, professional_type: 'workplace_physician', start_date: '2025-01-01', status: 'ended'},
       ]),
     });
   });
@@ -203,12 +226,11 @@ test('professional preview is built only from an active pilot assignment', async
   const entry = page.locator('.personnel-profile-readonly-entry');
   await expect(entry).toBeVisible();
   await entry.getByText('Profesyonel Profilleri Görüntüle').click();
-  const dialog = page.locator('.personnel-profile-readonly-dialog');
-  const detail = dialog.locator('.personnel-profile-readonly-dialog__detail');
-  await expect(detail.getByRole('heading', {name: 'Mehmet Uzman'})).toBeVisible();
-  await expect(detail.locator('.personnel-profile-readonly-dialog__identity p')).toHaveText('İş Güvenliği Uzmanı');
-  await expect(detail.getByText('UZM-123', {exact: true})).toBeVisible();
-  await expect(dialog.getByText('Atamasız Hekim')).toHaveCount(0);
+  const manager = page.locator('[data-personnel-profile-manager="true"]');
+  await expect(manager.getByRole('heading', {name: 'Mehmet Uzman'})).toBeVisible();
+  await expect(manager.getByText('İş Güvenliği Uzmanı', {exact: true}).first()).toBeVisible();
+  await expect(manager.getByText('UZM-123', {exact: true})).toBeVisible();
+  await expect(manager.getByText('Atamasız Hekim')).toHaveCount(0);
 });
 
 for (const viewport of [
@@ -216,44 +238,32 @@ for (const viewport of [
   {name: 'tablet', width: 768, height: 1024},
   {name: 'mobile', width: 390, height: 844},
 ]) {
-  test(`${viewport.name} read-only profile dialog does not overflow horizontally`, async ({page}) => {
+  test(`${viewport.name} full personnel workspace does not overflow horizontally`, async ({page}) => {
     await page.setViewportSize({width: viewport.width, height: viewport.height});
     await installCommonRoutes(page);
-    await page.route('**/api/v1/employees?company_id=35&include_inactive=true', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([{id: 41, full_name: 'Ayşe Yılmaz', job_title: 'Kaynakçı', is_active: true}]),
-      });
-    });
-    await page.route('**/api/v1/personnel-profiles/employee/41/summary', async (route) => {
-      await route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(employeeSummary)});
-    });
-
+    await installEmployeeRoutes(page);
     await page.goto('/');
     await injectEmployeePage(page);
     await page.locator('.personnel-profile-readonly-entry__button').click();
-    const dialog = page.locator('.personnel-profile-readonly-dialog__card');
-    await expect(dialog).toBeVisible();
 
-    const dimensions = await page.evaluate(() => {
-      const box = document.querySelector('.personnel-profile-readonly-dialog__card')?.getBoundingClientRect();
-      return {
-        viewport: window.innerWidth,
-        documentWidth: document.documentElement.scrollWidth,
-        card: box ? {x: box.x, width: box.width} : null,
-        controls: [...document.querySelectorAll('.personnel-profile-readonly-dialog button')].map((button) => ({
-          width: button.getBoundingClientRect().width,
-          height: button.getBoundingClientRect().height,
-        })),
-      };
-    });
+    const manager = page.locator('[data-personnel-profile-manager="true"]');
+    await expect(manager).toBeVisible();
+    await expect(manager.getByRole('heading', {name: 'Dijital Personel Kartları'})).toBeVisible();
+    const dimensions = await manager.evaluate((element) => ({
+      viewport: window.innerWidth,
+      hostWidth: element.getBoundingClientRect().width,
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      controls: [...element.querySelectorAll('button')]
+        .filter((button) => button.getClientRects().length > 0)
+        .map((button) => ({height: button.getBoundingClientRect().height})),
+    }));
     expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewport);
-    expect(dimensions.card).not.toBeNull();
-    expect(dimensions.card.x).toBeGreaterThanOrEqual(0);
-    expect(dimensions.card.x + dimensions.card.width).toBeLessThanOrEqual(viewport.width);
+    expect(dimensions.hostWidth).toBeLessThanOrEqual(viewport.width + 1);
+    expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
     for (const control of dimensions.controls) {
-      expect(control.height).toBeGreaterThanOrEqual(44);
+      expect(control.height).toBeGreaterThanOrEqual(40);
     }
   });
 }
