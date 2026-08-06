@@ -1,6 +1,6 @@
 """Immutable NACE training presentation approval audit records.
 
-Revision ID: 0080_training_presentation_approvals
+Revision ID: 0080_presentation_approvals
 Revises: 0079_training_presentation
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0080_training_presentation_approvals"
+revision: str = "0080_presentation_approvals"
 down_revision: Union[str, None] = "0079_training_presentation"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
