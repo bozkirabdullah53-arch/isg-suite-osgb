@@ -1,0 +1,83 @@
+{
+  "example_only": true,
+  "manifest_version": "nace-training-presentation-manifest-v1",
+  "contract_version": "nace-training-presentation-contract-v1",
+  "template_version": "osgb-training-presentation-template-v1",
+  "output_formats": [
+    "pptx",
+    "pdf"
+  ],
+  "training": {
+    "training_id": 101,
+    "company_id": 35,
+    "branch_id": null,
+    "title": "Temel İş Sağlığı ve Güvenliği Eğitimi",
+    "start_date": "2026-08-06",
+    "end_date": "2026-08-06"
+  },
+  "nace_snapshot": {
+    "catalog_key": "nace_62_01_01",
+    "nace_code": "62.01.01",
+    "nace_description": "Bilgisayar programlama faaliyetleri",
+    "hazard_class": "Az Tehlikeli",
+    "content_profile_code": "bilisim_yazilim_it",
+    "catalog_version": "example-nace-v1",
+    "catalog_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "training_topics": [
+    "Ekranlı araçlarla çalışma, göz sağlığı ve mola düzeni",
+    "Oturma düzeni, ergonomi ve tekrarlayan zorlanmalar",
+    "Sistem odası: elektrik, sıcaklık ve yangın riskleri",
+    "Kablo düzeni, kayma-takılma ve düzenli çalışma alanı",
+    "Uzun çalışma saatleri, iş yükü ve psikososyal riskler"
+  ],
+  "technical_risk_tags": [
+    "display_screen",
+    "server_room",
+    "psychosocial"
+  ],
+  "special_risks": [
+    "uzun_sureli_ekran"
+  ],
+  "exam_readiness": {
+    "policy": "exact-nace-snapshot-foundation-5-plus-work-specific-15-v2",
+    "foundation": 5,
+    "work_specific": 15,
+    "ready": true
+  },
+  "slides": [
+    {"position": 1, "section_id": "cover", "title": "Temel İş Sağlığı ve Güvenliği Eğitimi", "approval_required": true},
+    {"position": 2, "section_id": "learning_objectives", "title": "Eğitimin amacı ve öğrenme hedefleri", "approval_required": false},
+    {"position": 3, "section_id": "legal_basis", "title": "Mevzuat ve sorumluluklar", "approval_required": false},
+    {"position": 4, "section_id": "nace_identity", "title": "İşyeri faaliyeti ve NACE kimliği", "approval_required": false},
+    {"position": 5, "section_id": "training_plan", "title": "Eğitim planı ve süre", "approval_required": false},
+    {"position": 6, "section_id": "foundation_ohs", "title": "Temel İSG: haklar, sorumluluklar ve güvenli davranış", "approval_required": false},
+    {"position": 7, "section_id": "foundation_ohs", "title": "Temel İSG: tehlike, risk, bildirim ve acil durum", "approval_required": false},
+    {"position": 8, "section_id": "work_specific_topics", "title": "Ekranlı araçlarla çalışma, göz sağlığı ve mola düzeni", "approval_required": false},
+    {"position": 9, "section_id": "work_specific_topics", "title": "Oturma düzeni, ergonomi ve tekrarlayan zorlanmalar", "approval_required": false},
+    {"position": 10, "section_id": "work_specific_topics", "title": "Sistem odası: elektrik, sıcaklık ve yangın riskleri", "approval_required": false},
+    {"position": 11, "section_id": "work_specific_topics", "title": "Kablo düzeni, kayma-takılma ve düzenli çalışma alanı", "approval_required": false},
+    {"position": 12, "section_id": "work_specific_topics", "title": "Uzun çalışma saatleri, iş yükü ve psikososyal riskler", "approval_required": false},
+    {"position": 13, "section_id": "technical_risks", "title": "Teknik risk profili", "approval_required": false},
+    {"position": 14, "section_id": "technical_risks", "title": "Özel riskler ve ek değerlendirme", "approval_required": false},
+    {"position": 15, "section_id": "control_measures", "title": "Risk kontrol hiyerarşisi", "approval_required": false},
+    {"position": 16, "section_id": "control_measures", "title": "İşe özgü güvenli çalışma adımları", "approval_required": false},
+    {"position": 17, "section_id": "ppe", "title": "Kişisel koruyucu donanım", "approval_required": true},
+    {"position": 18, "section_id": "emergency", "title": "Acil durum, tahliye ve bildirim", "approval_required": true},
+    {"position": 19, "section_id": "assessment", "title": "Bilgi kontrolü ve değerlendirme", "approval_required": false},
+    {"position": 20, "section_id": "summary", "title": "Özet: kritik güvenli davranışlar", "approval_required": false},
+    {"position": 21, "section_id": "sources_and_version", "title": "Kaynaklar ve sürüm bilgisi", "approval_required": false}
+  ],
+  "slide_count": 21,
+  "approval": {
+    "status": "specialist_review_required",
+    "required_slide_positions": [1, 17, 18]
+  },
+  "rendering": {
+    "supported": false,
+    "storage_write": false,
+    "reason": "Phase 2 örnek manifestidir."
+  },
+  "core_training_unaffected": true,
+  "content_hash": "6224484f09c5e8c89c494720bb4a182745cb87c724c29891e204c1c888e6e94b"
+}
