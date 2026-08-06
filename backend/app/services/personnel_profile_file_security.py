@@ -16,14 +16,19 @@ from app.services.upload_security import assert_safe_upload
 
 
 _MAX_IMAGE_EDGE = 2048
+_MAX_IMAGE_PIXELS = 40_000_000
 _MAX_DOCX_UNCOMPRESSED = 50 * 1024 * 1024
 
 
 def _sanitize_profile_photo(content: bytes, extension: str) -> bytes:
     try:
         with Image.open(BytesIO(content)) as probe:
+            if int(probe.width) * int(probe.height) > _MAX_IMAGE_PIXELS:
+                raise HTTPException(400, "Profil fotoğrafı piksel sınırını aşıyor.")
             probe.verify()
         with Image.open(BytesIO(content)) as source:
+            if int(source.width) * int(source.height) > _MAX_IMAGE_PIXELS:
+                raise HTTPException(400, "Profil fotoğrafı piksel sınırını aşıyor.")
             image = ImageOps.exif_transpose(source)
             image.thumbnail((_MAX_IMAGE_EDGE, _MAX_IMAGE_EDGE))
             output = BytesIO()
