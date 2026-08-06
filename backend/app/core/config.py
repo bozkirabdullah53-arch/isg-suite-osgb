@@ -85,6 +85,9 @@ class Settings(BaseSettings):
     # Kaynaklı soru bankasından sınav üretimi — içerik kapsamı tamamlanana kadar kapalı.
     training_question_bank_exam_enabled: bool = False
     training_question_bank_exam_force_off: bool = False
+    # NACE uyumlu eğitim sunumu — içerik şablonu onaylanana kadar kapalı.
+    nace_training_presentation_enabled: bool = False
+    nace_training_presentation_force_off: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
@@ -104,6 +107,13 @@ def training_question_bank_exam_active() -> bool:
     if bool(getattr(settings, "training_question_bank_exam_force_off", False)):
         return False
     return bool(getattr(settings, "training_question_bank_exam_enabled", False))
+
+
+def nace_training_presentation_active() -> bool:
+    """NACE sunumu kill-switch; FORCE_OFF her zaman önceliklidir."""
+    if bool(getattr(settings, "nace_training_presentation_force_off", False)):
+        return False
+    return bool(getattr(settings, "nace_training_presentation_enabled", False))
 
 
 _INSECURE_SECRET_KEYS = frozenset({
