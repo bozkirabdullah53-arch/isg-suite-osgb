@@ -65,16 +65,40 @@ def _exam_ready(ready: bool = True):
     }
 
 
-def test_presentation_feature_flag_defaults_to_safe_off_and_force_off_wins(monkeypatch):
+def test_presentation_rollout_is_fail_closed_and_force_off_wins(monkeypatch):
     monkeypatch.setattr(config.settings, "nace_training_presentation_enabled", False)
     monkeypatch.setattr(config.settings, "nace_training_presentation_force_off", False)
+    monkeypatch.setattr(config.settings, "nace_training_presentation_pilot_company_ids", "")
     assert config.nace_training_presentation_active() is False
+    assert config.nace_training_presentation_active(35) is False
 
     monkeypatch.setattr(config.settings, "nace_training_presentation_enabled", True)
     assert config.nace_training_presentation_active() is True
+    assert config.nace_training_presentation_active(35) is False
+
+    monkeypatch.setattr(
+        config.settings,
+        "nace_training_presentation_pilot_company_ids",
+        "35, 99, bad, 0, -2, 35",
+    )
+    assert config.nace_training_presentation_pilot_company_ids() == frozenset({35, 99})
+    assert config.nace_training_presentation_active(35) is True
+    assert config.nace_training_presentation_active(99) is True
+    assert config.nace_training_presentation_active(36) is False
+    rollout = config.nace_training_presentation_rollout(35)
+    assert rollout == {
+        "global_enabled": True,
+        "force_off": False,
+        "allowlist_configured": True,
+        "pilot_company": True,
+        "active": True,
+    }
+    assert "company_ids" not in rollout
 
     monkeypatch.setattr(config.settings, "nace_training_presentation_force_off", True)
     assert config.nace_training_presentation_active() is False
+    assert config.nace_training_presentation_active(35) is False
+    assert config.nace_training_presentation_rollout(35)["force_off"] is True
 
 
 def test_disabled_feature_is_invisible_and_never_blocks_core_training():
@@ -94,10 +118,32 @@ def test_disabled_feature_is_invisible_and_never_blocks_core_training():
     assert payload["generation_allowed"] is False
     assert payload["renderer_version"] == RENDERER_VERSION
     assert payload["core_training_unaffected"] is True
+    assert payload["rollout"]["active"] is False
     blocker_codes = {item["code"] for item in payload["blockers"]}
     assert blocker_codes == {"feature_flag"}
     renderer = next(item for item in payload["checks"] if item["code"] == "presentation_renderer")
     assert renderer["ok"] is True
+
+
+def test_non_pilot_company_is_hidden_with_safe_rollout_reason():
+    payload = build_presentation_readiness_payload(
+        training=_training(),
+        snapshot=_snapshot(),
+        exam_readiness=_exam_ready(),
+        enabled=False,
+        rollout={
+            "global_enabled": True,
+            "force_off": False,
+            "allowlist_configured": True,
+            "pilot_company": False,
+            "active": False,
+        },
+    )
+    assert payload["visible"] is False
+    assert payload["rollout"]["pilot_company"] is False
+    access_check = next(item for item in payload["checks"] if item["code"] == "feature_flag")
+    assert access_check["ok"] is False
+    assert "allowlist" in access_check["detail"].lower()
 
 
 def test_verified_snapshot_and_renderer_are_ready_when_feature_is_enabled():
@@ -182,6 +228,20 @@ def test_readiness_endpoint_uses_existing_company_access_boundary(monkeypatch):
     result = presentation_api.presentation_readiness(101, db=db, user=user)
     assert checked == [35]
     assert result == {"training_id": 101, "enabled": False}
+
+
+def test_preview_endpoint_requires_pilot_access(monkeypatch):
+    db = MagicMock()
+    db.get.return_value = _training()
+    user = SimpleNamespace(id=9, company_id=35, role="company_admin")
+    monkeypatch.setattr(presentation_api, "ensure_company_access", lambda *_: None)
+    monkeypatch.setattr(presentation_api, "nace_training_presentation_active", lambda *_: False)
+
+    with pytest.raises(HTTPException) as exc:
+        presentation_api.presentation_manifest_preview(101, db=db, user=user)
+    assert exc.value.status_code == 409
+    assert exc.value.detail["code"] == "pilot_access_denied"
+    db.scalar.assert_not_called()
 
 
 def test_readiness_endpoint_propagates_forbidden_company_access(monkeypatch):
