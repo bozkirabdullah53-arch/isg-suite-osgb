@@ -1,7 +1,10 @@
-"""Optional NACE training presentation API — safe Phase 1–3 boundary."""
+"""Optional NACE training presentation API — safe Phase 1–4 boundary."""
 from __future__ import annotations
 
+from io import BytesIO
+
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -16,6 +19,12 @@ from app.services.training_presentation_contract import (
     PresentationContractError,
     build_presentation_manifest_preview,
     presentation_contract_payload,
+)
+from app.services.training_presentation_generation import (
+    PresentationGenerationError,
+    generate_and_store_version,
+    generation_status_payload,
+    read_generated_output,
 )
 from app.services.training_presentation_readiness import training_presentation_readiness
 from app.services.training_presentation_versions import (
@@ -39,6 +48,38 @@ def _training_or_404(db: Session, training_id: int) -> TrainingSession:
     if not training:
         raise HTTPException(404, "Eğitim kaydı bulunamadı.")
     return training
+
+
+def _version_or_404(db: Session, *, training_id: int, version_id: int):
+    row = get_presentation_version(
+        db,
+        training_id=training_id,
+        version_id=version_id,
+    )
+    if row is None:
+        raise HTTPException(404, "Sunum sürümü bulunamadı.")
+    return row
+
+
+def _generation_http_error(exc: PresentationGenerationError) -> HTTPException:
+    client_conflicts = {
+        "feature_disabled",
+        "invalid_version_status",
+        "invalid_manifest_json",
+        "invalid_manifest_hash",
+        "manifest_snapshot_mismatch",
+        "unsupported_output_format",
+        "output_not_ready",
+    }
+    status = 409 if exc.code in client_conflicts else 503
+    return HTTPException(
+        status,
+        {
+            "code": exc.code,
+            "message": exc.detail,
+            "core_training_unaffected": True,
+        },
+    )
 
 
 @router.get("/presentation-contract")
@@ -121,13 +162,7 @@ def presentation_version_detail(
 ):
     training = _training_or_404(db, training_id)
     ensure_company_access(db, user, training.company_id)
-    row = get_presentation_version(
-        db,
-        training_id=training.id,
-        version_id=version_id,
-    )
-    if row is None:
-        raise HTTPException(404, "Sunum sürümü bulunamadı.")
+    row = _version_or_404(db, training_id=training.id, version_id=version_id)
     return version_payload(row, include_manifest=True)
 
 
@@ -156,7 +191,7 @@ def create_presentation_version(
                 "code": exc.code,
                 "message": exc.detail,
                 "core_training_unaffected": True,
-                "renderer_available": False,
+                "renderer_available": True,
                 "storage_write": False,
             },
         ) from exc
@@ -171,3 +206,52 @@ def create_presentation_version(
             },
         ) from exc
     return version_payload(row, include_manifest=True)
+
+
+@router.post("/{training_id}/presentation-versions/{version_id}/render")
+def render_presentation_version(
+    training_id: int,
+    version_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Render both PPTX and PDF, atomically store and hash-verify them."""
+    training = _training_or_404(db, training_id)
+    ensure_company_access(db, user, training.company_id)
+    row = _version_or_404(db, training_id=training.id, version_id=version_id)
+    try:
+        generated = generate_and_store_version(db, row=row)
+    except PresentationGenerationError as exc:
+        raise _generation_http_error(exc) from exc
+    return generation_status_payload(generated)
+
+
+@router.get("/{training_id}/presentation-versions/{version_id}/download/{output_format}")
+def download_presentation_version(
+    training_id: int,
+    version_id: int,
+    output_format: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Download one historical output after checking company access and SHA-256."""
+    training = _training_or_404(db, training_id)
+    ensure_company_access(db, user, training.company_id)
+    row = _version_or_404(db, training_id=training.id, version_id=version_id)
+    try:
+        download = read_generated_output(
+            row=row,
+            output_format=output_format,
+        )
+    except PresentationGenerationError as exc:
+        raise _generation_http_error(exc) from exc
+    headers = {
+        "Content-Disposition": f'attachment; filename="{download.filename}"',
+        "X-Content-SHA256": download.file_hash,
+        "Cache-Control": "private, no-store",
+    }
+    return StreamingResponse(
+        BytesIO(download.content),
+        media_type=download.content_type,
+        headers=headers,
+    )
