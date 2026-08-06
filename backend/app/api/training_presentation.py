@@ -118,10 +118,10 @@ def _version_with_approval(db: Session, row, *, include_manifest: bool = False) 
     payload = version_payload(row, include_manifest=include_manifest)
     raw_status = getattr(row, "status", "")
     status = str(getattr(raw_status, "value", raw_status) or "").lower()
-    approval = None
     if status in {"approved", "archived"}:
         approval = get_presentation_approval(db, presentation_version_id=row.id)
-    payload["approval"] = approval_payload(approval) if approval else None
+        if approval is not None:
+            payload["approval"] = approval_payload(approval)
     return payload
 
 
