@@ -59,6 +59,7 @@ jobs:
           tests/test_personnel_profile_core.py
           tests/test_personnel_profile_management.py
           tests/test_personnel_profile_documents.py
+          tests/test_personnel_profile_file_security.py
           tests/test_company_access.py
           tests/test_tenant_context.py
 
@@ -106,6 +107,7 @@ jobs:
           tests/test_personnel_profile_core.py
           tests/test_personnel_profile_management.py
           tests/test_personnel_profile_documents.py
+          tests/test_personnel_profile_file_security.py
       - name: Existing tables and isolated profile tables remain intact
         run: |
           python - <<'PY'
