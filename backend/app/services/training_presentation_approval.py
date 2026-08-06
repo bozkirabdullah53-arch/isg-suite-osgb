@@ -33,8 +33,13 @@ class PresentationApprovalError(ValueError):
         self.detail = detail
 
 
+def _enum_value(value: object) -> str:
+    """Normalize SQLAlchemy enum instances and plain strings consistently."""
+    return str(getattr(value, "value", value) or "").strip()
+
+
 def _role_value(user: User) -> str:
-    return str(getattr(getattr(user, "role", None), "value", getattr(user, "role", "")) or "")
+    return _enum_value(getattr(user, "role", ""))
 
 
 def _canonical_json(value: object) -> str:
@@ -79,10 +84,10 @@ def _existing_approval(
 
 
 def _validate_ready_version(row: TrainingPresentationVersion) -> None:
-    if row.status != "generated":
+    if _enum_value(row.status).lower() != "generated":
         raise PresentationApprovalError(
             "invalid_version_status",
-            f"Yalnız dosyaları hazırlanmış sürüm onaylanabilir; mevcut durum: {row.status}.",
+            f"Yalnız dosyaları hazırlanmış sürüm onaylanabilir; mevcut durum: {_enum_value(row.status)}.",
         )
     hashes = {
         "manifest": str(row.manifest_hash or ""),
@@ -116,12 +121,16 @@ def _qualified_esign_evidence(
             "esign_company_mismatch",
             "E-imza talebi farklı bir şirkete aittir.",
         )
-    if str(request.status or "").lower() != "verified" or str(request.verification_status or "").lower() != "verified":
+    status = _enum_value(request.status).lower()
+    verification_status = _enum_value(request.verification_status).lower()
+    signing_format = _enum_value(request.signing_format).upper()
+    revocation_status = _enum_value(request.revocation_status).lower()
+    if status != "verified" or verification_status != "verified":
         raise PresentationApprovalError(
             "esign_not_verified",
             "E-imza talebi henüz nitelikli ve doğrulanmış durumda değildir.",
         )
-    if str(request.signing_format or "").upper() != "PADES":
+    if signing_format != "PADES":
         raise PresentationApprovalError(
             "esign_format_mismatch",
             "Sunum PDF onayı için PAdES e-imza talebi gereklidir.",
@@ -141,24 +150,24 @@ def _qualified_esign_evidence(
             "esign_not_qualified",
             "E-imza sertifikası nitelikli olarak doğrulanmamış.",
         )
-    if str(request.revocation_status or "").lower() not in {"good", "valid", "ok"}:
+    if revocation_status not in {"good", "valid", "ok"}:
         raise PresentationApprovalError(
             "esign_revocation_invalid",
             "E-imza iptal/geçerlilik kontrolü başarılı değil.",
         )
     evidence = {
         "request_id": request.id,
-        "status": request.status,
-        "verification_status": request.verification_status,
-        "signing_format": request.signing_format,
+        "status": status,
+        "verification_status": verification_status,
+        "signing_format": signing_format,
         "document_sha256": request.document_sha256,
         "signed_document_sha256": request.signed_document_sha256,
         "certificate_subject": request.certificate_subject,
         "certificate_serial": request.certificate_serial,
         "certificate_issuer": request.certificate_issuer,
         "certificate_qualified": request.certificate_qualified,
-        "revocation_status": request.revocation_status,
-        "timestamp_status": request.timestamp_status,
+        "revocation_status": revocation_status,
+        "timestamp_status": _enum_value(request.timestamp_status) or None,
         "signed_at": request.signed_at.isoformat() if request.signed_at else None,
     }
     return request, evidence
@@ -234,7 +243,7 @@ def approve_presentation_version(
         esign_request_id=request.id if request else None,
         esign_document_hash=request.document_sha256 if request else None,
         esign_signed_document_hash=request.signed_document_sha256 if request else None,
-        esign_verification_status=request.verification_status if request else None,
+        esign_verification_status=_enum_value(request.verification_status) if request else None,
         esign_certificate_serial=request.certificate_serial if request else None,
         esign_evidence_json=_canonical_json(evidence) if evidence else None,
         legal_notice=legal_notice,
@@ -269,7 +278,7 @@ def archive_presentation_version(
         )
     if _role_value(user) not in APPROVAL_ROLES:
         raise PresentationApprovalError("archive_role_forbidden", "Bu rol sunumu arşivleyemez.")
-    if row.status != "approved" or not _existing_approval(db, row):
+    if _enum_value(row.status).lower() != "approved" or not _existing_approval(db, row):
         raise PresentationApprovalError(
             "approval_required",
             "Yalnız değişmez onay kaydı bulunan onaylı sürüm arşivlenebilir.",
