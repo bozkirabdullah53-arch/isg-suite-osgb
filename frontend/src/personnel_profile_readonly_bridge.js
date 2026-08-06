@@ -54,11 +54,16 @@ function removeEntriesExcept(key) {
 async function readiness(companyId) {
   if (!companyId) return null;
   if (!readinessCache.has(companyId)) {
-    readinessCache.set(
-      companyId,
-      api(`/personnel-profiles/readiness?company_id=${encodeURIComponent(companyId)}`, {_retries: 1})
-        .catch(() => null),
-    );
+    const request = api(
+      `/personnel-profiles/readiness?company_id=${encodeURIComponent(companyId)}`,
+      {_retries: 1},
+    )
+      .catch(() => null)
+      .then((payload) => {
+        if (!payload) readinessCache.delete(companyId);
+        return payload;
+      });
+    readinessCache.set(companyId, request);
   }
   return readinessCache.get(companyId);
 }
@@ -84,7 +89,11 @@ function createEntry({heading, contextKey, title, description, actionLabel, onOp
       <button type="button" class="personnel-profile-readonly-entry__button">
         ${escapeHtml(actionLabel)}
       </button>`;
-    entry.querySelector('button')?.addEventListener('click', onOpen);
+    entry.querySelector('button')?.addEventListener('click', () => {
+      void Promise.resolve(onOpen()).catch((error) => {
+        openErrorDialog(title, error?.message || 'Profil listesi yüklenemedi.');
+      });
+    });
     entryAnchor(heading).insertAdjacentElement('afterend', entry);
   }
   return entry;
@@ -104,9 +113,10 @@ function onDialogKeydown(event) {
   if (event.key === 'Escape') closeDialog();
 }
 
-function openDialog({title, subtitle, rows, loadSummary}) {
+function openDialog({title, subtitle, rows, loadSummary, emptyMessage = 'Görüntülenebilir kayıt bulunamadı.'}) {
   closeDialog();
   returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const hasRows = rows.length > 0;
   const overlay = document.createElement('div');
   overlay.className = 'personnel-profile-readonly-dialog';
   overlay.setAttribute('role', 'dialog');
@@ -127,7 +137,7 @@ function openDialog({title, subtitle, rows, loadSummary}) {
       </div>
       <div class="personnel-profile-readonly-dialog__layout">
         <nav class="personnel-profile-readonly-dialog__list" aria-label="Personel kartı seçimi">
-          ${rows.length ? rows.map((row, index) => `
+          ${hasRows ? rows.map((row, index) => `
             <button
               type="button"
               class="personnel-profile-readonly-dialog__person ${index === 0 ? 'is-selected' : ''}"
@@ -136,10 +146,12 @@ function openDialog({title, subtitle, rows, loadSummary}) {
               <strong>${escapeHtml(row.fullName)}</strong>
               <span>${escapeHtml(row.jobTitle || row.professionalTypeLabel || row.department || 'Personel')}</span>
               <small>${row.active ? 'Aktif' : 'Pasif / Askıda'}</small>
-            </button>`).join('') : '<p class="personnel-profile-readonly-dialog__empty">Görüntülenebilir kayıt bulunamadı.</p>'}
+            </button>`).join('') : `<p class="personnel-profile-readonly-dialog__empty">${escapeHtml(emptyMessage)}</p>`}
         </nav>
         <section class="personnel-profile-readonly-dialog__detail" aria-live="polite">
-          <div class="personnel-profile-readonly-dialog__loading">Profil özeti hazırlanıyor…</div>
+          ${hasRows
+            ? '<div class="personnel-profile-readonly-dialog__loading">Profil özeti hazırlanıyor…</div>'
+            : `<div class="personnel-profile-readonly-dialog__error" role="alert">${escapeHtml(emptyMessage)}</div>`}
         </section>
       </div>
     </div>`;
@@ -163,6 +175,16 @@ function openDialog({title, subtitle, rows, loadSummary}) {
   document.addEventListener('keydown', onDialogKeydown);
   overlay.querySelector('[data-profile-close]')?.focus();
   if (rows[0]) void renderSummary(overlay, rows[0], loadSummary);
+}
+
+function openErrorDialog(title, message) {
+  openDialog({
+    title,
+    subtitle: 'Mevcut personel ekranı etkilenmeden çalışmaya devam eder.',
+    rows: [],
+    loadSummary: async () => null,
+    emptyMessage: message,
+  });
 }
 
 function detailRow(label, value) {
@@ -268,7 +290,7 @@ async function attachEmployeeEntry(heading) {
 async function activeProfessionalContext(osgbId) {
   if (!osgbId) return null;
   if (!osgbContextCache.has(osgbId)) {
-    osgbContextCache.set(osgbId, (async () => {
+    const request = (async () => {
       const [professionals, assignments] = await Promise.all([
         api(`/osgb/professionals?osgb_id=${encodeURIComponent(osgbId)}`),
         api(`/osgb/assignments?osgb_id=${encodeURIComponent(osgbId)}`),
@@ -288,10 +310,15 @@ async function activeProfessionalContext(osgbId) {
           .map((row) => row.companyId),
       );
       return {
-        pilotCompanyIds,
         rows: normalizeProfessionalRows(professionals, assignments, pilotCompanyIds),
       };
-    })().catch(() => null));
+    })()
+      .catch(() => null)
+      .then((context) => {
+        if (!context) osgbContextCache.delete(osgbId);
+        return context;
+      });
+    osgbContextCache.set(osgbId, request);
   }
   return osgbContextCache.get(osgbId);
 }
