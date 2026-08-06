@@ -7,7 +7,7 @@
     "node": ">=20 <21"
   },
   "scripts": {
-    "patch:personnel": "node scripts/patch_personnel_profile_attach_race.mjs && node scripts/patch_osgb_professional_cards_only.mjs",
+    "patch:personnel": "node scripts/patch_personnel_profile_attach_race.mjs && node scripts/patch_osgb_professional_cards_only.mjs && node scripts/expose_personnel_osgb_context_errors.mjs",
     "verify:personnel-osgb": "eslint src/personnel_profile_readonly_bridge.js src/personnel_profile_manager_logic.js src/personnel_profile_osgb_scope.test.js src/personnel_profile_manager.jsx src/personnel_profile_manager_bridge.jsx src/personnel_profile_documents.jsx src/personnel_profile_documents_bridge.jsx && vitest run src/personnel_profile_osgb_scope.test.js src/personnel_profile_manager_logic.test.js src/personnel_profile_documents_logic.test.js src/personnel_profile_documents_bridge.test.js",
     "verify:personnel-osgb-e2e": "node scripts/run_personnel_osgb_e2e_gate.mjs",
     "dev": "npm run patch:personnel && vite",
