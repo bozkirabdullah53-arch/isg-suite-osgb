@@ -1,6 +1,7 @@
 import {
   normalizeEmployeeRows,
   normalizeProfessionalRows,
+  professionalTypeLabel,
 } from './personnel_profile_readonly_logic';
 
 export const PROFILE_MANAGER_TABS = [
@@ -21,10 +22,23 @@ export function asRows(payload) {
 
 export function buildOsgbProfessionalSubjects(professionals, osgbId) {
   const allowed = new Set(['safety_specialist', 'workplace_physician', 'other_health_personnel']);
-  return normalizeProfessionalRows(professionals, [], new Set())
-    .filter((row) => Number(row.osgbId || row.osgb_id || 0) === Number(osgbId))
-    .filter((row) => allowed.has(String(row.professionalType || row.professional_type || '').toLowerCase()))
-    .filter((row) => row.active !== false && row.is_active !== false)
+  return asRows(professionals)
+    .map((row) => {
+      const professionalType = String(row?.professional_type || '').trim().toLowerCase();
+      return {
+        id: Number(row?.id || 0),
+        fullName: String(row?.full_name || '').trim(),
+        professionalType,
+        professionalTypeLabel: professionalTypeLabel(professionalType),
+        certificateClass: String(row?.certificate_class || '').trim(),
+        active: row?.is_active !== false,
+        rowOsgbId: Number(row?.osgb_id || 0),
+      };
+    })
+    .filter((row) => row.id > 0 && row.fullName)
+    .filter((row) => row.rowOsgbId === Number(osgbId))
+    .filter((row) => allowed.has(row.professionalType))
+    .filter((row) => row.active)
     .map((row) => ({
       ...row,
       subjectType: 'professional',
