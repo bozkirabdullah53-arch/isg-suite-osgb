@@ -6,7 +6,9 @@
 }
 
 .training-presentation-panel,
-.training-presentation-panel * {
+.training-presentation-panel *,
+.training-presentation-preview,
+.training-presentation-preview * {
   box-sizing: border-box;
 }
 
@@ -126,6 +128,45 @@
   color: #991b1b;
 }
 
+.training-presentation-panel__approval {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 13px;
+  padding: 12px 13px;
+  border: 1px solid #86efac;
+  border-radius: 12px;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.training-presentation-panel__approval strong,
+.training-presentation-panel__approval span,
+.training-presentation-panel__approval small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.training-presentation-panel__approval strong {
+  font-size: 13px;
+}
+
+.training-presentation-panel__approval span,
+.training-presentation-panel__approval small {
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+.training-presentation-panel__approval p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.training-presentation-panel__approval code {
+  overflow-wrap: anywhere;
+}
+
 .training-presentation-panel__actions {
   display: flex;
   flex-wrap: wrap;
@@ -156,7 +197,10 @@
 }
 
 .training-presentation-panel__button:focus-visible,
-.training-presentation-preview__close:focus-visible {
+.training-presentation-preview__close:focus-visible,
+.training-presentation-approval-dialog input:focus-visible,
+.training-presentation-approval-dialog select:focus-visible,
+.training-presentation-approval-dialog textarea:focus-visible {
   outline: 3px solid rgba(8, 127, 120, 0.28);
   outline-offset: 2px;
 }
@@ -245,7 +289,8 @@
 }
 
 .training-presentation-panel__version strong,
-.training-presentation-panel__version span {
+.training-presentation-panel__version span,
+.training-presentation-panel__version small {
   display: block;
   overflow-wrap: anywhere;
 }
@@ -255,7 +300,8 @@
   font-size: 12px;
 }
 
-.training-presentation-panel__version span {
+.training-presentation-panel__version span,
+.training-presentation-panel__version small {
   margin-top: 2px;
   color: #64748b;
   font-size: 11px;
@@ -299,11 +345,6 @@
   padding: 20px;
   background: rgba(15, 38, 53, 0.64);
   backdrop-filter: blur(3px);
-}
-
-.training-presentation-preview,
-.training-presentation-preview * {
-  box-sizing: border-box;
 }
 
 .training-presentation-preview__card {
@@ -435,6 +476,92 @@
   overflow-wrap: anywhere;
 }
 
+.training-presentation-approval-dialog__card {
+  width: min(650px, 100%);
+}
+
+.training-presentation-approval-dialog__body {
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+  padding: 18px 20px;
+  overflow-y: auto;
+}
+
+.training-presentation-approval-dialog label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.training-presentation-approval-dialog label[hidden],
+.training-presentation-approval-dialog [hidden] {
+  display: none !important;
+}
+
+.training-presentation-approval-dialog input,
+.training-presentation-approval-dialog select,
+.training-presentation-approval-dialog textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 11px;
+  background: #fff;
+  color: #1e293b;
+  font: inherit;
+  font-size: 14px;
+}
+
+.training-presentation-approval-dialog textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+
+.training-presentation-approval-dialog label small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.training-presentation-approval-dialog__notice {
+  padding: 11px 12px;
+  border: 1px solid #fde68a;
+  border-radius: 11px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.training-presentation-approval-dialog__hash {
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.training-presentation-approval-dialog__hash code {
+  color: #155e5b;
+  overflow-wrap: anywhere;
+}
+
+.training-presentation-approval-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding: 14px 20px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
 @media (max-width: 900px) {
   .training-presentation-panel__checks {
     grid-template-columns: 1fr;
@@ -467,6 +594,11 @@
     max-height: 92vh;
     border-radius: 14px;
   }
+
+  .training-presentation-approval-dialog__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 520px) {
@@ -478,7 +610,8 @@
     justify-self: start;
   }
 
-  .training-presentation-panel__actions {
+  .training-presentation-panel__actions,
+  .training-presentation-approval-dialog__actions {
     grid-template-columns: 1fr;
   }
 
@@ -492,7 +625,8 @@
     padding: 14px;
   }
 
-  .training-presentation-preview__slides {
+  .training-presentation-preview__slides,
+  .training-presentation-approval-dialog__body {
     padding: 10px;
   }
 
@@ -509,6 +643,10 @@
   .training-presentation-preview__footer {
     display: grid;
     padding: 10px 14px;
+  }
+
+  .training-presentation-approval-dialog__actions {
+    padding: 10px;
   }
 }
 
