@@ -85,9 +85,11 @@ class Settings(BaseSettings):
     # Kaynaklı soru bankasından sınav üretimi — içerik kapsamı tamamlanana kadar kapalı.
     training_question_bank_exam_enabled: bool = False
     training_question_bank_exam_force_off: bool = False
-    # NACE uyumlu eğitim sunumu — içerik şablonu onaylanana kadar kapalı.
+    # NACE uyumlu eğitim sunumu — kontrollü pilot tamamlanana kadar kapalı.
     nace_training_presentation_enabled: bool = False
     nace_training_presentation_force_off: bool = False
+    # Virgülle ayrılmış şirket kimlikleri. Boş allowlist fail-closed davranır.
+    nace_training_presentation_pilot_company_ids: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
@@ -109,11 +111,55 @@ def training_question_bank_exam_active() -> bool:
     return bool(getattr(settings, "training_question_bank_exam_enabled", False))
 
 
-def nace_training_presentation_active() -> bool:
-    """NACE sunumu kill-switch; FORCE_OFF her zaman önceliklidir."""
+def nace_training_presentation_pilot_company_ids() -> frozenset[int]:
+    """Parse the source-controlled rollout allowlist; invalid tokens are ignored."""
+    raw = str(getattr(settings, "nace_training_presentation_pilot_company_ids", "") or "")
+    company_ids: set[int] = set()
+    for token in raw.split(","):
+        clean = token.strip()
+        if not clean:
+            continue
+        try:
+            company_id = int(clean)
+        except (TypeError, ValueError):
+            continue
+        if company_id > 0:
+            company_ids.add(company_id)
+    return frozenset(company_ids)
+
+
+def nace_training_presentation_active(company_id: int | None = None) -> bool:
+    """Global flag + force-off + optional fail-closed pilot company boundary."""
     if bool(getattr(settings, "nace_training_presentation_force_off", False)):
         return False
-    return bool(getattr(settings, "nace_training_presentation_enabled", False))
+    if not bool(getattr(settings, "nace_training_presentation_enabled", False)):
+        return False
+    if company_id is None:
+        return True
+    try:
+        normalized_company_id = int(company_id)
+    except (TypeError, ValueError):
+        return False
+    return normalized_company_id in nace_training_presentation_pilot_company_ids()
+
+
+def nace_training_presentation_rollout(company_id: int | None) -> dict[str, object]:
+    """Return non-sensitive rollout diagnostics without exposing allowlist members."""
+    pilots = nace_training_presentation_pilot_company_ids()
+    global_enabled = bool(getattr(settings, "nace_training_presentation_enabled", False))
+    force_off = bool(getattr(settings, "nace_training_presentation_force_off", False))
+    try:
+        normalized_company_id = int(company_id) if company_id is not None else None
+    except (TypeError, ValueError):
+        normalized_company_id = None
+    pilot_company = bool(normalized_company_id and normalized_company_id in pilots)
+    return {
+        "global_enabled": global_enabled,
+        "force_off": force_off,
+        "allowlist_configured": bool(pilots),
+        "pilot_company": pilot_company,
+        "active": bool(global_enabled and not force_off and pilot_company),
+    }
 
 
 _INSECURE_SECRET_KEYS = frozenset({
