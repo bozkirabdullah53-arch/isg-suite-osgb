@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.personnel_profile_config import personnel_profile_card_active
 from app.models.entities import User
@@ -45,6 +46,7 @@ from app.services.personnel_profile_file_security import prepare_profile_upload
 
 
 router = APIRouter(tags=["Dijital Personel Kartı Belgeleri"])
+_REMOTE_ONLY_BACKENDS = {"s3", "r2", "minio"}
 
 
 class _TrackedObjectStore:
@@ -83,6 +85,36 @@ class _TrackedObjectStore:
         except Exception:
             # Do not mask the original DB/audit/commit failure.
             return
+
+
+def _profile_storage_backend_allowed(backend: str) -> bool:
+    return (backend or "").strip().lower() in _REMOTE_ONLY_BACKENDS
+
+
+def _private_profile_object_store() -> ObjectStore:
+    backend = (settings.object_storage_backend or "local").strip().lower()
+    if not _profile_storage_backend_allowed(backend):
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "personnel_profile_remote_storage_required",
+                "message": (
+                    "Personel fotoğrafı, CV ve belgeleri yalnız private R2/S3 "
+                    "depolama hazır olduğunda işlenebilir. Yerel veya dual depolama "
+                    "bu modül için kapalıdır."
+                ),
+            },
+        )
+    try:
+        return get_object_store()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "personnel_profile_remote_storage_unavailable",
+                "message": "Private personel belge depolaması kullanılamıyor.",
+            },
+        ) from exc
 
 
 def _require_document_writes_active(company_id: int) -> None:
@@ -166,7 +198,7 @@ async def upload_profile_document(
         change_reason=change_reason,
     )
     normalized_idempotency = normalize_idempotency_key(idempotency_key)
-    tracked_store = _TrackedObjectStore(get_object_store())
+    tracked_store = _TrackedObjectStore(_private_profile_object_store())
     safe_content = b""
     try:
         content = await file.read(MAX_PROFILE_DOCUMENT_BYTES + 1)
@@ -306,6 +338,7 @@ def download_profile_document_version(
             user=user,
             profile_id=profile_id,
             document_id=document_id,
+            store=_private_profile_object_store(),
         )
         db.commit()
     except Exception:
