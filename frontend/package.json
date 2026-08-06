@@ -8,8 +8,9 @@
   },
   "scripts": {
     "patch:personnel": "node scripts/patch_personnel_profile_attach_race.mjs && node scripts/patch_osgb_professional_cards_only.mjs",
+    "verify:personnel-osgb": "eslint src/personnel_profile_readonly_bridge.js src/personnel_profile_manager_logic.js src/personnel_profile_osgb_scope.test.js src/personnel_profile_manager.jsx src/personnel_profile_manager_bridge.jsx src/personnel_profile_documents.jsx src/personnel_profile_documents_bridge.jsx && vitest run src/personnel_profile_osgb_scope.test.js src/personnel_profile_manager_logic.test.js src/personnel_profile_documents_logic.test.js src/personnel_profile_documents_bridge.test.js",
     "dev": "npm run patch:personnel && vite",
-    "build": "npm run patch:personnel && node scripts/apply_training_color_theme.mjs && node scripts/activate_training_exam.mjs && node scripts/activate_training_participant_feedback.mjs && vite build",
+    "build": "npm run patch:personnel && npm run verify:personnel-osgb && node scripts/apply_training_color_theme.mjs && node scripts/activate_training_exam.mjs && node scripts/activate_training_participant_feedback.mjs && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
