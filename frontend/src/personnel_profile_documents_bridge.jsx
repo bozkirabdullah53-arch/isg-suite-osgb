@@ -37,12 +37,14 @@ export function PersonnelProfileManagerWithDocuments(props){
     if(!container) return undefined;
     let currentTarget=null;
     let currentPlaceholder=null;
+    let currentProfileId=0;
 
     const cleanupTarget=()=>{
       if(currentPlaceholder) currentPlaceholder.hidden=false;
       currentPlaceholder=null;
       if(currentTarget?.isConnected) currentTarget.remove();
       currentTarget=null;
+      currentProfileId=0;
       setPortalTarget(null);
       setProfileId(0);
       setPanelError('');
@@ -57,7 +59,7 @@ export function PersonnelProfileManagerWithDocuments(props){
         if(currentTarget) cleanupTarget();
         return;
       }
-      if(currentTarget&&currentTarget.isConnected&&resolvedProfileId===profileId) return;
+      if(currentTarget&&currentTarget.isConnected&&resolvedProfileId===currentProfileId) return;
       cleanupTarget();
       const target=document.createElement('div');
       target.setAttribute('data-personnel-profile-documents-panel','true');
@@ -65,6 +67,7 @@ export function PersonnelProfileManagerWithDocuments(props){
       placeholder.insertAdjacentElement('afterend',target);
       currentPlaceholder=placeholder;
       currentTarget=target;
+      currentProfileId=resolvedProfileId;
       setProfileId(resolvedProfileId);
       setPortalTarget(target);
     };
@@ -80,7 +83,7 @@ export function PersonnelProfileManagerWithDocuments(props){
       if(currentPlaceholder) currentPlaceholder.hidden=false;
       if(currentTarget?.isConnected) currentTarget.remove();
     };
-  },[profileId]);
+  },[]);
 
   return (
     <div ref={wrapperRef} style={{height:'100%'}}>
