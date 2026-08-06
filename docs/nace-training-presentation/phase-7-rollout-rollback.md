@@ -55,7 +55,7 @@ Genel aktivasyon yapılmaz. Pilot açılış sırası değiştirilemez:
 7. Gerçek resmi kayıt yerine `[TEST]` başlıklı eğitim kullanılır.
 8. Kullanıcı kabulü tamamlanana kadar başka şirket eklenmez.
 
-Test şirketi kimliği kesin olarak doğrulanmadan allowlist ayarı yapılmaz.
+Test şirketi kimliği kesin olarak doğrulanmadan allowlist ayarı yapılmaz. Pilot genişletmesi için ilk pilot kullanıcının açık kabulü alınmalıdır.
 
 ## 4. Pilot kabul senaryosu
 
@@ -147,7 +147,7 @@ Destructive Alembic downgrade yalnız ayrı bakım penceresinde, doğrulanmış 
 - PPTX/PDF açılma ve hash doğrulaması başarılı
 - Uygulama onayı ve PAdES hata senaryoları başarılı
 - Force-off testi başarılı
-- İlk pilot kullanıcının açık kabulü alınmış
+- ilk pilot kullanıcının açık kabulü alınmış
 - Eğitim/sınav/PDF/sertifika regresyonu bulunmamış
 
 Bu kriterler tamamlanmadan genel aktivasyon veya allowlist genişletmesi yapılmaz.
