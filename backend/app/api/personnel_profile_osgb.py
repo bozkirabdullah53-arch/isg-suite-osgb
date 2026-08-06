@@ -1,7 +1,7 @@
 """OSGB-only Digital Professional Card API overlay.
 
-Routes are registered before legacy company-scoped profile routes. Workplace
-employees are intentionally not exposed by this router.
+All routes live under /osgb-personnel-profiles so legacy workplace Employee
+profile routes remain untouched. Workplace employees are intentionally absent.
 """
 from __future__ import annotations
 
@@ -24,7 +24,6 @@ from app.models.personnel_profile import (
     PersonnelProfileContact,
     PersonnelProfileExperience,
 )
-from app.models.personnel_profile_document import PersonnelProfileDocument
 from app.schemas.personnel_profile import (
     PersonnelCompetencyVersionCreate,
     PersonnelContactVersionCreate,
@@ -35,6 +34,7 @@ from app.schemas.personnel_profile_document import (
     PersonnelProfileDocumentMetadata,
 )
 from app.schemas.personnel_profile_management import PersonnelProfileEntryArchive, validate_profile_entry_key
+from app.services.audit import add_audit_log
 from app.services.personnel_profile_core import (
     append_competency_version,
     append_contact_version,
@@ -64,7 +64,7 @@ from app.services.personnel_profile_osgb_scope import (
 )
 
 osgb_router = APIRouter(prefix="/osgb-personnel-profiles", tags=["OSGB Dijital Profesyonel Kartı"])
-profile_router = APIRouter(prefix="/personnel-profiles", tags=["OSGB Dijital Profesyonel Kartı"])
+profile_router = APIRouter(prefix="/osgb-personnel-profiles", tags=["OSGB Dijital Profesyonel Kartı"])
 
 
 def _commit_retry(db: Session, operation):
@@ -74,9 +74,13 @@ def _commit_retry(db: Session, operation):
         return result
     except IntegrityError:
         db.rollback()
-        result = operation()
-        db.commit()
-        return result
+        try:
+            result = operation()
+            db.commit()
+            return result
+        except Exception:
+            db.rollback()
+            raise
     except Exception:
         db.rollback()
         raise
@@ -227,7 +231,7 @@ _COPY_FIELDS = {
 }
 
 
-@profile_router.post("/{profile_id}/{entry_type}/{entry_key}/archive")
+@profile_router.post("/{profile_id}/entries/{entry_type}/{entry_key}/archive")
 def archive_osgb_entry(
     profile_id: int,
     entry_type: str,
@@ -268,6 +272,19 @@ def archive_osgb_entry(
     )
     try:
         db.add(row)
+        db.flush()
+        add_audit_log(
+            db,
+            user=user,
+            action=f"osgb_professional_profile_{entry_type}_archived",
+            entity_type=f"personnel_profile_{entry_type}",
+            entity_id=str(row.id),
+            module="personnel_profile",
+            description=(
+                "OSGB profesyonel kartı girdisi fiziksel silinmeden arşiv sürümüyle kapatıldı; "
+                f"profile_id={profile.id}, entry_key={latest.entry_key}, version={row.version}."
+            ),
+        )
         db.commit()
         db.refresh(row)
     except Exception:
@@ -300,7 +317,7 @@ def get_osgb_documents(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    require_osgb_profile_read(db, user, require_osgb_profile_write(db, user, profile_id))
+    require_osgb_profile_write(db, user, profile_id)
     return {"items": list_latest_profile_documents(db, user=user, profile_id=profile_id, include_archived=include_archived)}
 
 
@@ -311,6 +328,7 @@ def get_osgb_document_versions(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    require_osgb_profile_write(db, user, profile_id)
     return {"items": list_profile_document_versions(db, user=user, profile_id=profile_id, document_key=document_key)}
 
 
@@ -409,6 +427,7 @@ def download_osgb_document(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    require_osgb_profile_write(db, user, profile_id)
     try:
         row, content, safe_name = load_profile_document_content(
             db,
