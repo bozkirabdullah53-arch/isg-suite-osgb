@@ -51,6 +51,11 @@ describe('personnel profile manager logic', () => {
     expect(archivedProfileRows(rows).map((row) => row.id)).toEqual([2]);
   });
 
+  it('keeps the first manager render safe before a profile snapshot exists', () => {
+    expect(buildProfileHistory(null)).toEqual([]);
+    expect(buildProfileHistory(undefined)).toEqual([]);
+  });
+
   it('creates a newest-first audit-friendly view history', () => {
     const history = buildProfileHistory({
       profile: {id: 9, status: 'active', created_at: '2026-01-01T09:00:00'},
