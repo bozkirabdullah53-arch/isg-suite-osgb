@@ -1,10 +1,12 @@
-"""Optional NACE training presentation API — safe Phase 1–4 boundary."""
+"""Optional NACE training presentation API — safe Phase 1–6 boundary."""
 from __future__ import annotations
 
 from io import BytesIO
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -15,6 +17,13 @@ from app.core.database import get_db
 from app.models.entities import TrainingSession, User, UserRole
 from app.models.training_nace import TrainingNaceSnapshot
 from app.services.training_exact_question_factory import exact_question_readiness
+from app.services.training_presentation_approval import (
+    PresentationApprovalError,
+    approval_payload,
+    approve_presentation_version,
+    archive_presentation_version,
+    get_presentation_approval,
+)
 from app.services.training_presentation_contract import (
     PresentationContractError,
     build_presentation_manifest_preview,
@@ -41,6 +50,13 @@ EDIT_ROLES = (
     UserRole.COMPANY_ADMIN,
     UserRole.SAFETY_SPECIALIST,
 )
+
+
+class PresentationApprovalRequest(BaseModel):
+    approval_method: Literal["application_approval", "qualified_esign"] = "application_approval"
+    confirmed_manifest_hash: str = Field(min_length=64, max_length=64)
+    approval_note: str | None = Field(default=None, max_length=2000)
+    esign_request_id: int | None = Field(default=None, ge=1)
 
 
 def _training_or_404(db: Session, training_id: int) -> TrainingSession:
@@ -71,9 +87,8 @@ def _generation_http_error(exc: PresentationGenerationError) -> HTTPException:
         "unsupported_output_format",
         "output_not_ready",
     }
-    status = 409 if exc.code in client_conflicts else 503
     return HTTPException(
-        status,
+        409 if exc.code in client_conflicts else 503,
         {
             "code": exc.code,
             "message": exc.detail,
@@ -82,9 +97,32 @@ def _generation_http_error(exc: PresentationGenerationError) -> HTTPException:
     )
 
 
+def _approval_http_error(exc: PresentationApprovalError) -> HTTPException:
+    unavailable = {
+        "esign_request_missing",
+        "esign_not_verified",
+        "esign_signed_hash_missing",
+        "esign_revocation_invalid",
+    }
+    return HTTPException(
+        503 if exc.code in unavailable else 409,
+        {
+            "code": exc.code,
+            "message": exc.detail,
+            "core_training_unaffected": True,
+        },
+    )
+
+
+def _version_with_approval(db: Session, row, *, include_manifest: bool = False) -> dict:
+    payload = version_payload(row, include_manifest=include_manifest)
+    approval = get_presentation_approval(db, presentation_version_id=row.id)
+    payload["approval"] = approval_payload(approval) if approval else None
+    return payload
+
+
 @router.get("/presentation-contract")
 def presentation_contract(user: User = Depends(get_current_user)):
-    """Return the source-controlled content contract; never render or persist."""
     del user
     try:
         return presentation_contract_payload()
@@ -98,7 +136,6 @@ def presentation_readiness(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Return readiness without mutating training, exam, certificate or storage."""
     training = _training_or_404(db, training_id)
     ensure_company_access(db, user, training.company_id)
     return training_presentation_readiness(db, training=training)
@@ -110,7 +147,6 @@ def presentation_manifest_preview(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Build a deterministic preview only; no DB/file/storage write occurs."""
     training = _training_or_404(db, training_id)
     ensure_company_access(db, user, training.company_id)
     snapshot = db.scalar(
@@ -141,14 +177,13 @@ def presentation_versions(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """List historical versions even when new generation is switched off."""
     training = _training_or_404(db, training_id)
     ensure_company_access(db, user, training.company_id)
     rows = list_presentation_versions(db, training_id=training.id)
     return {
         "training_id": training.id,
         "count": len(rows),
-        "rows": [version_payload(row) for row in rows],
+        "rows": [_version_with_approval(db, row) for row in rows],
         "read_only_history": True,
     }
 
@@ -163,7 +198,7 @@ def presentation_version_detail(
     training = _training_or_404(db, training_id)
     ensure_company_access(db, user, training.company_id)
     row = _version_or_404(db, training_id=training.id, version_id=version_id)
-    return version_payload(row, include_manifest=True)
+    return _version_with_approval(db, row, include_manifest=True)
 
 
 @router.post("/{training_id}/presentation-versions", status_code=201)
@@ -172,7 +207,6 @@ def create_presentation_version(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    """Create an immutable draft only; renderer and storage remain untouched."""
     training = _training_or_404(db, training_id)
     ensure_company_access(db, user, training.company_id)
     try:
@@ -205,7 +239,7 @@ def create_presentation_version(
                 "core_training_unaffected": True,
             },
         ) from exc
-    return version_payload(row, include_manifest=True)
+    return _version_with_approval(db, row, include_manifest=True)
 
 
 @router.post("/{training_id}/presentation-versions/{version_id}/render")
@@ -215,7 +249,6 @@ def render_presentation_version(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    """Render both PPTX and PDF, atomically store and hash-verify them."""
     training = _training_or_404(db, training_id)
     ensure_company_access(db, user, training.company_id)
     row = _version_or_404(db, training_id=training.id, version_id=version_id)
@@ -226,6 +259,89 @@ def render_presentation_version(
     return generation_status_payload(generated)
 
 
+@router.get("/{training_id}/presentation-versions/{version_id}/approval")
+def presentation_version_approval(
+    training_id: int,
+    version_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    training = _training_or_404(db, training_id)
+    ensure_company_access(db, user, training.company_id)
+    row = _version_or_404(db, training_id=training.id, version_id=version_id)
+    approval = get_presentation_approval(db, presentation_version_id=row.id)
+    return {
+        "training_id": training.id,
+        "version_id": row.id,
+        "approved": approval is not None,
+        "approval": approval_payload(approval) if approval else None,
+        "read_only": True,
+    }
+
+
+@router.post("/{training_id}/presentation-versions/{version_id}/approve", status_code=201)
+def approve_presentation(
+    training_id: int,
+    version_id: int,
+    payload: PresentationApprovalRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    training = _training_or_404(db, training_id)
+    ensure_company_access(db, user, training.company_id)
+    row = _version_or_404(db, training_id=training.id, version_id=version_id)
+    try:
+        approval = approve_presentation_version(
+            db,
+            row=row,
+            user=user,
+            method=payload.approval_method,
+            confirmed_manifest_hash=payload.confirmed_manifest_hash,
+            note=payload.approval_note,
+            esign_request_id=payload.esign_request_id,
+        )
+        db.commit()
+        db.refresh(approval)
+        db.refresh(row)
+    except PresentationApprovalError as exc:
+        db.rollback()
+        raise _approval_http_error(exc) from exc
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            409,
+            {
+                "code": "approval_conflict",
+                "message": "Bu sürüm için onay kaydı zaten oluşturulmuş olabilir.",
+                "core_training_unaffected": True,
+            },
+        ) from exc
+    return {
+        "version": _version_with_approval(db, row),
+        "approval": approval_payload(approval),
+    }
+
+
+@router.post("/{training_id}/presentation-versions/{version_id}/archive")
+def archive_presentation(
+    training_id: int,
+    version_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    training = _training_or_404(db, training_id)
+    ensure_company_access(db, user, training.company_id)
+    row = _version_or_404(db, training_id=training.id, version_id=version_id)
+    try:
+        archived = archive_presentation_version(db, row=row, user=user)
+        db.commit()
+        db.refresh(archived)
+    except PresentationApprovalError as exc:
+        db.rollback()
+        raise _approval_http_error(exc) from exc
+    return _version_with_approval(db, archived)
+
+
 @router.get("/{training_id}/presentation-versions/{version_id}/download/{output_format}")
 def download_presentation_version(
     training_id: int,
@@ -234,15 +350,11 @@ def download_presentation_version(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Download one historical output after checking company access and SHA-256."""
     training = _training_or_404(db, training_id)
     ensure_company_access(db, user, training.company_id)
     row = _version_or_404(db, training_id=training.id, version_id=version_id)
     try:
-        download = read_generated_output(
-            row=row,
-            output_format=output_format,
-        )
+        download = read_generated_output(row=row, output_format=output_format)
     except PresentationGenerationError as exc:
         raise _generation_http_error(exc) from exc
     headers = {
