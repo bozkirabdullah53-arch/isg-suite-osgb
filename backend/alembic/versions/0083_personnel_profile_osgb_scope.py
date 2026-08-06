@@ -21,11 +21,39 @@ _PROFILE_CHILDREN = (
     "personnel_profile_experiences",
     "personnel_profile_documents",
 )
+_CHILD_POLICIES = (
+    ("personnel_profile_contacts", "personnel_profile_contacts_company_scope", "personnel_profile_contacts_tenant_scope"),
+    ("personnel_profile_competencies", "personnel_profile_competencies_company_scope", "personnel_profile_competencies_tenant_scope"),
+    ("personnel_profile_experiences", "personnel_profile_experiences_company_scope", "personnel_profile_experiences_tenant_scope"),
+    ("personnel_profile_documents", "personnel_profile_documents_company_scope", "personnel_profile_documents_tenant_scope"),
+)
 
 
 def _drop_policy(table: str, policy: str) -> None:
     if op.get_bind().dialect.name == "postgresql":
         op.execute(f'DROP POLICY IF EXISTS "{policy}" ON "{table}"')
+
+
+def _company_scope() -> str:
+    unset = "COALESCE(current_setting('app.current_user_id', true), '') = ''"
+    bypass = "COALESCE(current_setting('app.rls_bypass', true), '') = '1'"
+    allowed = (
+        "string_to_array(COALESCE(NULLIF(current_setting('app.allowed_company_ids', true), ''), '-1'), ',')::integer[]"
+    )
+    return f"({unset}) OR ({bypass}) OR (company_id = ANY ({allowed}))"
+
+
+def _install_old_company_policy(table: str, policy: str) -> None:
+    if op.get_bind().dialect.name != "postgresql":
+        return
+    scope = _company_scope()
+    op.execute(f'ALTER TABLE "{table}" ENABLE ROW LEVEL SECURITY')
+    op.execute(f'ALTER TABLE "{table}" FORCE ROW LEVEL SECURITY')
+    _drop_policy(table, policy)
+    op.execute(
+        f'CREATE POLICY "{policy}" ON "{table}" '
+        f"FOR ALL USING ({scope}) WITH CHECK ({scope})"
+    )
 
 
 def _install_profile_policy() -> None:
@@ -45,6 +73,7 @@ def _install_profile_policy() -> None:
     op.execute('ALTER TABLE "personnel_profiles" ENABLE ROW LEVEL SECURITY')
     op.execute('ALTER TABLE "personnel_profiles" FORCE ROW LEVEL SECURITY')
     _drop_policy("personnel_profiles", "personnel_profiles_company_scope")
+    _drop_policy("personnel_profiles", "personnel_profiles_tenant_scope")
     op.execute(
         'CREATE POLICY "personnel_profiles_tenant_scope" ON "personnel_profiles" '
         f"FOR ALL USING ({scope}) WITH CHECK ({scope})"
@@ -70,6 +99,7 @@ def _install_child_policy(table: str, old_policy: str, new_policy: str) -> None:
     op.execute(f'ALTER TABLE "{table}" ENABLE ROW LEVEL SECURITY')
     op.execute(f'ALTER TABLE "{table}" FORCE ROW LEVEL SECURITY')
     _drop_policy(table, old_policy)
+    _drop_policy(table, new_policy)
     op.execute(
         f'CREATE POLICY "{new_policy}" ON "{table}" '
         f"FOR ALL USING ({scope}) WITH CHECK ({scope})"
@@ -82,32 +112,61 @@ def upgrade() -> None:
     if not inspector.has_table("personnel_profiles"):
         return
 
-    columns = {column["name"] for column in inspector.get_columns("personnel_profiles")}
-    if "legacy_company_id" not in columns:
-        op.add_column("personnel_profiles", sa.Column("legacy_company_id", sa.Integer(), nullable=True))
-        op.create_foreign_key(
-            "fk_personnel_profiles_legacy_company",
-            "personnel_profiles",
-            "companies",
-            ["legacy_company_id"],
-            ["id"],
-            ondelete="RESTRICT",
+    duplicate = bind.execute(
+        sa.text(
+            "SELECT COUNT(*) FROM ("
+            "SELECT osgb_id, professional_id FROM personnel_profiles "
+            "WHERE subject_type='professional' GROUP BY osgb_id, professional_id HAVING COUNT(*) > 1"
+            ") duplicates"
+        )
+    ).scalar_one()
+    if int(duplicate or 0) > 0:
+        raise RuntimeError(
+            "Aynı OSGB profesyoneline bağlı birden fazla profil bulundu; migration veri birleştirme yapmadan durduruldu."
         )
 
-    # Preserve the former workplace link only for reversible historical reference.
+    columns = {column["name"] for column in inspector.get_columns("personnel_profiles")}
+    if "legacy_company_id" not in columns:
+        op.add_column(
+            "personnel_profiles",
+            sa.Column("legacy_company_id", sa.Integer(), nullable=True),
+        )
+        if bind.dialect.name == "postgresql":
+            op.create_foreign_key(
+                "fk_personnel_profiles_legacy_company",
+                "personnel_profiles",
+                "companies",
+                ["legacy_company_id"],
+                ["id"],
+                ondelete="RESTRICT",
+            )
+
     op.execute(
         "UPDATE personnel_profiles SET legacy_company_id = company_id "
         "WHERE subject_type = 'professional' AND legacy_company_id IS NULL"
     )
 
-    # Child rows inherit OSGB scope through their parent profile.
+    # The old subject check does not require company_id, so null the professional
+    # scope before installing the stricter OSGB/company exclusivity check.
+    op.execute(
+        "UPDATE personnel_profiles SET company_id = NULL "
+        "WHERE subject_type = 'professional'"
+    )
+
     for table in _PROFILE_CHILDREN:
-        if inspector.has_table(table):
+        if not inspector.has_table(table):
+            continue
+        if bind.dialect.name == "postgresql":
             op.execute(
                 f"UPDATE {table} c SET company_id = NULL "
                 "FROM personnel_profiles p "
                 f"WHERE c.profile_id = p.id AND p.subject_type = 'professional'"
-            ) if bind.dialect.name == "postgresql" else None
+            )
+        else:
+            op.execute(
+                f"UPDATE {table} SET company_id = NULL WHERE profile_id IN "
+                "(SELECT id FROM personnel_profiles WHERE subject_type = 'professional')"
+            )
 
     with op.batch_alter_table("personnel_profiles") as batch:
         batch.drop_constraint("uq_personnel_profile_company_professional", type_="unique")
@@ -122,30 +181,13 @@ def upgrade() -> None:
             "OR (subject_type = 'professional' AND company_id IS NULL AND professional_id IS NOT NULL AND employee_id IS NULL)",
         )
 
-    op.execute(
-        "UPDATE personnel_profiles SET company_id = NULL "
-        "WHERE subject_type = 'professional'"
-    )
-
     for table in _PROFILE_CHILDREN:
-        if not inspector.has_table(table):
-            continue
-        if bind.dialect.name != "postgresql":
-            op.execute(
-                f"UPDATE {table} SET company_id = NULL WHERE profile_id IN "
-                "(SELECT id FROM personnel_profiles WHERE subject_type = 'professional')"
-            )
-        with op.batch_alter_table(table) as batch:
-            batch.alter_column("company_id", existing_type=sa.Integer(), nullable=True)
+        if inspector.has_table(table):
+            with op.batch_alter_table(table) as batch:
+                batch.alter_column("company_id", existing_type=sa.Integer(), nullable=True)
 
     _install_profile_policy()
-    child_policies = (
-        ("personnel_profile_contacts", "personnel_profile_contacts_company_scope", "personnel_profile_contacts_tenant_scope"),
-        ("personnel_profile_competencies", "personnel_profile_competencies_company_scope", "personnel_profile_competencies_tenant_scope"),
-        ("personnel_profile_experiences", "personnel_profile_experiences_company_scope", "personnel_profile_experiences_tenant_scope"),
-        ("personnel_profile_documents", "personnel_profile_documents_company_scope", "personnel_profile_documents_tenant_scope"),
-    )
-    for table, old_policy, new_policy in child_policies:
+    for table, old_policy, new_policy in _CHILD_POLICIES:
         if inspector.has_table(table):
             _install_child_policy(table, old_policy, new_policy)
 
@@ -164,8 +206,8 @@ def downgrade() -> None:
     ).scalar_one()
     if int(missing_legacy or 0) > 0:
         raise RuntimeError(
-            "OSGB-scoped professional profiles without a historical company cannot be downgraded safely. "
-            "Use feature force-off and a forward migration instead."
+            "Yeni OSGB profesyonel kartları işyeri kapsamına güvenle indirgenemez. "
+            "Veri kaybı yerine force-off ve ileri migration kullanılmalıdır."
         )
 
     op.execute(
@@ -200,16 +242,14 @@ def downgrade() -> None:
             "(subject_type = 'employee' AND employee_id IS NOT NULL AND professional_id IS NULL) "
             "OR (subject_type = 'professional' AND professional_id IS NOT NULL AND employee_id IS NULL)",
         )
-        batch.drop_constraint("fk_personnel_profiles_legacy_company", type_="foreignkey")
+        if bind.dialect.name == "postgresql":
+            batch.drop_constraint("fk_personnel_profiles_legacy_company", type_="foreignkey")
         batch.drop_column("legacy_company_id")
 
     if bind.dialect.name == "postgresql":
         _drop_policy("personnel_profiles", "personnel_profiles_tenant_scope")
-        for table, _, new_policy in (
-            ("personnel_profile_contacts", "", "personnel_profile_contacts_tenant_scope"),
-            ("personnel_profile_competencies", "", "personnel_profile_competencies_tenant_scope"),
-            ("personnel_profile_experiences", "", "personnel_profile_experiences_tenant_scope"),
-            ("personnel_profile_documents", "", "personnel_profile_documents_tenant_scope"),
-        ):
+        _install_old_company_policy("personnel_profiles", "personnel_profiles_company_scope")
+        for table, old_policy, new_policy in _CHILD_POLICIES:
             if inspector.has_table(table):
                 _drop_policy(table, new_policy)
+                _install_old_company_policy(table, old_policy)
