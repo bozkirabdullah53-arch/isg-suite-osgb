@@ -20,14 +20,13 @@ function run(command, args) {
 }
 
 console.log('Installing Chromium in the staging build user cache...');
-// Render static-site builds do not allow the root/su step used by --with-deps.
-// Install the browser binary only; missing runtime libraries still fail the actual
-// Playwright launch below, so the browser regression gate remains fail-closed.
 run('npx', ['playwright', 'install', 'chromium']);
-console.log('Running OSGB-only desktop, mobile and document browser regressions...');
+console.log('Running serialized OSGB-only desktop, mobile and document browser regressions...');
 run('npx', [
   'playwright',
   'test',
+  '--workers=1',
+  '--reporter=list',
   'e2e/personnel-profile-sidebar.spec.js',
   'e2e/personnel-profile-documents.spec.js',
 ]);
