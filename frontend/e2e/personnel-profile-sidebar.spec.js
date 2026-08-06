@@ -43,7 +43,6 @@ const professionals = [
     certificate_number: 'DSP-789',
     is_active: true,
   },
-  // Even a malformed workplace-shaped row must not enter the OSGB card list.
   {
     id: 41,
     company_id: 35,
@@ -68,7 +67,6 @@ function professionalSummary(id) {
       certificate_number: professional?.certificate_number || null,
       certificate_date: '2020-05-01',
       employment_status: 'active',
-      // Gönül Hekim deliberately has no workplace assignment.
       active_assignment_count: Number(id) === 8 ? 0 : 1,
     },
     privacy: {
@@ -119,6 +117,11 @@ async function installRoutes(page, readinessPayload = readyPayload) {
   const json = (route, body, status = 200) => route.fulfill({
     status,
     contentType: 'application/json',
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type, Idempotency-Key',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    },
     body: JSON.stringify(body),
   });
 
