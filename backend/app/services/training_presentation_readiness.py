@@ -1,11 +1,4 @@
-"""Read-only readiness for the optional NACE-aligned training presentation.
-
-Phase 1 and Phase 2 deliberately create no database record, presentation file
-or storage write. The service evaluates the existing frozen NACE snapshot,
-exact exam readiness and source-controlled content contract. Core training,
-exam, PDF and certificate workflows must never be blocked by this optional
-feature.
-"""
+"""Read-only readiness for the optional NACE-aligned training presentation."""
 from __future__ import annotations
 
 import json
@@ -24,8 +17,9 @@ from app.services.training_presentation_contract import (
     PresentationContractError,
     presentation_contract_payload,
 )
+from app.services.training_presentation_renderer import RENDERER_VERSION
 
-READINESS_VERSION = "nace-training-presentation-readiness-v2"
+READINESS_VERSION = "nace-training-presentation-readiness-v3"
 
 
 def _json_list(raw: str | None) -> list[str]:
@@ -63,10 +57,7 @@ def _contract_state() -> dict[str, Any]:
         "version": payload.get("contract_version"),
         "template_version": payload.get("template_version"),
         "contract_hash": payload.get("contract_hash"),
-        "output_formats": [
-            outputs.get("primary"),
-            *(outputs.get("companions") or []),
-        ],
+        "output_formats": [outputs.get("primary"), *(outputs.get("companions") or [])],
         "detail": "PPTX ana ve PDF yardımcı çıktı için içerik sözleşmesi onaylandı.",
     }
 
@@ -78,14 +69,12 @@ def build_presentation_readiness_payload(
     exam_readiness: dict[str, Any] | None,
     enabled: bool,
 ) -> dict[str, Any]:
-    """Build a deterministic, side-effect-free readiness response."""
     topics = _json_list(snapshot.training_topics_json) if snapshot else []
     technical_risks = _json_list(snapshot.technical_risk_tags_json) if snapshot else []
     special_risks = _json_list(snapshot.special_risks_json) if snapshot else []
     classification_status = (
         str(snapshot.classification_status or "legacy_unverified")
-        if snapshot
-        else "legacy_unverified"
+        if snapshot else "legacy_unverified"
     )
     exact_nace = bool(
         snapshot
@@ -94,7 +83,7 @@ def build_presentation_readiness_payload(
         and str(snapshot.nace_code or "").strip()
     )
     five_topics = len(topics) == 5
-    technical_risks_ready = len(technical_risks) > 0
+    technical_risks_ready = bool(technical_risks)
     exam = dict(exam_readiness or {})
     exam_ready = bool(exam.get("ready"))
     cancelled = _status_value(training) == "cancelled"
@@ -105,61 +94,37 @@ def build_presentation_readiness_payload(
             "code": "feature_flag",
             "label": "Sunum özelliği",
             "ok": enabled,
-            "detail": (
-                "Özellik kontrollü test için açık."
-                if enabled
-                else "Güvenli varsayılan nedeniyle kapalı; mevcut eğitim akışı aynen devam eder."
-            ),
+            "detail": "Özellik kontrollü kullanım için açık." if enabled else "Güvenli varsayılan nedeniyle kapalı; mevcut eğitim akışı aynen devam eder.",
         },
         {
             "code": "verified_nace_snapshot",
             "label": "Doğrulanmış NACE snapshot",
             "ok": exact_nace,
-            "detail": (
-                f"{snapshot.nace_code} · {snapshot.nace_description}"
-                if exact_nace
-                else "Persisted ve verified tam NACE snapshot bulunmuyor; NACE tahmini yapılmaz."
-            ),
+            "detail": f"{snapshot.nace_code} · {snapshot.nace_description}" if exact_nace else "Persisted ve verified tam NACE snapshot bulunmuyor; NACE tahmini yapılmaz.",
         },
         {
             "code": "five_training_topics",
             "label": "Beş işe özgü eğitim konusu",
             "ok": five_topics,
-            "detail": (
-                "Dondurulmuş beş konu hazır."
-                if five_topics
-                else f"Beklenen 5 konu, bulunan {len(topics)}."
-            ),
+            "detail": "Dondurulmuş beş konu hazır." if five_topics else f"Beklenen 5 konu, bulunan {len(topics)}.",
         },
         {
             "code": "technical_risks",
             "label": "Teknik risk etiketleri",
             "ok": technical_risks_ready,
-            "detail": (
-                f"{len(technical_risks)} teknik risk etiketi hazır."
-                if technical_risks_ready
-                else "Teknik risk etiketi bulunmuyor."
-            ),
+            "detail": f"{len(technical_risks)} teknik risk etiketi hazır." if technical_risks_ready else "Teknik risk etiketi bulunmuyor.",
         },
         {
             "code": "exact_exam_readiness",
             "label": "NACE uyumlu sınav içeriği",
             "ok": exam_ready,
-            "detail": (
-                "Mevcut 5 temel + 15 işe özgü sınav içeriği hazır."
-                if exam_ready
-                else str(exam.get("reason") or "Exact-NACE sınav hazırlığı tamamlanmamış.")
-            ),
+            "detail": "Mevcut 5 temel + 15 işe özgü sınav içeriği hazır." if exam_ready else str(exam.get("reason") or "Exact-NACE sınav hazırlığı tamamlanmamış."),
         },
         {
             "code": "training_not_cancelled",
             "label": "Eğitim durumu",
             "ok": not cancelled,
-            "detail": (
-                "Eğitim iptal edilmemiş."
-                if not cancelled
-                else "İptal edilmiş eğitim için yeni sunum üretilmez."
-            ),
+            "detail": "Eğitim iptal edilmemiş." if not cancelled else "İptal edilmiş eğitim için yeni sunum üretilmez.",
         },
         {
             "code": "template_contract",
@@ -170,24 +135,21 @@ def build_presentation_readiness_payload(
         {
             "code": "presentation_renderer",
             "label": "PPTX/PDF üretim servisi",
-            "ok": False,
-            "detail": "Faz 4 üretim servisi henüz uygulanmadı; bu aşamada yalnız manifest önizlemesi vardır.",
+            "ok": True,
+            "detail": f"Deterministik PPTX ve PDF renderer hazır: {RENDERER_VERSION}.",
         },
     ]
-
     blockers = [
         {"code": item["code"], "detail": item["detail"]}
-        for item in checks
-        if not item["ok"]
+        for item in checks if not item["ok"]
     ]
     warnings: list[dict[str, str]] = []
     if exact_nace and not special_risks:
-        warnings.append(
-            {
-                "code": "special_risks_empty",
-                "detail": "Özel risk listesi boş; manifestte açıkça boş olarak gösterilir ve risk uydurulmaz.",
-            }
-        )
+        warnings.append({
+            "code": "special_risks_empty",
+            "detail": "Özel risk listesi boş; manifestte açıkça boş olarak gösterilir ve risk uydurulmaz.",
+        })
+    generation_allowed = enabled and not blockers
 
     return {
         "readiness_version": READINESS_VERSION,
@@ -198,8 +160,9 @@ def build_presentation_readiness_payload(
         "visible": enabled,
         "read_only": True,
         "manifest_preview_supported": bool(contract["ok"]),
-        "generation_supported": False,
-        "generation_allowed": False,
+        "generation_supported": True,
+        "generation_allowed": generation_allowed,
+        "renderer_version": RENDERER_VERSION,
         "core_training_unaffected": True,
         "classification": {
             "persisted": snapshot is not None,
@@ -231,8 +194,10 @@ def build_presentation_readiness_payload(
         "warnings": warnings,
         "next_action": (
             "Özellik kapalı; mevcut eğitim/sınav/PDF/sertifika işlemlerine devam edin."
-            if not enabled
-            else "İçerik sözleşmesi hazır. Gerçek dosya üretimi için Faz 3 sürüm modeli ve Faz 4 renderer tamamlanmalıdır."
+            if not enabled else (
+                "Hazırlık tamamlandı. İçerik önizlemesi açabilir veya yeni bir sunum sürümü oluşturabilirsiniz."
+                if generation_allowed else "Eksik hazırlık kontrollerini tamamlayın; eğitim ve belge işlemleri etkilenmez."
+            )
         ),
     }
 
@@ -242,16 +207,14 @@ def training_presentation_readiness(
     *,
     training: TrainingSession,
 ) -> dict[str, Any]:
-    """Read existing records only; never commit, flush, write a file or upload."""
     snapshot = db.scalar(
         select(TrainingNaceSnapshot).where(
             TrainingNaceSnapshot.training_id == training.id
         )
     )
-    exam = exact_question_readiness(db, training)
     return build_presentation_readiness_payload(
         training=training,
         snapshot=snapshot,
-        exam_readiness=exam,
+        exam_readiness=exact_question_readiness(db, training),
         enabled=nace_training_presentation_active(),
     )
