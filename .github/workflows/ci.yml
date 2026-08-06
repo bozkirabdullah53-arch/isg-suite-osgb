@@ -59,6 +59,7 @@ jobs:
           tests/test_training_strict_cutover.py
           tests/test_training_rules.py
           tests/test_training_presentation_readiness.py
+          tests/test_training_presentation_contract.py
           tests/test_csgb_readiness_advice.py
           tests/test_integration_readiness.py
           tests/test_csgb_audit_bundle.py
