@@ -1,6 +1,7 @@
 """Route-order guard for OSGB professional documents.
 
-The exact document paths must be registered before the generic entry archive path.
+The exact document paths are isolated under /osgb-personnel-profiles and are
+registered before the generic OSGB profile routes.
 """
 from fastapi import APIRouter
 
@@ -12,7 +13,7 @@ from app.api.personnel_profile_osgb import (
     upload_osgb_document,
 )
 
-router = APIRouter(prefix="/personnel-profiles", tags=["OSGB Dijital Profesyonel Kartı Belgeleri"])
+router = APIRouter(prefix="/osgb-personnel-profiles", tags=["OSGB Dijital Profesyonel Kartı Belgeleri"])
 router.add_api_route(
     "/{profile_id}/documents/upload",
     upload_osgb_document,
