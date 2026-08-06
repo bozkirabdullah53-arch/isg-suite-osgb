@@ -206,15 +206,16 @@ test('sidebar entry opens combined privacy-minimized employee and professional c
 
   await page.locator('[data-personnel-profile-nav="desktop"]').click();
   const dialog = page.locator('.personnel-profile-readonly-dialog');
-  await expect(dialog).toBeVisible();
-  await expect(dialog.getByText('Ayşe Yılmaz', {exact: true})).toBeVisible();
-  await expect(dialog.getByText('Mehmet Uzman', {exact: true})).toBeVisible();
-
+  const list = dialog.locator('.personnel-profile-readonly-dialog__list');
   const detail = dialog.locator('.personnel-profile-readonly-dialog__detail');
+  await expect(dialog).toBeVisible();
+  await expect(list.getByText('Ayşe Yılmaz', {exact: true})).toBeVisible();
+  await expect(list.getByText('Mehmet Uzman', {exact: true})).toBeVisible();
+
   await expect(detail.getByRole('heading', {name: 'Ayşe Yılmaz'})).toBeVisible();
   await expect(detail.getByText('123******90', {exact: true})).toBeVisible();
 
-  await dialog.getByText('Mehmet Uzman', {exact: true}).click();
+  await list.getByText('Mehmet Uzman', {exact: true}).click();
   await expect(detail.getByRole('heading', {name: 'Mehmet Uzman'})).toBeVisible();
   await expect(detail.getByText('UZM-123', {exact: true})).toBeVisible();
 
