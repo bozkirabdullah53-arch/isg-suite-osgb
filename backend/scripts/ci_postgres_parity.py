@@ -40,6 +40,7 @@ def main() -> int:
         "personnel_profile_contacts",
         "personnel_profile_competencies",
         "personnel_profile_experiences",
+        "personnel_profile_documents",
     ]
     required_tables = [
         "alembic_version",
@@ -65,7 +66,6 @@ def main() -> int:
             print("FAIL: alembic_version empty")
             return 1
 
-        # companies: name tek başına unique olmamalı; (osgb_id, name) unique olmalı
         uqs = insp.get_unique_constraints("companies")
         indexes = insp.get_indexes("companies")
         name_only_unique = False
@@ -95,7 +95,6 @@ def main() -> int:
             print(" indexes=", indexes)
             return 1
 
-        # token_version kolonu
         user_cols = {c["name"] for c in insp.get_columns("users")}
         if "token_version" not in user_cols:
             print("FAIL: users.token_version missing")
@@ -159,12 +158,23 @@ def main() -> int:
         }
         missing_profile_columns = sorted(expected_profile_columns - profile_columns)
         if missing_profile_columns:
-            print("FAIL: personnel_profiles columns missing:", ", ".join(missing_profile_columns))
+            print(
+                "FAIL: personnel_profiles columns missing:",
+                ", ".join(missing_profile_columns),
+            )
             return 1
-        if not _has_unique(insp, "personnel_profiles", {"company_id", "employee_id"}):
+        if not _has_unique(
+            insp,
+            "personnel_profiles",
+            {"company_id", "employee_id"},
+        ):
             print("FAIL: personnel profile company/employee unique missing")
             return 1
-        if not _has_unique(insp, "personnel_profiles", {"company_id", "professional_id"}):
+        if not _has_unique(
+            insp,
+            "personnel_profiles",
+            {"company_id", "professional_id"},
+        ):
             print("FAIL: personnel profile company/professional unique missing")
             return 1
 
@@ -186,11 +196,69 @@ def main() -> int:
             }
             missing_columns = sorted(expected - columns)
             if missing_columns:
-                print(f"FAIL: {table} columns missing:", ", ".join(missing_columns))
+                print(
+                    f"FAIL: {table} columns missing:",
+                    ", ".join(missing_columns),
+                )
                 return 1
-            if not _has_unique(insp, table, {"profile_id", "entry_key", "version"}):
+            if not _has_unique(
+                insp,
+                table,
+                {"profile_id", "entry_key", "version"},
+            ):
                 print(f"FAIL: {table} append-only version unique missing")
                 return 1
+
+        document_columns = {
+            column["name"]
+            for column in insp.get_columns("personnel_profile_documents")
+        }
+        expected_document_columns = {
+            "profile_id",
+            "company_id",
+            "document_key",
+            "version",
+            "supersedes_id",
+            "idempotency_key",
+            "document_kind",
+            "category",
+            "title",
+            "object_key",
+            "mime_type",
+            "file_extension",
+            "file_size",
+            "checksum_sha256",
+            "access_classification",
+            "processing_purpose",
+            "retention_policy",
+            "verification_status",
+            "lifecycle_status",
+            "created_by_id",
+            "created_at",
+        }
+        missing_document_columns = sorted(
+            expected_document_columns - document_columns
+        )
+        if missing_document_columns:
+            print(
+                "FAIL: personnel_profile_documents columns missing:",
+                ", ".join(missing_document_columns),
+            )
+            return 1
+        if not _has_unique(
+            insp,
+            "personnel_profile_documents",
+            {"profile_id", "document_key", "version"},
+        ):
+            print("FAIL: personnel profile document version unique missing")
+            return 1
+        if not _has_unique(
+            insp,
+            "personnel_profile_documents",
+            {"profile_id", "idempotency_key"},
+        ):
+            print("FAIL: personnel profile document idempotency unique missing")
+            return 1
 
         forbidden_profile_columns = {
             "national_id",
@@ -207,7 +275,10 @@ def main() -> int:
             columns = {column["name"] for column in insp.get_columns(table)}
             forbidden = sorted(columns & forbidden_profile_columns)
             if forbidden:
-                print(f"FAIL: restricted columns unexpectedly present in {table}:", ", ".join(forbidden))
+                print(
+                    f"FAIL: restricted columns unexpectedly present in {table}:",
+                    ", ".join(forbidden),
+                )
                 return 1
 
         if conn.dialect.name == "postgresql":
