@@ -18,6 +18,7 @@ from app.services.personnel_profile_management import archive_profile_entry_vers
 
 
 router = APIRouter(prefix="/personnel-profiles", tags=["Dijital Personel Kartı"])
+router.include_router(documents_router)
 _ALLOWED_ENTRY_TYPES = {"contacts", "competencies", "experiences"}
 
 
@@ -76,6 +77,3 @@ def archive_profile_entry(
         "version": row.version,
         "lifecycle_status": row.lifecycle_status,
     }
-
-
-router.include_router(documents_router)
