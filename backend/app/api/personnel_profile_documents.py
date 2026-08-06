@@ -24,11 +24,11 @@ from app.schemas.personnel_profile_document import (
     PersonnelProfileDocumentArchive,
     PersonnelProfileDocumentMetadata,
 )
+from app.services.object_store import ObjectStore, get_object_store
 from app.services.personnel_profile_core import get_profile_or_404
 from app.services.personnel_profile_document import (
     MAX_PROFILE_DOCUMENT_BYTES,
     archive_profile_document_version,
-    delete_new_upload_after_failed_commit,
     document_payload,
     list_latest_profile_documents,
     list_profile_document_versions,
@@ -39,6 +39,44 @@ from app.services.personnel_profile_file_security import prepare_profile_upload
 
 
 router = APIRouter(tags=["Dijital Personel Kartı Belgeleri"])
+
+
+class _TrackedObjectStore:
+    """Tracks only the object created by the current upload transaction."""
+
+    def __init__(self, delegate: ObjectStore) -> None:
+        self.delegate = delegate
+        self.created_key: str | None = None
+
+    def put_bytes(self, key: str, content: bytes) -> str:
+        stored = self.delegate.put_bytes(key, content)
+        self.created_key = stored
+        return stored
+
+    def get_bytes(self, key: str) -> bytes:
+        return self.delegate.get_bytes(key)
+
+    def exists(self, key: str) -> bool:
+        return self.delegate.exists(key)
+
+    def delete(self, key: str) -> None:
+        self.delegate.delete(key)
+        if self.created_key == key:
+            self.created_key = None
+
+    def resolve_local_path(self, key: str):
+        return self.delegate.resolve_local_path(key)
+
+    def cleanup_created(self) -> None:
+        if not self.created_key:
+            return
+        key = self.created_key
+        self.created_key = None
+        try:
+            self.delegate.delete(key)
+        except Exception:
+            # Do not mask the original DB/audit/commit failure.
+            return
 
 
 def _require_document_writes_active(company_id: int) -> None:
@@ -98,9 +136,7 @@ async def upload_profile_document(
         access_classification=access_classification,
         change_reason=change_reason,
     )
-    row = None
-    created = False
-    new_object_key = None
+    tracked_store = _TrackedObjectStore(get_object_store())
     try:
         content = await file.read(MAX_PROFILE_DOCUMENT_BYTES + 1)
         safe_content = prepare_profile_upload(
@@ -116,15 +152,13 @@ async def upload_profile_document(
             idempotency_key=idempotency_key,
             filename=file.filename or "upload",
             content=safe_content,
+            store=tracked_store,
         )
-        if created:
-            new_object_key = row.object_key
         db.commit()
         db.refresh(row)
     except Exception:
         db.rollback()
-        if created:
-            delete_new_upload_after_failed_commit(new_object_key)
+        tracked_store.cleanup_created()
         raise
     finally:
         await file.close()
