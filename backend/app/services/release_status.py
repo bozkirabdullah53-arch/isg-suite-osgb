@@ -160,6 +160,7 @@ def infra_detail_payload() -> dict:
         "professionals_admin": "edit-search-assign-perf",
         "training_osgb_access": "assignment-scoped",
         "duty_board": "resilient-my-duties",
+        "osgb_menu": "global-monitor-no-docs",
         "osgb_home": "workplaces-pros-unassigned-contracts",
         "osgb_home_kpis": "finance-contracts-sds-v3",
         "csgb_pack": "audit-bundle-v3",
