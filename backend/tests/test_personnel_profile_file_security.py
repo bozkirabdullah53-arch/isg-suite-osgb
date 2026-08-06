@@ -7,7 +7,29 @@ import pytest
 from fastapi import HTTPException
 from PIL import Image
 
+from app.api.personnel_profile_documents import _TrackedObjectStore
 from app.services.personnel_profile_file_security import prepare_profile_upload
+
+
+class MemoryStore:
+    def __init__(self) -> None:
+        self.objects: dict[str, bytes] = {}
+
+    def put_bytes(self, key: str, content: bytes) -> str:
+        self.objects[key] = bytes(content)
+        return key
+
+    def get_bytes(self, key: str) -> bytes:
+        return self.objects[key]
+
+    def exists(self, key: str) -> bool:
+        return key in self.objects
+
+    def delete(self, key: str) -> None:
+        self.objects.pop(key, None)
+
+    def resolve_local_path(self, key: str):
+        return None
 
 
 def _png(width: int = 3200, height: int = 120) -> bytes:
@@ -99,3 +121,16 @@ def test_docx_path_traversal_entry_is_rejected() -> None:
             document_kind="cv",
         )
     assert exc.value.status_code == 400
+
+
+def test_tracked_store_removes_object_after_transaction_failure() -> None:
+    delegate = MemoryStore()
+    tracked = _TrackedObjectStore(delegate)
+
+    tracked.put_bytes("private/random-object.pdf", b"payload")
+    assert delegate.exists("private/random-object.pdf")
+
+    tracked.cleanup_created()
+
+    assert not delegate.exists("private/random-object.pdf")
+    assert tracked.created_key is None
