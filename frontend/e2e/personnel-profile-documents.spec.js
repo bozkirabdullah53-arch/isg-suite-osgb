@@ -175,10 +175,11 @@ test('document tab renders private metadata only for an OSGB professional profil
   await manager.getByRole('button', {name: /Kartı başlat/}).click();
   await expect(manager.getByText('Profil #55', {exact: true})).toBeVisible();
   await manager.getByRole('button', {name: 'Belgeler'}).click();
-  await expect(manager.locator('[data-personnel-profile-documents-panel="true"]')).toBeVisible();
-  await expect(manager.getByText('İlk Yardımcı Belgesi', {exact: true})).toBeVisible();
-  await expect(manager.getByText('Yalnız iç kullanım', {exact: true})).toBeVisible();
-  await expect(manager.getByRole('heading', {name: 'Belge Yükle'})).toBeVisible();
+  const documentPanel = manager.locator('[data-personnel-profile-documents-panel="true"]');
+  await expect(documentPanel).toBeVisible();
+  await expect(documentPanel.getByText('İlk Yardımcı Belgesi', {exact: true})).toBeVisible();
+  await expect(documentPanel.getByRole('article').getByText('Yalnız iç kullanım', {exact: true})).toBeVisible();
+  await expect(documentPanel.getByRole('heading', {name: 'Belge Yükle'})).toBeVisible();
   expect(await manager.innerHTML()).not.toContain('object_key');
   expect(await manager.innerHTML()).not.toContain('company_id');
   expect(requests.employeeRequestCount()).toBe(0);
