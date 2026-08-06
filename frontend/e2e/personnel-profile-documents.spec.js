@@ -115,6 +115,11 @@ async function installRoutes(page) {
   const json = (route, body, status = 200) => route.fulfill({
     status,
     contentType: 'application/json',
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type, Idempotency-Key',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    },
     body: JSON.stringify(body),
   });
   await page.route('**/health', (route) => json(route, {ok: true}));
