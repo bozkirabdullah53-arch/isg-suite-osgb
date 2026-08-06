@@ -1,10 +1,4 @@
-"""Append-only NACE training presentation versions.
-
-The table is isolated from the core training, exam, PDF and certificate models.
-Every row freezes the presentation manifest and all source classifications used
-for that version. Existing source snapshots are never rewritten; changed
-content creates a new version. Only lifecycle/output fields may change later.
-"""
+"""Append-only NACE training presentation versions."""
 from __future__ import annotations
 
 from datetime import datetime
@@ -66,9 +60,25 @@ IMMUTABLE_PRESENTATION_SOURCE_FIELDS = frozenset(
     }
 )
 
+LOCKED_APPROVED_OUTPUT_FIELDS = frozenset(
+    {
+        "pptx_storage_key",
+        "pptx_file_hash",
+        "pptx_file_size",
+        "pptx_content_type",
+        "pdf_storage_key",
+        "pdf_file_hash",
+        "pdf_file_size",
+        "pdf_content_type",
+        "generated_at",
+        "approved_by_id",
+        "approved_at",
+    }
+)
+
 
 class TrainingPresentationVersion(Base):
-    """One immutable source/manifest snapshot and its future rendered outputs."""
+    """One immutable source/manifest snapshot and its rendered output lifecycle."""
 
     __tablename__ = "training_presentation_versions"
     __table_args__ = (
@@ -160,16 +170,39 @@ class TrainingPresentationVersion(Base):
 
 
 @event.listens_for(TrainingPresentationVersion, "before_update")
-def _protect_presentation_source_snapshot(_mapper, _connection, target) -> None:
-    """Reject in-place edits to frozen source/manifest fields."""
+def _protect_presentation_version(_mapper, _connection, target) -> None:
     state = inspect(target)
-    changed = sorted(
+    source_changes = sorted(
         field
         for field in IMMUTABLE_PRESENTATION_SOURCE_FIELDS
         if state.attrs[field].history.has_changes()
     )
-    if changed:
+    if source_changes:
         raise ValueError(
             "Sunum kaynak snapshot alanları değiştirilemez; yeni sürüm oluşturun: "
-            + ", ".join(changed)
+            + ", ".join(source_changes)
         )
+
+    status_history = state.attrs.status.history
+    previous_status = (
+        str(status_history.deleted[0])
+        if status_history.deleted
+        else str(target.status or "")
+    )
+    next_status = str(target.status or "")
+
+    if previous_status in {"approved", "archived"}:
+        output_changes = sorted(
+            field
+            for field in LOCKED_APPROVED_OUTPUT_FIELDS
+            if state.attrs[field].history.has_changes()
+        )
+        if output_changes:
+            raise ValueError(
+                "Onaylı sunum dosyaları ve hash alanları değiştirilemez: "
+                + ", ".join(output_changes)
+            )
+    if previous_status == "approved" and next_status not in {"approved", "archived"}:
+        raise ValueError("Onaylı sunum yalnız arşivlenebilir.")
+    if previous_status == "archived" and next_status != "archived":
+        raise ValueError("Arşivlenmiş sunum durumu değiştirilemez.")

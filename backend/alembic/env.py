@@ -8,6 +8,7 @@ from app.core.database import Base
 from app.models import entities  # noqa: F401
 from app.models import training_nace  # noqa: F401
 from app.models import training_presentation  # noqa: F401
+from app.models import training_presentation_approval  # noqa: F401
 
 config = context.config
 
