@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint src/auth_session.js src/legal_acceptances.jsx src/memberships_panel.jsx src/api.js src/validation.js src/field_offline.js src/training_question_bank_logic.js src/training_question_bank_logic.test.js src/training_certificate_download_hotfix.js src/training_certificate_download_hotfix.test.js src/csgb_readiness_logic.js src/csgb_readiness_logic.test.js src/csgb_readiness_bridge.js src/csgb_audit_print_logic.js src/csgb_audit_print_logic.test.js src/csgb_audit_print_bridge.js src/professional_performance_excel_logic.js src/professional_performance_excel_logic.test.js src/professional_performance_excel_bridge.js src/committee_approval_queue.jsx src/ohs_committee_page.jsx src/eyas_digital_approval_v2.jsx",
+    "lint": "eslint src/auth_session.js src/legal_acceptances.jsx src/memberships_panel.jsx src/api.js src/validation.js src/field_offline.js src/training_question_bank_logic.js src/training_question_bank_logic.test.js src/training_certificate_download_hotfix.js src/training_certificate_download_hotfix.test.js src/training_presentation_readiness_logic.js src/training_presentation_readiness_logic.test.js src/training_presentation_readiness_bridge.js src/csgb_readiness_logic.js src/csgb_readiness_logic.test.js src/csgb_readiness_bridge.js src/csgb_audit_print_logic.js src/csgb_audit_print_logic.test.js src/csgb_audit_print_bridge.js src/professional_performance_excel_logic.js src/professional_performance_excel_logic.test.js src/professional_performance_excel_bridge.js src/committee_approval_queue.jsx src/ohs_committee_page.jsx src/eyas_digital_approval_v2.jsx",
     "test:e2e": "playwright test"
   },
   "dependencies": {
