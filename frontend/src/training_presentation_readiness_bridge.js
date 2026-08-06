@@ -17,6 +17,7 @@ const panelState = new Map();
 const inFlight = new Set();
 let timer = null;
 let activeDialog = null;
+let dialogReturnFocus = null;
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -65,6 +66,23 @@ function formatDate(value) {
   } catch {
     return String(value);
   }
+}
+
+function renderSignature(readiness, versions, state) {
+  return JSON.stringify({
+    enabled: readiness.enabled,
+    visible: readiness.visible,
+    generationAllowed: readiness.generationAllowed,
+    blockerCount: readiness.blockerCount,
+    warningCount: readiness.warningCount,
+    nextAction: readiness.nextAction,
+    classification: readiness.classification,
+    checks: readiness.checks,
+    rows: versions.rows,
+    busy: state.busy,
+    message: state.message,
+    error: state.error,
+  });
 }
 
 function versionHistoryHtml(versions) {
@@ -168,6 +186,7 @@ function renderPanel(anchor, readiness, versions) {
   removePanelsExcept(readiness.trainingId);
   let section = document.querySelector(`.${PANEL_CLASS}[data-training-id="${readiness.trainingId}"]`);
   if (!section) {
+    if (!anchor?.isConnected) return;
     section = document.createElement('section');
     section.className = `panel ${PANEL_CLASS}`;
     section.dataset.trainingId = String(readiness.trainingId);
@@ -177,6 +196,9 @@ function renderPanel(anchor, readiness, versions) {
   }
 
   const state = getState(readiness.trainingId);
+  const signature = renderSignature(readiness, versions, state);
+  if (section.dataset.renderSignature === signature) return;
+
   const latest = versions.latest;
   const naceText = readiness.classification.naceCode
     ? `${readiness.classification.naceCode} · ${readiness.classification.naceDescription || 'NACE açıklaması'}`
@@ -224,13 +246,17 @@ function renderPanel(anchor, readiness, versions) {
         : 'NACE, içerik sözleşmesi ve üretim altyapısı hazır.'}
       ${readiness.warningCount ? ` · ${readiness.warningCount} uzman inceleme uyarısı var.` : ''}
     </p>`;
+  section.dataset.renderSignature = signature;
 }
 
 function closeDialog() {
   if (!activeDialog) return;
   activeDialog.remove();
   activeDialog = null;
+  document.body.style.removeProperty('overflow');
   document.removeEventListener('keydown', dialogKeydown);
+  if (dialogReturnFocus?.isConnected) dialogReturnFocus.focus();
+  dialogReturnFocus = null;
 }
 
 function dialogKeydown(event) {
@@ -239,6 +265,7 @@ function dialogKeydown(event) {
 
 function showManifestDialog(manifest) {
   closeDialog();
+  dialogReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const slides = Array.isArray(manifest?.slides) ? manifest.slides : [];
   const overlay = document.createElement('div');
   overlay.className = 'training-presentation-preview';
@@ -273,6 +300,7 @@ function showManifestDialog(manifest) {
     if (event.target === overlay || event.target.closest('[data-preview-close]')) closeDialog();
   });
   document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
   activeDialog = overlay;
   document.addEventListener('keydown', dialogKeydown);
   overlay.querySelector('[data-preview-close]')?.focus();
@@ -334,7 +362,8 @@ async function handlePanelClick(event) {
   setState(trainingId, {busy: action, message: '', error: ''});
   try {
     const cached = await loadPanelData(trainingId);
-    renderPanel(outputPanel(), cached.readiness, cached.versions);
+    const anchor = outputPanel();
+    if (anchor) renderPanel(anchor, cached.readiness, cached.versions);
 
     if (action === 'preview') {
       const manifest = await api(`/trainings/${trainingId}/presentation-manifest-preview`);
