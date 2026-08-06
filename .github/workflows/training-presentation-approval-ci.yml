@@ -1,0 +1,116 @@
+name: Training Presentation Approval CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  approval-sqlite:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      ENVIRONMENT: development
+      SECRET_KEY: ci-secret-key-at-least-32-characters-long
+      DATABASE_URL: sqlite:///./presentation_approval_ci.db
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Approval and API tests
+        run: >
+          pytest -q
+          tests/test_training_presentation_approval.py
+          tests/test_training_presentation_approval_api.py
+          tests/test_training_presentation_versions.py
+          tests/test_training_presentation_generation.py
+          tests/test_training_presentation_renderer.py
+          tests/test_training_presentation_readiness.py
+          tests/test_training_completion.py
+          tests/test_training_rules.py
+
+  approval-postgres:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: isg
+          POSTGRES_PASSWORD: isg
+          POSTGRES_DB: isg_approval_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U isg -d isg_approval_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ENVIRONMENT: development
+      SECRET_KEY: ci-secret-key-at-least-32-characters-long
+      DATABASE_URL: postgresql+psycopg://isg:isg@localhost:5432/isg_approval_ci
+      CI_POSTGRES: "1"
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Upgrade to approval head
+        run: alembic upgrade head
+      - name: Head parity and approval tests
+        run: |
+          python scripts/ci_postgres_parity.py
+          pytest -q \
+            tests/test_training_presentation_approval.py \
+            tests/test_training_presentation_approval_api.py \
+            tests/test_training_presentation_versions.py \
+            tests/test_training_presentation_generation.py
+      - name: Downgrade approval table only
+        run: |
+          alembic downgrade 0079_training_presentation
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, inspect
+          inspector = inspect(create_engine(os.environ["DATABASE_URL"]))
+          assert not inspector.has_table("training_presentation_approvals")
+          assert inspector.has_table("training_presentation_versions")
+          assert inspector.has_table("training_sessions")
+          assert inspector.has_table("training_nace_snapshots")
+          assert inspector.has_table("training_exam_snapshots")
+          print("OK: 0080 downgrade removed only approval audit table")
+          PY
+      - name: Downgrade presentation version table only
+        run: |
+          alembic downgrade 0078_training_nace
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, inspect
+          inspector = inspect(create_engine(os.environ["DATABASE_URL"]))
+          assert not inspector.has_table("training_presentation_approvals")
+          assert not inspector.has_table("training_presentation_versions")
+          assert inspector.has_table("training_sessions")
+          assert inspector.has_table("training_nace_snapshots")
+          assert inspector.has_table("training_exam_snapshots")
+          print("OK: 0079 downgrade removed only presentation version table")
+          PY
+      - name: Re-upgrade and verify parity
+        run: |
+          alembic upgrade head
+          python scripts/ci_postgres_parity.py
