@@ -11,9 +11,11 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_roles
 from app.core.database import get_db
 from app.models.entities import IsgProfessional, User, UserRole
+from app.services.professional_performance_detail_excel import (
+    build_professional_performance_detail_xlsx_safe,
+)
 from app.services.professional_performance_excel import (
     XLSX_MEDIA_TYPE,
-    build_professional_performance_detail_xlsx,
     build_professional_performance_roster_xlsx,
 )
 
@@ -70,7 +72,7 @@ def professional_performance_detail_xlsx(
     else:
         _resolve_osgb_scope(user, professional.osgb_id)
     try:
-        data, filename = build_professional_performance_detail_xlsx(db, professional_id)
+        data, filename = build_professional_performance_detail_xlsx_safe(db, professional_id)
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
     return StreamingResponse(
