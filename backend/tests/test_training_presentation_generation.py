@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -55,17 +54,15 @@ def _manifest() -> dict:
         "output_formats": ["pptx", "pdf"],
         "training": {"training_id": 101, "company_id": 35, "title": "İSG Eğitimi"},
         "source_registry": [],
-        "slides": [
-            {
-                "position": 1,
-                "section_id": "cover",
-                "title": "İSG Eğitimi",
-                "source_refs": [],
-                "content_blocks": [],
-                "speaker_notes_required": True,
-                "approval_required": False,
-            }
-        ],
+        "slides": [{
+            "position": 1,
+            "section_id": "cover",
+            "title": "İSG Eğitimi",
+            "source_refs": [],
+            "content_blocks": [],
+            "speaker_notes_required": True,
+            "approval_required": False,
+        }],
         "slide_count": 1,
         "core_training_unaffected": True,
     }
@@ -117,18 +114,18 @@ def _rendered() -> RenderedPresentation:
     )
 
 
-def test_feature_disabled_stops_before_renderer_or_storage(monkeypatch):
+def test_pilot_access_denied_stops_before_renderer_or_storage(monkeypatch):
     row = _row()
     db = MagicMock()
     store = FakeStore()
-    monkeypatch.setattr(generation, "nace_training_presentation_active", lambda: False)
+    monkeypatch.setattr(generation, "nace_training_presentation_active", lambda *_: False)
     renderer = MagicMock()
     monkeypatch.setattr(generation, "render_presentation", renderer)
 
     with pytest.raises(generation.PresentationGenerationError) as exc:
         generation.generate_and_store_version(db, row=row, store=store)
 
-    assert exc.value.code == "feature_disabled"
+    assert exc.value.code == "pilot_access_denied"
     renderer.assert_not_called()
     assert store.put_calls == []
     db.commit.assert_not_called()
@@ -138,7 +135,7 @@ def test_success_stores_both_outputs_and_commits_generated_state(monkeypatch):
     row = _row()
     db = MagicMock()
     store = FakeStore()
-    monkeypatch.setattr(generation, "nace_training_presentation_active", lambda: True)
+    monkeypatch.setattr(generation, "nace_training_presentation_active", lambda *_: True)
     monkeypatch.setattr(generation, "render_presentation", lambda _manifest: _rendered())
 
     result = generation.generate_and_store_version(db, row=row, store=store)
@@ -168,7 +165,7 @@ def test_second_storage_failure_deletes_first_and_marks_version_failed(monkeypat
     row = _row()
     db = MagicMock()
     store = FakeStore(fail_on=".pdf")
-    monkeypatch.setattr(generation, "nace_training_presentation_active", lambda: True)
+    monkeypatch.setattr(generation, "nace_training_presentation_active", lambda *_: True)
     monkeypatch.setattr(generation, "render_presentation", lambda _manifest: _rendered())
 
     with pytest.raises(generation.PresentationGenerationError) as exc:
@@ -189,7 +186,7 @@ def test_database_commit_failure_deletes_both_objects(monkeypatch):
     db = MagicMock()
     db.commit.side_effect = RuntimeError("db down")
     store = FakeStore()
-    monkeypatch.setattr(generation, "nace_training_presentation_active", lambda: True)
+    monkeypatch.setattr(generation, "nace_training_presentation_active", lambda *_: True)
     monkeypatch.setattr(generation, "render_presentation", lambda _manifest: _rendered())
 
     with pytest.raises(generation.PresentationGenerationError) as exc:
@@ -222,7 +219,7 @@ def test_generated_or_approved_version_is_not_overwritten(monkeypatch):
     row = _row(status="generated")
     db = MagicMock()
     store = FakeStore()
-    monkeypatch.setattr(generation, "nace_training_presentation_active", lambda: True)
+    monkeypatch.setattr(generation, "nace_training_presentation_active", lambda *_: True)
     with pytest.raises(generation.PresentationGenerationError) as exc:
         generation.generate_and_store_version(db, row=row, store=store)
     assert exc.value.code == "invalid_version_status"
