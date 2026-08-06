@@ -76,7 +76,7 @@ def _seed_scope(db: Session):
     db.add(branch)
     db.flush()
     admin = User(
-        email="admin@example.test",
+        email="admin@example.com",
         full_name="Test Yönetici",
         hashed_password="hash",
         role=UserRole.COMPANY_ADMIN,
@@ -85,7 +85,7 @@ def _seed_scope(db: Session):
         is_active=True,
     )
     field_user = User(
-        email="uzman@example.test",
+        email="uzman@example.com",
         full_name="Saha Uzmanı",
         hashed_password="hash",
         role=UserRole.SAFETY_SPECIALIST,
@@ -107,7 +107,7 @@ def _seed_scope(db: Session):
     professional = IsgProfessional(
         osgb_id=osgb.id,
         full_name="Saha Uzmanı",
-        email="uzman@example.test",
+        email="uzman@example.com",
         professional_type=ProfessionalType.SAFETY_SPECIALIST,
         certificate_class="A",
         certificate_number="UZM-1",
@@ -166,7 +166,7 @@ def test_schema_rejects_restricted_or_unknown_fields():
     with pytest.raises(ValidationError):
         PersonnelContactVersionCreate(
             contact_type="corporate_email",
-            contact_value="person@example.test",
+            contact_value="person@example.com",
             health_data="blocked",
         )
     with pytest.raises(ValidationError):
@@ -292,7 +292,7 @@ def test_field_role_cannot_create_or_append_profile_data(db: Session):
             profile_id=profile.id,
             payload=PersonnelContactVersionCreate(
                 contact_type="corporate_email",
-                contact_value="person@example.test",
+                contact_value="person@example.com",
             ),
         )
     assert exc.value.status_code == 403
@@ -307,7 +307,7 @@ def test_contact_versions_are_append_only_and_duplicate_safe(db: Session):
         payload=PersonnelContactVersionCreate(
             contact_type="corporate_email",
             label="Kurumsal",
-            contact_value="person@example.test",
+            contact_value="person@example.com",
             visibility="internal_only",
         ),
     )
@@ -325,7 +325,7 @@ def test_contact_versions_are_append_only_and_duplicate_safe(db: Session):
             change_reason="Tekrar gönderim kontrolü",
             contact_type="corporate_email",
             label="Kurumsal",
-            contact_value="person@example.test",
+            contact_value="person@example.com",
             visibility="internal_only",
         ),
     )
@@ -341,7 +341,7 @@ def test_contact_versions_are_append_only_and_duplicate_safe(db: Session):
             change_reason="Kurumsal adres güncellendi",
             contact_type="corporate_email",
             label="Kurumsal",
-            contact_value="new@example.test",
+            contact_value="new@example.com",
             visibility="internal_only",
         ),
     )
@@ -351,7 +351,7 @@ def test_contact_versions_are_append_only_and_duplicate_safe(db: Session):
     assert second.supersedes_id == first.id
     assert db.scalar(select(func.count()).select_from(PersonnelProfileContact)) == 2
 
-    first.contact_value = "tamper@example.test"
+    first.contact_value = "tamper@example.com"
     with pytest.raises(ValueError, match="yeni sürüm oluşturun"):
         db.commit()
     db.rollback()
