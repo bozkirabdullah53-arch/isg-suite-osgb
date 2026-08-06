@@ -61,6 +61,7 @@ jobs:
           tests/test_csgb_readiness_advice.py
           tests/test_integration_readiness.py
           tests/test_csgb_audit_bundle.py
+          tests/test_pro_performance_export.py
           tests/test_committee_professional.py
           tests/test_company_access.py
           tests/test_clamav_scan.py
