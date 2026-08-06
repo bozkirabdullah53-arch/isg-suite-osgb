@@ -10,7 +10,9 @@ let cleanupTimer = null;
 
 function scheduleFallbackCleanup() {
   window.clearTimeout(cleanupTimer);
-  cleanupTimer = window.setTimeout(() => endCsgbPrint(document), 30_000);
+  // afterprint is the normal cleanup path. The long fallback only protects
+  // against browsers that never emit afterprint after a cancelled dialog.
+  cleanupTimer = window.setTimeout(() => endCsgbPrint(document), 300_000);
 }
 
 // Capture runs before React's existing onClick and prepares the DOM before
