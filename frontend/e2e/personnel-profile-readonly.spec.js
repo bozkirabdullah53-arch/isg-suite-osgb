@@ -206,7 +206,7 @@ test('professional preview is built only from an active pilot assignment', async
   const dialog = page.locator('.personnel-profile-readonly-dialog');
   const detail = dialog.locator('.personnel-profile-readonly-dialog__detail');
   await expect(detail.getByRole('heading', {name: 'Mehmet Uzman'})).toBeVisible();
-  await expect(detail.getByText('İş Güvenliği Uzmanı', {exact: true})).toBeVisible();
+  await expect(detail.locator('.personnel-profile-readonly-dialog__identity p')).toHaveText('İş Güvenliği Uzmanı');
   await expect(detail.getByText('UZM-123', {exact: true})).toBeVisible();
   await expect(dialog.getByText('Atamasız Hekim')).toHaveCount(0);
 });
