@@ -2,8 +2,8 @@
 
 The table is isolated from the core training, exam, PDF and certificate models.
 Every row freezes the presentation manifest and all source classifications used
-for that version. Existing versions are never rewritten by the presentation
-service; changed content creates a new version.
+for that version. Existing source snapshots are never rewritten; changed
+content creates a new version. Only lifecycle/output fields may change later.
 """
 from __future__ import annotations
 
@@ -19,6 +19,8 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
+    inspect,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -31,6 +33,37 @@ PRESENTATION_VERSION_STATUSES = (
     "approved",
     "failed",
     "archived",
+)
+
+IMMUTABLE_PRESENTATION_SOURCE_FIELDS = frozenset(
+    {
+        "training_id",
+        "company_id",
+        "branch_id",
+        "nace_snapshot_id",
+        "version",
+        "contract_version",
+        "contract_hash",
+        "template_version",
+        "manifest_version",
+        "manifest_json",
+        "manifest_hash",
+        "catalog_key",
+        "nace_code",
+        "nace_description",
+        "hazard_class",
+        "content_profile_code",
+        "catalog_version",
+        "catalog_hash",
+        "source_snapshot_json",
+        "training_topics_json",
+        "technical_risk_tags_json",
+        "special_risks_json",
+        "output_formats_json",
+        "primary_output_format",
+        "created_by_id",
+        "created_at",
+    }
 )
 
 
@@ -124,3 +157,19 @@ class TrainingPresentationVersion(Base):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     failed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+@event.listens_for(TrainingPresentationVersion, "before_update")
+def _protect_presentation_source_snapshot(_mapper, _connection, target) -> None:
+    """Reject in-place edits to frozen source/manifest fields."""
+    state = inspect(target)
+    changed = sorted(
+        field
+        for field in IMMUTABLE_PRESENTATION_SOURCE_FIELDS
+        if state.attrs[field].history.has_changes()
+    )
+    if changed:
+        raise ValueError(
+            "Sunum kaynak snapshot alanları değiştirilemez; yeni sürüm oluşturun: "
+            + ", ".join(changed)
+        )
