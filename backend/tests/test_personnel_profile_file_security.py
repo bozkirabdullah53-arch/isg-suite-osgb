@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from PIL import Image
 
 from app.api.personnel_profile_documents import _TrackedObjectStore
+from app.api.personnel_profile_management import router as management_router
 from app.services.personnel_profile_file_security import prepare_profile_upload
 
 
@@ -144,3 +145,19 @@ def test_tracked_store_removes_object_after_transaction_failure() -> None:
 
     assert not delegate.exists("private/random-object.pdf")
     assert tracked.created_key is None
+
+
+def test_specific_document_archive_route_precedes_generic_archive_route() -> None:
+    paths = [route.path for route in management_router.routes]
+    document_path = next(
+        index
+        for index, path in enumerate(paths)
+        if path.endswith("/{profile_id}/documents/{document_key}/archive")
+    )
+    generic_path = next(
+        index
+        for index, path in enumerate(paths)
+        if path.endswith("/{profile_id}/{entry_type}/{entry_key}/archive")
+    )
+
+    assert document_path < generic_path
