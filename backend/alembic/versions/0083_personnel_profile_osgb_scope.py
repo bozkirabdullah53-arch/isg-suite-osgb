@@ -1,6 +1,6 @@
 """Scope professional digital cards to their OSGB, never a service workplace.
 
-Revision ID: 0083_personnel_profile_osgb_scope
+Revision ID: 0083_profile_osgb_scope
 Revises: 0082_personnel_profile_documents
 """
 from __future__ import annotations
@@ -10,7 +10,7 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0083_personnel_profile_osgb_scope"
+revision: str = "0083_profile_osgb_scope"
 down_revision: Union[str, None] = "0082_personnel_profile_documents"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -146,8 +146,6 @@ def upgrade() -> None:
         "WHERE subject_type = 'professional' AND legacy_company_id IS NULL"
     )
 
-    # The old subject check does not require company_id, so null the professional
-    # scope before installing the stricter OSGB/company exclusivity check.
     op.execute(
         "UPDATE personnel_profiles SET company_id = NULL "
         "WHERE subject_type = 'professional'"
