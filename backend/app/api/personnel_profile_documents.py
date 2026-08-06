@@ -35,6 +35,7 @@ from app.services.personnel_profile_document import (
     load_profile_document_content,
     upload_profile_document_version,
 )
+from app.services.personnel_profile_file_security import prepare_profile_upload
 
 
 router = APIRouter(tags=["Dijital Personel Kartı Belgeleri"])
@@ -99,8 +100,14 @@ async def upload_profile_document(
     )
     row = None
     created = False
+    new_object_key = None
     try:
         content = await file.read(MAX_PROFILE_DOCUMENT_BYTES + 1)
+        safe_content = prepare_profile_upload(
+            content,
+            filename=file.filename or "upload",
+            document_kind=metadata.document_kind,
+        )
         row, created = upload_profile_document_version(
             db,
             user=user,
@@ -108,14 +115,16 @@ async def upload_profile_document(
             metadata=metadata,
             idempotency_key=idempotency_key,
             filename=file.filename or "upload",
-            content=content,
+            content=safe_content,
         )
+        if created:
+            new_object_key = row.object_key
         db.commit()
         db.refresh(row)
     except Exception:
         db.rollback()
-        if created and row is not None:
-            delete_new_upload_after_failed_commit(row.object_key)
+        if created:
+            delete_new_upload_after_failed_commit(new_object_key)
         raise
     finally:
         await file.close()
