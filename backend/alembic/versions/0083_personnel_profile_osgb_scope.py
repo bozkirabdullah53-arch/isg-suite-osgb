@@ -146,6 +146,23 @@ def upgrade() -> None:
         "WHERE subject_type = 'professional' AND legacy_company_id IS NULL"
     )
 
+    # Populated production schemas still enforce NOT NULL at revision 0082.
+    # Relax every scope column before moving professional rows to OSGB scope.
+    op.alter_column(
+        "personnel_profiles",
+        "company_id",
+        existing_type=sa.Integer(),
+        nullable=True,
+    )
+    for table in _PROFILE_CHILDREN:
+        if inspector.has_table(table):
+            op.alter_column(
+                table,
+                "company_id",
+                existing_type=sa.Integer(),
+                nullable=True,
+            )
+
     op.execute(
         "UPDATE personnel_profiles SET company_id = NULL "
         "WHERE subject_type = 'professional'"
@@ -169,7 +186,6 @@ def upgrade() -> None:
     with op.batch_alter_table("personnel_profiles") as batch:
         batch.drop_constraint("uq_personnel_profile_company_professional", type_="unique")
         batch.drop_constraint("ck_personnel_profile_exact_subject", type_="check")
-        batch.alter_column("company_id", existing_type=sa.Integer(), nullable=True)
         batch.create_unique_constraint(
             "uq_personnel_profile_osgb_professional", ["osgb_id", "professional_id"]
         )
@@ -178,11 +194,6 @@ def upgrade() -> None:
             "(subject_type = 'employee' AND company_id IS NOT NULL AND employee_id IS NOT NULL AND professional_id IS NULL) "
             "OR (subject_type = 'professional' AND company_id IS NULL AND professional_id IS NOT NULL AND employee_id IS NULL)",
         )
-
-    for table in _PROFILE_CHILDREN:
-        if inspector.has_table(table):
-            with op.batch_alter_table(table) as batch:
-                batch.alter_column("company_id", existing_type=sa.Integer(), nullable=True)
 
     _install_profile_policy()
     for table, old_policy, new_policy in _CHILD_POLICIES:
