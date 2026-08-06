@@ -66,6 +66,16 @@ def test_profile_photo_is_decoded_resized_and_reencoded() -> None:
         assert image.getexif() == {}
 
 
+def test_profile_photo_original_size_limit_is_checked_before_decode() -> None:
+    with pytest.raises(HTTPException) as exc:
+        prepare_profile_upload(
+            b"x" * (5 * 1024 * 1024 + 1),
+            filename="profile.png",
+            document_kind="profile_photo",
+        )
+    assert exc.value.status_code == 413
+
+
 def test_fake_image_is_rejected_even_with_allowed_extension() -> None:
     with pytest.raises(HTTPException) as exc:
         prepare_profile_upload(
