@@ -7,8 +7,8 @@
     "node": ">=20 <21"
   },
   "scripts": {
-    "dev": "node scripts/patch_personnel_profile_attach_race.mjs && vite",
-    "build": "node scripts/patch_personnel_profile_attach_race.mjs && node scripts/apply_training_color_theme.mjs && node scripts/activate_training_exam.mjs && node scripts/activate_training_participant_feedback.mjs && vite build",
+    "dev": "node scripts/patch_personnel_profile_attach_race.mjs && node scripts/patch_osgb_professional_cards_only.mjs && vite",
+    "build": "node scripts/patch_personnel_profile_attach_race.mjs && node scripts/patch_osgb_professional_cards_only.mjs && node scripts/apply_training_color_theme.mjs && node scripts/activate_training_exam.mjs && node scripts/activate_training_participant_feedback.mjs && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
