@@ -71,6 +71,7 @@ jobs:
           tests/test_committee_professional.py
           tests/test_company_access.py
           tests/test_personnel_profile_readonly.py
+          tests/test_personnel_profile_core.py
           tests/test_clamav_scan.py
           tests/test_capacity_engine.py
           tests/test_backup_restore.py
@@ -123,14 +124,47 @@ jobs:
         run: alembic upgrade head
       - name: Postgres schema parity
         run: python scripts/ci_postgres_parity.py
-      - name: Pytest (Postgres parity + training NACE + presentation + committee workflow)
+      - name: Pytest (Postgres parity + personnel + training + committee workflow)
         run: >
           pytest -q
           tests/test_ci_postgres_parity.py
+          tests/test_personnel_profile_core.py
           tests/test_training_nace_classification.py
           tests/test_training_presentation_versions.py
           tests/test_training_presentation_generation.py
           tests/test_committee_workflow.py
+      - name: Personnel profile migration downgrade isolation
+        run: |
+          alembic downgrade 0080_presentation_approvals
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, inspect
+          url = os.environ["DATABASE_URL"]
+          engine = create_engine(url)
+          inspector = inspect(engine)
+          for table in (
+              "personnel_profiles",
+              "personnel_profile_contacts",
+              "personnel_profile_competencies",
+              "personnel_profile_experiences",
+          ):
+              assert not inspector.has_table(table), table
+          for table in (
+              "employees",
+              "isg_professionals",
+              "users",
+              "workplace_assignments",
+              "training_sessions",
+              "training_presentation_versions",
+              "training_presentation_approvals",
+          ):
+              assert inspector.has_table(table), table
+          print("OK: personnel profile downgrade removed only isolated profile tables")
+          PY
+      - name: Personnel profile migration re-upgrade parity
+        run: |
+          alembic upgrade head
+          python scripts/ci_postgres_parity.py
       - name: Presentation migration downgrade isolation
         run: |
           alembic downgrade 0078_training_nace
