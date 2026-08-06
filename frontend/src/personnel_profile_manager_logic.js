@@ -16,9 +16,28 @@ export const PROFILE_MANAGER_TABS = [
 ];
 
 export function asRows(payload) {
-  return Array.isArray(payload) ? payload : Array.isArray(payload?.rows) ? payload.rows : [];
+  return Array.isArray(payload) ? payload : Array.isArray(payload?.rows) ? payload.rows : Array.isArray(payload?.items) ? payload.items : [];
 }
 
+export function buildOsgbProfessionalSubjects(professionals, osgbId) {
+  const allowed = new Set(['safety_specialist', 'workplace_physician', 'other_health_personnel']);
+  return normalizeProfessionalRows(professionals, [], new Set())
+    .filter((row) => Number(row.osgbId || row.osgb_id || 0) === Number(osgbId))
+    .filter((row) => allowed.has(String(row.professionalType || row.professional_type || '').toLowerCase()))
+    .filter((row) => row.active !== false && row.is_active !== false)
+    .map((row) => ({
+      ...row,
+      subjectType: 'professional',
+      subjectKey: `professional:${row.id}`,
+      osgbId: Number(osgbId),
+      companyId: null,
+      subtitle: row.professionalTypeLabel,
+    }))
+    .sort((a, b) => String(a.fullName).localeCompare(String(b.fullName), 'tr'));
+}
+
+// Legacy workplace builder is retained for backward compatibility. The OSGB page
+// no longer calls it, so workplace Employee records cannot enter OSGB cards.
 export function buildPersonnelSubjects({employees, professionals, assignments, companyId}) {
   const normalizedEmployees = normalizeEmployeeRows(employees).map((row) => ({
     ...row,
@@ -90,7 +109,7 @@ export function buildProfileHistory(snapshot = {}) {
       entryKey: null,
       version: 1,
       status: source.profile.status || 'active',
-      title: 'Dijital personel kartı oluşturuldu',
+      title: 'Dijital profesyonel kartı oluşturuldu',
       createdAt: source.profile.created_at,
     });
   }
