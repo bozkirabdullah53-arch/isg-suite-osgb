@@ -124,9 +124,9 @@ def test_model_is_isolated_versioned_and_has_future_output_fields():
     assert "pptx_storage_key" not in IMMUTABLE_PRESENTATION_SOURCE_FIELDS
 
 
-def test_feature_disabled_rejects_before_any_database_query(monkeypatch):
+def test_pilot_access_denied_rejects_before_any_database_query(monkeypatch):
     db = MagicMock()
-    monkeypatch.setattr(versions, "nace_training_presentation_active", lambda: False)
+    monkeypatch.setattr(versions, "nace_training_presentation_active", lambda *_: False)
 
     with pytest.raises(versions.PresentationVersionError) as exc:
         versions.create_draft_version(
@@ -135,7 +135,7 @@ def test_feature_disabled_rejects_before_any_database_query(monkeypatch):
             created_by_id=9,
         )
 
-    assert exc.value.code == "feature_disabled"
+    assert exc.value.code == "pilot_access_denied"
     db.scalar.assert_not_called()
     db.add.assert_not_called()
     db.flush.assert_not_called()
@@ -145,7 +145,7 @@ def test_create_draft_freezes_manifest_and_uses_next_version(monkeypatch):
     db = MagicMock()
     snapshot = _snapshot()
     db.scalar.side_effect = [snapshot, 2]
-    monkeypatch.setattr(versions, "nace_training_presentation_active", lambda: True)
+    monkeypatch.setattr(versions, "nace_training_presentation_active", lambda *_: True)
     monkeypatch.setattr(versions, "exact_question_readiness", lambda *_: {"ready": True})
     monkeypatch.setattr(
         versions,
@@ -178,7 +178,7 @@ def test_historical_list_does_not_depend_on_feature_flag(monkeypatch):
     monkeypatch.setattr(
         versions,
         "nace_training_presentation_active",
-        lambda: (_ for _ in ()).throw(AssertionError("flag must not be checked")),
+        lambda *_: (_ for _ in ()).throw(AssertionError("flag must not be checked")),
     )
 
     rows = versions.list_presentation_versions(db, training_id=101)
@@ -213,7 +213,7 @@ def test_payload_exposes_manifest_only_in_detail_mode():
     assert "manifest" not in summary
     assert detail["manifest"]["content_hash"] == "c" * 64
     assert detail["read_only_source_snapshot"] is True
-    assert detail["renderer_available"] is False
+    assert detail["renderer_available"] is True
     assert detail["storage_write"] is False
 
 
@@ -249,7 +249,7 @@ def test_api_list_history_uses_company_access_and_remains_read_only(monkeypatch)
     db.commit.assert_not_called()
 
 
-def test_api_create_disabled_rolls_back_without_affecting_training(monkeypatch):
+def test_api_create_service_error_rolls_back_without_affecting_training(monkeypatch):
     db = MagicMock()
     db.get.return_value = _training()
     user = SimpleNamespace(id=9, company_id=35, role="company_admin")
@@ -258,18 +258,23 @@ def test_api_create_disabled_rolls_back_without_affecting_training(monkeypatch):
         "ensure_company_access",
         lambda *_args, **_kwargs: 35,
     )
+    monkeypatch.setattr(
+        presentation_api,
+        "nace_training_presentation_active",
+        lambda *_: True,
+    )
 
     def disabled(*_args, **_kwargs):
         raise versions.PresentationVersionError(
-            "feature_disabled",
-            "Sunum özelliği kapalıdır.",
+            "pilot_access_denied",
+            "Sunum özelliği bu pilot şirket için kapalıdır.",
         )
 
     monkeypatch.setattr(presentation_api, "create_draft_version", disabled)
     with pytest.raises(HTTPException) as exc:
         presentation_api.create_presentation_version(101, db=db, user=user)
     assert exc.value.status_code == 409
-    assert exc.value.detail["code"] == "feature_disabled"
+    assert exc.value.detail["code"] == "pilot_access_denied"
     assert exc.value.detail["core_training_unaffected"] is True
     assert exc.value.detail["storage_write"] is False
     db.rollback.assert_called_once()
