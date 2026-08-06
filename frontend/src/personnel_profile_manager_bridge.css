@@ -1,0 +1,1 @@
+.ppm-bridge-host{position:fixed;z-index:90;overflow:auto;background:#f3f7f9;padding:20px;box-sizing:border-box;overscroll-behavior:contain}.ppm-bridge-host>.ppm-page{max-width:1500px;margin:0 auto;padding-bottom:28px}.ppm-bridge-host:focus{outline:none}@media(max-width:760px){.ppm-bridge-host{padding:12px 10px 90px}.ppm-bridge-host>.ppm-page{max-width:none}}
