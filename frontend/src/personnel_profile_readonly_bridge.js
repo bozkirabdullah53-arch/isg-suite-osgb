@@ -10,6 +10,7 @@ import {
 import './personnel_profile_readonly.css';
 
 const ENTRY_CLASS = 'personnel-profile-readonly-entry';
+const NAV_ATTRIBUTE = 'data-personnel-profile-nav';
 const readinessCache = new Map();
 const osgbContextCache = new Map();
 let attachTimer = null;
@@ -49,6 +50,10 @@ function removeEntriesExcept(key) {
   document.querySelectorAll(`.${ENTRY_CLASS}`).forEach((entry) => {
     if (String(entry.dataset.contextKey || '') !== String(key || '')) entry.remove();
   });
+}
+
+function removeNavigationEntries() {
+  document.querySelectorAll(`[${NAV_ATTRIBUTE}]`).forEach((entry) => entry.remove());
 }
 
 async function readiness(companyId) {
@@ -291,26 +296,28 @@ async function activeProfessionalContext(osgbId) {
   if (!osgbId) return null;
   if (!osgbContextCache.has(osgbId)) {
     const request = (async () => {
-      const [professionals, assignments] = await Promise.all([
+      const [professionals, assignments, companies] = await Promise.all([
         api(`/osgb/professionals?osgb_id=${encodeURIComponent(osgbId)}`),
         api(`/osgb/assignments?osgb_id=${encodeURIComponent(osgbId)}`),
+        api('/companies', {_retries: 1}).catch(() => []),
       ]);
       const assignmentRows = Array.isArray(assignments) ? assignments : assignments?.rows || [];
-      const candidateCompanyIds = [...new Set(assignmentRows
-        .filter((row) => !row?.status || String(row.status).toLowerCase() === 'active')
-        .map((row) => Number(row?.company_id || 0))
-        .filter((value) => value > 0))].slice(0, 50);
+      const companyRows = Array.isArray(companies) ? companies : companies?.rows || [];
+      const candidateCompanyIds = [...new Set([
+        ...companyRows.map((row) => Number(row?.id || 0)),
+        ...assignmentRows.map((row) => Number(row?.company_id || 0)),
+      ].filter((value) => value > 0))].slice(0, 50);
       const readinessRows = await Promise.all(candidateCompanyIds.map(async (companyId) => ({
         companyId,
         payload: await readiness(companyId),
       })));
-      const pilotCompanyIds = new Set(
-        readinessRows
-          .filter((row) => shouldRenderPersonnelProfileEntry(row.payload))
-          .map((row) => row.companyId),
-      );
+      const pilotCompanyIds = readinessRows
+        .filter((row) => shouldRenderPersonnelProfileEntry(row.payload))
+        .map((row) => row.companyId)
+        .sort((a, b) => a - b);
       return {
-        rows: normalizeProfessionalRows(professionals, assignments, pilotCompanyIds),
+        pilotCompanyIds,
+        rows: normalizeProfessionalRows(professionals, assignments, new Set(pilotCompanyIds)),
       };
     })()
       .catch(() => null)
@@ -366,10 +373,111 @@ async function attachProfessionalEntry(heading) {
   });
 }
 
+function navigationIcon() {
+  return `
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect width="18" height="14" x="3" y="5" rx="2"></rect>
+      <circle cx="8" cy="10" r="2"></circle>
+      <path d="M5.5 16a3 3 0 0 1 5 0"></path>
+      <path d="M13 9h5"></path>
+      <path d="M13 13h5"></path>
+    </svg>`;
+}
+
+function ensureNavigationButton({container, anchor, kind, onOpen}) {
+  if (!container) return;
+  let button = container.querySelector(`[${NAV_ATTRIBUTE}="${kind}"]`);
+  if (!button) {
+    button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute(NAV_ATTRIBUTE, kind);
+    button.setAttribute('aria-haspopup', 'dialog');
+    button.title = 'Dijital Personel Kartı';
+    button.innerHTML = `${navigationIcon()}<span>Dijital Personel Kartı</span>`;
+    if (anchor?.parentElement === container) anchor.insertAdjacentElement('afterend', button);
+    else container.appendChild(button);
+  }
+  button.onclick = () => {
+    const mobileClose = document.querySelector('.mobile-nav-sheet-head button');
+    if (kind === 'mobile' && mobileClose instanceof HTMLElement) mobileClose.click();
+    void Promise.resolve(onOpen()).catch((error) => {
+      openErrorDialog('Dijital Personel Kartı', error?.message || 'Kart merkezi yüklenemedi.');
+    });
+  };
+}
+
+async function openNavigationCenter(osgbId) {
+  osgbContextCache.delete(osgbId);
+  const context = await activeProfessionalContext(osgbId);
+  if (!context?.pilotCompanyIds?.length) {
+    throw new Error('Dijital Personel Kartı bu OSGB için aktif değil.');
+  }
+
+  const employeeGroups = await Promise.all(context.pilotCompanyIds.slice(0, 20).map(async (companyId) => {
+    try {
+      const payload = await api(`/employees?company_id=${encodeURIComponent(companyId)}&include_inactive=true`);
+      return normalizeEmployeeRows(payload).map((row) => ({
+        ...row,
+        subjectType: 'employee',
+        companyId,
+      }));
+    } catch {
+      return [];
+    }
+  }));
+  const employees = employeeGroups.flat();
+  const professionals = (context.rows || []).map((row) => ({...row, subjectType: 'professional'}));
+  const rows = [...employees, ...professionals].sort((a, b) =>
+    String(a.fullName || '').localeCompare(String(b.fullName || ''), 'tr'),
+  );
+
+  openDialog({
+    title: 'Dijital Personel Kartı',
+    subtitle: `${employees.length} personel · ${professionals.length} İSG profesyoneli · salt okunur pilot`,
+    rows,
+    emptyMessage: 'Henüz görüntülenebilir kayıt yok. Mevcut Personel veya İSG Profesyonelleri ekranından kayıt ekleyin.',
+    loadSummary: (row) => row.subjectType === 'professional'
+      ? api(`/personnel-profiles/professional/${row.id}/summary?company_id=${encodeURIComponent(row.companyId)}`)
+      : api(`/personnel-profiles/employee/${row.id}/summary`),
+  });
+}
+
+async function attachNavigationEntries() {
+  const desktopNav = document.querySelector('.nav-desktop');
+  const desktopAnchor = desktopNav?.querySelector('button[data-nav="professionals"]') || null;
+  const mobileGrid = document.querySelector('.mobile-nav-sheet-grid');
+  const mobileAnchor = mobileGrid
+    ? [...mobileGrid.querySelectorAll('button')].find((button) => text(button.textContent) === 'İSG Profesyonelleri') || null
+    : null;
+
+  if (!desktopAnchor && !mobileGrid) {
+    removeNavigationEntries();
+    return;
+  }
+
+  const osgbId = await resolveOsgbId();
+  if (!osgbId) {
+    removeNavigationEntries();
+    return;
+  }
+  const context = await activeProfessionalContext(osgbId);
+  if (!context?.pilotCompanyIds?.length) {
+    removeNavigationEntries();
+    return;
+  }
+
+  const onOpen = () => openNavigationCenter(osgbId);
+  ensureNavigationButton({container: desktopNav, anchor: desktopAnchor, kind: 'desktop', onOpen});
+  if (mobileGrid) {
+    ensureNavigationButton({container: mobileGrid, anchor: mobileAnchor, kind: 'mobile', onOpen});
+  }
+}
+
 async function attach() {
   if (attaching) return;
   attaching = true;
   try {
+    await attachNavigationEntries();
     const employeeHeading = pageHeading('Personel Yönetimi');
     if (employeeHeading) {
       await attachEmployeeEntry(employeeHeading);
