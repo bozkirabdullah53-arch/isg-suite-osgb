@@ -33,5 +33,13 @@ PY
   echo "=== Schema fallback OK ==="
 fi
 
+case "$ENV_LC" in
+  staging)
+    echo "=== Running OSGB professional card scope tests ==="
+    python -m pytest -q tests/test_personnel_profile_osgb_scope.py
+    echo "=== OSGB professional card scope tests OK ==="
+    ;;
+esac
+
 echo "=== Starting API (uvicorn) ==="
 exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
