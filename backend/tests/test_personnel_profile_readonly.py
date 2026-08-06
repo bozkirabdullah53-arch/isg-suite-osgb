@@ -282,10 +282,25 @@ def test_professional_summary_endpoint_uses_assignment_and_company_scope(monkeyp
     assert result["profile"]["active_assignment_count"] == 3
 
 
-def test_router_exposes_only_read_only_phase_two_routes():
+def test_router_preserves_phase_two_routes_and_adds_only_phase_three_core():
     paths = {route.path for route in profile_api.router.routes}
-    assert paths == {
+    phase_two = {
         "/personnel-profiles/readiness",
         "/personnel-profiles/employee/{employee_id}/summary",
         "/personnel-profiles/professional/{professional_id}/summary",
     }
+    phase_three = {
+        "/personnel-profiles",
+        "/personnel-profiles/{profile_id}",
+        "/personnel-profiles/{profile_id}/contacts",
+        "/personnel-profiles/{profile_id}/competencies",
+        "/personnel-profiles/{profile_id}/experiences",
+        "/personnel-profiles/{profile_id}/archive",
+    }
+    assert phase_two <= paths
+    assert phase_three <= paths
+    assert not any(
+        token in path
+        for path in paths
+        for token in ("upload", "photo", "document", "cv", "share", "restricted")
+    )

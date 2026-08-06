@@ -16,6 +16,16 @@ def _url() -> str:
     return url
 
 
+def _has_unique(insp, table: str, expected: set[str]) -> bool:
+    for item in insp.get_unique_constraints(table):
+        if set(item.get("column_names") or []) == expected:
+            return True
+    for item in insp.get_indexes(table):
+        if item.get("unique") and set(item.get("column_names") or []) == expected:
+            return True
+    return False
+
+
 def main() -> int:
     url = _url()
     if "sqlite" in url.lower():
@@ -25,6 +35,12 @@ def main() -> int:
     engine = create_engine(url, pool_pre_ping=True)
     insp = inspect(engine)
 
+    profile_tables = [
+        "personnel_profiles",
+        "personnel_profile_contacts",
+        "personnel_profile_competencies",
+        "personnel_profile_experiences",
+    ]
     required_tables = [
         "alembic_version",
         "companies",
@@ -35,6 +51,7 @@ def main() -> int:
         "health_records",
         "training_nace_snapshots",
         "training_presentation_versions",
+        *profile_tables,
     ]
     missing = [t for t in required_tables if not insp.has_table(t)]
     if missing:
@@ -123,16 +140,88 @@ def main() -> int:
             print(" unique_constraints=", presentation_uqs)
             return 1
 
-        if conn.dialect.name == "postgresql":
-            rls = conn.execute(
-                text(
-                    "SELECT relrowsecurity, relforcerowsecurity "
-                    "FROM pg_class WHERE oid = 'training_presentation_versions'::regclass"
-                )
-            ).one()
-            if not bool(rls[0]) or not bool(rls[1]):
-                print("FAIL: presentation RLS/FORCE RLS missing")
+        profile_columns = {
+            column["name"] for column in insp.get_columns("personnel_profiles")
+        }
+        expected_profile_columns = {
+            "osgb_id",
+            "company_id",
+            "branch_id",
+            "subject_type",
+            "employee_id",
+            "professional_id",
+            "user_id",
+            "status",
+            "created_by_id",
+            "archived_by_id",
+            "created_at",
+            "archived_at",
+        }
+        missing_profile_columns = sorted(expected_profile_columns - profile_columns)
+        if missing_profile_columns:
+            print("FAIL: personnel_profiles columns missing:", ", ".join(missing_profile_columns))
+            return 1
+        if not _has_unique(insp, "personnel_profiles", {"company_id", "employee_id"}):
+            print("FAIL: personnel profile company/employee unique missing")
+            return 1
+        if not _has_unique(insp, "personnel_profiles", {"company_id", "professional_id"}):
+            print("FAIL: personnel profile company/professional unique missing")
+            return 1
+
+        for table in (
+            "personnel_profile_contacts",
+            "personnel_profile_competencies",
+            "personnel_profile_experiences",
+        ):
+            columns = {column["name"] for column in insp.get_columns(table)}
+            expected = {
+                "profile_id",
+                "company_id",
+                "entry_key",
+                "version",
+                "supersedes_id",
+                "lifecycle_status",
+                "created_by_id",
+                "created_at",
+            }
+            missing_columns = sorted(expected - columns)
+            if missing_columns:
+                print(f"FAIL: {table} columns missing:", ", ".join(missing_columns))
                 return 1
+            if not _has_unique(insp, table, {"profile_id", "entry_key", "version"}):
+                print(f"FAIL: {table} append-only version unique missing")
+                return 1
+
+        forbidden_profile_columns = {
+            "national_id",
+            "national_identity",
+            "home_address",
+            "emergency_contact",
+            "health_data",
+            "diagnosis",
+            "criminal_record",
+            "salary",
+            "disciplinary_data",
+        }
+        for table in profile_tables:
+            columns = {column["name"] for column in insp.get_columns(table)}
+            forbidden = sorted(columns & forbidden_profile_columns)
+            if forbidden:
+                print(f"FAIL: restricted columns unexpectedly present in {table}:", ", ".join(forbidden))
+                return 1
+
+        if conn.dialect.name == "postgresql":
+            rls_tables = ["training_presentation_versions", *profile_tables]
+            for table in rls_tables:
+                rls = conn.execute(
+                    text(
+                        "SELECT relrowsecurity, relforcerowsecurity "
+                        f"FROM pg_class WHERE oid = '{table}'::regclass"
+                    )
+                ).one()
+                if not bool(rls[0]) or not bool(rls[1]):
+                    print(f"FAIL: {table} RLS/FORCE RLS missing")
+                    return 1
 
     print("OK: postgres parity checks passed")
     return 0
