@@ -157,10 +157,11 @@ test('employee pilot preview shows only the privacy-minimized summary', async ({
 
   await entry.getByText('Personel Kartlarını Görüntüle').click();
   const dialog = page.locator('.personnel-profile-readonly-dialog');
+  const detail = dialog.locator('.personnel-profile-readonly-dialog__detail');
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText('Ayşe Yılmaz')).toBeVisible();
-  await expect(dialog.getByText('123******90')).toBeVisible();
-  await expect(dialog.getByText('Veri minimizasyonu etkin')).toBeVisible();
+  await expect(detail.getByRole('heading', {name: 'Ayşe Yılmaz'})).toBeVisible();
+  await expect(detail.getByText('123******90', {exact: true})).toBeVisible();
+  await expect(detail.getByText('Veri minimizasyonu etkin', {exact: true})).toBeVisible();
   await expect(dialog.getByText('Sağlık, adli sicil, özel durum')).toBeVisible();
 
   const html = await dialog.innerHTML();
@@ -203,9 +204,10 @@ test('professional preview is built only from an active pilot assignment', async
   await expect(entry).toBeVisible();
   await entry.getByText('Profesyonel Profilleri Görüntüle').click();
   const dialog = page.locator('.personnel-profile-readonly-dialog');
-  await expect(dialog.getByText('Mehmet Uzman')).toBeVisible();
-  await expect(dialog.getByText('İş Güvenliği Uzmanı')).toBeVisible();
-  await expect(dialog.getByText('UZM-123')).toBeVisible();
+  const detail = dialog.locator('.personnel-profile-readonly-dialog__detail');
+  await expect(detail.getByRole('heading', {name: 'Mehmet Uzman'})).toBeVisible();
+  await expect(detail.getByText('İş Güvenliği Uzmanı', {exact: true})).toBeVisible();
+  await expect(detail.getByText('UZM-123', {exact: true})).toBeVisible();
   await expect(dialog.getByText('Atamasız Hekim')).toHaveCount(0);
 });
 
@@ -234,16 +236,20 @@ for (const viewport of [
     const dialog = page.locator('.personnel-profile-readonly-dialog__card');
     await expect(dialog).toBeVisible();
 
-    const dimensions = await page.evaluate(() => ({
-      viewport: window.innerWidth,
-      documentWidth: document.documentElement.scrollWidth,
-      card: document.querySelector('.personnel-profile-readonly-dialog__card')?.getBoundingClientRect(),
-      controls: [...document.querySelectorAll('.personnel-profile-readonly-dialog button')].map((button) => ({
-        width: button.getBoundingClientRect().width,
-        height: button.getBoundingClientRect().height,
-      })),
-    }));
+    const dimensions = await page.evaluate(() => {
+      const box = document.querySelector('.personnel-profile-readonly-dialog__card')?.getBoundingClientRect();
+      return {
+        viewport: window.innerWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        card: box ? {x: box.x, width: box.width} : null,
+        controls: [...document.querySelectorAll('.personnel-profile-readonly-dialog button')].map((button) => ({
+          width: button.getBoundingClientRect().width,
+          height: button.getBoundingClientRect().height,
+        })),
+      };
+    });
     expect(dimensions.documentWidth).toBeLessThanOrEqual(dimensions.viewport);
+    expect(dimensions.card).not.toBeNull();
     expect(dimensions.card.x).toBeGreaterThanOrEqual(0);
     expect(dimensions.card.x + dimensions.card.width).toBeLessThanOrEqual(viewport.width);
     for (const control of dimensions.controls) {
