@@ -1,15 +1,17 @@
-"""0.9.116 — Profesyonel performans CSV dışa aktarım (ÇSGB)."""
+"""Professional performance CSV compatibility + formatted XLSX exports."""
 from __future__ import annotations
 
 from datetime import date, timedelta
+from io import BytesIO
 
 import pytest
 from fastapi.testclient import TestClient
+from openpyxl import load_workbook
 
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    db_file = tmp_path / "pro_perf_csv.db"
+    db_file = tmp_path / "pro_perf_export.db"
     url = f"sqlite:///{db_file.as_posix()}"
     monkeypatch.setenv("DATABASE_URL", url)
     monkeypatch.setenv("ENVIRONMENT", "development")
@@ -108,14 +110,19 @@ def _seed(client: TestClient) -> tuple[str, dict]:
     return r.json()["access_token"], seed
 
 
+def _sheet_values(ws) -> list[object]:
+    return [cell.value for row in ws.iter_rows() for cell in row if cell.value not in (None, "")]
+
+
 def test_health_flag_pro_performance_export(release_flags):
     body = release_flags
     assert body.get("version")
     assert body["pro_performance_export"] == "csv-v1"
+    assert body["pro_performance_excel"] == "xlsx-v1"
     assert body["csgb_company_snapshot"] == "read-only-v1"
 
 
-def test_performance_roster_csv(client):
+def test_performance_roster_csv_remains_backward_compatible(client):
     token, seed = _seed(client)
     headers = {"Authorization": f"Bearer {token}"}
     r = client.get(
@@ -129,7 +136,7 @@ def test_performance_roster_csv(client):
     assert "Zeynep Uzman" in text
 
 
-def test_performance_detail_csv(client):
+def test_performance_detail_csv_remains_backward_compatible(client):
     token, seed = _seed(client)
     headers = {"Authorization": f"Bearer {token}"}
     pid = seed["professional_id"]
@@ -138,3 +145,69 @@ def test_performance_detail_csv(client):
     text = r.content.decode("utf-8-sig")
     assert "row_type" in text
     assert "Zeynep Uzman" in text
+
+
+def test_performance_roster_xlsx_is_readable_and_multisheet(client):
+    token, seed = _seed(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    r = client.get(
+        f"/api/v1/osgb/professionals/performance/export.xlsx?osgb_id={seed['osgb_id']}",
+        headers=headers,
+    )
+    assert r.status_code == 200, r.text
+    content_type = r.headers.get("content-type") or ""
+    assert "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" in content_type
+    assert ".xlsx" in (r.headers.get("content-disposition") or "")
+    assert r.content[:2] == b"PK"
+
+    wb = load_workbook(BytesIO(r.content), data_only=True)
+    try:
+        assert wb.sheetnames == ["Performans Özeti", "Eksik Kontroller", "Kontrol Özeti", "Açıklamalar"]
+        ws = wb["Performans Özeti"]
+        assert ws["A1"].value == "ÇSGB Profesyonel Performans Raporu"
+        assert ws["A9"].value == "Sıra"
+        assert ws["B9"].value == "Ad Soyad"
+        assert ws["C9"].value == "Unvan"
+        assert ws.freeze_panes == "A10"
+        values = _sheet_values(ws)
+        assert "Zeynep Uzman" in values
+        assert "İş Güvenliği Uzmanı" in values
+        assert not any(isinstance(value, str) and "professional_id,full_name" in value for value in values)
+
+        gap_values = _sheet_values(wb["Eksik Kontroller"])
+        assert "Zeynep Uzman" in gap_values
+        assert "Perf Firma" in gap_values
+        assert "Açıklama" in gap_values
+        assert "Mevzuat Dayanağı" in gap_values
+    finally:
+        wb.close()
+
+
+def test_performance_detail_xlsx_contains_summary_and_checklists(client):
+    token, seed = _seed(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    pid = seed["professional_id"]
+    r = client.get(f"/api/v1/osgb/professionals/{pid}/performance/export.xlsx", headers=headers)
+    assert r.status_code == 200, r.text
+    assert ".xlsx" in (r.headers.get("content-disposition") or "")
+
+    wb = load_workbook(BytesIO(r.content), data_only=True)
+    try:
+        assert wb.sheetnames == ["Profesyonel Özeti", "Eksik Kontroller", "Tamamlanan", "Firma Checklist"]
+        summary = wb["Profesyonel Özeti"]
+        assert summary["A1"].value == "Profesyonel Performans Raporu — Zeynep Uzman"
+        assert "Zeynep Uzman" in _sheet_values(summary)
+        assert "İş Güvenliği Uzmanı" in _sheet_values(summary)
+
+        gaps = wb["Eksik Kontroller"]
+        gap_values = _sheet_values(gaps)
+        assert "Perf Firma" in gap_values
+        assert "Eksik" in gap_values
+
+        checklist = wb["Firma Checklist"]
+        checklist_values = _sheet_values(checklist)
+        assert "Firma Bazlı Checklist" in checklist_values
+        assert "Firma Puanı (%)" in checklist_values
+        assert "Perf Firma" in checklist_values
+    finally:
+        wb.close()
