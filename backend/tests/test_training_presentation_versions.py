@@ -6,9 +6,11 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from app.api import training_presentation as presentation_api
 from app.core.database import Base
 from app.models import entities  # noqa: F401
 from app.models import training_nace  # noqa: F401
@@ -213,3 +215,62 @@ def test_payload_exposes_manifest_only_in_detail_mode():
     assert detail["read_only_source_snapshot"] is True
     assert detail["renderer_available"] is False
     assert detail["storage_write"] is False
+
+
+def test_api_list_history_uses_company_access_and_remains_read_only(monkeypatch):
+    db = MagicMock()
+    db.get.return_value = _training()
+    user = SimpleNamespace(id=9, company_id=35, role="company_admin")
+    checked: list[int] = []
+    monkeypatch.setattr(
+        presentation_api,
+        "ensure_company_access",
+        lambda _db, _user, company_id: checked.append(company_id),
+    )
+    monkeypatch.setattr(
+        presentation_api,
+        "list_presentation_versions",
+        lambda _db, *, training_id: [_row(version=2), _row(version=1)],
+    )
+    monkeypatch.setattr(
+        presentation_api,
+        "version_payload",
+        lambda row, **_: {"version": row.version},
+    )
+
+    response = presentation_api.presentation_versions(101, db=db, user=user)
+    assert checked == [35]
+    assert response == {
+        "training_id": 101,
+        "count": 2,
+        "rows": [{"version": 2}, {"version": 1}],
+        "read_only_history": True,
+    }
+    db.commit.assert_not_called()
+
+
+def test_api_create_disabled_rolls_back_without_affecting_training(monkeypatch):
+    db = MagicMock()
+    db.get.return_value = _training()
+    user = SimpleNamespace(id=9, company_id=35, role="company_admin")
+    monkeypatch.setattr(
+        presentation_api,
+        "ensure_company_access",
+        lambda *_args, **_kwargs: 35,
+    )
+
+    def disabled(*_args, **_kwargs):
+        raise versions.PresentationVersionError(
+            "feature_disabled",
+            "Sunum özelliği kapalıdır.",
+        )
+
+    monkeypatch.setattr(presentation_api, "create_draft_version", disabled)
+    with pytest.raises(HTTPException) as exc:
+        presentation_api.create_presentation_version(101, db=db, user=user)
+    assert exc.value.status_code == 409
+    assert exc.value.detail["code"] == "feature_disabled"
+    assert exc.value.detail["core_training_unaffected"] is True
+    assert exc.value.detail["storage_write"] is False
+    db.rollback.assert_called_once()
+    db.commit.assert_not_called()
