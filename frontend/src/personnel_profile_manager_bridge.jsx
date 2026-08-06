@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {api} from './api';
 import {shouldRenderPersonnelProfileEntry} from './personnel_profile_readonly_logic';
 import {PersonnelProfileManagerPage} from './personnel_profile_manager';
+import './personnel_profile_manager_bridge.css';
 
 let mounted=null;
 let resizing=false;
