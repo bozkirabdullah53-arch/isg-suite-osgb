@@ -63,10 +63,11 @@ export function archivedProfileRows(rows) {
 }
 
 export function buildProfileHistory(snapshot = {}) {
+  const source = snapshot && typeof snapshot === 'object' ? snapshot : {};
   const collections = [
-    ['İletişim', asRows(snapshot.contacts)],
-    ['Yeterlilik', asRows(snapshot.competencies)],
-    ['Deneyim', asRows(snapshot.experiences)],
+    ['İletişim', asRows(source.contacts)],
+    ['Yeterlilik', asRows(source.competencies)],
+    ['Deneyim', asRows(source.experiences)],
   ];
   const events = [];
   for (const [category, rows] of collections) {
@@ -82,15 +83,15 @@ export function buildProfileHistory(snapshot = {}) {
       });
     }
   }
-  if (snapshot?.profile?.created_at) {
+  if (source?.profile?.created_at) {
     events.push({
       category: 'Profil',
-      id: snapshot.profile.id,
+      id: source.profile.id,
       entryKey: null,
       version: 1,
-      status: snapshot.profile.status || 'active',
+      status: source.profile.status || 'active',
       title: 'Dijital personel kartı oluşturuldu',
-      createdAt: snapshot.profile.created_at,
+      createdAt: source.profile.created_at,
     });
   }
   return events.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
