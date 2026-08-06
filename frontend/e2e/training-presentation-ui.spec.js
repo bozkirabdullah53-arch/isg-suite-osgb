@@ -231,7 +231,7 @@ test('approval dialog distinguishes application approval and qualified PAdES', a
   await dialog.getByText("Hash'leri Kilitle ve Onayla").click();
 
   await expect(dialog).toHaveCount(0);
-  await expect(panel.getByText('Uygulama içi uzman onayı')).toBeVisible();
+  await expect(panel.locator('.training-presentation-panel__approval strong').getByText('Uygulama içi uzman onayı', {exact: true})).toBeVisible();
   await expect(panel.getByText('Onaylı Sürümü Arşivle')).toBeVisible();
   expect(calls.approvalBody()).toEqual({
     approval_method: 'application_approval',
