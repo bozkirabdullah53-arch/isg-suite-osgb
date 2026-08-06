@@ -140,9 +140,9 @@ def test_approval_model_is_isolated_unique_and_hash_locked():
     assert ("event_hash",) in unique_sets
 
 
-def test_feature_disabled_rejects_approval_before_database_query(monkeypatch):
+def test_pilot_access_denied_rejects_approval_before_database_query(monkeypatch):
     db = MagicMock()
-    monkeypatch.setattr(approval_service, "nace_training_presentation_active", lambda: False)
+    monkeypatch.setattr(approval_service, "nace_training_presentation_active", lambda *_: False)
 
     with pytest.raises(approval_service.PresentationApprovalError) as exc:
         approval_service.approve_presentation_version(
@@ -153,7 +153,7 @@ def test_feature_disabled_rejects_approval_before_database_query(monkeypatch):
             confirmed_manifest_hash="c" * 64,
         )
 
-    assert exc.value.code == "feature_disabled"
+    assert exc.value.code == "pilot_access_denied"
     db.scalar.assert_not_called()
     db.add.assert_not_called()
     db.flush.assert_not_called()
@@ -163,7 +163,7 @@ def test_application_approval_freezes_three_hashes_and_discloses_legal_status(mo
     db = MagicMock()
     db.scalar.return_value = None
     row = _version()
-    monkeypatch.setattr(approval_service, "nace_training_presentation_active", lambda: True)
+    monkeypatch.setattr(approval_service, "nace_training_presentation_active", lambda *_: True)
 
     approval = approval_service.approve_presentation_version(
         db,
@@ -189,7 +189,7 @@ def test_application_approval_freezes_three_hashes_and_discloses_legal_status(mo
 
 
 def test_manifest_confirmation_and_duplicate_approval_fail_closed(monkeypatch):
-    monkeypatch.setattr(approval_service, "nace_training_presentation_active", lambda: True)
+    monkeypatch.setattr(approval_service, "nace_training_presentation_active", lambda *_: True)
     row = _version()
 
     db = MagicMock()
@@ -222,7 +222,7 @@ def test_verified_pades_approval_accepts_enum_values_and_matching_pdf_hash(monke
     request = _verified_esign_request()
     db.get.return_value = request
     row = _version()
-    monkeypatch.setattr(approval_service, "nace_training_presentation_active", lambda: True)
+    monkeypatch.setattr(approval_service, "nace_training_presentation_active", lambda *_: True)
 
     approval = approval_service.approve_presentation_version(
         db,
@@ -268,7 +268,7 @@ def test_qualified_esign_rejects_unverified_or_mismatched_evidence(
     db.scalar.return_value = None
     db.get.return_value = request
     row = _version()
-    monkeypatch.setattr(approval_service, "nace_training_presentation_active", lambda: True)
+    monkeypatch.setattr(approval_service, "nace_training_presentation_active", lambda *_: True)
 
     with pytest.raises(approval_service.PresentationApprovalError) as exc:
         approval_service.approve_presentation_version(
@@ -338,7 +338,7 @@ def test_archive_requires_existing_approval_and_keeps_history(monkeypatch):
     row = _version(status="approved")
     user = _user()
     db = MagicMock()
-    monkeypatch.setattr(approval_service, "nace_training_presentation_active", lambda: True)
+    monkeypatch.setattr(approval_service, "nace_training_presentation_active", lambda *_: True)
 
     db.scalar.return_value = None
     with pytest.raises(approval_service.PresentationApprovalError) as missing:
