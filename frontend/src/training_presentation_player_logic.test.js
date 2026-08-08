@@ -1,0 +1,62 @@
+import {describe, expect, it} from 'vitest';
+import {normalizeInstructorManifest, playerIndexForKey} from './training_presentation_player_logic';
+
+function manifest() {
+  return {
+    content_hash: 'a'.repeat(64),
+    nace_snapshot: {nace_code: '27.20.01', nace_description: 'Akümülatör parçaları imalatı'},
+    traceability: {
+      version: 'presentation-question-traceability-v1',
+      coverage: {
+        question_total: 20,
+        linked_questions: 20,
+        source_linked_questions: 20,
+        orphan_questions: 0,
+        cross_sector_fallback: false,
+        status: 'passed',
+      },
+      question_links: Array.from({length: 20}, (_, index) => ({
+        slide_positions: [index < 5 ? 1 : 2],
+      })),
+    },
+    slides: [
+      {
+        position: 1,
+        title: 'Temel',
+        section_id: 'foundation_ohs',
+        source_refs: ['tr-law-6331'],
+        content_blocks: [{type: 'tehlike', value: 'Tehlike örneği'}],
+      },
+      {
+        position: 2,
+        title: 'Kurşun',
+        section_id: 'work_specific_topics',
+        source_refs: ['csgb-training-guide'],
+        content_blocks: [{type: 'kontrol_tedbiri', value: 'Kaynağında kontrol'}],
+      },
+    ],
+  };
+}
+
+describe('Eğitmen Modu manifesti', () => {
+  it('20/20 coverage manifestini sunum modeline dönüştürür', () => {
+    const result = normalizeInstructorManifest(manifest());
+    expect(result.coverage).toEqual({total: 20, linked: 20, sourced: 20, orphan: 0});
+    expect(result.slides[0].linkedQuestionCount).toBe(5);
+    expect(result.slides[1].linkedQuestionCount).toBe(15);
+    expect(result.slides[1].bullets[0]).toContain('Kontrol tedbiri');
+  });
+
+  it('eksik coverage için fail-closed olur', () => {
+    const value = manifest();
+    value.traceability.coverage.linked_questions = 19;
+    expect(() => normalizeInstructorManifest(value)).toThrow(/kapsam doğrulaması/);
+  });
+
+  it('klavye gezinmesini sınırlar', () => {
+    expect(playerIndexForKey('ArrowRight', 0, 3)).toBe(1);
+    expect(playerIndexForKey('End', 0, 3)).toBe(2);
+    expect(playerIndexForKey('ArrowRight', 2, 3)).toBe(2);
+    expect(playerIndexForKey('Home', 2, 3)).toBe(0);
+  });
+});
