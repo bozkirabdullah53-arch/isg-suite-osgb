@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import unicodedata
 from copy import deepcopy
 from typing import Any, Callable
 
@@ -66,7 +67,9 @@ def phase9_active() -> bool:
 
 
 def _fold(value: object) -> str:
-    text = " ".join(str(value or "").casefold().split())
+    raw = unicodedata.normalize("NFKD", str(value or "").casefold())
+    without_marks = "".join(char for char in raw if not unicodedata.combining(char))
+    text = " ".join(without_marks.split())
     return text.translate(str.maketrans({"ç": "c", "ğ": "g", "ı": "i", "ö": "o", "ş": "s", "ü": "u"}))
 
 
