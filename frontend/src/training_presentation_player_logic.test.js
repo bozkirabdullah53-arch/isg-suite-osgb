@@ -1,10 +1,17 @@
 import {describe, expect, it} from 'vitest';
-import {normalizeInstructorManifest, playerIndexForKey} from './training_presentation_player_logic';
+import {
+  INSTRUCTOR_UI_V2,
+  instructorBulletPresentation,
+  normalizeInstructorManifest,
+  playerIndexForKey,
+} from './training_presentation_player_logic';
 
 function manifest() {
   return {
     content_hash: 'a'.repeat(64),
     nace_snapshot: {nace_code: '27.20.01', nace_description: 'Akümülatör parçaları imalatı'},
+    rendering: {instructor_mode_ui: INSTRUCTOR_UI_V2},
+    coverage_v2: {phase9_supported_count: 5, phase9_full_profile: true},
     traceability: {
       version: 'presentation-question-traceability-v1',
       coverage: {
@@ -45,6 +52,35 @@ describe('Eğitmen Modu manifesti', () => {
     expect(result.slides[0].linkedQuestionCount).toBe(5);
     expect(result.slides[1].linkedQuestionCount).toBe(15);
     expect(result.slides[1].bullets[0]).toContain('Kontrol tedbiri');
+    expect(result.uiVersion).toBe(INSTRUCTOR_UI_V2);
+    expect(result.coverageV2.phase9_full_profile).toBe(true);
+  });
+
+  it('kart sunumu için içerik türünü güvenli biçimde sınıflandırır', () => {
+    expect(instructorBulletPresentation('Tehlike: Düşme riski')).toEqual({
+      kind: 'hazard',
+      label: 'Tehlike',
+      text: 'Düşme riski',
+    });
+    expect(instructorBulletPresentation('Kontrol tedbiri: Korkuluk kullan')).toEqual({
+      kind: 'control',
+      label: 'Kontrol tedbiri',
+      text: 'Korkuluk kullan',
+    });
+    expect(instructorBulletPresentation('Serbest eğitim notu')).toEqual({
+      kind: 'context',
+      label: 'Eğitim notu',
+      text: 'Serbest eğitim notu',
+    });
+  });
+
+  it('v2 işareti olmayan tarihsel manifesti v1 olarak bırakır', () => {
+    const value = manifest();
+    delete value.rendering;
+    delete value.coverage_v2;
+    const result = normalizeInstructorManifest(value);
+    expect(result.uiVersion).toBe('instructor-mode-v1');
+    expect(result.coverageV2).toBe(null);
   });
 
   it('eksik coverage için fail-closed olur', () => {

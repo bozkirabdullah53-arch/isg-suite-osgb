@@ -26,7 +26,7 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - name: Install
         run: pip install -r requirements.txt
-      - name: Pilot, force-off, history, traceability and approval tests
+      - name: Pilot, force-off, history, traceability, coverage and approval tests
         run: >
           pytest -q
           tests/test_training_presentation_rollout.py
@@ -39,6 +39,8 @@ jobs:
           tests/test_training_presentation_renderer.py
           tests/test_training_presentation_contract.py
           tests/test_training_presentation_phase8.py
+          tests/test_training_presentation_phase9.py
+          tests/test_training_presentation_phase9_scope_guard.py
       - name: Rollout runbook safety contract
         run: |
           python - <<'PY'
@@ -46,6 +48,7 @@ jobs:
 
           phase7 = Path("../docs/nace-training-presentation/phase-7-rollout-rollback.md").read_text(encoding="utf-8")
           phase8 = Path("../docs/nace-training-presentation/phase-8-traceability-instructor-mode.md").read_text(encoding="utf-8")
+          phase9 = Path("../docs/nace-training-presentation/phase-9-coverage-visual-quality.md").read_text(encoding="utf-8")
           required_phase7 = [
               "NACE_TRAINING_PRESENTATION_ENABLED=false",
               "NACE_TRAINING_PRESENTATION_FORCE_OFF=true",
@@ -64,10 +67,19 @@ jobs:
               "company_id=118",
               "migration yoktur",
           ]
+          required_phase9 = [
+              "NACE_TRAINING_PRESENTATION_COVERAGE_V2_ENABLED=false",
+              "NACE_TRAINING_PRESENTATION_COVERAGE_V2_FORCE_OFF=true",
+              "15 konu",
+              "instructor-mode-v2",
+              "migration yoktur",
+              "Cross-sector fallback eklenmez",
+          ]
           missing = [value for value in required_phase7 if value not in phase7]
           missing += [value for value in required_phase8 if value not in phase8]
+          missing += [value for value in required_phase9 if value not in phase9]
           assert not missing, f"Rollout runbook eksik güvenlik maddeleri: {missing}"
-          print("OK: rollout, traceability and rollback safety contract")
+          print("OK: rollout, traceability, coverage-v2 and rollback safety contract")
           PY
 
   rollout-frontend:

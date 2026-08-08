@@ -49,6 +49,8 @@ function traceableManifest() {
     content_hash: 'a'.repeat(64),
     manifest_version: 'nace-training-presentation-manifest-v2-traceability',
     nace_snapshot: {nace_code: '27.20.01', nace_description: 'Elektrik akümülatör parçalarının imalatı'},
+    rendering: {traceability_ready: true, instructor_mode_supported: true, instructor_mode_ui: 'instructor-mode-v2', coverage_v2_active: true},
+    coverage_v2: {enabled: true, version: 'nace-training-presentation-coverage-v2', topic_count: 5, phase9_supported_count: 5, phase9_full_profile: true},
     traceability: {
       version: 'presentation-question-traceability-v1',
       coverage: {
@@ -74,7 +76,7 @@ function traceableManifest() {
         position: 2,
         section_id: 'work_specific_topics',
         title: 'Kurşun maruziyeti ve kontrolü',
-        source_refs: ['ÇSGB İSGÜM'],
+        source_refs: ['https://www.csgb.gov.tr/isgum/hizli-erisim/tozla-mucadele/'],
         content_blocks: [
           {type: 'tehlike', value: 'Kurşun içeren toz ve duman çalışan maruziyetine neden olabilir.'},
           {type: 'kontrol_tedbiri', value: 'Kaynağında kapatma ve yerel emiş gibi mühendislik kontrolleri uygulanmalıdır.'},
@@ -120,7 +122,7 @@ async function injectTrainingOutput(page) {
   });
 }
 
-test('traceable generated presentation opens fullscreen instructor mode and keeps core controls', async ({page}) => {
+test('traceable generated presentation opens fullscreen instructor mode v2 and keeps core controls', async ({page}) => {
   await installRoutes(page);
   await page.goto('/');
   await injectTrainingOutput(page);
@@ -133,23 +135,35 @@ test('traceable generated presentation opens fullscreen instructor mode and keep
 
   const player = page.locator('.training-instructor-mode');
   await expect(player).toBeVisible();
+  await expect(player).toHaveAttribute('data-ui-version', 'instructor-mode-v2');
+  await expect(player.getByText('Kaynak kontrollü · v2')).toBeVisible();
   await expect(player.getByText('Temel İSG İlkeleri')).toBeVisible();
   await expect(player.getByText('20/20 soru kapsaması doğrulandı')).toBeVisible();
+  await expect(player.locator('[data-content-kind="hazard"]')).toBeVisible();
+
   await page.keyboard.press('ArrowRight');
   await expect(player.getByText('Kurşun maruziyeti ve kontrolü')).toBeVisible();
   await expect(player.getByText('15 sınav sorusu bu slayta bağlı')).toBeVisible();
+  await expect(player.getByText('5/5 genişletilmiş NACE konu paketi')).toBeVisible();
+  await expect(player.locator('[data-content-kind="hazard"]')).toBeVisible();
+  await expect(player.locator('[data-content-kind="control"]')).toBeVisible();
+  await expect(player.locator('[data-content-kind="behavior"]')).toBeVisible();
+  await expect(player.locator('.training-instructor-mode__sources a')).toHaveAttribute('href', /csgb\.gov\.tr/);
+
   await page.keyboard.press('Escape');
   await expect(player).toHaveCount(0);
   await expect(page.getByText('Sertifika PDF')).toBeVisible();
 });
 
-test('instructor mode stays within a 390px mobile viewport', async ({page}) => {
+test('instructor mode v2 stays within a 390px mobile viewport', async ({page}) => {
   await page.setViewportSize({width: 390, height: 844});
   await installRoutes(page);
   await page.goto('/');
   await injectTrainingOutput(page);
   await page.locator('.training-presentation-panel').getByRole('button', {name: 'Eğitmen Modu'}).click();
-  await expect(page.locator('.training-instructor-mode')).toBeVisible();
+  const player = page.locator('.training-instructor-mode');
+  await expect(player).toBeVisible();
+  await expect(player.locator('.training-instructor-mode__cards')).toBeVisible();
   const widths = await page.evaluate(() => ({viewport: window.innerWidth, documentWidth: document.documentElement.scrollWidth}));
   expect(widths.documentWidth).toBeLessThanOrEqual(widths.viewport);
 });
