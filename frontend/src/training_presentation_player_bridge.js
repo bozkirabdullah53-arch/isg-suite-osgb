@@ -1,5 +1,10 @@
 import {api} from './api';
-import {normalizeInstructorManifest, playerIndexForKey} from './training_presentation_player_logic';
+import {
+  INSTRUCTOR_UI_V2,
+  instructorBulletPresentation,
+  normalizeInstructorManifest,
+  playerIndexForKey,
+} from './training_presentation_player_logic';
 import './training_presentation_player.css';
 
 const PANEL_SELECTOR = '.training-presentation-panel[data-training-id]';
@@ -17,6 +22,48 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
+function isHttpUrl(value) {
+  return /^https?:\/\//i.test(String(value || '').trim());
+}
+
+function sectionLabel(sectionId) {
+  const labels = {
+    cover: 'Açılış',
+    learning_objectives: 'Öğrenme hedefleri',
+    legal_basis: 'Mevzuat',
+    nace_identity: 'NACE kimliği',
+    training_plan: 'Eğitim planı',
+    foundation_ohs: 'Temel İSG',
+    work_specific_topics: 'İşe özgü riskler',
+    technical_risks: 'Teknik riskler',
+    control_measures: 'Kontrol tedbirleri',
+    ppe: 'KKD',
+    emergency: 'Acil durum',
+    assessment: 'Değerlendirme',
+    summary: 'Özet',
+    sources_and_version: 'Kaynaklar',
+  };
+  return labels[sectionId] || 'Eğitim içeriği';
+}
+
+function sourceMarkup(source) {
+  const value = String(source || '').trim();
+  if (!value) return '';
+  if (isHttpUrl(value)) {
+    return `<a href="${escapeHtml(value)}" target="_blank" rel="noreferrer">${escapeHtml(value)}</a>`;
+  }
+  return `<span>${escapeHtml(value)}</span>`;
+}
+
+function cardMarkup(item) {
+  const card = instructorBulletPresentation(item);
+  return `
+    <article class="training-instructor-mode__card" data-content-kind="${escapeHtml(card.kind)}" role="listitem">
+      <span class="training-instructor-mode__card-label">${escapeHtml(card.label)}</span>
+      <p>${escapeHtml(card.text)}</p>
+    </article>`;
+}
+
 function closePlayer() {
   if (!active) return;
   document.removeEventListener('keydown', active.onKey);
@@ -31,17 +78,35 @@ function renderSlide() {
   const {model, overlay} = active;
   const slide = model.slides[active.index];
   const body = overlay.querySelector('[data-instructor-slide]');
+  const isV2 = model.uiVersion === INSTRUCTOR_UI_V2;
+  const coverageText = model.coverageV2?.phase9_full_profile
+    ? `${Number(model.coverageV2.phase9_supported_count || 0)}/5 genişletilmiş NACE konu paketi`
+    : sectionLabel(slide.sectionId);
+  const content = isV2
+    ? `<div class="training-instructor-mode__cards" role="list">${slide.bullets.map(cardMarkup).join('')}</div>`
+    : `<ul>${slide.bullets.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+  const sourceContent = slide.sources.length
+    ? slide.sources.map((source) => sourceMarkup(source)).join('')
+    : '<span>Kaynak bilgisi manifestte bulunmuyor</span>';
+  const sourceBlock = isV2
+    ? `<div class="training-instructor-mode__sources" aria-label="Slayt kaynakları">
+        <strong>Kaynaklar</strong>
+        <div>${sourceContent}</div>
+      </div>`
+    : `<small>${slide.sources.length ? `Kaynak: ${escapeHtml(slide.sources.slice(0, 2).join(' · '))}` : 'Kaynak bilgisi manifestte bulunmuyor'}</small>`;
+
   body.innerHTML = `
     <div class="training-instructor-mode__meta">
       <span>${escapeHtml(model.naceCode)} · ${active.index + 1}/${model.slideCount}</span>
+      <span>${escapeHtml(coverageText)}</span>
       <span>20/20 soru kapsaması doğrulandı</span>
     </div>
     <h2>${escapeHtml(slide.title)}</h2>
-    <ul>${slide.bullets.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>
+    ${content}
     <div class="training-instructor-mode__footer">
       <span>${slide.linkedQuestionCount ? `${slide.linkedQuestionCount} sınav sorusu bu slayta bağlı` : 'Bu slayt doğrudan sınav sorusu taşımıyor'}</span>
       ${slide.approvalRequired ? '<strong>Uzman/işyeri onayı gerekli</strong>' : ''}
-      <small>${slide.sources.length ? `Kaynak: ${escapeHtml(slide.sources.slice(0, 2).join(' · '))}` : 'Kaynak bilgisi manifestte bulunmuyor'}</small>
+      ${sourceBlock}
     </div>`;
   overlay.querySelector('[data-player-prev]').disabled = active.index === 0;
   overlay.querySelector('[data-player-next]').disabled = active.index === model.slideCount - 1;
@@ -51,7 +116,8 @@ function renderSlide() {
 function openPlayer(model, returnFocus) {
   closePlayer();
   const overlay = document.createElement('div');
-  overlay.className = 'training-instructor-mode';
+  overlay.className = `training-instructor-mode${model.uiVersion === INSTRUCTOR_UI_V2 ? ' is-v2' : ''}`;
+  overlay.dataset.uiVersion = model.uiVersion;
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-label', 'Eğitmen sunum modu');
@@ -62,6 +128,7 @@ function openPlayer(model, returnFocus) {
         <strong>Eğitmen Modu</strong>
         <span>${escapeHtml(model.naceCode)} · ${escapeHtml(model.naceDescription)}</span>
       </div>
+      ${model.uiVersion === INSTRUCTOR_UI_V2 ? '<span class="training-instructor-mode__quality-badge">Kaynak kontrollü · v2</span>' : ''}
       <button type="button" data-player-close aria-label="Eğitmen modunu kapat">×</button>
     </header>
     <main data-instructor-slide tabindex="0"></main>
