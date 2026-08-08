@@ -23,14 +23,20 @@ from app.services.seed import seed_admin, seed_demo_osgbs
 from app.services.training_runtime_patches import install_training_runtime_patches
 from app.services.training_question_selection_v2 import install_exact_nace_question_selection
 from app.services.training_completion import install_training_completion_guard
+from app.services.training_presentation_phase8 import install_training_presentation_phase8
+from app.services.training_presentation_phase8_generation_guard import install_phase8_generation_guard
 
 logger = logging.getLogger(__name__)
 _training_runtime_status = install_training_runtime_patches()
 _training_question_selection_status = install_exact_nace_question_selection()
 _training_completion_status = install_training_completion_guard()
+_training_presentation_phase8_status = install_training_presentation_phase8()
+_training_presentation_phase8_generation_status = install_phase8_generation_guard()
 logger.info("training runtime patches: %s", _training_runtime_status)
 logger.info("training exact NACE question selection: %s", _training_question_selection_status)
 logger.info("training completion guard: %s", _training_completion_status)
+logger.info("training presentation phase 8: %s", _training_presentation_phase8_status)
+logger.info("training presentation phase 8 generation guard: %s", _training_presentation_phase8_generation_status)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

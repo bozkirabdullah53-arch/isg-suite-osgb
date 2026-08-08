@@ -1,0 +1,37 @@
+.training-instructor-mode {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  background: #071f24;
+  color: #f8fffe;
+}
+.training-instructor-mode__progress {height: 5px;background: rgba(255,255,255,.15)}
+.training-instructor-mode__progress span {display:block;height:100%;background:#2dd4bf;transition:width .18s ease}
+.training-instructor-mode > header {display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 28px;border-bottom:1px solid rgba(255,255,255,.15)}
+.training-instructor-mode > header div {display:grid;gap:3px;min-width:0}
+.training-instructor-mode > header strong {font-size:18px}
+.training-instructor-mode > header span {font-size:13px;color:#b8d9d5;overflow-wrap:anywhere}
+.training-instructor-mode > header button {width:44px;height:44px;border:0;border-radius:12px;background:rgba(255,255,255,.12);color:#fff;font-size:28px;cursor:pointer}
+.training-instructor-mode main {align-self:center;width:min(1180px,92vw);margin:0 auto;padding:34px 40px;outline:none}
+.training-instructor-mode__meta {display:flex;justify-content:space-between;gap:16px;color:#7dd3c7;font-weight:700;font-size:14px;margin-bottom:18px}
+.training-instructor-mode h2 {margin:0 0 28px;font-size:clamp(28px,4vw,52px);line-height:1.08;max-width:1100px}
+.training-instructor-mode ul {display:grid;gap:15px;margin:0;padding-left:28px;font-size:clamp(18px,2vw,28px);line-height:1.35}
+.training-instructor-mode__footer {display:grid;gap:7px;margin-top:30px;padding-top:18px;border-top:1px solid rgba(255,255,255,.16);color:#b8d9d5}
+.training-instructor-mode__footer strong {color:#fbbf24}
+.training-instructor-mode__footer small {overflow-wrap:anywhere}
+.training-instructor-mode nav {display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:18px;padding:16px 28px;border-top:1px solid rgba(255,255,255,.15)}
+.training-instructor-mode nav span {text-align:center;color:#91b7b3;font-size:12px}
+.training-instructor-mode nav button {min-height:44px;padding:0 18px;border:1px solid rgba(255,255,255,.25);border-radius:12px;background:rgba(255,255,255,.1);color:#fff;font-weight:700;cursor:pointer}
+.training-instructor-mode nav button:disabled {opacity:.35;cursor:default}
+@media (max-width: 760px) {
+  .training-instructor-mode > header {padding:12px 16px}
+  .training-instructor-mode main {width:auto;padding:24px 22px}
+  .training-instructor-mode__meta {display:grid;gap:5px}
+  .training-instructor-mode nav {grid-template-columns:1fr 1fr;padding:12px 16px}
+  .training-instructor-mode nav span {display:none}
+}
+@media (prefers-reduced-motion: reduce) {
+  .training-instructor-mode__progress span {transition:none}
+}
