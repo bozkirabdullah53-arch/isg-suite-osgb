@@ -94,4 +94,4 @@ jobs:
       - name: Desktop, laptop, tablet and mobile E2E
         run: |
           npx playwright install --with-deps chromium
-          npx playwright test e2e/training-presentation-ui.spec.js
+          npx playwright test e2e/training-presentation-ui.spec.js e2e/training-presentation-instructor-mode.spec.js
