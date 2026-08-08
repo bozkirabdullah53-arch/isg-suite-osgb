@@ -64,6 +64,7 @@ jobs:
           tests/test_training_presentation_renderer.py
           tests/test_training_presentation_generation.py
           tests/test_training_presentation_api_phase4.py
+          tests/test_training_presentation_phase9.py
           tests/test_csgb_readiness_advice.py
           tests/test_integration_readiness.py
           tests/test_csgb_audit_bundle.py
