@@ -91,7 +91,11 @@ def _pack(
     }
 
 
+# Rules intentionally require multiple distinctive fragments. This prevents a
+# generic word such as "elektrik", "yangın" or "ergonomi" from stealing a
+# topic that belongs to another sector. Phase 8 remains the only fallback.
 _PHASE9_RULES: tuple[tuple[tuple[str, ...], dict[str, Any]], ...] = (
+    # Construction / site work
     (("yuksekte calisma", "dusmeyi onleme", "kurtarma"), _pack(
         "construction-work-at-height",
         "Korunmasız kenar, açıklık veya uygun olmayan erişim üzerinden yüksekte çalışma; yüksekten düşme ve düşme sonrası askıda kalma gibi ağır sonuçlu tehlikeler oluşturur.",
@@ -142,6 +146,8 @@ _PHASE9_RULES: tuple[tuple[tuple[str, ...], dict[str, Any]], ...] = (
         "Belirlenmiş yaya yolunu terk etmemek; hasarlı kablo/pano veya güvenli olmayan araç manevrası görüldüğünde tehlikeli alana girmeden işi durdurup bildirmek gerekir.",
         source=_CONSTRUCTION_LEGISLATION_SOURCE,
     )),
+
+    # Warehouse / logistics
     (("forklift", "transpalet", "yaya trafigi"), _pack(
         "logistics-forklift-pedestrian",
         "Forklift ve transpaletlerin yaya ile aynı alanda kontrolsüz hareketi; özellikle kör nokta, geri manevra ve kavşaklarda çarpma ve ezilme riski oluşturur.",
@@ -192,6 +198,8 @@ _PHASE9_RULES: tuple[tuple[tuple[str, ...], dict[str, Any]], ...] = (
         "Aşırı ısınma, koku, sızıntı, hasarlı kablo veya havalandırma arızasında şarjı normal sürdürmemek; alan prosedürüne göre güvenli durdurma ve bildirim yapmak gerekir.",
         source=_LOGISTICS_SOURCE,
     )),
+
+    # Hospital / healthcare
     (("biyolojik etken", "enfeksiyon kontrolu", "izolasyon"), _pack(
         "health-biological-exposure",
         "Kan, vücut sıvıları, damlacık/aerosol veya kontamine yüzey ve malzemeler üzerinden biyolojik etkenlere maruziyet; çalışanlarda enfeksiyon riski oluşturabilir.",
@@ -286,6 +294,7 @@ def mark_manifest_for_phase9_ui(manifest: dict[str, Any]) -> dict[str, Any]:
 
 
 def install_training_presentation_phase9() -> dict[str, str]:
+    """Install idempotent exact-first Phase 9 wrappers after Phase 8."""
     from app.services import training_presentation_phase8 as phase8
 
     resolver_state = "already-active"
