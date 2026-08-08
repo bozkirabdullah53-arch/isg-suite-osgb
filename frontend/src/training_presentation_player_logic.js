@@ -1,4 +1,5 @@
 export const TRACEABILITY_VERSION = 'presentation-question-traceability-v1';
+export const INSTRUCTOR_UI_V2 = 'instructor-mode-v2';
 
 function clean(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -34,6 +35,30 @@ function blockBullets(block) {
     return [`${clean(type).replaceAll('_', ' ')}: ${clean(block.value)}`];
   }
   return [];
+}
+
+export function instructorBulletPresentation(item) {
+  const value = clean(item);
+  const lowered = value.toLocaleLowerCase('tr-TR');
+  const definitions = [
+    ['tehlike:', 'hazard', 'Tehlike'],
+    ['kontrol tedbiri:', 'control', 'Kontrol tedbiri'],
+    ['güvenli davranış:', 'behavior', 'Güvenli davranış'],
+    ['teknik risk:', 'risk', 'Teknik risk'],
+    ['özel risk:', 'risk', 'Özel risk'],
+    ['kontrol sırası:', 'hierarchy', 'Kontrol hiyerarşisi'],
+    ['nace:', 'identity', 'NACE'],
+    ['tehlike sınıfı:', 'identity', 'Tehlike sınıfı'],
+    ['sınav kapsamı:', 'assessment', 'Sınav kapsamı'],
+    ['konu:', 'context', 'Konu'],
+    ['risk:', 'risk', 'Risk'],
+  ];
+  for (const [prefix, kind, label] of definitions) {
+    if (lowered.startsWith(prefix)) {
+      return {kind, label, text: value.slice(prefix.length).trim()};
+    }
+  }
+  return {kind: 'context', label: 'Eğitim notu', text: value};
 }
 
 export function normalizeInstructorManifest(manifest) {
@@ -85,6 +110,8 @@ export function normalizeInstructorManifest(manifest) {
     naceCode: clean(manifest.nace_snapshot?.nace_code),
     naceDescription: clean(manifest.nace_snapshot?.nace_description),
     slideCount: slides.length,
+    uiVersion: clean(manifest.rendering?.instructor_mode_ui) || 'instructor-mode-v1',
+    coverageV2: manifest.coverage_v2 && typeof manifest.coverage_v2 === 'object' ? manifest.coverage_v2 : null,
     coverage: {
       total: 20,
       linked: 20,
