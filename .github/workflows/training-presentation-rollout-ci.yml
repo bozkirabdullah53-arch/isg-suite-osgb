@@ -40,6 +40,7 @@ jobs:
           tests/test_training_presentation_contract.py
           tests/test_training_presentation_phase8.py
           tests/test_training_presentation_phase9.py
+          tests/test_training_presentation_phase9_scope_guard.py
       - name: Rollout runbook safety contract
         run: |
           python - <<'PY'
