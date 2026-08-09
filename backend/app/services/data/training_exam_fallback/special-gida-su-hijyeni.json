@@ -1,0 +1,585 @@
+{
+  "pack_version": "special-gida-su-hijyeni-v1",
+  "items": [
+    {
+      "question_code": "GSH-01",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Gıda ve su hijyeninin amacı ve çalışan sorumlulukları",
+      "question_text": "Gıda ve su sektöründe hijyen eğitiminin temel amacı hangisidir?",
+      "options": [
+        "Üretimi hızlandırmak",
+        "Bulaşma ve gıda kaynaklı hastalık riskini azaltmak",
+        "Yalnızca kıyafet rengini belirlemek",
+        "Denetimleri kaldırmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-02",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Kişisel hijyen, el yıkama ve el antiseptiği",
+      "question_text": "Çalışan ellerini ne zaman mutlaka yıkamalıdır?",
+      "options": [
+        "Sadece vardiya sonunda",
+        "Çiğ gıdaya temas öncesi ve tuvalet sonrası gibi kritik durumlarda",
+        "Yalnızca eldiven yırtılırsa",
+        "Hiçbir zaman"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-03",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Bulaşma yolları ve çapraz bulaşmanın önlenmesi",
+      "question_text": "Çapraz bulaşmayı önlemenin doğru yolu hangisidir?",
+      "options": [
+        "Çiğ ve tüketime hazır gıdayı aynı ekipmanla ayırmadan işlemek",
+        "Çiğ ve hazır gıdayı ayırmak, ekipmanı temizleyip dezenfekte etmek",
+        "Gıdayı açıkta bekletmek",
+        "Eldiveni hiç değiştirmemek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-04",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Gıda kaynaklı biyolojik, kimyasal ve fiziksel tehlikeler",
+      "question_text": "Aşağıdakilerden hangisi fiziksel tehlikedir?",
+      "options": [
+        "Salmonella",
+        "Deterjan kalıntısı",
+        "Cam kırığı",
+        "Alerjen protein"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-05",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "İçme ve kullanma suyunun güvenliği; su depoları ve dağıtım",
+      "question_text": "Gıda hazırlamada kullanılacak su için temel şart hangisidir?",
+      "options": [
+        "Kaynağı belirsiz olması",
+        "İçilebilir ve güvenilir nitelikte olması",
+        "Rengi önemli değildir",
+        "Depoda açık tutulması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-06",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Soğuk zincir, sıcaklık kontrolü ve güvenli depolama",
+      "question_text": "Soğuk zincirin amacı nedir?",
+      "options": [
+        "Gıdayı daha hızlı satmak",
+        "Mikroorganizmaların çoğalmasını kontrol etmek",
+        "Etiketi kaldırmak",
+        "Temizliği ertelemek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-07",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Temizlik, dezenfeksiyon, ekipman ve yüzey hijyeni",
+      "question_text": "Temizlik ile dezenfeksiyon arasındaki doğru sıra hangisidir?",
+      "options": [
+        "Dezenfeksiyon, sonra kaba kir",
+        "Kaba kirin uzaklaştırılması/temizlik, sonra uygun dezenfeksiyon",
+        "Sadece su püskürtmek",
+        "Hiçbiri"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-08",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Atık yönetimi, haşere kontrolü ve personel hastalık bildirimi",
+      "question_text": "Çalışanda bulaşıcı hastalık belirtisi varsa ne yapılmalıdır?",
+      "options": [
+        "Gizlemek",
+        "Yöneticiye bildirmek ve gıda ile teması değerlendirmek",
+        "Üretime devam etmek",
+        "Sadece eldiven takmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-09",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Kişisel hijyen",
+      "question_text": "Gıda çalışanının tırnakları nasıl olmalıdır?",
+      "options": [
+        "Uzun ve ojeli",
+        "Kısa, temiz ve bakımlı",
+        "Kirli ama eldivenli",
+        "Takma tırnaklı"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-10",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "El hijyeni",
+      "question_text": "Eldiven kullanımı için doğru ifade hangisidir?",
+      "options": [
+        "El yıkamanın yerine geçer",
+        "Eller temizlenmeli, eldiven uygun zamanda değiştirilmeli",
+        "Aynı eldiven tüm vardiyada kullanılır",
+        "Yıkanmadan tekrar kullanılır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-11",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Çapraz bulaşma",
+      "question_text": "Çiğ et için kullanılan kesme tahtası nasıl yönetilmelidir?",
+      "options": [
+        "Hazır gıda için de yıkanmadan kullanılmalı",
+        "Ayrı kullanılmalı ve uygun şekilde temizlenip dezenfekte edilmeli",
+        "Sadece kurulanmalı",
+        "Rengi değiştirilmelidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-12",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Su güvenliği",
+      "question_text": "Su deposunda hijyen için hangisi uygundur?",
+      "options": [
+        "Kapaksız bırakmak",
+        "Kapalı, temizlenebilir ve düzenli kontrol edilen depo",
+        "Atıkla aynı yerde tutmak",
+        "Kimyasalı suya eklemek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-13",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Sıcaklık kontrolü",
+      "question_text": "Sıcaklık kayıtlarının amacı nedir?",
+      "options": [
+        "Kayıt sayısını artırmak",
+        "Gıdanın güvenli koşullarda tutulduğunu izlemek",
+        "Personeli cezalandırmak",
+        "Etiketi değiştirmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-14",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Depolama",
+      "question_text": "Depolamada ilk giren ilk çıkar uygulaması neyi sağlar?",
+      "options": [
+        "Eski ürünün unutulmasını",
+        "Stok ve son kullanma tarihinin kontrollü yönetilmesini",
+        "Temizliği kaldırmayı",
+        "Sıcaklığı artırmayı"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-15",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Alerjen ve kimyasal risk",
+      "question_text": "Temizlik kimyasalları nasıl saklanmalıdır?",
+      "options": [
+        "Gıdalarla aynı rafta",
+        "Etiketli, kapalı ve gıdalardan ayrı",
+        "İçecek şişesinde",
+        "Açık kapta"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-16",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Haşere kontrolü",
+      "question_text": "Haşere belirtisi görüldüğünde doğru işlem hangisidir?",
+      "options": [
+        "Görmezden gelmek",
+        "Bildirmek, kaynağı kontrol etmek ve yetkili mücadele prosedürünü uygulamak",
+        "Gıdayı yıkayıp satmak",
+        "Sadece pencereyi açmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-17",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Atık yönetimi",
+      "question_text": "Gıda atıkları için doğru uygulama hangisidir?",
+      "options": [
+        "Açıkta biriktirmek",
+        "Kapalı, uygun ve düzenli boşaltılan kaplarda toplamak",
+        "Üretim tezgahında tutmak",
+        "Su deposuna dökmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-18",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Uygulama",
+      "question_text": "Dezenfeksiyon işlemi öncesi yüzeydeki görünür kir için ne yapılır?",
+      "options": [
+        "Bırakılır",
+        "Önce temizlikle uzaklaştırılır",
+        "Üzerine gıda konur",
+        "Sadece kurutulur"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-19",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Kritik kontrol",
+      "question_text": "Kritik kontrol noktasında uygunsuzluk görülürse çalışan ne yapmalıdır?",
+      "options": [
+        "Saklamak",
+        "Ürünü/işlemi durdurup sorumluya bildirmek ve prosedürü uygulamak",
+        "Ürünü karıştırmak",
+        "Kayıt tutmamak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    },
+    {
+      "question_code": "GSH-20",
+      "version": 1,
+      "topic_code": "gida_su_hijyeni",
+      "topic_label": "Çalışan sorumluluğu",
+      "question_text": "Hijyen eğitiminin sahadaki en güvenilir göstergesi hangisidir?",
+      "options": [
+        "Sunumun izlenmiş olması",
+        "Çalışanın doğru hijyen davranışını uygulaması ve uygunsuzluğu bildirmesi",
+        "Yalnız kıdem",
+        "Katılım listesindeki isim"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru uygulama, gıda ve su güvenliğini korumak ve bulaşma riskini azaltmak içindir.",
+      "sources": [
+        {
+          "title": "Tarım ve Orman Bakanlığı — Gıda hijyeni resmi rehberleri",
+          "url": "https://www.tarimorman.gov.tr/GKGM",
+          "reference": "Gıda Hijyeni Yönetmeliği ve hijyen uygulama rehberleri",
+          "checked_at": "2026-08-09"
+        }
+      ],
+      "scopes": [
+        {
+          "type": "special",
+          "value": "gida_su_hijyeni"
+        }
+      ]
+    }
+  ]
+}
