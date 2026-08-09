@@ -1333,13 +1333,19 @@ export function TrainingPage({user}) {
                   disabled={!canEdit}
                   onChange={(e) => setForm({...form, evaluation_method: e.target.value})}
                 >
-                  <option>Sınav</option>
-                  <option>Uygulama</option>
-                  <option>Sözlü değerlendirme</option>
-                  <option>Katılım yeterlidir</option>
-                  <option>Yazılı ve uygulamalı değerlendirme</option>
-                  <option>Sözlü ve uygulamalı değerlendirme</option>
-                  <option>Yazılı değerlendirme</option>
+                  {['work_start', 'information_refresh'].includes(trainingPolicyKind(form)) ? (
+                    <option>Katılım yeterlidir</option>
+                  ) : form.special_duration_hours ? (
+                    <>
+                      <option>Sınav</option>
+                      <option>Yazılı ve uygulamalı değerlendirme</option>
+                      <option>Sözlü ve uygulamalı değerlendirme</option>
+                      <option>Yazılı değerlendirme</option>
+                      <option>Uygulama</option>
+                    </>
+                  ) : (
+                    <option>Sınav</option>
+                  )}
                 </select>
               </div>
               <div>
