@@ -5,6 +5,44 @@ function clean(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
+const BLOCK_TYPE_LABELS = Object.freeze({
+  training_date: 'Eğitim tarihi',
+  training_duration: 'Eğitim süresi',
+  training_location: 'Eğitim yeri',
+  trainer: 'Eğitmen',
+  instructor: 'Eğitmen',
+  learning_objective: 'Öğrenme hedefi',
+  learning_objectives: 'Öğrenme hedefleri',
+  target_group: 'Hedef grup',
+  audience: 'Hedef grup',
+});
+
+const USER_VISIBLE_PHRASES = Object.freeze([
+  [/\btraining date\b/giu, 'Eğitim tarihi'],
+  [/\btraining duration\b/giu, 'Eğitim süresi'],
+  [/\btraining location\b/giu, 'Eğitim yeri'],
+  [/\blearning objectives?\b/giu, 'Öğrenme hedefleri'],
+  [/\bpersonal protective equipment\b/giu, 'kişisel koruyucu donanım (KKD)'],
+  [/\bmanual handling\b/giu, 'elle taşıma'],
+  [/\bbattery charging\b/giu, 'akü şarjı'],
+  [/\bemergency exit\b/giu, 'acil çıkış'],
+  [/\bbiological agents?\b/giu, 'biyolojik etkenler'],
+  [/\bmedical waste\b/giu, 'tıbbi atık'],
+  [/\bpatient handling\b/giu, 'hasta taşıma'],
+  [/\bfalling loads?\b/giu, 'düşen yükler'],
+  [/\bloading ramp\b/giu, 'yükleme rampası'],
+  [/\bvehicle restraint\b/giu, 'araç sabitleme'],
+  [/\bsharps\b/giu, 'kesici-delici aletler'],
+]);
+
+export function localizeInstructorText(value) {
+  let text = clean(value);
+  for (const [pattern, replacement] of USER_VISIBLE_PHRASES) {
+    text = text.replace(pattern, replacement);
+  }
+  return text;
+}
+
 function blockBullets(block) {
   if (!block || typeof block !== 'object') return [];
   const type = clean(block.type);
@@ -14,31 +52,32 @@ function blockBullets(block) {
       kontrol_tedbiri: 'Kontrol tedbiri',
       guvenli_davranis: 'Güvenli davranış',
     }[type];
-    return block.value ? [`${label}: ${clean(block.value)}`] : [];
+    return block.value ? [`${label}: ${localizeInstructorText(block.value)}`] : [];
   }
-  if (type === 'frozen_training_topic') return block.value ? [clean(block.value)] : [];
-  if (type === 'technical_risk_tag') return block.value ? [`Teknik risk: ${clean(block.value).replaceAll('_', ' ')}`] : [];
-  if (type === 'special_risk') return block.value ? [`Özel risk: ${clean(block.value).replaceAll('_', ' ')}`] : [];
+  if (type === 'frozen_training_topic') return block.value ? [localizeInstructorText(block.value)] : [];
+  if (type === 'technical_risk_tag') return block.value ? [`Teknik risk: ${localizeInstructorText(block.value).replaceAll('_', ' ')}`] : [];
+  if (type === 'special_risk') return block.value ? [`Özel risk: ${localizeInstructorText(block.value).replaceAll('_', ' ')}`] : [];
   if (type === 'control_hierarchy') {
     return [
       'Kontrol sırası: tehlikeyi ortadan kaldır/azalt, mühendislik ve toplu korunmayı uygula, organizasyon tedbirlerini tamamla, kalan risk için KKD kullan.',
     ];
   }
-  if (type === 'topic_summary') return (block.values || []).map((value) => `Konu: ${clean(value)}`).filter(Boolean);
-  if (type === 'risk_summary') return (block.values || []).map((value) => `Risk: ${clean(value).replaceAll('_', ' ')}`).filter(Boolean);
+  if (type === 'topic_summary') return (block.values || []).map((value) => `Konu: ${localizeInstructorText(value)}`).filter(Boolean);
+  if (type === 'risk_summary') return (block.values || []).map((value) => `Risk: ${localizeInstructorText(value).replaceAll('_', ' ')}`).filter(Boolean);
   if (type === 'nace_identity') {
-    return [block.nace_code ? `NACE: ${clean(block.nace_code)}` : '', clean(block.nace_description)].filter(Boolean);
+    return [block.nace_code ? `NACE: ${clean(block.nace_code)}` : '', localizeInstructorText(block.nace_description)].filter(Boolean);
   }
-  if (type === 'hazard_class') return block.value ? [`Tehlike sınıfı: ${clean(block.value)}`] : [];
+  if (type === 'hazard_class') return block.value ? [`Tehlike sınıfı: ${localizeInstructorText(block.value)}`] : [];
   if (type === 'exam_distribution') return [`Sınav kapsamı: ${Number(block.foundation || 0)} temel + ${Number(block.work_specific || 0)} işe özgü soru`];
   if (block.value !== undefined && block.value !== null && clean(block.value)) {
-    return [`${clean(type).replaceAll('_', ' ')}: ${clean(block.value)}`];
+    const label = BLOCK_TYPE_LABELS[type] || 'Eğitim bilgisi';
+    return [`${label}: ${localizeInstructorText(block.value)}`];
   }
   return [];
 }
 
 export function instructorBulletPresentation(item) {
-  const value = clean(item);
+  const value = localizeInstructorText(item);
   const lowered = value.toLocaleLowerCase('tr-TR');
   const definitions = [
     ['tehlike:', 'hazard', 'Tehlike'],
@@ -52,6 +91,9 @@ export function instructorBulletPresentation(item) {
     ['sınav kapsamı:', 'assessment', 'Sınav kapsamı'],
     ['konu:', 'context', 'Konu'],
     ['risk:', 'risk', 'Risk'],
+    ['eğitim tarihi:', 'context', 'Eğitim tarihi'],
+    ['eğitim süresi:', 'context', 'Eğitim süresi'],
+    ['eğitim yeri:', 'context', 'Eğitim yeri'],
   ];
   for (const [prefix, kind, label] of definitions) {
     if (lowered.startsWith(prefix)) {
@@ -94,7 +136,7 @@ export function normalizeInstructorManifest(manifest) {
     }
     return {
       position: Number(slide.position || 0),
-      title: clean(slide.title) || 'Başlıksız slayt',
+      title: localizeInstructorText(slide.title) || 'Başlıksız slayt',
       sectionId: clean(slide.section_id),
       bullets,
       sources: Array.from(new Set((slide.source_refs || []).map(clean).filter(Boolean))),
@@ -108,7 +150,7 @@ export function normalizeInstructorManifest(manifest) {
   return {
     manifestHash: clean(manifest.content_hash),
     naceCode: clean(manifest.nace_snapshot?.nace_code),
-    naceDescription: clean(manifest.nace_snapshot?.nace_description),
+    naceDescription: localizeInstructorText(manifest.nace_snapshot?.nace_description),
     slideCount: slides.length,
     uiVersion: clean(manifest.rendering?.instructor_mode_ui) || 'instructor-mode-v1',
     coverageV2: manifest.coverage_v2 && typeof manifest.coverage_v2 === 'object' ? manifest.coverage_v2 : null,
