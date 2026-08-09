@@ -128,6 +128,31 @@ def _purge_osgb_training_participants(db: Session, osgb_id: int) -> None:
     db.flush()
 
 
+def _purge_osgb_ohs_committee_residuals(db: Session, osgb_id: int) -> None:
+    """Şirket silinmeden önce İSG Kurulu'nun yeni alt tablolarını çocuk→ana sırada temizler.
+
+    `app.api.companies._purge_company_data` eski kurul ana tablolarını
+    (ohs_committee_meetings / ohs_committee_members) temizliyor. Daha sonra eklenen
+    signature_steps, meeting_versions ve duplicate_reports tabloları da doğrudan
+    companies.id FK'sı tuttuğundan, yalnız OSGB kalıcı silme akışında bunları önce
+    kaldırmak gerekir. Normal İSG Kurulu CRUD akışı ve global FK/CASCADE şeması değişmez.
+    """
+    company_scope = "SELECT id FROM companies WHERE osgb_id = :osgb_id"
+    for table_name in (
+        "ohs_committee_signature_steps",
+        "ohs_committee_meeting_versions",
+        "ohs_committee_duplicate_reports",
+    ):
+        db.execute(
+            text(
+                f"DELETE FROM {table_name} "
+                f"WHERE company_id IN ({company_scope})"
+            ),
+            {"osgb_id": osgb_id},
+        )
+    db.flush()
+
+
 def purge_osgb(db: Session, osgb_id: int) -> str:
     """OSGB ve bağlı operasyonel veriyi kalıcı siler. Dönüş: OSGB adı."""
     org = db.get(OsgbOrganization, osgb_id)
@@ -143,6 +168,10 @@ def purge_osgb(db: Session, osgb_id: int) -> str:
     # Global EİSA purge sırasında tenant görünürlük filtresine bağlı Employee-ID
     # toplamasına güvenmeden eğitim katılım FK'sını doğrudan çözer.
     _purge_osgb_training_participants(db, osgb_id)
+
+    # İSG Kurulu'nun yeni sürüm/imza/mükerrer rapor tabloları şirketi doğrudan
+    # referanslar; mevcut company purge eski ana tabloları silmeden önce temizle.
+    _purge_osgb_ohs_committee_residuals(db, osgb_id)
 
     companies = list(db.scalars(select(Company).where(Company.osgb_id == osgb_id)).all())
     for company in companies:
