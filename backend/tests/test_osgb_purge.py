@@ -1,4 +1,4 @@
-"""OSGB kalıcı silme — integration_dry_run_logs FK engeli regresyonu."""
+"""OSGB kalıcı silme — bağlı FK engelleri için regresyon testleri."""
 from __future__ import annotations
 
 import pytest
@@ -14,10 +14,13 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("SECRET_KEY", "test-secret-key-at-least-32-chars-long!!")
     monkeypatch.setattr("app.api.auth.role_requires_mfa", lambda _role: False)
 
-    from sqlalchemy import create_engine
+    from sqlalchemy import create_engine, event
     from sqlalchemy.orm import sessionmaker
     import app.core.database as dbmod
     import app.models.entities as ent
+    # Dijital personel kartı tablolarını test metadata'sına kaydet.
+    import app.models.personnel_profile  # noqa: F401
+    import app.models.personnel_profile_document  # noqa: F401
     from app.core.config import settings
 
     settings.database_url = url
@@ -25,6 +28,15 @@ def client(tmp_path, monkeypatch):
     settings.environment = "development"
 
     engine = create_engine(url, connect_args={"check_same_thread": False})
+
+    # SQLite testinde de production PostgreSQL'deki RESTRICT FK davranışını gerçekten
+    # uygulayalım; aksi halde bu regresyon testi hatalı silme sırasını yakalayamaz.
+    @event.listens_for(engine, "connect")
+    def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     dbmod.engine = engine
     dbmod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     ent.Base.metadata.create_all(bind=engine)
@@ -85,6 +97,84 @@ def test_purge_osgb_deletes_despite_dry_run_logs(client: TestClient):
             select(IntegrationDryRunLog).where(IntegrationDryRunLog.osgb_id == osgb_id)
         ).all()
         assert left == []
+
+
+def test_purge_osgb_deletes_inactive_employee_personnel_profile(client: TestClient):
+    """P0 regresyon: UI'da silinen/pasif personelin profil FK'sı OSGB silmeyi engellemesin."""
+    from sqlalchemy import select
+
+    from app.core.database import SessionLocal
+    from app.models.entities import Company, Employee, OsgbOrganization
+    from app.models.personnel_profile import PersonnelProfile, PersonnelProfileContact
+    from app.services.osgb_purge import purge_osgb
+
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(
+            name="Profile Purge OSGB",
+            authorization_number="YETKI-PP-1",
+            tax_number="4433221100",
+            responsible_manager="Test",
+            email="profile-purge@test.com",
+            phone="02124445566",
+            address="Bursa",
+            is_active=False,
+        )
+        db.add(osgb)
+        db.flush()
+        company = Company(
+            name="Profile Purge Company",
+            osgb_id=osgb.id,
+            is_active=True,
+            hazard_class="Az Tehlikeli",
+        )
+        db.add(company)
+        db.flush()
+        employee = Employee(
+            company_id=company.id,
+            full_name="Pasif Personel",
+            national_id_masked="***********",
+            is_active=False,
+        )
+        db.add(employee)
+        db.flush()
+        profile = PersonnelProfile(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            subject_type="employee",
+            employee_id=employee.id,
+            status="archived",
+        )
+        db.add(profile)
+        db.flush()
+        db.add(
+            PersonnelProfileContact(
+                profile_id=profile.id,
+                company_id=company.id,
+                entry_key="00000000-0000-0000-0000-000000000001",
+                version=1,
+                contact_type="corporate_email",
+                contact_value="pasif@example.com",
+                lifecycle_status="archived",
+            )
+        )
+        db.commit()
+        osgb_id = osgb.id
+        company_id = company.id
+        employee_id = employee.id
+        profile_id = profile.id
+
+    with SessionLocal() as db:
+        name = purge_osgb(db, osgb_id)
+        db.commit()
+        assert name == "Profile Purge OSGB"
+        assert db.get(OsgbOrganization, osgb_id) is None
+        assert db.get(Company, company_id) is None
+        assert db.get(Employee, employee_id) is None
+        assert db.get(PersonnelProfile, profile_id) is None
+        contacts = db.scalars(
+            select(PersonnelProfileContact).where(PersonnelProfileContact.profile_id == profile_id)
+        ).all()
+        assert contacts == []
 
 
 def test_purge_company_with_emergency_teams(client: TestClient):
