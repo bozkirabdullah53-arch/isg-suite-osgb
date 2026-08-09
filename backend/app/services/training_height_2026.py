@@ -29,7 +29,7 @@ HEIGHT_LEGAL_BASIS = (
     "6331 sayılı İş Sağlığı ve Güvenliği Kanunu m.17; 02.04.2026 tarihli ve "
     "33212 sayılı Resmî Gazete'de yayımlanan Çalışanların İş Sağlığı ve "
     "Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik m.5, m.9, "
-    "m.10, m.13, m.17, m.24 ve Ek-1/Ek-2; Yapı İşlerinde İş Sağlığı ve "
+    "m.10, m.13, m.17, m.24, m.26 ve Ek-1/Ek-2; Yapı İşlerinde İş Sağlığı ve "
     "Güvenliği Yönetmeliği Ek-4, Yüksekte Çalışma 2(g) ve İş Ekipmanlarının "
     "Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliğinin ilgili hükümleri."
 )
@@ -60,7 +60,9 @@ def apply_height_training_profile_2026() -> str:
         "isg_b",
         "isg_c",
         "isyeri_hekimi",
-        "yonetmelik_m10_kurum_egiticisi",
+        "m10_bc_kurum_egiticisi",
+        "m10_cde_belgeli_egitici",
+        "az_tehlikeli_50_alti_egitimli_isveren",
     ]
 
     physician = SPECIAL_INSTRUCTOR_ROLES.setdefault(
@@ -72,8 +74,22 @@ def apply_height_training_profile_2026() -> str:
         physician_profiles.append("yuksekte_calisma")
     physician["profiles"] = physician_profiles
 
-    SPECIAL_INSTRUCTOR_ROLES["yonetmelik_m10_kurum_egiticisi"] = {
-        "label": "Yönetmelik m.10 Kapsamında Yetkili Kurum/Kuruluş Eğiticisi",
+    SPECIAL_INSTRUCTOR_ROLES["m10_bc_kurum_egiticisi"] = {
+        "label": "ÇASGEM / Üniversite / Kamu Kurumu Eğitim Birimi Eğiticisi (m.10/1-b,c; uzmanlık alanı uygun)",
+        "profiles": ["yuksekte_calisma"],
+    }
+    SPECIAL_INSTRUCTOR_ROLES["m10_cde_belgeli_egitici"] = {
+        "label": (
+            "m.10/1-ç,d,e Kapsamındaki Kurum/Kuruluş Bünyesinde Belgeli Eğitici "
+            "(İSG Uzmanlığı / İşyeri Hekimliği / Eğitici Belgesi)"
+        ),
+        "profiles": ["yuksekte_calisma"],
+    }
+    SPECIAL_INSTRUCTOR_ROLES["az_tehlikeli_50_alti_egitimli_isveren"] = {
+        "label": (
+            "50'den Az Çalışanı Bulunan Az Tehlikeli İşyerinde "
+            "İlgili Eğitimi Tamamlamış İşveren / İşveren Vekili"
+        ),
         "profiles": ["yuksekte_calisma"],
     }
 
@@ -105,11 +121,30 @@ def _norm(value: str | None) -> str:
     return text.replace("ı", "i").strip()
 
 
-def height_instructor_is_authorized(qualification: str | None) -> bool:
-    """Belgeye salt 'yüksekte çalışma eğitmeni' imzasının düşmesini engeller."""
+def height_instructor_is_authorized(
+    qualification: str | None,
+    training=None,
+) -> bool:
+    """Yüksekte çalışma belgesine yalnız doğrulanabilir mevzuat rolü düşürür.
+
+    Yönetmelik m.10/1-a kapsamındaki işyerinde görevli İSG uzmanı/işyeri hekimi,
+    m.10/1-b,c kapsamındaki kurum eğiticisi ve m.10/1-ç,d,e kapsamındaki gerekli
+    belgeye sahip kurum eğiticisi kabul edilir. Bakanlık SSS'de açıklanan
+    50'den az çalışanlı az tehlikeli işyeri istisnası, unvan üzerinde koşullar
+    açıkça yazılıysa ve eğitim kaydı da ``Az Tehlikeli`` ise kabul edilir.
+    """
     text = _norm(qualification)
     if not text:
         return False
+
+    conditional_employer = _norm(
+        "50'den Az Çalışanı Bulunan Az Tehlikeli İşyerinde "
+        "İlgili Eğitimi Tamamlamış İşveren / İşveren Vekili"
+    )
+    if conditional_employer in text:
+        if training is None:
+            return False
+        return _norm(getattr(training, "hazard_class", "")) == "az tehlikeli"
 
     authorized_markers = tuple(_norm(marker) for marker in (
         "A Sınıfı İş Güvenliği Uzmanı",
@@ -118,16 +153,13 @@ def height_instructor_is_authorized(qualification: str | None) -> bool:
         "İş Güvenliği Uzmanı",
         "İSG Uzmanı",
         "İşyeri Hekimi",
-        "İş Güvenliği Uzmanlığı Eğitici Belgesi",
-        "İşyeri Hekimliği Eğitici Belgesi",
-        "Yönetmelik m.10",
-        "Yetkili Kurum/Kuruluş Eğiticisi",
-        "Yetkili Kurum / Kuruluş Eğiticisi",
+        "ÇASGEM / Üniversite / Kamu Kurumu Eğitim Birimi Eğiticisi",
+        "m.10/1-ç,d,e Kapsamındaki Kurum/Kuruluş Bünyesinde Belgeli Eğitici",
     ))
     if any(marker in text for marker in authorized_markers):
         return True
 
-    # Tek başına bu özel sertifika/etiket mevzuat yetkisi değildir.
+    # Salt özel yüksekte çalışma/eğitici sertifikası mevzuat yetkisi değildir.
     if "yuksekte calisma" in text and "egit" in text:
         return False
     return False
@@ -233,7 +265,7 @@ def draw_height_certificate_page(
 
     instructor = str(getattr(training, "instructor_name", "") or "").strip()
     instructor_title = str(getattr(training, "instructor_qualification", "") or "").strip()
-    if not height_instructor_is_authorized(instructor_title):
+    if not height_instructor_is_authorized(instructor_title, training):
         raise ValueError(
             "Yüksekte çalışma belgesi için Yönetmelik m.10 kapsamında uygun eğitici "
             "unvanı/yeterliliği seçilmelidir. Yüksekte çalışma eğitici sertifikası "
@@ -377,7 +409,7 @@ def draw_height_certificate_page(
     # İmza alanı: yalnız mevzuata uygun eğitici(ler) + işveren/işveren vekili.
     sign_y, sign_h = 94 * mm, 28.5 * mm
     signers = [("Eğitici (Yönetmelik m.10)", instructor, instructor_title, TEAL)]
-    if additional_instructor and height_instructor_is_authorized(additional_title):
+    if additional_instructor and height_instructor_is_authorized(additional_title, training):
         signers.append(("Eğitici (Yönetmelik m.10)", additional_instructor, additional_title, TEAL))
     signers.append(("İşveren / İşveren Vekili", employer, "İşveren / İşveren Vekili", NAVY))
 
