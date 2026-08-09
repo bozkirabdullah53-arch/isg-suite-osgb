@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import unicodedata
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
@@ -52,8 +53,10 @@ RENEWAL_YEARS = {
     "Çok Tehlikeli": 1,
 }
 
-_START_TOKENS = ("işe başlama", "ise baslama")
-_REPEAT_TOKENS = ("tekrar", "yenileme eğitimi", "yenileme egitimi")
+# `_fold` converts Turkish diacritics to their ASCII equivalents. Keeping the
+# matcher tokens normalized too avoids the Unicode combining-dot problem of `İ`.
+_START_TOKENS = ("ise baslama",)
+_REPEAT_TOKENS = ("tekrar", "yenileme egitimi")
 _INFORMATION_REFRESH_TOKENS = ("bilgi yenileme", "bilgi tazeleme")
 
 _original_resolve_training_hours = None
@@ -100,7 +103,12 @@ def applies_to_new_request(now: datetime | None = None) -> bool:
 
 
 def _fold(value: object) -> str:
-    return " ".join(str(value or "").strip().casefold().split())
+    raw = unicodedata.normalize("NFKD", str(value or "").casefold())
+    without_marks = "".join(char for char in raw if not unicodedata.combining(char))
+    text = " ".join(without_marks.strip().split())
+    return text.translate(
+        str.maketrans({"ç": "c", "ğ": "g", "ı": "i", "ö": "o", "ş": "s", "ü": "u"})
+    )
 
 
 def training_kind(training_type: object, title: object = "") -> str:
