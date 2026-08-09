@@ -26,6 +26,78 @@ from app.models.entities import (
     UserRole,
     WorkplaceAssignment,
 )
+from app.models.personnel_profile import (
+    PersonnelProfile,
+    PersonnelProfileCompetency,
+    PersonnelProfileContact,
+    PersonnelProfileExperience,
+)
+from app.models.personnel_profile_document import PersonnelProfileDocument
+
+
+def _purge_osgb_personnel_profiles(db: Session, osgb_id: int) -> None:
+    """OSGB'ye ait dijital personel kartlarını, özne kayıtlarından önce temizler.
+
+    Personel ekranındaki "Sil" işlemi Employee satırını fiziksel olarak silmez;
+    yalnız pasife alır. Bu nedenle OSGB kalıcı silinirken pasif çalışanlara ait
+    PersonnelProfile satırları da hâlâ Employee/Company/OSGB FK'larını tutabilir.
+    Global FK davranışını değiştirmek yerine yalnız tenant purge akışında çocuk
+    tabloları güvenli sırada kaldırıyoruz.
+    """
+    profile_ids = list(
+        db.scalars(
+            select(PersonnelProfile.id).where(PersonnelProfile.osgb_id == osgb_id)
+        ).all()
+    )
+    if not profile_ids:
+        return
+
+    # Sürümlü alt tablolarda kendi içlerindeki supersedes_id bağları nullable'dır.
+    # Önce bu zinciri çözmek, ardından aynı profile ait bütün sürümleri silmek
+    # PostgreSQL RESTRICT davranışında deterministik bir silme sırası sağlar.
+    db.execute(
+        update(PersonnelProfileDocument)
+        .where(PersonnelProfileDocument.profile_id.in_(profile_ids))
+        .values(supersedes_id=None)
+    )
+    db.execute(
+        update(PersonnelProfileContact)
+        .where(PersonnelProfileContact.profile_id.in_(profile_ids))
+        .values(supersedes_id=None)
+    )
+    db.execute(
+        update(PersonnelProfileCompetency)
+        .where(PersonnelProfileCompetency.profile_id.in_(profile_ids))
+        .values(supersedes_id=None)
+    )
+    db.execute(
+        update(PersonnelProfileExperience)
+        .where(PersonnelProfileExperience.profile_id.in_(profile_ids))
+        .values(supersedes_id=None)
+    )
+
+    db.execute(
+        delete(PersonnelProfileDocument).where(
+            PersonnelProfileDocument.profile_id.in_(profile_ids)
+        )
+    )
+    db.execute(
+        delete(PersonnelProfileContact).where(
+            PersonnelProfileContact.profile_id.in_(profile_ids)
+        )
+    )
+    db.execute(
+        delete(PersonnelProfileCompetency).where(
+            PersonnelProfileCompetency.profile_id.in_(profile_ids)
+        )
+    )
+    db.execute(
+        delete(PersonnelProfileExperience).where(
+            PersonnelProfileExperience.profile_id.in_(profile_ids)
+        )
+    )
+    db.execute(delete(PersonnelProfile).where(PersonnelProfile.id.in_(profile_ids)))
+    db.flush()
 
 
 def purge_osgb(db: Session, osgb_id: int) -> str:
@@ -34,6 +106,11 @@ def purge_osgb(db: Session, osgb_id: int) -> str:
     if not org:
         raise ValueError("OSGB bulunamadı.")
     name = org.name
+
+    # Dijital personel kartları Employee/Company/OSGB üzerinde RESTRICT FK tutar.
+    # Şirket purge'ü Employee satırlarını fiziksel olarak silmeden önce bunlar
+    # kaldırılmalıdır. Bu yalnız kalıcı OSGB silme akışında çalışır.
+    _purge_osgb_personnel_profiles(db, osgb_id)
 
     companies = list(db.scalars(select(Company).where(Company.osgb_id == osgb_id)).all())
     for company in companies:
