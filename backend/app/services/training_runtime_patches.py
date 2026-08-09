@@ -222,7 +222,16 @@ def _patch_question_bank_candidates() -> str:
 
 def _patch_certificate_renderer() -> str:
     from app.services import training_pdfs
+    from app.services.training_height_2026 import (
+        apply_height_training_profile_2026,
+        draw_height_certificate_page,
+        is_height_training,
+    )
     from app.services.training_pdf_premium import draw_certificate_page
+
+    # Özel profil yetki/dayanak düzeltmesi uygulama açılışında bir kez yüklenir.
+    # Sözlükler yerinde güncellendiği için schema/API aynı kaynakları görür.
+    apply_height_training_profile_2026()
 
     current = training_pdfs._draw_certificate_page
     if getattr(current, "_premium_renderer_active", False):
@@ -231,6 +240,10 @@ def _patch_certificate_renderer() -> str:
     @wraps(current)
     def premium_renderer(*args, **kwargs):
         kwargs["tp"] = training_pdfs
+        training = kwargs.get("training")
+        curriculum = kwargs.get("curriculum") or {}
+        if is_height_training(training, curriculum):
+            return draw_height_certificate_page(*args, **kwargs)
         return draw_certificate_page(*args, **kwargs)
 
     premium_renderer._premium_renderer_active = True
