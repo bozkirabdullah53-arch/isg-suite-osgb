@@ -67,7 +67,7 @@ import {
 import './styles.css';
 import './theme-modern.css';
 import {useUiTheme} from './theme';
-const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',safety_specialist:'İSG Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
+const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 /**
  * Sol menü sırası (yukarı→aşağı): ana panel → günlük operasyon → master data →
  * İSG saha işleri (risk/olay yoğunluğu) → ticari → rapor/denetim → sistem ayarları.
@@ -897,7 +897,7 @@ function UserPage({user}){
     )},
   ];
   return <Page title="Kullanıcı ve Yetki Yönetimi" action={<div className="actions"><button type="button" className="secondary" disabled={busy} onClick={syncRoles}>Hekim/Uzman Rollerini Eşle</button><button onClick={()=>{setErr('');setOpen(true)}}><Plus/>Kullanıcı Ekle</button></div>}>
-    <p style={{marginTop:0,color:'#475569',fontSize:14}}>Hekim / uzman / DSP için kullanıcı rolü <strong>İşyeri Hekimi</strong> / <strong>İSG Uzmanı</strong> / <strong>DSP</strong> olmalı. Görevlendirme sonrası e-posta veya ad eşleşirse otomatik düzelir; gerekirse aşağıdaki eşle butonunu kullanın.</p>
+    <p style={{marginTop:0,color:'#475569',fontSize:14}}>Hekim / uzman / DSP için kullanıcı rolü <strong>İşyeri Hekimi</strong> / <strong>İş Güvenliği Uzmanı</strong> / <strong>DSP</strong> olmalı. Görevlendirme sonrası e-posta veya ad eşleşirse otomatik düzelir; gerekirse aşağıdaki eşle butonunu kullanın.</p>
     {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
     <Table cols={cols} rows={data}/>
     {open&&<Modal title="Yeni Kullanıcı" close={()=>setOpen(false)}>
