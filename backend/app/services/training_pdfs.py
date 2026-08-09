@@ -563,7 +563,9 @@ def _draw_certificate_page(
 ):
     curriculum = curriculum or {}
     profile_key = str(curriculum.get("profile_key") or resolve_training_document_titles(training).get("profile_key") or "")
-    is_height_profile = profile_key == "yuksekte_calisma"
+    title_probe = " ".join(str(getattr(training, field, "") or "").casefold() for field in ("training_type", "title", "notes"))
+    # Özel profil kodu normalde kaynak kayıttan gelir; eski kayıtlar için yalnız bu belge katmanında emniyetli geri dönüş.
+    is_height_profile = profile_key == "yuksekte_calisma" or "yüksekte çalışma" in title_probe or "yuksekte calisma" in title_probe
     ml, mr = 8 * mm, 8 * mm
     uw = w - ml - mr
 
@@ -664,7 +666,7 @@ def _draw_certificate_page(
     special_signers.append(("Onaylayan", employer, employer_title))
     cert_signers = (
         tuple(special_signers)
-        if (curriculum.get("is_special") or profile_key)
+        if is_height_profile
         else (
             ("Eğitim Veren", instructor, instructor_title),
             ("Eğitim Veren", physician, "İşyeri Hekimi"),
