@@ -10,11 +10,28 @@ from __future__ import annotations
 import secrets
 from uuid import uuid4
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, inspect, select, text
 from sqlalchemy.orm import Session
 
 from app.core.security import get_password_hash
 from app.models.entities import IsgProfessional, User, UserRole
+
+
+def _active_membership_count(db: Session, table_name: str, user_id: int) -> int:
+    """Count active memberships; tolerate legacy/test schemas without the table."""
+    bind = db.get_bind()
+    if bind is None or not inspect(bind).has_table(table_name):
+        return 0
+    return int(
+        db.scalar(
+            text(
+                f"SELECT count(*) FROM {table_name} "
+                "WHERE user_id = :user_id AND is_active IS TRUE"
+            ),
+            {"user_id": int(user_id)},
+        )
+        or 0
+    )
 
 
 def orphan_account_state(db: Session, user: User) -> dict[str, object]:
@@ -29,26 +46,8 @@ def orphan_account_state(db: Session, user: User) -> dict[str, object]:
             .limit(1)
         )
 
-    org_memberships = int(
-        db.scalar(
-            text(
-                "SELECT count(*) FROM organization_memberships "
-                "WHERE user_id = :user_id AND is_active IS TRUE"
-            ),
-            {"user_id": int(user.id)},
-        )
-        or 0
-    )
-    workplace_memberships = int(
-        db.scalar(
-            text(
-                "SELECT count(*) FROM workplace_memberships "
-                "WHERE user_id = :user_id AND is_active IS TRUE"
-            ),
-            {"user_id": int(user.id)},
-        )
-        or 0
-    )
+    org_memberships = _active_membership_count(db, "organization_memberships", int(user.id))
+    workplace_memberships = _active_membership_count(db, "workplace_memberships", int(user.id))
 
     has_scope = bool(
         user.role == UserRole.GLOBAL_ADMIN
