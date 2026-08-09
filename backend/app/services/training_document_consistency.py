@@ -44,16 +44,24 @@ def training_completion_date_code(training) -> str:
     return "".join(ch for ch in text if ch.isdigit())[:8]
 
 
+def normalize_safety_specialist_title(value: object) -> str:
+    text = " ".join(str(value or "").split()).strip()
+    if not text:
+        return "İş Güvenliği Uzmanı"
+    return text.replace("İSG Uzmanı", "İş Güvenliği Uzmanı").replace("İSG uzmanı", "İş Güvenliği Uzmanı")
+
+
 class _CertificateTrainingView:
-    """Read-only facade that only corrects the legacy visible title fallback."""
+    """Read-only facade correcting only legacy visible certificate terminology."""
 
     def __init__(self, training):
         self._training = training
 
     @property
     def instructor_qualification(self):
-        value = getattr(self._training, "instructor_qualification", None)
-        return value or "İş Güvenliği Uzmanı"
+        return normalize_safety_specialist_title(
+            getattr(self._training, "instructor_qualification", None)
+        )
 
     def __getattr__(self, name):
         return getattr(self._training, name)
