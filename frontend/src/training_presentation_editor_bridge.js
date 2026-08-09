@@ -4,6 +4,7 @@ import {
   canEditPresentationRole,
   editorSlides,
   pickEditableVersion,
+  presentationSectionLabel,
 } from './training_presentation_editor_logic';
 import './training_presentation_editor.css';
 
@@ -170,7 +171,7 @@ async function openEditor(button) {
           <aside class="training-presentation-editor__side">
             <h4>Slaytlar</h4>
             <div class="training-presentation-editor__slide-list">
-              ${slides.map((slide, index) => `<button type="button" class="training-presentation-editor__slide${index === 0 ? ' is-active' : ''}" data-editor-slide="${slide.position}"><strong>${slide.position}. ${escapeHtml(slide.title)}</strong><small>${escapeHtml(slide.sectionId.replaceAll('_', ' '))}${slide.approvalRequired ? ' · onay' : ''}</small></button>`).join('')}
+              ${slides.map((slide, index) => `<button type="button" class="training-presentation-editor__slide${index === 0 ? ' is-active' : ''}" data-editor-slide="${slide.position}"><strong>${slide.position}. ${escapeHtml(slide.title)}</strong><small>${escapeHtml(slide.sectionLabel || presentationSectionLabel(slide.sectionId))}${slide.approvalRequired ? ' · onay' : ''}</small></button>`).join('')}
             </div>
           </aside>
           <main class="training-presentation-editor__form">${formMarkup(slides, state.selectedPosition)}</main>
