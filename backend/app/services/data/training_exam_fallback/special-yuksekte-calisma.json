@@ -1,0 +1,1683 @@
+{
+  "items": [
+    {
+      "question_code": "YC-001",
+      "version": 1,
+      "topic_code": "YC-TEMEL-001",
+      "topic_label": "Temel Düzey",
+      "question_text": "Mevzuata göre yüksekte çalışma aşağıdakilerden hangisidir?",
+      "options": [
+        "Yalnızca 2 metreden yüksek yerlerde yapılan çalışma",
+        "Yalnızca iskele üzerinde yapılan çalışma",
+        "Seviye farkı bulunan ve düşme sonucu yaralanma ihtimalinin oluşabileceği her türlü alanda yapılan çalışma",
+        "Yalnızca bina çatısında yapılan çalışma"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-002",
+      "version": 1,
+      "topic_code": "YC-TEMEL-002",
+      "topic_label": "Temel Düzey",
+      "question_text": "Yüksekte çalışma tanımı bakımından aşağıdakilerden hangisi doğrudur?",
+      "options": [
+        "Her durumda en az 1 metre yükseklik bulunmalıdır.",
+        "Her durumda en az 1,5 metre yükseklik bulunmalıdır.",
+        "Her durumda en az 2 metre yükseklik bulunmalıdır.",
+        "Genel tanım sabit bir metre sınırından ziyade seviye farkı ve düşme sonucu yaralanma ihtimalini esas alır."
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-003",
+      "version": 1,
+      "topic_code": "YC-TEMEL-003",
+      "topic_label": "Temel Düzey",
+      "question_text": "Yüksekte yapılması zorunlu olmayan montaj ve benzeri çalışmalar için öncelikli yaklaşım hangisidir?",
+      "options": [
+        "Mutlaka iskele üzerinde yapılması",
+        "Mümkün olduğunca öncelikle yerde yapılması",
+        "Merdiven üzerinde yapılması",
+        "Çatı üzerinde yapılması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-004",
+      "version": 1,
+      "topic_code": "YC-TEMEL-004",
+      "topic_label": "Temel Düzey",
+      "question_text": "Yüksekte yapılacak çalışmalarla ilgili doğru uygulama hangisidir?",
+      "options": [
+        "Önceden planlamaya gerek yoktur.",
+        "Çalışmalar önceden planlanmalı ve organize edilmelidir.",
+        "Planlama yalnızca kaza sonrasında yapılır.",
+        "Sadece çalışan tarafından planlanır."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-005",
+      "version": 1,
+      "topic_code": "YC-TEMEL-005",
+      "topic_label": "Temel Düzey",
+      "question_text": "İş sağlığı ve güvenliğinde risklerden korunma ilkelerine göre hangisine öncelik verilmelidir?",
+      "options": [
+        "Kişisel korunma tedbirlerine",
+        "Toplu korunma tedbirlerine",
+        "Yalnızca uyarı levhalarına",
+        "Çalışanın kişisel tecrübesine"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-006",
+      "version": 1,
+      "topic_code": "YC-TEMEL-006",
+      "topic_label": "Temel Düzey",
+      "question_text": "Aşağıdakilerden hangisi yüksekten düşmeye karşı toplu korunma tedbiridir?",
+      "options": [
+        "Karabina",
+        "Bağlantı halatı",
+        "Tam vücut kemer sistemi",
+        "Güvenli korkuluk sistemi"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-007",
+      "version": 1,
+      "topic_code": "YC-TEMEL-007",
+      "topic_label": "Temel Düzey",
+      "question_text": "Toplu korunma tedbirlerinin düşme riskini tamamen ortadan kaldıramadığı durumda hangisi yapılmalıdır?",
+      "options": [
+        "Hiçbir ilave önlem alınmamalıdır.",
+        "Çalışanın tecrübesine güvenilmelidir.",
+        "İşin özelliğine uygun kişisel düşmeye karşı koruyucu sistemler kullanılmalıdır.",
+        "Yalnızca uyarı levhası konulmalıdır."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-008",
+      "version": 1,
+      "topic_code": "YC-TEMEL-008",
+      "topic_label": "Temel Düzey",
+      "question_text": "Yüksekte çalışma öncesinde yapılması gereken temel işlemlerden biri hangisidir?",
+      "options": [
+        "Tehlikelerin belirlenmesi ve risklerin değerlendirilmesi",
+        "Yalnızca çalışma süresinin belirlenmesi",
+        "Yalnızca çalışan sayısının belirlenmesi",
+        "İş bittikten sonra risk değerlendirmesi yapılması"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-009",
+      "version": 1,
+      "topic_code": "YC-TEMEL-009",
+      "topic_label": "Temel Düzey",
+      "question_text": "Yüksekte çalışacak çalışanlara aşağıdakilerden hangisi verilmelidir?",
+      "options": [
+        "Yalnızca işyeri tanıtımı",
+        "İlgili tehlikeler, riskler, kontrol tedbirleri ve güvenli çalışma yöntemleri hakkında eğitim",
+        "Sadece yazılı bir uyarı",
+        "Yalnızca kişisel koruyucu donanım"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-010",
+      "version": 1,
+      "topic_code": "YC-TEMEL-010",
+      "topic_label": "Temel Düzey",
+      "question_text": "Olumsuz hava koşulları yüksekte çalışmayı güvenli olmaktan çıkarıyorsa ne yapılmalıdır?",
+      "options": [
+        "Çalışmaya aynı şekilde devam edilmelidir.",
+        "Çalışan daha hızlı çalışmalıdır.",
+        "Güvenli çalışma şartları sağlanamıyorsa çalışma durdurulmalı veya ertelenmelidir.",
+        "Yalnızca baret kullanılması yeterlidir."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-011",
+      "version": 1,
+      "topic_code": "YC-TEMEL-011",
+      "topic_label": "Temel Düzey",
+      "question_text": "Çalışanın düşebileceği bir döşeme boşluğunda öncelikli yaklaşım hangisidir?",
+      "options": [
+        "Boşluğun yanına yazı yazılması",
+        "Çalışana dikkatli olması söylenmesi",
+        "Uygun kapak, korkuluk, bariyer veya benzeri toplu korunma tedbiri uygulanması",
+        "Boşluğun açık bırakılması"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-012",
+      "version": 1,
+      "topic_code": "YC-TEMEL-012",
+      "topic_label": "Temel Düzey",
+      "question_text": "Yüksekte çalışma sırasında hangi düşme riski de dikkate alınmalıdır?",
+      "options": [
+        "Yalnızca çalışanın düşmesi",
+        "Malzeme, ekipman veya diğer cisimlerin aşağıya düşmesi",
+        "Yalnızca yağmur yağması",
+        "Yalnızca gürültü"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-013",
+      "version": 1,
+      "topic_code": "YC-TEMEL-013",
+      "topic_label": "Temel Düzey",
+      "question_text": "Kişisel koruyucu donanım kullanan çalışan ne yapmalıdır?",
+      "options": [
+        "Donanımı verilen eğitim ve talimatlara uygun kullanmalıdır.",
+        "Donanım üzerinde istediği değişikliği yapabilir.",
+        "İsterse kullanmayabilir.",
+        "Hasarlı donanımı kullanmaya devam edebilir."
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-014",
+      "version": 1,
+      "topic_code": "YC-TEMEL-014",
+      "topic_label": "Temel Düzey",
+      "question_text": "Hasarlı olduğu belirlenen düşmeye karşı kişisel koruyucu donanımla ilgili doğru davranış hangisidir?",
+      "options": [
+        "Bir defa daha kullanılmalıdır.",
+        "Sadece kısa süreli işlerde kullanılmalıdır.",
+        "Bantla tamir edilerek kullanılmalıdır.",
+        "Güvenli şekilde kullanılması sağlanamıyorsa kullanılmamalıdır."
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-015",
+      "version": 1,
+      "topic_code": "YC-TEMEL-015",
+      "topic_label": "Temel Düzey",
+      "question_text": "Yüksekte yapılan geçici işlerde kullanılacak ekipman seçilirken hangisi dikkate alınmalıdır?",
+      "options": [
+        "Yalnızca fiyatı",
+        "İşin niteliği ve çalışma koşulları",
+        "Yalnızca rengi",
+        "Çalışanın kişisel tercihi"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-016",
+      "version": 1,
+      "topic_code": "YC-TEMEL-016",
+      "topic_label": "Temel Düzey",
+      "question_text": "Taşınabilir merdiven kullanımında doğru uygulama hangisidir?",
+      "options": [
+        "Merdivenin kayması ve devrilmesi önlenecek şekilde sağlam ve dengeli yerleştirilmesi",
+        "Kaygan zemine serbest bırakılması",
+        "Dengesiz şekilde kullanılması",
+        "Geçiş yoluna tedbir alınmadan yerleştirilmesi"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-017",
+      "version": 1,
+      "topic_code": "YC-TEMEL-017",
+      "topic_label": "Temel Düzey",
+      "question_text": "Yüksekte bulunan çalışma yerine ulaşım konusunda doğru ifade hangisidir?",
+      "options": [
+        "Çalışan istediği yerden tırmanabilir.",
+        "İskele dışından tırmanmak normaldir.",
+        "Güvenli ulaşım ve erişim imkânı sağlanmalıdır.",
+        "Güvenli erişime gerek yoktur."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-018",
+      "version": 1,
+      "topic_code": "YC-TEMEL-018",
+      "topic_label": "Temel Düzey",
+      "question_text": "Yüksekten malzeme düşme ihtimali bulunan çalışma alanlarında ne yapılmalıdır?",
+      "options": [
+        "Alt tarafta çalışan bulunması önemli değildir.",
+        "Düşen cisimlerin çalışanlara zarar vermesini önleyici tedbirler alınmalıdır.",
+        "Sadece baret yeterlidir.",
+        "Herhangi bir önlem gerekmez."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-019",
+      "version": 1,
+      "topic_code": "YC-TEMEL-019",
+      "topic_label": "Temel Düzey",
+      "question_text": "Kullanıma hazır olmayan iskele bölümlerinde hangisi yapılmalıdır?",
+      "options": [
+        "Herkesin girişine açık bırakılmalıdır.",
+        "Uygun uyarılar yapılmalı ve tehlikeli bölgeye giriş engellenmelidir.",
+        "Sadece sözlü uyarı yeterlidir.",
+        "Gece kullanılmasına izin verilmelidir."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-020",
+      "version": 1,
+      "topic_code": "YC-TEMEL-020",
+      "topic_label": "Temel Düzey",
+      "question_text": "“Tam vücut kemer sistemi kullanılması diğer bütün güvenlik tedbirlerinin yerine geçer.” ifadesi için hangisi doğrudur?",
+      "options": [
+        "Doğrudur.",
+        "Yalnızca deneyimli çalışanlarda doğrudur.",
+        "Yanlıştır; toplu korunmaya öncelik verilmeli ve gerekli diğer tedbirler de uygulanmalıdır.",
+        "Sadece çatılarda doğrudur."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-021",
+      "version": 1,
+      "topic_code": "YC-ORTA-021",
+      "topic_label": "Orta Düzey",
+      "question_text": "Yüksekte geçici çalışma için iş ekipmanı seçilirken temel amaç hangisidir?",
+      "options": [
+        "En ucuz ekipmanı seçmek",
+        "Güvenli çalışma koşullarını sağlayan en uygun ekipmanı seçmek",
+        "En hafif ekipmanı seçmek",
+        "Çalışanın daha önce kullandığı ekipmanı seçmek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-022",
+      "version": 1,
+      "topic_code": "YC-ORTA-022",
+      "topic_label": "Orta Düzey",
+      "question_text": "El merdiveninin çalışma yeri olarak kullanılması bakımından en doğru ifade hangisidir?",
+      "options": [
+        "Bütün yüksekte çalışmalar için ilk tercih olmalıdır.",
+        "İskele yerine her zaman kullanılabilir.",
+        "Riskin düşük olduğu, kısa süreli kullanımın söz konusu olduğu veya daha güvenli ekipman kullanımının işyeri koşulları nedeniyle uygun olmadığı durumlar değerlendirilerek kullanılmalıdır.",
+        "Risk değerlendirmesine gerek olmadan kullanılabilir."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-023",
+      "version": 1,
+      "topic_code": "YC-ORTA-023",
+      "topic_label": "Orta Düzey",
+      "question_text": "İple erişim ve konumlandırma tekniklerinin kullanılması konusunda doğru yaklaşım hangisidir?",
+      "options": [
+        "Risk değerlendirmesi sonucunda işin güvenli yapılabileceği ve daha güvenli ekipman kullanımının haklı gerekçelerle uygun olmadığı durumlarda kullanılmalıdır.",
+        "Her yüksekte iş için ilk tercih olmalıdır.",
+        "Sadece çalışan istediğinde kullanılmalıdır.",
+        "Toplu korunmanın yerine otomatik olarak kullanılmalıdır."
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-024",
+      "version": 1,
+      "topic_code": "YC-ORTA-024",
+      "topic_label": "Orta Düzey",
+      "question_text": "Çalışma platformunun temel özelliklerinden biri hangisidir?",
+      "options": [
+        "Mümkün olduğunca dar olması",
+        "Çalışana güvenli çalışma alanı sağlaması",
+        "Sürekli hareket edebilmesi",
+        "Korkuluk bulunmaması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-025",
+      "version": 1,
+      "topic_code": "YC-ORTA-025",
+      "topic_label": "Orta Düzey",
+      "question_text": "İskele çalışma platformlarıyla ilgili doğru ifade hangisidir?",
+      "options": [
+        "Çalışma sırasında hareket etmeleri normaldir.",
+        "Platform elemanları güvenli biçimde yerleştirilmeli ve istenmeyen hareketleri önlenmelidir.",
+        "Aralarında büyük boşluk bırakılmalıdır.",
+        "Sabitlenmelerine gerek yoktur."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-026",
+      "version": 1,
+      "topic_code": "YC-ORTA-026",
+      "topic_label": "Orta Düzey",
+      "question_text": "İskele stabilitesi açısından aşağıdakilerden hangisi önemlidir?",
+      "options": [
+        "Ankraj ve bağlantı elemanlarının uygunluğu",
+        "İskelenin rengi",
+        "Çalışanın kıyafeti",
+        "Binanın kullanım amacı"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-027",
+      "version": 1,
+      "topic_code": "YC-ORTA-027",
+      "topic_label": "Orta Düzey",
+      "question_text": "İskele üzerinde çalışma sırasında iskelenin güvenliğini etkileyebilecek değişiklik yapılması durumunda hangisi doğrudur?",
+      "options": [
+        "Her çalışan istediği değişikliği yapabilir.",
+        "Güvenlik şartları dikkate alınmadan değişiklik yapılabilir.",
+        "Değişiklikler güvenliği bozmayacak şekilde ve ilgili kurallara uygun yapılmalıdır.",
+        "Değişiklik sonrasında kontrole gerek yoktur."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-028",
+      "version": 1,
+      "topic_code": "YC-ORTA-028",
+      "topic_label": "Orta Düzey",
+      "question_text": "Seyyar iskelenin üzerinde çalışma yapılırken hangisi doğrudur?",
+      "options": [
+        "Çalışma sırasında iskele sürekli hareket ettirilmelidir.",
+        "İstenmeyen hareketleri uygun düzeneklerle önlenmelidir.",
+        "Tekerlek frenleri önemli değildir.",
+        "Eğimli zeminde serbest bırakılmalıdır."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-029",
+      "version": 1,
+      "topic_code": "YC-ORTA-029",
+      "topic_label": "Orta Düzey",
+      "question_text": "Merdivenlerin kurulmasında temel güvenlik şartlarından biri hangisidir?",
+      "options": [
+        "Kullanım sırasında sağlam ve dengeli kalmasının sağlanması",
+        "En yüksek noktaya kadar dik kurulması",
+        "Kaygan yüzeye kurulması",
+        "Alt kısmının serbest hareket etmesi"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-030",
+      "version": 1,
+      "topic_code": "YC-ORTA-030",
+      "topic_label": "Orta Düzey",
+      "question_text": "Bir merdiven üst seviyedeki bir yere erişim amacıyla kullanılıyorsa hangisi sağlanmalıdır?",
+      "options": [
+        "Güvenli tutunma ve geçiş imkânı",
+        "Merdivenin platform seviyesinin altında kalması",
+        "Çalışanın merdivenden atlayarak geçmesi",
+        "Üst uçların serbest bırakılması"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-031",
+      "version": 1,
+      "topic_code": "YC-ORTA-031",
+      "topic_label": "Orta Düzey",
+      "question_text": "Merdiven üzerinde yük taşınmasıyla ilgili en doğru yaklaşım hangisidir?",
+      "options": [
+        "Taşınan yük güvenli tutunmayı engellememelidir.",
+        "İki elle ağır yük taşınmalıdır.",
+        "Tutunmaya gerek yoktur.",
+        "Yük ne kadar ağır olursa olsun taşınabilir."
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-032",
+      "version": 1,
+      "topic_code": "YC-ORTA-032",
+      "topic_label": "Orta Düzey",
+      "question_text": "Yüksekte çalışırken çalışma alanındaki açıklıkların korunmasında amaç nedir?",
+      "options": [
+        "Yalnızca alanı güzel göstermek",
+        "Çalışanların boşluğa düşmesini önlemek",
+        "Çalışma alanını küçültmek",
+        "Malzeme kullanımını artırmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-033",
+      "version": 1,
+      "topic_code": "YC-ORTA-033",
+      "topic_label": "Orta Düzey",
+      "question_text": "Korkuluk sistemlerinin temel amacı hangisidir?",
+      "options": [
+        "Yüksekten düşmenin toplu korunma yöntemiyle önlenmesi",
+        "Yalnızca çalışma alanının sınırlarını göstermek",
+        "Malzeme asmak",
+        "Çalışanların oturmasını sağlamak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-034",
+      "version": 1,
+      "topic_code": "YC-ORTA-034",
+      "topic_label": "Orta Düzey",
+      "question_text": "Bir çalışanın tam vücut kemerini rastgele seçilmiş herhangi bir yapı elemanına bağlaması için hangisi doğrudur?",
+      "options": [
+        "Her zaman uygundur.",
+        "Yapı elemanının rengi uygunsa mümkündür.",
+        "Uygunluğu değerlendirilmiş güvenli bağlantı veya ankraj sistemi kullanılmalıdır.",
+        "Çalışan tecrübeli ise uygundur."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-035",
+      "version": 1,
+      "topic_code": "YC-ORTA-035",
+      "topic_label": "Orta Düzey",
+      "question_text": "Yaşam hattının amacı aşağıdakilerden hangisidir?",
+      "options": [
+        "Çalışanların kişisel eşyalarını asmak",
+        "Düşmeye karşı koruyucu sistemin uygun şekilde bağlantısına ve güvenli hareketine imkân sağlamak",
+        "Malzeme kaldırmak",
+        "İskele kurmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-036",
+      "version": 1,
+      "topic_code": "YC-ORTA-036",
+      "topic_label": "Orta Düzey",
+      "question_text": "Düşmeye karşı kişisel koruyucu sistem seçilirken hangisi dikkate alınmalıdır?",
+      "options": [
+        "İşin ve riskin özellikleri",
+        "Yalnızca ürünün rengi",
+        "Yalnızca ürünün fiyatı",
+        "Çalışanın kıyafet rengi"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-037",
+      "version": 1,
+      "topic_code": "YC-ORTA-037",
+      "topic_label": "Orta Düzey",
+      "question_text": "Yüksekte çalışma alanının altında insanların bulunması durumunda hangisi yapılmalıdır?",
+      "options": [
+        "Düşen cisim riskine karşı uygun tedbirler alınmalıdır.",
+        "Herhangi bir tedbir gerekmez.",
+        "Yalnızca çalışanlara bağırarak uyarı yapılmalıdır.",
+        "Sadece yüksekten çalışan kişi korunmalıdır."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-038",
+      "version": 1,
+      "topic_code": "YC-ORTA-038",
+      "topic_label": "Orta Düzey",
+      "question_text": "İskeleye güvenli erişim için aşağıdakilerden hangisi uygundur?",
+      "options": [
+        "İskele dış yüzeyine tırmanmak",
+        "Uygun merdiven, merdiven kulesi veya güvenli erişim sistemi kullanmak",
+        "Çapraz bağlantıları basamak olarak kullanmak",
+        "Korkuluk üzerinden atlamak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-039",
+      "version": 1,
+      "topic_code": "YC-ORTA-039",
+      "topic_label": "Orta Düzey",
+      "question_text": "Çalışma sırasında güvenli bir korkuluğun belirli bir iş için geçici olarak kaldırılması zorunlu hale gelirse ne yapılmalıdır?",
+      "options": [
+        "Korkuluk tamamen kaldırılarak iş bitince unutulabilir.",
+        "Hiçbir ilave önleme gerek yoktur.",
+        "Önce eşdeğer veya uygun alternatif güvenlik tedbirleri alınmalı, iş tamamlanınca toplu koruma yeniden yerine konulmalıdır.",
+        "Çalışan dikkatli olduğu sürece herhangi bir işlem gerekmez."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-040",
+      "version": 1,
+      "topic_code": "YC-ORTA-040",
+      "topic_label": "Orta Düzey",
+      "question_text": "İş ekipmanının güvenli olmadığı tespit edilirse hangisi yapılmalıdır?",
+      "options": [
+        "Deneyimli çalışanlara kullandırılmalıdır.",
+        "Kısa süreli kullanılabilir.",
+        "Güvenli hale getirilmeden kullanılmamalıdır.",
+        "Yalnızca gece kullanılmalıdır."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-041",
+      "version": 1,
+      "topic_code": "YC-ILERI-041",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Bir şantiyede kat döşemesindeki boşluğun üzerine sabitlenmemiş ince bir levha bırakılmıştır. En doğru değerlendirme hangisidir?",
+      "options": [
+        "Levhanın görülmesi yeterlidir.",
+        "Çalışanlar dikkatli olursa uygundur.",
+        "Boşluk, yerinden çıkmayacak ve gerekli güvenliği sağlayacak uygun bir kapak veya toplu koruma sistemiyle korunmalıdır.",
+        "Üzerine boya yapılması yeterlidir."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-042",
+      "version": 1,
+      "topic_code": "YC-ILERI-042",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Malzeme alınabilmesi için kenar korkuluğunun bir bölümünün geçici olarak kaldırılması gerekiyor. Doğru uygulama hangisidir?",
+      "options": [
+        "Korkuluk kaldırılır ve iş bitince açık bırakılır.",
+        "Önce düşme riskini kontrol edecek alternatif tedbir alınır, işlem tamamlanınca korkuluk yeniden tesis edilir.",
+        "Çalışanın baret takması yeterlidir.",
+        "Çalışan tecrübeli ise başka önlem gerekmez."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-043",
+      "version": 1,
+      "topic_code": "YC-ILERI-043",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Çalışan tam vücut kemeri takmış ancak bağlantı halatını uygunluğu belirlenmemiş bir boruya bağlamıştır. Hangisi doğrudur?",
+      "options": [
+        "Kemer takılı olduğu için sistem güvenlidir.",
+        "Borunun kalın olması yeterlidir.",
+        "Bağlantı, işe uygunluğu belirlenmiş güvenli ankraj veya bağlantı sistemine yapılmalıdır.",
+        "Borunun yüksek olması yeterlidir."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-044",
+      "version": 1,
+      "topic_code": "YC-ILERI-044",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Seyyar iskele üzerinde çalışma yapılacaktır. Çalışmaya başlamadan önce en önemli kontrollerden biri hangisidir?",
+      "options": [
+        "İskelenin renginin kontrol edilmesi",
+        "İskelenin istenmeyen hareketinin önlendiğinin ve stabilitesinin sağlandığının kontrol edilmesi",
+        "Çalışanın ayakkabı renginin kontrol edilmesi",
+        "İskelenin binaya mümkün olduğunca uzaklaştırılması"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-045",
+      "version": 1,
+      "topic_code": "YC-ILERI-045",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Bir çalışan merdivenle üst platforma çıkacaktır. Merdivenin üst kısmında güvenli tutunma ve geçiş imkânı yoktur. Ne yapılmalıdır?",
+      "options": [
+        "Çalışan hızlı hareket etmelidir.",
+        "Çalışan son basamaktan atlamalıdır.",
+        "Güvenli tutunma ve geçiş sağlayacak uygun düzenleme yapılmadan kullanım sürdürülmemelidir.",
+        "Sadece ikinci bir çalışan aşağıdan bakmalıdır."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-046",
+      "version": 1,
+      "topic_code": "YC-ILERI-046",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Taşınabilir merdivenin ayakları kaygan zemindedir. Hangisi doğru uygulamadır?",
+      "options": [
+        "Merdiven bu şekilde kullanılabilir.",
+        "Merdivenin kayması uygun sabitleme, kaymaz düzenek veya eşdeğer tedbirlerle önlenmelidir.",
+        "Çalışanın ağırlığı merdiveni sabitler.",
+        "Yalnızca kısa süreli kullanılabilir."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-047",
+      "version": 1,
+      "topic_code": "YC-ILERI-047",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Bir çalışan merdivene çıkarken iki eliyle büyük bir malzeme taşımakta ve güvenli şekilde tutunamamaktadır. Hangisi doğrudur?",
+      "options": [
+        "Uygundur.",
+        "Yalnızca deneyimli çalışanlarda uygundur.",
+        "Taşınan yük çalışanın güvenli tutunmasını engellememelidir.",
+        "Merdiven kısa ise sorun yoktur."
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-048",
+      "version": 1,
+      "topic_code": "YC-ILERI-048",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Normal şartlarda iple erişim sistemiyle çalışmada aşağıdakilerden hangisi güvenli sistem yaklaşımıdır?",
+      "options": [
+        "Uygun şekilde ayrı ankrajlanmış çalışma ve güvenlik sistemlerinin kullanılması",
+        "Yalnızca tek bir sıradan ipin kullanılması",
+        "Hiçbir kişisel koruyucu kullanılmaması",
+        "Çalışanın kendi ipini seçmesi"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-049",
+      "version": 1,
+      "topic_code": "YC-ILERI-049",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "İple erişim çalışmalarında güvenlik sisteminin amacı hangisidir?",
+      "options": [
+        "Çalışanın malzemelerini taşımak",
+        "Çalışma sistemindeki olası bir sorun halinde düşmeye karşı ilave koruma sağlamak",
+        "Çalışanı daha hızlı hareket ettirmek",
+        "İşi daha ucuz yapmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-050",
+      "version": 1,
+      "topic_code": "YC-ILERI-050",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "İple erişim sırasında kullanılan alet ve diğer ekipmanlarla ilgili doğru yaklaşım hangisidir?",
+      "options": [
+        "Aletler aşağıya serbest bırakılabilir.",
+        "Aletler düşerek tehlike oluşturmayacak şekilde güvenli biçimde kontrol altında tutulmalıdır.",
+        "Ağır aletler ipe bağlanmadan kullanılmalıdır.",
+        "Alet düşme riski değerlendirmesine gerek yoktur."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-051",
+      "version": 1,
+      "topic_code": "YC-ILERI-051",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "İple erişim yöntemiyle yapılan çalışmalarda acil durum bakımından doğru yaklaşım hangisidir?",
+      "options": [
+        "Kurtarma ihtimali dikkate alınmaz.",
+        "İş, acil durumda çalışanın derhal kurtarılmasına imkân sağlayacak şekilde planlanmalıdır.",
+        "Yalnızca itfaiye gelene kadar beklenmelidir.",
+        "Kurtarma yalnızca çalışanın sorumluluğundadır."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-052",
+      "version": 1,
+      "topic_code": "YC-ILERI-052",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "İskelelerin kurulması, sökülmesi veya önemli ölçüde değiştirilmesi sırasında hangisi doğrudur?",
+      "options": [
+        "Konuyla ilgisi olmayan herhangi bir çalışan yapabilir.",
+        "İşler uygun bilgi ve eğitim almış çalışanlar tarafından, gerekli gözetim altında yürütülmelidir.",
+        "Gözetim gerekmez.",
+        "Planlama gerekmez."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-053",
+      "version": 1,
+      "topic_code": "YC-ILERI-053",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Standart kurulum şekli dışında veya yeterli sağlamlık ve dayanıklılık bilgisi bulunmayan bir iskele kullanılacaktır. Doğru yaklaşım hangisidir?",
+      "options": [
+        "Çalışanın tecrübesi yeterlidir.",
+        "Sağlamlık ve stabiliteyle ilgili gerekli teknik değerlendirme veya hesaplar yapılmalıdır.",
+        "İskele sallanmıyorsa hesap gerekmez.",
+        "Yalnızca gözle kontrol yeterlidir."
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-054",
+      "version": 1,
+      "topic_code": "YC-ILERI-054",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "İskele platformunda çalışanların düşmesine neden olabilecek tehlikeli açıklıklar bulunuyorsa hangisi yapılmalıdır?",
+      "options": [
+        "Açıklıklar korunmalı veya giderilmelidir.",
+        "Çalışana dikkat etmesi söylenmesi yeterlidir.",
+        "Sadece gece kapatılmalıdır.",
+        "Açıklıklara herhangi bir müdahale edilmemelidir."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-055",
+      "version": 1,
+      "topic_code": "YC-ILERI-055",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Kuvvetli rüzgârın iskele veya çalışma platformunun güvenliğini etkilediği belirlenmiştir. Hangisi doğru uygulamadır?",
+      "options": [
+        "İş hızlandırılmalıdır.",
+        "Risk değerlendirilmeden çalışmaya devam edilmelidir.",
+        "Güvenli çalışma şartları sağlanamıyorsa çalışma sürdürülmemelidir.",
+        "Çalışanın kemer kullanması bütün diğer riskleri ortadan kaldırır."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-056",
+      "version": 1,
+      "topic_code": "YC-ILERI-056",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Kırılgan bir çatı yüzeyinde çalışma yapılacaktır. Doğru yaklaşım hangisidir?",
+      "options": [
+        "Yüzey sağlam görünüyorsa doğrudan üzerine basılır.",
+        "Kırılma ve düşme ihtimali değerlendirilerek uygun çalışma platformu, geçiş sistemi veya diğer gerekli koruma tedbirleri sağlanır.",
+        "Sadece baret kullanılır.",
+        "Çalışan hızlı yürürse risk ortadan kalkar."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-057",
+      "version": 1,
+      "topic_code": "YC-ILERI-057",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Yüksekte çalışma eğitimiyle ilgili aşağıdaki ifadelerden hangisi mevzuat açısından en doğru olanıdır?",
+      "options": [
+        "Bütün çalışanlar için mevzuatta tek isimli ve tek tip özel bir “yüksekte çalışma sertifikası” zorunluluğu bulunmaktadır.",
+        "Yüksekte çalışma eğitimi yalnızca üretici firma tarafından verilebilir.",
+        "Eğitim; ilgili mevzuatta belirtilen esaslar çerçevesinde, eğiticinin uzmanlık alanı ve işyerinin riskleri dikkate alınarak verilmelidir.",
+        "Tecrübeli çalışanlara eğitim verilmesine gerek yoktur."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-058",
+      "version": 1,
+      "topic_code": "YC-ILERI-058",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Yüksekte çalışma eğitim süresiyle ilgili en doğru ifade hangisidir?",
+      "options": [
+        "Mevzuatta bütün işyerleri için bağımsız ve değişmez tek bir yüksekte çalışma eğitim süresi belirlenmiştir.",
+        "Yüksekte çalışmaya ayrılacak eğitim süresi; ilgili temel eğitim süreleri, işyerindeki faaliyetler, riskler ve çalışanların ihtiyaçları dikkate alınarak belirlenir.",
+        "Her durumda yalnızca 30 dakikadır.",
+        "Eğitim süresini çalışan kendisi belirler."
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-059",
+      "version": 1,
+      "topic_code": "YC-ILERI-059",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "Yapı işlerinde yüksekte çalışma eğitiminin temel içeriğinde hangilerinin bulunması beklenir?",
+      "options": [
+        "Yalnızca şirket tarihi",
+        "Yalnızca kişisel koruyucu donanım isimleri",
+        "Yüksekte çalışmayla ilgili tehlikeler, riskler, kontrol tedbirleri ve güvenli çalışma yöntemleri",
+        "Yalnızca işyerinin organizasyon şeması"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-060",
+      "version": 1,
+      "topic_code": "YC-ILERI-060",
+      "topic_label": "İleri Düzey / Senaryolu",
+      "question_text": "İşyerindeki şartların değişmesi nedeniyle daha önce verilen yüksekte çalışma eğitiminin yeni riskler açısından yetersiz kaldığı belirlenmiştir. En doğru yaklaşım hangisidir?",
+      "options": [
+        "Eski eğitim süresiz olarak yeterli kabul edilmelidir.",
+        "Yeni riskler dikkate alınmalı ve eğitim programı/içeriği gerekli şekilde güncellenmelidir.",
+        "Sadece çalışana yazılı uyarı verilmelidir.",
+        "Eğitim yerine yalnızca kişisel koruyucu donanım verilmelidir."
+      ],
+      "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve ilgili yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
+          "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
+        }
+      ]
+    }
+  ]
+}
