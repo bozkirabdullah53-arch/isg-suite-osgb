@@ -16,6 +16,10 @@ from app.services.training_lifecycle_v2 import (
     public_policy,
     training_kind,
 )
+from app.services.training_lifecycle_v2_content_guards import (
+    install_training_lifecycle_v2_content_guards,
+)
+from app.services.training_lifecycle_v2_record_hooks import clears_basic_renewal
 
 
 @pytest.fixture(autouse=True)
@@ -24,6 +28,7 @@ def lifecycle_env(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("TRAINING_PREMIUM_LIFECYCLE_V2_FORCE_OFF", "false")
     monkeypatch.delenv("TRAINING_PREMIUM_LIFECYCLE_V2_AFTER", raising=False)
     install_training_lifecycle_v2()
+    install_training_lifecycle_v2_content_guards()
 
 
 def test_official_2026_duration_policy_is_explicit():
@@ -128,6 +133,16 @@ def test_work_start_does_not_satisfy_basic_renewal_tracking():
         created_at=datetime(2026, 8, 9, 7, 0, 0),
     )
     assert trainings._is_basic_training(row) is False
+    assert clears_basic_renewal(row) is True
+
+
+def test_information_refresh_does_not_reset_basic_renewal_date():
+    row = SimpleNamespace(
+        training_type="Bilgi Yenileme Eğitimi",
+        title="İşe Dönüş Bilgi Yenileme Eğitimi",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+    )
+    assert clears_basic_renewal(row) is True
 
 
 def test_historical_work_start_keeps_legacy_predicate(monkeypatch: pytest.MonkeyPatch):
@@ -144,6 +159,7 @@ def test_historical_work_start_keeps_legacy_predicate(monkeypatch: pytest.Monkey
     # old predicate remains untouched even if its free-text title resembles the
     # new work-start type.
     assert trainings._is_basic_training(row) is True
+    assert clears_basic_renewal(row) is False
 
 
 def test_work_start_attendance_pdf_uses_explicit_record_contract():
@@ -179,4 +195,21 @@ def test_work_start_cannot_generate_misleading_basic_certificate():
             training=row,
             employees={},
             participants=[],
+        )
+
+
+def test_work_start_cannot_generate_basic_twenty_question_exam():
+    from app.services import training_exam_pdf
+
+    row = SimpleNamespace(
+        training_type="İşe Başlama Eğitimi",
+        title="İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+    )
+    with pytest.raises(ValueError, match="20 soruluk Temel İSG sınavı oluşturulmaz"):
+        training_exam_pdf.build_exam_pdf(
+            company_name="Test",
+            training=row,
+            db=None,
+            created_by_id=1,
         )
