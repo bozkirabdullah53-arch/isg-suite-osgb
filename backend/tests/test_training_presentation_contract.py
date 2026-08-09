@@ -32,7 +32,7 @@ def _training():
         branch_id=None,
         title="Temel İş Sağlığı ve Güvenliği Eğitimi",
         start_date=date(2026, 8, 6),
-        end_date=date(2026, 8, 6),
+        end_date=date(2026, 8, 7),
     )
 
 
@@ -153,6 +153,14 @@ def test_verified_it_snapshot_builds_deterministic_21_slide_preview():
     assert first["training_topics"] == IT_TOPICS
     assert first["nace_snapshot"]["nace_code"] == "62.01.01"
     assert first["nace_snapshot"]["content_profile_code"] == "bilisim_yazilim_it"
+    cover = next(slide for slide in first["slides"] if slide["section_id"] == "cover")
+    training_date = next(block for block in cover["content_blocks"] if block["type"] == "training_date")
+    assert training_date == {
+        "type": "training_date",
+        "value": "06.08.2026 – 07.08.2026",
+        "start_date": "06.08.2026",
+        "end_date": "07.08.2026",
+    }
 
 
 def test_each_frozen_topic_has_its_own_work_specific_slide_without_unrelated_content():
