@@ -48,9 +48,7 @@ async function cleanup(button) {
       body: JSON.stringify({email}),
     });
     window.alert(result?.message || 'Yetim hesap temizlendi.');
-    if (emailInput) emailInput.value = '';
-    const card = button.closest('[data-eisa-orphan-card]') || orphanCardFromStatusText(button);
-    if (card) card.remove();
+    window.location.reload();
   } catch (error) {
     window.alert(String(error?.message || error || 'Yetim hesap temizlenemedi.'));
     button.disabled = false;
