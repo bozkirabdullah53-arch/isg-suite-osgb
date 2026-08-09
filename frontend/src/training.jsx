@@ -29,7 +29,7 @@ function foldTrainingText(value) {
   return String(value || '')
     .toLocaleLowerCase('tr-TR')
     .normalize('NFKD')
-    .replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .replaceAll('ı', 'i')
     .replaceAll('ş', 's')
     .replaceAll('ğ', 'g')
