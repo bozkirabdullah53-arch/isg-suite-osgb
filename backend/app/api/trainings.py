@@ -757,6 +757,42 @@ def certificates_pdf(
     )
 
 
+
+@router.get("/{training_id}/exam-answer-key.pdf")
+def training_exam_answer_key_pdf(
+    training_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Cevap anahtarını çalışan sınavından ayrı ve yalnız yetkili eğiticiye üret."""
+    if user.role not in EDIT_ROLES:
+        raise HTTPException(403, "Cevap anahtarını yalnız yetkili eğitici veya eğitim yöneticisi indirebilir.")
+    row = _load_training(db, training_id)
+    ensure_access(db, user, row.company_id)
+    company = db.get(Company, row.company_id)
+    try:
+        pdf_bytes = build_exam_pdf(
+            company_name=company.name if company else str(row.company_id),
+            training=row,
+            db=db,
+            created_by_id=user.id,
+            include_answer_key=True,
+            answer_key_only=True,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(422, str(exc)) from exc
+    except RuntimeError as exc:
+        db.rollback()
+        raise HTTPException(500, str(exc)) from exc
+    return StreamingResponse(
+        BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="egitim-{training_id}-egitici-cevap-anahtari.pdf"'},
+    )
+
+
 @router.get("/{training_id}/exam.pdf")
 def training_exam_pdf(
     training_id: int,
