@@ -1,6 +1,7 @@
 import {api} from './api';
 
 const BUTTON_ATTR = 'data-eisa-orphan-cleanup';
+const LEGACY_STATUS_PREFILL = 'hekimbir@gmail.com';
 let observer = null;
 let timer = null;
 
@@ -8,6 +9,29 @@ function findEmailInput() {
   const labels = Array.from(document.querySelectorAll('label'));
   const label = labels.find((node) => String(node.textContent || '').includes('Kullanıcı e-postası'));
   return label?.querySelector('input') || null;
+}
+
+function clearLegacyStatusPrefill() {
+  const emailInput = findEmailInput();
+  if (!emailInput) return;
+
+  emailInput.setAttribute('autocomplete', 'off');
+  emailInput.setAttribute('autocapitalize', 'none');
+  emailInput.setAttribute('spellcheck', 'false');
+  emailInput.setAttribute('data-lpignore', 'true');
+
+  if (emailInput.dataset.eisaLegacyPrefillChecked === '1') return;
+  emailInput.dataset.eisaLegacyPrefillChecked = '1';
+
+  const current = String(emailInput.value || '').trim().toLowerCase();
+  if (current !== LEGACY_STATUS_PREFILL) return;
+
+  const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  if (valueSetter) valueSetter.call(emailInput, '');
+  else emailInput.value = '';
+
+  emailInput.dispatchEvent(new Event('input', {bubbles: true}));
+  emailInput.dispatchEvent(new Event('change', {bubbles: true}));
 }
 
 function orphanCardFromStatusText(node) {
@@ -57,6 +81,8 @@ async function cleanup(button) {
 }
 
 function attach() {
+  clearLegacyStatusPrefill();
+
   const statusNodes = Array.from(document.querySelectorAll('p')).filter((node) => {
     const text = String(node.textContent || '');
     return text.includes('Bağlantı durumu:') && text.includes('Eksik / yetim hesap');
