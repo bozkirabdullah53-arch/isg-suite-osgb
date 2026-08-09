@@ -234,3 +234,27 @@ def test_training_create_rejects_general_profile_code():
             instructor_name="Test Eğitmen",
             participant_ids=[1],
         )
+
+
+def test_read_only_nace_inventory_v3_is_complete_and_balanced():
+    from scripts.inventory_training_nace_profiles_v3 import build_inventory
+
+    payload = build_inventory()
+    assert payload["safety"] == {
+        "read_only": True,
+        "database_writes": False,
+        "api_routes_changed": False,
+        "runtime_registration": False,
+        "generated_files": False,
+    }
+    assert payload["catalog_option_count"] == 2142
+    assert payload["official_nace_count"] == 2141
+    assert payload["non_nace_option_count"] == 1
+    assert payload["resolved_official_count"] == 2141
+    assert payload["verified_official_count"] == 2141
+    assert payload["invalid_official_count"] == 0
+    assert payload["verified_coverage_complete"] is True
+    assert payload["topic_slot_count"] == 10705
+    assert payload["profile_count"] == len(payload["profile_distribution"])
+    assert sum(row["nace_count"] for row in payload["profile_distribution"]) == 2141
+    assert all(row["technical_risk_tags"] for row in payload["profile_distribution"])
