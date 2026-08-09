@@ -25,7 +25,17 @@ function escapeHtml(value) {
 }
 
 async function currentUser() {
-  if (!currentUserPromise) currentUserPromise = api('/auth/me').catch(() => null);
+  if (!currentUserPromise) {
+    currentUserPromise = api('/auth/me')
+      .then((user) => {
+        if (!user?.role) currentUserPromise = null;
+        return user;
+      })
+      .catch(() => {
+        currentUserPromise = null;
+        return null;
+      });
+  }
   return currentUserPromise;
 }
 
