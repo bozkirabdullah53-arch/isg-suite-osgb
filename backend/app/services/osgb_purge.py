@@ -1,7 +1,7 @@
 """OSGB kalıcı silme — bağlı kayıtları temizler; arşiv kayıtlarının osgb_id'sini korur/nullar."""
 from __future__ import annotations
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.orm import Session
 
 from app.api.companies import _purge_company_data
@@ -100,6 +100,34 @@ def _purge_osgb_personnel_profiles(db: Session, osgb_id: int) -> None:
     db.flush()
 
 
+def _purge_osgb_training_participants(db: Session, osgb_id: int) -> None:
+    """OSGB personellerine bağlı eğitim katılımlarını tenant SELECT'inden bağımsız temizler.
+
+    EİSA global yönetici kalıcı silme akışında ORM/tenant görünürlük filtreleri,
+    `_purge_company_data` içindeki önce-ID-topla yaklaşımında Employee kimlik listesini
+    boş bırakabilir. Ardından doğrudan Employee DELETE çalıştığında PostgreSQL,
+    training_participants.employee_id FK'sı nedeniyle işlemi durdurur.
+
+    Buradaki parametrik SQL yalnız kalıcı OSGB purge akışında çalışır; eğitim CRUD,
+    sertifika, geçmiş veya normal personel silme davranışını değiştirmez.
+    """
+    db.execute(
+        text(
+            """
+            DELETE FROM training_participants
+            WHERE employee_id IN (
+                SELECT e.id
+                FROM employees AS e
+                JOIN companies AS c ON c.id = e.company_id
+                WHERE c.osgb_id = :osgb_id
+            )
+            """
+        ),
+        {"osgb_id": osgb_id},
+    )
+    db.flush()
+
+
 def purge_osgb(db: Session, osgb_id: int) -> str:
     """OSGB ve bağlı operasyonel veriyi kalıcı siler. Dönüş: OSGB adı."""
     org = db.get(OsgbOrganization, osgb_id)
@@ -111,6 +139,10 @@ def purge_osgb(db: Session, osgb_id: int) -> str:
     # Şirket purge'ü Employee satırlarını fiziksel olarak silmeden önce bunlar
     # kaldırılmalıdır. Bu yalnız kalıcı OSGB silme akışında çalışır.
     _purge_osgb_personnel_profiles(db, osgb_id)
+
+    # Global EİSA purge sırasında tenant görünürlük filtresine bağlı Employee-ID
+    # toplamasına güvenmeden eğitim katılım FK'sını doğrudan çözer.
+    _purge_osgb_training_participants(db, osgb_id)
 
     companies = list(db.scalars(select(Company).where(Company.osgb_id == osgb_id)).all())
     for company in companies:
