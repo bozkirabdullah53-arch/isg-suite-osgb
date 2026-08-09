@@ -13,7 +13,15 @@ HAZARD_HOURS = {"Az Tehlikeli": 8, "Tehlikeli": 12, "Çok Tehlikeli": 16}
 
 
 def resolve_training_hours(*, training_type: str, title: str, notes: str | None, hazard_class: str) -> int:
-    """Temel İSG → tehlike sınıfı; özel eğitim → profil mevzuat saati."""
+    """Tek kaynaklı süre politikası: işe başlama 2 saat, tekrar 8 saat,
+    temel eğitim tehlike sınıfı saati, özel profil ise katalog saati."""
+    text = f"{training_type or ''} {title or ''}".casefold()
+    if 'işe başlama' in text or 'ise baslama' in text:
+        return 2
+    if 'bilgi yenileme' in text or 'bilgi tazeleme' in text:
+        return {'Az Tehlikeli': 2, 'Tehlikeli': 3, 'Çok Tehlikeli': 4}.get(hazard_class, 2)
+    if 'tekrar' in text or 'yenileme eğitimi' in text or 'yenileme egitimi' in text:
+        return 8
     special = resolve_special_duration_hours(
         SimpleNamespace(training_type=training_type, title=title, notes=notes or "")
     )
@@ -79,6 +87,25 @@ class TrainingCreate(BaseModel):
         classification = resolve_exact_nace(self.sector)
         self.sector = str(classification.catalog_key)
         self.hazard_class = str(classification.hazard_class)
+
+        policy_text = f"{self.training_type or ''} {self.title or ''}".casefold()
+        is_record_only = (
+            'işe başlama' in policy_text
+            or 'ise baslama' in policy_text
+            or 'bilgi yenileme' in policy_text
+            or 'bilgi tazeleme' in policy_text
+        )
+        if is_record_only:
+            self.evaluation_method = 'Katılım yeterlidir'
+            self.passing_score = None
+        else:
+            evaluation_text = str(self.evaluation_method or '').casefold()
+            if not any(token in evaluation_text for token in ('sınav', 'sinav', 'yazılı', 'yazili')):
+                raise ValueError(
+                    'Bu eğitim türünde değerlendirme yöntemi Sınav veya Yazılı değerlendirme olmalıdır.'
+                )
+            if self.passing_score is None:
+                self.passing_score = 60
 
         hours = resolve_training_hours(
             training_type=self.training_type,
