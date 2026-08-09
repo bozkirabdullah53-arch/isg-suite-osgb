@@ -1,6 +1,6 @@
 export const PREMIUM_TRAINING_TYPES = [
   {value: 'İşe Başlama Eğitimi', label: 'İşe Başlama Eğitimi · en az 2 saat · yüz yüze'},
-  {value: 'Bilgi Yenileme Eğitimi', label: 'Bilgi Yenileme Eğitimi'},
+  {value: 'Bilgi Yenileme Eğitimi', label: 'Bilgi Yenileme Eğitimi · işe özgü riskler'},
 ];
 
 export const LIFECYCLE_STEPS = [
@@ -31,7 +31,7 @@ export function parseTrainingIdFromText(text) {
 }
 
 export function lifecycleTone(stage) {
-  if (stage === 'document_ready') return 'ready';
+  if (stage === 'document_ready' || stage === 'record_ready') return 'ready';
   if (stage === 'cancelled') return 'danger';
   if (stage === 'attendance_pending' || stage === 'results_pending') return 'warning';
   return 'info';
@@ -57,13 +57,22 @@ export function shouldReplacePrematureVerification(policy) {
 export function outputActionPolicy(lifecycle) {
   const state = lifecycle && typeof lifecycle === 'object' ? lifecycle : {};
   const kind = String(state.policy?.kind || '');
-  if (!state.premium_enforced || kind !== 'work_start') {
+  if (!state.premium_enforced || !['work_start', 'information_refresh'].includes(kind)) {
     return {
       certificateAllowed: true,
       examAllowed: true,
       attendanceAllowed: true,
       attendanceLabel: 'Katılım PDF (İmza Formu)',
       note: '',
+    };
+  }
+  if (kind === 'information_refresh') {
+    return {
+      certificateAllowed: false,
+      examAllowed: false,
+      attendanceAllowed: true,
+      attendanceLabel: 'Bilgi Yenileme Eğitimi Tutanağı PDF',
+      note: 'Bilgi Yenileme Eğitimi, düzenli Temel İSG tekrar eğitimi değildir. Temel İSG sınavı ve sertifikası bu kayıtta oluşturulmaz.',
     };
   }
   return {
