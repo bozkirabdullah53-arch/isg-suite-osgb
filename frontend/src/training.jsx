@@ -1068,6 +1068,9 @@ export function TrainingPage({user}) {
       passing_score: 60,
       special_duration_hours: total || null,
       special_duration_hint: hint,
+      // Özel eğitim çıktıları gerçek katılım ve değerlendirme doğrulanmadan kesinleşmez.
+      attendance_verified: false,
+      success_verified: false,
       notes: [
         profile.purpose || '',
         profile.disclaimer || '',
