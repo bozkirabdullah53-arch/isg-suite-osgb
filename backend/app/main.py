@@ -25,6 +25,7 @@ from app.services.training_lifecycle_v2 import install_training_lifecycle_v2, Pr
 from app.services.training_lifecycle_v2_record_hooks import install_training_lifecycle_v2_record_hooks
 from app.services.training_lifecycle_v2_completion import install_training_lifecycle_v2_completion
 from app.services.training_lifecycle_v2_content_guards import install_training_lifecycle_v2_content_guards
+from app.services.training_lifecycle_v2_validity import install_training_lifecycle_v2_validity
 from app.services.training_question_selection_v2 import install_exact_nace_question_selection
 from app.services.training_completion import install_training_completion_guard
 from app.services.training_presentation_phase8 import install_training_presentation_phase8
@@ -36,6 +37,7 @@ _training_lifecycle_v2_status = install_training_lifecycle_v2()
 _training_lifecycle_v2_record_status = install_training_lifecycle_v2_record_hooks()
 _training_lifecycle_v2_completion_status = install_training_lifecycle_v2_completion()
 _training_lifecycle_v2_content_status = install_training_lifecycle_v2_content_guards()
+_training_lifecycle_v2_validity_status = install_training_lifecycle_v2_validity()
 _training_question_selection_status = install_exact_nace_question_selection()
 _training_completion_status = install_training_completion_guard()
 _training_presentation_phase8_status = install_training_presentation_phase8()
@@ -45,6 +47,7 @@ logger.info("training premium lifecycle v2: %s", _training_lifecycle_v2_status)
 logger.info("training premium lifecycle v2 record hooks: %s", _training_lifecycle_v2_record_status)
 logger.info("training premium lifecycle v2 completion: %s", _training_lifecycle_v2_completion_status)
 logger.info("training premium lifecycle v2 content guards: %s", _training_lifecycle_v2_content_status)
+logger.info("training premium lifecycle v2 validity: %s", _training_lifecycle_v2_validity_status)
 logger.info("training exact NACE question selection: %s", _training_question_selection_status)
 logger.info("training completion guard: %s", _training_completion_status)
 logger.info("training presentation phase 8: %s", _training_presentation_phase8_status)
