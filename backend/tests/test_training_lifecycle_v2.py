@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
 
+from app.models.entities import TrainingStatus
 from app.schemas.training import TrainingCreate
 from app.services.training_lifecycle_v2 import (
     PremiumTrainingLifecycleMiddleware,
@@ -16,10 +17,16 @@ from app.services.training_lifecycle_v2 import (
     public_policy,
     training_kind,
 )
+from app.services.training_lifecycle_v2_completion import (
+    finalize_record_only,
+    install_training_lifecycle_v2_completion,
+    record_only_preflight,
+)
 from app.services.training_lifecycle_v2_content_guards import (
     install_training_lifecycle_v2_content_guards,
 )
 from app.services.training_lifecycle_v2_record_hooks import clears_basic_renewal
+from app.services.training_lifecycle_v2_validity import no_basic_training_state
 
 
 @pytest.fixture(autouse=True)
@@ -28,6 +35,7 @@ def lifecycle_env(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("TRAINING_PREMIUM_LIFECYCLE_V2_FORCE_OFF", "false")
     monkeypatch.delenv("TRAINING_PREMIUM_LIFECYCLE_V2_AFTER", raising=False)
     install_training_lifecycle_v2()
+    install_training_lifecycle_v2_completion()
     install_training_lifecycle_v2_content_guards()
 
 
@@ -155,9 +163,6 @@ def test_historical_work_start_keeps_legacy_predicate(monkeypatch: pytest.Monkey
         notes="",
         created_at=datetime(2026, 8, 9, 7, 0, 0),
     )
-    # Historical compatibility: this record predates the premium cutover, so the
-    # old predicate remains untouched even if its free-text title resembles the
-    # new work-start type.
     assert trainings._is_basic_training(row) is True
     assert clears_basic_renewal(row) is False
 
@@ -178,6 +183,23 @@ def test_work_start_attendance_pdf_uses_explicit_record_contract():
     assert curriculum["duration_label"] == "EN AZ 2 SAAT"
     assert curriculum["is_special"] is True
     assert "Temel İSG Eğitimi yerine geçmez" in curriculum["disclaimer"]
+
+
+def test_information_refresh_attendance_pdf_uses_work_specific_duration():
+    from app.services import training_pdfs
+
+    row = SimpleNamespace(
+        training_type="Bilgi Yenileme Eğitimi",
+        title="İşe Dönüş Bilgi Yenileme Eğitimi",
+        notes="",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+        sector="nace_20_30_90",
+        hazard_class="Çok Tehlikeli",
+    )
+    curriculum = training_pdfs.resolve_training_curriculum(row)
+    assert curriculum["attendance_title"] == "BİLGİ YENİLEME İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ"
+    assert curriculum["duration_label"] == "EN AZ 4 DERS SAATİ"
+    assert "Temel İSG tekrar eğitimi" in curriculum["disclaimer"]
 
 
 def test_work_start_cannot_generate_misleading_basic_certificate():
@@ -213,3 +235,52 @@ def test_work_start_cannot_generate_basic_twenty_question_exam():
             db=None,
             created_by_id=1,
         )
+
+
+def test_record_only_completion_requires_real_attendance_and_never_exam_score():
+    participant = SimpleNamespace(id=1, employee_id=11, attended=True, score=88, successful=None, certificate_number="EGT-1-11")
+    training = SimpleNamespace(
+        id=1,
+        training_type="İşe Başlama Eğitimi",
+        title="İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+        start_date=date.today() - timedelta(days=1),
+        end_date=date.today(),
+        instructor_name="Abdullah Bozkır",
+        participants=[participant],
+        attendance_verified=False,
+        success_verified=False,
+        status=TrainingStatus.PLANNED,
+    )
+    before = record_only_preflight(training)
+    assert before["exam_required"] is False
+    assert before["ready_for_record"] is False
+
+    after = finalize_record_only(training)
+    assert training.status == TrainingStatus.COMPLETED
+    assert training.attendance_verified is True
+    assert participant.score is None
+    assert participant.successful is True
+    assert after["ready_for_record"] is True
+    assert after["ready_for_certificates"] is False
+
+
+def test_basic_training_deadline_is_three_months_after_start_not_before_start():
+    state = no_basic_training_state(
+        hire_date=date(2026, 8, 1),
+        today=date(2026, 8, 9),
+    )
+    assert state["next_due"] == "2026-11-01"
+    assert "en geç 01.11.2026" in state["message"]
+    assert "İşe Başlama Eğitimi fiilen işe başlamadan önce" in state["message"]
+
+
+def test_overdue_basic_training_message_is_explicit_and_separate_from_work_start():
+    state = no_basic_training_state(
+        hire_date=date(2026, 1, 1),
+        today=date(2026, 8, 9),
+    )
+    assert state["next_due"] == "2026-04-01"
+    assert state["days_left"] < 0
+    assert "gecikmiş" in state["message"]
+    assert "İşe Başlama Eğitimi bu kayıttan ayrıdır" in state["message"]
