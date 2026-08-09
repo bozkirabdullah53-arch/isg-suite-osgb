@@ -1,0 +1,564 @@
+{
+  "items": [
+    {
+      "question_code": "YC-001",
+      "version": 1,
+      "topic_code": "YC-TANIM",
+      "topic_label": "Yüksekte çalışma",
+      "question_text": "Bir çalışanın, seviye farkı nedeniyle düşme sonucu yaralanma ihtimali bulunan yerde yaptığı çalışma için en doğru yaklaşım hangisidir?",
+      "options": [
+        "Yalnızca yerden yüksekliği 10 metreyi aşan işler yüksekte çalışmadır",
+        "Düşme riski bulunan her seviye farkı, işin koşullarıyla birlikte değerlendirilmelidir",
+        "Sadece bina dış cephe işleri yüksekte çalışmadır",
+        "Düşme riski yoksa tüm yükseklikler otomatik olarak güvenlidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Yüksekte çalışma yalnızca sabit bir metre eşiğiyle değil, seviye farkı ve düşme sonucu yaralanma ihtimaliyle birlikte değerlendirilir.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-002",
+      "version": 1,
+      "topic_code": "YC-ONCELIK",
+      "topic_label": "Toplu korunma",
+      "question_text": "Yüksekte düşme riskini kontrol ederken tedbirlerin öncelik sırası nasıl olmalıdır?",
+      "options": [
+        "Önce kişisel koruyucu donanım, sonra diğer tedbirler",
+        "Önce çalışanın deneyimi, sonra uyarı levhası",
+        "Önce çalışmadan kaçınma veya işi zeminde yapma, ardından toplu korunma ve en son KKD",
+        "Önce yalnızca sözlü uyarı"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Risk mümkünse yüksekte çalışmayı ortadan kaldırarak, değilse toplu korunma tedbirleriyle, son aşamada kişisel düşüş önleme sistemleriyle kontrol edilir.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-003",
+      "version": 1,
+      "topic_code": "YC-RISK",
+      "topic_label": "İşe başlamadan önce",
+      "question_text": "Yüksekte çalışma başlamadan önce hangi işlem zorunlu bir güvenlik adımıdır?",
+      "options": [
+        "Sadece çalışanların imza atması",
+        "İşe ve çalışma alanına özgü risk değerlendirmesi ile çalışma yönteminin belirlenmesi",
+        "Yalnızca baret dağıtılması",
+        "İş bittikten sonra fotoğraf çekilmesi"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Çalışma alanı, erişim yolu, düşme kenarları, hava koşulları, ekipman ve kurtarma imkânı işe başlamadan önce değerlendirilmelidir.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-004",
+      "version": 1,
+      "topic_code": "YC-KORKULUK",
+      "topic_label": "Korkuluklar",
+      "question_text": "Geçici kenar koruma sisteminde temel amaç nedir?",
+      "options": [
+        "Çalışanın görüşünü azaltmak",
+        "Çalışanın düşmesini fiziksel olarak önlemek ve ara boşluklardan geçişi engellemek",
+        "Sadece alanı renklendirmek",
+        "Yalnızca malzeme depolamak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Korkuluk, ara korkuluk ve topuk levhası gibi unsurlar düşmeyi ve malzeme düşmesini fiziksel olarak önlemeye hizmet eder.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-005",
+      "version": 1,
+      "topic_code": "YC-PLATFORM",
+      "topic_label": "Platformlar",
+      "question_text": "Çalışma platformu kullanılmadan önce hangisi kontrol edilmelidir?",
+      "options": [
+        "Yalnızca platformun rengi",
+        "Taşıma kapasitesi, yüzey bütünlüğü, sabitleme ve kenar korumaları",
+        "Çalışanın ayakkabı numarası",
+        "Sadece platformun markası"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Platform güvenliği; taşıma kapasitesi, sağlamlık, sabitleme, kayma ve düşmeye karşı kenar koruma birlikte kontrol edilerek sağlanır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-006",
+      "version": 1,
+      "topic_code": "YC-ISKELE",
+      "topic_label": "İskeleler",
+      "question_text": "Bir iskelede eksik korkuluk veya platform varken doğru uygulama hangisidir?",
+      "options": [
+        "Eksik kısımlar tamamlanana kadar iskele kullanılmamalıdır",
+        "Çalışan dikkatli olursa kullanılabilir",
+        "Sadece baretle kullanılabilir",
+        "Eksik parçalar halatla geçici olarak bağlanmalıdır"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "İskele, güvenli erişim ve kenar korumaları tamamlanıp yetkili kontrolü yapılmadan kullanıma açılmamalıdır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-007",
+      "version": 1,
+      "topic_code": "YC-MERDIVEN",
+      "topic_label": "Merdivenler",
+      "question_text": "Merdiven hangi durumda çalışma platformu yerine güvenli bir çözüm sayılmaz?",
+      "options": [
+        "Kısa süreli, hafif ve kontrollü işlerde",
+        "İki elin serbest olması, yana uzanma veya ağır malzeme taşıma gerektiğinde",
+        "Sağlam ve kaymaz zeminde",
+        "Üretici talimatına göre kurulduğunda"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İki elin kullanılması, yana uzanma veya yük taşıma gereken işlerde merdiven yerine uygun platform ve erişim sistemi seçilmelidir.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-008",
+      "version": 1,
+      "topic_code": "YC-KEMER",
+      "topic_label": "Tam vücut kemeri",
+      "question_text": "Tam vücut kemeri kullanılmadan önce hangisi yapılmalıdır?",
+      "options": [
+        "Sadece kemerin rengine bakılmalıdır",
+        "Etiket, dikiş, bağlantı noktaları, kesik/aşınma ve uygunluk kontrol edilmelidir",
+        "Kemer başka çalışanla ölçülmeden paylaşılmalıdır",
+        "Kemerin geçmiş düşüşü önemli değildir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Düşüş durdurma donanımı her kullanım öncesi hasar, etiket, bağlantı ve kullanım ömrü yönünden kontrol edilmelidir.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-009",
+      "version": 1,
+      "topic_code": "YC-ANKRAJ",
+      "topic_label": "Ankraj",
+      "question_text": "Düşüş durdurma sisteminde ankraj noktası için hangisi doğrudur?",
+      "options": [
+        "Herhangi bir boru veya korkuluk ankraj olabilir",
+        "Ankraj, öngörülen yüke uygun, güvenli ve yetkin kişi tarafından belirlenmiş olmalıdır",
+        "Ankraj yalnızca görünür olmasıyla yeterlidir",
+        "Ankrajın taşıma kapasitesi bilinmese de kullanılabilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Ankrajın yeri ve kapasitesi sistem tasarımına ve üretici/uygulama şartlarına göre doğrulanmadan bağlantı yapılmamalıdır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-010",
+      "version": 1,
+      "topic_code": "YC-YASAM-HATTI",
+      "topic_label": "Yaşam hattı",
+      "question_text": "Yatay veya dikey yaşam hattı kullanılırken hangi bilgiye uyulmalıdır?",
+      "options": [
+        "Sadece ipin uzunluğuna",
+        "Sistemin tasarımına, üretici talimatına, ankrajlarına ve kullanıcı sayısına",
+        "Çalışanın kişisel tercihine",
+        "İşverenin sözlü iznine; teknik bilgiye gerek yoktur"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Yaşam hattı bir bütün sistemdir; ankraj, hat, bağlantı elemanları, kullanıcı sayısı ve boşluk hesabı birlikte değerlendirilir.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-011",
+      "version": 1,
+      "topic_code": "YC-DUSUS-FAKTORU",
+      "topic_label": "Düşüş faktörü",
+      "question_text": "Düşüş faktörünü azaltmak için bağlantı noktası genel olarak nereye seçilmelidir?",
+      "options": [
+        "Mümkün olduğunca daha yüksek ve düşüş mesafesini azaltacak konuma",
+        "Her zaman ayak hizasına",
+        "Korkuluğun dışına",
+        "Çalışanın arkasında rastgele bir noktaya"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yüksek bağlantı noktası serbest düşme mesafesini azaltır; seçim sistem tasarımı ve üretici talimatıyla doğrulanmalıdır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-012",
+      "version": 1,
+      "topic_code": "YC-BOSLUK",
+      "topic_label": "Serbest düşme açıklığı",
+      "question_text": "Düşüş durdurma sistemi seçilirken serbest düşme açıklığı neden hesaplanır?",
+      "options": [
+        "Sadece iş süresini hesaplamak için",
+        "Çalışanın alt seviyeye veya engele çarpmasını önleyecek yeterli mesafe olup olmadığını belirlemek için",
+        "Kemerin rengini seçmek için",
+        "Yalnızca eğitim belgesine yazmak için"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kemer, bağlantı elemanı, esneme, kullanıcı boyu ve güvenlik payı birlikte hesaplanmadan düşüş durdurma sistemi güvenli kabul edilemez.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-013",
+      "version": 1,
+      "topic_code": "YC-SARKAC",
+      "topic_label": "Sarkaç etkisi",
+      "question_text": "Çalışan ankraj hattından yana uzaklaştığında ortaya çıkabilecek sarkaç etkisi nasıl önlenir?",
+      "options": [
+        "Çalışanın daha hızlı hareket etmesiyle",
+        "Ankraj konumunu uygun seçerek ve yana erişimi sınırlayarak",
+        "Kemerin gevşetilmesiyle",
+        "Alt bölgeye malzeme koyarak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Ankrajın çalışma alanına göre konumlandırılması ve yana erişimin sınırlandırılması, düşüşte savrulma ve çarpma riskini azaltır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-014",
+      "version": 1,
+      "topic_code": "YC-ASKIDA",
+      "topic_label": "Askıda kalma",
+      "question_text": "Düşüş durdurma sisteminde askıda kalan çalışana ilişkin doğru yaklaşım hangisidir?",
+      "options": [
+        "Kendi kendine uzun süre beklemesi",
+        "Kurtarma planını derhal uygulamak ve askıda kalma süresini en aza indirmek",
+        "Kemerini çıkarmasını söylemek",
+        "Sadece ambulans gelmesini beklemek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Askıda kalma travması riski nedeniyle kurtarma planı önceden hazırlanmalı, ekipman ve görevli kişiler belirlenmelidir.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-015",
+      "version": 1,
+      "topic_code": "YC-KURTARMA",
+      "topic_label": "Kurtarma planı",
+      "question_text": "Yüksekte çalışma için kurtarma planında hangisi bulunmalıdır?",
+      "options": [
+        "Yalnızca acil telefon numarası",
+        "Kurtarma yöntemi, ekipman, görevli kişiler, iletişim ve güvenli toplanma/teslim süreci",
+        "Sadece çalışan listesi",
+        "Yalnızca hava durumu"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kurtarma planı olay sonrası doğaçlama bırakılmamalı; yöntem, ekipman, sorumlular ve iletişim zinciri önceden belirlenmelidir.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-016",
+      "version": 1,
+      "topic_code": "YC-HAVA",
+      "topic_label": "Hava koşulları",
+      "question_text": "Şiddetli rüzgâr, yağış veya buzlanma olduğunda yüksekte çalışma için ne yapılmalıdır?",
+      "options": [
+        "Çalışma hızlandırılmalıdır",
+        "Risk yeniden değerlendirilip güvenli koşullar sağlanana kadar çalışma durdurulmalı veya ertelenmelidir",
+        "Yalnızca baret değiştirilmelidir",
+        "Çalışanların daha dikkatli olması yeterlidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Hava koşulları düşme, kayma ve malzeme savrulması riskini artırabilir; güvenli olmayan koşullarda çalışma sürdürülmemelidir.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-017",
+      "version": 1,
+      "topic_code": "YC-DUSEN-CISIM",
+      "topic_label": "Düşen cisimler",
+      "question_text": "Üst seviyede malzeme çalışması yapılırken alt seviyedeki kişiler nasıl korunur?",
+      "options": [
+        "Alt alan açık bırakılır",
+        "Alt alan sınırlandırılır, malzemeler sabitlenir ve uygun toplu korunma tedbirleri alınır",
+        "Yalnızca yüksek sesle uyarı yapılır",
+        "Malzemeler kenara dizilir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Düşen cisim riski alanın izolasyonu, malzeme sabitleme ve uygun koruyucu platform/ağ gibi tedbirlerle kontrol edilir.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-018",
+      "version": 1,
+      "topic_code": "YC-ELEKTRIK",
+      "topic_label": "Enerji hatları",
+      "question_text": "Yüksekte çalışma alanı enerji hatlarına yakınsa işe başlamadan önce hangisi yapılmalıdır?",
+      "options": [
+        "Hatlar görünmüyorsa çalışmaya başlanır",
+        "Enerji hattı ve güvenli yaklaşma mesafesi belirlenerek yetkili birimle gerekli izolasyon/önlem planlanır",
+        "Sadece yalıtkan eldiven dağıtılır",
+        "Metal merdiven doğrudan hatta yaklaştırılır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Enerji hatlarıyla temas veya yaklaşma riski çalışma başlamadan önce belirlenmeli, izolasyon ve güvenli mesafe tedbirleri yetkili kişilerce planlanmalıdır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-019",
+      "version": 1,
+      "topic_code": "YC-TEK-BASINA",
+      "topic_label": "Tek başına çalışma",
+      "question_text": "Kurtarma gerektirebilecek yüksekte çalışmada tek başına çalışma neden sakıncalıdır?",
+      "options": [
+        "İş daha yavaş biter",
+        "Olay halinde yardım ve kurtarmanın gecikmesi riski vardır",
+        "Kemer daha ağır gelir",
+        "Sadece belge düzeni zorlaşır"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Düşme veya sağlık olayı halinde yardım gecikmemesi için iletişim, gözetim ve kurtarma düzeni çalışma planında tanımlanmalıdır.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "YC-020",
+      "version": 1,
+      "topic_code": "YC-DURDUR",
+      "topic_label": "Güvensiz durum",
+      "question_text": "Çalışan korkulukta, kemerde veya ankrajda güvenliği etkileyen bir uygunsuzluk görürse ne yapmalıdır?",
+      "options": [
+        "Uygunsuzluğu görmezden gelip işi tamamlamalıdır",
+        "Çalışmayı durdurup durumu yetkiliye bildirmeli, güvenli koşullar sağlanmadan devam etmemelidir",
+        "Sadece fotoğraf çekmelidir",
+        "Uygunsuzluğu kendisi gizlemelidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Güvensiz koşul giderilmeden çalışmaya devam etmek düşme riskini artırır; çalışma durdurulmalı ve uygunsuzluk düzeltilmelidir.",
+      "scopes": [
+        {
+          "type": "special",
+          "value": "yuksekte_calisma"
+        }
+      ],
+      "sources": [
+        {
+          "title": "Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik ve yüksekte çalışma hükümleri",
+          "url": "https://www.mevzuat.gov.tr/mevzuatmetin/3.5.28648.pdf",
+          "reference": "İşin risklerine uygun eğitim, güvenli çalışma yöntemi, toplu korunma önceliği ve çalışanların bilgilendirilmesi"
+        }
+      ]
+    }
+  ]
+}
