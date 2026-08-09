@@ -8,6 +8,12 @@ Implementation strategy:
 - patch only the training-create duration resolver while the flag is active;
 - rewrite only NEW training-create JSON at the HTTP boundary so planning never
   pre-confirms attendance/success;
+- exclude post-cutover work-start/information-refresh records from the basic
+  renewal calculation;
+- reuse the existing strict completion guard for post-cutover verified-NACE
+  records even if a legacy global strict flag is not configured;
+- make work-start attendance output an explicit work-start record and prevent a
+  misleading Basic İSG certificate from being generated;
 - leave every historical record and legacy path unchanged when the flag is off.
 
 The middleware intentionally does NOT authorize, complete or mutate existing
@@ -17,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import unicodedata
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -60,6 +67,11 @@ _REPEAT_TOKENS = ("tekrar", "yenileme egitimi")
 _INFORMATION_REFRESH_TOKENS = ("bilgi yenileme", "bilgi tazeleme")
 
 _original_resolve_training_hours = None
+_original_basic_training_predicate = None
+_original_completion_strict_applies = None
+_original_compliant_certificate_pdf = None
+_original_pdf_titles = None
+_original_pdf_curriculum = None
 
 
 def _truthy(value: object) -> bool:
@@ -220,54 +232,213 @@ def public_policy() -> dict[str, Any]:
     }
 
 
+def _work_start_curriculum(training, pdf_module) -> dict[str, Any]:
+    sector = pdf_module.sektor_kodu_cozumle(getattr(training, "sector", None))
+    work_specific = pdf_module.katilim_formu_konu_ozeti(
+        getattr(training, "hazard_class", ""), sector
+    )
+    generic = [
+        "Yapacağı iş, çalışma ortamı ve işyerine özgü tehlike/riskler",
+        "Kullanılacak iş ekipmanlarının güvenli kullanımı ve acil durdurma sistemleri",
+        "Acil çıkış yolları, acil durum prosedürleri ve toplanma düzeni",
+        "Risk değerlendirmesinde belirlenen işe ve işyerine özgü korunma tedbirleri",
+        "Güvenli işe başlama davranışları ve uygulamalı saha bilgilendirmesi",
+    ]
+    return {
+        "certificate_title": "İŞE BAŞLAMA İSG EĞİTİM KAYDI",
+        "attendance_title": "İŞE BAŞLAMA İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ",
+        "profile_key": "premium_work_start",
+        "is_special": True,
+        "profile": None,
+        "topics_header": "İŞE BAŞLAMA EĞİTİM KONULARI",
+        "purpose": (
+            "Çalışanın fiilen işe başlamadan önce yapacağı işi, çalışma ortamını, kullanacağı "
+            "iş ekipmanını ve işyerine özgü iş sağlığı ve güvenliği tedbirlerini güvenli şekilde tanıması."
+        ),
+        "legal_basis": (
+            "6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve Çalışanların İş Sağlığı ve Güvenliği "
+            "Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında işe başlamadan önce "
+            "yüz yüze ve uygulamalı olarak düzenlenmiştir."
+        ),
+        "disclaimer": "Bu kayıt Temel İSG Eğitimi yerine geçmez.",
+        "sol": [(1, "İŞE BAŞLAMA"), *[(0, f"- {item}") for item in generic[:3]]],
+        "sag": [(1, "İŞYERİNE ÖZGÜ RİSKLER"), *[(0, f"- {item}") for item in generic[3:]]],
+        "konu_ozeti": "; ".join(generic) + (f" | NACE/işe özgü: {work_specific}" if work_specific else ""),
+        "duration_hours": 2,
+        "duration_label": "EN AZ 2 SAAT",
+        "duration_hint": "En az 2 saat · yüz yüze ve uygulamalı",
+    }
+
+
 def install_training_lifecycle_v2() -> dict[str, str]:
-    """Wrap only training-create duration resolution, idempotently."""
+    """Install additive lifecycle wrappers idempotently."""
     global _original_resolve_training_hours
+    global _original_basic_training_predicate
+    global _original_completion_strict_applies
+    global _original_compliant_certificate_pdf
+    global _original_pdf_titles
+    global _original_pdf_curriculum
 
     from app.api import trainings
     from app.schemas import training as training_schema
+    from app.services import training_completion, training_pdfs
     from app.services.special_training_profiles import resolve_special_duration_hours
+
+    status: dict[str, str] = {}
 
     current = training_schema.resolve_training_hours
     if getattr(current, "_premium_training_lifecycle_v2", False):
-        return {"duration_policy": "already-active"}
+        status["duration_policy"] = "already-active"
+    else:
+        _original_resolve_training_hours = current
 
-    _original_resolve_training_hours = current
-
-    def premium_resolve_training_hours(
-        *,
-        training_type: str,
-        title: str,
-        notes: str | None,
-        hazard_class: str,
-    ) -> int:
-        if not applies_to_new_request():
-            return int(
-                _original_resolve_training_hours(
-                    training_type=training_type,
-                    title=title,
-                    notes=notes,
-                    hazard_class=hazard_class,
+        def premium_resolve_training_hours(
+            *,
+            training_type: str,
+            title: str,
+            notes: str | None,
+            hazard_class: str,
+        ) -> int:
+            if not applies_to_new_request():
+                return int(
+                    _original_resolve_training_hours(
+                        training_type=training_type,
+                        title=title,
+                        notes=notes,
+                        hazard_class=hazard_class,
+                    )
                 )
+
+            special = resolve_special_duration_hours(
+                SimpleNamespace(training_type=training_type, title=title, notes=notes or "")
+            )
+            if special:
+                return int(special)
+
+            return duration_hours(
+                training_type=training_type,
+                title=title,
+                hazard_class=hazard_class,
             )
 
-        special = resolve_special_duration_hours(
-            SimpleNamespace(training_type=training_type, title=title, notes=notes or "")
-        )
-        if special:
-            return int(special)
+        premium_resolve_training_hours._premium_training_lifecycle_v2 = True
+        training_schema.resolve_training_hours = premium_resolve_training_hours
+        # app.api.trainings imported the resolver directly at module import time.
+        trainings.resolve_training_hours = premium_resolve_training_hours
+        status["duration_policy"] = "active"
 
-        return duration_hours(
-            training_type=training_type,
-            title=title,
-            hazard_class=hazard_class,
-        )
+    current_basic = trainings._is_basic_training
+    if getattr(current_basic, "_premium_training_lifecycle_v2", False):
+        status["renewal_scope"] = "already-active"
+    else:
+        _original_basic_training_predicate = current_basic
 
-    premium_resolve_training_hours._premium_training_lifecycle_v2 = True
-    training_schema.resolve_training_hours = premium_resolve_training_hours
-    # app.api.trainings imported the resolver directly at module import time.
-    trainings.resolve_training_hours = premium_resolve_training_hours
-    return {"duration_policy": "active"}
+        def premium_basic_training_predicate(row) -> bool:
+            if applies_to_created_at(getattr(row, "created_at", None)):
+                kind = training_kind(getattr(row, "training_type", ""), getattr(row, "title", ""))
+                if kind in {"work_start", "information_refresh"}:
+                    return False
+            return bool(_original_basic_training_predicate(row))
+
+        premium_basic_training_predicate._premium_training_lifecycle_v2 = True
+        trainings._is_basic_training = premium_basic_training_predicate
+        status["renewal_scope"] = "active"
+
+    current_applies = training_completion.completion_strict_applies
+    if getattr(current_applies, "_premium_training_lifecycle_v2", False):
+        status["completion_strict"] = "already-active"
+    else:
+        _original_completion_strict_applies = current_applies
+
+        def premium_completion_strict_applies(db, training):
+            if db is not None and applies_to_created_at(getattr(training, "created_at", None)):
+                snapshot = training_completion.verified_snapshot(db, training)
+                if snapshot is not None:
+                    return True, snapshot
+            return _original_completion_strict_applies(db, training)
+
+        premium_completion_strict_applies._premium_training_lifecycle_v2 = True
+        training_completion.completion_strict_applies = premium_completion_strict_applies
+        api_completion = sys.modules.get("app.api.training_completion")
+        if api_completion is not None and hasattr(api_completion, "completion_strict_applies"):
+            api_completion.completion_strict_applies = premium_completion_strict_applies
+        status["completion_strict"] = "active"
+
+    current_titles = training_pdfs.resolve_training_document_titles
+    if getattr(current_titles, "_premium_training_lifecycle_v2", False):
+        status["work_start_titles"] = "already-active"
+    else:
+        _original_pdf_titles = current_titles
+
+        def premium_pdf_titles(training):
+            if (
+                applies_to_created_at(getattr(training, "created_at", None))
+                and training_kind(getattr(training, "training_type", ""), getattr(training, "title", "")) == "work_start"
+            ):
+                return {
+                    "certificate_title": "İŞE BAŞLAMA İSG EĞİTİM KAYDI",
+                    "attendance_title": "İŞE BAŞLAMA İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ",
+                    "profile_key": "premium_work_start",
+                }
+            return _original_pdf_titles(training)
+
+        premium_pdf_titles._premium_training_lifecycle_v2 = True
+        training_pdfs.resolve_training_document_titles = premium_pdf_titles
+        status["work_start_titles"] = "active"
+
+    current_curriculum = training_pdfs.resolve_training_curriculum
+    if getattr(current_curriculum, "_premium_training_lifecycle_v2", False):
+        status["work_start_curriculum"] = "already-active"
+    else:
+        _original_pdf_curriculum = current_curriculum
+
+        def premium_pdf_curriculum(training):
+            if (
+                applies_to_created_at(getattr(training, "created_at", None))
+                and training_kind(getattr(training, "training_type", ""), getattr(training, "title", "")) == "work_start"
+            ):
+                return _work_start_curriculum(training, training_pdfs)
+            return _original_pdf_curriculum(training)
+
+        premium_pdf_curriculum._premium_training_lifecycle_v2 = True
+        training_pdfs.resolve_training_curriculum = premium_pdf_curriculum
+        status["work_start_curriculum"] = "active"
+
+    current_compliant = training_completion._compliant_certificate_pdf
+    if getattr(current_compliant, "_premium_training_lifecycle_v2", False):
+        status["work_start_certificate_guard"] = "already-active"
+    else:
+        _original_compliant_certificate_pdf = current_compliant
+
+        def premium_compliant_certificate_pdf(
+            pdf_module,
+            *,
+            company_name: str,
+            training,
+            employees: dict,
+            participants: list,
+        ) -> bytes:
+            if (
+                applies_to_created_at(getattr(training, "created_at", None))
+                and training_kind(getattr(training, "training_type", ""), getattr(training, "title", "")) == "work_start"
+            ):
+                raise ValueError(
+                    "İşe Başlama Eğitimi için Temel İSG katılım belgesi oluşturulmaz. "
+                    "İşe Başlama Eğitimi Tutanağı / Katılım PDF kaydını kullanın."
+                )
+            return _original_compliant_certificate_pdf(
+                pdf_module,
+                company_name=company_name,
+                training=training,
+                employees=employees,
+                participants=participants,
+            )
+
+        premium_compliant_certificate_pdf._premium_training_lifecycle_v2 = True
+        training_completion._compliant_certificate_pdf = premium_compliant_certificate_pdf
+        status["work_start_certificate_guard"] = "active"
+
+    return status
 
 
 class PremiumTrainingLifecycleMiddleware:
