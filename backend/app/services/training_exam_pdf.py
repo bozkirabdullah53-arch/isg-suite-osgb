@@ -150,7 +150,7 @@ def _exam_participant_names(db: Session, training) -> list[str]:
     return names or [""]
 
 
-def build_exam_pdf(*, company_name: str, training, db: Session, created_by_id: int) -> bytes:
+def build_exam_pdf(\n    *,\n    company_name: str,\n    training,\n    db: Session,\n    created_by_id: int,\n    include_answer_key: bool = False,\n    answer_key_only: bool = False,\n) -> bytes:
     _register_fonts()
     snapshot = _load_or_create_snapshot(db, training, created_by_id)
     items = list(snapshot.items)
@@ -168,7 +168,7 @@ def build_exam_pdf(*, company_name: str, training, db: Session, created_by_id: i
     light = (244 / 255, 248 / 255, 247 / 255)
     sector_name = _sector_display_name(getattr(training, "sector", None))
     registry_no = _exam_company_registry_no(db, training)
-    participant_names = _exam_participant_names(db, training)
+    participant_names = [] if answer_key_only else _exam_participant_names(db, training)
 
     def header(page_no: int):
         c.setFillColorRGB(*navy)
@@ -243,23 +243,25 @@ def build_exam_pdf(*, company_name: str, training, db: Session, created_by_id: i
                     y -= 3.7 * mm
             y -= 3 * mm
 
-    c.showPage()
-    page_no += 1
-    header(page_no)
-    c.setFillColorRGB(*navy)
-    c.setFont(FONT_BOLD, 13)
-    c.drawCentredString(w / 2, h - 45 * mm, "CEVAP ANAHTARI")
-    c.setFont(FONT_BOLD, 9)
-    y = h - 60 * mm
-    for i, item in enumerate(items, 1):
-        x = 25 * mm + ((i - 1) % 5) * 34 * mm
-        yy = y - ((i - 1) // 5) * 14 * mm
-        c.drawString(x, yy, f"{i}. {item.correct_option} ({_bucket_label(item.scopes_json)})")
-
-    c.setFont(FONT_REGULAR, 6.5)
-    c.setFillColorRGB(0.35, 0.4, 0.45)
-    c.drawCentredString(w / 2, 27 * mm, f"Politika: {snapshot.selection_policy} • İçerik özeti: {snapshot.content_hash[:16]}")
-    c.drawCentredString(w / 2, 20 * mm, "Sınav yalnız yayımlanmış soru bankasından oluşturulmuş ve snapshot olarak sabitlenmiştir.")
-
+    if include_answer_key:
+        if page_no:
+            c.showPage()
+        page_no += 1
+        header(page_no)
+        c.setFillColorRGB(*navy)
+        c.setFont(FONT_BOLD, 13)
+        c.drawCentredString(w / 2, h - 45 * mm, "CEVAP ANAHTARI")
+        c.setFont(FONT_BOLD, 9)
+        y = h - 60 * mm
+        for i, item in enumerate(items, 1):
+            x = 25 * mm + ((i - 1) % 5) * 34 * mm
+            yy = y - ((i - 1) // 5) * 14 * mm
+            c.drawString(x, yy, f"{i}. {item.correct_option} ({_bucket_label(item.scopes_json)})")
+    
+        c.setFont(FONT_REGULAR, 6.5)
+        c.setFillColorRGB(0.35, 0.4, 0.45)
+        c.drawCentredString(w / 2, 27 * mm, f"Politika: {snapshot.selection_policy} • İçerik özeti: {snapshot.content_hash[:16]}")
+        c.drawCentredString(w / 2, 20 * mm, "Sınav yalnız yayımlanmış soru bankasından oluşturulmuş ve snapshot olarak sabitlenmiştir.")
+    
     c.save()
     return buf.getvalue()
