@@ -1,0 +1,102 @@
+.training-presentation-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 12, 23, .72);
+  backdrop-filter: blur(5px);
+}
+
+.training-presentation-editor__shell {
+  width: min(1160px, 96vw);
+  max-height: 92vh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 18px;
+  box-shadow: 0 28px 80px rgba(2, 12, 23, .38);
+}
+
+.training-presentation-editor__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  color: #fff;
+  background: linear-gradient(135deg, #061b2e, #0f766e);
+}
+.training-presentation-editor__head h3 { margin: 0 0 4px; font-size: 21px; }
+.training-presentation-editor__head p { margin: 0; opacity: .84; font-size: 13px; }
+.training-presentation-editor__close { border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.12); color:#fff; border-radius: 10px; padding:8px 12px; }
+
+.training-presentation-editor__body {
+  overflow: auto;
+  display: grid;
+  grid-template-columns: minmax(240px, .78fr) minmax(0, 1.65fr);
+  gap: 16px;
+  padding: 16px;
+}
+.training-presentation-editor__side,
+.training-presentation-editor__form {
+  background: #fff;
+  border: 1px solid #dbe3ea;
+  border-radius: 14px;
+  padding: 14px;
+}
+.training-presentation-editor__side h4,
+.training-presentation-editor__form h4 { margin: 0 0 10px; color:#0f172a; }
+.training-presentation-editor__slide-list { display:grid; gap:7px; max-height: 55vh; overflow:auto; }
+.training-presentation-editor__slide {
+  text-align:left;
+  width:100%;
+  padding:9px 10px;
+  border:1px solid #dbe3ea;
+  border-radius:10px;
+  background:#fff;
+  color:#334155;
+}
+.training-presentation-editor__slide.is-active { border-color:#0f766e; background:#ecfdf5; color:#115e59; font-weight:700; }
+.training-presentation-editor__slide small { display:block; margin-top:3px; color:#64748b; font-weight:500; }
+
+.training-presentation-editor__mode { display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+.training-presentation-editor__mode button { border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:999px; padding:7px 12px; }
+.training-presentation-editor__mode button.is-active { background:#0f766e; border-color:#0f766e; color:#fff; }
+.training-presentation-editor__grid { display:grid; grid-template-columns: 1fr 1fr; gap:11px; }
+.training-presentation-editor__field { display:grid; gap:5px; }
+.training-presentation-editor__field.is-wide { grid-column:1/-1; }
+.training-presentation-editor__field span { font-size:12px; font-weight:700; color:#475569; }
+.training-presentation-editor__field input,
+.training-presentation-editor__field select,
+.training-presentation-editor__field textarea {
+  width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:9px; padding:9px 10px; background:#fff; color:#0f172a; font:inherit;
+}
+.training-presentation-editor__field textarea { resize:vertical; min-height:86px; line-height:1.45; }
+.training-presentation-editor__tip { margin:9px 0 0; padding:10px 12px; border-radius:10px; background:#eff6ff; color:#1e3a5f; font-size:12px; line-height:1.45; }
+.training-presentation-editor__visual-note { margin:10px 0 0; padding:10px 12px; border-left:4px solid #22a447; background:#f0fdf4; color:#166534; font-size:12px; }
+
+.training-presentation-editor__foot {
+  display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  padding:13px 16px; border-top:1px solid #dbe3ea; background:#fff;
+}
+.training-presentation-editor__status { font-size:13px; color:#475569; }
+.training-presentation-editor__status.is-error { color:#b91c1c; }
+.training-presentation-editor__actions { display:flex; gap:8px; flex-wrap:wrap; }
+.training-presentation-editor__actions button { padding:9px 13px; border-radius:9px; border:1px solid #cbd5e1; background:#fff; color:#334155; font-weight:700; }
+.training-presentation-editor__actions button.is-primary { background:#0f766e; border-color:#0f766e; color:#fff; }
+.training-presentation-editor__actions button.is-v3 { background:#061b2e; border-color:#061b2e; color:#fff; }
+.training-presentation-editor__actions button:disabled { opacity:.55; cursor:not-allowed; }
+
+.training-presentation-editor-launch { background:#061b2e !important; color:#fff !important; border-color:#061b2e !important; }
+
+@media (max-width: 820px) {
+  .training-presentation-editor { padding:8px; }
+  .training-presentation-editor__shell { width:100%; max-height:97vh; }
+  .training-presentation-editor__body { grid-template-columns:1fr; }
+  .training-presentation-editor__slide-list { max-height:180px; }
+  .training-presentation-editor__grid { grid-template-columns:1fr; }
+}
