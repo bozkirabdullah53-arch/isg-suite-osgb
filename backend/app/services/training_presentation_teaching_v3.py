@@ -65,11 +65,17 @@ def _append_once(blocks: list[dict[str, Any]], block: dict[str, Any]) -> None:
 
 
 def enrich_manifest_for_teaching_v3(manifest: dict[str, Any]) -> dict[str, Any]:
-    """Return a new, hash-valid teaching manifest without changing the input."""
+    """Return a new, hash-valid teaching manifest without changing the input.
+
+    Any slide enriched by Teaching V3 is marked for fresh specialist approval.
+    This prevents a previously approved source version from implicitly approving
+    newly generated educational content.
+    """
     result = deepcopy(manifest)
     slides = list(result.get("slides") or [])
     topics = [_clean(item, 300) for item in (result.get("training_topics") or []) if _clean(item, 300)]
     risks = [_clean(item, 160) for item in (result.get("technical_risk_tags") or []) if _clean(item, 160)]
+    teaching_positions: set[int] = set()
 
     for slide in slides:
         blocks = [dict(item) for item in (slide.get("content_blocks") or []) if isinstance(item, dict)]
@@ -151,8 +157,22 @@ def enrich_manifest_for_teaching_v3(manifest: dict[str, Any]) -> dict[str, Any]:
                 "teaching_v3": True,
             })
 
+        if any(bool(block.get("teaching_v3")) for block in blocks):
+            slide["approval_required"] = True
+            position = int(slide.get("position") or 0)
+            if position > 0:
+                teaching_positions.add(position)
         slide["content_blocks"] = blocks
 
+    approval = dict(result.get("approval") or {})
+    existing_required = {
+        int(value)
+        for value in (approval.get("required_slide_positions") or [])
+        if str(value).isdigit() and int(value) > 0
+    }
+    approval["status"] = "specialist_review_required"
+    approval["required_slide_positions"] = sorted(existing_required | teaching_positions)
+    result["approval"] = approval
     result["slides"] = slides
     result["slide_count"] = len(slides)
     result["rendering"] = {
@@ -166,6 +186,7 @@ def enrich_manifest_for_teaching_v3(manifest: dict[str, Any]) -> dict[str, Any]:
         "version": TEACHING_V3_VERSION,
         "grounding": "existing_manifest_only",
         "external_images": False,
+        "approval_required_for_enriched_positions": sorted(teaching_positions),
         "visuals": [
             "hazard_control_behavior",
             "risk_map",
