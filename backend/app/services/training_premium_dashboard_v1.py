@@ -7,6 +7,7 @@ training/PDF/exam/certificate/presentation flows remain untouched.
 from __future__ import annotations
 
 import os
+from calendar import monthrange
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from typing import Any
@@ -48,6 +49,15 @@ def _cutover_date() -> date | None:
     if parsed.tzinfo is not None:
         parsed = parsed.astimezone(timezone.utc)
     return parsed.date()
+
+
+def _add_months(value: date, months: int) -> date:
+    """Add calendar months without depending on a new runtime package."""
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return date(year, month, day)
 
 
 def _status_value(training: TrainingSession) -> str:
@@ -101,10 +111,7 @@ def _work_start_state(
         reverse=True,
     )
     for participant, training in work_start:
-        if (
-            _status_value(training) == TrainingStatus.COMPLETED.value
-            and bool(participant.attended)
-        ):
+        if _status_value(training) == TrainingStatus.COMPLETED.value and bool(participant.attended):
             return {
                 "status": "ok",
                 "label": "Tamamlandı",
@@ -113,7 +120,7 @@ def _work_start_state(
                 "message": "İşe Başlama Eğitimi katılımı doğrulanmış.",
             }
     if work_start:
-        participant, training = work_start[0]
+        _participant, training = work_start[0]
         return {
             "status": "pending",
             "label": "Sonuç bekliyor",
@@ -152,6 +159,24 @@ def _basic_state(
         last_training_end=(latest.end_date or latest.start_date) if latest else None,
         next_due=latest.next_training_date if latest else None,
     )
+
+    # The legacy validity helper intentionally returns days_left=None when no
+    # basic-training record exists. Premium v2 must distinguish "still inside
+    # the first three months" from "deadline passed" without altering that
+    # legacy helper or any historical record.
+    if latest is None and employee.start_date is not None:
+        deadline = _add_months(employee.start_date, 3)
+        days_left = (deadline - date.today()).days
+        evaluated = {
+            **evaluated,
+            "days_left": days_left,
+            "next_due": deadline.isoformat(),
+            "message": (
+                f"İlk Temel İSG eğitimi en geç {deadline.strftime('%d.%m.%Y')} tarihinde tamamlanmalı"
+                + (f" — {days_left} gün kaldı." if days_left >= 0 else f" — {abs(days_left)} gün gecikti.")
+            ),
+        }
+
     status = str(evaluated.get("status") or "never")
     days_left = evaluated.get("days_left")
     if status == "ok":
@@ -250,12 +275,12 @@ def build_dashboard(db: Session, *, company_id: int) -> dict[str, Any]:
         for training in trainings
         if _status_value(training) == TrainingStatus.PLANNED.value
         and (training.end_date or training.start_date) <= today
+        and bool(training.participants)
     )
     planned_future = sum(
         1
         for training in trainings
-        if _status_value(training) == TrainingStatus.PLANNED.value
-        and training.start_date > today
+        if _status_value(training) == TrainingStatus.PLANNED.value and training.start_date > today
     )
 
     actions = [
