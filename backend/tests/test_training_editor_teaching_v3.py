@@ -91,6 +91,8 @@ def test_editor_creates_copy_without_mutating_source_or_shifting_old_positions()
     assert [slide["position"] for slide in edited["slides"][:2]] == [1, 2]
     assert edited["slides"][-1]["position"] == 3
     assert edited["slides"][1]["approval_required"] is True
+    assert edited["slides"][2]["approval_required"] is True
+    assert {2, 3}.issubset(set(edited["approval"]["required_slide_positions"]))
     assert edited["editor"]["source_version_id"] == 11
     assert edited["rendering"]["teaching_v3"] is True
     verify_manifest(edited)
@@ -118,6 +120,9 @@ def test_teaching_v3_adds_real_visual_instruction_blocks_and_renders_files():
     assert any(block.get("type") == "hazard_control_behavior_visual" for block in work_blocks)
     assert any(block.get("type") == "case_scenario" for block in work_blocks)
     assert any(block.get("type") == "control_hierarchy_visual" for block in enriched["slides"][2]["content_blocks"])
+    assert enriched["approval"]["status"] == "specialist_review_required"
+    assert set(enriched["approval"]["required_slide_positions"]) == {2, 3}
+    assert enriched["teaching_v3"]["approval_required_for_enriched_positions"] == [2, 3]
     rendered = render_teaching_presentation(enriched)
     assert rendered.pptx_bytes.startswith(b"PK")
     assert rendered.pdf_bytes.startswith(b"%PDF")
