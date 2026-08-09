@@ -29,8 +29,9 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
-function resultLabel(row, passingScore) {
+function resultLabel(row, passingScore, examRequired = true) {
   if (!row.attended) return 'Katılmadı';
+  if (!examRequired) return 'Katıldı';
   if (row.score == null) return 'Puan bekleniyor';
   if (passingScore == null) return 'Geçme puanı eksik';
   return Number(row.score) >= Number(passingScore) ? 'Başarılı' : 'Başarısız';
@@ -187,6 +188,7 @@ function renderModal(context, panel) {
     rowElement.querySelector('.training-result-state').textContent = resultLabel(
       {attended, score},
       passingScore,
+      examRequired,
     );
   }
 
@@ -206,7 +208,7 @@ function renderModal(context, panel) {
       return {
         participant_id: Number(rowElement.dataset.participantId),
         attended,
-        score: attended && scoreInput?.value !== '' ? Number(scoreInput.value) : null,
+        score: attended && scoreInput && scoreInput.value !== '' ? Number(scoreInput.value) : null,
       };
     });
     return api(`/trainings/${context.training.id}/participant-results`, {
