@@ -172,6 +172,7 @@ function EducationOutputPanel({
   onDownloadCertificates,
   onDownloadAttendance,
   onDownloadExam,
+  onDownloadAnswerKey,
   onSaveAndPrepare,
   canEdit,
   busy,
@@ -269,14 +270,28 @@ function EducationOutputPanel({
 
       {canEdit && (
         <div style={{marginTop: 12}}>
-          <button
-            type="button"
-            className="btn-premium"
-            disabled={busy}
-            onClick={onSaveAndPrepare}
-          >
-            {busy ? 'Kaydediliyor…' : 'Eğitimi Kaydet ve PDF Hazırla'}
-          </button>
+          <div style={{display: 'flex', gap: 10, flexWrap: 'wrap'}}>
+            <button
+              type="button"
+              className="btn-premium"
+              disabled={busy}
+              onClick={onSaveAndPrepare}
+            >
+              {busy ? 'Kaydediliyor…' : 'Eğitimi Kaydet ve PDF Hazırla'}
+            </button>
+            {ready && (
+              <button
+                type="button"
+                className="btn-outline-premium"
+                disabled={!!dlBusy}
+                onClick={onDownloadAnswerKey}
+                title="Yalnız yetkili eğitici ve eğitim yöneticileri içindir."
+              >
+                <ShieldCheck size={16} style={{verticalAlign: -3, marginRight: 6}} />
+                {dlBusy === 'answer-key' ? 'Hazırlanıyor…' : 'Eğitici Cevap Anahtarı'}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </section>
@@ -787,6 +802,22 @@ export function TrainingPage({user}) {
       );
     } catch (x) {
       setErr('Sınav PDF oluşturulamadı: ' + (x.message || x));
+    } finally {
+      setDlBusy('');
+    }
+  }
+
+  async function downloadExamAnswerKey(id) {
+    setErr('');
+    setDlBusy('answer-key');
+    try {
+      await downloadFile(
+        `/trainings/${id}/exam-answer-key.pdf`,
+        `egitim-${id}-egitici-cevap-anahtari.pdf`,
+        {timeoutMs: 60_000},
+      );
+    } catch (x) {
+      setErr('Eğitici cevap anahtarı indirilemedi: ' + (x.message || x));
     } finally {
       setDlBusy('');
     }
@@ -1691,6 +1722,7 @@ export function TrainingPage({user}) {
             onDownloadCertificates={() => downloadCertificates(savedTrainingId)}
             onDownloadAttendance={() => downloadAttendance(savedTrainingId)}
             onDownloadExam={() => downloadExam(savedTrainingId)}
+            onDownloadAnswerKey={() => downloadExamAnswerKey(savedTrainingId)}
             onSaveAndPrepare={() => saveTraining({keepForm: true})}
           />
         </div>
@@ -1974,6 +2006,7 @@ export function TrainingPage({user}) {
             onDownloadCertificates={() => downloadCertificates(savedTrainingId)}
             onDownloadAttendance={() => downloadAttendance(savedTrainingId)}
             onDownloadExam={() => downloadExam(savedTrainingId)}
+            onDownloadAnswerKey={() => downloadExamAnswerKey(savedTrainingId)}
             onSaveAndPrepare={() => saveTraining({keepForm: true})}
           />
         </div>
