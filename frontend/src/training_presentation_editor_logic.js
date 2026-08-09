@@ -1,3 +1,25 @@
+export const PRESENTATION_SECTION_LABELS = Object.freeze({
+  cover: 'Açılış',
+  learning_objectives: 'Öğrenme hedefleri',
+  legal_basis: 'Mevzuat ve sorumluluklar',
+  nace_identity: 'NACE ve işyeri faaliyeti',
+  training_plan: 'Eğitim planı',
+  foundation_ohs: 'Temel İSG konuları',
+  work_specific_topics: 'İşe ve işyerine özgü riskler',
+  technical_risks: 'Teknik riskler',
+  control_measures: 'Kontrol tedbirleri',
+  ppe: 'Kişisel koruyucu donanım',
+  emergency: 'Acil durum',
+  assessment: 'Ölçme ve değerlendirme',
+  summary: 'Özet',
+  sources_and_version: 'Kaynaklar ve sürüm',
+  custom_instructor_slide: 'Eğitmen tarafından eklenen içerik',
+});
+
+export function presentationSectionLabel(sectionId) {
+  return PRESENTATION_SECTION_LABELS[String(sectionId || '').trim()] || 'Eğitim içeriği';
+}
+
 export const PRESENTATION_EDITOR_ROLES = new Set([
   'global_admin',
   'company_admin',
@@ -30,6 +52,7 @@ export function editorSlides(manifest) {
       position: Number(slide.position || 0),
       title: String(slide.title || 'Başlıksız slayt'),
       sectionId: String(slide.section_id || ''),
+      sectionLabel: presentationSectionLabel(slide.section_id),
       approvalRequired: Boolean(slide.approval_required),
     }))
     .filter((slide) => slide.position > 0)
