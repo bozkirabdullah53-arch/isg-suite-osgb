@@ -725,7 +725,7 @@ def attendance_pdf(
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="egitim-{training_id}-katilimci-imza-formu-PRO.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="egitim-{training_id}-katilimci-imza-formu-PRO-v2.pdf"'},
     )
 
 
@@ -759,7 +759,7 @@ def certificates_pdf(
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="egitim-{training_id}-katilim-belgeleri.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="egitim-{training_id}-katilim-belgeleri-v2.pdf"'},
     )
 
 
