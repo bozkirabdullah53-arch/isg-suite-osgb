@@ -3,12 +3,23 @@
 The service is deliberately data-migration free. Existing persisted training,
 exam, presentation, PDF, certificate and attendance records are never rewritten.
 New behavior is gated by environment flags and an optional cutover timestamp.
+
+Implementation strategy:
+- patch only the training-create duration resolver while the flag is active;
+- rewrite only NEW training-create JSON at the HTTP boundary so planning never
+  pre-confirms attendance/success;
+- block the legacy direct-complete PATCH only for post-cutover records;
+- leave every historical record and legacy path unchanged when the flag is off.
 """
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any
+
+from starlette.responses import JSONResponse
 
 PREMIUM_ENV = "TRAINING_PREMIUM_LIFECYCLE_V2_ENABLED"
 PREMIUM_FORCE_OFF_ENV = "TRAINING_PREMIUM_LIFECYCLE_V2_FORCE_OFF"
@@ -55,6 +66,8 @@ _INFORMATION_REFRESH_TOKENS = (
     "bilgi tazeleme",
 )
 
+_original_resolve_training_hours = None
+
 
 def _truthy(value: object) -> bool:
     return str(value or "").strip().casefold() in {"1", "true", "yes", "on"}
@@ -89,6 +102,11 @@ def applies_to_created_at(created_at: datetime | None) -> bool:
     if value.tzinfo is not None:
         value = value.astimezone(timezone.utc).replace(tzinfo=None)
     return value >= cutover
+
+
+def applies_to_new_request(now: datetime | None = None) -> bool:
+    value = now or datetime.now(timezone.utc).replace(tzinfo=None)
+    return applies_to_created_at(value)
 
 
 def _fold(value: object) -> str:
@@ -204,3 +222,171 @@ def public_policy() -> dict[str, Any]:
             "rollback": f"{PREMIUM_FORCE_OFF_ENV}=true",
         },
     }
+
+
+def install_training_lifecycle_v2() -> dict[str, str]:
+    """Wrap ONLY training-create duration resolution, idempotently.
+
+    The legacy resolver remains the source of truth for special training profiles
+    and for every request while the feature is disabled. No stored row is read or
+    rewritten here.
+    """
+    global _original_resolve_training_hours
+
+    from app.api import trainings
+    from app.schemas import training as training_schema
+    from app.services.special_training_profiles import resolve_special_duration_hours
+
+    current = training_schema.resolve_training_hours
+    if getattr(current, "_premium_training_lifecycle_v2", False):
+        return {"duration_policy": "already-active"}
+
+    _original_resolve_training_hours = current
+
+    def premium_resolve_training_hours(
+        *,
+        training_type: str,
+        title: str,
+        notes: str | None,
+        hazard_class: str,
+    ) -> int:
+        if not applies_to_new_request():
+            return int(
+                _original_resolve_training_hours(
+                    training_type=training_type,
+                    title=title,
+                    notes=notes,
+                    hazard_class=hazard_class,
+                )
+            )
+
+        special = resolve_special_duration_hours(
+            SimpleNamespace(training_type=training_type, title=title, notes=notes or "")
+        )
+        if special:
+            return int(special)
+
+        return duration_hours(
+            training_type=training_type,
+            title=title,
+            hazard_class=hazard_class,
+        )
+
+    premium_resolve_training_hours._premium_training_lifecycle_v2 = True
+    training_schema.resolve_training_hours = premium_resolve_training_hours
+    # app.api.trainings imported the resolver directly at module import time.
+    trainings.resolve_training_hours = premium_resolve_training_hours
+    return {"duration_policy": "active"}
+
+
+class PremiumTrainingLifecycleMiddleware:
+    """Narrow HTTP guard for planning semantics and unsafe direct completion.
+
+    It touches only:
+    - POST /api/v1/trainings JSON for post-cutover NEW records;
+    - PATCH /api/v1/trainings/{id} when an unsafe direct `completed` status is
+      requested for a post-cutover record.
+
+    All other requests are byte-for-byte delegated to the existing application.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http" or not premium_lifecycle_active():
+            await self.app(scope, receive, send)
+            return
+
+        method = str(scope.get("method") or "").upper()
+        path = str(scope.get("path") or "")
+
+        if method == "POST" and path.rstrip("/") == "/api/v1/trainings" and applies_to_new_request():
+            body, receive = await self._read_body(receive)
+            rewritten = self._rewrite_new_training(body)
+            await self.app(scope, self._body_receiver(rewritten), send)
+            return
+
+        if method == "PATCH" and path.startswith("/api/v1/trainings/"):
+            suffix = path.removeprefix("/api/v1/trainings/").strip("/")
+            if suffix.isdigit():
+                body, _original_receive = await self._read_body(receive)
+                if self._requests_unsafe_completion(body):
+                    if self._record_is_post_cutover(int(suffix)):
+                        response = JSONResponse(
+                            status_code=409,
+                            content={
+                                "detail": (
+                                    "Bu yeni eğitim doğrudan 'Tamamlandı' yapılamaz. "
+                                    "Önce Katılım ve Sonuçları Yönet ekranından katılım/puanları "
+                                    "kaydedin, ardından Sonuçları Kesinleştir adımını kullanın."
+                                )
+                            },
+                        )
+                        await response(scope, self._body_receiver(b""), send)
+                        return
+                await self.app(scope, self._body_receiver(body), send)
+                return
+
+        await self.app(scope, receive, send)
+
+    @staticmethod
+    async def _read_body(receive):
+        chunks: list[bytes] = []
+        more = True
+        while more:
+            message = await receive()
+            if message.get("type") != "http.request":
+                continue
+            chunks.append(message.get("body", b""))
+            more = bool(message.get("more_body"))
+        return b"".join(chunks), receive
+
+    @staticmethod
+    def _body_receiver(body: bytes):
+        sent = False
+
+        async def receive():
+            nonlocal sent
+            if sent:
+                return {"type": "http.request", "body": b"", "more_body": False}
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        return receive
+
+    @staticmethod
+    def _rewrite_new_training(body: bytes) -> bytes:
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return body
+        if not isinstance(payload, dict):
+            return body
+
+        # Planning is not proof of attendance or success.
+        payload["attendance_verified"] = False
+        payload["success_verified"] = False
+
+        kind = training_kind(payload.get("training_type"), payload.get("title"))
+        if kind == "work_start":
+            payload["delivery_method"] = "Yüz yüze"
+
+        return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+    @staticmethod
+    def _requests_unsafe_completion(body: bytes) -> bool:
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return False
+        return isinstance(payload, dict) and str(payload.get("status") or "").casefold() == "completed"
+
+    @staticmethod
+    def _record_is_post_cutover(training_id: int) -> bool:
+        from app.core.database import SessionLocal
+        from app.models.entities import TrainingSession
+
+        with SessionLocal() as db:
+            row = db.get(TrainingSession, training_id)
+            return bool(row and applies_to_created_at(getattr(row, "created_at", None)))
