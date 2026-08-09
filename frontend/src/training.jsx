@@ -713,6 +713,7 @@ export function TrainingPage({user}) {
   async function saveTraining({keepForm = true, switchToRecords = false} = {}) {
     setErr('');
     setOkMsg('');
+    const specialFlow = !!specialProfileCode;
     if (!canEdit) {
       setErr('Bu işlem için yetkiniz yok.');
       return null;
@@ -721,7 +722,7 @@ export function TrainingPage({user}) {
       setErr('Firma seçiniz. Uzman yalnızca görevlendirildiği işyerleri için eğitim açabilir.');
       return null;
     }
-    if (!form.sector || !selectedSector) {
+    if (!specialFlow && (!form.sector || !selectedSector)) {
       setErr('Sektör / iş kolunu resmî NACE listesinden seçiniz.');
       return null;
     }
@@ -737,7 +738,6 @@ export function TrainingPage({user}) {
       setErr('Eğitici adı soyadı zorunludur.');
       return null;
     }
-    const specialFlow = !!specialProfileCode;
     if (!specialFlow && (!form.attendance_verified || !form.success_verified)) {
       setErr('Katılım ve başarı doğrulama kutularını işaretleyin.');
       return null;
