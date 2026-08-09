@@ -150,7 +150,15 @@ def _exam_participant_names(db: Session, training) -> list[str]:
     return names or [""]
 
 
-def build_exam_pdf(\n    *,\n    company_name: str,\n    training,\n    db: Session,\n    created_by_id: int,\n    include_answer_key: bool = False,\n    answer_key_only: bool = False,\n) -> bytes:
+def build_exam_pdf(
+    *,
+    company_name: str,
+    training,
+    db: Session,
+    created_by_id: int,
+    include_answer_key: bool = False,
+    answer_key_only: bool = False,
+) -> bytes:
     _register_fonts()
     snapshot = _load_or_create_snapshot(db, training, created_by_id)
     items = list(snapshot.items)
