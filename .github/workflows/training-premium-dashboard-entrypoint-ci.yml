@@ -1,0 +1,25 @@
+name: Training Premium Dashboard Entrypoint CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  entrypoint-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Dashboard script is loaded after lifecycle bridge
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('frontend/index.html').read_text(encoding='utf-8-sig')
+          lifecycle = '/src/training_premium_lifecycle_bridge.js'
+          dashboard = '/src/training_premium_dashboard_bridge_v2.js'
+          assert lifecycle in text, 'Premium lifecycle bridge missing from index.html'
+          assert dashboard in text, 'Premium dashboard bridge missing from index.html'
+          assert text.index(lifecycle) < text.index(dashboard), 'Dashboard must load after lifecycle bridge'
+          print('OK: premium dashboard entrypoint contract')
+          PY
