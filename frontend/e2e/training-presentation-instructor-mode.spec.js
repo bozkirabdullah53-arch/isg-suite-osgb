@@ -70,7 +70,10 @@ function traceableManifest() {
         section_id: 'foundation_ohs',
         title: 'Temel İSG İlkeleri',
         source_refs: ['6331 sayılı Kanun'],
-        content_blocks: [{type: 'tehlike', value: 'İşe başlamadan önce tehlikeler ve kontroller anlaşılmalıdır.'}],
+        content_blocks: [
+          {type: 'tehlike', value: 'İşe başlamadan önce tehlikeler ve kontroller anlaşılmalıdır.'},
+          {type: 'training_date', value: '2026-08-09'},
+        ],
       },
       {
         position: 2,
@@ -122,7 +125,7 @@ async function injectTrainingOutput(page) {
   });
 }
 
-test('traceable generated presentation opens fullscreen instructor mode v2 and keeps core controls', async ({page}) => {
+test('traceable generated presentation returns to education and resumes from the saved slide', async ({page}) => {
   await installRoutes(page);
   await page.goto('/');
   await injectTrainingOutput(page);
@@ -139,7 +142,9 @@ test('traceable generated presentation opens fullscreen instructor mode v2 and k
   await expect(player.getByText('Kaynak kontrollü · v2')).toBeVisible();
   await expect(player.getByText('Temel İSG İlkeleri')).toBeVisible();
   await expect(player.getByText('20/20 soru kapsaması doğrulandı')).toBeVisible();
-  await expect(player.locator('[data-content-kind="hazard"]')).toBeVisible();
+  await expect(player.getByText('Eğitim tarihi')).toBeVisible();
+  await expect(player.getByText('training date', {exact: false})).toHaveCount(0);
+  await expect(player.getByRole('button', {name: 'Eğitim bölümüne dön'})).toBeVisible();
 
   await page.keyboard.press('ArrowRight');
   await expect(player.getByText('Kurşun maruziyeti ve kontrolü')).toBeVisible();
@@ -150,9 +155,14 @@ test('traceable generated presentation opens fullscreen instructor mode v2 and k
   await expect(player.locator('[data-content-kind="behavior"]')).toBeVisible();
   await expect(player.locator('.training-instructor-mode__sources a')).toHaveAttribute('href', /csgb\.gov\.tr/);
 
-  await page.keyboard.press('Escape');
+  await player.getByRole('button', {name: 'Eğitim bölümüne dön'}).click();
   await expect(player).toHaveCount(0);
   await expect(page.getByText('Sertifika PDF')).toBeVisible();
+  await expect(launch).toBeFocused();
+
+  await launch.click();
+  await expect(player).toBeVisible();
+  await expect(player.getByText('Kurşun maruziyeti ve kontrolü')).toBeVisible();
 });
 
 test('instructor mode v2 stays within a 390px mobile viewport', async ({page}) => {
@@ -164,6 +174,7 @@ test('instructor mode v2 stays within a 390px mobile viewport', async ({page}) =
   const player = page.locator('.training-instructor-mode');
   await expect(player).toBeVisible();
   await expect(player.locator('.training-instructor-mode__cards')).toBeVisible();
+  await expect(player.getByRole('button', {name: 'Eğitim bölümüne dön'})).toBeVisible();
   const widths = await page.evaluate(() => ({viewport: window.innerWidth, documentWidth: document.documentElement.scrollWidth}));
   expect(widths.documentWidth).toBeLessThanOrEqual(widths.viewport);
 });
