@@ -163,7 +163,7 @@ def _unicode_pdf(manifest: dict) -> bytes:
         c.rect(0, page_h - 48, 6, 48, fill=1, stroke=0)
         c.setFillColorRGB(0.88, 0.97, 0.94)
         c.setFont(PDF_FONT_BOLD, 9.2)
-        c.drawString(26, page_h - 29, (section.replace("_", " ") or "DERS SUNUMU").upper())
+        c.drawString(26, page_h - 29, renderer._section_label(section))
 
         c.setFillColorRGB(0.025, 0.105, 0.18)
         c.setFont(PDF_FONT_BOLD, 20)
