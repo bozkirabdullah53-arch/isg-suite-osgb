@@ -1820,7 +1820,6 @@ export function TrainingPage({user}) {
             dlBusy={dlBusy}
             canEdit={canEdit}
             busy={busy}
-            certificateReady={!specialProfileCode || (form.attendance_verified && form.success_verified)}
             onDownloadCertificates={() => downloadCertificates(savedTrainingId)}
             onDownloadAttendance={() => downloadAttendance(savedTrainingId)}
             onDownloadExam={() => downloadExam(savedTrainingId)}
@@ -2132,6 +2131,7 @@ export function TrainingPage({user}) {
             dlBusy={dlBusy}
             canEdit={canEdit}
             busy={busy}
+            certificateReady={!specialProfileCode || (form.attendance_verified && form.success_verified)}
             onDownloadCertificates={() => downloadCertificates(savedTrainingId)}
             onDownloadAttendance={() => downloadAttendance(savedTrainingId)}
             onDownloadExam={() => downloadExam(savedTrainingId)}
