@@ -34,11 +34,15 @@ async function injectTrainingPage(page, trainingId) {
         <section class="panel-card">
           <div>
             <label class="tp-label">Eğitim türü</label>
-            <select class="tp-select"><option>İlk Defa</option><option>Tekrar</option><option>Temel İSG Eğitimi</option></select>
+            <select class="tp-select">
+              <option value="İlk Defa">İlk Defa</option>
+              <option value="Tekrar">Tekrar</option>
+              <option value="Temel İSG Eğitimi">Temel İSG Eğitimi</option>
+            </select>
           </div>
           <div>
             <label class="tp-label">Tehlike sınıfı</label>
-            <select class="tp-select"><option selected>Çok Tehlikeli</option></select>
+            <select class="tp-select"><option value="Çok Tehlikeli" selected>Çok Tehlikeli</option></select>
           </div>
           <div class="tp-grid-2">
             <label class="check-box"><input type="checkbox" checked><span><strong>Katılım doğrulandı</strong></span></label>
