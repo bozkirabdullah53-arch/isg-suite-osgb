@@ -13,8 +13,9 @@ from reportlab.pdfgen import canvas
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.models.entities import TrainingExamSnapshot
+from app.models.entities import Branch, Company, Employee, TrainingExamSnapshot
 from app.services.training_question_bank import QUESTION_COUNT, create_exam_snapshot
+from app.services.training_topics import sectors_list_for_api
 
 FONT_REGULAR = "ExamSans"
 FONT_BOLD = "ExamSans-Bold"
@@ -112,6 +113,43 @@ def _training_exam_date_text(training) -> str:
     return text
 
 
+
+def _sector_display_name(sector_code: str | None) -> str:
+    """İç sistem kodu yerine kullanıcıya gösterilen NACE/faaliyet adını döndür."""
+    raw = str(sector_code or "").strip()
+    if not raw:
+        return "—"
+    for row in sectors_list_for_api():
+        if str(row.get("code") or "") == raw:
+            return str(row.get("name") or row.get("label") or raw)
+    return raw
+
+
+def _exam_company_registry_no(db: Session, training) -> str:
+    """Şube eğitimi için şube sicili, aksi halde firma SGK sicili."""
+    branch_id = getattr(training, "branch_id", None)
+    if branch_id:
+        branch = db.get(Branch, branch_id)
+        if branch and str(branch.sgk_registry_no or "").strip():
+            return str(branch.sgk_registry_no).strip()
+    company = db.get(Company, training.company_id)
+    return str(getattr(company, "sgk_registry_no", "") or "").strip()
+
+
+def _exam_participant_names(db: Session, training) -> list[str]:
+    """Katılımcı sırasını koruyarak kişiye özel sınav formu adlarını üret."""
+    participants = list(getattr(training, "participants", None) or [])
+    employee_ids = [int(row.employee_id) for row in participants]
+    if not employee_ids:
+        return [""]
+    employees = {
+        row.id: row.full_name
+        for row in db.scalars(select(Employee).where(Employee.id.in_(employee_ids))).all()
+    }
+    names = [str(employees.get(employee_id) or f"Personel #{employee_id}") for employee_id in employee_ids]
+    return names or [""]
+
+
 def build_exam_pdf(*, company_name: str, training, db: Session, created_by_id: int) -> bytes:
     _register_fonts()
     snapshot = _load_or_create_snapshot(db, training, created_by_id)
@@ -128,6 +166,9 @@ def build_exam_pdf(*, company_name: str, training, db: Session, created_by_id: i
     navy = (11 / 255, 46 / 255, 79 / 255)
     emerald = (15 / 255, 118 / 255, 110 / 255)
     light = (244 / 255, 248 / 255, 247 / 255)
+    sector_name = _sector_display_name(getattr(training, "sector", None))
+    registry_no = _exam_company_registry_no(db, training)
+    participant_names = _exam_participant_names(db, training)
 
     def header(page_no: int):
         c.setFillColorRGB(*navy)
@@ -139,7 +180,7 @@ def build_exam_pdf(*, company_name: str, training, db: Session, created_by_id: i
         c.drawCentredString(w / 2, h - 13 * mm, "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM SINAVI")
         c.setFont(FONT_REGULAR, 7.5)
         subtitle = (
-            f"{training.hazard_class} • Sektör: {training.sector or '—'} • "
+            f"{training.hazard_class} • Sektör: {sector_name} • "
             f"{QUESTION_COUNT} Soru • Sürüm {snapshot.version}"
         )
         c.drawCentredString(w / 2, h - 21 * mm, subtitle)
@@ -147,53 +188,60 @@ def build_exam_pdf(*, company_name: str, training, db: Session, created_by_id: i
         c.setFont(FONT_REGULAR, 7)
         c.drawRightString(w - 15 * mm, 10 * mm, f"Sayfa {page_no}")
 
-    header(1)
-    y = h - 39 * mm
-    c.setFillColorRGB(*light)
-    c.roundRect(14 * mm, y - 25 * mm, w - 28 * mm, 25 * mm, 3 * mm, fill=1, stroke=0)
-    c.setFillColorRGB(0.08, 0.14, 0.22)
-    c.setFont(FONT_BOLD, 8)
-    fields = [
-        ("Katılımcı Adı Soyadı", ""),
-        ("Firma Adı", company_name or ""),
-        ("Sınav Tarihi", _training_exam_date_text(training)),
-        ("İmza", ""),
-    ]
-    col_w = (w - 34 * mm) / 2
-    for i, (label, value) in enumerate(fields):
-        row, col = divmod(i, 2)
-        x = 18 * mm + col * col_w
-        yy = y - 7 * mm - row * 11 * mm
-        c.drawString(x, yy, f"{label}:")
-        c.setFont(FONT_REGULAR, 8)
-        c.drawString(x + 32 * mm, yy, value)
-        c.line(x + 31 * mm, yy - 1.5 * mm, x + col_w - 4 * mm, yy - 1.5 * mm)
-        c.setFont(FONT_BOLD, 8)
-
-    y -= 31 * mm
-    page_no = 1
-    for item in items:
-        options = json.loads(item.options_json)
-        stem_lines = _wrap(c, f"{item.position}. {item.question_text}", w - 32 * mm, FONT_BOLD, 8.5)
-        option_lines = sum(len(_wrap(c, f"{key}) {value}", w - 42 * mm, FONT_REGULAR, 7.5)) for key, value in options.items())
-        needed_mm = len(stem_lines) * 4.2 + option_lines * 3.7 + 7
-        if y < (25 + needed_mm) * mm:
+    page_no = 0
+    for participant_index, participant_name in enumerate(participant_names):
+        if participant_index:
             c.showPage()
-            page_no += 1
-            header(page_no)
-            y = h - 38 * mm
-        c.setFillColorRGB(*navy)
-        c.setFont(FONT_BOLD, 8.5)
-        for line in stem_lines:
-            c.drawString(16 * mm, y, line)
-            y -= 4.2 * mm
-        c.setFillColorRGB(0.16, 0.2, 0.25)
-        c.setFont(FONT_REGULAR, 7.5)
-        for key in "ABCD":
-            for line in _wrap(c, f"{key}) {options[key]}", w - 42 * mm, FONT_REGULAR, 7.5):
-                c.drawString(22 * mm, y, line)
-                y -= 3.7 * mm
-        y -= 3 * mm
+        page_no += 1
+        header(page_no)
+        y = h - 39 * mm
+        c.setFillColorRGB(*light)
+        c.roundRect(14 * mm, y - 36 * mm, w - 28 * mm, 36 * mm, 3 * mm, fill=1, stroke=0)
+        c.setFillColorRGB(0.08, 0.14, 0.22)
+        c.setFont(FONT_BOLD, 8)
+        fields = [
+            ("Çalışanın Adı Soyadı", participant_name),
+            ("İmza", ""),
+            ("Firma Ünvanı", company_name or ""),
+            ("SGK Sicil No", registry_no),
+            ("Sektör / Faaliyet", sector_name),
+            ("Sınav Tarihi", _training_exam_date_text(training)),
+        ]
+        col_w = (w - 34 * mm) / 2
+        for i, (label, value) in enumerate(fields):
+            row, col = divmod(i, 2)
+            x = 18 * mm + col * col_w
+            yy = y - 7 * mm - row * 10.5 * mm
+            c.drawString(x, yy, f"{label}:")
+            c.setFont(FONT_REGULAR, 7.5)
+            value_lines = _wrap(c, value, col_w - 34 * mm, FONT_REGULAR, 7.5)
+            c.drawString(x + 34 * mm, yy, value_lines[0] if value_lines else "")
+            c.line(x + 33 * mm, yy - 1.5 * mm, x + col_w - 4 * mm, yy - 1.5 * mm)
+            c.setFont(FONT_BOLD, 8)
+
+        y -= 42 * mm
+        for item in items:
+            options = json.loads(item.options_json)
+            stem_lines = _wrap(c, f"{item.position}. {item.question_text}", w - 32 * mm, FONT_BOLD, 8.5)
+            option_lines = sum(len(_wrap(c, f"{key}) {value}", w - 42 * mm, FONT_REGULAR, 7.5)) for key, value in options.items())
+            needed_mm = len(stem_lines) * 4.2 + option_lines * 3.7 + 7
+            if y < (25 + needed_mm) * mm:
+                c.showPage()
+                page_no += 1
+                header(page_no)
+                y = h - 38 * mm
+            c.setFillColorRGB(*navy)
+            c.setFont(FONT_BOLD, 8.5)
+            for line in stem_lines:
+                c.drawString(16 * mm, y, line)
+                y -= 4.2 * mm
+            c.setFillColorRGB(0.16, 0.2, 0.25)
+            c.setFont(FONT_REGULAR, 7.5)
+            for key in "ABCD":
+                for line in _wrap(c, f"{key}) {options[key]}", w - 42 * mm, FONT_REGULAR, 7.5):
+                    c.drawString(22 * mm, y, line)
+                    y -= 3.7 * mm
+            y -= 3 * mm
 
     c.showPage()
     page_no += 1
