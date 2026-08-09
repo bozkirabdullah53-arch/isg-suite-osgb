@@ -659,8 +659,13 @@ def _fixed_foundational_snapshot_item(question: dict, position: int) -> dict:
 def _special_curated_questions(training) -> list[dict]:
     key = resolve_special_profile_key(training)
     file_name = _SPECIAL_PACKS.get(key or "")
+    if key == "yuksekte_calisma" and not file_name:
+        raise RuntimeError("Yüksekte çalışma soru bankası eğitici onayı bekliyor; genel sektör soruları kullanılamaz.")
     if not file_name:
         return []
+    pack_path = _CURATED_DATA_DIR / file_name
+    if not pack_path.exists():
+        raise RuntimeError("Yüksekte çalışma soru bankası henüz yüklenmedi; eğitici sorularını sağlayana kadar sınav oluşturulamaz.")
     rows = list(_curated_pack(file_name))
     if len(rows) != SPECIAL_QUESTION_COUNT:
         raise RuntimeError(
