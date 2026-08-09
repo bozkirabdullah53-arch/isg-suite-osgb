@@ -1,0 +1,286 @@
+from __future__ import annotations
+
+import json
+from datetime import date, datetime, timedelta
+from types import SimpleNamespace
+
+import pytest
+
+from app.models.entities import TrainingStatus
+from app.schemas.training import TrainingCreate
+from app.services.training_lifecycle_v2 import (
+    PremiumTrainingLifecycleMiddleware,
+    applies_to_created_at,
+    duration_hours,
+    install_training_lifecycle_v2,
+    premium_lifecycle_active,
+    public_policy,
+    training_kind,
+)
+from app.services.training_lifecycle_v2_completion import (
+    finalize_record_only,
+    install_training_lifecycle_v2_completion,
+    record_only_preflight,
+)
+from app.services.training_lifecycle_v2_content_guards import (
+    install_training_lifecycle_v2_content_guards,
+)
+from app.services.training_lifecycle_v2_record_hooks import clears_basic_renewal
+from app.services.training_lifecycle_v2_validity import no_basic_training_state
+
+
+@pytest.fixture(autouse=True)
+def lifecycle_env(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("TRAINING_PREMIUM_LIFECYCLE_V2_ENABLED", "true")
+    monkeypatch.setenv("TRAINING_PREMIUM_LIFECYCLE_V2_FORCE_OFF", "false")
+    monkeypatch.delenv("TRAINING_PREMIUM_LIFECYCLE_V2_AFTER", raising=False)
+    install_training_lifecycle_v2()
+    install_training_lifecycle_v2_completion()
+    install_training_lifecycle_v2_content_guards()
+
+
+def test_official_2026_duration_policy_is_explicit():
+    assert training_kind("İşe Başlama Eğitimi") == "work_start"
+    assert duration_hours(
+        training_type="İşe Başlama Eğitimi",
+        title="İşe Başlama",
+        hazard_class="Çok Tehlikeli",
+    ) == 2
+    assert duration_hours(
+        training_type="Tekrar",
+        title="Temel İSG",
+        hazard_class="Çok Tehlikeli",
+    ) == 8
+    assert duration_hours(
+        training_type="Bilgi Yenileme Eğitimi",
+        title="Bilgi Yenileme",
+        hazard_class="Çok Tehlikeli",
+    ) == 4
+    assert duration_hours(
+        training_type="İlk Defa",
+        title="Temel İSG",
+        hazard_class="Çok Tehlikeli",
+    ) == 16
+
+
+def test_force_off_is_single_step_rollback(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("TRAINING_PREMIUM_LIFECYCLE_V2_FORCE_OFF", "true")
+    assert premium_lifecycle_active() is False
+    assert public_policy()["enabled"] is False
+    assert public_policy()["safety"]["migration_required"] is False
+
+
+def test_cutover_preserves_historical_records(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("TRAINING_PREMIUM_LIFECYCLE_V2_AFTER", "2026-08-09T06:00:00Z")
+    assert applies_to_created_at(datetime(2026, 8, 9, 5, 59, 59)) is False
+    assert applies_to_created_at(datetime(2026, 8, 9, 6, 0, 0)) is True
+
+
+def test_new_training_request_never_preconfirms_attendance_or_success():
+    body = json.dumps(
+        {
+            "training_type": "İşe Başlama Eğitimi",
+            "title": "İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+            "delivery_method": "Uzaktan",
+            "attendance_verified": True,
+            "success_verified": True,
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+    rewritten = json.loads(PremiumTrainingLifecycleMiddleware._rewrite_new_training(body))
+    assert rewritten["attendance_verified"] is False
+    assert rewritten["success_verified"] is False
+    assert rewritten["delivery_method"] == "Yüz yüze"
+
+
+def test_repeat_training_validation_uses_eight_lesson_hours():
+    payload = TrainingCreate(
+        company_id=1,
+        title="Tekrar Temel İş Sağlığı ve Güvenliği Eğitimi",
+        training_type="Tekrar",
+        delivery_method="Yüz yüze",
+        location="Eğitim Salonu",
+        start_date=date(2026, 8, 10),
+        end_date=date(2026, 8, 10),
+        hazard_class="Çok Tehlikeli",
+        sector="nace_20_30_90",
+        instructor_name="Abdullah Bozkır",
+        evaluation_method="Sınav",
+        passing_score=70,
+        participant_ids=[1],
+    )
+    assert payload.training_type == "Tekrar"
+    assert payload.hazard_class == "Çok Tehlikeli"
+
+
+def test_work_start_training_can_be_planned_in_one_day():
+    payload = TrainingCreate(
+        company_id=1,
+        title="İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+        training_type="İşe Başlama Eğitimi",
+        delivery_method="Yüz yüze",
+        location="İşyeri",
+        start_date=date(2026, 8, 10),
+        end_date=date(2026, 8, 10),
+        hazard_class="Çok Tehlikeli",
+        sector="nace_20_30_90",
+        instructor_name="Abdullah Bozkır",
+        evaluation_method="Katılım yeterlidir",
+        participant_ids=[1],
+    )
+    assert payload.training_type == "İşe Başlama Eğitimi"
+
+
+def test_work_start_does_not_satisfy_basic_renewal_tracking():
+    from app.api import trainings
+
+    row = SimpleNamespace(
+        training_type="İşe Başlama Eğitimi",
+        title="İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+        notes="",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+    )
+    assert trainings._is_basic_training(row) is False
+    assert clears_basic_renewal(row) is True
+
+
+def test_information_refresh_does_not_reset_basic_renewal_date():
+    row = SimpleNamespace(
+        training_type="Bilgi Yenileme Eğitimi",
+        title="İşe Dönüş Bilgi Yenileme Eğitimi",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+    )
+    assert clears_basic_renewal(row) is True
+
+
+def test_historical_work_start_keeps_legacy_predicate(monkeypatch: pytest.MonkeyPatch):
+    from app.api import trainings
+
+    monkeypatch.setenv("TRAINING_PREMIUM_LIFECYCLE_V2_AFTER", "2026-08-09T08:00:00Z")
+    row = SimpleNamespace(
+        training_type="İşe Başlama Eğitimi",
+        title="İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+        notes="",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+    )
+    assert trainings._is_basic_training(row) is True
+    assert clears_basic_renewal(row) is False
+
+
+def test_work_start_attendance_pdf_uses_explicit_record_contract():
+    from app.services import training_pdfs
+
+    row = SimpleNamespace(
+        training_type="İşe Başlama Eğitimi",
+        title="İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+        notes="",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+        sector="nace_20_30_90",
+        hazard_class="Çok Tehlikeli",
+    )
+    curriculum = training_pdfs.resolve_training_curriculum(row)
+    assert curriculum["attendance_title"] == "İŞE BAŞLAMA İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ"
+    assert curriculum["duration_label"] == "EN AZ 2 SAAT"
+    assert curriculum["is_special"] is True
+    assert "Temel İSG Eğitimi yerine geçmez" in curriculum["disclaimer"]
+
+
+def test_information_refresh_attendance_pdf_uses_work_specific_duration():
+    from app.services import training_pdfs
+
+    row = SimpleNamespace(
+        training_type="Bilgi Yenileme Eğitimi",
+        title="İşe Dönüş Bilgi Yenileme Eğitimi",
+        notes="",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+        sector="nace_20_30_90",
+        hazard_class="Çok Tehlikeli",
+    )
+    curriculum = training_pdfs.resolve_training_curriculum(row)
+    assert curriculum["attendance_title"] == "BİLGİ YENİLEME İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ"
+    assert curriculum["duration_label"] == "EN AZ 4 DERS SAATİ"
+    assert "Temel İSG tekrar eğitimi" in curriculum["disclaimer"]
+
+
+def test_work_start_cannot_generate_misleading_basic_certificate():
+    from app.services import training_completion
+
+    row = SimpleNamespace(
+        training_type="İşe Başlama Eğitimi",
+        title="İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+    )
+    with pytest.raises(ValueError, match="Temel İSG katılım belgesi oluşturulmaz"):
+        training_completion._compliant_certificate_pdf(
+            None,
+            company_name="Test",
+            training=row,
+            employees={},
+            participants=[],
+        )
+
+
+def test_work_start_cannot_generate_basic_twenty_question_exam():
+    from app.services import training_exam_pdf
+
+    row = SimpleNamespace(
+        training_type="İşe Başlama Eğitimi",
+        title="İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+    )
+    with pytest.raises(ValueError, match="20 soruluk Temel İSG sınavı oluşturulmaz"):
+        training_exam_pdf.build_exam_pdf(
+            company_name="Test",
+            training=row,
+            db=None,
+            created_by_id=1,
+        )
+
+
+def test_record_only_completion_requires_real_attendance_and_never_exam_score():
+    participant = SimpleNamespace(id=1, employee_id=11, attended=True, score=88, successful=None, certificate_number="EGT-1-11")
+    training = SimpleNamespace(
+        id=1,
+        training_type="İşe Başlama Eğitimi",
+        title="İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+        start_date=date.today() - timedelta(days=1),
+        end_date=date.today(),
+        instructor_name="Abdullah Bozkır",
+        participants=[participant],
+        attendance_verified=False,
+        success_verified=False,
+        status=TrainingStatus.PLANNED,
+    )
+    before = record_only_preflight(training)
+    assert before["exam_required"] is False
+    assert before["ready_for_record"] is False
+
+    after = finalize_record_only(training)
+    assert training.status == TrainingStatus.COMPLETED
+    assert training.attendance_verified is True
+    assert participant.score is None
+    assert participant.successful is True
+    assert after["ready_for_record"] is True
+    assert after["ready_for_certificates"] is False
+
+
+def test_basic_training_deadline_is_three_months_after_start_not_before_start():
+    state = no_basic_training_state(
+        hire_date=date(2026, 8, 1),
+        today=date(2026, 8, 9),
+    )
+    assert state["next_due"] == "2026-11-01"
+    assert "en geç 01.11.2026" in state["message"]
+    assert "İşe Başlama Eğitimi fiilen işe başlamadan önce" in state["message"]
+
+
+def test_overdue_basic_training_message_is_explicit_and_separate_from_work_start():
+    state = no_basic_training_state(
+        hire_date=date(2026, 1, 1),
+        today=date(2026, 8, 9),
+    )
+    assert state["next_due"] == "2026-04-01"
+    assert state["days_left"] < 0
+    assert "gecikmiş" in state["message"]
+    assert "İşe Başlama Eğitimi bu kayıttan ayrıdır" in state["message"]

@@ -1,0 +1,81 @@
+name: Training Premium Lifecycle CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  backend-lifecycle:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      ENVIRONMENT: development
+      SECRET_KEY: ci-secret-key-at-least-32-characters-long
+      DATABASE_URL: sqlite:///./training_lifecycle_ci.db
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Premium lifecycle and existing training regression
+        run: >
+          pytest -q
+          tests/test_training_lifecycle_v2.py
+          tests/test_training_completion.py
+          tests/test_training_strict_cutover.py
+          tests/test_training_rules.py
+          tests/test_training_question_selection_v2.py
+          tests/test_training_presentation_phase8.py
+          tests/test_training_presentation_phase9.py
+          tests/test_training_presentation_phase10_chemicals.py
+      - name: Rollback contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('../docs/training-premium-lifecycle-v2.md').read_text(encoding='utf-8')
+          required = [
+              'TRAINING_PREMIUM_LIFECYCLE_V2_ENABLED=true',
+              'TRAINING_PREMIUM_LIFECYCLE_V2_FORCE_OFF=true',
+              'TRAINING_PREMIUM_LIFECYCLE_V2_AFTER=<ISO-8601>',
+              'Migration yoktur',
+              'Eski sınav snapshot',
+              'Eski PDF/sertifika',
+          ]
+          missing = [item for item in required if item not in text]
+          assert not missing, f'Eğitim premium rollback sözleşmesi eksik: {missing}'
+          print('OK: premium lifecycle rollback contract')
+          PY
+
+  frontend-lifecycle:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Premium lifecycle unit tests
+        run: npx vitest run src/training_premium_lifecycle_logic.test.js
+      - name: Premium lifecycle lint
+        run: npx eslint src/training_premium_lifecycle_logic.js src/training_premium_lifecycle_logic.test.js src/training_premium_lifecycle_bridge.js e2e/training-premium-lifecycle.spec.js
+      - name: Vite production bundle
+        run: npx vite build
+      - name: Desktop and mobile browser acceptance
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test e2e/training-premium-lifecycle.spec.js
