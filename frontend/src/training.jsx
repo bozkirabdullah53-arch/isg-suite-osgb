@@ -220,6 +220,7 @@ function EducationOutputPanel({
   onSaveAndPrepare,
   canEdit,
   busy,
+  certificateReady = true,
 }) {
   const ready = !!savedTrainingId;
   return (
@@ -269,11 +270,11 @@ function EducationOutputPanel({
           <button
             type="button"
             className="education-output-button education-output-button--certificate"
-            disabled={!!dlBusy}
+            disabled={!!dlBusy || !certificateReady}
             onClick={onDownloadCertificates}
           >
             <Award size={18} />
-            {dlBusy === 'certs' ? 'İndiriliyor…' : 'Sertifika PDF (Katılım Belgeleri)'}
+            {dlBusy === 'certs' ? 'İndiriliyor…' : certificateReady ? 'Sertifika PDF (Katılım Belgeleri)' : 'Sertifika için doğrulama gerekli'}
           </button>
         ) : (
           <div className="education-output-disabled" aria-disabled="true">
@@ -736,7 +737,8 @@ export function TrainingPage({user}) {
       setErr('Eğitici adı soyadı zorunludur.');
       return null;
     }
-    if (!form.attendance_verified || !form.success_verified) {
+    const specialFlow = !!specialProfileCode;
+    if (!specialFlow && (!form.attendance_verified || !form.success_verified)) {
       setErr('Katılım ve başarı doğrulama kutularını işaretleyin.');
       return null;
     }
@@ -1080,6 +1082,34 @@ export function TrainingPage({user}) {
         .join('\n\n'),
       stamp_text: profile.legal_basis || prev.stamp_text,
     }));
+  }
+
+  async function verifySpecialTraining() {
+    if (!savedTrainingId) {
+      setErr('Önce eğitim kaydını oluşturun.');
+      return;
+    }
+    if (!form.attendance_verified || !form.success_verified) {
+      setErr('Katılım ve sınav/uygulama sonucu kontrollerini tamamlayın.');
+      return;
+    }
+    setBusy(true);
+    setErr('');
+    try {
+      await api(`/trainings/${savedTrainingId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          attendance_verified: true,
+          success_verified: true,
+        }),
+      });
+      setOkMsg('Katılım ve sınav/uygulama sonucu doğrulandı. Sertifika PDF artık üretilebilir.');
+      await load();
+    } catch (x) {
+      setErr(x.message || 'Doğrulama kaydedilemedi.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveSpecialTraining(e) {
@@ -1790,6 +1820,7 @@ export function TrainingPage({user}) {
             dlBusy={dlBusy}
             canEdit={canEdit}
             busy={busy}
+            certificateReady={!specialProfileCode || (form.attendance_verified && form.success_verified)}
             onDownloadCertificates={() => downloadCertificates(savedTrainingId)}
             onDownloadAttendance={() => downloadAttendance(savedTrainingId)}
             onDownloadExam={() => downloadExam(savedTrainingId)}
@@ -2060,9 +2091,36 @@ export function TrainingPage({user}) {
               </div>
             </div>
 
+            <div className="tp-alert" style={{marginTop: 14, background: '#f8fafc', color: '#334155', borderColor: '#cbd5e1'}}>
+              <strong style={{display: 'block', marginBottom: 8}}>Katılım ve sonuç doğrulama</strong>
+              <label style={{display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8, cursor: 'pointer'}}>
+                <input
+                  type="checkbox"
+                  checked={!!form.attendance_verified}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm((f) => ({...f, attendance_verified: e.target.checked}))}
+                />
+                <span><strong>Katılım doğrulandı</strong><br /><small>Gerçek çalışan listesi ve imza formu kontrol edildi.</small></span>
+              </label>
+              <label style={{display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer'}}>
+                <input
+                  type="checkbox"
+                  checked={!!form.success_verified}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm((f) => ({...f, success_verified: e.target.checked}))}
+                />
+                <span><strong>Sınav / uygulama sonucu doğrulandı</strong><br /><small>20 soruluk sınav ve uygulamalı değerlendirme sonucu eğitici tarafından kontrol edildi.</small></span>
+              </label>
+              {savedTrainingId && form.attendance_verified && form.success_verified && canEdit && (
+                <button type="button" className="btn-outline-premium" style={{width: 'auto', marginTop: 8}} onClick={verifySpecialTraining} disabled={busy}>
+                  {busy ? 'Doğrulanıyor…' : 'Doğrulamayı Kaydet ve Sertifikayı Aç'}
+                </button>
+              )}
+            </div>
+
             {canEdit && (
               <button type="submit" className="btn-premium" style={{marginTop: 14}} disabled={busy}>
-                {busy ? 'Kaydediliyor…' : 'Kaydı Doğrula ve Belgelere Hazırla'}
+                {busy ? 'Kaydediliyor…' : 'Eğitimi Kaydet ve PDF Hazırla'}
               </button>
             )}
           </form>
