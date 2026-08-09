@@ -1,0 +1,32 @@
+.training-premium-lifecycle {
+  margin: 0 0 18px;
+  padding: 18px;
+  border: 1px solid rgba(8, 127, 120, 0.18);
+  border-radius: 20px;
+  background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.12), transparent 34%), linear-gradient(135deg, #ffffff, #f4fbf9 58%, #f0f7ff);
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.07);
+}
+.training-premium-lifecycle__head {display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap;}
+.training-premium-lifecycle__eyebrow {color:#087f78;font-size:12px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;}
+.training-premium-lifecycle h2 {margin:4px 0 6px;font-size:clamp(20px,2.2vw,28px);color:#102a3c;}
+.training-premium-lifecycle__head p {margin:0;max-width:760px;color:#5b7083;line-height:1.55;}
+.training-premium-lifecycle__badge {display:inline-flex;align-items:center;min-height:36px;padding:0 13px;border-radius:999px;background:#dff8ee;color:#08745d;font-size:12px;font-weight:900;white-space:nowrap;}
+.training-premium-lifecycle__steps {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin-top:16px;}
+.training-premium-lifecycle__step {min-height:66px;padding:12px 13px;border-radius:14px;background:rgba(255,255,255,.84);border:1px solid #dce9e7;display:flex;align-items:center;gap:9px;color:#274457;font-size:13px;font-weight:800;}
+.training-premium-lifecycle__step span:first-child {width:28px;height:28px;flex:0 0 28px;display:grid;place-items:center;border-radius:50%;background:#e8f6f3;color:#087f78;}
+.training-premium-policy-note {margin:10px 0 14px;padding:13px 15px;border-radius:14px;background:#eef9f7;border:1px solid #c9ebe4;color:#285a55;font-size:13px;line-height:1.5;}
+.training-premium-policy-note strong {color:#0a695f;}
+.training-premium-hidden-verification {display:none!important;}
+.training-premium-status-card {margin:12px 0 0;padding:14px 16px;border-radius:15px;border:1px solid #d9e6e4;display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap;}
+.training-premium-status-card.is-info {background:#eef6ff;border-color:#cfe1f5;}.training-premium-status-card.is-warning {background:#fff8e6;border-color:#f4d992;}.training-premium-status-card.is-ready {background:#ebfaf3;border-color:#bfe7d4;}.training-premium-status-card.is-danger {background:#fff0f0;border-color:#efc6c6;}
+.training-premium-status-card strong {display:block;color:#18374a;margin-bottom:3px;}.training-premium-status-card span {color:#607487;font-size:12px;line-height:1.45;}
+.training-premium-results-modal {position:fixed;inset:0;z-index:10050;display:grid;place-items:center;padding:18px;background:rgba(5,21,31,.72);backdrop-filter:blur(8px);}
+.training-premium-results-modal__card {width:min(980px,100%);max-height:min(88vh,860px);overflow:auto;border-radius:22px;background:#fff;box-shadow:0 30px 90px rgba(0,0,0,.28);}
+.training-premium-results-modal__head {position:sticky;top:0;z-index:2;padding:18px 20px;display:flex;justify-content:space-between;gap:14px;align-items:flex-start;background:#f7fbfa;border-bottom:1px solid #dce9e7;}
+.training-premium-results-modal__head h2 {margin:0 0 4px;font-size:21px;color:#142f40;}.training-premium-results-modal__head p {margin:0;color:#607487;font-size:13px;}
+.training-premium-results-modal__close {border:0;width:38px;height:38px;border-radius:12px;background:#e8f1ef;color:#214653;font-size:22px;cursor:pointer;}
+.training-premium-results-modal__body {padding:18px 20px;}.training-premium-results-modal__table-wrap {overflow-x:auto;}.training-premium-results-modal table {width:100%;border-collapse:collapse;min-width:650px;}.training-premium-results-modal th,.training-premium-results-modal td {padding:11px 10px;border-bottom:1px solid #e9efee;text-align:left;}.training-premium-results-modal th {font-size:12px;color:#607487;}.training-premium-results-modal td {font-size:13px;color:#233f50;}.training-premium-results-modal input[type='number'] {width:92px;min-height:38px;border:1px solid #cddbd8;border-radius:9px;padding:0 9px;}
+.training-premium-results-modal__message {margin-top:13px;padding:11px 13px;border-radius:11px;background:#fff3d8;color:#79520b;font-size:13px;}.training-premium-results-modal__message.is-success {background:#e7f9f0;color:#0c6a50;}.training-premium-results-modal__message.is-error {background:#ffeded;color:#a32727;}
+.training-premium-results-modal__actions {position:sticky;bottom:0;padding:14px 20px;display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap;background:#fff;border-top:1px solid #e1e9e7;}.training-premium-results-modal__actions button {min-height:42px;padding:0 16px;border-radius:11px;border:1px solid #bfd1cd;background:#fff;font-weight:800;cursor:pointer;}.training-premium-results-modal__actions button.primary {border-color:#087f78;background:#087f78;color:#fff;}
+@media (max-width:760px){.training-premium-lifecycle{padding:14px;border-radius:16px}.training-premium-lifecycle__steps{grid-template-columns:1fr 1fr}.training-premium-results-modal{padding:8px}.training-premium-results-modal__card{max-height:95vh;border-radius:16px}}
+@media (max-width:430px){.training-premium-lifecycle__steps{grid-template-columns:1fr}.training-premium-results-modal__actions button{flex:1 1 100%}}
