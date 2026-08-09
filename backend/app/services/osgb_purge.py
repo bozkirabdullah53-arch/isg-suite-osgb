@@ -33,6 +33,7 @@ from app.models.personnel_profile import (
     PersonnelProfileExperience,
 )
 from app.models.personnel_profile_document import PersonnelProfileDocument
+from app.services.user_retirement import anonymize_orphan_user, orphan_account_state
 
 
 def _purge_osgb_personnel_profiles(db: Session, osgb_id: int) -> None:
@@ -223,7 +224,9 @@ def purge_osgb(db: Session, osgb_id: int) -> str:
         .values(osgb_id=None)
     )
 
-    # OSGB yöneticilerini askıya al / bağını kopar (global admin'e dokunma)
+    # OSGB'ye doğrudan bağlı kullanıcıları ayır. Başka aktif üyeliği/profesyonel
+    # kapsamı kalmayan hesaplar PII/kimlik bilgisi bırakmayacak şekilde anonimleştirilir;
+    # audit ve tarihsel kayıtların user_id referansları korunur. Global admin'e dokunulmaz.
     users = list(
         db.scalars(
             select(User).where(User.osgb_id == osgb_id, User.role != UserRole.GLOBAL_ADMIN)
@@ -233,6 +236,9 @@ def purge_osgb(db: Session, osgb_id: int) -> str:
         u.osgb_id = None
         u.company_id = None
         u.is_active = False
+        state = orphan_account_state(db, u)
+        if bool(state.get("eligible")):
+            anonymize_orphan_user(db, u)
 
     db.delete(org)
     db.flush()
