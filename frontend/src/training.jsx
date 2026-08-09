@@ -25,8 +25,52 @@ const STATUS_STYLES = {
   ok: {bg: '#dcfce7', fg: '#166534', label: 'Geçerli'},
 };
 
+function foldTrainingText(value) {
+  return String(value || '')
+    .toLocaleLowerCase('tr-TR')
+    .normalize('NFKD')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .replaceAll('ı', 'i')
+    .replaceAll('ş', 's')
+    .replaceAll('ğ', 'g')
+    .replaceAll('ü', 'u')
+    .replaceAll('ö', 'o')
+    .replaceAll('ç', 'c');
+}
+
+function trainingPolicyKind(formValue) {
+  const text = foldTrainingText(`${formValue?.training_type || ''} ${formValue?.title || ''}`);
+  if (text.includes('ise baslama')) return 'work_start';
+  if (text.includes('bilgi yenileme') || text.includes('bilgi tazeleme')) return 'information_refresh';
+  if (text.includes('tekrar') || text.includes('yenileme egitimi')) return 'repeat_basic';
+  return 'initial_basic';
+}
+
+function trainingHoursForForm(formValue) {
+  const special = Number(formValue?.special_duration_hours || 0);
+  if (special > 0) return special;
+  const kind = trainingPolicyKind(formValue);
+  if (kind === 'work_start') return 2;
+  if (kind === 'information_refresh') {
+    return ({'Az Tehlikeli': 2, Tehlikeli: 3, 'Çok Tehlikeli': 4}[formValue?.hazard_class] || 2);
+  }
+  if (kind === 'repeat_basic') return 8;
+  return HAZARD_HOURS[formValue?.hazard_class] || 8;
+}
+
 function minTrainingDays(hours) {
-  return Math.max(1, Math.ceil((hours || 8) / MAX_HOURS_PER_DAY));
+  return Math.max(1, Math.ceil((Number(hours) || 8) / MAX_HOURS_PER_DAY));
+}
+
+function trainingDurationHint(formValue) {
+  const hours = trainingHoursForForm(formValue);
+  const days = minTrainingDays(hours);
+  const kind = trainingPolicyKind(formValue);
+  if (kind === 'work_start') return 'En az 2 ders saati · tek gün · yüz yüze';
+  if (kind === 'information_refresh') return `En az ${hours} ders saati · tek gün · işe özgü riskler`;
+  if (formValue?.special_duration_hours) return `${hours} ders saati · en az ${days} gün`;
+  if (kind === 'repeat_basic') return '8 ders saati · en az 1 gün · tehlike sınıfına göre yenilenir';
+  return HAZARD_HINT[formValue?.hazard_class] || `${hours} ders saati · en az ${days} gün`;
 }
 
 function formatTrainingDates(row) {
@@ -145,7 +189,7 @@ function emptyForm(user) {
     stamp_text:
       '6331 sayılı İş Sağlığı ve Güvenliği Kanunu ve Çalışanların İş Sağlığı ve Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında düzenlenmiştir.',
     evaluation_method: 'Sınav',
-    passing_score: '',
+    passing_score: 60,
     attendance_verified: true,
     success_verified: true,
     notes: '',
@@ -616,10 +660,7 @@ export function TrainingPage({user}) {
     if (f.end_date < f.start_date) {
       return 'Bitiş tarihi başlangıç tarihinden önce olamaz.';
     }
-    const hours =
-      Number(f.special_duration_hours) > 0
-        ? Number(f.special_duration_hours)
-        : HAZARD_HOURS[f.hazard_class] || 8;
+    const hours = trainingHoursForForm(f);
     const needed = minTrainingDays(hours);
     const span = calendarDaysInclusive(f.start_date, f.end_date);
     if (span < needed) {
@@ -1024,6 +1065,7 @@ export function TrainingPage({user}) {
       delivery_method: profile.training_method || prev.delivery_method,
       evaluation_method:
         (profile.evaluation_methods && profile.evaluation_methods[0]) || prev.evaluation_method,
+      passing_score: 60,
       special_duration_hours: total || null,
       special_duration_hint: hint,
       notes: [
@@ -1319,7 +1361,25 @@ export function TrainingPage({user}) {
                   className="tp-select"
                   value={form.training_type}
                   disabled={!canEdit}
-                  onChange={(e) => setForm({...form, training_type: e.target.value})}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const kind = trainingPolicyKind({training_type: value, title: form.title});
+                    setForm((current) => ({
+                      ...current,
+                      training_type: value,
+                      ...(kind === 'work_start'
+                        ? {
+                            title: current.title || 'İşe Başlama İş Sağlığı ve Güvenliği Eğitimi',
+                            delivery_method: 'Yüz yüze',
+                            evaluation_method: 'Katılım yeterlidir',
+                            passing_score: null,
+                          }
+                        : {
+                            evaluation_method: current.evaluation_method === 'Katılım yeterlidir' ? 'Sınav' : current.evaluation_method,
+                            passing_score: current.passing_score == null || current.passing_score === '' ? 60 : current.passing_score,
+                          }),
+                    }));
+                  }}
                 >
                   <option>İlk Defa</option>
                   <option>Tekrar</option>
@@ -1416,7 +1476,7 @@ export function TrainingPage({user}) {
                 </div>
                 <div>
                   <label className="tp-label">Süre / yenileme</label>
-                  <input className="tp-input" readOnly value={HAZARD_HINT[form.hazard_class] || ''} />
+                  <input className="tp-input" readOnly value={trainingDurationHint(form)} />
                 </div>
                 <div>
                   <label className="tp-label">Başlangıç tarihi *</label>
@@ -1505,7 +1565,9 @@ export function TrainingPage({user}) {
               </div>
               <div className="tp-alert warn" style={{marginTop: 10}}>
                 Günde en fazla {MAX_HOURS_PER_DAY} ders saati;
-                {` ${HAZARD_HOURS[form.hazard_class] || 8} saatlik eğitim en az ${minTrainingDays(HAZARD_HOURS[form.hazard_class] || 8)} takvim gününe yayılmalıdır.`}
+                {`${trainingHoursForForm(form)} saatlik eğitim için en az ${minTrainingDays(trainingHoursForForm(form))} takvim günü gerekir. ` +
+                  (trainingPolicyKind(form) === 'work_start' ? '2 saatlik işe başlama eğitimi aynı gün içinde tamamlanabilir.' : '')
+                }
               </div>
               <div className="sector-topics" style={{marginTop: 10}}>
                 <strong>
