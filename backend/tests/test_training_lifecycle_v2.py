@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
+from types import SimpleNamespace
 
 import pytest
 
@@ -115,3 +116,67 @@ def test_work_start_training_can_be_planned_in_one_day():
         participant_ids=[1],
     )
     assert payload.training_type == "İşe Başlama Eğitimi"
+
+
+def test_work_start_does_not_satisfy_basic_renewal_tracking():
+    from app.api import trainings
+
+    row = SimpleNamespace(
+        training_type="İşe Başlama Eğitimi",
+        title="İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+        notes="",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+    )
+    assert trainings._is_basic_training(row) is False
+
+
+def test_historical_work_start_keeps_legacy_predicate(monkeypatch: pytest.MonkeyPatch):
+    from app.api import trainings
+
+    monkeypatch.setenv("TRAINING_PREMIUM_LIFECYCLE_V2_AFTER", "2026-08-09T08:00:00Z")
+    row = SimpleNamespace(
+        training_type="İşe Başlama Eğitimi",
+        title="İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+        notes="",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+    )
+    # Historical compatibility: this record predates the premium cutover, so the
+    # old predicate remains untouched even if its free-text title resembles the
+    # new work-start type.
+    assert trainings._is_basic_training(row) is True
+
+
+def test_work_start_attendance_pdf_uses_explicit_record_contract():
+    from app.services import training_pdfs
+
+    row = SimpleNamespace(
+        training_type="İşe Başlama Eğitimi",
+        title="İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+        notes="",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+        sector="nace_20_30_90",
+        hazard_class="Çok Tehlikeli",
+    )
+    curriculum = training_pdfs.resolve_training_curriculum(row)
+    assert curriculum["attendance_title"] == "İŞE BAŞLAMA İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİMİ"
+    assert curriculum["duration_label"] == "EN AZ 2 SAAT"
+    assert curriculum["is_special"] is True
+    assert "Temel İSG Eğitimi yerine geçmez" in curriculum["disclaimer"]
+
+
+def test_work_start_cannot_generate_misleading_basic_certificate():
+    from app.services import training_completion
+
+    row = SimpleNamespace(
+        training_type="İşe Başlama Eğitimi",
+        title="İşe Başlama İş Sağlığı ve Güvenliği Eğitimi",
+        created_at=datetime(2026, 8, 9, 7, 0, 0),
+    )
+    with pytest.raises(ValueError, match="Temel İSG katılım belgesi oluşturulmaz"):
+        training_completion._compliant_certificate_pdf(
+            None,
+            company_name="Test",
+            training=row,
+            employees={},
+            participants=[],
+        )
