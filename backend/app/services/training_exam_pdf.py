@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.entities import Branch, Company, Employee, TrainingExamSnapshot
+from app.services.special_training_profiles import resolve_special_profile_key, SPECIAL_TRAINING_PROFILES
 from app.services.training_question_bank import QUESTION_COUNT, create_exam_snapshot
 from app.services.training_topics import sectors_list_for_api
 
@@ -176,6 +177,9 @@ def build_exam_pdf(
     light = (244 / 255, 248 / 255, 247 / 255)
     sector_name = _sector_display_name(getattr(training, "sector", None))
     registry_no = _exam_company_registry_no(db, training)
+    special_key = resolve_special_profile_key(training)
+    special_profile = SPECIAL_TRAINING_PROFILES.get(special_key or "")
+    exam_title = str((special_profile or {}).get("title") or "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM SINAVI")
     participant_names = [] if answer_key_only else _exam_participant_names(db, training)
 
     def header(page_no: int):
@@ -184,12 +188,12 @@ def build_exam_pdf(
         c.setFillColorRGB(*emerald)
         c.rect(0, h - 31.5 * mm, w, 1.5 * mm, fill=1, stroke=0)
         c.setFillColorRGB(1, 1, 1)
-        c.setFont(FONT_BOLD, 14)
-        c.drawCentredString(w / 2, h - 13 * mm, "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM SINAVI")
+        c.setFont(FONT_BOLD, 14 if len(exam_title) < 46 else 12)
+        c.drawCentredString(w / 2, h - 13 * mm, exam_title.upper())
         c.setFont(FONT_REGULAR, 7.5)
         subtitle = (
             f"{training.hazard_class} • Sektör: {sector_name} • "
-            f"{QUESTION_COUNT} Soru • Sürüm {snapshot.version}"
+            f"{snapshot.question_count} Soru • Sürüm {snapshot.version}"
         )
         c.drawCentredString(w / 2, h - 21 * mm, subtitle)
         c.setFillColorRGB(0.25, 0.3, 0.35)
@@ -211,7 +215,7 @@ def build_exam_pdf(
             ("Çalışanın Adı Soyadı", participant_name),
             ("İmza", ""),
             ("Firma Ünvanı", company_name or ""),
-            ("SGK Sicil No", registry_no),
+            ("Firma Sicil No", registry_no),
             ("Sektör / Faaliyet", sector_name),
             ("Sınav Tarihi", _training_exam_date_text(training)),
         ]
