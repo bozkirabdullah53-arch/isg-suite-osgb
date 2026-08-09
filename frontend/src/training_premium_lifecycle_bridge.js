@@ -4,6 +4,7 @@ import {
   PREMIUM_TRAINING_TYPES,
   lifecycleTone,
   normalizePremiumPolicy,
+  outputActionPolicy,
   parseTrainingIdFromText,
   ruleSummary,
   shouldReplacePrematureVerification,
@@ -70,7 +71,7 @@ function setReactInputValue(input, value) {
 function ensurePremiumTypeOptions(root) {
   const selects = [...root.querySelectorAll('select.tp-select')].filter((select) =>
     [...select.options].some((option) => option.textContent?.trim() === 'İlk Defa') &&
-    [...select.options].some((option) => option.textContent?.trim() === 'Tekrar'),
+    [...select.options].some((option) => option.value === 'Tekrar'),
   );
 
   selects.forEach((select) => {
@@ -128,11 +129,18 @@ function hazardClassFromRoot(root) {
 
 function renderPremiumHeader(root) {
   const tabs = root.querySelector('.tp-tabs');
-  if (!tabs || root.querySelector('.training-premium-lifecycle')) return;
-  const summary = ruleSummary(policy, hazardClassFromRoot(root));
-  const card = document.createElement('section');
-  card.className = 'training-premium-lifecycle';
-  card.setAttribute('aria-label', 'Eğitim premium yaşam döngüsü');
+  if (!tabs) return;
+  const hazardClass = hazardClassFromRoot(root);
+  const summary = ruleSummary(policy, hazardClass);
+  let card = root.querySelector('.training-premium-lifecycle');
+  if (!card) {
+    card = document.createElement('section');
+    card.className = 'training-premium-lifecycle';
+    card.setAttribute('aria-label', 'Eğitim premium yaşam döngüsü');
+    tabs.insertAdjacentElement('afterend', card);
+  }
+  const signature = JSON.stringify({hazardClass, summary});
+  if (card.dataset.signature === signature) return;
   card.innerHTML = `
     <div class="training-premium-lifecycle__head">
       <div>
@@ -152,13 +160,13 @@ function renderPremiumHeader(root) {
         </div>`).join('')}
     </div>
     <div class="training-premium-policy-note" style="margin-bottom:0">
-      <strong>${escapeHtml(hazardClassFromRoot(root))}:</strong>
+      <strong>${escapeHtml(hazardClass)}:</strong>
       İlk temel eğitim ${summary.initialHours || '—'} ders saati ·
       tekrar temel eğitim ${summary.repeatHours || '—'} ders saati ·
       işe özgü bölüm en az ${summary.workSpecificHours || '—'} ders saati.
       ${escapeHtml(summary.lessonDefinition)}.
     </div>`;
-  tabs.insertAdjacentElement('afterend', card);
+  card.dataset.signature = signature;
 }
 
 async function lifecycleFor(trainingId) {
@@ -166,6 +174,51 @@ async function lifecycleFor(trainingId) {
   const value = await api(`/trainings/${trainingId}/premium-lifecycle`);
   lifecycleCache.set(trainingId, value);
   return value;
+}
+
+function findOutputButton(panel, needle) {
+  return [...panel.querySelectorAll('button')].find((button) =>
+    String(button.textContent || '').includes(needle),
+  ) || null;
+}
+
+function applyOutputActions(panel, lifecycle) {
+  const actions = outputActionPolicy(lifecycle);
+  const certificate = findOutputButton(panel, 'Sertifika PDF');
+  const exam = findOutputButton(panel, 'Sınav Oluştur');
+  const attendance = findOutputButton(panel, 'Katılım PDF') || findOutputButton(panel, 'İşe Başlama Eğitimi Tutanağı PDF');
+
+  if (certificate) {
+    if (certificate.dataset.premiumOriginalDisabled == null) {
+      certificate.dataset.premiumOriginalDisabled = certificate.disabled ? '1' : '0';
+    }
+    certificate.disabled = !actions.certificateAllowed || certificate.dataset.premiumOriginalDisabled === '1';
+    certificate.title = actions.certificateAllowed ? '' : actions.note;
+  }
+  if (exam) {
+    if (exam.dataset.premiumOriginalDisabled == null) {
+      exam.dataset.premiumOriginalDisabled = exam.disabled ? '1' : '0';
+    }
+    exam.disabled = !actions.examAllowed || exam.dataset.premiumOriginalDisabled === '1';
+    exam.title = actions.examAllowed ? '' : actions.note;
+  }
+  if (attendance && actions.attendanceAllowed) {
+    const icon = attendance.querySelector('svg')?.outerHTML || '';
+    attendance.innerHTML = `${icon}${escapeHtml(actions.attendanceLabel)}`;
+  }
+
+  let note = panel.querySelector('[data-premium-output-note]');
+  if (actions.note) {
+    if (!note) {
+      note = document.createElement('div');
+      note.dataset.premiumOutputNote = '1';
+      note.className = 'training-premium-policy-note';
+      panel.appendChild(note);
+    }
+    note.textContent = actions.note;
+  } else {
+    note?.remove();
+  }
 }
 
 async function renderSavedTrainingStatus(panel) {
@@ -186,6 +239,7 @@ async function renderSavedTrainingStatus(panel) {
     lifecycleCache.delete(trainingId);
     const state = await lifecycleFor(trainingId);
     if (!panel.isConnected) return;
+    applyOutputActions(panel, state);
     card.className = `training-premium-status-card is-${lifecycleTone(state.stage)}`;
     card.dataset.loaded = '1';
     card.innerHTML = `
