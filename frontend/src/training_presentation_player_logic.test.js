@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest';
 import {
   INSTRUCTOR_UI_V2,
   instructorBulletPresentation,
+  localizeInstructorText,
   normalizeInstructorManifest,
   playerIndexForKey,
 } from './training_presentation_player_logic';
@@ -72,6 +73,17 @@ describe('Eğitmen Modu manifesti', () => {
       label: 'Eğitim notu',
       text: 'Serbest eğitim notu',
     });
+  });
+
+  it('kullanıcıya görünen İngilizce alan adlarını Türkçeleştirir', () => {
+    const value = manifest();
+    value.slides[0].content_blocks.push({type: 'training_date', value: '2026-08-09'});
+    value.slides[0].content_blocks.push({type: 'frozen_training_topic', value: 'Battery charging and emergency exit'});
+    const result = normalizeInstructorManifest(value);
+    expect(result.slides[0].bullets).toContain('Eğitim tarihi: 2026-08-09');
+    expect(result.slides[0].bullets).toContain('akü şarjı and acil çıkış');
+    expect(result.slides[0].bullets.join(' ')).not.toMatch(/training date/i);
+    expect(localizeInstructorText('Personal protective equipment')).toBe('kişisel koruyucu donanım (KKD)');
   });
 
   it('v2 işareti olmayan tarihsel manifesti v1 olarak bırakır', () => {
