@@ -653,13 +653,17 @@ def _draw_certificate_page(
     # Signature boxes — PRO roles (unvan altta, isim üstte)
     physician = (getattr(training, "workplace_physician", None) or "").strip()
     employer = (getattr(training, "employer_representative", None) or "").strip()
+    employer_title = (getattr(training, "employer_representative_title", None) or "").strip() or "İşveren / İşveren Vekili"
     instructor = (training.instructor_name or "").strip()
-    instructor_title = (training.instructor_qualification or "").strip() or "İSG Uzmanı"
+    instructor_title = (training.instructor_qualification or "").strip() or "Yetkilendirilmiş Eğitici"
+    additional_instructor = (getattr(training, "additional_instructor_name", None) or "").strip()
+    additional_instructor_title = (getattr(training, "additional_instructor_qualification", None) or "").strip() or "Yetkilendirilmiş Eğitici"
+    special_signers = [("Yetkilendirilmiş Eğitici", instructor, instructor_title)]
+    if additional_instructor:
+        special_signers.append(("Yetkilendirilmiş Eğitici", additional_instructor, additional_instructor_title))
+    special_signers.append(("Onaylayan", employer, employer_title))
     cert_signers = (
-        (
-            ("Yetkilendirilmiş Eğitici", instructor, instructor_title),
-            ("Onaylayan", employer, "İşveren / İşveren Vekili"),
-        )
+        tuple(special_signers)
         if (curriculum.get("is_special") or profile_key)
         else (
             ("Eğitim Veren", instructor, instructor_title),
