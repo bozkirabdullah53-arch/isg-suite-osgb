@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.models.entities import TrainingStatus
 from app.services.special_training_profiles import (
     SPECIAL_INSTRUCTOR_ROLES,
+    SPECIAL_TRAINING_PROFILES,
     resolve_special_duration_hours,
     resolve_special_profile_key,
 )
@@ -112,6 +113,9 @@ class TrainingCreate(BaseModel):
             ]
             if allowed_labels and not any(label and label in qualification for label in allowed_labels):
                 raise ValueError("Seçilen özel eğitim profili için yetkili eğitici yeterliliği doğrulanamadı.")
+            required_method = str(SPECIAL_TRAINING_PROFILES.get(special_key, {}).get("training_method") or "").casefold()
+            if required_method and "yüz yüze" in required_method and "yüz yüze" not in str(self.delivery_method or "").casefold():
+                raise ValueError("Bu özel eğitim profili yüz yüze ve uygulamalı yürütülmelidir.")
 
         policy_text = f"{self.training_type or ''} {self.title or ''}".casefold()
         is_record_only = (
