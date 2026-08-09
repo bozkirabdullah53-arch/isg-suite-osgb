@@ -21,6 +21,7 @@ from app.models.entities import (
     TrainingQuestionScope,
     TrainingSession,
 )
+from app.services.special_training_profiles import resolve_special_profile_key
 from app.services.training_topics import (
     SEKTOR_PROFIL,
     SEKTOREL_EGITIM_KONULARI,
@@ -38,6 +39,8 @@ BUCKET_TARGETS = {"common": 5, "technical": 5, "sector": 5}
 RELEASE_BUCKET_TARGETS = {"common": 15, "technical": 15, "sector": 15}
 SELECTION_POLICY = "foundation-5-plus-approved-5x3-v1"
 CURATED_FALLBACK_POLICY = "foundation-5-plus-approved-db-curated-5x3-v1"
+SPECIAL_QUESTION_COUNT = 20
+_SPECIAL_PACKS = {"yuksekte_calisma": "special-yuksekte-calisma.json"}
 VALID_HAZARDS = frozenset({"Az Tehlikeli", "Tehlikeli", "Çok Tehlikeli"})
 _NACE_PREFIX_RE = re.compile(r"^\d{2}(?:\.\d{2}){0,2}$")
 _CATALOG = tuple(sectors_list_for_api())
@@ -651,6 +654,77 @@ def _fixed_foundational_snapshot_item(question: dict, position: int) -> dict:
         "sources": question["sources"],
         "scopes": question["scopes"],
     }
+
+
+def _special_curated_questions(training) -> list[dict]:
+    key = resolve_special_profile_key(training)
+    file_name = _SPECIAL_PACKS.get(key or "")
+    if not file_name:
+        return []
+    rows = list(_curated_pack(file_name))
+    if len(rows) != SPECIAL_QUESTION_COUNT:
+        raise RuntimeError(
+            f"{key} özel eğitim soru paketi tam olarak {SPECIAL_QUESTION_COUNT} soru içermelidir."
+        )
+    codes = [str(row.get("question_code") or "") for row in rows]
+    if len(set(codes)) != SPECIAL_QUESTION_COUNT:
+        raise RuntimeError("Özel eğitim soru kodları benzersiz olmalıdır.")
+    return rows
+
+
+def _create_special_exam_snapshot(
+    db: Session,
+    *,
+    training: TrainingSession,
+    created_by_id: int,
+    questions: list[dict],
+) -> TrainingExamSnapshot:
+    seed = secrets.token_hex(16)
+    rnd = random.Random(seed)
+    rnd.shuffle(questions)
+    items = [
+        _curated_snapshot_item(question, position, rnd)
+        for position, question in enumerate(questions, start=1)
+    ]
+    canonical = json.dumps(items, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    version = int(
+        db.scalar(
+            select(func.max(TrainingExamSnapshot.version)).where(
+                TrainingExamSnapshot.training_id == training.id
+            )
+        )
+        or 0
+    ) + 1
+    exam = TrainingExamSnapshot(
+        training_id=training.id,
+        version=version,
+        question_count=SPECIAL_QUESTION_COUNT,
+        random_seed=seed,
+        content_hash=content_hash,
+        selection_policy="special-yuksekte-calisma-v1",
+        created_by_id=created_by_id,
+    )
+    for item in items:
+        exam.items.append(
+            TrainingExamSnapshotItem(
+                position=item["position"],
+                question_id=item["question_id"],
+                question_code=item["question_code"],
+                question_version=item["question_version"],
+                topic_code=item["topic_code"],
+                topic_label=item["topic_label"],
+                question_text=item["question_text"],
+                options_json=json.dumps(item["options"], ensure_ascii=False, sort_keys=True),
+                correct_option=item["correct_option"],
+                answer_explanation=item["answer_explanation"],
+                sources_json=json.dumps(item["sources"], ensure_ascii=False, sort_keys=True),
+                scopes_json=json.dumps(item["scopes"], ensure_ascii=False, sort_keys=True),
+            )
+        )
+    db.add(exam)
+    db.flush()
+    return exam
 
 
 def create_exam_snapshot(
