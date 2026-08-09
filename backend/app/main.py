@@ -9,7 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.services.personnel_profile_osgb_scope import install_osgb_service_overrides
 install_osgb_service_overrides()
 
-from app.api import auth, branches, companies, dashboard, employees, personnel_profiles, personnel_profile_management, personnel_profile_osgb, personnel_profile_osgb_documents, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, professional_performance_exports, operations, trainings, training_nace, training_completion, training_presentation, training_question_selection_audit, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions
+from app.api import auth, branches, companies, dashboard, employees, personnel_profiles, personnel_profile_management, personnel_profile_osgb, personnel_profile_osgb_documents, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, professional_performance_exports, operations, trainings, training_nace, training_completion, training_lifecycle_v2, training_presentation, training_question_selection_audit, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions
 from app.core.rate_limit import SimpleRateLimitMiddleware
 from app.core.request_id import RequestIdMiddleware, install_request_id_logging
 from app.core.tenant_middleware import TenantContextMiddleware
@@ -21,6 +21,7 @@ from app.core.database import Base, SessionLocal, engine
 from app.core.version import APP_VERSION
 from app.services.seed import seed_admin, seed_demo_osgbs
 from app.services.training_runtime_patches import install_training_runtime_patches
+from app.services.training_lifecycle_v2 import install_training_lifecycle_v2, PremiumTrainingLifecycleMiddleware
 from app.services.training_question_selection_v2 import install_exact_nace_question_selection
 from app.services.training_completion import install_training_completion_guard
 from app.services.training_presentation_phase8 import install_training_presentation_phase8
@@ -28,11 +29,13 @@ from app.services.training_presentation_phase8_generation_guard import install_p
 
 logger = logging.getLogger(__name__)
 _training_runtime_status = install_training_runtime_patches()
+_training_lifecycle_v2_status = install_training_lifecycle_v2()
 _training_question_selection_status = install_exact_nace_question_selection()
 _training_completion_status = install_training_completion_guard()
 _training_presentation_phase8_status = install_training_presentation_phase8()
 _training_presentation_phase8_generation_status = install_phase8_generation_guard()
 logger.info("training runtime patches: %s", _training_runtime_status)
+logger.info("training premium lifecycle v2: %s", _training_lifecycle_v2_status)
 logger.info("training exact NACE question selection: %s", _training_question_selection_status)
 logger.info("training completion guard: %s", _training_completion_status)
 logger.info("training presentation phase 8: %s", _training_presentation_phase8_status)
@@ -135,6 +138,7 @@ app.add_middleware(StructuredAccessLogMiddleware)
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(TenantContextMiddleware)
 app.add_middleware(OsgbSubscriptionWriteMiddleware)
+app.add_middleware(PremiumTrainingLifecycleMiddleware)
 app.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=settings.rate_limit_rpm, auth_requests_per_minute=settings.rate_limit_auth_rpm)
 _cors_origins = build_cors_origins(environment=settings.environment, frontend_origin=settings.frontend_origin)
 app.add_middleware(CORSMiddleware, allow_origins=_cors_origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -168,6 +172,7 @@ for router in (
     osgb.router,
     professional_performance_exports.router,
     operations.router,
+    training_lifecycle_v2.router,
     training_completion.router,
     trainings.router,
     training_nace.router,
