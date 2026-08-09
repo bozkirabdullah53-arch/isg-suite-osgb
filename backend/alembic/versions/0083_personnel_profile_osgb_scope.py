@@ -38,9 +38,9 @@ def _constraint_names(inspector: sa.Inspector, table: str, kind: str) -> set[str
     """Return named constraints defensively for clean/legacy schema compatibility.
 
     Revision 0081 is intentionally additive and can encounter a pre-existing
-    `personnel_profiles` table from the baseline.  In that case some 0081
-    constraint names are absent.  0083 must therefore never assume a historical
-    named constraint exists before dropping it.
+    `personnel_profiles` table from the baseline. In addition, revision 0001
+    creates the current SQLAlchemy metadata, so the 0083 target constraint can
+    already exist during a zero-to-head migration. 0083 must handle both shapes.
     """
     if kind == "unique":
         rows = inspector.get_unique_constraints(table)
@@ -202,16 +202,18 @@ def upgrade() -> None:
                 "(SELECT id FROM personnel_profiles WHERE subject_type = 'professional')"
             )
 
-    old_uniques = _constraint_names(inspector, "personnel_profiles", "unique")
-    old_checks = _constraint_names(inspector, "personnel_profiles", "check")
+    current_uniques = _constraint_names(inspector, "personnel_profiles", "unique")
+    current_checks = _constraint_names(inspector, "personnel_profiles", "check")
+    target_unique_already_exists = "uq_personnel_profile_osgb_professional" in current_uniques
     with op.batch_alter_table("personnel_profiles") as batch:
-        if "uq_personnel_profile_company_professional" in old_uniques:
+        if "uq_personnel_profile_company_professional" in current_uniques:
             batch.drop_constraint("uq_personnel_profile_company_professional", type_="unique")
-        if "ck_personnel_profile_exact_subject" in old_checks:
+        if "ck_personnel_profile_exact_subject" in current_checks:
             batch.drop_constraint("ck_personnel_profile_exact_subject", type_="check")
-        batch.create_unique_constraint(
-            "uq_personnel_profile_osgb_professional", ["osgb_id", "professional_id"]
-        )
+        if not target_unique_already_exists:
+            batch.create_unique_constraint(
+                "uq_personnel_profile_osgb_professional", ["osgb_id", "professional_id"]
+            )
         batch.create_check_constraint(
             "ck_personnel_profile_exact_subject",
             "(subject_type = 'employee' AND company_id IS NOT NULL AND employee_id IS NOT NULL AND professional_id IS NULL) "
