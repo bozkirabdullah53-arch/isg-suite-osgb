@@ -149,7 +149,7 @@ function renderModal(context, panel) {
                   <td><strong>${escapeHtml(row.full_name)}</strong>${row.department ? `<br><small>${escapeHtml(row.department)}</small>` : ''}</td>
                   <td><input class="training-result-attended" type="checkbox" ${row.attended ? 'checked' : ''}></td>
                   <td>${examRequired ? `<input class="training-result-score" type="number" min="0" max="100" step="1" value="${escapeHtml(row.score)}" ${row.attended ? '' : 'disabled'}>` : 'Katılım esaslı'}</td>
-                  <td class="training-result-state">${escapeHtml(resultLabel(row, passingScore))}</td>
+                  <td class="training-result-state">${escapeHtml(resultLabel(row, passingScore, examRequired))}</td>
                 </tr>
               `).join('')}
             </tbody>
