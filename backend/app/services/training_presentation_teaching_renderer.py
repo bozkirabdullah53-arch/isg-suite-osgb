@@ -27,6 +27,30 @@ from app.services.training_presentation_renderer import (
 )
 
 TEACHING_RENDERER_VERSION = "nace-training-teaching-renderer-v3"
+
+
+_SECTION_LABELS = {
+    "cover": "AÇILIŞ",
+    "learning_objectives": "ÖĞRENME HEDEFLERİ",
+    "legal_basis": "MEVZUAT VE SORUMLULUKLAR",
+    "nace_identity": "NACE VE İŞYERİ FAALİYETİ",
+    "training_plan": "EĞİTİM PLANI",
+    "foundation_ohs": "TEMEL İSG KONULARI",
+    "work_specific_topics": "İŞE VE İŞYERİNE ÖZGÜ RİSKLER",
+    "technical_risks": "TEKNİK RİSKLER",
+    "control_measures": "KONTROL TEDBİRLERİ",
+    "ppe": "KİŞİSEL KORUYUCU DONANIM",
+    "emergency": "ACİL DURUM",
+    "assessment": "ÖLÇME VE DEĞERLENDİRME",
+    "summary": "ÖZET",
+    "sources_and_version": "KAYNAKLAR VE SÜRÜM",
+    "custom_instructor_slide": "EĞİTMEN TARAFINDAN EKLENEN İÇERİK",
+}
+
+
+def _section_label(section_id: object) -> str:
+    key = str(section_id or "").strip()
+    return _SECTION_LABELS.get(key, "DERS SUNUMU")
 SLIDE_W = 13.333333
 SLIDE_H = 7.5
 
@@ -280,7 +304,7 @@ def _pptx_slide(prs: Presentation, manifest: dict[str, Any], item: dict[str, Any
     else:
         top = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, prs.slide_width, Inches(0.68))
         top.fill.solid(); top.fill.fore_color.rgb = NAVY; top.line.fill.background()
-        _add_text(slide, 0.65, 0.16, 2.5, 0.3, section.replace("_", " ").upper(), size=10.5, color=MINT, bold=True)
+        _add_text(slide, 0.65, 0.16, 2.5, 0.3, _section_label(section), size=10.5, color=MINT, bold=True)
         _add_text(slide, 0.72, 0.82, 11.8, 0.65, title, size=25, color=NAVY, bold=True)
         points = _lesson_points(item)
         _add_text(slide, 0.75, 1.62, 6.35, 0.28, "DERS ANLATIMI", size=11, color=TEAL, bold=True)
@@ -344,7 +368,7 @@ def _pdf(manifest: dict[str, Any]) -> bytes:
     for item in slides:
         c.setFillColorRGB(1, 1, 1); c.rect(0, 0, w, h, fill=1, stroke=0)
         c.setFillColorRGB(6/255, 27/255, 46/255); c.rect(0, h - 44, w, 44, fill=1, stroke=0)
-        c.setFillColorRGB(1, 1, 1); c.setFont("Helvetica-Bold", 9); c.drawString(34, h - 27, str(item.get("section_id") or "").replace("_", " ").upper())
+        c.setFillColorRGB(1, 1, 1); c.setFont("Helvetica-Bold", 9); c.drawString(34, h - 27, _section_label(item.get("section_id")))
         c.setFillColorRGB(6/255, 27/255, 46/255); c.setFont("Helvetica-Bold", 19); c.drawString(34, h - 78, _clean(item.get("title"), 100))
         y = h - 108
         c.setFont("Helvetica-Bold", 9); c.setFillColorRGB(15/255, 118/255, 110/255); c.drawString(34, y, "DERS ANLATIMI"); y -= 18
