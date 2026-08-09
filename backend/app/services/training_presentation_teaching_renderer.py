@@ -32,7 +32,7 @@ TEACHING_RENDERER_VERSION = "nace-training-teaching-renderer-v3"
 _SECTION_LABELS = {
     "cover": "AÇILIŞ",
     "learning_objectives": "ÖĞRENME HEDEFLERİ",
-    "legal_basis": "MEVZUAT VE SORUMLULUKLAR",
+    "legal_basis": "ÇALIŞANIN HAKLARI VE SORUMLULUKLARI",
     "nace_identity": "NACE VE İŞYERİ FAALİYETİ",
     "training_plan": "EĞİTİM PLANI",
     "foundation_ohs": "TEMEL İSG KONULARI",
@@ -51,6 +51,15 @@ _SECTION_LABELS = {
 def _section_label(section_id: object) -> str:
     key = str(section_id or "").strip()
     return _SECTION_LABELS.get(key, "DERS SUNUMU")
+
+
+_LEGAL_BASIS_POINTS = [
+    "İşyerindeki tehlikeleri ve size bildirilen kontrol tedbirlerini öğrenin.",
+    "Verilen eğitim, talimat ve güvenli çalışma kurallarına uygun hareket edin.",
+    "Güvensiz durumu, ramak kala olayı, iş kazasını veya sağlık belirtisini gecikmeden bildirin.",
+    "Ciddi ve yakın tehlikede güvenli biçimde işi durdurun, tehlikeli alandan uzaklaşın ve yetkiliye haber verin.",
+]
+
 SLIDE_W = 13.333333
 SLIDE_H = 7.5
 
@@ -124,6 +133,8 @@ def _lesson_points(slide: dict[str, Any]) -> list[str]:
             value = _clean(row.get("value"), 360)
             if value and value not in points:
                 points.append(value)
+    if str(slide.get("section_id") or "") == "legal_basis" and not points:
+        points.extend(_LEGAL_BASIS_POINTS)
     return points[:6]
 
 
