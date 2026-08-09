@@ -47,7 +47,11 @@ async function upgrade(button) {
     );
     await api(`/trainings/${trainingId}/presentation-versions/${created.id}/render-teaching-v3`, {method: 'POST'});
     window.alert(`Ders Sunumu V3 v${created.version} oluşturuldu. Eski sunum sürümleri aynen korundu.`);
-    window.location.reload();
+    window.dispatchEvent(new CustomEvent('isgsuite:presentation-refresh', {
+      detail: {trainingId, versionId: created.id},
+    }));
+    button.disabled = false;
+    button.textContent = original;
   } catch (error) {
     window.alert(String(error?.message || error || 'Ders Sunumu V3 oluşturulamadı.'));
     button.disabled = false;
