@@ -9,7 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.services.personnel_profile_osgb_scope import install_osgb_service_overrides
 install_osgb_service_overrides()
 
-from app.api import auth, branches, companies, dashboard, employees, personnel_profiles, personnel_profile_management, personnel_profile_osgb, personnel_profile_osgb_documents, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, professional_performance_exports, operations, trainings, training_nace, training_completion, training_lifecycle_v2, training_premium_dashboard_v1, training_presentation, training_question_selection_audit, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions
+from app.api import auth, branches, companies, dashboard, employees, personnel_profiles, personnel_profile_management, personnel_profile_osgb, personnel_profile_osgb_documents, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, professional_performance_exports, operations, trainings, training_nace, training_completion, training_lifecycle_v2, training_premium_dashboard_v1, training_presentation, training_presentation_editor, training_question_selection_audit, risks, incidents, ppe, sds, drills, emergency_teams, eisa, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions
 from app.core.rate_limit import SimpleRateLimitMiddleware
 from app.core.request_id import RequestIdMiddleware, install_request_id_logging
 from app.core.tenant_middleware import TenantContextMiddleware
@@ -21,6 +21,7 @@ from app.core.database import Base, SessionLocal, engine
 from app.core.version import APP_VERSION
 from app.services.seed import seed_admin, seed_demo_osgbs
 from app.services.training_runtime_patches import install_training_runtime_patches
+from app.services.training_document_consistency import install_training_document_consistency
 from app.services.training_lifecycle_v2 import install_training_lifecycle_v2, PremiumTrainingLifecycleMiddleware
 from app.services.training_lifecycle_v2_record_hooks import install_training_lifecycle_v2_record_hooks
 from app.services.training_lifecycle_v2_completion import install_training_lifecycle_v2_completion
@@ -33,6 +34,7 @@ from app.services.training_presentation_phase8_generation_guard import install_p
 
 logger = logging.getLogger(__name__)
 _training_runtime_status = install_training_runtime_patches()
+_training_document_consistency_status = install_training_document_consistency()
 _training_lifecycle_v2_status = install_training_lifecycle_v2()
 _training_lifecycle_v2_record_status = install_training_lifecycle_v2_record_hooks()
 _training_lifecycle_v2_completion_status = install_training_lifecycle_v2_completion()
@@ -43,6 +45,7 @@ _training_completion_status = install_training_completion_guard()
 _training_presentation_phase8_status = install_training_presentation_phase8()
 _training_presentation_phase8_generation_status = install_phase8_generation_guard()
 logger.info("training runtime patches: %s", _training_runtime_status)
+logger.info("training document consistency: %s", _training_document_consistency_status)
 logger.info("training premium lifecycle v2: %s", _training_lifecycle_v2_status)
 logger.info("training premium lifecycle v2 record hooks: %s", _training_lifecycle_v2_record_status)
 logger.info("training premium lifecycle v2 completion: %s", _training_lifecycle_v2_completion_status)
@@ -190,6 +193,7 @@ for router in (
     trainings.router,
     training_nace.router,
     training_presentation.router,
+    training_presentation_editor.router,
     training_question_selection_audit.router,
     training_question_bank.router,
     training_question_bank.exam_router,
