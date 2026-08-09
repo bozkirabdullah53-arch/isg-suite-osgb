@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session, object_session
 
 from app.models.entities import TrainingParticipant, TrainingSession, TrainingStatus
 from app.models.training_nace import TrainingNaceSnapshot
+from app.services.special_training_profiles import resolve_special_profile_key
 
 STRICT_ENV = "TRAINING_COMPLETION_STRICT"
 STRICT_AFTER_ENV = "TRAINING_COMPLETION_STRICT_AFTER"
@@ -72,8 +73,12 @@ def completion_strict_applies(
 
 
 def exam_required(training: TrainingSession) -> bool:
+    # Yüksekte çalışma özel modülü 20 soruluk sınav içerir; eski kayıtların
+    # değerlendirme alanı "Katılım esası" olsa bile sınav akışı korunur.
+    if resolve_special_profile_key(training) == "yuksekte_calisma":
+        return True
     method = str(getattr(training, "evaluation_method", "") or "").strip().casefold()
-    if any(token in method for token in ("sınav", "sinav", "test", "quiz")):
+    if any(token in method for token in ("sınav", "sinav", "test", "quiz", "yazılı", "yazili")):
         return True
     if any(
         token in method
