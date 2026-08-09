@@ -450,7 +450,7 @@ def _draw_attendance_page(
             ("Yetkilendirilmiş Eğitici", training.instructor_name or ""),
             ("İşveren / İşveren Vekili", employer),
         ]
-        if curriculum.get("is_special")
+        if (curriculum.get("is_special") or profile_key)
         else [
             ("Eğitimi Veren", training.instructor_name or ""),
             ("Eğitimi Veren İşyeri Hekimi", physician),
@@ -562,10 +562,12 @@ def _draw_certificate_page(
     c, w, h, *, company_name, training, employee, belge_no, bugun, egitim_tarihi, kural, sektor, sol, sag, curriculum=None
 ):
     curriculum = curriculum or {}
+    profile_key = str(curriculum.get("profile_key") or resolve_training_document_titles(training).get("profile_key") or "")
+    is_height_profile = profile_key == "yuksekte_calisma"
     ml, mr = 8 * mm, 8 * mm
     uw = w - ml - mr
 
-    if curriculum.get("is_special") and curriculum.get("profile_key") == "yuksekte_calisma":
+    if is_height_profile:
         _draw_height_watermark(c, w, h)
 
     # Double border — PRO
@@ -636,7 +638,7 @@ def _draw_certificate_page(
             "yüksekte çalışma tehlikeleri, düşmeye karşı korunma, güvenli erişim, KKD kullanımı",
             "ve kurtarma uygulamalarını başarıyla tamamlayarak bu özel eğitim belgesini almaya hak kazanmıştır.",
         ]
-        if curriculum.get("profile_key") == "yuksekte_calisma"
+        if is_height_profile
         else [
             "Yukarıda adı geçen çalışanın, 6331 Sayılı Kanun Gereği, Çalışanların İş Sağlığı ve Güvenliği",
             "Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında verilen, iş sağlığı ve güvenliği",
@@ -658,7 +660,7 @@ def _draw_certificate_page(
             ("Yetkilendirilmiş Eğitici", instructor, instructor_title),
             ("Onaylayan", employer, "İşveren / İşveren Vekili"),
         )
-        if curriculum.get("is_special")
+        if (curriculum.get("is_special") or profile_key)
         else (
             ("Eğitim Veren", instructor, instructor_title),
             ("Eğitim Veren", physician, "İşyeri Hekimi"),
