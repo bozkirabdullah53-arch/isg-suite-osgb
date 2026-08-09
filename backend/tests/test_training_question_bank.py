@@ -1,4 +1,7 @@
 from datetime import date
+from io import BytesIO
+
+from pypdf import PdfReader
 
 import pytest
 from sqlalchemy import create_engine
@@ -7,10 +10,12 @@ from sqlalchemy.orm import Session
 from app.core.database import Base
 from app.models.entities import (
     Company,
+    Employee,
     TrainingExamSnapshot,
     TrainingQuestion,
     TrainingQuestionScope,
     TrainingQuestionSource,
+    TrainingParticipant,
     TrainingSession,
     User,
     UserRole,
@@ -328,6 +333,52 @@ def test_exam_pdf_is_generated_with_twenty_questions(db: Session):
     snapshot = _load_or_create_snapshot(db, training, user.id)
     assert snapshot.question_count == QUESTION_COUNT
     assert len(snapshot.items) == QUESTION_COUNT
+
+
+
+def test_employee_exam_has_identity_fields_and_no_answer_key(db: Session):
+    training, user = _seed_training(db)
+    company = db.get(Company, training.company_id)
+    company.sgk_registry_no = "12345678901234567890123"
+    training.sector = "nace_30_11_01"
+    employee = Employee(
+        company_id=company.id,
+        full_name="Ayşe Yılmaz",
+        national_id_masked="***********",
+    )
+    db.add(employee)
+    db.flush()
+    db.add(TrainingParticipant(training_id=training.id, employee_id=employee.id))
+    db.commit()
+
+    employee_pdf = build_exam_pdf(
+        company_name=company.name,
+        training=training,
+        db=db,
+        created_by_id=user.id,
+    )
+    employee_text = "\n".join(
+        page.extract_text() or "" for page in PdfReader(BytesIO(employee_pdf)).pages
+    )
+    assert "Ayşe Yılmaz" in employee_text
+    assert "Tersane Test" in employee_text
+    assert "12345678901234567890123" in employee_text
+    assert "CEVAP ANAHTARI" not in employee_text
+    assert "nace_30_11_01" not in employee_text
+
+    answer_pdf = build_exam_pdf(
+        company_name=company.name,
+        training=training,
+        db=db,
+        created_by_id=user.id,
+        include_answer_key=True,
+        answer_key_only=True,
+    )
+    answer_text = "\n".join(
+        page.extract_text() or "" for page in PdfReader(BytesIO(answer_pdf)).pages
+    )
+    assert "CEVAP ANAHTARI" in answer_text
+    assert "Ayşe Yılmaz" not in answer_text
 
 
 def test_retired_latest_terminal_version_does_not_reactivate_old_version(db: Session):
