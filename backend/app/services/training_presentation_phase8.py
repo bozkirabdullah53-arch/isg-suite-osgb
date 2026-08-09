@@ -114,6 +114,56 @@ _RULES: tuple[tuple[tuple[str, ...], dict[str, Any]], ...] = (
         "Enerjinin kesildiği doğrulanmadan bakım alanına girmemek; izolasyon bozulursa çalışmayı durdurup yeniden güvenli hale getirmek gerekir.",
         source=_GUIDANCE_SOURCE,
     )),
+    (("traktor", "tarim makinelerinde devrilme", "devrilme-kapilma"), _pack(
+        "agricultural-machinery-rollover",
+        "Traktör ve tarım makinelerinde devrilme, hareketli parçalara kapılma ve araç-yaya etkileşimi ağır yaralanma riski oluşturur.",
+        (
+            "Devrilmeye karşı koruyucu yapı ve emniyet kemeri birlikte kullanılmalı; koruyucular, kuyruk mili muhafazası ve güvenli bağlantı düzeni devrede tutulmalıdır.",
+            "Eğim, zemin, hız, yük ve ekipman bağlantısı işe başlamadan değerlendirilerek yetkisiz yolcu ve tehlikeli manevra önlenmelidir.",
+        ),
+        "Makine tamamen durmadan ve enerji güvenliği sağlanmadan hareketli bölgeye yaklaşmamak; devrilme riski olan koşulda işi durdurmak gerekir.",
+        source=_SECTOR_SOURCE,
+    )),
+    (("pestisit", "gubre", "zirai kimyasal"), _pack(
+        "agricultural-chemicals",
+        "Pestisit ve gübreler soluma, cilt-göz teması, zehirlenme, kimyasal yanık ve çevresel yayılım riski oluşturabilir.",
+        (
+            "Etiket ve güvenlik bilgi formuna uygun ürün, doz, karışım, uygulama ekipmanı ve kişisel koruma kullanılmalıdır.",
+            "Depolama, hazırlama ve uygulama alanları kontrol edilmeli; rüzgârla sürüklenme, geri tepme, sızıntı ve kontamine ambalaj güvenli yönetilmelidir.",
+        ),
+        "Etiketsiz ürün kullanmamak, uygunsuz karışım yapmamak; maruziyette işi durdurup ürün bilgisindeki ilk yardım ve işyeri acil prosedürünü uygulamak gerekir.",
+        source=_DUST_SOURCE,
+    )),
+    (("sicaklik", "gunes", "biyolojik etken", "hayvan temasi"), _pack(
+        "agricultural-outdoor-biological",
+        "Sıcak-soğuk, güneş, böcek/kene, biyolojik etkenler ve hayvan teması ısı hastalığı, enfeksiyon ve travma riski doğurabilir.",
+        (
+            "İş; hava koşulu, gölge, su, dinlenme, uygun kıyafet ve maruziyet süresi dikkate alınarak planlanmalıdır.",
+            "Biyolojik temas ve hayvan davranışı için hijyen, aşılama/sağlık gözetimi, güvenli yaklaşım ve uygun kişisel koruma uygulanmalıdır.",
+        ),
+        "Isı hastalığı belirtisi, saldırgan hayvan veya biyolojik maruziyet şüphesinde çalışmayı sürdürmemek ve işyeri sağlık/acil prosedürüne başvurmak gerekir.",
+        source=_GUIDANCE_SOURCE,
+    )),
+    (("sera", "yuksekte calisma", "elektrik riskleri"), _pack(
+        "greenhouse-height-electrical",
+        "Seralarda nemli ortam elektriğin etkisini artırabilir; merdiven/platform kullanımı ve örtü-bakım işleri düşme riski oluşturur.",
+        (
+            "Elektrik tesisatı nemli ortama uygun korunmalı; kaçak akım ve koruyucu düzenekler çalışır tutulmalı, müdahale yalnız yetkili kişilerce yapılmalıdır.",
+            "Yüksekte iş için uygun erişim ekipmanı, sağlam zemin ve düşmeyi önleyici tedbirler seçilmeli; doğaçlama yükseltiler kullanılmamalıdır.",
+        ),
+        "Islak/hasarlı elektrik ekipmanını kullanmamak; güvenli erişim veya düşme koruması yoksa yüksekte işe başlamamak gerekir.",
+        source=_GUIDANCE_SOURCE,
+    )),
+    (("uzak saha", "elle tasima", "ergonomi"), _pack(
+        "remote-field-manual-handling",
+        "Elle taşıma ve tekrarlı tarım işleri kas-iskelet zorlanmasına; uzak sahada iletişim ve yardım gecikmesi sonuçların ağırlaşmasına neden olabilir.",
+        (
+            "Yük, mesafe, zemin ve tekrar sıklığı değerlendirilerek mekanik yardım, ekip çalışması ve uygun çalışma yüksekliği kullanılmalıdır.",
+            "Uzak saha için konum, haberleşme, hava koşulu, ulaşım, ilk yardım ve acil yardım düzeni işe başlamadan doğrulanmalıdır.",
+        ),
+        "Tek başına güvenli kaldırılamayan yükü taşımamak; haberleşme veya acil yardım imkânı yoksa uzak saha işini başlatmamak gerekir.",
+        source=_GUIDANCE_SOURCE,
+    )),
     (("elle tasima", "yangin", "tahliye", "acil durum"), _pack(
         "manual-fire-emergency",
         "Ağır/uygunsuz taşıma, yangın ve acil durumda kontrolsüz hareket; kas-iskelet yaralanması, yanık ve tahliye gecikmesi risklerini artırabilir.",
