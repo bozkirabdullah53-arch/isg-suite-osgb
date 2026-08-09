@@ -21,7 +21,9 @@ def test_height_profile_2026_only_restricts_height_instructor_roles():
         "isg_b",
         "isg_c",
         "isyeri_hekimi",
-        "yonetmelik_m10_kurum_egiticisi",
+        "m10_bc_kurum_egiticisi",
+        "m10_cde_belgeli_egitici",
+        "az_tehlikeli_50_alti_egitimli_isveren",
     ]
     assert "02.04.2026" in HEIGHT_LEGAL_BASIS
     assert "m.10" in height["legal_basis"]
@@ -57,6 +59,21 @@ def test_standalone_height_trainer_certificate_is_not_treated_as_legal_authority
     assert height_instructor_is_authorized("A Sınıfı İş Güvenliği Uzmanı")
     assert height_instructor_is_authorized("İşyeri Hekimi")
     assert height_instructor_is_authorized(
-        "Yönetmelik m.10 Kapsamında Yetkili Kurum/Kuruluş Eğiticisi"
+        "ÇASGEM / Üniversite / Kamu Kurumu Eğitim Birimi Eğiticisi "
+        "(m.10/1-b,c; uzmanlık alanı uygun)"
+    )
+    assert height_instructor_is_authorized(
+        "m.10/1-ç,d,e Kapsamındaki Kurum/Kuruluş Bünyesinde Belgeli Eğitici "
+        "(İSG Uzmanlığı / İşyeri Hekimliği / Eğitici Belgesi)"
+    )
+    conditional = (
+        "50'den Az Çalışanı Bulunan Az Tehlikeli İşyerinde "
+        "İlgili Eğitimi Tamamlamış İşveren / İşveren Vekili"
+    )
+    assert height_instructor_is_authorized(
+        conditional, SimpleNamespace(hazard_class="Az Tehlikeli")
+    )
+    assert not height_instructor_is_authorized(
+        conditional, SimpleNamespace(hazard_class="Tehlikeli")
     )
     assert not height_instructor_is_authorized("Belgeli Yüksekte Çalışma Eğitmeni")
