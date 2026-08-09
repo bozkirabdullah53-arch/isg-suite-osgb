@@ -21,6 +21,14 @@ let activeDialog = null;
 let dialogReturnFocus = null;
 
 function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
 function presentationSectionLabel(sectionId) {
   const labels = {
     cover: 'Açılış',
@@ -40,14 +48,6 @@ function presentationSectionLabel(sectionId) {
     custom_instructor_slide: 'Eğitmen tarafından eklenen içerik',
   };
   return labels[String(sectionId || '').trim()] || 'Eğitim içeriği';
-}
-
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
 }
 
 function outputPanel() {
