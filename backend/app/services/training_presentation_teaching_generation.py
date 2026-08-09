@@ -22,6 +22,9 @@ from app.services.training_presentation_teaching_renderer import (
     TEACHING_RENDERER_VERSION,
     render_teaching_presentation,
 )
+from app.services.training_presentation_teaching_unicode_pdf import install_teaching_unicode_pdf
+
+_teaching_unicode_pdf_status = install_teaching_unicode_pdf()
 
 
 def generate_and_store_teaching_version(
@@ -109,6 +112,7 @@ def teaching_generation_payload(row: TrainingPresentationVersion) -> dict:
         "status": row.status,
         "renderer_version": TEACHING_RENDERER_VERSION,
         "teaching_v3": True,
+        "unicode_pdf": _teaching_unicode_pdf_status,
         "outputs": {
             "pptx": {"ready": bool(row.pptx_storage_key and row.pptx_file_hash), "file_hash": row.pptx_file_hash, "file_size": row.pptx_file_size},
             "pdf": {"ready": bool(row.pdf_storage_key and row.pdf_file_hash), "file_hash": row.pdf_file_hash, "file_size": row.pdf_file_size},
