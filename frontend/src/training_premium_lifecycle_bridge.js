@@ -84,7 +84,8 @@ function ensurePremiumTypeOptions(root) {
       }
     });
     const repeat = [...select.options].find((option) => option.value === 'Tekrar');
-    if (repeat) repeat.textContent = 'Tekrar Temel İSG Eğitimi · en az 8 ders saati';
+    const repeatLabel = 'Tekrar Temel İSG Eğitimi · en az 8 ders saati';
+    if (repeat && repeat.textContent !== repeatLabel) repeat.textContent = repeatLabel;
 
     if (typeBound.has(select)) return;
     typeBound.add(select);
@@ -204,7 +205,8 @@ function applyOutputActions(panel, lifecycle) {
   }
   if (attendance && actions.attendanceAllowed) {
     const icon = attendance.querySelector('svg')?.outerHTML || '';
-    attendance.innerHTML = `${icon}${escapeHtml(actions.attendanceLabel)}`;
+    const nextHtml = `${icon}${escapeHtml(actions.attendanceLabel)}`;
+    if (attendance.innerHTML !== nextHtml) attendance.innerHTML = nextHtml;
   }
 
   let note = panel.querySelector('[data-premium-output-note]');
@@ -215,7 +217,7 @@ function applyOutputActions(panel, lifecycle) {
       note.className = 'training-premium-policy-note';
       panel.appendChild(note);
     }
-    note.textContent = actions.note;
+    if (note.textContent !== actions.note) note.textContent = actions.note;
   } else {
     note?.remove();
   }
@@ -225,7 +227,11 @@ async function renderSavedTrainingStatus(panel) {
   const trainingId = parseTrainingIdFromText(panel.textContent);
   if (!trainingId || statusInFlight.has(trainingId)) return;
   let card = panel.querySelector('.training-premium-status-card');
-  if (card?.dataset.loaded === '1') return;
+  if (card?.dataset.loaded === '1') {
+    const cached = lifecycleCache.get(trainingId);
+    if (cached) applyOutputActions(panel, cached);
+    return;
+  }
 
   if (!card) {
     card = document.createElement('div');
