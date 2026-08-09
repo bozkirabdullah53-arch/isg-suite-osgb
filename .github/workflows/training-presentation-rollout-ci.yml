@@ -41,6 +41,7 @@ jobs:
           tests/test_training_presentation_phase8.py
           tests/test_training_presentation_phase9.py
           tests/test_training_presentation_phase9_scope_guard.py
+          tests/test_training_presentation_phase10_chemicals.py
       - name: Rollout runbook safety contract
         run: |
           python - <<'PY'
@@ -49,6 +50,7 @@ jobs:
           phase7 = Path("../docs/nace-training-presentation/phase-7-rollout-rollback.md").read_text(encoding="utf-8")
           phase8 = Path("../docs/nace-training-presentation/phase-8-traceability-instructor-mode.md").read_text(encoding="utf-8")
           phase9 = Path("../docs/nace-training-presentation/phase-9-coverage-visual-quality.md").read_text(encoding="utf-8")
+          phase10 = Path("../docs/nace-training-presentation/phase-10-chemical-coverage.md").read_text(encoding="utf-8")
           required_phase7 = [
               "NACE_TRAINING_PRESENTATION_ENABLED=false",
               "NACE_TRAINING_PRESENTATION_FORCE_OFF=true",
@@ -75,11 +77,21 @@ jobs:
               "migration yoktur",
               "Cross-sector fallback eklenmez",
           ]
+          required_phase10 = [
+              "NACE_TRAINING_PRESENTATION_CHEMICAL_PACK_ENABLED=true",
+              "NACE_TRAINING_PRESENTATION_CHEMICAL_PACK_FORCE_OFF=true",
+              "20.30.90",
+              "5/5",
+              "Cross-sector fallback eklenmez",
+              "Migration yoktur",
+              "veritabanı downgrade gerektirmez",
+          ]
           missing = [value for value in required_phase7 if value not in phase7]
           missing += [value for value in required_phase8 if value not in phase8]
           missing += [value for value in required_phase9 if value not in phase9]
+          missing += [value for value in required_phase10 if value not in phase10]
           assert not missing, f"Rollout runbook eksik güvenlik maddeleri: {missing}"
-          print("OK: rollout, traceability, coverage-v2 and rollback safety contract")
+          print("OK: rollout, traceability, coverage-v2, chemical coverage and rollback safety contract")
           PY
 
   rollout-frontend:
