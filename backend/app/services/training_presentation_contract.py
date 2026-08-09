@@ -15,6 +15,7 @@ from typing import Any
 
 from app.models.entities import TrainingSession
 from app.models.training_nace import TrainingNaceSnapshot
+from app.services.special_training_profiles import SPECIAL_TRAINING_PROFILES, resolve_special_profile_key
 
 CONTRACT_PATH = (
     Path(__file__).resolve().parents[1]
@@ -222,6 +223,38 @@ def _slide(
     }
 
 
+
+def _build_special_profile_manifest(*, training: TrainingSession, snapshot: TrainingNaceSnapshot, contract: dict[str, Any], profile_key: str, exam_readiness: dict[str, Any] | None) -> dict[str, Any]:
+    """Employee-facing special-profile deck; never expose internal NACE fallback."""
+    profile = SPECIAL_TRAINING_PROFILES[profile_key]
+    exam = dict(exam_readiness or {})
+    exam_ref = f"approved_question_bank:{exam.get('policy') or 'special-profile'}"
+    official_source_ids = [str(item["source_id"]) for item in contract["source_registry"]]
+    profile_ref = f"special_training_profile:{profile_key}:v1"
+    slides: list[dict[str, Any]] = []
+    def add(section_id: str, title: str, refs: list[str], blocks: list[dict[str, Any]], approval_required: bool = False):
+        slides.append(_slide(position=len(slides)+1, section_id=section_id, title=title, source_refs=refs, content_blocks=blocks, approval_required=approval_required))
+    title = str(profile.get("title") or getattr(training, "title", None) or "Özel İSG Eğitimi")
+    topics = [str(item[0]) for item in profile.get("topics") or []]
+    theory = [topic for topic, mode, _weight in profile.get("topics") or [] if mode == "theory"]
+    practice = [topic for topic, mode, _weight in profile.get("topics") or [] if mode == "practice"]
+    add("cover", title, [profile_ref], [{"type":"training_date","value":_training_date_range(training)[2]},{"type":"topic_summary","values":[str(profile.get("training_method") or "Yüz yüze")]}])
+    add("learning_objectives", "Eğitimin amacı ve öğrenme hedefleri", [profile_ref], [{"type":"legal_responsibility","value":str(profile.get("purpose") or "")},{"type":"topic_summary","values":topics[:6]}])
+    add("legal_basis", "Mevzuat ve güvenli çalışma sorumlulukları", official_source_ids, [{"type":"legal_responsibility","value":str(profile.get("legal_basis") or "")},{"type":"legal_responsibility","value":"Talimatlara uyma, tehlikeleri bildirme ve güvenli olmayan işi durdurma sorumluluğu."}])
+    total = int(profile.get("default_theory") or 0) + int(profile.get("default_practice") or 0)
+    add("training_plan", "Eğitim planı ve süre", [profile_ref], [{"type":"required_duration_hours","value":total},{"type":"required_duration_minutes","value":total*45},{"type":"topic_count","value":len(topics)}])
+    for index, topic in enumerate(theory, start=1):
+        add("work_specific_topics", topic, [profile_ref], [{"type":"frozen_training_topic","index":index,"value":topic},{"type":"technical_content_pending_renderer","value":True}])
+    add("control_measures", "Uygulamalı çalışma ve kontrol adımları", [profile_ref], [{"type":"topic_summary","values":practice},{"type":"control_hierarchy","risk_tags":[]}])
+    add("ppe", "Kişisel düşüş durdurma sistemleri", [profile_ref], [{"type":"topic_summary","values":["Tam vücut kemeri","Ankraj ve yaşam hattı","Bağlantı elemanları","Kullanım öncesi kontrol"]}])
+    add("emergency", "Kurtarma ve acil durum organizasyonu", [profile_ref], [{"type":"topic_summary","values":["Askıda kalma travmasına karşı hızlı kurtarma","Kurtarma planı ve ekip görevlendirmesi","Acil iletişim ve toplanma düzeni"]}])
+    add("assessment", "Sınav ve uygulamalı değerlendirme", [exam_ref, profile_ref], [{"type":"exam_distribution","foundation":0,"work_specific":int(exam.get("count") or 20)},{"type":"exam_workflow_unchanged","value":True}])
+    add("summary", "Özet: kritik güvenli davranışlar", [profile_ref], [{"type":"topic_summary","values":topics},{"type":"legal_responsibility","value":str(profile.get("disclaimer") or "")}])
+    add("sources_and_version", "Kaynaklar ve eğitim profili", official_source_ids+[profile_ref,exam_ref], [{"type":"contract_version","value":contract.get("contract_version")},{"type":"template_version","value":TEMPLATE_VERSION}])
+    manifest={"manifest_version":"special-training-presentation-manifest-v2","contract_version":contract["contract_version"],"contract_hash":_sha256(contract),"template_version":TEMPLATE_VERSION,"output_formats":["pptx","pdf"],"training":{"training_id":int(training.id),"company_id":int(training.company_id),"branch_id":getattr(training,"branch_id",None),"title":title,"start_date":str(getattr(training,"start_date",None) or ""),"end_date":str(getattr(training,"end_date",None) or "")},"special_profile":profile_key,"training_topics":topics,"technical_risk_tags":[],"special_risks":[],"exam_readiness":{"policy":exam.get("policy"),"foundation":0,"work_specific":int(exam.get("count") or 20),"ready":bool(exam.get("ready",True))},"source_registry":contract["source_registry"],"slides":slides,"slide_count":len(slides),"approval":{"status":"specialist_review_required","required_slide_positions":[]},"rendering":{"supported":True,"storage_write":False,"reason":"Özel profil içerikleri doğrudan çalışan sunumuna yansıtılır."},"core_training_unaffected":True}
+    manifest["content_hash"]=_sha256(manifest)
+    return manifest
+
 def build_presentation_manifest_preview(
     *,
     training: TrainingSession,
@@ -231,6 +264,9 @@ def build_presentation_manifest_preview(
     """Build deterministic, non-rendering content manifest for specialist review."""
     snapshot = _require_verified_snapshot(snapshot)
     contract = load_presentation_contract()
+    special_key = resolve_special_profile_key(training)
+    if special_key:
+        return _build_special_profile_manifest(training=training, snapshot=snapshot, contract=contract, profile_key=special_key, exam_readiness=exam_readiness)
     topics = _json_list(snapshot.training_topics_json)
     risks = _json_list(snapshot.technical_risk_tags_json)
     special_risks = _json_list(snapshot.special_risks_json)
