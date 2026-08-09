@@ -52,6 +52,7 @@ def main() -> int:
         "health_records",
         "training_nace_snapshots",
         "training_presentation_versions",
+        "regulatory_identities",
         *profile_tables,
     ]
     missing = [t for t in required_tables if not insp.has_table(t)]
@@ -145,6 +146,7 @@ def main() -> int:
         expected_profile_columns = {
             "osgb_id",
             "company_id",
+            "legacy_company_id",
             "branch_id",
             "subject_type",
             "employee_id",
@@ -170,12 +172,15 @@ def main() -> int:
         ):
             print("FAIL: personnel profile company/employee unique missing")
             return 1
+        # Since revision 0083, professional cards are OSGB-scoped rather than
+        # service-workplace-scoped.  The old (company_id, professional_id)
+        # assertion was stale and contradicted the live domain rule.
         if not _has_unique(
             insp,
             "personnel_profiles",
-            {"company_id", "professional_id"},
+            {"osgb_id", "professional_id"},
         ):
-            print("FAIL: personnel profile company/professional unique missing")
+            print("FAIL: personnel profile OSGB/professional unique missing")
             return 1
 
         for table in (
@@ -260,6 +265,49 @@ def main() -> int:
             print("FAIL: personnel profile document idempotency unique missing")
             return 1
 
+        regulatory_columns = {
+            column["name"] for column in insp.get_columns("regulatory_identities")
+        }
+        expected_regulatory_columns = {
+            "company_id",
+            "employee_id",
+            "identity_type",
+            "masked_value",
+            "ciphertext",
+            "lookup_hash",
+            "encryption_version",
+            "verified_by_id",
+            "verified_at",
+            "created_at",
+            "updated_at",
+        }
+        missing_regulatory_columns = sorted(
+            expected_regulatory_columns - regulatory_columns
+        )
+        if missing_regulatory_columns:
+            print(
+                "FAIL: regulatory_identities columns missing:",
+                ", ".join(missing_regulatory_columns),
+            )
+            return 1
+        if not _has_unique(
+            insp,
+            "regulatory_identities",
+            {"employee_id", "identity_type"},
+        ):
+            print("FAIL: regulatory identity employee/type unique missing")
+            return 1
+        if not _has_unique(
+            insp,
+            "regulatory_identities",
+            {"company_id", "identity_type", "lookup_hash"},
+        ):
+            print("FAIL: regulatory identity company/type/hash unique missing")
+            return 1
+        if "national_id" in regulatory_columns or "plain_identity" in regulatory_columns:
+            print("FAIL: plaintext-style identity column unexpectedly present")
+            return 1
+
         forbidden_profile_columns = {
             "national_id",
             "national_identity",
@@ -282,7 +330,11 @@ def main() -> int:
                 return 1
 
         if conn.dialect.name == "postgresql":
-            rls_tables = ["training_presentation_versions", *profile_tables]
+            rls_tables = [
+                "training_presentation_versions",
+                "regulatory_identities",
+                *profile_tables,
+            ]
             for table in rls_tables:
                 rls = conn.execute(
                     text(
