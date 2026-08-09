@@ -39,6 +39,7 @@ from app.services.training_topics import (
 from app.services import training_validity
 from app.services.special_training_profiles import (
     resolve_special_duration_hours,
+    resolve_special_profile_key,
     special_meta_for_api,
 )
 from app.schemas.training import resolve_training_hours
@@ -738,6 +739,11 @@ def certificates_pdf(
     ensure_access(db, user, row.company_id)
     if not row.participants:
         raise HTTPException(422, "Katılım belgesi için en az bir katılımcı gerekli.")
+    if resolve_special_profile_key(row):
+        if not row.attendance_verified:
+            raise HTTPException(422, "Özel eğitim katılımı doğrulanmadan belge üretilemez. Katılım ve imza listesini doğrulayın.")
+        if not row.success_verified:
+            raise HTTPException(422, "Özel eğitim değerlendirmesi doğrulanmadan belge üretilemez.")
     company = db.get(Company, row.company_id)
     employees = _employees_map(db, row)
     try:
