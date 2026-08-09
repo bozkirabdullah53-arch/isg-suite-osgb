@@ -1,0 +1,70 @@
+name: Regulatory Application Readiness CI
+
+on:
+  pull_request:
+    paths:
+      - 'backend/app/services/authority_integration_gate.py'
+      - 'backend/app/services/regulatory_*.py'
+      - 'backend/app/models/regulatory_identity.py'
+      - 'backend/alembic/versions/0083_personnel_profile_osgb_scope.py'
+      - 'backend/alembic/versions/0084_regulatory_identity_vault.py'
+      - 'backend/tests/test_regulatory_application_readiness.py'
+      - 'backend/scripts/regulatory_application_readiness.py'
+      - 'docs/regulatory/**'
+      - '.github/workflows/regulatory-application-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-regulatory-gate:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: isg
+          POSTGRES_PASSWORD: isg
+          POSTGRES_DB: isg_regulatory_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U isg -d isg_regulatory_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      ENVIRONMENT: development
+      SECRET_KEY: ci-regulatory-secret-key-at-least-32-characters-long
+      DATABASE_URL: postgresql+psycopg://isg:isg@localhost:5432/isg_regulatory_ci
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Clean PostgreSQL migration to head
+        run: alembic upgrade head
+      - name: Verify regulatory identity vault schema
+        run: |
+          python - <<'PY'
+          from sqlalchemy import create_engine, inspect
+          import os
+          engine = create_engine(os.environ['DATABASE_URL'])
+          inspector = inspect(engine)
+          assert 'regulatory_identities' in inspector.get_table_names(), inspector.get_table_names()
+          cols = {c['name'] for c in inspector.get_columns('regulatory_identities')}
+          required = {'company_id','employee_id','identity_type','masked_value','ciphertext','lookup_hash','encryption_version'}
+          assert required <= cols, (required - cols)
+          print('regulatory identity vault schema: OK')
+          PY
+      - name: Regulatory fail-closed and crypto tests
+        run: pytest -q tests/test_regulatory_application_readiness.py
