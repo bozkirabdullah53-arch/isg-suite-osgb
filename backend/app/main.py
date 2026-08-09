@@ -23,6 +23,7 @@ from app.services.seed import seed_admin, seed_demo_osgbs
 from app.services.training_runtime_patches import install_training_runtime_patches
 from app.services.training_lifecycle_v2 import install_training_lifecycle_v2, PremiumTrainingLifecycleMiddleware
 from app.services.training_lifecycle_v2_record_hooks import install_training_lifecycle_v2_record_hooks
+from app.services.training_lifecycle_v2_completion import install_training_lifecycle_v2_completion
 from app.services.training_lifecycle_v2_content_guards import install_training_lifecycle_v2_content_guards
 from app.services.training_question_selection_v2 import install_exact_nace_question_selection
 from app.services.training_completion import install_training_completion_guard
@@ -33,6 +34,7 @@ logger = logging.getLogger(__name__)
 _training_runtime_status = install_training_runtime_patches()
 _training_lifecycle_v2_status = install_training_lifecycle_v2()
 _training_lifecycle_v2_record_status = install_training_lifecycle_v2_record_hooks()
+_training_lifecycle_v2_completion_status = install_training_lifecycle_v2_completion()
 _training_lifecycle_v2_content_status = install_training_lifecycle_v2_content_guards()
 _training_question_selection_status = install_exact_nace_question_selection()
 _training_completion_status = install_training_completion_guard()
@@ -41,6 +43,7 @@ _training_presentation_phase8_generation_status = install_phase8_generation_guar
 logger.info("training runtime patches: %s", _training_runtime_status)
 logger.info("training premium lifecycle v2: %s", _training_lifecycle_v2_status)
 logger.info("training premium lifecycle v2 record hooks: %s", _training_lifecycle_v2_record_status)
+logger.info("training premium lifecycle v2 completion: %s", _training_lifecycle_v2_completion_status)
 logger.info("training premium lifecycle v2 content guards: %s", _training_lifecycle_v2_content_status)
 logger.info("training exact NACE question selection: %s", _training_question_selection_status)
 logger.info("training completion guard: %s", _training_completion_status)
