@@ -9,6 +9,7 @@ import './training_presentation_player.css';
 
 const PANEL_SELECTOR = '.training-presentation-panel[data-training-id]';
 const BUTTON_ATTR = 'data-instructor-mode';
+const PROGRESS_STORAGE_PREFIX = 'isgsuite:training-presentation-progress:v1:';
 let active = null;
 let observer = null;
 let timer = null;
@@ -64,13 +65,39 @@ function cardMarkup(item) {
     </article>`;
 }
 
+function readSavedIndex(progressKey, slideCount) {
+  if (!progressKey) return 0;
+  try {
+    const raw = window.localStorage.getItem(progressKey);
+    const value = Number(raw);
+    if (!Number.isInteger(value)) return 0;
+    return Math.min(Math.max(0, value), Math.max(0, Number(slideCount || 1) - 1));
+  } catch {
+    return 0;
+  }
+}
+
+function saveCurrentIndex() {
+  if (!active?.progressKey) return;
+  try {
+    window.localStorage.setItem(active.progressKey, String(active.index));
+  } catch {
+    // Storage erişimi kapalıysa sunum çalışmaya devam eder; yalnız ilerleme saklanmaz.
+  }
+}
+
 function closePlayer() {
   if (!active) return;
+  saveCurrentIndex();
+  const returnFocus = active.returnFocus;
   document.removeEventListener('keydown', active.onKey);
   active.overlay.remove();
   document.body.style.removeProperty('overflow');
-  active.returnFocus?.focus?.();
   active = null;
+  window.requestAnimationFrame(() => {
+    returnFocus?.scrollIntoView?.({block: 'center', behavior: 'auto'});
+    returnFocus?.focus?.();
+  });
 }
 
 function renderSlide() {
@@ -87,13 +114,13 @@ function renderSlide() {
     : `<ul>${slide.bullets.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
   const sourceContent = slide.sources.length
     ? slide.sources.map((source) => sourceMarkup(source)).join('')
-    : '<span>Kaynak bilgisi manifestte bulunmuyor</span>';
+    : '<span>Kaynak bilgisi sunum kaydında bulunmuyor</span>';
   const sourceBlock = isV2
     ? `<div class="training-instructor-mode__sources" aria-label="Slayt kaynakları">
         <strong>Kaynaklar</strong>
         <div>${sourceContent}</div>
       </div>`
-    : `<small>${slide.sources.length ? `Kaynak: ${escapeHtml(slide.sources.slice(0, 2).join(' · '))}` : 'Kaynak bilgisi manifestte bulunmuyor'}</small>`;
+    : `<small>${slide.sources.length ? `Kaynak: ${escapeHtml(slide.sources.slice(0, 2).join(' · '))}` : 'Kaynak bilgisi sunum kaydında bulunmuyor'}</small>`;
 
   body.innerHTML = `
     <div class="training-instructor-mode__meta">
@@ -111,9 +138,10 @@ function renderSlide() {
   overlay.querySelector('[data-player-prev]').disabled = active.index === 0;
   overlay.querySelector('[data-player-next]').disabled = active.index === model.slideCount - 1;
   overlay.querySelector('[data-player-progress]').style.width = `${((active.index + 1) / model.slideCount) * 100}%`;
+  saveCurrentIndex();
 }
 
-function openPlayer(model, returnFocus) {
+function openPlayer(model, returnFocus, progressKey) {
   closePlayer();
   const overlay = document.createElement('div');
   overlay.className = `training-instructor-mode${model.uiVersion === INSTRUCTOR_UI_V2 ? ' is-v2' : ''}`;
@@ -129,12 +157,12 @@ function openPlayer(model, returnFocus) {
         <span>${escapeHtml(model.naceCode)} · ${escapeHtml(model.naceDescription)}</span>
       </div>
       ${model.uiVersion === INSTRUCTOR_UI_V2 ? '<span class="training-instructor-mode__quality-badge">Kaynak kontrollü · v2</span>' : ''}
-      <button type="button" data-player-close aria-label="Eğitmen modunu kapat">×</button>
+      <button type="button" class="training-instructor-mode__return" data-player-close aria-label="Eğitim bölümüne dön">← Eğitime dön</button>
     </header>
     <main data-instructor-slide tabindex="0"></main>
     <nav aria-label="Sunum kontrolleri">
       <button type="button" data-player-prev>← Önceki</button>
-      <span>← → / PageUp PageDown / Home End</span>
+      <span>Klavye: ← → ile slayt değiştir · Çıkış için Esc</span>
       <button type="button" data-player-next>Sonraki →</button>
     </nav>`;
 
@@ -162,7 +190,14 @@ function openPlayer(model, returnFocus) {
   });
   document.body.appendChild(overlay);
   document.body.style.overflow = 'hidden';
-  active = {overlay, model, index: 0, returnFocus, onKey};
+  active = {
+    overlay,
+    model,
+    index: readSavedIndex(progressKey, model.slideCount),
+    returnFocus,
+    progressKey,
+    onKey,
+  };
   document.addEventListener('keydown', onKey);
   renderSlide();
   overlay.querySelector('[data-instructor-slide]').focus();
@@ -184,7 +219,8 @@ async function startInstructorMode(button) {
     if (!latest?.id) throw new Error('Eğitmen Modu için üretilmiş sunum sürümü bulunamadı.');
     const detail = await api(`/trainings/${trainingId}/presentation-versions/${latest.id}`);
     const model = normalizeInstructorManifest(detail?.manifest);
-    openPlayer(model, button);
+    const progressKey = `${PROGRESS_STORAGE_PREFIX}${trainingId}:${latest.id}`;
+    openPlayer(model, button, progressKey);
   } catch (error) {
     const message = String(error?.message || error || 'Eğitmen Modu açılamadı.');
     window.alert(message);
