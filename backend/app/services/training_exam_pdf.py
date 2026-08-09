@@ -50,10 +50,13 @@ def _load_or_create_snapshot(db: Session, training, created_by_id: int) -> Train
         .order_by(TrainingExamSnapshot.version.desc())
         .limit(1)
     )
+    special_key = resolve_special_profile_key(training)
+    expected_policy = "special-yuksekte-calisma-v1" if special_key == "yuksekte_calisma" else None
     if (
         snapshot is not None
         and snapshot.question_count == QUESTION_COUNT
         and len(snapshot.items) == QUESTION_COUNT
+        and (expected_policy is None or snapshot.selection_policy == expected_policy)
     ):
         return snapshot
     # The managed PDF action remains usable while the reviewed database bank is
