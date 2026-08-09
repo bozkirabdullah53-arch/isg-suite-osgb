@@ -21,6 +21,27 @@ let activeDialog = null;
 let dialogReturnFocus = null;
 
 function escapeHtml(value) {
+function presentationSectionLabel(sectionId) {
+  const labels = {
+    cover: 'Açılış',
+    learning_objectives: 'Öğrenme hedefleri',
+    legal_basis: 'Mevzuat ve sorumluluklar',
+    nace_identity: 'NACE ve işyeri faaliyeti',
+    training_plan: 'Eğitim planı',
+    foundation_ohs: 'Temel İSG konuları',
+    work_specific_topics: 'İşe ve işyerine özgü riskler',
+    technical_risks: 'Teknik riskler',
+    control_measures: 'Kontrol tedbirleri',
+    ppe: 'Kişisel koruyucu donanım',
+    emergency: 'Acil durum',
+    assessment: 'Ölçme ve değerlendirme',
+    summary: 'Özet',
+    sources_and_version: 'Kaynaklar ve sürüm',
+    custom_instructor_slide: 'Eğitmen tarafından eklenen içerik',
+  };
+  return labels[String(sectionId || '').trim()] || 'Eğitim içeriği';
+}
+
   return String(value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -328,7 +349,7 @@ function showManifestDialog(manifest) {
             <span>${escapeHtml(slide.position)}</span>
             <div>
               <strong>${escapeHtml(slide.title || 'Başlıksız slayt')}</strong>
-              <small>${escapeHtml(String(slide.section_id || '').replaceAll('_', ' '))}${slide.approval_required ? ' · Uzman onayı gerekli' : ''}</small>
+              <small>${escapeHtml(presentationSectionLabel(slide.section_id))}${slide.approval_required ? ' · Uzman onayı gerekli' : ''}</small>
             </div>
           </article>`).join('')}
       </div>
