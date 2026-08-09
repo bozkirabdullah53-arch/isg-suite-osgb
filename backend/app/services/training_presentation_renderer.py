@@ -36,6 +36,37 @@ _SLATE = RGBColor(82, 101, 120)
 _WHITE = RGBColor(255, 255, 255)
 _AMBER = RGBColor(180, 100, 0)
 
+_SECTION_LABELS = {
+    "cover": "AÇILIŞ",
+    "learning_objectives": "ÖĞRENME HEDEFLERİ",
+    "legal_basis": "ÇALIŞANIN HAKLARI VE SORUMLULUKLARI",
+    "nace_identity": "İŞYERİ FAALİYETİ",
+    "training_plan": "EĞİTİM PLANI",
+    "foundation_ohs": "TEMEL İSG",
+    "work_specific_topics": "İŞE ÖZGÜ RİSKLER",
+    "technical_risks": "TEKNİK RİSKLER",
+    "control_measures": "KONTROL TEDBİRLERİ",
+    "ppe": "KİŞİSEL KORUYUCU DONANIM",
+    "emergency": "ACİL DURUM",
+    "assessment": "BİLGİ KONTROLÜ",
+    "summary": "ÖZET",
+    "sources_and_version": "KAYNAKLAR",
+    "custom_instructor_slide": "EĞİTMEN İÇERİĞİ",
+}
+
+_LEGAL_BASIS_POINTS = [
+    "İşyerindeki tehlikeleri ve size bildirilen kontrol tedbirlerini öğrenin.",
+    "Verilen eğitim, talimat ve güvenli çalışma kurallarına uygun hareket edin.",
+    "Güvensiz durumu, ramak kala olayı, iş kazasını veya sağlık belirtisini gecikmeden bildirin.",
+    "Ciddi ve yakın tehlikede güvenli biçimde işi durdurun, tehlikeli alandan uzaklaşın ve yetkiliye haber verin.",
+]
+
+
+def _section_label(section_id: object) -> str:
+    key = str(section_id or "").strip()
+    return _SECTION_LABELS.get(key, "İŞ SAĞLIĞI VE GÜVENLİĞİ")
+
+
 _RISK_LABELS = {
     "display_screen": "Ekranlı araçlarla çalışma",
     "server_room": "Sistem odası elektrik, sıcaklık ve yangın riski",
@@ -162,7 +193,11 @@ def _block_bullets(block: dict[str, Any]) -> list[str]:
         topic = _clean(block.get("topic"))
         return [f"Öğrenme hedefi: {topic}"] if topic else []
     if kind == "official_source":
-        return [f"Resmî kaynak: {_clean(block.get('source_id'))}"]
+        # Internal source identifiers belong in the footer/notes, never in employee-facing lesson bullets.
+        return []
+    if kind == "legal_responsibility":
+        value = _clean(block.get("value"))
+        return [value] if value else []
     if kind == "nace_snapshot":
         return [
             f"NACE kodu: {_clean(block.get('nace_code'))}",
@@ -240,6 +275,8 @@ def slide_bullets(slide: dict[str, Any], *, max_items: int = 6) -> list[str]:
             item = _clean(item, limit=220)
             if item and item not in bullets:
                 bullets.append(item)
+    if str(slide.get("section_id") or "") == "legal_basis" and not bullets:
+        bullets.extend(_LEGAL_BASIS_POINTS)
     if len(bullets) <= max_items:
         return bullets
     kept = bullets[: max_items - 1]
@@ -311,7 +348,7 @@ def _pptx_slide(prs: Presentation, manifest: dict[str, Any], item: dict[str, Any
         badge.fill.solid(); badge.fill.fore_color.rgb = _MINT
         badge.line.fill.background()
         tf = badge.text_frame; tf.clear(); tf.vertical_anchor = MSO_ANCHOR.MIDDLE
-        p = tf.paragraphs[0]; p.text = section.replace("_", " ").upper(); p.alignment = PP_ALIGN.CENTER
+        p = tf.paragraphs[0]; p.text = _section_label(section); p.alignment = PP_ALIGN.CENTER
         for run in p.runs:
             run.font.name = "Aptos"; run.font.size = Pt(10); run.font.bold = True; run.font.color.rgb = _TEAL_DARK
         _add_textbox(slide, 0.72, 1.02, 11.8, 0.63, title, size=27, color=_NAVY, bold=True)
