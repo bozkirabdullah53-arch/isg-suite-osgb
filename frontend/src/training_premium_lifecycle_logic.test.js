@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest';
 import {
   lifecycleTone,
   normalizePremiumPolicy,
+  outputActionPolicy,
   parseTrainingIdFromText,
   ruleSummary,
   shouldReplacePrematureVerification,
@@ -41,5 +42,24 @@ describe('training premium lifecycle logic', () => {
     expect(lifecycleTone('results_pending')).toBe('warning');
     expect(lifecycleTone('document_ready')).toBe('ready');
     expect(lifecycleTone('cancelled')).toBe('danger');
+  });
+
+  it('keeps Basic İSG outputs unchanged for non-work-start records', () => {
+    expect(outputActionPolicy({premium_enforced: true, policy: {kind: 'initial_basic'}})).toEqual({
+      certificateAllowed: true,
+      examAllowed: true,
+      attendanceAllowed: true,
+      attendanceLabel: 'Katılım PDF (İmza Formu)',
+      note: '',
+    });
+  });
+
+  it('prevents misleading Basic İSG exam and certificate for Work Start Training', () => {
+    const actions = outputActionPolicy({premium_enforced: true, policy: {kind: 'work_start'}});
+    expect(actions.certificateAllowed).toBe(false);
+    expect(actions.examAllowed).toBe(false);
+    expect(actions.attendanceAllowed).toBe(true);
+    expect(actions.attendanceLabel).toBe('İşe Başlama Eğitimi Tutanağı PDF');
+    expect(actions.note).toContain('Temel İSG Eğitimi değildir');
   });
 });
