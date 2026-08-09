@@ -39,6 +39,7 @@ BUCKET_TARGETS = {"common": 5, "technical": 5, "sector": 5}
 RELEASE_BUCKET_TARGETS = {"common": 15, "technical": 15, "sector": 15}
 SELECTION_POLICY = "foundation-5-plus-approved-5x3-v1"
 CURATED_FALLBACK_POLICY = "foundation-5-plus-approved-db-curated-5x3-v1"
+SPECIAL_BANK_COUNT = 60
 SPECIAL_QUESTION_COUNT = 20
 _SPECIAL_PACKS = {"yuksekte_calisma": "special-yuksekte-calisma.json"}
 VALID_HAZARDS = frozenset({"Az Tehlikeli", "Tehlikeli", "Çok Tehlikeli"})
@@ -667,13 +668,13 @@ def _special_curated_questions(training) -> list[dict]:
     if not pack_path.exists():
         raise RuntimeError("Yüksekte çalışma soru bankası henüz yüklenmedi; eğitici sorularını sağlayana kadar sınav oluşturulamaz.")
     rows = list(_curated_pack(file_name))
-    if len(rows) != SPECIAL_QUESTION_COUNT:
+    if len(rows) != SPECIAL_BANK_COUNT:
         raise RuntimeError(
-            f"{key} özel eğitim soru paketi tam olarak {SPECIAL_QUESTION_COUNT} soru içermelidir."
+            f"{key} özel eğitim soru bankası tam olarak {SPECIAL_BANK_COUNT} soru içermelidir."
         )
     codes = [str(row.get("question_code") or "") for row in rows]
-    if len(set(codes)) != SPECIAL_QUESTION_COUNT:
-        raise RuntimeError("Özel eğitim soru kodları benzersiz olmalıdır.")
+    if len(set(codes)) != SPECIAL_BANK_COUNT:
+        raise RuntimeError("Özel eğitim soru bankası kodları benzersiz olmalıdır.")
     return rows
 
 
@@ -686,10 +687,10 @@ def _create_special_exam_snapshot(
 ) -> TrainingExamSnapshot:
     seed = secrets.token_hex(16)
     rnd = random.Random(seed)
-    rnd.shuffle(questions)
+    selected = rnd.sample(questions, SPECIAL_QUESTION_COUNT)
     items = [
         _curated_snapshot_item(question, position, rnd)
-        for position, question in enumerate(questions, start=1)
+        for position, question in enumerate(selected, start=1)
     ]
     canonical = json.dumps(items, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     content_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -707,7 +708,7 @@ def _create_special_exam_snapshot(
         question_count=SPECIAL_QUESTION_COUNT,
         random_seed=seed,
         content_hash=content_hash,
-        selection_policy="special-yuksekte-calisma-v1",
+        selection_policy="special-yuksekte-calisma-v2-60x20",
         created_by_id=created_by_id,
     )
     for item in items:
