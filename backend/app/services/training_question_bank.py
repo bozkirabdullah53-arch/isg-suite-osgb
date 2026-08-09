@@ -41,7 +41,11 @@ SELECTION_POLICY = "foundation-5-plus-approved-5x3-v1"
 CURATED_FALLBACK_POLICY = "foundation-5-plus-approved-db-curated-5x3-v1"
 SPECIAL_BANK_COUNT = 60
 SPECIAL_QUESTION_COUNT = 20
-_SPECIAL_PACKS = {"yuksekte_calisma": "special-yuksekte-calisma.json"}
+_SPECIAL_PACKS = {
+    "yuksekte_calisma": "special-yuksekte-calisma.json",
+    "gida_su_hijyeni": "special-gida-su-hijyeni.json",
+}
+_SPECIAL_BANK_COUNTS = {"yuksekte_calisma": 60, "gida_su_hijyeni": 20}
 VALID_HAZARDS = frozenset({"Az Tehlikeli", "Tehlikeli", "Çok Tehlikeli"})
 _NACE_PREFIX_RE = re.compile(r"^\d{2}(?:\.\d{2}){0,2}$")
 _CATALOG = tuple(sectors_list_for_api())
@@ -660,20 +664,19 @@ def _fixed_foundational_snapshot_item(question: dict, position: int) -> dict:
 def _special_curated_questions(training) -> list[dict]:
     key = resolve_special_profile_key(training)
     file_name = _SPECIAL_PACKS.get(key or "")
-    if key == "yuksekte_calisma" and not file_name:
-        raise RuntimeError("Yüksekte çalışma soru bankası eğitici onayı bekliyor; genel sektör soruları kullanılamaz.")
+    if key in {"yuksekte_calisma", "gida_su_hijyeni"} and not file_name:
+        raise RuntimeError("Özel eğitim soru bankası eğitici onayı bekliyor; genel sektör soruları kullanılamaz.")
     if not file_name:
         return []
     pack_path = _CURATED_DATA_DIR / file_name
     if not pack_path.exists():
-        raise RuntimeError("Yüksekte çalışma soru bankası henüz yüklenmedi; eğitici sorularını sağlayana kadar sınav oluşturulamaz.")
+        raise RuntimeError("Özel eğitim soru bankası yüklenmedi; genel sektör soruları kullanılamaz.")
     rows = list(_curated_pack(file_name))
-    if len(rows) != SPECIAL_BANK_COUNT:
-        raise RuntimeError(
-            f"{key} özel eğitim soru bankası tam olarak {SPECIAL_BANK_COUNT} soru içermelidir."
-        )
+    expected_count = int(_SPECIAL_BANK_COUNTS.get(key or "", SPECIAL_BANK_COUNT))
+    if len(rows) != expected_count:
+        raise RuntimeError(f"{key} özel eğitim soru bankası tam olarak {expected_count} soru içermelidir.")
     codes = [str(row.get("question_code") or "") for row in rows]
-    if len(set(codes)) != SPECIAL_BANK_COUNT:
+    if len(set(codes)) != expected_count:
         raise RuntimeError("Özel eğitim soru bankası kodları benzersiz olmalıdır.")
     return rows
 
