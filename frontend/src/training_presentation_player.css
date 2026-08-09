@@ -21,9 +21,20 @@
 .training-instructor-mode__meta {display:flex;justify-content:space-between;gap:16px;color:#7dd3c7;font-weight:700;font-size:14px;margin-bottom:18px;flex-wrap:wrap}
 .training-instructor-mode h2 {margin:0 0 28px;font-size:clamp(28px,4vw,52px);line-height:1.08;max-width:1100px}
 .training-instructor-mode ul {display:grid;gap:15px;margin:0;padding-left:28px;font-size:clamp(18px,2vw,28px);line-height:1.35}
-.training-instructor-mode__footer {display:grid;gap:7px;margin-top:30px;padding-top:18px;border-top:1px solid rgba(255,255,255,.16);color:#b8d9d5}
-.training-instructor-mode__footer strong {color:#fbbf24}
+.training-instructor-mode__footer {display:grid;gap:10px;margin-top:30px;padding-top:18px;border-top:1px solid rgba(255,255,255,.16);color:#b8d9d5}
+.training-instructor-mode__footer > strong {color:#fbbf24}
 .training-instructor-mode__footer small {overflow-wrap:anywhere}
+.training-instructor-mode__approval-state {display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border:1px solid rgba(255,255,255,.16);border-radius:14px;background:rgba(255,255,255,.055)}
+.training-instructor-mode__approval-state > div {display:grid;gap:4px;min-width:0}
+.training-instructor-mode__approval-state strong {font-size:14px}
+.training-instructor-mode__approval-state span {font-size:12px;line-height:1.4;color:#c7d9d6}
+.training-instructor-mode__approval-state.is-pending {border-color:rgba(251,191,36,.38);background:rgba(120,72,8,.16)}
+.training-instructor-mode__approval-state.is-pending strong {color:#fbbf24}
+.training-instructor-mode__approval-state.is-approved {border-color:rgba(45,212,191,.38);background:rgba(13,90,81,.16)}
+.training-instructor-mode__approval-state.is-approved strong {color:#8ff4e6}
+.training-instructor-mode__approval-state button {min-height:40px;flex:0 0 auto;padding:0 14px;border:1px solid rgba(251,191,36,.45);border-radius:10px;background:rgba(251,191,36,.12);color:#fff;font-weight:800;cursor:pointer;white-space:nowrap}
+.training-instructor-mode__approval-state button:hover {background:rgba(251,191,36,.2)}
+.training-instructor-mode__approval-state button:focus-visible {outline:3px solid rgba(251,191,36,.45);outline-offset:2px}
 .training-instructor-mode nav {display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:18px;padding:16px 28px;border-top:1px solid rgba(255,255,255,.15)}
 .training-instructor-mode nav span {text-align:center;color:#91b7b3;font-size:12px}
 .training-instructor-mode nav button {min-height:44px;padding:0 18px;border:1px solid rgba(255,255,255,.25);border-radius:12px;background:rgba(255,255,255,.1);color:#fff;font-weight:700;cursor:pointer}
@@ -131,6 +142,8 @@
   .training-instructor-mode h2 {font-size:clamp(25px,8vw,36px);margin-bottom:18px}
   .training-instructor-mode__card {padding:15px 16px;border-radius:15px}
   .training-instructor-mode__card p {font-size:17px}
+  .training-instructor-mode__approval-state {align-items:stretch;flex-direction:column}
+  .training-instructor-mode__approval-state button {width:100%;white-space:normal}
   .training-instructor-mode nav {grid-template-columns:1fr 1fr;padding:12px 16px}
   .training-instructor-mode nav span {display:none}
 }

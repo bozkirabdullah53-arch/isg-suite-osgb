@@ -69,6 +69,7 @@ function traceableManifest() {
         position: 1,
         section_id: 'foundation_ohs',
         title: 'Temel İSG İlkeleri',
+        approval_required: true,
         source_refs: ['6331 sayılı Kanun'],
         content_blocks: [
           {type: 'tehlike', value: 'İşe başlamadan önce tehlikeler ve kontroller anlaşılmalıdır.'},
@@ -90,21 +91,39 @@ function traceableManifest() {
   };
 }
 
-async function installRoutes(page) {
+function approval() {
+  return {
+    id: 901,
+    presentation_version_id: 501,
+    training_id: 101,
+    company_id: 118,
+    approval_method: 'application_approval',
+    hashes: {manifest: 'a'.repeat(64), pptx: 'b'.repeat(64), pdf: 'c'.repeat(64)},
+    approver: {user_id: 9, name: 'Pilot İSG Uzmanı', role: 'safety_specialist'},
+    legal_notice: 'Bu kayıt uygulama içi uzman onayıdır; nitelikli elektronik imza yerine geçmez.',
+    event_hash: 'd'.repeat(64),
+    created_at: '2026-08-08T20:02:00Z',
+    immutable: true,
+  };
+}
+
+async function installRoutes(page, {status = 'generated', approvalRecord = null} = {}) {
   const version = {
     id: 501,
     training_id: 101,
     company_id: 118,
     version: 2,
-    status: 'generated',
+    status,
     manifest_hash: 'a'.repeat(64),
     outputs: {
       pptx: {storage_key: 'pilot/v2.pptx', file_hash: 'b'.repeat(64), file_size: 1000},
       pdf: {storage_key: 'pilot/v2.pdf', file_hash: 'c'.repeat(64), file_size: 900},
     },
     failure: {},
+    approval: approvalRecord,
     created_at: '2026-08-08T20:00:00Z',
     generated_at: '2026-08-08T20:01:00Z',
+    approved_at: approvalRecord?.created_at || null,
   };
   await page.route('**/health', (route) => route.fulfill({status: 200, contentType: 'application/json', body: '{"ok":true}'}));
   await page.route('**/api/v1/trainings/101/presentation-readiness', (route) => route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(readiness)}));
@@ -145,6 +164,8 @@ test('traceable generated presentation returns to education and resumes from the
   await expect(player.getByText('Eğitim tarihi')).toBeVisible();
   await expect(player.getByText('training date', {exact: false})).toHaveCount(0);
   await expect(player.getByRole('button', {name: 'Eğitim bölümüne dön'})).toBeVisible();
+  await expect(player.getByText('Sunum sürümü uzman onayı bekliyor')).toBeVisible();
+  await expect(player.getByText('Uzman/işyeri onayı gerekli')).toHaveCount(0);
 
   await page.keyboard.press('ArrowRight');
   await expect(player.getByText('Kurşun maruziyeti ve kontrolü')).toBeVisible();
@@ -165,6 +186,35 @@ test('traceable generated presentation returns to education and resumes from the
   await expect(player.getByText('Kurşun maruziyeti ve kontrolü')).toBeVisible();
 });
 
+test('pending approval sends the instructor directly to the approval dialog', async ({page}) => {
+  await installRoutes(page);
+  await page.goto('/');
+  await injectTrainingOutput(page);
+  const panel = page.locator('.training-presentation-panel');
+  await panel.getByRole('button', {name: 'Eğitmen Modu'}).click();
+
+  const player = page.locator('.training-instructor-mode');
+  await expect(player.getByText('Sunum sürümü uzman onayı bekliyor')).toBeVisible();
+  await expect(player.getByText('NACE Uyumlu Eğitim Sunumu', {exact: false})).toBeVisible();
+  await player.getByRole('button', {name: 'Eğitime dön ve onayla'}).click();
+
+  await expect(player).toHaveCount(0);
+  const dialog = page.locator('.training-presentation-approval-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('nitelikli elektronik imza yerine geçmez')).toBeVisible();
+});
+
+test('approved presentation does not show a false approval-required warning', async ({page}) => {
+  await installRoutes(page, {status: 'approved', approvalRecord: approval()});
+  await page.goto('/');
+  await injectTrainingOutput(page);
+  await page.locator('.training-presentation-panel').getByRole('button', {name: 'Eğitmen Modu'}).click();
+  const player = page.locator('.training-instructor-mode');
+  await expect(player.getByText('Uzman tarafından onaylandı')).toBeVisible();
+  await expect(player.getByText('Sunum sürümü uzman onayı bekliyor')).toHaveCount(0);
+  await expect(player.getByText('Uzman/işyeri onayı gerekli')).toHaveCount(0);
+});
+
 test('instructor mode v2 stays within a 390px mobile viewport', async ({page}) => {
   await page.setViewportSize({width: 390, height: 844});
   await installRoutes(page);
@@ -175,6 +225,7 @@ test('instructor mode v2 stays within a 390px mobile viewport', async ({page}) =
   await expect(player).toBeVisible();
   await expect(player.locator('.training-instructor-mode__cards')).toBeVisible();
   await expect(player.getByRole('button', {name: 'Eğitim bölümüne dön'})).toBeVisible();
+  await expect(player.getByRole('button', {name: 'Eğitime dön ve onayla'})).toBeVisible();
   const widths = await page.evaluate(() => ({viewport: window.innerWidth, documentWidth: document.documentElement.scrollWidth}));
   expect(widths.documentWidth).toBeLessThanOrEqual(widths.viewport);
 });
