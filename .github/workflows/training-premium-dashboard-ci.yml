@@ -29,6 +29,7 @@ jobs:
       - name: Premium dashboard and lifecycle regression
         run: >
           pytest -q
+          tests/test_training_premium_dashboard_router_registration.py
           tests/test_training_premium_dashboard_v1.py
           tests/test_training_lifecycle_v2.py
           tests/test_training_completion.py
