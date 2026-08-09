@@ -72,6 +72,10 @@ jobs:
       - name: Premium lifecycle unit tests
         run: npx vitest run src/training_premium_lifecycle_logic.test.js
       - name: Premium lifecycle lint
-        run: npx eslint src/training_premium_lifecycle_logic.js src/training_premium_lifecycle_logic.test.js src/training_premium_lifecycle_bridge.js
+        run: npx eslint src/training_premium_lifecycle_logic.js src/training_premium_lifecycle_logic.test.js src/training_premium_lifecycle_bridge.js e2e/training-premium-lifecycle.spec.js
       - name: Vite production bundle
         run: npx vite build
+      - name: Desktop and mobile browser acceptance
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test e2e/training-premium-lifecycle.spec.js
