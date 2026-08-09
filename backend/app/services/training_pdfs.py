@@ -450,7 +450,7 @@ def _draw_attendance_page(
             ("Yetkilendirilmiş Eğitici", training.instructor_name or ""),
             ("İşveren / İşveren Vekili", employer),
         ]
-        if (curriculum.get("is_special") or profile_key)
+        if curriculum.get("is_special")
         else [
             ("Eğitimi Veren", training.instructor_name or ""),
             ("Eğitimi Veren İşyeri Hekimi", physician),
