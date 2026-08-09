@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.models.entities import TrainingSession
 from app.models.training_nace import TrainingNaceSnapshot
+from app.services.special_training_profiles import resolve_special_profile_key
 from app.services.training_exact_question_factory import (
     EXACT_NACE_POLICY,
     create_exact_nace_exam_snapshot,
@@ -335,6 +336,10 @@ def install_exact_nace_question_selection() -> dict[str, str]:
             if db is not None and training is not None
             else (False, None)
         )
+        # Özel eğitimler (ör. Yüksekte Çalışma) NACE sınav seçicisine hiç girmez.
+        # Bunlar yalnızca eğitici tarafından sağlanan özel soru bankasından seçilir.
+        if training is not None and resolve_special_profile_key(training):
+            return _legacy_create_exam_snapshot(*args, **kwargs)
         if applies:
             return create_exact_nace_exam_snapshot(
                 db,
