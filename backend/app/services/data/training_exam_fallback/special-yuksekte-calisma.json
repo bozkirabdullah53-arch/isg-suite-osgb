@@ -124,7 +124,7 @@
         "Yalnızca uyarı levhalarına",
         "Çalışanın kişisel tecrübesine"
       ],
-      "correct_option": "D",
+      "correct_option": "B",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -152,7 +152,7 @@
         "Tam vücut kemer sistemi",
         "Güvenli korkuluk sistemi"
       ],
-      "correct_option": "C",
+      "correct_option": "D",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1020,7 +1020,7 @@
         "Yalnızca çalışanlara bağırarak uyarı yapılmalıdır.",
         "Sadece yüksekten çalışan kişi korunmalıdır."
       ],
-      "correct_option": "B",
+      "correct_option": "A",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1048,7 +1048,7 @@
         "Çapraz bağlantıları basamak olarak kullanmak",
         "Korkuluk üzerinden atlamak"
       ],
-      "correct_option": "C",
+      "correct_option": "B",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1132,7 +1132,7 @@
         "Boşluk, yerinden çıkmayacak ve gerekli güvenliği sağlayacak uygun bir kapak veya toplu koruma sistemiyle korunmalıdır.",
         "Üzerine boya yapılması yeterlidir."
       ],
-      "correct_option": "B",
+      "correct_option": "C",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1160,7 +1160,7 @@
         "Çalışanın baret takması yeterlidir.",
         "Çalışan tecrübeli ise başka önlem gerekmez."
       ],
-      "correct_option": "C",
+      "correct_option": "B",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1188,7 +1188,7 @@
         "Bağlantı, işe uygunluğu belirlenmiş güvenli ankraj veya bağlantı sistemine yapılmalıdır.",
         "Borunun yüksek olması yeterlidir."
       ],
-      "correct_option": "B",
+      "correct_option": "C",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1216,7 +1216,7 @@
         "Çalışanın ayakkabı renginin kontrol edilmesi",
         "İskelenin binaya mümkün olduğunca uzaklaştırılması"
       ],
-      "correct_option": "C",
+      "correct_option": "B",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1244,7 +1244,7 @@
         "Güvenli tutunma ve geçiş sağlayacak uygun düzenleme yapılmadan kullanım sürdürülmemelidir.",
         "Sadece ikinci bir çalışan aşağıdan bakmalıdır."
       ],
-      "correct_option": "B",
+      "correct_option": "C",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1272,7 +1272,7 @@
         "Çalışanın ağırlığı merdiveni sabitler.",
         "Yalnızca kısa süreli kullanılabilir."
       ],
-      "correct_option": "C",
+      "correct_option": "B",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1300,7 +1300,7 @@
         "Taşınan yük çalışanın güvenli tutunmasını engellememelidir.",
         "Merdiven kısa ise sorun yoktur."
       ],
-      "correct_option": "A",
+      "correct_option": "C",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1328,7 +1328,7 @@
         "Hiçbir kişisel koruyucu kullanılmaması",
         "Çalışanın kendi ipini seçmesi"
       ],
-      "correct_option": "B",
+      "correct_option": "A",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1468,7 +1468,7 @@
         "İskele sallanmıyorsa hesap gerekmez.",
         "Yalnızca gözle kontrol yeterlidir."
       ],
-      "correct_option": "A",
+      "correct_option": "B",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1496,7 +1496,7 @@
         "Sadece gece kapatılmalıdır.",
         "Açıklıklara herhangi bir müdahale edilmemelidir."
       ],
-      "correct_option": "C",
+      "correct_option": "A",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1524,7 +1524,7 @@
         "Güvenli çalışma şartları sağlanamıyorsa çalışma sürdürülmemelidir.",
         "Çalışanın kemer kullanması bütün diğer riskleri ortadan kaldırır."
       ],
-      "correct_option": "B",
+      "correct_option": "C",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1552,7 +1552,7 @@
         "Sadece baret kullanılır.",
         "Çalışan hızlı yürürse risk ortadan kalkar."
       ],
-      "correct_option": "C",
+      "correct_option": "B",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1580,7 +1580,7 @@
         "Eğitim; ilgili mevzuatta belirtilen esaslar çerçevesinde, eğiticinin uzmanlık alanı ve işyerinin riskleri dikkate alınarak verilmelidir.",
         "Tecrübeli çalışanlara eğitim verilmesine gerek yoktur."
       ],
-      "correct_option": "B",
+      "correct_option": "C",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1608,7 +1608,7 @@
         "Her durumda yalnızca 30 dakikadır.",
         "Eğitim süresini çalışan kendisi belirler."
       ],
-      "correct_option": "C",
+      "correct_option": "B",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1636,7 +1636,7 @@
         "Yüksekte çalışmayla ilgili tehlikeler, riskler, kontrol tedbirleri ve güvenli çalışma yöntemleri",
         "Yalnızca işyerinin organizasyon şeması"
       ],
-      "correct_option": "B",
+      "correct_option": "C",
       "answer_explanation": "Doğru cevap, yüksekte çalışma risklerinin mevzuat ve güvenli çalışma ilkeleri çerçevesinde kontrol edilmesine dayanır.",
       "scopes": [
         {
@@ -1677,7 +1677,8 @@
           "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf",
           "reference": "Çalışanların bilgilendirilmesi/eğitimi, risklerden korunma ilkeleri ve güvenli çalışma tedbirleri"
         }
-      ]
+      ],
+      "correct_option": "B"
     }
   ]
 }
