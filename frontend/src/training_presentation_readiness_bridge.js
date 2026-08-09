@@ -610,4 +610,16 @@ new MutationObserver(scheduleAttach).observe(document.documentElement, {
   characterData: true,
 });
 window.addEventListener('hashchange', scheduleAttach);
+window.addEventListener('isgsuite:presentation-refresh', (event) => {
+  const trainingId = Number(event?.detail?.trainingId || 0);
+  if (!trainingId) return;
+  versionsCache.delete(trainingId);
+  readinessCache.delete(trainingId);
+  setState(trainingId, {
+    busy: '',
+    message: 'Sunum değişiklikleri kaydedildi. Aynı eğitim kaydında yeni sürüm yüklendi.',
+    error: '',
+  });
+  void refreshPanel(trainingId);
+});
 scheduleAttach();
