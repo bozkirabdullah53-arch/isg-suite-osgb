@@ -86,18 +86,53 @@ function saveCurrentIndex() {
   }
 }
 
-function closePlayer() {
+function closePlayer(options = {}) {
   if (!active) return;
   saveCurrentIndex();
+  const openApproval = options?.openApproval === true;
+  const trainingId = active.trainingId;
   const returnFocus = active.returnFocus;
+  const approvalButton = openApproval
+    ? document.querySelector(`${PANEL_SELECTOR}[data-training-id="${trainingId}"] [data-presentation-action="approve"]`)
+    : null;
   document.removeEventListener('keydown', active.onKey);
   active.overlay.remove();
   document.body.style.removeProperty('overflow');
   active = null;
   window.requestAnimationFrame(() => {
-    returnFocus?.scrollIntoView?.({block: 'center', behavior: 'auto'});
-    returnFocus?.focus?.();
+    const target = approvalButton?.isConnected ? approvalButton : returnFocus;
+    target?.scrollIntoView?.({block: 'center', behavior: 'auto'});
+    target?.focus?.();
+    if (openApproval && approvalButton?.isConnected) approvalButton.click();
   });
+}
+
+function approvalMarkup(slide) {
+  if (!slide.approvalRequired) return '';
+  const status = String(active?.versionState?.status || '').toLowerCase();
+  const approved = Boolean(active?.versionState?.approved || ['approved', 'archived'].includes(status));
+  if (approved) {
+    return `
+      <div class="training-instructor-mode__approval-state is-approved" role="status">
+        <strong>Uzman tarafından onaylandı</strong>
+        <span>Bu sunum sürümü için değişmez onay kaydı oluşturulmuştur.</span>
+      </div>`;
+  }
+  if (status === 'generated') {
+    return `
+      <div class="training-instructor-mode__approval-state is-pending" role="status">
+        <div>
+          <strong>Sunum sürümü uzman onayı bekliyor</strong>
+          <span>Onay, Eğitim sayfasındaki “NACE Uyumlu Eğitim Sunumu” panelinden verilir.</span>
+        </div>
+        <button type="button" data-player-approval>Eğitime dön ve onayla</button>
+      </div>`;
+  }
+  return `
+    <div class="training-instructor-mode__approval-state is-pending" role="status">
+      <strong>Bu içerik uzman inceleme kapsamındadır</strong>
+      <span>Sunum dosyaları hazır olduğunda Eğitim sayfasından onay verilebilir.</span>
+    </div>`;
 }
 
 function renderSlide() {
@@ -132,16 +167,17 @@ function renderSlide() {
     ${content}
     <div class="training-instructor-mode__footer">
       <span>${slide.linkedQuestionCount ? `${slide.linkedQuestionCount} sınav sorusu bu slayta bağlı` : 'Bu slayt doğrudan sınav sorusu taşımıyor'}</span>
-      ${slide.approvalRequired ? '<strong>Uzman/işyeri onayı gerekli</strong>' : ''}
+      ${approvalMarkup(slide)}
       ${sourceBlock}
     </div>`;
+  body.querySelector('[data-player-approval]')?.addEventListener('click', () => closePlayer({openApproval: true}));
   overlay.querySelector('[data-player-prev]').disabled = active.index === 0;
   overlay.querySelector('[data-player-next]').disabled = active.index === model.slideCount - 1;
   overlay.querySelector('[data-player-progress]').style.width = `${((active.index + 1) / model.slideCount) * 100}%`;
   saveCurrentIndex();
 }
 
-function openPlayer(model, returnFocus, progressKey) {
+function openPlayer(model, returnFocus, progressKey, versionState, trainingId) {
   closePlayer();
   const overlay = document.createElement('div');
   overlay.className = `training-instructor-mode${model.uiVersion === INSTRUCTOR_UI_V2 ? ' is-v2' : ''}`;
@@ -196,6 +232,8 @@ function openPlayer(model, returnFocus, progressKey) {
     index: readSavedIndex(progressKey, model.slideCount),
     returnFocus,
     progressKey,
+    versionState,
+    trainingId,
     onKey,
   };
   document.addEventListener('keydown', onKey);
@@ -220,7 +258,11 @@ async function startInstructorMode(button) {
     const detail = await api(`/trainings/${trainingId}/presentation-versions/${latest.id}`);
     const model = normalizeInstructorManifest(detail?.manifest);
     const progressKey = `${PROGRESS_STORAGE_PREFIX}${trainingId}:${latest.id}`;
-    openPlayer(model, button, progressKey);
+    const versionState = {
+      status: String(latest.status || '').toLowerCase(),
+      approved: Boolean(latest.approval),
+    };
+    openPlayer(model, button, progressKey, versionState, trainingId);
   } catch (error) {
     const message = String(error?.message || error || 'Eğitmen Modu açılamadı.');
     window.alert(message);
