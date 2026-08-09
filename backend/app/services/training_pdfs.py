@@ -183,6 +183,32 @@ def _draw_logo(c: canvas.Canvas, training, *, x: float, y: float, max_w: float, 
         return False
 
 
+
+def _draw_height_watermark(c: canvas.Canvas, w: float, h: float) -> None:
+    """Yalnız yüksekte çalışma belgesinde kullanılan silik güvenlik görseli."""
+    c.saveState()
+    try:
+        c.setFillAlpha(0.055)
+        c.setStrokeAlpha(0.07)
+    except Exception:
+        pass
+    c.setStrokeColorRGB(*_BLUE)
+    c.setFillColorRGB(*_BLUE)
+    cx, cy = w * 0.82, h * 0.48
+    c.setLineWidth(2.2)
+    c.circle(cx, cy + 42 * mm, 9 * mm, fill=1, stroke=0)
+    c.line(cx, cy + 33 * mm, cx, cy - 4 * mm)
+    c.line(cx, cy + 20 * mm, cx - 22 * mm, cy + 5 * mm)
+    c.line(cx, cy + 20 * mm, cx + 22 * mm, cy + 5 * mm)
+    c.line(cx, cy - 4 * mm, cx - 17 * mm, cy - 34 * mm)
+    c.line(cx, cy - 4 * mm, cx + 17 * mm, cy - 34 * mm)
+    c.setLineWidth(3.0)
+    c.line(cx - 40 * mm, cy - 38 * mm, cx + 45 * mm, cy - 38 * mm)
+    c.line(cx - 32 * mm, cy - 38 * mm, cx - 32 * mm, cy + 55 * mm)
+    c.line(cx - 32 * mm, cy + 55 * mm, cx + 7 * mm, cy + 55 * mm)
+    c.line(cx + 7 * mm, cy + 55 * mm, cx + 7 * mm, cy + 5 * mm)
+    c.restoreState()
+
 def _stamp_text(training) -> str:
     return (getattr(training, "stamp_text", None) or "").strip() or _DEFAULT_STAMP
 
@@ -419,11 +445,18 @@ def _draw_attendance_page(
     # Signature boxes — PRO titles
     physician = (getattr(training, "workplace_physician", None) or "").strip()
     employer = (getattr(training, "employer_representative", None) or "").strip()
-    imza_cols = [
-        ("Eğitimi Veren", training.instructor_name or ""),
-        ("Eğitimi Veren İşyeri Hekimi", physician),
-        ("İşveren / İşveren Vekili", employer),
-    ]
+    imza_cols = (
+        [
+            ("Yetkilendirilmiş Eğitici", training.instructor_name or ""),
+            ("İşveren / İşveren Vekili", employer),
+        ]
+        if curriculum.get("is_special")
+        else [
+            ("Eğitimi Veren", training.instructor_name or ""),
+            ("Eğitimi Veren İşyeri Hekimi", physician),
+            ("İşveren / İşveren Vekili", employer),
+        ]
+    )
     imza_y = 12 * mm
     imza_h = 23 * mm
     box_w = uw / 3
@@ -532,6 +565,9 @@ def _draw_certificate_page(
     ml, mr = 8 * mm, 8 * mm
     uw = w - ml - mr
 
+    if curriculum.get("is_special") and curriculum.get("profile_key") == "yuksekte_calisma":
+        _draw_height_watermark(c, w, h)
+
     # Double border — PRO
     c.setLineWidth(1.2)
     _rgb(c, _BLUE, stroke=True)
@@ -594,11 +630,19 @@ def _draw_certificate_page(
     # Legal — PRO exact lines
     c.setFillColorRGB(60 / 255, 60 / 255, 60 / 255)
     c.setFont(_FONT, 6.5)
-    legal = [
-        "Yukarıda adı geçen çalışanın, 6331 Sayılı Kanun Gereği, Çalışanların İş Sağlığı ve Güvenliği",
-        "Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında verilen, iş sağlığı ve güvenliği",
-        "eğitimlerini, başarıyla tamamlayarak bu eğitim belgesini almaya hak kazanmıştır.",
-    ]
+    legal = (
+        [
+            "Yukarıda adı geçen çalışan, 6331 Sayılı Kanun ve ilgili İSG eğitim mevzuatı kapsamında",
+            "yüksekte çalışma tehlikeleri, düşmeye karşı korunma, güvenli erişim, KKD kullanımı",
+            "ve kurtarma uygulamalarını başarıyla tamamlayarak bu özel eğitim belgesini almaya hak kazanmıştır.",
+        ]
+        if curriculum.get("profile_key") == "yuksekte_calisma"
+        else [
+            "Yukarıda adı geçen çalışanın, 6331 Sayılı Kanun Gereği, Çalışanların İş Sağlığı ve Güvenliği",
+            "Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında verilen, iş sağlığı ve güvenliği",
+            "eğitimlerini, başarıyla tamamlayarak bu eğitim belgesini almaya hak kazanmıştır.",
+        ]
+    )
     y = h - 74 * mm
     for line in legal:
         c.drawCentredString(w / 2, y, line)
@@ -610,12 +654,20 @@ def _draw_certificate_page(
     instructor = (training.instructor_name or "").strip()
     instructor_title = (training.instructor_qualification or "").strip() or "İSG Uzmanı"
     cert_signers = (
-        ("Eğitim Veren", instructor, instructor_title),
-        ("Eğitim Veren", physician, "İşyeri Hekimi"),
-        ("Onaylayan", employer, "İşveren Vekili"),
+        (
+            ("Yetkilendirilmiş Eğitici", instructor, instructor_title),
+            ("Onaylayan", employer, "İşveren / İşveren Vekili"),
+        )
+        if curriculum.get("is_special")
+        else (
+            ("Eğitim Veren", instructor, instructor_title),
+            ("Eğitim Veren", physician, "İşyeri Hekimi"),
+            ("Onaylayan", employer, "İşveren Vekili"),
+        )
     )
-    box_w = (uw - 16 * mm) / 3
-    gap = (uw - 3 * box_w) / 2
+    signer_count = len(cert_signers)
+    box_w = (uw - (8 if signer_count == 2 else 16) * mm) / signer_count
+    gap = (uw - signer_count * box_w) / max(1, signer_count - 1)
     bh = 28 * mm
     iy = y - 3 * mm - bh
     for i, (role, person, unvan) in enumerate(cert_signers):
