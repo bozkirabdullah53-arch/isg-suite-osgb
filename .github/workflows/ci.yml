@@ -63,6 +63,7 @@ jobs:
           tests/test_training_presentation_versions.py
           tests/test_training_presentation_renderer.py
           tests/test_training_presentation_generation.py
+          tests/test_training_editor_teaching_v3.py
           tests/test_training_presentation_api_phase4.py
           tests/test_training_presentation_phase9.py
           tests/test_training_presentation_phase9_scope_guard.py
@@ -134,6 +135,7 @@ jobs:
           tests/test_training_nace_classification.py
           tests/test_training_presentation_versions.py
           tests/test_training_presentation_generation.py
+          tests/test_training_editor_teaching_v3.py
           tests/test_committee_workflow.py
       - name: Personnel profile migration downgrade isolation
         run: |
