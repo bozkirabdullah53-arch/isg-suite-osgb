@@ -14,7 +14,7 @@ from app.api.company_access import ensure_company_access
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.models.entities import TrainingSession, TrainingStatus, User
-from app.services.training_completion import completion_preflight
+from app.services import training_completion
 from app.services.training_lifecycle_v2 import (
     applies_to_created_at,
     policy_for,
@@ -65,11 +65,11 @@ def premium_training_lifecycle(
             "premium_enforced": True,
             "stage": "cancelled",
             "stage_label": "İptal edildi",
-            "next_action": "İptal edilen eğitim için belge üretilemez.",
+            "next_action": "İptal edilen eğitim için çıktı üretilemez.",
             "policy": policy,
         }
 
-    preflight = completion_preflight(db, training)
+    preflight = training_completion.completion_preflight(db, training)
     participants = list(training.participants or [])
     has_result_data = any(
         bool(participant.attended)
@@ -78,19 +78,32 @@ def premium_training_lifecycle(
         for participant in participants
     )
     end_date = training.end_date or training.start_date
+    record_only = policy.get("kind") in {"work_start", "information_refresh"}
 
-    if str(status) == TrainingStatus.COMPLETED.value and preflight.get("ready_for_certificates"):
+    if record_only and str(status) == TrainingStatus.COMPLETED.value and preflight.get("ready_for_record"):
+        stage = "record_ready"
+        label = "Tutanak kaydı hazır"
+        next_action = "Katılım/Tutanak PDF kaydını oluşturabilir ve eğitim dosyasında saklayabilirsiniz."
+    elif (not record_only) and str(status) == TrainingStatus.COMPLETED.value and preflight.get("ready_for_certificates"):
         stage = "document_ready"
         label = "Belgeye hazır"
         next_action = "Katılım belgesi, katılım/imza tutanağı ve diğer çıktıları ayrı ayrı oluşturabilirsiniz."
     elif has_result_data:
         stage = "results_pending"
         label = "Sonuçlar kesinleştirilecek"
-        next_action = "Katılım ve sınav sonuçlarını kontrol edin, ardından Sonuçları Kesinleştir adımını kullanın."
+        next_action = (
+            "Gerçek katılımı kontrol edin ve Sonuçları Kesinleştir adımını kullanın."
+            if record_only
+            else "Katılım ve sınav sonuçlarını kontrol edin, ardından Sonuçları Kesinleştir adımını kullanın."
+        )
     elif end_date and end_date <= date.today():
         stage = "attendance_pending"
         label = "Katılım / sonuç bekliyor"
-        next_action = "Eğitime katılanları ve varsa sınav puanlarını girin."
+        next_action = (
+            "Eğitime gerçekten katılan çalışanları işaretleyin."
+            if record_only
+            else "Eğitime katılanları ve varsa sınav puanlarını girin."
+        )
     else:
         stage = "planned"
         label = "Planlandı"
@@ -105,6 +118,8 @@ def premium_training_lifecycle(
         "policy": policy,
         "completion": {
             "ready_for_certificates": bool(preflight.get("ready_for_certificates")),
+            "ready_for_record": bool(preflight.get("ready_for_record")),
+            "document_mode": preflight.get("document_mode"),
             "eligible_count": int(preflight.get("eligible_count") or 0),
             "ineligible_count": int(preflight.get("ineligible_count") or 0),
             "blockers": list(preflight.get("training_blockers") or []),
