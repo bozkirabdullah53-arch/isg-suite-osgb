@@ -81,6 +81,13 @@ services:
         value: "false"
       - key: CLAMAV_HOST
         sync: false
+      # Emergency compatibility rollback: keep the established training PDF,
+      # certificate and presentation flows available while strict V2/V3 gates
+      # are completed for the full sector catalog.
+      - key: TRAINING_COMPLETION_STRICT
+        value: "false"
+      - key: NACE_TRAINING_PRESENTATION_TRACEABILITY_FORCE_OFF
+        value: "true"
 
   - type: cron
     name: isg-suite-api-warmup
