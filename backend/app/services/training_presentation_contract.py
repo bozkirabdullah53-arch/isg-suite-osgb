@@ -52,6 +52,28 @@ def _json_list(raw: str | None) -> list[str]:
     return [str(item).strip() for item in value if str(item).strip()]
 
 
+
+def _presentation_date_text(value: object) -> str:
+    if value is None:
+        return ""
+    if hasattr(value, "strftime"):
+        return value.strftime("%d.%m.%Y")
+    text = str(value).strip()
+    if len(text) >= 10 and text[4] == "-" and text[7] == "-":
+        year, month, day = text[:10].split("-")
+        return f"{day}.{month}.{year}"
+    return text
+
+
+def _training_date_range(training: TrainingSession) -> tuple[str, str, str]:
+    start = _presentation_date_text(getattr(training, "start_date", None))
+    end = _presentation_date_text(getattr(training, "end_date", None))
+    if not end:
+        end = start
+    display = start if not end or end == start else f"{start} – {end}"
+    return start, end, display
+
+
 def _validate_contract(contract: dict[str, Any]) -> None:
     if contract.get("contract_version") != CONTRACT_VERSION:
         raise PresentationContractError("Sunum içerik sözleşmesi sürümü geçersiz.")
@@ -262,7 +284,7 @@ def build_presentation_manifest_preview(
         [
             {"type": "nace_identity", "nace_code": snapshot.nace_code, "nace_description": snapshot.nace_description},
             {"type": "hazard_class", "value": snapshot.hazard_class},
-            {"type": "training_date", "value": str(getattr(training, "start_date", None) or "")},
+            {"type": "training_date", "value": _training_date_range(training)[2], "start_date": _training_date_range(training)[0], "end_date": _training_date_range(training)[1]},
             {"type": "company_logo_placeholder", "value": None, "approval_required": True},
         ],
         approval_required=True,
