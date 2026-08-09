@@ -297,9 +297,26 @@ def build_presentation_manifest_preview(
     )
     add(
         "legal_basis",
-        "Mevzuat ve sorumluluklar",
+        "Çalışanın hakları, sorumlulukları ve güvenli davranış",
         official_source_ids,
-        [{"type": "official_source", "source_id": source_id} for source_id in official_source_ids],
+        [
+            {
+                "type": "legal_responsibility",
+                "value": "İşyerindeki tehlikeleri ve size bildirilen kontrol tedbirlerini öğrenin.",
+            },
+            {
+                "type": "legal_responsibility",
+                "value": "Verilen eğitim, talimat ve güvenli çalışma kurallarına uygun hareket edin.",
+            },
+            {
+                "type": "legal_responsibility",
+                "value": "Güvensiz durumu, ramak kala olayı, iş kazasını veya sağlık belirtisini gecikmeden bildirin.",
+            },
+            {
+                "type": "legal_responsibility",
+                "value": "Ciddi ve yakın tehlikede güvenli biçimde işi durdurun, tehlikeli alandan uzaklaşın ve yetkiliye haber verin.",
+            },
+        ],
     )
     add(
         "nace_identity",
