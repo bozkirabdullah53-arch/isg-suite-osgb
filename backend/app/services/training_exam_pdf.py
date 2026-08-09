@@ -178,9 +178,10 @@ def build_exam_pdf(
     navy = (11 / 255, 46 / 255, 79 / 255)
     emerald = (15 / 255, 118 / 255, 110 / 255)
     light = (244 / 255, 248 / 255, 247 / 255)
-    sector_name = _sector_display_name(getattr(training, "sector", None))
     registry_no = _exam_company_registry_no(db, training)
     special_key = resolve_special_profile_key(training)
+    # Özel eğitimlerde teknik NACE yedeği çalışan sınavına sızmaz.
+    sector_name = ("Yüksekte çalışma" if special_key == "yuksekte_calisma" else _sector_display_name(getattr(training, "sector", None)))
     special_profile = SPECIAL_TRAINING_PROFILES.get(special_key or "")
     exam_title = str((special_profile or {}).get("title") or "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM SINAVI")
     participant_names = [] if answer_key_only else _exam_participant_names(db, training)
