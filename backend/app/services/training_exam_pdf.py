@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -95,6 +94,24 @@ def _bucket_label(scopes_json: str) -> str:
     return "Ortak"
 
 
+def _training_exam_date_text(training) -> str:
+    """Sınav tarihi eğitim bitiş tarihidir; indirme zamanı belge tarihini değiştirmez.
+
+    Tarihsel/eksik eski kayıtlar için bitiş yoksa başlangıç tarihine düşer. Her iki
+    alan da yoksa boş bırakılır; bugünün tarihi asla uydurulmaz.
+    """
+    value = getattr(training, "end_date", None) or getattr(training, "start_date", None)
+    if value is None:
+        return ""
+    if hasattr(value, "strftime"):
+        return value.strftime("%d.%m.%Y")
+    text = str(value).strip()
+    if len(text) >= 10 and text[4] == "-" and text[7] == "-":
+        year, month, day = text[:10].split("-")
+        return f"{day}.{month}.{year}"
+    return text
+
+
 def build_exam_pdf(*, company_name: str, training, db: Session, created_by_id: int) -> bytes:
     _register_fonts()
     snapshot = _load_or_create_snapshot(db, training, created_by_id)
@@ -139,7 +156,7 @@ def build_exam_pdf(*, company_name: str, training, db: Session, created_by_id: i
     fields = [
         ("Katılımcı Adı Soyadı", ""),
         ("Firma Adı", company_name or ""),
-        ("Sınav Tarihi", datetime.now().strftime("%d.%m.%Y")),
+        ("Sınav Tarihi", _training_exam_date_text(training)),
         ("İmza", ""),
     ]
     col_w = (w - 34 * mm) / 2
