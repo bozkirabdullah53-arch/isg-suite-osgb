@@ -11,6 +11,7 @@ from app.services.special_training_profiles import (
     resolve_special_profile_key,
 )
 from app.services.training_nace_classification import resolve_exact_nace
+from app.services.training_topics import sectors_list_for_api
 
 # Bir takvim gününde makul üst ders saati (1 günde 16 saat olmaz)
 MAX_TRAINING_HOURS_PER_DAY = 8
@@ -86,13 +87,6 @@ class TrainingCreate(BaseModel):
         )
         self.notes = assert_meaningful_text(self.notes, label="Notlar", min_len=3, required=False)
 
-        # Exact NACE identity is mandatory for every new training. The hazard
-        # class is derived from the same catalog row; client-supplied values
-        # cannot create an inconsistent NACE/hazard pair.
-        classification = resolve_exact_nace(self.sector)
-        self.sector = str(classification.catalog_key)
-        self.hazard_class = str(classification.hazard_class)
-
         special_key = resolve_special_profile_key(
             SimpleNamespace(
                 training_type=self.training_type,
@@ -101,6 +95,22 @@ class TrainingCreate(BaseModel):
             )
         )
         if special_key:
+            # Özel profiller temel eğitimden bağımsızdır; kullanıcıdan ayrıca NACE
+            # seçmesini istemeyiz. Belge içeriğinde sektör basılmaz. Veri modelinin
+            # geriye dönük zorunlu alanı için katalogdan güvenli, doğrulanabilir bir
+            # teknik varsayılan kullanılır; temel eğitimlerde NACE yine zorunludur.
+            try:
+                classification = resolve_exact_nace(self.sector)
+            except ValueError:
+                fallback = next(
+                    (str(row.get("code") or "") for row in sectors_list_for_api() if str(row.get("code") or "").startswith("nace_")),
+                    "",
+                )
+                if not fallback:
+                    raise ValueError("Özel eğitim için teknik NACE varsayılanı bulunamadı.")
+                classification = resolve_exact_nace(fallback)
+            self.sector = str(classification.catalog_key)
+            self.hazard_class = str(classification.hazard_class)
             if not self.participant_ids:
                 raise ValueError("Özel eğitim kaydı için en az bir gerçek katılımcı seçilmelidir.")
             qualification = str(self.instructor_qualification or "").strip().casefold()
@@ -116,6 +126,11 @@ class TrainingCreate(BaseModel):
             required_method = str(SPECIAL_TRAINING_PROFILES.get(special_key, {}).get("training_method") or "").casefold()
             if required_method and "yüz yüze" in required_method and "yüz yüze" not in str(self.delivery_method or "").casefold():
                 raise ValueError("Bu özel eğitim profili yüz yüze ve uygulamalı yürütülmelidir.")
+        else:
+            # Temel eğitimlerde tam NACE kimliği zorunludur.
+            classification = resolve_exact_nace(self.sector)
+            self.sector = str(classification.catalog_key)
+            self.hazard_class = str(classification.hazard_class)
 
         policy_text = f"{self.training_type or ''} {self.title or ''}".casefold()
         is_record_only = (
