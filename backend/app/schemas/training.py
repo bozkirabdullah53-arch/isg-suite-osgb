@@ -4,7 +4,11 @@ from types import SimpleNamespace
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.models.entities import TrainingStatus
-from app.services.special_training_profiles import resolve_special_duration_hours
+from app.services.special_training_profiles import (
+    SPECIAL_INSTRUCTOR_ROLES,
+    resolve_special_duration_hours,
+    resolve_special_profile_key,
+)
 from app.services.training_nace_classification import resolve_exact_nace
 
 # Bir takvim gününde makul üst ders saati (1 günde 16 saat olmaz)
@@ -87,6 +91,27 @@ class TrainingCreate(BaseModel):
         classification = resolve_exact_nace(self.sector)
         self.sector = str(classification.catalog_key)
         self.hazard_class = str(classification.hazard_class)
+
+        special_key = resolve_special_profile_key(
+            SimpleNamespace(
+                training_type=self.training_type,
+                title=self.title,
+                notes=self.notes or "",
+            )
+        )
+        if special_key:
+            if not self.participant_ids:
+                raise ValueError("Özel eğitim kaydı için en az bir gerçek katılımcı seçilmelidir.")
+            qualification = str(self.instructor_qualification or "").strip().casefold()
+            if not qualification:
+                raise ValueError("Özel eğitim için doğrulanmış eğitici unvanı / yeterliliği zorunludur.")
+            allowed_labels = [
+                str(meta.get("label") or "").casefold()
+                for meta in SPECIAL_INSTRUCTOR_ROLES.values()
+                if special_key in (meta.get("profiles") or [])
+            ]
+            if allowed_labels and not any(label and label in qualification for label in allowed_labels):
+                raise ValueError("Seçilen özel eğitim profili için yetkili eğitici yeterliliği doğrulanamadı.")
 
         policy_text = f"{self.training_type or ''} {self.title or ''}".casefold()
         is_record_only = (
