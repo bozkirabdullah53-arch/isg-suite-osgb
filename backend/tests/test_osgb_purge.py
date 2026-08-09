@@ -14,7 +14,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("SECRET_KEY", "test-secret-key-at-least-32-chars-long!!")
     monkeypatch.setattr("app.api.auth.role_requires_mfa", lambda _role: False)
 
-    from sqlalchemy import create_engine
+    from sqlalchemy import create_engine, event
     from sqlalchemy.orm import sessionmaker
     import app.core.database as dbmod
     import app.models.entities as ent
@@ -28,6 +28,15 @@ def client(tmp_path, monkeypatch):
     settings.environment = "development"
 
     engine = create_engine(url, connect_args={"check_same_thread": False})
+
+    # SQLite testinde de production PostgreSQL'deki RESTRICT FK davranışını gerçekten
+    # uygulayalım; aksi halde bu regresyon testi hatalı silme sırasını yakalayamaz.
+    @event.listens_for(engine, "connect")
+    def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     dbmod.engine = engine
     dbmod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     ent.Base.metadata.create_all(bind=engine)
