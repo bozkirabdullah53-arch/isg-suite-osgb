@@ -5,6 +5,13 @@ function clean(value) {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
+const LEGAL_BASIS_POINTS = Object.freeze([
+  'İşyerindeki tehlikeleri ve size bildirilen kontrol tedbirlerini öğrenin.',
+  'Verilen eğitim, talimat ve güvenli çalışma kurallarına uygun hareket edin.',
+  'Güvensiz durumu, ramak kala olayı, iş kazasını veya sağlık belirtisini gecikmeden bildirin.',
+  'Ciddi ve yakın tehlikede güvenli biçimde işi durdurun, tehlikeli alandan uzaklaşın ve yetkiliye haber verin.',
+]);
+
 const BLOCK_TYPE_LABELS = Object.freeze({
   training_date: 'Eğitim tarihi',
   training_duration: 'Eğitim süresi',
@@ -142,10 +149,14 @@ export function normalizeInstructorManifest(manifest) {
         if (item && !bullets.includes(item)) bullets.push(item);
       }
     }
+    const sectionId = clean(slide.section_id);
+    if (sectionId === 'legal_basis' && !bullets.length) {
+      bullets.push(...LEGAL_BASIS_POINTS);
+    }
     return {
       position: Number(slide.position || 0),
       title: localizeInstructorText(slide.title) || 'Başlıksız slayt',
-      sectionId: clean(slide.section_id),
+      sectionId,
       bullets,
       sources: Array.from(new Set((slide.source_refs || []).map(clean).filter(Boolean))),
       approvalRequired: Boolean(slide.approval_required),
