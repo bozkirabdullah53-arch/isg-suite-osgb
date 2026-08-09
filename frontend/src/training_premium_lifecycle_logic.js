@@ -53,3 +53,24 @@ export function ruleSummary(policy, hazardClass) {
 export function shouldReplacePrematureVerification(policy) {
   return normalizePremiumPolicy(policy).enabled;
 }
+
+export function outputActionPolicy(lifecycle) {
+  const state = lifecycle && typeof lifecycle === 'object' ? lifecycle : {};
+  const kind = String(state.policy?.kind || '');
+  if (!state.premium_enforced || kind !== 'work_start') {
+    return {
+      certificateAllowed: true,
+      examAllowed: true,
+      attendanceAllowed: true,
+      attendanceLabel: 'Katılım PDF (İmza Formu)',
+      note: '',
+    };
+  }
+  return {
+    certificateAllowed: false,
+    examAllowed: false,
+    attendanceAllowed: true,
+    attendanceLabel: 'İşe Başlama Eğitimi Tutanağı PDF',
+    note: 'İşe Başlama Eğitimi, Temel İSG Eğitimi değildir. Temel İSG sınavı ve sertifikası bu kayıtta oluşturulmaz.',
+  };
+}
