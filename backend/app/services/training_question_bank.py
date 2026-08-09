@@ -734,6 +734,15 @@ def create_exam_snapshot(
     created_by_id: int,
     allow_curated_fallback: bool = False,
 ) -> TrainingExamSnapshot:
+    special_questions = _special_curated_questions(training)
+    if special_questions:
+        return _create_special_exam_snapshot(
+            db,
+            training=training,
+            created_by_id=created_by_id,
+            questions=special_questions,
+        )
+
     buckets = _candidate_buckets(db, training)
     curated = (
         _curated_buckets(training)
