@@ -96,7 +96,6 @@ test('shows simple priority cards and two separate traffic lights', async ({page
   await mockDashboard(page, dashboardPayload());
   await page.goto('/');
   await injectTrainingShell(page);
-  await page.evaluate(() => import('/src/training_premium_dashboard_bridge_v2.js'));
 
   await expect(page.getByText('Bugün Ne Yapmalıyım?')).toBeVisible();
   await expect(page.getByRole('heading', {name: 'Eğitim işlerini önem sırasına koyduk'})).toBeVisible();
@@ -114,7 +113,6 @@ test('priority card sends user to the existing Training tab', async ({page}) => 
   await mockDashboard(page, dashboardPayload());
   await page.goto('/');
   await injectTrainingShell(page);
-  await page.evaluate(() => import('/src/training_premium_dashboard_bridge_v2.js'));
 
   await page.getByRole('button', {name: /Temel İSG eğitimi gecikmiş/}).click();
   await expect(page.locator('#clickedTab')).toHaveText('Yenileme Takibi');
@@ -124,7 +122,6 @@ test('feature-off endpoint leaves the existing Training UI visually untouched', 
   await mockDashboard(page, dashboardPayload({enabled: false, actions: [], rows: [], summary: {}}));
   await page.goto('/');
   await injectTrainingShell(page);
-  await page.evaluate(() => import('/src/training_premium_dashboard_bridge_v2.js'));
   await page.waitForTimeout(150);
 
   await expect(page.locator('#trainingPremiumDashboardV1')).toHaveCount(0);
@@ -141,7 +138,6 @@ test('does not render a placeholder before a company is selected', async ({page}
         <select id="tp-firma"><option value="" selected>Seçiniz</option></select>
       </main>`;
   });
-  await page.evaluate(() => import('/src/training_premium_dashboard_bridge_v2.js'));
   await page.waitForTimeout(100);
   await expect(page.locator('#trainingPremiumDashboardV1')).toHaveCount(0);
 });
@@ -151,7 +147,6 @@ test('fits a 390px mobile viewport without page-level horizontal overflow', asyn
   await mockDashboard(page, dashboardPayload());
   await page.goto('/');
   await injectTrainingShell(page);
-  await page.evaluate(() => import('/src/training_premium_dashboard_bridge_v2.js'));
   await expect(page.locator('#trainingPremiumDashboardV1')).toBeVisible();
 
   const widths = await page.evaluate(() => ({
