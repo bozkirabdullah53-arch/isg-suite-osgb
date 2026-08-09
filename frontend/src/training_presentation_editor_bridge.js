@@ -133,7 +133,14 @@ async function saveEditor(overlay, state, {render = false} = {}) {
       ? `Ders Sunumu V3 v${created.version} üretildi. Eski sürümler aynen korundu.`
       : `Yeni v${created.version} taslağı kaydedildi. Eski sürümler aynen korundu.`;
     setBusy(overlay, false, message, false);
-    window.setTimeout(() => { closeEditor(); window.location.reload(); }, 700);
+    state.sourceId = Number(created.id);
+    state.sourceVersion = Number(created.version || state.sourceVersion);
+    window.setTimeout(() => {
+      closeEditor();
+      window.dispatchEvent(new CustomEvent('isgsuite:presentation-refresh', {
+        detail: {trainingId: state.trainingId, versionId: created.id},
+      }));
+    }, 700);
   } catch (error) {
     setBusy(overlay, false, String(error?.message || error || 'Sunum düzenleme başarısız.'), true);
   }
