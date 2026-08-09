@@ -10,6 +10,7 @@ on:
       - 'backend/alembic/versions/0084_regulatory_identity_vault.py'
       - 'backend/tests/test_regulatory_application_readiness.py'
       - 'backend/scripts/regulatory_application_readiness.py'
+      - 'backend/scripts/ci_postgres_parity.py'
       - 'docs/regulatory/**'
       - '.github/workflows/regulatory-application-readiness.yml'
   workflow_dispatch:
@@ -53,10 +54,23 @@ jobs:
         run: pip install -r requirements.txt
       - name: Clean PostgreSQL migration to head
         run: alembic upgrade head
+      - name: Verify production-style 0083 to 0084 upgrade path
+        run: |
+          alembic downgrade 0083_profile_osgb_scope
+          python - <<'PY'
+          from sqlalchemy import create_engine, inspect, text
+          import os
+          engine = create_engine(os.environ['DATABASE_URL'])
+          with engine.connect() as conn:
+              assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar() == '0083_profile_osgb_scope'
+          assert 'regulatory_identities' not in inspect(engine).get_table_names()
+          print('0083 production-shaped checkpoint: OK')
+          PY
+          alembic upgrade head
       - name: Verify regulatory identity vault schema
         run: |
           python - <<'PY'
-          from sqlalchemy import create_engine, inspect
+          from sqlalchemy import create_engine, inspect, text
           import os
           engine = create_engine(os.environ['DATABASE_URL'])
           inspector = inspect(engine)
@@ -64,7 +78,11 @@ jobs:
           cols = {c['name'] for c in inspector.get_columns('regulatory_identities')}
           required = {'company_id','employee_id','identity_type','masked_value','ciphertext','lookup_hash','encryption_version'}
           assert required <= cols, (required - cols)
-          print('regulatory identity vault schema: OK')
+          with engine.connect() as conn:
+              assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar() == '0084_regulatory_identity_vault'
+          print('regulatory identity vault schema + re-upgrade: OK')
           PY
+      - name: Main Postgres parity gate
+        run: python scripts/ci_postgres_parity.py
       - name: Regulatory fail-closed and crypto tests
         run: pytest -q tests/test_regulatory_application_readiness.py
