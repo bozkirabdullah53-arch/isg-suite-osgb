@@ -445,9 +445,14 @@ def _draw_attendance_page(
     # Signature boxes — PRO titles
     physician = (getattr(training, "workplace_physician", None) or "").strip()
     employer = (getattr(training, "employer_representative", None) or "").strip()
+    profile_key = str(curriculum.get("profile_key") or "")
+    is_hygiene_profile = profile_key in {"hijyen_sanitasyon", "gida_su_hijyeni"}
     imza_cols = (
         [
-            ("Yetkilendirilmiş Eğitici", training.instructor_name or ""),
+            (
+                "Eğitimi Veren Sağlık Personeli" if is_hygiene_profile else "Yetkilendirilmiş Eğitici",
+                training.instructor_name or "",
+            ),
             ("İşveren / İşveren Vekili", employer),
         ]
         if curriculum.get("is_special")
@@ -459,7 +464,7 @@ def _draw_attendance_page(
     )
     imza_y = 12 * mm
     imza_h = 23 * mm
-    box_w = uw / 3
+    box_w = uw / len(imza_cols)
     for i, (title, name) in enumerate(imza_cols):
         x = ml + i * box_w
         c.setFillColorRGB(247 / 255, 249 / 255, 252 / 255)
@@ -566,6 +571,7 @@ def _draw_certificate_page(
     title_probe = " ".join(str(getattr(training, field, "") or "").casefold() for field in ("training_type", "title", "notes"))
     # Özel profil kodu normalde kaynak kayıttan gelir; eski kayıtlar için yalnız bu belge katmanında emniyetli geri dönüş.
     is_height_profile = profile_key == "yuksekte_calisma" or "yüksekte çalışma" in title_probe or "yuksekte calisma" in title_probe
+    is_hygiene_profile = profile_key in {"hijyen_sanitasyon", "gida_su_hijyeni"}
     ml, mr = 8 * mm, 8 * mm
     uw = w - ml - mr
 
@@ -642,6 +648,12 @@ def _draw_certificate_page(
         ]
         if is_height_profile
         else [
+            "Yukarıda adı geçen çalışan, işyerinde düzenlenen hijyen eğitimine katılmış ve",
+            "eğitim programındaki kişisel hijyen, bulaşma kontrolü, temizlik ve güvenli çalışma",
+            "konularındaki değerlendirmeyi tamamlayarak bu katılım belgesini almaya hak kazanmıştır.",
+        ]
+        if is_hygiene_profile
+        else [
             "Yukarıda adı geçen çalışanın, 6331 Sayılı Kanun Gereği, Çalışanların İş Sağlığı ve Güvenliği",
             "Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında verilen, iş sağlığı ve güvenliği",
             "eğitimlerini, başarıyla tamamlayarak bu eğitim belgesini almaya hak kazanmıştır.",
@@ -667,6 +679,11 @@ def _draw_certificate_page(
     cert_signers = (
         tuple(special_signers)
         if is_height_profile
+        else (
+            ("Eğitimi Veren Sağlık Personeli", instructor, instructor_title),
+            ("Onaylayan", employer, employer_title),
+        )
+        if is_hygiene_profile
         else (
             ("Eğitim Veren", instructor, instructor_title),
             ("Eğitim Veren", physician, "İşyeri Hekimi"),
