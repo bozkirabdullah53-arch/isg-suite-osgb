@@ -135,10 +135,14 @@ def initialize_personnel_profile(
             )
         professional_id = professional.id
 
+    professional_osgb_scoped = (
+        payload.subject_type == "professional"
+        and PersonnelProfile.__table__.c.company_id.nullable
+    )
     scope_filter = (
-        PersonnelProfile.company_id == payload.company_id
-        if payload.subject_type == "employee"
-        else PersonnelProfile.osgb_id == int(company.osgb_id)
+        PersonnelProfile.osgb_id == int(company.osgb_id)
+        if professional_osgb_scoped
+        else PersonnelProfile.company_id == payload.company_id
     )
     existing = db.scalar(
         select(PersonnelProfile)
@@ -158,8 +162,8 @@ def initialize_personnel_profile(
         # Migration 0083 makes professional cards OSGB-scoped. Keep this legacy
         # company entry point as a compatibility facade, but persist the same
         # canonical shape used by the OSGB card API.
-        company_id=(payload.company_id if payload.subject_type == "employee" else None),
-        branch_id=(resolved_branch_id if payload.subject_type == "employee" else None),
+        company_id=(None if professional_osgb_scoped else payload.company_id),
+        branch_id=(None if professional_osgb_scoped else resolved_branch_id),
         subject_type=payload.subject_type,
         employee_id=employee_id,
         professional_id=professional_id,
