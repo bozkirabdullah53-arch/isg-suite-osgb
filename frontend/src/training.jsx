@@ -360,6 +360,7 @@ export function TrainingPage({user}) {
   const [employees, setEmployees] = useState([]);
   const [sectors, setSectors] = useState([]);
   const [specialProfiles, setSpecialProfiles] = useState([]);
+  const [specialInstructorRoles, setSpecialInstructorRoles] = useState([]);
   const [specialProfileCode, setSpecialProfileCode] = useState('');
   const [rows, setRows] = useState([]);
   const [q, setQ] = useState('');
@@ -432,10 +433,36 @@ export function TrainingPage({user}) {
     [savedTrainingId, savedPayload, form.participant_ids],
   );
 
-  const instructorOptions = useMemo(
-    () => (Array.isArray(assignedTeam?.instructor_options) ? assignedTeam.instructor_options : []),
-    [assignedTeam],
+  const instructorOptions = useMemo(() => {
+    const options = Array.isArray(assignedTeam?.instructor_options) ? assignedTeam.instructor_options : [];
+    if (!specialProfileCode) return options;
+    const profile = specialProfiles.find((item) => item.code === specialProfileCode);
+    const allowedCodes = new Set(profile?.allowed_roles || []);
+    const allowedLabels = specialInstructorRoles
+      .filter((role) => allowedCodes.has(role.code))
+      .map((role) => String(role.label || '').toLocaleLowerCase('tr'))
+      .filter(Boolean);
+    if (!allowedLabels.length) return [];
+    return options.filter((option) => {
+      const qualification = String(option.qualification || '').toLocaleLowerCase('tr');
+      return allowedLabels.some((label) => qualification.includes(label));
+    });
+  }, [assignedTeam, specialInstructorRoles, specialProfileCode, specialProfiles]);
+
+  const isHygieneSpecialProfile = ['hijyen_sanitasyon', 'gida_su_hijyeni'].includes(
+    specialProfileCode,
   );
+
+  useEffect(() => {
+    if (!isHygieneSpecialProfile || !instructorOptions.length) return;
+    if (instructorOptions.some((option) => option.value === form.instructor_name)) return;
+    const first = instructorOptions[0];
+    setForm((current) => ({
+      ...current,
+      instructor_name: first.value,
+      instructor_qualification: first.qualification || '',
+    }));
+  }, [form.instructor_name, instructorOptions, isHygieneSpecialProfile]);
 
   const instructorIsCustom = useMemo(
     () =>
@@ -639,8 +666,10 @@ export function TrainingPage({user}) {
       try {
         const sp = await api('/trainings/special-profiles');
         setSpecialProfiles(Array.isArray(sp?.profiles) ? sp.profiles : Array.isArray(sp) ? sp : []);
+        setSpecialInstructorRoles(Array.isArray(sp?.instructor_roles) ? sp.instructor_roles : []);
       } catch (_) {
         setSpecialProfiles([]);
+        setSpecialInstructorRoles([]);
       }
     } finally {
       setBusy(false);
@@ -1072,6 +1101,12 @@ export function TrainingPage({user}) {
       evaluation_method:
         (profile.evaluation_methods && profile.evaluation_methods[0]) || prev.evaluation_method,
       passing_score: 60,
+      instructor_name:
+        ['hijyen_sanitasyon', 'gida_su_hijyeni'].includes(code) ? '' : prev.instructor_name,
+      instructor_qualification:
+        ['hijyen_sanitasyon', 'gida_su_hijyeni'].includes(code)
+          ? ''
+          : prev.instructor_qualification,
       special_duration_hours: total || null,
       special_duration_hint: hint,
       // Özel eğitim çıktıları gerçek katılım ve değerlendirme doğrulanmadan kesinleşmez.
@@ -1975,10 +2010,12 @@ export function TrainingPage({user}) {
                         {o.value} — {o.qualification}
                       </option>
                     ))}
-                    <option value="__custom__">Başka biri (elle yazacağım)</option>
+                    {!isHygieneSpecialProfile && (
+                      <option value="__custom__">Başka biri (elle yazacağım)</option>
+                    )}
                   </select>
                 ) : null}
-                {(instructorOptions.length === 0 || instructorIsCustom) && (
+                {!isHygieneSpecialProfile && (instructorOptions.length === 0 || instructorIsCustom) && (
                   <input
                     className="tp-input"
                     style={instructorOptions.length > 0 ? {marginTop: 8} : undefined}
@@ -1988,13 +2025,19 @@ export function TrainingPage({user}) {
                     onChange={(e) => setForm({...form, instructor_name: e.target.value})}
                   />
                 )}
+                {isHygieneSpecialProfile && instructorOptions.length === 0 && (
+                  <div className="tp-alert" style={{marginTop: 8}}>
+                    Bu işyerine aktif görevlendirilmiş işyeri hekimi veya diğer sağlık personeli
+                    bulunmuyor. Hijyen eğitimi kaydı oluşturulamaz.
+                  </div>
+                )}
               </div>
               <div>
                 <label className="tp-label">Yeterlilik / unvan</label>
                 <input
                   className="tp-input"
                   value={form.instructor_qualification}
-                  disabled={!canEdit}
+                  disabled={!canEdit || isHygieneSpecialProfile}
                   onChange={(e) => setForm({...form, instructor_qualification: e.target.value})}
                 />
               </div>
@@ -2112,7 +2155,7 @@ export function TrainingPage({user}) {
                   disabled={!canEdit}
                   onChange={(e) => setForm((f) => ({...f, success_verified: e.target.checked}))}
                 />
-                <span><strong>Sınav / uygulama sonucu doğrulandı</strong><br /><small>20 soruluk sınav ve uygulamalı değerlendirme sonucu eğitici tarafından kontrol edildi.</small></span>
+                <span><strong>Sınav / uygulama sonucu doğrulandı</strong><br /><small>{selectedProfile?.exam_question_count || 20} soruluk sınav ve uygulamalı değerlendirme sonucu eğitici tarafından kontrol edildi.</small></span>
               </label>
               {savedTrainingId && form.attendance_verified && form.success_verified && canEdit && (
                 <button type="button" className="btn-outline-premium" style={{width: 'auto', marginTop: 8}} onClick={verifySpecialTraining} disabled={busy}>
@@ -2122,7 +2165,12 @@ export function TrainingPage({user}) {
             </div>
 
             {canEdit && (
-              <button type="submit" className="btn-premium" style={{marginTop: 14}} disabled={busy}>
+              <button
+                type="submit"
+                className="btn-premium"
+                style={{marginTop: 14}}
+                disabled={busy || (isHygieneSpecialProfile && instructorOptions.length === 0)}
+              >
                 {busy ? 'Kaydediliyor…' : 'Eğitimi Kaydet ve PDF Hazırla'}
               </button>
             )}
