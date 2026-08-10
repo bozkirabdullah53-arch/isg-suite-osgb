@@ -495,8 +495,11 @@ async function attach() {
 }
 
 function scheduleAttach() {
-  clearTimeout(attachTimer);
-  attachTimer = setTimeout(() => void attach(), 120);
+  if (attachTimer !== null) return;
+  attachTimer = setTimeout(() => {
+    attachTimer = null;
+    void attach();
+  }, 120);
 }
 
 new MutationObserver(scheduleAttach).observe(document.documentElement, {
