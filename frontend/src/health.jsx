@@ -225,17 +225,13 @@ export function HealthPage({user}) {
       const sumQs = new URLSearchParams();
       sumQs.set('company_id', String(nextCid));
 
-      const empQs = new URLSearchParams({active: 'true', company_id: String(nextCid)});
-
-      const [e, r, s, m, a] = await Promise.all([
-        api(`/employees?${empQs}`),
+      const [r, s, m, a] = await Promise.all([
         api(`/health-records?${recordQs}`),
         api(`/health-records/summary?${sumQs}`),
         api('/health-records/meta'),
         api(`/health-records/analysis?${sumQs}`),
       ]);
 
-      setEmployees(Array.isArray(e) ? e : []);
       setRows(Array.isArray(r) ? r : []);
       setSummary(s);
       setMeta(m);
@@ -252,6 +248,23 @@ export function HealthPage({user}) {
   }
 
   useEffect(() => { load(); }, [qs]);
+
+  // Personel listesi sağlık özetlerinden bağımsız yenilenir. Böylece bir
+  // analiz/özet isteği gecikse bile hekim seçilen işyerinin personelini
+  // yeni sağlık kaydında seçebilir.
+  useEffect(() => {
+    const cid = form.company_id || companyId;
+    if (!open || !cid) return undefined;
+    let cancelled = false;
+    api(`/employees?company_id=${encodeURIComponent(cid)}&active=true`)
+      .then((scoped) => {
+        if (!cancelled) setEmployees(Array.isArray(scoped) ? scoped : []);
+      })
+      .catch(() => {
+        // Ana yükleme hata mesajını koru; personel seçimi için tekrar denenebilir.
+      });
+    return () => { cancelled = true; };
+  }, [form.company_id, companyId, open]);
 
   useEffect(() => {
     if (!isPhysician) {
@@ -693,7 +706,7 @@ export function HealthPage({user}) {
                   value={form.employee_id}
                   onChange={(e) => applySuggest(e.target.value, form.company_id)}
                 >
-                  <option value="">{form.company_id ? (companyEmployees.length ? 'Seçiniz' : 'Bu firmada personel yok — Personel menüsünden ekleyin') : 'Önce firma seçin'}</option>
+                  <option value="">{form.company_id ? (companyEmployees.length ? `Seçiniz (${companyEmployees.length} aktif personel)` : 'Bu firmada aktif personel yok — Personel menüsünden ekleyin') : 'Önce firma seçin'}</option>
                   {companyEmployees.map((x) => (
                     <option key={x.id} value={x.id}>
                       {x.full_name}{x.job_title ? ` — ${x.job_title}` : ''}
