@@ -33,6 +33,7 @@ from app.services.training_question_bank import (
     validate_question_for_publish,
 )
 from app.services.training_exam_pdf import _load_or_create_snapshot, build_exam_pdf
+from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
 from app.services.training_topics import sectors_list_for_api
 
 
@@ -333,6 +334,77 @@ def test_exam_pdf_is_generated_with_twenty_questions(db: Session):
     snapshot = _load_or_create_snapshot(db, training, user.id)
     assert snapshot.question_count == QUESTION_COUNT
     assert len(snapshot.items) == QUESTION_COUNT
+
+
+def test_food_water_hygiene_exam_uses_ten_dedicated_questions(db: Session):
+    training, user = _seed_training(db)
+    company = db.get(Company, training.company_id)
+    training.title = "Gıda ve Su Sektöründe Hijyen Eğitimi"
+    training.training_type = "Gıda ve Su Sektöründe Hijyen Eğitimi"
+    training.instructor_name = "Dr. Ayşe Yılmaz"
+    training.instructor_qualification = "İşyeri Hekimi"
+    training.employer_representative = "Mehmet İşveren"
+    training.attendance_verified = True
+    training.success_verified = True
+    employee = Employee(
+        company_id=company.id,
+        full_name="Fatma Çalışan",
+        job_title="Gıda Üretim Personeli",
+        national_id_masked="***********",
+    )
+    db.add(employee)
+    db.flush()
+    db.add(TrainingParticipant(training_id=training.id, employee_id=employee.id))
+    db.commit()
+    db.refresh(training)
+
+    exam = create_exam_snapshot(db, training=training, created_by_id=user.id)
+
+    assert exam.question_count == 10
+    assert len(exam.items) == 10
+    assert exam.selection_policy == "special-gida-su-hijyeni-v2-20x10"
+    assert len({item.question_code for item in exam.items}) == 10
+    assert all(item.question_code.startswith("GSH-") for item in exam.items)
+    assert all('"gida_su_hijyeni"' in item.scopes_json for item in exam.items)
+
+    pdf = build_exam_pdf(
+        company_name="Gıda İşletmesi",
+        training=training,
+        db=db,
+        created_by_id=user.id,
+    )
+    assert pdf.startswith(b"%PDF")
+    assert _load_or_create_snapshot(db, training, user.id).id == exam.id
+
+    employees = {employee.id: employee}
+    certificate_text = "\n".join(
+        page.extract_text() or ""
+        for page in PdfReader(
+            BytesIO(
+                build_certificates_pdf(
+                    company_name=company.name,
+                    training=training,
+                    employees=employees,
+                )
+            )
+        ).pages
+    )
+    attendance_text = "\n".join(
+        page.extract_text() or ""
+        for page in PdfReader(
+            BytesIO(
+                build_attendance_pdf(
+                    company_name=company.name,
+                    training=training,
+                    employees=employees,
+                )
+            )
+        ).pages
+    )
+    assert "GIDA VE SU SEKTÖRÜNDE HİJYEN EĞİTİMİ KATILIM BELGESİ" in certificate_text
+    assert "Eğitimi Veren Sağlık Personeli" in certificate_text
+    assert "GIDA VE SU SEKTÖRÜNDE HİJYEN EĞİTİMİ" in attendance_text
+    assert "Eğitimi Veren Sağlık Personeli" in attendance_text
 
 
 
