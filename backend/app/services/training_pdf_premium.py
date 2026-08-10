@@ -83,6 +83,12 @@ def draw_certificate_page(
     if tp is None:
         from app.services import training_pdfs as tp
     curriculum = curriculum or {}
+    profile_key = str(
+        curriculum.get("profile_key")
+        or tp.resolve_training_document_titles(training).get("profile_key")
+        or ""
+    )
+    is_hygiene_profile = profile_key in {"hijyen_sanitasyon", "gida_su_hijyeni"}
     ml, mr = 7 * mm, 7 * mm
     uw = w - ml - mr
 
@@ -204,11 +210,19 @@ def draw_certificate_page(
     c.setFont(tp._FONT, 6.7)
     c.drawCentredString(w / 2 + 18 * mm, body_top - 21.5 * mm, egitim_tarihi)
 
-    legal = [
-        "Yukarıda adı geçen çalışanın, 6331 Sayılı Kanun Gereği, Çalışanların İş Sağlığı ve Güvenliği",
-        "Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında verilen, iş sağlığı ve güvenliği",
-        "eğitimlerini, başarıyla tamamlayarak bu eğitim belgesini almaya hak kazanmıştır.",
-    ]
+    legal = (
+        [
+            "Yukarıda adı geçen çalışan, işyerinde düzenlenen hijyen eğitimine katılmış ve",
+            "kişisel hijyen, bulaşma kontrolü, temizlik, dezenfeksiyon ve güvenli gıda/su",
+            "uygulamalarındaki değerlendirmeyi tamamlayarak bu katılım belgesini almaya hak kazanmıştır.",
+        ]
+        if is_hygiene_profile
+        else [
+            "Yukarıda adı geçen çalışanın, 6331 Sayılı Kanun Gereği, Çalışanların İş Sağlığı ve Güvenliği",
+            "Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik kapsamında verilen, iş sağlığı ve güvenliği",
+            "eğitimlerini, başarıyla tamamlayarak bu eğitim belgesini almaya hak kazanmıştır.",
+        ]
+    )
     c.setFillColorRGB(*MUTED)
     c.setFont(tp._FONT, 6.1)
     ly = body_top - 29 * mm
@@ -222,13 +236,20 @@ def draw_certificate_page(
     instructor = (training.instructor_name or "").strip()
     instructor_title = (training.instructor_qualification or "").strip() or "İSG Uzmanı"
     signers = (
-        ("Eğitimi Veren", instructor, instructor_title, NAVY_2),
-        ("Eğitimi Veren", physician, "İşyeri Hekimi", EMERALD),
-        ("Onaylayan", employer, "İşveren Vekili", NAVY),
+        (
+            ("Eğitimi Veren Sağlık Personeli", instructor, instructor_title, EMERALD),
+            ("Onaylayan", employer, "İşveren / İşveren Vekili", NAVY),
+        )
+        if is_hygiene_profile
+        else (
+            ("Eğitimi Veren", instructor, instructor_title, NAVY_2),
+            ("Eğitimi Veren", physician, "İşyeri Hekimi", EMERALD),
+            ("Onaylayan", employer, "İşveren Vekili", NAVY),
+        )
     )
     sig_y, sig_h = 89 * mm, 28 * mm
     gap = 6 * mm
-    box_w = (uw - 2 * gap) / 3
+    box_w = (uw - (len(signers) - 1) * gap) / len(signers)
     for i, (role, person, unvan, accent) in enumerate(signers):
         x = ml + i * (box_w + gap)
         c.setFillColorRGB(1, 1, 1)
