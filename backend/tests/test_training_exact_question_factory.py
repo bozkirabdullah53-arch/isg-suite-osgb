@@ -57,6 +57,18 @@ def test_every_official_nace_gets_fifteen_unique_source_controlled_questions():
     assert checked == 2141
 
 
+def test_nace_468306_exam_uses_wholesale_topics_not_metal_processing_fallback():
+    classification = resolve_exact_nace("46.83.06")
+    questions = exact_questions_from_snapshot(_snapshot_from_classification(classification))
+    labels = " ".join(item["topic_label"] for item in questions).casefold()
+
+    assert classification.content_profile_code == "metal_yapi_elemanlari_toptan"
+    for term in ("metal yapı eleman", "devril", "keskin kenar", "yükleme sahası", "yük sabitleme"):
+        assert term in labels
+    for unrelated in ("makine koruyucu", "torna", "freze", "akü şarj", "raf sistemleri", "transpalet"):
+        assert unrelated not in labels
+
+
 @pytest.fixture()
 def db() -> Session:
     engine = create_engine("sqlite:///:memory:")

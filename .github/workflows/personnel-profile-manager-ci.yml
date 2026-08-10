@@ -143,7 +143,7 @@ jobs:
           assert "uq_personnel_profile_company_professional" not in unique_names
           with engine.connect() as connection:
               revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
-          assert revision == "0083_profile_osgb_scope", revision
+          assert revision == "0085_nace_468306_training_fix", revision
           print("OK: OSGB professional and workplace employee profile scopes coexist")
           PY
       - name: Isolated profile migration rollback gate

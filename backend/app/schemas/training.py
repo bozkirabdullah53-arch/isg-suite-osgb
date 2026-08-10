@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from math import ceil
 from types import SimpleNamespace
+import unicodedata
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.models.entities import TrainingStatus
@@ -18,10 +19,16 @@ MAX_TRAINING_HOURS_PER_DAY = 8
 HAZARD_HOURS = {"Az Tehlikeli": 8, "Tehlikeli": 12, "Çok Tehlikeli": 16}
 
 
+def _fold_training_text(value: object) -> str:
+    """Türkçe büyük İ dahil eğitim türlerini karşılaştırılabilir metne çevirir."""
+    raw = unicodedata.normalize("NFKD", str(value or "").casefold())
+    return "".join(char for char in raw if not unicodedata.combining(char))
+
+
 def resolve_training_hours(*, training_type: str, title: str, notes: str | None, hazard_class: str) -> int:
     """Tek kaynaklı süre politikası: işe başlama 2 saat, tekrar 8 saat,
     temel eğitim tehlike sınıfı saati, özel profil ise katalog saati."""
-    text = f"{training_type or ''} {title or ''}".casefold()
+    text = _fold_training_text(f"{training_type or ''} {title or ''}")
     if 'işe başlama' in text or 'ise baslama' in text:
         return 2
     if 'bilgi yenileme' in text or 'bilgi tazeleme' in text:
@@ -58,6 +65,28 @@ class TrainingCreate(BaseModel):
     success_verified: bool = False
     notes: str | None = Field(default=None, max_length=2000)
     participant_ids: list[int] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def canonicalize_special_training_stamp(cls, values):
+        """Özel eğitimde gizli/eski form damgası profil kaydını bloke etmesin."""
+        if not isinstance(values, dict):
+            return values
+        special_key = resolve_special_profile_key(
+            SimpleNamespace(
+                training_type=values.get("training_type"),
+                title=values.get("title"),
+                notes=values.get("notes") or "",
+            )
+        )
+        if not special_key:
+            return values
+        canonical = str(
+            SPECIAL_TRAINING_PROFILES.get(special_key, {}).get("legal_basis") or ""
+        ).strip()
+        normalized = dict(values)
+        normalized["stamp_text"] = canonical[:400] or None
+        return normalized
 
     @model_validator(mode="after")
     def dates_valid(self):
@@ -132,7 +161,7 @@ class TrainingCreate(BaseModel):
             self.sector = str(classification.catalog_key)
             self.hazard_class = str(classification.hazard_class)
 
-        policy_text = f"{self.training_type or ''} {self.title or ''}".casefold()
+        policy_text = _fold_training_text(f"{self.training_type or ''} {self.title or ''}")
         is_record_only = (
             'işe başlama' in policy_text
             or 'ise baslama' in policy_text

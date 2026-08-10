@@ -102,11 +102,19 @@ def client(tmp_path, monkeypatch):
     engine = create_engine(url, connect_args={"check_same_thread": False})
     dbmod.engine = engine
     dbmod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+    import app.main as mainmod
+
+    mainmod.engine = engine
+    mainmod.SessionLocal = dbmod.SessionLocal
     ent.Base.metadata.create_all(bind=engine)
 
-    from app.main import app
-
-    return TestClient(app)
+    test_client = TestClient(mainmod.app)
+    try:
+        yield test_client
+    finally:
+        test_client.close()
+        engine.dispose()
 
 
 def _seed(client: TestClient) -> dict:
@@ -116,7 +124,9 @@ def _seed(client: TestClient) -> dict:
     from app.models.entities import (
         Company,
         Employee,
+        IsgProfessional,
         OsgbOrganization,
+        ProfessionalType,
         TrainingParticipant,
         TrainingSession,
         TrainingStatus,
@@ -143,6 +153,17 @@ def _seed(client: TestClient) -> dict:
         )
         db.add(user)
         db.flush()
+        db.add(
+            IsgProfessional(
+                osgb_id=osgb.id,
+                full_name="Egitim Uzman",
+                email="egitim-uzman@test.com",
+                professional_type=ProfessionalType.SAFETY_SPECIALIST,
+                certificate_class="B",
+                certificate_number="EGT-UZM-1",
+                is_active=True,
+            )
+        )
 
         gecerli = Employee(company_id=company.id, full_name="Gecerli Kisi", department="Uretim", is_active=True)
         dolmus = Employee(company_id=company.id, full_name="Dolmus Kisi", department="Depo", is_active=True)
@@ -380,7 +401,14 @@ def test_assigned_team_empty_when_no_assignment(client):
 def test_employee_status_requires_company_access(client):
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
-    from app.models.entities import Company, OsgbOrganization, User, UserRole
+    from app.models.entities import (
+        Company,
+        IsgProfessional,
+        OsgbOrganization,
+        ProfessionalType,
+        User,
+        UserRole,
+    )
 
     seed = _seed(client)
     with SessionLocal() as db:
@@ -398,6 +426,17 @@ def test_employee_status_requires_company_access(client):
                 role=UserRole.SAFETY_SPECIALIST,
                 osgb_id=other_osgb.id,
                 company_id=other_company.id,
+                is_active=True,
+            )
+        )
+        db.add(
+            IsgProfessional(
+                osgb_id=other_osgb.id,
+                full_name="Diger Uzman",
+                email="diger-uzman@test.com",
+                professional_type=ProfessionalType.SAFETY_SPECIALIST,
+                certificate_class="B",
+                certificate_number="DGR-UZM-1",
                 is_active=True,
             )
         )

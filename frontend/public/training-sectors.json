@@ -91,8 +91,8 @@
   },
   {
     "code": "nace_01_13_19",
-    "name": "Diğer sebze tohumlarının yetiştiriciliği (şeker pancarı tohumu dahil, diğer pancar tohumları",
-    "label": "01.13.19 / Diğer sebze tohumlarının yetiştiriciliği (şeker pancarı tohumu dahil, diğer pancar tohumları / Tehlikeli",
+    "name": "Diğer sebze tohumlarının yetiştiriciliği (şeker pancarı tohumu dahil, diğer pancar tohumları hariç)",
+    "label": "01.13.19 / Diğer sebze tohumlarının yetiştiriciliği (şeker pancarı tohumu dahil, diğer pancar tohumları hariç) / Tehlikeli",
     "hazard_class": "Tehlikeli",
     "nace": "01.13.19",
     "topics": [
@@ -106,8 +106,8 @@
   },
   {
     "code": "nace_01_13_20",
-    "name": "hariç) Meyvesi yenen sebzelerin yetiştirilmesi",
-    "label": "01.13.20 / hariç) Meyvesi yenen sebzelerin yetiştirilmesi / Tehlikeli",
+    "name": "Meyvesi yenen sebzelerin yetiştirilmesi",
+    "label": "01.13.20 / Meyvesi yenen sebzelerin yetiştirilmesi / Tehlikeli",
     "hazard_class": "Tehlikeli",
     "nace": "01.13.20",
     "topics": [
@@ -3676,8 +3676,8 @@
   },
   {
     "code": "nace_13_10_14",
-    "name": "Jüt, keten ve diğer bitkisel tekstil elyaflarının bükülmesi ve iplik haline getirilmesi (pamuk",
-    "label": "13.10.14 / Jüt, keten ve diğer bitkisel tekstil elyaflarının bükülmesi ve iplik haline getirilmesi (pamuk / Tehlikeli",
+    "name": "Jüt, keten ve diğer bitkisel tekstil elyaflarının bükülmesi ve iplik haline getirilmesi (pamuk hariç)",
+    "label": "13.10.14 / Jüt, keten ve diğer bitkisel tekstil elyaflarının bükülmesi ve iplik haline getirilmesi (pamuk hariç) / Tehlikeli",
     "hazard_class": "Tehlikeli",
     "nace": "13.10.14",
     "topics": [
@@ -3691,8 +3691,8 @@
   },
   {
     "code": "nace_13_10_15",
-    "name": "hariç) Suni ve sentetik elyafların bükülmesi ve iplik haline getirilmesi (filament ipliği ve suni ipek elyafı imalatı hariç)",
-    "label": "13.10.15 / hariç) Suni ve sentetik elyafların bükülmesi ve iplik haline getirilmesi (filament ipliği ve suni ipek elyafı imalatı hariç) / Tehlikeli",
+    "name": "Suni ve sentetik elyafların bükülmesi ve iplik haline getirilmesi (filament ipliği ve suni ipek elyafı imalatı hariç)",
+    "label": "13.10.15 / Suni ve sentetik elyafların bükülmesi ve iplik haline getirilmesi (filament ipliği ve suni ipek elyafı imalatı hariç) / Tehlikeli",
     "hazard_class": "Tehlikeli",
     "nace": "13.10.15",
     "topics": [
@@ -4951,8 +4951,8 @@
   },
   {
     "code": "nace_16_11_01",
-    "name": "Kereste imalatı (ağaçların biçilmesi, planyalanması, rendelenmesi ve şekillendirilmesi",
-    "label": "16.11.01 / Kereste imalatı (ağaçların biçilmesi, planyalanması, rendelenmesi ve şekillendirilmesi / Tehlikeli",
+    "name": "Kereste imalatı (ağaçların biçilmesi, planyalanması, rendelenmesi ve şekillendirilmesi faaliyetleri)",
+    "label": "16.11.01 / Kereste imalatı (ağaçların biçilmesi, planyalanması, rendelenmesi ve şekillendirilmesi faaliyetleri) / Tehlikeli",
     "hazard_class": "Tehlikeli",
     "nace": "16.11.01",
     "topics": [
@@ -4966,8 +4966,8 @@
   },
   {
     "code": "nace_16_11_02",
-    "name": "faaliyetleri) Ahşap demir yolu veya tramvay traversi imalatı",
-    "label": "16.11.02 / faaliyetleri) Ahşap demir yolu veya tramvay traversi imalatı / Tehlikeli",
+    "name": "Ahşap demir yolu veya tramvay traversi imalatı",
+    "label": "16.11.02 / Ahşap demir yolu veya tramvay traversi imalatı / Tehlikeli",
     "hazard_class": "Tehlikeli",
     "nace": "16.11.02",
     "topics": [
@@ -6061,8 +6061,8 @@
   },
   {
     "code": "nace_20_16_01",
-    "name": "Birincil formda poliamitler, üre reçineleri, melamin reçineleri, vb. plastik hammaddelerin",
-    "label": "20.16.01 / Birincil formda poliamitler, üre reçineleri, melamin reçineleri, vb. plastik hammaddelerin / Çok Tehlikeli",
+    "name": "Birincil formda poliamitler, üre reçineleri, melamin reçineleri, vb. plastik hammaddelerin imalatı",
+    "label": "20.16.01 / Birincil formda poliamitler, üre reçineleri, melamin reçineleri, vb. plastik hammaddelerin imalatı / Çok Tehlikeli",
     "hazard_class": "Çok Tehlikeli",
     "nace": "20.16.01",
     "topics": [
@@ -6076,8 +6076,8 @@
   },
   {
     "code": "nace_20_16_02",
-    "name": "imalatı Birincil formda alkid reçine, polyester reçine, epoksi reçine, poliasetal, polikarbonat ile diğer polieter ve polyester imalatı",
-    "label": "20.16.02 / imalatı Birincil formda alkid reçine, polyester reçine, epoksi reçine, poliasetal, polikarbonat ile diğer polieter ve polyester imalatı / Çok Tehlikeli",
+    "name": "Birincil formda alkid reçine, polyester reçine, epoksi reçine, poliasetal, polikarbonat ile diğer polieter ve polyester imalatı",
+    "label": "20.16.02 / Birincil formda alkid reçine, polyester reçine, epoksi reçine, poliasetal, polikarbonat ile diğer polieter ve polyester imalatı / Çok Tehlikeli",
     "hazard_class": "Çok Tehlikeli",
     "nace": "20.16.02",
     "topics": [
@@ -6466,8 +6466,8 @@
   },
   {
     "code": "nace_20_59_01",
-    "name": "Fotoğrafik levha ve filmlerin (hassaslaştırılmış, ışığa maruz kalmamış olanlar), anında baskılanan filmlerin, fotoğrafçılıkta kullanılan kimyasal müstahzarların ve karışımsız (saf)",
-    "label": "20.59.01 / Fotoğrafik levha ve filmlerin (hassaslaştırılmış, ışığa maruz kalmamış olanlar), anında baskılanan filmlerin, fotoğrafçılıkta kullanılan kimyasal müstahzarların ve karışımsız (saf) / Çok Tehlikeli",
+    "name": "Fotoğrafik levha ve filmlerin (hassaslaştırılmış, ışığa maruz kalmamış olanlar), anında baskılanan filmlerin, fotoğrafçılıkta kullanılan kimyasal müstahzarların ve karışımsız (saf) ürünlerin imalatı",
+    "label": "20.59.01 / Fotoğrafik levha ve filmlerin (hassaslaştırılmış, ışığa maruz kalmamış olanlar), anında baskılanan filmlerin, fotoğrafçılıkta kullanılan kimyasal müstahzarların ve karışımsız (saf) ürünlerin imalatı / Çok Tehlikeli",
     "hazard_class": "Çok Tehlikeli",
     "nace": "20.59.01",
     "topics": [
@@ -6481,8 +6481,8 @@
   },
   {
     "code": "nace_20_59_02",
-    "name": "ürünlerin imalatı Tutkal imalatı",
-    "label": "20.59.02 / ürünlerin imalatı Tutkal imalatı / Çok Tehlikeli",
+    "name": "Tutkal imalatı",
+    "label": "20.59.02 / Tutkal imalatı / Çok Tehlikeli",
     "hazard_class": "Çok Tehlikeli",
     "nace": "20.59.02",
     "topics": [
@@ -6601,8 +6601,8 @@
   },
   {
     "code": "nace_20_59_10",
-    "name": "Dekapaj (temizleme) müstahzarları, eritkenler, hazır vulkanizasyon hızlandırıcı maddeler, kauçuk veya plastikler için plastikleştirici bileşikler ve stabilizatörler, diğer katalitik",
-    "label": "20.59.10 / Dekapaj (temizleme) müstahzarları, eritkenler, hazır vulkanizasyon hızlandırıcı maddeler, kauçuk veya plastikler için plastikleştirici bileşikler ve stabilizatörler, diğer katalitik / Çok Tehlikeli",
+    "name": "Dekapaj (temizleme) müstahzarları, eritkenler, hazır vulkanizasyon hızlandırıcı maddeler, kauçuk veya plastikler için plastikleştirici bileşikler ve stabilizatörler, diğer katalitik müstahzarların imalatı",
+    "label": "20.59.10 / Dekapaj (temizleme) müstahzarları, eritkenler, hazır vulkanizasyon hızlandırıcı maddeler, kauçuk veya plastikler için plastikleştirici bileşikler ve stabilizatörler, diğer katalitik müstahzarların imalatı / Çok Tehlikeli",
     "hazard_class": "Çok Tehlikeli",
     "nace": "20.59.10",
     "topics": [
@@ -6616,8 +6616,8 @@
   },
   {
     "code": "nace_20_59_11",
-    "name": "müstahzarların imalatı Jelatin ve jelatin türevleri ile süt albüminlerinin imalatı (gıda endüstrisinde kullanılan jelatinler ve süt albüminleri hariç)",
-    "label": "20.59.11 / müstahzarların imalatı Jelatin ve jelatin türevleri ile süt albüminlerinin imalatı (gıda endüstrisinde kullanılan jelatinler ve süt albüminleri hariç) / Çok Tehlikeli",
+    "name": "Jelatin ve jelatin türevleri ile süt albüminlerinin imalatı (gıda endüstrisinde kullanılan jelatinler ve süt albüminleri hariç)",
+    "label": "20.59.11 / Jelatin ve jelatin türevleri ile süt albüminlerinin imalatı (gıda endüstrisinde kullanılan jelatinler ve süt albüminleri hariç) / Çok Tehlikeli",
     "hazard_class": "Çok Tehlikeli",
     "nace": "20.59.11",
     "topics": [
@@ -9796,8 +9796,8 @@
   },
   {
     "code": "nace_26_30_03",
-    "name": "Kızıl ötesi (enfraruj) sinyal kullanan iletişim cihazlarının imalatı (örn: uzaktan kumanda",
-    "label": "26.30.03 / Kızıl ötesi (enfraruj) sinyal kullanan iletişim cihazlarının imalatı (örn: uzaktan kumanda / Tehlikeli",
+    "name": "Kızıl ötesi (enfraruj) sinyal kullanan iletişim cihazlarının imalatı (örn: uzaktan kumanda cihazları)",
+    "label": "26.30.03 / Kızıl ötesi (enfraruj) sinyal kullanan iletişim cihazlarının imalatı (örn: uzaktan kumanda cihazları) / Tehlikeli",
     "hazard_class": "Tehlikeli",
     "nace": "26.30.03",
     "topics": [
@@ -9811,8 +9811,8 @@
   },
   {
     "code": "nace_26_30_05",
-    "name": "cihazları) Alıcı ve verici antenlerin imalatı (harici, teleskopik, çubuk, uydu, çanak ve hava ve deniz taşıtlarının antenleri)",
-    "label": "26.30.05 / cihazları) Alıcı ve verici antenlerin imalatı (harici, teleskopik, çubuk, uydu, çanak ve hava ve deniz taşıtlarının antenleri) / Tehlikeli",
+    "name": "Alıcı ve verici antenlerin imalatı (harici, teleskopik, çubuk, uydu, çanak ve hava ve deniz taşıtlarının antenleri)",
+    "label": "26.30.05 / Alıcı ve verici antenlerin imalatı (harici, teleskopik, çubuk, uydu, çanak ve hava ve deniz taşıtlarının antenleri) / Tehlikeli",
     "hazard_class": "Tehlikeli",
     "nace": "26.30.05",
     "topics": [
@@ -11131,8 +11131,8 @@
   },
   {
     "code": "nace_28_15_03",
-    "name": "Dişliler/dişli takımları, bilyeli ve makaralı vidalar, şanzımanlar, vites kutuları ve diğer hız değiştiricilerin imalatı (motorlu kara taşıtlarında kullanılan vites kutuları ve diferansiyelleri",
-    "label": "28.15.03 / Dişliler/dişli takımları, bilyeli ve makaralı vidalar, şanzımanlar, vites kutuları ve diğer hız değiştiricilerin imalatı (motorlu kara taşıtlarında kullanılan vites kutuları ve diferansiyelleri / Tehlikeli",
+    "name": "Dişliler/dişli takımları, bilyeli ve makaralı vidalar, şanzımanlar, vites kutuları ve diğer hız değiştiricilerin imalatı (motorlu kara taşıtlarında kullanılan vites kutuları ve diferansiyelleri hariç)",
+    "label": "28.15.03 / Dişliler/dişli takımları, bilyeli ve makaralı vidalar, şanzımanlar, vites kutuları ve diğer hız değiştiricilerin imalatı (motorlu kara taşıtlarında kullanılan vites kutuları ve diferansiyelleri hariç) / Tehlikeli",
     "hazard_class": "Tehlikeli",
     "nace": "28.15.03",
     "topics": [
@@ -11146,8 +11146,8 @@
   },
   {
     "code": "nace_28_15_04",
-    "name": "hariç) Volanlar ve kasnaklar ile mafsallı bağlantı zincirleri ve güç aktarım zincirlerinin imalatı",
-    "label": "28.15.04 / hariç) Volanlar ve kasnaklar ile mafsallı bağlantı zincirleri ve güç aktarım zincirlerinin imalatı / Tehlikeli",
+    "name": "Volanlar ve kasnaklar ile mafsallı bağlantı zincirleri ve güç aktarım zincirlerinin imalatı",
+    "label": "28.15.04 / Volanlar ve kasnaklar ile mafsallı bağlantı zincirleri ve güç aktarım zincirlerinin imalatı / Tehlikeli",
     "hazard_class": "Tehlikeli",
     "nace": "28.15.04",
     "topics": [
@@ -15061,8 +15061,8 @@
   },
   {
     "code": "nace_33_20_51",
-    "name": "Elektrikli ekipmanların kurulum hizmetleri (yollar, vb. için elektrikli sinyalizasyon ekipmanları hariç))",
-    "label": "33.20.51 / Elektrikli ekipmanların kurulum hizmetleri (yollar, vb. için elektrikli sinyalizasyon ekipmanları hariç)) / Tehlikeli",
+    "name": "Elektrikli ekipmanların kurulum hizmetleri (yollar, vb. için elektrikli sinyalizasyon ekipmanları hariç)",
+    "label": "33.20.51 / Elektrikli ekipmanların kurulum hizmetleri (yollar, vb. için elektrikli sinyalizasyon ekipmanları hariç) / Tehlikeli",
     "hazard_class": "Tehlikeli",
     "nace": "33.20.51",
     "topics": [
@@ -15526,8 +15526,8 @@
   },
   {
     "code": "nace_38_21_05",
-    "name": "Tasnif edilmiş metal dışı atıklar, hurdalar ve diğer parçaların genellikle mekanik veya kimyasal değişim işlemleri ile geri kazanılması (plastik atıkların kimyasal işlemlerle geri kazanılması",
-    "label": "38.21.05 / Tasnif edilmiş metal dışı atıklar, hurdalar ve diğer parçaların genellikle mekanik veya kimyasal değişim işlemleri ile geri kazanılması (plastik atıkların kimyasal işlemlerle geri kazanılması / Çok Tehlikeli",
+    "name": "Tasnif edilmiş metal dışı atıklar, hurdalar ve diğer parçaların genellikle mekanik veya kimyasal değişim işlemleri ile geri kazanılması (plastik atıkların kimyasal işlemlerle geri kazanılması hariç)",
+    "label": "38.21.05 / Tasnif edilmiş metal dışı atıklar, hurdalar ve diğer parçaların genellikle mekanik veya kimyasal değişim işlemleri ile geri kazanılması (plastik atıkların kimyasal işlemlerle geri kazanılması hariç) / Çok Tehlikeli",
     "hazard_class": "Çok Tehlikeli",
     "nace": "38.21.05",
     "topics": [
@@ -17056,8 +17056,8 @@
   },
   {
     "code": "nace_46_17_03",
-    "name": "Tütün ve tütün ürünlerinin toptan satışı ile ilgili aracıların faaliyetleri (aracı üretici birlikleri",
-    "label": "46.17.03 / Tütün ve tütün ürünlerinin toptan satışı ile ilgili aracıların faaliyetleri (aracı üretici birlikleri / Az Tehlikeli",
+    "name": "Tütün ve tütün ürünlerinin toptan satışı ile ilgili aracıların faaliyetleri (aracı üretici birlikleri dahil)",
+    "label": "46.17.03 / Tütün ve tütün ürünlerinin toptan satışı ile ilgili aracıların faaliyetleri (aracı üretici birlikleri dahil) / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "46.17.03",
     "topics": [
@@ -17071,8 +17071,8 @@
   },
   {
     "code": "nace_46_17_04",
-    "name": "dahil) İçeceklerin toptan satışı ile ilgili aracıların faaliyetleri",
-    "label": "46.17.04 / dahil) İçeceklerin toptan satışı ile ilgili aracıların faaliyetleri / Az Tehlikeli",
+    "name": "İçeceklerin toptan satışı ile ilgili aracıların faaliyetleri",
+    "label": "46.17.04 / İçeceklerin toptan satışı ile ilgili aracıların faaliyetleri / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "46.17.04",
     "topics": [
@@ -17896,8 +17896,8 @@
   },
   {
     "code": "nace_46_38_02",
-    "name": "Ev hayvanları için yemlerin veya yiyeceklerin toptan ticareti (çiftlik hayvanları için olanlar",
-    "label": "46.38.02 / Ev hayvanları için yemlerin veya yiyeceklerin toptan ticareti (çiftlik hayvanları için olanlar / Az Tehlikeli",
+    "name": "Ev hayvanları için yemlerin veya yiyeceklerin toptan ticareti (çiftlik hayvanları için olanlar hariç)",
+    "label": "46.38.02 / Ev hayvanları için yemlerin veya yiyeceklerin toptan ticareti (çiftlik hayvanları için olanlar hariç) / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "46.38.02",
     "topics": [
@@ -17911,8 +17911,8 @@
   },
   {
     "code": "nace_46_38_03",
-    "name": "hariç) Gıda tuzu (sofra tuzu) toptan ticareti",
-    "label": "46.38.03 / hariç) Gıda tuzu (sofra tuzu) toptan ticareti / Az Tehlikeli",
+    "name": "Gıda tuzu (sofra tuzu) toptan ticareti",
+    "label": "46.38.03 / Gıda tuzu (sofra tuzu) toptan ticareti / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "46.38.03",
     "topics": [
@@ -18841,8 +18841,8 @@
   },
   {
     "code": "nace_46_61_02",
-    "name": "Tarım, hayvancılık ve ormancılık makine ve ekipmanları ile aksam ve parçalarının toptan",
-    "label": "46.61.02 / Tarım, hayvancılık ve ormancılık makine ve ekipmanları ile aksam ve parçalarının toptan / Az Tehlikeli",
+    "name": "Tarım, hayvancılık ve ormancılık makine ve ekipmanları ile aksam ve parçalarının toptan ticareti",
+    "label": "46.61.02 / Tarım, hayvancılık ve ormancılık makine ve ekipmanları ile aksam ve parçalarının toptan ticareti / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "46.61.02",
     "topics": [
@@ -18856,8 +18856,8 @@
   },
   {
     "code": "nace_46_61_03",
-    "name": "ticareti Çim biçme ve bahçe makine ve ekipmanları ile aksam ve parçalarının toptan ticareti",
-    "label": "46.61.03 / ticareti Çim biçme ve bahçe makine ve ekipmanları ile aksam ve parçalarının toptan ticareti / Az Tehlikeli",
+    "name": "Çim biçme ve bahçe makine ve ekipmanları ile aksam ve parçalarının toptan ticareti",
+    "label": "46.61.03 / Çim biçme ve bahçe makine ve ekipmanları ile aksam ve parçalarının toptan ticareti / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "46.61.03",
     "topics": [
@@ -19111,8 +19111,8 @@
   },
   {
     "code": "nace_46_64_13",
-    "name": "Sanayi, ticaret, seyrüsefer ve diğer hizmetlerde kullanılmak üzere başka yerde sınıflandırılmamış diğer makinelere ait parçaların toptan ticareti (motorlu kara taşıtları için",
-    "label": "46.64.13 / Sanayi, ticaret, seyrüsefer ve diğer hizmetlerde kullanılmak üzere başka yerde sınıflandırılmamış diğer makinelere ait parçaların toptan ticareti (motorlu kara taşıtları için / Az Tehlikeli",
+    "name": "Sanayi, ticaret, seyrüsefer ve diğer hizmetlerde kullanılmak üzere başka yerde sınıflandırılmamış diğer makinelere ait parçaların toptan ticareti (motorlu kara taşıtları için olanlar hariç)",
+    "label": "46.64.13 / Sanayi, ticaret, seyrüsefer ve diğer hizmetlerde kullanılmak üzere başka yerde sınıflandırılmamış diğer makinelere ait parçaların toptan ticareti (motorlu kara taşıtları için olanlar hariç) / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "46.64.13",
     "topics": [
@@ -19126,8 +19126,8 @@
   },
   {
     "code": "nace_46_64_14",
-    "name": "olanlar hariç) Zırhlı veya güçlendirilmiş kasalar ve kutular ile kasa daireleri için zırhlı veya güçlendirilmiş kapılar ve kilitli kutular ile para veya evrak kutuları, vb. (adi metalden) toptan ticareti",
-    "label": "46.64.14 / olanlar hariç) Zırhlı veya güçlendirilmiş kasalar ve kutular ile kasa daireleri için zırhlı veya güçlendirilmiş kapılar ve kilitli kutular ile para veya evrak kutuları, vb. (adi metalden) toptan ticareti / Az Tehlikeli",
+    "name": "Zırhlı veya güçlendirilmiş kasalar ve kutular ile kasa daireleri için zırhlı veya güçlendirilmiş kapılar ve kilitli kutular ile para veya evrak kutuları, vb. (adi metalden) toptan ticareti",
+    "label": "46.64.14 / Zırhlı veya güçlendirilmiş kasalar ve kutular ile kasa daireleri için zırhlı veya güçlendirilmiş kapılar ve kilitli kutular ile para veya evrak kutuları, vb. (adi metalden) toptan ticareti / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "46.64.14",
     "topics": [
@@ -19966,8 +19966,8 @@
   },
   {
     "code": "nace_46_85_03",
-    "name": "Zirai kimyasal ürünlerin toptan ticareti (haşere ilaçları, yabancı ot ilaçları, dezenfektanlar, mantar ilaçları, çimlenmeyi önleyici ürünler, bitki gelişimini düzenleyiciler ve diğer zirai",
-    "label": "46.85.03 / Zirai kimyasal ürünlerin toptan ticareti (haşere ilaçları, yabancı ot ilaçları, dezenfektanlar, mantar ilaçları, çimlenmeyi önleyici ürünler, bitki gelişimini düzenleyiciler ve diğer zirai / Tehlikeli",
+    "name": "Zirai kimyasal ürünlerin toptan ticareti (haşere ilaçları, yabancı ot ilaçları, dezenfektanlar, mantar ilaçları, çimlenmeyi önleyici ürünler, bitki gelişimini düzenleyiciler ve diğer zirai kimyasal ürünler)",
+    "label": "46.85.03 / Zirai kimyasal ürünlerin toptan ticareti (haşere ilaçları, yabancı ot ilaçları, dezenfektanlar, mantar ilaçları, çimlenmeyi önleyici ürünler, bitki gelişimini düzenleyiciler ve diğer zirai kimyasal ürünler) / Tehlikeli",
     "hazard_class": "Tehlikeli",
     "nace": "46.85.03",
     "topics": [
@@ -19981,8 +19981,8 @@
   },
   {
     "code": "nace_46_85_04",
-    "name": "kimyasal ürünler) Hayvansal veya bitkisel gübrelerin toptan ticareti (kapalı alanda yapılan ticaret)",
-    "label": "46.85.04 / kimyasal ürünler) Hayvansal veya bitkisel gübrelerin toptan ticareti (kapalı alanda yapılan ticaret) / Çok Tehlikeli",
+    "name": "Hayvansal veya bitkisel gübrelerin toptan ticareti (kapalı alanda yapılan ticaret)",
+    "label": "46.85.04 / Hayvansal veya bitkisel gübrelerin toptan ticareti (kapalı alanda yapılan ticaret) / Çok Tehlikeli",
     "hazard_class": "Çok Tehlikeli",
     "nace": "46.85.04",
     "topics": [
@@ -21121,8 +21121,8 @@
   },
   {
     "code": "nace_47_52_15",
-    "name": "Demirden veya çelikten merkezi ısıtma radyatörleri, merkezi ısıtma kazanları (kombiler dahil) ile bunların parçalarının perakende ticareti (buhar jeneratörleri ve kızgın su üreten kazanlar",
-    "label": "47.52.15 / Demirden veya çelikten merkezi ısıtma radyatörleri, merkezi ısıtma kazanları (kombiler dahil) ile bunların parçalarının perakende ticareti (buhar jeneratörleri ve kızgın su üreten kazanlar / Az Tehlikeli",
+    "name": "Demirden veya çelikten merkezi ısıtma radyatörleri, merkezi ısıtma kazanları (kombiler dahil) ile bunların parçalarının perakende ticareti (buhar jeneratörleri ve kızgın su üreten kazanlar hariç)",
+    "label": "47.52.15 / Demirden veya çelikten merkezi ısıtma radyatörleri, merkezi ısıtma kazanları (kombiler dahil) ile bunların parçalarının perakende ticareti (buhar jeneratörleri ve kızgın su üreten kazanlar hariç) / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "47.52.15",
     "topics": [
@@ -21136,8 +21136,8 @@
   },
   {
     "code": "nace_47_52_16",
-    "name": "hariç) Çim biçme ve bahçe ekipmanları perakende ticareti (kar küreyiciler dahil) (tarımda kullanılan el aletleri hariç)",
-    "label": "47.52.16 / hariç) Çim biçme ve bahçe ekipmanları perakende ticareti (kar küreyiciler dahil) (tarımda kullanılan el aletleri hariç) / Az Tehlikeli",
+    "name": "Çim biçme ve bahçe ekipmanları perakende ticareti (kar küreyiciler dahil) (tarımda kullanılan el aletleri hariç)",
+    "label": "47.52.16 / Çim biçme ve bahçe ekipmanları perakende ticareti (kar küreyiciler dahil) (tarımda kullanılan el aletleri hariç) / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "47.52.16",
     "topics": [
@@ -22381,8 +22381,8 @@
   },
   {
     "code": "nace_47_78_04",
-    "name": "Hediyelik eşyaların, el işi ürünlerin ve imitasyon takıların perakende ticareti (sanat eserleri",
-    "label": "47.78.04 / Hediyelik eşyaların, el işi ürünlerin ve imitasyon takıların perakende ticareti (sanat eserleri / Az Tehlikeli",
+    "name": "Hediyelik eşyaların, el işi ürünlerin ve imitasyon takıların perakende ticareti (sanat eserleri hariç)",
+    "label": "47.78.04 / Hediyelik eşyaların, el işi ürünlerin ve imitasyon takıların perakende ticareti (sanat eserleri hariç) / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "47.78.04",
     "topics": [
@@ -22396,8 +22396,8 @@
   },
   {
     "code": "nace_47_78_07",
-    "name": "hariç) Optik ve hassas aletlerin perakende ticareti (mikroskop, dürbün ve pusula dahil; gözlük camı, fotoğrafik ürünler hariç)",
-    "label": "47.78.07 / hariç) Optik ve hassas aletlerin perakende ticareti (mikroskop, dürbün ve pusula dahil; gözlük camı, fotoğrafik ürünler hariç) / Az Tehlikeli",
+    "name": "Optik ve hassas aletlerin perakende ticareti (mikroskop, dürbün ve pusula dahil; gözlük camı, fotoğrafik ürünler hariç)",
+    "label": "47.78.07 / Optik ve hassas aletlerin perakende ticareti (mikroskop, dürbün ve pusula dahil; gözlük camı, fotoğrafik ürünler hariç) / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "47.78.07",
     "topics": [
@@ -23116,8 +23116,8 @@
   },
   {
     "code": "nace_49_41_05",
-    "name": "Kara yolu ile canlı hayvan taşımacılığı (çiftlik hayvanları, kümes hayvanları, vahşi hayvanlar",
-    "label": "49.41.05 / Kara yolu ile canlı hayvan taşımacılığı (çiftlik hayvanları, kümes hayvanları, vahşi hayvanlar / Tehlikeli",
+    "name": "Kara yolu ile canlı hayvan taşımacılığı (çiftlik hayvanları, kümes hayvanları, vahşi hayvanlar vb.)",
+    "label": "49.41.05 / Kara yolu ile canlı hayvan taşımacılığı (çiftlik hayvanları, kümes hayvanları, vahşi hayvanlar vb.) / Tehlikeli",
     "hazard_class": "Tehlikeli",
     "nace": "49.41.05",
     "topics": [
@@ -23131,8 +23131,8 @@
   },
   {
     "code": "nace_49_41_06",
-    "name": "vb.) Sürücüsü ile birlikte kamyon, beton mikseri ve diğer motorlu yük taşıma araçlarının kiralanması",
-    "label": "49.41.06 / vb.) Sürücüsü ile birlikte kamyon, beton mikseri ve diğer motorlu yük taşıma araçlarının kiralanması / Az Tehlikeli",
+    "name": "Sürücüsü ile birlikte kamyon, beton mikseri ve diğer motorlu yük taşıma araçlarının kiralanması",
+    "label": "49.41.06 / Sürücüsü ile birlikte kamyon, beton mikseri ve diğer motorlu yük taşıma araçlarının kiralanması / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "49.41.06",
     "topics": [
@@ -25171,8 +25171,8 @@
   },
   {
     "code": "nace_58_13_02",
-    "name": "Eğitime destek amaçlı dergi ve süreli yayınların yayımlanması (haftada dörtten az",
-    "label": "58.13.02 / Eğitime destek amaçlı dergi ve süreli yayınların yayımlanması (haftada dörtten az / Az Tehlikeli",
+    "name": "Eğitime destek amaçlı dergi ve süreli yayınların yayımlanması (haftada dörtten az yayımlananlar)",
+    "label": "58.13.02 / Eğitime destek amaçlı dergi ve süreli yayınların yayımlanması (haftada dörtten az yayımlananlar) / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "58.13.02",
     "topics": [
@@ -25186,8 +25186,8 @@
   },
   {
     "code": "nace_58_13_03",
-    "name": "yayımlananlar) Bilimsel, teknik, kültürel vb. dergi ve süreli yayınların yayımlanması (haftada dörtten az yayımlananlar)",
-    "label": "58.13.03 / yayımlananlar) Bilimsel, teknik, kültürel vb. dergi ve süreli yayınların yayımlanması (haftada dörtten az yayımlananlar) / Az Tehlikeli",
+    "name": "Bilimsel, teknik, kültürel vb. dergi ve süreli yayınların yayımlanması (haftada dörtten az yayımlananlar)",
+    "label": "58.13.03 / Bilimsel, teknik, kültürel vb. dergi ve süreli yayınların yayımlanması (haftada dörtten az yayımlananlar) / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "58.13.03",
     "topics": [
@@ -27646,8 +27646,8 @@
   },
   {
     "code": "nace_77_33_03",
-    "name": "Bilgisayar ve çevre birimlerinin operatörsüz olarak kiralanması ve leasingi (finansal leasing",
-    "label": "77.33.03 / Bilgisayar ve çevre birimlerinin operatörsüz olarak kiralanması ve leasingi (finansal leasing / Az Tehlikeli",
+    "name": "Bilgisayar ve çevre birimlerinin operatörsüz olarak kiralanması ve leasingi (finansal leasing hariç)",
+    "label": "77.33.03 / Bilgisayar ve çevre birimlerinin operatörsüz olarak kiralanması ve leasingi (finansal leasing hariç) / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "77.33.03",
     "topics": [
@@ -27856,8 +27856,8 @@
   },
   {
     "code": "nace_78_10_01",
-    "name": "İş bulma acentelerinin faaliyetleri (işe girecek kişilerin seçimi ve yerleştirilmesi faaliyetleri",
-    "label": "78.10.01 / İş bulma acentelerinin faaliyetleri (işe girecek kişilerin seçimi ve yerleştirilmesi faaliyetleri / Az Tehlikeli",
+    "name": "İş bulma acentelerinin faaliyetleri (işe girecek kişilerin seçimi ve yerleştirilmesi faaliyetleri dahil)",
+    "label": "78.10.01 / İş bulma acentelerinin faaliyetleri (işe girecek kişilerin seçimi ve yerleştirilmesi faaliyetleri dahil) / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "78.10.01",
     "topics": [
@@ -27871,8 +27871,8 @@
   },
   {
     "code": "nace_78_10_04",
-    "name": "dahil) Oyuncu seçme ajansları ve bürolarının faaliyetleri",
-    "label": "78.10.04 / dahil) Oyuncu seçme ajansları ve bürolarının faaliyetleri / Az Tehlikeli",
+    "name": "Oyuncu seçme ajansları ve bürolarının faaliyetleri",
+    "label": "78.10.04 / Oyuncu seçme ajansları ve bürolarının faaliyetleri / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "78.10.04",
     "topics": [
@@ -28081,8 +28081,8 @@
   },
   {
     "code": "nace_81_22_05",
-    "name": "faaliyetleri Yeni binaların inşaat sonrası temizliği",
-    "label": "81.22.05 / faaliyetleri Yeni binaların inşaat sonrası temizliği / Az Tehlikeli",
+    "name": "Yeni binaların inşaat sonrası temizliği",
+    "label": "81.22.05 / Yeni binaların inşaat sonrası temizliği / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "81.22.05",
     "topics": [
@@ -30226,8 +30226,8 @@
   },
   {
     "code": "nace_91_30_00",
-    "name": "Kültürel mirasın konservasyonu, restorasyonu ve diğer destek faaliyetleri (müzeler ve özel koleksiyonlar dahil",
-    "label": "91.30.00 / Kültürel mirasın konservasyonu, restorasyonu ve diğer destek faaliyetleri (müzeler ve özel koleksiyonlar dahil / Çok Tehlikeli",
+    "name": "Kültürel mirasın konservasyonu, restorasyonu ve diğer destek faaliyetleri (müzeler ve özel koleksiyonlar dahil)",
+    "label": "91.30.00 / Kültürel mirasın konservasyonu, restorasyonu ve diğer destek faaliyetleri (müzeler ve özel koleksiyonlar dahil) / Çok Tehlikeli",
     "hazard_class": "Çok Tehlikeli",
     "nace": "91.30.00",
     "topics": [
@@ -30961,8 +30961,8 @@
   },
   {
     "code": "nace_94_99_16",
-    "name": "Engellilere, etnik gruplara ve azınlıklara yönelik üyelik gerektiren birlik ve kuruluşların",
-    "label": "94.99.16 / Engellilere, etnik gruplara ve azınlıklara yönelik üyelik gerektiren birlik ve kuruluşların / Az Tehlikeli",
+    "name": "Engellilere, etnik gruplara ve azınlıklara yönelik üyelik gerektiren birlik ve kuruluşların faaliyetleri",
+    "label": "94.99.16 / Engellilere, etnik gruplara ve azınlıklara yönelik üyelik gerektiren birlik ve kuruluşların faaliyetleri / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "94.99.16",
     "topics": [
@@ -30976,8 +30976,8 @@
   },
   {
     "code": "nace_94_99_17",
-    "name": "faaliyetleri Üyelik gerektiren, toplumsal hayatı geliştirme ve iyileştirmeye yönelik oluşturulan birlik ve kuruluşların faaliyetleri",
-    "label": "94.99.17 / faaliyetleri Üyelik gerektiren, toplumsal hayatı geliştirme ve iyileştirmeye yönelik oluşturulan birlik ve kuruluşların faaliyetleri / Az Tehlikeli",
+    "name": "Üyelik gerektiren, toplumsal hayatı geliştirme ve iyileştirmeye yönelik oluşturulan birlik ve kuruluşların faaliyetleri",
+    "label": "94.99.17 / Üyelik gerektiren, toplumsal hayatı geliştirme ve iyileştirmeye yönelik oluşturulan birlik ve kuruluşların faaliyetleri / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "94.99.17",
     "topics": [
@@ -31081,8 +31081,8 @@
   },
   {
     "code": "nace_94_99_24",
-    "name": "Üyelik gerektiren mezun dernek ve birliklerinin faaliyetleri (profesyonel meslek kuruluşları",
-    "label": "94.99.24 / Üyelik gerektiren mezun dernek ve birliklerinin faaliyetleri (profesyonel meslek kuruluşları / Az Tehlikeli",
+    "name": "Üyelik gerektiren mezun dernek ve birliklerinin faaliyetleri (profesyonel meslek kuruluşları hariç)",
+    "label": "94.99.24 / Üyelik gerektiren mezun dernek ve birliklerinin faaliyetleri (profesyonel meslek kuruluşları hariç) / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "94.99.24",
     "topics": [
@@ -31096,8 +31096,8 @@
   },
   {
     "code": "nace_94_99_99",
-    "name": "hariç) Üyelik gerektiren, başka yerde sınıflandırılmamış diğer üye olunan kuruluşların faaliyetleri (klasik araba birlikleri, kiracı birlikleri vb. dahil)",
-    "label": "94.99.99 / hariç) Üyelik gerektiren, başka yerde sınıflandırılmamış diğer üye olunan kuruluşların faaliyetleri (klasik araba birlikleri, kiracı birlikleri vb. dahil) / Az Tehlikeli",
+    "name": "Üyelik gerektiren, başka yerde sınıflandırılmamış diğer üye olunan kuruluşların faaliyetleri (klasik araba birlikleri, kiracı birlikleri vb. dahil)",
+    "label": "94.99.99 / Üyelik gerektiren, başka yerde sınıflandırılmamış diğer üye olunan kuruluşların faaliyetleri (klasik araba birlikleri, kiracı birlikleri vb. dahil) / Az Tehlikeli",
     "hazard_class": "Az Tehlikeli",
     "nace": "94.99.99",
     "topics": [

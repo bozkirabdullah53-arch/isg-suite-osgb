@@ -119,6 +119,53 @@ def test_nace_468306_uses_metal_structure_wholesale_topics():
     for unrelated in ("akü şarj", "raf sistemleri", "transpalet"):
         assert unrelated not in joined
 
+
+@pytest.mark.parametrize(
+    ("nace", "profile", "topic_term"),
+    [
+        ("01.48.01", "aricilik", "arı sokmaları"),
+        ("01.48.02", "hayvancilik", "hayvan"),
+        ("20.51.24", "petrol_rafineri_depolama", "yanıcı"),
+        ("46.17.04", "ticaret_aracilik_ofis", "müşteri ve tedarikçi"),
+        ("46.23.01", "canli_hayvan_toptan", "hayvan tekmesi"),
+        ("46.31.01", "gida_toptan_depo", "soğuk zincir"),
+        ("46.44.02", "kimyasal_toptan_depo", "güvenlik bilgi formu"),
+        ("46.46.01", "ecza_medikal_toptan", "izlenebilirlik"),
+        ("46.64.10", "patlayici", "patlayıcı"),
+        ("46.81.01", "yakit_toptan_depo", "statik elektrik"),
+        ("46.85.03", "kimyasal_toptan_depo", "uyumsuz kimyasallar"),
+        ("46.87.01", "atik_hurda_toptan", "tehlikeli atık"),
+        ("47.76.03", "kimyasal_perakende", "güvenlik bilgi formu"),
+        ("47.78.10", "yakit_toptan_depo", "yangın"),
+        ("52.32.00", "ofis", "ekranlı araçlar"),
+        ("88.91.01", "egitim_kurumu", "öğrenci"),
+        ("91.30.00", "insaat", "yüksekte çalışma"),
+    ],
+)
+def test_reviewed_cross_section_nace_profiles(nace: str, profile: str, topic_term: str):
+    result = resolve_exact_nace(nace)
+
+    assert result.content_profile_code == profile
+    assert topic_term in " ".join(result.training_topics).casefold()
+    assert result.classification_status == "verified"
+
+
+@pytest.mark.parametrize(
+    ("nace", "expected_name"),
+    [
+        ("01.13.19", "diğer pancar tohumları hariç)"),
+        ("20.59.02", "Tutkal imalatı"),
+        ("46.64.14", "Zırhlı veya güçlendirilmiş kasalar"),
+        ("47.52.16", "Çim biçme ve bahçe ekipmanları"),
+        ("78.10.04", "Oyuncu seçme ajansları"),
+        ("94.99.99", "Üyelik gerektiren"),
+    ],
+)
+def test_wrapped_official_activity_names_are_repaired(nace: str, expected_name: str):
+    result = resolve_exact_nace(nace)
+
+    assert expected_name.casefold() in result.nace_description.casefold()
+
 def test_numeric_exact_nace_resolves_to_same_catalog_row():
     key = _first_catalog_key("86.")
     first = resolve_exact_nace(key)

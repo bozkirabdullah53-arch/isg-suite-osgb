@@ -115,7 +115,15 @@ def install_training_lifecycle_v2_content_guards() -> dict[str, str]:
         _original_exam_builder = current_exam
 
         @wraps(current_exam)
-        def premium_exam_builder(*, company_name: str, training, db, created_by_id: int) -> bytes:
+        def premium_exam_builder(
+            *,
+            company_name: str,
+            training,
+            db,
+            created_by_id: int,
+            include_answer_key: bool = False,
+            answer_key_only: bool = False,
+        ) -> bytes:
             kind = _record_only_kind(training)
             if kind:
                 raise ValueError(
@@ -127,6 +135,8 @@ def install_training_lifecycle_v2_content_guards() -> dict[str, str]:
                 training=training,
                 db=db,
                 created_by_id=created_by_id,
+                include_answer_key=include_answer_key,
+                answer_key_only=answer_key_only,
             )
 
         premium_exam_builder._premium_training_lifecycle_v2 = True

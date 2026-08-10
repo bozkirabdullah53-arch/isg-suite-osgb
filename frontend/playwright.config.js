@@ -2,6 +2,9 @@ import {defineConfig, devices} from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  // The company-scoped read-only pilot was replaced by the OSGB-professional
+  // card flow. Current coverage lives in personnel-profile-sidebar/documents.
+  testIgnore: ["**/personnel-profile-readonly.spec.js"],
   timeout: 60_000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

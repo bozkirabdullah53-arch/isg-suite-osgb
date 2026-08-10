@@ -1,0 +1,139 @@
+{
+  "items": [
+    {
+      "question_code": "TR-SEK-MYT-001", "version": 1,
+      "topic_code": "MYT-KALDIRMA-PLAN", "topic_label": "Uzun ve ağır metal yapı elemanlarının kaldırılması",
+      "question_text": "Uzun bir metal yapı elemanı vinçle araca yüklenmeden önce en doğru hazırlık hangisidir?",
+      "options": ["Yükün ağırlık ve ağırlık merkezini belirleyip uygun kapasiteli ekipman ve sapanla kaldırma planı yapmak", "Yükü tek noktadan bağlayıp deneme kaldırması yapmadan hızla taşımak", "Çalışanların yükü elleriyle yönlendirmesine güvenmek", "Yalnız aracın sürücüsünden sözlü onay almak"],
+      "correct_option": "A", "answer_explanation": "Yükün ağırlığı, geometrisi ve ağırlık merkezi bilinmeli; kaldırma ekipmanı ile bağlantı elemanlarının kapasitesi buna göre seçilmelidir.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği", "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/", "reference": "Kaldırma ekipmanları ve yüklerin güvenli taşınması"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-002", "version": 1,
+      "topic_code": "MYT-SAPAN", "topic_label": "Kaldırma aparatları ve sapan kontrolü",
+      "question_text": "Metal profil demeti kaldırılırken sapanlarla ilgili hangi uygulama doğrudur?",
+      "options": ["Hasarlı olsa da kapasitesi yüksek görünen sapanı kullanmak", "Etiketi okunur, periyodik kontrolü geçerli ve yüke uygun sapan kullanmak", "Keskin kenara sapanı koruyucusuz temas ettirmek", "Sapan açısını hesaba katmamak"],
+      "correct_option": "B", "answer_explanation": "Sapanın tanımlanabilir, kontrol edilmiş, kapasite ve açı bakımından yüke uygun olması; keskin kenarlarda korunması gerekir.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği", "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/", "reference": "Kaldırma aksesuarlarının güvenli kullanımı"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-003", "version": 1,
+      "topic_code": "MYT-ASILI-YUK", "topic_label": "Asılı yük altında çalışma yasağı",
+      "question_text": "Vinçle kaldırılan metal konstrüksiyon elemanı hareket hâlindeyken çalışan nerede bulunmalıdır?",
+      "options": ["Yükün altında, salınımı eliyle durduracak yerde", "Yük ile araç arasında", "Belirlenmiş güvenli mesafede ve yükün düşme-salınım alanı dışında", "Operatörün göremediği kör noktada"],
+      "correct_option": "C", "answer_explanation": "Hiç kimse asılı yükün altında veya yükün düşme, salınım ve sıkıştırma bölgesinde bulunmamalıdır.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği", "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/", "reference": "Asılı yükler ve tehlikeli bölge güvenliği"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-004", "version": 1,
+      "topic_code": "MYT-ISTIF-TAKOZ", "topic_label": "Metal elemanların takozlanması ve istifi",
+      "question_text": "Yuvarlanabilecek veya kayabilecek metal profiller nasıl istiflenmelidir?",
+      "options": ["Eğimli zeminde serbest bırakılarak", "Geçiş yoluna taşacak biçimde", "Yalnız üst sıraya bağ atılarak", "Düz ve taşıma kapasiteli zeminde uygun takoz, ayırıcı ve sabitlemelerle"],
+      "correct_option": "D", "answer_explanation": "İstif zemini uygun olmalı; elemanların yuvarlanma, kayma ve devrilmesi takoz ve sabitlemelerle önlenmelidir.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. ÇSGB – İşyerlerinde Güvenli İstifleme", "url": "https://www.csgb.gov.tr/isggm/", "reference": "Malzemelerin devrilme ve kaymaya karşı güvenli istiflenmesi"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-005", "version": 1,
+      "topic_code": "MYT-ISTIF-KAPASITE", "topic_label": "İstif alanı kapasitesi ve düzeni",
+      "question_text": "Metal yapı elemanları açık sahada istiflenirken hangi bilgi mutlaka dikkate alınmalıdır?",
+      "options": ["Zeminin taşıma kapasitesi, istif yüksekliği ve malzemenin kararlılığı", "Yalnız ürünün satış fiyatı", "Sadece kamyonun geliş saati", "Çalışanların kıdem yılı"],
+      "correct_option": "A", "answer_explanation": "Zemin kapasitesi, istif geometrisi, yüksekliği ve kararlılığı birlikte değerlendirilmeden güvenli depolama sağlanamaz.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Genel Müdürlüğü", "url": "https://www.csgb.gov.tr/isggm/", "reference": "Depolama ve istif güvenliği"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-006", "version": 1,
+      "topic_code": "MYT-ISTIF-BOZMA", "topic_label": "İstifin güvenli çözülmesi",
+      "question_text": "Bağlı bir metal profil istifi çözülmeden önce ne yapılmalıdır?",
+      "options": ["Bütün bağları aynı anda kesmek", "İstifin kararlılığını ve boşalma yönünü kontrol edip kontrollü çözme yöntemi uygulamak", "İstifin altından parça çekmek", "Devrilme yönünde çalışan görevlendirmek"],
+      "correct_option": "B", "answer_explanation": "Bağlar çözülürken yükün ani hareketi öngörülmeli, istif kararlı tutulmalı ve çalışanlar tehlike alanından uzaklaştırılmalıdır.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. ÇSGB – İş Sağlığı ve Güvenliği Genel Müdürlüğü", "url": "https://www.csgb.gov.tr/isggm/", "reference": "İstif bozma sırasında devrilme ve sıkışma riskleri"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-007", "version": 1,
+      "topic_code": "MYT-KESKIN-KENAR", "topic_label": "Keskin kenar ve çapaklardan korunma",
+      "question_text": "Keskin kenarlı metal eleman elleçlenirken temel korunma yaklaşımı hangisidir?",
+      "options": ["Çıplak elle daha iyi kavramak", "Yükü vücuda dayayarak taşımak", "Teması mümkün olduğunca mekanik yardımcıyla azaltıp işe uygun kesilmeye dayanıklı eldiven kullanmak", "Yalnız uzun kollu kıyafete güvenmek"],
+      "correct_option": "C", "answer_explanation": "Önce elle teması azaltan taşıma yöntemi seçilmeli, kalan kesilme riskine uygun el ve vücut koruması kullanılmalıdır.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. ÇSGB – Kişisel Koruyucu Donanımlar", "url": "https://www.csgb.gov.tr/isggm/", "reference": "Kesilme riskine uygun el koruması ve toplu korunma önceliği"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-008", "version": 1,
+      "topic_code": "MYT-SIKISMA", "topic_label": "Sıkışma ve ezilme bölgeleri",
+      "question_text": "Metal eleman araç üzerinde konumlandırılırken çalışan için en tehlikeli yer hangisidir?",
+      "options": ["İşaretlenmiş güvenli bekleme alanı", "Yük ile sabit bir yüzey veya araç kasası arasındaki sıkışma bölgesi", "Operatörün görüş alanı dışındaki kapalı ofis", "Yaya yolunun bariyerli tarafı"],
+      "correct_option": "B", "answer_explanation": "Yük ile araç, zemin veya sabit yapı arasındaki bölgeler ölümcül sıkışma ve ezilme tehlikesi oluşturur.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği", "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/", "reference": "Sıkışma ve ezilme noktalarının kontrolü"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-009", "version": 1,
+      "topic_code": "MYT-GOZ-AYAK", "topic_label": "Göz ve ayak koruması",
+      "question_text": "Metal yapı elemanlarının yükleme alanında göz ve ayak yaralanmalarını azaltmak için hangi seçim uygundur?",
+      "options": ["Yalnız görünürlük yeleği", "Spor ayakkabı ve güneş gözlüğü", "İşe uygun göz koruyucu ile burun ve taban korumalı iş ayakkabısı", "Yalnız baret"],
+      "correct_option": "C", "answer_explanation": "Çapak ve parçacıklar için uygun göz koruması; düşen ve sivri malzemeler için koruyucu iş ayakkabısı gerekir.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. ÇSGB – Kişisel Koruyucu Donanımlar", "url": "https://www.csgb.gov.tr/isggm/", "reference": "Göz ve ayak koruyucularının riske uygun seçimi"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-010", "version": 1,
+      "topic_code": "MYT-ARAC-YAYA", "topic_label": "Araç-yaya yollarının ayrılması",
+      "question_text": "Yükleme sahasında araç çarpması riskini azaltan en etkili düzenleme hangisidir?",
+      "options": ["Araç ve yayaların aynı yolu kullanması", "Yaya yollarını fiziksel olarak ayırmak, geçiş noktalarını işaretlemek ve saha hızını sınırlandırmak", "Sadece korna kullanımını artırmak", "Yükleme sırasında bütün aydınlatmayı kapatmak"],
+      "correct_option": "B", "answer_explanation": "Fiziksel ayrım, kontrollü geçiş ve hız yönetimi araç-yaya çarpışma riskini birlikte azaltır.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği", "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/", "reference": "Hareketli iş ekipmanları ve saha trafik düzeni"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-011", "version": 1,
+      "topic_code": "MYT-DORSE", "topic_label": "Dorse yanaşması ve araç sabitleme",
+      "question_text": "Dorseye forklift veya başka ekipmanla yükleme başlamadan önce hangi kontrol yapılmalıdır?",
+      "options": ["Araç hareketini önleyen park-freni ve teker takozu gibi tedbirler ile zemin ve yanaşma güvenliğini doğrulamak", "Motor çalışırken sürücünün istediği anda hareket edebilmesini sağlamak", "Yalnız plaka numarasını kaydetmek", "Dorse kapısını çalışanların arkasında açık bırakmak"],
+      "correct_option": "A", "answer_explanation": "Yükleme sırasında aracın beklenmedik hareketi önlenmeli; dorse, yanaşma noktası ve zemin güvenliği kontrol edilmelidir.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği", "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/", "reference": "Yükleme-boşaltma ve hareketli araç güvenliği"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-012", "version": 1,
+      "topic_code": "MYT-KOR-NOKTA", "topic_label": "Kör nokta ve işaretçi güvenliği",
+      "question_text": "Sürücünün görüşünün kısıtlı olduğu geri manevrada doğru yöntem hangisidir?",
+      "options": ["Yayaların aracı yakından takip etmesi", "Sürücünün yalnız aynalara güvenmesi", "Yetkilendirilmiş işaretçiyle standart iletişim kullanmak ve manevra alanını yayalara kapatmak", "Aracın daha hızlı manevra yapması"],
+      "correct_option": "C", "answer_explanation": "Kör noktalarda kontrollü işaretçi iletişimi ve manevra alanının ayrılması çarpışma riskini azaltır.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği", "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/", "reference": "Görüş kısıtı, işaretçi ve manevra güvenliği"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-013", "version": 1,
+      "topic_code": "MYT-HAVA", "topic_label": "Açık saha ve hava koşulları",
+      "question_text": "Kuvvetli rüzgârda geniş yüzeyli metal elemanların vinçle taşınmasında ne yapılmalıdır?",
+      "options": ["Operasyonu hızlandırmak", "Yükün rüzgâr etkisini ve ekipman sınırlarını değerlendirip güvenli değilse işi durdurmak", "Yükü çalışanların elle tutmasını istemek", "Daha uzun sapan kullanarak kontrolsüz salınıma izin vermek"],
+      "correct_option": "B", "answer_explanation": "Rüzgâr yükü salınımı ve ekipman kararlılığını etkiler; üretici sınırları ve saha koşulları güvenli değilse kaldırma ertelenmelidir.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. ÇSGB – İş Ekipmanlarında İş Sağlığı ve Güvenliği", "url": "https://guvenliinsaat.csgb.gov.tr/isg-konulari/is-ekipmanlari/", "reference": "Kaldırma işlerinde çevresel koşullar"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-014", "version": 1,
+      "topic_code": "MYT-YUK-SABITLEME", "topic_label": "Sevkiyat öncesi yük sabitleme",
+      "question_text": "Metal yapı elemanlarıyla yüklü araç sevke çıkmadan önce hangi kontrol zorunludur?",
+      "options": ["Yükün taşıt kapasitesine, dağılımına ve uygun bağlama noktalarına göre sabitlendiğini doğrulamak", "Yalnız teslimat adresini kontrol etmek", "Bağları ilk virajdan sonra takmak", "Yük taşsa da uyarı vermeden hareket etmek"],
+      "correct_option": "A", "answer_explanation": "Yük dağılımı ve sabitleme taşıt kapasitesi ile bağlama noktalarına uygun olmalı; kayma, devrilme ve düşme önlenmelidir.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "T.C. Ulaştırma ve Altyapı Bakanlığı – Karayolu Taşımacılığı", "url": "https://www.uab.gov.tr/", "reference": "Yük güvenliği ve karayolu taşımacılığı"}]
+    },
+    {
+      "question_code": "TR-SEK-MYT-015", "version": 1,
+      "topic_code": "MYT-SEVKIYAT-KONTROL", "topic_label": "Sevkiyat öncesi saha kontrolü",
+      "question_text": "Metal eleman sevkiyatı tamamlanmadan önce son saha kontrolü neyi kapsamalıdır?",
+      "options": ["Yalnız irsaliye imzasını", "Sadece aracın yakıtını", "Yük sabitleme, taşma ve işaretleme, kapı-kapaklar, saha içinde güvenli çıkış ve uygunsuzluk kaydını", "Yalnız ürün sayısını"],
+      "correct_option": "C", "answer_explanation": "Sevkiyat kontrolü yükün fiziksel güvenliğini, araç üzerindeki kapatma ve işaretlemeleri, güvenli saha çıkışını birlikte doğrulamalıdır.",
+      "scopes": [{"type": "sector", "value": "metal_yapi_elemanlari_toptan"}],
+      "sources": [{"title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu", "url": "https://www.csgb.gov.tr/media/2670/6331_isgkanunu_tr.pdf", "reference": "Madde 4, 10, 16 ve 17"}]
+    }
+  ]
+}

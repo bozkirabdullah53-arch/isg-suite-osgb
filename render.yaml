@@ -17,6 +17,10 @@ services:
         value: 3.11.11
       - key: ENVIRONMENT
         value: production
+      # Verified NACE records must always use the frozen five-topic snapshot;
+      # cross-sector legacy aliases are not allowed to select live exam questions.
+      - key: TRAINING_EXACT_NACE_EXAM_STRICT
+        value: "true"
       - key: DATABASE_URL
         fromDatabase:
           name: isg-suite-db
