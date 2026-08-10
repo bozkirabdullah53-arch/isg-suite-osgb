@@ -1,16 +1,26 @@
 """Eyas Digital Approval — sıralı onay, MFA, bayrak kill-switch."""
 from __future__ import annotations
 
-from datetime import datetime
+import sys
+from datetime import date, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.core.config import eyas_digital_approval_active, settings
-from app.core.database import SessionLocal
+from app.core.database import Base, SessionLocal
 from app.core.security import get_password_hash
-from app.models.entities import Company, OsgbOrganization, User, UserRole
+from app.models.entities import (
+    AssignmentStatus,
+    Company,
+    IsgProfessional,
+    OsgbOrganization,
+    ProfessionalType,
+    User,
+    UserRole,
+    WorkplaceAssignment,
+)
 from app.services import eyas_approval as svc
 
 
@@ -27,8 +37,25 @@ def _ensure_eyas_workflow_source_key(db):
         db.commit()
 
 @pytest.fixture()
-def db():
-    session = SessionLocal()
+def db(monkeypatch):
+    """Her test için tam şemalı ve P0 görevlendirmeleri olan SQLite DB."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
+    from sqlalchemy.orm import sessionmaker
+
+    import app.core.database as database
+
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    monkeypatch.setattr(database, "engine", engine)
+    monkeypatch.setattr(database, "SessionLocal", session_factory)
+    monkeypatch.setattr(sys.modules[__name__], "SessionLocal", session_factory)
+    session = session_factory()
     try:
         yield session
     finally:
@@ -50,6 +77,32 @@ def _mk_users(db):
     )
     db.add(company)
     db.flush()
+
+    professionals = {}
+    for key, full_name, email, professional_type in (
+        ("uzman", "Eyas Uzman", f"eyas.uzman.{stamp}@test.com", ProfessionalType.SAFETY_SPECIALIST),
+        ("hekim", "Eyas Hekim", f"eyas.hekim.{stamp}@test.com", ProfessionalType.WORKPLACE_PHYSICIAN),
+    ):
+        professional = IsgProfessional(
+            osgb_id=osgb.id,
+            full_name=full_name,
+            email=email,
+            professional_type=professional_type,
+            is_active=True,
+        )
+        db.add(professional)
+        db.flush()
+        professionals[key] = professional
+        db.add(
+            WorkplaceAssignment(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                professional_id=professional.id,
+                professional_type=professional_type,
+                start_date=date.today() - timedelta(days=1),
+                status=AssignmentStatus.ACTIVE,
+            )
+        )
 
     def user(email: str, role: UserRole, name: str) -> User:
         u = User(

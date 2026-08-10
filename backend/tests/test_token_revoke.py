@@ -42,14 +42,27 @@ def client(tmp_path, monkeypatch):
 def _seed_user():
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
-    from app.models.entities import User, UserRole
+    from app.models.entities import Company, OsgbOrganization, User, UserRole
 
     with SessionLocal() as db:
+        osgb = OsgbOrganization(name="Revoke OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        company = Company(
+            name="Revoke Company",
+            osgb_id=osgb.id,
+            is_active=True,
+            hazard_class="Az Tehlikeli",
+        )
+        db.add(company)
+        db.flush()
         user = User(
             email="revoke@test.com",
             full_name="Revoke User",
             hashed_password=get_password_hash("TestPass123!"),
             role=UserRole.COMPANY_ADMIN,
+            company_id=company.id,
+            osgb_id=osgb.id,
             is_active=True,
             token_version=0,
         )

@@ -8,15 +8,15 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture()
-def client(tmp_path, monkeypatch):
-    db_file = tmp_path / "katip_prep.db"
-    url = f"sqlite:///{db_file.as_posix()}"
+def client(monkeypatch):
+    url = "sqlite:///:memory:"
     monkeypatch.setenv("DATABASE_URL", url)
     monkeypatch.setenv("ENVIRONMENT", "development")
     monkeypatch.setenv("SECRET_KEY", "test-secret-key-at-least-32-chars-long!!")
     monkeypatch.setattr("app.api.auth.role_requires_mfa", lambda _role: False)
 
     from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
     from sqlalchemy.orm import sessionmaker
     import app.core.database as dbmod
     import app.models.entities as ent
@@ -26,7 +26,11 @@ def client(tmp_path, monkeypatch):
     settings.secret_key = "test-secret-key-at-least-32-chars-long!!"
     settings.environment = "development"
 
-    engine = create_engine(url, connect_args={"check_same_thread": False})
+    engine = create_engine(
+        url,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     dbmod.engine = engine
     dbmod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     ent.Base.metadata.create_all(bind=engine)

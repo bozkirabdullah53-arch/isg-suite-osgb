@@ -46,7 +46,7 @@ def test_unknown_backend(monkeypatch):
 
 def test_local_config_always_ok():
     assert os_mod.object_storage_config_ok() is True
-    assert os_mod.storage_backend_label() == "local-v1"
+    assert os_mod.storage_backend_label() == "local-v2"
 
 
 def test_r2_config_requires_endpoint(monkeypatch):
@@ -56,10 +56,10 @@ def test_r2_config_requires_endpoint(monkeypatch):
     monkeypatch.setattr(settings, "object_storage_secret_key", "sk")
     monkeypatch.setattr(settings, "object_storage_endpoint", "")
     assert os_mod.object_storage_config_ok() is False
-    assert os_mod.storage_backend_label() == "r2-misconfig-v1"
+    assert os_mod.storage_backend_label() == "r2-misconfig-v2"
     monkeypatch.setattr(settings, "object_storage_endpoint", "https://x.r2.cloudflarestorage.com")
     assert os_mod.object_storage_config_ok() is True
-    assert os_mod.storage_backend_label() == "r2-ready-v1"
+    assert os_mod.storage_backend_label() == "r2-ready-v2"
 
 
 def test_dual_config_requires_remote_credentials(monkeypatch):
@@ -284,7 +284,7 @@ def test_persistent_disk_and_cutover_gaps(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "upload_dir", "/var/data/uploads")
     assert os_mod.persistent_disk_label() == "mounted-v1"
     assert os_mod.infra_cutover_remaining() == []
-    assert os_mod.hardening_complete_label() == "complete-v1"
+    assert os_mod.hardening_complete_label() == "complete-v2"
     assert "object_storage_r2_multi_instance" in os_mod.infra_cutover_optional()
 
     steps = os_mod.infra_cutover_steps()

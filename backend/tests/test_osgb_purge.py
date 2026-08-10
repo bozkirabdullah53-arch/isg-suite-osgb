@@ -40,6 +40,18 @@ def client(tmp_path, monkeypatch):
     dbmod.engine = engine
     dbmod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     ent.Base.metadata.create_all(bind=engine)
+    # Bu üç kurul alt tablosu migration'larla gelir, ORM metadata'sında yoktur.
+    # OSGB purge akışı şirket FK'larını silmeden önce bunları doğrudan temizler.
+    with engine.begin() as connection:
+        for table in (
+            "ohs_committee_signature_steps",
+            "ohs_committee_meeting_versions",
+            "ohs_committee_duplicate_reports",
+        ):
+            connection.exec_driver_sql(
+                f"CREATE TABLE IF NOT EXISTS {table} ("
+                "id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL)"
+            )
 
     from app.main import app
 

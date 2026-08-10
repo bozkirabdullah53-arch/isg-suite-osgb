@@ -36,9 +36,20 @@ def client(tmp_path, monkeypatch):
 
 
 def _seed(client: TestClient) -> dict:
+    from datetime import date, timedelta
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
-    from app.models.entities import Company, Employee, OsgbOrganization, User, UserRole
+    from app.models.entities import (
+        AssignmentStatus,
+        Company,
+        Employee,
+        IsgProfessional,
+        OsgbOrganization,
+        ProfessionalType,
+        User,
+        UserRole,
+        WorkplaceAssignment,
+    )
 
     with SessionLocal() as db:
         osgb = OsgbOrganization(
@@ -80,6 +91,26 @@ def _seed(client: TestClient) -> dict:
             emps.append(e)
         other_emp = Employee(company_id=other.id, full_name="Diger Personel", is_active=True)
         db.add(other_emp)
+
+        professional = IsgProfessional(
+            osgb_id=osgb.id,
+            full_name="Acil Uzman",
+            email="acil-uzman@test.com",
+            professional_type=ProfessionalType.SAFETY_SPECIALIST,
+            is_active=True,
+        )
+        db.add(professional)
+        db.flush()
+        db.add(
+            WorkplaceAssignment(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                professional_id=professional.id,
+                professional_type=ProfessionalType.SAFETY_SPECIALIST,
+                start_date=date.today() - timedelta(days=1),
+                status=AssignmentStatus.ACTIVE,
+            )
+        )
 
         db.add(
             User(
