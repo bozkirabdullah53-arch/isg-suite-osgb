@@ -114,8 +114,12 @@ const roleModules={
     'security',
   ],
   workplace_physician:[
-    'visits','belge_onay','eyas_inbox','dashboard','workplace_status',
-    'health','prescriptions','employees','ortam_olcum',
+    // 1) Başlangıç ve günlük iş akışı
+    'dashboard','visits','health','prescriptions','employees',
+    // 2) İşyerini takip ve onay işlemleri
+    'workplace_status','belge_onay','eyas_inbox',
+    // 3) Daha seyrek kullanılan saha/arşiv bağlantıları
+    'ortam_olcum',
     'documents',
     'security',
   ],
