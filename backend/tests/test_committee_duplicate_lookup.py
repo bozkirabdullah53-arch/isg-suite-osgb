@@ -1,7 +1,4 @@
 from app.api.committee_professional import _find_duplicate_member_id
-from app.core.database import SessionLocal
-
-
 class _ScalarResult:
     def scalar(self):
         return None
@@ -35,9 +32,20 @@ def test_duplicate_lookup_does_not_bind_untyped_null_identifiers():
     assert "user_id = :user_id" not in db.statement
 
 
-def test_duplicate_lookup_executes_with_null_optional_ids_on_configured_database():
-    """Runs on SQLite smoke and PostgreSQL CI; PostgreSQL previously raised AmbiguousParameter."""
-    with SessionLocal() as db:
+def test_duplicate_lookup_executes_with_null_optional_ids_on_configured_database(tmp_path):
+    """Self-contained SQLite smoke; PostgreSQL CI exercises the same SQL builder."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    engine = create_engine(f"sqlite:///{(tmp_path / 'committee-lookup.db').as_posix()}")
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE ohs_committee_members ("
+            "id INTEGER PRIMARY KEY, company_id INTEGER NOT NULL, "
+            "is_active BOOLEAN NOT NULL, identity_key VARCHAR(255), "
+            "employee_id INTEGER, user_id INTEGER)"
+        )
+    with Session(engine) as db:
         result = _find_duplicate_member_id(
             db,
             company_id=2_147_483_647,

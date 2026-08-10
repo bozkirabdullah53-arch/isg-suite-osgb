@@ -13,6 +13,7 @@ class HealthRecordCreate(BaseModel):
     examination_date: date
     next_examination_date: date | None = None
     fitness_status: HealthFitnessStatus = HealthFitnessStatus.PENDING
+    physician_professional_id: int | None = None
     physician_name: str | None = Field(default=None, max_length=160)
     summary: str | None = Field(default=None, max_length=2000)
     confidential_note: str | None = Field(default=None, max_length=3000)
@@ -63,6 +64,7 @@ class HealthRecordUpdate(BaseModel):
     examination_date: date | None = None
     next_examination_date: date | None = None
     fitness_status: HealthFitnessStatus | None = None
+    physician_professional_id: int | None = None
     physician_name: str | None = Field(default=None, max_length=160)
     summary: str | None = Field(default=None, max_length=2000)
     confidential_note: str | None = Field(default=None, max_length=3000)
@@ -95,6 +97,7 @@ class HealthRecordResponse(BaseModel):
     examination_date: date
     next_examination_date: date | None
     fitness_status: HealthFitnessStatus
+    physician_professional_id: int | None = None
     physician_name: str | None
     summary: str | None
     confidential_note: str | None = None
@@ -123,4 +126,6 @@ class HealthRecordResponse(BaseModel):
     is_overdue: bool = False
     created_by_id: int
     created_at: datetime
+    updated_at: datetime
+    version: int = 1
     model_config = ConfigDict(from_attributes=True)

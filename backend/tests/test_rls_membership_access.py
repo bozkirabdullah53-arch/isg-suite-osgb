@@ -1,8 +1,9 @@
 """P1-03 RLS helper + P1-04 membership expand + kısa access TTL."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
+import pytest
 from jose import jwt
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -13,10 +14,14 @@ from app.core.rls import apply_rls_user
 from app.core.security import ALGORITHM, create_access_token
 from app.models.entities import (
     Base,
+    AssignmentStatus,
     Company,
+    IsgProfessional,
     OsgbOrganization,
+    ProfessionalType,
     User,
     UserRole,
+    WorkplaceAssignment,
     WorkplaceMembership,
 )
 
@@ -95,6 +100,75 @@ def test_membership_expands_assigned_companies(tmp_path):
         db.commit()
         ids = assigned_company_ids(db, u)
         assert c1.id in ids and c2.id in ids
+
+
+@pytest.mark.parametrize(
+    ("role", "professional_type", "label"),
+    [
+        (UserRole.WORKPLACE_PHYSICIAN, ProfessionalType.WORKPLACE_PHYSICIAN, "Hekim"),
+        (UserRole.OTHER_HEALTH_PERSONNEL, ProfessionalType.OTHER_HEALTH_PERSONNEL, "DSP"),
+    ],
+)
+def test_health_roles_ignore_membership_and_legacy_company_without_active_assignment(
+    tmp_path, role, professional_type, label
+):
+    url = f"sqlite:///{(tmp_path / 'health-strict.db').as_posix()}"
+    engine = create_engine(url, connect_args={"check_same_thread": False})
+    Session = sessionmaker(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    with Session() as db:
+        osgb = OsgbOrganization(name="Health Strict OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        assigned = Company(name="Assigned", osgb_id=osgb.id, is_active=True)
+        legacy = Company(name="Legacy", osgb_id=osgb.id, is_active=True)
+        membership = Company(name="Membership", osgb_id=osgb.id, is_active=True)
+        db.add_all([assigned, legacy, membership])
+        db.flush()
+        pro = IsgProfessional(
+            osgb_id=osgb.id,
+            full_name=f"Strict {label}",
+            email=f"strict-{label.casefold()}@test.com",
+            professional_type=professional_type,
+            is_active=True,
+        )
+        db.add(pro)
+        db.flush()
+        user = User(
+            email=f"strict-{label.casefold()}@test.com",
+            full_name=f"Strict {label}",
+            hashed_password="x",
+            role=role,
+            osgb_id=osgb.id,
+            company_id=legacy.id,
+            is_active=True,
+        )
+        db.add(user)
+        db.flush()
+        db.add_all([
+            WorkplaceAssignment(
+                osgb_id=osgb.id,
+                company_id=assigned.id,
+                professional_id=pro.id,
+                professional_type=professional_type,
+                start_date=date(2025, 1, 1),
+                status=AssignmentStatus.ACTIVE,
+            ),
+            WorkplaceMembership(
+                user_id=user.id,
+                company_id=membership.id,
+                role=role.value,
+                is_active=True,
+                created_at=datetime.utcnow(),
+            ),
+        ])
+        db.commit()
+        assert assigned_company_ids(db, user) == [assigned.id]
+
+        assignment = db.query(WorkplaceAssignment).one()
+        assignment.status = AssignmentStatus.ENDED
+        db.commit()
+        assert assigned_company_ids(db, user) == []
 
 
 def test_short_access_ttl_when_refresh_cookie_on(monkeypatch):

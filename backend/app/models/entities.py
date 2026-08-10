@@ -1,6 +1,6 @@
 import enum
 from datetime import date, datetime
-from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DDL, Date, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -298,6 +298,9 @@ class HealthRecord(Base):
         ),
         default=HealthFitnessStatus.PENDING,
     )
+    physician_professional_id: Mapped[int | None] = mapped_column(
+        ForeignKey("isg_professionals.id"), nullable=True, index=True
+    )
     physician_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidential_note: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -327,6 +330,68 @@ class HealthRecord(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class HealthRecordRevision(Base):
+    """Append-only, hash chained snapshot of every medical record state."""
+
+    __tablename__ = "health_record_revisions"
+    __table_args__ = (
+        UniqueConstraint("record_id", "version", name="uq_health_revision_record_version"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    record_id: Mapped[int] = mapped_column(ForeignKey("health_records.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    action: Mapped[str] = mapped_column(String(30), index=True)
+    actor_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    snapshot_json: Mapped[str] = mapped_column(Text)
+    previous_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    entry_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class HealthAccessLog(Base):
+    """Append-only, hash chained log for reads, exports and document access."""
+
+    __tablename__ = "health_access_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    record_id: Mapped[int | None] = mapped_column(ForeignKey("health_records.id"), nullable=True, index=True)
+    actor_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    action: Mapped[str] = mapped_column(String(40), index=True)
+    purpose: Mapped[str] = mapped_column(String(160), default="occupational_health_service")
+    request_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    previous_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    entry_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+for _append_only_table in (HealthRecordRevision.__table__, HealthAccessLog.__table__):
+    _name = _append_only_table.name
+    event.listen(
+        _append_only_table,
+        "after_create",
+        DDL(
+            f"CREATE TRIGGER IF NOT EXISTS trg_{_name}_no_update BEFORE UPDATE ON {_name} "
+            f"BEGIN SELECT RAISE(ABORT, '{_name} is append-only'); END"
+        ).execute_if(dialect="sqlite"),
+    )
+    event.listen(
+        _append_only_table,
+        "after_create",
+        DDL(
+            f"CREATE TRIGGER IF NOT EXISTS trg_{_name}_no_delete BEFORE DELETE ON {_name} "
+            f"BEGIN SELECT RAISE(ABORT, '{_name} is append-only'); END"
+        ).execute_if(dialect="sqlite"),
+    )
 
 
 

@@ -41,10 +41,12 @@ def _seed(client: TestClient) -> dict:
     from app.core.security import get_password_hash
     from app.models.entities import (
         AnnualPlanItem,
-        AnnualPlanStatus,
-        Company,
-        OsgbOrganization,
-        User,
+            AnnualPlanStatus,
+            Company,
+            IsgProfessional,
+            OsgbOrganization,
+            ProfessionalType,
+            User,
         UserRole,
     )
 
@@ -64,6 +66,15 @@ def _seed(client: TestClient) -> dict:
         company = Company(name="Eval Firma", osgb_id=osgb.id, is_active=True)
         db.add(company)
         db.flush()
+        db.add(
+            IsgProfessional(
+                osgb_id=osgb.id,
+                full_name="Eval Uzman",
+                email="eval-uzman@test.com",
+                professional_type=ProfessionalType.SAFETY_SPECIALIST,
+                is_active=True,
+            )
+        )
         user = User(
             email="eval-uzman@test.com",
             full_name="Eval Uzman",
@@ -475,4 +486,3 @@ def test_revision_field_diff_and_employer_approve(client):
     assert ok.json()["report_status"] == "onaylandi"
     forbidden = client.post(f"/api/v1/annual-evals/{eid}/workflow/create-revision", headers=eh)
     assert forbidden.status_code == 403
-

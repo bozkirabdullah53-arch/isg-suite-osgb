@@ -58,31 +58,32 @@ def ensure_access(db: Session, user: User, company_id: int):
     ensure_company_access(db, user, company_id)
 
 
-def _ensure_hygiene_instructor_is_assigned(
+def _ensure_hygiene_instructor_is_authorized(
     db: Session,
     *,
     company_id: int,
     payload: TrainingCreate,
 ) -> None:
-    """Hijyen eğitimini yalnız işyerine atanmış hekim veya DSP verebilir."""
+    """Hijyen eğitiminde yalnız izin verilen sağlık personeli unvanlarını kabul et."""
     profile_key = resolve_special_profile_key(payload)
     if profile_key not in {"hijyen_sanitasyon", "gida_su_hijyeni"}:
         return
-    team = assigned_team(db, company_id)
-    allowed = [
-        team.get("workplace_physician"),
-        team.get("other_health_personnel"),
-    ]
-    instructor_name = str(payload.instructor_name or "").strip().casefold()
-    if not any(
-        person
-        and str(person.get("full_name") or "").strip().casefold() == instructor_name
-        for person in allowed
-    ):
+    qualification = (
+        str(payload.instructor_qualification or "")
+        .strip()
+        .casefold()
+        .replace("i\u0307", "i")
+    )
+    allowed_titles = (
+        "işyeri hekimi",
+        "hemşire",
+        "işyeri hemşiresi",
+        "diğer sağlık personeli",
+    )
+    if not any(title in qualification for title in allowed_titles):
         raise HTTPException(
             422,
-            "Hijyen eğitimini yalnız bu işyerine aktif görevlendirilmiş işyeri hekimi "
-            "veya diğer sağlık personeli (hemşire dâhil) verebilir.",
+            "Hijyen eğitimini yalnız işyeri hekimi, hemşire veya diğer sağlık personeli verebilir.",
         )
 
 def add_years(d: date, years: int) -> date:
@@ -506,7 +507,7 @@ def create_training(
     company = db.get(Company, payload.company_id)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
-    _ensure_hygiene_instructor_is_assigned(
+    _ensure_hygiene_instructor_is_authorized(
         db,
         company_id=payload.company_id,
         payload=payload,

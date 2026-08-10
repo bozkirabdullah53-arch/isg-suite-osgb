@@ -8,21 +8,46 @@ from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, PlainTextResponse, StreamingResponse
 from openpyxl import Workbook
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
-from app.api.company_access import company_ids_for_query, effective_company_id, ensure_company_access
+from app.api.company_access import (
+    company_ids_for_query,
+    effective_company_id,
+    ensure_company_access,
+    find_professional_for_user,
+)
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.entities import Company, Employee, HealthFitnessStatus, HealthRecord, HealthRecordType, User, UserRole
+from app.models.entities import (
+    AssignmentStatus,
+    Company,
+    Employee,
+    HealthAccessLog,
+    HealthFitnessStatus,
+    HealthRecord,
+    HealthRecordRevision,
+    HealthRecordType,
+    IsgProfessional,
+    ProfessionalType,
+    User,
+    UserRole,
+    WorkplaceAssignment,
+)
 from app.schemas.health import HealthRecordCreate, HealthRecordResponse, HealthRecordUpdate
 from app.services.health_field_crypto import DecryptedRecordView, encrypt_payload
+from app.services.health_audit import (
+    append_health_access,
+    append_health_revision,
+    verify_access_chain,
+    verify_revision_chain,
+)
 from app.services.health_meta import (
     EXPOSURE_OPTIONS,
     MESLEK_TETKIK,
@@ -38,28 +63,83 @@ from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/health-records", tags=["Sağlık Kayıtları"])
 
-HEALTH_ROLES = (
-    UserRole.GLOBAL_ADMIN,
+HEALTH_SUPPORT_ROLES = (
     UserRole.WORKPLACE_PHYSICIAN,
     UserRole.OTHER_HEALTH_PERSONNEL,
 )
 PHYSICIAN_ROLES = (
-    UserRole.GLOBAL_ADMIN,
     UserRole.WORKPLACE_PHYSICIAN,
 )
+PHYSICIAN_ONLY = (UserRole.WORKPLACE_PHYSICIAN,)
 ALLOWED_REPORT = {".pdf", ".jpg", ".jpeg", ".png", ".docx"}
 
+DSP_CREATE_FIELDS = {
+    "company_id", "employee_id", "record_type", "examination_date",
+    "next_examination_date", "informed_consent", "physician_professional_id",
+    "audiometry_date", "spirometry_date", "chest_xray_date",
+    "blood_lead_date", "blood_lead_value", "blood_lead_unit", "blood_lead_ref",
+}
+DSP_UPDATE_FIELDS = DSP_CREATE_FIELDS - {"company_id", "employee_id"}
 
-def _guard_confidential_write(user: User, data: dict) -> dict:
-    """confidential_note yalnız hekim/GA yazabilir."""
-    if "confidential_note" not in data:
-        return data
-    if user.role not in PHYSICIAN_ROLES:
+
+def _enforce_write_matrix(user: User, supplied_fields: set[str], *, create: bool) -> None:
+    if user.role == UserRole.WORKPLACE_PHYSICIAN:
+        return
+    allowed = DSP_CREATE_FIELDS if create else DSP_UPDATE_FIELDS
+    forbidden = sorted(supplied_fields - allowed)
+    if forbidden:
         raise HTTPException(
             status_code=403,
-            detail="Gizli sağlık notunu yalnızca işyeri hekimi veya EİSA yöneticisi yazabilir.",
+            detail=(
+                "DSP bu klinik alanları değiştiremez: " + ", ".join(forbidden)
+                + ". Klinik değerlendirme, sonuç, uygunluk ve kısıt kararları yalnız işyeri hekimine aittir."
+            ),
         )
-    return data
+
+
+def _active_assigned_physicians(db: Session, company_id: int) -> list[IsgProfessional]:
+    today = date.today()
+    return list(
+        db.scalars(
+            select(IsgProfessional)
+            .join(WorkplaceAssignment, WorkplaceAssignment.professional_id == IsgProfessional.id)
+            .where(
+                WorkplaceAssignment.company_id == company_id,
+                WorkplaceAssignment.professional_type == ProfessionalType.WORKPLACE_PHYSICIAN,
+                WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+                WorkplaceAssignment.start_date <= today,
+                or_(WorkplaceAssignment.end_date.is_(None), WorkplaceAssignment.end_date >= today),
+                IsgProfessional.professional_type == ProfessionalType.WORKPLACE_PHYSICIAN,
+                IsgProfessional.is_active.is_(True),
+            )
+            .order_by(IsgProfessional.full_name, IsgProfessional.id)
+        ).unique().all()
+    )
+
+
+def _resolve_assigned_physician(
+    db: Session,
+    *,
+    user: User,
+    company_id: int,
+    requested_id: int | None,
+) -> IsgProfessional:
+    assigned = _active_assigned_physicians(db, company_id)
+    if user.role == UserRole.WORKPLACE_PHYSICIAN:
+        own = find_professional_for_user(db, user)
+        if not own or all(p.id != own.id for p in assigned):
+            raise HTTPException(403, "Bu işyerinde aktif işyeri hekimi görevlendirmeniz bulunmuyor.")
+        if requested_id is not None and requested_id != own.id:
+            raise HTTPException(403, "Hekim sağlık kaydını yalnız kendi aktif görevlendirmesiyle imzalayabilir.")
+        return own
+    if requested_id is None:
+        if len(assigned) == 1:
+            return assigned[0]
+        raise HTTPException(422, "DSP kaydı için aktif görevlendirilmiş işyeri hekimi seçilmelidir.")
+    selected = next((p for p in assigned if p.id == requested_id), None)
+    if not selected:
+        raise HTTPException(422, "Seçilen hekim bu işyerinde aktif görevlendirilmiş işyeri hekimi değildir.")
+    return selected
 
 RECORD_TYPE_LABELS = {
     HealthRecordType.ENTRY_EXAM: "İşe Giriş Muayenesi",
@@ -127,6 +207,7 @@ def _to_response(row: HealthRecord, employee: Employee | None, include_confident
 
         for field in SENSITIVE_TEXT_FIELDS:
             setattr(data, field, None)
+        data.blood_lead_eval = None
         data.smart_summary = None
         data.tetkik_summary = None
     return data
@@ -161,7 +242,8 @@ def _employees_map(db: Session, emp_ids: set[int]) -> dict[int, Employee]:
 
 
 @router.get("/meta")
-def health_meta():
+def health_meta(user: User = Depends(require_roles(*HEALTH_SUPPORT_ROLES))):
+    _ = user
     return {
         "record_types": [{"code": k.value, "label": v} for k, v in RECORD_TYPE_LABELS.items()],
         "fitness_statuses": [{"code": k.value, "label": v} for k, v in FITNESS_LABELS.items()],
@@ -185,11 +267,32 @@ def health_meta():
     }
 
 
+@router.get("/assigned-physicians")
+def assigned_physicians(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*HEALTH_SUPPORT_ROLES)),
+):
+    ensure_access(db, user, company_id)
+    rows = _active_assigned_physicians(db, company_id)
+    if user.role == UserRole.WORKPLACE_PHYSICIAN:
+        own = find_professional_for_user(db, user)
+        rows = [p for p in rows if own and p.id == own.id]
+    return [
+        {
+            "professional_id": p.id,
+            "full_name": p.full_name,
+            "certificate_number": p.certificate_number,
+        }
+        for p in rows
+    ]
+
+
 @router.get("/suggest")
 def health_suggest(
     job_title: str | None = None,
     department: str | None = None,
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
 ):
     _ = user
     return suggest_for_job(job_title, department)
@@ -199,7 +302,7 @@ def health_suggest(
 def health_lead_eval(
     value: float | None = None,
     ref: float | None = 30,
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
 ):
     _ = user
     code = evaluate_blood_lead(value, ref)
@@ -209,9 +312,10 @@ def health_lead_eval(
 
 @router.get("/summary")
 def health_summary(
+    request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*HEALTH_SUPPORT_ROLES)),
 ):
     effective = effective_company_id(db, user, company_id)
     today = date.today()
@@ -223,7 +327,7 @@ def health_summary(
         if i.blood_lead_eval in ("yuksek", "kritik")
         or (i.blood_lead_value is not None and (i.blood_lead_ref or 30) < i.blood_lead_value)
     )
-    return {
+    payload = {
         "company_id": effective,
         "total": len(items),
         "overdue": sum(1 for i in items if i.next_examination_date and i.next_examination_date < today),
@@ -240,13 +344,23 @@ def health_summary(
         "with_blood_lead": sum(1 for i in items if i.blood_lead_value is not None),
         "lead_high": lead_high,
     }
+    if user.role == UserRole.OTHER_HEALTH_PERSONNEL:
+        for key in ("fit", "conditional", "tracking", "unfit", "lead_high"):
+            payload[key] = None
+    append_health_access(
+        db, actor=user, company_id=effective, action="summary_view", request=request,
+        metadata={"record_count": len(items)},
+    )
+    db.commit()
+    return payload
 
 
 @router.get("/analysis")
 def health_analysis(
+    request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
 ):
     effective = effective_company_id(db, user, company_id)
     records = _company_records(db, effective)
@@ -260,14 +374,20 @@ def health_analysis(
     payload = build_analysis_payload(records, emp_map, all_employees=all_emps)
     payload["company_id"] = effective
     payload["company_name"] = company.name if company else str(effective)
+    append_health_access(
+        db, actor=user, company_id=effective, action="analysis_view", request=request,
+        metadata={"record_count": len(records)},
+    )
+    db.commit()
     return payload
 
 
 @router.get("/analysis.txt")
 def health_analysis_txt(
+    request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
 ):
     effective = effective_company_id(db, user, company_id)
     records = _company_records(db, effective)
@@ -308,6 +428,11 @@ def health_analysis_txt(
     for x in d["missing_employees"][:50]:
         lines.append(f"  - {x['full_name']} | {x.get('job_title') or '—'} | {x.get('department') or '—'}")
     body = "\n".join(lines) + "\n"
+    append_health_access(
+        db, actor=user, company_id=effective, action="analysis_export", request=request,
+        metadata={"format": "txt", "record_count": len(records)},
+    )
+    db.commit()
     return PlainTextResponse(
         body,
         media_type="text/plain; charset=utf-8",
@@ -317,6 +442,7 @@ def health_analysis_txt(
 
 @router.get("", response_model=list[HealthRecordResponse])
 def list_health_records(
+    request: Request,
     company_id: int | None = None,
     employee_id: int | None = None,
     record_type: HealthRecordType | None = None,
@@ -324,7 +450,7 @@ def list_health_records(
     overdue_only: bool = False,
     q: str | None = Query(default=None),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*HEALTH_SUPPORT_ROLES)),
 ):
     query = _active().order_by(HealthRecord.examination_date.desc(), HealthRecord.id.desc())
     company_ids = company_ids_for_query(db, user, company_id)
@@ -347,28 +473,53 @@ def list_health_records(
         emp = employees.get(r.employee_id)
         if q:
             needle = q.casefold()
-            hay = f"{emp.full_name if emp else ''} {r.physician_name or ''} {r.summary or ''}".casefold()
+            view = DecryptedRecordView(r)
+            hay = f"{emp.full_name if emp else ''} {r.physician_name or ''} {view.summary or ''}".casefold()
             if needle not in hay:
                 continue
         if overdue_only and not (r.next_examination_date and r.next_examination_date < today):
             continue
         out.append(_to_response(r, emp, include_conf))
+    counts: dict[int, int] = {}
+    for row in out:
+        counts[row.company_id] = counts.get(row.company_id, 0) + 1
+    for cid in company_ids or []:
+        append_health_access(
+            db, actor=user, company_id=cid, action="record_list", request=request,
+            metadata={"returned_count": counts.get(cid, 0), "masked": not include_conf},
+        )
+    db.commit()
     return out
 
 
 @router.post("", response_model=HealthRecordResponse)
 def create_health_record(
+    request: Request,
     payload: HealthRecordCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*HEALTH_SUPPORT_ROLES)),
 ):
     ensure_access(db, user, payload.company_id)
     employee = db.get(Employee, payload.employee_id)
     if not employee or employee.company_id != payload.company_id:
         raise HTTPException(status_code=400, detail="Personel ve firma eşleşmiyor.")
     company = db.get(Company, payload.company_id)
-    data = payload.model_dump()
-    _guard_confidential_write(user, data)
+    supplied_fields = {
+        field for field in payload.model_fields_set
+        if getattr(payload, field, None) is not None
+    }
+    _enforce_write_matrix(user, supplied_fields, create=True)
+    physician = _resolve_assigned_physician(
+        db,
+        user=user,
+        company_id=payload.company_id,
+        requested_id=payload.physician_professional_id,
+    )
+    data = payload.model_dump(exclude_unset=True)
+    if user.role == UserRole.OTHER_HEALTH_PERSONNEL:
+        data = {key: value for key, value in data.items() if key in DSP_CREATE_FIELDS}
+    data.pop("physician_name", None)
+    data.pop("physician_professional_id", None)
     if not data.get("informed_consent"):
         raise HTTPException(status_code=400, detail="Personel bilgilendirme onayı zorunludur (Pro sağlık formu).")
     data["informed_consent_at"] = datetime.utcnow()
@@ -376,7 +527,7 @@ def create_health_record(
         data["next_examination_date"] = default_next_exam(
             payload.examination_date, company.hazard_class if company else None
         )
-    if not data.get("suggested_tests") and not data.get("exposures"):
+    if user.role == UserRole.WORKPLACE_PHYSICIAN and not data.get("suggested_tests") and not data.get("exposures"):
         sug = suggest_for_job(employee.job_title, employee.department)
         data["suggested_tests"] = data.get("suggested_tests") or ", ".join(sug["suggested_tests"])
         data["exposures"] = data.get("exposures") or ", ".join(sug["exposures"])
@@ -398,9 +549,29 @@ def create_health_record(
                 status_code=400,
                 detail="Aynı personel, muayene türü ve tarih için kayıt zaten var.",
             )
-        record = HealthRecord(**data, created_by_id=user.id)
+        if user.role == UserRole.OTHER_HEALTH_PERSONNEL:
+            data["fitness_status"] = HealthFitnessStatus.PENDING
+        record = HealthRecord(
+            **data,
+            physician_professional_id=physician.id,
+            physician_name=physician.full_name,
+            created_by_id=user.id,
+            version=1,
+        )
         _apply_lead_eval(record)
         db.add(record)
+        db.flush()
+        append_health_revision(
+            db,
+            record=record,
+            actor=user,
+            action="create",
+            reason="Sağlık kaydı oluşturuldu.",
+        )
+        append_health_access(
+            db, actor=user, company_id=record.company_id, record_id=record.id,
+            action="record_create", request=request,
+        )
         db.commit()
         db.refresh(record)
         return _to_response(record, employee, user.role in PHYSICIAN_ROLES)
@@ -413,9 +584,10 @@ def create_health_record(
 
 @router.get("/export.txt")
 def export_health_txt(
+    request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
 ):
     effective = effective_company_id(db, user, company_id)
     company = db.get(Company, effective)
@@ -452,6 +624,11 @@ def export_health_txt(
         if view.summary:
             lines.append(f"   Not: {view.summary}")
     body = "\n".join(lines) + "\n"
+    append_health_access(
+        db, actor=user, company_id=effective, action="records_export", request=request,
+        metadata={"format": "txt", "record_count": len(rows)},
+    )
+    db.commit()
     return PlainTextResponse(
         body,
         media_type="text/plain; charset=utf-8",
@@ -461,9 +638,10 @@ def export_health_txt(
 
 @router.get("/export.xlsx")
 def export_health_xlsx(
+    request: Request,
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
 ):
     effective = effective_company_id(db, user, company_id)
     company = db.get(Company, effective)
@@ -522,6 +700,11 @@ def export_health_xlsx(
     buf = BytesIO()
     wb.save(buf)
     buf.seek(0)
+    append_health_access(
+        db, actor=user, company_id=effective, action="records_export", request=request,
+        metadata={"format": "xlsx", "record_count": len(rows)},
+    )
+    db.commit()
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -529,19 +712,136 @@ def export_health_xlsx(
     )
 
 
+@router.get("/audit/{record_id}/revisions")
+def health_record_revisions(
+    request: Request,
+    record_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+):
+    record = db.get(HealthRecord, record_id)
+    if not record:
+        raise HTTPException(404, "Sağlık kaydı bulunamadı.")
+    ensure_access(db, user, record.company_id)
+    rows = list(
+        db.scalars(
+            select(HealthRecordRevision)
+            .where(HealthRecordRevision.record_id == record_id)
+            .order_by(HealthRecordRevision.version, HealthRecordRevision.id)
+        ).all()
+    )
+    result = {
+        "record_id": record_id,
+        "integrity_valid": verify_revision_chain(rows),
+        "items": [
+            {
+                "id": row.id,
+                "version": row.version,
+                "action": row.action,
+                "actor_user_id": row.actor_user_id,
+                "reason": row.reason,
+                "previous_hash": row.previous_hash,
+                "entry_hash": row.entry_hash,
+                "created_at": row.created_at,
+            }
+            for row in rows
+        ],
+    }
+    append_health_access(
+        db, actor=user, company_id=record.company_id, record_id=record.id,
+        action="revision_log_view", request=request,
+    )
+    db.commit()
+    return result
+
+
+@router.get("/audit/{record_id}/access-log")
+def health_record_access_log(
+    request: Request,
+    record_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+):
+    record = db.get(HealthRecord, record_id)
+    if not record:
+        raise HTTPException(404, "Sağlık kaydı bulunamadı.")
+    ensure_access(db, user, record.company_id)
+    company_rows = list(
+        db.scalars(
+            select(HealthAccessLog)
+            .where(HealthAccessLog.company_id == record.company_id)
+            .order_by(HealthAccessLog.id)
+        ).all()
+    )
+    rows = [row for row in company_rows if row.record_id == record_id]
+    result = {
+        "record_id": record_id,
+        "integrity_valid": verify_access_chain(company_rows),
+        "items": [
+            {
+                "id": row.id,
+                "actor_user_id": row.actor_user_id,
+                "action": row.action,
+                "purpose": row.purpose,
+                "request_path": row.request_path,
+                "ip_address": row.ip_address,
+                "entry_hash": row.entry_hash,
+                "created_at": row.created_at,
+            }
+            for row in rows
+        ],
+    }
+    append_health_access(
+        db, actor=user, company_id=record.company_id, record_id=record.id,
+        action="access_log_view", request=request,
+    )
+    db.commit()
+    return result
+
+
 @router.patch("/{record_id}", response_model=HealthRecordResponse)
 def update_health_record(
+    request: Request,
     record_id: int,
     payload: HealthRecordUpdate,
+    change_reason: str = Query(default="Sağlık kaydı güncellendi.", min_length=5, max_length=500),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*HEALTH_SUPPORT_ROLES)),
 ):
     record = db.get(HealthRecord, record_id)
     if not record or record.deleted_at:
         raise HTTPException(404, "Sağlık kaydı bulunamadı.")
     ensure_access(db, user, record.company_id)
+    supplied_fields = {
+        field for field in payload.model_fields_set
+        if getattr(payload, field, None) is not None
+    }
+    _enforce_write_matrix(user, supplied_fields, create=False)
+    if user.role == UserRole.WORKPLACE_PHYSICIAN:
+        physician = _resolve_assigned_physician(
+            db,
+            user=user,
+            company_id=record.company_id,
+            requested_id=payload.physician_professional_id,
+        )
+        if record.physician_professional_id not in (None, physician.id):
+            raise HTTPException(403, "Bu klinik kayıt başka bir işyeri hekimi tarafından oluşturulmuştur.")
+    else:
+        physician = None
+        if record.fitness_status != HealthFitnessStatus.PENDING:
+            raise HTTPException(403, "DSP yalnız hekim tarafından sonuçlandırılmamış kayıtları güncelleyebilir.")
+        if "physician_professional_id" in supplied_fields:
+            physician = _resolve_assigned_physician(
+                db,
+                user=user,
+                company_id=record.company_id,
+                requested_id=payload.physician_professional_id,
+            )
     updates = payload.model_dump(exclude_unset=True)
-    _guard_confidential_write(user, updates)
+    if user.role == UserRole.OTHER_HEALTH_PERSONNEL:
+        updates = {key: value for key, value in updates.items() if key in DSP_UPDATE_FIELDS}
+    updates.pop("physician_name", None)
+    updates.pop("physician_professional_id", None)
     if "informed_consent" in updates:
         if updates["informed_consent"]:
             if not record.informed_consent_at:
@@ -551,7 +851,19 @@ def update_health_record(
     updates = encrypt_payload(updates)
     for k, v in updates.items():
         setattr(record, k, v)
+    if physician is not None:
+        record.physician_professional_id = physician.id
+        record.physician_name = physician.full_name
     _apply_lead_eval(record)
+    record.version = int(record.version or 1) + 1
+    record.updated_at = datetime.utcnow()
+    append_health_revision(
+        db, record=record, actor=user, action="update", reason=change_reason,
+    )
+    append_health_access(
+        db, actor=user, company_id=record.company_id, record_id=record.id,
+        action="record_update", request=request,
+    )
     db.commit()
     db.refresh(record)
     employee = db.get(Employee, record.employee_id)
@@ -560,24 +872,39 @@ def update_health_record(
 
 @router.delete("/{record_id}")
 def delete_health_record(
+    request: Request,
     record_id: int,
+    reason: str = Query(min_length=5, max_length=500),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
 ):
     record = db.get(HealthRecord, record_id)
     if not record or record.deleted_at:
         raise HTTPException(404, "Sağlık kaydı bulunamadı.")
     ensure_access(db, user, record.company_id)
+    physician = _resolve_assigned_physician(
+        db, user=user, company_id=record.company_id, requested_id=None,
+    )
+    if record.physician_professional_id not in (None, physician.id):
+        raise HTTPException(403, "Bu klinik kayıt başka bir işyeri hekimi tarafından oluşturulmuştur.")
     record.deleted_at = datetime.utcnow()
+    record.updated_at = datetime.utcnow()
+    record.version = int(record.version or 1) + 1
+    append_health_revision(db, record=record, actor=user, action="delete", reason=reason)
+    append_health_access(
+        db, actor=user, company_id=record.company_id, record_id=record.id,
+        action="record_delete", request=request,
+    )
     db.commit()
     return {"ok": True, "id": record_id}
 
 
 @router.get("/{record_id}/form.html", response_class=HTMLResponse)
 def health_form_html(
+    request: Request,
     record_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
 ):
     record = db.get(HealthRecord, record_id)
     if not record or record.deleted_at:
@@ -586,7 +913,7 @@ def health_form_html(
     company = db.get(Company, record.company_id)
     employee = db.get(Employee, record.employee_id)
     view = DecryptedRecordView(record)
-    is_physician = user.role in PHYSICIAN_ROLES
+    is_physician = True
     conf = view.confidential_note if is_physician else None
     # P0-07: form HTML'de klinik metin yalnız hekim/GA
     audiometry_txt = view.audiometry_result if is_physician else None
@@ -617,7 +944,7 @@ def health_form_html(
     company_name = safe(company.name if company else "")
     employee_name = safe(employee.full_name if employee else "")
     html = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
-<title>Sağlık Gözetimi Formu</title>
+<title>Gizli Klinik Sağlık Dosyası</title>
 <style>
 body{{margin:0;background:#eef2f7;font-family:Segoe UI,Arial,sans-serif;color:#0f172a}}
 .top{{background:#0f2744;color:#fff;padding:18px 28px}}
@@ -631,8 +958,8 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 .sign div{{flex:1;text-align:center;border-top:1px solid #94a3b8;padding-top:10px;font-size:13px}}
 @media print{{body{{background:#fff}}.wrap{{box-shadow:none;margin:0;max-width:none}}}}
 </style></head><body>
-<div class="top"><h2>Sağlık Gözetimi Formu</h2>
-<p style="margin:0;opacity:.9">{company_name} · {employee_name}</p></div>
+<div class="top"><h2>Gizli Klinik Sağlık Dosyası</h2>
+<p style="margin:0;opacity:.9">Yalnız işyeri hekimi erişimine açıktır · {company_name} · {employee_name}</p></div>
 <div class="wrap">
 <div class="grid">
 {cell('Personel', employee.full_name if employee else '')}
@@ -664,19 +991,87 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 {f'<h3>Gizli hekim notu</h3><p>{safe(conf)}</p>' if conf else ''}
 <div class="sign">
 <div>İşyeri Hekimi<br><b>{safe(record.physician_name) or '........................'}</b></div>
-<div>İşveren / Vekili<br><b>........................</b></div>
 </div>
 <p style="margin-top:18px;font-size:12px;color:#64748b">Yazdır: Ctrl+P · İSG Suite OSGB</p>
 </div></body></html>"""
+    append_health_access(
+        db, actor=user, company_id=record.company_id, record_id=record.id,
+        action="clinical_form_view", request=request,
+    )
+    db.commit()
+    return HTMLResponse(html)
+
+
+@router.get("/{record_id}/fitness.html", response_class=HTMLResponse)
+def health_fitness_html(
+    request: Request,
+    record_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
+):
+    """Employer-facing minimum-necessary fitness document; no clinical findings."""
+    record = db.get(HealthRecord, record_id)
+    if not record or record.deleted_at:
+        raise HTTPException(404, "Sağlık kaydı bulunamadı.")
+    ensure_access(db, user, record.company_id)
+    if record.fitness_status == HealthFitnessStatus.PENDING:
+        raise HTTPException(409, "Hekim uygunluk kararını tamamlamadan işveren belgesi oluşturulamaz.")
+    company = db.get(Company, record.company_id)
+    employee = db.get(Employee, record.employee_id)
+    view = DecryptedRecordView(record)
+    revision = db.scalar(
+        select(HealthRecordRevision)
+        .where(HealthRecordRevision.record_id == record.id)
+        .order_by(HealthRecordRevision.version.desc())
+        .limit(1)
+    )
+
+    def safe(value) -> str:
+        return html_escape(str(value), quote=True) if value is not None else ""
+
+    verification = (revision.entry_hash[:16].upper() if revision else "KAYIT-BEKLIYOR")
+    html = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
+<title>İşe Uygunluk ve Çalışma Kısıtları Belgesi</title>
+<style>
+body{{margin:0;background:#eef2f7;font-family:Segoe UI,Arial,sans-serif;color:#0f172a}}
+.top{{background:#0f2744;color:#fff;padding:18px 28px}}
+.wrap{{max-width:820px;margin:18px auto;background:#fff;border-radius:12px;padding:26px;box-shadow:0 8px 24px #0f172a14}}
+.grid{{display:grid;grid-template-columns:1fr 1fr;gap:12px}}
+.box{{border:1px solid #dbe3ee;border-radius:10px;padding:12px}} .lab{{font-size:12px;color:#64748b}} .val{{font-weight:700;margin-top:4px}}
+.notice{{margin-top:18px;padding:12px;border:1px solid #99f6e4;background:#f0fdfa;border-radius:10px;font-size:13px}}
+.sign{{margin:42px 0 10px auto;width:48%;text-align:center;border-top:1px solid #94a3b8;padding-top:10px}}
+@media print{{body{{background:#fff}}.wrap{{box-shadow:none;margin:0;max-width:none}}}}
+</style></head><body>
+<div class="top"><h2>İşe Uygunluk ve Çalışma Kısıtları Belgesi</h2><p style="margin:0;opacity:.9">İşverene sunulacak asgari bilgi belgesi</p></div>
+<div class="wrap"><div class="grid">
+<div class="box"><div class="lab">İşyeri</div><div class="val">{safe(company.name if company else '')}</div></div>
+<div class="box"><div class="lab">Çalışan</div><div class="val">{safe(employee.full_name if employee else '')}</div></div>
+<div class="box"><div class="lab">Görevi / Bölümü</div><div class="val">{safe(' / '.join(x for x in ((employee.job_title if employee else None), (employee.department if employee else None)) if x))}</div></div>
+<div class="box"><div class="lab">Muayene Tarihi</div><div class="val">{safe(record.examination_date)}</div></div>
+<div class="box"><div class="lab">İşe Uygunluk</div><div class="val">{safe(FITNESS_LABELS.get(record.fitness_status, record.fitness_status.value))}</div></div>
+<div class="box"><div class="lab">Sonraki Muayene</div><div class="val">{safe(record.next_examination_date) or '—'}</div></div>
+</div>
+<h3>Çalışma Kısıtları / Uygunluk Şartları</h3><p>{safe(view.restrictions) or 'Kısıtlama bildirilmemiştir.'}</p>
+<div class="notice">Bu belge tanı, tetkik sonucu, klinik not veya sağlık geçmişi içermez. Ayrıntılı klinik dosya gizlidir ve yalnız işyeri hekimi erişimindedir.</div>
+<div class="sign">İşyeri Hekimi<br><b>{safe(record.physician_name) or '........................'}</b></div>
+<p style="font-size:11px;color:#64748b">Kayıt sürümü: {record.version} · Doğrulama: {verification}</p>
+</div></body></html>"""
+    append_health_access(
+        db, actor=user, company_id=record.company_id, record_id=record.id,
+        action="fitness_document_view", request=request,
+        metadata={"record_version": record.version},
+    )
+    db.commit()
     return HTMLResponse(html)
 
 
 @router.post("/{record_id}/report", response_model=HealthRecordResponse)
 async def upload_health_report(
+    request: Request,
     record_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*HEALTH_SUPPORT_ROLES)),
 ):
     record = db.get(HealthRecord, record_id)
     if not record or record.deleted_at:
@@ -732,6 +1127,24 @@ async def upload_health_report(
     record.report_file_name = Path(name).name
     record.report_storage_path = rel.replace("\\", "/")
     record.report_content_type = safe_mime
+    record.version = int(record.version or 1) + 1
+    record.updated_at = datetime.utcnow()
+    append_health_revision(
+        db,
+        record=record,
+        actor=user,
+        action="report_upload",
+        reason="Sağlık raporu dosyası eklendi veya yenilendi.",
+    )
+    append_health_access(
+        db,
+        actor=user,
+        company_id=record.company_id,
+        record_id=record.id,
+        action="report_upload",
+        request=request,
+        metadata={"content_type": safe_mime},
+    )
     db.commit()
     db.refresh(record)
     employee = db.get(Employee, record.employee_id)
@@ -740,9 +1153,10 @@ async def upload_health_report(
 
 @router.get("/{record_id}/report")
 def download_health_report(
+    request: Request,
     record_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*HEALTH_ROLES)),
+    user: User = Depends(require_roles(*PHYSICIAN_ONLY)),
 ):
     from app.services.stored_files import response_for_storage_key
 
@@ -752,6 +1166,16 @@ def download_health_report(
     ensure_access(db, user, record.company_id)
     if not record.report_storage_path:
         raise HTTPException(404, "Rapor dosyası yok.")
+    append_health_access(
+        db,
+        actor=user,
+        company_id=record.company_id,
+        record_id=record.id,
+        action="report_download",
+        request=request,
+        metadata={"content_type": record.report_content_type},
+    )
+    db.commit()
     return response_for_storage_key(
         record.report_storage_path,
         filename=record.report_file_name,

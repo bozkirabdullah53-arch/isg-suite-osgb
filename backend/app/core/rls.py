@@ -42,6 +42,7 @@ def _clear_tenant_vars(db: Session) -> None:
     _set(db, "app.allowed_company_ids", "-1")
     _set(db, "app.current_company_id", "")
     _set(db, "app.current_osgb_id", "")
+    _set(db, "app.health_clinical_access", "")
 
 
 def apply_rls_user(db: Session, user: User | int | None) -> None:
@@ -63,6 +64,11 @@ def apply_rls_user(db: Session, user: User | int | None) -> None:
     # Memberships: global / OSGB admin kendi satırları dışında yönetim
     admin = "1" if user.role in (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN) else ""
     _set(db, "app.rls_admin", admin)
+    health_clinical = "1" if user.role in (
+        UserRole.WORKPLACE_PHYSICIAN,
+        UserRole.OTHER_HEALTH_PERSONNEL,
+    ) else ""
+    _set(db, "app.health_clinical_access", health_clinical)
 
     if user.role == UserRole.GLOBAL_ADMIN:
         _set(db, "app.rls_bypass", "1")

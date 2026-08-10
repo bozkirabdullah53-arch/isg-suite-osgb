@@ -1,3 +1,4 @@
+// OSGB_PROFESSIONAL_DOCUMENTS_ONLY_V1
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {
   Archive,
@@ -93,7 +94,7 @@ export function PersonnelProfileDocumentsPanel({profileId,canWrite,onError,onMes
     if(!profileId){setDocuments([]);setLoading(false);return}
     setLoading(true);
     try{
-      const payload=await api(`/personnel-profiles/${encodeURIComponent(profileId)}/documents?include_archived=${showArchived?'true':'false'}`,{_retries:1});
+      const payload=await api(`/osgb-personnel-profiles/${encodeURIComponent(profileId)}/documents?include_archived=${showArchived?'true':'false'}`,{_retries:1});
       const rows=asDocumentRows(payload);
       setDocuments(rows);
       onError?.('');
@@ -156,7 +157,7 @@ export function PersonnelProfileDocumentsPanel({profileId,canWrite,onError,onMes
         if(value===''||value===null||value===undefined) continue;
         body.append(key,String(value));
       }
-      await api(`/personnel-profiles/${encodeURIComponent(profileId)}/documents/upload`,{
+      await api(`/osgb-personnel-profiles/${encodeURIComponent(profileId)}/documents/upload`,{
         method:'POST',
         headers:{'Idempotency-Key':newIdempotencyKey()},
         body,
@@ -177,7 +178,7 @@ export function PersonnelProfileDocumentsPanel({profileId,canWrite,onError,onMes
     if(reason.length<3){onError?.('Arşivleme gerekçesi en az 3 karakter olmalıdır.');return}
     setActionBusy(true);onError?.('');onMessage?.('');
     try{
-      await api(`/personnel-profiles/${encodeURIComponent(profileId)}/documents/${encodeURIComponent(row.document_key)}/archive`,{
+      await api(`/osgb-personnel-profiles/${encodeURIComponent(profileId)}/documents/${encodeURIComponent(row.document_key)}/archive`,{
         method:'POST',
         headers:{'Idempotency-Key':newIdempotencyKey()},
         body:JSON.stringify({reason}),
@@ -194,7 +195,7 @@ export function PersonnelProfileDocumentsPanel({profileId,canWrite,onError,onMes
     setActionBusy(true);onError?.('');
     let url='';
     try{
-      url=await authBlobUrl(`/personnel-profiles/${encodeURIComponent(profileId)}/document-versions/${encodeURIComponent(row.id)}/download`);
+      url=await authBlobUrl(`/osgb-personnel-profiles/${encodeURIComponent(profileId)}/document-versions/${encodeURIComponent(row.id)}/download`);
       const anchor=document.createElement('a');
       anchor.href=url;
       anchor.download=safeDocumentFilename(row);
@@ -216,7 +217,7 @@ export function PersonnelProfileDocumentsPanel({profileId,canWrite,onError,onMes
   async function openVersions(row){
     setActionBusy(true);onError?.('');onMessage?.('');
     try{
-      const payload=await api(`/personnel-profiles/${encodeURIComponent(profileId)}/documents/${encodeURIComponent(row.document_key)}/versions`,{_retries:1});
+      const payload=await api(`/osgb-personnel-profiles/${encodeURIComponent(profileId)}/documents/${encodeURIComponent(row.document_key)}/versions`,{_retries:1});
       setVersions(asDocumentRows(payload));
       setVersionsFor(row);
     }catch(error){onError?.(error?.message||'Belge sürüm geçmişi yüklenemedi.')}
