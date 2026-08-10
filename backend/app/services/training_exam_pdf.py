@@ -15,7 +15,12 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.entities import Branch, Company, Employee, TrainingExamSnapshot
 from app.services.special_training_profiles import resolve_special_profile_key, SPECIAL_TRAINING_PROFILES
-from app.services.training_question_bank import QUESTION_COUNT, create_exam_snapshot
+from app.services.training_question_bank import (
+    QUESTION_COUNT,
+    SPECIAL_QUESTION_COUNTS,
+    _SPECIAL_SELECTION_POLICIES,
+    create_exam_snapshot,
+)
 from app.services.training_topics import sectors_list_for_api
 
 FONT_REGULAR = "ExamSans"
@@ -51,11 +56,12 @@ def _load_or_create_snapshot(db: Session, training, created_by_id: int) -> Train
         .limit(1)
     )
     special_key = resolve_special_profile_key(training)
-    expected_policy = "special-yuksekte-calisma-v2-60x20" if special_key == "yuksekte_calisma" else None
+    expected_count = int(SPECIAL_QUESTION_COUNTS.get(special_key or "", QUESTION_COUNT))
+    expected_policy = _SPECIAL_SELECTION_POLICIES.get(special_key or "")
     if (
         snapshot is not None
-        and snapshot.question_count == QUESTION_COUNT
-        and len(snapshot.items) == QUESTION_COUNT
+        and snapshot.question_count == expected_count
+        and len(snapshot.items) == expected_count
         and (expected_policy is None or snapshot.selection_policy == expected_policy)
     ):
         return snapshot
@@ -166,9 +172,11 @@ def build_exam_pdf(
     _register_fonts()
     snapshot = _load_or_create_snapshot(db, training, created_by_id)
     items = list(snapshot.items)
-    if len(items) != QUESTION_COUNT:
+    special_key = resolve_special_profile_key(training)
+    expected_count = int(SPECIAL_QUESTION_COUNTS.get(special_key or "", QUESTION_COUNT))
+    if len(items) != expected_count:
         raise RuntimeError(
-            f"Sınav snapshot soru sayısı {QUESTION_COUNT} değil: {len(items)}"
+            f"Sınav snapshot soru sayısı {expected_count} değil: {len(items)}"
         )
 
     buf = BytesIO()
@@ -179,9 +187,12 @@ def build_exam_pdf(
     emerald = (15 / 255, 118 / 255, 110 / 255)
     light = (244 / 255, 248 / 255, 247 / 255)
     registry_no = _exam_company_registry_no(db, training)
-    special_key = resolve_special_profile_key(training)
     # Özel eğitimlerde teknik NACE yedeği çalışan sınavına sızmaz.
-    sector_name = ("Yüksekte çalışma" if special_key == "yuksekte_calisma" else _sector_display_name(getattr(training, "sector", None)))
+    sector_name = (
+        str(SPECIAL_TRAINING_PROFILES[special_key].get("title") or "Özel eğitim")
+        if special_key in SPECIAL_TRAINING_PROFILES
+        else _sector_display_name(getattr(training, "sector", None))
+    )
     special_profile = SPECIAL_TRAINING_PROFILES.get(special_key or "")
     exam_title = str((special_profile or {}).get("title") or "İŞ SAĞLIĞI VE GÜVENLİĞİ EĞİTİM SINAVI")
     participant_names = [] if answer_key_only else _exam_participant_names(db, training)

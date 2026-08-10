@@ -83,13 +83,9 @@ SPECIAL_TRAINING_PROFILES: dict[str, dict] = {
         ],
         "allowed_roles": [
             "isyeri_hekimi",
-            "hekim",
             "hemsire",
             "isyeri_hemsiresi",
             "diger_saglik_personeli",
-            "saglik_memuru",
-            "ebe",
-            "cevre_sagligi",
         ],
         "topics": [
             ("Kişisel hijyenin temel ilkeleri", "theory", 1.0),
@@ -115,14 +111,23 @@ SPECIAL_TRAINING_PROFILES: dict[str, dict] = {
         "attendance_title": "GIDA VE SU SEKTÖRÜNDE HİJYEN EĞİTİMİ",
         "purpose": "Gıda ve suyla temas eden çalışanların kişisel hijyen, güvenli su, çapraz bulaşmanın önlenmesi ve hijyenik çalışma uygulamalarını doğru biçimde uygulamasını sağlamak.",
         "legal_basis": "1593 sayılı Umumi Hıfzıssıhha Kanunu, 5996 sayılı Veteriner Hizmetleri, Bitki Sağlığı, Gıda ve Yem Kanunu, Hijyen Eğitimi Yönetmeliği ve Gıda Hijyeni Yönetmeliği kapsamında kurum içi eğitim kaydıdır.",
-        "disclaimer": "Bu belge, mevzuat kapsamındaki işyeri eğitim kaydıdır; resmî ruhsat, işletme kayıt/onay belgesi veya mesleki yeterlilik belgesi yerine geçmez.",
+        "disclaimer": (
+            "Bu belge kurum içi hijyen eğitimi katılım kaydıdır; MEB onaylı Hijyen Eğitimi "
+            "Belgesi, resmî kurs bitirme belgesi, ruhsat veya mesleki yeterlilik belgesi yerine geçmez."
+        ),
         "default_theory": 3,
         "default_practice": 1,
         "min_total": 2,
         "practice_required": True,
         "training_method": "Yüz yüze ve uygulamalı",
         "evaluation_methods": ["Yazılı ve uygulamalı değerlendirme", "Yazılı değerlendirme"],
-        "allowed_roles": ["gida_muhendisi", "veteriner_hekim", "isyeri_hekimi", "hijyen_egitmeni"],
+        "allowed_roles": [
+            "isyeri_hekimi",
+            "hemsire",
+            "isyeri_hemsiresi",
+            "diger_saglik_personeli",
+        ],
+        "exam_question_count": 10,
         "topics": [
             ("Gıda ve su hijyeninin amacı ve çalışan sorumlulukları", "theory", 1.0),
             ("Kişisel hijyen, el yıkama ve el antiseptiği", "theory", 1.3),
@@ -149,14 +154,22 @@ SPECIAL_INSTRUCTOR_ROLES = {
     "isg_b": {"label": "B Sınıfı İş Güvenliği Uzmanı", "profiles": ["yuksekte_calisma"]},
     "isg_c": {"label": "C Sınıfı İş Güvenliği Uzmanı", "profiles": ["yuksekte_calisma"]},
     "yuksekte_egitmen": {"label": "Belgeli Yüksekte Çalışma Eğitmeni", "profiles": ["yuksekte_calisma"]},
-    "isyeri_hekimi": {"label": "İşyeri Hekimi", "profiles": ["hijyen_sanitasyon"]},
-    "hekim": {"label": "Hekim", "profiles": ["hijyen_sanitasyon"]},
-    "hemsire": {"label": "Hemşire", "profiles": ["hijyen_sanitasyon"]},
-    "isyeri_hemsiresi": {"label": "İşyeri Hemşiresi", "profiles": ["hijyen_sanitasyon"]},
-    "diger_saglik_personeli": {"label": "Diğer Sağlık Personeli", "profiles": ["hijyen_sanitasyon"]},
-    "saglik_memuru": {"label": "Sağlık Memuru", "profiles": ["hijyen_sanitasyon"]},
-    "ebe": {"label": "Ebe", "profiles": ["hijyen_sanitasyon"]},
-    "cevre_sagligi": {"label": "Çevre Sağlığı Teknisyeni / Teknikeri", "profiles": ["hijyen_sanitasyon"]},
+    "isyeri_hekimi": {
+        "label": "İşyeri Hekimi",
+        "profiles": ["hijyen_sanitasyon", "gida_su_hijyeni"],
+    },
+    "hemsire": {
+        "label": "Hemşire",
+        "profiles": ["hijyen_sanitasyon", "gida_su_hijyeni"],
+    },
+    "isyeri_hemsiresi": {
+        "label": "İşyeri Hemşiresi",
+        "profiles": ["hijyen_sanitasyon", "gida_su_hijyeni"],
+    },
+    "diger_saglik_personeli": {
+        "label": "Diğer Sağlık Personeli",
+        "profiles": ["hijyen_sanitasyon", "gida_su_hijyeni"],
+    },
 }
 
 
@@ -208,6 +221,7 @@ def special_profiles_for_api() -> list[dict]:
             "practice_required": bool(profile.get("practice_required")),
             "training_method": profile.get("training_method"),
             "evaluation_methods": list(profile.get("evaluation_methods") or []),
+            "exam_question_count": int(profile.get("exam_question_count") or 20),
             "allowed_roles": list(profile.get("allowed_roles") or []),
             "topics": topics,
         })
@@ -236,29 +250,32 @@ SPECIAL_TOPICS_HEADER = "EĞİTİM PROGRAMI VE KONU SÜRELERİ"
 
 def resolve_special_profile_key(training) -> str | None:
     """Eğitim kaydından özel profil kodunu çözer."""
-    haystack = " ".join(
-        str(x or "")
-        for x in (
-            getattr(training, "training_type", None),
-            getattr(training, "title", None),
-            getattr(training, "notes", None),
-        )
-    ).casefold()
+    fields = [
+        str(getattr(training, "training_type", None) or "").strip().casefold(),
+        str(getattr(training, "title", None) or "").strip().casefold(),
+        str(getattr(training, "notes", None) or "").strip().casefold(),
+    ]
+    haystack = " ".join(fields)
 
+    # Önce kalıcı profil kodu ve tam başlığı çöz. Genel "hijyen" sözcüğü,
+    # "Gıda ve Su ... Hijyen Eğitimi" profilini yanlış profile düşürmemelidir.
     for key, profile in SPECIAL_TRAINING_PROFILES.items():
-        markers = [
-            key.replace("_", " "),
-            str(profile.get("title") or ""),
-            str(profile.get("short_code") or ""),
-        ]
-        if key == "yuksekte_calisma":
-            markers += ["yüksekte çalışma", "yuksekte calisma", "yüksekte"]
-        if key == "hijyen_sanitasyon":
-            markers += ["hijyen", "sanitasyon", "hijyen ve sanitasyon"]
-        for marker in markers:
-            m = str(marker or "").strip().casefold()
-            if m and m in haystack:
-                return key
+        exact_markers = {
+            key.casefold(),
+            key.replace("_", " ").casefold(),
+            str(profile.get("title") or "").strip().casefold(),
+        }
+        if any(field and field in exact_markers for field in fields[:2]):
+            return key
+
+    distinctive_markers = (
+        ("gida_su_hijyeni", ("gıda ve su sektöründe hijyen", "gida ve su sektorunde hijyen", "gıda ve su hijyeni", "gida ve su hijyeni")),
+        ("yuksekte_calisma", ("yüksekte çalışma", "yuksekte calisma", "yüksekte")),
+        ("hijyen_sanitasyon", ("hijyen ve sanitasyon", "hijyen sanitasyon", "sanitasyon", "hijyen")),
+    )
+    for key, markers in distinctive_markers:
+        if any(marker in haystack for marker in markers):
+            return key
     return None
 
 

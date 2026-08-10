@@ -23,7 +23,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import Company, Employee, TrainingParticipant, TrainingSession, TrainingStatus, User, UserRole
 from app.schemas.training import TrainingCreate, TrainingResponse, TrainingUpdate, TrainingVerifyResponse
-from app.services.assigned_team import training_defaults
+from app.services.assigned_team import assigned_team, training_defaults
 from app.services.training_employee_import import resolve_or_create_employees
 from app.services.training_excel import parse_employee_upload
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
@@ -56,6 +56,34 @@ EXCEL_EXT = (".xlsx", ".xlsm", ".csv")
 
 def ensure_access(db: Session, user: User, company_id: int):
     ensure_company_access(db, user, company_id)
+
+
+def _ensure_hygiene_instructor_is_assigned(
+    db: Session,
+    *,
+    company_id: int,
+    payload: TrainingCreate,
+) -> None:
+    """Hijyen eğitimini yalnız işyerine atanmış hekim veya DSP verebilir."""
+    profile_key = resolve_special_profile_key(payload)
+    if profile_key not in {"hijyen_sanitasyon", "gida_su_hijyeni"}:
+        return
+    team = assigned_team(db, company_id)
+    allowed = [
+        team.get("workplace_physician"),
+        team.get("other_health_personnel"),
+    ]
+    instructor_name = str(payload.instructor_name or "").strip().casefold()
+    if not any(
+        person
+        and str(person.get("full_name") or "").strip().casefold() == instructor_name
+        for person in allowed
+    ):
+        raise HTTPException(
+            422,
+            "Hijyen eğitimini yalnız bu işyerine aktif görevlendirilmiş işyeri hekimi "
+            "veya diğer sağlık personeli (hemşire dâhil) verebilir.",
+        )
 
 def add_years(d: date, years: int) -> date:
     try:
@@ -478,6 +506,11 @@ def create_training(
     company = db.get(Company, payload.company_id)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
+    _ensure_hygiene_instructor_is_assigned(
+        db,
+        company_id=payload.company_id,
+        payload=payload,
+    )
     kod = sektor_kodu_cozumle(payload.sector)
     if not kod:
         raise HTTPException(422, "Sektör / iş kolu resmî NACE listesinden seçilmelidir.")

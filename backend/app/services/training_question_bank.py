@@ -40,12 +40,19 @@ RELEASE_BUCKET_TARGETS = {"common": 15, "technical": 15, "sector": 15}
 SELECTION_POLICY = "foundation-5-plus-approved-5x3-v1"
 CURATED_FALLBACK_POLICY = "foundation-5-plus-approved-db-curated-5x3-v1"
 SPECIAL_BANK_COUNT = 60
-SPECIAL_QUESTION_COUNT = 20
+SPECIAL_QUESTION_COUNTS = {
+    "yuksekte_calisma": 20,
+    "gida_su_hijyeni": 10,
+}
 _SPECIAL_PACKS = {
     "yuksekte_calisma": "special-yuksekte-calisma.json",
     "gida_su_hijyeni": "special-gida-su-hijyeni.json",
 }
 _SPECIAL_BANK_COUNTS = {"yuksekte_calisma": 60, "gida_su_hijyeni": 20}
+_SPECIAL_SELECTION_POLICIES = {
+    "yuksekte_calisma": "special-yuksekte-calisma-v2-60x20",
+    "gida_su_hijyeni": "special-gida-su-hijyeni-v2-20x10",
+}
 VALID_HAZARDS = frozenset({"Az Tehlikeli", "Tehlikeli", "Çok Tehlikeli"})
 _NACE_PREFIX_RE = re.compile(r"^\d{2}(?:\.\d{2}){0,2}$")
 _CATALOG = tuple(sectors_list_for_api())
@@ -441,6 +448,22 @@ def _counts_and_status(buckets_or_counts: dict) -> dict:
 
 
 def question_bank_readiness(db: Session, training: TrainingSession) -> dict:
+    special_key = resolve_special_profile_key(training)
+    if special_key in _SPECIAL_PACKS:
+        available = len(_special_curated_questions(training))
+        required = int(SPECIAL_QUESTION_COUNTS[special_key])
+        return {
+            "available": {"special": available},
+            "ready": available >= required,
+            "release_ready": available >= required,
+            "missing": {"special": max(0, required - available)},
+            "release_missing": {"special": max(0, required - available)},
+            "required": {"special": required},
+            "release_required": {"special": required},
+            "context": {"special_profile": special_key},
+            "count": required,
+            "policy": _SPECIAL_SELECTION_POLICIES[special_key],
+        }
     buckets = _candidate_buckets(db, training)
     status = _counts_and_status(buckets)
     return {
@@ -704,9 +727,13 @@ def _create_special_exam_snapshot(
     created_by_id: int,
     questions: list[dict],
 ) -> TrainingExamSnapshot:
+    special_key = resolve_special_profile_key(training)
+    if special_key not in SPECIAL_QUESTION_COUNTS:
+        raise RuntimeError("Özel eğitim sınav politikası tanımlı değil.")
+    question_count = int(SPECIAL_QUESTION_COUNTS[special_key])
     seed = secrets.token_hex(16)
     rnd = random.Random(seed)
-    selected = rnd.sample(questions, SPECIAL_QUESTION_COUNT)
+    selected = rnd.sample(questions, question_count)
     items = [
         _curated_snapshot_item(question, position, rnd)
         for position, question in enumerate(selected, start=1)
@@ -724,10 +751,10 @@ def _create_special_exam_snapshot(
     exam = TrainingExamSnapshot(
         training_id=training.id,
         version=version,
-        question_count=SPECIAL_QUESTION_COUNT,
+        question_count=question_count,
         random_seed=seed,
         content_hash=content_hash,
-        selection_policy="special-yuksekte-calisma-v2-60x20",
+        selection_policy=_SPECIAL_SELECTION_POLICIES[special_key],
         created_by_id=created_by_id,
     )
     for item in items:

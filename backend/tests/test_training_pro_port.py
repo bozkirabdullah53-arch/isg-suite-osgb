@@ -105,6 +105,12 @@ def test_document_titles_follow_training_type():
     assert "HİJYEN" in hijyen["certificate_title"]
     assert hijyen["profile_key"] == "hijyen_sanitasyon"
 
+    gida_su = resolve_training_document_titles(
+        SimpleNamespace(training_type="Gıda ve Su Sektöründe Hijyen Eğitimi", title="", notes="")
+    )
+    assert gida_su["profile_key"] == "gida_su_hijyeni"
+    assert gida_su["certificate_title"] == "GIDA VE SU SEKTÖRÜNDE HİJYEN EĞİTİMİ KATILIM BELGESİ"
+
     temel = resolve_training_document_titles(
         SimpleNamespace(training_type="Temel İSG Eğitimi", title="İlk Defa", notes="")
     )
@@ -183,3 +189,85 @@ def test_height_training_replaces_oversized_hidden_stamp_with_profile_legal_basi
 
     assert payload.stamp_text == SPECIAL_TRAINING_PROFILES["yuksekte_calisma"]["legal_basis"]
     assert len(payload.stamp_text) <= 400
+
+
+def test_food_water_hygiene_accepts_only_occupational_health_instructors():
+    from datetime import date
+
+    import pytest
+
+    from app.schemas.training import TrainingCreate
+
+    common = {
+        "company_id": 1,
+        "title": "Gıda ve Su Sektöründe Hijyen Eğitimi",
+        "training_type": "Gıda ve Su Sektöründe Hijyen Eğitimi",
+        "delivery_method": "Yüz yüze ve uygulamalı",
+        "location": "İşyeri Eğitim Salonu",
+        "start_date": date(2026, 8, 9),
+        "end_date": date(2026, 8, 10),
+        "hazard_class": "Tehlikeli",
+        "sector": "genel_uretim",
+        "instructor_name": "Yetkili Eğitici",
+        "evaluation_method": "Yazılı ve uygulamalı değerlendirme",
+        "participant_ids": [1],
+    }
+
+    with pytest.raises(ValueError, match="yetkili eğitici"):
+        TrainingCreate(
+            **common,
+            instructor_qualification="A Sınıfı İş Güvenliği Uzmanı",
+        )
+
+    for qualification in ("İşyeri Hekimi", "Hemşire", "Diğer Sağlık Personeli"):
+        payload = TrainingCreate(**common, instructor_qualification=qualification)
+        assert payload.instructor_qualification == qualification
+        assert payload.training_type == "Gıda ve Su Sektöründe Hijyen Eğitimi"
+
+
+def test_hygiene_profile_metadata_exposes_ten_question_policy_and_health_roles():
+    meta = special_meta_for_api()
+    profile = next(row for row in meta["profiles"] if row["code"] == "gida_su_hijyeni")
+    assert profile["exam_question_count"] == 10
+    assert set(profile["allowed_roles"]) == {
+        "isyeri_hekimi",
+        "hemsire",
+        "isyeri_hemsiresi",
+        "diger_saglik_personeli",
+    }
+    role_profiles = {
+        row["code"]: set(row["profiles"])
+        for row in meta["instructor_roles"]
+    }
+    for role in profile["allowed_roles"]:
+        assert "gida_su_hijyeni" in role_profiles[role]
+
+
+def test_food_water_hygiene_instructor_must_match_active_health_assignment(monkeypatch):
+    from types import SimpleNamespace
+
+    import pytest
+    from fastapi import HTTPException
+
+    from app.api import trainings
+
+    payload = SimpleNamespace(
+        training_type="Gıda ve Su Sektöründe Hijyen Eğitimi",
+        title="Gıda ve Su Sektöründe Hijyen Eğitimi",
+        notes="",
+        instructor_name="Dr. Ayşe Yılmaz",
+    )
+    monkeypatch.setattr(
+        trainings,
+        "assigned_team",
+        lambda _db, _company_id: {
+            "workplace_physician": {"full_name": "Dr. Ayşe Yılmaz"},
+            "other_health_personnel": None,
+        },
+    )
+    trainings._ensure_hygiene_instructor_is_assigned(None, company_id=1, payload=payload)
+
+    payload.instructor_name = "Abdullah Bozkır"
+    with pytest.raises(HTTPException, match="işyeri hekimi") as exc:
+        trainings._ensure_hygiene_instructor_is_assigned(None, company_id=1, payload=payload)
+    assert exc.value.status_code == 422
