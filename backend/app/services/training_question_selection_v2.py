@@ -39,7 +39,9 @@ _legacy_question_bank_readiness: Callable | None = None
 
 
 def exact_nace_exam_strict_active() -> bool:
-    value = str(os.getenv(STRICT_ENV, "false") or "").strip().casefold()
+    # Exact, persisted NACE selections must use their own question package by default.
+    # Operators can still set the flag explicitly to false for emergency rollback.
+    value = str(os.getenv(STRICT_ENV, "true") or "").strip().casefold()
     return value in {"1", "true", "yes", "on"}
 
 
