@@ -5,6 +5,12 @@ import './training_pro.css';
 
 const HAZARD_HOURS = {'Az Tehlikeli': 8, Tehlikeli: 12, 'Çok Tehlikeli': 16};
 const MAX_HOURS_PER_DAY = 8;
+const HYGIENE_INSTRUCTOR_TITLES = [
+  'İşyeri Hekimi',
+  'Hemşire',
+  'İşyeri Hemşiresi',
+  'Diğer Sağlık Personeli',
+];
 const HAZARD_HINT = {
   'Az Tehlikeli': '8 ders saati · en az 1 gün · 3 yılda bir yenilenir',
   Tehlikeli: '12 ders saati · en az 2 güne yayılır · 2 yılda bir yenilenir',
@@ -362,6 +368,7 @@ export function TrainingPage({user}) {
   const [specialProfiles, setSpecialProfiles] = useState([]);
   const [specialInstructorRoles, setSpecialInstructorRoles] = useState([]);
   const [specialProfileCode, setSpecialProfileCode] = useState('');
+  const [manualInstructor, setManualInstructor] = useState(false);
   const [rows, setRows] = useState([]);
   const [q, setQ] = useState('');
   const [form, setForm] = useState(() => emptyForm(user));
@@ -454,7 +461,7 @@ export function TrainingPage({user}) {
   );
 
   useEffect(() => {
-    if (!isHygieneSpecialProfile || !instructorOptions.length) return;
+    if (!isHygieneSpecialProfile || manualInstructor || !instructorOptions.length) return;
     if (instructorOptions.some((option) => option.value === form.instructor_name)) return;
     const first = instructorOptions[0];
     setForm((current) => ({
@@ -462,20 +469,23 @@ export function TrainingPage({user}) {
       instructor_name: first.value,
       instructor_qualification: first.qualification || '',
     }));
-  }, [form.instructor_name, instructorOptions, isHygieneSpecialProfile]);
+  }, [form.instructor_name, instructorOptions, isHygieneSpecialProfile, manualInstructor]);
 
   const instructorIsCustom = useMemo(
     () =>
-      instructorOptions.length > 0 &&
-      !instructorOptions.some((o) => o.value === form.instructor_name),
-    [instructorOptions, form.instructor_name],
+      manualInstructor ||
+      (instructorOptions.length > 0 &&
+        !instructorOptions.some((o) => o.value === form.instructor_name)),
+    [instructorOptions, form.instructor_name, manualInstructor],
   );
 
   function pickInstructor(value) {
     if (value === '__custom__') {
+      setManualInstructor(true);
       setForm((f) => ({...f, instructor_name: '', instructor_qualification: ''}));
       return;
     }
+    setManualInstructor(false);
     const picked = instructorOptions.find((o) => o.value === value);
     setForm((f) => ({
       ...f,
@@ -769,6 +779,10 @@ export function TrainingPage({user}) {
     }
     if (!(form.instructor_name || '').trim() || (form.instructor_name || '').trim().length < 3) {
       setErr('Eğitici adı soyadı zorunludur.');
+      return null;
+    }
+    if (isHygieneSpecialProfile && !HYGIENE_INSTRUCTOR_TITLES.includes(form.instructor_qualification)) {
+      setErr('Hijyen eğitimi için işyeri hekimi, hemşire veya diğer sağlık personeli unvanını seçiniz.');
       return null;
     }
     if (!specialFlow && (!form.attendance_verified || !form.success_verified)) {
@@ -1069,6 +1083,7 @@ export function TrainingPage({user}) {
 
   function applySpecialProfile(code) {
     setSpecialProfileCode(code);
+    setManualInstructor(false);
     if (!code) {
       setForm((prev) => ({...prev, special_duration_hours: null, special_duration_hint: ''}));
       return;
@@ -1378,24 +1393,45 @@ export function TrainingPage({user}) {
                     value={form.instructor_name}
                     disabled={!canEdit}
                     onChange={(e) => setForm({...form, instructor_name: e.target.value})}
-                    placeholder="İSG uzmanı veya işyeri hekimi"
+                    placeholder={
+                      isHygieneSpecialProfile
+                        ? 'İşyeri hekimi, hemşire veya diğer sağlık personelinin adı soyadı'
+                        : 'İSG uzmanı veya işyeri hekimi'
+                    }
                   />
                 )}
                 <div className="tp-help">
-                  {instructorOptions.length > 0
+                  {isHygieneSpecialProfile
+                    ? 'Atanmış sağlık personelini seçin veya yetkili eğiticinin adını elle yazın. İSG uzmanı hijyen eğiticisi olarak kullanılamaz.'
+                    : instructorOptions.length > 0
                     ? 'İşyerine görevlendirilmiş uzman ve hekim listelenir; ad elle yazılmaz.'
                     : 'Bu işyerine atanmış görevli bulunamadı — adı elle yazın veya Görevlendirmeler ekranından atama yapın.'}
                 </div>
               </div>
               <div>
                 <label className="tp-label">Eğitici unvanı / yeterlilik</label>
-                <input
-                  className="tp-input"
-                  value={form.instructor_qualification}
-                  disabled={!canEdit}
-                  onChange={(e) => setForm({...form, instructor_qualification: e.target.value})}
-                  placeholder="Örn: A Sınıfı İGU — belge no"
-                />
+                {isHygieneSpecialProfile ? (
+                  <select
+                    className="tp-select"
+                    required
+                    value={form.instructor_qualification}
+                    disabled={!canEdit}
+                    onChange={(e) => setForm({...form, instructor_qualification: e.target.value})}
+                  >
+                    <option value="">Yetkili sağlık personeli unvanını seçiniz</option>
+                    {HYGIENE_INSTRUCTOR_TITLES.map((title) => (
+                      <option key={title} value={title}>{title}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className="tp-input"
+                    value={form.instructor_qualification}
+                    disabled={!canEdit}
+                    onChange={(e) => setForm({...form, instructor_qualification: e.target.value})}
+                    placeholder="Örn: A Sınıfı İGU — belge no"
+                  />
+                )}
               </div>
               <div>
                 <label className="tp-label">Başarı değerlendirmesi</label>
@@ -1845,6 +1881,31 @@ export function TrainingPage({user}) {
                 <Users size={18} style={{verticalAlign: -3, marginRight: 6}} />
                 Seçilen Personelleri Eğitime Ekle
               </button>
+              {excelInfo && excelPreview.length === 0 && /ortak personel/i.test(excelInfo) && (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    padding: '12px 14px',
+                    border: '1px solid #86efac',
+                    borderRadius: 12,
+                    background: '#f0fdf4',
+                    color: '#166534',
+                  }}
+                >
+                  <CheckCircle2 size={20} style={{flex: '0 0 auto', marginTop: 1}} />
+                  <div>
+                    <strong style={{display: 'block'}}>{excelInfo}</strong>
+                    <span style={{fontSize: 13}}>
+                      Seçim eğitim formuna aktarıldı. Kalıcı kayıt ve PDF için aşağıdaki
+                      «Eğitimi Kaydet ve PDF Hazırla» düğmesine basın.
+                    </span>
+                  </div>
+                </div>
+              )}
               <div className="tp-help" style={{textAlign: 'center'}}>
                 PC seçeneği Excel/CSV dosyasını okur. Ortak Personel seçeneği yalnızca yukarıda
                 işaretlediğiniz çalışanları kullanır; tüm liste için «Tümünü Seç».
@@ -2010,12 +2071,10 @@ export function TrainingPage({user}) {
                         {o.value} — {o.qualification}
                       </option>
                     ))}
-                    {!isHygieneSpecialProfile && (
-                      <option value="__custom__">Başka biri (elle yazacağım)</option>
-                    )}
+                    <option value="__custom__">Başka biri (elle yazacağım)</option>
                   </select>
                 ) : null}
-                {!isHygieneSpecialProfile && (instructorOptions.length === 0 || instructorIsCustom) && (
+                {(instructorOptions.length === 0 || instructorIsCustom) && (
                   <input
                     className="tp-input"
                     style={instructorOptions.length > 0 ? {marginTop: 8} : undefined}
@@ -2023,23 +2082,42 @@ export function TrainingPage({user}) {
                     value={form.instructor_name}
                     disabled={!canEdit}
                     onChange={(e) => setForm({...form, instructor_name: e.target.value})}
+                    placeholder={
+                      isHygieneSpecialProfile
+                        ? 'İşyeri hekimi, hemşire veya diğer sağlık personelinin adı soyadı'
+                        : 'Eğiticinin adı soyadı'
+                    }
                   />
                 )}
-                {isHygieneSpecialProfile && instructorOptions.length === 0 && (
-                  <div className="tp-alert" style={{marginTop: 8}}>
-                    Bu işyerine aktif görevlendirilmiş işyeri hekimi veya diğer sağlık personeli
-                    bulunmuyor. Hijyen eğitimi kaydı oluşturulamaz.
-                  </div>
-                )}
+                <div className="tp-help">
+                  {isHygieneSpecialProfile
+                    ? 'Yalnız işyeri hekimi, hemşire veya diğer sağlık personeli seçilebilir; İSG uzmanı seçilemez.'
+                    : 'Atanmış eğiticiyi seçin veya başka bir yetkili eğiticinin adını yazın.'}
+                </div>
               </div>
               <div>
                 <label className="tp-label">Yeterlilik / unvan</label>
-                <input
-                  className="tp-input"
-                  value={form.instructor_qualification}
-                  disabled={!canEdit || isHygieneSpecialProfile}
-                  onChange={(e) => setForm({...form, instructor_qualification: e.target.value})}
-                />
+                {isHygieneSpecialProfile ? (
+                  <select
+                    className="tp-select"
+                    required
+                    value={form.instructor_qualification}
+                    disabled={!canEdit}
+                    onChange={(e) => setForm({...form, instructor_qualification: e.target.value})}
+                  >
+                    <option value="">Yetkili sağlık personeli unvanını seçiniz</option>
+                    {HYGIENE_INSTRUCTOR_TITLES.map((title) => (
+                      <option key={title} value={title}>{title}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className="tp-input"
+                    value={form.instructor_qualification}
+                    disabled={!canEdit}
+                    onChange={(e) => setForm({...form, instructor_qualification: e.target.value})}
+                  />
+                )}
               </div>
               <div>
                 <label className="tp-label">Başlangıç *</label>
@@ -2169,7 +2247,7 @@ export function TrainingPage({user}) {
                 type="submit"
                 className="btn-premium"
                 style={{marginTop: 14}}
-                disabled={busy || (isHygieneSpecialProfile && instructorOptions.length === 0)}
+                disabled={busy}
               >
                 {busy ? 'Kaydediliyor…' : 'Eğitimi Kaydet ve PDF Hazırla'}
               </button>

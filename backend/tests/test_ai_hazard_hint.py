@@ -39,7 +39,14 @@ def client(tmp_path, monkeypatch):
 def _login_specialist(client: TestClient) -> str:
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
-    from app.models.entities import Company, OsgbOrganization, User, UserRole
+    from app.models.entities import (
+        Company,
+        IsgProfessional,
+        OsgbOrganization,
+        ProfessionalType,
+        User,
+        UserRole,
+    )
 
     with SessionLocal() as db:
         osgb = OsgbOrganization(
@@ -55,6 +62,15 @@ def _login_specialist(client: TestClient) -> str:
         company = Company(name="Hint Firma", osgb_id=osgb.id, is_active=True, hazard_class="Tehlikeli")
         db.add(company)
         db.flush()
+        db.add(
+            IsgProfessional(
+                osgb_id=osgb.id,
+                full_name="Hint Uzman",
+                email="hint-uzman@test.com",
+                professional_type=ProfessionalType.SAFETY_SPECIALIST,
+                is_active=True,
+            )
+        )
         db.add(
             User(
                 email="hint-uzman@test.com",

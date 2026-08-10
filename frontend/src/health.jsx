@@ -71,7 +71,8 @@ function emptyForm(user) {
     examination_date: new Date().toISOString().slice(0, 10),
     next_examination_date: '',
     fitness_status: 'pending',
-    physician_name: user.role === 'workplace_physician' ? (user.full_name || '') : '',
+    physician_professional_id: '',
+    physician_name: '',
     summary: '',
     confidential_note: '',
     informed_consent: false,
@@ -149,9 +150,8 @@ function MiniTable({title, rows, empty}) {
 }
 
 export function HealthPage({user}) {
-  const canEdit = ['global_admin', 'company_admin', 'workplace_physician', 'other_health_personnel'].includes(user.role);
-  const isPhysician = ['global_admin', 'workplace_physician'].includes(user.role);
-  const isGlobal = user.role === 'global_admin';
+  const canEdit = ['workplace_physician', 'other_health_personnel'].includes(user.role);
+  const isPhysician = user.role === 'workplace_physician';
 
   const [companies, setCompanies] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -172,7 +172,6 @@ export function HealthPage({user}) {
   const [leadLive, setLeadLive] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
-  const [physicianCustom, setPhysicianCustom] = useState(false);
 
   const typeMap = useMemo(() => {
     const m = {...TYPE_FALLBACK};
@@ -194,7 +193,7 @@ export function HealthPage({user}) {
     if (typeFilter) p.set('record_type', typeFilter);
     if (overdueOnly) p.set('overdue_only', 'true');
     return p.toString();
-  }, [companyId, q, typeFilter, overdueOnly, isGlobal]);
+  }, [companyId, q, typeFilter, overdueOnly]);
 
   async function load() {
     if (!canEdit) return;
@@ -242,20 +241,10 @@ export function HealthPage({user}) {
       setMeta(m);
       setAnalysis(a);
 
-      // İşyeri hekimleri: OSGB profesyonelleri + seçilen işyerinin personel listesi
-      let hekimler = [];
-      try {
-        const oid = user.osgb_id || c.find((x) => String(x.id) === String(nextCid))?.osgb_id;
-        const pros = oid
-          ? await api(`/osgb/professionals?osgb_id=${oid}`).catch(() => [])
-          : await api('/osgb/professionals').catch(() => []);
-        hekimler = (pros || []).filter(
-          (p) => p.is_active !== false && (
-            p.professional_type === 'workplace_physician'
-            || user.role === 'workplace_physician'
-          ),
-        );
-      } catch (_) { /* ignore */ }
+      // Yalnız seçilen işyerinde bugün aktif görevlendirilmiş işyeri hekimleri.
+      const hekimler = nextCid
+        ? await api(`/health-records/assigned-physicians?company_id=${encodeURIComponent(nextCid)}`).catch(() => [])
+        : [];
       setPhysicians(hekimler);
     } catch (err) {
       setMessage(err.message || 'Yükleme başarısız.');
@@ -265,6 +254,10 @@ export function HealthPage({user}) {
   useEffect(() => { load(); }, [qs]);
 
   useEffect(() => {
+    if (!isPhysician) {
+      setLeadLive(null);
+      return undefined;
+    }
     const v = form.blood_lead_value;
     if (v === '' || v == null) {
       setLeadLive(null);
@@ -276,7 +269,7 @@ export function HealthPage({user}) {
         .catch(() => setLeadLive(null));
     }, 250);
     return () => clearTimeout(t);
-  }, [form.blood_lead_value, form.blood_lead_ref]);
+  }, [form.blood_lead_value, form.blood_lead_ref, isPhysician]);
 
   const companyEmployees = useMemo(
     () => employees.filter((x) => String(x.company_id) === String(form.company_id || companyId) && x.is_active !== false),
@@ -284,25 +277,20 @@ export function HealthPage({user}) {
   );
 
   const physicianOptions = useMemo(() => {
-    const seen = new Set();
-    const out = [];
-    const add = (name, note) => {
-      const n = (name || '').trim();
-      const key = n.toLocaleLowerCase('tr');
-      if (!n || seen.has(key)) return;
-      seen.add(key);
-      out.push({name: n, note});
-    };
-    for (const p of physicians) add(p.full_name, 'İşyeri hekimi');
-    if (user.role === 'workplace_physician' && user.full_name) add(user.full_name, 'Ben');
-    // Firma personel listesinden seçim (PRO parity)
-    for (const e of companyEmployees) add(e.full_name, e.job_title || 'Personel');
-    return out;
-  }, [physicians, companyEmployees, user]);
+    return (physicians || []).map((p) => ({
+      id: p.professional_id,
+      name: p.full_name,
+      note: p.certificate_number ? `Belge: ${p.certificate_number}` : 'Aktif görevlendirme',
+    }));
+  }, [physicians]);
 
   async function applySuggest(empId, company) {
     const emp = employees.find((x) => String(x.id) === String(empId));
     if (!emp) return;
+    if (!isPhysician) {
+      setForm((f) => ({...f, employee_id: empId, company_id: company || f.company_id}));
+      return;
+    }
     try {
       const sug = await api(
         `/health-records/suggest?job_title=${encodeURIComponent(emp.job_title || '')}`
@@ -336,12 +324,11 @@ export function HealthPage({user}) {
     setEditing(null);
     setReportFile(null);
     setLeadLive(null);
-    setPhysicianCustom(false);
     const cid = companyId || user.company_id || '';
     const base = {...emptyForm(user), company_id: cid};
-    // Hekim kendi adını listeden seçili getir
-    if (user.role === 'workplace_physician' && user.full_name) {
-      base.physician_name = user.full_name;
+    if (physicianOptions.length === 1) {
+      base.physician_professional_id = String(physicianOptions[0].id);
+      base.physician_name = physicianOptions[0].name;
     }
     setForm(base);
     setOpen(true);
@@ -353,8 +340,6 @@ export function HealthPage({user}) {
     const exp = row.exposures
       ? (Array.isArray(row.exposures) ? row.exposures : String(row.exposures).split(',').map((x) => x.trim()).filter(Boolean))
       : [];
-    const inList = physicianOptions.some((p) => p.name === (row.physician_name || ''));
-    setPhysicianCustom(!!(row.physician_name && !inList));
     setForm({
       company_id: row.company_id,
       employee_id: row.employee_id,
@@ -362,6 +347,7 @@ export function HealthPage({user}) {
       examination_date: row.examination_date || '',
       next_examination_date: row.next_examination_date || '',
       fitness_status: row.fitness_status || 'pending',
+      physician_professional_id: row.physician_professional_id || '',
       physician_name: row.physician_name || '',
       summary: row.summary || '',
       confidential_note: row.confidential_note || '',
@@ -390,28 +376,32 @@ export function HealthPage({user}) {
   function payloadFromForm() {
     const numOrNull = (v) => (v === '' || v == null ? null : Number(v));
     const exposures = Array.isArray(form.exposures) ? form.exposures.join(', ') : (form.exposures || null);
-    return {
+    const base = {
       company_id: Number(form.company_id),
       employee_id: Number(form.employee_id),
       record_type: form.record_type,
       examination_date: form.examination_date,
       next_examination_date: form.next_examination_date || null,
-      fitness_status: form.fitness_status,
-      physician_name: form.physician_name || null,
-      summary: form.summary || null,
-      confidential_note: form.confidential_note || null,
       informed_consent: !!form.informed_consent,
-      restrictions: form.restrictions || null,
+      physician_professional_id: Number(form.physician_professional_id) || null,
       audiometry_date: form.audiometry_date || null,
-      audiometry_result: form.audiometry_result || null,
       spirometry_date: form.spirometry_date || null,
-      spirometry_result: form.spirometry_result || null,
       chest_xray_date: form.chest_xray_date || null,
-      chest_xray_result: form.chest_xray_result || null,
       blood_lead_date: form.blood_lead_date || null,
       blood_lead_value: numOrNull(form.blood_lead_value),
       blood_lead_unit: form.blood_lead_unit || null,
       blood_lead_ref: numOrNull(form.blood_lead_ref),
+    };
+    if (!isPhysician) return base;
+    return {
+      ...base,
+      fitness_status: form.fitness_status,
+      summary: form.summary || null,
+      confidential_note: form.confidential_note || null,
+      restrictions: form.restrictions || null,
+      audiometry_result: form.audiometry_result || null,
+      spirometry_result: form.spirometry_result || null,
+      chest_xray_result: form.chest_xray_result || null,
       suggested_tests: form.suggested_tests || null,
       exposures,
       follow_up_note: form.follow_up_note || null,
@@ -425,7 +415,7 @@ export function HealthPage({user}) {
       setMessage('Personeli listeden seçiniz.');
       return;
     }
-    if (!(form.physician_name || '').trim()) {
+    if (!form.physician_professional_id) {
       setMessage('İşyeri hekimini listeden seçiniz.');
       return;
     }
@@ -454,10 +444,12 @@ export function HealthPage({user}) {
   }
 
   async function remove(row) {
-    if (!window.confirm(`${row.employee_name || 'Kayıt'} silinsin mi?`)) return;
+    if (!isPhysician) return;
+    const reason = window.prompt(`${row.employee_name || 'Kayıt'} için silme nedenini yazınız (en az 5 karakter):`);
+    if (!reason || reason.trim().length < 5) return;
     setBusy(true);
     try {
-      await api(`/health-records/${row.id}`, {method: 'DELETE'});
+      await api(`/health-records/${row.id}?reason=${encodeURIComponent(reason.trim())}`, {method: 'DELETE'});
       await load();
     } catch (err) {
       setMessage(err.message);
@@ -484,17 +476,17 @@ export function HealthPage({user}) {
     try { await downloadFile(`/health-records/analysis.txt?${companyQs()}`, 'saglik-analiz-raporu.txt'); }
     catch (err) { setMessage(err.message); }
   }
-  async function openForm(row) {
+  async function openHtmlDocument(row, kind) {
     try {
       const token = localStorage.getItem('isg_token');
       const base = import.meta.env.VITE_API_URL
         || ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
           ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
           : 'https://isg-suite-api-1u9t.onrender.com/api/v1');
-      const r = await fetch(`${base}/health-records/${row.id}/form.html`, {
+      const r = await fetch(`${base}/health-records/${row.id}/${kind}.html`, {
         headers: token ? {Authorization: `Bearer ${token}`} : {},
       });
-      if (!r.ok) throw new Error('Form açılamadı.');
+      if (!r.ok) throw new Error(kind === 'fitness' ? 'Uygunluk belgesi açılamadı.' : 'Klinik dosya açılamadı.');
       const html = await r.text();
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
@@ -508,6 +500,8 @@ export function HealthPage({user}) {
       setMessage(err.message);
     }
   }
+  const openForm = (row) => openHtmlDocument(row, 'form');
+  const openFitness = (row) => openHtmlDocument(row, 'fitness');
   async function downloadReport(row) {
     try { await downloadFile(`/health-records/${row.id}/report`, row.report_file_name || 'saglik-raporu'); }
     catch (err) { setMessage(err.message); }
@@ -518,7 +512,7 @@ export function HealthPage({user}) {
       <div className="page-title">
         <h3>Sağlık Gözetimi</h3>
         <section className="panel" style={{marginTop: 16}}>
-          <p>Sağlık kayıtları yalnızca hekim, DSP, firma yöneticisi ve global yönetici tarafından görüntülenir.</p>
+          <p>Klinik sağlık kayıtları yalnızca aktif görevlendirilmiş işyeri hekimi ve sınırlı destek yetkisiyle DSP tarafından görüntülenir.</p>
         </section>
       </div>
     );
@@ -534,15 +528,15 @@ export function HealthPage({user}) {
         <h3>Sağlık Gözetimi</h3>
         <div className="actions">
           <button type="button" className="secondary" onClick={load} disabled={busy}><RefreshCw size={16} /> Yenile</button>
-          <button type="button" className="secondary" onClick={exportTxt}><Download size={16} /> TXT</button>
-          <button type="button" className="secondary" onClick={exportXlsx}><Download size={16} /> Excel</button>
+          {isPhysician && <button type="button" className="secondary" onClick={exportTxt}><Download size={16} /> TXT</button>}
+          {isPhysician && <button type="button" className="secondary" onClick={exportXlsx}><Download size={16} /> Excel</button>}
           <button type="button" onClick={openCreate} disabled={busy || !companyId}><Plus size={16} /> Yeni Kayıt</button>
         </div>
       </div>
 
       <section className="panel" style={{marginBottom: 16}}>
         <div className="form-grid" style={{gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', marginBottom: 0}}>
-          {(isGlobal || user.role === 'workplace_physician' || user.role === 'other_health_personnel' || companies.length > 1) && (
+          {(user.role === 'workplace_physician' || user.role === 'other_health_personnel' || companies.length > 1) && (
             <Select
               label="İşyeri"
               value={companyId}
@@ -590,9 +584,11 @@ export function HealthPage({user}) {
         <button type="button" className={tab === 'kayitlar' ? '' : 'secondary'} onClick={() => setTab('kayitlar')}>
           <HeartPulse size={16} /> Kayıtlar
         </button>
-        <button type="button" className={tab === 'analiz' ? '' : 'secondary'} onClick={() => setTab('analiz')}>
-          Sağlık Analiz Merkezi
-        </button>
+        {isPhysician && (
+          <button type="button" className={tab === 'analiz' ? '' : 'secondary'} onClick={() => setTab('analiz')}>
+            Sağlık Analiz Merkezi
+          </button>
+        )}
       </div>
 
       {tab === 'analiz' ? (
@@ -660,11 +656,12 @@ export function HealthPage({user}) {
                     <td>
                       <div className="actions" style={{gap: 6, flexWrap: 'wrap'}}>
                         <button type="button" className="mini" onClick={() => openEdit(r)}>Düzenle</button>
-                        <button type="button" className="mini" onClick={() => openForm(r)}><Printer size={12} /> Form</button>
-                        {r.has_report && (
+                        {isPhysician && <button type="button" className="mini" onClick={() => openForm(r)}><Printer size={12} /> Klinik Dosya</button>}
+                        {isPhysician && r.fitness_status !== 'pending' && <button type="button" className="mini" onClick={() => openFitness(r)}><Printer size={12} /> İşveren Belgesi</button>}
+                        {isPhysician && r.has_report && (
                           <button type="button" className="mini" onClick={() => downloadReport(r)}><FileText size={12} /> Rapor</button>
                         )}
-                        <button type="button" className="mini" onClick={() => remove(r)}>Sil</button>
+                        {isPhysician && <button type="button" className="mini" onClick={() => remove(r)}>Sil</button>}
                       </div>
                     </td>
                   </tr>
@@ -682,7 +679,11 @@ export function HealthPage({user}) {
           <form className="form-grid" onSubmit={save}>
             {!editing && (
               <>
-                <Select label="Firma" required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value, employee_id: '', physician_name: form.physician_name})}>
+                <Select label="Firma" required value={form.company_id} onChange={(e) => {
+                  const next = e.target.value;
+                  setCompanyId(next);
+                  setForm({...form, company_id: next, employee_id: '', physician_professional_id: '', physician_name: ''});
+                }}>
                   <option value="">Seçiniz</option>
                   {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </Select>
@@ -712,48 +713,28 @@ export function HealthPage({user}) {
             </Select>
             <Field label="Muayene tarihi" type="date" required value={form.examination_date} onChange={(e) => setForm({...form, examination_date: e.target.value})} />
             <Field label="Sonraki muayene" type="date" value={form.next_examination_date} onChange={(e) => setForm({...form, next_examination_date: e.target.value})} />
-            <Select label="Uygunluk" value={form.fitness_status} onChange={(e) => setForm({...form, fitness_status: e.target.value})}>
-              {fitnessOpts.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}
-            </Select>
-            {!physicianCustom ? (
-              <Select
-                label="İşyeri hekimi (listeden seçin)"
-                required
-                value={form.physician_name}
-                onChange={(e) => {
-                  if (e.target.value === '__custom__') {
-                    setPhysicianCustom(true);
-                    setForm({...form, physician_name: ''});
-                  } else {
-                    setForm({...form, physician_name: e.target.value});
-                  }
-                }}
-              >
-                <option value="">Seçiniz</option>
-                {physicianOptions.map((p) => (
-                  <option key={p.name} value={p.name}>{p.name}{p.note ? ` (${p.note})` : ''}</option>
-                ))}
-                <option value="__custom__">Listede yok — elle yaz…</option>
-              </Select>
-            ) : (
-              <Field
-                label="İşyeri hekimi (elle)"
-                required
-                value={form.physician_name}
-                onChange={(e) => setForm({...form, physician_name: e.target.value})}
-                placeholder="Ad Soyad"
-              />
-            )}
-            {physicianCustom && (
-              <button type="button" className="mini" style={{alignSelf: 'end'}} onClick={() => { setPhysicianCustom(false); setForm({...form, physician_name: ''}); }}>
-                Listeye dön
-              </button>
-            )}
-            <TextArea label="Özet" value={form.summary} onChange={(e) => setForm({...form, summary: e.target.value})} />
-            <TextArea label="Kısıtlamalar (uygunluk şartları)" value={form.restrictions} onChange={(e) => setForm({...form, restrictions: e.target.value})} />
             {isPhysician && (
-              <TextArea label="Gizli hekim notu" value={form.confidential_note} onChange={(e) => setForm({...form, confidential_note: e.target.value})} />
+              <Select label="Uygunluk" value={form.fitness_status} onChange={(e) => setForm({...form, fitness_status: e.target.value})}>
+                {fitnessOpts.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}
+              </Select>
             )}
+            <Select
+              label="Aktif görevlendirilmiş işyeri hekimi"
+              required
+              value={form.physician_professional_id}
+              onChange={(e) => {
+                const selected = physicianOptions.find((p) => String(p.id) === e.target.value);
+                setForm({...form, physician_professional_id: e.target.value, physician_name: selected?.name || ''});
+              }}
+            >
+              <option value="">Seçiniz</option>
+              {physicianOptions.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}{p.note ? ` (${p.note})` : ''}</option>
+              ))}
+            </Select>
+            {isPhysician && <TextArea label="Özet" value={form.summary} onChange={(e) => setForm({...form, summary: e.target.value})} />}
+            {isPhysician && <TextArea label="Kısıtlamalar (uygunluk şartları)" value={form.restrictions} onChange={(e) => setForm({...form, restrictions: e.target.value})} />}
+            {isPhysician && <TextArea label="Gizli hekim notu" value={form.confidential_note} onChange={(e) => setForm({...form, confidential_note: e.target.value})} />}
             <label className="field" style={{gridColumn: '1/-1', display: 'flex', alignItems: 'flex-start', gap: 10}}>
               <input
                 type="checkbox"
@@ -767,11 +748,11 @@ export function HealthPage({user}) {
               </span>
             </label>
             <Field label="Odyometri tarihi" type="date" value={form.audiometry_date} onChange={(e) => setForm({...form, audiometry_date: e.target.value})} />
-            <Field label="Odyometri sonuç" value={form.audiometry_result} onChange={(e) => setForm({...form, audiometry_result: e.target.value})} />
+            {isPhysician && <Field label="Odyometri sonuç" value={form.audiometry_result} onChange={(e) => setForm({...form, audiometry_result: e.target.value})} />}
             <Field label="SFT tarihi" type="date" value={form.spirometry_date} onChange={(e) => setForm({...form, spirometry_date: e.target.value})} />
-            <Field label="SFT sonuç" value={form.spirometry_result} onChange={(e) => setForm({...form, spirometry_result: e.target.value})} />
+            {isPhysician && <Field label="SFT sonuç" value={form.spirometry_result} onChange={(e) => setForm({...form, spirometry_result: e.target.value})} />}
             <Field label="Akciğer grafisi tarihi" type="date" value={form.chest_xray_date} onChange={(e) => setForm({...form, chest_xray_date: e.target.value})} />
-            <Field label="Akciğer sonuç" value={form.chest_xray_result} onChange={(e) => setForm({...form, chest_xray_result: e.target.value})} />
+            {isPhysician && <Field label="Akciğer sonuç" value={form.chest_xray_result} onChange={(e) => setForm({...form, chest_xray_result: e.target.value})} />}
             <Field label="Kan kurşun tarihi" type="date" value={form.blood_lead_date} onChange={(e) => setForm({...form, blood_lead_date: e.target.value})} />
             <Field label="Kan kurşun değer" type="number" step="0.1" value={form.blood_lead_value} onChange={(e) => setForm({...form, blood_lead_value: e.target.value})} />
             <Field label="Birim" value={form.blood_lead_unit} onChange={(e) => setForm({...form, blood_lead_unit: e.target.value})} />
@@ -781,8 +762,8 @@ export function HealthPage({user}) {
                 Canlı kurşun değerlendirme: <strong>{leadLive.label}</strong>
               </div>
             )}
-            <TextArea label="Önerilen tetkikler" value={form.suggested_tests} onChange={(e) => setForm({...form, suggested_tests: e.target.value})} />
-            <div style={{gridColumn: '1/-1'}}>
+            {isPhysician && <TextArea label="Önerilen tetkikler" value={form.suggested_tests} onChange={(e) => setForm({...form, suggested_tests: e.target.value})} />}
+            {isPhysician && <div style={{gridColumn: '1/-1'}}>
               <div style={{fontSize: 13, color: '#64748b', marginBottom: 8}}>Maruziyetler (çoklu seçim)</div>
               <div style={{display: 'flex', flexWrap: 'wrap', gap: 8}}>
                 {exposureOpts.map((name) => (
@@ -792,9 +773,9 @@ export function HealthPage({user}) {
                   </label>
                 ))}
               </div>
-            </div>
-            <TextArea label="Diğer biyolojik tetkik" value={form.other_biological_test} onChange={(e) => setForm({...form, other_biological_test: e.target.value})} />
-            <TextArea label="Takip notu" value={form.follow_up_note} onChange={(e) => setForm({...form, follow_up_note: e.target.value})} />
+            </div>}
+            {isPhysician && <TextArea label="Diğer biyolojik tetkik" value={form.other_biological_test} onChange={(e) => setForm({...form, other_biological_test: e.target.value})} />}
+            {isPhysician && <TextArea label="Takip notu" value={form.follow_up_note} onChange={(e) => setForm({...form, follow_up_note: e.target.value})} />}
             <label className="field" style={{gridColumn: '1/-1'}}>
               <span>Muayene / tetkik raporu (pdf / jpg / png / docx){editing?.report_file_name ? ` — mevcut: ${editing.report_file_name}` : ''}</span>
               <input type="file" accept=".pdf,.jpg,.jpeg,.png,.docx" onChange={(e) => setReportFile(e.target.files?.[0] || null)} />

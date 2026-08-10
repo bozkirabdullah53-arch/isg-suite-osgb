@@ -29,7 +29,11 @@ def test_member_rows_are_mutable_dicts_for_role_label_enrichment():
                 email_snapshot TEXT,
                 is_mandatory BOOLEAN NOT NULL,
                 is_active BOOLEAN NOT NULL,
-                created_at TEXT
+                created_at TEXT,
+                removed_at TEXT,
+                removed_by_id INTEGER,
+                removal_reason_code TEXT,
+                removal_reason_text TEXT
             )
         """))
         conn.execute(text("""

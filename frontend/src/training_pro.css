@@ -1141,3 +1141,91 @@
   .training-pro .qb-coverage-summary,
   .training-pro .qb-coverage-toolbar { grid-template-columns: 1fr; }
 }
+
+/* TRAINING_COLOR_THEME_START */
+/* Eğitim sayfası — lacivert/zümrüt kurumsal renk düzeltmesi.
+   Yalnızca görsel renkler değişir; işlev ve veri akışı etkilenmez. */
+
+.training-pro {
+  --tp-primary: #0b2e4f;
+  --tp-accent: #0f766e;
+  --tp-accent2: #1fa463;
+}
+
+.training-pro .tp-tab.active {
+  background: linear-gradient(135deg, #0b2e4f 0%, #0f766e 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(11, 46, 79, 0.18);
+}
+
+.training-pro .tp-input:focus,
+.training-pro .tp-select:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 0.22rem rgba(15, 118, 110, 0.16);
+}
+
+.training-pro .drop-zone:hover,
+.training-pro .drop-zone.drag {
+  border-color: #0f766e;
+  background: linear-gradient(180deg, rgba(15, 118, 110, 0.10), rgba(255, 255, 255, 0.98));
+}
+
+.training-pro .btn-premium {
+  background: linear-gradient(135deg, #0f766e 0%, #1fa463 100%);
+  color: #ffffff;
+  box-shadow: 0 14px 28px rgba(15, 118, 110, 0.22);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.training-pro .btn-premium:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(0.96);
+  box-shadow: 0 17px 32px rgba(15, 118, 110, 0.27);
+}
+
+.training-pro .btn-premium:focus-visible,
+.training-pro .education-output-button:focus-visible,
+.training-pro .btn-outline-premium:focus-visible {
+  outline: 3px solid rgba(31, 164, 99, 0.28);
+  outline-offset: 3px;
+}
+
+.training-pro .education-output-button--certificate {
+  background: linear-gradient(135deg, #15945a 0%, #1fa463 100%);
+  box-shadow: 0 10px 22px rgba(31, 164, 99, 0.18);
+}
+
+.training-pro .education-output-button--attendance {
+  background: linear-gradient(135deg, #0b2e4f 0%, #214e7d 100%);
+  box-shadow: 0 10px 22px rgba(11, 46, 79, 0.18);
+}
+
+.training-pro .education-output-button:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.training-pro .education-output-panel {
+  border-color: #b9d8cf;
+  background: linear-gradient(145deg, #f7fbfa 0%, #eef7f4 100%);
+}
+
+.training-pro .education-output-panel.is-ready {
+  border-color: #91cfad;
+  background: linear-gradient(145deg, #f7fffa 0%, #ecf9f2 100%);
+}
+
+.training-pro .section-title {
+  color: #155f52;
+}
+
+/* Sayfadaki eski parlak sarı/amber inline veya yardımcı sınıflar için güvenli kapsamlı düzeltmeler. */
+.training-pro button[style*="#f6b800"],
+.training-pro button[style*="#ffd450"],
+.training-pro [style*="rgb(246, 184, 0)"],
+.training-pro [style*="rgb(255, 212, 80)"] {
+  background: linear-gradient(135deg, #0b2e4f 0%, #0f766e 100%) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+/* TRAINING_COLOR_THEME_END */

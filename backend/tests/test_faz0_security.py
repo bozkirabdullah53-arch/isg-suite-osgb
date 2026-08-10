@@ -28,11 +28,20 @@ def client(tmp_path, monkeypatch):
     engine = create_engine(url, connect_args={"check_same_thread": False})
     dbmod.engine = engine
     dbmod.SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    ent.Base.metadata.drop_all(bind=engine)
-    ent.Base.metadata.create_all(bind=engine)
 
     from app.core.security import get_password_hash
-    from app.models.entities import Company, Employee, User, UserRole
+    from datetime import date
+    from app.models.entities import (
+        AssignmentStatus,
+        Company,
+        Employee,
+        IsgProfessional,
+        OsgbOrganization,
+        ProfessionalType,
+        User,
+        UserRole,
+        WorkplaceAssignment,
+    )
     import app.main as main_mod
 
     main_mod.engine = engine
@@ -43,9 +52,51 @@ def client(tmp_path, monkeypatch):
 
     db = dbmod.SessionLocal()
     try:
-        c = Company(name="Faz0 Firma", hazard_class="Az Tehlikeli")
+        osgb = OsgbOrganization(name="Faz0 OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        c = Company(name="Faz0 Firma", hazard_class="Az Tehlikeli", osgb_id=osgb.id)
         db.add(c)
         db.flush()
+        professionals = [
+            IsgProfessional(
+                osgb_id=osgb.id,
+                full_name="Hekim",
+                email="hekim@example.com",
+                professional_type=ProfessionalType.WORKPLACE_PHYSICIAN,
+                certificate_number="FAZ0-HEKIM",
+                is_active=True,
+            ),
+            IsgProfessional(
+                osgb_id=osgb.id,
+                full_name="DSP",
+                email="dsp@example.com",
+                professional_type=ProfessionalType.OTHER_HEALTH_PERSONNEL,
+                certificate_number="FAZ0-DSP",
+                is_active=True,
+            ),
+            IsgProfessional(
+                osgb_id=osgb.id,
+                full_name="Uzman",
+                email="uzman@example.com",
+                professional_type=ProfessionalType.SAFETY_SPECIALIST,
+                certificate_number="FAZ0-UZMAN",
+                is_active=True,
+            ),
+        ]
+        db.add_all(professionals)
+        db.flush()
+        db.add_all([
+            WorkplaceAssignment(
+                osgb_id=osgb.id,
+                company_id=c.id,
+                professional_id=pro.id,
+                professional_type=pro.professional_type,
+                start_date=date(2025, 1, 1),
+                status=AssignmentStatus.ACTIVE,
+            )
+            for pro in professionals
+        ])
         db.add_all(
             [
                 User(
@@ -53,6 +104,7 @@ def client(tmp_path, monkeypatch):
                     full_name="Hekim",
                     hashed_password=get_password_hash("HekimPass123!"),
                     role=UserRole.WORKPLACE_PHYSICIAN,
+                    osgb_id=osgb.id,
                     company_id=c.id,
                     is_active=True,
                 ),
@@ -61,6 +113,7 @@ def client(tmp_path, monkeypatch):
                     full_name="DSP",
                     hashed_password=get_password_hash("DspPass12345!"),
                     role=UserRole.OTHER_HEALTH_PERSONNEL,
+                    osgb_id=osgb.id,
                     company_id=c.id,
                     is_active=True,
                 ),
@@ -69,6 +122,7 @@ def client(tmp_path, monkeypatch):
                     full_name="Uzman",
                     hashed_password=get_password_hash("UzmanPass123!"),
                     role=UserRole.SAFETY_SPECIALIST,
+                    osgb_id=osgb.id,
                     company_id=c.id,
                     is_active=True,
                 ),

@@ -1,3 +1,4 @@
+// OSGB_PROFESSIONAL_CARDS_ONLY_V2
 import React,{useEffect,useMemo,useState} from 'react';
 import {
   Archive,
@@ -26,7 +27,7 @@ import {
   activeProfileRows,
   archivedProfileRows,
   asRows,
-  buildPersonnelSubjects,
+  buildOsgbProfessionalSubjects,
   buildProfileHistory,
   filterPersonnelSubjects,
   managerCanWrite,
@@ -127,10 +128,8 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
   const[busy,setBusy]=useState(false);
   const[error,setError]=useState('');
   const[message,setMessage]=useState('');
-  const[companies,setCompanies]=useState([]);
-  const[professionals,setProfessionals]=useState([]);
   const[assignments,setAssignments]=useState([]);
-  const[companyId,setCompanyId]=useState(null);
+  const[osgbId,setOsgbId]=useState(null);
   const[subjects,setSubjects]=useState([]);
   const[selectedKey,setSelectedKey]=useState('');
   const[query,setQuery]=useState('');
@@ -141,7 +140,6 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
   const[competencyForm,setCompetencyForm]=useState(EMPTY_COMPETENCY);
   const[experienceForm,setExperienceForm]=useState(EMPTY_EXPERIENCE);
 
-  const pilotIds=useMemo(()=>new Set(asRows(context?.pilotCompanyIds).map(Number).filter((id)=>id>0)),[context]);
   const selectedSubject=useMemo(()=>subjects.find((row)=>row.subjectKey===selectedKey)||null,[subjects,selectedKey]);
   const filteredSubjects=useMemo(()=>filterPersonnelSubjects(subjects,query),[subjects,query]);
   const activeContacts=useMemo(()=>activeProfileRows(snapshot?.contacts),[snapshot]);
@@ -154,49 +152,27 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
     (async()=>{
       setLoading(true);setError('');
       try{
-        const osgbId=Number(context?.osgbId||0) || Number(asRows(await api('/osgb',{_retries:1}))[0]?.id||0);
-        if(!osgbId) throw new Error('OSGB kapsamı bulunamadı.');
-        const[companyPayload,professionalPayload,assignmentPayload]=await Promise.all([
-          api('/companies',{_retries:1}),
-          api(`/osgb/professionals?osgb_id=${encodeURIComponent(osgbId)}`,{_retries:1}),
-          api(`/osgb/assignments?osgb_id=${encodeURIComponent(osgbId)}`,{_retries:1}),
+        const resolvedOsgbId=Number(context?.osgbId||0) || Number(asRows(await api('/osgb',{_retries:1}))[0]?.id||0);
+        if(!resolvedOsgbId) throw new Error('OSGB kapsamı bulunamadı.');
+        const[professionalPayload,assignmentPayload]=await Promise.all([
+          api(`/osgb-personnel-profiles/professionals?osgb_id=${encodeURIComponent(resolvedOsgbId)}`,{_retries:1}),
+          api(`/osgb/assignments?osgb_id=${encodeURIComponent(resolvedOsgbId)}`,{_retries:1}),
         ]);
         if(cancelled) return;
-        let companyRows=asRows(companyPayload).filter((row)=>Number(row?.id||0)>0);
-        if(pilotIds.size) companyRows=companyRows.filter((row)=>pilotIds.has(Number(row.id)));
-        companyRows.sort((a,b)=>String(a?.name||'').localeCompare(String(b?.name||''),'tr'));
-        setCompanies(companyRows);
-        setProfessionals(asRows(professionalPayload));
+        const rows=buildOsgbProfessionalSubjects(asRows(professionalPayload),resolvedOsgbId);
+        setOsgbId(resolvedOsgbId);
         setAssignments(asRows(assignmentPayload));
-        setCompanyId((current)=>current&&companyRows.some((row)=>Number(row.id)===Number(current))?current:Number(companyRows[0]?.id||0)||null);
+        setSubjects(rows);
+        setSelectedKey((current)=>rows.some((row)=>row.subjectKey===current)?current:(rows[0]?.subjectKey||''));
       }catch(x){
-        if(!cancelled) setError(x?.message||'Personel kartı kapsamı yüklenemedi.');
+        if(!cancelled) setError(x?.message||'OSGB profesyonel kartları yüklenemedi.');
       }finally{
         if(!cancelled) setLoading(false);
       }
     })();
     return()=>{cancelled=true};
-  },[context,pilotIds]);
+  },[context]);
 
-  useEffect(()=>{
-    if(!companyId){setSubjects([]);setSelectedKey('');return undefined}
-    let cancelled=false;
-    (async()=>{
-      setBusy(true);setError('');setMessage('');
-      try{
-        const employees=await api(`/employees?company_id=${encodeURIComponent(companyId)}&include_inactive=true`,{_retries:1});
-        if(cancelled) return;
-        const rows=buildPersonnelSubjects({employees,professionals,assignments,companyId});
-        setSubjects(rows);
-        setSelectedKey((current)=>rows.some((row)=>row.subjectKey===current)?current:(rows[0]?.subjectKey||''));
-      }catch(x){
-        if(!cancelled) setError(x?.message||'Personel listesi yüklenemedi.');
-      }finally{
-        if(!cancelled) setBusy(false);
-      }
-    })();
-    return()=>{cancelled=true};
-  },[companyId,professionals,assignments]);
 
   useEffect(()=>{
     if(!selectedSubject){setSummary(null);setSnapshot(null);return undefined}
@@ -204,9 +180,7 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
     (async()=>{
       setBusy(true);setError('');setMessage('');setSnapshot(null);setTab('overview');
       try{
-        const payload=selectedSubject.subjectType==='professional'
-          ? await api(`/personnel-profiles/professional/${selectedSubject.id}/summary?company_id=${encodeURIComponent(companyId)}`)
-          : await api(`/personnel-profiles/employee/${selectedSubject.id}/summary`);
+        const payload=await api(`/osgb-personnel-profiles/professional/${selectedSubject.id}/summary`);
         const normalized=normalizePersonnelProfileSummary(payload);
         if(normalized.restrictedDataIncluded) throw new Error('Güvenlik kontrolü restricted veri işareti bulunan profil yanıtını engelledi.');
         if(!cancelled) setSummary(normalized);
@@ -217,26 +191,19 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
       }
     })();
     return()=>{cancelled=true};
-  },[selectedSubject,companyId]);
+  },[selectedSubject]);
 
   async function reloadSnapshot(profileId=snapshot?.profile?.id){
     if(!profileId) return;
-    const payload=await api(`/personnel-profiles/${encodeURIComponent(profileId)}`,{_retries:1});
+    const payload=await api(`/osgb-personnel-profiles/${encodeURIComponent(profileId)}`,{_retries:1});
     setSnapshot(payload);
   }
 
   async function startProfile(){
-    if(!selectedSubject||!companyId||!canWrite) return;
+    if(!selectedSubject||!osgbId||!canWrite) return;
     setBusy(true);setError('');setMessage('');
     try{
-      const result=await api('/personnel-profiles',{
-        method:'POST',
-        body:JSON.stringify({
-          company_id:Number(companyId),
-          subject_type:selectedSubject.subjectType,
-          subject_id:Number(selectedSubject.id),
-        }),
-      });
+      const result=await api(`/osgb-personnel-profiles/professionals/${selectedSubject.id}`,{method:'POST'});
       const profileId=Number(result?.profile?.id||0);
       if(!profileId) throw new Error('Profil kimliği oluşturulamadı.');
       await reloadSnapshot(profileId);
@@ -250,7 +217,7 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
     if(!snapshot?.profile?.id) return;
     setBusy(true);setError('');setMessage('');
     try{
-      await api(`/personnel-profiles/${snapshot.profile.id}/contacts`,{
+      await api(`/osgb-personnel-profiles/${snapshot.profile.id}/contacts`,{
         method:'POST',
         body:JSON.stringify(cleanBody(contactForm)),
       });
@@ -266,7 +233,7 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
     if(!snapshot?.profile?.id) return;
     setBusy(true);setError('');setMessage('');
     try{
-      await api(`/personnel-profiles/${snapshot.profile.id}/competencies`,{
+      await api(`/osgb-personnel-profiles/${snapshot.profile.id}/competencies`,{
         method:'POST',
         body:JSON.stringify(cleanBody(competencyForm)),
       });
@@ -282,7 +249,7 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
     if(!snapshot?.profile?.id) return;
     setBusy(true);setError('');setMessage('');
     try{
-      await api(`/personnel-profiles/${snapshot.profile.id}/experiences`,{
+      await api(`/osgb-personnel-profiles/${snapshot.profile.id}/experiences`,{
         method:'POST',
         body:JSON.stringify(cleanBody(experienceForm)),
       });
@@ -298,7 +265,7 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
     if(!window.confirm(`${label} kaydını arşivlemek istediğinizden emin misiniz? Geçmiş sürümler korunacaktır.`)) return;
     setBusy(true);setError('');setMessage('');
     try{
-      await api(`/personnel-profiles/${snapshot.profile.id}/${entryType}/${encodeURIComponent(row.entry_key)}/archive`,{
+      await api(`/osgb-personnel-profiles/${snapshot.profile.id}/entries/${entryType}/${encodeURIComponent(row.entry_key)}/archive`,{
         method:'POST',
         body:JSON.stringify({reason:`${label} OSGB yöneticisi tarafından personel kartından arşivlendi.`}),
       });
@@ -357,8 +324,8 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
 
   const subjectAssignments=useMemo(()=>{
     if(selectedSubject?.subjectType!=='professional') return [];
-    return assignments.filter((row)=>Number(row?.professional_id)===Number(selectedSubject.id)&&Number(row?.company_id)===Number(companyId));
-  },[assignments,selectedSubject,companyId]);
+    return assignments.filter((row)=>Number(row?.professional_id)===Number(selectedSubject.id));
+  },[assignments,selectedSubject]);
 
   if(loading){
     return <section className="ppm-page"><div className="ppm-loading">Dijital personel yönetimi hazırlanıyor…</div></section>;
@@ -370,7 +337,7 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
         <div>
           <span>OSGB PERSONEL YÖNETİMİ</span>
           <h3>Dijital Personel Kartları</h3>
-          <p>Mevcut personel ve İSG profesyoneli kayıtlarına bağlı, sürümlü ve yetki kontrollü profil yönetimi.</p>
+          <p>Yalnız OSGB bünyesindeki iş güvenliği uzmanı, işyeri hekimi ve diğer sağlık personeli.</p>
         </div>
         <button type="button" className="secondary ppm-back" onClick={onClose}><ArrowLeft size={18}/> Önceki ekrana dön</button>
       </header>
@@ -384,22 +351,16 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
       {message&&<div className="ppm-alert ppm-alert--success" role="status">{message}</div>}
 
       <div className="ppm-toolbar">
-        <label>
-          <span>İşyeri</span>
-          <select value={companyId||''} onChange={(event)=>setCompanyId(Number(event.target.value)||null)} disabled={busy}>
-            {companies.map((company)=><option key={company.id} value={company.id}>{company.name}</option>)}
-          </select>
-        </label>
         <label className="ppm-search">
-          <span>Personel ara</span>
-          <div><Search size={18}/><input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Ad, görev, meslek veya departman"/></div>
+          <span>İSG profesyoneli ara</span>
+          <div><Search size={18}/><input value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Ad, profesyonel türü veya belge sınıfı"/></div>
         </label>
       </div>
 
       <div className="ppm-layout">
-        <aside className="ppm-subjects" aria-label="Personel ve profesyonel listesi">
-          <div className="ppm-subjects__head"><strong>{filteredSubjects.length} kayıt</strong><small>Personel + aktif atanmış profesyoneller</small></div>
-          {filteredSubjects.length===0?<EmptyState title="Kayıt bulunamadı" description="Arama ölçütünü değiştirin veya mevcut Personel/İSG Profesyonelleri ekranından kayıt ekleyin."/>:
+        <aside className="ppm-subjects" aria-label="OSGB İSG profesyonelleri listesi">
+          <div className="ppm-subjects__head"><strong>{filteredSubjects.length} kayıt</strong><small>OSGB bünyesindeki İSG profesyonelleri</small></div>
+          {filteredSubjects.length===0?<EmptyState title="Kayıt bulunamadı" description="Arama ölçütünü değiştirin veya İSG Profesyonelleri ekranından OSGB kadrosuna kayıt ekleyin."/>:
             filteredSubjects.map((row)=>(
               <button key={row.subjectKey} type="button" className={selectedKey===row.subjectKey?'is-selected':''} onClick={()=>setSelectedKey(row.subjectKey)}>
                 <span className="ppm-mini-avatar">{safeInitials(row.fullName)}</span>
@@ -409,21 +370,21 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
         </aside>
 
         <div className="ppm-card-workspace">
-          {!selectedSubject||!summary?<EmptyState title="Personel seçin" description="Kart ayrıntılarını görüntülemek için soldaki listeden bir kayıt seçin."/>:(
+          {!selectedSubject||!summary?<EmptyState title="İSG profesyoneli seçin" description="Dijital kartı görüntülemek için OSGB profesyonelleri listesinden bir kayıt seçin."/>:(
             <>
               <section className="ppm-identity">
                 <div className="ppm-avatar">{safeInitials(summary.fullName)}</div>
                 <div className="ppm-identity__copy">
-                  <span>{summary.subjectType==='professional'?'Profesyonel Personel Profili':'İşyeri Personel Kartı'}</span>
+                  <span>OSGB Profesyonel Dijital Kartı</span>
                   <h4>{summary.fullName}</h4>
-                  <p>{summary.subjectType==='professional'?summary.professionalTypeLabel:[summary.jobTitle,summary.department].filter(Boolean).join(' · ')||'İşyeri personeli'}</p>
+                  <p>{summary.professionalTypeLabel}</p>
                   <div><StatusPill tone="success">{employmentStatusLabel(summary.employmentStatus)}</StatusPill>{snapshot?.profile?.id&&<StatusPill tone="info">Profil #{snapshot.profile.id}</StatusPill>}</div>
                 </div>
                 {!snapshot&&canWrite&&<button type="button" onClick={startProfile} disabled={busy}><IdCard size={18}/>{busy?'Hazırlanıyor…':'Kartı başlat / aç'}</button>}
                 {!snapshot&&!canWrite&&<StatusPill>Yönetici yetkisi gerekli</StatusPill>}
               </section>
 
-              <nav className="ppm-tabs" aria-label="Personel kartı bölümleri">
+              <nav className="ppm-tabs" aria-label="Profesyonel kartı bölümleri">
                 {PROFILE_MANAGER_TABS.map(([id,label])=><button key={id} type="button" className={tab===id?'is-active':''} onClick={()=>setTab(id)}>{label}</button>)}
               </nav>
 
@@ -431,18 +392,13 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
                 {tab==='overview'&&(
                   <div className="ppm-section-stack">
                     <section className="ppm-summary-grid">
-                      <SummaryField label="İşyeri" value={summary.companyName}/>
-                      <SummaryField label="Şube" value={summary.branchName}/>
-                      <SummaryField label="Maskeli kimlik" value={summary.nationalIdentityMasked}/>
                       <SummaryField label="Görev / Unvan" value={summary.jobTitle||summary.professionalTypeLabel}/>
-                      <SummaryField label="Departman" value={summary.department}/>
-                      <SummaryField label="İşe giriş" value={formatProfileDate(summary.employmentStartDate)}/>
                       <SummaryField label="E-posta" value={summary.email}/>
                       <SummaryField label="Telefon" value={summary.phone}/>
                       <SummaryField label="Belge sınıfı" value={summary.certificateClass}/>
                       <SummaryField label="Belge numarası" value={summary.certificateNumber}/>
                       <SummaryField label="Belge tarihi" value={formatProfileDate(summary.certificateDate)}/>
-                      <SummaryField label="Aktif görevlendirme" value={summary.subjectType==='professional'?String(summary.activeAssignmentCount):''}/>
+                      <SummaryField label="Aktif görevlendirme" value={String(summary.activeAssignmentCount)}/>
                     </section>
                     <section className="ppm-metrics">
                       <div><Mail size={22}/><strong>{activeContacts.length}</strong><span>Aktif iletişim</span></div>
@@ -450,7 +406,7 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
                       <div><BriefcaseBusiness size={22}/><strong>{activeExperiences.length}</strong><span>Deneyim</span></div>
                       <div><History size={22}/><strong>{history.length}</strong><span>Profil olayı</span></div>
                     </section>
-                    {!snapshot&&<div className="ppm-start-card"><IdCard size={32}/><div><strong>Profil uzantısı henüz başlatılmadı</strong><p>Mevcut personel kaydı değişmez. Kartı başlattığınızda iletişim, görev/yeterlilik ve deneyim sürümleri ayrı tablolarda güvenle tutulur.</p></div>{canWrite&&<button type="button" onClick={startProfile} disabled={busy}>Dijital kartı oluştur</button>}</div>}
+                    {!snapshot&&<div className="ppm-start-card"><IdCard size={32}/><div><strong>Profil uzantısı henüz başlatılmadı</strong><p>Mevcut İSG profesyoneli kaydı değişmez. Kartı başlattığınızda iletişim, görev/yeterlilik ve deneyim sürümleri ayrı tablolarda güvenle tutulur.</p></div>{canWrite&&<button type="button" onClick={startProfile} disabled={busy}>Dijital kartı oluştur</button>}</div>}
                   </div>
                 )}
 
@@ -529,7 +485,7 @@ export function PersonnelProfileManagerPage({user,context,onClose}) {
                   <div className="ppm-section-stack">
                     <div className="ppm-section-title"><div><h5>Atamalar ve Görev Geçmişi</h5><p>Mevcut görevlendirme kayıtları kopyalanmadan salt okunur gösterilir.</p></div></div>
                     {selectedSubject.subjectType==='professional'?(
-                      subjectAssignments.length?subjectAssignments.map((row,index)=><article className="ppm-assignment" key={row.id||index}><BriefcaseBusiness size={22}/><div><strong>{summary.companyName}</strong><span>{row.professional_type||summary.professionalTypeLabel}</span><small>{formatProfileDate(row.start_date)} {row.end_date?`– ${formatProfileDate(row.end_date)}`:'– Devam'} · {row.status||'active'}</small></div></article>):<EmptyState title="Aktif görevlendirme bulunamadı" description="Profesyonel profil erişimi yalnız aktif görevlendirmesi olan işyerleriyle sınırlandırılır."/>
+                      subjectAssignments.length?subjectAssignments.map((row,index)=><article className="ppm-assignment" key={row.id||index}><BriefcaseBusiness size={22}/><div><strong>{row.company_name||row.companyName||`İşyeri #${row.company_id||''}`}</strong><span>{row.professional_type||summary.professionalTypeLabel}</span><small>{formatProfileDate(row.start_date)} {row.end_date?`– ${formatProfileDate(row.end_date)}`:'– Devam'} · {row.status||'active'}</small></div></article>):<EmptyState title="Aktif görevlendirme bulunamadı" description="Profesyonel profil erişimi yalnız aktif görevlendirmesi olan işyerleriyle sınırlandırılır."/>
                     ):<div className="ppm-assignment"><UserRound size={22}/><div><strong>{summary.companyName}</strong><span>{summary.jobTitle||'İşyeri personeli'}</span><small>{summary.branchName||'Şube bilgisi yok'} · {employmentStatusLabel(summary.employmentStatus)}</small></div></div>}
                   </div>
                 )}

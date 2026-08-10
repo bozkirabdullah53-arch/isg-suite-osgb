@@ -6,9 +6,10 @@ OSGB uzman / hekim / DSP yalnızca kendisine görevlendirilen işyerlerine eriş
 from __future__ import annotations
 
 import logging
+from datetime import date
 
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.entities import (
@@ -25,6 +26,11 @@ logger = logging.getLogger(__name__)
 
 _OSGB_FIELD_ROLES = {
     UserRole.SAFETY_SPECIALIST,
+    UserRole.WORKPLACE_PHYSICIAN,
+    UserRole.OTHER_HEALTH_PERSONNEL,
+}
+
+_STRICT_HEALTH_ASSIGNMENT_ROLES = {
     UserRole.WORKPLACE_PHYSICIAN,
     UserRole.OTHER_HEALTH_PERSONNEL,
 }
@@ -209,11 +215,21 @@ def assigned_company_ids(db: Session, user: User) -> list[int]:
     if user.role in _OSGB_FIELD_ROLES:
         pro = find_professional_for_user(db, user)
         if pro:
+            today = date.today()
             ids = list(
                 db.scalars(
-                    select(WorkplaceAssignment.company_id).where(
+                    select(WorkplaceAssignment.company_id)
+                    .join(Company, Company.id == WorkplaceAssignment.company_id)
+                    .where(
                         WorkplaceAssignment.professional_id == pro.id,
+                        WorkplaceAssignment.professional_type == pro.professional_type,
                         WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+                        WorkplaceAssignment.start_date <= today,
+                        or_(
+                            WorkplaceAssignment.end_date.is_(None),
+                            WorkplaceAssignment.end_date >= today,
+                        ),
+                        Company.is_active.is_(True),
                     )
                 ).all()
             )
@@ -224,8 +240,14 @@ def assigned_company_ids(db: Session, user: User) -> list[int]:
                 if i not in seen:
                     seen.add(i)
                     ordered.append(i)
+            if user.role in _STRICT_HEALTH_ASSIGNMENT_ROLES:
+                # Klinik roller için yalnız güncel ve aktif görevlendirme yetki verir.
+                # WorkplaceMembership ve eski user.company_id erişimi genişletemez.
+                return ordered
             if ordered:
                 return _merge_membership_companies(db, user, ordered)
+        if user.role in _STRICT_HEALTH_ASSIGNMENT_ROLES:
+            return []
         # Görevlendirme yoksa eski tek-firma hesabı (company_id bağlı uzman)
         if user.company_id:
             return _merge_membership_companies(db, user, [user.company_id])

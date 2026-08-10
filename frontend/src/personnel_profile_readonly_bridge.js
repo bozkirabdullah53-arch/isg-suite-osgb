@@ -1,22 +1,21 @@
+// OSGB_PROFESSIONAL_NAV_ONLY_V1
 import {api} from './api';
 import {
   employmentStatusLabel,
   formatProfileDate,
-  normalizeEmployeeRows,
   normalizePersonnelProfileSummary,
-  normalizeProfessionalRows,
-  shouldRenderPersonnelProfileEntry,
 } from './personnel_profile_readonly_logic';
+import {buildOsgbProfessionalSubjects} from './personnel_profile_manager_logic';
 import './personnel_profile_readonly.css';
 
 const ENTRY_CLASS = 'personnel-profile-readonly-entry';
 const NAV_ATTRIBUTE = 'data-personnel-profile-nav';
-const readinessCache = new Map();
 const osgbContextCache = new Map();
 let attachTimer = null;
 let activeDialog = null;
 let returnFocus = null;
 let attaching = false;
+let attachPending = false;
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -54,23 +53,6 @@ function removeEntriesExcept(key) {
 
 function removeNavigationEntries() {
   document.querySelectorAll(`[${NAV_ATTRIBUTE}]`).forEach((entry) => entry.remove());
-}
-
-async function readiness(companyId) {
-  if (!companyId) return null;
-  if (!readinessCache.has(companyId)) {
-    const request = api(
-      `/personnel-profiles/readiness?company_id=${encodeURIComponent(companyId)}`,
-      {_retries: 1},
-    )
-      .catch(() => null)
-      .then((payload) => {
-        if (!payload) readinessCache.delete(companyId);
-        return payload;
-      });
-    readinessCache.set(companyId, request);
-  }
-  return readinessCache.get(companyId);
 }
 
 function entryAnchor(heading) {
@@ -261,65 +243,17 @@ async function renderSummary(overlay, row, loadSummary) {
   }
 }
 
-async function attachEmployeeEntry(heading) {
-  const companyId = selectedValueByLabel('İşyeri');
-  if (!companyId) {
-    removeEntriesExcept('');
-    return;
-  }
-  const payload = await readiness(companyId);
-  if (!shouldRenderPersonnelProfileEntry(payload)) {
-    removeEntriesExcept('');
-    return;
-  }
-  createEntry({
-    heading,
-    contextKey: `employee:${companyId}`,
-    title: 'Dijital Personel Kartları',
-    description: 'Seçili işyerindeki personelin veri-minimum, salt okunur profil özetlerini görüntüler.',
-    actionLabel: 'Personel Kartlarını Görüntüle',
-    onOpen: async () => {
-      const employees = normalizeEmployeeRows(
-        await api(`/employees?company_id=${encodeURIComponent(companyId)}&include_inactive=true`),
-      );
-      openDialog({
-        title: 'Dijital Personel Kartları',
-        subtitle: `${employees.length} personel · düzenleme yapılmaz`,
-        rows: employees,
-        loadSummary: (row) => api(`/personnel-profiles/employee/${row.id}/summary`),
-      });
-    },
-  });
-}
-
 async function activeProfessionalContext(osgbId) {
   if (!osgbId) return null;
   if (!osgbContextCache.has(osgbId)) {
-    const request = (async () => {
-      const [professionals, assignments, companies] = await Promise.all([
-        api(`/osgb/professionals?osgb_id=${encodeURIComponent(osgbId)}`),
-        api(`/osgb/assignments?osgb_id=${encodeURIComponent(osgbId)}`),
-        api('/companies', {_retries: 1}).catch(() => []),
-      ]);
-      const assignmentRows = Array.isArray(assignments) ? assignments : assignments?.rows || [];
-      const companyRows = Array.isArray(companies) ? companies : companies?.rows || [];
-      const candidateCompanyIds = [...new Set([
-        ...companyRows.map((row) => Number(row?.id || 0)),
-        ...assignmentRows.map((row) => Number(row?.company_id || 0)),
-      ].filter((value) => value > 0))].slice(0, 50);
-      const readinessRows = await Promise.all(candidateCompanyIds.map(async (companyId) => ({
-        companyId,
-        payload: await readiness(companyId),
-      })));
-      const pilotCompanyIds = readinessRows
-        .filter((row) => shouldRenderPersonnelProfileEntry(row.payload))
-        .map((row) => row.companyId)
-        .sort((a, b) => a - b);
-      return {
-        pilotCompanyIds,
-        rows: normalizeProfessionalRows(professionals, assignments, new Set(pilotCompanyIds)),
-      };
-    })()
+    const request = Promise.all([
+      api(`/osgb-personnel-profiles/readiness?osgb_id=${encodeURIComponent(osgbId)}`, {_retries: 1}),
+      api(`/osgb-personnel-profiles/professionals?osgb_id=${encodeURIComponent(osgbId)}`, {_retries: 1}),
+    ])
+      .then(([readinessPayload, professionalPayload]) => ({
+        active: Boolean(readinessPayload?.enabled && readinessPayload?.visible && readinessPayload?.scope === 'osgb_professionals_only'),
+        rows: buildOsgbProfessionalSubjects(professionalPayload, osgbId),
+      }))
       .catch(() => null)
       .then((context) => {
         if (!context) osgbContextCache.delete(osgbId);
@@ -350,24 +284,22 @@ async function attachProfessionalEntry(heading) {
     return;
   }
   const context = await activeProfessionalContext(osgbId);
-  if (!context?.rows?.length) {
+  if (!context?.active || !context?.rows?.length) {
     removeEntriesExcept('');
     return;
   }
   createEntry({
     heading,
     contextKey: `professional:${osgbId}`,
-    title: 'Profesyonel Personel Profilleri',
-    description: 'Pilot işyerlerine aktif atanmış uzman, hekim ve diğer sağlık personelinin minimum özetlerini görüntüler.',
-    actionLabel: 'Profesyonel Profilleri Görüntüle',
+    title: 'OSGB Profesyonel Dijital Kartları',
+    description: 'Yalnız OSGB bünyesindeki iş güvenliği uzmanı, işyeri hekimi ve diğer sağlık personeli.',
+    actionLabel: 'Profesyonel Kartlarını Görüntüle',
     onOpen: () => {
       openDialog({
-        title: 'Profesyonel Personel Profilleri',
-        subtitle: `${context.rows.length} profesyonel · aktif görevlendirme kontrolü`,
+        title: 'OSGB Profesyonel Dijital Kartları',
+        subtitle: `${context.rows.length} OSGB profesyoneli`,
         rows: context.rows,
-        loadSummary: (row) => api(
-          `/personnel-profiles/professional/${row.id}/summary?company_id=${encodeURIComponent(row.companyId)}`,
-        ),
+        loadSummary: (row) => api(`/osgb-personnel-profiles/professional/${row.id}/summary`),
       });
     },
   });
@@ -392,8 +324,8 @@ function ensureNavigationButton({container, anchor, kind, onOpen}) {
     button.type = 'button';
     button.setAttribute(NAV_ATTRIBUTE, kind);
     button.setAttribute('aria-haspopup', 'dialog');
-    button.title = 'Dijital Personel Kartı';
-    button.innerHTML = `${navigationIcon()}<span>Dijital Personel Kartı</span>`;
+    button.title = 'OSGB Profesyonel Dijital Kartları';
+    button.innerHTML = `${navigationIcon()}<span>Dijital Profesyonel Kartları</span>`;
     if (anchor?.parentElement === container) anchor.insertAdjacentElement('afterend', button);
     else container.appendChild(button);
   }
@@ -401,7 +333,7 @@ function ensureNavigationButton({container, anchor, kind, onOpen}) {
     const mobileClose = document.querySelector('.mobile-nav-sheet-head button');
     if (kind === 'mobile' && mobileClose instanceof HTMLElement) mobileClose.click();
     void Promise.resolve(onOpen()).catch((error) => {
-      openErrorDialog('Dijital Personel Kartı', error?.message || 'Kart merkezi yüklenemedi.');
+      openErrorDialog('OSGB Profesyonel Dijital Kartları', error?.message || 'Kart merkezi yüklenemedi.');
     });
   };
 }
@@ -409,36 +341,13 @@ function ensureNavigationButton({container, anchor, kind, onOpen}) {
 async function openNavigationCenter(osgbId) {
   osgbContextCache.delete(osgbId);
   const context = await activeProfessionalContext(osgbId);
-  if (!context?.pilotCompanyIds?.length) {
-    throw new Error('Dijital Personel Kartı bu OSGB için aktif değil.');
-  }
-
-  const employeeGroups = await Promise.all(context.pilotCompanyIds.slice(0, 20).map(async (companyId) => {
-    try {
-      const payload = await api(`/employees?company_id=${encodeURIComponent(companyId)}&include_inactive=true`);
-      return normalizeEmployeeRows(payload).map((row) => ({
-        ...row,
-        subjectType: 'employee',
-        companyId,
-      }));
-    } catch {
-      return [];
-    }
-  }));
-  const employees = employeeGroups.flat();
-  const professionals = (context.rows || []).map((row) => ({...row, subjectType: 'professional'}));
-  const rows = [...employees, ...professionals].sort((a, b) =>
-    String(a.fullName || '').localeCompare(String(b.fullName || ''), 'tr'),
-  );
-
+  if (!context?.active) throw new Error('Dijital Profesyonel Kartı bu OSGB için aktif değil.');
   openDialog({
-    title: 'Dijital Personel Kartı',
-    subtitle: `${employees.length} personel · ${professionals.length} İSG profesyoneli · salt okunur pilot`,
-    rows,
-    emptyMessage: 'Henüz görüntülenebilir kayıt yok. Mevcut Personel veya İSG Profesyonelleri ekranından kayıt ekleyin.',
-    loadSummary: (row) => row.subjectType === 'professional'
-      ? api(`/personnel-profiles/professional/${row.id}/summary?company_id=${encodeURIComponent(row.companyId)}`)
-      : api(`/personnel-profiles/employee/${row.id}/summary`),
+    title: 'OSGB Profesyonel Dijital Kartları',
+    subtitle: `${context.rows.length} OSGB profesyoneli`,
+    rows: context.rows,
+    emptyMessage: 'OSGB bünyesinde aktif İSG profesyoneli bulunamadı.',
+    loadSummary: (row) => api(`/osgb-personnel-profiles/professional/${row.id}/summary`),
   });
 }
 
@@ -461,7 +370,7 @@ async function attachNavigationEntries() {
     return;
   }
   const context = await activeProfessionalContext(osgbId);
-  if (!context?.pilotCompanyIds?.length) {
+  if (!context?.active) {
     removeNavigationEntries();
     return;
   }
@@ -474,13 +383,16 @@ async function attachNavigationEntries() {
 }
 
 async function attach() {
-  if (attaching) return;
+  if (attaching) {
+    attachPending = true;
+    return;
+  }
   attaching = true;
   try {
     await attachNavigationEntries();
     const employeeHeading = pageHeading('Personel Yönetimi');
     if (employeeHeading) {
-      await attachEmployeeEntry(employeeHeading);
+      removeEntriesExcept('');
       return;
     }
     const professionalHeading = pageHeading('İSG Profesyonelleri');
@@ -491,6 +403,10 @@ async function attach() {
     removeEntriesExcept('');
   } finally {
     attaching = false;
+    if (attachPending) {
+      attachPending = false;
+      scheduleAttach();
+    }
   }
 }
 

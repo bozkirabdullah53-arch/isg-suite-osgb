@@ -243,7 +243,7 @@ def test_hygiene_profile_metadata_exposes_ten_question_policy_and_health_roles()
         assert "gida_su_hijyeni" in role_profiles[role]
 
 
-def test_food_water_hygiene_instructor_must_match_active_health_assignment(monkeypatch):
+def test_food_water_hygiene_instructor_must_have_authorized_health_title():
     from types import SimpleNamespace
 
     import pytest
@@ -256,18 +256,16 @@ def test_food_water_hygiene_instructor_must_match_active_health_assignment(monke
         title="Gıda ve Su Sektöründe Hijyen Eğitimi",
         notes="",
         instructor_name="Dr. Ayşe Yılmaz",
+        instructor_qualification="İşyeri Hekimi",
     )
-    monkeypatch.setattr(
-        trainings,
-        "assigned_team",
-        lambda _db, _company_id: {
-            "workplace_physician": {"full_name": "Dr. Ayşe Yılmaz"},
-            "other_health_personnel": None,
-        },
-    )
-    trainings._ensure_hygiene_instructor_is_assigned(None, company_id=1, payload=payload)
+    trainings._ensure_hygiene_instructor_is_authorized(None, company_id=1, payload=payload)
 
-    payload.instructor_name = "Abdullah Bozkır"
+    payload.instructor_name = "Yetkisiz Eğitici"
+    payload.instructor_qualification = "A Sınıfı İş Güvenliği Uzmanı"
     with pytest.raises(HTTPException, match="işyeri hekimi") as exc:
-        trainings._ensure_hygiene_instructor_is_assigned(None, company_id=1, payload=payload)
+        trainings._ensure_hygiene_instructor_is_authorized(None, company_id=1, payload=payload)
     assert exc.value.status_code == 422
+
+    for title in ("Hemşire", "İşyeri Hemşiresi", "Diğer Sağlık Personeli"):
+        payload.instructor_qualification = title
+        trainings._ensure_hygiene_instructor_is_authorized(None, company_id=1, payload=payload)
