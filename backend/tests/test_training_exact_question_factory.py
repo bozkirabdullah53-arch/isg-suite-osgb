@@ -145,7 +145,7 @@ def test_strict_verified_exam_is_five_foundational_plus_fifteen_work_specific(
 
 
 def test_feature_flag_off_keeps_legacy_engine(db: Session, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("TRAINING_EXACT_NACE_EXAM_STRICT", raising=False)
+    monkeypatch.setenv("TRAINING_EXACT_NACE_EXAM_STRICT", "false")
     training, _user, _classification = _seed_verified_training(db)
     readiness = training_question_bank.question_bank_readiness(db, training)
     assert readiness["policy"] != EXACT_NACE_POLICY

@@ -103,6 +103,22 @@ def test_exact_construction_nace_is_verified_and_keeps_identity():
     }
 
 
+
+def test_nace_468306_uses_metal_structure_wholesale_topics():
+    result = resolve_exact_nace("46.83.06")
+    joined = " ".join(result.training_topics).casefold()
+
+    assert result.nace_code == "46.83.06"
+    assert result.content_profile_code == "metal_yapi_elemanlari_toptan"
+    assert result.classification_status == "verified"
+    assert {"lifting", "load_securing", "storage_stability", "vehicle_traffic", "sharp_edges"} <= set(
+        result.technical_risk_tags
+    )
+    for term in ("metal yapı eleman", "devril", "keskin kenar", "yükleme sahası", "yük sabitleme"):
+        assert term in joined
+    for unrelated in ("akü şarj", "raf sistemleri", "transpalet"):
+        assert unrelated not in joined
+
 def test_numeric_exact_nace_resolves_to_same_catalog_row():
     key = _first_catalog_key("86.")
     first = resolve_exact_nace(key)

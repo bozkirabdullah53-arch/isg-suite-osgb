@@ -130,10 +130,23 @@ def test_legacy_training_remains_backward_compatible(
     assert audit["strict_activation_blocked"] is True
 
 
-def test_flag_off_keeps_current_selection_mode(
+
+def test_exact_nace_selection_is_enabled_by_default_in_production(
     db: Session, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.delenv("TRAINING_EXACT_NACE_EXAM_STRICT", raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    training, _user, classification = _verified_training(db)
+    audit = question_selection_audit(db, training)
+
+    assert audit["strict_flag_enabled"] is True
+    assert audit["selection_mode"] == "exact_nace_snapshot_5_plus_15"
+    assert audit["context"]["nace"] == classification.nace_code
+
+def test_flag_off_keeps_current_selection_mode(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("TRAINING_EXACT_NACE_EXAM_STRICT", "false")
     training, _user, _classification = _verified_training(db)
     audit = question_selection_audit(db, training)
     assert audit["strict_flag_enabled"] is False

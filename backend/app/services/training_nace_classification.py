@@ -87,6 +87,7 @@ _PROFILE_RISK_TAGS: dict[str, tuple[str, ...]] = {
     "havacilik": ("airside_traffic", "ground_support_equipment", "noise", "fuel", "weather"),
     "havalimani_yer_hizmetleri": ("airside_traffic", "ground_support_equipment", "noise", "fuel", "manual_handling"),
     "metal_isleme_torna_freze": ("machinery", "metalworking_fluids", "hot_work", "lifting", "noise"),
+    "metal_yapi_elemanlari_toptan": ("lifting", "load_securing", "storage_stability", "vehicle_traffic", "sharp_edges"),
     "kaynakli_imalat": ("hot_work", "welding_fume", "gas_cylinders", "fire", "lifting"),
     "makine_imalat": ("machinery", "energy_isolation", "lifting", "noise", "metalworking_fluids"),
     "elektrik_bakim": ("electrical", "arc_flash", "energy_isolation", "working_at_height", "fire"),
@@ -109,6 +110,7 @@ _SPECIAL_RISKS: dict[str, tuple[str, ...]] = {
     "balikcilik_su_urunleri": ("man_overboard", "hypothermia", "refrigerant_release"),
     "saglik_hastane_klinik": ("bloodborne_exposure", "infectious_disease", "violence"),
     "su_atiksu": ("toxic_atmosphere", "oxygen_deficiency", "drowning"),
+    "metal_yapi_elemanlari_toptan": ("dropped_load", "load_collapse", "vehicle_collision"),
 }
 
 

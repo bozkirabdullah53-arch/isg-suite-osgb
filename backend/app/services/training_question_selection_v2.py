@@ -39,7 +39,13 @@ _legacy_question_bank_readiness: Callable | None = None
 
 
 def exact_nace_exam_strict_active() -> bool:
-    value = str(os.getenv(STRICT_ENV, "false") or "").strip().casefold()
+    raw = os.getenv(STRICT_ENV)
+    if raw is None:
+        environment = str(os.getenv("ENVIRONMENT", "") or "").strip().casefold()
+        raw = "true" if environment in {"production", "prod", "live"} else "false"
+    # Production uses exact NACE questions by default. Operators can still set
+    # the flag explicitly to false for emergency rollback.
+    value = str(raw or "").strip().casefold()
     return value in {"1", "true", "yes", "on"}
 
 
