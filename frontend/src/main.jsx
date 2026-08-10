@@ -116,7 +116,7 @@ const roleModules={
   workplace_physician:[
     'visits','belge_onay','eyas_inbox','dashboard','workplace_status',
     'health','prescriptions','employees','ortam_olcum',
-    'annual_plans','annual_eval_report','documents',
+    'documents',
     'security',
   ],
   other_health_personnel:[
