@@ -76,6 +76,22 @@ REVIEWED_PROFILE_RISK_TAGS: Final[dict[str, tuple[str, ...]]] = {
     "universite_yuksekogretim": ("public_safety", "laboratory_workshop", "emergency_evacuation", "slips_trips", "violence"),
     "hayvanat_bahcesi": ("wild_animal_attack", "zoonoses", "animal_escape", "crowd_management", "emergency_capture"),
     "tutun_urunleri_uretimi": ("tobacco_dust", "nicotine_exposure", "machinery", "combustible_dust", "ergonomics"),
+    "ticaret_aracilik_ofis": ("road_traffic", "lone_work", "display_screen", "ergonomics", "psychosocial"),
+    "tarimsal_urun_toptan": ("organic_dust", "storage_stability", "forklifts", "manual_handling", "fire"),
+    "canli_hayvan_toptan": ("animal_handling", "biological_agents", "loading", "vehicle_traffic", "manual_handling"),
+    "gida_toptan_depo": ("food_hygiene", "cold_environment", "forklifts", "storage_racking", "loading_docks"),
+    "tekstil_deri_toptan": ("fire", "storage_racking", "forklifts", "manual_handling", "sharp_tools"),
+    "elektrik_elektronik_toptan": ("electrical", "battery_fire", "storage_racking", "forklifts", "manual_handling"),
+    "kimyasal_toptan_depo": ("chemical_exposure", "segregated_storage", "flammable_liquids", "spill_response", "forklifts"),
+    "ecza_medikal_toptan": ("cold_chain", "storage_racking", "forklifts", "sharps", "fire"),
+    "mobilya_ev_esyasi_toptan": ("storage_stability", "lifting", "sharp_edges", "forklifts", "fire"),
+    "makine_ekipman_toptan": ("lifting", "storage_stability", "energy_isolation", "sharp_edges", "vehicle_traffic"),
+    "otomotiv_toptan": ("vehicle_traffic", "loading", "battery_fire", "flammable_liquids", "manual_handling"),
+    "yakit_toptan_depo": ("flammable_liquids", "atex", "static_electricity", "tanker_loading", "spill_response"),
+    "yapi_malzemeleri_toptan": ("lifting", "storage_stability", "mineral_dust", "sharp_edges", "vehicle_traffic"),
+    "atik_hurda_toptan": ("hazardous_waste", "sharps", "storage_stability", "mobile_plant", "fire"),
+    "genel_toptan_depo": ("forklifts", "storage_racking", "loading_docks", "manual_handling", "fire"),
+    "kimyasal_perakende": ("chemical_exposure", "segregated_storage", "flammable_liquids", "spill_response", "fire"),
 }
 
 REVIEWED_SPECIAL_RISKS: Final[dict[str, tuple[str, ...]]] = {
@@ -104,6 +120,10 @@ REVIEWED_SPECIAL_RISKS: Final[dict[str, tuple[str, ...]]] = {
     "elektrik_tesisat_pano_montaj": ("arc_flash_fatality", "electrocution", "energized_work"),
     "hayvanat_bahcesi": ("wild_animal_attack", "animal_escape", "zoonotic_outbreak"),
     "tutun_urunleri_uretimi": ("combustible_dust_explosion", "nicotine_overexposure", "machine_entanglement"),
+    "canli_hayvan_toptan": ("animal_escape", "crushing", "zoonotic_exposure"),
+    "kimyasal_toptan_depo": ("toxic_release", "warehouse_fire", "incompatible_reaction"),
+    "yakit_toptan_depo": ("vapour_cloud_explosion", "major_fire", "tanker_release"),
+    "atik_hurda_toptan": ("unknown_hazardous_material", "pile_collapse", "battery_fire"),
 }
 
 

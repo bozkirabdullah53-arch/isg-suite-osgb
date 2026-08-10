@@ -72,9 +72,14 @@ def test_every_nace_activity_has_exact_mandatory_topic_minutes():
 
 def test_special_training_profiles_ported():
     profiles = special_profiles_for_api()
-    assert {p["code"] for p in profiles} >= {"yuksekte_calisma", "hijyen_sanitasyon"}
+    expected_profiles = {
+        "yuksekte_calisma",
+        "hijyen_sanitasyon",
+        "gida_su_hijyeni",
+    }
+    assert {p["code"] for p in profiles} == expected_profiles
     meta = special_meta_for_api()
-    assert len(meta["profiles"]) == 2
+    assert {p["code"] for p in meta["profiles"]} == expected_profiles
     assert meta["instructor_roles"]
     assert meta["verification_methods"]
 
@@ -151,3 +156,30 @@ def test_special_hours_override_hazard_rules():
         )
         == 16
     )
+
+
+def test_height_training_replaces_oversized_hidden_stamp_with_profile_legal_basis():
+    from datetime import date
+
+    from app.schemas.training import TrainingCreate
+    from app.services.special_training_profiles import SPECIAL_TRAINING_PROFILES
+
+    payload = TrainingCreate(
+        company_id=1,
+        title="Yüksekte Çalışma Güvenliği Eğitimi",
+        training_type="Yüksekte Çalışma Güvenliği Eğitimi",
+        delivery_method="Yüz yüze ve uygulamalı",
+        location="İşyeri Eğitim Salonu",
+        start_date=date(2026, 8, 8),
+        end_date=date(2026, 8, 10),
+        hazard_class="Tehlikeli",
+        sector="genel_uretim",
+        instructor_name="Abdullah Bozkır",
+        instructor_qualification="A Sınıfı İş Güvenliği Uzmanı",
+        stamp_text="x" * 1000,
+        evaluation_method="Yazılı ve uygulamalı değerlendirme",
+        participant_ids=[1],
+    )
+
+    assert payload.stamp_text == SPECIAL_TRAINING_PROFILES["yuksekte_calisma"]["legal_basis"]
+    assert len(payload.stamp_text) <= 400

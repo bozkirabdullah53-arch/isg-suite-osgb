@@ -26,12 +26,12 @@ MUTED = (78 / 255, 92 / 255, 105 / 255)
 LINE = (198 / 255, 211 / 255, 220 / 255)
 
 HEIGHT_LEGAL_BASIS = (
-    "6331 sayılı İş Sağlığı ve Güvenliği Kanunu m.17; 02.04.2026 tarihli ve "
+    "6331 sayılı İş Sağlığı ve Güvenliği Kanunu m.17; 02.04.2026 tarihli, "
     "33212 sayılı Resmî Gazete'de yayımlanan Çalışanların İş Sağlığı ve "
-    "Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik m.5, m.9, "
-    "m.10, m.13, m.17, m.24, m.26 ve Ek-1/Ek-2; Yapı İşlerinde İş Sağlığı ve "
-    "Güvenliği Yönetmeliği Ek-4, Yüksekte Çalışma 2(g) ve İş Ekipmanlarının "
-    "Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliğinin ilgili hükümleri."
+    "Güvenliği Eğitimlerinin Usul ve Esasları Hakkında Yönetmelik m.5, 9, m.10, "
+    "13, 17, 24, 26 ve Ek-1/Ek-2; Yapı İşlerinde İş Sağlığı ve Güvenliği "
+    "Yönetmeliği Ek-4/2(g); İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik "
+    "Şartları Yönetmeliğinin ilgili hükümleri."
 )
 
 HEIGHT_INSTRUCTOR_NOTE = (

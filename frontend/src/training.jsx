@@ -171,6 +171,10 @@ function sectorLabel(sectors, code) {
   return s ? (s.label || s.name) : code || '—';
 }
 
+function normalizedStampText(value) {
+  return String(value || '').trim().slice(0, 400) || null;
+}
+
 function emptyForm(user) {
   return {
     company_id: user.company_id || '',
@@ -688,7 +692,7 @@ export function TrainingPage({user}) {
       instructor_qualification: f.instructor_qualification || null,
       workplace_physician: (f.workplace_physician || '').trim() || null,
       employer_representative: (f.employer_representative || '').trim() || null,
-      stamp_text: (f.stamp_text || '').trim() || null,
+      stamp_text: normalizedStampText(f.stamp_text),
       evaluation_method: f.evaluation_method,
       passing_score: f.passing_score === '' || f.passing_score == null ? null : Number(f.passing_score),
       attendance_verified: !!f.attendance_verified,
@@ -1080,7 +1084,7 @@ export function TrainingPage({user}) {
       ]
         .filter(Boolean)
         .join('\n\n'),
-      stamp_text: profile.legal_basis || prev.stamp_text,
+      stamp_text: normalizedStampText(profile.legal_basis || prev.stamp_text) || '',
     }));
   }
 

@@ -403,7 +403,7 @@ def test_coverage_reports_every_official_nace_and_general_fallback(db: Session):
     assert report["catalog_records_total"] == 2142
     assert report["nace_total"] == 2141
     assert report["general_fallback_total"] == 1
-    assert report["profile_total"] == 92
+    assert report["profile_total"] == 108
     assert report["exam_ready_count"] == 0
     assert report["release_ready_count"] == 0
     assert report["blocked_count"] == 2141

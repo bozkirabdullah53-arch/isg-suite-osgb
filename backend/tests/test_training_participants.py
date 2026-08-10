@@ -40,11 +40,19 @@ def client(tmp_path, monkeypatch):
     engine = create_engine(url, connect_args={"check_same_thread": False})
     dbmod.engine = engine
     dbmod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+    import app.main as mainmod
+
+    mainmod.engine = engine
+    mainmod.SessionLocal = dbmod.SessionLocal
     ent.Base.metadata.create_all(bind=engine)
 
-    from app.main import app
-
-    return TestClient(app)
+    test_client = TestClient(mainmod.app)
+    try:
+        yield test_client
+    finally:
+        test_client.close()
+        engine.dispose()
 
 
 def _seed(client: TestClient) -> tuple[dict, int, list[int]]:
@@ -119,6 +127,7 @@ def _payload(company_id: int, participant_ids: list[int]) -> dict:
         "start_date": start.isoformat(),
         "end_date": (start + timedelta(days=1)).isoformat(),
         "hazard_class": "Tehlikeli",
+        "sector": "nace_46_83_06",
         "instructor_name": "Egitmen Kisi",
         "attendance_verified": True,
         "success_verified": True,
