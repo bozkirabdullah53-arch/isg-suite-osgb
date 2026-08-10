@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import uuid
 from datetime import date, datetime, timedelta
 
@@ -10,8 +11,146 @@ from sqlalchemy import text
 
 from app.api.committee_professional import _find_duplicate_member_id
 from app.core.database import SessionLocal
-from app.models.entities import Company, ESignRequest, EyasStep, EyasWorkflow, User, UserRole
+from app.models.entities import (
+    AssignmentStatus,
+    Company,
+    ESignRequest,
+    EyasStep,
+    EyasWorkflow,
+    IsgProfessional,
+    OsgbOrganization,
+    ProfessionalType,
+    User,
+    UserRole,
+    WorkplaceAssignment,
+)
 from app.services import committee_correction, committee_signature, committee_workflow
+
+
+@pytest.fixture(autouse=True)
+def _isolated_committee_database(tmp_path, monkeypatch):
+    """Kurul workflow testlerini migrasyon sonrası SQLite şemasıyla izole et."""
+    from sqlalchemy import create_engine, inspect
+    from sqlalchemy.orm import sessionmaker
+
+    import app.core.database as database
+
+    engine = create_engine(
+        f"sqlite:///{(tmp_path / 'committee-workflow.db').as_posix()}",
+        connect_args={"check_same_thread": False},
+    )
+    database.Base.metadata.create_all(bind=engine)
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        member_columns = {
+            "employee_id": "INTEGER",
+            "user_id": "INTEGER",
+            "branch_id": "INTEGER",
+            "identity_key": "VARCHAR(220)",
+            "source_type": "VARCHAR(40)",
+            "source_ref": "VARCHAR(120)",
+            "job_title_snapshot": "VARCHAR(160)",
+            "professional_role_snapshot": "VARCHAR(160)",
+            "email_snapshot": "VARCHAR(255)",
+            "is_mandatory": "BOOLEAN NOT NULL DEFAULT 0",
+            "removed_at": "DATETIME",
+            "removed_by_id": "INTEGER",
+            "removal_reason_code": "VARCHAR(60)",
+            "removal_reason_text": "VARCHAR(1000)",
+            "removal_document_version": "INTEGER",
+        }
+        meeting_columns = {
+            "title": "VARCHAR(220)",
+            "meeting_no": "VARCHAR(60)",
+            "document_no": "VARCHAR(80)",
+            "revision_no": "VARCHAR(30) NOT NULL DEFAULT '00'",
+            "status": "VARCHAR(40) NOT NULL DEFAULT 'draft'",
+            "signature_status": "VARCHAR(40) NOT NULL DEFAULT 'not_signed'",
+            "start_time": "VARCHAR(10)",
+            "end_time": "VARCHAR(10)",
+            "location": "VARCHAR(220)",
+            "meeting_type": "VARCHAR(60)",
+            "member_snapshot_json": "TEXT",
+            "agenda_json": "TEXT",
+            "decisions_json": "TEXT",
+            "approval_reference": "VARCHAR(160)",
+            "pdf_sha256": "VARCHAR(64)",
+            "pdf_generated_at": "DATETIME",
+            "approval_workflow_id": "INTEGER",
+            "approval_status": "VARCHAR(50) NOT NULL DEFAULT 'draft'",
+            "approval_current_step": "INTEGER",
+            "document_version": "INTEGER NOT NULL DEFAULT 1",
+            "approval_submitted_at": "DATETIME",
+            "approval_completed_at": "DATETIME",
+            "approval_invalidated_at": "DATETIME",
+            "updated_at": "DATETIME",
+        }
+        for table, columns in (
+            ("ohs_committee_members", member_columns),
+            ("ohs_committee_meetings", meeting_columns),
+        ):
+            existing = {column["name"] for column in inspector.get_columns(table)}
+            for name, definition in columns.items():
+                if name not in existing:
+                    connection.exec_driver_sql(
+                        f'ALTER TABLE "{table}" ADD COLUMN "{name}" {definition}'
+                    )
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE ohs_committee_signature_steps (
+                id INTEGER PRIMARY KEY,
+                meeting_id INTEGER NOT NULL,
+                company_id INTEGER NOT NULL,
+                document_version INTEGER NOT NULL,
+                step_order INTEGER NOT NULL,
+                signer_user_id INTEGER NOT NULL,
+                role_label VARCHAR(120) NOT NULL,
+                status VARCHAR(40) NOT NULL DEFAULT 'pending',
+                esign_request_id INTEGER,
+                esign_artifact_id INTEGER,
+                signed_at DATETIME,
+                invalidated_at DATETIME,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (meeting_id, document_version, step_order)
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            "CREATE INDEX ix_committee_signature_company_status "
+            "ON ohs_committee_signature_steps(company_id, status)"
+        )
+        connection.exec_driver_sql(
+            "CREATE INDEX ix_committee_signature_signer_status "
+            "ON ohs_committee_signature_steps(signer_user_id, status)"
+        )
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE ohs_committee_meeting_versions (
+                id INTEGER PRIMARY KEY,
+                meeting_id INTEGER NOT NULL,
+                company_id INTEGER NOT NULL,
+                document_version INTEGER NOT NULL,
+                meeting_snapshot_json TEXT NOT NULL,
+                member_snapshot_json TEXT,
+                approval_workflow_id INTEGER,
+                final_signature_artifact_id INTEGER,
+                pdf_sha256 VARCHAR(64),
+                archive_reason VARCHAR(120) NOT NULL DEFAULT 'material_change',
+                created_by_id INTEGER,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (meeting_id, document_version)
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            "CREATE INDEX ix_committee_meeting_versions_company "
+            "ON ohs_committee_meeting_versions(company_id, meeting_id)"
+        )
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    monkeypatch.setattr(database, "engine", engine)
+    monkeypatch.setattr(database, "SessionLocal", session_factory)
+    monkeypatch.setattr(sys.modules[__name__], "SessionLocal", session_factory)
+    yield
 
 
 def _token() -> str:
@@ -20,9 +159,48 @@ def _token() -> str:
 
 def _create_company_and_users(db):
     suffix = _token()
-    company = Company(name=f"Committee CI {suffix}", authorized_person="İşveren Yetkilisi", is_active=True)
+    osgb = OsgbOrganization(name=f"Committee OSGB {suffix}", is_active=True)
+    db.add(osgb)
+    db.flush()
+    company = Company(
+        name=f"Committee CI {suffix}",
+        authorized_person="İşveren Yetkilisi",
+        is_active=True,
+        osgb_id=osgb.id,
+    )
     db.add(company)
     db.flush()
+    professionals = [
+        IsgProfessional(
+            osgb_id=osgb.id,
+            full_name="İSG Uzmanı",
+            email=f"committee-specialist-{suffix}@example.test",
+            professional_type=ProfessionalType.SAFETY_SPECIALIST,
+            is_active=True,
+        ),
+        IsgProfessional(
+            osgb_id=osgb.id,
+            full_name="İşyeri Hekimi",
+            email=f"committee-physician-{suffix}@example.test",
+            professional_type=ProfessionalType.WORKPLACE_PHYSICIAN,
+            is_active=True,
+        ),
+    ]
+    db.add_all(professionals)
+    db.flush()
+    db.add_all(
+        [
+            WorkplaceAssignment(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                professional_id=professional.id,
+                professional_type=professional.professional_type,
+                start_date=date.today() - timedelta(days=30),
+                status=AssignmentStatus.ACTIVE,
+            )
+            for professional in professionals
+        ]
+    )
     users = {
         "admin": User(
             email=f"committee-admin-{suffix}@example.test",
@@ -38,6 +216,7 @@ def _create_company_and_users(db):
             role=UserRole.SAFETY_SPECIALIST,
             is_active=True,
             company_id=company.id,
+            osgb_id=osgb.id,
         ),
         "physician": User(
             email=f"committee-physician-{suffix}@example.test",
@@ -46,6 +225,7 @@ def _create_company_and_users(db):
             role=UserRole.WORKPLACE_PHYSICIAN,
             is_active=True,
             company_id=company.id,
+            osgb_id=osgb.id,
         ),
         "employer": User(
             email=f"committee-employer-{suffix}@example.test",
@@ -54,6 +234,7 @@ def _create_company_and_users(db):
             role=UserRole.COMPANY_ADMIN,
             is_active=True,
             company_id=company.id,
+            osgb_id=osgb.id,
         ),
         "unrelated": User(
             email=f"committee-unrelated-{suffix}@example.test",
@@ -62,6 +243,7 @@ def _create_company_and_users(db):
             role=UserRole.READ_ONLY,
             is_active=True,
             company_id=company.id,
+            osgb_id=osgb.id,
         ),
     }
     db.add_all(users.values())

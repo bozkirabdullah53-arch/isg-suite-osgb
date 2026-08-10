@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
@@ -102,8 +103,15 @@ def days_remaining(sub: OsgbSubscription, now: datetime | None = None) -> int | 
     end = _end_date(sub)
     if not end:
         return None
-    delta = (end - now).days
-    return max(0, delta) if delta >= 0 else delta
+    # Takvim günü kullanıcıya kalan gün olarak gösterilir: örneğin tam beş
+    # gün sonrasına bir kaç saniye kala değer yine ``5`` olmalıdır. ``timedelta.days``
+    # yalnızca tam 24 saatleri aşağı yuvarladığı için ekranı bir gün
+    # eksik gösteriyordu. Süresi geçmiş değerlerde mevcut negatif gün
+    # davranışını koru.
+    seconds = (end - now).total_seconds()
+    if seconds < 0:
+        return math.floor(seconds / 86400)
+    return math.ceil(seconds / 86400)
 
 
 def is_expiring(sub: OsgbSubscription, window: int, now: datetime | None = None) -> bool:
@@ -503,4 +511,3 @@ def create_error_report(
     db.add(row)
     db.flush()
     return row
-

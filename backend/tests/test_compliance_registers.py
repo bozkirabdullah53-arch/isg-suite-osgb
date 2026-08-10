@@ -65,6 +65,6 @@ def test_kroki_symbol_catalog_meta():
     from types import SimpleNamespace
 
     meta = ep_meta(user=SimpleNamespace())
-    assert meta["engine"] == "emergency-kroki-v1"
+    assert meta["engine"] == "emergency-kroki-v2.2"
     assert "exit" in meta["symbols"]
     assert "extinguisher" in meta["symbols"]

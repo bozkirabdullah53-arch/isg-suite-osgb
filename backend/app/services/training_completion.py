@@ -29,6 +29,27 @@ STRICT_AFTER_ENV = "TRAINING_COMPLETION_STRICT_AFTER"
 _original_certificate_builder = None
 
 
+def _guard_present_in_chain(builder, marker: str) -> bool:
+    """Return whether a wrapper marker exists in the current builder chain.
+
+    The training runtime installs several compatibility guards from both app
+    startup and test/worker setup.  ``functools.wraps`` keeps the previous
+    callable in ``__wrapped__``; walking that chain prevents a later installer
+    from wrapping an already guarded function again (which otherwise creates a
+    completion↔lifecycle recursion loop).
+    """
+    seen: set[int] = set()
+    current = builder
+    for _ in range(32):
+        if current is None or id(current) in seen:
+            return False
+        seen.add(id(current))
+        if getattr(current, marker, False):
+            return True
+        current = getattr(current, "__wrapped__", None)
+    return False
+
+
 def completion_strict_active() -> bool:
     value = str(os.getenv(STRICT_ENV, "false") or "").strip().casefold()
     return value in {"1", "true", "yes", "on"}
@@ -361,7 +382,7 @@ def install_training_completion_guard() -> dict[str, str]:
     from app.services import training_pdfs
 
     current = training_pdfs.build_certificates_pdf
-    if getattr(current, "_verified_completion_guard_active", False):
+    if _guard_present_in_chain(current, "_verified_completion_guard_active"):
         return {
             "certificate_guard": "already-active",
             "strict_flag": str(completion_strict_active()).lower(),
@@ -393,6 +414,9 @@ def install_training_completion_guard() -> dict[str, str]:
         )
 
     guarded_builder._verified_completion_guard_active = True
+    # Keep the original callable discoverable so other runtime installers can
+    # detect this guard even when a lifecycle wrapper sits above it.
+    guarded_builder.__wrapped__ = current
     training_pdfs.build_certificates_pdf = guarded_builder
     for module_name in ("app.api.trainings",):
         module = sys.modules.get(module_name)

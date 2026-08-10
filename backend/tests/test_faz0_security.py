@@ -7,9 +7,8 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture()
-def client(tmp_path, monkeypatch):
-    db_file = tmp_path / "faz0.db"
-    url = f"sqlite:///{db_file.as_posix()}"
+def client(monkeypatch):
+    url = "sqlite:///:memory:"
     monkeypatch.setenv("DATABASE_URL", url)
     monkeypatch.setenv("ENVIRONMENT", "development")
     monkeypatch.setenv("SECRET_KEY", "test-secret-key-at-least-32-chars-long!!")
@@ -21,11 +20,16 @@ def client(tmp_path, monkeypatch):
     settings.environment = "development"
 
     from sqlalchemy import create_engine
+    from sqlalchemy.pool import StaticPool
     from sqlalchemy.orm import sessionmaker
     import app.core.database as dbmod
     import app.models.entities as ent
 
-    engine = create_engine(url, connect_args={"check_same_thread": False})
+    engine = create_engine(
+        url,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     dbmod.engine = engine
     dbmod.SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
@@ -46,7 +50,6 @@ def client(tmp_path, monkeypatch):
 
     main_mod.engine = engine
     main_mod.SessionLocal = dbmod.SessionLocal
-    ent.Base.metadata.drop_all(bind=engine)
     ent.Base.metadata.create_all(bind=engine)
     app = main_mod.app
 

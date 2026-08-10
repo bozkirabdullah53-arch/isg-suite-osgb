@@ -25,6 +25,20 @@ _original_presentation_readiness = None
 _original_pilot_access = None
 
 
+def _guard_present_in_chain(builder, marker: str) -> bool:
+    """Inspect ``__wrapped__`` layers before installing another guard."""
+    seen: set[int] = set()
+    current = builder
+    for _ in range(32):
+        if current is None or id(current) in seen:
+            return False
+        seen.add(id(current))
+        if getattr(current, marker, False):
+            return True
+        current = getattr(current, "__wrapped__", None)
+    return False
+
+
 def _record_only_kind(training) -> str | None:
     if not applies_to_created_at(getattr(training, "created_at", None)):
         return None
@@ -145,7 +159,7 @@ def install_training_lifecycle_v2_content_guards() -> dict[str, str]:
         status["record_only_exam"] = "active"
 
     current_certificate = training_pdfs.build_certificates_pdf
-    if getattr(current_certificate, "_premium_record_only_certificate_guard", False):
+    if _guard_present_in_chain(current_certificate, "_premium_record_only_certificate_guard"):
         status["record_only_certificate"] = "already-active"
     else:
         _original_certificate_builder = current_certificate
