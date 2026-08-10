@@ -5,7 +5,7 @@ const readyPayload = {
   company_id: 35,
   enabled: true,
   visible: true,
-  read_only: true,
+  read_only: false,
   rollout: {
     global_enabled: true,
     force_off: false,
