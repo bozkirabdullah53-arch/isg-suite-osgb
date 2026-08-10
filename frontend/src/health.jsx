@@ -161,6 +161,7 @@ export function HealthPage({user}) {
   const [analysis, setAnalysis] = useState(null);
   const [meta, setMeta] = useState({record_types: [], fitness_statuses: [], exposure_options: []});
   const [companyId, setCompanyId] = useState(user.company_id ? String(user.company_id) : '');
+  const [employeeFilter, setEmployeeFilter] = useState('');
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [overdueOnly, setOverdueOnly] = useState(false);
@@ -189,11 +190,12 @@ export function HealthPage({user}) {
   const qs = useMemo(() => {
     const p = new URLSearchParams();
     if (companyId) p.set('company_id', companyId);
+    if (employeeFilter) p.set('employee_id', employeeFilter);
     if (q) p.set('q', q);
     if (typeFilter) p.set('record_type', typeFilter);
     if (overdueOnly) p.set('overdue_only', 'true');
     return p.toString();
-  }, [companyId, q, typeFilter, overdueOnly]);
+  }, [companyId, employeeFilter, q, typeFilter, overdueOnly]);
 
   async function load() {
     if (!canEdit) return;
@@ -218,6 +220,7 @@ export function HealthPage({user}) {
 
       const recordQs = new URLSearchParams();
       recordQs.set('company_id', String(nextCid));
+      if (employeeFilter) recordQs.set('employee_id', employeeFilter);
       if (q) recordQs.set('q', q);
       if (typeFilter) recordQs.set('record_type', typeFilter);
       if (overdueOnly) recordQs.set('overdue_only', 'true');
@@ -249,12 +252,15 @@ export function HealthPage({user}) {
 
   useEffect(() => { load(); }, [qs]);
 
-  // Personel listesi sağlık özetlerinden bağımsız yenilenir. Böylece bir
-  // analiz/özet isteği gecikse bile hekim seçilen işyerinin personelini
-  // yeni sağlık kaydında seçebilir.
+  // Personel listesi sağlık özetlerinden bağımsız yenilenir. Böylece bu
+  // ekranda ve yeni sağlık kaydında hekim seçilen işyerinin personelini
+  // gecikmeden seçebilir.
   useEffect(() => {
     const cid = form.company_id || companyId;
-    if (!open || !cid) return undefined;
+    if (!cid) {
+      setEmployees([]);
+      return undefined;
+    }
     let cancelled = false;
     api(`/employees?company_id=${encodeURIComponent(cid)}&active=true`)
       .then((scoped) => {
@@ -264,7 +270,7 @@ export function HealthPage({user}) {
         // Ana yükleme hata mesajını koru; personel seçimi için tekrar denenebilir.
       });
     return () => { cancelled = true; };
-  }, [form.company_id, companyId, open]);
+  }, [form.company_id, companyId]);
 
   useEffect(() => {
     if (!isPhysician) {
@@ -338,13 +344,14 @@ export function HealthPage({user}) {
     setReportFile(null);
     setLeadLive(null);
     const cid = companyId || user.company_id || '';
-    const base = {...emptyForm(user), company_id: cid};
+    const base = {...emptyForm(user), company_id: cid, employee_id: employeeFilter};
     if (physicianOptions.length === 1) {
       base.physician_professional_id = String(physicianOptions[0].id);
       base.physician_name = physicianOptions[0].name;
     }
     setForm(base);
     setOpen(true);
+    if (employeeFilter) void applySuggest(employeeFilter, cid);
   }
 
   function openEdit(row) {
@@ -556,6 +563,7 @@ export function HealthPage({user}) {
               onChange={(e) => {
                 const next = e.target.value;
                 setCompanyId(next);
+                setEmployeeFilter('');
                 setEmployees([]);
                 setRows([]);
                 setSummary(null);
@@ -567,6 +575,14 @@ export function HealthPage({user}) {
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
           )}
+          <Select label="Personel" value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}>
+            <option value="">Tüm aktif personel ({companyEmployees.length})</option>
+            {companyEmployees.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.full_name}{x.job_title ? ` — ${x.job_title}` : ''}
+              </option>
+            ))}
+          </Select>
           <label className="field">
             <span>Ara</span>
             <div className="search" style={{margin: 0}}>
