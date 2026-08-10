@@ -529,6 +529,7 @@ export function EmergencyPlansPage({user}) {
 /** Ortam ölçüm defteri */
 export function WorkplaceMeasurementsPage({user}) {
   const canEdit = ['safety_specialist', 'global_admin'].includes(user.role);
+  const physicianReadOnly = user.role === 'workplace_physician';
   const companies = useCompanies(user);
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState({types: []});
@@ -597,6 +598,9 @@ export function WorkplaceMeasurementsPage({user}) {
           {canEdit && <button type="button" onClick={() => setOpen(true)}><Plus size={16} /> Yeni Ölçüm</button>}
         </div>
       </div>
+      {physicianReadOnly && <p className="muted" style={{margin: '0 0 12px'}}>
+        Atandığınız işyerinin ortam ölçüm kayıtları iş güvenliği uzmanı tarafından girilir; bu ekranda yalnızca görüntüleyebilirsiniz.
+      </p>}
       <section className="panel">
         <p style={{margin: '0 0 12px', color: '#475569', fontSize: 14}}>
           Gürültü, toz, kimyasal, aydınlatma vb. ölçümleri; laboratuvar, limit ve sonraki ölçüm terminleri.

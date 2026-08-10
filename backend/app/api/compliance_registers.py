@@ -58,6 +58,8 @@ EMPTY_SCENE = '{"version":1,"objects":[],"paths":[]}'
 
 EDIT = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST)
 VIEW = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST, UserRole.WORKPLACE_PHYSICIAN)
+# Ortam ölçümü ortak işyeri kaydıdır: uzman yazar, hekim (ve mevcut sağlık
+# rolü görünümü) yalnızca atanmış işyerlerinin kayıtlarını okur/dışa aktarır.
 PHYS_VIEW = VIEW + (UserRole.OTHER_HEALTH_PERSONNEL,)
 
 PERIODIC_CATEGORIES = [
