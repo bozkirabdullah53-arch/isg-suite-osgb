@@ -111,6 +111,7 @@ _CURATED_SECTOR_ALIASES = {
     "laboratuvar_analiz": "kimya_kimyasal_uretim",
     "liman": "depo_lojistik",
     "makine_imalati": "makine_imalat",
+    "metal_yapi_elemanlari_toptan": "metal_isleme_torna_freze",
     "muhendislik_proje_ofisi": "ofis_idari_hizmetler",
     "organizasyon_etkinlik": "ofis_idari_hizmetler",
     "ormancilik": "agac_isleri_marangozluk",
