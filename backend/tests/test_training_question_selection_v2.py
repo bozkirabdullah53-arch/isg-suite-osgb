@@ -131,10 +131,11 @@ def test_legacy_training_remains_backward_compatible(
 
 
 
-def test_exact_nace_selection_is_enabled_by_default(
+def test_exact_nace_selection_is_enabled_by_default_in_production(
     db: Session, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.delenv("TRAINING_EXACT_NACE_EXAM_STRICT", raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "production")
     training, _user, classification = _verified_training(db)
     audit = question_selection_audit(db, training)
 
