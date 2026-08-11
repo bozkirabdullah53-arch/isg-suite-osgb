@@ -224,7 +224,7 @@ def downgrade() -> None:
         if "ix_health_records_physician_professional_id" in indexes:
             batch.drop_index("ix_health_records_physician_professional_id")
         if "fk_health_records_physician_professional" in foreign_keys:
-            batch.drop_constraint("fk_health_records_physician_professional", type="foreignkey")
+            batch.drop_constraint("fk_health_records_physician_professional", type_="foreignkey")
         for column in ("version", "updated_at", "physician_professional_id"):
             if column in columns:
                 batch.drop_column(column)
