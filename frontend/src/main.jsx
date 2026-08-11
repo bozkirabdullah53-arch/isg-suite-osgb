@@ -47,6 +47,7 @@ import {PrescriptionPage} from './prescriptions';
 import {TrainingQuestionBank} from './training_question_bank';
 import {GLOBAL_ADMIN_MODULES} from './app_module_policy';
 import {AdminSummaryDashboard,DutyDashboard} from './duty_dashboard';
+import {SpecialistReportCenterPage} from './specialist_report_center';
 import {AppModal} from './ui_modal';
 import {
   EisaOverviewPage,
@@ -107,20 +108,16 @@ const roleModules={
     'security',
   ],
   safety_specialist:[
-    'visits','belge_onay','dashboard','workplace_status',
+    'visits','dashboard','notifications','belge_onay','workplace_status',
     'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler','acil_plan',
     'periyodik_kontrol','ortam_olcum','isg_kurulu',
-    'training','employees','annual_plans','annual_eval_report','documents',
+    'training','employees','annual_plans','annual_eval_report','specialist_reports','mevzuat','documents',
     'security',
   ],
   workplace_physician:[
-    // 1) Başlangıç ve günlük iş akışı
-    'dashboard','visits','health','prescriptions','employees',
-    // 2) İşyerini takip ve onay işlemleri
-    'workplace_status','belge_onay','eyas_inbox',
-    // 3) Daha seyrek kullanılan saha/arşiv bağlantıları
-    'ortam_olcum',
-    'documents',
+    'visits','belge_onay','eyas_inbox','dashboard','workplace_status',
+    'health','prescriptions','employees','ortam_olcum',
+    'annual_plans','annual_eval_report','documents',
     'security',
   ],
   other_health_personnel:[
@@ -151,7 +148,7 @@ function modulesForUser(user){
 const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
   company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
-  safety_specialist:['visits','belge_onay','risk','training'],
+  safety_specialist:['visits','dashboard','notifications','risk'],
   workplace_physician:['visits','health','prescriptions','employees'],
   other_health_personnel:['visits','health','employees','documents'],
   read_only:['dashboard','annual_eval_report','notifications','security'],
@@ -222,6 +219,7 @@ const menuCatalog={
   documents:['Dokümanlar',FileText],
   annual_plans:['Yıllık Plan',ClipboardCheck],
   annual_eval_report:['Yıllık Çalışma Değerlendirme Raporu',FileText],
+  specialist_reports:['Uzman Rapor Merkezi',BarChart3],
   reports:['OSGB Yönetim Özeti',BarChart3],
   notifications:['Bildirimler',Bell],
   subscription:['Abonelik',CreditCard],
@@ -1493,7 +1491,29 @@ const notificationTypeNames={info:'Bilgi',warning:'Uyarı',critical:'Kritik',suc
 const planNames={demo:'Demo',starter:'Başlangıç',professional:'Profesyonel',enterprise:'Kurumsal'};
 const subscriptionStatusNames={trial:'Deneme',active:'Aktif',past_due:'Salt Okunur',suspended:'Askıda',cancelled:'İptal'};
 
-function NotificationsPage(){
+function notificationModule(row){
+  const byEntity={
+    isg_record:'risk',
+    document:'documents',
+    annual_plan:'annual_plans',
+    annual_eval:'annual_eval_report',
+    chemical_product:'sds',
+    periodic_control:'periyodik_kontrol',
+    workplace_measurement:'ortam_olcum',
+    emergency_plan:'acil_plan',
+    incident_sgk:'accident',
+    osgb_assignment:'assignments',
+    osgb_contract:'contracts',
+    specialist_duty:'dashboard',
+  };
+  if(row?.entity_type==='specialist_duty'){
+    const code=String(row.entity_id||'').split(':')[0];
+    return ({training_compliance:'training',ppe_register:'ppe',periodic_control:'periyodik_kontrol',workplace_measurement:'ortam_olcum',emergency_plan:'acil_plan',emergency_team:'acil_ekipler',drill:'tatbikat',ohs_committee:'isg_kurulu',risk_dof:'risk',risk_degerlendirme:'risk'}[code]||'dashboard');
+  }
+  return byEntity[row?.entity_type] || null;
+}
+
+function NotificationsPage({onNavigate, user}){
   const[rows,setRows]=useState([]),[message,setMessage]=useState(''),[busy,setBusy]=useState(false);
   const load=()=>api('/notifications').then(setRows).catch(e=>setMessage(e.message));
   useEffect(()=>{load()},[]);
@@ -1512,13 +1532,14 @@ function NotificationsPage(){
     {key:'title',label:'Başlık'},
     {key:'message',label:'Açıklama'},
     {key:'created_at',label:'Tarih',render:r=>String(r.created_at||'').slice(0,16).replace('T',' ')},
-    {key:'action',label:'İşlem',render:r=>r.is_read?'Okundu':<button type="button" className="mini" onClick={()=>read(r.id)}>Okundu Yap</button>},
+    {key:'action',label:'İşlem',render:r=><div className="actions" style={{gap:6,flexWrap:'wrap'}}>{notificationModule(r)&&<button type="button" className="mini secondary" onClick={()=>onNavigate?.(notificationModule(r))}>Aç</button>}{r.is_read?'Okundu':<button type="button" className="mini" onClick={()=>read(r.id)}>Okundu Yap</button>}</div>},
   ];
   return <Page title="Bildirim Merkezi" action={<button type="button" disabled={busy} onClick={refresh}><RefreshCw/>{busy?'Taranıyor...':'Süreleri Kontrol Et'}</button>}>
     <p style={{marginTop:0,color:'#64748b',fontSize:13,maxWidth:720}}>
       Bu merkez otomatik süre uyarısı üretir: görevlendirme / sözleşme bitişi, KATİP no eksikliği,
       atanmamış profesyonel, doküman geçerliliği, sağlık muayenesi, geciken yıllık plan ve SDS / PKD
       gözden geçirme terminleri. Liste boşsa «Süreleri Kontrol Et» ile tarayın; gerçek kayıt yoksa bilgi bildirimi gelir.
+      {user?.role==='safety_specialist'&&' Uzman görünümünde klinik sağlık bildirimleri gösterilmez.'}
     </p>
     {message&&<p style={{color:message.includes('oluşturuldu')?'#166534':'#b91c1c'}}>{message}</p>}
     <Table cols={cols} rows={rows} empty="Henüz bildirim yok. Süreleri Kontrol Et ile tarayın."/>
@@ -1957,7 +1978,8 @@ function App(){
     annual_plans:<AnnualPlansPage user={user}/>,
     annual_eval_report:<AnnualEvalReportPage user={user} onNavigate={goModule}/>,
     reports:<ReportsPage user={user} onNavigate={goModule}/>,
-    notifications:<NotificationsPage/>,
+    notifications:<NotificationsPage user={user} onNavigate={goModule}/>,
+    specialist_reports:<SpecialistReportCenterPage onNavigate={goModule}/>,
     subscription:<SubscriptionPage user={user}/>,
     security:<SecurityPage user={user}/>,
     users:<UserPage user={user}/>,
