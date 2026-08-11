@@ -333,7 +333,7 @@ def build_risk_nace_roadmap(
             classification = resolve_exact_nace(entered)
             status = classification.classification_status
         except ValueError:
-            sgk_scope_only = nace_source == "sgk_work_code" and len(entered.split(".")) == 2
+            sgk_scope_only = nace_source == "sgk_registry_nace" and len(entered.split(".")) == 2
             if sgk_scope_only:
                 status = "review_required"
                 error_reason = (
@@ -356,7 +356,7 @@ def build_risk_nace_roadmap(
     if status == "verified":
         next_action = "NACE teknik başlıklarını bölüm/faaliyet bazında saha gözlemiyle doğrulayın; gerçekleşenleri risk kaydı ve DÖF ile tamamlayın."
     elif status == "review_required":
-        if nace_source == "sgk_work_code":
+        if nace_source == "sgk_registry_nace" and len((entered or "").split(".")) == 2:
             next_action = "SGK sicilindeki dört haneli işkolu kodu okundu; resmî katalogdan altı haneli NACE faaliyetini doğrulayın, ardından teknik risk başlıklarını saha ile eşleştirin."
         else:
             next_action = "NACE kimliği doğrulandı; teknik risk eşleştirmesi uzman tarafından saha ve proses verisiyle tamamlanmadan kapsamı kesin kabul etmeyin."

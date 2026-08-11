@@ -276,9 +276,10 @@ def test_nace_roadmap_endpoint_uses_assigned_company_and_fails_closed(client):
         db.commit()
     sgk_scope = client.get(f"/api/v1/risks/nace-roadmap?company_id={cid}", headers=headers)
     assert sgk_scope.status_code == 200, sgk_scope.text
-    assert sgk_scope.json()["entered_nace_code"] == "24.10"
-    assert sgk_scope.json()["nace_source"] == "sgk_work_code"
-    assert sgk_scope.json()["status"] == "review_required"
+    assert sgk_scope.json()["entered_nace_code"] == "24.10.01"
+    assert sgk_scope.json()["nace_source"] == "sgk_registry_nace"
+    assert sgk_scope.json()["status"] == "verified"
+    assert sgk_scope.json()["identity"]["code"] == "24.10.01"
 
     with SessionLocal() as db:
         company = db.get(Company, cid)

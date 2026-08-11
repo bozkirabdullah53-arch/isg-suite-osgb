@@ -654,32 +654,34 @@ def _canonical_nace_code(value: object) -> str | None:
 
 
 def _nace_from_sgk_registry(value: object) -> str | None:
-    """Read SGK's four-digit NACE/work-code from a workplace registry number.
+    """Read the six-digit NACE code embedded in a workplace registry number.
 
-    SGK's 26-digit workplace number carries the four-digit work/NACE code
-    after the one-digit nature code. It does not identify the six-digit
-    activity by itself; therefore this helper returns ``24.10``-style scope
-    only and never invents the final two digits.
+    This application receives SGK numbers in the form where the first digit
+    is the nature code and the following six digits are the NACE digits. For
+    example ``224100101...`` becomes ``24.10.01``. The transformation is
+    deterministic and is applied only to a company SGK registry value.
     """
     raw = str(value or "").strip()
     if not raw:
         return None
 
-    # Allow a pasted four-digit work code or a visibly formatted four-digit
-    # code, while keeping ordinary SGK numbers on the structured path below.
+    # Allow a pasted six-digit NACE code as well as a four-digit legacy
+    # work-code value. Full SGK numbers use the structured path below.
     compact = re.sub(r"\D", "", raw)
+    if re.fullmatch(r"\d{6}", compact):
+        return f"{compact[:2]}.{compact[2:4]}.{compact[4:]}"
     if re.fullmatch(r"\d{4}", compact):
         return f"{compact[:2]}.{compact[2:]}"
 
     # A standard SGK workplace registry is commonly pasted with spaces,
-    # dashes or no separators. The first digit is the nature code; the next
-    # four digits are the SGK work/NACE code.
+    # dashes or no separators. The first digit is discarded; the next six
+    # digits are the application NACE code.
     if len(compact) not in {23, 26, 27}:
         return None
-    work_code = compact[1:5]
-    if not re.fullmatch(r"\d{4}", work_code) or work_code == "0000":
+    nace_digits = compact[1:7]
+    if not re.fullmatch(r"\d{6}", nace_digits) or nace_digits == "000000":
         return None
-    return f"{work_code[:2]}.{work_code[2:]}"
+    return f"{nace_digits[:2]}.{nace_digits[2:4]}.{nace_digits[4:]}"
 
 
 def _resolve_company_nace(
@@ -698,7 +700,7 @@ def _resolve_company_nace(
 
     sgk_nace = _nace_from_sgk_registry(getattr(company, "sgk_registry_no", None))
     if sgk_nace:
-        return sgk_nace, "sgk_work_code"
+        return sgk_nace, "sgk_registry_nace"
 
     candidates: list[str] = []
 
