@@ -40,7 +40,7 @@ const METHOD_FALLBACK = [
   {code: '5x5_l', label: '5x5 Matris (L Tipi)', short: '5x5 Matris (L Tipi)', implemented: true},
   {code: 'fine_kinney', label: 'Fine-Kinney Yöntemi', short: 'Fine-Kinney', implemented: true},
   {code: 'x_matrix', label: 'X Tipi Matris', short: 'X Tipi Matris', implemented: false},
-  {code: 'hazop', label: 'HAZOP (Tehlike ve İşletilebilirlik)', short: 'HAZOP', implemented: false},
+  {code: 'hazop', label: 'HAZOP (Tehlike ve İşletilebilirlik)', short: 'HAZOP', implemented: true},
   {code: 'fmea', label: 'FMEA (Hata Türleri ve Etkileri Analizi)', short: 'FMEA', implemented: false},
   {code: 'what_if', label: 'What-If Analizi', short: 'What-If', implemented: false},
   {code: 'jsa', label: 'İş Güvenliği Analizi (JSA / JHA)', short: 'JSA / JHA', implemented: false},
@@ -85,6 +85,52 @@ const FINE_KINNEY_FALLBACK = {
     {max_exclusive: null, level: 'Çok Yüksek', label: 'Çok Yüksek / Kabul Edilemez Risk', action: 'Çalışma durdurulmalı; risk düşürülmeden başlanmamalıdır.'},
   ],
   planning_note: 'Termin günleri yazılımın planlama önerisidir; yasal süre yerine geçmez.',
+};
+
+const HAZOP_FALLBACK = {
+  method_code: 'hazop',
+  formula: 'Kılavuz kelime → sapma → neden / sonuç / koruma / öneri',
+  node_axis: 'Proses düğümü',
+  parameter_axis: 'Proses parametresi',
+  parameters: [
+    'Debi / akış', 'Basınç', 'Sıcaklık', 'Seviye', 'Kompozisyon / konsantrasyon',
+    'Faz / fiziksel durum', 'Hız', 'Süre / zaman', 'Sıra / işlem adımı',
+    'Gerilim / enerji', 'Yoğunluk', 'Diğer',
+  ],
+  guide_words: [
+    {code: 'no', label: 'Yok / Hiç', meaning: 'Tasarım amacının hiç gerçekleşmemesi.'},
+    {code: 'more', label: 'Daha fazla', meaning: 'Parametrenin tasarım değerinden yüksek olması.'},
+    {code: 'less', label: 'Daha az', meaning: 'Parametrenin tasarım değerinden düşük olması.'},
+    {code: 'as_well_as', label: 'Bununla birlikte', meaning: 'Tasarım amacına ilave bir durumun eşlik etmesi.'},
+    {code: 'part_of', label: 'Bir kısmı', meaning: 'Tasarım amacının yalnızca bir bölümünün gerçekleşmesi.'},
+    {code: 'reverse', label: 'Tersi', meaning: 'Tasarım amacının ters yönde gerçekleşmesi.'},
+    {code: 'other_than', label: 'Başka / Farklı', meaning: 'Tasarım amacı dışında başka bir durum oluşması.'},
+    {code: 'early', label: 'Erken', meaning: 'İşlemin öngörülenden önce gerçekleşmesi.'},
+    {code: 'late', label: 'Geç', meaning: 'İşlemin öngörülenden sonra gerçekleşmesi.'},
+    {code: 'before', label: 'Önce', meaning: 'Sıralı adımın önce gerçekleşmesi.'},
+    {code: 'after', label: 'Sonra', meaning: 'Sıralı adımın sonra gerçekleşmesi.'},
+  ],
+  priority_options: [
+    {code: 'low', label: 'Düşük öncelik', level: 'Düşük', term_days: 90},
+    {code: 'medium', label: 'Orta öncelik', level: 'Orta', term_days: 30},
+    {code: 'high', label: 'Yüksek öncelik', level: 'Yüksek', term_days: 7},
+    {code: 'critical', label: 'Kritik öncelik', level: 'Çok Yüksek', term_days: 0},
+  ],
+  planning_note: 'HAZOP önceliği planlama sınıfıdır; mevzuattaki yenileme sürelerinin yerine geçmez.',
+  method_note: 'HAZOP satırı; proses düğümü, tasarım amacı, parametre ve kılavuz kelime üzerinden sapmayı inceler.',
+};
+
+const EMPTY_HAZOP_DATA = {
+  node: '',
+  design_intent: '',
+  parameter: '',
+  guide_word: '',
+  deviation: '',
+  causes: '',
+  consequences: '',
+  safeguards: '',
+  recommendations: '',
+  priority: 'medium',
 };
 
 const EMPTY_DOCUMENT_DRAFT = {
@@ -379,6 +425,42 @@ function FineKinneyGuide({probability, frequency, severity, calc, meta}) {
   );
 }
 
+function HazopGuide({data, calc, meta}) {
+  const guide = meta?.method_code === 'hazop' ? meta : HAZOP_FALLBACK;
+  const selectedGuide = (guide.guide_words || []).find((item) => item.code === data?.guide_word);
+  const selectedPriority = (guide.priority_options || []).find((item) => item.code === data?.priority);
+  const ready = Boolean(data?.node && data?.design_intent && data?.parameter && data?.guide_word && data?.deviation);
+  return (
+    <div className="fine-kinney-guide hazop-guide" aria-label="HAZOP çalışma özeti">
+      <div className="fine-kinney-formula">
+        <span>HAZOP inceleme zinciri</span>
+        <strong>Parametre + kılavuz kelime → sapma</strong>
+      </div>
+      <div className="fine-factor-strip">
+        <div><span>Proses düğümü</span><strong>{data?.node || '—'}</strong></div>
+        <div><span>Parametre</span><strong>{data?.parameter || '—'}</strong></div>
+        <div><span>Kılavuz kelime</span><strong>{selectedGuide?.label || '—'}</strong></div>
+      </div>
+      <div className={`fine-kinney-result${calc?.risk_level ? ` ${levelClass(calc.risk_level)}` : ''}`}>
+        <div>
+          <span>HAZOP önceliği</span>
+          <strong>{calc?.risk_level_label || selectedPriority?.label || (ready ? 'Hesaplanıyor…' : 'Alanları doldurun')}</strong>
+        </div>
+        <div>
+          <span>Sapma</span>
+          <strong>{data?.deviation || '—'}</strong>
+        </div>
+      </div>
+      {calc?.risk_action && <p className="fine-kinney-action">{calc.risk_action}</p>}
+      <div className="fine-kinney-scale-note">
+        <span>HAZOP kılavuz kelimeleri</span>
+        <small>{(guide.guide_words || []).map((item) => item.label).join(' · ')}</small>
+      </div>
+      <p className="fine-kinney-planning-note">{guide.planning_note || HAZOP_FALLBACK.planning_note}</p>
+    </div>
+  );
+}
+
 export function RiskPage({user}) {
   const canEdit = ['global_admin', 'safety_specialist'].includes(user.role);
   const fieldRole = ['safety_specialist', 'workplace_physician', 'other_health_personnel'].includes(user.role);
@@ -404,6 +486,7 @@ export function RiskPage({user}) {
     residual_probability: '',
     residual_frequency: '',
     residual_severity: '',
+    hazop_data: {...EMPTY_HAZOP_DATA},
   };
 
   const [companies, setCompanies] = useState([]);
@@ -493,9 +576,18 @@ export function RiskPage({user}) {
     || METHOD_FALLBACK.find((item) => item.code === activeMethod)
     || METHOD_FALLBACK[0];
   const isFineKinney = activeMethod === 'fine_kinney';
+  const isHazop = activeMethod === 'hazop';
   const fineMeta = methodMeta?.method_code === 'fine_kinney' ? methodMeta : FINE_KINNEY_FALLBACK;
+  const hazopMeta = methodMeta?.method_code === 'hazop' ? methodMeta : HAZOP_FALLBACK;
   const documentMethod = docInfo?.method_code || '5x5_l';
   const methodDirty = Boolean(docInfo && docForm.method !== documentMethod);
+
+  function updateHazopField(field, value) {
+    setForm((previous) => ({
+      ...previous,
+      hazop_data: {...EMPTY_HAZOP_DATA, ...(previous.hazop_data || {}), [field]: value},
+    }));
+  }
 
   const loadStats = async (cid) => {
     const id = cid || effectiveCompanyId;
@@ -712,7 +804,13 @@ export function RiskPage({user}) {
     api(`/risks/meta?${params}`)
       .then((value) => { if (!cancelled) setMethodMeta(value); })
       .catch(() => {
-        if (!cancelled) setMethodMeta(activeMethod === 'fine_kinney' ? FINE_KINNEY_FALLBACK : meta);
+        if (!cancelled) {
+          setMethodMeta(
+            activeMethod === 'fine_kinney'
+              ? FINE_KINNEY_FALLBACK
+              : (activeMethod === 'hazop' ? HAZOP_FALLBACK : meta),
+          );
+        }
       });
     return () => { cancelled = true; };
   }, [activeMethod]);
@@ -721,18 +819,30 @@ export function RiskPage({user}) {
     const p = Number(form.probability);
     const f = Number(form.frequency);
     const s = Number(form.severity);
-    if (!p || !s || (isFineKinney && !f)) {
+    const hazop = form.hazop_data || EMPTY_HAZOP_DATA;
+    const hazopReady = hazop.node && hazop.design_intent && hazop.parameter && hazop.guide_word
+      && hazop.deviation && hazop.causes && hazop.consequences && hazop.safeguards && hazop.priority;
+    if (isHazop && !hazopReady) {
+      setCalc(null);
+      return;
+    }
+    if (!isHazop && (!p || !s || (isFineKinney && !f))) {
       setCalc(null);
       return;
     }
     let cancelled = false;
-    const body = {method_code: activeMethod, probability: p, severity: s};
+    const body = {
+      method_code: activeMethod,
+      probability: isHazop ? 1 : p,
+      severity: isHazop ? 1 : s,
+    };
     if (isFineKinney) body.frequency = f;
+    if (isHazop) body.hazop_data = hazop;
     api('/risks/calculate', {method: 'POST', body: JSON.stringify(body)})
       .then((value) => { if (!cancelled) setCalc(value); })
       .catch(() => { if (!cancelled) setCalc(null); });
     return () => { cancelled = true; };
-  }, [activeMethod, isFineKinney, form.probability, form.frequency, form.severity]);
+  }, [activeMethod, isFineKinney, isHazop, form.probability, form.frequency, form.severity, form.hazop_data]);
 
   useEffect(() => {
     if (!fieldRole || !open) {
@@ -811,6 +921,12 @@ export function RiskPage({user}) {
       return;
     }
     const riskMethod = form.method_code || docForm.method || '5x5_l';
+    const hazopData = {...EMPTY_HAZOP_DATA, ...(form.hazop_data || {})};
+    const hazopRequired = ['node', 'design_intent', 'parameter', 'guide_word', 'deviation', 'causes', 'consequences', 'safeguards', 'priority'];
+    if (riskMethod === 'hazop' && hazopRequired.some((field) => !String(hazopData[field] || '').trim())) {
+      setErr('HAZOP için proses düğümü, tasarım amacı, parametre, kılavuz kelime, sapma, neden, sonuç, mevcut koruma ve öncelik alanları zorunludur.');
+      return;
+    }
     const fineValues = [form.probability, form.frequency, form.severity];
     if (riskMethod === 'fine_kinney' && fineValues.some((value) => value === '' || value == null || !Number(value))) {
       setErr('Fine–Kinney için Olasılık, Frekans ve Şiddet değerlerinin üçü de seçilmelidir.');
@@ -833,9 +949,13 @@ export function RiskPage({user}) {
       affected_group: form.affected_group || null,
       existing_measures: form.existing_measures || null,
       additional_measures: form.additional_measures || null,
-      probability: Number(form.probability),
-      severity: Number(form.severity),
     };
+    if (riskMethod === 'hazop') {
+      payload.hazop_data = hazopData;
+    } else {
+      payload.probability = Number(form.probability);
+      payload.severity = Number(form.severity);
+    }
     if (riskMethod === 'fine_kinney') {
       payload.frequency = Number(form.frequency);
       payload.residual_probability = form.residual_probability === '' ? null : Number(form.residual_probability);
@@ -942,6 +1062,7 @@ export function RiskPage({user}) {
         residual_probability: r.residual_probability ?? '',
         residual_frequency: r.residual_frequency ?? '',
         residual_severity: r.residual_severity ?? '',
+        hazop_data: r.hazop_data ? {...EMPTY_HAZOP_DATA, ...r.hazop_data} : {...EMPTY_HAZOP_DATA},
       });
       if (r.hazard_id) {
         try {
@@ -1246,7 +1367,9 @@ export function RiskPage({user}) {
     params.set('method_code', selectedReportMethod);
     if (levelFilter && kind !== 'dof') params.set('level', levelFilter);
     const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
-    const methodSlug = selectedReportMethod === 'fine_kinney' ? 'fine-kinney' : '5x5-l';
+    const methodSlug = selectedReportMethod === 'fine_kinney'
+      ? 'fine-kinney'
+      : (selectedReportMethod === 'hazop' ? 'hazop' : '5x5-l');
     setDlBusy(kind);
     try {
       if (kind === 'dof') {
@@ -1299,6 +1422,8 @@ export function RiskPage({user}) {
 
   const recentRisks = useMemo(() => [...rows].slice(0, 8), [rows]);
   const showFineColumns = isFineKinney || filteredRows.some((row) => row.method_code === 'fine_kinney');
+  const showHazopColumns = isHazop || filteredRows.some((row) => row.method_code === 'hazop');
+  const showMethodColumns = showFineColumns || showHazopColumns || filteredRows.some((row) => row.method_code !== '5x5_l');
 
   async function refreshAll() {
     setErr('');
@@ -1378,7 +1503,7 @@ export function RiskPage({user}) {
         </div>
       </div>
 
-      <section className={`risk-method-workspace${isFineKinney ? ' fine-kinney-active' : ''}`} aria-label="Aktif risk değerlendirme yöntemi">
+      <section className={`risk-method-workspace${isFineKinney ? ' fine-kinney-active' : ''}${isHazop ? ' hazop-active' : ''}`} aria-label="Aktif risk değerlendirme yöntemi">
         <div className="risk-method-workspace-copy">
           <span className="risk-method-eyebrow">Aktif çalışma yöntemi</span>
           <strong>{activeMethodDef.label}</strong>
@@ -1407,7 +1532,7 @@ export function RiskPage({user}) {
             </button>
           )}
           <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
-            <Plus size={14} /> {isFineKinney ? 'Fine–Kinney analizi başlat' : 'Risk analizi başlat'}
+            <Plus size={14} /> {isFineKinney ? 'Fine–Kinney analizi başlat' : (isHazop ? 'HAZOP çalışması başlat' : 'Risk analizi başlat')}
           </button>
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setTab('reports')}>
             <FileText size={14} /> Yöntem / rapor künye
@@ -1475,7 +1600,9 @@ export function RiskPage({user}) {
                     className={`risk-priority-item${r.risk_level === 'Yüksek' ? ' high' : ''}`}
                     onClick={() => openDetail(r.id)}
                   >
-                    <div className="risk-priority-mark">{r.risk_score}</div>
+                    <div className={`risk-priority-mark${r.method_code === 'hazop' ? ' hazop' : ''}`}>
+                      {r.method_code === 'hazop' ? (r.risk_level_label || r.risk_level || '—') : r.risk_score}
+                    </div>
                     <div>
                       <div className="risk-priority-title">{r.activity}</div>
                       <div className="risk-priority-meta">
@@ -1519,6 +1646,8 @@ export function RiskPage({user}) {
               </div>
               {isFineKinney ? (
                 <FineKinneyGuide meta={fineMeta} />
+              ) : isHazop ? (
+                <HazopGuide data={form.hazop_data} calc={calc} meta={hazopMeta} />
               ) : (
                 <RiskMatrixGuide />
               )}
@@ -1562,7 +1691,7 @@ export function RiskPage({user}) {
                       <tr>
                         <th>Kayıt</th>
                         <th>Faaliyet</th>
-                        <th>Skor</th>
+                        <th>{showHazopColumns ? 'Skor / HAZOP önceliği' : 'Skor'}</th>
                         <th>Termin</th>
                         <th>Durum</th>
                       </tr>
@@ -1580,7 +1709,7 @@ export function RiskPage({user}) {
                           </td>
                           <td>
                             <span className={`risk-level-badge risk-level-${levelClass(r.risk_level)}`}>
-                              {formatRiskNumber(r.risk_score)} · {methodDisplayLabel(r)}
+                              {r.method_code === 'hazop' ? methodDisplayLabel(r) : `${formatRiskNumber(r.risk_score)} · ${methodDisplayLabel(r)}`}
                             </span>
                           </td>
                           <td>{r.term_date || '—'}</td>
@@ -2088,10 +2217,10 @@ export function RiskPage({user}) {
                 <th>Bölüm</th>
                 <th>Faaliyet</th>
                 <th>Tehlike</th>
-                {showFineColumns && <th>Yöntem</th>}
-                <th>O</th>
+                {showMethodColumns && <th>Yöntem</th>}
+                <th>{showHazopColumns ? 'O / HAZOP önceliği' : 'O'}</th>
                 {showFineColumns && <th>F</th>}
-                <th>Ş</th>
+                <th>{showHazopColumns ? 'Ş / HAZOP sonucu' : 'Ş'}</th>
                 <th>Seviye</th>
                 <th>Termin</th>
                 <th>DÖF</th>
@@ -2106,11 +2235,11 @@ export function RiskPage({user}) {
                   <td>{r.department_name || '—'}</td>
                   <td>{r.activity}</td>
                   <td>{r.hazard_code ? `${r.hazard_code} — ${r.hazard_name}` : r.hazard_id}</td>
-                  {showFineColumns && <td>{r.method_label || (r.method_code === 'fine_kinney' ? 'Fine–Kinney' : '5×5')}</td>}
-                  <td>{formatRiskNumber(r.probability)}</td>
+                  {showMethodColumns && <td>{r.method_label || (r.method_code === 'fine_kinney' ? 'Fine–Kinney' : (r.method_code === 'hazop' ? 'HAZOP' : '5×5'))}</td>}
+                  <td>{r.method_code === 'hazop' ? (r.risk_level_label || r.risk_level || '—') : formatRiskNumber(r.probability)}</td>
                   {showFineColumns && <td>{r.method_code === 'fine_kinney' ? formatRiskNumber(r.frequency) : '—'}</td>}
-                  <td>{formatRiskNumber(r.severity)}</td>
-                  <td><LevelBadge level={r.risk_level} label={r.risk_level_label} score={r.risk_score} /></td>
+                  <td>{r.method_code === 'hazop' ? '—' : formatRiskNumber(r.severity)}</td>
+                  <td><LevelBadge level={r.risk_level} label={r.risk_level_label} score={r.method_code === 'hazop' ? null : r.risk_score} /></td>
                   <td>
                     {r.term_date || '—'}
                     {r.status === 'Açık' && isOverdueDate(r.term_date) && <OverdueBadge />}
@@ -2131,7 +2260,7 @@ export function RiskPage({user}) {
                   </td>
                 </tr>
               )) : (
-                <tr><td colSpan={showFineColumns ? 13 : 11} className="empty">Risk kaydı yok. Tehlike kütüphanesinden seçerek yeni kayıt ekleyin.</td></tr>
+                <tr><td colSpan={11 + (showMethodColumns ? 1 : 0) + (showFineColumns ? 1 : 0)} className="empty">Risk kaydı yok. Tehlike kütüphanesinden seçerek yeni kayıt ekleyin.</td></tr>
               )}
             </tbody>
           </table>
@@ -2216,7 +2345,7 @@ export function RiskPage({user}) {
 
       {open && (
         <Modal
-          title={editId ? `Risk Düzenle #${editId}` : 'Yeni Risk Değerlendirmesi'}
+          title={editId ? `Risk Düzenle #${editId}` : (isHazop ? 'Yeni HAZOP Çalışma Satırı' : 'Yeni Risk Değerlendirmesi')}
           close={() => { setOpen(false); setEditId(null); setErr(''); setHazardHint(null); }}
           wide
         >
@@ -2299,7 +2428,7 @@ export function RiskPage({user}) {
               </Select>
 
               <Field label="Faaliyet" required value={form.activity} onChange={(e) => setForm({...form, activity: e.target.value})} />
-              <TextArea label="Risk tanımı" required value={form.risk_definition} onChange={(e) => setForm({...form, risk_definition: e.target.value})} />
+              <TextArea label={isHazop ? 'Sapmanın kısa tanımı' : 'Risk tanımı'} required value={form.risk_definition} onChange={(e) => setForm({...form, risk_definition: e.target.value})} />
               {fieldRole && open && (
                 <div className="field risk-hint-card risk-form-span">
                   <span style={{display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700}}>
@@ -2406,6 +2535,98 @@ export function RiskPage({user}) {
                     </div>
                   </div>
                 </>
+              ) : isHazop ? (
+                <>
+                  <div className="risk-method-note risk-form-span">
+                    <strong>HAZOP çalışma alanı</strong>
+                    <span>
+                      Proses düğümünü tasarım amacıyla birlikte inceleyin; parametre ve kılavuz kelime ile sapmayı tanımlayın,
+                      ardından nedenleri, sonuçları, mevcut korumaları ve öneriyi kaydedin.
+                    </span>
+                  </div>
+                  <Field
+                    label="Proses düğümü"
+                    required
+                    placeholder="Örn: Akü şarj alanı — hidrojen tahliyesi"
+                    value={form.hazop_data?.node || ''}
+                    onChange={(e) => updateHazopField('node', e.target.value)}
+                  />
+                  <TextArea
+                    label="Tasarım amacı"
+                    required
+                    placeholder="Bu düğüm normalde ne yapmalıdır?"
+                    value={form.hazop_data?.design_intent || ''}
+                    onChange={(e) => updateHazopField('design_intent', e.target.value)}
+                  />
+                  <Select
+                    label="Proses parametresi"
+                    required
+                    value={form.hazop_data?.parameter || ''}
+                    onChange={(e) => updateHazopField('parameter', e.target.value)}
+                  >
+                    <option value="">Seçiniz</option>
+                    {(hazopMeta.parameters || HAZOP_FALLBACK.parameters).map((item) => <option key={item} value={item}>{item}</option>)}
+                  </Select>
+                  <Select
+                    label="Kılavuz kelime"
+                    required
+                    value={form.hazop_data?.guide_word || ''}
+                    onChange={(e) => updateHazopField('guide_word', e.target.value)}
+                  >
+                    <option value="">Seçiniz</option>
+                    {(hazopMeta.guide_words || HAZOP_FALLBACK.guide_words).map((item) => (
+                      <option key={item.code} value={item.code}>{item.label}</option>
+                    ))}
+                  </Select>
+                  <TextArea
+                    label="Sapma"
+                    required
+                    placeholder="Örn: Hidrojenin beklenenden fazla birikmesi"
+                    value={form.hazop_data?.deviation || ''}
+                    onChange={(e) => updateHazopField('deviation', e.target.value)}
+                  />
+                  <TextArea
+                    label="Olası nedenler"
+                    required
+                    placeholder="Ekipman, insan, prosedür veya dış etken nedenleri"
+                    value={form.hazop_data?.causes || ''}
+                    onChange={(e) => updateHazopField('causes', e.target.value)}
+                  />
+                  <TextArea
+                    label="Olası sonuçlar"
+                    required
+                    placeholder="Çalışan, proses, çevre veya ekipman üzerindeki sonuçlar"
+                    value={form.hazop_data?.consequences || ''}
+                    onChange={(e) => updateHazopField('consequences', e.target.value)}
+                  />
+                  <TextArea
+                    label="Mevcut korumalar"
+                    required
+                    placeholder="Koruyucu, alarm, interlock, prosedür, eğitim vb. Yoksa ‘Yok’ yazın."
+                    value={form.hazop_data?.safeguards || ''}
+                    onChange={(e) => updateHazopField('safeguards', e.target.value)}
+                  />
+                  <TextArea
+                    label="Önerilen aksiyonlar"
+                    placeholder="Öneri yoksa açıkça belirtin; yüksek/kritik öncelikte aksiyon ve DÖF açın."
+                    value={form.hazop_data?.recommendations || ''}
+                    onChange={(e) => updateHazopField('recommendations', e.target.value)}
+                  />
+                  <Select
+                    label="HAZOP önceliği"
+                    required
+                    value={form.hazop_data?.priority || 'medium'}
+                    onChange={(e) => updateHazopField('priority', e.target.value)}
+                  >
+                    {(hazopMeta.priority_options || HAZOP_FALLBACK.priority_options).map((item) => (
+                      <option key={item.code} value={item.code}>{item.label}</option>
+                    ))}
+                  </Select>
+                  <div className="risk-method-note risk-form-span">
+                    <strong>Yöntem sınırı</strong>
+                    <span>{hazopMeta.method_note || HAZOP_FALLBACK.method_note} {hazopMeta.planning_note || HAZOP_FALLBACK.planning_note}</span>
+                  </div>
+                </>
               ) : (
                 <>
                   <Select label="Olasılık (1-5)" value={form.probability} onChange={(e) => setForm({...form, probability: e.target.value})}>
@@ -2434,9 +2655,9 @@ export function RiskPage({user}) {
             <aside className="risk-form-score" aria-live="polite">
               <div className="risk-score-card">
                 <div className={`risk-score-hero risk-score-${levelClass(calc?.risk_level)}`}>
-                  <span>Canlı skor</span>
-                  <strong>{formatRiskNumber(calc?.risk_score)}</strong>
-                  <em>{calc?.risk_level_label || calc?.risk_level || activeMethodDef.formula || 'Olasılık × şiddet'}</em>
+                  <span>{isHazop ? 'Canlı HAZOP önceliği' : 'Canlı skor'}</span>
+                  <strong>{isHazop ? (calc?.risk_level_label || '—') : formatRiskNumber(calc?.risk_score)}</strong>
+                  <em>{isHazop ? 'Nitel sapma önceliği' : (calc?.risk_level_label || calc?.risk_level || activeMethodDef.formula || 'Olasılık × şiddet')}</em>
                 </div>
                 <div className="risk-score-matrix">
                   <p>{activeMethodDef.label}</p>
@@ -2448,30 +2669,45 @@ export function RiskPage({user}) {
                       calc={calc}
                       meta={fineMeta}
                     />
+                  ) : isHazop ? (
+                    <HazopGuide data={form.hazop_data} calc={calc} meta={hazopMeta} />
                   ) : (
                     <RiskMatrixGuide probability={form.probability} severity={form.severity} />
                   )}
                 </div>
-                <div className="risk-score-meta">
-                  <div>
-                    <span>{isFineKinney ? 'Olasılık (O)' : 'Olasılık'}</span>
-                    <strong>{formatRiskNumber(form.probability)}</strong>
-                  </div>
-                  {isFineKinney && (
+                {isHazop ? (
+                  <div className="risk-score-meta">
                     <div>
-                      <span>Frekans (F)</span>
-                      <strong>{formatRiskNumber(form.frequency)}</strong>
+                      <span>HAZOP önceliği</span>
+                      <strong>{calc?.risk_level_label || '—'}</strong>
                     </div>
-                  )}
-                  <div>
-                    <span>{isFineKinney ? 'Şiddet (Ş)' : 'Şiddet'}</span>
-                    <strong>{formatRiskNumber(form.severity)}</strong>
+                    <div>
+                      <span>Termin önerisi</span>
+                      <strong>{calc?.term_label || '—'}</strong>
+                    </div>
                   </div>
-                  <div>
-                    <span>Termin</span>
-                    <strong>{calc?.term_label || '—'}</strong>
+                ) : (
+                  <div className="risk-score-meta">
+                    <div>
+                      <span>{isFineKinney ? 'Olasılık (O)' : 'Olasılık'}</span>
+                      <strong>{formatRiskNumber(form.probability)}</strong>
+                    </div>
+                    {isFineKinney && (
+                      <div>
+                        <span>Frekans (F)</span>
+                        <strong>{formatRiskNumber(form.frequency)}</strong>
+                      </div>
+                    )}
+                    <div>
+                      <span>{isFineKinney ? 'Şiddet (Ş)' : 'Şiddet'}</span>
+                      <strong>{formatRiskNumber(form.severity)}</strong>
+                    </div>
+                    <div>
+                      <span>Termin</span>
+                      <strong>{calc?.term_label || '—'}</strong>
+                    </div>
                   </div>
-                </div>
+                )}
                 {calc?.term_date ? (
                   <p className="risk-score-term">{calc.term_date}</p>
                 ) : null}
@@ -2522,13 +2758,32 @@ export function RiskPage({user}) {
             <div className="field"><span>Faaliyet</span><strong>{detail.activity}</strong></div>
             <div className="field"><span>Tehlike</span><strong>{detail.hazard_code} — {detail.hazard_name}</strong></div>
             <div className="field"><span>Yöntem</span><strong>{detail.method_label || '5x5 Matris (L Tipi)'}</strong><small>{detail.method_formula || 'Olasılık × Şiddet'}</small></div>
-            <div className="field"><span>Olasılık (O)</span><strong>{formatRiskNumber(detail.probability)}</strong></div>
-            {detail.method_code === 'fine_kinney' && <div className="field"><span>Frekans (F)</span><strong>{formatRiskNumber(detail.frequency)}</strong></div>}
-            <div className="field"><span>Şiddet (Ş)</span><strong>{formatRiskNumber(detail.severity)}</strong></div>
-            <div className="field"><span>Seviye / skor</span><LevelBadge level={detail.risk_level} label={detail.risk_level_label} score={detail.risk_score} /></div>
-            {detail.risk_action && <div className="field"><span>Yöntem aksiyonu</span><strong>{detail.risk_action}</strong></div>}
-            <div className="field"><span>Termin</span><strong>{detail.term_date || '—'}</strong></div>
-            {detail.residual_score != null && (
+            {detail.method_code === 'hazop' ? (
+              <>
+                <div className="field"><span>Proses düğümü</span><strong>{detail.hazop_data?.node || '—'}</strong></div>
+                <div className="field"><span>Tasarım amacı</span><strong>{detail.hazop_data?.design_intent || '—'}</strong></div>
+                <div className="field"><span>Parametre</span><strong>{detail.hazop_data?.parameter || '—'}</strong></div>
+                <div className="field"><span>Kılavuz kelime</span><strong>{(hazopMeta.guide_words || []).find((item) => item.code === detail.hazop_data?.guide_word)?.label || detail.hazop_data?.guide_word || '—'}</strong></div>
+                <div className="field" style={{gridColumn: '1 / -1'}}><span>Sapma</span><p>{detail.hazop_data?.deviation || '—'}</p></div>
+                <div className="field" style={{gridColumn: '1 / -1'}}><span>Olası nedenler</span><p>{detail.hazop_data?.causes || '—'}</p></div>
+                <div className="field" style={{gridColumn: '1 / -1'}}><span>Olası sonuçlar</span><p>{detail.hazop_data?.consequences || '—'}</p></div>
+                <div className="field" style={{gridColumn: '1 / -1'}}><span>Mevcut korumalar</span><p>{detail.hazop_data?.safeguards || '—'}</p></div>
+                <div className="field" style={{gridColumn: '1 / -1'}}><span>Önerilen aksiyonlar</span><p>{detail.hazop_data?.recommendations || '—'}</p></div>
+                <div className="field"><span>HAZOP önceliği</span><LevelBadge level={detail.risk_level} label={detail.risk_level_label} /></div>
+                {detail.risk_action && <div className="field"><span>Yöntem aksiyonu</span><strong>{detail.risk_action}</strong></div>}
+                <div className="field"><span>Termin önerisi</span><strong>{detail.term_date || '—'}</strong></div>
+              </>
+            ) : (
+              <>
+                <div className="field"><span>Olasılık (O)</span><strong>{formatRiskNumber(detail.probability)}</strong></div>
+                {detail.method_code === 'fine_kinney' && <div className="field"><span>Frekans (F)</span><strong>{formatRiskNumber(detail.frequency)}</strong></div>}
+                <div className="field"><span>Şiddet (Ş)</span><strong>{formatRiskNumber(detail.severity)}</strong></div>
+                <div className="field"><span>Seviye / skor</span><LevelBadge level={detail.risk_level} label={detail.risk_level_label} score={detail.risk_score} /></div>
+                {detail.risk_action && <div className="field"><span>Yöntem aksiyonu</span><strong>{detail.risk_action}</strong></div>}
+                <div className="field"><span>Termin</span><strong>{detail.term_date || '—'}</strong></div>
+              </>
+            )}
+            {detail.method_code !== 'hazop' && detail.residual_score != null && (
               <div className="field risk-residual-detail">
                 <span>Artık risk</span>
                 <strong>{formatRiskNumber(detail.residual_score)} · {detail.residual_level || '—'}</strong>

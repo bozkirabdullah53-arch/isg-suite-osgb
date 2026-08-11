@@ -43,6 +43,7 @@ from app.schemas.risk import (
     DepartmentCreate,
     DepartmentResponse,
     DepartmentUpdate,
+    HazopData,
     HazardHintRequest,
     RiskAssessmentInfoUpdate,
     RiskDofListItem,
@@ -76,6 +77,7 @@ from app.services.risk_nace_roadmap import build_risk_nace_roadmap
 from app.services.training_nace_classification import resolve_exact_nace
 from app.models.training_nace import TrainingNaceSnapshot
 from app.services.risk_methods import DEFAULT_METHOD, METHOD_CATALOG, resolve_method
+from app.services.risk_hazop import hazop_meta_payload, normalize_hazop_data, priority_details
 from app.services.risk_scoring import (
     SUPPORTED_SCORING_METHODS,
     evaluate,
@@ -97,6 +99,7 @@ ALLOWED_MEDIA = ALLOWED_PHOTO | {".pdf", ".mp4", ".avi", ".mov", ".bmp", ".doc",
 LEGACY_TAG = "[ISG#"
 REVISION_FIELDS = (
     "method_code",
+    "hazop_data_json",
     "department_name",
     "hazard_id",
     "activity",
@@ -140,19 +143,25 @@ def _implemented_method(code: str | None, *, fallback: str = DEFAULT_METHOD) -> 
 def _calculate_risk(
     *,
     method_code: str,
-    probability: float,
-    severity: float,
+    probability: float | None,
+    severity: float | None,
     frequency: float | None = None,
+    hazop_data: dict | None = None,
     term_override_days: int | None = None,
 ) -> dict:
     try:
         if method_code == "5x5_l" and frequency is not None:
             raise ValueError("5x5 yönteminde frekans alanı kullanılamaz.")
+        if method_code == "hazop" and term_override_days is not None:
+            raise ValueError("HAZOP termin önerisi öncelikten türetilir; sayısal override kullanılamaz.")
+        if method_code != "hazop" and (probability is None or severity is None):
+            raise ValueError("Seçilen yöntem için gerekli puan alanları zorunludur.")
         return evaluate_method(
             method_code,
             probability,
             severity,
             frequency=frequency,
+            hazop_data=hazop_data,
             term_override_days=term_override_days,
         )
     except ValueError as exc:
@@ -166,6 +175,8 @@ def _calculate_residual(
     frequency: float | None,
     severity: float | None,
 ) -> dict | None:
+    if method_code == "hazop" and any(value is not None for value in (probability, frequency, severity)):
+        raise HTTPException(422, "HAZOP yönteminde sayısal artık risk alanları kullanılmaz; sapma önceliğini güncelleyin.")
     if method_code == "5x5_l" and frequency is not None:
         raise HTTPException(422, "5x5 yönteminde frekans/artık frekans alanı kullanılamaz.")
     values = (probability, frequency, severity) if method_code == "fine_kinney" else (probability, severity)
@@ -279,8 +290,18 @@ def _media_response(m: RiskMedia) -> RiskMediaResponse:
 def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: HazardCategory | None = None) -> RiskResponse:
     method_code = getattr(row, "method_code", None) or DEFAULT_METHOD
     method = resolve_method(method_code)
+    hazop_data = None
+    if method_code == "hazop" and getattr(row, "hazop_data_json", None):
+        try:
+            hazop_data = HazopData.model_validate(json.loads(row.hazop_data_json))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            logger.warning("Geçersiz HAZOP verisi risk kaydında bulundu: %s", row.id)
     if method_code == "fine_kinney":
         _, level_label, risk_action = fine_kinney_level_details(float(row.risk_score or 0))
+    elif method_code == "hazop":
+        priority = priority_details(hazop_data.priority if hazop_data else None)
+        level_label = priority["label"]
+        risk_action = priority["action"]
     else:
         level_label = row.risk_level
         risk_action = next(
@@ -301,6 +322,7 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
         method_code=method_code,
         method_label=method.get("label"),
         method_formula=method.get("formula"),
+        hazop_data=hazop_data,
         hazard_code=hazard.code if hazard else None,
         hazard_name=hazard.name if hazard else None,
         category_name=category.name if category else None,
@@ -436,6 +458,8 @@ def risk_meta(
     user: User = Depends(get_current_user),
 ):
     code = _implemented_method(method_code)
+    if code == "hazop":
+        return hazop_meta_payload()
     return fine_kinney_meta_payload() if code == "fine_kinney" else meta_payload()
 
 
@@ -447,6 +471,7 @@ def risk_calculate(payload: RiskCalculateRequest, user: User = Depends(get_curre
         probability=payload.probability,
         frequency=payload.frequency,
         severity=payload.severity,
+        hazop_data=payload.hazop_data.model_dump() if payload.hazop_data else None,
         term_override_days=payload.term_override_days,
     )
 
@@ -1555,6 +1580,11 @@ def create_risk(
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
     method_code = _implemented_method(payload.method_code, fallback=company.risk_method or DEFAULT_METHOD)
+    if method_code == "hazop" and payload.hazop_data is None:
+        raise HTTPException(422, "HAZOP kaydı için çalışma satırını doldurmalısınız.")
+    if method_code != "hazop" and payload.hazop_data is not None:
+        raise HTTPException(422, "HAZOP alanları yalnızca HAZOP yöntemiyle kullanılabilir.")
+    hazop_data = normalize_hazop_data(payload.hazop_data.model_dump()) if payload.hazop_data else None
     if payload.branch_id:
         b = db.get(Branch, payload.branch_id)
         if not b or b.company_id != payload.company_id:
@@ -1573,6 +1603,7 @@ def create_risk(
         probability=payload.probability,
         frequency=payload.frequency,
         severity=payload.severity,
+        hazop_data=hazop_data,
         term_override_days=payload.term_override_days,
     )
     residual = _calculate_residual(
@@ -1592,6 +1623,7 @@ def create_risk(
         department_id=dep_id,
         hazard_id=payload.hazard_id,
         method_code=method_code,
+        hazop_data_json=json.dumps(hazop_data, ensure_ascii=False) if hazop_data else None,
         department_name=dep_name,
         activity=payload.activity,
         risk_definition=payload.risk_definition,
@@ -1646,10 +1678,19 @@ def update_risk(
     data = payload.model_dump(exclude_unset=True)
     reason = data.pop("change_reason", None)
     term_override = data.pop("term_override_days", None)
+    has_hazop_data = "hazop_data" in data
+    hazop_data = data.pop("hazop_data", None)
     requested_method = data.get("method_code", getattr(row, "method_code", None) or DEFAULT_METHOD)
     method_code = _implemented_method(requested_method)
     if "method_code" in data and requested_method != (getattr(row, "method_code", None) or DEFAULT_METHOD):
         raise HTTPException(422, "Kayıt oluşturulduktan sonra yöntemi değiştirilemez; seçilen yöntemle yeni risk kaydı oluşturun.")
+    if method_code == "hazop" and has_hazop_data:
+        if hazop_data is None:
+            raise HTTPException(422, "HAZOP çalışma satırı silinemez; gerekli alanları doldurun.")
+        hazop_data = normalize_hazop_data(hazop_data)
+        row.hazop_data_json = json.dumps(hazop_data, ensure_ascii=False)
+    elif method_code != "hazop" and has_hazop_data and hazop_data is not None:
+        raise HTTPException(422, "HAZOP alanları yalnızca HAZOP yöntemiyle kullanılabilir.")
     has_dep_id = "department_id" in data
     has_dep_name = "department_name" in data
     dep_id = data.pop("department_id", None) if has_dep_id else None
@@ -1674,16 +1715,25 @@ def update_risk(
         if not hazard or not hazard.is_active:
             raise HTTPException(422, "Geçersiz tehlike seçimi.")
 
-    if "probability" in data or "frequency" in data or "severity" in data or term_override is not None:
+    if "probability" in data or "frequency" in data or "severity" in data or term_override is not None or has_hazop_data:
+        stored_hazop_data = None
+        if method_code == "hazop" and not hazop_data and getattr(row, "hazop_data_json", None):
+            try:
+                stored_hazop_data = normalize_hazop_data(json.loads(row.hazop_data_json))
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                raise HTTPException(422, "Mevcut HAZOP çalışma satırı okunamadı; kayıt düzenlenmelidir.") from exc
         calc = _calculate_risk(
             method_code=method_code,
             probability=row.probability,
             frequency=getattr(row, "frequency", None),
             severity=row.severity,
+            hazop_data=hazop_data or stored_hazop_data,
             term_override_days=term_override
             if term_override is not None
             else (row.term_days if row.term_overridden else None),
         )
+        row.probability = calc["probability"]
+        row.severity = calc["severity"]
         row.risk_score = calc["risk_score"]
         row.risk_level = calc["risk_level"]
         row.frequency = calc.get("frequency")

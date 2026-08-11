@@ -9,6 +9,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 from math import isclose
 
+from app.services.risk_hazop import evaluate_hazop
+
 PROBABILITY_LABELS = {
     1: "Çok Küçük",
     2: "Küçük",
@@ -29,7 +31,7 @@ AFFECTED_GROUPS = ["Çalışan", "Ziyaretçi", "Müteahhit", "Çevre"]
 
 RISK_STATUSES = ["Açık", "Tamamlandı", "İptal", "Revize"]
 
-SUPPORTED_SCORING_METHODS = ("5x5_l", "fine_kinney")
+SUPPORTED_SCORING_METHODS = ("5x5_l", "fine_kinney", "hazop")
 
 FINE_KINNEY_PROBABILITIES = (
     (0.1, "Mümkün değil"),
@@ -239,16 +241,19 @@ def evaluate_fine_kinney(
 
 def evaluate_method(
     method_code: str | None,
-    probability: float,
-    severity: float,
+    probability: float | None,
+    severity: float | None,
     *,
     frequency: float | None = None,
+    hazop_data: dict | None = None,
     term_override_days: int | None = None,
     base_date: date | None = None,
 ) -> dict:
     """Dispatch to an implemented method without silently changing methods."""
     code = (method_code or "5x5_l").strip()
     if code == "5x5_l":
+        if probability is None or severity is None:
+            raise ValueError("5x5 yöntemi için olasılık ve şiddet değerleri zorunludur.")
         if float(probability) != int(float(probability)) or float(severity) != int(float(severity)):
             raise ValueError("5x5 yöntemi için olasılık ve şiddet 1–5 arasında tam sayı olmalıdır.")
         if not 1 <= int(float(probability)) <= 5 or not 1 <= int(float(severity)) <= 5:
@@ -260,6 +265,8 @@ def evaluate_method(
             base_date=base_date,
         )
     if code == "fine_kinney":
+        if probability is None or severity is None:
+            raise ValueError("Fine-Kinney için olasılık ve şiddet değerleri zorunludur.")
         if frequency is None:
             raise ValueError("Fine-Kinney için frekans değeri zorunludur.")
         return evaluate_fine_kinney(
@@ -269,6 +276,12 @@ def evaluate_method(
             term_override_days=term_override_days,
             base_date=base_date,
         )
+    if code == "hazop":
+        if frequency is not None:
+            raise ValueError("HAZOP yönteminde frekans alanı kullanılmaz.")
+        if term_override_days is not None:
+            raise ValueError("HAZOP termin önerisi öncelikten türetilir; sayısal override kullanılamaz.")
+        return evaluate_hazop(hazop_data or {}, base_date=base_date)
     raise ValueError(f"Bu risk değerlendirme yöntemi henüz aktif değil: {code}.")
 
 

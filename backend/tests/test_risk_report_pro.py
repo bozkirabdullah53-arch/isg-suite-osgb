@@ -3,7 +3,9 @@ from datetime import date
 from types import SimpleNamespace
 
 from app.services.risk_methods import method_choices, resolve_method
+from app.services.risk_hazop import hazop_meta_payload
 from app.services.risk_reports import build_risk_excel, build_risk_pdf
+from app.services.risk_scoring import evaluate_method
 from app.services.risk_validity import build_validity, document_meta_rows
 from io import BytesIO
 
@@ -15,6 +17,7 @@ def test_methods_catalog_covers_common_methods():
     for needed in ("5x5_l", "fine_kinney", "hazop", "fmea", "jsa", "what_if", "x_matrix"):
         assert needed in codes
     assert "Fine-Kinney" in resolve_method("fine_kinney")["label"]
+    assert resolve_method("hazop")["implemented"] is True
 
 
 def test_validity_uses_selected_method():
@@ -25,6 +28,30 @@ def test_validity_uses_selected_method():
     )
     assert "Fine-Kinney" in v["method"]
     assert v["method_code"] == "fine_kinney"
+
+
+def test_hazop_is_qualitative_and_keeps_method_specific_payload():
+    data = {
+        "node": "Akü şarj alanı",
+        "design_intent": "Kontrollü şarj",
+        "parameter": "Kompozisyon / konsantrasyon",
+        "guide_word": "more",
+        "deviation": "Hidrojen beklenenden fazla",
+        "causes": "Havalandırma arızası",
+        "consequences": "Patlayıcı atmosfer",
+        "safeguards": "Talimat ve havalandırma",
+        "recommendations": "Algılama sistemi kurulması",
+        "priority": "critical",
+    }
+    result = evaluate_method("hazop", None, None, hazop_data=data)
+    assert result["method_code"] == "hazop"
+    assert result["hazop_data"]["guide_word"] == "more"
+    assert result["risk_level"] == "Çok Yüksek"
+    assert result["risk_level_label"] == "Kritik öncelik"
+    assert result["term_days"] == 0
+    meta = hazop_meta_payload()
+    assert meta["method_code"] == "hazop"
+    assert {item["code"] for item in meta["guide_words"]} >= {"no", "more", "reverse"}
 
 
 def test_document_meta_includes_doc_control():
