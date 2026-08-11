@@ -362,6 +362,40 @@ def _seed_one_risk(company_id: int) -> None:
         db.commit()
 
 
+def _seed_fine_kinney_risk(company_id: int) -> None:
+    from app.core.database import SessionLocal
+    from app.models.entities import Hazard, RiskAssessment, User
+    from app.services.risk_scoring import evaluate_method
+    from sqlalchemy import select as sa_select
+
+    with SessionLocal() as db:
+        author = db.scalar(sa_select(User).where(User.email == "risk-uzman@test.com"))
+        hazard = db.scalar(sa_select(Hazard).where(Hazard.code == "MEK-001"))
+        scored = evaluate_method("fine_kinney", 6, 7, frequency=6)
+        db.add(
+            RiskAssessment(
+                risk_code="RSK-FK-1",
+                company_id=company_id,
+                hazard_id=hazard.id,
+                method_code="fine_kinney",
+                department_name="Uretim",
+                activity="Fine-Kinney testi",
+                risk_definition="Fine-Kinney yöntemiyle değerlendirilen tehlike",
+                affected_people="Çalışanlar",
+                probability=6,
+                frequency=6,
+                severity=7,
+                risk_score=scored["risk_score"],
+                risk_level=scored["risk_level"],
+                term_days=scored["term_days"],
+                term_date=date.fromisoformat(scored["term_date"]),
+                status="Açık",
+                created_by_id=author.id,
+            )
+        )
+        db.commit()
+
+
 def test_reports_render_with_document_meta(client):
     """Rapor uçları künye eklendikten sonra da üretilebilmeli (regresyon kalkanı)."""
     seed = _seed(client)
@@ -385,6 +419,46 @@ def test_reports_render_with_document_meta(client):
     xlsx = client.get(f"/api/v1/risks/report.xlsx?company_id={cid}", headers=headers)
     assert xlsx.status_code == 200, xlsx.text
     assert xlsx.content[:2] == b"PK"
+
+
+def test_report_method_filter_isolated_in_excel_and_rejects_staged_methods(client):
+    """Dışa aktarma yöntemi, kayıtları ve Excel künyesini birlikte sınırlar."""
+    seed = _seed(client)
+    headers = _headers(client, "risk-uzman@test.com", "UzmanPass123!")
+    cid = seed["company_id"]
+    _seed_one_risk(cid)
+    _seed_fine_kinney_risk(cid)
+
+    from io import BytesIO
+    from openpyxl import load_workbook
+
+    matrix = client.get(
+        f"/api/v1/risks/report.xlsx?company_id={cid}&method_code=5x5_l",
+        headers=headers,
+    )
+    assert matrix.status_code == 200, matrix.text
+    matrix_ws = load_workbook(BytesIO(matrix.content))["Risk Değerlendirme"]
+    assert "5x5 Matris" in (matrix_ws["A3"].value or "")
+    assert matrix_ws["A5"].value == "RSK-VAL-1"
+    assert matrix_ws.max_column == 17
+
+    fine = client.get(
+        f"/api/v1/risks/report.xlsx?company_id={cid}&method_code=fine_kinney",
+        headers=headers,
+    )
+    assert fine.status_code == 200, fine.text
+    fine_ws = load_workbook(BytesIO(fine.content))["Risk Değerlendirme"]
+    assert "Fine-Kinney" in (fine_ws["A3"].value or "")
+    assert fine_ws["A5"].value == "RSK-FK-1"
+    assert fine_ws["B5"].value == "Fine-Kinney Yöntemi"
+    assert fine_ws.max_column == 19
+
+    staged = client.get(
+        f"/api/v1/risks/report.xlsx?company_id={cid}&method_code=hazop",
+        headers=headers,
+    )
+    assert staged.status_code == 422
+    assert "henüz aktif" in staged.text
 
 
 def test_osgb_admin_cannot_write_assessment_info(client):

@@ -1241,11 +1241,13 @@ def _load_company_risks(
     company_id: int | None,
     level: str | None = None,
     status: str | None = None,
+    method_code: str | None = None,
 ) -> tuple[Company, list[RiskAssessment], dict[int, Hazard]]:
     effective = effective_company_id(db, user, company_id)
     company = db.get(Company, effective)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
+    selected_method = _implemented_method(method_code) if method_code else None
     stmt = (
         select(RiskAssessment)
         .options(
@@ -1259,6 +1261,8 @@ def _load_company_risks(
         stmt = stmt.where(RiskAssessment.risk_level == level)
     if status:
         stmt = stmt.where(RiskAssessment.status == status)
+    if selected_method:
+        stmt = stmt.where(RiskAssessment.method_code == selected_method)
     risks = list(db.scalars(stmt).unique().all())
     hids = {r.hazard_id for r in risks}
     hazard_map = {}
@@ -1267,18 +1271,40 @@ def _load_company_risks(
     return company, risks, hazard_map
 
 
+def _report_validity(ctx: dict, method_code: str | None) -> dict:
+    """Raporun seçilen yöntemini belge künyesini değiştirmeden gösterir."""
+    if not method_code:
+        return ctx["validity"]
+    method = resolve_method(method_code)
+    return {
+        **(ctx["validity"] or {}),
+        "method_code": method_code,
+        "method": method["short"],
+    }
+
+
+def _report_empty_message(method_code: str | None) -> str:
+    if method_code:
+        return f"Seçilen yönteme ait raporlanacak risk kaydı yok: {resolve_method(method_code)['label']}."
+    return "Bu filtreyle raporlanacak risk kaydı yok."
+
+
 @router.get("/report.pdf")
 def risk_report_pdf(
     company_id: int | None = None,
     level: str | None = None,
     status: str | None = None,
+    method_code: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """Firma risk değerlendirme PDF raporu."""
-    company, risks, hazard_map = _load_company_risks(db, user, company_id, level, status)
+    selected_method = _implemented_method(method_code) if method_code else None
+    company, risks, hazard_map = _load_company_risks(
+        db, user, company_id, level, status, method_code=selected_method
+    )
     if not risks:
-        raise HTTPException(422, "Bu filtreyle raporlanacak risk kaydı yok.")
+        raise HTTPException(422, _report_empty_message(selected_method))
     branch = db.scalar(select(Branch).where(Branch.company_id == company.id).order_by(Branch.id.asc()))
     ctx = _assessment_context(db, company)
     sgk = None
@@ -1293,6 +1319,7 @@ def risk_report_pdf(
         nace_code_override=nace_code,
         nace_source=nace_source,
     )
+    report_validity = _report_validity(ctx, selected_method)
     pdf = build_risk_pdf(
         company=company,
         risks=risks,
@@ -1303,7 +1330,7 @@ def risk_report_pdf(
         employer_representative=ctx["employer_representative"],
         employee_representative=ctx["employee_representative"],
         support_staff=ctx["support_staff"],
-        validity=ctx["validity"],
+        validity=report_validity,
         team_details=ctx["team_details"],
         employee_count=ctx["employee_count"],
         document_no=ctx["document_no"],
@@ -1317,7 +1344,12 @@ def risk_report_pdf(
     return StreamingResponse(
         BytesIO(pdf),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="risk-raporu-{company.id}.pdf"'},
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="risk-raporu-'
+                f'{selected_method + "-" if selected_method else ""}{company.id}.pdf"'
+            )
+        },
     )
 
 
@@ -1326,13 +1358,17 @@ def risk_report_excel(
     company_id: int | None = None,
     level: str | None = None,
     status: str | None = None,
+    method_code: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """Firma risk değerlendirme Excel raporu (risk + DÖF + istatistik)."""
-    company, risks, hazard_map = _load_company_risks(db, user, company_id, level, status)
+    selected_method = _implemented_method(method_code) if method_code else None
+    company, risks, hazard_map = _load_company_risks(
+        db, user, company_id, level, status, method_code=selected_method
+    )
     if not risks:
-        raise HTTPException(422, "Bu filtreyle raporlanacak risk kaydı yok.")
+        raise HTTPException(422, _report_empty_message(selected_method))
     ctx = _assessment_context(db, company)
     nace_code, nace_source = _resolve_company_nace(db, company)
     nace_roadmap = build_risk_nace_roadmap(
@@ -1341,11 +1377,12 @@ def risk_report_excel(
         nace_code_override=nace_code,
         nace_source=nace_source,
     )
+    report_validity = _report_validity(ctx, selected_method)
     xlsx = build_risk_excel(
         company=company,
         risks=risks,
         hazard_map=hazard_map,
-        validity=ctx["validity"],
+        validity=report_validity,
         prepared_by=ctx["safety_specialist"] or user.full_name,
         workplace_physician=ctx["workplace_physician"],
         employer_representative=ctx["employer_representative"],
@@ -1356,23 +1393,42 @@ def risk_report_excel(
     return StreamingResponse(
         BytesIO(xlsx),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="risk-raporu-{company.id}.xlsx"'},
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="risk-raporu-'
+                f'{selected_method + "-" if selected_method else ""}{company.id}.xlsx"'
+            )
+        },
     )
 
 
 @router.get("/report/dof.xlsx")
 def risk_dof_excel(
     company_id: int | None = None,
+    method_code: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     """PRO /rapor/dof-excel — sadece DÖF listesi Excel."""
-    company, risks, hazard_map = _load_company_risks(db, user, company_id, None, None)
-    xlsx = build_dof_excel(company=company, risks=risks, hazard_map=hazard_map)
+    selected_method = _implemented_method(method_code) if method_code else None
+    company, risks, hazard_map = _load_company_risks(
+        db, user, company_id, None, None, method_code=selected_method
+    )
+    xlsx = build_dof_excel(
+        company=company,
+        risks=risks,
+        hazard_map=hazard_map,
+        method_code=selected_method,
+    )
     return StreamingResponse(
         BytesIO(xlsx),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="dof-listesi-{company.id}.xlsx"'},
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="dof-listesi-'
+                f'{selected_method + "-" if selected_method else ""}{company.id}.xlsx"'
+            )
+        },
     )
 
 

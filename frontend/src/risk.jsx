@@ -448,6 +448,8 @@ export function RiskPage({user}) {
   const [docBusy, setDocBusy] = useState(false);
   const [docMsg, setDocMsg] = useState('');
   const [riskMethods, setRiskMethods] = useState([]);
+  const [reportMethodCode, setReportMethodCode] = useState('');
+  const [reportMethodCompanyId, setReportMethodCompanyId] = useState('');
   const [methodMeta, setMethodMeta] = useState(null);
   const [naceRoadmap, setNaceRoadmap] = useState(null);
   const [naceBusy, setNaceBusy] = useState(false);
@@ -462,6 +464,18 @@ export function RiskPage({user}) {
 
   const effectiveCompanyId = reportCompanyId || user.company_id || companies[0]?.id || '';
   const methodOptions = riskMethods.length ? riskMethods : METHOD_FALLBACK;
+  const reportMethodOptions = useMemo(
+    () => methodOptions.filter((item) => item.implemented === true),
+    [methodOptions],
+  );
+  const selectedReportMethod = reportMethodOptions.some((item) => item.code === reportMethodCode)
+    ? reportMethodCode
+    : reportMethodOptions.find((item) => item.code === docInfo?.method_code)?.code
+      || reportMethodOptions[0]?.code
+      || '5x5_l';
+  const selectedReportMethodDef = reportMethodOptions.find((item) => item.code === selectedReportMethod)
+    || METHOD_FALLBACK.find((item) => item.code === selectedReportMethod)
+    || METHOD_FALLBACK[0];
   const activeMethod = form.method_code || docForm.method || '5x5_l';
   const activeMethodDef = methodOptions.find((item) => item.code === activeMethod)
     || METHOD_FALLBACK.find((item) => item.code === activeMethod)
@@ -499,15 +513,31 @@ export function RiskPage({user}) {
     if (!id) {
       setDocInfo(null);
       setDocForm({...EMPTY_DOCUMENT_DRAFT});
+      setReportMethodCompanyId('');
+      setReportMethodCode('');
       return;
+    }
+    const companyChanged = String(id) !== String(reportMethodCompanyId);
+    if (companyChanged) {
+      setReportMethodCompanyId(String(id));
+      setReportMethodCode('');
+      setDocInfo(null);
     }
     // İşyeri değişirken önceki işyerinin taslak değerleri ekranda kalmasın.
     setDocForm((previous) => ({...EMPTY_DOCUMENT_DRAFT, method: previous.method || '5x5_l'}));
     try {
-      applyDocInfo(await api(`/risks/validity?company_id=${id}`));
+      const info = await api(`/risks/validity?company_id=${id}`);
+      applyDocInfo(info);
+      if (companyChanged) {
+        const preferred = reportMethodOptions.find(
+          (item) => item.code === info?.method_code && item.implemented === true,
+        );
+        setReportMethodCode(preferred?.code || reportMethodOptions[0]?.code || '5x5_l');
+      }
     } catch (_) {
       setDocInfo(null);
       setDocForm({...EMPTY_DOCUMENT_DRAFT});
+      if (companyChanged) setReportMethodCode(reportMethodOptions[0]?.code || '5x5_l');
     }
   };
 
@@ -1141,15 +1171,23 @@ export function RiskPage({user}) {
       return;
     }
     const params = new URLSearchParams({company_id: String(cid)});
+    params.set('method_code', selectedReportMethod);
     if (levelFilter && kind !== 'dof') params.set('level', levelFilter);
     const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
+    const methodSlug = selectedReportMethod === 'fine_kinney' ? 'fine-kinney' : '5x5-l';
     setDlBusy(kind);
     try {
       if (kind === 'dof') {
-        await downloadFile(`/risks/report/dof.xlsx?${params}`, `dof-listesi-${cid}-${stamp}.xlsx`);
+        await downloadFile(
+          `/risks/report/dof.xlsx?${params}`,
+          `dof-listesi-${methodSlug}-${cid}-${stamp}.xlsx`,
+        );
       } else {
         const ext = kind === 'pdf' ? 'pdf' : 'xlsx';
-        await downloadFile(`/risks/report.${ext}?${params}`, `risk-raporu-${cid}-${stamp}.${ext}`);
+        await downloadFile(
+          `/risks/report.${ext}?${params}`,
+          `risk-raporu-${methodSlug}-${cid}-${stamp}.${ext}`,
+        );
       }
     } catch (x) {
       const label = kind === 'pdf' ? 'PDF' : kind === 'dof' ? 'DÖF Excel' : 'Excel';
@@ -1541,6 +1579,34 @@ export function RiskPage({user}) {
             <span>PDF, Excel ve DÖF listesi çıktıları</span>
           </h2>
           <ValidityBanner validity={docInfo || stats?.validity} />
+          <article className="risk-report-scope" aria-label="Rapor yöntemi seçimi">
+            <div className="risk-report-scope-copy">
+              <span className="risk-report-eyebrow">RAPOR KAPSAMI</span>
+              <h3>Çıktı hangi risk değerlendirme yöntemiyle hazırlanacak?</h3>
+              <p>
+                Seçilen yönteme ait risk kayıtları, DÖF’ler ve istatistikler dışa aktarılır.
+                Bu seçim belge künyesini veya mevcut risk kayıtlarını değiştirmez.
+              </p>
+            </div>
+            <div className="risk-report-scope-control">
+              <label className="field">
+                <span>Rapor yöntemi</span>
+                <select
+                  aria-label="Rapor yöntemi"
+                  value={selectedReportMethod}
+                  onChange={(e) => setReportMethodCode(e.target.value)}
+                >
+                  {reportMethodOptions.map((method) => (
+                    <option key={method.code} value={method.code}>{method.label}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="risk-report-scope-selected">
+                <span>Seçili filtre</span>
+                <strong>{selectedReportMethodDef.label}</strong>
+              </div>
+            </div>
+          </article>
           <article className="panel" style={{marginBottom: 16, padding: 16}}>
             <h3 style={{margin: '0 0 4px'}}>Belge künyesi</h3>
             <p style={{margin: '0 0 12px', fontSize: 13, color: '#5b6b7c'}}>
@@ -1548,7 +1614,7 @@ export function RiskPage({user}) {
               kapak sayfasına basılır. NACE kimliği, NACE teknik risk kapsamı, rapor kontrol listesi ve
               yol haritası ayrıca NACE Yol Haritası sayfasına eklenir. İşyeri ünvanı, SGK, tehlike sınıfı, çalışan sayısı ve
               görevli uzman/hekim işyeri kartı ile görevlendirmeden otomatik gelir. Yenileme: az 6,
-              tehlikeli 4, çok tehlikeli 2 yıl.
+              tehlikeli 4, çok tehlikeli 2 yıl. Aşağıdaki belge yöntemi, rapor filtresinden bağımsız künye bilgisidir.
             </p>
             <form
               onSubmit={saveDocInfo}
@@ -1667,21 +1733,21 @@ export function RiskPage({user}) {
           <div className="risk-report-grid">
             <article className="risk-report-card">
               <h3>Risk PDF</h3>
-              <p>Kapak, yöntem, ekip imzaları, skorlar ve DÖF ile mevzuata uygun rapor.</p>
+              <p><strong>{selectedReportMethodDef.label}</strong> yöntemiyle kapak, ekip, skorlar ve DÖF raporu.</p>
               <button type="button" className="btn btn-primary" disabled={!!dlBusy} onClick={() => downloadReport('pdf')}>
                 <Download size={14} /> {dlBusy === 'pdf' ? '…' : 'PDF indir'}
               </button>
             </article>
             <article className="risk-report-card">
               <h3>Risk Excel</h3>
-              <p>Risk + DÖF + istatistik sayfaları.</p>
+              <p><strong>{selectedReportMethodDef.label}</strong> filtresiyle risk, DÖF ve istatistik sayfaları.</p>
               <button type="button" className="btn btn-primary" disabled={!!dlBusy} onClick={() => downloadReport('xlsx')}>
                 <FileSpreadsheet size={14} /> {dlBusy === 'xlsx' ? '…' : 'Excel indir'}
               </button>
             </article>
             <article className="risk-report-card">
               <h3>DÖF Excel</h3>
-              <p>Yalnız düzeltici / önleyici faaliyet listesi.</p>
+              <p><strong>{selectedReportMethodDef.label}</strong> yöntemine bağlı düzeltici / önleyici faaliyet listesi.</p>
               <button type="button" className="btn btn-primary" disabled={!!dlBusy} onClick={() => downloadReport('dof')}>
                 <ClipboardList size={14} /> {dlBusy === 'dof' ? '…' : 'DÖF indir'}
               </button>
@@ -1914,7 +1980,7 @@ export function RiskPage({user}) {
         <div style={{marginBottom: 12, padding: '10px 12px', background: '#eef5fb', borderRadius: 10, fontSize: 14}}>
           Risk kaydı için <strong>tehlike kategorisi → tehlike</strong> seçimi zorunludur.
           İşyeri bölümlerini listeden seçin veya <strong>yeni bölüm</strong> yazarak kaydedin.
-          PDF/Excel raporları seçili firmadaki (ve seviye filtresindeki) riskleri + DÖF’leri içerir.
+          Raporlar sekmesinde seçtiğiniz yönteme ait riskler + DÖF’ler dışa aktarılır; belge künyesi ayrıca korunur.
           {categories.length === 0 && (
             <span> Kütüphane boş görünüyorsa “Tehlike Kütüphanesi”nden yükleyin.</span>
           )}
