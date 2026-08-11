@@ -111,6 +111,90 @@ def test_purge_osgb_deletes_despite_dry_run_logs(client: TestClient):
         assert left == []
 
 
+def test_purge_osgb_removes_assignments_and_health_access_logs(client: TestClient):
+    """OSGB silinince atamalar ve şirket FK'sı taşıyan sağlık erişim kayıtları kalkar."""
+    from datetime import date
+
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import (
+        AssignmentStatus,
+        Company,
+        HealthAccessLog,
+        IsgProfessional,
+        OsgbOrganization,
+        ProfessionalType,
+        User,
+        UserRole,
+        WorkplaceAssignment,
+    )
+    from app.services.osgb_purge import purge_osgb
+
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(
+            name="Assignment Purge OSGB",
+            authorization_number="YETKI-ASG-PURGE-1",
+            tax_number="8877665544",
+            responsible_manager="Test",
+            email="assignment-purge@test.com",
+            phone="02125556677",
+            address="Bursa",
+            is_active=True,
+        )
+        db.add(osgb)
+        db.flush()
+        company = Company(
+            name="Assignment Purge Company",
+            osgb_id=osgb.id,
+            is_active=True,
+            hazard_class="Çok Tehlikeli",
+        )
+        professional = IsgProfessional(
+            osgb_id=osgb.id,
+            full_name="Purge Uzmanı",
+            professional_type=ProfessionalType.SAFETY_SPECIALIST,
+            is_active=True,
+        )
+        user = User(
+            email="assignment-purge-user@test.com",
+            full_name="Purge Kullanıcısı",
+            hashed_password=get_password_hash("Test1234!"),
+            role=UserRole.GLOBAL_ADMIN,
+            is_active=True,
+        )
+        db.add_all([company, professional, user])
+        db.flush()
+        assignment = WorkplaceAssignment(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            professional_id=professional.id,
+            professional_type=ProfessionalType.SAFETY_SPECIALIST,
+            start_date=date(2026, 1, 1),
+            status=AssignmentStatus.ACTIVE,
+        )
+        access_log = HealthAccessLog(
+            company_id=company.id,
+            actor_user_id=user.id,
+            action="view",
+            entry_hash="assignment-purge-health-access-log",
+        )
+        db.add_all([assignment, access_log])
+        db.commit()
+        osgb_id = osgb.id
+        company_id = company.id
+        assignment_id = assignment.id
+        access_log_id = access_log.id
+
+    with SessionLocal() as db:
+        name = purge_osgb(db, osgb_id)
+        db.commit()
+        assert name == "Assignment Purge OSGB"
+        assert db.get(OsgbOrganization, osgb_id) is None
+        assert db.get(Company, company_id) is None
+        assert db.get(WorkplaceAssignment, assignment_id) is None
+        assert db.get(HealthAccessLog, access_log_id) is None
+
+
 def test_purge_osgb_deletes_inactive_employee_personnel_profile(client: TestClient):
     """P0 regresyon: UI'da silinen/pasif personelin profil FK'sı OSGB silmeyi engellemesin."""
     from sqlalchemy import select
