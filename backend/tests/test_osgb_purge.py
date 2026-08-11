@@ -195,6 +195,132 @@ def test_purge_osgb_removes_assignments_and_health_access_logs(client: TestClien
         assert db.get(HealthAccessLog, access_log_id) is None
 
 
+def test_purge_osgb_disables_linked_accounts_and_invalidates_sessions(client: TestClient):
+    """OSGB silinince yönetici, kiosk ve üyelikten bağlı hesaplar giriş yapamaz."""
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import (
+        Company,
+        OrganizationMembership,
+        OsgbOrganization,
+        User,
+        UserRole,
+    )
+    from app.services.osgb_purge import purge_osgb
+
+    password = "Test1234!"
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(
+            name="Account Purge OSGB",
+            authorization_number="YETKI-ACCOUNT-PURGE-1",
+            tax_number="7766554433",
+            responsible_manager="Test",
+            email="account-purge@test.com",
+            is_active=True,
+        )
+        db.add(osgb)
+        db.flush()
+        company = Company(
+            name="Account Purge Company",
+            osgb_id=osgb.id,
+            is_active=True,
+            hazard_class="Az Tehlikeli",
+        )
+        db.add(company)
+        db.flush()
+
+        osgb_admin = User(
+            email="account-admin@test.com",
+            full_name="OSGB Yönetici",
+            hashed_password=get_password_hash(password),
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            is_active=True,
+        )
+        kiosk = User(
+            email="account-kiosk@test.com",
+            full_name="İşyeri Kiosk",
+            hashed_password=get_password_hash(password),
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            company_id=company.id,
+            is_active=True,
+        )
+        legacy_kiosk = User(
+            email="legacy-kiosk@test.com",
+            full_name="Eski Kiosk",
+            hashed_password=get_password_hash(password),
+            role=UserRole.COMPANY_ADMIN,
+            company_id=company.id,
+            is_active=True,
+        )
+        membership_user = User(
+            email="membership-user@test.com",
+            full_name="Üyelik Kullanıcısı",
+            hashed_password=get_password_hash(password),
+            role=UserRole.SAFETY_SPECIALIST,
+            is_active=True,
+        )
+        db.add_all([osgb_admin, kiosk, legacy_kiosk, membership_user])
+        db.flush()
+        db.add(
+            OrganizationMembership(
+                user_id=membership_user.id,
+                osgb_id=osgb.id,
+                role=UserRole.SAFETY_SPECIALIST.value,
+                is_active=True,
+            )
+        )
+        db.commit()
+
+        osgb_id = osgb.id
+        account_ids = [
+            osgb_admin.id,
+            kiosk.id,
+            legacy_kiosk.id,
+            membership_user.id,
+        ]
+        old_token_version = osgb_admin.token_version
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "account-admin@test.com", "password": password},
+    )
+    assert login.status_code == 200, login.text
+    old_token = login.json()["access_token"]
+
+    with SessionLocal() as db:
+        assert purge_osgb(db, osgb_id) == "Account Purge OSGB"
+        db.commit()
+
+    with SessionLocal() as db:
+        accounts = [db.get(User, account_id) for account_id in account_ids]
+        assert all(account is not None for account in accounts)
+        assert all(account.is_active is False for account in accounts)
+        assert all(account.osgb_id is None for account in accounts)
+        assert all(account.company_id is None for account in accounts)
+        assert db.get(User, account_ids[0]).token_version > old_token_version
+
+    # Mevcut access token da pasif hesap/token_version kontrolünde düşmelidir.
+    blocked_session = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {old_token}"},
+    )
+    assert blocked_session.status_code == 401
+
+    for email in (
+        "account-admin@test.com",
+        "account-kiosk@test.com",
+        "legacy-kiosk@test.com",
+        "membership-user@test.com",
+    ):
+        blocked_login = client.post(
+            "/api/v1/auth/login",
+            json={"email": email, "password": password},
+        )
+        assert blocked_login.status_code == 401
+
+
 def test_purge_osgb_deletes_inactive_employee_personnel_profile(client: TestClient):
     """P0 regresyon: UI'da silinen/pasif personelin profil FK'sı OSGB silmeyi engellemesin."""
     from sqlalchemy import select
