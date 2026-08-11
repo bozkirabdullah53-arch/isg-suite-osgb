@@ -516,7 +516,9 @@ def _draw_attendance_page(
         (10 * mm, [
             (ml, uw, "NACE / Faaliyet Alanı", activity, 2),
         ]),
-        (6 * mm, [
+        # The label and value are stacked in this cell; keep enough vertical
+        # space so the verification code can never collide with its label.
+        (8 * mm, [
             (ml, uw, "Doğrulama Kodu", training.verification_code or "—", 1),
         ]),
     ]
@@ -536,7 +538,8 @@ def _draw_attendance_page(
         y -= row_height
 
     # Purpose / topics / dayanak box (PRO)
-    konu_y_top = h - 72 * mm
+    # The identity grid grew by 2 mm for the verification-code row above.
+    konu_y_top = h - 74 * mm
     konu_h = 22 * mm
     c.setFillColorRGB(235 / 255, 241 / 255, 247 / 255)
     c.setStrokeColorRGB(160 / 255, 180 / 255, 200 / 255)
