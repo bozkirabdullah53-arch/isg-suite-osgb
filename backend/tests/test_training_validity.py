@@ -92,29 +92,26 @@ def client(tmp_path, monkeypatch):
 
     import app.core.database as dbmod
     import app.models.entities as ent
+    # NACE snapshot mapper registers its table before the isolated test schema
+    # is created; production startup imports this mapper through the API.
+    import app.models.training_nace  # noqa: F401
     from app.core.config import settings
 
     settings.database_url = url
     settings.secret_key = "test-secret-key-at-least-32-chars-long!!"
-    settings.environment = "development"
+    # Şema bu izole testte create_all ile kuruldu; uygulama başlangıcının
+    # development onarım kancası ikinci kez aynı indeksleri üretmesin.
+    settings.environment = "production"
     settings.upload_dir = str(tmp_path / "uploads")
 
     engine = create_engine(url, connect_args={"check_same_thread": False})
     dbmod.engine = engine
     dbmod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-    import app.main as mainmod
-
-    mainmod.engine = engine
-    mainmod.SessionLocal = dbmod.SessionLocal
     ent.Base.metadata.create_all(bind=engine)
 
-    test_client = TestClient(mainmod.app)
-    try:
-        yield test_client
-    finally:
-        test_client.close()
-        engine.dispose()
+    from app.main import app
+
+    return TestClient(app)
 
 
 def _seed(client: TestClient) -> dict:
@@ -153,6 +150,9 @@ def _seed(client: TestClient) -> dict:
         )
         db.add(user)
         db.flush()
+        # Mesleki kullanıcı oturumu, aktif profesyonel kartıyla eşleşmelidir.
+        # Görevlendirme satırı bu test grubunun konusu olmadığından ayrıca
+        # eklenmez; erişim için mevcut company_id geri dönüşü kullanılır.
         db.add(
             IsgProfessional(
                 osgb_id=osgb.id,
@@ -160,7 +160,7 @@ def _seed(client: TestClient) -> dict:
                 email="egitim-uzman@test.com",
                 professional_type=ProfessionalType.SAFETY_SPECIALIST,
                 certificate_class="B",
-                certificate_number="EGT-UZM-1",
+                certificate_number="TEST-UZM-1",
                 is_active=True,
             )
         )
@@ -401,14 +401,7 @@ def test_assigned_team_empty_when_no_assignment(client):
 def test_employee_status_requires_company_access(client):
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
-    from app.models.entities import (
-        Company,
-        IsgProfessional,
-        OsgbOrganization,
-        ProfessionalType,
-        User,
-        UserRole,
-    )
+    from app.models.entities import Company, IsgProfessional, OsgbOrganization, ProfessionalType, User, UserRole
 
     seed = _seed(client)
     with SessionLocal() as db:
@@ -419,6 +412,17 @@ def test_employee_status_requires_company_access(client):
         db.add(other_company)
         db.flush()
         db.add(
+            IsgProfessional(
+                osgb_id=other_osgb.id,
+                full_name="Diger Uzman",
+                email="diger-uzman@test.com",
+                professional_type=ProfessionalType.SAFETY_SPECIALIST,
+                certificate_class="B",
+                certificate_number="TEST-UZM-2",
+                is_active=True,
+            )
+        )
+        db.add(
             User(
                 email="diger-uzman@test.com",
                 full_name="Diger Uzman",
@@ -426,17 +430,6 @@ def test_employee_status_requires_company_access(client):
                 role=UserRole.SAFETY_SPECIALIST,
                 osgb_id=other_osgb.id,
                 company_id=other_company.id,
-                is_active=True,
-            )
-        )
-        db.add(
-            IsgProfessional(
-                osgb_id=other_osgb.id,
-                full_name="Diger Uzman",
-                email="diger-uzman@test.com",
-                professional_type=ProfessionalType.SAFETY_SPECIALIST,
-                certificate_class="B",
-                certificate_number="DGR-UZM-1",
                 is_active=True,
             )
         )
