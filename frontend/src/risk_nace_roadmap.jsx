@@ -38,16 +38,13 @@ function IdentityCard({data}) {
   const workplace = data?.workplace || {};
   const code = identity.code || workplace.nace_code || data?.entered_nace_code || '—';
   return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-      gap: 10, padding: 12, borderRadius: 12, background: '#f7fbff', border: '1px solid #d7e7f4',
-    }}>
-      <div><small style={{color: '#6b8298'}}>Firma / İşyeri</small><strong style={{display: 'block', color: '#123b5d'}}>{workplace.name || data?.company_name || '—'}</strong></div>
-      <div><small style={{color: '#6b8298'}}>SGK sicil numarası</small><strong style={{display: 'block', color: '#123b5d'}}>{workplace.sgk_registry_no || '—'}</strong></div>
-      <div><small style={{color: '#6b8298'}}>NACE kodu</small><strong style={{display: 'block', color: '#123b5d'}}>{code}</strong></div>
-      <div style={{gridColumn: 'span 2'}}><small style={{color: '#6b8298'}}>Faaliyet</small><strong style={{display: 'block', color: '#123b5d', fontWeight: 650}}>{identity.description || 'Tam katalog açıklaması bulunmuyor.'}</strong></div>
-      <div><small style={{color: '#6b8298'}}>Bölüm</small><strong style={{display: 'block', color: '#123b5d'}}>{identity.section_code ? `${identity.section_code} · ${identity.section_name || ''}` : '—'}</strong></div>
-      <div><small style={{color: '#6b8298'}}>Tehlike sınıfı</small><strong style={{display: 'block', color: '#123b5d'}}>{identity.hazard_class || workplace.hazard_class || '—'}</strong></div>
+    <div className="risk-nace-identity-card">
+      <div><small>Firma / İşyeri</small><strong>{workplace.name || data?.company_name || '—'}</strong></div>
+      <div><small>SGK sicil numarası</small><strong>{workplace.sgk_registry_no || '—'}</strong></div>
+      <div><small>NACE kodu</small><strong>{code}</strong></div>
+      <div><small>Faaliyet</small><strong className="risk-nace-identity-description">{identity.description || 'Tam katalog açıklaması bulunmuyor.'}</strong></div>
+      <div><small>Bölüm</small><strong>{identity.section_code ? `${identity.section_code} · ${identity.section_name || ''}` : '—'}</strong></div>
+      <div><small>Tehlike sınıfı</small><strong>{identity.hazard_class || workplace.hazard_class || '—'}</strong></div>
     </div>
   );
 }
