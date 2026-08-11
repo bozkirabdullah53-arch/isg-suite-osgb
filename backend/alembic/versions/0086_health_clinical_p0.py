@@ -1,3 +1,110 @@
+"""Health clinical privacy, immutable revisions and access logs.
+
+Revision ID: 0086_health_clinical_p0
+Revises: 0085_nace_468306_training_fix
+"""
+from __future__ import annotations
+
+from typing import Sequence, Union
+
+import sqlalchemy as sa
+from alembic import op
+
+
+revision: str = "0086_health_clinical_p0"
+down_revision: Union[str, None] = "0085_nace_468306_training_fix"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def _append_only_triggers(table: str) -> None:
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        fn = f"prevent_{table}_mutation"
+        op.execute(
+            sa.text(
+                f"""
+                CREATE OR REPLACE FUNCTION {fn}() RETURNS trigger AS $$
+                BEGIN
+                  RAISE EXCEPTION '{table} is append-only';
+                END;
+                $$ LANGUAGE plpgsql;
+                """
+            )
+        )
+        op.execute(sa.text(f"DROP TRIGGER IF EXISTS trg_{table}_append_only ON {table}"))
+        op.execute(
+            sa.text(
+                f"CREATE TRIGGER trg_{table}_append_only BEFORE UPDATE OR DELETE ON {table} "
+                f"FOR EACH ROW EXECUTE FUNCTION {fn}()"
+            )
+        )
+    elif bind.dialect.name == "sqlite":
+        op.execute(
+            sa.text(
+                f"CREATE TRIGGER IF NOT EXISTS trg_{table}_no_update BEFORE UPDATE ON {table} "
+                f"BEGIN SELECT RAISE(ABORT, '{table} is append-only'); END"
+            )
+        )
+        op.execute(
+            sa.text(
+                f"CREATE TRIGGER IF NOT EXISTS trg_{table}_no_delete BEFORE DELETE ON {table} "
+                f"BEGIN SELECT RAISE(ABORT, '{table} is append-only'); END"
+            )
+        )
+
+
+def _clinical_rls(table: str) -> None:
+    if op.get_bind().dialect.name != "postgresql":
+        return
+    policy = f"{table}_clinical_scope"
+    op.execute(sa.text(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY"))
+    op.execute(sa.text(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY"))
+    op.execute(sa.text(f"DROP POLICY IF EXISTS {table}_company_scope ON {table}"))
+    op.execute(sa.text(f"DROP POLICY IF EXISTS {policy} ON {table}"))
+    scope = """
+      COALESCE(current_setting('app.current_user_id', true), '') = ''
+      OR (
+        COALESCE(current_setting('app.health_clinical_access', true), '') = '1'
+        AND company_id = ANY (
+          string_to_array(
+            COALESCE(NULLIF(current_setting('app.allowed_company_ids', true), ''), '-1'), ','
+          )::integer[]
+        )
+      )
+    """
+    op.execute(
+        sa.text(
+            f"CREATE POLICY {policy} ON {table} FOR ALL "
+            f"USING ({scope}) WITH CHECK ({scope})"
+        )
+    )
+
+
+def _restore_company_rls(table: str) -> None:
+    if op.get_bind().dialect.name != "postgresql":
+        return
+    clinical_policy = f"{table}_clinical_scope"
+    company_policy = f"{table}_company_scope"
+    scope = """
+      COALESCE(current_setting('app.current_user_id', true), '') = ''
+      OR COALESCE(current_setting('app.rls_bypass', true), '') = '1'
+      OR company_id = ANY (
+        string_to_array(
+          COALESCE(NULLIF(current_setting('app.allowed_company_ids', true), ''), '-1'), ','
+        )::integer[]
+      )
+    """
+    op.execute(sa.text(f"DROP POLICY IF EXISTS {clinical_policy} ON {table}"))
+    op.execute(sa.text(f"DROP POLICY IF EXISTS {company_policy} ON {table}"))
+    op.execute(
+        sa.text(
+            f"CREATE POLICY {company_policy} ON {table} FOR ALL "
+            f"USING ({scope}) WITH CHECK ({scope})"
+        )
+    )
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
@@ -29,9 +136,6 @@ def upgrade() -> None:
     with op.batch_alter_table("health_records") as batch:
         if "updated_at" in columns:
             batch.alter_column("updated_at", existing_type=sa.DateTime(), nullable=False)
-
-    with op.batch_alter_table("health_records") as batch:
-        batch.alter_column("updated_at", existing_type=sa.DateTime(), nullable=False)
 
     if not sa.inspect(op.get_bind()).has_table("health_record_revisions"):
         op.create_table(
