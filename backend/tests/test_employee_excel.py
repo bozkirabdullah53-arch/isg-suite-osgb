@@ -18,3 +18,20 @@ def test_parse_and_template_roundtrip():
     assert len(rows) >= 2
     assert rows[0]["full_name"] == "Ali Veli"
     assert rows[0]["job_title"] == "Kaynakçı"
+
+
+def test_numeric_tc_suffix_is_removed_from_personnel_import():
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["Adı Soyadı", "TC Kimlik"])
+    ws.append(["Ali Veli", 26230266894.0])
+    buf = BytesIO()
+    wb.save(buf)
+    wb.close()
+
+    rows = parse_employees_workbook(buf.getvalue())
+    assert rows[0]["national_id_masked"] == "26230266894"

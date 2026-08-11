@@ -7,12 +7,13 @@ from sqlalchemy.orm import Session
 
 from app.models.entities import Employee
 from app.services.capacity_engine import sync_company_service_requirements
+from app.services.national_id_format import normalize_national_id
 
 
 def _tc_key(tc: str | None) -> str:
     if not tc:
         return ""
-    return "".join(ch for ch in str(tc) if ch.isdigit())
+    return "".join(ch for ch in normalize_national_id(tc) if ch.isdigit())
 
 
 def resolve_or_create_employees(
@@ -43,7 +44,7 @@ def resolve_or_create_employees(
             continue
         key = name.casefold()
         # Boş TC → None ("" unique constraint'e takılır: company+national_id)
-        raw_tc = (row.get("national_id_masked") or "").strip()
+        raw_tc = normalize_national_id(row.get("national_id_masked"))
         tc = raw_tc or None
         tc_digits = _tc_key(tc)
         emp = by_name.get(key) or (by_tc.get(tc_digits) if tc_digits else None)

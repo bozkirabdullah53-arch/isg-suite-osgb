@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from reportlab.lib.units import mm
 
+from app.services.national_id_format import normalize_national_id
+
 NAVY = (7 / 255, 45 / 255, 82 / 255)
 NAVY_2 = (4 / 255, 76 / 255, 109 / 255)
 EMERALD = (0 / 255, 126 / 255, 105 / 255)
@@ -188,7 +190,7 @@ def draw_certificate_page(
     c.restoreState()
 
     name = employee.full_name if employee else "—"
-    tc = (getattr(employee, "national_id_masked", None) or "") if employee else ""
+    tc = normalize_national_id(getattr(employee, "national_id_masked", None)) if employee else ""
     gorev = (employee.job_title or "") if employee else ""
     body_top = strip_y - 6 * mm
     c.setFillColorRGB(*NAVY_2)

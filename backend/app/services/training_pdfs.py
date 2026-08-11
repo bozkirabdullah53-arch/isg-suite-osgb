@@ -18,6 +18,7 @@ from app.services.special_training_profiles import (
     resolve_training_curriculum,
     resolve_training_document_titles,
 )
+from app.services.national_id_format import normalize_national_id
 from app.services.training_topics import (
     egitim_konularini_hazirla,
     katilim_formu_konu_ozeti,
@@ -418,7 +419,7 @@ def _draw_attendance_page(
         e = employees.get(p.employee_id) if p else None
         sira = str(start_index + i + 1) if p else ""
         ad = (e.full_name if e else "") if p else ""
-        tc = (getattr(e, "national_id_masked", None) or "") if e else ""
+        tc = normalize_national_id(getattr(e, "national_id_masked", None)) if e else ""
         gorev = ""
         if e:
             gorev = e.job_title or ""
@@ -622,7 +623,7 @@ def _draw_certificate_page(
     c.drawCentredString(w / 2, h - 38 * mm, _fit(c, "  │  ".join(meta_parts), uw, _FONT, 7))
 
     name = employee.full_name if employee else "—"
-    tc = (getattr(employee, "national_id_masked", None) or "") if employee else ""
+    tc = normalize_national_id(getattr(employee, "national_id_masked", None)) if employee else ""
     gorev = (employee.job_title or "") if employee else ""
 
     c.setFillColorRGB(*_BLUE)

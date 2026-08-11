@@ -16,6 +16,7 @@ from app.services.special_training_profiles import (
     resolve_special_profile_key,
     special_topics_with_minutes,
 )
+from app.services.national_id_format import normalize_national_id
 
 NAVY = (7 / 255, 45 / 255, 82 / 255)
 TEAL = (0 / 255, 118 / 255, 118 / 255)
@@ -378,7 +379,7 @@ def draw_height_certificate_page(
     c.setFont(tp._FONT, 7)
     c.drawCentredString(w / 2, participant_top - 2.5 * mm, "Bu belge aşağıda bilgileri bulunan çalışan adına düzenlenmiştir.")
     name = str(getattr(employee, "full_name", "") or "—")
-    tc = str(getattr(employee, "national_id_masked", "") or "—")
+    tc = normalize_national_id(getattr(employee, "national_id_masked", None)) or "—"
     job = str(getattr(employee, "job_title", "") or "—")
     c.setFillColorRGB(*NAVY)
     c.setFont(tp._FONT_B, 16)

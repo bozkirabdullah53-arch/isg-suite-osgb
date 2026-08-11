@@ -10,6 +10,8 @@ from typing import Any
 
 from openpyxl import Workbook, load_workbook
 
+from app.services.national_id_format import normalize_national_id
+
 
 def _cell(v: Any) -> str:
     if v is None:
@@ -191,7 +193,7 @@ def parse_employees_workbook(content: bytes) -> list[dict]:
             elif key == "full_name":
                 item["full_name"] = _cell(raw)
             elif key == "national_id_masked":
-                tc = _cell(raw)
+                tc = normalize_national_id(_cell(raw))
                 item["national_id_masked"] = tc or None
             elif key == "job_title":
                 item["job_title"] = _cell(raw) or None
