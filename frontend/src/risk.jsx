@@ -85,6 +85,17 @@ const FINE_KINNEY_FALLBACK = {
   planning_note: 'Termin günleri yazılımın planlama önerisidir; yasal süre yerine geçmez.',
 };
 
+const EMPTY_DOCUMENT_DRAFT = {
+  assessment_date: '',
+  employee_representative: '',
+  support_staff: '',
+  method: '5x5_l',
+  document_no: '',
+  revision_no: '',
+  revision_reason: '',
+  scope_note: '',
+};
+
 function formatRiskNumber(value) {
   if (value == null || value === '') return '—';
   const n = Number(value);
@@ -390,16 +401,7 @@ export function RiskPage({user}) {
   const mediaInputRef = useRef(null);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [docInfo, setDocInfo] = useState(null);
-  const [docForm, setDocForm] = useState({
-    assessment_date: '',
-    employee_representative: '',
-    support_staff: '',
-    method: '5x5_l',
-    document_no: '',
-    revision_no: '00',
-    revision_reason: '',
-    scope_note: '',
-  });
+  const [docForm, setDocForm] = useState(() => ({...EMPTY_DOCUMENT_DRAFT}));
   const [docBusy, setDocBusy] = useState(false);
   const [docMsg, setDocMsg] = useState('');
   const [riskMethods, setRiskMethods] = useState([]);
@@ -433,25 +435,29 @@ export function RiskPage({user}) {
     setDocInfo(info);
     const storedMethod = info?.method_code || '5x5_l';
     const methodIsImplemented = METHOD_FALLBACK.some((item) => item.code === storedMethod && item.implemented);
+    // Belge künyesi her açılışta yeni bir taslak olarak başlar. Eski işyeri
+    // künyesi validity/report bağlamında tutulur; test veya önceki belge
+    // bilgileri yeni forma otomatik olarak taşınmaz.
     setDocForm({
-      assessment_date: info?.assessment_date_source === 'recorded' ? (info.assessment_date || '') : '',
-      employee_representative: info?.team?.employee_representative || '',
-      support_staff: info?.team?.support_staff || '',
+      ...EMPTY_DOCUMENT_DRAFT,
       method: methodIsImplemented ? storedMethod : '5x5_l',
-      document_no: info?.document_no || '',
-      revision_no: info?.revision_no || '00',
-      revision_reason: info?.revision_reason || '',
-      scope_note: info?.scope_note || '',
     });
   };
 
   const loadDocInfo = async (cid) => {
     const id = cid || effectiveCompanyId;
-    if (!id) { setDocInfo(null); return; }
+    if (!id) {
+      setDocInfo(null);
+      setDocForm({...EMPTY_DOCUMENT_DRAFT});
+      return;
+    }
+    // İşyeri değişirken önceki işyerinin taslak değerleri ekranda kalmasın.
+    setDocForm((previous) => ({...EMPTY_DOCUMENT_DRAFT, method: previous.method || '5x5_l'}));
     try {
       applyDocInfo(await api(`/risks/validity?company_id=${id}`));
     } catch (_) {
       setDocInfo(null);
+      setDocForm({...EMPTY_DOCUMENT_DRAFT});
     }
   };
 
