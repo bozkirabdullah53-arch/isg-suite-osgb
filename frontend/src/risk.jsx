@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {
   AlertTriangle,
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import {api, downloadFile, uploadFile, authBlobUrl} from './api';
 import {NaceRoadmapPanel, NaceRoadmapSummary} from './risk_nace_roadmap';
+import {createNavigationState, navigationIndex, parseNavigationLocation} from './navigation_history';
 import './risk_pro.css';
 
 const LEVEL_COLORS = {
@@ -95,6 +96,50 @@ const EMPTY_DOCUMENT_DRAFT = {
   revision_reason: '',
   scope_note: '',
 };
+
+const RISK_TAB_IDS = new Set(['panel', 'risks', 'library', 'dofs', 'nace_roadmap', 'reports', 'departments']);
+
+function readRiskViewFromLocation() {
+  const navigation = parseNavigationLocation(window.location);
+  if (navigation.module !== 'risk') return {tab: 'panel', detailId: ''};
+  try {
+    const hash = String(window.location.hash || '').replace(/^#/, '');
+    const params = new URLSearchParams(hash);
+    const requestedTab = params.get('risk_tab') || 'panel';
+    const requestedDetail = params.get('risk_detail') || '';
+    return {
+      tab: RISK_TAB_IDS.has(requestedTab) ? requestedTab : 'panel',
+      detailId: /^\d+$/.test(requestedDetail) ? requestedDetail : '',
+    };
+  } catch (_) {
+    return {tab: 'panel', detailId: ''};
+  }
+}
+
+function writeRiskViewToLocation({tab = 'panel', detailId = '', replace = false} = {}) {
+  try {
+    const current = readRiskViewFromLocation();
+    const normalizedDetail = detailId ? String(detailId) : '';
+    if (current.tab === tab && current.detailId === normalizedDetail) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('m');
+    const hash = new URLSearchParams();
+    hash.set('m', 'risk');
+    if (tab !== 'panel') hash.set('risk_tab', tab);
+    if (normalizedDetail) hash.set('risk_detail', normalizedDetail);
+    url.hash = hash.toString();
+    const currentState = window.history.state;
+    const state = createNavigationState(currentState, {
+      module: 'risk',
+      index: navigationIndex(currentState) ?? 0,
+    });
+    state.riskTab = tab;
+    if (normalizedDetail) state.riskDetailId = normalizedDetail;
+    else delete state.riskDetailId;
+    if (replace) window.history.replaceState(state, '', url.pathname + (url.search || '') + url.hash);
+    else window.history.pushState(state, '', url.pathname + (url.search || '') + url.hash);
+  } catch (_) { /* ignore */ }
+}
 
 function formatRiskNumber(value) {
   if (value == null || value === '') return '—';
@@ -388,7 +433,7 @@ export function RiskPage({user}) {
   const [busy, setBusy] = useState(false);
   const [dlBusy, setDlBusy] = useState('');
   const [reportCompanyId, setReportCompanyId] = useState(user.company_id || '');
-  const [tab, setTab] = useState('panel');
+  const [tab, setTabState] = useState(() => readRiskViewFromLocation().tab);
   const [stats, setStats] = useState(null);
   const [dofs, setDofs] = useState([]);
   const [dofFilter, setDofFilter] = useState('open');
@@ -398,8 +443,6 @@ export function RiskPage({user}) {
   const [hintBusy, setHintBusy] = useState(false);
   const [photoTagCatalog, setPhotoTagCatalog] = useState([]);
   const [selectedPhotoTags, setSelectedPhotoTags] = useState([]);
-  const mediaInputRef = useRef(null);
-  const [mediaBusy, setMediaBusy] = useState(false);
   const [docInfo, setDocInfo] = useState(null);
   const [docForm, setDocForm] = useState(() => ({...EMPTY_DOCUMENT_DRAFT}));
   const [docBusy, setDocBusy] = useState(false);
@@ -409,6 +452,13 @@ export function RiskPage({user}) {
   const [naceRoadmap, setNaceRoadmap] = useState(null);
   const [naceBusy, setNaceBusy] = useState(false);
   const [naceErr, setNaceErr] = useState('');
+
+  function setTab(nextTab, {replace = false} = {}) {
+    const normalized = RISK_TAB_IDS.has(nextTab) ? nextTab : 'panel';
+    setTabState(normalized);
+    setDetail(null);
+    writeRiskViewToLocation({tab: normalized, replace});
+  }
 
   const effectiveCompanyId = reportCompanyId || user.company_id || companies[0]?.id || '';
   const methodOptions = riskMethods.length ? riskMethods : METHOD_FALLBACK;
@@ -889,7 +939,7 @@ export function RiskPage({user}) {
   }
 
   async function openDetail(id) {
-    setTab('risks');
+    setTabState('risks');
     const r = await api(`/risks/${id}`);
     setDetail(r);
     setDofForm({
@@ -899,6 +949,46 @@ export function RiskPage({user}) {
       term_date: r.term_date || '',
       cost_estimate: '',
     });
+    writeRiskViewToLocation({tab: 'risks', detailId: r.id});
+  }
+
+  useEffect(() => {
+    let requestNo = 0;
+    async function syncRiskView() {
+      const view = readRiskViewFromLocation();
+      setTabState(view.tab);
+      if (!view.detailId) {
+        setDetail(null);
+        return;
+      }
+      const request = ++requestNo;
+      try {
+        const risk = await api(`/risks/${view.detailId}`);
+        if (request !== requestNo) return;
+        setDetail(risk);
+        setDofForm({
+          description: '',
+          responsible_person: '',
+          responsible_department: risk.department_name || '',
+          term_date: risk.term_date || '',
+          cost_estimate: '',
+        });
+      } catch (_) {
+        if (request === requestNo) setDetail(null);
+      }
+    }
+    syncRiskView();
+    window.addEventListener('popstate', syncRiskView);
+    return () => {
+      requestNo += 1;
+      window.removeEventListener('popstate', syncRiskView);
+    };
+  }, []);
+
+  function closeRiskDetail({replace = false} = {}) {
+    setDetail(null);
+    setTabState('risks');
+    writeRiskViewToLocation({tab: 'risks', replace});
   }
 
   async function addDof(e) {
@@ -928,30 +1018,19 @@ export function RiskPage({user}) {
     load();
   }
 
-  function openMediaPicker() {
-    if (mediaBusy || !detail || !mediaInputRef.current) return;
-    // Aynı dosyanın tekrar seçilmesi de change olayını tetiklesin.
-    mediaInputRef.current.value = '';
-    mediaInputRef.current.click();
-  }
-
   async function uploadMedia(e) {
-    const input = e.currentTarget;
-    const file = input.files?.[0];
-    input.value = '';
-    if (!file || !detail || mediaBusy) return;
-    setMediaBusy(true);
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !detail) return;
     try {
       const extra = selectedPhotoTags.length
         ? {tags: JSON.stringify(selectedPhotoTags)}
         : null;
       await uploadFile(`/risks/${detail.id}/media`, file, extra);
       setSelectedPhotoTags([]);
-      await openDetail(detail.id);
+      openDetail(detail.id);
     } catch (ex) {
-      window.alert(ex.message || 'Fotoğraf/medya yüklenemedi.');
-    } finally {
-      setMediaBusy(false);
+      window.alert(ex.message || 'Fotoğraf yüklenemedi.');
     }
   }
 
@@ -975,7 +1054,7 @@ export function RiskPage({user}) {
     if (!window.confirm('Bu risk kaydını silmek istiyor musunuz?')) return;
     try {
       await api(`/risks/${id}`, {method: 'DELETE'});
-      setDetail(null);
+      closeRiskDetail({replace: true});
       await load();
       await loadDofs();
     } catch (x) {
@@ -2284,7 +2363,7 @@ export function RiskPage({user}) {
               {canEdit && (
                 <button type="button" className="secondary" onClick={() => removeRisk(detail.id)}>Sil</button>
               )}
-              <button type="button" className="secondary" onClick={() => setDetail(null)}>Listeye dön</button>
+              <button type="button" className="secondary" onClick={closeRiskDetail}>Listeye dön</button>
             </div>
           </div>
           <div className="form-grid">
@@ -2404,50 +2483,15 @@ export function RiskPage({user}) {
                   Metinden öner
                 </button>
               </div>
-              <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
-                <button
-                  type="button"
-                  className="mini"
-                  onClick={openMediaPicker}
-                  disabled={mediaBusy || !detail}
-                  aria-controls="risk-media-file-input"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    minHeight: 34,
-                    padding: '7px 12px',
-                    cursor: mediaBusy ? 'wait' : 'pointer',
-                    opacity: mediaBusy ? 0.7 : 1,
-                  }}
-                >
-                  <Plus size={15} />
-                  {mediaBusy ? 'Yükleniyor…' : 'Fotoğraf / medya ekle'}
-                </button>
-                <span style={{fontSize: 12, color: '#64748b'}}>
-                  JPG, PNG, WEBP, GIF, BMP, PDF, video ve Office dosyaları
-                </span>
+              <label className="field" style={{display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
+                <span className="mini" style={{pointerEvents: 'none'}}>Dosya ekle</span>
                 <input
-                  ref={mediaInputRef}
-                  id="risk-media-file-input"
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,application/pdf,video/mp4,video/quicktime,video/x-msvideo,.avi,.mov,.doc,.docx,.xls,.xlsx"
+                  accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,.doc,.docx,.xls,.xlsx"
                   onChange={uploadMedia}
-                  aria-label="Risk fotoğrafı veya medya dosyası seç"
-                  tabIndex={-1}
-                  style={{
-                    position: 'absolute',
-                    width: 1,
-                    height: 1,
-                    padding: 0,
-                    margin: -1,
-                    overflow: 'hidden',
-                    clip: 'rect(0, 0, 0, 0)',
-                    whiteSpace: 'nowrap',
-                    border: 0,
-                  }}
+                  style={{display: 'none'}}
                 />
-              </div>
+              </label>
             </div>
           )}
 
