@@ -3,8 +3,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class RiskCalculateRequest(BaseModel):
-    probability: int = Field(ge=1, le=5)
-    severity: int = Field(ge=1, le=5)
+    method_code: str = Field(default="5x5_l", max_length=40)
+    probability: float = Field(gt=0, le=100)
+    frequency: float | None = Field(default=None, gt=0, le=10)
+    severity: float = Field(gt=0, le=100)
     term_override_days: int | None = Field(default=None, ge=0, le=365)
 
 
@@ -53,14 +55,19 @@ class RiskCreate(BaseModel):
     department_id: int | None = None
     department_name: str | None = Field(default=None, max_length=200)
     hazard_id: int
+    method_code: str | None = Field(default=None, max_length=40)
     activity: str = Field(min_length=2, max_length=500)
     risk_definition: str = Field(min_length=3, max_length=2000)
     affected_people: str | None = Field(default=None, max_length=500)
     affected_group: str | None = Field(default=None, max_length=100)
     existing_measures: str | None = Field(default=None, max_length=2000)
     additional_measures: str | None = Field(default=None, max_length=2000)
-    probability: int = Field(ge=1, le=5)
-    severity: int = Field(ge=1, le=5)
+    probability: float = Field(gt=0, le=100)
+    frequency: float | None = Field(default=None, gt=0, le=10)
+    severity: float = Field(gt=0, le=100)
+    residual_probability: float | None = Field(default=None, gt=0, le=100)
+    residual_frequency: float | None = Field(default=None, gt=0, le=10)
+    residual_severity: float | None = Field(default=None, gt=0, le=100)
     term_override_days: int | None = Field(default=None, ge=0, le=365)
     status: str = Field(default="Açık", max_length=50)
 
@@ -76,14 +83,19 @@ class RiskUpdate(BaseModel):
     department_id: int | None = None
     department_name: str | None = Field(default=None, max_length=200)
     hazard_id: int | None = None
+    method_code: str | None = Field(default=None, max_length=40)
     activity: str | None = Field(default=None, min_length=2, max_length=500)
     risk_definition: str | None = Field(default=None, min_length=3, max_length=2000)
     affected_people: str | None = Field(default=None, max_length=500)
     affected_group: str | None = Field(default=None, max_length=100)
     existing_measures: str | None = Field(default=None, max_length=2000)
     additional_measures: str | None = Field(default=None, max_length=2000)
-    probability: int | None = Field(default=None, ge=1, le=5)
-    severity: int | None = Field(default=None, ge=1, le=5)
+    probability: float | None = Field(default=None, gt=0, le=100)
+    frequency: float | None = Field(default=None, gt=0, le=10)
+    severity: float | None = Field(default=None, gt=0, le=100)
+    residual_probability: float | None = Field(default=None, gt=0, le=100)
+    residual_frequency: float | None = Field(default=None, gt=0, le=10)
+    residual_severity: float | None = Field(default=None, gt=0, le=100)
     term_override_days: int | None = Field(default=None, ge=0, le=365)
     status: str | None = Field(default=None, max_length=50)
     change_reason: str | None = Field(default=None, max_length=500)
@@ -168,6 +180,9 @@ class RiskResponse(BaseModel):
     branch_id: int | None
     department_id: int | None = None
     hazard_id: int
+    method_code: str = "5x5_l"
+    method_label: str | None = None
+    method_formula: str | None = None
     hazard_code: str | None = None
     hazard_name: str | None = None
     category_name: str | None = None
@@ -178,10 +193,18 @@ class RiskResponse(BaseModel):
     affected_group: str | None
     existing_measures: str | None
     additional_measures: str | None
-    probability: int
-    severity: int
-    risk_score: int
+    probability: float
+    frequency: float | None = None
+    severity: float
+    risk_score: float
     risk_level: str
+    risk_level_label: str | None = None
+    risk_action: str | None = None
+    residual_probability: float | None = None
+    residual_frequency: float | None = None
+    residual_severity: float | None = None
+    residual_score: float | None = None
+    residual_level: str | None = None
     term_days: int | None
     term_date: date | None
     term_suggested: int | None

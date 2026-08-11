@@ -1,8 +1,8 @@
-"""Risk değerlendirme yöntemleri — yönetmelik md.15 uyumlu katalog.
+"""Risk değerlendirme yöntemleri — yöntem katalogları ve çalışma alanı metası.
 
-Seçilen yönteme göre skor tanımı, seviye aralıkları ve rapor metni değişir.
-Hesap motoru (risk_scoring) şimdilik 5x5 L-Tipi içindir; diğer yöntemler
-raporda yöntem açıklaması + skorlama kriterleri olarak yer alır.
+The catalogue deliberately distinguishes methods that are currently executable
+from methods that are listed for the staged rollout.  A method must not appear
+to work by falling back to another method's calculation engine.
 """
 from __future__ import annotations
 
@@ -43,6 +43,7 @@ METHOD_CATALOG: dict[str, dict[str, Any]] = {
             "değerlendirilir; çarpım sonucu risk skoru ve seviye belirlenir. Önlem hiyerarşisine "
             "göre mevcut ve ilave kontroller tanımlanır; DÖF ile takip edilir."
         ),
+        "implemented": True,
     },
     "fine_kinney": {
         "code": "fine_kinney",
@@ -50,34 +51,47 @@ METHOD_CATALOG: dict[str, dict[str, Any]] = {
         "formula": "Risk = Olasılık × Frekans × Şiddet",
         "short": "Fine-Kinney — Risk = Olasılık × Frekans × Şiddet",
         "probability_axis": "Olasılık",
+        "frequency_axis": "Frekans / maruziyet sıklığı",
         "severity_axis": "Şiddet",
         "levels": [
-            ("<20", "Kabul edilebilir", "İzleme"),
-            ("20–70", "Olası risk", "Dikkat / planlı önlem"),
-            ("70–200", "Önemli risk", "Kısa sürede önlem"),
-            ("200–400", "Yüksek risk", "Acil önlem"),
-            (">400", "Çok yüksek", "İş durdurma değerlendirilir"),
+            ("<20", "Kabul Edilebilir Risk", "Mevcut önlemler sürdürülür; yasal ve özel gereklilikler ayrıca uygulanır."),
+            ("20–<70", "Olası Risk", "Gözetim altında tutulmalı; kontrol yöntemleri geliştirilmelidir."),
+            ("70–<200", "Ciddi / Önemli Risk", "Dikkatle izlenmeli, makul sürede iyileştirilmeli ve yıllık plana alınmalıdır."),
+            ("200–<400", "Yüksek Risk", "Kısa dönemde iyileştirilmelidir."),
+            ("≥400", "Çok Yüksek / Kabul Edilemez Risk", "Çalışma durdurulmalı; risk düşürülmeden başlanmamalıdır."),
         ],
         "probability_defs": [
-            (0.1, "Pratikte imkânsız"),
-            (0.2, "Zayıf olasılık"),
-            (0.5, "Düşük olasılık"),
-            (1, "Olası"),
-            (3, "Oldukça mümkün"),
-            (6, "Kuvvetle mümkün"),
-            (10, "Beklenen / kesin"),
+            (0.1, "Mümkün değil"),
+            (0.2, "Beklenmez"),
+            (0.5, "Beklenmez fakat mümkün"),
+            (1, "Mümkün fakat düşük ihtimal"),
+            (3, "Nadir fakat olabilir"),
+            (6, "Oldukça mümkün, yüksek ihtimal"),
+            (10, "Çok kuvvetli ihtimal, beklenir"),
         ],
         "severity_defs": [
             (1, "Ufak ilk yardım"),
-            (3, "Önemli / iş günü kaybı"),
-            (7, "Ciddi / kalıcı etki"),
-            (15, "Öldürücü (bir kişi)"),
-            (40, "Felaket (çoklu)"),
+            (3, "Küçük hasar — dahili ilk yardım"),
+            (7, "Önemli hasar — dış tedavi / iş günü kaybı"),
+            (15, "Kalıcı hasar — sakatlık / uzuv kaybı"),
+            (40, "Ölüm — ölümlü kaza / ciddi çevresel zarar"),
+            (100, "Felaket — birden fazla ölüm / çevresel felaket"),
+        ],
+        "frequency_defs": [
+            (0.5, "Çok seyrek — yılda bir veya daha az"),
+            (1, "Oldukça nadir — yılda bir veya birkaç kez"),
+            (2, "Nadir — ayda bir veya birkaç kez"),
+            (3, "Ara sıra — haftada bir veya birkaç kez"),
+            (6, "Sıklıkla — günde bir veya daha fazla"),
+            (10, "Sürekli — sürekli veya saatte birden fazla"),
         ],
         "narrative": (
             "Fine-Kinney yönteminde olasılık, frekans (maruziyet) ve şiddet çarpılarak "
-            "risk değeri bulunur. Skala aralıklarına göre öncelik ve önlem yoğunluğu belirlenir."
+            "risk değeri bulunur. İlk değerlendirmede saha koşulları ve mevcut kontroller "
+            "uzman ekibin gerekçeli değerlendirmesiyle dikkate alınır; önlem hiyerarşisi ve "
+            "DÖF takibi ayrı izlenir. Termin günleri yazılımın planlama önerisidir."
         ),
+        "implemented": True,
     },
     "x_matrix": {
         "code": "x_matrix",
@@ -97,6 +111,7 @@ METHOD_CATALOG: dict[str, dict[str, Any]] = {
             "X tipi matriste olasılık ve şiddet eksenleri çapraz yerleştirilir; "
             "kesişim bölgesi risk önceliğini gösterir."
         ),
+        "implemented": False,
     },
     "hazop": {
         "code": "hazop",
@@ -116,6 +131,7 @@ METHOD_CATALOG: dict[str, dict[str, Any]] = {
             "HAZOP; proses parametreleri ve kılavuz kelimeler (yok, daha fazla, ters vb.) "
             "ile sapmaları sistematik inceler. Özellikle proses/kimya tesislerinde tercih edilir."
         ),
+        "implemented": False,
     },
     "fmea": {
         "code": "fmea",
@@ -135,6 +151,7 @@ METHOD_CATALOG: dict[str, dict[str, Any]] = {
             "FMEA; olası hata türlerini, etkilerini ve saptanabilirliğini puanlayarak "
             "RPN önceliği üretir. Makine, ürün ve proses güvenilirliğinde kullanılır."
         ),
+        "implemented": False,
     },
     "what_if": {
         "code": "what_if",
@@ -154,6 +171,7 @@ METHOD_CATALOG: dict[str, dict[str, Any]] = {
             "What-If analizinde 'ne olur?' senaryoları ile tehlikeler ve önlemler "
             "yapılandırılmış beyin fırtınası ile belirlenir."
         ),
+        "implemented": False,
     },
     "jsa": {
         "code": "jsa",
@@ -173,6 +191,7 @@ METHOD_CATALOG: dict[str, dict[str, Any]] = {
             "İş güvenliği analizinde iş adımları ayrılır; her adımın tehlikeleri ve "
             "kontrolleri tanımlanır. Saha ve bakım işlerinde yaygındır."
         ),
+        "implemented": False,
     },
 }
 
@@ -222,8 +241,16 @@ def resolve_method(code: str | None) -> dict[str, Any]:
     return METHOD_CATALOG.get(key) or METHOD_CATALOG[DEFAULT_METHOD]
 
 
-def method_choices() -> list[dict[str, str]]:
-    return [{"code": m["code"], "label": m["label"], "short": m["short"]} for m in METHOD_CATALOG.values()]
+def method_choices() -> list[dict[str, Any]]:
+    return [
+        {
+            "code": m["code"],
+            "label": m["label"],
+            "short": m["short"],
+            "implemented": bool(m.get("implemented")),
+        }
+        for m in METHOD_CATALOG.values()
+    ]
 
 
 def method_label(code: str | None) -> str:
