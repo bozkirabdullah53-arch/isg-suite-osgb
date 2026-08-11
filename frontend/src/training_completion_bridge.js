@@ -118,6 +118,7 @@ function renderModal(context, panel) {
   const passingScore = context.training.passing_score;
   const blockers = context.preflight?.training_blockers || [];
   const warnings = context.preflight?.warnings || [];
+  const allAttended = rows.length > 0 && rows.every((row) => row.attended);
 
   const overlay = document.createElement('div');
   overlay.id = MODAL_ID;
@@ -142,7 +143,7 @@ function renderModal(context, panel) {
         ${context.preflight?.ready_for_certificates ? '<div class="training-completion-alert is-success">Belge üretim koşulları tamamlandı.</div>' : ''}
         <div class="training-completion-table-wrap">
           <table class="training-completion-table">
-            <thead><tr><th>Personel</th><th>Katıldı</th><th>${examRequired ? 'Puan' : 'Değerlendirme'}</th><th>Durum</th></tr></thead>
+            <thead><tr><th>Personel</th><th><label class="training-result-select-all"><input data-select-all-attendance type="checkbox" ${allAttended ? 'checked' : ''} aria-label="Tümünü seç"><span>Tümünü seç</span></label></th><th>${examRequired ? 'Puan' : 'Değerlendirme'}</th><th>Durum</th></tr></thead>
             <tbody>
               ${rows.map((row) => `
                 <tr data-participant-id="${row.id}">
@@ -166,7 +167,11 @@ function renderModal(context, panel) {
 
   document.body.appendChild(overlay);
   const message = overlay.querySelector('[data-modal-message]');
-  const actionButtons = [...overlay.querySelectorAll('[data-action]')];
+  const selectAllInput = overlay.querySelector('[data-select-all-attendance]');
+  const actionButtons = [
+    ...overlay.querySelectorAll('[data-action]'),
+    ...(selectAllInput ? [selectAllInput] : []),
+  ];
 
   function setBusy(busy) {
     actionButtons.forEach((button) => {
@@ -192,14 +197,35 @@ function renderModal(context, panel) {
     );
   }
 
+  function syncSelectAll() {
+    if (!selectAllInput) return;
+    const inputs = [...overlay.querySelectorAll('.training-result-attended')];
+    const checkedCount = inputs.filter((input) => input.checked).length;
+    selectAllInput.checked = inputs.length > 0 && checkedCount === inputs.length;
+    selectAllInput.indeterminate = checkedCount > 0 && checkedCount < inputs.length;
+  }
+
+  function setAllAttended(checked) {
+    overlay.querySelectorAll('tbody tr').forEach((rowElement) => {
+      const input = rowElement.querySelector('.training-result-attended');
+      if (!input) return;
+      input.checked = checked;
+      refreshRowState(rowElement);
+    });
+    syncSelectAll();
+  }
+
   overlay.querySelectorAll('tbody tr').forEach((rowElement) => {
     rowElement.querySelector('.training-result-attended').addEventListener('change', () => {
       refreshRowState(rowElement);
+      syncSelectAll();
     });
     rowElement.querySelector('.training-result-score')?.addEventListener('input', () => {
       refreshRowState(rowElement);
     });
   });
+  selectAllInput?.addEventListener('change', () => setAllAttended(selectAllInput.checked));
+  syncSelectAll();
 
   async function saveResults() {
     const items = [...overlay.querySelectorAll('tbody tr')].map((rowElement) => {
