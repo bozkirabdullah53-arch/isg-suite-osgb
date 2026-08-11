@@ -625,7 +625,7 @@ function Companies({canEdit, canAdd, onOpen360}){
   const[siteQr,setSiteQr]=useState(null);
   const[siteQrEphemeral,setSiteQrEphemeral]=useState(null);
   const[siteQrBusy,setSiteQrBusy]=useState(false);
-  const emptyForm={name:'',sgk_registry_no:'',address:'',phone:'',authorized_person:'',hazard_class:'Az Tehlikeli'};
+  const emptyForm={name:'',sgk_registry_no:'',nace_code:'',address:'',phone:'',authorized_person:'',hazard_class:'Az Tehlikeli'};
   const[form,setForm]=useState(emptyForm);
   async function copyText(text){
     const v=String(text||'');
@@ -715,6 +715,7 @@ function Companies({canEdit, canAdd, onOpen360}){
     <Table cols={[
       {key:'name',label:'Firma'},
       {key:'sgk_registry_no',label:'İşyeri Sicil No'},
+      {key:'nace_code',label:'NACE Kodu',render:r=>r.nace_code||'—'},
       {key:'authorized_person',label:'Yetkili Kişi'},
       {key:'phone',label:'Telefon'},
       {key:'address',label:'Adres'},
@@ -744,6 +745,7 @@ function Companies({canEdit, canAdd, onOpen360}){
       <form className="form-grid" onSubmit={save}>
         <Field label="Firma Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
         <Field label="İşyeri Sicil No" required value={form.sgk_registry_no} onChange={e=>setForm({...form,sgk_registry_no:e.target.value})}/>
+        <Field label="NACE Kodu" value={form.nace_code} onChange={e=>setForm({...form,nace_code:e.target.value})} placeholder="Örn. 46.83.06"/>
         <Field label="Yetkili Kişi" value={form.authorized_person} onChange={e=>setForm({...form,authorized_person:e.target.value})}/>
         <Field label="Telefon" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
         <Field label="Adres" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/>
