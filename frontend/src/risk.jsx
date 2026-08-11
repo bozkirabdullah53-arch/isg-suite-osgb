@@ -478,7 +478,11 @@ export function RiskPage({user}) {
   );
   const selectedReportMethod = reportMethodOptions.some((item) => item.code === reportMethodCode)
     ? reportMethodCode
-    : reportMethodOptions.find((item) => item.code === docInfo?.method_code)?.code
+    // Rapor ekranı ilk açıldığında üstteki aktif çalışma yöntemiyle aynı
+    // kapsamı göstermeli. Kullanıcı rapor seçicisinden farklı bir yöntem
+    // seçerse `reportMethodCode` bunu açıkça ve bağımsız olarak yönetir.
+    : reportMethodOptions.find((item) => item.code === docForm.method)?.code
+      || reportMethodOptions.find((item) => item.code === docInfo?.method_code)?.code
       || reportMethodOptions[0]?.code
       || '5x5_l';
   const selectedReportMethodDef = reportMethodOptions.find((item) => item.code === selectedReportMethod)
