@@ -13,6 +13,7 @@ from app.models.entities import Branch, Employee, User, UserRole
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
 from app.services.employee_excel import build_import_template_xlsx, parse_employees_workbook
 from app.services.capacity_engine import sync_company_service_requirements
+from app.services.national_id_format import normalize_national_id
 from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/employees", tags=["Personel"])
@@ -88,7 +89,9 @@ def create_employee(
 ):
     check_company(db, user, payload.company_id)
     validate_branch(db, payload.company_id, payload.branch_id)
-    obj = Employee(**payload.model_dump())
+    values = payload.model_dump()
+    values["national_id_masked"] = normalize_national_id(values.get("national_id_masked")) or None
+    obj = Employee(**values)
     db.add(obj)
     try:
         sync_company_service_requirements(db, payload.company_id, commit=False)
@@ -113,6 +116,8 @@ def update_employee(
     check_company(db, user, obj.company_id)
     validate_branch(db, obj.company_id, payload.branch_id)
     for k, v in payload.model_dump(exclude_unset=True).items():
+        if k == "national_id_masked":
+            v = normalize_national_id(v) or None
         setattr(obj, k, v)
     sync_company_service_requirements(db, obj.company_id, commit=False)
     db.commit()

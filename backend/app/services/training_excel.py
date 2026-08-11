@@ -12,6 +12,8 @@ from typing import Any
 
 from openpyxl import load_workbook
 
+from app.services.national_id_format import normalize_national_id
+
 
 def _cell(v: Any) -> str:
     if v is None:
@@ -53,10 +55,11 @@ def _norm(text: str) -> str:
 
 
 def _tc_format(tc: str) -> str:
-    digits = re.sub(r"\D", "", tc or "")
+    normalized = normalize_national_id(tc)
+    digits = re.sub(r"\D", "", normalized)
     if len(digits) == 11:
         return f"{digits[:3]}.{digits[3:6]}.{digits[6:9]}.{digits[9:]}"
-    return tc or ""
+    return normalized
 
 
 # Pro _HEADER_ALIASES → Suite field keys

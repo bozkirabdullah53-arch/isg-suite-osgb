@@ -40,6 +40,17 @@ def test_parse_csv_semicolon():
     assert rows[0]["full_name"] == "Mehmet Demir"
 
 
+def test_excel_numeric_tc_suffix_is_removed_before_existing_formatting():
+    content = _xlsx_bytes(
+        [
+            ["Ad Soyad", "TC Kimlik No"],
+            ["Ali Veli", 26230266894.0],
+        ]
+    )
+    rows, _meta, _logo = parse_employee_upload(content, "numeric-tc.xlsx")
+    assert rows[0]["national_id_masked"] == "262.302.668.94"
+
+
 def test_parse_employees_xlsx_compat():
     content = _xlsx_bytes([["Ad Soyad"], ["Zeynep Kaya"], ["Canan Su"]])
     rows = parse_employees_xlsx(content)
