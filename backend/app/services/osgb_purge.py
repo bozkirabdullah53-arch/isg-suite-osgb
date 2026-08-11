@@ -1,7 +1,9 @@
 """OSGB kalıcı silme — bağlı kayıtları temizler; arşiv kayıtlarının osgb_id'sini korur/nullar."""
 from __future__ import annotations
 
-from sqlalchemy import delete, select, text, update
+import logging
+
+from sqlalchemy import delete, inspect, select, text, update
 from sqlalchemy.orm import Session
 
 from app.api.companies import _purge_company_data
@@ -13,6 +15,8 @@ from app.models.entities import (
     EisaPlatformNotification,
     EisaSubscriptionPayment,
     FinanceTransaction,
+    HealthAccessLog,
+    HealthRecordRevision,
     IntegrationDryRunLog,
     IsgProfessional,
     LegalAcceptance,
@@ -34,6 +38,105 @@ from app.models.personnel_profile import (
 )
 from app.models.personnel_profile_document import PersonnelProfileDocument
 from app.services.user_retirement import anonymize_orphan_user, orphan_account_state
+
+logger = logging.getLogger(__name__)
+
+
+def _set_health_audit_append_only_triggers(db: Session, enabled: bool) -> None:
+    """OSGB purge sırasında tenant sağlık denetim satırlarını kontrollü temizle.
+
+    Sağlık revizyonu ve erişim kayıtları normal akışta değiştirilemez/silinemez.
+    Ancak OSGB kalıcı silme işlemi merkezi yedek alındıktan sonra tenant verisini
+    tamamen kaldıran açık bir yönetici işlemidir. PostgreSQL/SQLite trigger'ları
+    yalnız bu kısa transaction aralığında kaldırılır ve hemen yeniden kurulur.
+    """
+    bind = db.get_bind()
+    if bind is None:
+        return
+    inspector = inspect(bind)
+
+    tables = ("health_record_revisions", "health_access_logs")
+    existing = [table for table in tables if inspector.has_table(table)]
+    if not existing:
+        return
+
+    if bind.dialect.name == "postgresql":
+        for table in existing:
+            trigger = f"trg_{table}_append_only"
+            function = f"prevent_{table}_mutation"
+            db.execute(text(f"DROP TRIGGER IF EXISTS {trigger} ON {table}"))
+            if enabled:
+                db.execute(
+                    text(
+                        f"""
+                        CREATE OR REPLACE FUNCTION {function}() RETURNS trigger AS $$
+                        BEGIN
+                          RAISE EXCEPTION '{table} is append-only';
+                        END;
+                        $$ LANGUAGE plpgsql;
+                        """
+                    )
+                )
+                db.execute(
+                    text(
+                        f"CREATE TRIGGER {trigger} BEFORE UPDATE OR DELETE ON {table} "
+                        f"FOR EACH ROW EXECUTE FUNCTION {function}()"
+                    )
+                )
+    elif bind.dialect.name == "sqlite":
+        for table in existing:
+            db.execute(text(f"DROP TRIGGER IF EXISTS trg_{table}_no_update"))
+            db.execute(text(f"DROP TRIGGER IF EXISTS trg_{table}_no_delete"))
+            if enabled:
+                db.execute(
+                    text(
+                        f"CREATE TRIGGER IF NOT EXISTS trg_{table}_no_update "
+                        f"BEFORE UPDATE ON {table} BEGIN "
+                        f"SELECT RAISE(ABORT, '{table} is append-only'); END"
+                    )
+                )
+                db.execute(
+                    text(
+                        f"CREATE TRIGGER IF NOT EXISTS trg_{table}_no_delete "
+                        f"BEFORE DELETE ON {table} BEGIN "
+                        f"SELECT RAISE(ABORT, '{table} is append-only'); END"
+                    )
+                )
+
+
+def _purge_osgb_health_audit_logs(db: Session, osgb_id: int) -> None:
+    """Firma silinmeden önce tenant sağlık denetim kayıtlarını kaldır.
+
+    Bu kayıtlar companies.id ve health_records.id'ye FK tuttuğu için şirket
+    silme sırasının en başında temizlenmelidir. Normal sağlık kayıtlarının
+    append-only kuralı korunur; yalnız kalıcı OSGB purge transaction'ında
+    trigger'lar geçici olarak devre dışı bırakılır.
+    """
+    company_ids = list(
+        db.scalars(select(Company.id).where(Company.osgb_id == osgb_id)).all()
+    )
+    if not company_ids:
+        return
+
+    _set_health_audit_append_only_triggers(db, enabled=False)
+    try:
+        db.execute(
+            delete(HealthAccessLog).where(HealthAccessLog.company_id.in_(company_ids))
+        )
+        db.execute(
+            delete(HealthRecordRevision).where(
+                HealthRecordRevision.company_id.in_(company_ids)
+            )
+        )
+        db.flush()
+    finally:
+        try:
+            _set_health_audit_append_only_triggers(db, enabled=True)
+        except Exception:
+            # PostgreSQL transaction rollback restores the dropped trigger if
+            # recreation fails; preserve the original purge exception for the
+            # caller and let the endpoint rollback the whole transaction.
+            logger.exception("Sağlık denetim trigger'ları yeniden kurulamadı")
 
 
 def _purge_osgb_personnel_profiles(db: Session, osgb_id: int) -> None:
@@ -160,6 +263,11 @@ def purge_osgb(db: Session, osgb_id: int) -> str:
     if not org:
         raise ValueError("OSGB bulunamadı.")
     name = org.name
+
+    # Sağlık denetim kayıtları companies/health_records FK'ları tuttuğu için
+    # şirket purge'ünden önce kaldırılır. Aksi halde companies silme işlemi
+    # health_access_logs gibi append-only kayıtlar nedeniyle yarıda kalır.
+    _purge_osgb_health_audit_logs(db, osgb_id)
 
     # Dijital personel kartları Employee/Company/OSGB üzerinde RESTRICT FK tutar.
     # Şirket purge'ü Employee satırlarını fiziksel olarak silmeden önce bunlar
