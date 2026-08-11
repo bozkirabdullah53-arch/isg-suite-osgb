@@ -38,6 +38,10 @@ from app.services.osgb_oversight import (
     _eval_specialist_firm,
     _month_bounds,
 )
+from app.services.specialist_compliance import (
+    SPECIALIST_EXTENDED_CHECKS,
+    evaluate_extended_specialist_checks,
+)
 
 logger = logging.getLogger(__name__)
 APPROACHING_DAYS = 14
@@ -55,6 +59,14 @@ MODULE_FOR_CHECK = {
     "gorevlendirme": "assignments",
     "sistem": "dashboard",
     "sds_review": "sds",
+    "training_compliance": "training",
+    "ppe_register": "ppe",
+    "periodic_control": "periyodik_kontrol",
+    "workplace_measurement": "ortam_olcum",
+    "emergency_plan": "acil_plan",
+    "emergency_team": "acil_ekipler",
+    "drill": "tatbikat",
+    "ohs_committee": "isg_kurulu",
 }
 
 MODULE_LABEL = {
@@ -69,6 +81,28 @@ MODULE_LABEL = {
     "capa": "DÖF",
     "dashboard": "Ana Sayfa",
     "sds": "SDS / PKD",
+    "ppe": "KKD Takip",
+    "periyodik_kontrol": "Periyodik Kontrol",
+    "ortam_olcum": "Ortam Ölçüm",
+    "acil_plan": "Acil Durum Planı / Kroki",
+    "acil_ekipler": "Acil Durum Ekipleri",
+    "tatbikat": "Tatbikat Yönetimi",
+    "isg_kurulu": "İSG Kurulu",
+}
+
+RELATED_MODULES = {
+    "risk_degerlendirme": ("risk", "capa", "annual_plans"),
+    "risk_dof": ("risk", "capa", "annual_plans"),
+    "egitim": ("training", "employees", "annual_plans"),
+    "training_compliance": ("training", "employees", "annual_plans"),
+    "ppe_register": ("ppe", "risk"),
+    "sds_review": ("sds", "risk", "documents"),
+    "periodic_control": ("periyodik_kontrol", "documents", "risk"),
+    "workplace_measurement": ("ortam_olcum", "risk", "annual_plans"),
+    "emergency_plan": ("acil_plan", "acil_ekipler", "tatbikat"),
+    "emergency_team": ("acil_ekipler", "tatbikat", "acil_plan"),
+    "drill": ("tatbikat", "acil_plan", "annual_plans"),
+    "ohs_committee": ("isg_kurulu", "annual_plans", "capa"),
 }
 
 ROLE_LABEL = {
@@ -107,6 +141,7 @@ def _alert(
         "days_left": days_left,
         "module": module,
         "module_label": MODULE_LABEL.get(module, module),
+        "related_modules": list(RELATED_MODULES.get(check_code, (module,))),
         "email_ready": True,
         "reportable": True,
     }
@@ -215,6 +250,60 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
                         company_id=cid,
                         company_name=company.name,
                         check_code="sistem",
+                    )
+                )
+
+            # Uzmanın mevcut dönem kontrol listesine NACE/eğitim, KKD,
+            # ölçüm ve acil durum gibi işyeri-özel ek kontrolleri ekle.
+            # Temel liste başarısız olsa bile ek kontrollerin görünür kalması
+            # için iki değerlendirme bağımsız tutulur.
+            try:
+                extended_checks, extended_events = evaluate_extended_specialist_checks(
+                    db,
+                    company,
+                    today=today,
+                    soon=soon,
+                    year=year,
+                )
+                checks.extend(extended_checks)
+            except Exception:
+                logger.warning(
+                    "duty specialist extended eval failed company_id=%s",
+                    cid,
+                    exc_info=True,
+                )
+                extended_events = []
+                alerts.append(
+                    _alert(
+                        severity="missing",
+                        kind="duty",
+                        title="Uzman ek kontrolleri hesaplanamadı",
+                        detail=f"{company.name} için KKD, eğitim ve acil durum ek kontrolleri şu an hesaplanamadı. Yenile’yi deneyin.",
+                        company_id=cid,
+                        company_name=company.name,
+                        check_code="sistem",
+                    )
+                )
+            for event in extended_events:
+                due = event.get("due_date")
+                if not due:
+                    severity = "missing"
+                elif due < today:
+                    severity = "overdue"
+                elif due <= soon:
+                    severity = "due_soon"
+                else:
+                    continue
+                alerts.append(
+                    _alert(
+                        severity=severity,
+                        kind=event.get("kind") or "duty",
+                        title=event.get("title") or "Uzman kontrolü",
+                        detail=event.get("detail") or "İlgili kaydı gözden geçirin.",
+                        company_id=cid,
+                        company_name=company.name,
+                        check_code=event.get("check_code") or "sistem",
+                        due_date=due,
                     )
                 )
         else:
@@ -492,7 +581,7 @@ def _pack(
     missing = [a for a in alerts if a["severity"] == "missing"]
 
     catalog = (
-        SPECIALIST_CHECKS
+        SPECIALIST_CHECKS + SPECIALIST_EXTENDED_CHECKS
         if user.role == UserRole.SAFETY_SPECIALIST
         else PHYSICIAN_CHECKS
     )
@@ -538,10 +627,19 @@ def _pack(
             "all": alerts,
         },
         "email_notifications": {
-            "enabled": False,
-            "planned": True,
-            "note": "İleride OSGB yönetimi onayı ile yaklaşan/geçen faaliyetler personele e-posta ile bildirilecek.",
+            "enabled": True,
+            "planned": False,
+            "channel": "in_app",
+            "note": "Uzmanın atanmış işyerlerine ait süre ve görev uyarıları uygulama içi bildirim merkezinde tutulur.",
         },
+        "quick_actions": [
+            {"module": "risk", "label": "Risk ve DÖF"},
+            {"module": "training", "label": "NACE / Eğitim uygunluğu"},
+            {"module": "ppe", "label": "KKD yenilemeleri"},
+            {"module": "acil_plan", "label": "Acil durum planı"},
+            {"module": "ortam_olcum", "label": "Ortam ölçümleri"},
+            {"module": "specialist_reports", "label": "Uzman rapor merkezi"},
+        ] if user.role == UserRole.SAFETY_SPECIALIST else [],
     }
 
 
