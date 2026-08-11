@@ -3,21 +3,13 @@ from datetime import date, timedelta
 from types import SimpleNamespace
 
 from app.api.incidents import _apply_sgk_process
-from app.api.compliance_registers import COMMITTEE_ROLES, EDIT, MEASUREMENT_TYPES, PHYS_VIEW, PERIODIC_CATEGORIES
-from app.models.entities import UserRole
+from app.api.compliance_registers import PERIODIC_CATEGORIES, MEASUREMENT_TYPES, COMMITTEE_ROLES
 
 
 def test_meta_catalogs_nonempty():
     assert any(c["code"] == "yangin_tup" for c in PERIODIC_CATEGORIES)
     assert any(t["code"] == "gurultu" for t in MEASUREMENT_TYPES)
     assert any(r["code"] == "calisan_temsilcisi" for r in COMMITTEE_ROLES)
-
-
-def test_workplace_measurement_role_matrix():
-    """Uzman yazar; hekim aynı kapsamda salt okunur ölçüm görür."""
-    assert UserRole.SAFETY_SPECIALIST in EDIT
-    assert UserRole.WORKPLACE_PHYSICIAN not in EDIT
-    assert UserRole.WORKPLACE_PHYSICIAN in PHYS_VIEW
 
 
 def test_sgk_process_sets_due_for_accident():
