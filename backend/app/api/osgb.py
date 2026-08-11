@@ -318,7 +318,7 @@ def csgb_audit_pack_bundle(
 def mevzuat_panel(
     q: str | None = None,
     category: str | None = None,
-    user: User = Depends(require_roles(*ADMIN_ROLES)),
+    user: User = Depends(require_roles(*ADMIN_ROLES, UserRole.SAFETY_SPECIALIST)),
 ):
     """OSGB mevzuat mini panel — küratörlü özet + tehlike kategorisi kataloğu (highlights-v1)."""
     return build_mevzuat_panel(q=q, category=category)
