@@ -4,7 +4,7 @@ The migration is additive.  Existing training, examination, certificate,
 employee and company tables are not altered.  Every new operational table has
 company_id so the same tenant/RLS boundary can be applied independently.
 
-Revision ID: 0089_remote_basic_ohs_video_training
+Revision ID: 0089_remote_ohs_video
 Revises: 0088_hazop_structured_data
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = "0089_remote_basic_ohs_video_training"
+revision: str = "0089_remote_ohs_video"
 down_revision: Union[str, None] = "0088_hazop_structured_data"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
