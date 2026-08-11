@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -1181,6 +1181,8 @@ def create_remote_employee_access(
     company = db.get(Company, payload.company_id)
     if not target_user or not target_user.is_active:
         raise HTTPException(404, "Eşlenecek kullanıcı bulunamadı veya pasif.")
+    if target_user.role in MANAGE_ROLES or target_user.role == UserRole.GLOBAL_ADMIN:
+        raise HTTPException(422, "Yönetici hesabı çalışan hesabı olarak eşlenemez; çalışan hesabı için salt-okunur rol kullanın.")
     if not employee or not employee.is_active or employee.company_id != payload.company_id:
         raise HTTPException(422, "Çalışan firma kapsamında değil veya pasif.")
     if target_user.company_id not in (None, payload.company_id) and target_user.role != UserRole.GLOBAL_ADMIN:
@@ -1219,6 +1221,66 @@ def create_remote_employee_access(
     audit(db, company_id=payload.company_id, user=user, action="employee_access_created", entity_type="employee_access", entity_id=payload.employee_id)
     _commit(db, "Çalışan kullanıcı eşleştirmesi kaydedilemedi.")
     return {"id": row.id, "company_id": row.company_id, "user_id": row.user_id, "employee_id": row.employee_id, "is_active": row.is_active}
+
+
+@router.get("/employee-access/candidates")
+def list_remote_employee_access_candidates(
+    company_id: int = Query(..., gt=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Return the safe account/personnel choices needed for employee onboarding."""
+    require_feature()
+    _manager(user)
+    ensure_company_access(db, user, company_id)
+    employees = db.scalars(
+        select(Employee)
+        .where(Employee.company_id == company_id, Employee.is_active.is_(True))
+        .order_by(Employee.full_name)
+    ).all()
+    users = db.scalars(
+        select(User)
+        .where(
+            User.is_active.is_(True),
+            User.role.notin_((*MANAGE_ROLES, UserRole.GLOBAL_ADMIN)),
+            or_(User.company_id == company_id, User.company_id.is_(None)),
+        )
+        .order_by(User.full_name)
+    ).all()
+    access_rows = db.scalars(
+        select(RemoteTrainingEmployeeAccess)
+        .where(
+            RemoteTrainingEmployeeAccess.company_id == company_id,
+            RemoteTrainingEmployeeAccess.is_active.is_(True),
+        )
+        .order_by(RemoteTrainingEmployeeAccess.id)
+    ).all()
+    return {
+        "company_id": company_id,
+        "employees": [
+            {"id": row.id, "full_name": row.full_name, "branch_id": row.branch_id}
+            for row in employees
+        ],
+        "users": [
+            {
+                "id": row.id,
+                "full_name": row.full_name,
+                "email": row.email,
+                "role": row.role.value if hasattr(row.role, "value") else str(row.role),
+                "company_id": row.company_id,
+            }
+            for row in users
+        ],
+        "access": [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "employee_id": row.employee_id,
+                "is_active": row.is_active,
+            }
+            for row in access_rows
+        ],
+    }
 
 
 @router.get("/employee-access")
