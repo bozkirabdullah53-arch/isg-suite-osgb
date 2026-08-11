@@ -34,7 +34,11 @@ from app.models.entities import (
     WorkplaceAssignment,
     WorkplaceMeasurement,
 )
-from app.services.capacity_engine import build_capacity_overview
+from app.services.capacity_engine import (
+    build_capacity_overview,
+    count_active_employees,
+    compute_company_service_requirements,
+)
 
 
 def _item(
@@ -182,6 +186,19 @@ def build_csgb_audit_pack(
     if scope_company is not None:
         companies = [c for c in companies if c.id == scope_company.id] or [scope_company]
     company_ids = [c.id for c in companies]
+    company_by_id = {c.id: c for c in companies}
+    employees_by_company: dict[int, list[Employee]] = {}
+    for employee in db.scalars(
+        select(Employee).where(
+            Employee.company_id.in_(company_ids or {0}),
+            Employee.is_active.is_(True),
+        )
+    ).all():
+        employees_by_company.setdefault(employee.company_id, []).append(employee)
+    active_employee_counts = {
+        company_id: count_active_employees(rows)
+        for company_id, rows in employees_by_company.items()
+    }
 
     pros = list(db.scalars(select(IsgProfessional).where(IsgProfessional.osgb_id == oid)).all())
     active_pros = [p for p in pros if p.is_active is not False]
@@ -369,6 +386,24 @@ def build_csgb_audit_pack(
 
     # 5) Görevlendirme / İSG-KATİP
     with_katip = [a for a in assignments if a.isg_katip_contract_number]
+    assignment_evidence = []
+    for a in assignments[:40]:
+        company = company_by_id.get(a.company_id)
+        requirements = compute_company_service_requirements(company, active_employee_counts.get(a.company_id, 0)) if company else None
+        role = a.professional_type.value if a.professional_type else "safety_specialist"
+        role_requirement = (requirements or {}).get("roles", {}).get(role, {})
+        assignment_evidence.append(
+            {
+                "id": a.id,
+                "company_id": a.company_id,
+                "professional_id": a.professional_id,
+                "isg_katip": a.isg_katip_contract_number,
+                "required_minutes": int(role_requirement.get("required_minutes", 0) or 0),
+                "required_hours": int(role_requirement.get("hours", 0) or 0),
+                "required_remaining_minutes": int(role_requirement.get("remaining_minutes", 0) or 0),
+                "hazard_warning": (requirements or {}).get("hazard_warning"),
+            }
+        )
     if not assignments:
         asg_status, asg_detail = "missing", "Aktif görevlendirme yok."
     elif len(with_katip) < len(assignments):
@@ -388,16 +423,7 @@ def build_csgb_audit_pack(
             asg_status,
             count=len(assignments),
             detail=asg_detail,
-            evidence=[
-                {
-                    "id": a.id,
-                    "company_id": a.company_id,
-                    "professional_id": a.professional_id,
-                    "isg_katip": a.isg_katip_contract_number,
-                    "required_minutes": a.required_minutes_monthly,
-                }
-                for a in assignments[:40]
-            ],
+            evidence=assignment_evidence,
             group=G_KADRO[0],
             group_label=G_KADRO[1],
         )

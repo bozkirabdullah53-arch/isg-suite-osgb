@@ -10,6 +10,24 @@ const STATUS_COLOR = {
   unknown: '#64748b',
 };
 
+function displayRequirement(requirement) {
+  if (!requirement || requirement.required_minutes == null || requirement.equivalent === 'Hesaplanamadı') return 'Hesaplanamadı';
+  const hours = Number(requirement.hours) || 0;
+  const minutes = String(Number(requirement.remaining_minutes) || 0).padStart(2, '0');
+  return `${Number(requirement.required_minutes) || 0} dk/ay · ${hours} s ${minutes} dk`;
+}
+
+function RequirementCell({requirement}) {
+  return (
+    <span>
+      <strong>{displayRequirement(requirement)}</strong>
+      {requirement?.calculation && (
+        <small style={{display: 'block', color: '#64748b', marginTop: 3}}>{requirement.calculation}</small>
+      )}
+    </span>
+  );
+}
+
 function StatusBadge({status}) {
   return (
     <span style={{
@@ -47,7 +65,6 @@ export function CapacityEnginePage({user, onNavigate}) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState('');
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -64,36 +81,6 @@ export function CapacityEnginePage({user, onNavigate}) {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function syncOne(id) {
-    setBusy(true);
-    setMsg('');
-    try {
-      const r = await api(`/osgb/assignments/${id}/sync-required`, {method: 'POST'});
-      setMsg(r.message || 'Güncellendi.');
-      await load();
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function syncAll() {
-    if (!window.confirm('Tüm aktif görevlendirmelerin zorunlu dakikası mevzuat tablosuna göre güncellenecek. Devam?')) return;
-    setBusy(true);
-    setMsg('');
-    try {
-      const q = user?.osgb_id ? `?osgb_id=${user.osgb_id}` : '';
-      const r = await api(`/osgb/capacity/sync-all-required${q}`, {method: 'POST'});
-      setMsg(r.message || 'Toplu güncelleme tamam.');
-      await load();
-    } catch (e) {
-      setErr(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   const s = data?.summary || {};
 
   return (
@@ -105,13 +92,12 @@ export function CapacityEnginePage({user, onNavigate}) {
             Kapasite Motoru
           </h2>
           <p style={{margin: 0, color: '#64748b', fontSize: 13}}>
-            6331 / İSG Hizmetleri Yönetmeliği — mevzuat asgari süre vs fiili saha yükü
+            NACE / tehlike sınıfı ve aktif çalışan sayısından aylık asgari süre otomatik hesaplanır
             {data?.period ? ` · Dönem: ${data.period}` : ''}
           </p>
         </div>
         <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
           <button type="button" className="mini" disabled={busy} onClick={load}><RefreshCw size={14} /> Yenile</button>
-          <button type="button" className="mini" disabled={busy} onClick={syncAll}>Mevzuata göre toplu güncelle</button>
           {onNavigate && (
             <>
               <button type="button" className="mini secondary" onClick={() => onNavigate('assignments')}>Görevlendirmeler</button>
@@ -122,7 +108,6 @@ export function CapacityEnginePage({user, onNavigate}) {
       </header>
 
       {err && <p style={{color: '#b91c1c'}}>{err}</p>}
-      {msg && <p style={{color: '#166534'}}>{msg}</p>}
 
       {data && (
         <>
@@ -132,6 +117,7 @@ export function CapacityEnginePage({user, onNavigate}) {
             <article className="metric"><span>İzlemde işyeri</span><strong style={{color: s.at_risk_firms ? '#b45309' : undefined}}>{s.at_risk_firms ?? 0}</strong></article>
             <article className="metric"><span>Kayıt ≠ mevzuat</span><strong style={{color: s.stored_mismatch ? '#b45309' : undefined}}>{s.stored_mismatch ?? 0}</strong></article>
             <article className="metric"><span>Aşırı yüklü profesyonel</span><strong style={{color: s.overloaded_professionals ? '#b91c1c' : undefined}}>{s.overloaded_professionals ?? 0}</strong></article>
+            <article className="metric"><span>Tehlike sınıfı eksik</span><strong style={{color: s.unknown_hazard_workplaces ? '#b91c1c' : undefined}}>{s.unknown_hazard_workplaces ?? 0}</strong></article>
           </div>
 
           {(s.under_served_firms > 0 || s.stored_mismatch > 0) && (
@@ -142,10 +128,36 @@ export function CapacityEnginePage({user, onNavigate}) {
               </h3>
               <ul style={{margin: 0, paddingLeft: 20, color: '#475569', fontSize: 14}}>
                 {s.under_served_firms > 0 && <li>Kritik işyerlerinde saha ziyaret süresini artırın veya görevlendirme kontrol edin.</li>}
-                {s.stored_mismatch > 0 && <li>Kayıtlı zorunlu dakika mevzuattan farklı — &quot;Mevzuata göre toplu güncelle&quot; kullanın.</li>}
+                {s.stored_mismatch > 0 && <li>Eski kayıtlı dakika değerleri farklı; geçerli hedef sunucu tarafından otomatik hesaplanıyor.</li>}
               </ul>
             </section>
           )}
+
+          <section className="panel" style={{marginBottom: 16}}>
+            <h3 style={{margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 16}}>
+              Aylık İSG hizmet gereksinimi
+            </h3>
+            <p style={{margin: '0 0 12px', color: '#64748b', fontSize: 13}}>
+              NACE → tehlike sınıfı → aktif çalışan sayısı zinciri kullanılır. Süreler dakikadır; saat gösterimi yalnızca sunum içindir.
+            </p>
+            <Table
+              empty="Aktif işyeri bulunamadı."
+              rows={data.workplaces || []}
+              cols={[
+                {key: 'company_name', label: 'İşyeri'},
+                {key: 'nace_code', label: 'NACE'},
+                {key: 'hazard_class', label: 'Tehlike', render: (r) => (
+                  <span>
+                    <strong>{r.hazard_class || 'Belirlenemedi'}</strong>
+                    {r.hazard_warning && <small style={{display: 'block', color: '#b45309', marginTop: 3}}>{r.hazard_warning}</small>}
+                  </span>
+                )},
+                {key: 'employee_count', label: 'Aktif çalışan'},
+                {key: 'specialist_requirement', label: 'İSG uzmanı', render: (r) => <RequirementCell requirement={r.specialist_requirement} />},
+                {key: 'physician_requirement', label: 'İşyeri hekimi', render: (r) => <RequirementCell requirement={r.physician_requirement} />},
+              ]}
+            />
+          </section>
 
           <section className="panel" style={{marginBottom: 16}}>
             <h3 style={{margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 16}}>
@@ -160,8 +172,13 @@ export function CapacityEnginePage({user, onNavigate}) {
                 {key: 'role_label', label: 'Rol'},
                 {key: 'hazard_class', label: 'Tehlike'},
                 {key: 'employee_count', label: 'Çalışan'},
-                {key: 'legal_required_minutes', label: 'Mevzuat dk'},
-                {key: 'stored_required_minutes', label: 'Kayıtlı dk', render: (r) => (
+                {key: 'legal_required_minutes', label: 'Otomatik dk', render: (r) => (
+                  <span>
+                    <strong>{r.legal_required_minutes || 0} dk</strong>
+                    <small style={{display: 'block', color: '#64748b', marginTop: 3}}>{r.required_hours || 0} s {String(r.required_remaining_minutes || 0).padStart(2, '0')} dk</small>
+                  </span>
+                )},
+                {key: 'stored_required_minutes', label: 'Eski kayıt', render: (r) => (
                   <span style={{color: r.stored_mismatch ? '#b45309' : undefined, fontWeight: r.stored_mismatch ? 700 : undefined}}>
                     {r.stored_required_minutes || '—'}
                   </span>
@@ -173,9 +190,6 @@ export function CapacityEnginePage({user, onNavigate}) {
                   </span>
                 )},
                 {key: 'status', label: 'Durum', render: (r) => <StatusBadge status={r.status} />},
-                {key: 'sync', label: '', render: (r) => (
-                  <button type="button" className="mini" disabled={busy} onClick={() => syncOne(r.assignment_id)}>Güncelle</button>
-                )},
               ]}
             />
           </section>

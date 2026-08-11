@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.entities import Employee
+from app.services.capacity_engine import sync_company_service_requirements
 
 
 def _tc_key(tc: str | None) -> str:
@@ -95,4 +96,6 @@ def resolve_or_create_employees(
                 "matched": emp is not None,
             }
         )
+    if created:
+        sync_company_service_requirements(db, company_id, commit=False)
     return result, created

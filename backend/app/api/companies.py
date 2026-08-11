@@ -71,6 +71,7 @@ from app.models.entities import (
 from app.models.entities import OsgbOrganization
 from app.schemas.company import CompanyCreate, CompanyCreateResponse, CompanyResponse, CompanyUpdate
 from app.services.company_overview import build_company_overview
+from app.services.capacity_engine import sync_company_service_requirements
 from app.services.employer_oversight import build_employer_oversight
 from app.services.workplace_status import build_workplace_status
 from app.services.workplace_status_reports import (
@@ -624,6 +625,7 @@ def update_company(
     for k, v in data.items():
         setattr(obj, k, v)
     try:
+        sync_company_service_requirements(db, obj.id, commit=False)
         db.commit()
     except IntegrityError:
         db.rollback()

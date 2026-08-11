@@ -220,6 +220,31 @@ def _visit_minutes(db: Session, professional_id: int, company_id: int, start: da
     return minutes, len(counted), _visit_payload(rows)
 
 
+def _assignment_service_requirement(
+    db: Session,
+    company: Company,
+    assignment: WorkplaceAssignment,
+) -> dict:
+    """Resolve the shared minute rule without creating an import cycle."""
+    from app.services.capacity_engine import count_active_employees, compute_company_service_requirements
+
+    employees = list(
+        db.scalars(
+            select(Employee).where(
+                Employee.company_id == company.id,
+                Employee.is_active.is_(True),
+            )
+        ).all()
+    )
+    employee_count = count_active_employees(employees)
+    return compute_company_service_requirements(company, employee_count)
+
+
+def _assignment_required_minutes(requirements: dict, assignment: WorkplaceAssignment) -> int:
+    role = assignment.professional_type.value if assignment.professional_type else "safety_specialist"
+    return int(requirements.get("roles", {}).get(role, {}).get("required_minutes", 0) or 0)
+
+
 def _eval_specialist_firm(
     db: Session,
     company: Company,
@@ -229,7 +254,8 @@ def _eval_specialist_firm(
     year: int,
 ) -> tuple[list[dict], list[dict]]:
     cid = company.id
-    required = int(assignment.required_minutes_monthly or 0)
+    requirements = _assignment_service_requirement(db, company, assignment)
+    required = _assignment_required_minutes(requirements, assignment)
     visit_min, visit_count, visits = _visit_minutes(db, assignment.professional_id, cid, month_start, month_end)
     # Manuel actual alanı yedek sinyal
     actual_fallback = int(assignment.actual_minutes_monthly or 0)
@@ -391,7 +417,8 @@ def _eval_physician_firm(
     month_end: date,
 ) -> tuple[list[dict], list[dict]]:
     cid = company.id
-    required = int(assignment.required_minutes_monthly or 0)
+    requirements = _assignment_service_requirement(db, company, assignment)
+    required = _assignment_required_minutes(requirements, assignment)
     visit_min, visit_count, visits = _visit_minutes(db, assignment.professional_id, cid, month_start, month_end)
     actual_fallback = int(assignment.actual_minutes_monthly or 0)
     effective_min = visit_min if visit_min > 0 else actual_fallback
@@ -593,13 +620,16 @@ def build_oversight(db: Session, osgb_id: int | None = None) -> dict:
             score = round(100 * weight_ok / weight_total)
             status = _status_from_ratio(weight_ok, weight_total)
             firm_statuses.append(status)
+            requirements = _assignment_service_requirement(db, company, a)
             firms.append(
                 {
                     "assignment_id": a.id,
                     "company_id": company.id,
                     "company_name": company.name,
-                    "hazard_class": company.hazard_class,
-                    "required_minutes_monthly": a.required_minutes_monthly,
+                    "hazard_class": requirements.get("hazard_class"),
+                    "hazard_warning": requirements.get("hazard_warning"),
+                    "required_minutes_monthly": _assignment_required_minutes(requirements, a),
+                    "service_requirement": requirements,
                     "isg_katip_contract_number": a.isg_katip_contract_number,
                     "score": score,
                     "status": status,
@@ -1118,8 +1148,8 @@ def seed_oversight_demo(db: Session, osgb_id: int | None = None) -> dict:
                 professional_id=pro.id,
                 professional_type=ptype,
                 start_date=date(2025, 1, 1),
-                required_minutes_monthly=480,
-                planned_minutes_monthly=480,
+                required_minutes_monthly=0,
+                planned_minutes_monthly=0,
                 actual_minutes_monthly=60,
                 isg_katip_contract_number=f"DEMO-KATIP-{pro.id}",
                 status=AssignmentStatus.ACTIVE,
@@ -1127,7 +1157,8 @@ def seed_oversight_demo(db: Session, osgb_id: int | None = None) -> dict:
             db.add(assign)
         else:
             assign.status = AssignmentStatus.ACTIVE
-            assign.required_minutes_monthly = 480
+            assign.required_minutes_monthly = 0
+            assign.planned_minutes_monthly = 0
             assign.actual_minutes_monthly = 60
 
         created.append({"id": pro.id, "name": name, "type": ptype.value})
@@ -1214,6 +1245,9 @@ def seed_oversight_demo(db: Session, osgb_id: int | None = None) -> dict:
                 )
             )
 
+    from app.services.capacity_engine import sync_company_service_requirements
+
+    sync_company_service_requirements(db, company.id, commit=False)
     db.commit()
     return {
         "osgb_id": osgb.id,

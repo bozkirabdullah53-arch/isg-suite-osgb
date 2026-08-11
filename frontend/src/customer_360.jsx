@@ -329,7 +329,12 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
               cols={[
                 {key: 'professional_name', label: 'Profesyonel'},
                 {key: 'role_label', label: 'Rol'},
-                {key: 'required_minutes_monthly', label: 'Aylık dk'},
+                {key: 'required_minutes_monthly', label: 'Otomatik aylık süre', render: (r) => (
+                  <span>
+                    <strong>{Number(r.required_minutes_monthly) || 0} dk</strong>
+                    {r.required_equivalent && <small style={{display: 'block', color: '#64748b', marginTop: 3}}>{r.required_equivalent}</small>}
+                  </span>
+                )},
                 {key: 'isg_katip_contract_number', label: 'İSG-KATİP'},
               ]}
               rows={data.assignments || []}

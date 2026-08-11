@@ -32,6 +32,7 @@ from app.models.entities import (
     WorkplaceAssignment,
 )
 from app.services.osgb_oversight import build_oversight
+from app.services.capacity_engine import count_active_employees, compute_company_service_requirements
 
 TYPE_LABELS = {
     "safety_specialist": "İSG Uzmanı",
@@ -95,6 +96,12 @@ def build_company_overview(db: Session, company: Company) -> dict:
 
     branches_count = db.scalar(select(func.count()).select_from(Branch).where(Branch.company_id == cid)) or 0
     employee_count = db.scalar(select(func.count()).select_from(Employee).where(Employee.company_id == cid)) or 0
+    active_employee_count = count_active_employees(
+        db.scalars(
+            select(Employee).where(Employee.company_id == cid, Employee.is_active.is_(True))
+        ).all()
+    )
+    service_requirements = compute_company_service_requirements(company, active_employee_count)
 
     assignments = list(
         db.scalars(
@@ -117,6 +124,8 @@ def build_company_overview(db: Session, company: Company) -> dict:
     assignment_rows = []
     for a in assignments:
         pro = pro_map.get(a.professional_id)
+        role = a.professional_type.value if a.professional_type else "safety_specialist"
+        role_requirement = service_requirements["roles"].get(role) or {}
         assignment_rows.append(
             {
                 "id": a.id,
@@ -125,7 +134,11 @@ def build_company_overview(db: Session, company: Company) -> dict:
                 "role_label": TYPE_LABELS.get(
                     a.professional_type.value if a.professional_type else "", ""
                 ),
-                "required_minutes_monthly": a.required_minutes_monthly,
+                "required_minutes_monthly": int(role_requirement.get("required_minutes", 0) or 0),
+                "required_hours": int(role_requirement.get("hours", 0) or 0),
+                "required_remaining_minutes": int(role_requirement.get("remaining_minutes", 0) or 0),
+                "required_equivalent": role_requirement.get("equivalent"),
+                "service_requirement": service_requirements,
                 "isg_katip_contract_number": a.isg_katip_contract_number,
                 "start_date": a.start_date.isoformat() if a.start_date else None,
                 "end_date": a.end_date.isoformat() if a.end_date else None,
@@ -340,6 +353,7 @@ def build_company_overview(db: Session, company: Company) -> dict:
         "company": {
             "id": company.id,
             "name": company.name,
+            "nace_code": company.nace_code,
             "sgk_registry_no": company.sgk_registry_no,
             "hazard_class": company.hazard_class,
             "address": company.address,
@@ -351,6 +365,7 @@ def build_company_overview(db: Session, company: Company) -> dict:
         "counts": {
             "branches": branches_count,
             "employees": employee_count,
+            "active_employees": active_employee_count,
             "assignments": len(assignment_rows),
             "trainings": training_count,
             "open_risks": open_risks,
@@ -360,6 +375,7 @@ def build_company_overview(db: Session, company: Company) -> dict:
             "expired_documents": expired_documents,
         },
         "assignments": assignment_rows,
+        "service_requirements": service_requirements,
         "visits": visit_rows,
         "contracts": contract_rows,
         "compliance": compliance,
