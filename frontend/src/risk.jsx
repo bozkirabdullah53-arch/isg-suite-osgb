@@ -11,11 +11,13 @@ import {
   LayoutDashboard,
   Plus,
   RefreshCw,
+  Route,
   Search,
   ShieldAlert,
   X,
 } from 'lucide-react';
 import {api, downloadFile, uploadFile, authBlobUrl} from './api';
+import {NaceRoadmapPanel, NaceRoadmapSummary} from './risk_nace_roadmap';
 import './risk_pro.css';
 
 const LEVEL_COLORS = {
@@ -291,6 +293,9 @@ export function RiskPage({user}) {
   const [docBusy, setDocBusy] = useState(false);
   const [docMsg, setDocMsg] = useState('');
   const [riskMethods, setRiskMethods] = useState([]);
+  const [naceRoadmap, setNaceRoadmap] = useState(null);
+  const [naceBusy, setNaceBusy] = useState(false);
+  const [naceErr, setNaceErr] = useState('');
 
   const effectiveCompanyId = reportCompanyId || user.company_id || companies[0]?.id || '';
 
@@ -325,6 +330,25 @@ export function RiskPage({user}) {
       applyDocInfo(await api(`/risks/validity?company_id=${id}`));
     } catch (_) {
       setDocInfo(null);
+    }
+  };
+
+  const loadNaceRoadmap = async (cid) => {
+    const id = cid || effectiveCompanyId;
+    if (!id) {
+      setNaceRoadmap(null);
+      setNaceErr('');
+      return;
+    }
+    setNaceBusy(true);
+    setNaceErr('');
+    try {
+      setNaceRoadmap(await api(`/risks/nace-roadmap?company_id=${id}`));
+    } catch (e) {
+      setNaceRoadmap(null);
+      setNaceErr(e.message || 'NACE yol haritası yüklenemedi.');
+    } finally {
+      setNaceBusy(false);
     }
   };
 
@@ -442,6 +466,9 @@ export function RiskPage({user}) {
       loadDofs().catch(() => {});
     }
   }, [tab, dofFilter, reportCompanyId, effectiveCompanyId]);
+  useEffect(() => {
+    loadNaceRoadmap().catch(() => {});
+  }, [effectiveCompanyId]);
   useEffect(() => {
     if (!form.company_id) { setDepartments([]); return; }
     loadDepartments(form.company_id);
@@ -893,6 +920,7 @@ export function RiskPage({user}) {
         loadStats(effectiveCompanyId),
         loadDofs(effectiveCompanyId),
         loadDepartments(effectiveCompanyId),
+        loadNaceRoadmap(effectiveCompanyId),
         api('/risks/categories').then(setCategories).catch(() => {}),
       ]);
     } catch (x) {
@@ -905,6 +933,7 @@ export function RiskPage({user}) {
     {id: 'risks', label: 'Kayıtlar', Icon: AlertTriangle},
     {id: 'library', label: 'Kütüphane', Icon: BookOpen, count: hazardCount || null},
     {id: 'dofs', label: 'Aksiyon', Icon: ClipboardList},
+    {id: 'nace_roadmap', label: 'NACE Yol Haritası', Icon: Route},
     {id: 'reports', label: 'Raporlar', Icon: FileText},
     {id: 'departments', label: 'Bölümler', Icon: Building2},
   ];
@@ -964,6 +993,12 @@ export function RiskPage({user}) {
           <ValidityBanner
             validity={docInfo || stats?.validity}
             onFix={canEdit ? () => setTab('reports') : null}
+          />
+          <NaceRoadmapSummary
+            data={naceRoadmap}
+            loading={naceBusy}
+            error={naceErr}
+            onOpen={() => setTab('nace_roadmap')}
           />
           <section className="risk-kpi-grid" aria-label="Risk özeti">
             <div className="risk-kpi">
@@ -1169,6 +1204,15 @@ export function RiskPage({user}) {
         </>
       )}
 
+      {tab === 'nace_roadmap' && !detail && (
+        <NaceRoadmapPanel
+          data={naceRoadmap}
+          loading={naceBusy}
+          error={naceErr}
+          onRefresh={() => loadNaceRoadmap(effectiveCompanyId)}
+        />
+      )}
+
       {tab === 'reports' && !detail && (
         <section>
           <h2 className="risk-section-title">
@@ -1180,7 +1224,8 @@ export function RiskPage({user}) {
             <h3 style={{margin: '0 0 4px'}}>Belge künyesi</h3>
             <p style={{margin: '0 0 12px', fontSize: 13, color: '#5b6b7c'}}>
               Risk değerlendirmesinin tarihi, yöntemi, belge/revizyon numarası ve ekip bilgileri PDF/Excel
-              kapak sayfasına basılır. İşyeri ünvanı, SGK, NACE, tehlike sınıfı, çalışan sayısı ve
+              kapak sayfasına basılır. NACE kimliği, NACE teknik risk kapsamı, rapor kontrol listesi ve
+              yol haritası ayrıca NACE Yol Haritası sayfasına eklenir. İşyeri ünvanı, SGK, tehlike sınıfı, çalışan sayısı ve
               görevli uzman/hekim işyeri kartı ile görevlendirmeden otomatik gelir. Yenileme: az 6,
               tehlikeli 4, çok tehlikeli 2 yıl.
             </p>

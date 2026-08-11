@@ -69,6 +69,7 @@ from app.services.risk_photo_tags import (
     serialize_selected,
 )
 from app.services.risk_reports import build_dof_excel, build_risk_excel, build_risk_pdf
+from app.services.risk_nace_roadmap import build_risk_nace_roadmap
 from app.services.risk_scoring import evaluate, meta_payload
 from app.services.risk_suggestions import get_suggestions
 from app.services.risk_validity import build_validity, document_meta_rows
@@ -628,6 +629,67 @@ def risk_assessment_validity(
     }
 
 
+def _roadmap_coverage(
+    db: Session,
+    company_id: int,
+    risks: list[RiskAssessment] | None = None,
+) -> dict[str, int]:
+    """Read-only coverage counters used by the NACE roadmap and reports."""
+    if risks is None:
+        risk_count = int(
+            db.scalar(
+                select(func.count()).select_from(RiskAssessment).where(RiskAssessment.company_id == company_id)
+            )
+            or 0
+        )
+        dof_rows = list(
+            db.scalars(
+                select(RiskDof)
+                .join(RiskAssessment, RiskAssessment.id == RiskDof.risk_id)
+                .where(RiskAssessment.company_id == company_id)
+            ).all()
+        )
+    else:
+        risk_count = len(risks)
+        dof_rows = [d for risk in risks for d in (getattr(risk, "dofs", None) or [])]
+    departments = int(
+        db.scalar(
+            select(func.count())
+            .select_from(WorkplaceDepartment)
+            .where(
+                WorkplaceDepartment.company_id == company_id,
+                WorkplaceDepartment.is_active.is_(True),
+            )
+        )
+        or 0
+    )
+    return {
+        "risk_records": risk_count,
+        "departments": departments,
+        "open_dofs": sum(1 for row in dof_rows if not getattr(row, "is_completed", False)),
+        "completed_dofs": sum(1 for row in dof_rows if getattr(row, "is_completed", False)),
+    }
+
+
+@router.get("/nace-roadmap")
+def risk_nace_roadmap(
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Selected workplace NACE identity, report checklist and safe roadmap.
+
+    The endpoint is read-only and uses the same active-assignment/tenant scope
+    as the rest of the risk module.  An unknown NACE never falls back to a
+    neighbouring activity.
+    """
+    effective = effective_company_id(db, user, company_id)
+    company = db.get(Company, effective)
+    if not company:
+        raise HTTPException(404, "Firma bulunamadı.")
+    return build_risk_nace_roadmap(company, coverage=_roadmap_coverage(db, effective))
+
+
 @router.put("/assessment-info")
 def update_assessment_info(
     payload: RiskAssessmentInfoUpdate,
@@ -984,6 +1046,10 @@ def risk_report_pdf(
         sgk = branch.sgk_registry_no
     elif company.sgk_registry_no:
         sgk = company.sgk_registry_no
+    nace_roadmap = build_risk_nace_roadmap(
+        company,
+        coverage=_roadmap_coverage(db, company.id, risks),
+    )
     pdf = build_risk_pdf(
         company=company,
         risks=risks,
@@ -1003,6 +1069,7 @@ def risk_report_pdf(
         scope_note=ctx["scope_note"],
         tax_number=company.tax_number,
         nace_code=company.nace_code,
+        nace_roadmap=nace_roadmap,
     )
     return StreamingResponse(
         BytesIO(pdf),
@@ -1024,6 +1091,10 @@ def risk_report_excel(
     if not risks:
         raise HTTPException(422, "Bu filtreyle raporlanacak risk kaydı yok.")
     ctx = _assessment_context(db, company)
+    nace_roadmap = build_risk_nace_roadmap(
+        company,
+        coverage=_roadmap_coverage(db, company.id, risks),
+    )
     xlsx = build_risk_excel(
         company=company,
         risks=risks,
@@ -1034,6 +1105,7 @@ def risk_report_excel(
         employer_representative=ctx["employer_representative"],
         employee_representative=ctx["employee_representative"],
         support_staff=ctx["support_staff"],
+        nace_roadmap=nace_roadmap,
     )
     return StreamingResponse(
         BytesIO(xlsx),

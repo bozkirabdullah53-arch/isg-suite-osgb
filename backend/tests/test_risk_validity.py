@@ -250,6 +250,42 @@ def test_validity_endpoint_reports_missing_date_then_tracks_it(client):
     assert stats.json()["validity"]["status"] == "ok"
 
 
+def test_nace_roadmap_endpoint_uses_assigned_company_and_fails_closed(client):
+    seed = _seed(client)
+    cid = seed["company_id"]
+    from app.core.database import SessionLocal
+    from app.models.entities import Company
+
+    with SessionLocal() as db:
+        company = db.get(Company, cid)
+        company.nace_code = "46.83.06"
+        db.commit()
+
+    headers = _headers(client, "risk-uzman@test.com", "UzmanPass123!")
+    response = client.get(f"/api/v1/risks/nace-roadmap?company_id={cid}", headers=headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "verified"
+    assert body["identity"]["code"] == "46.83.06"
+    assert body["coverage"]["risk_records"] == 0
+
+    with SessionLocal() as db:
+        company = db.get(Company, cid)
+        company.nace_code = "99.99.99"
+        db.commit()
+    invalid = client.get(f"/api/v1/risks/nace-roadmap?company_id={cid}", headers=headers)
+    assert invalid.status_code == 200, invalid.text
+    assert invalid.json()["status"] == "invalid"
+    assert invalid.json()["identity"] is None
+
+
+def test_nace_roadmap_endpoint_keeps_assignment_boundary(client):
+    seed = _seed(client)
+    headers = _headers(client, "risk-uzman@test.com", "UzmanPass123!")
+    response = client.get("/api/v1/risks/nace-roadmap?company_id=999999", headers=headers)
+    assert response.status_code == 403
+
+
 def test_expired_assessment_is_reported(client):
     seed = _seed(client)
     headers = _headers(client, "risk-uzman@test.com", "UzmanPass123!")
