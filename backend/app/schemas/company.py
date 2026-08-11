@@ -78,6 +78,8 @@ class CompanyUpdate(BaseModel):
 class CompanyResponse(BaseModel):
     id: int
     name: str
+    # İşyeri sicilindeki NACE kodu seçilen firma ile birlikte taşınır.
+    nace_code: str | None = None
     hazard_class: str | None = None
     sgk_registry_no: str | None = None
     address: str | None = None
