@@ -536,20 +536,16 @@ export function RiskPage({user}) {
       setDocInfo(null);
     }
     // İşyeri değişirken önceki işyerinin taslak değerleri ekranda kalmasın.
-    setDocForm((previous) => ({...EMPTY_DOCUMENT_DRAFT, method: previous.method || '5x5_l'}));
+    setDocForm((previous) => ({
+      ...EMPTY_DOCUMENT_DRAFT,
+      method: companyChanged ? '5x5_l' : (previous.method || '5x5_l'),
+    }));
     try {
       const info = await api(`/risks/validity?company_id=${id}`);
       applyDocInfo(info);
-      if (companyChanged) {
-        const preferred = reportMethodOptions.find(
-          (item) => item.code === info?.method_code && item.implemented === true,
-        );
-        setReportMethodCode(preferred?.code || reportMethodOptions[0]?.code || '5x5_l');
-      }
     } catch (_) {
       setDocInfo(null);
       setDocForm({...EMPTY_DOCUMENT_DRAFT});
-      if (companyChanged) setReportMethodCode(reportMethodOptions[0]?.code || '5x5_l');
     }
   };
 
