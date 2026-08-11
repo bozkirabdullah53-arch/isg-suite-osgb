@@ -112,7 +112,12 @@ def upgrade() -> None:
         return
     columns = {column["name"] for column in inspector.get_columns("health_records")}
     indexes = {index["name"] for index in inspector.get_indexes("health_records")}
-    foreign_keys = {fk.get("name") for fk in inspector.get_foreign_keys("health_records")}
+    foreign_keys = inspector.get_foreign_keys("health_records")
+    physician_fk_exists = any(
+        fk.get("referred_table") == "isg_professionals"
+        and fk.get("constrained_columns") == ["physician_professional_id"]
+        for fk in foreign_keys
+    )
     with op.batch_alter_table("health_records") as batch:
         if "physician_professional_id" not in columns:
             batch.add_column(sa.Column("physician_professional_id", sa.Integer(), nullable=True))
@@ -120,7 +125,7 @@ def upgrade() -> None:
             batch.add_column(sa.Column("updated_at", sa.DateTime(), nullable=True))
         if "version" not in columns:
             batch.add_column(sa.Column("version", sa.Integer(), nullable=False, server_default="1"))
-        if "fk_health_records_physician_professional" not in foreign_keys:
+        if not physician_fk_exists:
             batch.create_foreign_key(
                 "fk_health_records_physician_professional",
                 "isg_professionals",
