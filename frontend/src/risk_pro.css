@@ -423,6 +423,77 @@
 .risk-nace-detail-button span { font-size: 15px; line-height: 1; transition: transform 0.15s ease; }
 .risk-nace-detail-button:hover span { transform: translate(2px, -2px); }
 
+/* —— NACE identity card: keep long SGK values inside their own column —— */
+.risk-nace-identity-card {
+  display: grid;
+  grid-template-columns:
+    minmax(150px, 1fr)
+    minmax(255px, 1.65fr)
+    minmax(135px, .85fr)
+    minmax(245px, 1.45fr)
+    minmax(145px, .85fr)
+    minmax(145px, .9fr);
+  gap: 0;
+  padding: 0;
+  border: 1px solid #d7e7f4;
+  border-radius: 12px;
+  background: #f7fbff;
+  overflow: hidden;
+}
+.risk-nace-identity-card > div {
+  min-width: 0;
+  padding: 12px 14px;
+}
+.risk-nace-identity-card > div + div {
+  border-left: 1px solid rgba(160, 186, 200, .35);
+}
+.risk-nace-identity-card small {
+  display: block;
+  margin-bottom: 4px;
+  color: #6b8298;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.risk-nace-identity-card strong {
+  display: block;
+  min-width: 0;
+  color: #123b5d;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.risk-nace-identity-card > div:nth-child(2) strong {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .01em;
+}
+.risk-nace-identity-description { font-weight: 650 !important; }
+
+@media (max-width: 1180px) {
+  .risk-nace-identity-card { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .risk-nace-identity-card > div:nth-child(4) { grid-column: span 2; }
+  .risk-nace-identity-card > div:nth-child(4),
+  .risk-nace-identity-card > div:nth-child(6) { border-left: 0; }
+  .risk-nace-identity-card > div:nth-child(n + 4) {
+    border-top: 1px solid rgba(160, 186, 200, .35);
+  }
+}
+
+@media (max-width: 700px) {
+  .risk-nace-identity-card { grid-template-columns: 1fr; }
+  .risk-nace-identity-card > div + div,
+  .risk-nace-identity-card > div:nth-child(4),
+  .risk-nace-identity-card > div:nth-child(6) {
+    border-top: 1px solid rgba(160, 186, 200, .35);
+    border-left: 0;
+  }
+  .risk-nace-identity-card > div:nth-child(4) { grid-column: auto; }
+}
+
 @media (max-width: 700px) {
   .risk-nace-summary-head { padding: 15px 14px 13px; }
   .risk-nace-summary-head { flex-direction: column; gap: 11px; }
