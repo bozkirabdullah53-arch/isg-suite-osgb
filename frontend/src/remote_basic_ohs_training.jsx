@@ -359,6 +359,10 @@ function ManagerPanel({user}) {
   const [title, setTitle] = useState('Basic Occupational Health and Safety Training');
   const [sectionTitle, setSectionTitle] = useState('Temel İş Sağlığı ve Güvenliği');
   const [selectedEmployees, setSelectedEmployees] = useState([]);
+  const [employeeUsers, setEmployeeUsers] = useState([]);
+  const [employeeAccess, setEmployeeAccess] = useState([]);
+  const [accessEmployeeId, setAccessEmployeeId] = useState('');
+  const [accessUserId, setAccessUserId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -388,6 +392,19 @@ function ManagerPanel({user}) {
     setEmployees(Array.isArray(rows) ? rows : []);
   }
 
+  async function loadEmployeeAccess(cid = companyId) {
+    if (!cid) return;
+    try {
+      const out = await api(`/trainings/remote/employee-access/candidates?company_id=${Number(cid)}`);
+      setEmployeeUsers(Array.isArray(out?.users) ? out.users : []);
+      setEmployeeAccess(Array.isArray(out?.access) ? out.access : []);
+    } catch (err) {
+      setEmployeeUsers([]);
+      setEmployeeAccess([]);
+      setError(err.message || 'Çalışan giriş hesapları alınamadı.');
+    }
+  }
+
   async function loadQuestionBank() {
     if (user?.role !== 'global_admin') return;
     try {
@@ -403,6 +420,7 @@ function ManagerPanel({user}) {
     const row = await api(`/trainings/remote/programs/${Number(id)}`);
     setProgram(row);
     await loadEmployees(row.company_id);
+    await loadEmployeeAccess(row.company_id);
     await loadQuestionBank();
   }
 
@@ -414,6 +432,7 @@ function ManagerPanel({user}) {
     if (!companyId) return;
     loadPrograms(companyId).catch((err) => setError(err.message || 'Eğitim listesi alınamadı.'));
     loadEmployees(companyId).catch((err) => setError(err.message || 'Çalışan listesi alınamadı.'));
+    loadEmployeeAccess(companyId);
   }, [companyId]);
 
   async function createProgram() {
@@ -506,6 +525,21 @@ function ManagerPanel({user}) {
       setMessage(`${out.created_count || 0} çalışan atandı; ${out.skipped_employee_ids?.length || 0} mevcut atama korundu.`);
       setSelectedEmployees([]);
     } catch (err) { setError(err.message || 'Çalışan ataması yapılamadı.'); } finally { setBusy(false); }
+  }
+
+  async function saveEmployeeAccess() {
+    if (!companyId || !accessEmployeeId || !accessUserId) return setError('Personel ve giriş hesabını birlikte seçin.');
+    setBusy(true); setError('');
+    try {
+      await api('/trainings/remote/employee-access', {
+        method: 'POST',
+        body: JSON.stringify({company_id: Number(companyId), employee_id: Number(accessEmployeeId), user_id: Number(accessUserId)}),
+      });
+      await loadEmployeeAccess(companyId);
+      setMessage('Çalışan giriş hesabı personel kaydıyla eşleştirildi.');
+      setAccessEmployeeId('');
+      setAccessUserId('');
+    } catch (err) { setError(err.message || 'Çalışan hesabı eşleştirilemedi.'); } finally { setBusy(false); }
   }
 
   async function createCheckpointQuestion() {
@@ -610,6 +644,16 @@ function ManagerPanel({user}) {
                   <button type="button" onClick={linkExamQuestion} disabled={busy || ['published', 'archived'].includes(program.status)}>Soruyu sınava bağla</button>
                 </div>
                 {(program.exam_question_links || []).length > 0 && <div style={{fontSize: 12, color: '#496174', marginTop: 8}}>{program.exam_question_links.length} mevcut soru final sınavına bağlı.</div>}
+              </div>
+              <div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}>
+                <strong>Çalışan giriş hesabı eşleştirme</strong>
+                <p style={{margin: '6px 0', color: '#5e7485', fontSize: 12}}>Önce Kullanıcılar ekranında çalışan için salt-okunur hesabı oluşturun; sonra hesabı personel kaydıyla eşleştirin.</p>
+                <div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}>
+                  <select value={accessEmployeeId} onChange={(event) => setAccessEmployeeId(event.target.value)} aria-label="Giriş için personel seçin"><option value="">Personel seçin</option>{employees.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</select>
+                  <select value={accessUserId} onChange={(event) => setAccessUserId(event.target.value)} aria-label="Personel giriş hesabı seçin"><option value="">Giriş hesabı seçin</option>{employeeUsers.map((row) => <option key={row.id} value={row.id}>{row.full_name} · {row.email}</option>)}</select>
+                  <button type="button" onClick={saveEmployeeAccess} disabled={busy || !accessEmployeeId || !accessUserId}>Hesabı eşleştir</button>
+                </div>
+                {employeeAccess.length > 0 && <div style={{fontSize: 12, color: '#496174', marginTop: 8}}>Eşleştirilmiş çalışan hesabı: {employeeAccess.length}</div>}
               </div>
               <div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}><strong>Çalışanlara ata</strong><div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}><select multiple size={5} value={selectedEmployees.map(String)} onChange={(event) => setSelectedEmployees([...event.target.selectedOptions].map((option) => Number(option.value)))} aria-label="Çalışanlar">{employees.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</select><button type="button" onClick={assign} disabled={busy || !selectedEmployees.length}>Atamayı kaydet</button></div></div>
             </>
