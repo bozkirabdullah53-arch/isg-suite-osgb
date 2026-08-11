@@ -310,14 +310,21 @@ def build_risk_nace_roadmap(
     company: Any,
     *,
     coverage: Mapping[str, Any] | None = None,
+    nace_code_override: str | None = None,
+    nace_source: str | None = None,
 ) -> dict[str, Any]:
     """Build a read-only, deterministic NACE risk scope for a company.
 
-    ``company.nace_code`` is the only input used for the exact identity.  The
-    returned checklist and roadmap are safe to display and embed in reports;
-    they do not create or alter risk, DÖF, health or training records.
+    ``company.nace_code`` is the canonical input.  ``nace_code_override`` is
+    used only by the compatibility resolver when the selected company's
+    legacy training records contain one unique exact NACE code.
+    The returned checklist and roadmap are safe to display and embed in
+    reports; they do not create or alter risk, DÖF, health or training records.
     """
-    entered = str(getattr(company, "nace_code", None) or "").strip() or None
+    entered = str(
+        nace_code_override if nace_code_override is not None
+        else getattr(company, "nace_code", None) or ""
+    ).strip() or None
     status = "missing" if not entered else "invalid"
     classification = None
     error_reason = None
@@ -406,6 +413,7 @@ def build_risk_nace_roadmap(
         "company_id": getattr(company, "id", None),
         "company_name": getattr(company, "name", None),
         "entered_nace_code": entered,
+        "nace_source": nace_source if entered else None,
         "identity": identity,
         "technical_risk_tags": technical_domains,
         "special_risks": special_domains,

@@ -11,6 +11,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, selectinload
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ from app.models.entities import (
     RiskDof,
     RiskMedia,
     RiskRevision,
+    TrainingSession,
     User,
     UserRole,
     WorkplaceDepartment,
@@ -70,6 +72,8 @@ from app.services.risk_photo_tags import (
 )
 from app.services.risk_reports import build_dof_excel, build_risk_excel, build_risk_pdf
 from app.services.risk_nace_roadmap import build_risk_nace_roadmap
+from app.services.training_nace_classification import resolve_exact_nace
+from app.models.training_nace import TrainingNaceSnapshot
 from app.services.risk_scoring import evaluate, meta_payload
 from app.services.risk_suggestions import get_suggestions
 from app.services.risk_validity import build_validity, document_meta_rows
@@ -629,6 +633,58 @@ def risk_assessment_validity(
     }
 
 
+def _resolve_company_nace(
+    db: Session,
+    company: Company,
+) -> tuple[str | None, str | None]:
+    """Use the company card first; fall back only to one unique exact legacy NACE.
+
+    Older training records may already contain the selected workplace NACE while
+    the legacy company form did not persist it. Multiple different codes are
+    treated as ambiguous and never guessed.
+    """
+    direct = str(getattr(company, "nace_code", None) or "").strip() or None
+    if direct:
+        return direct, "company"
+    candidates: list[str] = []
+    try:
+        candidates.extend(
+            str(value or "").strip()
+            for value in db.scalars(
+                select(TrainingNaceSnapshot.nace_code)
+                .where(TrainingNaceSnapshot.company_id == company.id)
+            ).all()
+            if str(value or "").strip()
+        )
+    except OperationalError:
+        # Migration öncesi izole kurulumlarda snapshot tablosu bulunmayabilir.
+        pass
+    try:
+        candidates.extend(
+            str(value or "").strip()
+            for value in db.scalars(
+                select(TrainingSession.sector)
+                .where(TrainingSession.company_id == company.id)
+            ).all()
+            if str(value or "").strip()
+        )
+    except OperationalError:
+        pass
+
+    exact_codes: set[str] = set()
+    for raw in candidates:
+        value = raw.removeprefix("nace_").replace("_", ".")
+        try:
+            classification = resolve_exact_nace(value)
+        except ValueError:
+            continue
+        if classification.nace_code:
+            exact_codes.add(classification.nace_code)
+    if len(exact_codes) == 1:
+        return next(iter(exact_codes)), "legacy_training_nace"
+    return None, "ambiguous_training_nace" if exact_codes else "company_missing"
+
+
 def _roadmap_coverage(
     db: Session,
     company_id: int,
@@ -687,7 +743,13 @@ def risk_nace_roadmap(
     company = db.get(Company, effective)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
-    return build_risk_nace_roadmap(company, coverage=_roadmap_coverage(db, effective))
+    nace_code, nace_source = _resolve_company_nace(db, company)
+    return build_risk_nace_roadmap(
+        company,
+        coverage=_roadmap_coverage(db, effective),
+        nace_code_override=nace_code,
+        nace_source=nace_source,
+    )
 
 
 @router.put("/assessment-info")
@@ -1046,9 +1108,12 @@ def risk_report_pdf(
         sgk = branch.sgk_registry_no
     elif company.sgk_registry_no:
         sgk = company.sgk_registry_no
+    nace_code, nace_source = _resolve_company_nace(db, company)
     nace_roadmap = build_risk_nace_roadmap(
         company,
         coverage=_roadmap_coverage(db, company.id, risks),
+        nace_code_override=nace_code,
+        nace_source=nace_source,
     )
     pdf = build_risk_pdf(
         company=company,
@@ -1068,7 +1133,7 @@ def risk_report_pdf(
         revision_reason=ctx["revision_reason"],
         scope_note=ctx["scope_note"],
         tax_number=company.tax_number,
-        nace_code=company.nace_code,
+        nace_code=nace_code,
         nace_roadmap=nace_roadmap,
     )
     return StreamingResponse(
@@ -1091,9 +1156,12 @@ def risk_report_excel(
     if not risks:
         raise HTTPException(422, "Bu filtreyle raporlanacak risk kaydı yok.")
     ctx = _assessment_context(db, company)
+    nace_code, nace_source = _resolve_company_nace(db, company)
     nace_roadmap = build_risk_nace_roadmap(
         company,
         coverage=_roadmap_coverage(db, company.id, risks),
+        nace_code_override=nace_code,
+        nace_source=nace_source,
     )
     xlsx = build_risk_excel(
         company=company,
