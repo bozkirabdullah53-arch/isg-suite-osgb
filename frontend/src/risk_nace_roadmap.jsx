@@ -10,11 +10,12 @@ const STATUS_STYLES = {
 function StatusBadge({status, label}) {
   const style = STATUS_STYLES[status] || STATUS_STYLES.review_required;
   return (
-    <span style={{
+    <span className="risk-nace-status" style={{
       display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999,
       padding: '5px 10px', border: `1px solid ${style.border}`,
       background: style.background, color: style.color, fontSize: 12, fontWeight: 800,
     }}>
+      <span className="risk-nace-status-dot" style={{background: style.color}} />
       {label || 'NACE durumu'}
     </span>
   );
@@ -111,25 +112,57 @@ export function NaceRoadmapSummary({data, loading, error, onOpen}) {
   const identity = data.identity || {};
   const workplace = data.workplace || {};
   const domains = [...(data.technical_risk_tags || []), ...(data.special_risks || [])];
+  const naceCode = identity.code || workplace.nace_code || data.entered_nace_code || 'NACE kodu yok';
+  const workplaceName = workplace.name || data.company_name || 'İşyeri';
   return (
-    <section className="risk-panel" style={{marginBottom: 16}}>
-      <div className="risk-panel-head" style={{alignItems: 'flex-start'}}>
-        <div>
+    <section className="risk-panel risk-nace-summary" style={{marginBottom: 16}}>
+      <div className="risk-nace-summary-head">
+        <div className="risk-nace-summary-heading">
+          <span className="risk-nace-eyebrow">NACE KAPSAMI · SEÇİLİ İŞYERİ</span>
           <h2>NACE risk kapsamı</h2>
-          <p>{identity.code || workplace.nace_code || data.entered_nace_code || 'NACE kodu yok'} · {identity.description || 'Kod doğrulaması gerekiyor'}</p>
-          <small style={{color: '#64748b'}}>{workplace.name || data.company_name || 'İşyeri'} · SGK {workplace.sgk_registry_no || '—'}</small>
+          <p>{identity.description || 'Kod doğrulaması gerekiyor'}</p>
         </div>
         <StatusBadge status={data.status} label={data.status_label} />
       </div>
-      <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10}}>
-        <strong style={{color: '#123b5d'}}>{domains.length}</strong>
-        <span style={{fontSize: 13, color: '#64748b'}}>kontrollü NACE risk başlığı</span>
-        <span style={{fontSize: 13, color: '#64748b'}}>·</span>
-        <strong style={{color: '#123b5d'}}>{data.report_checklist?.length || 0}</strong>
-        <span style={{fontSize: 13, color: '#64748b'}}>rapor kontrol maddesi</span>
+
+      <div className="risk-nace-identity-strip">
+        <div className="risk-nace-workplace">
+          <span>İşyeri</span>
+          <strong>{workplaceName}</strong>
+        </div>
+        <div className="risk-nace-meta-item">
+          <span>SGK sicil numarası</span>
+          <strong>{workplace.sgk_registry_no || '—'}</strong>
+        </div>
+        <div className="risk-nace-meta-item">
+          <span>NACE kodu</span>
+          <strong>{naceCode}</strong>
+        </div>
       </div>
-      {data.next_action && <p style={{margin: '0 0 10px', fontSize: 13, color: '#36536f'}}><strong>Sonraki adım:</strong> {data.next_action}</p>}
-      <button type="button" className="btn btn-ghost btn-sm" onClick={onOpen}>Ayrıntılı NACE yol haritası</button>
+
+      <div className="risk-nace-summary-body">
+        <div className="risk-nace-stat-grid">
+          <div className="risk-nace-stat">
+            <strong>{domains.length}</strong>
+            <span>Kontrollü risk başlığı</span>
+          </div>
+          <div className="risk-nace-stat">
+            <strong>{data.report_checklist?.length || 0}</strong>
+            <span>Rapor kontrol maddesi</span>
+          </div>
+        </div>
+
+        {data.next_action && (
+          <div className="risk-nace-next-step">
+            <span className="risk-nace-next-label">SONRAKİ ADIM</span>
+            <p>{data.next_action}</p>
+          </div>
+        )}
+
+        <button type="button" className="btn btn-ghost btn-sm risk-nace-detail-button" onClick={onOpen}>
+          Ayrıntılı NACE yol haritası <span aria-hidden="true">↗</span>
+        </button>
+      </div>
     </section>
   );
 }
