@@ -1,4 +1,5 @@
 import hashlib
+import logging
 from datetime import date, datetime
 from io import BytesIO
 from pathlib import Path
@@ -31,13 +32,14 @@ from app.models.entities import (
     User,
     UserRole,
 )
+from app.models.training_presentation_approval import TrainingPresentationApproval
 from app.schemas.training import TrainingCreate, TrainingResponse, TrainingUpdate, TrainingVerifyResponse
 from app.services.assigned_team import assigned_team, training_defaults
 from app.services.training_employee_import import resolve_or_create_employees
 from app.services.training_excel import parse_employee_upload
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
 from app.services.training_exam_pdf import build_exam_pdf
-from app.services.upload_gateway import persist_relative
+from app.services.upload_gateway import delete_relative, persist_relative
 from app.services.upload_security import assert_safe_upload
 from app.services.training_topics import (
     meta_payload,
@@ -55,6 +57,7 @@ from app.schemas.training import resolve_training_hours
 
 
 router = APIRouter(prefix="/trainings", tags=["Eğitim Yönetimi"])
+logger = logging.getLogger(__name__)
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)
 # test_training_rules.py bu sabiti kullanır
 RULES = {"Az Tehlikeli": (8, 3), "Tehlikeli": (12, 2), "Çok Tehlikeli": (16, 1)}
@@ -745,6 +748,62 @@ def update_training(
         _replace_participants(db, row, new_ids)
     db.commit()
     return _load_training(db, training_id)
+
+
+@router.delete("/{training_id}")
+def delete_training(
+    training_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Yetkili uzmanın yalnızca erişebildiği eğitim kaydını kaldırır.
+
+    Katılımcı, sınav ve diğer eğitim alt kayıtları mevcut FK/ORM cascade
+    kurallarıyla birlikte silinir. Çalışan, işyeri, atama ve kullanıcı
+    kayıtlarına dokunulmaz. Onaylanmış sunumların tarihsel denetim izi de
+    yanlışlıkla silinmemesi için bu kayıtlar ayrıca korunur.
+    """
+    row = _load_training(db, training_id)
+    ensure_access(db, user, row.company_id)
+
+    approved_audit_id = db.scalar(
+        select(TrainingPresentationApproval.id)
+        .where(TrainingPresentationApproval.training_id == training_id)
+        .limit(1)
+    )
+    if approved_audit_id is not None:
+        raise HTTPException(
+            409,
+            "Onaylı eğitim sunumu bulunan kayıt silinemez; tarihsel denetim izi korunmalıdır.",
+        )
+
+    company_id = row.company_id
+    logo_path = row.logo_path
+    participant_count = len(row.participants)
+    db.delete(row)
+    db.commit()
+
+    # Dosya temizliği veritabanı silinmesini başarısız kılmamalı: eski kurulumlar
+    # yerel disk, yeni kurulumlar ise upload gateway kullanabilir.
+    if logo_path:
+        try:
+            delete_relative(logo_path)
+        except Exception:
+            logger.warning(
+                "training logo cleanup failed after record deletion: training_id=%s path=%s",
+                training_id,
+                logo_path,
+                exc_info=True,
+            )
+
+    return {
+        "ok": True,
+        "deleted": True,
+        "id": training_id,
+        "company_id": company_id,
+        "participant_count": participant_count,
+        "message": "Eğitim kaydı ve bağlı katılımcı kayıtları silindi.",
+    }
 
 
 def _replace_participants(db: Session, row: TrainingSession, employee_ids: list[int]) -> None:

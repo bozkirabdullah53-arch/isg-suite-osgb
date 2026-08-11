@@ -191,3 +191,86 @@ def test_patch_rejects_empty_or_foreign_participants(client):
         json={"participant_ids": [max(employee_ids) + 999]},
     )
     assert foreign.status_code == 422
+
+
+def test_safety_specialist_can_delete_training_record(client):
+    admin_headers, company_id, employee_ids = _seed(client)
+    created = client.post(
+        "/api/v1/trainings",
+        headers=admin_headers,
+        json=_payload(company_id, employee_ids[:2]),
+    )
+    assert created.status_code == 200, created.text
+    training_id = created.json()["id"]
+
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import (
+        AssignmentStatus,
+        Company,
+        IsgProfessional,
+        ProfessionalType,
+        User,
+        UserRole,
+        WorkplaceAssignment,
+    )
+
+    with SessionLocal() as db:
+        company = db.get(Company, company_id)
+        professional = IsgProfessional(
+            osgb_id=company.osgb_id,
+            full_name="Silme Uzmanı",
+            email="silme-uzmani@test.com",
+            professional_type=ProfessionalType.SAFETY_SPECIALIST,
+            certificate_class="A",
+            is_active=True,
+        )
+        db.add(professional)
+        db.flush()
+        db.add(
+            WorkplaceAssignment(
+                osgb_id=company.osgb_id,
+                company_id=company_id,
+                professional_id=professional.id,
+                professional_type=ProfessionalType.SAFETY_SPECIALIST,
+                start_date=date.today(),
+                status=AssignmentStatus.ACTIVE,
+            )
+        )
+        db.add(
+            User(
+                email="silme-uzmani@test.com",
+                full_name="Silme Uzmanı",
+                hashed_password=get_password_hash("TestPass123!"),
+                role=UserRole.SAFETY_SPECIALIST,
+                osgb_id=company.osgb_id,
+                company_id=company_id,
+                is_active=True,
+            )
+        )
+        db.commit()
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "silme-uzmani@test.com", "password": "TestPass123!"},
+    )
+    assert login.status_code == 200, login.text
+    specialist_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    deleted = client.delete(f"/api/v1/trainings/{training_id}", headers=specialist_headers)
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["deleted"] is True
+    assert deleted.json()["participant_count"] == 2
+
+    from sqlalchemy import select
+    from app.models.entities import TrainingParticipant, TrainingSession
+
+    with SessionLocal() as db:
+        assert db.get(TrainingSession, training_id) is None
+        assert db.scalars(
+            select(TrainingParticipant).where(TrainingParticipant.training_id == training_id)
+        ).all() == []
+
+    listed = client.get("/api/v1/trainings", headers=admin_headers)
+    assert listed.status_code == 200
+    assert all(row["id"] != training_id for row in listed.json())
