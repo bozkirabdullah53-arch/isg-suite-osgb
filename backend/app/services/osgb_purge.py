@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import delete, inspect, select, text, update
+from sqlalchemy import delete, inspect, or_, select, text, update
 from sqlalchemy.orm import Session
 
 from app.api.companies import _purge_company_data
@@ -29,6 +29,7 @@ from app.models.entities import (
     User,
     UserRole,
     WorkplaceAssignment,
+    WorkplaceMembership,
 )
 from app.models.personnel_profile import (
     PersonnelProfile,
@@ -257,12 +258,103 @@ def _purge_osgb_ohs_committee_residuals(db: Session, osgb_id: int) -> None:
     db.flush()
 
 
+def _collect_osgb_user_ids(db: Session, osgb_id: int, company_ids: list[int]) -> list[int]:
+    """OSGB silinmeden önce bütün tenant kullanıcılarını kimlikleriyle yakala.
+
+    `_purge_company_data` kullanıcıların `company_id` bağını kopardığı için bu
+    sorgu şirket silinmeden önce çalışmalıdır. Eski kiosk hesapları `osgb_id`
+    taşımıyor olabilir; doğrudan işyeri veya üyelik bağları bu nedenle ayrıca
+    kapsanır.
+    """
+    scope_clauses = [
+        User.osgb_id == osgb_id,
+        User.id.in_(
+            select(OrganizationMembership.user_id).where(
+                OrganizationMembership.osgb_id == osgb_id
+            )
+        ),
+    ]
+    if company_ids:
+        scope_clauses.extend(
+            (
+                User.company_id.in_(company_ids),
+                User.id.in_(
+                    select(WorkplaceMembership.user_id).where(
+                        WorkplaceMembership.company_id.in_(company_ids)
+                    )
+                ),
+            )
+        )
+
+    return list(
+        db.scalars(
+            select(User.id).where(
+                User.role != UserRole.GLOBAL_ADMIN,
+                or_(*scope_clauses),
+            )
+        ).all()
+    )
+
+
+def _retire_osgb_users(
+    db: Session,
+    osgb_id: int,
+    company_ids: list[int],
+    user_ids: list[int],
+) -> None:
+    """Silinen OSGB'nin hesaplarını kapat, eski JWT'leri de geçersizleştir.
+
+    Kullanıcının başka bir OSGB/işyeri üyeliği varsa hesabı tamamen yok edilmez;
+    yalnız silinen tenant bağları kaldırılır ve eski oturumları yenilenmeye
+    zorlanır. Başka kapsamı kalmayan hesap pasif + anonim hale getirilir.
+    """
+    if not user_ids:
+        return
+
+    company_scope = set(company_ids)
+    users = list(
+        db.scalars(
+            select(User).where(
+                User.id.in_(user_ids),
+                User.role != UserRole.GLOBAL_ADMIN,
+            )
+        ).all()
+    )
+    for user in users:
+        was_active = bool(user.is_active)
+        if user.osgb_id == osgb_id:
+            user.osgb_id = None
+        if user.company_id in company_scope:
+            user.company_id = None
+
+        # get_current_user ve /auth/refresh bu alanı kontrol eder. Artırmak,
+        # silme anındaki mevcut access/refresh JWT'lerini de anında düşürür.
+        user.is_active = False
+        user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
+        state = orphan_account_state(db, user)
+        if bool(state.get("eligible")):
+            anonymize_orphan_user(db, user)
+        elif was_active:
+            # Başka bir tenant kapsamı olan çoklu üyelik hesabı çalışmaya devam
+            # eder; ancak artırılmış token_version nedeniyle yeniden giriş yapar.
+            user.is_active = True
+
+    db.flush()
+
+
 def purge_osgb(db: Session, osgb_id: int) -> str:
     """OSGB ve bağlı operasyonel veriyi kalıcı siler. Dönüş: OSGB adı."""
     org = db.get(OsgbOrganization, osgb_id)
     if not org:
         raise ValueError("OSGB bulunamadı.")
     name = org.name
+    companies = list(db.scalars(select(Company).where(Company.osgb_id == osgb_id)).all())
+    company_ids = [company.id for company in companies]
+
+    # Şirket purge'ü User.company_id bağını koparmadan önce tenant hesaplarının
+    # tamamını kimlikleriyle yakala. Aksi halde eski işyeri/kiosk hesapları aktif
+    # kalıp silinmiş OSGB üzerinden giriş yapmaya devam edebilir.
+    osgb_user_ids = _collect_osgb_user_ids(db, osgb_id, company_ids)
 
     # Sağlık denetim kayıtları companies/health_records FK'ları tuttuğu için
     # şirket purge'ünden önce kaldırılır. Aksi halde companies silme işlemi
@@ -282,7 +374,6 @@ def purge_osgb(db: Session, osgb_id: int) -> str:
     # referanslar; mevcut company purge eski ana tabloları silmeden önce temizle.
     _purge_osgb_ohs_committee_residuals(db, osgb_id)
 
-    companies = list(db.scalars(select(Company).where(Company.osgb_id == osgb_id)).all())
     for company in companies:
         _purge_company_data(db, company.id)
         db.delete(company)
@@ -332,21 +423,10 @@ def purge_osgb(db: Session, osgb_id: int) -> str:
         .values(osgb_id=None)
     )
 
-    # OSGB'ye doğrudan bağlı kullanıcıları ayır. Başka aktif üyeliği/profesyonel
-    # kapsamı kalmayan hesaplar PII/kimlik bilgisi bırakmayacak şekilde anonimleştirilir;
-    # audit ve tarihsel kayıtların user_id referansları korunur. Global admin'e dokunulmaz.
-    users = list(
-        db.scalars(
-            select(User).where(User.osgb_id == osgb_id, User.role != UserRole.GLOBAL_ADMIN)
-        ).all()
-    )
-    for u in users:
-        u.osgb_id = None
-        u.company_id = None
-        u.is_active = False
-        state = orphan_account_state(db, u)
-        if bool(state.get("eligible")):
-            anonymize_orphan_user(db, u)
+    # OSGB'ye bağlı bütün hesapları kapat. Başka aktif üyeliği/profesyonel
+    # kapsamı olan çoklu tenant hesapları yalnız silinen bağdan ayrılır;
+    # kapsamı kalmayanlar anonimleştirilir. Global admin'e dokunulmaz.
+    _retire_osgb_users(db, osgb_id, company_ids, osgb_user_ids)
 
     db.delete(org)
     db.flush()
