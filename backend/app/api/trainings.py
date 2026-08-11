@@ -21,7 +21,16 @@ from app.api.deps import get_current_user, require_roles
 from app.api.files import safe_upload_root
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.entities import Company, Employee, TrainingParticipant, TrainingSession, TrainingStatus, User, UserRole
+from app.models.entities import (
+    Branch,
+    Company,
+    Employee,
+    TrainingParticipant,
+    TrainingSession,
+    TrainingStatus,
+    User,
+    UserRole,
+)
 from app.schemas.training import TrainingCreate, TrainingResponse, TrainingUpdate, TrainingVerifyResponse
 from app.services.assigned_team import assigned_team, training_defaults
 from app.services.training_employee_import import resolve_or_create_employees
@@ -109,6 +118,38 @@ def _employees_map(db: Session, training: TrainingSession) -> dict:
     if not ids:
         return {}
     return {e.id: e for e in db.scalars(select(Employee).where(Employee.id.in_(ids))).all()}
+
+
+def _attendance_workplace_context(db: Session, training: TrainingSession, company: Company | None) -> dict:
+    """Resolve display-only workplace identity from existing records.
+
+    The attendance PDF must reflect the selected workplace/branch. Nothing is
+    written here: registry, NACE, and assigned physician values are passed to
+    the renderer only for this document.
+    """
+    registry = getattr(company, "sgk_registry_no", None) if company else None
+    branch_id = getattr(training, "branch_id", None)
+    if branch_id:
+        branch = db.get(Branch, branch_id)
+        if branch and branch.sgk_registry_no:
+            registry = branch.sgk_registry_no
+
+    physician = str(getattr(training, "workplace_physician", None) or "").strip()
+    if not physician:
+        try:
+            defaults = training_defaults(db, training.company_id).get("defaults") or {}
+            physician = str(defaults.get("workplace_physician") or "").strip()
+        except Exception:
+            # A document export should still work for legacy records whose
+            # assignment history is incomplete; the persisted field remains
+            # the first and authoritative source.
+            physician = ""
+
+    return {
+        "workplace_sgk_registry_no": str(registry or "").strip() or None,
+        "nace_code": getattr(company, "nace_code", None) if company else None,
+        "physician_name": physician or None,
+    }
 
 
 def _err_detail(data) -> str:
@@ -746,11 +787,13 @@ def attendance_pdf(
     ensure_access(db, user, row.company_id)
     company = db.get(Company, row.company_id)
     employees = _employees_map(db, row)
+    workplace_context = _attendance_workplace_context(db, row, company)
     try:
         pdf_bytes = build_attendance_pdf(
             company_name=company.name if company else str(row.company_id),
             training=row,
             employees=employees,
+            **workplace_context,
         )
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
