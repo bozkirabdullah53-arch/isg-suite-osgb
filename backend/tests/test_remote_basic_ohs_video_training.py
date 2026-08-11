@@ -267,3 +267,119 @@ def test_remote_api_is_feature_flagged_and_uses_basic_type_only(remote_client):
     blocked = remote_client.get("/api/v1/trainings/remote/programs", headers=headers)
     assert blocked.status_code == 404
     settings.remote_basic_ohs_training_force_off = False
+
+
+def test_remote_video_delete_removes_only_draft_uploads(remote_client, monkeypatch):
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import Company, OsgbOrganization, User, UserRole
+    from app.models.remote_training import (
+        RemoteTrainingProgram,
+        RemoteTrainingSection,
+        RemoteTrainingVideo,
+    )
+
+    class FakeStore:
+        def __init__(self):
+            self.deleted = []
+
+        def delete(self, key):
+            self.deleted.append(key)
+
+    store = FakeStore()
+    import app.api.remote_training as remote_api
+
+    monkeypatch.setattr(remote_api, "get_object_store", lambda: store)
+
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(name="Delete Test OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        company = Company(name="Delete Test Firma", osgb_id=osgb.id, is_active=True)
+        db.add(company)
+        db.flush()
+        db.add(
+            User(
+                email="delete-admin@remote-test.com",
+                full_name="Delete Admin",
+                hashed_password=get_password_hash("TestPass123!"),
+                role=UserRole.COMPANY_ADMIN,
+                company_id=company.id,
+                osgb_id=osgb.id,
+                is_active=True,
+            )
+        )
+        program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title="Basic Occupational Health and Safety Training",
+            status="draft",
+        )
+        db.add(program)
+        db.flush()
+        section = RemoteTrainingSection(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            title="Temel bölüm",
+        )
+        db.add(section)
+        db.flush()
+        draft = RemoteTrainingVideo(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            section_id=section.id,
+            title="Yanlış yüklenen video",
+            original_file_name="yanlis.mp4",
+            content_type="video/mp4",
+            storage_key="1/remote-basic-ohs/1/video-delete.mp4",
+            duration_seconds=123,
+            status="uploading",
+        )
+        published = RemoteTrainingVideo(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            section_id=section.id,
+            title="Yayımlanmış video",
+            original_file_name="yayinda.mp4",
+            content_type="video/mp4",
+            storage_key="1/remote-basic-ohs/1/video-published.mp4",
+            duration_seconds=456,
+            status="published",
+        )
+        db.add_all([draft, published])
+        db.commit()
+        draft_id = draft.id
+        published_id = published.id
+        program_id = program.id
+
+    login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "delete-admin@remote-test.com", "password": "TestPass123!"},
+    )
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    deleted = remote_client.delete(f"/api/v1/trainings/remote/videos/{draft_id}", headers=headers)
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json() == {
+        "deleted": True,
+        "id": draft_id,
+        "storage_cleanup_pending": False,
+    }
+    assert store.deleted == ["1/remote-basic-ohs/1/video-delete.mp4"]
+
+    with SessionLocal() as db:
+        assert db.get(RemoteTrainingVideo, draft_id) is None
+        retained = db.get(RemoteTrainingVideo, published_id)
+        assert retained is not None
+        assert retained.status == "published"
+        program_row = db.get(RemoteTrainingProgram, program_id)
+        assert program_row is not None
+        assert program_row.total_duration_seconds == 456
+
+    blocked = remote_client.delete(f"/api/v1/trainings/remote/videos/{published_id}", headers=headers)
+    assert blocked.status_code == 409, blocked.text
+    assert store.deleted == ["1/remote-basic-ohs/1/video-delete.mp4"]
