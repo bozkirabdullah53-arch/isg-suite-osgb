@@ -384,6 +384,7 @@ export function TrainingPage({user}) {
   const [savedPayload, setSavedPayload] = useState(null);
   const [detail, setDetail] = useState(null);
   const [dlBusy, setDlBusy] = useState('');
+  const [deleteTrainingId, setDeleteTrainingId] = useState(null);
   const [fileLabel, setFileLabel] = useState('.xlsx, .xlsm veya .csv dosyası seçin');
   // İşyerine görevlendirilmiş uzman/hekim — ad elle yazılmasın diye
   const [assignedTeam, setAssignedTeam] = useState(null);
@@ -1214,6 +1215,34 @@ export function TrainingPage({user}) {
       }
     } catch (x) {
       setErr(x.message);
+    }
+  }
+
+  async function deleteTraining(row) {
+    if (!canEdit || !row?.id || deleteTrainingId) return;
+    const title = row.title || `#${row.id}`;
+    const confirmed = window.confirm(
+      `“${title}” eğitim kaydı ve bağlı katılımcı/belge verileri kalıcı olarak silinecek.\n\n` +
+        'Bu işlem geri alınamaz. Devam edilsin mi?',
+    );
+    if (!confirmed) return;
+
+    setErr('');
+    setOkMsg('');
+    setDeleteTrainingId(row.id);
+    try {
+      await api(`/trainings/${row.id}`, {method: 'DELETE'});
+      if (detail?.id === row.id) setDetail(null);
+      if (savedTrainingId === row.id) {
+        setSavedTrainingId(null);
+        setSavedPayload(null);
+      }
+      await load();
+      setOkMsg(`Eğitim kaydı #${row.id} silindi.`);
+    } catch (x) {
+      setErr(x.message || 'Eğitim kaydı silinemedi.');
+    } finally {
+      setDeleteTrainingId(null);
     }
   }
 
@@ -2421,9 +2450,22 @@ export function TrainingPage({user}) {
                 {detail.duration_hours} saat
               </p>
             </div>
-            <button type="button" className="btn-outline-premium" style={{width: 'auto', minHeight: 42, padding: '0 16px'}} onClick={() => setDetail(null)}>
-              Listeye dön
-            </button>
+            <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
+              <button type="button" className="btn-outline-premium" style={{width: 'auto', minHeight: 42, padding: '0 16px'}} onClick={() => setDetail(null)}>
+                Listeye dön
+              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  className="btn-outline-premium"
+                  style={{width: 'auto', minHeight: 42, padding: '0 16px', color: '#b42318', borderColor: '#f1aeb5', background: '#fff7f7'}}
+                  disabled={deleteTrainingId === detail.id}
+                  onClick={() => deleteTraining(detail)}
+                >
+                  {deleteTrainingId === detail.id ? 'Siliniyor…' : 'Eğitim kaydını sil'}
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="tp-grid-3" style={{marginBottom: 14, fontSize: 14}}>
@@ -2551,6 +2593,7 @@ export function TrainingPage({user}) {
           </button>
         </div>
         {err && <div className="tp-alert err">{err}</div>}
+        {okMsg && <div className="tp-alert ok">{okMsg}</div>}
         <div style={{overflowX: 'auto'}}>
           <table className="records-table">
             <thead>
@@ -2576,14 +2619,27 @@ export function TrainingPage({user}) {
                   <td>{r.participants?.length || 0}</td>
                   <td>{STATUS[r.status] || r.status}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn-outline-premium"
-                      style={{width: 'auto', minHeight: 36, padding: '0 12px', fontSize: 12}}
-                      onClick={() => openDetail(r)}
-                    >
-                      Belgeler
-                    </button>
+                    <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                      <button
+                        type="button"
+                        className="btn-outline-premium"
+                        style={{width: 'auto', minHeight: 36, padding: '0 12px', fontSize: 12}}
+                        onClick={() => openDetail(r)}
+                      >
+                        Belgeler
+                      </button>
+                      {canEdit && (
+                        <button
+                          type="button"
+                          className="btn-outline-premium"
+                          style={{width: 'auto', minHeight: 36, padding: '0 12px', fontSize: 12, color: '#b42318', borderColor: '#f1aeb5', background: '#fff7f7'}}
+                          disabled={deleteTrainingId === r.id}
+                          onClick={() => deleteTraining(r)}
+                        >
+                          {deleteTrainingId === r.id ? 'Siliniyor…' : 'Sil'}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )) : (
