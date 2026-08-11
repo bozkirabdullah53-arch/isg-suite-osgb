@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.services.risk_hazop import HAZOP_GUIDE_WORDS, HAZOP_PARAMETERS, HAZOP_PRIORITIES
+
 # Kod -> rapor etiketi
 METHOD_CATALOG: dict[str, dict[str, Any]] = {
     "5x5_l": {
@@ -116,22 +118,27 @@ METHOD_CATALOG: dict[str, dict[str, Any]] = {
     "hazop": {
         "code": "hazop",
         "label": "HAZOP (Tehlike ve İşletilebilirlik)",
-        "formula": "Sapma analizi (parametre + kılavuz kelime)",
+        "formula": "Kılavuz kelime → sapma → neden / sonuç / koruma / öneri",
         "short": "HAZOP — sapma / kılavuz kelime analizi",
         "probability_axis": "Sapma olasılığı (nitel)",
         "severity_axis": "Sonuç şiddeti (nitel)",
         "levels": [
-            ("Düşük", "Kabul edilebilir", "İzleme"),
-            ("Orta", "Önemli", "Önlem planı"),
-            ("Yüksek", "Kritik", "Acil önlem"),
+            ("Düşük", "Düşük öncelik", "İzleme"),
+            ("Orta", "Orta öncelik", "Önlem planı"),
+            ("Yüksek", "Yüksek öncelik", "Kısa sürede önlem"),
+            ("Çok Yüksek", "Kritik öncelik", "Acil önlem"),
         ],
         "probability_defs": [],
         "severity_defs": [],
+        "guide_words": list(HAZOP_GUIDE_WORDS),
+        "parameters": list(HAZOP_PARAMETERS),
+        "priority_options": list(HAZOP_PRIORITIES),
         "narrative": (
             "HAZOP; proses parametreleri ve kılavuz kelimeler (yok, daha fazla, ters vb.) "
-            "ile sapmaları sistematik inceler. Özellikle proses/kimya tesislerinde tercih edilir."
+            "ile sapmaları sistematik inceler. Her sapma için nedenler, sonuçlar, mevcut "
+            "korumalar ve öneriler kaydedilir; nitel öncelik aksiyon planlamasına yardımcı olur."
         ),
-        "implemented": False,
+        "implemented": True,
     },
     "fmea": {
         "code": "fmea",

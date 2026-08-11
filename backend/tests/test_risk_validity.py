@@ -5,6 +5,7 @@ Yönetmelik md.15: dokümanda yöntem ve değerlendirmeyi yapan ekip yer alır.
 """
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
 
 import pytest
@@ -396,6 +397,53 @@ def _seed_fine_kinney_risk(company_id: int) -> None:
         db.commit()
 
 
+def _seed_hazop_risk(company_id: int) -> None:
+    from app.core.database import SessionLocal
+    from app.models.entities import Hazard, RiskAssessment, User
+    from app.services.risk_scoring import evaluate_method
+    from sqlalchemy import select as sa_select
+
+    data = {
+        "node": "Akü şarj alanı",
+        "design_intent": "Şarj işleminin kontrollü ve yeterli havalandırma ile yapılması",
+        "parameter": "Kompozisyon / konsantrasyon",
+        "guide_word": "more",
+        "deviation": "Hidrojen konsantrasyonunun beklenenden fazla olması",
+        "causes": "Havalandırma arızası; yanlış şarj ayarı",
+        "consequences": "Patlayıcı atmosfer ve yangın/patlama riski",
+        "safeguards": "Doğal havalandırma; çalışma talimatı",
+        "recommendations": "Hidrojen algılama ve mekanik havalandırma kontrolü",
+        "priority": "high",
+    }
+    with SessionLocal() as db:
+        author = db.scalar(sa_select(User).where(User.email == "risk-uzman@test.com"))
+        hazard = db.scalar(sa_select(Hazard).where(Hazard.code == "MEK-001"))
+        scored = evaluate_method("hazop", None, None, hazop_data=data)
+        db.add(
+            RiskAssessment(
+                risk_code="RSK-HAZOP-1",
+                company_id=company_id,
+                hazard_id=hazard.id,
+                method_code="hazop",
+                hazop_data_json=json.dumps(data, ensure_ascii=False),
+                department_name="Uretim",
+                activity="Akü şarj prosesi",
+                risk_definition="Hidrojen sapması",
+                affected_people="Çalışanlar",
+                probability=scored["probability"],
+                frequency=None,
+                severity=scored["severity"],
+                risk_score=scored["risk_score"],
+                risk_level=scored["risk_level"],
+                term_days=scored["term_days"],
+                term_date=date.fromisoformat(scored["term_date"]),
+                status="Açık",
+                created_by_id=author.id,
+            )
+        )
+        db.commit()
+
+
 def test_reports_render_with_document_meta(client):
     """Rapor uçları künye eklendikten sonra da üretilebilmeli (regresyon kalkanı)."""
     seed = _seed(client)
@@ -421,13 +469,14 @@ def test_reports_render_with_document_meta(client):
     assert xlsx.content[:2] == b"PK"
 
 
-def test_report_method_filter_isolated_in_excel_and_rejects_staged_methods(client):
+def test_report_method_filter_isolated_in_excel_and_supports_hazop(client):
     """Dışa aktarma yöntemi, kayıtları ve Excel künyesini birlikte sınırlar."""
     seed = _seed(client)
     headers = _headers(client, "risk-uzman@test.com", "UzmanPass123!")
     cid = seed["company_id"]
     _seed_one_risk(cid)
     _seed_fine_kinney_risk(cid)
+    _seed_hazop_risk(cid)
 
     from io import BytesIO
     from openpyxl import load_workbook
@@ -453,12 +502,17 @@ def test_report_method_filter_isolated_in_excel_and_rejects_staged_methods(clien
     assert fine_ws["B5"].value == "Fine-Kinney Yöntemi"
     assert fine_ws.max_column == 19
 
-    staged = client.get(
+    hazop = client.get(
         f"/api/v1/risks/report.xlsx?company_id={cid}&method_code=hazop",
         headers=headers,
     )
-    assert staged.status_code == 422
-    assert "henüz aktif" in staged.text
+    assert hazop.status_code == 200, hazop.text
+    hazop_ws = load_workbook(BytesIO(hazop.content))["Risk Değerlendirme"]
+    assert "HAZOP" in (hazop_ws["A3"].value or "")
+    assert hazop_ws["A5"].value == "RSK-HAZOP-1"
+    assert hazop_ws["H5"].value == "Daha fazla"
+    assert hazop_ws["Q5"].value == "Yüksek öncelik"
+    assert hazop_ws.max_column == 21
 
 
 def test_osgb_admin_cannot_write_assessment_info(client):

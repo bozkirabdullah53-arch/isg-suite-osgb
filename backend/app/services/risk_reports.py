@@ -1,6 +1,7 @@
 """Risk değerlendirme PDF / Excel raporları — İSG PRO reports.py Suite uyarlaması."""
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -22,6 +23,7 @@ from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, 
 from reportlab.pdfgen import canvas
 
 from app.services.risk_validity import METHOD_LABEL, document_meta_rows
+from app.services.risk_hazop import guide_word_label, normalize_hazop_data, priority_details
 from app.services.risk_methods import resolve_method
 from app.services.risk_scoring import fine_kinney_level_details
 
@@ -126,6 +128,25 @@ def _hazard_code(risk, hazard_map: dict) -> str:
 
 def _risk_method(risk, fallback_code: str = "5x5_l") -> dict:
     return resolve_method(getattr(risk, "method_code", None) or fallback_code)
+
+
+def _hazop_data(risk) -> dict:
+    raw = getattr(risk, "hazop_data", None)
+    if hasattr(raw, "model_dump"):
+        raw = raw.model_dump()
+    if raw is None:
+        raw = getattr(risk, "hazop_data_json", None)
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except json.JSONDecodeError:
+                raw = None
+    if not isinstance(raw, dict):
+        return {}
+    try:
+        return normalize_hazop_data(raw)
+    except ValueError:
+        return {str(key): str(value or "") for key, value in raw.items()}
 
 
 def _score_text(value) -> str:
@@ -597,6 +618,8 @@ def build_risk_pdf(
         risk_level_label = getattr(risk, "risk_level", None) or "—"
         if risk_method.get("code") == "fine_kinney":
             _, risk_level_label, _ = fine_kinney_level_details(float(risk.risk_score or 0))
+        elif risk_method.get("code") == "hazop":
+            risk_level_label = priority_details(_hazop_data(risk).get("priority"))["label"]
         regs = []
         h = hazard_map.get(getattr(risk, "hazard_id", None))
         if h and getattr(h, "regulations", None):
@@ -615,18 +638,37 @@ def build_risk_pdf(
             ["Tehlike", f"{_hazard_code(risk, hazard_map)} — {_hazard_name(risk, hazard_map)}"],
             ["Risk Tanımı", Paragraph(str(risk.risk_definition or "—"), cell)],
             ["Etkilenenler", risk.affected_people or getattr(risk, "affected_group", None) or "—"],
-            [risk_method.get("probability_axis") or "Olasılık", _score_text(risk.probability)],
         ]
-        if risk_method.get("code") == "fine_kinney":
-            risk_data.append([risk_method.get("frequency_axis") or "Frekans / Maruziyet", _score_text(getattr(risk, "frequency", None))])
-        risk_data.extend(
-            [
-                [risk_method.get("severity_axis") or "Şiddet", _score_text(risk.severity)],
-                ["Risk Skoru", _score_text(risk.risk_score)],
-                ["Risk Seviyesi", risk_level_label],
-                ["Yöntem aksiyonu", next((note for _, label, note in risk_method.get("levels", []) if label in {risk_level_label, getattr(risk, "risk_level", None)}), "—")],
-            ]
-        )
+        if risk_method.get("code") == "hazop":
+            hazop = _hazop_data(risk)
+            priority = priority_details(hazop.get("priority"))
+            risk_data.extend(
+                [
+                    ["Proses düğümü", Paragraph(hazop.get("node") or "—", cell)],
+                    ["Tasarım amacı", Paragraph(hazop.get("design_intent") or "—", cell)],
+                    ["Parametre", hazop.get("parameter") or "—"],
+                    ["Kılavuz kelime", guide_word_label(hazop.get("guide_word"))],
+                    ["Sapma", Paragraph(hazop.get("deviation") or "—", cell)],
+                    ["Nedenler", Paragraph(hazop.get("causes") or "—", cell)],
+                    ["Sonuçlar", Paragraph(hazop.get("consequences") or "—", cell)],
+                    ["Mevcut korumalar", Paragraph(hazop.get("safeguards") or "—", cell)],
+                    ["Öneriler", Paragraph(hazop.get("recommendations") or "—", cell)],
+                    ["HAZOP önceliği", priority["label"]],
+                    ["Yöntem aksiyonu", priority["action"]],
+                ]
+            )
+        else:
+            risk_data.append([risk_method.get("probability_axis") or "Olasılık", _score_text(risk.probability)])
+            if risk_method.get("code") == "fine_kinney":
+                risk_data.append([risk_method.get("frequency_axis") or "Frekans / Maruziyet", _score_text(getattr(risk, "frequency", None))])
+            risk_data.extend(
+                [
+                    [risk_method.get("severity_axis") or "Şiddet", _score_text(risk.severity)],
+                    ["Risk Skoru", _score_text(risk.risk_score)],
+                    ["Risk Seviyesi", risk_level_label],
+                    ["Yöntem aksiyonu", next((note for _, label, note in risk_method.get("levels", []) if label in {risk_level_label, getattr(risk, "risk_level", None)}), "—")],
+                ]
+            )
         risk_data.extend(
             [
             ["Termin Tarihi", _fmt_date(risk.term_date)],
@@ -636,14 +678,15 @@ def build_risk_pdf(
             ["Mevzuat ref.", Paragraph(", ".join(regs) if regs else "—", cell)],
             ]
         )
-        if getattr(risk, "residual_score", None) is not None:
+        if risk_method.get("code") != "hazop" and getattr(risk, "residual_score", None) is not None:
             residual_label = getattr(risk, "residual_level", None) or "—"
             if risk_method.get("code") == "fine_kinney":
                 _, residual_label, _ = fine_kinney_level_details(float(risk.residual_score or 0))
             risk_data.append(["Artık risk skoru / seviyesi", f"{_score_text(risk.residual_score)} / {residual_label}"])
         risk_table = Table(risk_data, colWidths=[100, 370])
         bg = _level_color(risk.risk_level or "")
-        score_row = 10 if risk_method.get("code") == "fine_kinney" else 9
+        score_label = "HAZOP önceliği" if risk_method.get("code") == "hazop" else "Risk Skoru"
+        score_row = next((index for index, item in enumerate(risk_data) if item[0] == score_label), 0)
         risk_table.setStyle(
             TableStyle(
                 [
@@ -1012,8 +1055,9 @@ def build_risk_excel(
     )
     page_count = _estimate_risk_sheet_pages(risks)
     doc_label = f"Risk Değerlendirme Raporu — {getattr(company, 'name', '')}"
+    has_hazop = any(getattr(risk, "method_code", None) == "hazop" for risk in risks)
     has_fine_kinney = any(getattr(risk, "method_code", None) == "fine_kinney" for risk in risks)
-    column_count = 19 if has_fine_kinney else 17
+    column_count = 21 if has_hazop else (19 if has_fine_kinney else 17)
     last_column = get_column_letter(column_count)
 
     ws = wb.active
@@ -1055,6 +1099,13 @@ def build_risk_excel(
 
     headers = (
         [
+            "Risk Kodu", "Yöntem", "Bölüm", "Faaliyet", "Proses Düğümü", "Tasarım Amacı",
+            "Parametre", "Kılavuz Kelime", "Sapma", "Tehlike", "Tehlike Kodu", "Nedenler",
+            "Sonuçlar", "Mevcut Korumalar", "Öneriler", "Etkilenenler", "HAZOP Önceliği",
+            "Termin Tarihi", "Durum", "DÖF Sayısı", "Fotoğraf",
+        ]
+        if has_hazop
+        else [
             "Risk Kodu", "Yöntem", "Bölüm", "Faaliyet", "Tehlike", "Tehlike Kodu",
             "Risk Tanımı", "Etkilenenler", "Olasılık", "Frekans / Maruziyet", "Şiddet",
             "Risk Skoru", "Risk Seviyesi", "Termin Tarihi", "Mevcut Önlemler",
@@ -1079,10 +1130,23 @@ def build_risk_excel(
         risk_method = _risk_method(risk, (validity or {}).get("method_code") or "5x5_l")
         if risk_method.get("code") == "fine_kinney":
             _, risk_level_label, _ = fine_kinney_level_details(float(risk.risk_score or 0))
+        elif risk_method.get("code") == "hazop":
+            risk_level_label = priority_details(_hazop_data(risk).get("priority"))["label"]
         else:
             risk_level_label = risk.risk_level or "—"
+        hazop = _hazop_data(risk) if risk_method.get("code") == "hazop" else {}
         data = (
             [
+                risk.risk_code, risk_method.get("label") or "—", _dept(risk), risk.activity,
+                hazop.get("node") or "—", hazop.get("design_intent") or "—", hazop.get("parameter") or "—",
+                guide_word_label(hazop.get("guide_word")), hazop.get("deviation") or "—",
+                _hazard_name(risk, hazard_map), _hazard_code(risk, hazard_map), hazop.get("causes") or "—",
+                hazop.get("consequences") or "—", hazop.get("safeguards") or "—",
+                hazop.get("recommendations") or "—", risk.affected_people or "—", risk_level_label,
+                _fmt_date(risk.term_date), risk.status or "Açık", len(dofs), "",
+            ]
+            if has_hazop
+            else [
                 risk.risk_code, risk_method.get("label") or "—", _dept(risk), risk.activity,
                 _hazard_name(risk, hazard_map), _hazard_code(risk, hazard_map), risk.risk_definition,
                 risk.affected_people or "—", _score_text(risk.probability), _score_text(getattr(risk, "frequency", None)),
@@ -1106,9 +1170,12 @@ def build_risk_excel(
             cell.font = Font(size=9)
         level = risk.risk_level or ""
         if level in level_fills:
-            score_column = 12 if has_fine_kinney else 10
-            ws.cell(row=idx, column=score_column).fill = level_fills[level]
-            ws.cell(row=idx, column=score_column + 1).fill = level_fills[level]
+            if has_hazop:
+                ws.cell(row=idx, column=17).fill = level_fills[level]
+            else:
+                score_column = 12 if has_fine_kinney else 10
+                ws.cell(row=idx, column=score_column).fill = level_fills[level]
+                ws.cell(row=idx, column=score_column + 1).fill = level_fills[level]
 
         photo_path = _risk_excel_photo_path(risk)
         if photo_path:
@@ -1126,9 +1193,13 @@ def build_risk_excel(
                 ws.cell(row=idx, column=column_count, value="Fotoğraf var / eklenemedi")
 
     widths = (
-        [12, 20, 15, 20, 18, 12, 28, 16, 10, 16, 10, 10, 22, 12, 28, 28, 10, 10, 18]
-        if has_fine_kinney
-        else [12, 15, 20, 18, 12, 28, 16, 10, 10, 10, 14, 12, 28, 28, 10, 10, 18]
+        [12, 24, 15, 20, 20, 24, 18, 18, 30, 18, 12, 30, 30, 30, 30, 18, 18, 12, 10, 10, 18]
+        if has_hazop
+        else (
+            [12, 20, 15, 20, 18, 12, 28, 16, 10, 16, 10, 10, 22, 12, 28, 28, 10, 10, 18]
+            if has_fine_kinney
+            else [12, 15, 20, 18, 12, 28, 16, 10, 10, 10, 14, 12, 28, 28, 10, 10, 18]
+        )
     )
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w

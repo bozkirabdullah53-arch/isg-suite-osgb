@@ -2,11 +2,51 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+class HazopData(BaseModel):
+    """Yönteme özgü HAZOP çalışma satırı."""
+
+    node: str = Field(min_length=2, max_length=300)
+    design_intent: str = Field(min_length=2, max_length=2000)
+    parameter: str = Field(min_length=2, max_length=120)
+    guide_word: str = Field(min_length=2, max_length=40)
+    deviation: str = Field(min_length=2, max_length=2000)
+    causes: str = Field(min_length=2, max_length=4000)
+    consequences: str = Field(min_length=2, max_length=4000)
+    safeguards: str = Field(min_length=2, max_length=4000)
+    recommendations: str | None = Field(default=None, max_length=4000)
+    priority: str = Field(default="medium", min_length=2, max_length=20)
+
+    @model_validator(mode="after")
+    def normalize_and_validate(self):
+        for field in (
+            "node",
+            "design_intent",
+            "parameter",
+            "guide_word",
+            "deviation",
+            "causes",
+            "consequences",
+            "safeguards",
+            "recommendations",
+            "priority",
+        ):
+            value = getattr(self, field)
+            if value is not None:
+                setattr(self, field, value.strip())
+        for field in ("node", "design_intent", "parameter", "guide_word", "deviation", "causes", "consequences", "safeguards"):
+            if len(getattr(self, field)) < 2:
+                raise ValueError(f"HAZOP {field} alanı zorunludur.")
+        if self.priority not in {"low", "medium", "high", "critical"}:
+            raise ValueError("HAZOP önceliği geçersiz.")
+        return self
+
+
 class RiskCalculateRequest(BaseModel):
     method_code: str = Field(default="5x5_l", max_length=40)
-    probability: float = Field(gt=0, le=100)
+    probability: float | None = Field(default=None, gt=0, le=100)
     frequency: float | None = Field(default=None, gt=0, le=10)
-    severity: float = Field(gt=0, le=100)
+    severity: float | None = Field(default=None, gt=0, le=100)
+    hazop_data: HazopData | None = None
     term_override_days: int | None = Field(default=None, ge=0, le=365)
 
 
@@ -62,12 +102,13 @@ class RiskCreate(BaseModel):
     affected_group: str | None = Field(default=None, max_length=100)
     existing_measures: str | None = Field(default=None, max_length=2000)
     additional_measures: str | None = Field(default=None, max_length=2000)
-    probability: float = Field(gt=0, le=100)
+    probability: float | None = Field(default=None, gt=0, le=100)
     frequency: float | None = Field(default=None, gt=0, le=10)
-    severity: float = Field(gt=0, le=100)
+    severity: float | None = Field(default=None, gt=0, le=100)
     residual_probability: float | None = Field(default=None, gt=0, le=100)
     residual_frequency: float | None = Field(default=None, gt=0, le=10)
     residual_severity: float | None = Field(default=None, gt=0, le=100)
+    hazop_data: HazopData | None = None
     term_override_days: int | None = Field(default=None, ge=0, le=365)
     status: str = Field(default="Açık", max_length=50)
 
@@ -96,6 +137,7 @@ class RiskUpdate(BaseModel):
     residual_probability: float | None = Field(default=None, gt=0, le=100)
     residual_frequency: float | None = Field(default=None, gt=0, le=10)
     residual_severity: float | None = Field(default=None, gt=0, le=100)
+    hazop_data: HazopData | None = None
     term_override_days: int | None = Field(default=None, ge=0, le=365)
     status: str | None = Field(default=None, max_length=50)
     change_reason: str | None = Field(default=None, max_length=500)
@@ -183,6 +225,7 @@ class RiskResponse(BaseModel):
     method_code: str = "5x5_l"
     method_label: str | None = None
     method_formula: str | None = None
+    hazop_data: HazopData | None = None
     hazard_code: str | None = None
     hazard_name: str | None = None
     category_name: str | None = None

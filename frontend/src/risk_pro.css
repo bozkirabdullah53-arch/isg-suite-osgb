@@ -534,6 +534,13 @@
   font-weight: 750;
   font-variant-numeric: tabular-nums;
 }
+.risk-priority-mark.hazop {
+  padding: 3px;
+  font-size: 10px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
 .risk-priority-item.high .risk-priority-mark {
   background: #fff7ed;
   color: var(--rk-warn);
@@ -1372,6 +1379,10 @@
   border-color: rgba(15, 118, 110, 0.36);
   background: linear-gradient(120deg, rgba(239, 250, 248, 0.98), rgba(248, 252, 253, 0.94));
 }
+.risk-method-workspace.hazop-active {
+  border-color: rgba(180, 83, 9, 0.34);
+  background: linear-gradient(120deg, rgba(255, 247, 237, 0.98), rgba(248, 252, 253, 0.94));
+}
 .risk-method-workspace-copy {
   min-width: 220px;
   display: grid;
@@ -1469,6 +1480,11 @@
   color: #123b5d;
   font-size: 16px;
   font-variant-numeric: tabular-nums;
+}
+.hazop-guide .fine-factor-strip strong {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.25;
 }
 .fine-kinney-result {
   display: grid;

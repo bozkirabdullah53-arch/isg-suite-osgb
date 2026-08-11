@@ -191,6 +191,7 @@ def _serialize_risks(rows: list[RiskAssessment]) -> list[dict]:
             "company_id": r.company_id,
             "hazard_id": r.hazard_id,
             "method_code": getattr(r, "method_code", None) or "5x5_l",
+            "hazop_data_json": getattr(r, "hazop_data_json", None),
             "department_name": r.department_name,
             "activity": r.activity,
             "risk_definition": r.risk_definition,

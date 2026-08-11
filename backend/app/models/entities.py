@@ -1165,6 +1165,9 @@ class RiskAssessment(Base):
     # Method is stored per risk so changing the workplace's default method never
     # rewrites or misinterprets historical records created with another method.
     method_code: Mapped[str] = mapped_column(String(40), default="5x5_l", index=True)
+    # HAZOP-specific structured row data. Kept nullable so all historical 5x5
+    # and Fine-Kinney records remain unchanged and portable across databases.
+    hazop_data_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     department_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     activity: Mapped[str] = mapped_column(String(500))
     risk_definition: Mapped[str] = mapped_column(String(2000))
