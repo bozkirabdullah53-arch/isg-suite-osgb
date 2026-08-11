@@ -90,6 +90,13 @@ class Settings(BaseSettings):
     nace_training_presentation_force_off: bool = False
     # Virgülle ayrılmış şirket kimlikleri. Boş allowlist fail-closed davranır.
     nace_training_presentation_pilot_company_ids: str = ""
+    # Remote Basic Occupational Health and Safety Training — additive pilot.
+    # Default-off keeps the existing training, examination and certificate flows
+    # unchanged until the video module is explicitly enabled for a pilot.
+    remote_basic_ohs_training_enabled: bool = False
+    remote_basic_ohs_training_force_off: bool = False
+    remote_basic_ohs_video_max_upload_mb: int = 2048
+    remote_basic_ohs_playback_ttl_seconds: int = 300
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
@@ -126,6 +133,13 @@ def nace_training_presentation_pilot_company_ids() -> frozenset[int]:
         if company_id > 0:
             company_ids.add(company_id)
     return frozenset(company_ids)
+
+
+def remote_basic_ohs_training_active() -> bool:
+    """Feature flag helper; the emergency force-off always wins."""
+    if bool(getattr(settings, "remote_basic_ohs_training_force_off", False)):
+        return False
+    return bool(getattr(settings, "remote_basic_ohs_training_enabled", False))
 
 
 def nace_training_presentation_active(company_id: int | None = None) -> bool:

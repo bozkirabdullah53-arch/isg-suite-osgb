@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Award, CheckCircle2, ClipboardList, Download, FileSpreadsheet, Search, ShieldCheck, Upload, Users} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
+import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
 import './training_pro.css';
 
 const HAZARD_HOURS = {'Az Tehlikeli': 8, Tehlikeli: 12, 'Çok Tehlikeli': 16};
@@ -355,7 +356,8 @@ function EducationOutputPanel({
 
 export function TrainingPage({user}) {
   const canEdit = ['global_admin', 'company_admin', 'safety_specialist'].includes(user.role);
-  const visibleTabs = TABS;
+  const [remoteEnabled, setRemoteEnabled] = useState(false);
+  const visibleTabs = remoteEnabled ? [...TABS, {id: 'remote', label: 'Uzaktan Temel İSG'}] : TABS;
   const excelInputRef = useRef(null);
   const logoInputRef = useRef(null);
   const pendingLogoRef = useRef(null);
@@ -397,6 +399,12 @@ export function TrainingPage({user}) {
   const [renewalErr, setRenewalErr] = useState('');
   const [sectorQuery, setSectorQuery] = useState('');
   const [sectorPickerOpen, setSectorPickerOpen] = useState(false);
+
+  useEffect(() => {
+    api('/trainings/remote/meta')
+      .then((meta) => setRemoteEnabled(Boolean(meta?.enabled)))
+      .catch(() => setRemoteEnabled(false));
+  }, []);
 
   const companyEmployees = useMemo(
     () =>
@@ -2693,6 +2701,7 @@ export function TrainingPage({user}) {
       {tab === 'ozel' && renderOzelTab()}
       {tab === 'yenileme' && renderYenilemeTab()}
       {tab === 'kayitlar' && renderKayitlarTab()}
+      {tab === 'remote' && <RemoteBasicOhsTrainingPanel user={user} />}
     </div>
   );
 }

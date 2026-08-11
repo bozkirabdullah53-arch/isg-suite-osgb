@@ -92,6 +92,16 @@ services:
         value: "false"
       - key: NACE_TRAINING_PRESENTATION_TRACEABILITY_FORCE_OFF
         value: "true"
+      # Remote Basic Occupational Health and Safety video training stays
+      # fail-closed until an explicit pilot enables it.
+      - key: REMOTE_BASIC_OHS_TRAINING_ENABLED
+        value: "false"
+      - key: REMOTE_BASIC_OHS_TRAINING_FORCE_OFF
+        value: "false"
+      - key: REMOTE_BASIC_OHS_VIDEO_MAX_UPLOAD_MB
+        value: "2048"
+      - key: REMOTE_BASIC_OHS_PLAYBACK_TTL_SECONDS
+        value: "300"
 
   - type: cron
     name: isg-suite-api-warmup

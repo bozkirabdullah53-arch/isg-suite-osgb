@@ -83,3 +83,31 @@ def assert_safe_upload(content: bytes, extension: str, original_name: str = "") 
         if not clean:
             quarantine_bytes(content, f"clamav:{detail}", original_name)
             raise HTTPException(status_code=400, detail="Dosya virüs taramasından geçmedi.")
+
+
+def assert_safe_video_upload(content: bytes, extension: str, original_name: str = "") -> None:
+    """Video-specific magic validation plus the configured ClamAV gate.
+
+    The generic document allowlist intentionally does not guess video formats;
+    this additive helper keeps that policy unchanged while giving the remote
+    training upload its own explicit MP4/WebM/MOV/M4V checks.
+    """
+    ext = (extension or "").lower()
+    head = content[:64] if content else b""
+    if any(head.startswith(bad) for bad in DENY_MAGIC):
+        quarantine_bytes(content, "video_deny_magic", original_name)
+        raise HTTPException(status_code=400, detail="Video içeriği güvenlik kontrolünden geçmedi.")
+    if ext in {".mp4", ".m4v", ".mov"}:
+        valid = len(head) >= 12 and head[4:8] == b"ftyp"
+    elif ext == ".webm":
+        valid = head.startswith(b"\x1a\x45\xdf\xa3")
+    else:
+        valid = False
+    if not valid:
+        quarantine_bytes(content, f"video_magic_mismatch:{ext}", original_name)
+        raise HTTPException(status_code=400, detail="Video uzantısı ile dosya içeriği uyuşmuyor.")
+    if is_clamav_configured():
+        clean, detail = scan_bytes(content)
+        if not clean:
+            quarantine_bytes(content, f"clamav:{detail}", original_name)
+            raise HTTPException(status_code=400, detail="Video virüs taramasından geçmedi.")
