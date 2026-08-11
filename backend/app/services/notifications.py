@@ -382,6 +382,51 @@ def rebuild_company_notifications(db: Session, company_id: int) -> int:
     return len(notifications)
 
 
+def rebuild_specialist_notifications(db: Session, user) -> int:
+    """İSG uzmanı için atandığı işyerlerine özel, klinik veri içermeyen uyarılar."""
+    # Kullanıcıya bağlı önceki görev bildirimlerini yenile; şirket seviyeli
+    # bildirimler ayrı tutulur ve hekim/DSP akışını etkilemez.
+    db.execute(
+        delete(Notification).where(
+            Notification.user_id == user.id,
+            Notification.entity_type == "specialist_duty",
+        )
+    )
+
+    from app.services.professional_duty import build_my_duty_board
+
+    board = build_my_duty_board(db, user)
+    notifications: list[Notification] = []
+    for alert in (board.get("alerts") or {}).get("all") or []:
+        severity = alert.get("severity")
+        if severity == "overdue":
+            ntype = NotificationType.CRITICAL
+        elif severity in ("due_soon", "missing"):
+            ntype = NotificationType.WARNING
+        else:
+            continue
+        company_id = alert.get("company_id")
+        code = (alert.get("check_code") or "duty")[:28]
+        due = (alert.get("due_date") or "")[:10]
+        entity_id = f"{code}:{company_id or 0}:{due}"[:80]
+        detail = (alert.get("detail") or "İlgili uzman görevini gözden geçirin.").strip()
+        notifications.append(
+            Notification(
+                user_id=user.id,
+                company_id=company_id,
+                type=ntype,
+                title=(alert.get("title") or "Uzman görevi")[:220],
+                message=detail[:1200],
+                entity_type="specialist_duty",
+                entity_id=entity_id,
+            )
+        )
+
+    db.add_all(notifications)
+    db.commit()
+    return len(notifications)
+
+
 def rebuild_osgb_notifications(db: Session, osgb_id: int) -> int:
     """OSGB operasyon uyarıları (görevlendirme / sözleşme / kadro)."""
     company_ids = list(
