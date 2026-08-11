@@ -207,6 +207,7 @@ def build_risk_pdf(
     scope_note: str | None = None,
     tax_number: str | None = None,
     nace_code: str | None = None,
+    nace_roadmap: dict | None = None,
 ) -> bytes:
     """Firma risk değerlendirme PDF raporu — kapak, yöntem, ekip, kayıt, imza."""
     from app.services.risk_methods import (
@@ -312,6 +313,69 @@ def build_risk_pdf(
         Spacer(1, 3 * mm),
         Paragraph("2. BELGE KONTROLÜ VE GEÇERLİLİK", section),
     ]
+
+    # NACE roadmap is an additive report section.  It is intentionally read-only:
+    # the report lists the evidence and work sequence but never invents a risk
+    # record from the NACE code.
+    if nace_roadmap:
+        identity = nace_roadmap.get("identity") or {}
+        status_label = nace_roadmap.get("status_label") or "—"
+        elements.extend(
+            [
+                Paragraph("2A. NACE ODAKLI RİSK KAPSAMI VE YOL HARİTASI", section),
+                Paragraph(f"<b>NACE durumu:</b> {status_label}", info),
+                Paragraph(
+                    f"<b>NACE kimliği:</b> {identity.get('code') or nace_roadmap.get('entered_nace_code') or '—'} — "
+                    f"{identity.get('description') or 'Tam katalog açıklaması yok.'}",
+                    info,
+                ),
+            ]
+        )
+        if identity.get("hazard_class"):
+            elements.append(
+                Paragraph(
+                    f"<b>NACE bölümü / tehlike sınıfı:</b> {identity.get('section_code') or '—'} — "
+                    f"{identity.get('section_name') or '—'} / {identity.get('hazard_class')}",
+                    info,
+                )
+            )
+        elements.append(
+            Paragraph(
+                "NACE eşleşmesi başlangıç kapsamıdır; saha gözlemi, gerçek proses ve ekip incelemesi olmadan tek başına hukuken tam risk değerlendirmesi sayılmaz.",
+                body,
+            )
+        )
+        domains = list(nace_roadmap.get("technical_risk_tags") or []) + list(nace_roadmap.get("special_risks") or [])
+        elements.append(Paragraph("<b>NACE teknik/özel risk başlıkları:</b>", info))
+        if domains:
+            for domain in domains:
+                elements.append(
+                    Paragraph(
+                        f"• {domain.get('label') or domain.get('key') or '—'} — {domain.get('description') or 'Saha doğrulaması gerekir.'}",
+                        body,
+                    )
+                )
+        else:
+            elements.append(Paragraph("• Teknik eşleştirme mevcut değil; genel kontrol listesi uygulanır ve uzman incelemesi beklenir.", body))
+        elements.append(Paragraph("<b>Bu raporda bulunması gereken asgari başlıklar:</b>", info))
+        for item in nace_roadmap.get("report_checklist") or []:
+            elements.append(
+                Paragraph(
+                    f"• <b>{item.get('title') or item.get('key') or '—'}</b>: {item.get('description') or '—'} "
+                    f"({item.get('legal_basis') or 'mevzuat / ekip doğrulaması'})",
+                    body,
+                )
+            )
+        elements.append(Paragraph("<b>Uygulama yol haritası:</b>", info))
+        for idx, step in enumerate(nace_roadmap.get("roadmap") or [], 1):
+            elements.append(
+                Paragraph(
+                    f"{idx}. <b>{step.get('title') or step.get('key') or '—'}</b>: {step.get('description') or '—'}",
+                    body,
+                )
+            )
+        for warning in nace_roadmap.get("warnings") or []:
+            elements.append(Paragraph(f"<i>Uyarı: {warning}</i>", body))
 
     for label, value in document_meta_rows(
         validity=validity,
@@ -867,6 +931,7 @@ def build_risk_excel(
     employer_representative: str | None = None,
     employee_representative: str | None = None,
     support_staff: str | None = None,
+    nace_roadmap: dict | None = None,
 ) -> bytes:
     """Excel: Risk tablosu + DÖF listesi + istatistikler (+ sayfa imza / sayfa no)."""
     hazard_map = hazard_map or {}
@@ -1143,6 +1208,131 @@ def build_risk_excel(
     ws3["B11"] = done_dofs
     ws3.column_dimensions["A"].width = 20
     ws3.column_dimensions["B"].width = 10
+
+    if nace_roadmap:
+        # Separate sheet keeps the existing risk/DÖF/statistics sheets stable
+        # while making the NACE report scope auditable and exportable.
+        ws4 = wb.create_sheet("NACE Yol Haritası")
+        ws4.merge_cells("A1:E1")
+        ws4["A1"] = "NACE ODAKLI RİSK KAPSAMI VE YOL HARİTASI"
+        ws4["A1"].font = Font(name="Calibri", bold=True, size=14, color="1a5276")
+        ws4["A1"].alignment = Alignment(horizontal="center")
+        identity = nace_roadmap.get("identity") or {}
+        ws4.merge_cells("A2:E2")
+        ws4["A2"] = (
+            f"İşyeri: {getattr(company, 'name', '')} | "
+            f"NACE: {identity.get('code') or nace_roadmap.get('entered_nace_code') or '—'} | "
+            f"Durum: {nace_roadmap.get('status_label') or '—'}"
+        )
+        ws4["A2"].font = Font(size=9, color="2c3e50")
+        ws4["A2"].alignment = Alignment(wrap_text=True)
+        ws4.merge_cells("A3:E3")
+        ws4["A3"] = (
+            f"Açıklama: {identity.get('description') or '—'} | "
+            f"Bölüm: {identity.get('section_name') or '—'} | "
+            "NACE tek başına saha risk değerlendirmesi yerine geçmez."
+        )
+        ws4["A3"].font = Font(size=9, italic=True, color="6c757d")
+        ws4["A3"].alignment = Alignment(wrap_text=True)
+
+        for col, header in enumerate(["Sıra / Faz", "Başlık", "Açıklama", "Mevzuat", "Modül / Durum"], 1):
+            cell = ws4.cell(row=5, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin
+
+        row = 6
+        for index, item in enumerate(nace_roadmap.get("report_checklist") or [], 1):
+            values = [
+                f"Rapor {index}",
+                item.get("title") or item.get("key") or "—",
+                item.get("description") or "—",
+                item.get("legal_basis") or "—",
+                item.get("module") or "—",
+            ]
+            for col, value in enumerate(values, 1):
+                cell = ws4.cell(row=row, column=col, value=value)
+                cell.border = thin
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
+                cell.font = Font(size=9)
+            row += 1
+
+        row += 1
+        for col, header in enumerate(["Yol Haritası", "Başlık", "Açıklama", "Mevzuat", "Modül / Durum"], 1):
+            cell = ws4.cell(row=row, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin
+        row += 1
+        for index, item in enumerate(nace_roadmap.get("roadmap") or [], 1):
+            values = [
+                f"{index}. {item.get('phase') or '—'}",
+                item.get("title") or item.get("key") or "—",
+                item.get("description") or "—",
+                item.get("legal_basis") or "—",
+                item.get("module") or "—",
+            ]
+            for col, value in enumerate(values, 1):
+                cell = ws4.cell(row=row, column=col, value=value)
+                cell.border = thin
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
+                cell.font = Font(size=9)
+            row += 1
+
+        row += 1
+        ws4.cell(row=row, column=1, value="NACE teknik risk başlıkları").font = header_font
+        ws4.cell(row=row, column=1).fill = header_fill
+        ws4.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+        row += 1
+        domains = list(nace_roadmap.get("technical_risk_tags") or []) + list(nace_roadmap.get("special_risks") or [])
+        if domains:
+            for item in domains:
+                values = [
+                    item.get("kind") or "technical",
+                    item.get("label") or item.get("key") or "—",
+                    item.get("description") or "—",
+                    item.get("category") or "—",
+                    item.get("source") or "—",
+                ]
+                for col, value in enumerate(values, 1):
+                    cell = ws4.cell(row=row, column=col, value=value)
+                    cell.border = thin
+                    cell.alignment = Alignment(wrap_text=True, vertical="top")
+                    cell.font = Font(size=9)
+                row += 1
+        else:
+            ws4.cell(row=row, column=1, value="Teknik risk eşleştirmesi yok; uzman saha incelemesi gerekli.")
+            ws4.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+            row += 1
+
+        row += 1
+        ws4.cell(row=row, column=1, value="Kapsam durumu").font = header_font
+        ws4.cell(row=row, column=1).fill = header_fill
+        ws4.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+        row += 1
+        coverage = nace_roadmap.get("coverage") or {}
+        for label, key in (
+            ("Risk kaydı", "risk_records"),
+            ("Bölüm", "departments"),
+            ("Açık DÖF", "open_dofs"),
+            ("Tamamlanan DÖF", "completed_dofs"),
+        ):
+            ws4.cell(row=row, column=1, value=label).border = thin
+            ws4.cell(row=row, column=2, value=coverage.get(key, 0)).border = thin
+            row += 1
+        for warning in nace_roadmap.get("warnings") or []:
+            ws4.merge_cells(start_row=row, start_column=1, end_row=row, end_column=5)
+            ws4.cell(row=row, column=1, value=f"Uyarı: {warning}").font = Font(size=9, italic=True, color="9a3412")
+            ws4.cell(row=row, column=1).alignment = Alignment(wrap_text=True)
+            row += 1
+
+        for col, width in enumerate([18, 30, 60, 34, 22], 1):
+            ws4.column_dimensions[get_column_letter(col)].width = width
+        ws4.freeze_panes = "A6"
+        ws4.auto_filter.ref = f"A5:E{max(5, row - 1)}"
+        _apply_excel_page_chrome(ws4, team_line=team_line, doc_label=f"NACE Yol Haritası — {getattr(company, 'name', '')}")
 
     _apply_excel_page_chrome(ws2, team_line=team_line, doc_label=f"DÖF Listesi — {getattr(company, 'name', '')}")
     _apply_excel_page_chrome(ws3, team_line=team_line, doc_label=f"Risk İstatistikleri — {getattr(company, 'name', '')}")
