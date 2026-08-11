@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import date
 import re
+import unicodedata
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -86,6 +87,16 @@ def normalize_employee_count(count: object) -> int:
     return max(0, value)
 
 
+def _normalize_employee_identity(value: object) -> str:
+    """Normalize the personnel identity the same way for Turkish casing/spacing."""
+    compact = " ".join(str(value or "").split()).casefold().replace("ı", "i")
+    return "".join(
+        char
+        for char in unicodedata.normalize("NFKD", compact)
+        if not unicodedata.combining(char)
+    )
+
+
 def count_active_employees(employees: Iterable[Employee]) -> int:
     """Count the existing active population once per business identity.
 
@@ -97,11 +108,11 @@ def count_active_employees(employees: Iterable[Employee]) -> int:
     for employee in employees:
         if not bool(getattr(employee, "is_active", False)):
             continue
-        national_id = str(getattr(employee, "national_id_masked", None) or "").strip().casefold()
+        national_id = _normalize_employee_identity(getattr(employee, "national_id_masked", None))
         if national_id:
             identity = ("national_id", national_id)
         else:
-            name = " ".join(str(getattr(employee, "full_name", None) or "").split()).casefold()
+            name = _normalize_employee_identity(getattr(employee, "full_name", None))
             identity = ("name", name) if name else ("record", str(getattr(employee, "id", id(employee))))
         identities.add(identity)
     return len(identities)
