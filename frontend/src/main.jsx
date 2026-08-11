@@ -14,7 +14,7 @@ import {createRoot} from 'react-dom/client';
   }catch{ /* ignore */ }
 })();
 
-import {AlertTriangle,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
+import {AlertTriangle,ArrowLeft,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
 import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
 import {clearOfflineQueue} from './field_offline';
 import {LoginPasswordInput, PasswordField} from './password_field';
@@ -68,6 +68,11 @@ import {
 import './styles.css';
 import './theme-modern.css';
 import {useUiTheme} from './theme';
+import {
+  createNavigationState,
+  nextNavigationIndex,
+  parseNavigationLocation,
+} from './navigation_history';
 const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 /**
  * Sol menü sırası (yukarı→aşağı): ana panel → günlük operasyon → master data →
@@ -1688,25 +1693,61 @@ function ThemeToggle({theme,onToggle,floating}){
 }
 
 /** Menü geçmişi — tarayıcı Geri/İleri uygulamada kalsın */
-function readModuleFromLocation(){
-  try{
-    const h=String(window.location.hash||'').replace(/^#/, '');
-    if(h.startsWith('m=')) return decodeURIComponent(h.slice(2).split('&')[0]||'');
-    if(h.startsWith('/')) return decodeURIComponent(h.slice(1).split(/[?#]/)[0]||'');
-    const q=new URLSearchParams(window.location.search).get('m');
-    if(q) return q;
-  }catch(_){ /* ignore */ }
-  return '';
+function readNavigationFromLocation(){
+  try{return parseNavigationLocation(window.location)}
+  catch{return {module:'',companyId:''}}
 }
-function writeModuleToLocation(id,{replace=false}={}){
+function readModuleFromLocation(){
+  return readNavigationFromLocation().module;
+}
+function writeModuleToLocation(id,{replace=false,companyId=''}={}){
   try{
     const u=new URL(window.location.href);
     u.searchParams.delete('m');
-    u.hash=id?`m=${encodeURIComponent(id)}`:'';
+    const current=readNavigationFromLocation();
+    const preserveRiskView=id==='risk' && current.module==='risk' && replace;
+    const nextCompany=id==='customer_360'
+      ? String(companyId || current.companyId || '')
+      : '';
+    const hashParams=new URLSearchParams();
+    if(id) hashParams.set('m',id);
+    if(id==='customer_360' && nextCompany) hashParams.set('company',nextCompany);
+    if(preserveRiskView){
+      try{
+        const currentHash=new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).toString();
+        const currentRiskParams=new URLSearchParams(currentHash);
+        if(currentRiskParams.get('risk_tab')) hashParams.set('risk_tab',currentRiskParams.get('risk_tab'));
+        if(currentRiskParams.get('risk_detail')) hashParams.set('risk_detail',currentRiskParams.get('risk_detail'));
+      }catch(_){ /* ignore */ }
+    }
+    u.hash=hashParams.toString();
     const url=u.pathname+(u.search||'')+(u.hash||'');
-    if(replace) window.history.replaceState({module:id||''},'',url||'/');
-    else window.history.pushState({module:id||''},'',url||'/');
+    const sameRoute=current.module===(id||'')
+      && String(current.companyId||'')===nextCompany;
+    const shouldReplace=replace||sameRoute;
+    const state=createNavigationState(window.history.state,{
+      module:id||'',
+      companyId:nextCompany,
+      index:nextNavigationIndex(window.history.state,{replace:shouldReplace}),
+    });
+    if(!preserveRiskView && id==='risk'){
+      delete state.riskTab;
+      delete state.riskDetailId;
+    }
+    if(shouldReplace) window.history.replaceState(state,'',url||'/');
+    else window.history.pushState(state,'',url||'/');
   }catch(_){ /* ignore */ }
+}
+
+function homeModuleForUser(user){
+  const allowed=modulesForUser(user);
+  const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
+  if(allowed.includes('eisa_overview')) return 'eisa_overview';
+  if(allowed.includes('eisa')) return 'eisa';
+  if(allowed.includes('osgb_dashboard')) return 'osgb_dashboard';
+  if(fieldRoles.includes(user?.role) && allowed.includes('visits')) return 'visits';
+  if(allowed.includes('dashboard')) return 'dashboard';
+  return allowed[0]||'';
 }
 
 function App(){
@@ -1744,9 +1785,7 @@ function App(){
     const allowed=modulesForUser(user);
     if(id && id!=='customer_360' && !allowed.includes(id)){
       // Yetkisiz / menüde olmayan modül — ana panele düş
-      const home=allowed.includes('osgb_dashboard')
-        ? 'osgb_dashboard'
-        : (allowed.includes('dashboard') ? 'dashboard' : (allowed[0]||''));
+      const home=homeModuleForUser(user);
       if(home){
         setActive(home);
         try{sessionStorage.setItem('isg_active',home)}catch(_){ /* ignore */ }
@@ -1760,17 +1799,17 @@ function App(){
   }
 
   function openCustomer360(companyId){
-    setC360Id(companyId);
+    const nextCompanyId=Number(companyId);
+    if(!Number.isFinite(nextCompanyId) || nextCompanyId<=0) return;
+    setC360Id(nextCompanyId);
     setActive('customer_360');
     try{sessionStorage.setItem('isg_active','customer_360')}catch(_){ /* ignore */ }
-    writeModuleToLocation('customer_360');
+    writeModuleToLocation('customer_360',{companyId:nextCompanyId});
   }
 
   function closeCustomer360(){
     setC360Id(null);
-    setActive('companies');
-    try{sessionStorage.setItem('isg_active','companies')}catch(_){ /* ignore */ }
-    writeModuleToLocation('companies');
+    goModule('companies');
   }
 
   useEffect(()=>{
@@ -1800,16 +1839,21 @@ function App(){
   }
 
   function goHome(){
-    const allowed=modulesForUser(user);
-    const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
-    let home='';
-    if(allowed.includes('eisa_overview')) home='eisa_overview';
-    else if(allowed.includes('eisa')) home='eisa';
-    else if(allowed.includes('osgb_dashboard')) home='osgb_dashboard';
-    else if(fieldRoles.includes(user?.role) && allowed.includes('visits')) home='visits';
-    else if(allowed.includes('dashboard')) home='dashboard';
-    else home=allowed[0]||'';
+    const home=homeModuleForUser(user);
     if(home) goModule(home);
+  }
+
+  function goBack(){
+    const state=window.history.state;
+    const currentIndex=Number(state?.navigationIndex);
+    const hasRiskSubroute=state?.module==='risk' && (state.riskTab || state.riskDetailId);
+    if(hasRiskSubroute || (state?.__isg_suite_navigation_v1===true && Number.isInteger(currentIndex) && currentIndex>0)){
+      window.history.back();
+      return;
+    }
+    const current=readNavigationFromLocation();
+    const home=homeModuleForUser(user);
+    if(home && current.module!==home) goModule(home,{replace:true});
   }
 
   useEffect(()=>{
@@ -1827,10 +1871,16 @@ function App(){
         setSummary(s);
         const allowed=modulesForUser(u);
         const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
-        const fromUrl=readModuleFromLocation();
+        const locationNavigation=readNavigationFromLocation();
+        const fromUrl=locationNavigation.module;
+        const locationCompanyId=Number(locationNavigation.companyId);
+        const validCustomerRoute=fromUrl==='customer_360'
+          && Number.isFinite(locationCompanyId)
+          && locationCompanyId>0;
         let next='';
         if(verifyCode && allowed.includes('training')) next='training';
-        else if(fromUrl && (fromUrl==='customer_360' || allowed.includes(fromUrl))) next=fromUrl;
+        else if(validCustomerRoute) next=fromUrl;
+        else if(fromUrl && allowed.includes(fromUrl)) next=fromUrl;
         else if(active && (active==='customer_360' || allowed.includes(active))) next=active;
         else {
           try{
@@ -1843,8 +1893,13 @@ function App(){
           else next=allowed[0]||'';
         }
         setActive(next);
+        if(next==='customer_360' && validCustomerRoute) setC360Id(locationCompanyId);
+        else if(next!=='customer_360') setC360Id(null);
         try{if(next) sessionStorage.setItem('isg_active',next)}catch(_){ /* ignore */ }
-        if(next) writeModuleToLocation(next,{replace:true});
+        if(next) writeModuleToLocation(next,{
+          replace:true,
+          companyId:next==='customer_360' && validCustomerRoute ? locationCompanyId : '',
+        });
       }catch(_){
         if(cancelled) return;
         localStorage.removeItem('isg_token');
@@ -1860,23 +1915,26 @@ function App(){
   useEffect(()=>{
     if(!user) return undefined;
     function onPop(){
-      const id=readModuleFromLocation();
+      const locationNavigation=readNavigationFromLocation();
+      const id=locationNavigation.module;
       const allowed=modulesForUser(user);
-      if(id && (id==='customer_360' || allowed.includes(id))){
+      const customerId=Number(locationNavigation.companyId);
+      if(id==='customer_360' && Number.isFinite(customerId) && customerId>0){
         setActive(id);
-        if(id!=='customer_360') setC360Id(null);
+        setC360Id(customerId);
         try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
         return;
       }
-      const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
-      let home='';
-      if(allowed.includes('eisa_overview')) home='eisa_overview';
-      else if(allowed.includes('osgb_dashboard')) home='osgb_dashboard';
-      else if(fieldRoles.includes(user.role) && allowed.includes('visits')) home='visits';
-      else if(allowed.includes('dashboard')) home='dashboard';
-      else home=allowed[0]||'';
+      if(id && allowed.includes(id)){
+        setActive(id);
+        setC360Id(null);
+        try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
+        return;
+      }
+      const home=homeModuleForUser(user);
       if(home){
         setActive(home);
+        setC360Id(null);
         try{sessionStorage.setItem('isg_active',home)}catch(_){ /* ignore */ }
         writeModuleToLocation(home,{replace:true});
       }
@@ -2072,6 +2130,9 @@ function App(){
             <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
           </div>
           <div className="header-actions">
+            <button type="button" className="header-icon" onClick={goBack} title="Önceki sayfaya dön" aria-label="Önceki sayfaya dön">
+              <ArrowLeft size={18}/>
+            </button>
             <ThemeToggle theme={uiTheme} onToggle={toggleUiTheme}/>
             <ReportIssueButton/>
             <button type="button" className="header-icon" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfa">
