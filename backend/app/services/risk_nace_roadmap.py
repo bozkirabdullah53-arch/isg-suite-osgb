@@ -333,7 +333,16 @@ def build_risk_nace_roadmap(
             classification = resolve_exact_nace(entered)
             status = classification.classification_status
         except ValueError:
-            error_reason = "Girilen kod resmî NACE kataloğunda tam eşleşmedi; başka bir NACE ile tahmin yapılmadı."
+            sgk_scope_only = nace_source == "sgk_work_code" and len(entered.split(".")) == 2
+            if sgk_scope_only:
+                status = "review_required"
+                error_reason = (
+                    "SGK sicil numarasındaki dört haneli işkolu/NACE kodu okundu; "
+                    "altı haneli faaliyet kodu SGK numarasından güvenli biçimde çıkarılamaz. "
+                    "Resmî katalogdan altı haneli NACE doğrulanmalıdır."
+                )
+            else:
+                error_reason = "Girilen kod resmî NACE kataloğunda tam eşleşmedi; başka bir NACE ile tahmin yapılmadı."
 
     technical_tags = list(getattr(classification, "technical_risk_tags", ()) or ())
     special_tags = list(getattr(classification, "special_risks", ()) or ())
@@ -347,7 +356,10 @@ def build_risk_nace_roadmap(
     if status == "verified":
         next_action = "NACE teknik başlıklarını bölüm/faaliyet bazında saha gözlemiyle doğrulayın; gerçekleşenleri risk kaydı ve DÖF ile tamamlayın."
     elif status == "review_required":
-        next_action = "NACE kimliği doğrulandı; teknik risk eşleştirmesi uzman tarafından saha ve proses verisiyle tamamlanmadan kapsamı kesin kabul etmeyin."
+        if nace_source == "sgk_work_code":
+            next_action = "SGK sicilindeki dört haneli işkolu kodu okundu; resmî katalogdan altı haneli NACE faaliyetini doğrulayın, ardından teknik risk başlıklarını saha ile eşleştirin."
+        else:
+            next_action = "NACE kimliği doğrulandı; teknik risk eşleştirmesi uzman tarafından saha ve proses verisiyle tamamlanmadan kapsamı kesin kabul etmeyin."
     elif status == "missing":
         next_action = "Firma kartına tam NACE kodunu girip resmî katalogdan seçin; kod girilmeden NACE'ye özgü kapsam üretilemez."
     else:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from datetime import date
 from io import BytesIO
@@ -652,6 +653,35 @@ def _canonical_nace_code(value: object) -> str | None:
     return None
 
 
+def _nace_from_sgk_registry(value: object) -> str | None:
+    """Read SGK's four-digit NACE/work-code from a workplace registry number.
+
+    SGK's 26-digit workplace number carries the four-digit work/NACE code
+    after the one-digit nature code. It does not identify the six-digit
+    activity by itself; therefore this helper returns ``24.10``-style scope
+    only and never invents the final two digits.
+    """
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+
+    # Allow a pasted four-digit work code or a visibly formatted four-digit
+    # code, while keeping ordinary SGK numbers on the structured path below.
+    compact = re.sub(r"\D", "", raw)
+    if re.fullmatch(r"\d{4}", compact):
+        return f"{compact[:2]}.{compact[2:]}"
+
+    # A standard SGK workplace registry is commonly pasted with spaces,
+    # dashes or no separators. The first digit is the nature code; the next
+    # four digits are the SGK work/NACE code.
+    if len(compact) not in {23, 26, 27}:
+        return None
+    work_code = compact[1:5]
+    if not re.fullmatch(r"\d{4}", work_code) or work_code == "0000":
+        return None
+    return f"{work_code[:2]}.{work_code[2:]}"
+
+
 def _resolve_company_nace(
     db: Session,
     company: Company,
@@ -665,6 +695,10 @@ def _resolve_company_nace(
     direct_raw = str(getattr(company, "nace_code", None) or "").strip() or None
     if direct_raw:
         return _canonical_nace_code(direct_raw) or direct_raw, "company"
+
+    sgk_nace = _nace_from_sgk_registry(getattr(company, "sgk_registry_no", None))
+    if sgk_nace:
+        return sgk_nace, "sgk_work_code"
 
     candidates: list[str] = []
 
