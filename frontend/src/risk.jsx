@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {
   AlertTriangle,
@@ -19,6 +19,7 @@ import {
 import {api, downloadFile, uploadFile, authBlobUrl} from './api';
 import {NaceRoadmapPanel, NaceRoadmapSummary} from './risk_nace_roadmap';
 import {createNavigationState, navigationIndex, parseNavigationLocation} from './navigation_history';
+import {isMatchingRiskId, normalizeRiskId} from './risk_detail_navigation';
 import './risk_pro.css';
 
 const LEVEL_COLORS = {
@@ -106,10 +107,10 @@ function readRiskViewFromLocation() {
     const hash = String(window.location.hash || '').replace(/^#/, '');
     const params = new URLSearchParams(hash);
     const requestedTab = params.get('risk_tab') || 'panel';
-    const requestedDetail = params.get('risk_detail') || '';
+    const requestedDetail = normalizeRiskId(params.get('risk_detail'));
     return {
       tab: RISK_TAB_IDS.has(requestedTab) ? requestedTab : 'panel',
-      detailId: /^\d+$/.test(requestedDetail) ? requestedDetail : '',
+      detailId: requestedDetail ? String(requestedDetail) : '',
     };
   } catch (_) {
     return {tab: 'panel', detailId: ''};
@@ -431,6 +432,7 @@ export function RiskPage({user}) {
     cost_estimate: '',
   });
   const [busy, setBusy] = useState(false);
+  const [detailBusy, setDetailBusy] = useState(false);
   const [dlBusy, setDlBusy] = useState('');
   const [reportCompanyId, setReportCompanyId] = useState(user.company_id || '');
   const [tab, setTabState] = useState(() => readRiskViewFromLocation().tab);
@@ -454,9 +456,15 @@ export function RiskPage({user}) {
   const [naceRoadmap, setNaceRoadmap] = useState(null);
   const [naceBusy, setNaceBusy] = useState(false);
   const [naceErr, setNaceErr] = useState('');
+  const detailRequestRef = useRef(0);
+  const detailSectionRef = useRef(null);
 
   function setTab(nextTab, {replace = false} = {}) {
     const normalized = RISK_TAB_IDS.has(nextTab) ? nextTab : 'panel';
+    // Sekme değişirken tamamlanmamış detay isteği artık ekrana yazamaz.
+    // Böylece kullanıcı başka bir sekmeye geçse bile eski kayıt yeniden açılmaz.
+    detailRequestRef.current += 1;
+    setDetailBusy(false);
     setTabState(normalized);
     setDetail(null);
     writeRiskViewToLocation({tab: normalized, replace});
@@ -865,6 +873,12 @@ export function RiskPage({user}) {
   }
 
   function openCreate() {
+    detailRequestRef.current += 1;
+    setDetailBusy(false);
+    setDetail(null);
+    if (readRiskViewFromLocation().detailId) {
+      writeRiskViewToLocation({tab: 'risks', replace: true});
+    }
     setEditId(null);
     setErr('');
     setSuggestions(null);
@@ -892,6 +906,12 @@ export function RiskPage({user}) {
 
   async function openEdit(riskOrId) {
     setErr('');
+    detailRequestRef.current += 1;
+    setDetailBusy(false);
+    setDetail(null);
+    if (readRiskViewFromLocation().detailId) {
+      writeRiskViewToLocation({tab: 'risks', replace: true});
+    }
     setBusy(true);
     try {
       const id = typeof riskOrId === 'object' ? riskOrId.id : riskOrId;
@@ -899,7 +919,6 @@ export function RiskPage({user}) {
         ? riskOrId
         : await api(`/risks/${id}`);
       setEditId(r.id);
-      setDetail(null);
       setForm({
         ...empty,
         company_id: String(r.company_id || ''),
@@ -969,32 +988,71 @@ export function RiskPage({user}) {
   }
 
   async function openDetail(id) {
+    const riskId = normalizeRiskId(id);
+    if (!riskId) {
+      setErr('Risk detayı için geçerli bir kayıt numarası bulunamadı.');
+      return;
+    }
+    const request = ++detailRequestRef.current;
+    setErr('');
     setTabState('risks');
-    const r = await api(`/risks/${id}`);
-    setDetail(r);
-    setDofForm({
-      description: '',
-      responsible_person: '',
-      responsible_department: r.department_name || '',
-      term_date: r.term_date || '',
-      cost_estimate: '',
-    });
-    writeRiskViewToLocation({tab: 'risks', detailId: r.id});
+    setDetail(null);
+    setDetailBusy(true);
+    // Rota, tıklanan kayıtla hemen eşleşsin; ağ yanıtı gecikse de Geri
+    // düğmesi kullanıcıyı risk listesine, eski sayfaya değil, götürür.
+    writeRiskViewToLocation({tab: 'risks', detailId: riskId});
+    try {
+      const r = await api(`/risks/${riskId}`);
+      if (request !== detailRequestRef.current) return;
+      if (!isMatchingRiskId(r?.id, riskId)) {
+        throw new Error('Sunucudan seçilen riskle eşleşmeyen bir kayıt döndü.');
+      }
+      setDetail(r);
+      setDofForm({
+        description: '',
+        responsible_person: '',
+        responsible_department: r.department_name || '',
+        term_date: r.term_date || '',
+        cost_estimate: '',
+      });
+    } catch (x) {
+      if (request !== detailRequestRef.current) return;
+      setDetail(null);
+      // Hatalı/ulaşılamayan detay URL'si kalıcı bir bozuk rota bırakmasın.
+      const current = readRiskViewFromLocation();
+      if (current.detailId === String(riskId)) {
+        writeRiskViewToLocation({tab: 'risks', replace: true});
+      }
+      setErr(x.message || 'Risk detayı yüklenemedi. Listeyi yenileyip tekrar deneyin.');
+    } finally {
+      if (request === detailRequestRef.current) setDetailBusy(false);
+    }
   }
 
   useEffect(() => {
-    let requestNo = 0;
     async function syncRiskView() {
       const view = readRiskViewFromLocation();
       setTabState(view.tab);
+      const request = ++detailRequestRef.current;
       if (!view.detailId) {
         setDetail(null);
+        setDetailBusy(false);
         return;
       }
-      const request = ++requestNo;
+      const riskId = normalizeRiskId(view.detailId);
+      if (!riskId) {
+        setDetail(null);
+        setDetailBusy(false);
+        return;
+      }
+      setDetail(null);
+      setDetailBusy(true);
       try {
-        const risk = await api(`/risks/${view.detailId}`);
-        if (request !== requestNo) return;
+        const risk = await api(`/risks/${riskId}`);
+        if (request !== detailRequestRef.current) return;
+        if (!isMatchingRiskId(risk?.id, riskId)) {
+          throw new Error('Sunucudan seçilen riskle eşleşmeyen bir kayıt döndü.');
+        }
         setDetail(risk);
         setDofForm({
           description: '',
@@ -1003,19 +1061,33 @@ export function RiskPage({user}) {
           term_date: risk.term_date || '',
           cost_estimate: '',
         });
-      } catch (_) {
-        if (request === requestNo) setDetail(null);
+      } catch (x) {
+        if (request !== detailRequestRef.current) return;
+        setDetail(null);
+        setErr(x.message || 'Risk detayı yüklenemedi. Listeyi yenileyip tekrar deneyin.');
+      } finally {
+        if (request === detailRequestRef.current) setDetailBusy(false);
       }
     }
     syncRiskView();
     window.addEventListener('popstate', syncRiskView);
     return () => {
-      requestNo += 1;
+      detailRequestRef.current += 1;
       window.removeEventListener('popstate', syncRiskView);
     };
   }, []);
 
+  useEffect(() => {
+    if (!detail) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      detailSectionRef.current?.scrollIntoView({block: 'start', behavior: 'smooth'});
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [detail?.id]);
+
   function closeRiskDetail({replace = false} = {}) {
+    detailRequestRef.current += 1;
+    setDetailBusy(false);
     setDetail(null);
     setTabState('risks');
     writeRiskViewToLocation({tab: 'risks', replace});
@@ -1342,6 +1414,12 @@ export function RiskPage({user}) {
           </button>
         </div>
       </section>
+
+      {detailBusy && (
+        <div className="risk-detail-status" role="status" aria-live="polite">
+          Seçilen risk detayı yükleniyor…
+        </div>
+      )}
 
       {tab === 'panel' && !detail && (
         <>
@@ -2414,7 +2492,7 @@ export function RiskPage({user}) {
       )}
 
       {detail && (
-        <section className="panel doc-workspace">
+        <section ref={detailSectionRef} className="panel doc-workspace risk-detail-workspace">
           <div className="doc-head">
             <div>
               <h3>{detail.risk_code} — Risk Detayı / DÖF</h3>
@@ -2431,6 +2509,13 @@ export function RiskPage({user}) {
               )}
               <button type="button" className="secondary" onClick={closeRiskDetail}>Listeye dön</button>
             </div>
+          </div>
+          <div className="risk-detail-context" role="note">
+            <span>SEÇİLİ KAYIT YÖNTEMİ</span>
+            <strong>{detail.method_label || '5x5 Matris (L Tipi)'}</strong>
+            <small>
+              Bu kayıt, üstteki yeni çalışma yöntemi seçiminden bağımsız olarak kendi kayıt yöntemiyle gösterilir.
+            </small>
           </div>
           <div className="form-grid">
             <div className="field"><span>Bölüm</span><strong>{detail.department_name || '—'}</strong></div>
@@ -2458,6 +2543,7 @@ export function RiskPage({user}) {
             <div className="field" style={{gridColumn: '1 / -1'}}><span>Mevcut önlemler</span><p>{detail.existing_measures || '—'}</p></div>
             <div className="field" style={{gridColumn: '1 / -1'}}><span>Ek önlemler</span><p>{detail.additional_measures || '—'}</p></div>
           </div>
+          {err && <div className="error" role="alert" style={{margin: '0 22px 16px'}}>{err}</div>}
 
           <h4 style={{marginTop: 16}}>Fotoğraf / medya</h4>
           <div style={{display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start', marginBottom: 8}}>
