@@ -1,0 +1,1636 @@
+"""Secure, additive API for Basic Occupational Health and Safety video training.
+
+This router deliberately has its own tables, feature flag and storage keys.  It
+does not change the existing in-person training routes or their records.
+"""
+from __future__ import annotations
+
+import json
+from datetime import date, datetime
+from pathlib import Path
+from typing import Any
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import StreamingResponse
+from sqlalchemy import desc, func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.api.company_access import accessible_company_ids_or_empty, ensure_company_access
+from app.api.deps import get_current_user
+from app.core.config import settings
+from app.core.database import get_db
+from app.models.entities import Branch, Company, Employee, TrainingQuestion, User, UserRole
+from app.models.remote_training import (
+    ASSET_TYPES,
+    PROGRAM_STATUSES,
+    REMOTE_TRAINING_TYPE,
+    VIDEO_STATUSES,
+    RemoteTrainingAssignment,
+    RemoteTrainingAsset,
+    RemoteTrainingCertificate,
+    RemoteTrainingCheckpointAnswer,
+    RemoteTrainingEmployeeAccess,
+    RemoteTrainingEvent,
+    RemoteTrainingExamAttempt,
+    RemoteTrainingProgram,
+    RemoteTrainingProgramQuestion,
+    RemoteTrainingQuestion,
+    RemoteTrainingSection,
+    RemoteTrainingVideo,
+    RemoteTrainingVideoProgress,
+)
+from app.schemas.remote_training import (
+    RemoteAssignmentCreate,
+    RemoteCheckpointQuestionCreate,
+    RemoteEmployeeAccessCreate,
+    RemoteExamSubmit,
+    RemoteProgramCreate,
+    RemoteProgramQuestionLink,
+    RemoteProgramUpdate,
+    RemoteProgressCreate,
+    RemoteSectionCreate,
+    RemoteSectionUpdate,
+    RemoteVideoUpdate,
+)
+from app.services.remote_training import (
+    MANAGE_ROLES,
+    VIEW_ROLES,
+    assert_assignment_access,
+    assert_program_access,
+    audit,
+    build_certificate_pdf,
+    company_snapshot,
+    create_playback_token,
+    decode_playback_token,
+    employee_access,
+    enqueue_video_processing,
+    ensure_certificate,
+    feature_active,
+    is_manager,
+    load_assignment,
+    load_program,
+    load_section,
+    load_video,
+    recalculate_assignment,
+    recalculate_program_duration,
+    require_feature,
+    response_for_video,
+    storage_key,
+    validate_video_bytes,
+)
+
+router = APIRouter(prefix="/trainings/remote", tags=["Uzaktan Temel İSG Eğitimi"])
+
+
+def _manager(user: User) -> None:
+    if user.role not in MANAGE_ROLES:
+        raise HTTPException(403, "Bu uzaktan eğitim işlemi için eğitici/yönetici yetkisi gerekir.")
+
+
+def _viewer(user: User) -> None:
+    if user.role not in VIEW_ROLES:
+        raise HTTPException(403, "Bu uzaktan eğitim kaydını görüntüleme yetkiniz yok.")
+
+
+def _iso(value: Any) -> str | None:
+    return value.isoformat() if value is not None and hasattr(value, "isoformat") else None
+
+
+def _company_ids(db: Session, user: User, company_id: int | None) -> list[int] | None:
+    if company_id is not None:
+        ensure_company_access(db, user, company_id)
+        return [company_id]
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return None
+    ids = accessible_company_ids_or_empty(db, user)
+    return [int(item) for item in ids]
+
+
+def _program_query_for_user(
+    db: Session, user: User, company_id: int | None = None
+):
+    stmt = select(RemoteTrainingProgram)
+    ids = _company_ids(db, user, company_id)
+    if ids is not None:
+        if not ids:
+            stmt = stmt.where(RemoteTrainingProgram.id == -1)
+        else:
+            stmt = stmt.where(RemoteTrainingProgram.company_id.in_(ids))
+    return stmt
+
+
+def _assert_program_manager(db: Session, user: User, program_id: int) -> RemoteTrainingProgram:
+    require_feature()
+    _manager(user)
+    program = load_program(db, program_id)
+    ensure_company_access(db, user, program.company_id)
+    return program
+
+
+def _assert_section_manager(db: Session, user: User, section_id: int) -> RemoteTrainingSection:
+    section = load_section(db, section_id)
+    program = _assert_program_manager(db, user, section.program_id)
+    if section.company_id != program.company_id:
+        raise HTTPException(403, "Bölüm firma kapsamı dışında.")
+    return section
+
+
+def _assert_video_manager(db: Session, user: User, video_id: int) -> RemoteTrainingVideo:
+    video = load_video(db, video_id)
+    program = _assert_program_manager(db, user, video.program_id)
+    if video.company_id != program.company_id:
+        raise HTTPException(403, "Video firma kapsamı dışında.")
+    return video
+
+
+def _program_output(program: RemoteTrainingProgram) -> dict[str, Any]:
+    return {
+        "id": program.id,
+        "company_id": program.company_id,
+        "branch_id": program.branch_id,
+        "title": program.title,
+        "training_type": REMOTE_TRAINING_TYPE,
+        "description": program.description,
+        "learning_objectives": program.learning_objectives,
+        "instructor_name": program.instructor_name,
+        "instructor_qualification": program.instructor_qualification,
+        "total_duration_seconds": program.total_duration_seconds,
+        "completion_threshold_percent": program.completion_threshold_percent,
+        "passing_score": program.passing_score,
+        "attempt_limit": program.attempt_limit,
+        "requires_final_exam": bool(program.requires_final_exam),
+        "status": program.status,
+        "revision_no": program.revision_no,
+        "published_at": _iso(program.published_at),
+        "archived_at": _iso(program.archived_at),
+        "created_at": _iso(program.created_at),
+        "updated_at": _iso(program.updated_at),
+    }
+
+
+def _video_output(video: RemoteTrainingVideo, *, employee: bool = False) -> dict[str, Any]:
+    result = {
+        "id": video.id,
+        "program_id": video.program_id,
+        "section_id": video.section_id,
+        "revision_of_id": video.revision_of_id,
+        "title": video.title,
+        "description": video.description,
+        "learning_objectives": video.learning_objectives,
+        "order_index": video.order_index,
+        "is_required": bool(video.is_required),
+        "revision_no": video.revision_no,
+        "is_current": bool(video.is_current),
+        "status": video.status,
+        "original_file_name": video.original_file_name if not employee else None,
+        "content_type": video.content_type,
+        "file_size_bytes": video.file_size_bytes,
+        "duration_seconds": video.duration_seconds,
+        "width": video.width,
+        "height": video.height,
+        "codec": video.codec,
+        "processing_job_id": video.processing_job_id if not employee else None,
+        "processing_error": video.processing_error if not employee else None,
+        "published_at": _iso(video.published_at),
+        "created_at": _iso(video.created_at),
+    }
+    return result
+
+
+def _asset_output(asset: RemoteTrainingAsset) -> dict[str, Any]:
+    return {
+        "id": asset.id,
+        "video_id": asset.video_id,
+        "asset_type": asset.asset_type,
+        "original_file_name": asset.original_file_name,
+        "content_type": asset.content_type,
+        "file_size_bytes": asset.file_size_bytes,
+        "created_at": _iso(asset.created_at),
+    }
+
+
+def _question_output(question: RemoteTrainingQuestion, *, reveal_answer: bool) -> dict[str, Any]:
+    options = json.loads(question.options_json or "{}")
+    result = {
+        "id": question.id,
+        "program_id": question.program_id,
+        "section_id": question.section_id,
+        "video_id": question.video_id,
+        "question_text": question.question_text,
+        "options": options,
+        "explanation": question.explanation if reveal_answer else None,
+        "timestamp_seconds": question.timestamp_seconds,
+        "order_index": question.order_index,
+        "is_required": bool(question.is_required),
+    }
+    if reveal_answer:
+        result["correct_option"] = question.correct_option
+    return result
+
+
+def _section_output(
+    db: Session, section: RemoteTrainingSection, *, employee: bool = False
+) -> dict[str, Any]:
+    videos = list(
+        db.scalars(
+            select(RemoteTrainingVideo)
+            .where(RemoteTrainingVideo.section_id == section.id)
+            .order_by(RemoteTrainingVideo.order_index, RemoteTrainingVideo.id)
+        ).all()
+    )
+    if employee:
+        videos = [v for v in videos if v.status == "published" and v.is_current]
+    return {
+        "id": section.id,
+        "program_id": section.program_id,
+        "title": section.title,
+        "description": section.description,
+        "learning_objectives": section.learning_objectives,
+        "order_index": section.order_index,
+        "is_required": bool(section.is_required),
+        "status": section.status,
+        "videos": [_video_output(video, employee=employee) for video in videos],
+    }
+
+
+def _program_detail(
+    db: Session,
+    program: RemoteTrainingProgram,
+    *,
+    employee: bool = False,
+) -> dict[str, Any]:
+    if employee and program.status != "published":
+        raise HTTPException(403, "Bu eğitim şu anda çalışana açık değil.")
+    data = _program_output(program)
+    sections = list(
+        db.scalars(
+            select(RemoteTrainingSection)
+            .where(RemoteTrainingSection.program_id == program.id)
+            .order_by(RemoteTrainingSection.order_index, RemoteTrainingSection.id)
+        ).all()
+    )
+    if employee:
+        sections = [s for s in sections if s.status == "active"]
+    data["sections"] = [
+        _section_output(db, section, employee=employee) for section in sections
+    ]
+    questions = list(
+        db.scalars(
+            select(RemoteTrainingQuestion)
+            .where(RemoteTrainingQuestion.program_id == program.id)
+            .order_by(RemoteTrainingQuestion.order_index, RemoteTrainingQuestion.id)
+        ).all()
+    )
+    data["checkpoint_questions"] = [
+        _question_output(question, reveal_answer=not employee) for question in questions
+    ]
+    if not employee:
+        links = list(
+            db.scalars(
+                select(RemoteTrainingProgramQuestion)
+                .where(RemoteTrainingProgramQuestion.program_id == program.id)
+                .order_by(RemoteTrainingProgramQuestion.position, RemoteTrainingProgramQuestion.id)
+            ).all()
+        )
+        data["exam_question_links"] = [
+            {"id": link.id, "question_id": link.question_id, "position": link.position}
+            for link in links
+        ]
+    return data
+
+
+def _assignment_warnings(assignment: RemoteTrainingAssignment) -> list[str]:
+    warnings: list[str] = []
+    if not assignment.sgk_registration_number_snapshot:
+        warnings.append("Atama tarihinde SGK sicil numarası bulunamadı.")
+    if not assignment.nace_code_snapshot:
+        warnings.append("Atama tarihinde NACE kodu bulunamadı.")
+    elif not assignment.nace_description_snapshot:
+        warnings.append("Atama tarihinde NACE açıklaması çözülemedi.")
+    if not assignment.hazard_class_snapshot:
+        warnings.append("Atama tarihinde tehlike sınıfı bulunamadı.")
+    return warnings
+
+
+def _assignment_output(
+    db: Session,
+    assignment: RemoteTrainingAssignment,
+    *,
+    include_program: bool = False,
+    employee: bool = False,
+) -> dict[str, Any]:
+    summary = recalculate_assignment(db, assignment)
+    result = {
+        "id": assignment.id,
+        "company_id": assignment.company_id,
+        "branch_id": assignment.branch_id,
+        "program_id": assignment.program_id,
+        "employee_id": assignment.employee_id,
+        "employee_name": assignment.employee_name_snapshot,
+        "status": assignment.status,
+        "due_date": _iso(assignment.due_date),
+        "assigned_at": _iso(assignment.assigned_at),
+        "started_at": _iso(assignment.started_at),
+        "completed_at": _iso(assignment.completed_at),
+        "workplace_name_snapshot": assignment.workplace_name_snapshot,
+        "sgk_registration_number_snapshot": assignment.sgk_registration_number_snapshot,
+        "nace_code_snapshot": assignment.nace_code_snapshot,
+        "nace_description_snapshot": assignment.nace_description_snapshot,
+        "hazard_class_snapshot": assignment.hazard_class_snapshot,
+        "snapshot_warnings": _assignment_warnings(assignment),
+        "summary": summary,
+    }
+    progress_rows = db.scalars(
+        select(RemoteTrainingVideoProgress).where(
+            RemoteTrainingVideoProgress.assignment_id == assignment.id
+        )
+    ).all()
+    result["video_progress"] = [
+        {
+            "video_id": row.video_id,
+            "last_position_seconds": float(row.last_position_seconds or 0),
+            "watched_duration_seconds": float(row.watched_duration_seconds or 0),
+            "watched_percentage": float(row.watched_percentage or 0),
+            "status": row.status,
+            "viewing_sessions": row.viewing_sessions,
+            "last_access_at": _iso(row.last_access_at),
+        }
+        for row in progress_rows
+    ]
+    if include_program:
+        program = load_program(db, assignment.program_id)
+        result["program"] = _program_detail(db, program, employee=employee)
+    return result
+
+
+def _commit(db: Session, message: str) -> None:
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, message) from exc
+
+
+def _safe_asset_content(asset_type: str, extension: str, content: bytes) -> None:
+    if asset_type not in ASSET_TYPES:
+        raise HTTPException(422, "Desteklenmeyen ek türü.")
+    allowed = {
+        "thumbnail": {".png", ".jpg", ".jpeg", ".webp"},
+        "subtitle": {".vtt", ".srt"},
+        "supporting_document": {".pdf", ".docx"},
+    }[asset_type]
+    if extension not in allowed:
+        raise HTTPException(400, "Ek türü ile dosya uzantısı uyuşmuyor.")
+    if not content:
+        raise HTTPException(400, "Ek dosyası boş olamaz.")
+    if extension == ".png" and not content.startswith(b"\x89PNG"):
+        raise HTTPException(400, "PNG içeriği doğrulanamadı.")
+    if extension in {".jpg", ".jpeg"} and not content.startswith(b"\xff\xd8\xff"):
+        raise HTTPException(400, "JPEG içeriği doğrulanamadı.")
+    if extension == ".webp" and content[:4] != b"RIFF":
+        raise HTTPException(400, "WebP içeriği doğrulanamadı.")
+    if extension == ".vtt" and not content.lstrip().startswith(b"WEBVTT"):
+        raise HTTPException(400, "VTT altyazı başlığı bulunamadı.")
+    if extension == ".pdf" and not content.startswith(b"%PDF"):
+        raise HTTPException(400, "PDF içeriği doğrulanamadı.")
+    if extension == ".docx" and not content.startswith(b"PK"):
+        raise HTTPException(400, "DOCX içeriği doğrulanamadı.")
+
+
+@router.get("/meta")
+def remote_training_meta(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _viewer(user)
+    return {
+        "enabled": feature_active(),
+        "training_type": REMOTE_TRAINING_TYPE,
+        "program_statuses": list(PROGRAM_STATUSES),
+        "video_statuses": list(VIDEO_STATUSES),
+        "asset_types": list(ASSET_TYPES),
+        "can_manage": is_manager(user),
+        "can_view_employee_panel": bool(feature_active() and employee_access(db, user) is not None),
+    }
+
+
+@router.get("/programs")
+def list_remote_programs(
+    company_id: int | None = Query(default=None, gt=0),
+    status: str | None = Query(default=None, max_length=32),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    _manager(user)
+    stmt = _program_query_for_user(db, user, company_id)
+    if status:
+        if status not in PROGRAM_STATUSES:
+            raise HTTPException(422, "Geçersiz eğitim durumu.")
+        stmt = stmt.where(RemoteTrainingProgram.status == status)
+    rows = db.scalars(stmt.order_by(RemoteTrainingProgram.updated_at.desc())).all()
+    return [_program_output(row) for row in rows]
+
+
+@router.post("/programs", status_code=201)
+def create_remote_program(
+    payload: RemoteProgramCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    _manager(user)
+    ensure_company_access(db, user, payload.company_id)
+    branch = None
+    if payload.branch_id is not None:
+        branch = db.get(Branch, payload.branch_id)
+        if not branch or branch.company_id != payload.company_id or not branch.is_active:
+            raise HTTPException(422, "Seçilen işyeri/şube firma ile uyumlu değil veya pasif.")
+    company = db.get(Company, payload.company_id)
+    row = RemoteTrainingProgram(
+        osgb_id=company.osgb_id if company else None,
+        company_id=payload.company_id,
+        branch_id=payload.branch_id,
+        title=payload.title.strip(),
+        training_type=REMOTE_TRAINING_TYPE,
+        description=payload.description,
+        learning_objectives=payload.learning_objectives,
+        instructor_name=payload.instructor_name,
+        instructor_qualification=payload.instructor_qualification,
+        completion_threshold_percent=payload.completion_threshold_percent,
+        passing_score=payload.passing_score,
+        attempt_limit=payload.attempt_limit,
+        requires_final_exam=payload.requires_final_exam,
+        created_by_id=user.id,
+    )
+    db.add(row)
+    db.flush()
+    audit(db, company_id=row.company_id, user=user, action="program_created", entity_type="program", entity_id=row.id)
+    _commit(db, "Uzaktan eğitim oluşturulamadı; kayıt çakışması oluştu.")
+    db.refresh(row)
+    return _program_output(row)
+
+
+@router.get("/programs/{program_id}")
+def get_remote_program(
+    program_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    _manager(user)
+    program = load_program(db, program_id)
+    assert_program_access(db, user, program)
+    return _program_detail(db, program)
+
+
+@router.patch("/programs/{program_id}")
+def update_remote_program(
+    program_id: int,
+    payload: RemoteProgramUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    if program.status in {"published", "archived"}:
+        raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitim önce taslak akışına alınmalıdır.")
+    values = payload.model_dump(exclude_unset=True)
+    if "branch_id" in values and values["branch_id"] is not None:
+        branch = db.get(Branch, values["branch_id"])
+        if not branch or branch.company_id != program.company_id or not branch.is_active:
+            raise HTTPException(422, "Seçilen işyeri/şube firma ile uyumlu değil veya pasif.")
+    for key, value in values.items():
+        setattr(program, key, value.strip() if isinstance(value, str) else value)
+    program.training_type = REMOTE_TRAINING_TYPE
+    program.revision_no += 1
+    audit(db, company_id=program.company_id, user=user, action="program_updated", entity_type="program", entity_id=program.id)
+    _commit(db, "Uzaktan eğitim güncellenemedi; kayıt çakışması oluştu.")
+    db.refresh(program)
+    return _program_output(program)
+
+
+@router.post("/programs/{program_id}/ready-for-review")
+def mark_program_ready_for_review(
+    program_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    if program.status in {"published", "archived"}:
+        raise HTTPException(409, "Bu eğitim taslak incelemesine alınamaz.")
+    program.status = "ready_for_review"
+    audit(db, company_id=program.company_id, user=user, action="program_ready_for_review", entity_type="program", entity_id=program.id)
+    _commit(db, "Eğitim incelemeye alınamadı.")
+    return _program_output(program)
+
+
+@router.post("/programs/{program_id}/publish")
+def publish_remote_program(
+    program_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    if program.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş eğitim yayımlanamaz.")
+    active_sections = db.scalar(
+        select(func.count(RemoteTrainingSection.id)).where(
+            RemoteTrainingSection.program_id == program.id,
+            RemoteTrainingSection.status == "active",
+        )
+    ) or 0
+    published_videos = db.scalar(
+        select(func.count(RemoteTrainingVideo.id)).where(
+            RemoteTrainingVideo.program_id == program.id,
+            RemoteTrainingVideo.status == "published",
+            RemoteTrainingVideo.is_current.is_(True),
+        )
+    ) or 0
+    if not active_sections or not published_videos:
+        raise HTTPException(409, "Yayın için en az bir aktif bölüm ve yayımlanmış video gerekir.")
+    if program.requires_final_exam:
+        exam_questions = db.scalar(
+            select(func.count(RemoteTrainingProgramQuestion.id)).where(
+                RemoteTrainingProgramQuestion.program_id == program.id
+            )
+        ) or 0
+        if not exam_questions:
+            raise HTTPException(409, "Final sınavı açıkken mevcut soru bankasından en az bir soru bağlanmalıdır.")
+    program.status = "published"
+    program.published_at = datetime.utcnow()
+    audit(db, company_id=program.company_id, user=user, action="program_published", entity_type="program", entity_id=program.id)
+    _commit(db, "Uzaktan eğitim yayımlanamadı.")
+    return _program_output(program)
+
+
+@router.post("/programs/{program_id}/unpublish")
+def unpublish_remote_program(
+    program_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    if program.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş eğitim yayımdan kaldırılamaz.")
+    program.status = "unpublished"
+    program.published_at = None
+    audit(db, company_id=program.company_id, user=user, action="program_unpublished", entity_type="program", entity_id=program.id)
+    _commit(db, "Uzaktan eğitim yayımdan kaldırılamadı.")
+    return _program_output(program)
+
+
+@router.post("/programs/{program_id}/archive")
+def archive_remote_program(
+    program_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    program.status = "archived"
+    program.archived_at = datetime.utcnow()
+    program.published_at = None
+    audit(db, company_id=program.company_id, user=user, action="program_archived", entity_type="program", entity_id=program.id)
+    _commit(db, "Uzaktan eğitim arşivlenemedi.")
+    return _program_output(program)
+
+
+@router.post("/programs/{program_id}/sections", status_code=201)
+def create_remote_section(
+    program_id: int,
+    payload: RemoteSectionCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    if program.status in {"published", "archived"}:
+        raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitime bölüm eklenemez.")
+    order = payload.order_index
+    if order is None:
+        order = (db.scalar(select(func.max(RemoteTrainingSection.order_index)).where(RemoteTrainingSection.program_id == program.id)) or 0) + 1
+    row = RemoteTrainingSection(
+        osgb_id=program.osgb_id,
+        company_id=program.company_id,
+        program_id=program.id,
+        title=payload.title.strip(),
+        description=payload.description,
+        learning_objectives=payload.learning_objectives,
+        order_index=order,
+        is_required=payload.is_required,
+        created_by_id=user.id,
+    )
+    db.add(row)
+    db.flush()
+    audit(db, company_id=program.company_id, user=user, action="section_created", entity_type="section", entity_id=row.id)
+    _commit(db, "Bölüm oluşturulamadı; sıra numarası çakışması olabilir.")
+    return {
+        "id": row.id,
+        "program_id": row.program_id,
+        "title": row.title,
+        "description": row.description,
+        "learning_objectives": row.learning_objectives,
+        "order_index": row.order_index,
+        "is_required": row.is_required,
+        "status": row.status,
+        "videos": [],
+    }
+
+
+@router.patch("/sections/{section_id}")
+def update_remote_section(
+    section_id: int,
+    payload: RemoteSectionUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    section = _assert_section_manager(db, user, section_id)
+    program = load_program(db, section.program_id)
+    if program.status in {"published", "archived"}:
+        raise HTTPException(409, "Yayımlanmış/arşivlenmiş bölüm değiştirilemez.")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(section, key, value.strip() if isinstance(value, str) else value)
+    audit(db, company_id=section.company_id, user=user, action="section_updated", entity_type="section", entity_id=section.id)
+    _commit(db, "Bölüm güncellenemedi; sıra numarası çakışması olabilir.")
+    return _section_output(db, section)
+
+
+@router.post("/sections/{section_id}/archive")
+def archive_remote_section(
+    section_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    section = _assert_section_manager(db, user, section_id)
+    section.status = "archived"
+    audit(db, company_id=section.company_id, user=user, action="section_archived", entity_type="section", entity_id=section.id)
+    _commit(db, "Bölüm arşivlenemedi.")
+    return {"id": section.id, "status": section.status}
+
+
+@router.post("/sections/{section_id}/videos", status_code=201)
+async def upload_remote_video(
+    section_id: int,
+    file: UploadFile = File(...),
+    title: str = Form(..., min_length=2, max_length=220),
+    description: str | None = Form(default=None, max_length=5000),
+    learning_objectives: str | None = Form(default=None, max_length=5000),
+    order_index: int = Form(default=1, ge=1),
+    is_required: bool = Form(default=True),
+    revision_of_id: int | None = Form(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    section = _assert_section_manager(db, user, section_id)
+    program = load_program(db, section.program_id)
+    if program.status in {"published", "archived"}:
+        raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitime video yüklenemez.")
+    original_name = Path(file.filename or "video").name
+    extension = Path(original_name).suffix.lower()
+    max_bytes = max(1, int(settings.remote_basic_ohs_video_max_upload_mb)) * 1024 * 1024
+    content = await file.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(413, f"Video {settings.remote_basic_ohs_video_max_upload_mb} MB sınırını aşıyor.")
+    validate_video_bytes(content, extension=extension, original_name=original_name)
+
+    revision_of = None
+    revision_no = 1
+    is_current = True
+    if revision_of_id is not None:
+        revision_of = load_video(db, revision_of_id)
+        if revision_of.program_id != program.id or revision_of.section_id != section.id:
+            raise HTTPException(422, "Video revizyonu aynı program ve bölüm içinde olmalıdır.")
+        revision_no = revision_of.revision_no + 1
+        is_current = False
+    key = storage_key(company_id=program.company_id, program_id=program.id, prefix="video", extension=extension)
+    store = None
+    try:
+        from app.services.object_store import get_object_store
+
+        store = get_object_store()
+        store.put_bytes(key, content)
+        row = RemoteTrainingVideo(
+            osgb_id=program.osgb_id,
+            company_id=program.company_id,
+            program_id=program.id,
+            section_id=section.id,
+            revision_of_id=revision_of.id if revision_of else None,
+            title=title.strip(),
+            description=description,
+            learning_objectives=learning_objectives,
+            order_index=order_index,
+            is_required=is_required,
+            revision_no=revision_no,
+            is_current=is_current,
+            status="uploading",
+            original_file_name=original_name,
+            content_type=(file.content_type or "application/octet-stream")[:120],
+            file_size_bytes=len(content),
+            storage_key=key,
+            created_by_id=user.id,
+        )
+        db.add(row)
+        db.flush()
+        audit(db, company_id=program.company_id, user=user, action="video_uploaded", entity_type="video", entity_id=row.id, details={"revision_of_id": revision_of_id, "bytes": len(content)})
+        _commit(db, "Video kaydı oluşturulamadı.")
+        # Commit before queueing: sync workers use a separate DB session.
+        job_id = enqueue_video_processing(db, row)
+        row.processing_job_id = job_id
+        db.commit()
+        db.refresh(row)
+        return _video_output(row)
+    except HTTPException:
+        if store is not None:
+            try:
+                store.delete(key)
+            except Exception:
+                pass
+        raise
+    except Exception as exc:
+        db.rollback()
+        if store is not None:
+            try:
+                store.delete(key)
+            except Exception:
+                pass
+        raise HTTPException(500, "Video yüklenirken güvenli depolama işlemi tamamlanamadı.") from exc
+
+
+@router.patch("/videos/{video_id}")
+def update_remote_video(
+    video_id: int,
+    payload: RemoteVideoUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    video = _assert_video_manager(db, user, video_id)
+    program = load_program(db, video.program_id)
+    if program.status in {"published", "archived"} or video.status == "archived":
+        raise HTTPException(409, "Yayımlanmış/arşivlenmiş video değiştirilemez.")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(video, key, value.strip() if isinstance(value, str) else value)
+    audit(db, company_id=video.company_id, user=user, action="video_updated", entity_type="video", entity_id=video.id)
+    _commit(db, "Video güncellenemedi.")
+    return _video_output(video)
+
+
+@router.post("/videos/{video_id}/publish")
+def publish_remote_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    video = _assert_video_manager(db, user, video_id)
+    if video.status != "ready_for_review":
+        raise HTTPException(409, "Video yalnızca incelemeye hazır durumdayken yayımlanabilir.")
+    if not video.duration_seconds or not video.storage_key:
+        raise HTTPException(409, "Video işleme süresi veya güvenli depolama kaydı eksik.")
+    program = load_program(db, video.program_id)
+    if program.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş programa video yayımlanamaz.")
+    current = db.scalars(
+        select(RemoteTrainingVideo).where(
+            RemoteTrainingVideo.program_id == video.program_id,
+            RemoteTrainingVideo.section_id == video.section_id,
+            RemoteTrainingVideo.is_current.is_(True),
+            RemoteTrainingVideo.id != video.id,
+            RemoteTrainingVideo.status == "published",
+        )
+    ).all()
+    for old in current:
+        old.is_current = False
+        old.status = "unpublished"
+    video.is_current = True
+    video.status = "published"
+    video.published_at = datetime.utcnow()
+    recalculate_program_duration(db, video.program_id)
+    audit(db, company_id=video.company_id, user=user, action="video_published", entity_type="video", entity_id=video.id)
+    _commit(db, "Video yayımlanamadı.")
+    return _video_output(video)
+
+
+@router.post("/videos/{video_id}/unpublish")
+def unpublish_remote_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    video = _assert_video_manager(db, user, video_id)
+    if video.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş video yayımdan kaldırılamaz.")
+    video.status = "unpublished"
+    video.published_at = None
+    recalculate_program_duration(db, video.program_id)
+    audit(db, company_id=video.company_id, user=user, action="video_unpublished", entity_type="video", entity_id=video.id)
+    _commit(db, "Video yayımdan kaldırılamadı.")
+    return _video_output(video)
+
+
+@router.post("/videos/{video_id}/archive")
+def archive_remote_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    video = _assert_video_manager(db, user, video_id)
+    video.status = "archived"
+    video.is_current = False
+    video.archived_at = datetime.utcnow()
+    recalculate_program_duration(db, video.program_id)
+    audit(db, company_id=video.company_id, user=user, action="video_archived", entity_type="video", entity_id=video.id)
+    _commit(db, "Video arşivlenemedi.")
+    return _video_output(video)
+
+
+@router.post("/videos/{video_id}/retry-processing")
+def retry_remote_video_processing(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    video = _assert_video_manager(db, user, video_id)
+    if video.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş video yeniden işlenemez.")
+    video.status = "uploading"
+    video.processing_error = None
+    db.commit()
+    job_id = enqueue_video_processing(db, video)
+    video.processing_job_id = job_id
+    db.commit()
+    return _video_output(video)
+
+
+@router.post("/videos/{video_id}/assets", status_code=201)
+async def upload_remote_asset(
+    video_id: int,
+    asset_type: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    video = _assert_video_manager(db, user, video_id)
+    original_name = Path(file.filename or "asset").name
+    extension = Path(original_name).suffix.lower()
+    max_bytes = min(max(1, int(settings.max_upload_mb)), 64) * 1024 * 1024
+    content = await file.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(413, "Ek dosyası boyut sınırını aşıyor.")
+    _safe_asset_content(asset_type, extension, content)
+    from app.services.object_store import get_object_store
+
+    key = storage_key(company_id=video.company_id, program_id=video.program_id, prefix=f"asset-{asset_type}", extension=extension)
+    store = get_object_store()
+    store.put_bytes(key, content)
+    row = RemoteTrainingAsset(
+        osgb_id=video.osgb_id,
+        company_id=video.company_id,
+        program_id=video.program_id,
+        video_id=video.id,
+        asset_type=asset_type,
+        original_file_name=original_name,
+        content_type=(file.content_type or "application/octet-stream")[:120],
+        file_size_bytes=len(content),
+        storage_key=key,
+        created_by_id=user.id,
+    )
+    db.add(row)
+    db.flush()
+    audit(db, company_id=video.company_id, user=user, action="asset_uploaded", entity_type="asset", entity_id=row.id, details={"asset_type": asset_type, "video_id": video.id})
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        try:
+            store.delete(key)
+        except Exception:
+            pass
+        raise HTTPException(409, "Video eki kaydedilemedi.")
+    return _asset_output(row)
+
+
+@router.get("/videos/{video_id}/assets/{asset_id}")
+def download_remote_asset(
+    video_id: int,
+    asset_id: int,
+    assignment_id: int | None = Query(default=None, gt=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    asset = db.get(RemoteTrainingAsset, asset_id)
+    if not asset or asset.video_id != video_id:
+        raise HTTPException(404, "Video eki bulunamadı.")
+    video = load_video(db, video_id)
+    if is_manager(user):
+        assert_program_access(db, user, load_program(db, video.program_id))
+    else:
+        if not assignment_id:
+            raise HTTPException(403, "Çalışan video eki için atama bilgisi gerekir.")
+        assignment = load_assignment(db, assignment_id)
+        assert_assignment_access(db, user, assignment)
+        if assignment.program_id != video.program_id or video.status != "published" or not video.is_current:
+            raise HTTPException(403, "Video eki çalışana açık değil.")
+    from app.services.stored_files import response_for_storage_key
+
+    return response_for_storage_key(asset.storage_key, filename=asset.original_file_name, media_type=asset.content_type)
+
+
+@router.get("/videos/{video_id}/playback")
+def create_remote_playback(
+    video_id: int,
+    assignment_id: int | None = Query(default=None, gt=0),
+    preview: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    video = load_video(db, video_id)
+    program = load_program(db, video.program_id)
+    mode = "preview" if preview else "employee"
+    if preview:
+        if not is_manager(user):
+            raise HTTPException(403, "Önizleme yetkiniz yok.")
+        assert_program_access(db, user, program)
+        if video.status not in {"ready_for_review", "published", "unpublished"}:
+            raise HTTPException(409, "Bu durumdaki video önizlenemez.")
+        assignment_id = None
+    else:
+        if assignment_id is None:
+            raise HTTPException(422, "Çalışan oynatması için atama seçilmelidir.")
+        assignment = load_assignment(db, assignment_id)
+        assert_assignment_access(db, user, assignment)
+        if assignment.program_id != program.id:
+            raise HTTPException(403, "Video bu atamaya bağlı değil.")
+        if program.status != "published" or video.status != "published" or not video.is_current:
+            raise HTTPException(403, "Video henüz çalışana açık değil.")
+    token = create_playback_token(user=user, video=video, assignment_id=assignment_id, mode=mode)
+    ttl = max(60, min(int(settings.remote_basic_ohs_playback_ttl_seconds), 900))
+    return {
+        "video_id": video.id,
+        "assignment_id": assignment_id,
+        "mode": mode,
+        "url": f"/api/v1/trainings/remote/videos/{video.id}/stream?token={token}",
+        "expires_in_seconds": ttl,
+    }
+
+
+@router.get("/videos/{video_id}/stream")
+def stream_remote_video(
+    video_id: int,
+    token: str = Query(..., min_length=20),
+    db: Session = Depends(get_db),
+):
+    require_feature()
+    _user, video, _assignment_id, _mode = decode_playback_token(db, token, video_id)
+    response = response_for_video(video)
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+@router.post("/programs/{program_id}/assign")
+def assign_remote_program(
+    program_id: int,
+    payload: RemoteAssignmentCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    if program.status != "published":
+        raise HTTPException(409, "Yalnızca yayımlanmış eğitim çalışanlara atanabilir.")
+    branch_id = payload.branch_id or program.branch_id
+    if payload.branch_id and program.branch_id and payload.branch_id != program.branch_id:
+        raise HTTPException(422, "Atama işyeri/şubesi programın işyeri/şubesi ile aynı olmalıdır.")
+    if branch_id is not None:
+        branch = db.get(Branch, branch_id)
+        if not branch or branch.company_id != program.company_id or not branch.is_active:
+            raise HTTPException(422, "Atama işyeri/şubesi firma ile uyumlu değil veya pasif.")
+    employees = list(
+        db.scalars(
+            select(Employee).where(
+                Employee.id.in_(payload.employee_ids),
+                Employee.company_id == program.company_id,
+                Employee.is_active.is_(True),
+            )
+        ).all()
+    )
+    found = {employee.id for employee in employees}
+    missing = [employee_id for employee_id in payload.employee_ids if employee_id not in found]
+    if missing:
+        raise HTTPException(422, "Seçilen çalışanlardan bazıları firma dışı, pasif veya bulunamadı.")
+    created: list[RemoteTrainingAssignment] = []
+    skipped: list[int] = []
+    for employee in employees:
+        employee_branch_id = branch_id or employee.branch_id
+        if branch_id and employee.branch_id != branch_id:
+            raise HTTPException(422, f"{employee.full_name} seçilen işyerine bağlı değil.")
+        existing = db.scalar(
+            select(RemoteTrainingAssignment).where(
+                RemoteTrainingAssignment.program_id == program.id,
+                RemoteTrainingAssignment.employee_id == employee.id,
+            )
+        )
+        if existing:
+            skipped.append(employee.id)
+            continue
+        snapshot = company_snapshot(db, program.company_id, employee_branch_id)
+        row = RemoteTrainingAssignment(
+            osgb_id=program.osgb_id,
+            company_id=program.company_id,
+            branch_id=employee_branch_id,
+            program_id=program.id,
+            employee_id=employee.id,
+            workplace_name_snapshot=snapshot["workplace_name"],
+            sgk_registration_number_snapshot=snapshot["sgk_registration_number"],
+            nace_code_snapshot=snapshot["nace_code"],
+            nace_description_snapshot=snapshot["nace_description"],
+            hazard_class_snapshot=snapshot["hazard_class"],
+            employee_name_snapshot=employee.full_name,
+            due_date=payload.due_date,
+            assigned_by_id=user.id,
+        )
+        db.add(row)
+        created.append(row)
+    audit(db, company_id=program.company_id, user=user, action="program_assigned", entity_type="program", entity_id=program.id, details={"created": len(created), "skipped": skipped, "ip": request.client.host if request.client else None})
+    _commit(db, "Çalışan ataması kaydedilemedi; işlem geri alındı.")
+    return {
+        "program_id": program.id,
+        "created": [_assignment_output(db, row) for row in created],
+        "created_count": len(created),
+        "skipped_employee_ids": skipped,
+    }
+
+
+@router.get("/programs/{program_id}/assignments")
+def list_remote_assignments(
+    program_id: int,
+    status: str | None = Query(default=None, max_length=24),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    stmt = select(RemoteTrainingAssignment).where(RemoteTrainingAssignment.program_id == program.id)
+    if status:
+        stmt = stmt.where(RemoteTrainingAssignment.status == status)
+    rows = db.scalars(stmt.order_by(RemoteTrainingAssignment.assigned_at.desc())).all()
+    return [_assignment_output(db, row) for row in rows]
+
+
+@router.get("/my-assignments")
+def list_my_remote_assignments(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    _viewer(user)
+    mapping = employee_access(db, user)
+    if not mapping:
+        return []
+    rows = db.scalars(
+        select(RemoteTrainingAssignment)
+        .where(
+            RemoteTrainingAssignment.company_id == mapping.company_id,
+            RemoteTrainingAssignment.employee_id == mapping.employee_id,
+        )
+        .order_by(RemoteTrainingAssignment.assigned_at.desc())
+    ).all()
+    visible = []
+    for row in rows:
+        program = load_program(db, row.program_id)
+        if program.status != "published":
+            continue
+        visible.append(_assignment_output(db, row, include_program=True, employee=True))
+    return visible
+
+
+@router.get("/assignments/{assignment_id}")
+def get_remote_assignment(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    assignment = load_assignment(db, assignment_id)
+    mode = assert_assignment_access(db, user, assignment)
+    program = load_program(db, assignment.program_id)
+    if mode == "employee" and program.status != "published":
+        raise HTTPException(403, "Bu eğitim şu anda çalışana açık değil.")
+    return _assignment_output(db, assignment, include_program=True, employee=(mode == "employee"))
+
+
+@router.post("/employee-access", status_code=201)
+def create_remote_employee_access(
+    payload: RemoteEmployeeAccessCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    _manager(user)
+    ensure_company_access(db, user, payload.company_id)
+    target_user = db.get(User, payload.user_id)
+    employee = db.get(Employee, payload.employee_id)
+    company = db.get(Company, payload.company_id)
+    if not target_user or not target_user.is_active:
+        raise HTTPException(404, "Eşlenecek kullanıcı bulunamadı veya pasif.")
+    if not employee or not employee.is_active or employee.company_id != payload.company_id:
+        raise HTTPException(422, "Çalışan firma kapsamında değil veya pasif.")
+    if target_user.company_id not in (None, payload.company_id) and target_user.role != UserRole.GLOBAL_ADMIN:
+        raise HTTPException(422, "Kullanıcı aynı firma kapsamında değil.")
+    # The existing RLS context derives a non-global user's company scope from
+    # User.company_id.  Employee accounts historically had no employee_id
+    # binding; this explicit mapping also establishes the tenant scope when it
+    # was previously unset.
+    if target_user.company_id is None and target_user.role != UserRole.GLOBAL_ADMIN:
+        target_user.company_id = payload.company_id
+    if target_user.osgb_id is None and target_user.role != UserRole.GLOBAL_ADMIN and company is not None:
+        target_user.osgb_id = company.osgb_id
+    by_user = db.scalar(select(RemoteTrainingEmployeeAccess).where(RemoteTrainingEmployeeAccess.user_id == payload.user_id))
+    by_employee = db.scalar(select(RemoteTrainingEmployeeAccess).where(RemoteTrainingEmployeeAccess.employee_id == payload.employee_id))
+    if by_user and by_user.id != (by_employee.id if by_employee else by_user.id):
+        raise HTTPException(409, "Kullanıcı zaten başka bir çalışanla eşlenmiş.")
+    if by_employee and by_employee.user_id != payload.user_id:
+        raise HTTPException(409, "Çalışan zaten başka bir kullanıcıyla eşlenmiş.")
+    row = by_user or by_employee
+    if row:
+        row.company_id = payload.company_id
+        row.osgb_id = company.osgb_id if company else None
+        row.user_id = payload.user_id
+        row.employee_id = payload.employee_id
+        row.is_active = True
+        row.created_by_id = user.id
+    else:
+        row = RemoteTrainingEmployeeAccess(
+            osgb_id=company.osgb_id if company else None,
+            company_id=payload.company_id,
+            user_id=payload.user_id,
+            employee_id=payload.employee_id,
+            created_by_id=user.id,
+        )
+        db.add(row)
+    audit(db, company_id=payload.company_id, user=user, action="employee_access_created", entity_type="employee_access", entity_id=payload.employee_id)
+    _commit(db, "Çalışan kullanıcı eşleştirmesi kaydedilemedi.")
+    return {"id": row.id, "company_id": row.company_id, "user_id": row.user_id, "employee_id": row.employee_id, "is_active": row.is_active}
+
+
+@router.get("/employee-access")
+def list_remote_employee_access(
+    company_id: int | None = Query(default=None, gt=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    _manager(user)
+    ids = _company_ids(db, user, company_id)
+    stmt = select(RemoteTrainingEmployeeAccess).where(RemoteTrainingEmployeeAccess.is_active.is_(True))
+    if ids is not None:
+        stmt = stmt.where(RemoteTrainingEmployeeAccess.company_id.in_(ids)) if ids else stmt.where(RemoteTrainingEmployeeAccess.id == -1)
+    rows = db.scalars(stmt.order_by(RemoteTrainingEmployeeAccess.id)).all()
+    output = []
+    for row in rows:
+        target_user = db.get(User, row.user_id)
+        employee = db.get(Employee, row.employee_id)
+        output.append({"id": row.id, "company_id": row.company_id, "user_id": row.user_id, "user_email": target_user.email if target_user else None, "user_name": target_user.full_name if target_user else None, "employee_id": row.employee_id, "employee_name": employee.full_name if employee else None, "is_active": row.is_active})
+    return output
+
+
+@router.delete("/employee-access/{access_id}")
+def deactivate_remote_employee_access(
+    access_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    _manager(user)
+    row = db.get(RemoteTrainingEmployeeAccess, access_id)
+    if not row:
+        raise HTTPException(404, "Çalışan kullanıcı eşleştirmesi bulunamadı.")
+    ensure_company_access(db, user, row.company_id)
+    row.is_active = False
+    audit(db, company_id=row.company_id, user=user, action="employee_access_deactivated", entity_type="employee_access", entity_id=row.id)
+    _commit(db, "Çalışan kullanıcı eşleştirmesi pasifleştirilemedi.")
+    return {"id": row.id, "is_active": False}
+
+
+@router.post("/programs/{program_id}/checkpoint-questions", status_code=201)
+def create_remote_checkpoint_question(
+    program_id: int,
+    payload: RemoteCheckpointQuestionCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    if payload.section_id is not None:
+        section = load_section(db, payload.section_id)
+        if section.program_id != program.id:
+            raise HTTPException(422, "Soru bölümü programla uyumlu değil.")
+    if payload.video_id is not None:
+        video = load_video(db, payload.video_id)
+        if video.program_id != program.id:
+            raise HTTPException(422, "Soru videosu programla uyumlu değil.")
+    row = RemoteTrainingQuestion(
+        osgb_id=program.osgb_id,
+        company_id=program.company_id,
+        program_id=program.id,
+        section_id=payload.section_id,
+        video_id=payload.video_id,
+        question_text=payload.question_text.strip(),
+        options_json=json.dumps(payload.options, ensure_ascii=False),
+        correct_option=payload.correct_option,
+        explanation=payload.explanation,
+        timestamp_seconds=payload.timestamp_seconds,
+        order_index=payload.order_index,
+        is_required=payload.is_required,
+        created_by_id=user.id,
+    )
+    db.add(row)
+    db.flush()
+    audit(db, company_id=program.company_id, user=user, action="checkpoint_question_created", entity_type="checkpoint_question", entity_id=row.id)
+    _commit(db, "Video içi soru kaydedilemedi.")
+    return _question_output(row, reveal_answer=True)
+
+
+@router.get("/programs/{program_id}/checkpoint-questions")
+def list_remote_checkpoint_questions(
+    program_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    rows = db.scalars(
+        select(RemoteTrainingQuestion).where(RemoteTrainingQuestion.program_id == program.id).order_by(RemoteTrainingQuestion.order_index, RemoteTrainingQuestion.id)
+    ).all()
+    return [_question_output(row, reveal_answer=True) for row in rows]
+
+
+@router.post("/programs/{program_id}/exam/questions", status_code=201)
+def link_remote_exam_question(
+    program_id: int,
+    payload: RemoteProgramQuestionLink,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    question = db.get(TrainingQuestion, payload.question_id)
+    if not question or question.status != "published":
+        raise HTTPException(422, "Yalnızca yayımlanmış mevcut soru bankası soruları bağlanabilir.")
+    row = RemoteTrainingProgramQuestion(
+        company_id=program.company_id,
+        program_id=program.id,
+        question_id=question.id,
+        position=payload.position,
+        created_by_id=user.id,
+    )
+    db.add(row)
+    db.flush()
+    audit(db, company_id=program.company_id, user=user, action="exam_question_linked", entity_type="exam_question", entity_id=row.id, details={"question_id": question.id})
+    _commit(db, "Soru programa bağlanamadı; sıra veya soru daha önce kullanılmış olabilir.")
+    return {"id": row.id, "program_id": row.program_id, "question_id": row.question_id, "position": row.position}
+
+
+@router.get("/assignments/{assignment_id}/exam")
+def get_remote_exam(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    assignment = load_assignment(db, assignment_id)
+    assert_assignment_access(db, user, assignment)
+    program = load_program(db, assignment.program_id)
+    links = db.scalars(
+        select(RemoteTrainingProgramQuestion)
+        .where(RemoteTrainingProgramQuestion.program_id == program.id)
+        .order_by(RemoteTrainingProgramQuestion.position, RemoteTrainingProgramQuestion.id)
+    ).all()
+    questions = []
+    for link in links:
+        question = db.get(TrainingQuestion, link.question_id)
+        if not question or question.status != "published":
+            continue
+        questions.append({"id": question.id, "position": link.position, "question_text": question.question_text, "options": {"A": question.option_a, "B": question.option_b, "C": question.option_c, "D": question.option_d}})
+    return {"assignment_id": assignment.id, "program_id": program.id, "passing_score": program.passing_score, "attempt_limit": program.attempt_limit, "questions": questions}
+
+
+@router.post("/assignments/{assignment_id}/exam/attempts")
+def submit_remote_exam(
+    assignment_id: int,
+    payload: RemoteExamSubmit,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    assignment = load_assignment(db, assignment_id)
+    assert_assignment_access(db, user, assignment, write=True)
+    program = load_program(db, assignment.program_id)
+    if not program.requires_final_exam:
+        raise HTTPException(409, "Bu eğitimde final sınavı zorunlu değil.")
+    links = db.scalars(
+        select(RemoteTrainingProgramQuestion).where(RemoteTrainingProgramQuestion.program_id == program.id).order_by(RemoteTrainingProgramQuestion.position, RemoteTrainingProgramQuestion.id)
+    ).all()
+    if not links:
+        raise HTTPException(409, "Bu eğitim için final sınavı sorusu tanımlanmamış.")
+    previous_count = db.scalar(select(func.count(RemoteTrainingExamAttempt.id)).where(RemoteTrainingExamAttempt.assignment_id == assignment.id)) or 0
+    if previous_count >= program.attempt_limit:
+        raise HTTPException(409, "Final sınavı deneme limiti doldu.")
+    question_ids = [link.question_id for link in links]
+    normalized_answers = {str(key): str(value).upper() for key, value in payload.answers.items()}
+    if set(normalized_answers) != {str(question_id) for question_id in question_ids}:
+        raise HTTPException(422, "Final sınavındaki tüm sorular yanıtlanmalıdır.")
+    correct = 0
+    for question_id in question_ids:
+        answer = normalized_answers[str(question_id)]
+        if answer not in {"A", "B", "C", "D"}:
+            raise HTTPException(422, "Sınav yanıtı yalnız A, B, C veya D olabilir.")
+        question = db.get(TrainingQuestion, question_id)
+        if question and answer == question.correct_option:
+            correct += 1
+    score = round(correct * 100 / len(question_ids))
+    passed = score >= program.passing_score
+    attempt = RemoteTrainingExamAttempt(
+        company_id=assignment.company_id,
+        program_id=program.id,
+        assignment_id=assignment.id,
+        employee_id=assignment.employee_id,
+        attempt_no=previous_count + 1,
+        question_ids_json=json.dumps(question_ids),
+        answers_json=json.dumps(normalized_answers),
+        score=score,
+        passed=passed,
+        submitted_at=datetime.utcnow(),
+        submitted_by_id=user.id,
+    )
+    db.add(attempt)
+    db.flush()
+    summary = recalculate_assignment(db, assignment)
+    certificate = ensure_certificate(db, assignment)
+    audit(db, company_id=assignment.company_id, user=user, action="exam_submitted", entity_type="exam_attempt", entity_id=attempt.id, details={"score": score, "passed": passed, "ip": request.client.host if request.client else None})
+    _commit(db, "Final sınav sonucu kaydedilemedi.")
+    return {"attempt_id": attempt.id, "attempt_no": attempt.attempt_no, "score": score, "passed": passed, "summary": summary, "certificate_id": certificate.id if certificate else None}
+
+
+@router.post("/assignments/{assignment_id}/videos/{video_id}/progress")
+def save_remote_progress(
+    assignment_id: int,
+    video_id: int,
+    payload: RemoteProgressCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    assignment = load_assignment(db, assignment_id)
+    assert_assignment_access(db, user, assignment, write=True)
+    video = load_video(db, video_id)
+    program = load_program(db, assignment.program_id)
+    if video.program_id != program.id or video.status != "published" or not video.is_current:
+        raise HTTPException(403, "Video bu atamaya açık değil.")
+    if not video.duration_seconds:
+        raise HTTPException(409, "Video süresi işlenmeden ilerleme kaydı alınamaz.")
+    position = min(float(payload.position_seconds), float(video.duration_seconds))
+    existing = db.scalar(
+        select(RemoteTrainingVideoProgress).where(
+            RemoteTrainingVideoProgress.assignment_id == assignment.id,
+            RemoteTrainingVideoProgress.video_id == video.id,
+        )
+    )
+    now = datetime.utcnow()
+    if not existing:
+        existing = RemoteTrainingVideoProgress(
+            company_id=assignment.company_id,
+            program_id=program.id,
+            assignment_id=assignment.id,
+            section_id=video.section_id,
+            video_id=video.id,
+            employee_id=assignment.employee_id,
+        )
+        db.add(existing)
+    current_position = float(existing.last_position_seconds or 0)
+    current_watched = float(existing.watched_duration_seconds or 0)
+    previous_access = existing.last_access_at
+    if previous_access is None:
+        elapsed_seconds = 0.0
+    else:
+        elapsed_seconds = max(0.0, (now - previous_access).total_seconds())
+    forward_delta = max(0.0, position - current_position)
+    # Do not let a single seek-to-end event turn into completion.  A progress
+    # update can credit only a small amount beyond elapsed wall-clock time;
+    # real playback heartbeats remain smooth while large jumps are capped.
+    credit_cap = min(float(video.duration_seconds), max(5.0, elapsed_seconds + 5.0))
+    credited_delta = min(forward_delta, credit_cap)
+    existing.last_position_seconds = position
+    existing.watched_duration_seconds = min(
+        float(video.duration_seconds), current_watched + credited_delta
+    )
+    existing.watched_percentage = min(100.0, existing.watched_duration_seconds / float(video.duration_seconds) * 100)
+    existing.last_access_at = now
+    existing.device_info = payload.device_info
+    if payload.event_type in {"start", "resume"}:
+        existing.viewing_sessions = int(existing.viewing_sessions or 0) + (1 if payload.event_type == "start" else 0)
+        existing.started_at = existing.started_at or now
+        assignment.started_at = assignment.started_at or now
+    threshold = max(1, min(int(program.completion_threshold_percent), 100))
+    if existing.watched_percentage >= threshold:
+        existing.status = "completed"
+        existing.completed_at = existing.completed_at or now
+        event_type = "completed"
+    else:
+        existing.status = "in_progress"
+        event_type = payload.event_type
+    db.add(
+        RemoteTrainingEvent(
+            company_id=assignment.company_id,
+            program_id=program.id,
+            assignment_id=assignment.id,
+            employee_id=assignment.employee_id,
+            video_id=video.id,
+            user_id=user.id,
+            event_type=event_type,
+            position_seconds=existing.last_position_seconds,
+            watched_seconds=existing.watched_duration_seconds,
+            device_info=payload.device_info,
+            ip_address=request.client.host if request.client else None,
+            user_agent=(request.headers.get("user-agent") or "")[:500] or None,
+        )
+    )
+    summary = recalculate_assignment(db, assignment)
+    certificate = ensure_certificate(db, assignment)
+    _commit(db, "Video ilerlemesi kaydedilemedi.")
+    return {"video_id": video.id, "position_seconds": float(existing.last_position_seconds), "watched_percentage": float(existing.watched_percentage), "status": existing.status, "summary": summary, "certificate_id": certificate.id if certificate else None}
+
+
+@router.post("/assignments/{assignment_id}/checkpoint-questions/{question_id}")
+def answer_remote_checkpoint(
+    assignment_id: int,
+    question_id: int,
+    answer: str = Query(..., min_length=1, max_length=1),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    assignment = load_assignment(db, assignment_id)
+    assert_assignment_access(db, user, assignment, write=True)
+    question = db.get(RemoteTrainingQuestion, question_id)
+    if not question or question.program_id != assignment.program_id:
+        raise HTTPException(404, "Video içi soru bulunamadı.")
+    normalized = answer.upper()
+    options = json.loads(question.options_json or "{}")
+    if normalized not in options:
+        raise HTTPException(422, "Yanıt soru seçenekleri içinde değil.")
+    previous = db.scalar(
+        select(func.count(RemoteTrainingCheckpointAnswer.id)).where(
+            RemoteTrainingCheckpointAnswer.assignment_id == assignment.id,
+            RemoteTrainingCheckpointAnswer.question_id == question.id,
+        )
+    ) or 0
+    row = RemoteTrainingCheckpointAnswer(
+        company_id=assignment.company_id,
+        program_id=assignment.program_id,
+        assignment_id=assignment.id,
+        employee_id=assignment.employee_id,
+        question_id=question.id,
+        answer=normalized,
+        is_correct=normalized == question.correct_option,
+        attempt_no=previous + 1,
+    )
+    db.add(row)
+    db.flush()
+    summary = recalculate_assignment(db, assignment)
+    certificate = ensure_certificate(db, assignment)
+    audit(db, company_id=assignment.company_id, user=user, action="checkpoint_answered", entity_type="checkpoint_answer", entity_id=row.id, details={"question_id": question.id, "is_correct": row.is_correct})
+    _commit(db, "Video içi soru yanıtı kaydedilemedi.")
+    return {"question_id": question.id, "is_correct": row.is_correct, "summary": summary, "certificate_id": certificate.id if certificate else None}
+
+
+@router.get("/assignments/{assignment_id}/certificate")
+def get_remote_certificate(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    assignment = load_assignment(db, assignment_id)
+    assert_assignment_access(db, user, assignment)
+    certificate = ensure_certificate(db, assignment)
+    if not certificate:
+        if assignment.status != "completed":
+            raise HTTPException(409, "Sertifika için video, video içi sorular ve final sınavı tamamlanmalıdır.")
+        raise HTTPException(409, "Sertifika için atama tarihindeki SGK/NACE/tehlike sınıfı snapshot alanları eksik; veri uydurulmadı.")
+    db.commit()
+    return {
+        "id": certificate.id,
+        "assignment_id": certificate.assignment_id,
+        "employee_name": certificate.employee_name_snapshot,
+        "company_name": certificate.company_name_snapshot,
+        "workplace_name": certificate.workplace_name_snapshot,
+        "sgk_registration_number": certificate.sgk_registration_number_snapshot,
+        "nace_code": certificate.nace_code_snapshot,
+        "nace_description": certificate.nace_description_snapshot,
+        "hazard_class": certificate.hazard_class_snapshot,
+        "training_name": certificate.training_name,
+        "training_type": REMOTE_TRAINING_TYPE,
+        "training_duration_seconds": certificate.training_duration_seconds,
+        "training_date": _iso(certificate.training_date),
+        "instructor_name": certificate.instructor_name_snapshot,
+        "examination_score": certificate.examination_score,
+        "certificate_number": certificate.certificate_number,
+        "verification_code": certificate.verification_code,
+        "issue_date": _iso(certificate.issue_date),
+    }
+
+
+@router.get("/assignments/{assignment_id}/certificate.pdf")
+def download_remote_certificate(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    assignment = load_assignment(db, assignment_id)
+    assert_assignment_access(db, user, assignment)
+    certificate = ensure_certificate(db, assignment)
+    if not certificate:
+        raise HTTPException(409, "Sertifika üretimi için tamamlanma ve tarihsel kimlik snapshotları gereklidir.")
+    db.commit()
+    data = build_certificate_pdf(db, certificate)
+    return StreamingResponse(
+        iter([data]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{certificate.certificate_number}.pdf"'},
+    )
+
+
+@router.get("/certificates/verify/{verification_code}")
+def verify_remote_certificate(
+    verification_code: str,
+    db: Session = Depends(get_db),
+):
+    clean = (verification_code or "").strip().upper()
+    if not feature_active():
+        return {"valid": False, "verification_code": clean, "message": "Uzaktan eğitim sertifika doğrulaması etkin değil."}
+    certificate = db.scalar(
+        select(RemoteTrainingCertificate).where(RemoteTrainingCertificate.verification_code == clean)
+    ) if clean else None
+    if not certificate:
+        return {"valid": False, "verification_code": clean, "message": "Bu kodla eşleşen uzaktan eğitim sertifikası bulunamadı."}
+    return {
+        "valid": True,
+        "verification_code": clean,
+        "certificate_number": certificate.certificate_number,
+        "employee_name": certificate.employee_name_snapshot,
+        "company_name": certificate.company_name_snapshot,
+        "workplace_name": certificate.workplace_name_snapshot,
+        "training_name": certificate.training_name,
+        "training_type": REMOTE_TRAINING_TYPE,
+        "training_date": _iso(certificate.training_date),
+        "examination_score": certificate.examination_score,
+        "nace_code": certificate.nace_code_snapshot,
+        "hazard_class": certificate.hazard_class_snapshot,
+        "message": "Sertifika doğrulandı.",
+    }
+
+
+@router.get("/programs/{program_id}/report")
+def remote_training_report(
+    program_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    rows = db.scalars(
+        select(RemoteTrainingAssignment).where(RemoteTrainingAssignment.program_id == program.id).order_by(RemoteTrainingAssignment.employee_name_snapshot)
+    ).all()
+    items = [_assignment_output(db, row) for row in rows]
+    by_status: dict[str, int] = {}
+    for item in items:
+        by_status[item["status"]] = by_status.get(item["status"], 0) + 1
+    progress_rows = db.scalars(select(RemoteTrainingVideoProgress).where(RemoteTrainingVideoProgress.program_id == program.id)).all()
+    avg_progress = round(sum(float(item.watched_percentage or 0) for item in progress_rows) / len(progress_rows), 2) if progress_rows else 0
+    exam_rows = db.scalars(select(RemoteTrainingExamAttempt).where(RemoteTrainingExamAttempt.program_id == program.id)).all()
+    certificate_count = db.scalar(select(func.count(RemoteTrainingCertificate.id)).where(RemoteTrainingCertificate.program_id == program.id)) or 0
+    return {
+        "program": _program_output(program),
+        "assignment_count": len(items),
+        "status_counts": by_status,
+        "average_video_progress_percent": avg_progress,
+        "exam_attempt_count": len(exam_rows),
+        "certificate_count": int(certificate_count),
+        "rows": items,
+    }
+
+
+@router.get("/programs/{program_id}/audit")
+def remote_training_audit(
+    program_id: int,
+    limit: int = Query(default=200, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    rows = db.scalars(
+        select(RemoteTrainingEvent)
+        .where(RemoteTrainingEvent.program_id == program.id)
+        .order_by(desc(RemoteTrainingEvent.created_at))
+        .limit(limit)
+    ).all()
+    return [{"id": row.id, "assignment_id": row.assignment_id, "employee_id": row.employee_id, "video_id": row.video_id, "user_id": row.user_id, "event_type": row.event_type, "position_seconds": float(row.position_seconds) if row.position_seconds is not None else None, "watched_seconds": float(row.watched_seconds) if row.watched_seconds is not None else None, "created_at": _iso(row.created_at)} for row in rows]
