@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import {
   AlertTriangle,
@@ -387,6 +387,8 @@ export function RiskPage({user}) {
   const [hintBusy, setHintBusy] = useState(false);
   const [photoTagCatalog, setPhotoTagCatalog] = useState([]);
   const [selectedPhotoTags, setSelectedPhotoTags] = useState([]);
+  const mediaInputRef = useRef(null);
+  const [mediaBusy, setMediaBusy] = useState(false);
   const [docInfo, setDocInfo] = useState(null);
   const [docForm, setDocForm] = useState({
     assessment_date: '',
@@ -920,19 +922,30 @@ export function RiskPage({user}) {
     load();
   }
 
+  function openMediaPicker() {
+    if (mediaBusy || !detail || !mediaInputRef.current) return;
+    // Aynı dosyanın tekrar seçilmesi de change olayını tetiklesin.
+    mediaInputRef.current.value = '';
+    mediaInputRef.current.click();
+  }
+
   async function uploadMedia(e) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file || !detail) return;
+    const input = e.currentTarget;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || !detail || mediaBusy) return;
+    setMediaBusy(true);
     try {
       const extra = selectedPhotoTags.length
         ? {tags: JSON.stringify(selectedPhotoTags)}
         : null;
       await uploadFile(`/risks/${detail.id}/media`, file, extra);
       setSelectedPhotoTags([]);
-      openDetail(detail.id);
+      await openDetail(detail.id);
     } catch (ex) {
-      window.alert(ex.message || 'Fotoğraf yüklenemedi.');
+      window.alert(ex.message || 'Fotoğraf/medya yüklenemedi.');
+    } finally {
+      setMediaBusy(false);
     }
   }
 
@@ -2385,15 +2398,50 @@ export function RiskPage({user}) {
                   Metinden öner
                 </button>
               </div>
-              <label className="field" style={{display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer'}}>
-                <span className="mini" style={{pointerEvents: 'none'}}>Dosya ekle</span>
+              <div style={{display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
+                <button
+                  type="button"
+                  className="mini"
+                  onClick={openMediaPicker}
+                  disabled={mediaBusy || !detail}
+                  aria-controls="risk-media-file-input"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    minHeight: 34,
+                    padding: '7px 12px',
+                    cursor: mediaBusy ? 'wait' : 'pointer',
+                    opacity: mediaBusy ? 0.7 : 1,
+                  }}
+                >
+                  <Plus size={15} />
+                  {mediaBusy ? 'Yükleniyor…' : 'Fotoğraf / medya ekle'}
+                </button>
+                <span style={{fontSize: 12, color: '#64748b'}}>
+                  JPG, PNG, WEBP, GIF, BMP, PDF, video ve Office dosyaları
+                </span>
                 <input
+                  ref={mediaInputRef}
+                  id="risk-media-file-input"
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,.doc,.docx,.xls,.xlsx"
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,application/pdf,video/mp4,video/quicktime,video/x-msvideo,.avi,.mov,.doc,.docx,.xls,.xlsx"
                   onChange={uploadMedia}
-                  style={{display: 'none'}}
+                  aria-label="Risk fotoğrafı veya medya dosyası seç"
+                  tabIndex={-1}
+                  style={{
+                    position: 'absolute',
+                    width: 1,
+                    height: 1,
+                    padding: 0,
+                    margin: -1,
+                    overflow: 'hidden',
+                    clip: 'rect(0, 0, 0, 0)',
+                    whiteSpace: 'nowrap',
+                    border: 0,
+                  }}
                 />
-              </label>
+              </div>
             </div>
           )}
 
