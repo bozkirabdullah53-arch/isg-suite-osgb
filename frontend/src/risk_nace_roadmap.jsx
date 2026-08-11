@@ -34,16 +34,19 @@ function ModulePill({value}) {
 
 function IdentityCard({data}) {
   const identity = data?.identity || {};
-  const code = identity.code || data?.entered_nace_code || '—';
+  const workplace = data?.workplace || {};
+  const code = identity.code || workplace.nace_code || data?.entered_nace_code || '—';
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
       gap: 10, padding: 12, borderRadius: 12, background: '#f7fbff', border: '1px solid #d7e7f4',
     }}>
+      <div><small style={{color: '#6b8298'}}>Firma / İşyeri</small><strong style={{display: 'block', color: '#123b5d'}}>{workplace.name || data?.company_name || '—'}</strong></div>
+      <div><small style={{color: '#6b8298'}}>SGK sicil numarası</small><strong style={{display: 'block', color: '#123b5d'}}>{workplace.sgk_registry_no || '—'}</strong></div>
       <div><small style={{color: '#6b8298'}}>NACE kodu</small><strong style={{display: 'block', color: '#123b5d'}}>{code}</strong></div>
       <div style={{gridColumn: 'span 2'}}><small style={{color: '#6b8298'}}>Faaliyet</small><strong style={{display: 'block', color: '#123b5d', fontWeight: 650}}>{identity.description || 'Tam katalog açıklaması bulunmuyor.'}</strong></div>
       <div><small style={{color: '#6b8298'}}>Bölüm</small><strong style={{display: 'block', color: '#123b5d'}}>{identity.section_code ? `${identity.section_code} · ${identity.section_name || ''}` : '—'}</strong></div>
-      <div><small style={{color: '#6b8298'}}>Tehlike sınıfı</small><strong style={{display: 'block', color: '#123b5d'}}>{identity.hazard_class || '—'}</strong></div>
+      <div><small style={{color: '#6b8298'}}>Tehlike sınıfı</small><strong style={{display: 'block', color: '#123b5d'}}>{identity.hazard_class || workplace.hazard_class || '—'}</strong></div>
     </div>
   );
 }
@@ -106,13 +109,15 @@ export function NaceRoadmapSummary({data, loading, error, onOpen}) {
   }
   if (!data) return null;
   const identity = data.identity || {};
+  const workplace = data.workplace || {};
   const domains = [...(data.technical_risk_tags || []), ...(data.special_risks || [])];
   return (
     <section className="risk-panel" style={{marginBottom: 16}}>
       <div className="risk-panel-head" style={{alignItems: 'flex-start'}}>
         <div>
           <h2>NACE risk kapsamı</h2>
-          <p>{identity.code || data.entered_nace_code || 'NACE kodu yok'} · {identity.description || 'Kod doğrulaması gerekiyor'}</p>
+          <p>{identity.code || workplace.nace_code || data.entered_nace_code || 'NACE kodu yok'} · {identity.description || 'Kod doğrulaması gerekiyor'}</p>
+          <small style={{color: '#64748b'}}>{workplace.name || data.company_name || 'İşyeri'} · SGK {workplace.sgk_registry_no || '—'}</small>
         </div>
         <StatusBadge status={data.status} label={data.status_label} />
       </div>
@@ -153,7 +158,7 @@ export function NaceRoadmapPanel({data, loading, error, onRefresh}) {
         <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 12}}>
           <div>
             <h3 style={{margin: 0}}>NACE kimliği ve güvenli kullanım sınırı</h3>
-            <p style={{margin: '5px 0 0', color: '#64748b', fontSize: 13}}>NACE kodu başlangıç kapsamını belirler; saha doğrulaması yapılmadan otomatik risk üretmez.</p>
+            <p style={{margin: '5px 0 0', color: '#64748b', fontSize: 13}}>Seçilen firma kartındaki NACE ve SGK sicil bilgisi otomatik alınır; NACE yalnızca başlangıç kapsamıdır ve saha doğrulaması yapılmadan otomatik risk üretmez.</p>
           </div>
           <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
             <StatusBadge status={data.status} label={data.status_label} />
@@ -220,4 +225,3 @@ export function NaceRoadmapPanel({data, loading, error, onRefresh}) {
     </section>
   );
 }
-

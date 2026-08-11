@@ -414,6 +414,17 @@ def build_risk_nace_roadmap(
         "company_name": getattr(company, "name", None),
         "entered_nace_code": entered,
         "nace_source": nace_source if entered else None,
+        # Firma kartındaki kimliği Risk Analizi'ne additive olarak taşıyoruz.
+        # Risk kaydı üretmez/değiştirmez; yalnızca seçili company_id'nin
+        # kaynak kimliğini ve rapor/arayüzde kullanılacak sicil bilgisini verir.
+        "workplace": {
+            "id": getattr(company, "id", None),
+            "name": getattr(company, "name", None),
+            "sgk_registry_no": getattr(company, "sgk_registry_no", None),
+            "nace_code": entered,
+            "nace_source": nace_source if entered else None,
+            "hazard_class": getattr(company, "hazard_class", None),
+        },
         "identity": identity,
         "technical_risk_tags": technical_domains,
         "special_risks": special_domains,
