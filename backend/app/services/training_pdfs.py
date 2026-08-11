@@ -26,6 +26,7 @@ from app.services.training_topics import (
     sektor_kodu_cozumle,
     tehlike_kurali,
 )
+from app.services.training_nace_classification import resolve_exact_nace
 
 _FONT = "Helvetica"
 _FONT_B = "Helvetica-Bold"
@@ -135,6 +136,129 @@ def _wrap(c: canvas.Canvas, text: str, width: float, font: str, size: float, max
     return lines or [""]
 
 
+def _wrap_full(
+    c: canvas.Canvas,
+    text: str,
+    width: float,
+    font: str,
+    size: float,
+    *,
+    max_lines: int = 2,
+    min_size: float = 4.4,
+) -> tuple[list[str], float]:
+    """Wrap a value without the ellipsis used by compact legacy cells.
+
+    The attendance form contains official NACE descriptions and names. Those
+    values must remain exact, so the renderer reduces the font size instead of
+    silently replacing the end of the value with ``...``.
+    """
+    words = " ".join(str(text or "").replace("\n", " ").split()).split()
+    if not words:
+        return [""], size
+
+    candidate = size
+    while candidate >= min_size:
+        c.setFont(font, candidate)
+        lines: list[str] = []
+        current = ""
+        for word in words:
+            trial = f"{current} {word}".strip()
+            if not current or c.stringWidth(trial, font, candidate) <= width:
+                current = trial
+                continue
+            lines.append(current)
+            current = word
+        if current:
+            lines.append(current)
+        if len(lines) <= max_lines:
+            return lines, candidate
+        candidate = round(candidate - 0.3, 2)
+
+    # A single unusually long token cannot be wrapped by spaces. Keep it
+    # intact rather than corrupting an official identity value.
+    c.setFont(font, min_size)
+    return [" ".join(words)], min_size
+
+
+def _draw_info_cell(
+    c: canvas.Canvas,
+    *,
+    x: float,
+    y_top: float,
+    width: float,
+    height: float,
+    label: str,
+    value: str,
+    max_lines: int = 1,
+    value_size: float = 7,
+) -> None:
+    """Draw one attendance-form identity cell with a safe, readable value."""
+    c.setStrokeColorRGB(180 / 255, 195 / 255, 210 / 255)
+    c.setFillColorRGB(247 / 255, 249 / 255, 252 / 255)
+    c.rect(x, y_top - height, width, height, fill=1, stroke=1)
+    c.setFillColorRGB(0.3, 0.35, 0.4)
+    c.setFont(_FONT_B, 6)
+    c.drawString(x + 1.5 * mm, y_top - 2.8 * mm, label)
+
+    c.setFillColorRGB(0.1, 0.1, 0.1)
+    value_width = width - 3 * mm
+    if max_lines == 1:
+        c.setFont(_FONT, value_size)
+        value_y = y_top - min(5.8 * mm, height - 1.8 * mm)
+        c.drawString(x + 1.5 * mm, value_y, _fit(c, value, value_width, _FONT, value_size))
+        return
+
+    lines, fitted_size = _wrap_full(
+        c,
+        value,
+        value_width,
+        _FONT,
+        value_size,
+        max_lines=max_lines,
+    )
+    c.setFont(_FONT, fitted_size)
+    first_y = y_top - min(5.2 * mm, height - 1.8 * mm)
+    for index, line in enumerate(lines):
+        c.drawString(x + 1.5 * mm, first_y - index * 2.7 * mm, line)
+
+
+def _resolve_nace_identity(
+    training,
+    *,
+    fallback_code: str | None = None,
+    fallback_description: str | None = None,
+) -> tuple[str | None, str | None]:
+    """Resolve the exact NACE identity already attached to the training.
+
+    The training's selected catalog value is authoritative for the document;
+    the workplace code is only a backwards-compatible fallback for legacy
+    records that predate the exact training NACE field.
+    """
+    for raw in (getattr(training, "sector", None), fallback_code):
+        try:
+            classification = resolve_exact_nace(raw)
+        except ValueError:
+            continue
+        return classification.nace_code, classification.nace_description
+
+    code = str(fallback_code or "").strip() or None
+    description = str(fallback_description or "").strip() or None
+    return code, description
+
+
+def _compose_educator_text(training, physician_name: str | None = None) -> str:
+    """Keep the existing educator and qualification, then append the physician."""
+    instructor_name = str(getattr(training, "instructor_name", None) or "").strip()
+    educator = instructor_name or "—"
+    qualification = str(getattr(training, "instructor_qualification", None) or "").strip()
+    if qualification:
+        educator = f"{educator} — {qualification}"
+    physician = str(physician_name or getattr(training, "workplace_physician", None) or "").strip()
+    if physician and physician.casefold() != instructor_name.casefold():
+        educator = f"{educator} · İşyeri Hekimi: {physician}"
+    return educator
+
+
 def _fmt_date(d) -> str:
     if not d:
         return "—"
@@ -214,7 +338,16 @@ def _stamp_text(training) -> str:
     return (getattr(training, "stamp_text", None) or "").strip() or _DEFAULT_STAMP
 
 
-def build_attendance_pdf(*, company_name: str, training, employees: dict) -> bytes:
+def build_attendance_pdf(
+    *,
+    company_name: str,
+    training,
+    employees: dict,
+    workplace_sgk_registry_no: str | None = None,
+    nace_code: str | None = None,
+    nace_description: str | None = None,
+    physician_name: str | None = None,
+) -> bytes:
     """PRO: KATILIMCI İMZA FORMU (İSG-EĞT-KF-01), 10 kişi/sayfa."""
     _ensure_fonts()
     participants = list(training.participants or [])
@@ -249,6 +382,10 @@ def build_attendance_pdf(*, company_name: str, training, employees: dict) -> byt
             konu_ozeti=konu_ozeti,
             start_index=page_i * per_page,
             curriculum=curriculum,
+            workplace_sgk_registry_no=workplace_sgk_registry_no,
+            nace_code=nace_code,
+            nace_description=nace_description,
+            physician_name=physician_name,
         )
         c.showPage()
     c.save()
@@ -257,7 +394,26 @@ def build_attendance_pdf(*, company_name: str, training, employees: dict) -> byt
 
 
 def _draw_attendance_page(
-    c, w, h, *, company_name, training, employees, chunk, page_no, total_pages, bugun, kural, sektor_label, konu_ozeti, start_index, curriculum=None
+    c,
+    w,
+    h,
+    *,
+    company_name,
+    training,
+    employees,
+    chunk,
+    page_no,
+    total_pages,
+    bugun,
+    kural,
+    sektor_label,
+    konu_ozeti,
+    start_index,
+    curriculum=None,
+    workplace_sgk_registry_no=None,
+    nace_code=None,
+    nace_description=None,
+    physician_name=None,
 ):
     curriculum = curriculum or {}
     # PRO: outer slate frame + inner soft frame
@@ -306,50 +462,78 @@ def _draw_attendance_page(
     c.drawRightString(w - mr, h - 16 * mm, f"Düzenleme: {bugun}")
     c.drawRightString(w - mr, h - 20 * mm, f"Sayfa: {page_no}/{total_pages}")
 
-    # Info grid — PRO 13 cells
-    egitici = training.instructor_name or "—"
-    if training.instructor_qualification:
-        egitici = f"{egitici} — {training.instructor_qualification}"
+    # Info grid — the identity block is deliberately wider for official NACE
+    # text and uses the same selected workplace data as the training record.
+    egitici = _compose_educator_text(training, physician_name)
     deger = training.evaluation_method or "—"
     if training.passing_score:
         deger = f"{deger} / Geçme: {training.passing_score}"
 
-    info = [
-        ("Firma", company_name),
-        ("Eğitimin Adı", training.title),
-        ("Eğitim Tarihi", _fmt_date_range(training)),
-        (
-            "Eğitim Süresi",
-            curriculum.get("duration_hint")
-            or curriculum.get("duration_label")
-            or (f"{training.duration_hours} ders saati" if getattr(training, "duration_hours", None) else kural["sure"]),
-        ),
-        ("Yenileme Periyodu", "—" if curriculum.get("is_special") else kural["yenileme"]),
-        ("Tehlike Sınıfı", training.hazard_class),
-        ("Eğitim Türü", training.training_type),
-        ("Eğitim Şekli", training.delivery_method),
-        ("Sektör / İş Kolu", "—" if curriculum.get("is_special") else sektor_label),
-        ("Eğitim Yeri", training.location or "—"),
-        ("Eğitici / Yeterlilik", egitici),
-        ("Değerlendirme / Puan", deger),
-        ("Doğrulama Kodu", training.verification_code or "—"),
-    ]
+    resolved_nace_code, resolved_nace_description = _resolve_nace_identity(
+        training,
+        fallback_code=nace_code,
+        fallback_description=nace_description,
+    )
+    if resolved_nace_code and resolved_nace_description:
+        activity = f"{resolved_nace_code} / {resolved_nace_description}"
+    elif resolved_nace_description:
+        activity = resolved_nace_description
+    elif resolved_nace_code:
+        activity = f"{resolved_nace_code} / {sektor_label or '—'}"
+    else:
+        activity = sektor_label or "—"
+
+    duration = (
+        curriculum.get("duration_hint")
+        or curriculum.get("duration_label")
+        or (f"{training.duration_hours} ders saati" if getattr(training, "duration_hours", None) else kural["sure"])
+    )
+    renewal = "—" if curriculum.get("is_special") else kural["yenileme"]
+    training_type = training.training_type or "—"
+    type_and_evaluation = f"{training_type} · {deger}" if deger != "—" else training_type
+    registry = str(workplace_sgk_registry_no or "").strip() or "—"
+
     col_w = uw / 4
-    row_h = 8 * mm
-    y0 = h - 34 * mm
-    for i, (lab, val) in enumerate(info):
-        r, col = divmod(i, 4)
-        x = ml + col * col_w
-        y = y0 - r * row_h
-        c.setStrokeColorRGB(180 / 255, 195 / 255, 210 / 255)
-        c.setFillColorRGB(247 / 255, 249 / 255, 252 / 255)
-        c.rect(x, y - row_h, col_w, row_h, fill=1, stroke=1)
-        c.setFillColorRGB(0.3, 0.35, 0.4)
-        c.setFont(_FONT_B, 6)
-        c.drawString(x + 1.5 * mm, y - 3 * mm, lab)
-        c.setFillColorRGB(0.1, 0.1, 0.1)
-        c.setFont(_FONT, 7)
-        c.drawString(x + 1.5 * mm, y - 6.5 * mm, _fit(c, val, col_w - 3 * mm, _FONT, 7))
+    y = h - 34 * mm
+    rows = [
+        (7 * mm, [
+            (ml, col_w, "Firma", company_name, 1),
+            (ml + col_w, col_w, "İşyeri Sicil Numarası", registry, 1),
+            (ml + col_w * 2, col_w, "Eğitimin Adı", training.title, 1),
+            (ml + col_w * 3, col_w, "Eğitim Tarihi", _fmt_date_range(training), 1),
+        ]),
+        (7 * mm, [
+            (ml, col_w, "Eğitim Süresi", duration, 1),
+            (ml + col_w, col_w, "Yenileme Periyodu", renewal, 1),
+            (ml + col_w * 2, col_w, "Tehlike Sınıfı", training.hazard_class, 1),
+            (ml + col_w * 3, col_w, "Eğitim Türü / Değerlendirme", type_and_evaluation, 1),
+        ]),
+        (8 * mm, [
+            (ml, col_w, "Eğitim Şekli", training.delivery_method, 1),
+            (ml + col_w, col_w, "Eğitim Yeri", training.location or "—", 1),
+            (ml + col_w * 2, col_w * 2, "Eğitici / Yeterlilik", egitici, 2),
+        ]),
+        (10 * mm, [
+            (ml, uw, "NACE / Faaliyet Alanı", activity, 2),
+        ]),
+        (6 * mm, [
+            (ml, uw, "Doğrulama Kodu", training.verification_code or "—", 1),
+        ]),
+    ]
+    for row_height, cells in rows:
+        for x, width, label, value, max_lines in cells:
+            _draw_info_cell(
+                c,
+                x=x,
+                y_top=y,
+                width=width,
+                height=row_height,
+                label=label,
+                value=str(value or "—"),
+                max_lines=max_lines,
+                value_size=6.4 if max_lines > 1 else 7,
+            )
+        y -= row_height
 
     # Purpose / topics / dayanak box (PRO)
     konu_y_top = h - 72 * mm

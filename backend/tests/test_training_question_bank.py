@@ -343,6 +343,9 @@ def test_food_water_hygiene_exam_uses_ten_dedicated_questions(db: Session):
     training.training_type = "Gıda ve Su Sektöründe Hijyen Eğitimi"
     training.instructor_name = "Dr. Ayşe Yılmaz"
     training.instructor_qualification = "İşyeri Hekimi"
+    training.workplace_physician = "Dr. Mehmet Hekim"
+    training.sector = "nace_27_20_01"
+    company.sgk_registry_no = "22720010112126660100753000"
     training.employer_representative = "Mehmet İşveren"
     training.attendance_verified = True
     training.success_verified = True
@@ -397,6 +400,9 @@ def test_food_water_hygiene_exam_uses_ten_dedicated_questions(db: Session):
                     company_name=company.name,
                     training=training,
                     employees=employees,
+                    workplace_sgk_registry_no=company.sgk_registry_no,
+                    nace_code=company.nace_code,
+                    physician_name=training.workplace_physician,
                 )
             )
         ).pages
@@ -405,6 +411,10 @@ def test_food_water_hygiene_exam_uses_ten_dedicated_questions(db: Session):
     assert "Eğitimi Veren Sağlık Personeli" in certificate_text
     assert "GIDA VE SU SEKTÖRÜNDE HİJYEN EĞİTİMİ" in attendance_text
     assert "Eğitimi Veren Sağlık Personeli" in attendance_text
+    assert "22720010112126660100753000" in attendance_text
+    assert "27.20.01" in attendance_text
+    assert "Elektrik akümülatör parçalarının imalatı" in attendance_text
+    assert "Dr. Mehmet Hekim" in attendance_text
 
 
 
