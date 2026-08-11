@@ -340,6 +340,9 @@ export function RiskPage({user}) {
       setNaceErr('');
       return;
     }
+    // Firma değiştiğinde önceki firmanın NACE/SGK kimliği yeni seçime
+    // taşınmasın; yeni company_id'nin yanıtı gelene kadar yükleniyor görünür.
+    setNaceRoadmap(null);
     setNaceBusy(true);
     setNaceErr('');
     try {
@@ -896,11 +899,17 @@ export function RiskPage({user}) {
   const selectedHazard = hazards.find((h) => String(h.id) === String(form.hazard_id));
   const totalHazards = categories.reduce((s, c) => s + (c.hazard_count || 0), 0);
   const hazardCount = totalHazards;
-  const companyName =
-    companies.find((c) => String(c.id) === String(effectiveCompanyId))?.name ||
-    'İşyeri';
-  const companyHazard =
-    companies.find((c) => String(c.id) === String(effectiveCompanyId))?.hazard_class || '';
+  const selectedCompany = companies.find((c) => String(c.id) === String(effectiveCompanyId));
+  const workplaceIdentity = naceRoadmap?.workplace || {};
+  const companyName = workplaceIdentity.name || selectedCompany?.name || 'İşyeri';
+  const companySgk = workplaceIdentity.sgk_registry_no || selectedCompany?.sgk_registry_no || '';
+  const companyNace =
+    workplaceIdentity.nace_code ||
+    naceRoadmap?.identity?.code ||
+    naceRoadmap?.entered_nace_code ||
+    selectedCompany?.nace_code ||
+    '';
+  const companyHazard = workplaceIdentity.hazard_class || selectedCompany?.hazard_class || '';
 
   const priorityRisks = useMemo(() => {
     return [...rows]
@@ -946,6 +955,8 @@ export function RiskPage({user}) {
           <p>Tehlike puanlama, aksiyon takibi ve raporlama.</p>
           <div className="risk-scope">
             <span><Building2 size={12} /> {companyName}</span>
+            <span>SGK Sicil: {companySgk || '—'}</span>
+            <span>NACE: {companyNace || '—'}</span>
             {companyHazard ? <span><ShieldAlert size={12} /> {companyHazard}</span> : null}
             <span>5×5 matris</span>
           </div>

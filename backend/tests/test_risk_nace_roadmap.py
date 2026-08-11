@@ -7,8 +7,14 @@ from app.services.risk_nace_roadmap import build_risk_nace_roadmap
 from app.services.risk_reports import build_risk_excel, build_risk_pdf
 
 
-def _company(nace_code=None):
-    return SimpleNamespace(id=46, name="ALÇAT ÇELİK", nace_code=nace_code)
+def _company(nace_code=None, sgk_registry_no="SGK-46"):
+    return SimpleNamespace(
+        id=46,
+        name="ALÇAT ÇELİK",
+        nace_code=nace_code,
+        sgk_registry_no=sgk_registry_no,
+        hazard_class="Tehlikeli",
+    )
 
 
 def test_exact_nace_468306_returns_controlled_risk_scope_without_guessing():
@@ -19,6 +25,14 @@ def test_exact_nace_468306_returns_controlled_risk_scope_without_guessing():
 
     assert roadmap["status"] == "verified"
     assert roadmap["exact_catalog_match"] is True
+    assert roadmap["workplace"] == {
+        "id": 46,
+        "name": "ALÇAT ÇELİK",
+        "sgk_registry_no": "SGK-46",
+        "nace_code": "46.83.06",
+        "nace_source": None,
+        "hazard_class": "Tehlikeli",
+    }
     assert roadmap["identity"]["code"] == "46.83.06"
     assert "Metalden prefabrik" in roadmap["identity"]["description"]
     labels = {row["label"] for row in roadmap["technical_risk_tags"]}

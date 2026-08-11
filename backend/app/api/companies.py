@@ -574,6 +574,7 @@ def create_company(
     return CompanyCreateResponse(
         id=obj.id,
         name=obj.name,
+        nace_code=obj.nace_code,
         hazard_class=obj.hazard_class,
         sgk_registry_no=obj.sgk_registry_no,
         address=obj.address,
