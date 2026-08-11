@@ -1398,7 +1398,13 @@ def build_risk_excel(
     return out.read()
 
 
-def build_dof_excel(*, company, risks: list, hazard_map: dict | None = None) -> bytes:
+def build_dof_excel(
+    *,
+    company,
+    risks: list,
+    hazard_map: dict | None = None,
+    method_code: str | None = None,
+) -> bytes:
     """PRO /rapor/dof-excel — yalnız DÖF listesi."""
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -1426,6 +1432,11 @@ def build_dof_excel(*, company, risks: list, hazard_map: dict | None = None) -> 
     ws["A2"] = CREATOR_LINE
     ws["A2"].font = Font(size=9, italic=True, color="6C757D")
     ws["A2"].alignment = Alignment(horizontal="center")
+    if method_code:
+        ws.merge_cells("A3:I3")
+        ws["A3"] = f"Yöntem filtresi: {resolve_method(method_code)['short']}"
+        ws["A3"].font = Font(size=9, italic=True, color="6C757D")
+        ws["A3"].alignment = Alignment(horizontal="center")
 
     headers = [
         "DÖF No",
