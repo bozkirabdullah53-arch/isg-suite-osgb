@@ -90,6 +90,13 @@ class PersonnelProfile(Base):
     company_id: Mapped[int] = mapped_column(
         ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False
     )
+    # 0083 keeps the historical workplace link while moving professional
+    # profile ownership to the OSGB.  The migration adds this column to
+    # existing databases; declaring it here keeps fresh metadata/test schemas
+    # and the runtime model in sync without changing employee profile scope.
+    legacy_company_id: Mapped[int | None] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), nullable=True
+    )
     branch_id: Mapped[int | None] = mapped_column(
         ForeignKey("branches.id", ondelete="SET NULL"), nullable=True
     )

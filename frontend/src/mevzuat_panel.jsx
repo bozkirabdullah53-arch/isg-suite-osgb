@@ -55,7 +55,7 @@ export function MevzuatPanelPage() {
 
       <section className="panel" style={{marginBottom: 16}}>
         <p style={{margin: '0 0 12px', color: '#475569', fontSize: 14, lineHeight: 1.5}}>
-          OSGB yöneticisi için küratörlü İSG mevzuat hatırlatmaları ve tehlike kategorisine göre
+          İş güvenliği uzmanı ve OSGB yönetimi için küratörlü İSG mevzuat hatırlatmaları ve tehlike kategorisine göre
           referans listesi. Resmî metin ve Resmî Gazete esas alınmalıdır.
         </p>
         <div style={{display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'end'}}>

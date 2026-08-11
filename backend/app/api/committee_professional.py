@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.api.company_access import ensure_company_access
@@ -151,7 +151,7 @@ def _candidate_key(source_type: str, source_id: int | str, company_id: int) -> s
 
 
 def _member_rows(db: Session, company_id: int) -> list[dict]:
-    rows = db.execute(text("""
+    full_sql = """
         SELECT id, company_id, role_code, full_name, start_date, end_date, notes,
                employee_id, user_id, branch_id, identity_key, source_type, source_ref,
                job_title_snapshot, professional_role_snapshot, email_snapshot,
@@ -160,8 +160,38 @@ def _member_rows(db: Session, company_id: int) -> list[dict]:
         FROM ohs_committee_members
         WHERE company_id=:company_id AND is_active=true
         ORDER BY is_mandatory DESC, role_code, full_name, id
-    """), {"company_id": company_id}).mappings()
-    return [dict(row) for row in rows]
+    """
+    try:
+        rows = db.execute(text(full_sql), {"company_id": company_id}).mappings()
+        return [dict(row) for row in rows]
+    except OperationalError as exc:
+        # Migration öncesi kurul tablolarında revizyon alanları yok olabilir.
+        # Eski satırları okumaya devam et; eksik alanlar geçmiş kayıt için boş
+        # kabul edilir ve yeni kayıt akışını etkilemez.
+        if "no such column" not in str(exc).lower() and "undefined column" not in str(exc).lower():
+            raise
+        rows = db.execute(
+            text("""
+                SELECT id, company_id, role_code, full_name, start_date, end_date, notes,
+                       employee_id, user_id, branch_id, identity_key, source_type, source_ref,
+                       job_title_snapshot, professional_role_snapshot, email_snapshot,
+                       is_mandatory, is_active, created_at
+                FROM ohs_committee_members
+                WHERE company_id=:company_id AND is_active=true
+                ORDER BY is_mandatory DESC, role_code, full_name, id
+            """),
+            {"company_id": company_id},
+        ).mappings()
+        return [
+            {
+                **dict(row),
+                "removed_at": None,
+                "removed_by_id": None,
+                "removal_reason_code": None,
+                "removal_reason_text": None,
+            }
+            for row in rows
+        ]
 
 
 def _find_duplicate_member_id(
@@ -180,14 +210,21 @@ def _find_duplicate_member_id(
     if user_id is not None:
         predicates.append("user_id=:user_id")
         params["user_id"] = user_id
-    return db.execute(
-        text(f"""
-            SELECT id FROM ohs_committee_members
-             WHERE company_id=:company_id AND is_active=true
-               AND ({' OR '.join(predicates)}) LIMIT 1
-        """),
-        params,
-    ).scalar()
+    try:
+        return db.execute(
+            text(f"""
+                SELECT id FROM ohs_committee_members
+                 WHERE company_id=:company_id AND is_active=true
+                   AND ({' OR '.join(predicates)}) LIMIT 1
+            """),
+            params,
+        ).scalar()
+    except OperationalError as exc:
+        # Eski/izole kurulumlarda kurul tablosu henüz migration ile oluşmadıysa
+        # duplicate kontrolü kayıt yokmuş gibi güvenli biçimde devam eder.
+        if "no such table" in str(exc).lower() or "undefined table" in str(exc).lower():
+            return None
+        raise
 
 
 def _missing_mandatory(db: Session, company_id: int) -> list[str]:

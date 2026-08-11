@@ -42,6 +42,23 @@ const SEV = {
   },
 };
 
+const RELATED_LABELS = {
+  risk: 'Risk Analizi',
+  capa: 'DÖF',
+  annual_plans: 'Yıllık Plan',
+  training: 'Eğitimler',
+  employees: 'Personel',
+  ppe: 'KKD Takip',
+  sds: 'SDS / PKD',
+  documents: 'Dokümanlar',
+  periyodik_kontrol: 'Periyodik Kontrol',
+  ortam_olcum: 'Ortam Ölçüm',
+  acil_plan: 'Acil Durum Planı',
+  acil_ekipler: 'Acil Ekipler',
+  tatbikat: 'Tatbikat',
+  isg_kurulu: 'İSG Kurulu',
+};
+
 function AlertCard({a, onGo}) {
   const s = SEV[a.severity] || SEV.missing;
   const Icon = s.icon;
@@ -77,6 +94,14 @@ function AlertCard({a, onGo}) {
           <button type="button" className="mini" onClick={() => onGo?.(a.module)}>
             İşleme git → {a.module_label || a.module}
           </button>
+          {(a.related_modules || [])
+            .filter((module) => module && module !== a.module)
+            .slice(0, 3)
+            .map((module) => (
+              <button key={module} type="button" className="mini secondary" style={{marginLeft: 6}} onClick={() => onGo?.(module)}>
+                {RELATED_LABELS[module] || module}
+              </button>
+            ))}
         </div>
       )}
     </article>
@@ -167,6 +192,19 @@ export function DutyDashboard({user, summary, onNavigate}) {
       </div>
 
       {boardError && <div className="error" style={{marginBottom: 12}}>{boardError}</div>}
+
+      {data?.quick_actions?.length > 0 && (
+        <section className="panel" style={{marginBottom: 16}}>
+          <h4 style={{margin: '0 0 10px'}}>Hızlı çalışma akışları</h4>
+          <div className="actions" style={{gap: 8, flexWrap: 'wrap'}}>
+            {data.quick_actions.map((action) => (
+              <button key={action.module} type="button" className="secondary" onClick={() => onNavigate?.(action.module)}>
+                {action.label}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="cards" style={{marginBottom: 16}}>
         <article className="metric" style={{borderTop: '3px solid #dc2626'}}>

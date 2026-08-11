@@ -135,18 +135,12 @@ def initialize_personnel_profile(
             )
         professional_id = professional.id
 
-    professional_osgb_scoped = (
-        payload.subject_type == "professional"
-        and PersonnelProfile.__table__.c.company_id.nullable
-    )
-    scope_filter = (
-        PersonnelProfile.osgb_id == int(company.osgb_id)
-        if professional_osgb_scoped
-        else PersonnelProfile.company_id == payload.company_id
-    )
     existing = db.scalar(
         select(PersonnelProfile)
-        .where(scope_filter, _subject_query(payload))
+        .where(
+            PersonnelProfile.company_id == payload.company_id,
+            _subject_query(payload),
+        )
         .limit(1)
     )
     if existing:
@@ -157,13 +151,19 @@ def initialize_personnel_profile(
             )
         return existing, False
 
+    # Migration 0083 moves professional cards to OSGB scope.  Keep the
+    # selected workplace only as a historical link and leave the live tenant
+    # column empty; pre-0083 schemas retain the legacy company-scoped shape.
+    osgb_professional_scope = bool(
+        payload.subject_type == "professional"
+        and "legacy_company_id" in PersonnelProfile.__table__.c
+        and PersonnelProfile.__table__.c.company_id.nullable
+    )
     profile = PersonnelProfile(
         osgb_id=int(company.osgb_id),
-        # Migration 0083 makes professional cards OSGB-scoped. Keep this legacy
-        # company entry point as a compatibility facade, but persist the same
-        # canonical shape used by the OSGB card API.
-        company_id=(None if professional_osgb_scoped else payload.company_id),
-        branch_id=(None if professional_osgb_scoped else resolved_branch_id),
+        company_id=None if osgb_professional_scope else payload.company_id,
+        legacy_company_id=payload.company_id if osgb_professional_scope else None,
+        branch_id=resolved_branch_id,
         subject_type=payload.subject_type,
         employee_id=employee_id,
         professional_id=professional_id,

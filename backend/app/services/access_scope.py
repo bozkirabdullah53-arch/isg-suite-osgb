@@ -116,7 +116,36 @@ def ensure_login_scope(db: Session, user: User) -> User:
             "Global yöneticiden kurum bağlantısını düzeltmesini isteyin.",
         )
 
-    if user.role in _FIELD_ROLE_TO_TYPE:
+    # İş güvenliği uzmanı, mevcut tek-firma hesaplarında company_id / OSGB
+    # kapsamıyla oturum açmaya devam edebilir; bu geriye dönük uyumluluk,
+    # uzman odasının eski kullanıcılarını kilitlemez. Klinik roller ise
+    # aşağıdaki sıkı profesyonel eşleşmesine tabidir.
+    if user.role == UserRole.SAFETY_SPECIALIST:
+        professional = _professional_for_user(db, user)
+        if professional:
+            osgb = _active_osgb(db, professional.osgb_id)
+            if not osgb:
+                raise HTTPException(403, "İSG profesyoneli kaydı aktif bir OSGB'ye bağlı değil.")
+            if user.osgb_id != professional.osgb_id:
+                user.osgb_id = professional.osgb_id
+                db.flush()
+            return user
+        company = _active_company(db, user.company_id)
+        if company:
+            if company.osgb_id and user.osgb_id != company.osgb_id:
+                user.osgb_id = company.osgb_id
+                db.flush()
+            return user
+        osgb = _active_osgb(db, user.osgb_id)
+        if osgb:
+            return user
+        raise HTTPException(
+            403,
+            "Bu uzman hesabı aktif bir OSGB veya işyerine bağlı değil. "
+            "Görevlendirme / kurum bağlantısını düzeltin.",
+        )
+
+    if user.role in (UserRole.WORKPLACE_PHYSICIAN, UserRole.OTHER_HEALTH_PERSONNEL):
         professional = _professional_for_user(db, user)
         if not professional:
             raise HTTPException(
