@@ -197,19 +197,35 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     bind = op.get_bind()
-    _restore_company_rls("health_records")
+    inspector = sa.inspect(bind)
+    if inspector.has_table("health_records"):
+        _restore_company_rls("health_records")
     for table in ("health_access_logs", "health_record_revisions"):
+        if not inspector.has_table(table):
+            continue
         if bind.dialect.name == "postgresql":
             op.execute(sa.text(f"DROP TRIGGER IF EXISTS trg_{table}_append_only ON {table}"))
             op.execute(sa.text(f"DROP FUNCTION IF EXISTS prevent_{table}_mutation()"))
         elif bind.dialect.name == "sqlite":
             op.execute(sa.text(f"DROP TRIGGER IF EXISTS trg_{table}_no_update"))
             op.execute(sa.text(f"DROP TRIGGER IF EXISTS trg_{table}_no_delete"))
-    op.drop_table("health_access_logs")
-    op.drop_table("health_record_revisions")
+        op.drop_table(table)
+    if not inspector.has_table("health_records"):
+        return
+    inspector = sa.inspect(bind)
+    columns = {column["name"] for column in inspector.get_columns("health_records")}
+    indexes = {index["name"] for index in inspector.get_indexes("health_records")}
+    foreign_keys = {
+        fk.get("name")
+        for fk in inspector.get_foreign_keys("health_records")
+        if fk.get("name")
+    }
     with op.batch_alter_table("health_records") as batch:
-        batch.drop_index("ix_health_records_physician_professional_id")
-        batch.drop_constraint("fk_health_records_physician_professional", type_="foreignkey")
-        batch.drop_column("version")
-        batch.drop_column("updated_at")
-        batch.drop_column("physician_professional_id")
+        if "ix_health_records_physician_professional_id" in indexes:
+            batch.drop_index("ix_health_records_physician_professional_id")
+        if "fk_health_records_physician_professional" in foreign_keys:
+            batch.drop_constraint("fk_health_records_physician_professional", type="foreignkey")
+        for column in ("version", "updated_at", "physician_professional_id"):
+            if column in columns:
+                batch.drop_column(column)
+
