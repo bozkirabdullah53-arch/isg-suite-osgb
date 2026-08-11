@@ -633,6 +633,25 @@ def risk_assessment_validity(
     }
 
 
+def _canonical_nace_code(value: object) -> str | None:
+    """Return the catalog's canonical code without accepting fuzzy aliases."""
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    candidates = [raw]
+    normalized = raw.removeprefix("nace_").replace("_", ".")
+    if normalized != raw:
+        candidates.append(normalized)
+    for candidate in candidates:
+        try:
+            classification = resolve_exact_nace(candidate)
+        except ValueError:
+            continue
+        if classification.nace_code:
+            return classification.nace_code
+    return None
+
+
 def _resolve_company_nace(
     db: Session,
     company: Company,
@@ -643,22 +662,43 @@ def _resolve_company_nace(
     the legacy company form did not persist it. Multiple different codes are
     treated as ambiguous and never guessed.
     """
-    direct = str(getattr(company, "nace_code", None) or "").strip() or None
-    if direct:
-        return direct, "company"
+    direct_raw = str(getattr(company, "nace_code", None) or "").strip() or None
+    if direct_raw:
+        return _canonical_nace_code(direct_raw) or direct_raw, "company"
+
     candidates: list[str] = []
+
+    def add_candidate(value: object) -> None:
+        text = str(value or "").strip()
+        if text:
+            candidates.append(text)
+
     try:
-        candidates.extend(
-            str(value or "").strip()
-            for value in db.scalars(
-                select(TrainingNaceSnapshot.nace_code)
-                .where(TrainingNaceSnapshot.company_id == company.id)
-            ).all()
-            if str(value or "").strip()
-        )
+        snapshot_rows = db.execute(
+            select(
+                TrainingNaceSnapshot.nace_code,
+                TrainingNaceSnapshot.catalog_key,
+                TrainingNaceSnapshot.source_snapshot_json,
+            ).where(TrainingNaceSnapshot.company_id == company.id)
+        ).all()
+        for row in snapshot_rows:
+            add_candidate(row[0])
+            add_candidate(row[1])
+            try:
+                source = json.loads(row[2] or "{}")
+            except (TypeError, json.JSONDecodeError):
+                source = {}
+            if isinstance(source, dict):
+                add_candidate(source.get("nace_code"))
+                add_candidate(source.get("catalog_key"))
+                catalog_row = source.get("catalog_row")
+                if isinstance(catalog_row, dict):
+                    add_candidate(catalog_row.get("nace"))
+                    add_candidate(catalog_row.get("code"))
     except OperationalError:
         # Migration öncesi izole kurulumlarda snapshot tablosu bulunmayabilir.
         pass
+
     try:
         candidates.extend(
             str(value or "").strip()
@@ -671,15 +711,11 @@ def _resolve_company_nace(
     except OperationalError:
         pass
 
-    exact_codes: set[str] = set()
-    for raw in candidates:
-        value = raw.removeprefix("nace_").replace("_", ".")
-        try:
-            classification = resolve_exact_nace(value)
-        except ValueError:
-            continue
-        if classification.nace_code:
-            exact_codes.add(classification.nace_code)
+    exact_codes = {
+        canonical
+        for raw in candidates
+        if (canonical := _canonical_nace_code(raw))
+    }
     if len(exact_codes) == 1:
         return next(iter(exact_codes)), "legacy_training_nace"
     return None, "ambiguous_training_nace" if exact_codes else "company_missing"
