@@ -25,13 +25,18 @@ from app.models.entities import (
     AnnualPlanItem,
     AssignmentStatus,
     Company,
+    Employee,
     ServiceContract,
     ServiceVisit,
     WorkplaceAssignment,
 )
 from app.services.annual_plan_pdf import build_annual_plan_pdf
 from app.services.assigned_team import team_names
-from app.services.capacity_engine import build_capacity_overview
+from app.services.capacity_engine import (
+    build_capacity_overview,
+    count_active_employees,
+    compute_company_service_requirements,
+)
 from app.services.csgb_audit_pack import build_csgb_audit_pack
 
 PDF_FONT = "Helvetica"
@@ -238,9 +243,26 @@ def _assignment_rows(db: Session, oid: int, company_id: int | None = None) -> li
         c.id: c
         for c in db.scalars(select(Company).where(Company.id.in_(company_ids or {0}))).all()
     } if company_ids else {}
+    employee_counts: dict[int, int] = {}
+    if company_ids:
+        employees_by_company: dict[int, list[Employee]] = {}
+        for employee in db.scalars(
+            select(Employee).where(
+                Employee.company_id.in_(company_ids),
+                Employee.is_active.is_(True),
+            )
+        ).all():
+            employees_by_company.setdefault(employee.company_id, []).append(employee)
+        employee_counts = {
+            company_id: count_active_employees(rows)
+            for company_id, rows in employees_by_company.items()
+        }
     out = []
     for a in assignments:
         co = companies.get(a.company_id)
+        requirements = compute_company_service_requirements(co, employee_counts.get(a.company_id, 0)) if co else None
+        role = a.professional_type.value if a.professional_type else "safety_specialist"
+        role_requirement = (requirements or {}).get("roles", {}).get(role, {})
         out.append(
             {
                 "id": a.id,
@@ -250,7 +272,10 @@ def _assignment_rows(db: Session, oid: int, company_id: int | None = None) -> li
                 "professional_type": a.professional_type.value if a.professional_type else None,
                 "start_date": a.start_date.isoformat() if a.start_date else None,
                 "end_date": a.end_date.isoformat() if a.end_date else None,
-                "required_minutes_monthly": a.required_minutes_monthly,
+                "required_minutes_monthly": int(role_requirement.get("required_minutes", 0) or 0),
+                "required_hours": int(role_requirement.get("hours", 0) or 0),
+                "required_remaining_minutes": int(role_requirement.get("remaining_minutes", 0) or 0),
+                "service_requirement": requirements,
                 "planned_minutes_monthly": a.planned_minutes_monthly,
                 "actual_minutes_monthly": a.actual_minutes_monthly,
                 "isg_katip_contract_number": a.isg_katip_contract_number,

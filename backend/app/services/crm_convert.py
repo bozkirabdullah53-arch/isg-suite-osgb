@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.entities import Company, CrmLead, FinanceTransaction, ServiceContract
+from app.services.capacity_engine import sync_company_service_requirements
 from app.services.site_verify import generate_site_verify_code
 
 
@@ -93,6 +94,7 @@ def convert_lead_to_contract(db: Session, lead: CrmLead) -> dict:
         }
 
     company = _find_or_create_company(db, lead)
+    sync_company_service_requirements(db, company.id, commit=False)
     today = date.today()
     contract = ServiceContract(
         osgb_id=lead.osgb_id,

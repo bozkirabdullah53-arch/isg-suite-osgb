@@ -4,7 +4,7 @@ from __future__ import annotations
 from calendar import monthrange
 from datetime import date, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.entities import (
@@ -16,7 +16,7 @@ from app.models.entities import (
     VisitStatus,
     WorkplaceAssignment,
 )
-from app.services.capacity_engine import compute_legal_required_minutes, normalize_hazard
+from app.services.capacity_engine import count_active_employees, compute_company_service_requirements
 from app.services.osgb_oversight import _month_bounds, _visit_minutes
 
 STATUS_LABELS = {
@@ -130,10 +130,21 @@ def build_visit_calendar(db: Session, osgb_id: int | None, month: str | None = N
 
     emp_counts: dict[int, int] = {}
     if company_ids:
-        rows = db.execute(
-            select(Employee.company_id, func.count()).where(Employee.company_id.in_(company_ids)).group_by(Employee.company_id)
-        ).all()
-        emp_counts = {int(cid): int(cnt) for cid, cnt in rows}
+        active_employees = list(
+            db.scalars(
+                select(Employee).where(
+                    Employee.company_id.in_(company_ids),
+                    Employee.is_active.is_(True),
+                )
+            ).all()
+        )
+        employees_by_company: dict[int, list[Employee]] = {}
+        for employee in active_employees:
+            employees_by_company.setdefault(employee.company_id, []).append(employee)
+        emp_counts = {
+            company_id: count_active_employees(rows)
+            for company_id, rows in employees_by_company.items()
+        }
 
     missing: list[dict] = []
     cur_month_start, cur_month_end = _month_bounds(today)
@@ -141,12 +152,11 @@ def build_visit_calendar(db: Session, osgb_id: int | None, month: str | None = N
         company = db.get(Company, a.company_id)
         if not company:
             continue
-        required = int(a.required_minutes_monthly or 0)
-        if required <= 0:
-            emp = emp_counts.get(a.company_id, 0)
-            required = compute_legal_required_minutes(
-                company.hazard_class, emp, a.professional_type
-            )
+        emp = emp_counts.get(a.company_id, 0)
+        requirements = compute_company_service_requirements(company, emp)
+        role = a.professional_type.value if a.professional_type else "safety_specialist"
+        role_requirement = requirements["roles"].get(role) or {}
+        required = int(role_requirement.get("required_minutes", 0) or 0)
         if required <= 0:
             continue
         visit_min, _, _ = _visit_minutes(db, a.professional_id, a.company_id, cur_month_start, cur_month_end)
@@ -172,7 +182,10 @@ def build_visit_calendar(db: Session, osgb_id: int | None, month: str | None = N
                 "actual_minutes": actual,
                 "gap_minutes": gap,
                 "has_future_plan": has_future_plan,
-                "hazard_class": normalize_hazard(company.hazard_class),
+                "hazard_class": requirements["hazard_class"],
+                "hazard_warning": requirements["hazard_warning"],
+                "required_hours": role_requirement.get("hours", 0),
+                "required_remaining_minutes": role_requirement.get("remaining_minutes", 0),
             }
         )
     missing.sort(key=lambda x: (-x["gap_minutes"], x["company_name"]))

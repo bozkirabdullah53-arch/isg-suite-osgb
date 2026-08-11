@@ -37,7 +37,10 @@ from app.services.integrations_dry_run import VALID_ADAPTERS, run_dry_export
 from app.services.integrations_live_send import run_live_send
 from app.services import ibys_client, katip_client
 from app.services.mevzuat_panel import build_mevzuat_panel
-from app.services.capacity_engine import build_capacity_overview, sync_assignment_required
+from app.services.capacity_engine import (
+    build_capacity_overview,
+    sync_assignment_required,
+)
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
 router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
@@ -774,6 +777,7 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
         existing.status = AssignmentStatus.ACTIVE
         existing.end_date = payload.end_date
         link_user_to_professional(db, professional)
+        sync_assignment_required(db, existing, commit=False)
         db.commit()
         try:
             from app.api.company_access import sync_all_assigned_field_roles
@@ -786,6 +790,8 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
     db.add(obj)
     link_user_to_professional(db, professional)
     try:
+        # The client field is accepted for old clients but is never authoritative.
+        sync_assignment_required(db, obj, commit=False)
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -903,6 +909,7 @@ def activate_assignment(
     obj.status = AssignmentStatus.ACTIVE
     if obj.end_date:
         obj.end_date = None
+    sync_assignment_required(db, obj, commit=False)
     db.commit()
     db.refresh(obj)
     try:

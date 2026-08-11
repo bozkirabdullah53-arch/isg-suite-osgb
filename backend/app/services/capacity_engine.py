@@ -1,9 +1,11 @@
 """6331 / İSG Hizmetleri Yönetmeliği kapasite motoru — mevzuat asgari süre vs fiili yük."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date
+import re
 
-from sqlalchemy import func, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.models.entities import (
@@ -15,28 +17,39 @@ from app.models.entities import (
     WorkplaceAssignment,
 )
 from app.services.osgb_oversight import _month_bounds, _visit_minutes
+from app.services.training_nace_classification import resolve_exact_nace
 
-# İSG Hizmetleri Yönetmeliği — işyeri başına aylık asgari dakika (basitleştirilmiş tablo).
-# Çalışan dilimleri: 1-9, 10-49, 50-249, 250+
-_BRACKETS = ("1-9", "10-49", "50-249", "250+")
-
-LEGAL_MINUTES_MONTHLY: dict[str, dict[str, dict[str, int]]] = {
-    "safety_specialist": {
-        "Az Tehlikeli": {"1-9": 120, "10-49": 240, "50-249": 480, "250+": 960},
-        "Tehlikeli": {"1-9": 240, "10-49": 480, "50-249": 960, "250+": 1440},
-        "Çok Tehlikeli": {"1-9": 480, "10-49": 960, "50-249": 1440, "250+": 1920},
+# Merkezî iş kuralı: asgari hizmet süresi aktif çalışan başına aylık dakika olarak
+# tutulur. Bütün API, rapor ve ekranlar bu tablodan hesaplama alır.
+SERVICE_MINUTES_PER_EMPLOYEE: dict[str, dict[str, int]] = {
+    "Az Tehlikeli": {
+        "safety_specialist": 10,
+        "workplace_physician": 5,
+        # Mevcut DSP ekranlarını bozmamak için hekim kuralıyla aynı kapsamda tutulur.
+        "other_health_personnel": 5,
     },
-    "workplace_physician": {
-        "Az Tehlikeli": {"1-9": 60, "10-49": 120, "50-249": 240, "250+": 480},
-        "Tehlikeli": {"1-9": 120, "10-49": 240, "50-249": 480, "250+": 960},
-        "Çok Tehlikeli": {"1-9": 240, "10-49": 480, "50-249": 960, "250+": 1440},
+    "Tehlikeli": {
+        "safety_specialist": 20,
+        "workplace_physician": 10,
+        "other_health_personnel": 10,
     },
-    "other_health_personnel": {
-        "Az Tehlikeli": {"1-9": 60, "10-49": 120, "50-249": 240, "250+": 480},
-        "Tehlikeli": {"1-9": 120, "10-49": 240, "50-249": 480, "250+": 960},
-        "Çok Tehlikeli": {"1-9": 240, "10-49": 480, "50-249": 960, "250+": 1440},
+    "Çok Tehlikeli": {
+        "safety_specialist": 40,
+        "workplace_physician": 15,
+        "other_health_personnel": 15,
     },
 }
+
+# Dışarıdan eski sabit adını kullanan çağrılar için uyumluluk alias'ı.
+LEGAL_MINUTES_MONTHLY = SERVICE_MINUTES_PER_EMPLOYEE
+
+SERVICE_ROLE_KEYS = (
+    "safety_specialist",
+    "workplace_physician",
+    "other_health_personnel",
+)
+
+_BRACKETS = ("1-9", "10-49", "50-249", "250+")
 
 # Uzman sertifika sınıfı — eşzamanlı işyeri üst sınırı (yönetmelik özeti)
 SPECIALIST_FIRM_LIMITS = {"A": 20, "B": 10, "C": 5}
@@ -55,10 +68,126 @@ HAZARD_ALIASES = {
 }
 
 
-def normalize_hazard(hazard: str | None) -> str:
-    raw = (hazard or "Tehlikeli").strip()
+def normalize_hazard(hazard: str | None) -> str | None:
+    """Normalize a known hazard class without guessing an unknown value."""
+    raw = str(hazard or "").strip()
+    if not raw:
+        return None
     key = raw.casefold().replace("ı", "i")
-    return HAZARD_ALIASES.get(key, raw if raw in LEGAL_MINUTES_MONTHLY["safety_specialist"] else "Tehlikeli")
+    return HAZARD_ALIASES.get(key)
+
+
+def normalize_employee_count(count: object) -> int:
+    """Return a safe non-negative employee count for all calculations."""
+    try:
+        value = int(count or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, value)
+
+
+def count_active_employees(employees: Iterable[Employee]) -> int:
+    """Count the existing active population once per business identity.
+
+    The personnel importer already matches by national-id or normalized name;
+    capacity follows that same identity rule so accidental duplicate rows cannot
+    inflate legally required service minutes.
+    """
+    identities: set[tuple[str, str]] = set()
+    for employee in employees:
+        if not bool(getattr(employee, "is_active", False)):
+            continue
+        national_id = str(getattr(employee, "national_id_masked", None) or "").strip().casefold()
+        if national_id:
+            identity = ("national_id", national_id)
+        else:
+            name = " ".join(str(getattr(employee, "full_name", None) or "").split()).casefold()
+            identity = ("name", name) if name else ("record", str(getattr(employee, "id", id(employee))))
+        identities.add(identity)
+    return len(identities)
+
+
+def minutes_to_display(total_minutes: object) -> dict[str, int | str]:
+    """Convert authoritative minutes to display-only hours and remaining minutes."""
+    total = normalize_employee_count(total_minutes)
+    hours, remaining = divmod(total, 60)
+    return {
+        "total_minutes": total,
+        "hours": hours,
+        "remaining_minutes": remaining,
+        "equivalent": f"{hours} saat {remaining:02d} dakika / ay",
+    }
+
+
+def _nace_from_sgk_registry(value: object) -> str | None:
+    """Read the existing six-digit NACE identity embedded in an SGK number."""
+    compact = re.sub(r"\D", "", str(value or "").strip())
+    if re.fullmatch(r"\d{6}", compact):
+        return f"{compact[:2]}.{compact[2:4]}.{compact[4:]}"
+    if re.fullmatch(r"\d{4}", compact):
+        return f"{compact[:2]}.{compact[2:]}"
+    if len(compact) not in {23, 26, 27}:
+        return None
+    nace_digits = compact[1:7]
+    if not re.fullmatch(r"\d{6}", nace_digits) or nace_digits == "000000":
+        return None
+    return f"{nace_digits[:2]}.{nace_digits[2:4]}.{nace_digits[4:]}"
+
+
+def _exact_nace(value: object):
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        return resolve_exact_nace(raw)
+    except ValueError:
+        return None
+
+
+def resolve_company_service_context(company: Company) -> dict[str, str | None]:
+    """Resolve NACE → hazard from the existing workplace identity.
+
+    The company card remains the source of stored data. When a valid exact NACE
+    exists, its catalog hazard class wins; otherwise the existing company hazard
+    value is used. Unknown values remain unknown and never fall back to
+    ``Tehlikeli``.
+    """
+    direct_nace = str(getattr(company, "nace_code", None) or "").strip() or None
+    candidates: list[tuple[str, str]] = []
+    if direct_nace:
+        candidates.append((direct_nace, "company_nace"))
+    sgk_nace = _nace_from_sgk_registry(getattr(company, "sgk_registry_no", None))
+    if sgk_nace and sgk_nace != direct_nace:
+        candidates.append((sgk_nace, "sgk_registry_nace"))
+
+    for candidate, source in candidates:
+        classification = _exact_nace(candidate)
+        hazard = normalize_hazard(getattr(classification, "hazard_class", None)) if classification else None
+        if hazard:
+            return {
+                "nace_code": getattr(classification, "nace_code", None) or candidate,
+                "nace_source": source,
+                "hazard_class": hazard,
+                "hazard_source": "nace_catalog",
+                "warning": None,
+            }
+
+    hazard = normalize_hazard(getattr(company, "hazard_class", None))
+    if hazard:
+        return {
+            "nace_code": direct_nace or sgk_nace,
+            "nace_source": "company" if direct_nace else ("sgk_registry_nace" if sgk_nace else None),
+            "hazard_class": hazard,
+            "hazard_source": "company_hazard_class",
+            "warning": None,
+        }
+    return {
+        "nace_code": direct_nace or sgk_nace,
+        "nace_source": "company" if direct_nace else ("sgk_registry_nace" if sgk_nace else None),
+        "hazard_class": None,
+        "hazard_source": None,
+        "warning": "Tehlike sınıfı NACE kataloğundan veya işyeri kartından belirlenemedi; süre hesaplanmadı.",
+    }
 
 
 def employee_bracket(count: int) -> str:
@@ -77,17 +206,69 @@ def compute_legal_required_minutes(
     employee_count: int,
     role: ProfessionalType | str,
 ) -> int:
-    """İşyeri başına aylık mevzuat asgari dakika."""
+    """Return active-employee-based monthly minutes for one professional role."""
     if isinstance(role, ProfessionalType):
         role_key = role.value
     else:
         role_key = str(role)
-    table = LEGAL_MINUTES_MONTHLY.get(role_key)
-    if not table:
-        return 0
     hazard = normalize_hazard(hazard_class)
-    bracket = employee_bracket(employee_count)
-    return int(table.get(hazard, table.get("Tehlikeli", {})).get(bracket, 0))
+    if not hazard or role_key not in SERVICE_ROLE_KEYS:
+        return 0
+    per_employee = int(SERVICE_MINUTES_PER_EMPLOYEE[hazard].get(role_key, 0))
+    return normalize_employee_count(employee_count) * per_employee
+
+
+def build_service_requirement_summary(
+    hazard_class: str | None,
+    employee_count: int,
+    *,
+    nace_code: str | None = None,
+    nace_source: str | None = None,
+    hazard_source: str | None = None,
+    warning: str | None = None,
+) -> dict:
+    """Build the authoritative workplace-level monthly OHS service summary."""
+    count = normalize_employee_count(employee_count)
+    hazard = normalize_hazard(hazard_class)
+    known_hazard = bool(hazard)
+    role_rows: dict[str, dict] = {}
+    for role in SERVICE_ROLE_KEYS:
+        per_employee = int(SERVICE_MINUTES_PER_EMPLOYEE.get(hazard or "", {}).get(role, 0))
+        total = count * per_employee if known_hazard else 0
+        display = minutes_to_display(total)
+        role_rows[role] = {
+            "role": role,
+            "minutes_per_employee": per_employee,
+            "calculation": f"{count} × {per_employee}" if known_hazard else None,
+            "required_minutes": display["total_minutes"],
+            "hours": display["hours"],
+            "remaining_minutes": display["remaining_minutes"],
+            "equivalent": display["equivalent"] if known_hazard else "Hesaplanamadı",
+        }
+
+    return {
+        "nace_code": nace_code,
+        "nace_source": nace_source,
+        "hazard_class": hazard,
+        "hazard_source": hazard_source,
+        "hazard_known": known_hazard,
+        "hazard_warning": warning if warning else (None if known_hazard else "Tehlike sınıfı bilinmediği için asgari süre hesaplanmadı."),
+        "employee_count": count,
+        "roles": role_rows,
+    }
+
+
+def compute_company_service_requirements(company: Company, employee_count: int) -> dict:
+    """Resolve one existing workplace identity and calculate both required roles."""
+    context = resolve_company_service_context(company)
+    return build_service_requirement_summary(
+        context.get("hazard_class"),
+        employee_count,
+        nace_code=context.get("nace_code"),
+        nace_source=context.get("nace_source"),
+        hazard_source=context.get("hazard_source"),
+        warning=context.get("warning"),
+    )
 
 
 def _capacity_status(required: int, actual: int) -> str:
@@ -110,24 +291,59 @@ def build_capacity_overview(db: Session, osgb_id: int | None) -> dict:
         assign_q = assign_q.where(WorkplaceAssignment.osgb_id == osgb_id)
     assignments = list(db.scalars(assign_q).all())
 
-    company_ids = {a.company_id for a in assignments}
+    assigned_company_ids = {a.company_id for a in assignments}
+    company_scope = or_(Company.is_active.is_(True), Company.id.in_(assigned_company_ids or {0}))
+    if osgb_id:
+        company_scope = or_(Company.osgb_id == osgb_id, Company.id.in_(assigned_company_ids or {0}))
     companies = {
-        c.id: c for c in db.scalars(select(Company).where(Company.id.in_(company_ids or {0}))).all()
-    } if company_ids else {}
+        c.id: c
+        for c in db.scalars(select(Company).where(company_scope).order_by(Company.name)).all()
+    }
+    company_ids = set(companies)
 
     emp_counts: dict[int, int] = {}
     if company_ids:
-        rows = db.execute(
-            select(Employee.company_id, func.count())
-            .where(Employee.company_id.in_(company_ids))
-            .group_by(Employee.company_id)
-        ).all()
-        emp_counts = {int(cid): int(cnt) for cid, cnt in rows}
+        active_employees = list(
+            db.scalars(
+                select(Employee).where(
+                    Employee.company_id.in_(company_ids),
+                    Employee.is_active.is_(True),
+                )
+            ).all()
+        )
+        employees_by_company: dict[int, list[Employee]] = {}
+        for employee in active_employees:
+            employees_by_company.setdefault(employee.company_id, []).append(employee)
+        emp_counts = {
+            company_id: count_active_employees(rows)
+            for company_id, rows in employees_by_company.items()
+        }
 
     pro_ids = {a.professional_id for a in assignments}
     pros = {
         p.id: p for p in db.scalars(select(IsgProfessional).where(IsgProfessional.id.in_(pro_ids or {0}))).all()
     } if pro_ids else {}
+
+    workplace_rows: list[dict] = []
+    for company in companies.values():
+        emp = emp_counts.get(company.id, 0)
+        requirements = compute_company_service_requirements(company, emp)
+        workplace_rows.append(
+            {
+                "company_id": company.id,
+                "company_name": company.name,
+                "nace_code": requirements["nace_code"],
+                "nace_source": requirements["nace_source"],
+                "hazard_class": requirements["hazard_class"],
+                "hazard_source": requirements["hazard_source"],
+                "hazard_known": requirements["hazard_known"],
+                "hazard_warning": requirements["hazard_warning"],
+                "employee_count": requirements["employee_count"],
+                "specialist_requirement": requirements["roles"]["safety_specialist"],
+                "physician_requirement": requirements["roles"]["workplace_physician"],
+                "service_requirements": requirements,
+            }
+        )
 
     firm_rows: list[dict] = []
     pro_load: dict[int, dict] = {}
@@ -138,22 +354,35 @@ def build_capacity_overview(db: Session, osgb_id: int | None) -> dict:
             continue
         pro = pros.get(a.professional_id)
         emp = emp_counts.get(a.company_id, 0)
-        hazard = normalize_hazard(company.hazard_class)
         role = a.professional_type.value if a.professional_type else "safety_specialist"
-        legal = compute_legal_required_minutes(hazard, emp, role)
-        stored = int(a.required_minutes_monthly or 0)
+        requirements = compute_company_service_requirements(company, emp)
+        role_requirement = requirements["roles"].get(role) or {
+            "required_minutes": 0,
+            "minutes_per_employee": 0,
+            "hours": 0,
+            "remaining_minutes": 0,
+            "equivalent": "Hesaplanamadı",
+        }
+        legal = int(role_requirement["required_minutes"] or 0)
+        stored = normalize_employee_count(a.required_minutes_monthly)
         visit_min, visit_count, _ = _visit_minutes(db, a.professional_id, a.company_id, month_start, month_end)
-        actual = visit_min if visit_min > 0 else int(a.actual_minutes_monthly or 0)
-        target = stored if stored > 0 else legal
+        actual = normalize_employee_count(visit_min if visit_min > 0 else a.actual_minutes_monthly)
+        # Zorunlu süre backend hesabıdır; eski kayıtlı değer yalnızca uyumsuzluk
+        # göstergesi olarak tutulur ve hedefi hiçbir zaman geçersiz kılmaz.
+        target = legal
         gap = target - actual
-        stored_mismatch = stored > 0 and legal > 0 and abs(stored - legal) > max(30, legal * 0.15)
+        stored_mismatch = stored != legal
 
         firm_rows.append(
             {
                 "assignment_id": a.id,
                 "company_id": company.id,
                 "company_name": company.name,
-                "hazard_class": hazard,
+                "nace_code": requirements["nace_code"],
+                "hazard_class": requirements["hazard_class"],
+                "hazard_source": requirements["hazard_source"],
+                "hazard_warning": requirements["hazard_warning"],
+                "hazard_known": requirements["hazard_known"],
                 "employee_count": emp,
                 "employee_bracket": employee_bracket(emp),
                 "professional_id": a.professional_id,
@@ -163,12 +392,17 @@ def build_capacity_overview(db: Session, osgb_id: int | None) -> dict:
                 "certificate_class": getattr(pro, "certificate_class", None) if pro else None,
                 "legal_required_minutes": legal,
                 "stored_required_minutes": stored,
+                "minutes_per_employee": role_requirement["minutes_per_employee"],
+                "required_hours": role_requirement["hours"],
+                "required_remaining_minutes": role_requirement["remaining_minutes"],
+                "required_equivalent": role_requirement["equivalent"],
                 "planned_minutes": int(a.planned_minutes_monthly or 0),
                 "actual_minutes": actual,
                 "visit_count": visit_count,
                 "gap_minutes": gap,
                 "stored_mismatch": stored_mismatch,
                 "status": _capacity_status(target, actual),
+                "service_requirement": requirements,
             }
         )
 
@@ -220,35 +454,94 @@ def build_capacity_overview(db: Session, osgb_id: int | None) -> dict:
     overloaded = sum(1 for r in pro_rows if r["overload_firms"] or r["status"] == "critical")
 
     firm_rows.sort(key=lambda r: ({"critical": 0, "warning": 1, "ok": 2, "unknown": 3}[r["status"]], r["company_name"]))
+    workplace_rows.sort(key=lambda r: r["company_name"])
 
     return {
         "osgb_id": osgb_id,
         "period": period_label,
         "period_start": month_start.isoformat(),
         "period_end": month_end.isoformat(),
-        "legal_basis": "6331 / İSG Hizmetleri Yönetmeliği — işyeri asgari aylık süre tablosu (basitleştirilmiş)",
+        "legal_basis": "6331 / İSG Hizmetleri Yönetmeliği — aktif çalışan başına aylık asgari dakika kuralları",
         "summary": {
             "assignments": len(firm_rows),
             "professionals": len(pro_rows),
+            "workplaces": len(workplace_rows),
             "under_served_firms": under_served,
             "at_risk_firms": at_risk,
             "stored_mismatch": mismatch,
             "overloaded_professionals": overloaded,
+            "unknown_hazard_workplaces": sum(1 for r in workplace_rows if not r["hazard_known"]),
         },
+        "workplaces": workplace_rows,
         "firms": firm_rows,
         "professionals": pro_rows,
     }
 
 
-def sync_assignment_required(db: Session, assignment: WorkplaceAssignment) -> int:
-    company = db.get(Company, assignment.company_id)
+def sync_company_service_requirements(
+    db: Session,
+    company_id: int,
+    *,
+    commit: bool = False,
+) -> dict | None:
+    """Recalculate every active assignment for one existing workplace.
+
+    The helper deliberately flushes pending employee/company changes before the
+    count. This lets create, deactivate, update and import endpoints share one
+    authoritative recalculation path without introducing a second data model.
+    """
+    db.flush()
+    company = db.get(Company, company_id)
     if not company:
+        return None
+    employees = list(
+        db.scalars(
+            select(Employee).where(
+                Employee.company_id == company.id,
+                Employee.is_active.is_(True),
+            )
+        ).all()
+    )
+    employee_count = count_active_employees(employees)
+    requirements = compute_company_service_requirements(company, employee_count)
+    assignments = list(
+        db.scalars(
+            select(WorkplaceAssignment).where(
+                WorkplaceAssignment.company_id == company.id,
+                WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+            )
+        ).all()
+    )
+    for assignment in assignments:
+        role = assignment.professional_type.value if assignment.professional_type else "safety_specialist"
+        required = int(requirements["roles"].get(role, {}).get("required_minutes", 0) or 0)
+        assignment.required_minutes_monthly = required
+        if not assignment.planned_minutes_monthly:
+            assignment.planned_minutes_monthly = required
+    db.flush()
+    if commit:
+        db.commit()
+        db.refresh(company)
+    return requirements
+
+
+def sync_assignment_required(
+    db: Session,
+    assignment: WorkplaceAssignment,
+    *,
+    commit: bool = True,
+) -> int:
+    """Backward-compatible single-assignment wrapper around the central sync."""
+    requirements = sync_company_service_requirements(db, assignment.company_id, commit=False)
+    if not requirements:
         return 0
-    emp = db.scalar(select(func.count()).select_from(Employee).where(Employee.company_id == company.id)) or 0
-    legal = compute_legal_required_minutes(company.hazard_class, emp, assignment.professional_type)
-    assignment.required_minutes_monthly = legal
+    role = assignment.professional_type.value if assignment.professional_type else "safety_specialist"
+    required = int(requirements["roles"].get(role, {}).get("required_minutes", 0) or 0)
+    assignment.required_minutes_monthly = required
     if not assignment.planned_minutes_monthly:
-        assignment.planned_minutes_monthly = legal
-    db.commit()
-    db.refresh(assignment)
-    return legal
+        assignment.planned_minutes_monthly = required
+    db.flush()
+    if commit:
+        db.commit()
+        db.refresh(assignment)
+    return required

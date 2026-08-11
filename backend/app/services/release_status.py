@@ -128,7 +128,7 @@ def infra_detail_payload() -> dict:
         "rls_pilot": "companies-create-refresh-v13",
         "access_ttl": "short-when-refresh-cookie",
         "customer_360": "company-overview-v1",
-        "capacity_engine": "6331-legal-minutes-v1",
+        "capacity_engine": "6331-active-employee-minutes-v2",
         "visit_calendar": "plan-overdue-coverage-v1",
         "module_kpis": "risk-training-health-v1",
         "field_gps": "visit-complete-stamp-v1",

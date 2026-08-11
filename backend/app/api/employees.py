@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.models.entities import Branch, Employee, User, UserRole
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
 from app.services.employee_excel import build_import_template_xlsx, parse_employees_workbook
+from app.services.capacity_engine import sync_company_service_requirements
 from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/employees", tags=["Personel"])
@@ -90,6 +91,7 @@ def create_employee(
     obj = Employee(**payload.model_dump())
     db.add(obj)
     try:
+        sync_company_service_requirements(db, payload.company_id, commit=False)
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -112,6 +114,7 @@ def update_employee(
     validate_branch(db, obj.company_id, payload.branch_id)
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(obj, k, v)
+    sync_company_service_requirements(db, obj.company_id, commit=False)
     db.commit()
     db.refresh(obj)
     return obj
@@ -128,6 +131,7 @@ def deactivate_employee(
         raise HTTPException(404, "Personel bulunamadı.")
     check_company(db, user, obj.company_id)
     obj.is_active = False
+    sync_company_service_requirements(db, obj.company_id, commit=False)
     db.commit()
     return {"message": "Personel pasife alındı."}
 
@@ -169,6 +173,7 @@ def bulk_deactivate_employees(
         if row.is_active:
             row.is_active = False
             changed += 1
+    sync_company_service_requirements(db, company_id, commit=False)
     db.commit()
     return {
         "message": f"{changed} personel silindi.",
@@ -223,5 +228,6 @@ async def import_excel(
             created += 1
         except IntegrityError:
             errors.append(f"Satır {row_no} ({data['full_name']}): mükerrer veya geçersiz kayıt")
+    sync_company_service_requirements(db, company_id, commit=False)
     db.commit()
     return {"created": created, "errors": errors[:50], "count": len(rows)}

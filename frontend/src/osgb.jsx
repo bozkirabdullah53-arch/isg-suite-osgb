@@ -1271,7 +1271,7 @@ export function AssignmentsPage({user}){
    {k:'contract_file_name',l:'Sözleşme',f:r=>r.contract_file_name?<button type="button" className="mini" onClick={()=>downloadContract(r)}>{r.contract_file_name}</button>:'—'},
    {k:'start_date',l:'Başlangıç'},
    {k:'end_date',l:'Bitiş',f:r=>r.end_date||'—'},
-   {k:'required_minutes_monthly',l:'Zorunlu dk.'},
+   {k:'required_minutes_monthly',l:'Otomatik zorunlu dk.',f:r=>`${Number(r.required_minutes_monthly)||0} dk/ay`},
    {k:'status',l:'Durum',f:r=><span className={`badge ${r.status==='active'?'ok':'off'}`}>{statusLabel[r.status]||r.status}</span>},
    {k:'actions',l:'İşlem',f:r=>(
     <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
@@ -1302,8 +1302,10 @@ export function AssignmentsPage({user}){
     </S>
     <F label="Başlangıç" type="date" required value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/>
     <F label="Bitiş" type="date" value={form.end_date} onChange={e=>setForm({...form,end_date:e.target.value})}/>
-    <F label="Aylık Zorunlu Dakika" type="number" value={form.required_minutes_monthly} onChange={e=>setForm({...form,required_minutes_monthly:e.target.value})}/>
-    <F label="Aylık Planlanan Dakika" type="number" value={form.planned_minutes_monthly} onChange={e=>setForm({...form,planned_minutes_monthly:e.target.value})}/>
+    <div style={{gridColumn:'1/-1',padding:'10px 12px',borderRadius:10,background:'#eff9f7',color:'#166b67',fontSize:13,lineHeight:1.45}}>
+     Aylık zorunlu hizmet süresi, mevcut NACE / tehlike sınıfı ve aktif çalışan sayısından sunucu tarafından otomatik hesaplanır. Manuel giriş gerekmez.
+    </div>
+    <F label="Aylık Planlanan Saha Dakikası (isteğe bağlı)" type="number" value={form.planned_minutes_monthly} onChange={e=>setForm({...form,planned_minutes_monthly:e.target.value})}/>
     <F label="İSG-KATİP Sözleşme No" required value={form.isg_katip_contract_number} onChange={e=>setForm({...form,isg_katip_contract_number:e.target.value})}/>
     <label className="field" style={{gridColumn:'1/-1'}}>
      <span>Sözleşme Dosyası (pdf / jpg / png)</span>
