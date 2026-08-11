@@ -550,6 +550,46 @@
   line-height: 1.35;
 }
 
+.risk-detail-status {
+  margin: 10px 0 14px;
+  padding: 10px 13px;
+  border: 1px solid rgba(15, 118, 110, .2);
+  border-radius: 10px;
+  background: rgba(240, 253, 250, .9);
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.risk-detail-workspace {
+  scroll-margin-top: 18px;
+}
+
+.risk-detail-context {
+  display: grid;
+  gap: 4px;
+  margin: 0 22px 2px;
+  padding: 11px 13px;
+  border-left: 3px solid var(--rk-accent);
+  border-radius: 8px;
+  background: rgba(237, 249, 247, .82);
+}
+.risk-detail-context span {
+  color: var(--rk-accent);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .08em;
+}
+.risk-detail-context strong {
+  color: var(--rk-ink);
+  font-size: 14px;
+}
+.risk-detail-context small {
+  color: var(--rk-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .risk-level-badge {
   display: inline-flex;
   padding: 3px 8px;
