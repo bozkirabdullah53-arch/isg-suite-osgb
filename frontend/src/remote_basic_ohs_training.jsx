@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {api, API_URL, downloadFile, uploadFile} from './api';
 
 const MANAGE_ROLES = ['global_admin', 'company_admin', 'safety_specialist'];
+const HISTORICAL_VIDEO_STATUSES = ['published', 'unpublished', 'archived'];
 const STATUS_LABELS = {
   draft: 'Taslak',
   uploading: 'Yükleniyor',
@@ -465,6 +466,19 @@ function ManagerPanel({user}) {
     } catch (err) { setError(err.message || 'Video bilgisi güncellenemedi.'); } finally { setBusy(false); }
   }
 
+  async function deleteVideo(video) {
+    if (!program || HISTORICAL_VIDEO_STATUSES.includes(video.status)) return;
+    const confirmed = window.confirm(`"${video.title}" taslak videosu silinsin mi? Bu işlem geri alınamaz.`);
+    if (!confirmed) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const result = await api(`/trainings/remote/videos/${video.id}`, {method: 'DELETE'});
+      await loadDetail(program.id);
+      await loadPrograms(program.company_id);
+      setMessage(result.storage_cleanup_pending ? 'Video silindi; depolama temizliği sıraya alındı.' : 'Taslak video silindi.');
+    } catch (err) { setError(err.message || 'Video silinemedi.'); } finally { setBusy(false); }
+  }
+
   async function previewVideo(video) {
     setBusy(true); setError('');
     try {
@@ -556,7 +570,7 @@ function ManagerPanel({user}) {
                 <div key={section.id} style={{borderTop: '1px solid #e5edf3', paddingTop: 12, marginTop: 12}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}>
                     <strong>{section.order_index}. {section.title}</strong>
-                    <label style={{fontSize: 12, color: '#496174'}}>Video yükle <input type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" onChange={(event) => {uploadVideo(section, event.target.files?.[0]); event.target.value = '';}} /></label>
+                    <label style={{fontSize: 12, color: '#496174', fontWeight: 600}}>Video ekle <input type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" onChange={(event) => {uploadVideo(section, event.target.files?.[0]); event.target.value = '';}} /></label>
                   </div>
                   {(section.videos || []).map((video) => (
                     <div key={video.id} style={{marginTop: 8, padding: 10, borderRadius: 8, background: '#f7fafc', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}>
@@ -566,10 +580,11 @@ function ManagerPanel({user}) {
                         {video.processing_error && <div style={{fontSize: 12, color: '#b42318'}}>{video.processing_error}</div>}
                       </div>
                       <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
-                        <button type="button" onClick={() => saveVideo(video)} disabled={busy || ['published', 'archived'].includes(program.status)}>Düzenlemeyi kaydet</button>
+                        <button type="button" onClick={() => saveVideo(video)} disabled={busy || ['published', 'archived'].includes(program.status) || HISTORICAL_VIDEO_STATUSES.includes(video.status)}>Kaydet</button>
                         {['ready_for_review', 'published', 'unpublished'].includes(video.status) && <button type="button" onClick={() => previewVideo(video)} disabled={busy}>Önizle</button>}
                         {video.status === 'ready_for_review' && <button type="button" onClick={() => videoAction(video, 'publish')} disabled={busy}>Video yayımla</button>}
                         {video.status === 'processing_failed' && <button type="button" onClick={() => videoAction(video, 'retry-processing')} disabled={busy}>Yeniden işle</button>}
+                        {!HISTORICAL_VIDEO_STATUSES.includes(video.status) && <button type="button" onClick={() => deleteVideo(video)} disabled={busy || ['published', 'archived'].includes(program.status)} style={{color: '#b42318', borderColor: '#f0b8b1'}}>Sil</button>}
                       </div>
                     </div>
                   ))}

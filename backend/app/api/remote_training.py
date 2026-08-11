@@ -6,6 +6,7 @@ does not change the existing in-person training routes or their records.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -53,6 +54,7 @@ from app.schemas.remote_training import (
     RemoteSectionUpdate,
     RemoteVideoUpdate,
 )
+from app.services.object_store import get_object_store
 from app.services.remote_training import (
     MANAGE_ROLES,
     VIEW_ROLES,
@@ -81,6 +83,7 @@ from app.services.remote_training import (
 )
 
 router = APIRouter(prefix="/trainings/remote", tags=["Uzaktan Temel İSG Eğitimi"])
+logger = logging.getLogger(__name__)
 
 
 def _manager(user: User) -> None:
@@ -764,13 +767,59 @@ def update_remote_video(
 ):
     video = _assert_video_manager(db, user, video_id)
     program = load_program(db, video.program_id)
-    if program.status in {"published", "archived"} or video.status == "archived":
-        raise HTTPException(409, "Yayımlanmış/arşivlenmiş video değiştirilemez.")
+    if program.status in {"published", "archived"} or video.status in {"published", "unpublished", "archived"}:
+        raise HTTPException(409, "Yayımlanmış veya tarihsel video değiştirilemez.")
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(video, key, value.strip() if isinstance(value, str) else value)
     audit(db, company_id=video.company_id, user=user, action="video_updated", entity_type="video", entity_id=video.id)
     _commit(db, "Video güncellenemedi.")
     return _video_output(video)
+
+
+@router.delete("/videos/{video_id}")
+def delete_remote_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Delete an accidental upload while preserving published video history."""
+    video = _assert_video_manager(db, user, video_id)
+    program = load_program(db, video.program_id)
+    if program.status in {"published", "archived"}:
+        raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitime ait video silinemez.")
+    if video.status in {"published", "unpublished", "archived"}:
+        raise HTTPException(409, "Yayımlanmış veya tarihsel video silinemez; yeni video revizyonu oluşturun.")
+
+    program_id = video.program_id
+    storage_key = video.storage_key
+    original_status = video.status
+    audit(
+        db,
+        company_id=video.company_id,
+        user=user,
+        action="video_deleted",
+        entity_type="video",
+        entity_id=video.id,
+        details={"status": original_status, "storage_key": storage_key},
+    )
+    db.delete(video)
+    db.flush()
+    recalculate_program_duration(db, program_id)
+    _commit(db, "Video silinemedi.")
+
+    storage_cleanup_pending = False
+    try:
+        get_object_store().delete(storage_key)
+    except Exception:
+        # The database deletion is authoritative; retain an operational signal
+        # so an orphaned object can be cleaned by the storage maintenance job.
+        storage_cleanup_pending = True
+        logger.exception("Silinen remote video nesnesi temizlenemedi: video_id=%s", video_id)
+    return {
+        "deleted": True,
+        "id": video_id,
+        "storage_cleanup_pending": storage_cleanup_pending,
+    }
 
 
 @router.post("/videos/{video_id}/publish")
