@@ -1247,3 +1247,200 @@
     transform: none;
   }
 }
+
+/* —— Method workspace: selection drives the active analysis surface —— */
+.risk-method-workspace {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: -4px 0 16px;
+  padding: 13px 16px;
+  border: 1px solid rgba(160, 186, 200, 0.52);
+  border-radius: 14px;
+  background: linear-gradient(120deg, rgba(248, 252, 253, 0.98), rgba(239, 248, 249, 0.92));
+  box-shadow: 0 8px 24px rgba(25, 67, 82, 0.06);
+}
+.risk-method-workspace.fine-kinney-active {
+  border-color: rgba(15, 118, 110, 0.36);
+  background: linear-gradient(120deg, rgba(239, 250, 248, 0.98), rgba(248, 252, 253, 0.94));
+}
+.risk-method-workspace-copy {
+  min-width: 220px;
+  display: grid;
+  gap: 2px;
+}
+.risk-method-eyebrow {
+  color: var(--rk-accent);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.risk-method-workspace-copy strong {
+  color: #123b5d;
+  font-size: 15px;
+  font-weight: 800;
+}
+.risk-method-workspace-copy small {
+  color: var(--rk-muted);
+  font-size: 11.5px;
+}
+.risk-method-workspace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: end;
+  gap: 8px;
+}
+.risk-method-picker {
+  display: grid;
+  gap: 3px;
+  min-width: 220px;
+}
+.risk-method-picker span {
+  color: var(--rk-faint);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.risk-method-picker select {
+  min-height: 34px;
+  padding: 0 28px 0 10px;
+  border: 1px solid rgba(15, 118, 110, 0.38);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--rk-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* —— Fine–Kinney guide —— */
+.fine-kinney-guide {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px 14px;
+}
+.fine-kinney-formula {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--rk-muted);
+  font-size: 11px;
+}
+.fine-kinney-formula strong {
+  color: var(--rk-accent);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+}
+.fine-factor-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid rgba(160, 186, 200, 0.45);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.82);
+}
+.fine-factor-strip > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 9px;
+  text-align: center;
+}
+.fine-factor-strip > div + div { border-left: 1px solid rgba(160, 186, 200, 0.35); }
+.fine-factor-strip span,
+.fine-kinney-result span {
+  color: var(--rk-faint);
+  font-size: 10px;
+  font-weight: 700;
+}
+.fine-factor-strip strong {
+  color: #123b5d;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.fine-kinney-result {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 10px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid rgba(160, 186, 200, 0.38);
+}
+.fine-kinney-result > div { display: grid; gap: 3px; min-width: 0; }
+.fine-kinney-result strong {
+  color: var(--rk-ink);
+  font-size: 13px;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.fine-kinney-result.critical { background: #fef2f2; border-color: #fecaca; }
+.fine-kinney-result.high { background: #fff7ed; border-color: #fed7aa; }
+.fine-kinney-result.medium { background: #fffbeb; border-color: #fde68a; }
+.fine-kinney-result.low { background: #ecfdf5; border-color: #bbf7d0; }
+.fine-kinney-action {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--rk-accent);
+  border-radius: 6px;
+  background: rgba(15, 118, 110, 0.07);
+  color: var(--rk-muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.fine-kinney-scale-note { display: grid; gap: 3px; }
+.fine-kinney-scale-note span {
+  color: var(--rk-faint);
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+.fine-kinney-scale-note small,
+.fine-kinney-planning-note {
+  margin: 0;
+  color: var(--rk-muted);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+.fine-kinney-planning-note { color: var(--rk-faint); }
+.risk-method-note,
+.risk-residual-card {
+  display: grid;
+  gap: 5px;
+  padding: 11px 12px;
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  border-radius: 11px;
+  background: rgba(239, 250, 248, 0.7);
+}
+.risk-method-note strong,
+.risk-residual-head strong { color: #0f5f5a; font-size: 12px; }
+.risk-method-note span,
+.risk-residual-head span { color: var(--rk-muted); font-size: 11px; line-height: 1.4; }
+.risk-residual-card { background: rgba(248, 250, 252, 0.86); border-color: rgba(160, 186, 200, 0.5); }
+.risk-residual-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.risk-residual-head > div { display: grid; gap: 4px; }
+.risk-residual-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.risk-residual-detail { background: rgba(239, 250, 248, 0.72); }
+.risk-residual-detail small { color: var(--rk-muted); font-size: 11px; }
+
+@media (max-width: 760px) {
+  .risk-method-workspace { align-items: stretch; flex-direction: column; }
+  .risk-method-workspace-actions { justify-content: flex-start; align-items: stretch; }
+  .risk-method-picker { flex: 1 1 220px; }
+  .risk-method-workspace-actions .btn { flex: 1 1 auto; }
+  .risk-residual-grid { grid-template-columns: 1fr; }
+}

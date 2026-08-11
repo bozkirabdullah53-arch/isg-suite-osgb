@@ -34,6 +34,68 @@ const SUGGESTED_FALLBACK = [
   'İnşaat Sahası', 'Çatı', 'Vinç Sahası',
 ];
 
+const METHOD_FALLBACK = [
+  {code: '5x5_l', label: '5x5 Matris (L Tipi)', short: '5x5 Matris (L Tipi)', implemented: true},
+  {code: 'fine_kinney', label: 'Fine-Kinney Yöntemi', short: 'Fine-Kinney', implemented: true},
+  {code: 'x_matrix', label: 'X Tipi Matris', short: 'X Tipi Matris', implemented: false},
+  {code: 'hazop', label: 'HAZOP (Tehlike ve İşletilebilirlik)', short: 'HAZOP', implemented: false},
+  {code: 'fmea', label: 'FMEA (Hata Türleri ve Etkileri Analizi)', short: 'FMEA', implemented: false},
+  {code: 'what_if', label: 'What-If Analizi', short: 'What-If', implemented: false},
+  {code: 'jsa', label: 'İş Güvenliği Analizi (JSA / JHA)', short: 'JSA / JHA', implemented: false},
+];
+
+const FINE_KINNEY_FALLBACK = {
+  method_code: 'fine_kinney',
+  formula: 'risk_score = probability × frequency × severity',
+  probability_axis: 'Olasılık',
+  frequency_axis: 'Frekans / maruziyet sıklığı',
+  severity_axis: 'Şiddet',
+  probability_defs: [
+    {value: 0.1, label: 'Mümkün değil'},
+    {value: 0.2, label: 'Beklenmez'},
+    {value: 0.5, label: 'Beklenmez fakat mümkün'},
+    {value: 1, label: 'Mümkün fakat düşük ihtimal'},
+    {value: 3, label: 'Nadir fakat olabilir'},
+    {value: 6, label: 'Oldukça mümkün, yüksek ihtimal'},
+    {value: 10, label: 'Çok kuvvetli ihtimal, beklenir'},
+  ],
+  frequency_defs: [
+    {value: 0.5, label: 'Çok seyrek — yılda bir veya daha az'},
+    {value: 1, label: 'Oldukça nadir — yılda bir veya birkaç kez'},
+    {value: 2, label: 'Nadir — ayda bir veya birkaç kez'},
+    {value: 3, label: 'Ara sıra — haftada bir veya birkaç kez'},
+    {value: 6, label: 'Sıklıkla — günde bir veya daha fazla'},
+    {value: 10, label: 'Sürekli — sürekli veya saatte birden fazla'},
+  ],
+  severity_defs: [
+    {value: 1, label: 'Ramak kala — çevresel zarar yok'},
+    {value: 3, label: 'Küçük hasar — dahili ilk yardım'},
+    {value: 7, label: 'Önemli hasar — dış tedavi / iş günü kaybı'},
+    {value: 15, label: 'Kalıcı hasar — sakatlık / uzuv kaybı'},
+    {value: 40, label: 'Ölüm — ölümlü kaza / ciddi çevresel zarar'},
+    {value: 100, label: 'Felaket — birden fazla ölüm / çevresel felaket'},
+  ],
+  levels: [
+    {max_exclusive: 20, level: 'Kabul Edilebilir', label: 'Kabul Edilebilir Risk', action: 'Mevcut önlemler sürdürülür.'},
+    {max_exclusive: 70, level: 'Düşük', label: 'Olası Risk', action: 'Gözetim altında tutulmalı; kontroller geliştirilmelidir.'},
+    {max_exclusive: 200, level: 'Orta', label: 'Ciddi / Önemli Risk', action: 'Dikkatle izlenmeli ve makul sürede iyileştirilmelidir.'},
+    {max_exclusive: 400, level: 'Yüksek', label: 'Yüksek Risk', action: 'Kısa dönemde iyileştirilmelidir.'},
+    {max_exclusive: null, level: 'Çok Yüksek', label: 'Çok Yüksek / Kabul Edilemez Risk', action: 'Çalışma durdurulmalı; risk düşürülmeden başlanmamalıdır.'},
+  ],
+  planning_note: 'Termin günleri yazılımın planlama önerisidir; yasal süre yerine geçmez.',
+};
+
+function formatRiskNumber(value) {
+  if (value == null || value === '') return '—';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function methodDisplayLabel(row) {
+  return row?.risk_level_label || row?.risk_level || '—';
+}
+
 function isOverdueDate(d) {
   if (!d) return false;
   try {
@@ -140,12 +202,12 @@ function TextArea({label, style, className, ...p}) {
   );
 }
 
-function LevelBadge({level, score}) {
+function LevelBadge({level, score, label}) {
   const color = LEVEL_COLORS[level] || '#888';
   return (
     <span style={{display: 'inline-flex', alignItems: 'center', gap: 6}}>
       <span style={{width: 10, height: 10, borderRadius: 99, background: color}} />
-      {level || '—'}{score != null ? ` (${score})` : ''}
+      {label || level || '—'}{score != null ? ` (${formatRiskNumber(score)})` : ''}
     </span>
   );
 }
@@ -219,6 +281,47 @@ function RiskMatrixGuide({probability, severity}) {
   );
 }
 
+function FineKinneyGuide({probability, frequency, severity, calc, meta}) {
+  const guide = meta?.method_code === 'fine_kinney' ? meta : FINE_KINNEY_FALLBACK;
+  const hasFactors = [probability, frequency, severity].every((value) => value !== '' && value != null && Number(value) > 0);
+  const activeLevel = calc?.risk_level || '';
+  return (
+    <div className="fine-kinney-guide" aria-label="Fine-Kinney çalışma özeti">
+      <div className="fine-kinney-formula">
+        <span>Fine–Kinney hesaplama</span>
+        <strong>R = O × F × Ş</strong>
+      </div>
+      <div className="fine-factor-strip">
+        <div><span>Olasılık (O)</span><strong>{formatRiskNumber(probability)}</strong></div>
+        <div><span>Frekans (F)</span><strong>{formatRiskNumber(frequency)}</strong></div>
+        <div><span>Şiddet (Ş)</span><strong>{formatRiskNumber(severity)}</strong></div>
+      </div>
+      <div className={`fine-kinney-result${activeLevel ? ` ${levelClass(activeLevel)}` : ''}`}>
+        <div>
+          <span>Risk sonucu</span>
+          <strong>{calc ? formatRiskNumber(calc.risk_score) : '—'}</strong>
+        </div>
+        <div>
+          <span>Öncelik</span>
+          <strong>{calc?.risk_level_label || calc?.risk_level || (hasFactors ? 'Hesaplanıyor…' : 'O / F / Ş seçin')}</strong>
+        </div>
+      </div>
+      {calc?.risk_action && <p className="fine-kinney-action">{calc.risk_action}</p>}
+      <div className="fine-kinney-scale-note">
+        <span>Skala mantığı</span>
+        <small>
+          {(guide.levels || []).map((level, index) => (
+            <React.Fragment key={`${level.level}-${index}`}>
+              {index > 0 ? ' · ' : ''}{level.label || level.level}
+            </React.Fragment>
+          ))}
+        </small>
+      </div>
+      <p className="fine-kinney-planning-note">{guide.planning_note || FINE_KINNEY_FALLBACK.planning_note}</p>
+    </div>
+  );
+}
+
 export function RiskPage({user}) {
   const canEdit = ['global_admin', 'safety_specialist'].includes(user.role);
   const fieldRole = ['safety_specialist', 'workplace_physician', 'other_health_personnel'].includes(user.role);
@@ -238,7 +341,12 @@ export function RiskPage({user}) {
     existing_measures: '',
     additional_measures: '',
     probability: 3,
+    frequency: 3,
     severity: 3,
+    method_code: '',
+    residual_probability: '',
+    residual_frequency: '',
+    residual_severity: '',
   };
 
   const [companies, setCompanies] = useState([]);
@@ -293,11 +401,21 @@ export function RiskPage({user}) {
   const [docBusy, setDocBusy] = useState(false);
   const [docMsg, setDocMsg] = useState('');
   const [riskMethods, setRiskMethods] = useState([]);
+  const [methodMeta, setMethodMeta] = useState(null);
   const [naceRoadmap, setNaceRoadmap] = useState(null);
   const [naceBusy, setNaceBusy] = useState(false);
   const [naceErr, setNaceErr] = useState('');
 
   const effectiveCompanyId = reportCompanyId || user.company_id || companies[0]?.id || '';
+  const methodOptions = riskMethods.length ? riskMethods : METHOD_FALLBACK;
+  const activeMethod = form.method_code || docForm.method || '5x5_l';
+  const activeMethodDef = methodOptions.find((item) => item.code === activeMethod)
+    || METHOD_FALLBACK.find((item) => item.code === activeMethod)
+    || METHOD_FALLBACK[0];
+  const isFineKinney = activeMethod === 'fine_kinney';
+  const fineMeta = methodMeta?.method_code === 'fine_kinney' ? methodMeta : FINE_KINNEY_FALLBACK;
+  const documentMethod = docInfo?.method_code || '5x5_l';
+  const methodDirty = Boolean(docInfo && docForm.method !== documentMethod);
 
   const loadStats = async (cid) => {
     const id = cid || effectiveCompanyId;
@@ -311,11 +429,13 @@ export function RiskPage({user}) {
 
   const applyDocInfo = (info) => {
     setDocInfo(info);
+    const storedMethod = info?.method_code || '5x5_l';
+    const methodIsImplemented = METHOD_FALLBACK.some((item) => item.code === storedMethod && item.implemented);
     setDocForm({
       assessment_date: info?.assessment_date_source === 'recorded' ? (info.assessment_date || '') : '',
       employee_representative: info?.team?.employee_representative || '',
       support_staff: info?.team?.support_staff || '',
-      method: info?.method_code || '5x5_l',
+      method: methodIsImplemented ? storedMethod : '5x5_l',
       document_no: info?.document_no || '',
       revision_no: info?.revision_no || '00',
       revision_reason: info?.revision_reason || '',
@@ -355,8 +475,7 @@ export function RiskPage({user}) {
     }
   };
 
-  async function saveDocInfo(e) {
-    e.preventDefault();
+  async function persistDocInfo() {
     const id = effectiveCompanyId;
     if (!id) return;
     setDocBusy(true);
@@ -384,6 +503,11 @@ export function RiskPage({user}) {
     } finally {
       setDocBusy(false);
     }
+  }
+
+  async function saveDocInfo(e) {
+    e.preventDefault();
+    await persistDocInfo();
   }
 
   const loadDofs = async (cid) => {
@@ -487,13 +611,32 @@ export function RiskPage({user}) {
   }, [form.category_id, form.hazard_q]);
 
   useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams({method_code: activeMethod});
+    api(`/risks/meta?${params}`)
+      .then((value) => { if (!cancelled) setMethodMeta(value); })
+      .catch(() => {
+        if (!cancelled) setMethodMeta(activeMethod === 'fine_kinney' ? FINE_KINNEY_FALLBACK : meta);
+      });
+    return () => { cancelled = true; };
+  }, [activeMethod]);
+
+  useEffect(() => {
     const p = Number(form.probability);
+    const f = Number(form.frequency);
     const s = Number(form.severity);
-    if (!p || !s) return;
-    api('/risks/calculate', {method: 'POST', body: JSON.stringify({probability: p, severity: s})})
-      .then(setCalc)
-      .catch(() => setCalc(null));
-  }, [form.probability, form.severity]);
+    if (!p || !s || (isFineKinney && !f)) {
+      setCalc(null);
+      return;
+    }
+    let cancelled = false;
+    const body = {method_code: activeMethod, probability: p, severity: s};
+    if (isFineKinney) body.frequency = f;
+    api('/risks/calculate', {method: 'POST', body: JSON.stringify(body)})
+      .then((value) => { if (!cancelled) setCalc(value); })
+      .catch(() => { if (!cancelled) setCalc(null); });
+    return () => { cancelled = true; };
+  }, [activeMethod, isFineKinney, form.probability, form.frequency, form.severity]);
 
   useEffect(() => {
     if (!fieldRole || !open) {
@@ -550,8 +693,9 @@ export function RiskPage({user}) {
         hazard_id: String(hazardId),
         category_id: String(h.category_id),
         risk_definition: h.description || h.name,
-        probability: h.default_probability || f.probability,
-        severity: h.default_severity || f.severity,
+        probability: isFineKinney ? 1 : (h.default_probability || f.probability),
+        frequency: isFineKinney ? 3 : f.frequency,
+        severity: isFineKinney ? 7 : (h.default_severity || f.severity),
       }));
     } catch (_) { setSuggestions(null); }
   }
@@ -570,10 +714,23 @@ export function RiskPage({user}) {
       setErr('Tehlike kütüphanesinden bir tehlike seçmelisiniz.');
       return;
     }
+    const riskMethod = form.method_code || docForm.method || '5x5_l';
+    const fineValues = [form.probability, form.frequency, form.severity];
+    if (riskMethod === 'fine_kinney' && fineValues.some((value) => value === '' || value == null || !Number(value))) {
+      setErr('Fine–Kinney için Olasılık, Frekans ve Şiddet değerlerinin üçü de seçilmelidir.');
+      return;
+    }
+    const residualValues = [form.residual_probability, form.residual_frequency, form.residual_severity];
+    if (riskMethod === 'fine_kinney' && residualValues.some((value) => value !== '' && value != null)
+      && residualValues.some((value) => value === '' || value == null || !Number(value))) {
+      setErr('Artık risk için Olasılık, Frekans ve Şiddet değerlerinin üçü de seçilmelidir.');
+      return;
+    }
     const newDep = (form.new_department || '').trim();
     const payload = {
       branch_id: form.branch_id ? Number(form.branch_id) : null,
       hazard_id: Number(form.hazard_id),
+      method_code: riskMethod,
       activity: form.activity,
       risk_definition: form.risk_definition,
       affected_people: form.affected_people || null,
@@ -583,6 +740,12 @@ export function RiskPage({user}) {
       probability: Number(form.probability),
       severity: Number(form.severity),
     };
+    if (riskMethod === 'fine_kinney') {
+      payload.frequency = Number(form.frequency);
+      payload.residual_probability = form.residual_probability === '' ? null : Number(form.residual_probability);
+      payload.residual_frequency = form.residual_frequency === '' ? null : Number(form.residual_frequency);
+      payload.residual_severity = form.residual_severity === '' ? null : Number(form.residual_severity);
+    }
     if (newDep) {
       payload.department_name = newDep;
       payload.department_id = null;
@@ -633,7 +796,9 @@ export function RiskPage({user}) {
       ...f,
       category_id: catId ? String(catId) : f.category_id,
       hazard_id: catId && String(catId) !== String(f.category_id) ? '' : f.hazard_id,
-      probability: hint.probability_hint || f.probability,
+      probability: isFineKinney ? (f.probability || 1) : (hint.probability_hint || f.probability),
+      frequency: isFineKinney ? (f.frequency || 3) : f.frequency,
+      severity: isFineKinney ? (f.severity || 7) : f.severity,
     }));
   }
 
@@ -663,8 +828,13 @@ export function RiskPage({user}) {
         affected_group: r.affected_group || 'Çalışan',
         existing_measures: r.existing_measures || '',
         additional_measures: r.additional_measures || '',
-        probability: r.probability || 3,
-        severity: r.severity || 3,
+        probability: r.probability ?? 3,
+        frequency: r.frequency ?? 3,
+        severity: r.severity ?? 3,
+        method_code: r.method_code || docForm.method || '5x5_l',
+        residual_probability: r.residual_probability ?? '',
+        residual_frequency: r.residual_frequency ?? '',
+        residual_severity: r.residual_severity ?? '',
       });
       if (r.hazard_id) {
         try {
@@ -920,6 +1090,7 @@ export function RiskPage({user}) {
   }, [rows]);
 
   const recentRisks = useMemo(() => [...rows].slice(0, 8), [rows]);
+  const showFineColumns = isFineKinney || filteredRows.some((row) => row.method_code === 'fine_kinney');
 
   async function refreshAll() {
     setErr('');
@@ -958,7 +1129,7 @@ export function RiskPage({user}) {
             <span>SGK Sicil: {companySgk || '—'}</span>
             <span>NACE: {companyNace || '—'}</span>
             {companyHazard ? <span><ShieldAlert size={12} /> {companyHazard}</span> : null}
-            <span>5×5 matris</span>
+            <span>{activeMethodDef.label || 'Risk yöntemi'}</span>
           </div>
         </div>
         <div className="risk-top-actions">
@@ -998,6 +1169,43 @@ export function RiskPage({user}) {
           ))}
         </div>
       </div>
+
+      <section className={`risk-method-workspace${isFineKinney ? ' fine-kinney-active' : ''}`} aria-label="Aktif risk değerlendirme yöntemi">
+        <div className="risk-method-workspace-copy">
+          <span className="risk-method-eyebrow">Aktif çalışma yöntemi</span>
+          <strong>{activeMethodDef.label}</strong>
+          <small>{activeMethodDef.formula || (isFineKinney ? 'Risk = Olasılık × Frekans × Şiddet' : 'Risk = Olasılık × Şiddet')}</small>
+        </div>
+        <div className="risk-method-workspace-actions">
+          {canEdit && (
+            <label className="risk-method-picker">
+              <span>Yöntemi seç</span>
+              <select
+                value={docForm.method}
+                onChange={(e) => setDocForm({...docForm, method: e.target.value})}
+                aria-label="Aktif risk değerlendirme yöntemi"
+              >
+                {methodOptions.map((item) => (
+                  <option key={item.code} value={item.code} disabled={item.implemented === false}>
+                    {item.label}{item.implemented === false ? ' — sıradaki aşama' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {canEdit && methodDirty && (
+            <button type="button" className="btn btn-primary btn-sm" disabled={docBusy} onClick={persistDocInfo}>
+              {docBusy ? 'Kaydediliyor…' : 'Yöntemi kaydet'}
+            </button>
+          )}
+          <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
+            <Plus size={14} /> {isFineKinney ? 'Fine–Kinney analizi başlat' : 'Risk analizi başlat'}
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setTab('reports')}>
+            <FileText size={14} /> Yöntem / rapor künye
+          </button>
+        </div>
+      </section>
 
       {tab === 'panel' && !detail && (
         <>
@@ -1063,7 +1271,7 @@ export function RiskPage({user}) {
                     </div>
                     <div style={{textAlign: 'right'}}>
                       <span className={`risk-level-badge risk-level-${levelClass(r.risk_level)}`}>
-                        {r.risk_level}
+                        {methodDisplayLabel(r)}
                       </span>
                       {r.term_date ? (
                         <div className="risk-priority-meta" style={{marginTop: 3}}>
@@ -1091,11 +1299,15 @@ export function RiskPage({user}) {
             <aside className="risk-panel">
               <div className="risk-panel-head">
                 <div>
-                  <h2>5×5 matris</h2>
-                  <p>Olasılık × şiddet</p>
+                  <h2>{activeMethodDef.label}</h2>
+                  <p>{activeMethodDef.formula || (isFineKinney ? 'Olasılık × frekans × şiddet' : 'Olasılık × şiddet')}</p>
                 </div>
               </div>
-              <RiskMatrixGuide />
+              {isFineKinney ? (
+                <FineKinneyGuide meta={fineMeta} />
+              ) : (
+                <RiskMatrixGuide />
+              )}
               <div className="risk-distribution">
                 {[
                   ['Çok yüksek', stats?.very_high || stats?.levels?.['Çok Yüksek'] || 0, '#b91c1c'],
@@ -1154,7 +1366,7 @@ export function RiskPage({user}) {
                           </td>
                           <td>
                             <span className={`risk-level-badge risk-level-${levelClass(r.risk_level)}`}>
-                              {r.risk_score} · {r.risk_level}
+                              {formatRiskNumber(r.risk_score)} · {methodDisplayLabel(r)}
                             </span>
                           </td>
                           <td>{r.term_date || '—'}</td>
@@ -1261,16 +1473,10 @@ export function RiskPage({user}) {
                   disabled={!canEdit}
                   onChange={(e) => setDocForm({...docForm, method: e.target.value})}
                 >
-                  {(riskMethods.length ? riskMethods : [
-                    {code: '5x5_l', label: '5x5 Matris (L Tipi)'},
-                    {code: 'fine_kinney', label: 'Fine-Kinney'},
-                    {code: 'x_matrix', label: 'X Tipi Matris'},
-                    {code: 'hazop', label: 'HAZOP'},
-                    {code: 'fmea', label: 'FMEA'},
-                    {code: 'what_if', label: 'What-If'},
-                    {code: 'jsa', label: 'JSA / JHA'},
-                  ]).map((m) => (
-                    <option key={m.code} value={m.code}>{m.label}</option>
+                  {methodOptions.map((m) => (
+                    <option key={m.code} value={m.code} disabled={m.implemented === false}>
+                      {m.label}{m.implemented === false ? ' — sıradaki aşama' : ''}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -1640,7 +1846,9 @@ export function RiskPage({user}) {
                 <th>Bölüm</th>
                 <th>Faaliyet</th>
                 <th>Tehlike</th>
+                {showFineColumns && <th>Yöntem</th>}
                 <th>O</th>
+                {showFineColumns && <th>F</th>}
                 <th>Ş</th>
                 <th>Seviye</th>
                 <th>Termin</th>
@@ -1656,9 +1864,11 @@ export function RiskPage({user}) {
                   <td>{r.department_name || '—'}</td>
                   <td>{r.activity}</td>
                   <td>{r.hazard_code ? `${r.hazard_code} — ${r.hazard_name}` : r.hazard_id}</td>
-                  <td>{r.probability}</td>
-                  <td>{r.severity}</td>
-                  <td><LevelBadge level={r.risk_level} score={r.risk_score} /></td>
+                  {showFineColumns && <td>{r.method_label || (r.method_code === 'fine_kinney' ? 'Fine–Kinney' : '5×5')}</td>}
+                  <td>{formatRiskNumber(r.probability)}</td>
+                  {showFineColumns && <td>{r.method_code === 'fine_kinney' ? formatRiskNumber(r.frequency) : '—'}</td>}
+                  <td>{formatRiskNumber(r.severity)}</td>
+                  <td><LevelBadge level={r.risk_level} label={r.risk_level_label} score={r.risk_score} /></td>
                   <td>
                     {r.term_date || '—'}
                     {r.status === 'Açık' && isOverdueDate(r.term_date) && <OverdueBadge />}
@@ -1679,7 +1889,7 @@ export function RiskPage({user}) {
                   </td>
                 </tr>
               )) : (
-                <tr><td colSpan={11} className="empty">Risk kaydı yok. Tehlike kütüphanesinden seçerek yeni kayıt ekleyin.</td></tr>
+                <tr><td colSpan={showFineColumns ? 13 : 11} className="empty">Risk kaydı yok. Tehlike kütüphanesinden seçerek yeni kayıt ekleyin.</td></tr>
               )}
             </tbody>
           </table>
@@ -1903,16 +2113,71 @@ export function RiskPage({user}) {
               </Select>
               <TextArea label="Mevcut önlemler" value={form.existing_measures} onChange={(e) => setForm({...form, existing_measures: e.target.value})} />
               <TextArea label="Ek önlemler" value={form.additional_measures} onChange={(e) => setForm({...form, additional_measures: e.target.value})} />
-              <Select label="Olasılık (1-5)" value={form.probability} onChange={(e) => setForm({...form, probability: e.target.value})}>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <option key={n} value={n}>{n} — {(meta?.probability_labels || {})[n] || n}</option>
-                ))}
-              </Select>
-              <Select label="Şiddet (1-5)" value={form.severity} onChange={(e) => setForm({...form, severity: e.target.value})}>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <option key={n} value={n}>{n} — {(meta?.severity_labels || {})[n] || n}</option>
-                ))}
-              </Select>
+              {isFineKinney ? (
+                <>
+                  <div className="risk-method-note risk-form-span">
+                    <strong>Fine–Kinney çalışma alanı</strong>
+                    <span>Olasılık (O), maruziyet frekansı (F) ve şiddet (Ş) değerleri yöntem skalasından seçilir. Risk skoru bu üç değerin çarpımıdır.</span>
+                  </div>
+                  <Select label="Olasılık (O)" required value={form.probability} onChange={(e) => setForm({...form, probability: e.target.value})}>
+                    {(fineMeta.probability_defs || []).map((item) => (
+                      <option key={item.value} value={item.value}>{formatRiskNumber(item.value)} — {item.label}</option>
+                    ))}
+                  </Select>
+                  <Select label="Frekans / maruziyet (F)" required value={form.frequency} onChange={(e) => setForm({...form, frequency: e.target.value})}>
+                    {(fineMeta.frequency_defs || []).map((item) => (
+                      <option key={item.value} value={item.value}>{formatRiskNumber(item.value)} — {item.label}</option>
+                    ))}
+                  </Select>
+                  <Select label="Şiddet (Ş)" required value={form.severity} onChange={(e) => setForm({...form, severity: e.target.value})}>
+                    {(fineMeta.severity_defs || []).map((item) => (
+                      <option key={item.value} value={item.value}>{formatRiskNumber(item.value)} — {item.label}</option>
+                    ))}
+                  </Select>
+                  <div className="risk-residual-card risk-form-span">
+                    <div className="risk-residual-head">
+                      <div>
+                        <strong>Artık risk değerlendirmesi</strong>
+                        <span>Kontroller uygulandıktan sonraki O/F/Ş değerlerini kayıt altına alın. İsteğe bağlıdır; kısmi giriş kabul edilmez.</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setForm({...form, residual_probability: '', residual_frequency: '', residual_severity: ''})}
+                      >
+                        Temizle
+                      </button>
+                    </div>
+                    <div className="risk-residual-grid">
+                      <Select label="Artık Olasılık" value={form.residual_probability} onChange={(e) => setForm({...form, residual_probability: e.target.value})}>
+                        <option value="">Girilmedi</option>
+                        {(fineMeta.probability_defs || []).map((item) => <option key={item.value} value={item.value}>{formatRiskNumber(item.value)}</option>)}
+                      </Select>
+                      <Select label="Artık Frekans" value={form.residual_frequency} onChange={(e) => setForm({...form, residual_frequency: e.target.value})}>
+                        <option value="">Girilmedi</option>
+                        {(fineMeta.frequency_defs || []).map((item) => <option key={item.value} value={item.value}>{formatRiskNumber(item.value)}</option>)}
+                      </Select>
+                      <Select label="Artık Şiddet" value={form.residual_severity} onChange={(e) => setForm({...form, residual_severity: e.target.value})}>
+                        <option value="">Girilmedi</option>
+                        {(fineMeta.severity_defs || []).map((item) => <option key={item.value} value={item.value}>{formatRiskNumber(item.value)}</option>)}
+                      </Select>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Select label="Olasılık (1-5)" value={form.probability} onChange={(e) => setForm({...form, probability: e.target.value})}>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <option key={n} value={n}>{n} — {(meta?.probability_labels || {})[n] || n}</option>
+                    ))}
+                  </Select>
+                  <Select label="Şiddet (1-5)" value={form.severity} onChange={(e) => setForm({...form, severity: e.target.value})}>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <option key={n} value={n}>{n} — {(meta?.severity_labels || {})[n] || n}</option>
+                    ))}
+                  </Select>
+                </>
+              )}
               {suggestions && (
                 <div className="field risk-form-span">
                   <span>Öneri motoru (kategori)</span>
@@ -1928,21 +2193,37 @@ export function RiskPage({user}) {
               <div className="risk-score-card">
                 <div className={`risk-score-hero risk-score-${levelClass(calc?.risk_level)}`}>
                   <span>Canlı skor</span>
-                  <strong>{calc?.risk_score ?? '—'}</strong>
-                  <em>{calc?.risk_level || 'Olasılık × şiddet'}</em>
+                  <strong>{formatRiskNumber(calc?.risk_score)}</strong>
+                  <em>{calc?.risk_level_label || calc?.risk_level || activeMethodDef.formula || 'Olasılık × şiddet'}</em>
                 </div>
                 <div className="risk-score-matrix">
-                  <p>5×5 matris</p>
-                  <RiskMatrixGuide probability={form.probability} severity={form.severity} />
+                  <p>{activeMethodDef.label}</p>
+                  {isFineKinney ? (
+                    <FineKinneyGuide
+                      probability={form.probability}
+                      frequency={form.frequency}
+                      severity={form.severity}
+                      calc={calc}
+                      meta={fineMeta}
+                    />
+                  ) : (
+                    <RiskMatrixGuide probability={form.probability} severity={form.severity} />
+                  )}
                 </div>
                 <div className="risk-score-meta">
                   <div>
-                    <span>Olasılık</span>
-                    <strong>{form.probability || '—'}</strong>
+                    <span>{isFineKinney ? 'Olasılık (O)' : 'Olasılık'}</span>
+                    <strong>{formatRiskNumber(form.probability)}</strong>
                   </div>
+                  {isFineKinney && (
+                    <div>
+                      <span>Frekans (F)</span>
+                      <strong>{formatRiskNumber(form.frequency)}</strong>
+                    </div>
+                  )}
                   <div>
-                    <span>Şiddet</span>
-                    <strong>{form.severity || '—'}</strong>
+                    <span>{isFineKinney ? 'Şiddet (Ş)' : 'Şiddet'}</span>
+                    <strong>{formatRiskNumber(form.severity)}</strong>
                   </div>
                   <div>
                     <span>Termin</span>
@@ -1991,8 +2272,24 @@ export function RiskPage({user}) {
             <div className="field"><span>Bölüm</span><strong>{detail.department_name || '—'}</strong></div>
             <div className="field"><span>Faaliyet</span><strong>{detail.activity}</strong></div>
             <div className="field"><span>Tehlike</span><strong>{detail.hazard_code} — {detail.hazard_name}</strong></div>
-            <div className="field"><span>Seviye</span><LevelBadge level={detail.risk_level} score={detail.risk_score} /></div>
+            <div className="field"><span>Yöntem</span><strong>{detail.method_label || '5x5 Matris (L Tipi)'}</strong><small>{detail.method_formula || 'Olasılık × Şiddet'}</small></div>
+            <div className="field"><span>Olasılık (O)</span><strong>{formatRiskNumber(detail.probability)}</strong></div>
+            {detail.method_code === 'fine_kinney' && <div className="field"><span>Frekans (F)</span><strong>{formatRiskNumber(detail.frequency)}</strong></div>}
+            <div className="field"><span>Şiddet (Ş)</span><strong>{formatRiskNumber(detail.severity)}</strong></div>
+            <div className="field"><span>Seviye / skor</span><LevelBadge level={detail.risk_level} label={detail.risk_level_label} score={detail.risk_score} /></div>
+            {detail.risk_action && <div className="field"><span>Yöntem aksiyonu</span><strong>{detail.risk_action}</strong></div>}
             <div className="field"><span>Termin</span><strong>{detail.term_date || '—'}</strong></div>
+            {detail.residual_score != null && (
+              <div className="field risk-residual-detail">
+                <span>Artık risk</span>
+                <strong>{formatRiskNumber(detail.residual_score)} · {detail.residual_level || '—'}</strong>
+                <small>
+                  O {formatRiskNumber(detail.residual_probability)}
+                  {detail.method_code === 'fine_kinney' ? ` · F ${formatRiskNumber(detail.residual_frequency)}` : ''}
+                  {' · '}Ş {formatRiskNumber(detail.residual_severity)}
+                </small>
+              </div>
+            )}
             <div className="field" style={{gridColumn: '1 / -1'}}><span>Tanım</span><p>{detail.risk_definition}</p></div>
             <div className="field" style={{gridColumn: '1 / -1'}}><span>Mevcut önlemler</span><p>{detail.existing_measures || '—'}</p></div>
             <div className="field" style={{gridColumn: '1 / -1'}}><span>Ek önlemler</span><p>{detail.additional_measures || '—'}</p></div>

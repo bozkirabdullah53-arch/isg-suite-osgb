@@ -1162,6 +1162,9 @@ class RiskAssessment(Base):
     branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id"), nullable=True, index=True)
     department_id: Mapped[int | None] = mapped_column(ForeignKey("workplace_departments.id"), nullable=True, index=True)
     hazard_id: Mapped[int] = mapped_column(ForeignKey("hazards.id"), index=True)
+    # Method is stored per risk so changing the workplace's default method never
+    # rewrites or misinterprets historical records created with another method.
+    method_code: Mapped[str] = mapped_column(String(40), default="5x5_l", index=True)
     department_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     activity: Mapped[str] = mapped_column(String(500))
     risk_definition: Mapped[str] = mapped_column(String(2000))
@@ -1169,10 +1172,18 @@ class RiskAssessment(Base):
     affected_group: Mapped[str | None] = mapped_column(String(100), nullable=True)
     existing_measures: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     additional_measures: Mapped[str | None] = mapped_column(String(2000), nullable=True)
-    probability: Mapped[int] = mapped_column(Integer)
-    severity: Mapped[int] = mapped_column(Integer)
-    risk_score: Mapped[int] = mapped_column(Integer, index=True)
+    # 5x5 keeps its integer values; Fine-Kinney needs decimal probability and
+    # frequency values, therefore these shared numeric columns are Float.
+    probability: Mapped[float] = mapped_column(Float)
+    frequency: Mapped[float | None] = mapped_column(Float, nullable=True)
+    severity: Mapped[float] = mapped_column(Float)
+    risk_score: Mapped[float] = mapped_column(Float, index=True)
     risk_level: Mapped[str] = mapped_column(String(50), index=True)
+    residual_probability: Mapped[float | None] = mapped_column(Float, nullable=True)
+    residual_frequency: Mapped[float | None] = mapped_column(Float, nullable=True)
+    residual_severity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    residual_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    residual_level: Mapped[str | None] = mapped_column(String(50), nullable=True)
     term_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
     term_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     term_suggested: Mapped[int | None] = mapped_column(Integer, nullable=True)

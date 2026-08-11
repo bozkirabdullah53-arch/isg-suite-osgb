@@ -22,6 +22,8 @@ from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, 
 from reportlab.pdfgen import canvas
 
 from app.services.risk_validity import METHOD_LABEL, document_meta_rows
+from app.services.risk_methods import resolve_method
+from app.services.risk_scoring import fine_kinney_level_details
 
 PDF_FONT = "Helvetica"
 PDF_FONT_BOLD = "Helvetica-Bold"
@@ -120,6 +122,17 @@ def _hazard_name(risk, hazard_map: dict) -> str:
 def _hazard_code(risk, hazard_map: dict) -> str:
     h = hazard_map.get(getattr(risk, "hazard_id", None))
     return h.code if h else "—"
+
+
+def _risk_method(risk, fallback_code: str = "5x5_l") -> dict:
+    return resolve_method(getattr(risk, "method_code", None) or fallback_code)
+
+
+def _score_text(value) -> str:
+    if value is None:
+        return "—"
+    numeric = float(value)
+    return str(int(numeric)) if numeric.is_integer() else f"{numeric:.2f}".rstrip("0").rstrip(".")
 
 
 def _level_color(level: str):
@@ -437,6 +450,10 @@ def build_risk_pdf(
         elements.append(Paragraph(f"• {val}: {txt}", body))
     if not method.get("severity_defs"):
         elements.append(Paragraph("• Nitel değerlendirme (yönteme özgü).", body))
+    if method.get("frequency_defs"):
+        elements.append(Paragraph("<b>Frekans / maruziyet tanımları:</b>", info))
+        for val, txt in method.get("frequency_defs") or []:
+            elements.append(Paragraph(f"• {val}: {txt}", body))
     elements.append(Paragraph("<b>Risk seviyesi / öncelik:</b>", info))
     for rng, level, note in method.get("levels") or []:
         elements.append(Paragraph(f"• {rng} → <b>{level}</b>: {note}", body))
@@ -568,15 +585,18 @@ def build_risk_pdf(
     elements.append(Paragraph("9. RİSK KAYIT LİSTESİ", section))
     elements.append(
         Paragraph(
-            f"Yöntem eksenleri: {method.get('probability_axis')} / {method.get('severity_axis')}. "
-            "Skorlar mevcut kayıt motoruna göredir; Fine-Kinney vb. seçildiğinde skorlama kriterleri "
-            "bölüm 5’te yer alır, saha kayıtları 5×5 ile tutuluyorsa dönüşüm notu ekibe aittir.",
+            f"Belge yöntemi: {method.get('label')}. Kayıtlar yöntem koduna göre değerlendirilir; "
+            "tarihsel 5×5 kayıtları Fine-Kinney skoruna dönüştürülmez ve mevcut değerleri korunur.",
             body,
         )
     )
     elements.append(Spacer(1, 2 * mm))
 
     for risk in risks:
+        risk_method = _risk_method(risk, method.get("code", "5x5_l"))
+        risk_level_label = getattr(risk, "risk_level", None) or "—"
+        if risk_method.get("code") == "fine_kinney":
+            _, risk_level_label, _ = fine_kinney_level_details(float(risk.risk_score or 0))
         regs = []
         h = hazard_map.get(getattr(risk, "hazard_id", None))
         if h and getattr(h, "regulations", None):
@@ -589,23 +609,41 @@ def build_risk_pdf(
                 regs = []
         risk_data = [
             ["Risk Kodu", risk.risk_code],
+            ["Yöntem", risk_method.get("label") or "—"],
             ["Bölüm", _dept(risk)],
             ["Faaliyet", Paragraph(str(risk.activity or "—"), cell)],
             ["Tehlike", f"{_hazard_code(risk, hazard_map)} — {_hazard_name(risk, hazard_map)}"],
             ["Risk Tanımı", Paragraph(str(risk.risk_definition or "—"), cell)],
             ["Etkilenenler", risk.affected_people or getattr(risk, "affected_group", None) or "—"],
-            [method.get("probability_axis") or "Olasılık", str(risk.probability)],
-            [method.get("severity_axis") or "Şiddet", str(risk.severity)],
-            ["Risk Skoru", str(risk.risk_score)],
-            ["Risk Seviyesi", risk.risk_level or "—"],
+            [risk_method.get("probability_axis") or "Olasılık", _score_text(risk.probability)],
+        ]
+        if risk_method.get("code") == "fine_kinney":
+            risk_data.append([risk_method.get("frequency_axis") or "Frekans / Maruziyet", _score_text(getattr(risk, "frequency", None))])
+        risk_data.extend(
+            [
+                [risk_method.get("severity_axis") or "Şiddet", _score_text(risk.severity)],
+                ["Risk Skoru", _score_text(risk.risk_score)],
+                ["Risk Seviyesi", risk_level_label],
+                ["Yöntem aksiyonu", next((note for _, label, note in risk_method.get("levels", []) if label in {risk_level_label, getattr(risk, "risk_level", None)}), "—")],
+            ]
+        )
+        risk_data.extend(
+            [
             ["Termin Tarihi", _fmt_date(risk.term_date)],
             ["Durum", risk.status or "Açık"],
             ["DÖF sayısı", str(len(getattr(risk, "dofs", None) or []))],
             ["Revizyon (kayıt)", str(getattr(risk, "revision_no", None) or "—")],
             ["Mevzuat ref.", Paragraph(", ".join(regs) if regs else "—", cell)],
-        ]
+            ]
+        )
+        if getattr(risk, "residual_score", None) is not None:
+            residual_label = getattr(risk, "residual_level", None) or "—"
+            if risk_method.get("code") == "fine_kinney":
+                _, residual_label, _ = fine_kinney_level_details(float(risk.residual_score or 0))
+            risk_data.append(["Artık risk skoru / seviyesi", f"{_score_text(risk.residual_score)} / {residual_label}"])
         risk_table = Table(risk_data, colWidths=[100, 370])
         bg = _level_color(risk.risk_level or "")
+        score_row = 10 if risk_method.get("code") == "fine_kinney" else 9
         risk_table.setStyle(
             TableStyle(
                 [
@@ -615,21 +653,30 @@ def build_risk_pdf(
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
                     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                     ("FONTNAME", (0, 0), (0, -1), PDF_FONT_BOLD),
-                    ("BACKGROUND", (1, 8), (1, 9), bg),
+                    ("BACKGROUND", (1, score_row), (1, score_row + 1), bg),
                 ]
             )
         )
         elements.append(risk_table)
         elements.append(Spacer(1, 2 * mm))
 
+        residual_text = (
+            "İlave önlem / DÖF tamamlandıktan sonra yeniden değerlendirilir "
+            "(önlem sonrası skor sahada güncellenir)."
+        )
+        if getattr(risk, "residual_score", None) is not None:
+            residual_text = (
+                f"Kayıtlı artık risk: {_score_text(risk.residual_score)} / "
+                f"{getattr(risk, 'residual_level', None) or '—'}. "
+                "Kontrollerin sahada etkinliği ayrıca doğrulanır."
+            )
         measures = [
             ["Mevcut Önlemler", Paragraph(str(risk.existing_measures or "—"), cell)],
             ["İlave Önlemler", Paragraph(str(risk.additional_measures or "—"), cell)],
             [
                 "Artık risk",
                 Paragraph(
-                    "İlave önlem / DÖF tamamlandıktan sonra yeniden değerlendirilir "
-                    "(önlem sonrası skor sahada güncellenir).",
+                    residual_text,
                     cell,
                 ),
             ],
@@ -965,17 +1012,20 @@ def build_risk_excel(
     )
     page_count = _estimate_risk_sheet_pages(risks)
     doc_label = f"Risk Değerlendirme Raporu — {getattr(company, 'name', '')}"
+    has_fine_kinney = any(getattr(risk, "method_code", None) == "fine_kinney" for risk in risks)
+    column_count = 19 if has_fine_kinney else 17
+    last_column = get_column_letter(column_count)
 
     ws = wb.active
     ws.title = "Risk Değerlendirme"
-    ws.merge_cells("A1:Q1")
+    ws.merge_cells(f"A1:{last_column}1")
     ws["A1"] = f"RİSK DEĞERLENDİRME RAPORU - {company.name}"
     ws["A1"].font = Font(name="Calibri", bold=True, size=14, color="1a5276")
     ws["A1"].alignment = Alignment(horizontal="center")
 
     doc_no = getattr(company, "risk_document_no", None) or f"RD-{getattr(company, 'id', '')}"
     rev_no = getattr(company, "risk_revision_no", None) or "00"
-    ws.merge_cells("A2:Q2")
+    ws.merge_cells(f"A2:{last_column}2")
     ws["A2"] = (
         f"Yetkili: {getattr(company, 'authorized_person', None) or '—'} | "
         f"Tel: {getattr(company, 'phone', None) or '—'} | "
@@ -988,7 +1038,7 @@ def build_risk_excel(
     ws["A2"].font = Font(size=9, color="2c3e50")
     ws["A2"].alignment = Alignment(horizontal="center")
 
-    ws.merge_cells("A3:Q3")
+    ws.merge_cells(f"A3:{last_column}3")
     method = (validity or {}).get("method") or METHOD_LABEL
     valid_line = ""
     if validity and validity.get("valid_until"):
@@ -1003,25 +1053,20 @@ def build_risk_excel(
     ws["A3"].font = Font(size=9, italic=True, color="6c757d")
     ws["A3"].alignment = Alignment(horizontal="center")
 
-    headers = [
-        "Risk Kodu",
-        "Bölüm",
-        "Faaliyet",
-        "Tehlike",
-        "Tehlike Kodu",
-        "Risk Tanımı",
-        "Etkilenenler",
-        "Olasılık (1-5)",
-        "Şiddet (1-5)",
-        "Risk Skoru",
-        "Risk Seviyesi",
-        "Termin Tarihi",
-        "Mevcut Önlemler",
-        "İlave Önlemler",
-        "Durum",
-        "DÖF Sayısı",
-        "Fotoğraf",
-    ]
+    headers = (
+        [
+            "Risk Kodu", "Yöntem", "Bölüm", "Faaliyet", "Tehlike", "Tehlike Kodu",
+            "Risk Tanımı", "Etkilenenler", "Olasılık", "Frekans / Maruziyet", "Şiddet",
+            "Risk Skoru", "Risk Seviyesi", "Termin Tarihi", "Mevcut Önlemler",
+            "İlave Önlemler", "Durum", "DÖF Sayısı", "Fotoğraf",
+        ]
+        if has_fine_kinney
+        else [
+            "Risk Kodu", "Bölüm", "Faaliyet", "Tehlike", "Tehlike Kodu", "Risk Tanımı",
+            "Etkilenenler", "Olasılık (1-5)", "Şiddet (1-5)", "Risk Skoru", "Risk Seviyesi",
+            "Termin Tarihi", "Mevcut Önlemler", "İlave Önlemler", "Durum", "DÖF Sayısı", "Fotoğraf",
+        ]
+    )
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=4, column=col, value=header)
         cell.font = header_font
@@ -1031,25 +1076,29 @@ def build_risk_excel(
 
     for idx, risk in enumerate(risks, 5):
         dofs = list(getattr(risk, "dofs", None) or [])
-        data = [
-            risk.risk_code,
-            _dept(risk),
-            risk.activity,
-            _hazard_name(risk, hazard_map),
-            _hazard_code(risk, hazard_map),
-            risk.risk_definition,
-            risk.affected_people or "—",
-            risk.probability,
-            risk.severity,
-            risk.risk_score,
-            risk.risk_level or "—",
-            _fmt_date(risk.term_date),
-            risk.existing_measures or "—",
-            risk.additional_measures or "—",
-            risk.status or "Açık",
-            len(dofs),
-            "",
-        ]
+        risk_method = _risk_method(risk, (validity or {}).get("method_code") or "5x5_l")
+        if risk_method.get("code") == "fine_kinney":
+            _, risk_level_label, _ = fine_kinney_level_details(float(risk.risk_score or 0))
+        else:
+            risk_level_label = risk.risk_level or "—"
+        data = (
+            [
+                risk.risk_code, risk_method.get("label") or "—", _dept(risk), risk.activity,
+                _hazard_name(risk, hazard_map), _hazard_code(risk, hazard_map), risk.risk_definition,
+                risk.affected_people or "—", _score_text(risk.probability), _score_text(getattr(risk, "frequency", None)),
+                _score_text(risk.severity), _score_text(risk.risk_score), risk_level_label,
+                _fmt_date(risk.term_date), risk.existing_measures or "—", risk.additional_measures or "—",
+                risk.status or "Açık", len(dofs), "",
+            ]
+            if has_fine_kinney
+            else [
+                risk.risk_code, _dept(risk), risk.activity, _hazard_name(risk, hazard_map),
+                _hazard_code(risk, hazard_map), risk.risk_definition, risk.affected_people or "—",
+                _score_text(risk.probability), _score_text(risk.severity), _score_text(risk.risk_score),
+                risk_level_label, _fmt_date(risk.term_date), risk.existing_measures or "—",
+                risk.additional_measures or "—", risk.status or "Açık", len(dofs), "",
+            ]
+        )
         for col, value in enumerate(data, 1):
             cell = ws.cell(row=idx, column=col, value=value)
             cell.border = thin
@@ -1057,8 +1106,9 @@ def build_risk_excel(
             cell.font = Font(size=9)
         level = risk.risk_level or ""
         if level in level_fills:
-            ws.cell(row=idx, column=10).fill = level_fills[level]
-            ws.cell(row=idx, column=11).fill = level_fills[level]
+            score_column = 12 if has_fine_kinney else 10
+            ws.cell(row=idx, column=score_column).fill = level_fills[level]
+            ws.cell(row=idx, column=score_column + 1).fill = level_fills[level]
 
         photo_path = _risk_excel_photo_path(risk)
         if photo_path:
@@ -1069,17 +1119,22 @@ def build_risk_excel(
                     ratio = min(max_w / img.width, max_h / img.height, 1)
                     img.width = int(img.width * ratio)
                     img.height = int(img.height * ratio)
-                img.anchor = f"Q{idx}"
+                img.anchor = f"{last_column}{idx}"
                 ws.add_image(img)
                 ws.row_dimensions[idx].height = max(ws.row_dimensions[idx].height or 15, 72)
             except Exception:
-                ws.cell(row=idx, column=17, value="Fotoğraf var / eklenemedi")
+                ws.cell(row=idx, column=column_count, value="Fotoğraf var / eklenemedi")
 
-    for i, w in enumerate([12, 15, 20, 18, 12, 28, 16, 10, 10, 10, 14, 12, 28, 28, 10, 10, 18], 1):
+    widths = (
+        [12, 20, 15, 20, 18, 12, 28, 16, 10, 16, 10, 10, 22, 12, 28, 28, 10, 10, 18]
+        if has_fine_kinney
+        else [12, 15, 20, 18, 12, 28, 16, 10, 10, 10, 14, 12, 28, 28, 10, 10, 18]
+    )
+    for i, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = "A5"
     last_data_row = max(4, 4 + len(risks))
-    ws.auto_filter.ref = f"A4:Q{last_data_row}"
+    ws.auto_filter.ref = f"A4:{last_column}{last_data_row}"
     ws.print_title_rows = "1:4"
 
     # Son sayfa: yatay imza bloğu + sayfa sayısı beyanı
@@ -1099,11 +1154,11 @@ def build_risk_excel(
         header_font=header_font,
         header_fill=header_fill,
         thin=thin,
-        merge_cols=17,
+        merge_cols=column_count,
     )
 
     declare_row = after_sign
-    ws.merge_cells(start_row=declare_row, start_column=1, end_row=declare_row, end_column=17)
+    ws.merge_cells(start_row=declare_row, start_column=1, end_row=declare_row, end_column=column_count)
     declare = (
         f"İş bu risk değerlendirme raporu {page_count} sayfadan oluşur. "
         f"(Yazdırma önizlemesinde Sayfa X / N satırı ile doğrulanır; N farklıysa N esas alınır.)"
@@ -1114,7 +1169,7 @@ def build_risk_excel(
     ws.row_dimensions[declare_row].height = 32
 
     note_row = declare_row + 1
-    ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=17)
+    ws.merge_cells(start_row=note_row, start_column=1, end_row=note_row, end_column=column_count)
     ws.cell(
         row=note_row,
         column=1,

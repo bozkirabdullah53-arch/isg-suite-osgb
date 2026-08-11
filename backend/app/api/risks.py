@@ -75,7 +75,15 @@ from app.services.risk_reports import build_dof_excel, build_risk_excel, build_r
 from app.services.risk_nace_roadmap import build_risk_nace_roadmap
 from app.services.training_nace_classification import resolve_exact_nace
 from app.models.training_nace import TrainingNaceSnapshot
-from app.services.risk_scoring import evaluate, meta_payload
+from app.services.risk_methods import DEFAULT_METHOD, METHOD_CATALOG, resolve_method
+from app.services.risk_scoring import (
+    SUPPORTED_SCORING_METHODS,
+    evaluate,
+    evaluate_method,
+    fine_kinney_level_details,
+    fine_kinney_meta_payload,
+    meta_payload,
+)
 from app.services.risk_suggestions import get_suggestions
 from app.services.risk_validity import build_validity, document_meta_rows
 from app.services.upload_gateway import delete_relative, persist_relative
@@ -88,6 +96,7 @@ ALLOWED_PHOTO = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 ALLOWED_MEDIA = ALLOWED_PHOTO | {".pdf", ".mp4", ".avi", ".mov", ".bmp", ".doc", ".docx", ".xls", ".xlsx"}
 LEGACY_TAG = "[ISG#"
 REVISION_FIELDS = (
+    "method_code",
     "department_name",
     "hazard_id",
     "activity",
@@ -97,13 +106,79 @@ REVISION_FIELDS = (
     "existing_measures",
     "additional_measures",
     "probability",
+    "frequency",
     "severity",
     "risk_score",
     "risk_level",
+    "residual_probability",
+    "residual_frequency",
+    "residual_severity",
+    "residual_score",
+    "residual_level",
     "term_days",
     "term_date",
     "status",
 )
+
+
+def _implemented_method(code: str | None, *, fallback: str = DEFAULT_METHOD) -> str:
+    """Resolve and validate a method without allowing an accidental fallback."""
+    explicit = code is not None and bool(str(code).strip())
+    key = (code if explicit else fallback or DEFAULT_METHOD).strip()
+    method = METHOD_CATALOG.get(key)
+    if not method:
+        if not explicit:
+            return DEFAULT_METHOD
+        raise HTTPException(422, "Geçersiz risk değerlendirme yöntemi.")
+    if key not in SUPPORTED_SCORING_METHODS or not method.get("implemented"):
+        if not explicit:
+            return DEFAULT_METHOD
+        raise HTTPException(422, f"{method['label']} henüz aktif değil; bu yöntem sırayla geliştirilecek.")
+    return key
+
+
+def _calculate_risk(
+    *,
+    method_code: str,
+    probability: float,
+    severity: float,
+    frequency: float | None = None,
+    term_override_days: int | None = None,
+) -> dict:
+    try:
+        if method_code == "5x5_l" and frequency is not None:
+            raise ValueError("5x5 yönteminde frekans alanı kullanılamaz.")
+        return evaluate_method(
+            method_code,
+            probability,
+            severity,
+            frequency=frequency,
+            term_override_days=term_override_days,
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+def _calculate_residual(
+    *,
+    method_code: str,
+    probability: float | None,
+    frequency: float | None,
+    severity: float | None,
+) -> dict | None:
+    if method_code == "5x5_l" and frequency is not None:
+        raise HTTPException(422, "5x5 yönteminde frekans/artık frekans alanı kullanılamaz.")
+    values = (probability, frequency, severity) if method_code == "fine_kinney" else (probability, severity)
+    if all(value is None for value in values):
+        return None
+    if any(value is None for value in values):
+        raise HTTPException(422, "Artık risk için tüm yöntem değerleri birlikte girilmelidir.")
+    return _calculate_risk(
+        method_code=method_code,
+        probability=float(probability),
+        frequency=float(frequency) if frequency is not None else None,
+        severity=float(severity),
+    )
 
 
 def ensure_access(db: Session, user: User, company_id: int) -> None:
@@ -202,6 +277,16 @@ def _media_response(m: RiskMedia) -> RiskMediaResponse:
 
 
 def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: HazardCategory | None = None) -> RiskResponse:
+    method_code = getattr(row, "method_code", None) or DEFAULT_METHOD
+    method = resolve_method(method_code)
+    if method_code == "fine_kinney":
+        _, level_label, risk_action = fine_kinney_level_details(float(row.risk_score or 0))
+    else:
+        level_label = row.risk_level
+        risk_action = next(
+            (note for _, level, note in method.get("levels", []) if level == row.risk_level),
+            None,
+        )
     revisions = [
         RiskRevisionResponse.model_validate(r)
         for r in list(getattr(row, "revisions", None) or [])[:40]
@@ -213,6 +298,9 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
         branch_id=row.branch_id,
         department_id=getattr(row, "department_id", None),
         hazard_id=row.hazard_id,
+        method_code=method_code,
+        method_label=method.get("label"),
+        method_formula=method.get("formula"),
         hazard_code=hazard.code if hazard else None,
         hazard_name=hazard.name if hazard else None,
         category_name=category.name if category else None,
@@ -224,9 +312,17 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
         existing_measures=row.existing_measures,
         additional_measures=row.additional_measures,
         probability=row.probability,
+        frequency=getattr(row, "frequency", None),
         severity=row.severity,
         risk_score=row.risk_score,
         risk_level=row.risk_level,
+        risk_level_label=level_label,
+        risk_action=risk_action,
+        residual_probability=getattr(row, "residual_probability", None),
+        residual_frequency=getattr(row, "residual_frequency", None),
+        residual_severity=getattr(row, "residual_severity", None),
+        residual_score=getattr(row, "residual_score", None),
+        residual_level=getattr(row, "residual_level", None),
         term_days=row.term_days,
         term_date=row.term_date,
         term_suggested=row.term_suggested,
@@ -335,13 +431,24 @@ def _ensure_library(db: Session) -> None:
 
 
 @router.get("/meta")
-def risk_meta(user: User = Depends(get_current_user)):
-    return meta_payload()
+def risk_meta(
+    method_code: str = DEFAULT_METHOD,
+    user: User = Depends(get_current_user),
+):
+    code = _implemented_method(method_code)
+    return fine_kinney_meta_payload() if code == "fine_kinney" else meta_payload()
 
 
 @router.post("/calculate")
 def risk_calculate(payload: RiskCalculateRequest, user: User = Depends(get_current_user)):
-    return evaluate(payload.probability, payload.severity, term_override_days=payload.term_override_days)
+    code = _implemented_method(payload.method_code)
+    return _calculate_risk(
+        method_code=code,
+        probability=payload.probability,
+        frequency=payload.frequency,
+        severity=payload.severity,
+        term_override_days=payload.term_override_days,
+    )
 
 
 @router.post("/hazard-hint")
@@ -837,13 +944,12 @@ def update_assessment_info(
     company = db.get(Company, payload.company_id)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
-    if payload.method and payload.method not in METHOD_CATALOG:
-        raise HTTPException(422, "Geçersiz risk değerlendirme yöntemi.")
+    selected_method = _implemented_method(payload.method, fallback=company.risk_method or DEFAULT_METHOD)
     company.risk_assessment_date = payload.assessment_date
     company.risk_team_employee_rep = payload.employee_representative
     company.risk_team_support_staff = payload.support_staff
     if payload.method is not None:
-        company.risk_method = payload.method
+        company.risk_method = selected_method
     if payload.document_no is not None:
         company.risk_document_no = payload.document_no
     if payload.revision_no is not None:
@@ -1338,12 +1444,14 @@ def migrate_isg_records(
             company_id=rec.company_id,
             branch_id=rec.branch_id,
             hazard_id=hazard.id,
+            method_code="5x5_l",
             activity=(rec.title or "Eski risk kaydı")[:500],
             risk_definition=definition,
             affected_people=None,
             existing_measures=None,
             additional_measures=f"Kaynak: IsgRecord#{rec.id}"[:2000],
             probability=calc["probability"],
+            frequency=None,
             severity=calc["severity"],
             risk_score=calc["risk_score"],
             risk_level=calc["risk_level"],
@@ -1387,8 +1495,10 @@ def create_risk(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     ensure_access(db, user, payload.company_id)
-    if not db.get(Company, payload.company_id):
+    company = db.get(Company, payload.company_id)
+    if not company:
         raise HTTPException(404, "Firma bulunamadı.")
+    method_code = _implemented_method(payload.method_code, fallback=company.risk_method or DEFAULT_METHOD)
     if payload.branch_id:
         b = db.get(Branch, payload.branch_id)
         if not b or b.company_id != payload.company_id:
@@ -1402,7 +1512,19 @@ def create_risk(
         department_id=payload.department_id,
         department_name=payload.department_name,
     )
-    calc = evaluate(payload.probability, payload.severity, term_override_days=payload.term_override_days)
+    calc = _calculate_risk(
+        method_code=method_code,
+        probability=payload.probability,
+        frequency=payload.frequency,
+        severity=payload.severity,
+        term_override_days=payload.term_override_days,
+    )
+    residual = _calculate_residual(
+        method_code=method_code,
+        probability=payload.residual_probability,
+        frequency=payload.residual_frequency,
+        severity=payload.residual_severity,
+    )
     code = _next_code(db, "RSK", RiskAssessment, RiskAssessment.risk_code)
     # uniqueness retry
     while db.scalar(select(RiskAssessment).where(RiskAssessment.risk_code == code)):
@@ -1413,6 +1535,7 @@ def create_risk(
         branch_id=payload.branch_id,
         department_id=dep_id,
         hazard_id=payload.hazard_id,
+        method_code=method_code,
         department_name=dep_name,
         activity=payload.activity,
         risk_definition=payload.risk_definition,
@@ -1421,6 +1544,7 @@ def create_risk(
         existing_measures=payload.existing_measures,
         additional_measures=payload.additional_measures,
         probability=calc["probability"],
+        frequency=calc.get("frequency"),
         severity=calc["severity"],
         risk_score=calc["risk_score"],
         risk_level=calc["risk_level"],
@@ -1428,6 +1552,11 @@ def create_risk(
         term_date=date.fromisoformat(calc["term_date"]),
         term_suggested=calc["term_suggested"],
         term_overridden=calc["term_overridden"],
+        residual_probability=residual.get("probability") if residual else None,
+        residual_frequency=residual.get("frequency") if residual else None,
+        residual_severity=residual.get("severity") if residual else None,
+        residual_score=residual.get("risk_score") if residual else None,
+        residual_level=residual.get("risk_level") if residual else None,
         status=payload.status or "Açık",
         created_by_id=user.id,
     )
@@ -1461,6 +1590,10 @@ def update_risk(
     data = payload.model_dump(exclude_unset=True)
     reason = data.pop("change_reason", None)
     term_override = data.pop("term_override_days", None)
+    requested_method = data.get("method_code", getattr(row, "method_code", None) or DEFAULT_METHOD)
+    method_code = _implemented_method(requested_method)
+    if "method_code" in data and requested_method != (getattr(row, "method_code", None) or DEFAULT_METHOD):
+        raise HTTPException(422, "Kayıt oluşturulduktan sonra yöntemi değiştirilemez; seçilen yöntemle yeni risk kaydı oluşturun.")
     has_dep_id = "department_id" in data
     has_dep_name = "department_name" in data
     dep_id = data.pop("department_id", None) if has_dep_id else None
@@ -1485,20 +1618,34 @@ def update_risk(
         if not hazard or not hazard.is_active:
             raise HTTPException(422, "Geçersiz tehlike seçimi.")
 
-    if "probability" in data or "severity" in data or term_override is not None:
-        calc = evaluate(
-            row.probability,
-            row.severity,
+    if "probability" in data or "frequency" in data or "severity" in data or term_override is not None:
+        calc = _calculate_risk(
+            method_code=method_code,
+            probability=row.probability,
+            frequency=getattr(row, "frequency", None),
+            severity=row.severity,
             term_override_days=term_override
             if term_override is not None
             else (row.term_days if row.term_overridden else None),
         )
         row.risk_score = calc["risk_score"]
         row.risk_level = calc["risk_level"]
+        row.frequency = calc.get("frequency")
         row.term_suggested = calc["term_suggested"]
         row.term_days = calc["term_days"]
         row.term_date = date.fromisoformat(calc["term_date"])
         row.term_overridden = calc["term_overridden"]
+
+    residual_keys = {"residual_probability", "residual_frequency", "residual_severity"}
+    if residual_keys.intersection(data):
+        residual = _calculate_residual(
+            method_code=method_code,
+            probability=getattr(row, "residual_probability", None),
+            frequency=getattr(row, "residual_frequency", None),
+            severity=getattr(row, "residual_severity", None),
+        )
+        row.residual_score = residual.get("risk_score") if residual else None
+        row.residual_level = residual.get("risk_level") if residual else None
 
     old_rev = int(row.revision_no or 0)
     rev_no = _record_field_revisions(db, row=row, before=before, user=user, reason=reason)
