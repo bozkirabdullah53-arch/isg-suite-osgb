@@ -3,6 +3,8 @@ import {api, API_URL, downloadFile, uploadFile} from './api';
 
 const MANAGE_ROLES = ['global_admin', 'company_admin', 'safety_specialist'];
 const HISTORICAL_VIDEO_STATUSES = ['published', 'unpublished', 'archived'];
+const REMOTE_TRAINING_CANONICAL_TITLE = 'Basic Occupational Health and Safety Training';
+const REMOTE_TRAINING_DISPLAY_TITLE = 'Temel İş Sağlığı ve Güvenliği Eğitimi';
 const STATUS_LABELS = {
   draft: 'Taslak',
   uploading: 'Yükleniyor',
@@ -27,6 +29,12 @@ const cardStyle = {
 
 function statusLabel(value) {
   return STATUS_LABELS[value] || value || '—';
+}
+
+function localizedTrainingTitle(value) {
+  return String(value || '').trim() === REMOTE_TRAINING_CANONICAL_TITLE
+    ? REMOTE_TRAINING_DISPLAY_TITLE
+    : value;
 }
 
 function apiAbsoluteUrl(path) {
@@ -243,12 +251,12 @@ function EmployeePanel() {
       <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
         <div>
           <div style={{fontSize: 12, color: '#547187', fontWeight: 700, letterSpacing: '.03em'}}>ÇALIŞAN PANELİ</div>
-          <h3 style={{margin: '4px 0 4px'}}>Basic Occupational Health and Safety Training</h3>
+          <h3 style={{margin: '4px 0 4px'}}>{REMOTE_TRAINING_DISPLAY_TITLE}</h3>
           <p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Video açılması tamamlanma sayılmaz; ilerleme ve sınav kaydı birlikte değerlendirilir.</p>
         </div>
         <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} aria-label="Uzaktan eğitim ataması">
           <option value="">Atama seçin</option>
-          {assignments.map((row) => <option key={row.id} value={row.id}>{row.program?.title || `Eğitim #${row.program_id}`} · {row.status}</option>)}
+          {assignments.map((row) => <option key={row.id} value={row.id}>{localizedTrainingTitle(row.program?.title) || `Eğitim #${row.program_id}`} · {statusLabel(row.status)}</option>)}
         </select>
       </div>
       <ErrorText value={error} />
@@ -257,7 +265,7 @@ function EmployeePanel() {
       {assignment && (
         <>
           <div style={{marginTop: 16, padding: 12, borderRadius: 10, background: '#f4f8fb'}}>
-            <strong>{assignment.program?.title}</strong>
+            <strong>{localizedTrainingTitle(assignment.program?.title)}</strong>
             <ProgressBadge assignment={assignment} />
             {assignment.snapshot_warnings?.length > 0 && <p style={{margin: '8px 0 0', color: '#9a3412', fontSize: 12}}>Belge snapshot uyarısı: {assignment.snapshot_warnings.join(' ')}</p>}
           </div>
@@ -356,7 +364,7 @@ function ManagerPanel({user}) {
   const [companyId, setCompanyId] = useState('');
   const [programs, setPrograms] = useState([]);
   const [program, setProgram] = useState(null);
-  const [title, setTitle] = useState('Basic Occupational Health and Safety Training');
+  const [title, setTitle] = useState(REMOTE_TRAINING_DISPLAY_TITLE);
   const [sectionTitle, setSectionTitle] = useState('Temel İş Sağlığı ve Güvenliği');
   const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [employeeUsers, setEmployeeUsers] = useState([]);
@@ -440,7 +448,7 @@ function ManagerPanel({user}) {
     setBusy(true); setError(''); setMessage('');
     try {
       const row = await api('/trainings/remote/programs', {method: 'POST', body: JSON.stringify({company_id: Number(companyId), title})});
-      setMessage('Basic Occupational Health and Safety Training taslağı oluşturuldu.');
+      setMessage(`${REMOTE_TRAINING_DISPLAY_TITLE} taslağı oluşturuldu.`);
       await loadPrograms(companyId);
       await loadDetail(row.id);
     } catch (err) { setError(err.message || 'Eğitim oluşturulamadı.'); } finally { setBusy(false); }
@@ -575,15 +583,15 @@ function ManagerPanel({user}) {
   }
 
   return (
-    <section style={{display: 'grid', gap: 16}} aria-label="Uzaktan Basic Occupational Health and Safety Training yönetimi">
+    <section style={{display: 'grid', gap: 16}} aria-label="Uzaktan Temel İş Sağlığı ve Güvenliği Eğitimi yönetimi">
       <div style={cardStyle}>
         <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
-          <div><div style={{fontSize: 12, color: '#547187', fontWeight: 700}}>EĞİTİCİ / YÖNETİCİ PANELİ</div><h3 style={{margin: '4px 0'}}>Basic Occupational Health and Safety Training</h3><p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Create → Upload → Process → Edit → Preview → Publish → Assign → Track → Examine → Certify → Report</p></div>
+          <div><div style={{fontSize: 12, color: '#547187', fontWeight: 700}}>EĞİTİCİ / YÖNETİCİ PANELİ</div><h3 style={{margin: '4px 0'}}>{REMOTE_TRAINING_DISPLAY_TITLE}</h3><p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Oluştur → Yükle → İşle → Düzenle → Önizle → Yayımla → Ata → Takip Et → Sınava Gir → Belgelendir → Raporla</p></div>
           <select value={companyId} onChange={(event) => {setCompanyId(event.target.value); setProgram(null);}} aria-label="Firma seçin"><option value="">Firma seçin</option>{companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
         </div>
         <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14}}>
           <input value={title} onChange={(event) => setTitle(event.target.value)} style={{minWidth: 300, flex: 1}} aria-label="Eğitim başlığı" />
-          <button type="button" onClick={createProgram} disabled={busy || !companyId}>Yeni temel İSG eğitimi taslağı</button>
+          <button type="button" onClick={createProgram} disabled={busy || !companyId}>Yeni Temel İSG Eğitimi Taslağı</button>
         </div>
         <ErrorText value={error} />
         {message && <div style={{color: '#087443', marginTop: 8, fontWeight: 600}}>{message}</div>}
@@ -592,13 +600,13 @@ function ManagerPanel({user}) {
       <div style={{display: 'grid', gridTemplateColumns: 'minmax(220px, .7fr) minmax(420px, 1.5fr)', gap: 16}}>
         <div style={cardStyle}>
           <h4 style={{marginTop: 0}}>Eğitim taslakları</h4>
-          {programs.map((row) => <button key={row.id} type="button" onClick={() => loadDetail(row.id)} style={{display: 'block', width: '100%', textAlign: 'left', padding: 10, marginBottom: 8, borderRadius: 9, border: `1px solid ${program?.id === row.id ? '#2474a8' : '#dbe5ef'}`, background: program?.id === row.id ? '#edf7ff' : '#fff'}}><strong>{row.title}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485'}}>{statusLabel(row.status)} · sürüm {row.revision_no}</span></button>)}
+          {programs.map((row) => <button key={row.id} type="button" onClick={() => loadDetail(row.id)} style={{display: 'block', width: '100%', textAlign: 'left', padding: 10, marginBottom: 8, borderRadius: 9, border: `1px solid ${program?.id === row.id ? '#2474a8' : '#dbe5ef'}`, background: program?.id === row.id ? '#edf7ff' : '#fff'}}><strong>{localizedTrainingTitle(row.title)}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485'}}>{statusLabel(row.status)} · sürüm {row.revision_no}</span></button>)}
           {!programs.length && <p style={{color: '#5e7485'}}>Bu firmada uzaktan eğitim taslağı yok.</p>}
         </div>
         <div style={cardStyle}>
           {program ? (
             <>
-              <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{program.title}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{statusLabel(program.status)} · eşik %{program.completion_threshold_percent}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button><button type="button" onClick={showReport} disabled={busy}>Rapor</button></div></div>
+              <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{statusLabel(program.status)} · eşik %{program.completion_threshold_percent}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button><button type="button" onClick={showReport} disabled={busy}>Rapor</button></div></div>
               <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', margin: '14px 0'}}><input value={sectionTitle} onChange={(event) => setSectionTitle(event.target.value)} aria-label="Bölüm başlığı" /><button type="button" onClick={createSection} disabled={busy}>Bölüm ekle</button></div>
               {(program.sections || []).map((section) => (
                 <div key={section.id} style={{borderTop: '1px solid #e5edf3', paddingTop: 12, marginTop: 12}}>
@@ -676,6 +684,6 @@ export function RemoteBasicOhsTrainingPanel({user}) {
 
   if (error) return <section style={cardStyle}><ErrorText value={error} /></section>;
   if (!meta) return <section style={cardStyle}>Uzaktan eğitim modülü yükleniyor…</section>;
-  if (!meta.enabled) return <section style={cardStyle}>Basic Occupational Health and Safety Training pilotu henüz etkin değil.</section>;
+  if (!meta.enabled) return <section style={cardStyle}>{REMOTE_TRAINING_DISPLAY_TITLE} pilotu henüz etkin değil.</section>;
   return <div style={{display: 'grid', gap: 16}}>{canManage && <ManagerPanel user={user} />}<EmployeePanel /></div>;
 }
