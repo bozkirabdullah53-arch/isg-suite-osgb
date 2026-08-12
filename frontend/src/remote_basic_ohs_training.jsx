@@ -5,6 +5,14 @@ const MANAGE_ROLES = ['global_admin', 'company_admin', 'safety_specialist'];
 const HISTORICAL_VIDEO_STATUSES = ['published', 'unpublished', 'archived'];
 const REMOTE_TRAINING_CANONICAL_TITLE = 'Basic Occupational Health and Safety Training';
 const REMOTE_TRAINING_DISPLAY_TITLE = 'Temel İş Sağlığı ve Güvenliği Eğitimi';
+const REMOTE_SECTOR_LABELS = {
+  common: 'Temel Ortak İSG',
+  construction: 'İnşaat',
+  battery: 'Akü ve Otomotiv',
+  foundry: 'Döküm',
+  metal: 'Metal',
+  logistics: 'Lojistik',
+};
 const STATUS_LABELS = {
   draft: 'Taslak',
   uploading: 'Yükleniyor',
@@ -37,6 +45,10 @@ function localizedTrainingTitle(value) {
     : value;
 }
 
+function sectorLabel(code) {
+  return REMOTE_SECTOR_LABELS[code] || code || 'Sektör belirtilmemiş';
+}
+
 function apiAbsoluteUrl(path) {
   const base = String(API_URL || '');
   if (/^https?:\/\//i.test(base)) return new URL(path, `${base}/`).toString();
@@ -45,7 +57,7 @@ function apiAbsoluteUrl(path) {
 
 function programVideoRows(program) {
   return (program?.sections || []).flatMap((section) =>
-    (section.videos || []).map((video) => ({...video, section_title: section.title})),
+    (section.videos || []).map((video) => ({...video, section_title: section.title, sector_code: section.sector_code})),
   );
 }
 
@@ -267,6 +279,9 @@ function EmployeePanel() {
           <div style={{marginTop: 16, padding: 12, borderRadius: 10, background: '#f4f8fb'}}>
             <strong>{localizedTrainingTitle(assignment.program?.title)}</strong>
             <ProgressBadge assignment={assignment} />
+            <div style={{marginTop: 6, color: '#36556d', fontSize: 12}}>
+              Ders kapsamı: <strong>{assignment.sector_names?.length ? assignment.sector_names.join(', ') : 'Eski kayıt — tüm yayımlanmış içerik'}</strong>
+            </div>
             {assignment.snapshot_warnings?.length > 0 && <p style={{margin: '8px 0 0', color: '#9a3412', fontSize: 12}}>Belge snapshot uyarısı: {assignment.snapshot_warnings.join(' ')}</p>}
           </div>
           <div style={{display: 'grid', gridTemplateColumns: 'minmax(220px, .8fr) minmax(320px, 1.5fr)', gap: 16, marginTop: 16}}>
@@ -375,10 +390,15 @@ function ManagerPanel({user}) {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [report, setReport] = useState(null);
+  const [sectorScope, setSectorScope] = useState(null);
+  const [selectedSectorCodes, setSelectedSectorCodes] = useState([]);
+  const [sectionSectorCode, setSectionSectorCode] = useState('common');
+  const [sectionSectorDrafts, setSectionSectorDrafts] = useState({});
   const [videoTitles, setVideoTitles] = useState({});
-  const [checkpointDraft, setCheckpointDraft] = useState({question_text: '', options: {A: '', B: '', C: '', D: ''}, correct_option: 'A', video_id: ''});
+  const [checkpointDraft, setCheckpointDraft] = useState({question_text: '', options: {A: '', B: '', C: '', D: ''}, correct_option: 'A', video_id: '', sector_code: 'common'});
   const [questionBank, setQuestionBank] = useState([]);
   const [examQuestionId, setExamQuestionId] = useState('');
+  const [examSectorCode, setExamSectorCode] = useState('common');
 
   async function loadCompanies() {
     const rows = await api('/companies');
@@ -427,6 +447,11 @@ function ManagerPanel({user}) {
     if (!id) return;
     const row = await api(`/trainings/remote/programs/${Number(id)}`);
     setProgram(row);
+    const scope = await api(`/trainings/remote/programs/${Number(id)}/sectors`);
+    setSectorScope(scope);
+    setSelectedSectorCodes(scope.mode === 'scoped' ? (scope.selected_sector_codes || []).filter((code) => code !== 'common') : []);
+    setSectionSectorCode((scope.selected_sector_codes || ['common']).find((code) => code !== 'common') || 'common');
+    setExamSectorCode((scope.selected_sector_codes || ['common'])[0] || 'common');
     await loadEmployees(row.company_id);
     await loadEmployeeAccess(row.company_id);
     await loadQuestionBank();
@@ -458,9 +483,32 @@ function ManagerPanel({user}) {
     if (!program) return;
     setBusy(true); setError('');
     try {
-      await api(`/trainings/remote/programs/${program.id}/sections`, {method: 'POST', body: JSON.stringify({title: sectionTitle})});
+      await api(`/trainings/remote/programs/${program.id}/sections`, {method: 'POST', body: JSON.stringify({title: sectionTitle, sector_code: sectionSectorCode})});
       await loadDetail(program.id); setMessage('Bölüm eklendi.');
     } catch (err) { setError(err.message || 'Bölüm eklenemedi.'); } finally { setBusy(false); }
+  }
+
+  async function saveSectorScope() {
+    if (!program) return;
+    setBusy(true); setError('');
+    try {
+      const out = await api(`/trainings/remote/programs/${program.id}/sectors`, {method: 'PUT', body: JSON.stringify({sector_codes: selectedSectorCodes})});
+      setSectorScope(out);
+      setSelectedSectorCodes((out.selected_sector_codes || []).filter((code) => code !== 'common'));
+      setMessage('Firma ders kapsamı kaydedildi. Yeni çalışan atamalarında yalnızca bu sektörler açılacak.');
+      await loadDetail(program.id);
+    } catch (err) { setError(err.message || 'Firma ders kapsamı kaydedilemedi.'); } finally { setBusy(false); }
+  }
+
+  async function saveSectionSector(section) {
+    if (!program) return;
+    const sectorCode = sectionSectorDrafts[section.id] || section.sector_code || 'common';
+    setBusy(true); setError('');
+    try {
+      await api(`/trainings/remote/sections/${section.id}`, {method: 'PATCH', body: JSON.stringify({sector_code: sectorCode})});
+      await loadDetail(program.id);
+      setMessage('Bölümün sektör kapsamı kaydedildi.');
+    } catch (err) { setError(err.message || 'Bölüm sektörü kaydedilemedi.'); } finally { setBusy(false); }
   }
 
   async function uploadVideo(section, file) {
@@ -557,8 +605,8 @@ function ManagerPanel({user}) {
     if (text.length < 3 || Object.values(options).some((value) => value.length < 1)) return setError('Video içi soru ve dört seçenek birlikte doldurulmalıdır.');
     setBusy(true); setError('');
     try {
-      await api(`/trainings/remote/programs/${program.id}/checkpoint-questions`, {method: 'POST', body: JSON.stringify({question_text: text, options, correct_option: checkpointDraft.correct_option, video_id: checkpointDraft.video_id ? Number(checkpointDraft.video_id) : null, order_index: (program.checkpoint_questions || []).length + 1, is_required: true})});
-      setCheckpointDraft({question_text: '', options: {A: '', B: '', C: '', D: ''}, correct_option: 'A', video_id: ''});
+      await api(`/trainings/remote/programs/${program.id}/checkpoint-questions`, {method: 'POST', body: JSON.stringify({question_text: text, options, correct_option: checkpointDraft.correct_option, sector_code: checkpointDraft.sector_code, video_id: checkpointDraft.video_id ? Number(checkpointDraft.video_id) : null, order_index: (program.checkpoint_questions || []).length + 1, is_required: true})});
+      setCheckpointDraft({question_text: '', options: {A: '', B: '', C: '', D: ''}, correct_option: 'A', video_id: '', sector_code: 'common'});
       await loadDetail(program.id);
       setMessage('Video içi kontrol sorusu eklendi.');
     } catch (err) { setError(err.message || 'Video içi soru eklenemedi.'); } finally { setBusy(false); }
@@ -569,7 +617,7 @@ function ManagerPanel({user}) {
     const position = (program.exam_question_links || []).length + 1;
     setBusy(true); setError('');
     try {
-      await api(`/trainings/remote/programs/${program.id}/exam/questions`, {method: 'POST', body: JSON.stringify({question_id: Number(examQuestionId), position})});
+      await api(`/trainings/remote/programs/${program.id}/exam/questions`, {method: 'POST', body: JSON.stringify({question_id: Number(examQuestionId), position, sector_code: examSectorCode})});
       setExamQuestionId('');
       await loadDetail(program.id);
       setMessage('Mevcut soru bankası sorusu final sınavına bağlandı.');
@@ -607,13 +655,32 @@ function ManagerPanel({user}) {
           {program ? (
             <>
               <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{statusLabel(program.status)} · eşik %{program.completion_threshold_percent}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button><button type="button" onClick={showReport} disabled={busy}>Rapor</button></div></div>
-              <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', margin: '14px 0'}}><input value={sectionTitle} onChange={(event) => setSectionTitle(event.target.value)} aria-label="Bölüm başlığı" /><button type="button" onClick={createSection} disabled={busy}>Bölüm ekle</button></div>
+              {sectorScope && <div style={{marginTop: 14, padding: 14, border: '1px solid #b9d8e8', borderRadius: 10, background: '#f4fbff'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
+                  <div><strong>Firma için sektör / ders kapsamı</strong><div style={{fontSize: 12, color: '#5e7485', marginTop: 4}}>Tüm dersler tek katalogda tutulur. Çalışana atama yapıldığında yalnızca burada seçilen sektörler açılır ve sınav soruları aynı kapsamdan gelir.</div></div>
+                  <button type="button" onClick={saveSectorScope} disabled={busy || ['published', 'archived'].includes(program.status)}>Firma ders kapsamını kaydet</button>
+                </div>
+                {sectorScope.mode === 'legacy' && <div style={{marginTop: 10, padding: 8, borderRadius: 7, background: '#fff8e8', color: '#8a5a00', fontSize: 12}}>Bu eski taslakta sektör kapsamı henüz kaydedilmemiş. Mevcut atamalar eski davranışla korunur; yeni atamalardan önce kapsamı kaydetmeniz önerilir.</div>}
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8, marginTop: 12}}>
+                  {sectorScope.sectors.map((sector) => {
+                    const checked = sector.code === 'common' || selectedSectorCodes.includes(sector.code);
+                    return <label key={sector.code} style={{display: 'block', padding: 10, border: `1px solid ${checked ? '#37a6c6' : '#dbe5ef'}`, borderRadius: 8, background: checked ? '#fff' : '#fafcfe', cursor: sector.locked ? 'default' : 'pointer'}}>
+                      <input type="checkbox" checked={checked} disabled={sector.locked || busy || ['published', 'archived'].includes(program.status)} onChange={() => setSelectedSectorCodes((current) => current.includes(sector.code) ? current.filter((code) => code !== sector.code) : [...current, sector.code])} /> <strong>{sector.label}</strong>
+                      <span style={{display: 'block', color: '#5e7485', fontSize: 11, marginTop: 4}}>{sector.description}</span>
+                      <span style={{display: 'block', color: '#496174', fontSize: 11, marginTop: 5}}>{sector.section_count} bölüm · {sector.video_count} video · {sector.question_count} soru</span>
+                    </label>;
+                  })}
+                </div>
+                <div style={{fontSize: 12, color: '#36556d', marginTop: 10}}>Seçili kapsam: <strong>{['common', ...selectedSectorCodes].map(sectorLabel).join(', ')}</strong></div>
+              </div>}
+              <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', margin: '14px 0'}}><input value={sectionTitle} onChange={(event) => setSectionTitle(event.target.value)} aria-label="Bölüm başlığı" /><label style={{display: 'flex', alignItems: 'center', gap: 5}}>Bölümün sektörü <select value={sectionSectorCode} onChange={(event) => setSectionSectorCode(event.target.value)}>{(sectorScope?.sectors || []).map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label><button type="button" onClick={createSection} disabled={busy || ['published', 'archived'].includes(program.status)}>Bölüm ekle</button></div>
               {(program.sections || []).map((section) => (
                 <div key={section.id} style={{borderTop: '1px solid #e5edf3', paddingTop: 12, marginTop: 12}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}>
-                    <strong>{section.order_index}. {section.title}</strong>
+                    <div><strong>{section.order_index}. {section.title}</strong><span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 3}}>Sektör: {sectorLabel(section.sector_code)}</span></div>
                     <label style={{fontSize: 12, color: '#496174', fontWeight: 600}}>Video ekle <input type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" onChange={(event) => {uploadVideo(section, event.target.files?.[0]); event.target.value = '';}} /></label>
                   </div>
+                  <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8}}><label style={{fontSize: 12, color: '#496174'}}>Bölüm sektörü <select value={sectionSectorDrafts[section.id] || section.sector_code || 'common'} onChange={(event) => setSectionSectorDrafts((current) => ({...current, [section.id]: event.target.value}))}>{(sectorScope?.sectors || []).map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label><button type="button" onClick={() => saveSectionSector(section)} disabled={busy || ['published', 'archived'].includes(program.status)}>Sektörü kaydet</button></div>
                   {(section.videos || []).map((video) => (
                     <div key={video.id} style={{marginTop: 8, padding: 10, borderRadius: 8, background: '#f7fafc', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}>
                       <div style={{minWidth: 240, flex: 1}}>
@@ -641,6 +708,7 @@ function ManagerPanel({user}) {
                 <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 6}}>
                   <label>Doğru seçenek <select value={checkpointDraft.correct_option} onChange={(event) => setCheckpointDraft((current) => ({...current, correct_option: event.target.value}))}><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></label>
                   <label>Video <select value={checkpointDraft.video_id} onChange={(event) => setCheckpointDraft((current) => ({...current, video_id: event.target.value}))}><option value="">Genel</option>{programVideoRows(program).map((video) => <option key={video.id} value={video.id}>{video.section_title} · {video.title}</option>)}</select></label>
+                  <label>Sektör <select value={checkpointDraft.sector_code} onChange={(event) => setCheckpointDraft((current) => ({...current, sector_code: event.target.value}))}>{(sectorScope?.sectors || []).map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label>
                   <button type="button" onClick={createCheckpointQuestion} disabled={busy || ['published', 'archived'].includes(program.status)}>Soruyu kaydet</button>
                 </div>
                 {(program.checkpoint_questions || []).length > 0 && <div style={{fontSize: 12, color: '#496174', marginTop: 8}}>{program.checkpoint_questions.length} video içi kontrol sorusu tanımlı.</div>}
@@ -649,6 +717,7 @@ function ManagerPanel({user}) {
                 <strong>Final sınavı — mevcut soru bankası</strong>
                 <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8}}>
                   {questionBank.length > 0 ? <select value={examQuestionId} onChange={(event) => setExamQuestionId(event.target.value)} aria-label="Soru bankası sorusu"><option value="">Yayımlanmış soru seçin</option>{questionBank.map((question) => <option key={question.id} value={question.id}>#{question.id} · {question.question_text.slice(0, 90)}</option>)}</select> : <input type="number" min="1" value={examQuestionId} onChange={(event) => setExamQuestionId(event.target.value)} placeholder="Yayımlanmış soru ID" aria-label="Yayımlanmış soru ID" />}
+                  <label>Soru sektörü <select value={examSectorCode} onChange={(event) => setExamSectorCode(event.target.value)}>{(sectorScope?.sectors || []).map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label>
                   <button type="button" onClick={linkExamQuestion} disabled={busy || ['published', 'archived'].includes(program.status)}>Soruyu sınava bağla</button>
                 </div>
                 {(program.exam_question_links || []).length > 0 && <div style={{fontSize: 12, color: '#496174', marginTop: 8}}>{program.exam_question_links.length} mevcut soru final sınavına bağlı.</div>}
@@ -663,7 +732,7 @@ function ManagerPanel({user}) {
                 </div>
                 {employeeAccess.length > 0 && <div style={{fontSize: 12, color: '#496174', marginTop: 8}}>Eşleştirilmiş çalışan hesabı: {employeeAccess.length}</div>}
               </div>
-              <div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}><strong>Çalışanlara ata</strong><div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}><select multiple size={5} value={selectedEmployees.map(String)} onChange={(event) => setSelectedEmployees([...event.target.selectedOptions].map((option) => Number(option.value)))} aria-label="Çalışanlar">{employees.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</select><button type="button" onClick={assign} disabled={busy || !selectedEmployees.length}>Atamayı kaydet</button></div></div>
+              <div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}><strong>Çalışanlara ata</strong><p style={{margin: '6px 0', color: '#5e7485', fontSize: 12}}>Atama sırasında yukarıda kaydedilen sektör kapsamı çalışana sabitlenir. Çalışan yalnızca bu kapsamın videolarını ve sınav sorularını görür.</p><div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}><select multiple size={5} value={selectedEmployees.map(String)} onChange={(event) => setSelectedEmployees([...event.target.selectedOptions].map((option) => Number(option.value)))} aria-label="Çalışanlar">{employees.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</select><button type="button" onClick={assign} disabled={busy || !selectedEmployees.length}>Atamayı kaydet</button></div></div>
             </>
           ) : <p style={{color: '#5e7485'}}>Detay ve video yaşam döngüsünü görmek için bir taslak seçin.</p>}
         </div>

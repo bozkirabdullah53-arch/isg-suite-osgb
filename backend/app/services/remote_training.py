@@ -27,8 +27,12 @@ from app.core.security import ALGORITHM
 from app.models.entities import Branch, Company, Employee, TrainingQuestion, User, UserRole
 from app.models.remote_training import (
     ASSET_TYPES,
+    REMOTE_SECTOR_CATALOG,
+    REMOTE_SECTOR_CODES,
+    REMOTE_SECTOR_LABELS,
     REMOTE_TRAINING_TYPE,
     RemoteTrainingAssignment,
+    RemoteTrainingAssignmentSector,
     RemoteTrainingAuditLog,
     RemoteTrainingAsset,
     RemoteTrainingCertificate,
@@ -38,6 +42,7 @@ from app.models.remote_training import (
     RemoteTrainingExamAttempt,
     RemoteTrainingProgram,
     RemoteTrainingProgramQuestion,
+    RemoteTrainingProgramSector,
     RemoteTrainingQuestion,
     RemoteTrainingSection,
     RemoteTrainingVideo,
@@ -109,6 +114,126 @@ def is_manager(user: User) -> bool:
 
 def _not_found(message: str = "Uzaktan eğitim kaydı bulunamadı.") -> HTTPException:
     return HTTPException(404, message)
+
+
+def validate_sector_code(code: str | None, *, allow_none: bool = False) -> str | None:
+    normalized = str(code or "").strip().lower()
+    if allow_none and not normalized:
+        return None
+    if normalized not in REMOTE_SECTOR_CODES:
+        raise HTTPException(422, "Geçersiz uzaktan eğitim sektör kodu.")
+    return normalized
+
+
+def sector_label(code: str) -> str:
+    return REMOTE_SECTOR_LABELS.get(code, code)
+
+
+def program_sector_codes(db: Session, program_id: int) -> set[str] | None:
+    """Return the configured scope; ``None`` preserves pre-scope programs."""
+    rows = list(
+        db.scalars(
+            select(RemoteTrainingProgramSector).where(
+                RemoteTrainingProgramSector.program_id == program_id
+            )
+        ).all()
+    )
+    if not rows:
+        return None
+    return {"common"} | {
+        row.sector_code for row in rows if row.is_enabled and row.sector_code in REMOTE_SECTOR_CODES
+    }
+
+
+def assignment_sector_codes(
+    db: Session, assignment: RemoteTrainingAssignment
+) -> set[str] | None:
+    rows = list(
+        db.scalars(
+            select(RemoteTrainingAssignmentSector).where(
+                RemoteTrainingAssignmentSector.assignment_id == assignment.id
+            )
+        ).all()
+    )
+    if rows:
+        return {"common"} | {
+            row.sector_code for row in rows if row.sector_code in REMOTE_SECTOR_CODES
+        }
+    return program_sector_codes(db, assignment.program_id)
+
+
+def assignment_allows_sector(
+    db: Session, assignment: RemoteTrainingAssignment, sector_code: str
+) -> bool:
+    scope = assignment_sector_codes(db, assignment)
+    return scope is None or sector_code in scope
+
+
+def build_program_sector_catalog(
+    db: Session,
+    program: RemoteTrainingProgram,
+    *,
+    visible_sector_codes: set[str] | None = None,
+) -> dict[str, Any]:
+    rows = list(
+        db.scalars(
+            select(RemoteTrainingProgramSector).where(
+                RemoteTrainingProgramSector.program_id == program.id
+            )
+        ).all()
+    )
+    configured = bool(rows)
+    selected = {"common"} | {
+        row.sector_code for row in rows if row.is_enabled and row.sector_code in REMOTE_SECTOR_CODES
+    }
+    sections = list(
+        db.scalars(
+            select(RemoteTrainingSection).where(RemoteTrainingSection.program_id == program.id)
+        ).all()
+    )
+    videos = list(
+        db.scalars(
+            select(RemoteTrainingVideo).where(RemoteTrainingVideo.program_id == program.id)
+        ).all()
+    )
+    section_ids_by_sector: dict[str, set[int]] = {}
+    for section in sections:
+        section_ids_by_sector.setdefault(section.sector_code, set()).add(section.id)
+    questions = list(
+        db.scalars(
+            select(RemoteTrainingQuestion).where(RemoteTrainingQuestion.program_id == program.id)
+        ).all()
+    )
+    catalog = []
+    for code, label, description in REMOTE_SECTOR_CATALOG:
+        if visible_sector_codes is not None and code not in visible_sector_codes:
+            continue
+        section_ids = section_ids_by_sector.get(code, set())
+        catalog.append(
+            {
+                "code": code,
+                "label": label,
+                "description": description,
+                "enabled": code in selected if configured else False,
+                "locked": code == "common",
+                "section_count": sum(1 for section in sections if section.sector_code == code and section.status != "archived"),
+                "video_count": sum(
+                    1
+                    for video in videos
+                    if video.section_id in section_ids
+                    and video.is_current
+                    and video.status != "archived"
+                ),
+                "question_count": sum(1 for question in questions if question.sector_code == code),
+            }
+        )
+    return {
+        "program_id": program.id,
+        "mode": "scoped" if configured else "legacy",
+        "selected_sector_codes": sorted(selected) if configured else [],
+        "selected_sector_labels": [sector_label(code) for code in sorted(selected)] if configured else [],
+        "sectors": catalog,
+    }
 
 
 def load_program(db: Session, program_id: int) -> RemoteTrainingProgram:
@@ -393,20 +518,26 @@ def recalculate_program_duration(db: Session, program_id: int) -> int:
     return program.total_duration_seconds
 
 
-def _current_required_videos(db: Session, program_id: int) -> list[RemoteTrainingVideo]:
+def _current_required_videos(
+    db: Session, program_id: int, sector_codes: set[str] | None = None
+) -> list[RemoteTrainingVideo]:
+    stmt = (
+        select(RemoteTrainingVideo)
+        .join(RemoteTrainingSection, RemoteTrainingSection.id == RemoteTrainingVideo.section_id)
+        .where(
+            RemoteTrainingVideo.program_id == program_id,
+            RemoteTrainingVideo.is_current.is_(True),
+            RemoteTrainingVideo.is_required.is_(True),
+            RemoteTrainingVideo.status == "published",
+            RemoteTrainingSection.status == "active",
+            RemoteTrainingSection.is_required.is_(True),
+        )
+    )
+    if sector_codes is not None:
+        stmt = stmt.where(RemoteTrainingSection.sector_code.in_(sector_codes))
     return list(
         db.scalars(
-            select(RemoteTrainingVideo)
-            .join(RemoteTrainingSection, RemoteTrainingSection.id == RemoteTrainingVideo.section_id)
-            .where(
-                RemoteTrainingVideo.program_id == program_id,
-                RemoteTrainingVideo.is_current.is_(True),
-                RemoteTrainingVideo.is_required.is_(True),
-                RemoteTrainingVideo.status == "published",
-                RemoteTrainingSection.status == "active",
-                RemoteTrainingSection.is_required.is_(True),
-            )
-            .order_by(RemoteTrainingSection.order_index, RemoteTrainingVideo.order_index)
+            stmt.order_by(RemoteTrainingSection.order_index, RemoteTrainingVideo.order_index)
         ).all()
     )
 
@@ -427,7 +558,8 @@ def _latest_checkpoint_answer(
 
 def recalculate_assignment(db: Session, assignment: RemoteTrainingAssignment) -> dict[str, Any]:
     program = load_program(db, assignment.program_id)
-    required_videos = _current_required_videos(db, program.id)
+    sector_codes = assignment_sector_codes(db, assignment)
+    required_videos = _current_required_videos(db, program.id, sector_codes)
     progress_rows = list(
         db.scalars(
             select(RemoteTrainingVideoProgress).where(
@@ -441,14 +573,13 @@ def recalculate_assignment(db: Session, assignment: RemoteTrainingAssignment) ->
         and progress_by_video[video.id].status == "completed"
         for video in required_videos
     }
-    required_questions = list(
-        db.scalars(
-            select(RemoteTrainingQuestion).where(
-                RemoteTrainingQuestion.program_id == program.id,
-                RemoteTrainingQuestion.is_required.is_(True),
-            )
-        ).all()
+    question_stmt = select(RemoteTrainingQuestion).where(
+        RemoteTrainingQuestion.program_id == program.id,
+        RemoteTrainingQuestion.is_required.is_(True),
     )
+    if sector_codes is not None:
+        question_stmt = question_stmt.where(RemoteTrainingQuestion.sector_code.in_(sector_codes))
+    required_questions = list(db.scalars(question_stmt).all())
     checkpoint_complete = all(
         (answer := _latest_checkpoint_answer(db, assignment.id, question.id)) is not None
         and bool(answer.is_correct)
@@ -475,6 +606,8 @@ def recalculate_assignment(db: Session, assignment: RemoteTrainingAssignment) ->
         assignment.status = "in_progress" if started else "not_started"
         assignment.completed_at = None
     return {
+        "sector_codes": sorted(sector_codes) if sector_codes is not None else None,
+        "sector_scope_mode": "scoped" if sector_codes is not None else "legacy",
         "required_video_count": len(required_videos),
         "completed_video_count": sum(1 for value in video_complete.values() if value),
         "required_videos_complete": required_complete,
@@ -653,6 +786,9 @@ def decode_playback_token(db: Session, token: str, video_id: int) -> tuple[User,
         if assignment.program_id != program.id or assignment.employee_id <= 0:
             raise HTTPException(403, "Video ataması geçersiz.")
         assert_assignment_access(db, user, assignment, write=False)
+        section = load_section(db, video.section_id)
+        if not assignment_allows_sector(db, assignment, section.sector_code):
+            raise HTTPException(403, "Video bu çalışanın ders kapsamına dahil değil.")
         if program.status != "published" or video.status != "published" or not video.is_current:
             raise HTTPException(403, "Video henüz çalışana açık değil.")
     else:

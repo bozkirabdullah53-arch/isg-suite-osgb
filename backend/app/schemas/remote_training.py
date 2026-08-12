@@ -41,6 +41,7 @@ class RemoteProgramUpdate(RemoteModel):
 
 
 class RemoteSectionCreate(RemoteModel):
+    sector_code: str = Field(default="common", min_length=2, max_length=64)
     title: str = Field(min_length=2, max_length=220)
     description: str | None = Field(default=None, max_length=5000)
     learning_objectives: str | None = Field(default=None, max_length=5000)
@@ -49,6 +50,7 @@ class RemoteSectionCreate(RemoteModel):
 
 
 class RemoteSectionUpdate(RemoteModel):
+    sector_code: str | None = Field(default=None, min_length=2, max_length=64)
     title: str | None = Field(default=None, min_length=2, max_length=220)
     description: str | None = Field(default=None, max_length=5000)
     learning_objectives: str | None = Field(default=None, max_length=5000)
@@ -85,6 +87,7 @@ class RemoteProgressCreate(RemoteModel):
 
 
 class RemoteCheckpointQuestionCreate(RemoteModel):
+    sector_code: str | None = Field(default=None, min_length=2, max_length=64)
     question_text: str = Field(min_length=3, max_length=3000)
     options: dict[str, str]
     correct_option: str = Field(pattern=r"^[A-Da-d]$")
@@ -112,6 +115,23 @@ class RemoteCheckpointQuestionCreate(RemoteModel):
 class RemoteProgramQuestionLink(RemoteModel):
     question_id: int = Field(gt=0)
     position: int = Field(default=1, ge=1)
+    sector_code: str | None = Field(default=None, min_length=2, max_length=64)
+
+
+class RemoteProgramSectorUpdate(RemoteModel):
+    sector_codes: list[str] = Field(default_factory=list, max_length=20)
+
+    @field_validator("sector_codes")
+    @classmethod
+    def normalize_sector_codes(cls, value: list[str]) -> list[str]:
+        normalized = []
+        seen = set()
+        for item in value:
+            code = str(item).strip().lower()
+            if code and code not in seen:
+                normalized.append(code)
+                seen.add(code)
+        return normalized
 
 
 class RemoteExamSubmit(RemoteModel):
