@@ -43,6 +43,24 @@ ASSIGNMENT_STATUSES = ("not_started", "in_progress", "completed", "failed", "exp
 PROGRESS_STATUSES = ("not_started", "in_progress", "completed")
 ASSET_TYPES = ("thumbnail", "subtitle", "supporting_document")
 
+# The remote Basic OHS catalog is intentionally explicit.  Keeping the
+# identifiers stable lets a company select a sector once and keeps the same
+# scope attached to employee assignments and exam questions.
+REMOTE_SECTOR_CATALOG = (
+    ("common", "Temel Ortak İSG", "Tüm sektörlerde ortak temel iş sağlığı ve güvenliği içeriği."),
+    ("construction", "İnşaat", "İnşaat işleri ve saha riskleriyle ilgili dersler."),
+    (
+        "battery",
+        "Akü ve Otomotiv",
+        "Akü üretimi, servis ve otomotiv çalışma riskleriyle ilgili dersler.",
+    ),
+    ("foundry", "Döküm", "Dökümhane, ergitme ve sıcak metal çalışma riskleriyle ilgili dersler."),
+    ("metal", "Metal", "Metal işleme, kesme, kaynak ve ilgili çalışma riskleriyle ilgili dersler."),
+    ("logistics", "Lojistik", "Depolama, yükleme, taşıma ve lojistik çalışma riskleriyle ilgili dersler."),
+)
+REMOTE_SECTOR_CODES = frozenset(item[0] for item in REMOTE_SECTOR_CATALOG)
+REMOTE_SECTOR_LABELS = {item[0]: item[1] for item in REMOTE_SECTOR_CATALOG}
+
 
 class RemoteTrainingProgram(Base):
     __tablename__ = "remote_training_programs"
@@ -89,6 +107,38 @@ class RemoteTrainingProgram(Base):
     )
 
 
+class RemoteTrainingProgramSector(Base):
+    """Sector scope selected for a company training program."""
+
+    __tablename__ = "remote_training_program_sectors"
+    __table_args__ = (
+        UniqueConstraint("program_id", "sector_code", name="uq_remote_program_sector"),
+        Index("ix_remote_program_sectors_company", "company_id"),
+        Index("ix_remote_program_sectors_program_enabled", "program_id", "is_enabled"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    osgb_id: Mapped[int | None] = mapped_column(
+        ForeignKey("osgb_organizations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    program_id: Mapped[int] = mapped_column(
+        ForeignKey("remote_training_programs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sector_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    sector_name_snapshot: Mapped[str] = mapped_column(String(180), nullable=False)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
 class RemoteTrainingSection(Base):
     __tablename__ = "remote_training_sections"
     __table_args__ = (
@@ -106,6 +156,9 @@ class RemoteTrainingSection(Base):
     )
     program_id: Mapped[int] = mapped_column(
         ForeignKey("remote_training_programs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sector_code: Mapped[str] = mapped_column(
+        String(64), default="common", server_default="common", nullable=False, index=True
     )
     title: Mapped[str] = mapped_column(String(220), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -250,6 +303,40 @@ class RemoteTrainingAssignment(Base):
     )
 
 
+class RemoteTrainingAssignmentSector(Base):
+    """Immutable sector-scope snapshot captured when an assignment is made."""
+
+    __tablename__ = "remote_training_assignment_sectors"
+    __table_args__ = (
+        UniqueConstraint("assignment_id", "sector_code", name="uq_remote_assignment_sector"),
+        Index("ix_remote_assignment_sectors_company", "company_id"),
+        Index("ix_remote_assignment_sectors_assignment_employee", "assignment_id", "employee_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    osgb_id: Mapped[int | None] = mapped_column(
+        ForeignKey("osgb_organizations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    program_id: Mapped[int] = mapped_column(
+        ForeignKey("remote_training_programs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("remote_training_assignments.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    sector_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    sector_name_snapshot: Mapped[str] = mapped_column(String(180), nullable=False)
+    created_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class RemoteTrainingVideoProgress(Base):
     __tablename__ = "remote_training_video_progress"
     __table_args__ = (
@@ -353,6 +440,9 @@ class RemoteTrainingQuestion(Base):
     video_id: Mapped[int | None] = mapped_column(
         ForeignKey("remote_training_videos.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    sector_code: Mapped[str] = mapped_column(
+        String(64), default="common", server_default="common", nullable=False, index=True
+    )
     question_text: Mapped[str] = mapped_column(Text, nullable=False)
     options_json: Mapped[str] = mapped_column(Text, nullable=False)
     correct_option: Mapped[str] = mapped_column(String(1), nullable=False)
@@ -413,6 +503,7 @@ class RemoteTrainingProgramQuestion(Base):
     question_id: Mapped[int] = mapped_column(
         ForeignKey("training_questions.id", ondelete="RESTRICT"), nullable=False, index=True
     )
+    sector_code: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     created_by_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True

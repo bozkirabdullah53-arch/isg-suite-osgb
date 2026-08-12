@@ -45,7 +45,7 @@ def _scope_rows(db: Session):
     )
     employee = Employee(company_id=company.id, branch=branch, full_name="Çalışan Test", is_active=True)
     user = User(
-        email="employee-remote@test.invalid",
+        email="employee-remote@example.com",
         full_name="Çalışan Kullanıcısı",
         hashed_password="x",
         role=UserRole.READ_ONLY,
@@ -155,6 +155,225 @@ def test_remote_assignment_recalculation_requires_real_progress_and_exam():
         assert assignment.status == "completed"
 
 
+def test_remote_assignment_sector_snapshot_limits_required_content():
+    from app.models.remote_training import (
+        RemoteTrainingAssignment,
+        RemoteTrainingAssignmentSector,
+        RemoteTrainingProgram,
+        RemoteTrainingProgramQuestion,
+        RemoteTrainingProgramSector,
+        RemoteTrainingQuestion,
+        RemoteTrainingSection,
+        RemoteTrainingVideo,
+    )
+    from app.api.remote_training import _exam_links_for_assignment, _program_detail
+    from app.models.entities import TrainingQuestion
+    from app.services.remote_training import recalculate_assignment
+
+    engine = _db()
+    with Session(engine) as db:
+        osgb, company, branch, employee, _user = _scope_rows(db)
+        program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title="Basic Occupational Health and Safety Training",
+            requires_final_exam=False,
+        )
+        db.add(program)
+        db.flush()
+        db.add_all(
+            [
+                RemoteTrainingProgramSector(
+                    osgb_id=osgb.id,
+                    company_id=company.id,
+                    program_id=program.id,
+                    sector_code="common",
+                    sector_name_snapshot="Temel Ortak İSG",
+                    is_enabled=True,
+                ),
+                RemoteTrainingProgramSector(
+                    osgb_id=osgb.id,
+                    company_id=company.id,
+                    program_id=program.id,
+                    sector_code="construction",
+                    sector_name_snapshot="İnşaat",
+                    is_enabled=True,
+                ),
+            ]
+        )
+        common_section = RemoteTrainingSection(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            sector_code="common",
+            title="Ortak bölüm",
+        )
+        construction_section = RemoteTrainingSection(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            sector_code="construction",
+            title="İnşaat bölümü",
+            order_index=2,
+        )
+        db.add_all([common_section, construction_section])
+        db.flush()
+        common_video = RemoteTrainingVideo(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            section_id=common_section.id,
+            title="Ortak video",
+            original_file_name="ortak.mp4",
+            content_type="video/mp4",
+            storage_key="1/remote-basic-ohs/common.mp4",
+            duration_seconds=100,
+            status="published",
+            is_current=True,
+        )
+        construction_video = RemoteTrainingVideo(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            section_id=construction_section.id,
+            title="İnşaat video",
+            original_file_name="insaat.mp4",
+            content_type="video/mp4",
+            storage_key="1/remote-basic-ohs/construction.mp4",
+            duration_seconds=100,
+            status="published",
+            is_current=True,
+        )
+        db.add_all([common_video, construction_video])
+        db.flush()
+        db.add_all(
+            [
+                RemoteTrainingQuestion(
+                    osgb_id=osgb.id,
+                    company_id=company.id,
+                    program_id=program.id,
+                    sector_code="common",
+                    question_text="Ortak soru",
+                    options_json='{"A":"1","B":"2","C":"3","D":"4"}',
+                    correct_option="A",
+                    is_required=True,
+                ),
+                RemoteTrainingQuestion(
+                    osgb_id=osgb.id,
+                    company_id=company.id,
+                    program_id=program.id,
+                    sector_code="construction",
+                    question_text="İnşaat sorusu",
+                    options_json='{"A":"1","B":"2","C":"3","D":"4"}',
+                    correct_option="A",
+                    is_required=True,
+                ),
+            ]
+        )
+        db.flush()
+        bank_common = TrainingQuestion(
+            question_code="REMOTE-COMMON-1",
+            version=1,
+            status="published",
+            topic_code="remote-common",
+            topic_label="Temel Ortak İSG",
+            question_text="Ortak final sorusu",
+            option_a="1",
+            option_b="2",
+            option_c="3",
+            option_d="4",
+            correct_option="A",
+            answer_explanation="",
+            created_by_id=_user.id,
+        )
+        bank_construction = TrainingQuestion(
+            question_code="REMOTE-CONSTRUCTION-1",
+            version=1,
+            status="published",
+            topic_code="remote-construction",
+            topic_label="İnşaat",
+            question_text="İnşaat final sorusu",
+            option_a="1",
+            option_b="2",
+            option_c="3",
+            option_d="4",
+            correct_option="A",
+            answer_explanation="",
+            created_by_id=_user.id,
+        )
+        db.add_all([bank_common, bank_construction])
+        db.flush()
+        db.add_all(
+            [
+                RemoteTrainingProgramQuestion(
+                    company_id=company.id,
+                    program_id=program.id,
+                    question_id=bank_common.id,
+                    sector_code="common",
+                    position=1,
+                ),
+                RemoteTrainingProgramQuestion(
+                    company_id=company.id,
+                    program_id=program.id,
+                    question_id=bank_construction.id,
+                    sector_code="construction",
+                    position=2,
+                ),
+            ]
+        )
+        assignment = RemoteTrainingAssignment(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            branch_id=branch.id,
+            program_id=program.id,
+            employee_id=employee.id,
+            employee_name_snapshot=employee.full_name,
+        )
+        db.add(assignment)
+        db.flush()
+        db.add(
+            RemoteTrainingAssignmentSector(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                program_id=program.id,
+                assignment_id=assignment.id,
+                employee_id=employee.id,
+                sector_code="common",
+                sector_name_snapshot="Temel Ortak İSG",
+            )
+        )
+        db.flush()
+
+        common_only = recalculate_assignment(db, assignment)
+        assert common_only["sector_codes"] == ["common"]
+        assert common_only["required_video_count"] == 1
+        assert common_only["required_checkpoint_count"] == 1
+        assert [link.sector_code for link in _exam_links_for_assignment(db, assignment)] == ["common"]
+
+        program.status = "published"
+        employee_view = _program_detail(db, program, employee=True, sector_codes={"common"})
+        assert [section["sector_code"] for section in employee_view["sections"]] == ["common"]
+        assert [question["sector_code"] for question in employee_view["checkpoint_questions"]] == ["common"]
+
+        db.add(
+            RemoteTrainingAssignmentSector(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                program_id=program.id,
+                assignment_id=assignment.id,
+                employee_id=employee.id,
+                sector_code="construction",
+                sector_name_snapshot="İnşaat",
+            )
+        )
+        db.flush()
+        expanded = recalculate_assignment(db, assignment)
+        assert expanded["sector_codes"] == ["common", "construction"]
+        assert expanded["required_video_count"] == 2
+        assert expanded["required_checkpoint_count"] == 2
+        assert [link.sector_code for link in _exam_links_for_assignment(db, assignment)] == ["common", "construction"]
+
+
 def test_mapped_employee_access_does_not_need_legacy_user_employee_id():
     from app.models.remote_training import RemoteTrainingAssignment, RemoteTrainingEmployeeAccess
     from app.services.remote_training import assert_assignment_access
@@ -261,6 +480,21 @@ def test_remote_api_is_feature_flagged_and_uses_basic_type_only(remote_client):
     assert created.status_code == 201, created.text
     assert created.json()["training_type"] == "Basic Occupational Health and Safety Training"
 
+    program_id = created.json()["id"]
+    scope = remote_client.get(f"/api/v1/trainings/remote/programs/{program_id}/sectors", headers=headers)
+    assert scope.status_code == 200, scope.text
+    assert scope.json()["mode"] == "scoped"
+    assert "common" in scope.json()["selected_sector_codes"]
+    assert any(row["code"] == "construction" and not row["enabled"] for row in scope.json()["sectors"])
+
+    updated_scope = remote_client.put(
+        f"/api/v1/trainings/remote/programs/{program_id}/sectors",
+        headers=headers,
+        json={"sector_codes": ["construction"]},
+    )
+    assert updated_scope.status_code == 200, updated_scope.text
+    assert updated_scope.json()["selected_sector_codes"] == ["common", "construction"]
+
     from app.core.config import settings
 
     settings.remote_basic_ohs_training_force_off = True
@@ -316,7 +550,7 @@ def test_remote_employee_account_onboarding_mapping(remote_client):
 
     employee_login = remote_client.post(
         "/api/v1/auth/login",
-        json={"email": "employee-remote@test.invalid", "password": "TestPass123!"},
+        json={"email": "employee-remote@example.com", "password": "TestPass123!"},
     )
     assert employee_login.status_code == 200, employee_login.text
     employee_headers = {"Authorization": f"Bearer {employee_login.json()['access_token']}"}
