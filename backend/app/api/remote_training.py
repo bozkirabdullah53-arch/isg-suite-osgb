@@ -19,7 +19,11 @@ from sqlalchemy.orm import Session
 
 from app.api.company_access import accessible_company_ids_or_empty, ensure_company_access
 from app.api.deps import get_current_user
-from app.core.config import settings
+from app.core.config import (
+    remote_basic_ohs_strict_policy_active,
+    remote_basic_ohs_strict_policy_package_codes,
+    settings,
+)
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.models.entities import Branch, Company, Employee, TrainingQuestion, User, UserRole
@@ -719,6 +723,14 @@ def remote_training_meta(
         "catalog_statuses": list(PROGRAM_STATUSES),
         "can_manage": is_manager(user),
         "can_view_employee_panel": bool(feature_active() and employee_access(db, user) is not None),
+        "strict_policy": {
+            "enabled": bool(getattr(settings, "remote_basic_ohs_strict_policy_enabled", False)),
+            "force_off": bool(getattr(settings, "remote_basic_ohs_strict_policy_force_off", False)),
+            "package_codes": sorted(remote_basic_ohs_strict_policy_package_codes()),
+            "company_allowlist_configured": bool(
+                str(getattr(settings, "remote_basic_ohs_strict_policy_pilot_company_ids", "") or "").strip()
+            ),
+        },
     }
 
 
@@ -779,6 +791,12 @@ def materialize_catalog_package(
     if package.status != "published":
         raise HTTPException(409, "Yalnızca yayımlanmış merkezi paket firmaya hazırlanabilir.")
     ensure_company_access(db, user, payload.company_id)
+    if not remote_basic_ohs_strict_policy_active(package.code, payload.company_id):
+        raise HTTPException(
+            409,
+            "Bu paket merkezi katalogda yayımlandı; çalışanlara açılacak firma sürümü "
+            "kontrollü pilot politikası etkinleştirildiğinde hazırlanabilir.",
+        )
     branch = validate_branch(db, payload.company_id, payload.branch_id)
     company = db.get(Company, payload.company_id)
     if not company or not company.is_active:
