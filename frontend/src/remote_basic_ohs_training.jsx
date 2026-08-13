@@ -1309,6 +1309,13 @@ export function RemoteBasicOhsTrainingPanel({user}) {
   if (error) return <section className="remote-training-panel remote-training-card" style={cardStyle}><ErrorText value={error} /></section>;
   if (!meta) return <section className="remote-training-panel remote-training-card" style={cardStyle}>Uzaktan eğitim modülü yükleniyor…</section>;
   if (!meta.enabled) return <section className="remote-training-panel remote-training-card" style={cardStyle}>{REMOTE_TRAINING_DISPLAY_TITLE} modülü henüz etkin değil.</section>;
+  if (!canManage) {
+    if (meta.can_view_employee_panel) return <div className="remote-training-panel"><EmployeePanel /></div>;
+    return <section className="remote-training-panel remote-training-card" style={cardStyle}>
+      <strong>Çalışan eğitimleri</strong>
+      <p style={{marginBottom: 0, color: '#5e7485'}}>Bu hesapta görüntülenecek bir çalışan eğitimi bulunmuyor veya erişim henüz eşleştirilmedi.</p>
+    </section>;
+  }
   return <div className="remote-training-panel" style={{display: 'grid', gap: 16}}>
     <div className="remote-training-flow" aria-label="Uzaktan eğitim yaşam döngüsü">
       <div className="remote-training-flow-item"><span>1</span><div><strong>Merkezi içerik</strong><small>Video ve sınav bankası hazırlanır.</small></div></div>
@@ -1325,10 +1332,5 @@ export function RemoteBasicOhsTrainingPanel({user}) {
       <summary style={{cursor: 'pointer', fontWeight: 800, color: '#123b59', padding: '8px 2px'}}>Çalışan ekranı önizlemesi / kendi eğitimlerim</summary>
       <div style={{marginTop: 12}}><EmployeePanel /></div>
     </details>}
-    {!canManage && meta.can_view_employee_panel && <EmployeePanel />}
-    {!canManage && !meta.can_view_employee_panel && <section className="remote-training-card" style={cardStyle}>
-      <strong>Uzaktan eğitim erişimi</strong>
-      <p style={{marginBottom: 0, color: '#5e7485'}}>Bu hesapta görüntülenecek bir çalışan eğitimi bulunmuyor veya erişim henüz eşleştirilmedi.</p>
-    </section>}
   </div>;
 }
