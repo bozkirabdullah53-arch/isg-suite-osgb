@@ -879,8 +879,13 @@ async def upload_remote_video(
 ):
     section = _assert_section_manager(db, user, section_id)
     program = load_program(db, section.program_id)
-    if program.status in {"published", "archived"}:
-        raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitime video yüklenemez.")
+    if program.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş eğitime video yüklenemez.")
+    if program.status == "published" and revision_of_id is None:
+        raise HTTPException(
+            409,
+            "Yayımlanmış eğitimde mevcut videonun yanındaki 'Yeni sürüm yükle' işlemi kullanılmalıdır.",
+        )
     original_name = Path(file.filename or "video").name
     extension = Path(original_name).suffix.lower()
     max_bytes = max(1, int(settings.remote_basic_ohs_video_max_upload_mb)) * 1024 * 1024
@@ -896,6 +901,10 @@ async def upload_remote_video(
         revision_of = load_video(db, revision_of_id)
         if revision_of.program_id != program.id or revision_of.section_id != section.id:
             raise HTTPException(422, "Video revizyonu aynı program ve bölüm içinde olmalıdır.")
+        if not revision_of.is_current:
+            raise HTTPException(409, "Yeni sürüm yalnızca bölümün güncel videosundan oluşturulabilir.")
+        if program.status == "published" and revision_of.status != "published":
+            raise HTTPException(409, "Yayımlanmış eğitimde yalnızca çalışanlara açık güncel video güncellenebilir.")
         revision_no = revision_of.revision_no + 1
         is_current = False
     key = storage_key(company_id=program.company_id, program_id=program.id, prefix="video", extension=extension)
@@ -961,8 +970,10 @@ def update_remote_video(
 ):
     video = _assert_video_manager(db, user, video_id)
     program = load_program(db, video.program_id)
-    if program.status in {"published", "archived"} or video.status in {"published", "unpublished", "archived"}:
-        raise HTTPException(409, "Yayımlanmış veya tarihsel video değiştirilemez.")
+    if program.status == "archived" or video.status in {"published", "unpublished", "archived"}:
+        raise HTTPException(409, "Arşivlenmiş veya tarihsel video değiştirilemez; güncelleme için yeni sürüm oluşturun.")
+    if program.status == "published" and video.revision_of_id is None:
+        raise HTTPException(409, "Yayımlanmış video doğrudan değiştirilemez; yanındaki yeni sürüm işlemini kullanın.")
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(video, key, value.strip() if isinstance(value, str) else value)
     audit(db, company_id=video.company_id, user=user, action="video_updated", entity_type="video", entity_id=video.id)
@@ -979,10 +990,12 @@ def delete_remote_video(
     """Delete an accidental upload while preserving published video history."""
     video = _assert_video_manager(db, user, video_id)
     program = load_program(db, video.program_id)
-    if program.status in {"published", "archived"}:
-        raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitime ait video silinemez.")
+    if program.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş eğitime ait video silinemez.")
     if video.status in {"published", "unpublished", "archived"}:
         raise HTTPException(409, "Yayımlanmış veya tarihsel video silinemez; yeni video revizyonu oluşturun.")
+    if program.status == "published" and video.revision_of_id is None:
+        raise HTTPException(409, "Yayımlanmış eğitimde yalnızca yeni sürüm adayı silinebilir.")
 
     program_id = video.program_id
     storage_key = video.storage_key

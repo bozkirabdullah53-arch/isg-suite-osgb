@@ -674,3 +674,144 @@ def test_remote_video_delete_removes_only_draft_uploads(remote_client, monkeypat
     blocked = remote_client.delete(f"/api/v1/trainings/remote/videos/{published_id}", headers=headers)
     assert blocked.status_code == 409, blocked.text
     assert store.deleted == ["1/remote-basic-ohs/1/video-delete.mp4"]
+
+
+def test_remote_published_video_can_be_revised_without_losing_history(remote_client, monkeypatch):
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import Company, OsgbOrganization, User, UserRole
+    from app.models.remote_training import RemoteTrainingProgram, RemoteTrainingSection, RemoteTrainingVideo
+
+    class FakeStore:
+        def __init__(self):
+            self.puts = []
+            self.deleted = []
+
+        def put_bytes(self, key, content):
+            self.puts.append((key, content))
+            return key
+
+        def delete(self, key):
+            self.deleted.append(key)
+
+    store = FakeStore()
+    import app.api.remote_training as remote_api
+
+    monkeypatch.setattr(remote_api, "get_object_store", lambda: store)
+    monkeypatch.setattr("app.services.object_store.get_object_store", lambda: store)
+    monkeypatch.setattr(remote_api, "enqueue_video_processing", lambda _db, _video: "job-revision")
+
+    valid_mp4 = b"\x00\x00\x00\x18ftypisom" + b"\x00" * 16
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(name="Revision Test OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        company = Company(name="Revision Test Firma", osgb_id=osgb.id, is_active=True)
+        db.add(company)
+        db.flush()
+        db.add(
+            User(
+                email="revision-admin@remote-test.com",
+                full_name="Revision Admin",
+                hashed_password=get_password_hash("TestPass123!"),
+                role=UserRole.COMPANY_ADMIN,
+                company_id=company.id,
+                osgb_id=osgb.id,
+                is_active=True,
+            )
+        )
+        program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title="Basic Occupational Health and Safety Training",
+            status="published",
+        )
+        db.add(program)
+        db.flush()
+        section = RemoteTrainingSection(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            title="Temel bölüm",
+        )
+        db.add(section)
+        db.flush()
+        published = RemoteTrainingVideo(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            section_id=section.id,
+            title="Yayımdaki temel İSG videosu",
+            original_file_name="eski.mp4",
+            content_type="video/mp4",
+            storage_key="1/remote-basic-ohs/1/video-old.mp4",
+            duration_seconds=456,
+            revision_no=1,
+            status="published",
+            is_current=True,
+        )
+        db.add(published)
+        db.commit()
+        section_id = section.id
+        published_id = published.id
+        old_storage_key = published.storage_key
+
+    login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "revision-admin@remote-test.com", "password": "TestPass123!"},
+    )
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    upload_url = f"/api/v1/trainings/remote/sections/{section_id}/videos"
+
+    blocked_fresh_upload = remote_client.post(
+        upload_url,
+        headers=headers,
+        data={"title": "Yanlış yeni ana video"},
+        files={"file": ("yanlis.mp4", valid_mp4, "video/mp4")},
+    )
+    assert blocked_fresh_upload.status_code == 409, blocked_fresh_upload.text
+    assert "Yeni sürüm" in blocked_fresh_upload.json()["detail"]
+
+    revision_response = remote_client.post(
+        upload_url,
+        headers=headers,
+        data={"title": "Güncel temel İSG videosu", "revision_of_id": str(published_id)},
+        files={"file": ("guncel.mp4", valid_mp4, "video/mp4")},
+    )
+    assert revision_response.status_code == 201, revision_response.text
+    revision = revision_response.json()
+    assert revision["revision_of_id"] == published_id
+    assert revision["revision_no"] == 2
+    assert revision["is_current"] is False
+    assert revision["status"] == "uploading"
+    assert revision["processing_job_id"] == "job-revision"
+    revision_id = revision["id"]
+    revision_storage_key = store.puts[0][0]
+
+    updated = remote_client.patch(
+        f"/api/v1/trainings/remote/videos/{revision_id}",
+        headers=headers,
+        json={"title": "Güncel temel İSG videosu — kontrol"},
+    )
+    assert updated.status_code == 200, updated.text
+
+    with SessionLocal() as db:
+        old = db.get(RemoteTrainingVideo, published_id)
+        assert old is not None
+        assert old.status == "published"
+        assert old.is_current is True
+        assert db.get(RemoteTrainingVideo, revision_id).revision_of_id == published_id
+
+    deleted = remote_client.delete(f"/api/v1/trainings/remote/videos/{revision_id}", headers=headers)
+    assert deleted.status_code == 200, deleted.text
+    assert store.deleted == [revision_storage_key]
+    assert store.puts and store.puts[0][0] == revision_storage_key
+
+    with SessionLocal() as db:
+        assert db.get(RemoteTrainingVideo, revision_id) is None
+        old = db.get(RemoteTrainingVideo, published_id)
+        assert old is not None
+        assert old.storage_key == old_storage_key
+        assert old.status == "published"
+        assert old.is_current is True
