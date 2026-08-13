@@ -36,6 +36,8 @@ from app.models.remote_training import (
     RemoteTrainingAuditLog,
     RemoteTrainingAsset,
     RemoteTrainingCertificate,
+    RemoteTrainingCatalogPackage,
+    RemoteTrainingCatalogVideo,
     RemoteTrainingCheckpointAnswer,
     RemoteTrainingEmployeeAccess,
     RemoteTrainingEvent,
@@ -394,6 +396,12 @@ def storage_key(*, company_id: int, program_id: int, prefix: str, extension: str
     return f"{company_id}/remote-basic-ohs/{program_id}/{prefix}-{secrets.token_hex(16)}{clean_ext}"
 
 
+def catalog_storage_key(*, package_id: int, prefix: str, extension: str) -> str:
+    """Firma bağımsız katalog nesnesi için kalıcı ve tahmin edilemez anahtar."""
+    clean_ext = extension.lower()
+    return f"remote-basic-ohs/catalog/{package_id}/{prefix}-{secrets.token_hex(16)}{clean_ext}"
+
+
 def _probe_video(path: Path) -> dict[str, Any]:
     ffprobe = shutil.which("ffprobe")
     if not ffprobe:
@@ -496,8 +504,70 @@ def process_remote_video(video_id: int) -> dict[str, Any]:
                 temporary_path.unlink(missing_ok=True)
 
 
+def process_remote_catalog_video(video_id: int) -> dict[str, Any]:
+    """Validate a central-catalog video without linking it to a company."""
+    with SessionLocal() as db:
+        video = db.get(RemoteTrainingCatalogVideo, video_id)
+        if not video:
+            return {"status": "missing", "video_id": video_id}
+        if video.status == "archived":
+            return {"status": "archived", "video_id": video_id}
+        video.status = "processing"
+        video.processing_error = None
+        db.commit()
+        temporary_path: Path | None = None
+        try:
+            store = get_object_store()
+            path = store.resolve_local_path(video.storage_key)
+            if path is None or not path.is_file():
+                content = store.get_bytes(video.storage_key)
+                tmp = tempfile.NamedTemporaryFile(
+                    prefix="remote-catalog-video-",
+                    suffix=Path(video.original_file_name).suffix,
+                    delete=False,
+                )
+                tmp.write(content)
+                tmp.close()
+                temporary_path = Path(tmp.name)
+                path = temporary_path
+            metadata = _probe_video(path)
+            video.duration_seconds = int(metadata.get("duration") or 0)
+            video.width = metadata.get("width")
+            video.height = metadata.get("height")
+            video.codec = metadata.get("codec")
+            video.status = "ready_for_review"
+            video.processing_error = None
+            package = db.get(RemoteTrainingCatalogPackage, video.package_id)
+            if package is not None:
+                durations = db.scalars(
+                    select(RemoteTrainingCatalogVideo.duration_seconds).where(
+                        RemoteTrainingCatalogVideo.package_id == video.package_id,
+                        RemoteTrainingCatalogVideo.is_current.is_(True),
+                        RemoteTrainingCatalogVideo.status.notin_(("archived", "processing_failed")),
+                    )
+                ).all()
+                package.total_duration_seconds = int(sum(int(value or 0) for value in durations))
+            db.commit()
+            return {"status": video.status, "video_id": video.id, **metadata}
+        except Exception as exc:
+            logger.warning("Remote catalog video processing failed: video_id=%s", video_id, exc_info=True)
+            video.status = "processing_failed"
+            video.processing_error = str(exc)[:1000]
+            db.commit()
+            return {"status": video.status, "video_id": video_id, "error": video.processing_error}
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+
+
 def enqueue_video_processing(db: Session, video: RemoteTrainingVideo) -> str:
     record = enqueue("remote_basic_ohs_video_processing", process_remote_video, video.id)
+    video.processing_job_id = record.id
+    return record.id
+
+
+def enqueue_catalog_video_processing(db: Session, video: RemoteTrainingCatalogVideo) -> str:
+    record = enqueue("remote_basic_ohs_catalog_video_processing", process_remote_catalog_video, video.id)
     video.processing_job_id = record.id
     return record.id
 
@@ -516,6 +586,22 @@ def recalculate_program_duration(db: Session, program_id: int) -> int:
     ).all()
     program.total_duration_seconds = int(sum(int(value or 0) for value in durations))
     return program.total_duration_seconds
+
+
+def recalculate_catalog_package_duration(db: Session, package_id: int) -> int:
+    """Keep a central package duration derived from current video revisions."""
+    package = db.get(RemoteTrainingCatalogPackage, package_id)
+    if package is None:
+        return 0
+    durations = db.scalars(
+        select(RemoteTrainingCatalogVideo.duration_seconds).where(
+            RemoteTrainingCatalogVideo.package_id == package_id,
+            RemoteTrainingCatalogVideo.is_current.is_(True),
+            RemoteTrainingCatalogVideo.status.notin_(("archived", "processing_failed")),
+        )
+    ).all()
+    package.total_duration_seconds = int(sum(int(value or 0) for value in durations))
+    return package.total_duration_seconds
 
 
 def _current_required_videos(
@@ -749,6 +835,59 @@ def create_playback_token(
         "exp": expires,
     }
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+
+
+def create_catalog_playback_token(
+    *, user: User, video: RemoteTrainingCatalogVideo
+) -> str:
+    ttl = max(60, min(int(getattr(settings, "remote_basic_ohs_playback_ttl_seconds", 300) or 300), 900))
+    expires = datetime.now(timezone.utc) + timedelta(seconds=ttl)
+    payload = {
+        "sub": str(user.id),
+        "purpose": "remote_catalog_video",
+        "tv": int(getattr(user, "token_version", 0) or 0),
+        "video_id": int(video.id),
+        "jti": secrets.token_hex(16),
+        "exp": expires,
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+
+
+def decode_catalog_playback_token(
+    db: Session, token: str, video_id: int
+) -> tuple[User, RemoteTrainingCatalogVideo]:
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        if payload.get("purpose") != "remote_catalog_video" or int(payload.get("video_id")) != int(video_id):
+            raise ValueError
+        user_id = int(payload.get("sub"))
+        tv = int(payload.get("tv") or 0)
+    except (JWTError, TypeError, ValueError, KeyError):
+        raise HTTPException(401, "Video oynatma bağlantısı geçersiz veya süresi dolmuş.")
+    user = db.get(User, user_id)
+    if not user or not user.is_active or int(getattr(user, "token_version", 0) or 0) != tv:
+        raise HTTPException(401, "Video oynatma oturumu geçersiz.")
+    from app.core.rls import apply_rls_user
+    from app.core.tenant_context import bind_user_tenant
+
+    bind_user_tenant(user)
+    apply_rls_user(db, user)
+    video = db.get(RemoteTrainingCatalogVideo, video_id)
+    if video is None:
+        raise HTTPException(404, "Merkezi eğitim videosu bulunamadı.")
+    package = db.get(RemoteTrainingCatalogPackage, video.package_id)
+    if package is None or not is_manager(user):
+        raise HTTPException(403, "Merkezi video önizleme yetkiniz yok.")
+    if user.role != UserRole.GLOBAL_ADMIN:
+        allowed_osgb_id = user.osgb_id
+        if not allowed_osgb_id and user.company_id:
+            company = db.get(Company, user.company_id)
+            allowed_osgb_id = company.osgb_id if company else None
+        if package.osgb_id != allowed_osgb_id:
+            raise HTTPException(403, "Merkezi video OSGB kapsamınız dışında.")
+    if video.status not in {"ready_for_review", "published", "unpublished"}:
+        raise HTTPException(409, "Bu durumdaki video önizlenemez.")
+    return user, video
 
 
 def decode_playback_token(db: Session, token: str, video_id: int) -> tuple[User, RemoteTrainingVideo, int | None, str]:

@@ -66,6 +66,22 @@ class RemoteVideoUpdate(RemoteModel):
     is_required: bool | None = None
 
 
+class RemoteCatalogSectionCreate(RemoteModel):
+    code: str = Field(min_length=2, max_length=64)
+    title: str = Field(min_length=2, max_length=220)
+    description: str | None = Field(default=None, max_length=5000)
+    order_index: int | None = Field(default=None, ge=1)
+    is_required: bool = True
+
+
+class RemoteCatalogSectionUpdate(RemoteModel):
+    code: str | None = Field(default=None, min_length=2, max_length=64)
+    title: str | None = Field(default=None, min_length=2, max_length=220)
+    description: str | None = Field(default=None, max_length=5000)
+    order_index: int | None = Field(default=None, ge=1)
+    is_required: bool | None = None
+
+
 class RemoteAssignmentCreate(RemoteModel):
     employee_ids: list[int] = Field(min_length=1, max_length=2000)
     branch_id: int | None = Field(default=None, gt=0)
