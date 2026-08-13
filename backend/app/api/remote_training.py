@@ -795,7 +795,7 @@ def materialize_catalog_package(
         raise HTTPException(
             409,
             "Bu paket merkezi katalogda yayımlandı; çalışanlara açılacak firma sürümü "
-            "kontrollü pilot politikası etkinleştirildiğinde hazırlanabilir.",
+            "firma bazlı dağıtım politikası etkinleştirildiğinde hazırlanabilir.",
         )
     branch = validate_branch(db, payload.company_id, payload.branch_id)
     company = db.get(Company, payload.company_id)
@@ -1555,11 +1555,11 @@ def update_remote_program(
     values = payload.model_dump(exclude_unset=True)
     if str(getattr(program, "policy_mode", "legacy") or "legacy") == "strict":
         if values.get("completion_threshold_percent", program.completion_threshold_percent) < 100:
-            raise HTTPException(422, "Pilot eğitimlerde video tamamlanma eşiği %100 olmalıdır.")
+            raise HTTPException(422, "Sektör eğitimlerinde video tamamlanma eşiği %100 olmalıdır.")
         if values.get("passing_score", program.passing_score) < 70:
-            raise HTTPException(422, "Pilot eğitimlerde geçme puanı en az %70 olmalıdır.")
+            raise HTTPException(422, "Sektör eğitimlerinde geçme puanı en az %70 olmalıdır.")
         if values.get("requires_final_exam", program.requires_final_exam) is False:
-            raise HTTPException(422, "Pilot eğitimlerde final sınavı zorunludur.")
+            raise HTTPException(422, "Sektör eğitimlerinde final sınavı zorunludur.")
     if "branch_id" in values and values["branch_id"] is not None:
         branch = db.get(Branch, values["branch_id"])
         if not branch or branch.company_id != program.company_id or not branch.is_active:
@@ -1635,7 +1635,7 @@ def publish_remote_program(
         if incomplete_sections:
             raise HTTPException(
                 409,
-                "Pilot pakette her aktif bölüm için yayımlanmış bir video gerekir: "
+                "Sektör eğitim paketinde her aktif bölüm için yayımlanmış bir video gerekir: "
                 + ", ".join(incomplete_sections),
             )
     sector_scope = program_sector_codes(db, program.id)
@@ -2239,7 +2239,7 @@ def assign_remote_program(
         if without_login:
             raise HTTPException(
                 409,
-                "Pilot ataması için önce seçilen çalışanların aktif giriş hesabı oluşturulup eşlenmelidir: "
+                "Atama için önce seçilen çalışanların aktif giriş hesabı oluşturulup eşlenmelidir: "
                 + ", ".join(str(item) for item in without_login),
             )
     created: list[RemoteTrainingAssignment] = []
@@ -2759,7 +2759,7 @@ def submit_remote_exam(
     program = load_program(db, assignment.program_id)
     require_strict_policy_active(program)
     if strict_policy_active(program) and mode != "employee":
-        raise HTTPException(403, "Pilot sınavını yalnızca eşlenmiş çalışan gönderebilir.")
+            raise HTTPException(403, "Bu sınavı yalnızca eşlenmiş çalışan gönderebilir.")
     if strict_exam_gate_enabled(program):
         summary = recalculate_assignment(db, assignment)
         if not summary["required_videos_complete"] or not summary["required_checkpoints_complete"]:
@@ -2827,7 +2827,7 @@ def save_remote_progress(
     program = load_program(db, assignment.program_id)
     require_strict_policy_active(program)
     if strict_policy_active(program) and mode != "employee":
-        raise HTTPException(403, "Pilot video ilerlemesini yalnızca eşlenmiş çalışan gönderebilir.")
+            raise HTTPException(403, "Bu video ilerlemesini yalnızca eşlenmiş çalışan gönderebilir.")
     if video.program_id != program.id or video.status != "published" or not video.is_current:
         raise HTTPException(403, "Video bu atamaya açık değil.")
     section = load_section(db, video.section_id)
@@ -2943,7 +2943,7 @@ def answer_remote_checkpoint(
     program = load_program(db, assignment.program_id)
     require_strict_policy_active(program)
     if strict_policy_active(program) and mode != "employee":
-        raise HTTPException(403, "Pilot kontrol sorusunu yalnızca eşlenmiş çalışan yanıtlayabilir.")
+        raise HTTPException(403, "Bu kontrol sorusunu yalnızca eşlenmiş çalışan yanıtlayabilir.")
     question = db.get(RemoteTrainingQuestion, question_id)
     if not question or question.program_id != assignment.program_id:
         raise HTTPException(404, "Video içi soru bulunamadı.")
@@ -2952,7 +2952,7 @@ def answer_remote_checkpoint(
     if strict_policy_active(program) and question.video_id:
         checkpoint_video = load_video(db, question.video_id)
         if checkpoint_video.program_id != program.id or not checkpoint_video.is_current:
-            raise HTTPException(409, "Video içi soru güncel bir pilot videosuna bağlı değil.")
+            raise HTTPException(409, "Video içi soru güncel bir videoya bağlı değil.")
         completed = db.scalar(
             select(RemoteTrainingVideoProgress.id).where(
                 RemoteTrainingVideoProgress.assignment_id == assignment.id,
