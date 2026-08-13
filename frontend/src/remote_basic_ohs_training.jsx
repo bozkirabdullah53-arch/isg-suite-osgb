@@ -98,7 +98,7 @@ function programVideoRows(program) {
 }
 
 function ErrorText({value}) {
-  return value ? <div style={{color: '#b42318', margin: '10px 0', fontWeight: 600}}>{value}</div> : null;
+  return value ? <div role="alert" aria-live="assertive" style={{color: '#b42318', margin: '10px 0', fontWeight: 600}}>{value}</div> : null;
 }
 
 function ProgressBadge({assignment}) {
@@ -594,6 +594,7 @@ function CatalogManagerPanel({companyId = '', onCompanyChange}) {
 
   async function materializeSelectedPackages() {
     const selected = packages.filter((item) => selectedPackageIds.includes(String(item.id)));
+    setMessage('');
     if (!companyId) {
       setError('Önce firma seçin.');
       return;
@@ -661,11 +662,14 @@ function CatalogManagerPanel({companyId = '', onCompanyChange}) {
           <span style={{fontSize: 12, color: '#6b21a8'}}>{selectedPackageIds.length} paket seçildi</span>
           <button type="button" onClick={() => setSelectedPackageIds(packages.filter((item) => item.status === 'published').map((item) => String(item.id)))} disabled={busy} style={{fontSize: 12}}>Yayımlanmışların hepsini seç</button>
           {selectedPackageIds.length > 0 && <button type="button" onClick={() => setSelectedPackageIds([])} disabled={busy} style={{fontSize: 12}}>Seçimi temizle</button>}
-          <button type="button" onClick={materializeSelectedPackages} disabled={busy || !companyId || !selectedPackageIds.length} style={{marginLeft: 'auto', minHeight: 42, padding: '10px 16px', color: '#fff', background: '#6d28d9', border: '1px solid #5b21b6', borderRadius: 8, fontWeight: 800}}>
+          <button type="button" onClick={materializeSelectedPackages} disabled={busy} title={!companyId ? 'Önce firma seçin' : !selectedPackageIds.length ? 'Önce yayımlanmış bir paket seçin' : 'Seçilen paketleri firmaya hazırlayın'} style={{marginLeft: 'auto', minHeight: 42, padding: '10px 16px', color: '#fff', background: busy ? '#a78bfa' : '#6d28d9', border: '1px solid #5b21b6', borderRadius: 8, fontWeight: 800, cursor: busy ? 'wait' : 'pointer'}}>
             {busy ? 'Hazırlanıyor…' : 'Seçilen paketleri firmaya ata'}
           </button>
         </div>
         <div style={{marginTop: 8, color: '#795500', fontSize: 12}}>Bu adım çalışanlara eğitim başlatmaz. Önce firmanın çalışma sürümü hazırlanır; çalışan ataması daha sonra ayrı ekrandan yapılır.</div>
+        <div role="status" aria-live="polite" style={{marginTop: 6, color: '#4c1d95', fontSize: 12, fontWeight: 700}}>
+          {!companyId ? 'Atama için önce firma seçin.' : !selectedPackageIds.length ? 'Atama için yayımlanmış bir paketin kutusunu işaretleyin.' : `${selectedPackageIds.length} paket atamaya hazır.`}
+        </div>
       </div>
       <div style={{display: 'grid', gridTemplateColumns: 'minmax(230px, .72fr) minmax(420px, 1.6fr)', gap: 16, marginTop: 14}}>
         <div style={{border: '1px solid #dbe5ef', borderRadius: 10, padding: 12, background: '#fbfdff'}}>
@@ -673,7 +677,7 @@ function CatalogManagerPanel({companyId = '', onCompanyChange}) {
           <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>İçeriğini düzenlemek için karta, firmaya atamak için kutucuğa tıklayın.</div>
           {packages.map((item) => (
             <div key={item.id} style={{display: 'flex', gap: 8, alignItems: 'flex-start', padding: 10, marginBottom: 8, borderRadius: 9, border: `1px solid ${String(item.id) === String(selectedId) ? '#0b9ca8' : '#dbe5ef'}`, background: String(item.id) === String(selectedId) ? '#e9fbfc' : '#fff'}}>
-              <input type="checkbox" checked={selectedPackageIds.includes(String(item.id))} onChange={() => togglePackageSelection(item.id)} disabled={busy || item.status !== 'published'} aria-label={`${item.title} paketini firmaya seç`} style={{marginTop: 3}} />
+              <input type="checkbox" checked={selectedPackageIds.includes(String(item.id))} onChange={() => togglePackageSelection(item.id)} disabled={busy || item.status !== 'published'} title={item.status === 'published' ? 'Bu paketi firmaya seç' : 'Önce bu paketi yayımlayın'} aria-label={`${item.title} paketini firmaya seç`} style={{marginTop: 3}} />
               <button type="button" onClick={() => setSelectedId(String(item.id))} style={{display: 'block', flex: 1, textAlign: 'left', padding: 0, border: 0, background: 'transparent', cursor: 'pointer'}}>
                 <strong style={{display: 'block'}}>{item.title}</strong>
                 <span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{statusLabel(item.status)} · {item.video_count || 0} video</span>
