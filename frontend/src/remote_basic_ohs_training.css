@@ -155,6 +155,73 @@
   color: #9a3412;
 }
 
+.remote-training-employee-picker-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  color: var(--remote-muted);
+  font-size: 12px;
+}
+
+.remote-training-employee-picker-toolbar button {
+  min-height: 34px;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
+.remote-training-employee-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--remote-border);
+  border-radius: 9px;
+  background: #fff;
+}
+
+.remote-training-employee-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid #e2ebf1;
+  border-radius: 8px;
+  background: #fbfdff;
+  cursor: pointer;
+}
+
+.remote-training-employee-option:has(input:checked) {
+  border-color: #57b7c0;
+  background: #effcfc;
+}
+
+.remote-training-employee-option span,
+.remote-training-employee-option small {
+  display: block;
+  min-width: 0;
+}
+
+.remote-training-employee-option small {
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--remote-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote-training-employee-empty {
+  grid-column: 1 / -1;
+  padding: 12px;
+  color: var(--remote-muted);
+}
+
 .remote-training-manager-grid,
 .remote-training-content-grid {
   display: grid;

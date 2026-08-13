@@ -93,8 +93,8 @@ services:
       - key: NACE_TRAINING_PRESENTATION_TRACEABILITY_FORCE_OFF
         value: "true"
       # Remote Basic OHS package/catalog management is live. Employee access
-      # still requires an explicit assignment; the strict pilot remains gated
-      # separately below.
+      # still requires an explicit assignment; the strict sector policy remains
+      # enforced separately below.
       - key: REMOTE_BASIC_OHS_TRAINING_ENABLED
         value: "true"
       - key: REMOTE_BASIC_OHS_TRAINING_FORCE_OFF
@@ -103,14 +103,15 @@ services:
         value: "2048"
       - key: REMOTE_BASIC_OHS_PLAYBACK_TTL_SECONDS
         value: "300"
-      # Second gate for the common strict rule engine.  Keep disabled until
-      # the Yüksekte Çalışma pilot passes the full test checklist.
+      # Firma ve sektör ataması yöneticinin seçimiyle yapılır.  Otomatik firma
+      # ataması yoktur; boş şirket allowlist'i tüm firmaların yöneticinin
+      # seçtiği yayımlanmış sektör paketlerini alabilmesini sağlar.
       - key: REMOTE_BASIC_OHS_STRICT_POLICY_ENABLED
-        value: "false"
+        value: "true"
       - key: REMOTE_BASIC_OHS_STRICT_POLICY_FORCE_OFF
         value: "false"
       - key: REMOTE_BASIC_OHS_STRICT_POLICY_PACKAGE_CODES
-        value: "working-at-height-ohs"
+        value: "common-basic-ohs,construction-ohs,metal-machine-ohs,battery-production-ohs,food-production-ohs,logistics-warehouse-transport-ohs,chemical-paint-production-ohs,open-mine-quarry-aggregate-ohs,road-asphalt-infrastructure-ohs,office-general-ohs,working-at-height-ohs"
       - key: REMOTE_BASIC_OHS_STRICT_POLICY_PILOT_COMPANY_IDS
         value: ""
 

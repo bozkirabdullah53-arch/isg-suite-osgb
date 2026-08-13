@@ -33,6 +33,19 @@ const REMOTE_PACKAGE_LABELS = {
   'office-general-ohs': 'Ofis/Genel İşyerleri',
   'working-at-height-ohs': 'Yüksekte Çalışma İSG Paketi',
 };
+const REMOTE_PACKAGE_SECTOR_CODES = {
+  'common-basic-ohs': 'common',
+  'construction-ohs': 'construction',
+  'metal-machine-ohs': 'metal',
+  'battery-production-ohs': 'battery',
+  'food-production-ohs': 'food',
+  'logistics-warehouse-transport-ohs': 'logistics',
+  'chemical-paint-production-ohs': 'chemical',
+  'open-mine-quarry-aggregate-ohs': 'mining',
+  'road-asphalt-infrastructure-ohs': 'road',
+  'office-general-ohs': 'office',
+  'working-at-height-ohs': 'working_at_height',
+};
 const STATUS_LABELS = {
   draft: 'Taslak',
   uploading: 'Yükleniyor',
@@ -105,22 +118,26 @@ function sectorLabel(code) {
   return REMOTE_SECTOR_LABELS[code] || code || 'Sektör belirtilmemiş';
 }
 
-function packagePilotState(packageRow, rollout) {
+function packageDistributionState(packageRow, rollout) {
   // Keep older API responses usable while the additive metadata rolls out.
   if (!rollout || !Array.isArray(rollout.package_codes)) {
-    return {allowed: true, label: ''};
+    return {allowed: true, label: 'Firma bazlı atama açık'};
   }
   if (rollout.force_off || !rollout.enabled) {
-    return {allowed: false, label: 'Kontrollü pilot kapalı'};
+    return {allowed: false, label: 'Firma ataması kapalı'};
   }
   if (!rollout.package_codes.includes(packageRow?.code)) {
-    return {allowed: false, label: 'Pilot sırası bekliyor'};
+    return {allowed: false, label: 'Bu paket dağıtıma kapalı'};
   }
-  return {allowed: true, label: rollout.company_allowlist_configured ? 'Pilot şirketi doğrulanacak' : 'Pilot kapsamı'};
+  return {allowed: true, label: rollout.company_allowlist_configured ? 'İzinli firma kontrolü' : 'Firma bazlı atama açık'};
 }
 
 function rolloutPackageLabel(code) {
   return REMOTE_PACKAGE_LABELS[code] || code || 'paket';
+}
+
+function packageSectorLabel(code) {
+  return sectorLabel(REMOTE_PACKAGE_SECTOR_CODES[code] || code);
 }
 
 function apiAbsoluteUrl(path) {
@@ -620,11 +637,11 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
       await api(`/trainings/remote/catalog/packages/${selectedPackage.id}/${action}`, {method: 'POST'});
       await loadPackage(selectedPackage.id); await loadPackages();
       if (action === 'publish') {
-        const pilot = packagePilotState(selectedPackage, rollout);
+        const distribution = packageDistributionState(selectedPackage, rollout);
         setMessage(
-          pilot.allowed
-            ? 'Merkezi paket yayımlandı. Kontrollü pilot kapsamındaki firmaya hazırlanabilir.'
-            : 'Merkezi paket yayımlandı. İçerik kataloğa alındı; çalışanlara açılması kontrollü pilotun etkinleştirilmesine bağlıdır.',
+          distribution.allowed
+            ? 'Merkezi paket yayımlandı. Firma ve sektör seçimini yaparak atayabilirsiniz.'
+            : 'Merkezi paket yayımlandı. Firma ataması için dağıtım ayarının açılması gerekir.',
         );
       } else {
         setMessage('Paket durumu güncellendi.');
@@ -655,11 +672,11 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
       setError(`Henüz yayımlanmamış paketler var: ${notPublished.map((item) => item.title).join(', ')}`);
       return;
     }
-    const pilotBlocked = selected.filter((item) => !packagePilotState(item, rollout).allowed);
-    if (pilotBlocked.length) {
+    const distributionBlocked = selected.filter((item) => !packageDistributionState(item, rollout).allowed);
+    if (distributionBlocked.length) {
       setError(
-        `Pilot kapsamında olmayan paketler firmaya hazırlanamaz: ${pilotBlocked.map((item) => item.title).join(', ')}. ` +
-        'İçerik merkezi katalogda hazırlanabilir; çalışan ataması kontrollü pilot açıldığında yapılır.',
+        `Dağıtıma kapalı paketler firmaya hazırlanamaz: ${distributionBlocked.map((item) => item.title).join(', ')}. ` +
+        'Firma atama ayarını açın veya yayımlanmış başka bir paket seçin.',
       );
       return;
     }
@@ -695,24 +712,24 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
         <div>
           <div style={{fontSize: 12, color: '#0b7285', fontWeight: 800, letterSpacing: '.03em'}}>MERKEZİ EĞİTİM PAKETLERİ</div>
           <h3 style={{margin: '4px 0'}}>Uzaktan Eğitim Paket Kataloğu</h3>
-          <p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Videoları paket içinde hazırlayın; firma seçip paketleri tek işlemle firmaya hazırlayın.</p>
+          <p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Videoları sektör paketlerinde hazırlayın; firma seçip seçtiğiniz sektörleri tek işlemle firmaya atayın.</p>
         </div>
         <button type="button" onClick={refresh} disabled={busy}>Paketleri yenile</button>
       </div>
       <ErrorText value={error} />
       {message && <div role="status" aria-live="polite" style={{color: '#087443', margin: '10px 0', fontWeight: 600}}>{message}</div>}
       <div className="remote-training-rollout-note" role="note">
-        <strong>Kontrollü pilot:</strong>{' '}
+        <strong>Firma bazlı manuel atama:</strong>{' '}
         {rollout?.enabled && !rollout?.force_off
-          ? `Şu anda yalnızca ${rollout.package_codes?.map(rolloutPackageLabel).join(', ') || 'allowlist paketleri'} çalışanlara açılabilir.`
-          : 'İçerik hazırlama açıktır; çalışanlara firma ataması için kontrollü pilot politikası henüz etkin değil.'}
-        {rollout?.company_allowlist_configured && ' Şirket allowlist’i ayrıca kontrol edilir.'}
+          ? `Yayımlanmış paketler arasından sektör seçimini siz yaparsınız: ${rollout.package_codes?.map(rolloutPackageLabel).join(', ') || 'dağıtıma açık paketler'}.`
+          : 'İçerik hazırlama açıktır; firma ve sektör ataması için dağıtım ayarı henüz etkin değil.'}
+        {rollout?.company_allowlist_configured && ' Ek olarak izinli firma listesi kontrol edilir.'}
       </div>
-      <div style={{marginTop: 14, padding: 14, border: '2px solid #7c3aed', borderRadius: 10, background: '#faf5ff'}} aria-label="Firma ve paket atama merkezi">
+      <div style={{marginTop: 14, padding: 14, border: '2px solid #7c3aed', borderRadius: 10, background: '#faf5ff'}} aria-label="Firma ve sektör atama merkezi">
         <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center'}}>
           <div>
-            <strong style={{display: 'block', color: '#4c1d95', fontSize: 16}}>Firma ve paket atama</strong>
-            <span style={{display: 'block', color: '#6b21a8', fontSize: 12, marginTop: 4}}>Önce firmayı seçin, sonra aşağıdaki paketleri işaretleyip tek düğmeyle firmaya hazırlayın.</span>
+            <strong style={{display: 'block', color: '#4c1d95', fontSize: 16}}>Firma ve sektör atama</strong>
+            <span style={{display: 'block', color: '#6b21a8', fontSize: 12, marginTop: 4}}>Önce firmayı seçin, sonra o firmaya açılacak sektör eğitim paketlerini işaretleyin.</span>
           </div>
           <select value={companyId} onChange={(event) => onCompanyChange?.(event.target.value)} disabled={busy} aria-label="Atama yapılacak firma">
             <option value="">1. Firma seçin</option>
@@ -720,31 +737,31 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
           </select>
         </div>
         <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 11}}>
-          <strong style={{color: '#4c1d95'}}>2. Paketleri seçin:</strong>
+          <strong style={{color: '#4c1d95'}}>2. Sektör paketlerini seçin:</strong>
           <span style={{fontSize: 12, color: '#6b21a8'}}>{selectedPackageIds.length} paket seçildi</span>
-          <button type="button" onClick={() => setSelectedPackageIds(packages.filter((item) => item.status === 'published' && packagePilotState(item, rollout).allowed).map((item) => String(item.id)))} disabled={busy} style={{fontSize: 12}}>Pilot kapsamındakileri seç</button>
+          <button type="button" onClick={() => setSelectedPackageIds(packages.filter((item) => item.status === 'published' && packageDistributionState(item, rollout).allowed).map((item) => String(item.id)))} disabled={busy} style={{fontSize: 12}}>Atamaya açık yayımlanmışları seç</button>
           {selectedPackageIds.length > 0 && <button type="button" onClick={() => setSelectedPackageIds([])} disabled={busy} style={{fontSize: 12}}>Seçimi temizle</button>}
-          <button type="button" onClick={materializeSelectedPackages} disabled={busy} title={!companyId ? 'Önce firma seçin' : !selectedPackageIds.length ? 'Önce pilot kapsamındaki yayımlanmış bir paket seçin' : 'Seçilen paketleri firmaya hazırlayın'} style={{marginLeft: 'auto', minHeight: 42, padding: '10px 16px', color: '#fff', background: busy ? '#a78bfa' : '#6d28d9', border: '1px solid #5b21b6', borderRadius: 8, fontWeight: 800, cursor: busy ? 'wait' : 'pointer'}}>
-            {busy ? 'Hazırlanıyor…' : 'Seçilen paketleri firmaya ata'}
+          <button type="button" onClick={materializeSelectedPackages} disabled={busy} title={!companyId ? 'Önce firma seçin' : !selectedPackageIds.length ? 'Önce atamaya açık yayımlanmış bir sektör paketi seçin' : 'Seçilen sektör paketlerini firmaya hazırlayın'} style={{marginLeft: 'auto', minHeight: 42, padding: '10px 16px', color: '#fff', background: busy ? '#a78bfa' : '#6d28d9', border: '1px solid #5b21b6', borderRadius: 8, fontWeight: 800, cursor: busy ? 'wait' : 'pointer'}}>
+            {busy ? 'Hazırlanıyor…' : 'Seçilen sektörleri firmaya ata'}
           </button>
         </div>
-        <div style={{marginTop: 8, color: '#795500', fontSize: 12}}>Bu adım çalışanlara eğitim başlatmaz. Önce pilot kapsamındaki firmanın çalışma sürümü hazırlanır; çalışan ataması daha sonra ayrı ekrandan yapılır.</div>
+        <div style={{marginTop: 8, color: '#795500', fontSize: 12}}>Bu adım çalışanlara eğitim başlatmaz. Önce sizin seçtiğiniz firma için seçtiğiniz sektör paketinin çalışma sürümü hazırlanır; çalışan ataması daha sonra ayrı ekrandan yapılır.</div>
         <div role="status" aria-live="polite" style={{marginTop: 6, color: '#4c1d95', fontSize: 12, fontWeight: 700}}>
           {!companyId ? 'Atama için önce firma seçin.' : !selectedPackageIds.length ? 'Atama için yayımlanmış bir paketin kutusunu işaretleyin.' : `${selectedPackageIds.length} paket atamaya hazır.`}
         </div>
       </div>
       <div className="remote-training-manager-grid" style={{gap: 16, marginTop: 14}}>
         <div style={{border: '1px solid #dbe5ef', borderRadius: 10, padding: 12, background: '#fbfdff'}}>
-          <h4 style={{margin: '0 0 6px'}}>Eğitim paketleri</h4>
-          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>İçeriğini düzenlemek için karta, firmaya atamak için kutucuğa tıklayın.</div>
+          <h4 style={{margin: '0 0 6px'}}>Sektör eğitim paketleri</h4>
+          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>İçeriği düzenlemek için karta, seçtiğiniz sektörü firmaya atamak için kutucuğa tıklayın.</div>
           {packages.map((item) => (
             <div key={item.id} style={{display: 'flex', gap: 8, alignItems: 'flex-start', padding: 10, marginBottom: 8, borderRadius: 9, border: `1px solid ${String(item.id) === String(selectedId) ? '#0b9ca8' : '#dbe5ef'}`, background: String(item.id) === String(selectedId) ? '#e9fbfc' : '#fff'}}>
-              <input type="checkbox" checked={selectedPackageIds.includes(String(item.id))} onChange={() => togglePackageSelection(item.id)} disabled={busy || item.status !== 'published' || !packagePilotState(item, rollout).allowed} title={item.status !== 'published' ? 'Önce bu paketi yayımlayın' : packagePilotState(item, rollout).allowed ? 'Bu paketi firmaya seç' : 'Kontrollü pilot açılmadan firmaya hazırlanamaz'} aria-label={`${item.title} paketini firmaya seç`} style={{marginTop: 3}} />
+              <input type="checkbox" checked={selectedPackageIds.includes(String(item.id))} onChange={() => togglePackageSelection(item.id)} disabled={busy || item.status !== 'published' || !packageDistributionState(item, rollout).allowed} title={item.status !== 'published' ? 'Önce bu paketi yayımlayın' : packageDistributionState(item, rollout).allowed ? 'Bu sektörü seçilen firmaya ata' : 'Firma ataması açılmadan firmaya hazırlanamaz'} aria-label={`${item.title} sektör paketini firmaya seç`} style={{marginTop: 3}} />
               <button type="button" onClick={() => setSelectedId(String(item.id))} style={{display: 'block', flex: 1, textAlign: 'left', padding: 0, border: 0, background: 'transparent', cursor: 'pointer'}}>
                 <strong style={{display: 'block'}}>{item.title}</strong>
                 <span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{statusLabel(item.status)} · {item.video_count || 0} video</span>
                 <span style={{display: 'block', fontSize: 11, color: '#496174', marginTop: 3}}>{item.published_video_count || 0} yayımlanmış · {item.section_count || 0} bölüm</span>
-                {item.status === 'published' && <span className={packagePilotState(item, rollout).allowed ? 'remote-training-package-ready' : 'remote-training-package-locked'}>{packagePilotState(item, rollout).label}</span>}
+                {item.status === 'published' && <span className={packageDistributionState(item, rollout).allowed ? 'remote-training-package-ready' : 'remote-training-package-locked'}>{packageDistributionState(item, rollout).label}</span>}
               </button>
             </div>
           ))}
@@ -754,7 +771,7 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
           {selectedPackage ? (
             <>
               <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}>
-                <div><h4 style={{margin: 0}}>{selectedPackage.title}</h4><div style={{fontSize: 12, color: '#5e7485', marginTop: 4}}>{statusLabel(selectedPackage.status)} · {selectedPackage.video_count || 0} video · {selectedPackage.section_count || 0} bölüm</div>{selectedPackage.status === 'published' && <div className={packagePilotState(selectedPackage, rollout).allowed ? 'remote-training-package-ready' : 'remote-training-package-locked'}>{packagePilotState(selectedPackage, rollout).label}</div>}</div>
+                <div><h4 style={{margin: 0}}>{selectedPackage.title}</h4><div style={{fontSize: 12, color: '#5e7485', marginTop: 4}}>Sektör: {packageSectorLabel(selectedPackage.code)} · {statusLabel(selectedPackage.status)} · {selectedPackage.video_count || 0} video · {selectedPackage.section_count || 0} bölüm</div>{selectedPackage.status === 'published' && <div className={packageDistributionState(selectedPackage, rollout).allowed ? 'remote-training-package-ready' : 'remote-training-package-locked'}>{packageDistributionState(selectedPackage, rollout).label}</div>}</div>
                 <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
                   {['draft', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button>}
                   {['ready_for_review', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('publish')} disabled={busy}>Paketi yayımla</button>}
@@ -1016,6 +1033,13 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
     } catch (err) { setError(err.message || 'Çalışan ataması yapılamadı.'); } finally { setBusy(false); }
   }
 
+  function toggleEmployee(employeeId) {
+    const id = Number(employeeId);
+    setSelectedEmployees((current) => current.includes(id)
+      ? current.filter((item) => item !== id)
+      : [...current, id]);
+  }
+
   async function saveEmployeeAccess() {
     if (!companyId || !accessEmployeeId || !accessUserId) return setError('Personel ve giriş hesabını birlikte seçin.');
     setBusy(true); setError('');
@@ -1081,10 +1105,10 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
   }
 
   return (
-    <section style={{display: 'grid', gap: 16}} aria-label="Uzaktan Temel İş Sağlığı ve Güvenliği Eğitimi yönetimi">
+    <section style={{display: 'grid', gap: 16}} aria-label="Firma çalışanlarının eğitim ve sınav ataması yönetimi">
       <div style={cardStyle}>
         <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
-          <div><div style={{fontSize: 12, color: '#547187', fontWeight: 700}}>FİRMA EĞİTİM YÖNETİMİ</div><h3 style={{margin: '4px 0'}}>Firmaya hazırlanmış eğitimler</h3><p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Merkezi katalogdan hazırladığınız paketleri burada çalışanlara atayın ve ilerlemeyi takip edin.</p></div>
+          <div><div style={{fontSize: 12, color: '#547187', fontWeight: 700}}>FİRMA EĞİTİM VE SINAV YÖNETİMİ</div><h3 style={{margin: '4px 0'}}>Firma çalışanlarının eğitim ve sınav ataması</h3><p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Seçtiğiniz firmaya atanmış sektör eğitimini açın, personel listesinden çalışanları seçin ve eğitim/sınav atamasını kaydedin.</p></div>
           <select value={companyId} onChange={(event) => {setCompanyId(event.target.value); onCompanyChange?.(event.target.value); setProgram(null);}} aria-label="Firma seçin"><option value="">Firma seçin</option>{companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
         </div>
         <div style={{marginTop: 12, padding: 10, borderRadius: 8, background: '#effcfc', color: '#36556d', fontSize: 12}}><strong>Yeni paket oluşturma burada yapılmaz.</strong> Yeni bir eğitim paketi için üstteki merkezi katalogdan ilerleyin. Böylece aynı eğitim adıyla tekrar tekrar taslak oluşmaz.</div>
@@ -1094,10 +1118,10 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
 
       <div className="remote-training-manager-grid" style={{gap: 16}}>
         <div style={cardStyle}>
-          <h4 style={{marginTop: 0}}>Firma eğitim paketleri</h4>
-          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>Her paket burada bir kez görünür. Eski aynı adlı taslaklar silinmez; isterseniz geçmişten açabilirsiniz.</div>
+          <h4 style={{marginTop: 0}}>Firmaya atanmış sektör eğitimleri</h4>
+          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>Bu listede yalnızca seçtiğiniz firmaya hazırlanmış eğitimler görünür. Eski aynı adlı taslaklar silinmez; isterseniz geçmişten açabilirsiniz.</div>
           {(showOldPrograms ? programs.map((row) => ({row, hidden: []})) : compactPrograms).map(({row, hidden}) => <div key={row.id} style={{marginBottom: 8}}>
-            <button type="button" onClick={() => loadDetail(row.id)} style={{display: 'block', width: '100%', textAlign: 'left', padding: 10, borderRadius: 9, border: `1px solid ${program?.id === row.id ? '#2474a8' : '#dbe5ef'}`, background: program?.id === row.id ? '#edf7ff' : '#fff'}}><strong>{localizedTrainingTitle(row.title)}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485'}}>{statusLabel(row.status)} · sürüm {row.revision_no}</span>{row.source_catalog_package_id && <span style={{display: 'block', fontSize: 11, color: '#087443', marginTop: 3}}>Merkezi paketten hazırlandı</span>}</button>
+            <button type="button" onClick={() => loadDetail(row.id)} style={{display: 'block', width: '100%', textAlign: 'left', padding: 10, borderRadius: 9, border: `1px solid ${program?.id === row.id ? '#2474a8' : '#dbe5ef'}`, background: program?.id === row.id ? '#edf7ff' : '#fff'}}><strong>{localizedTrainingTitle(row.title)}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485'}}>{row.source_catalog_code ? `Sektör: ${packageSectorLabel(row.source_catalog_code)} · ` : ''}{statusLabel(row.status)} · sürüm {row.revision_no}</span>{row.source_catalog_package_id && <span style={{display: 'block', fontSize: 11, color: '#087443', marginTop: 3}}>Merkezi katalogdan bu firmaya atanmış</span>}</button>
             {!showOldPrograms && hidden.length > 0 && <div style={{fontSize: 11, color: '#795500', padding: '4px 8px'}}>Bu adla {hidden.length} eski taslak gizlendi.</div>}
           </div>)}
           {duplicateProgramCount > 0 && <button type="button" onClick={() => setShowOldPrograms((current) => !current)} style={{fontSize: 12, marginTop: 2}}>{showOldPrograms ? 'Eski kayıtları gizle' : `Eski/tekrarlı kayıtları göster (${duplicateProgramCount})`}</button>}
@@ -1106,7 +1130,7 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
         <div style={cardStyle}>
           {program ? (
             <>
-              <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{statusLabel(program.status)} · eşik %{program.completion_threshold_percent}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button><button type="button" onClick={showReport} disabled={busy}>Rapor</button></div></div>
+              <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{program.source_catalog_code ? `Atanan sektör: ${packageSectorLabel(program.source_catalog_code)} · ` : ''}{statusLabel(program.status)} · eşik %{program.completion_threshold_percent}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button><button type="button" onClick={showReport} disabled={busy}>Rapor</button></div></div>
               <div style={{marginTop: 14, padding: 16, border: '2px solid #2474a8', borderRadius: 12, background: '#f4fbff'}} aria-labelledby="remote-video-help-title">
                 <h4 id="remote-video-help-title" style={{margin: 0, color: '#123b59', fontSize: 17}}>Video yükleme ve silme — çok kolay</h4>
                 <ol style={{margin: '10px 0 8px', paddingLeft: 22, color: '#36556d', lineHeight: 1.65}}>
@@ -1227,7 +1251,7 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
               </div>
               <div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}>
                 <strong>Çalışan giriş hesabı eşleştirme</strong>
-                <p style={{margin: '6px 0', color: '#5e7485', fontSize: 12}}>Yeni pilot çalışanı için aşağıdan doğrudan salt-okunur hesap oluşturabilirsiniz. Hesap oluşturulunca geçici parola yalnızca bir kez gösterilir; çalışan ilk girişte değiştirmeden eğitime başlayamaz.</p>
+                <p style={{margin: '6px 0', color: '#5e7485', fontSize: 12}}>Eğitim ve sınav atayacağınız personel için aşağıdan doğrudan salt-okunur hesap oluşturabilirsiniz. Hesap oluşturulunca geçici parola yalnızca bir kez gösterilir; çalışan ilk girişte değiştirmeden eğitime başlayamaz.</p>
                 <div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}>
                   <select value={provisionEmployeeId} onChange={(event) => setProvisionEmployeeId(event.target.value)} aria-label="Yeni giriş için personel seçin"><option value="">Yeni hesap için personel seçin</option>{employees.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</select>
                   <input type="email" value={provisionEmail} onChange={(event) => setProvisionEmail(event.target.value)} placeholder="Çalışanın e-posta adresi" aria-label="Çalışan e-posta adresi" />
@@ -1246,7 +1270,23 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
                 </div>
                 {employeeAccess.length > 0 && <div style={{fontSize: 12, color: '#496174', marginTop: 8}}>Eşleştirilmiş çalışan hesabı: {employeeAccess.length}</div>}
               </div>
-              <div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}><strong>Çalışanlara ata</strong><p style={{margin: '6px 0', color: '#5e7485', fontSize: 12}}>Atama sırasında yukarıda kaydedilen sektör kapsamı çalışana sabitlenir. Çalışan yalnızca bu kapsamın videolarını ve sınav sorularını görür.</p><div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}><select multiple size={5} value={selectedEmployees.map(String)} onChange={(event) => setSelectedEmployees([...event.target.selectedOptions].map((option) => Number(option.value)))} aria-label="Çalışanlar">{employees.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</select><button type="button" onClick={assign} disabled={busy || !selectedEmployees.length}>Atamayı kaydet</button></div></div>
+              <div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}>
+                <strong>2. Personel seçin ve eğitim/sınav ataması yapın</strong>
+                <p style={{margin: '6px 0', color: '#5e7485', fontSize: 12}}>Atama sırasında yukarıda kaydedilen sektör kapsamı çalışana sabitlenir. Çalışan yalnızca bu kapsamın videolarını ve final sınavı sorularını görür; burada seçim yapılmadan hiçbir çalışana otomatik atama yapılmaz.</p>
+                <div className="remote-training-employee-picker-toolbar">
+                  <span><strong>{selectedEmployees.length}</strong> personel seçildi</span>
+                  <button type="button" onClick={() => setSelectedEmployees(employees.map((row) => Number(row.id)))} disabled={busy || !employees.length}>Listedeki hepsini seç</button>
+                  <button type="button" onClick={() => setSelectedEmployees([])} disabled={busy || !selectedEmployees.length}>Seçimi temizle</button>
+                </div>
+                <div className="remote-training-employee-picker" role="group" aria-label="Eğitim ve sınav atanacak personeller">
+                  {employees.map((row) => <label className="remote-training-employee-option" key={row.id}>
+                    <input type="checkbox" checked={selectedEmployees.includes(Number(row.id))} onChange={() => toggleEmployee(row.id)} disabled={busy} />
+                    <span><strong>{row.full_name}</strong>{row.email && <small>{row.email}</small>}</span>
+                  </label>)}
+                  {!employees.length && <span className="remote-training-employee-empty">Bu firmada aktif personel bulunamadı.</span>}
+                </div>
+                <button type="button" onClick={assign} disabled={busy || !selectedEmployees.length} style={{marginTop: 10}}>Seçilen personele eğitim ve sınav ata</button>
+              </div>
             </>
           ) : <p style={{color: '#5e7485'}}>Detay ve video yaşam döngüsünü görmek için bir taslak seçin.</p>}
         </div>
@@ -1268,11 +1308,18 @@ export function RemoteBasicOhsTrainingPanel({user}) {
 
   if (error) return <section className="remote-training-panel remote-training-card" style={cardStyle}><ErrorText value={error} /></section>;
   if (!meta) return <section className="remote-training-panel remote-training-card" style={cardStyle}>Uzaktan eğitim modülü yükleniyor…</section>;
-  if (!meta.enabled) return <section className="remote-training-panel remote-training-card" style={cardStyle}>{REMOTE_TRAINING_DISPLAY_TITLE} pilotu henüz etkin değil.</section>;
+  if (!meta.enabled) return <section className="remote-training-panel remote-training-card" style={cardStyle}>{REMOTE_TRAINING_DISPLAY_TITLE} modülü henüz etkin değil.</section>;
+  if (!canManage) {
+    if (meta.can_view_employee_panel) return <div className="remote-training-panel"><EmployeePanel /></div>;
+    return <section className="remote-training-panel remote-training-card" style={cardStyle}>
+      <strong>Çalışan eğitimleri</strong>
+      <p style={{marginBottom: 0, color: '#5e7485'}}>Bu hesapta görüntülenecek bir çalışan eğitimi bulunmuyor veya erişim henüz eşleştirilmedi.</p>
+    </section>;
+  }
   return <div className="remote-training-panel" style={{display: 'grid', gap: 16}}>
     <div className="remote-training-flow" aria-label="Uzaktan eğitim yaşam döngüsü">
       <div className="remote-training-flow-item"><span>1</span><div><strong>Merkezi içerik</strong><small>Video ve sınav bankası hazırlanır.</small></div></div>
-      <div className="remote-training-flow-item"><span>2</span><div><strong>Kontrollü pilot</strong><small>İzinli paket ve firma doğrulanır.</small></div></div>
+      <div className="remote-training-flow-item"><span>2</span><div><strong>Firma ve sektör seçimi</strong><small>Firma ve sektör paketini yönetici seçer.</small></div></div>
       <div className="remote-training-flow-item"><span>3</span><div><strong>Çalışan ataması</strong><small>Firma sürümü çalışanlara açılır.</small></div></div>
       <div className="remote-training-flow-item"><span>4</span><div><strong>Sonuç ve belge</strong><small>Video, sınav ve sertifika izlenir.</small></div></div>
     </div>
@@ -1285,10 +1332,5 @@ export function RemoteBasicOhsTrainingPanel({user}) {
       <summary style={{cursor: 'pointer', fontWeight: 800, color: '#123b59', padding: '8px 2px'}}>Çalışan ekranı önizlemesi / kendi eğitimlerim</summary>
       <div style={{marginTop: 12}}><EmployeePanel /></div>
     </details>}
-    {!canManage && meta.can_view_employee_panel && <EmployeePanel />}
-    {!canManage && !meta.can_view_employee_panel && <section className="remote-training-card" style={cardStyle}>
-      <strong>Uzaktan eğitim erişimi</strong>
-      <p style={{marginBottom: 0, color: '#5e7485'}}>Bu hesapta görüntülenecek bir çalışan eğitimi bulunmuyor veya erişim henüz eşleştirilmedi.</p>
-    </section>}
   </div>;
 }

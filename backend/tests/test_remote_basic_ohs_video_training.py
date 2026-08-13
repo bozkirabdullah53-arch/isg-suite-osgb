@@ -83,6 +83,12 @@ def test_strict_remote_policy_rollout_is_fail_closed(monkeypatch):
     assert remote_basic_ohs_strict_policy_active("working-at-height-ohs", 42)
     assert not remote_basic_ohs_strict_policy_active("construction-ohs", 42)
 
+    # Manual firm/sector assignment: an empty company allowlist does not
+    # auto-assign anything; it lets the manager choose the target firm.
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_package_codes", "construction-ohs")
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_pilot_company_ids", "")
+    assert remote_basic_ohs_strict_policy_active("construction-ohs", 999)
+
     monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_force_off", True)
     assert not remote_basic_ohs_strict_policy_active("working-at-height-ohs", 42)
 
@@ -645,7 +651,7 @@ def test_remote_catalog_packages_are_firm_independent(remote_client, monkeypatch
         json={"company_id": company_id},
     )
     assert blocked_materialization.status_code == 409, blocked_materialization.text
-    assert "kontrollü pilot" in blocked_materialization.json()["detail"]
+    assert "firma bazlı dağıtım" in blocked_materialization.json()["detail"]
 
 
 def test_remote_catalog_video_upload_and_draft_delete(remote_client, monkeypatch):

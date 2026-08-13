@@ -1,7 +1,7 @@
 # Uzaktan Temel İSG Eğitim Modülü Denetimi
 
 Tarih: 14 Ağustos 2026  
-İncelenen kaynak: `bozkirabdullah53-arch/isg-suite-osgb` (`master`, `194d56b`)  
+İncelenen kaynak: `bozkirabdullah53-arch/isg-suite-osgb` (uzaktan eğitim atama düzeltmesi)
 İncelenen canlı adres: <https://www.isgsuite.tr/#m=training>
 
 ## Kapsam ve sınır
@@ -15,23 +15,24 @@ kanıtı olarak ayrıca dikkate alındı.
 
 ## Bulgular
 
-### 1. Kontrollü pilot kapalıyken yarım iş akışı oluşuyordu — yüksek öncelik
+### 1. Firma ve sektör atama ekranı dağıtım kapısına gereksiz bağlanmıştı — yüksek öncelik
 
-Üretimde merkezi katalog görünür durumdayken strict pilot politikası kapalıdır.
-Önceki arayüz “paket yayımlandı, firmaya atanabilir” mesajı veriyordu; sonraki
-firma programı yayımlama/çalışan atama adımı ise pilot kapalı olduğu için
-reddediliyordu. Bu, yöneticiyi başarı sanılan ama kullanılamayan bir ara duruma
-getiriyordu.
+Merkezi katalog görünür durumdayken şirket ve sektör eşleştirmesi yöneticinin
+seçimine bırakılmak istenmesine rağmen firma atama adımı ayrı bir dağıtım
+kapısına bağlıydı. Bu, yayımlanmış paketi seçilen firmaya hazırlamayı
+engelliyordu.
 
 Uygulanan düzeltme:
 
-- API artık pilot kapalıyken merkezi paketten firma snapshot'ı üretmiyor.
-- Meta endpoint'i pilot durumu, izinli paket kodlarını ve allowlist bilgisinin
+- Firma ve sektör eşleştirmesi artık yöneticinin seçtiği firma + yayımlanmış
+  sektör paketi üzerinden ilerliyor; otomatik firma ataması yapılmıyor.
+- Meta endpoint'i dağıtım durumunu, izinli paket kodlarını ve allowlist bilgisinin
   yapılandırılıp yapılandırılmadığını güvenli biçimde bildiriyor; şirket ID'leri
   dışarı açılmıyor.
-- Arayüz izinli/kapalı paketleri ayırıyor ve doğru kullanıcı mesajı veriyor.
-- Strict pilot üretimde hâlâ kapalı bırakıldı; mevcut operasyon davranışı
-  kendiliğinden açılmadı.
+- Arayüzde “Kontrollü pilot kapalı” yerine firma bazlı manuel atama açıklaması
+  gösteriliyor.
+- Tüm katalog paketleri dağıtıma açık olsa bile yalnızca yöneticinin seçtiği
+  firmaya hazırlanıyor; çalışanlara otomatik atama yapılmıyor.
 
 ### 2. Yedi katalog paketi yanlışlıkla `common` sektörüne düşüyordu — yüksek öncelik
 
@@ -43,7 +44,7 @@ filtreleri, raporlar ve pilot paket kimliği yanlış olabilirdi.
 Uygulanan düzeltme:
 
 - Sektör kataloğu ve paket-sektör eşleşmeleri tamamlandı.
-- `0094_repair_remote_catalog_sector_scope_v2` migrasyonu eklendi.
+- `0094_repair_catalog_sector2` migrasyonu eklendi.
 - Migration yalnızca atanmamış, `draft`/`ready_for_review` durumundaki ve
   yöneticinin özel sektör düzenlemesi bulunmayan katalog snapshot'larını ele
   alır. Yayımlanmış, atanmış veya elle değiştirilmiş programlara dokunmaz.
@@ -93,29 +94,30 @@ korundu.
 
 ## Koruma kararı
 
-Bu çalışma; migration, API pilot kapısı ve uzaktan eğitim bileşeninin CSS/UI
+Bu çalışma; migration, API dağıtım kapısı ve uzaktan eğitim bileşeninin CSS/UI
 katmanı ile sınırlıdır. Temel eğitim, eski programlar, mevcut çalışan
 atamaları, sertifika/PDF akışları ve legacy ilerleme davranışı için silme veya
-geriye dönük yeniden yazma yapılmamıştır. Pilot kapısı varsayılan olarak
-kapalı tutulduğu için canlı çalışanlara otomatik atama başlamaz.
+geriye dönük yeniden yazma yapılmamıştır. Firma ve sektör dağıtımı manuel
+seçime bağlıdır; canlı çalışanlara otomatik atama başlamaz.
 
 ## Doğrulama
 
 - Uzaktan eğitim ve legacy eğitim yaşam döngüsü regresyon paketi: `42 passed`.
 - Frontend production build: başarılı (`vite build`).
 - Python syntax/compile kontrolü: başarılı.
-- Alembic head kontrolü: tek head, `0094_repair_remote_catalog_sector_v2`.
+- Alembic head kontrolü: tek head, `0094_repair_catalog_sector2`.
 - Canlı ortamda oturum açma bilgisi olmadığı için yetkili görsel smoke test
   çalıştırılmadı; canlı veride hiçbir işlem yapılmadı.
 
-## Pilot açma öncesi kontrol listesi
+## Manuel firma/sektör atama kontrol listesi
 
 1. Migration'ı staging'de çalıştırın ve yalnızca beklenen taslak snapshot'ların
    sektörlerinin değiştiğini doğrulayın.
-2. `REMOTE_BASIC_OHS_STRICT_POLICY_ENABLED=true` değerini önce tek pilot
-   paket/allowlist şirketi için açın; acil kapatma için mevcut `FORCE_OFF`
-   anahtarını kullanın.
+2. `REMOTE_BASIC_OHS_STRICT_POLICY_ENABLED=true` ve dağıtılacak paket kodlarını
+   Render ortamında açıkça tanımlayın; `PILOT_COMPANY_IDS` boşsa firma seçimini
+   yönetici yapar. Bu ayar otomatik firma ataması yapmaz.
 3. Bir çalışan hesabıyla video başlatma, ileri sarma, sekme yenileme, eksik
    video, sınav başarısızlığı, tekrar deneme ve sertifika üretimini uçtan uca
    test edin.
-4. Pilot doğrulanmadan diğer paket kodlarını allowlist'e eklemeyin.
+4. Yönetici önce firmayı, sonra sektör paketini seçer; ardından çalışanları
+   ayrı çalışan atama ekranından eşleştirir.
