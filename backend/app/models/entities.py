@@ -161,6 +161,7 @@ class User(Base):
     osgb_id: Mapped[int | None] = mapped_column(ForeignKey("osgb_organizations.id"), nullable=True, index=True)
     failed_login_count: Mapped[int] = mapped_column(default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    password_change_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     mfa_secret_encrypted: Mapped[str | None] = mapped_column(String(500), nullable=True)
     mfa_recovery_hashes: Mapped[str | None] = mapped_column(Text, nullable=True)

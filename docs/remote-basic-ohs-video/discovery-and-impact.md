@@ -34,11 +34,39 @@ değerlendirilerek hesaplanır.
 
 | Alan | Etki | Geri alma |
 |---|---|---|
-| Veritabanı | 0088 migration ile yalnız `remote_training_*` tabloları | 0088 downgrade; mevcut tablolar korunur |
+| Veritabanı | 0089–0091 uzaktan video/sector/katalog tablolarına ek olarak 0092 yalnızca yeni politika alanlarını ve `users.password_change_required` alanını ekler | `REMOTE_BASIC_OHS_STRICT_POLICY_FORCE_OFF=true`; migration geri alma yalnız kontrollü bakım penceresinde yapılır |
 | Backend | Yeni `/api/v1/trainings/remote/*` router’ı | `REMOTE_BASIC_OHS_TRAINING_FORCE_OFF=true` veya enabled=false |
 | Frontend | Mevcut Eğitimler ekranına yalnızca bayrak açıkken yeni sekme | Bayrağı kapatınca sekme ve pilot API akışı görünmez |
 | Depolama | `company_id/remote-basic-ohs/...` altında özel anahtarlar | Yeni pilot kayıtları yayımdan kaldırılır; eski mevcut eğitim dosyalarına dokunulmaz |
 | Mevcut eğitimler | `TrainingSession` ve mevcut PDF/sınav endpoint’leri değişmez | Kod geri alınsa bile yeni tablolar downgrade edilene kadar ayrı kalır |
+
+## Ortak kural motoru ve Yüksekte Çalışma pilotu
+
+- Mevcut firma programları migration sırasında `legacy` olarak kalır; mevcut
+  eşikler, ilerleme kayıtları ve sınav davranışı değiştirilmez.
+- Merkezi katalogdan firmaya yeni çalışma sürümü oluşturulduğunda kaynak paket,
+  revizyon, `100%` video tamamlama, sıralı ders, video içi kontrol ve `70` puan
+  sınav kuralı programa snapshot olarak yazılır. Sonradan katalogda yapılan
+  değişiklik çalışanların tarihsel atamasını değiştirmez.
+- `working-at-height-ohs` ilk pilot allowlist paketidir. Paket yayımlama,
+  çalışan ataması, video ilerlemesi, video içi soru ve final sınavı strict
+  bayrak açılmadan çalışan akışına geçemez.
+- Geçici çalışan hesabı oluşturulursa parola yalnızca oluşturma yanıtında bir
+  kez gösterilir. İlk girişte parola değişikliği zorunludur; parola
+  değiştirilmeden uzaktan eğitim kaydına erişim verilmez.
+
+Pilot bayrakları:
+
+```text
+REMOTE_BASIC_OHS_STRICT_POLICY_ENABLED=false
+REMOTE_BASIC_OHS_STRICT_POLICY_FORCE_OFF=false
+REMOTE_BASIC_OHS_STRICT_POLICY_PACKAGE_CODES=working-at-height-ohs
+REMOTE_BASIC_OHS_STRICT_POLICY_PILOT_COMPANY_IDS=
+```
+
+Son iki allowlist alanı, pilotu önce tek bir firmaya açmak için kullanılır.
+Bayraklar varsayılan ve Render yapılandırmasında kapalıdır; canlı çalışanlara
+eğitim başlatmak için ayrıca manuel ve kontrollü açılış gerekir.
 
 ## Kontrollü pilot koşulları
 

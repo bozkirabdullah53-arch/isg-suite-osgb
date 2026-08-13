@@ -45,6 +45,42 @@ function localizedTrainingTitle(value) {
     : value;
 }
 
+function programTitleKey(value) {
+  return localizedTrainingTitle(value)
+    .toLocaleLowerCase('tr-TR')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const PROGRAM_STATUS_PRIORITY = {
+  published: 5,
+  ready_for_review: 4,
+  draft: 3,
+  unpublished: 2,
+  archived: 1,
+};
+
+function compactProgramRows(rows) {
+  const groups = new Map();
+  for (const row of rows || []) {
+    const sourceKey = row.source_catalog_package_id
+      ? `catalog:${row.source_catalog_package_id}`
+      : `legacy:${programTitleKey(row.title)}`;
+    const group = groups.get(sourceKey) || [];
+    group.push(row);
+    groups.set(sourceKey, group);
+  }
+  return [...groups.values()].map((group) => {
+    const sorted = [...group].sort((left, right) => {
+      const statusDelta = (PROGRAM_STATUS_PRIORITY[right.status] || 0) - (PROGRAM_STATUS_PRIORITY[left.status] || 0);
+      if (statusDelta) return statusDelta;
+      const dateDelta = String(right.updated_at || right.created_at || '').localeCompare(String(left.updated_at || left.created_at || ''));
+      return dateDelta || Number(right.id || 0) - Number(left.id || 0);
+    });
+    return {row: sorted[0], hidden: sorted.slice(1)};
+  });
+}
+
 function sectorLabel(code) {
   return REMOTE_SECTOR_LABELS[code] || code || 'Sektör belirtilmemiş';
 }
@@ -113,7 +149,8 @@ function EmployeePanel() {
       const row = await api(`/trainings/remote/assignments/${Number(id)}`);
       setAssignment(row);
       const videos = programVideoRows(row.program);
-      setActiveVideo((current) => videos.find((video) => video.id === current?.id) || videos[0] || null);
+      const nextVideo = videos.find((video) => !row.video_progress?.some((progress) => progress.video_id === video.id && progress.status === 'completed')) || videos[0] || null;
+      setActiveVideo((current) => videos.find((video) => video.id === current?.id) || nextVideo);
       setPlaybackUrl('');
       setExam(null);
       setAnswers({});
@@ -137,6 +174,10 @@ function EmployeePanel() {
 
   async function openVideo(video) {
     if (!assignment || !video) return;
+    if (!isVideoUnlocked(video)) {
+      setError('Bu ders kilitli. Önce sıradaki önceki videoyu tamamlayın.');
+      return;
+    }
     setActiveVideo(video);
     setPlaybackUrl('');
     setError('');
@@ -167,7 +208,24 @@ function EmployeePanel() {
           }),
         },
       );
-      setAssignment((current) => current ? {...current, summary: out.summary} : current);
+      if (strictSequence && typeof out.accepted_position_seconds === 'number' && Math.abs(Number(currentTarget.currentTime || 0) - out.accepted_position_seconds) > 1.5) {
+        currentTarget.currentTime = out.accepted_position_seconds;
+      }
+      setAssignment((current) => {
+        if (!current) return current;
+        const progress = [...(current.video_progress || [])];
+        const index = progress.findIndex((row) => row.video_id === activeVideo.id);
+        const nextProgress = {
+          ...(index >= 0 ? progress[index] : {}),
+          video_id: activeVideo.id,
+          status: out.status,
+          watched_percentage: out.watched_percentage,
+          last_position_seconds: out.accepted_position_seconds ?? out.position_seconds,
+        };
+        if (index >= 0) progress[index] = nextProgress;
+        else progress.push(nextProgress);
+        return {...current, summary: out.summary, video_progress: progress};
+      });
       if (out.status === 'completed') setMessage('Video tamamlanması güvenli ilerleme kaydıyla işlendi.');
     } catch (err) {
       setError(err.message || 'Video ilerlemesi kaydedilemedi.');
@@ -255,6 +313,17 @@ function EmployeePanel() {
   }
 
   const videos = useMemo(() => programVideoRows(assignment?.program), [assignment]);
+  const strictSequence = assignment?.program?.policy_mode === 'strict' && assignment?.program?.sequence_enforced;
+  const firstIncompleteIndex = strictSequence
+    ? videos.findIndex((video) => !assignment?.video_progress?.some((progress) => progress.video_id === video.id && progress.status === 'completed'))
+    : -1;
+  function isVideoUnlocked(video) {
+    if (!strictSequence) return true;
+    const index = videos.findIndex((row) => row.id === video.id);
+    if (firstIncompleteIndex < 0) return true;
+    const completed = assignment?.video_progress?.some((progress) => progress.video_id === video.id && progress.status === 'completed');
+    return completed || index <= firstIncompleteIndex;
+  }
   const currentProgress = assignment?.video_progress?.find((row) => row.video_id === activeVideo?.id);
   const checkpointQuestions = assignment?.program?.checkpoint_questions || [];
 
@@ -289,15 +358,17 @@ function EmployeePanel() {
               <div style={{fontWeight: 700, marginBottom: 8}}>Ders videoları</div>
               {videos.map((video) => {
                 const progress = assignment.video_progress?.find((row) => row.video_id === video.id);
+                const unlocked = isVideoUnlocked(video);
                 return (
-                  <button key={video.id} type="button" onClick={() => openVideo(video)} style={{display: 'block', textAlign: 'left', width: '100%', marginBottom: 8, padding: 10, borderRadius: 9, border: `1px solid ${activeVideo?.id === video.id ? '#2474a8' : '#dbe5ef'}`, background: activeVideo?.id === video.id ? '#edf7ff' : '#fff', cursor: 'pointer'}}>
+                  <button key={video.id} type="button" disabled={!unlocked || busy} onClick={() => openVideo(video)} style={{display: 'block', textAlign: 'left', width: '100%', marginBottom: 8, padding: 10, borderRadius: 9, border: `1px solid ${activeVideo?.id === video.id ? '#2474a8' : '#dbe5ef'}`, background: unlocked ? (activeVideo?.id === video.id ? '#edf7ff' : '#fff') : '#f3f4f6', color: unlocked ? '#172b4d' : '#94a3b8', cursor: unlocked ? 'pointer' : 'not-allowed', opacity: unlocked ? 1 : .75}}>
                     <strong style={{display: 'block'}}>{video.title}</strong>
-                    <span style={{fontSize: 12, color: '#5e7485'}}>{video.section_title} · {progress?.status === 'completed' ? 'Tamamlandı' : `${Math.round(progress?.watched_percentage || 0)}%`}</span>
+                    <span style={{fontSize: 12, color: unlocked ? '#5e7485' : '#94a3b8'}}>{video.section_title} · {progress?.status === 'completed' ? 'Tamamlandı' : unlocked ? `${Math.round(progress?.watched_percentage || 0)}%` : 'Kilitli — önceki ders bekleniyor'}</span>
                   </button>
                 );
               })}
               {!videos.length && <p style={{color: '#9a3412'}}>Yayımlanmış video bulunmuyor.</p>}
-              {assignment.summary?.exam_required && <button type="button" onClick={loadExam} disabled={busy} style={{marginTop: 8}}>Final sınavını aç</button>}
+              {assignment.summary?.exam_required && <button type="button" onClick={loadExam} disabled={busy || (strictSequence && (!assignment.summary?.required_videos_complete || !assignment.summary?.required_checkpoints_complete))} style={{marginTop: 8}}>Final sınavını aç</button>}
+              {strictSequence && (!assignment.summary?.required_videos_complete || !assignment.summary?.required_checkpoints_complete) && <div style={{fontSize: 12, color: '#795500', marginTop: 7}}>Final sınavı tüm zorunlu videolar ve video içi kontrol soruları tamamlanınca açılır.</div>}
             </div>
             <div>
               {activeVideo && playbackUrl ? (
@@ -306,12 +377,20 @@ function EmployeePanel() {
                     key={playbackUrl}
                     src={playbackUrl}
                     controls
+                    controlsList="nodownload noplaybackrate"
+                    disablePictureInPicture
                     playsInline
                     style={{width: '100%', maxHeight: 430, background: '#102b3d', borderRadius: 10}}
                     onPlay={(event) => saveProgress('start', event.currentTarget)}
                     onPause={(event) => saveProgress('pause', event.currentTarget)}
                     onTimeUpdate={(event) => saveProgress('progress', event.currentTarget)}
                     onEnded={(event) => saveProgress('ended', event.currentTarget)}
+                    onRateChange={(event) => { if (event.currentTarget.playbackRate !== 1) event.currentTarget.playbackRate = 1; }}
+                    onSeeking={(event) => {
+                      if (strictSequence && currentProgress && Math.abs(event.currentTarget.currentTime - Number(currentProgress.last_position_seconds || 0)) > 3) {
+                        event.currentTarget.currentTime = Number(currentProgress.last_position_seconds || 0);
+                      }
+                    }}
                     onLoadedMetadata={(event) => {
                       const saved = Number(currentProgress?.last_position_seconds || 0);
                       if (saved > 0 && saved < event.currentTarget.duration - 1) event.currentTarget.currentTime = saved;
@@ -373,15 +452,15 @@ function EmployeePanel() {
   );
 }
 
-function CatalogManagerPanel() {
+function CatalogManagerPanel({companyId = '', onCompanyChange}) {
   const [packages, setPackages] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [selectedPackage, setSelectedPackage] = useState(null);
+  const [selectedPackageIds, setSelectedPackageIds] = useState([]);
   const [sectionCode, setSectionCode] = useState('');
   const [sectionTitle, setSectionTitle] = useState('');
   const [uploadTitles, setUploadTitles] = useState({});
-  const [quickUploadSectionId, setQuickUploadSectionId] = useState('');
-  const [quickUploadTitle, setQuickUploadTitle] = useState('');
+  const [companies, setCompanies] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -399,6 +478,15 @@ function CatalogManagerPanel() {
     }
   }
 
+  async function loadCompanies() {
+    try {
+      const rows = await api('/companies');
+      setCompanies(Array.isArray(rows) ? rows : []);
+    } catch (_err) {
+      setCompanies([]);
+    }
+  }
+
   async function loadPackage(id = selectedId) {
     if (!id) return;
     try {
@@ -408,16 +496,8 @@ function CatalogManagerPanel() {
     }
   }
 
-  useEffect(() => { loadPackages(); }, []);
+  useEffect(() => { loadPackages(); loadCompanies(); }, []);
   useEffect(() => { if (selectedId) loadPackage(selectedId); }, [selectedId]);
-  useEffect(() => {
-    const activeSections = (selectedPackage?.sections || []).filter((section) => section.status === 'active');
-    setQuickUploadSectionId((current) => (
-      activeSections.some((section) => String(section.id) === String(current))
-        ? current
-        : String(activeSections[0]?.id || '')
-    ));
-  }, [selectedPackage]);
 
   async function refresh() {
     await loadPackages();
@@ -463,19 +543,6 @@ function CatalogManagerPanel() {
     finally { setBusy(false); }
   }
 
-  async function uploadQuickVideo(file) {
-    if (!selectedPackage || !file) return;
-    const section = (selectedPackage.sections || []).find(
-      (item) => item.status === 'active' && String(item.id) === String(quickUploadSectionId),
-    );
-    if (!section) {
-      setError('Bu pakette henüz ders bölümü yok. Önce “Yeni ders bölümü” oluşturun.');
-      return;
-    }
-    await uploadCatalogVideo(section, file, null, quickUploadTitle);
-    setQuickUploadTitle('');
-  }
-
   async function videoAction(video, action) {
     setBusy(true); setError(''); setMessage('');
     try {
@@ -519,27 +586,100 @@ function CatalogManagerPanel() {
     finally { setBusy(false); }
   }
 
+  function togglePackageSelection(packageId) {
+    setSelectedPackageIds((current) => current.includes(String(packageId))
+      ? current.filter((id) => id !== String(packageId))
+      : [...current, String(packageId)]);
+  }
+
+  async function materializeSelectedPackages() {
+    const selected = packages.filter((item) => selectedPackageIds.includes(String(item.id)));
+    if (!companyId) {
+      setError('Önce firma seçin.');
+      return;
+    }
+    if (!selected.length) {
+      setError('En az bir eğitim paketi işaretleyin.');
+      return;
+    }
+    const notPublished = selected.filter((item) => item.status !== 'published');
+    if (notPublished.length) {
+      setError(`Henüz yayımlanmamış paketler var: ${notPublished.map((item) => item.title).join(', ')}`);
+      return;
+    }
+    setBusy(true); setError(''); setMessage('');
+    const created = [];
+    const failed = [];
+    try {
+      for (const item of selected) {
+        try {
+          await api(`/trainings/remote/catalog/packages/${item.id}/materialize`, {
+            method: 'POST',
+            body: JSON.stringify({company_id: Number(companyId)}),
+          });
+          created.push(item.title);
+        } catch (err) {
+          failed.push(`${item.title}: ${err.message || 'atanamadı'}`);
+        }
+      }
+      await refresh();
+      setSelectedPackageIds([]);
+      if (failed.length) {
+        setError(`${created.length} paket hazırlandı. Tamamlanamayanlar: ${failed.join(' · ')}`);
+      } else {
+        setMessage(`${created.length} paket seçilen firmaya hazırlandı. Şimdi çalışan atama bölümünden personeli seçebilirsiniz.`);
+      }
+    } catch (err) { setError(err.message || 'Paketler firmaya hazırlanamadı.'); }
+    finally { setBusy(false); }
+  }
+
   return (
     <section style={cardStyle} aria-label="Merkezi uzaktan eğitim paket kataloğu">
       <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
         <div>
           <div style={{fontSize: 12, color: '#0b7285', fontWeight: 800, letterSpacing: '.03em'}}>MERKEZİ EĞİTİM PAKETLERİ</div>
           <h3 style={{margin: '4px 0'}}>Uzaktan Eğitim Paket Kataloğu</h3>
-          <p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Önce paketleri ve videoları burada hazırlayın. Bu ekranda firma seçilmez; firma atamasını daha sonra siz yaparsınız.</p>
+          <p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Videoları paket içinde hazırlayın; firma seçip paketleri tek işlemle firmaya hazırlayın.</p>
         </div>
         <button type="button" onClick={refresh} disabled={busy}>Paketleri yenile</button>
       </div>
       <ErrorText value={error} />
       {message && <div style={{color: '#087443', margin: '10px 0', fontWeight: 600}}>{message}</div>}
+      <div style={{marginTop: 14, padding: 14, border: '2px solid #7c3aed', borderRadius: 10, background: '#faf5ff'}} aria-label="Firma ve paket atama merkezi">
+        <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center'}}>
+          <div>
+            <strong style={{display: 'block', color: '#4c1d95', fontSize: 16}}>Firma ve paket atama</strong>
+            <span style={{display: 'block', color: '#6b21a8', fontSize: 12, marginTop: 4}}>Önce firmayı seçin, sonra aşağıdaki paketleri işaretleyip tek düğmeyle firmaya hazırlayın.</span>
+          </div>
+          <select value={companyId} onChange={(event) => onCompanyChange?.(event.target.value)} disabled={busy} aria-label="Atama yapılacak firma">
+            <option value="">1. Firma seçin</option>
+            {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+          </select>
+        </div>
+        <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 11}}>
+          <strong style={{color: '#4c1d95'}}>2. Paketleri seçin:</strong>
+          <span style={{fontSize: 12, color: '#6b21a8'}}>{selectedPackageIds.length} paket seçildi</span>
+          <button type="button" onClick={() => setSelectedPackageIds(packages.filter((item) => item.status === 'published').map((item) => String(item.id)))} disabled={busy} style={{fontSize: 12}}>Yayımlanmışların hepsini seç</button>
+          {selectedPackageIds.length > 0 && <button type="button" onClick={() => setSelectedPackageIds([])} disabled={busy} style={{fontSize: 12}}>Seçimi temizle</button>}
+          <button type="button" onClick={materializeSelectedPackages} disabled={busy || !companyId || !selectedPackageIds.length} style={{marginLeft: 'auto', minHeight: 42, padding: '10px 16px', color: '#fff', background: '#6d28d9', border: '1px solid #5b21b6', borderRadius: 8, fontWeight: 800}}>
+            {busy ? 'Hazırlanıyor…' : 'Seçilen paketleri firmaya ata'}
+          </button>
+        </div>
+        <div style={{marginTop: 8, color: '#795500', fontSize: 12}}>Bu adım çalışanlara eğitim başlatmaz. Önce firmanın çalışma sürümü hazırlanır; çalışan ataması daha sonra ayrı ekrandan yapılır.</div>
+      </div>
       <div style={{display: 'grid', gridTemplateColumns: 'minmax(230px, .72fr) minmax(420px, 1.6fr)', gap: 16, marginTop: 14}}>
         <div style={{border: '1px solid #dbe5ef', borderRadius: 10, padding: 12, background: '#fbfdff'}}>
-          <h4 style={{margin: '0 0 10px'}}>Eğitim paketleri</h4>
+          <h4 style={{margin: '0 0 6px'}}>Eğitim paketleri</h4>
+          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>İçeriğini düzenlemek için karta, firmaya atamak için kutucuğa tıklayın.</div>
           {packages.map((item) => (
-            <button key={item.id} type="button" onClick={() => setSelectedId(String(item.id))} style={{display: 'block', width: '100%', textAlign: 'left', padding: 11, marginBottom: 8, borderRadius: 9, border: `1px solid ${String(item.id) === String(selectedId) ? '#0b9ca8' : '#dbe5ef'}`, background: String(item.id) === String(selectedId) ? '#e9fbfc' : '#fff'}}>
-              <strong style={{display: 'block'}}>{item.title}</strong>
-              <span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{statusLabel(item.status)} · {item.video_count || 0} video</span>
-              <span style={{display: 'block', fontSize: 11, color: '#496174', marginTop: 3}}>{item.published_video_count || 0} yayımlanmış · {item.section_count || 0} bölüm</span>
-            </button>
+            <div key={item.id} style={{display: 'flex', gap: 8, alignItems: 'flex-start', padding: 10, marginBottom: 8, borderRadius: 9, border: `1px solid ${String(item.id) === String(selectedId) ? '#0b9ca8' : '#dbe5ef'}`, background: String(item.id) === String(selectedId) ? '#e9fbfc' : '#fff'}}>
+              <input type="checkbox" checked={selectedPackageIds.includes(String(item.id))} onChange={() => togglePackageSelection(item.id)} disabled={busy || item.status !== 'published'} aria-label={`${item.title} paketini firmaya seç`} style={{marginTop: 3}} />
+              <button type="button" onClick={() => setSelectedId(String(item.id))} style={{display: 'block', flex: 1, textAlign: 'left', padding: 0, border: 0, background: 'transparent', cursor: 'pointer'}}>
+                <strong style={{display: 'block'}}>{item.title}</strong>
+                <span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{statusLabel(item.status)} · {item.video_count || 0} video</span>
+                <span style={{display: 'block', fontSize: 11, color: '#496174', marginTop: 3}}>{item.published_video_count || 0} yayımlanmış · {item.section_count || 0} bölüm</span>
+              </button>
+            </div>
           ))}
           {!packages.length && <p style={{color: '#5e7485'}}>Paket kataloğu hazırlanıyor…</p>}
         </div>
@@ -556,28 +696,10 @@ function CatalogManagerPanel() {
                 </div>
               </div>
               <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#f2f9fc', color: '#36556d', fontSize: 12}}><strong>İş akışı:</strong> Bölüm → Video seç ve yükle → İşleme/inceleme → Video yayımla. Yanlış taslak videoları silebilirsiniz. Yayımlanmış videolar geçmiş için korunur; güncelleme gerektiğinde “Yeni sürüm yükle” kullanılır.</div>
-              <div style={{marginTop: 14, padding: 14, border: '2px solid #0b9ca8', borderRadius: 10, background: '#effcfc'}} aria-label="Hızlı video yükleme">
-                <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center'}}>
-                  <div>
-                    <strong style={{display: 'block', color: '#123b59', fontSize: 15}}>Videoyu pakete ekle</strong>
-                    <span style={{display: 'block', color: '#496174', fontSize: 12, marginTop: 4}}>Bölümü seçin, dosyayı seçin; video doğrudan bu pakete yüklenir.</span>
-                  </div>
-                  <span style={{fontSize: 12, fontWeight: 800, color: '#087443'}}>Firma ataması yapılmaz</span>
-                </div>
-                {(selectedPackage.sections || []).some((section) => section.status === 'active') ? <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 11}}>
-                  <label style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#36556d'}}>Ders bölümü
-                    <select value={quickUploadSectionId} onChange={(event) => setQuickUploadSectionId(event.target.value)} disabled={busy || ['published', 'archived'].includes(selectedPackage.status)} aria-label="Hızlı yükleme ders bölümü">
-                      {(selectedPackage.sections || []).filter((section) => section.status === 'active').map((section) => <option key={section.id} value={section.id}>{section.code} · {section.title}</option>)}
-                    </select>
-                  </label>
-                  <input value={quickUploadTitle} onChange={(event) => setQuickUploadTitle(event.target.value)} placeholder="Video adı (isteğe bağlı)" aria-label="Hızlı yükleme video adı" style={{minWidth: 220, flex: 1}} disabled={busy || ['published', 'archived'].includes(selectedPackage.status)} />
-                  <input ref={quickUploadInputRef} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label="Pakete yüklenecek video dosyası" style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadQuickVideo(file);}} />
-                  <button type="button" onClick={() => quickUploadInputRef.current?.click()} disabled={busy || ['published', 'archived'].includes(selectedPackage.status)} style={{minHeight: 42, padding: '10px 16px', color: '#fff', background: '#0b8f96', border: '1px solid #08747a', borderRadius: 8, fontWeight: 800}}>{busy ? 'Yükleniyor…' : 'Dosya seç ve yükle'}</button>
-                </div> : <div style={{marginTop: 11, padding: 10, borderRadius: 8, background: '#fff8e8', color: '#795500', fontSize: 12}}>Bu paket henüz boş. Önce aşağıdaki <strong>Yeni ders bölümü</strong> alanından bir bölüm oluşturun; sonra bu hızlı yükleme kutusu açılacak.</div>}
-              </div>
+              <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#effcfc', color: '#36556d', fontSize: 12}}><strong>Video yükleme:</strong> Her ders bölümünün altındaki tek <strong>Video seç ve yükle</strong> düğmesini kullanın. Böylece video yanlış bölüme gitmez ve aynı yükleme kutusu tekrar etmez.</div>
               {!['published', 'archived'].includes(selectedPackage.status) && <div style={{marginTop: 14, padding: 12, border: '1px solid #dbe5ef', borderRadius: 9, background: '#fbfdff'}}>
                 <strong>Yeni ders bölümü oluştur</strong>
-                <span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>Örneğin GID-01 — Gıda tesisi genel güvenlik. Bölümü bir kez oluşturduktan sonra videoyu üstteki kutudan seçip yükleyebilirsiniz.</span>
+                <span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>Örneğin GID-01 — Gıda tesisi genel güvenlik. Bölümü bir kez oluşturduktan sonra hemen altındaki video düğmesinden yükleyebilirsiniz.</span>
                 <div style={{display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 8}}><input value={sectionCode} onChange={(event) => setSectionCode(event.target.value)} placeholder="Bölüm kodu: GID-01" aria-label="Yeni bölüm kodu" style={{maxWidth: 170}} /><input value={sectionTitle} onChange={(event) => setSectionTitle(event.target.value)} placeholder="Bölüm adı" aria-label="Yeni bölüm adı" style={{minWidth: 220, flex: 1}} /><button type="button" onClick={createSection} disabled={busy}>Bölümü oluştur</button></div>
               </div>}
               {(selectedPackage.sections || []).map((section) => (
@@ -609,19 +731,21 @@ function CatalogManagerPanel() {
   );
 }
 
-function ManagerPanel({user}) {
+function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
   const [companies, setCompanies] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [companyId, setCompanyId] = useState('');
   const [programs, setPrograms] = useState([]);
   const [program, setProgram] = useState(null);
-  const [title, setTitle] = useState(REMOTE_TRAINING_DISPLAY_TITLE);
   const [sectionTitle, setSectionTitle] = useState('Temel İş Sağlığı ve Güvenliği');
   const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [employeeUsers, setEmployeeUsers] = useState([]);
   const [employeeAccess, setEmployeeAccess] = useState([]);
   const [accessEmployeeId, setAccessEmployeeId] = useState('');
   const [accessUserId, setAccessUserId] = useState('');
+  const [provisionEmployeeId, setProvisionEmployeeId] = useState('');
+  const [provisionEmail, setProvisionEmail] = useState('');
+  const [provisionedCredentials, setProvisionedCredentials] = useState(null);
   const [busy, setBusy] = useState(false);
   const [uploadingSectionId, setUploadingSectionId] = useState(null);
   const [uploadingVideoId, setUploadingVideoId] = useState(null);
@@ -637,13 +761,22 @@ function ManagerPanel({user}) {
   const [questionBank, setQuestionBank] = useState([]);
   const [examQuestionId, setExamQuestionId] = useState('');
   const [examSectorCode, setExamSectorCode] = useState('common');
+  const [showOldPrograms, setShowOldPrograms] = useState(false);
   const uploadInputRefs = useRef({});
+
+  const compactPrograms = useMemo(() => compactProgramRows(programs), [programs]);
+  const duplicateProgramCount = useMemo(
+    () => compactPrograms.reduce((total, item) => total + item.hidden.length, 0),
+    [compactPrograms],
+  );
 
   async function loadCompanies() {
     const rows = await api('/companies');
     const next = Array.isArray(rows) ? rows : [];
     setCompanies(next);
-    const defaultId = next.find((row) => String(row.id) === String(user?.company_id))?.id || next[0]?.id;
+    const defaultId = next.find((row) => String(row.id) === String(initialCompanyId))?.id
+      || next.find((row) => String(row.id) === String(user?.company_id))?.id
+      || next[0]?.id;
     if (defaultId && !companyId) setCompanyId(String(defaultId));
   }
 
@@ -707,16 +840,10 @@ function ManagerPanel({user}) {
     loadEmployeeAccess(companyId);
   }, [companyId]);
 
-  async function createProgram() {
-    if (!companyId) return setError('Firma seçin.');
-    setBusy(true); setError(''); setMessage('');
-    try {
-      const row = await api('/trainings/remote/programs', {method: 'POST', body: JSON.stringify({company_id: Number(companyId), title})});
-      setMessage(`${REMOTE_TRAINING_DISPLAY_TITLE} taslağı oluşturuldu.`);
-      await loadPrograms(companyId);
-      await loadDetail(row.id);
-    } catch (err) { setError(err.message || 'Eğitim oluşturulamadı.'); } finally { setBusy(false); }
-  }
+  useEffect(() => {
+    if (!initialCompanyId || !companies.some((row) => String(row.id) === String(initialCompanyId))) return;
+    setCompanyId(String(initialCompanyId));
+  }, [initialCompanyId, companies]);
 
   async function createSection() {
     if (!program) return;
@@ -838,6 +965,23 @@ function ManagerPanel({user}) {
     } catch (err) { setError(err.message || 'Çalışan hesabı eşleştirilemedi.'); } finally { setBusy(false); }
   }
 
+  async function provisionEmployeeAccount() {
+    if (!companyId || !provisionEmployeeId || !provisionEmail.trim()) return setError('Çalışan ve e-posta birlikte girilmelidir.');
+    setBusy(true); setError(''); setMessage(''); setProvisionedCredentials(null);
+    try {
+      const out = await api('/trainings/remote/employee-access/provision', {
+        method: 'POST',
+        body: JSON.stringify({company_id: Number(companyId), employee_id: Number(provisionEmployeeId), email: provisionEmail.trim()}),
+      });
+      setProvisionedCredentials(out);
+      setProvisionEmployeeId('');
+      setProvisionEmail('');
+      await loadEmployeeAccess(companyId);
+      setMessage('Çalışan hesabı oluşturuldu ve personel kaydıyla eşleştirildi.');
+    } catch (err) { setError(err.message || 'Çalışan hesabı oluşturulamadı.'); }
+    finally { setBusy(false); }
+  }
+
   async function createCheckpointQuestion() {
     if (!program) return;
     const text = checkpointDraft.question_text.trim();
@@ -874,21 +1018,23 @@ function ManagerPanel({user}) {
     <section style={{display: 'grid', gap: 16}} aria-label="Uzaktan Temel İş Sağlığı ve Güvenliği Eğitimi yönetimi">
       <div style={cardStyle}>
         <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
-          <div><div style={{fontSize: 12, color: '#547187', fontWeight: 700}}>EĞİTİCİ / YÖNETİCİ PANELİ</div><h3 style={{margin: '4px 0'}}>{REMOTE_TRAINING_DISPLAY_TITLE}</h3><p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Oluştur → Yükle → İşle → Düzenle → Önizle → Yayımla → Ata → Takip Et → Sınava Gir → Belgelendir → Raporla</p></div>
-          <select value={companyId} onChange={(event) => {setCompanyId(event.target.value); setProgram(null);}} aria-label="Firma seçin"><option value="">Firma seçin</option>{companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
+          <div><div style={{fontSize: 12, color: '#547187', fontWeight: 700}}>FİRMA EĞİTİM YÖNETİMİ</div><h3 style={{margin: '4px 0'}}>Firmaya hazırlanmış eğitimler</h3><p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Merkezi katalogdan hazırladığınız paketleri burada çalışanlara atayın ve ilerlemeyi takip edin.</p></div>
+          <select value={companyId} onChange={(event) => {setCompanyId(event.target.value); onCompanyChange?.(event.target.value); setProgram(null);}} aria-label="Firma seçin"><option value="">Firma seçin</option>{companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
         </div>
-        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14}}>
-          <input value={title} onChange={(event) => setTitle(event.target.value)} style={{minWidth: 300, flex: 1}} aria-label="Eğitim başlığı" />
-          <button type="button" onClick={createProgram} disabled={busy || !companyId}>Yeni Temel İSG Eğitimi Taslağı</button>
-        </div>
+        <div style={{marginTop: 12, padding: 10, borderRadius: 8, background: '#effcfc', color: '#36556d', fontSize: 12}}><strong>Yeni paket oluşturma burada yapılmaz.</strong> Yeni bir eğitim paketi için üstteki merkezi katalogdan ilerleyin. Böylece aynı eğitim adıyla tekrar tekrar taslak oluşmaz.</div>
         <ErrorText value={error} />
         {message && <div style={{color: '#087443', marginTop: 8, fontWeight: 600}}>{message}</div>}
       </div>
 
       <div style={{display: 'grid', gridTemplateColumns: 'minmax(220px, .7fr) minmax(420px, 1.5fr)', gap: 16}}>
         <div style={cardStyle}>
-          <h4 style={{marginTop: 0}}>Eğitim taslakları</h4>
-          {programs.map((row) => <button key={row.id} type="button" onClick={() => loadDetail(row.id)} style={{display: 'block', width: '100%', textAlign: 'left', padding: 10, marginBottom: 8, borderRadius: 9, border: `1px solid ${program?.id === row.id ? '#2474a8' : '#dbe5ef'}`, background: program?.id === row.id ? '#edf7ff' : '#fff'}}><strong>{localizedTrainingTitle(row.title)}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485'}}>{statusLabel(row.status)} · sürüm {row.revision_no}</span></button>)}
+          <h4 style={{marginTop: 0}}>Firma eğitim paketleri</h4>
+          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>Her paket burada bir kez görünür. Eski aynı adlı taslaklar silinmez; isterseniz geçmişten açabilirsiniz.</div>
+          {(showOldPrograms ? programs.map((row) => ({row, hidden: []})) : compactPrograms).map(({row, hidden}) => <div key={row.id} style={{marginBottom: 8}}>
+            <button type="button" onClick={() => loadDetail(row.id)} style={{display: 'block', width: '100%', textAlign: 'left', padding: 10, borderRadius: 9, border: `1px solid ${program?.id === row.id ? '#2474a8' : '#dbe5ef'}`, background: program?.id === row.id ? '#edf7ff' : '#fff'}}><strong>{localizedTrainingTitle(row.title)}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485'}}>{statusLabel(row.status)} · sürüm {row.revision_no}</span>{row.source_catalog_package_id && <span style={{display: 'block', fontSize: 11, color: '#087443', marginTop: 3}}>Merkezi paketten hazırlandı</span>}</button>
+            {!showOldPrograms && hidden.length > 0 && <div style={{fontSize: 11, color: '#795500', padding: '4px 8px'}}>Bu adla {hidden.length} eski taslak gizlendi.</div>}
+          </div>)}
+          {duplicateProgramCount > 0 && <button type="button" onClick={() => setShowOldPrograms((current) => !current)} style={{fontSize: 12, marginTop: 2}}>{showOldPrograms ? 'Eski kayıtları gizle' : `Eski/tekrarlı kayıtları göster (${duplicateProgramCount})`}</button>}
           {!programs.length && <p style={{color: '#5e7485'}}>Bu firmada uzaktan eğitim taslağı yok.</p>}
         </div>
         <div style={cardStyle}>
@@ -1014,7 +1160,18 @@ function ManagerPanel({user}) {
               </div>
               <div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}>
                 <strong>Çalışan giriş hesabı eşleştirme</strong>
-                <p style={{margin: '6px 0', color: '#5e7485', fontSize: 12}}>Önce Kullanıcılar ekranında çalışan için salt-okunur hesabı oluşturun; sonra hesabı personel kaydıyla eşleştirin.</p>
+                <p style={{margin: '6px 0', color: '#5e7485', fontSize: 12}}>Yeni pilot çalışanı için aşağıdan doğrudan salt-okunur hesap oluşturabilirsiniz. Hesap oluşturulunca geçici parola yalnızca bir kez gösterilir; çalışan ilk girişte değiştirmeden eğitime başlayamaz.</p>
+                <div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}>
+                  <select value={provisionEmployeeId} onChange={(event) => setProvisionEmployeeId(event.target.value)} aria-label="Yeni giriş için personel seçin"><option value="">Yeni hesap için personel seçin</option>{employees.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</select>
+                  <input type="email" value={provisionEmail} onChange={(event) => setProvisionEmail(event.target.value)} placeholder="Çalışanın e-posta adresi" aria-label="Çalışan e-posta adresi" />
+                  <button type="button" onClick={provisionEmployeeAccount} disabled={busy || !provisionEmployeeId || !provisionEmail.trim()}>Hesap oluştur ve eşleştir</button>
+                </div>
+                {provisionedCredentials && <div style={{marginTop: 9, padding: 10, borderRadius: 8, background: '#fff8e8', border: '1px solid #f2c46d', color: '#795500', fontSize: 12}}>
+                  <strong>Geçici giriş bilgisi — yalnızca şimdi gösteriliyor:</strong><br />
+                  Kullanıcı adı: <code>{provisionedCredentials.email}</code><br />
+                  Geçici parola: <code style={{userSelect: 'all'}}>{provisionedCredentials.temporary_password}</code><br />
+                  Bu bilgiyi güvenli kanaldan çalışana iletin; ilk girişte değiştirmesi zorunludur.
+                </div>}
                 <div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}>
                   <select value={accessEmployeeId} onChange={(event) => setAccessEmployeeId(event.target.value)} aria-label="Giriş için personel seçin"><option value="">Personel seçin</option>{employees.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</select>
                   <select value={accessUserId} onChange={(event) => setAccessUserId(event.target.value)} aria-label="Personel giriş hesabı seçin"><option value="">Giriş hesabı seçin</option>{employeeUsers.map((row) => <option key={row.id} value={row.id}>{row.full_name} · {row.email}</option>)}</select>
@@ -1035,6 +1192,7 @@ function ManagerPanel({user}) {
 export function RemoteBasicOhsTrainingPanel({user}) {
   const [meta, setMeta] = useState(null);
   const [error, setError] = useState('');
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const canManage = MANAGE_ROLES.includes(user?.role);
 
   useEffect(() => {
@@ -1045,10 +1203,10 @@ export function RemoteBasicOhsTrainingPanel({user}) {
   if (!meta) return <section style={cardStyle}>Uzaktan eğitim modülü yükleniyor…</section>;
   if (!meta.enabled) return <section style={cardStyle}>{REMOTE_TRAINING_DISPLAY_TITLE} pilotu henüz etkin değil.</section>;
   return <div style={{display: 'grid', gap: 16}}>
-    {canManage && <CatalogManagerPanel />}
+    {canManage && <CatalogManagerPanel companyId={selectedCompanyId} onCompanyChange={setSelectedCompanyId} />}
     {canManage && <details>
       <summary style={{cursor: 'pointer', fontWeight: 800, color: '#123b59', padding: '8px 2px'}}>Firma eğitim atama ve çalışan takip yönetimi</summary>
-      <div style={{marginTop: 12}}><ManagerPanel user={user} /></div>
+      <div style={{marginTop: 12}}><ManagerPanel user={user} initialCompanyId={selectedCompanyId} onCompanyChange={setSelectedCompanyId} /></div>
     </details>}
     <EmployeePanel />
   </div>;

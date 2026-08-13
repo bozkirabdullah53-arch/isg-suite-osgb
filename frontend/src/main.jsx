@@ -261,6 +261,8 @@ function Login({done,onApply}){
   const[password,setPassword]=useState('');
   const[code,setCode]=useState('');
   const[newPassword,setNewPassword]=useState('');
+  const[forcedNewPassword,setForcedNewPassword]=useState('');
+  const[forcedNewPasswordConfirm,setForcedNewPasswordConfirm]=useState('');
   const[resetToken,setResetToken]=useState(resetFromUrl||'');
   const[mfaToken,setMfaToken]=useState('');
   const[setupInfo,setSetupInfo]=useState(null);
@@ -276,6 +278,7 @@ function Login({done,onApply}){
       if(r.access_token){
         localStorage.setItem('isg_token',r.access_token);
         setRefreshCookieMode(!!r.refresh_cookie);
+        if(r.password_change_required){setMode('forced_password');return}
         done();
         return;
       }
@@ -303,6 +306,7 @@ function Login({done,onApply}){
       const body=await apiWithBearer(mfaToken,'/auth/mfa/verify',{method:'POST',body:JSON.stringify({code}),_retries:3});
       localStorage.setItem('isg_token',body.access_token);
       setRefreshCookieMode(!!body.refresh_cookie);
+      if(body.password_change_required){setMode('forced_password');return}
       done();
     }catch(x){setErr(x.message)}
     finally{setBusy(false)}
@@ -340,6 +344,7 @@ function Login({done,onApply}){
       localStorage.setItem('isg_token',body.access_token);
       setRefreshCookieMode(!!body.refresh_cookie);
       localStorage.removeItem('isg_mfa_setup_token');
+      if(body.password_change_required){setMode('forced_password');return}
       if(body.recovery_codes?.length){setMode('recovery');return}
       done();
     }catch(x){setErr(x.message)}
@@ -366,10 +371,24 @@ function Login({done,onApply}){
     finally{setBusy(false)}
   }
 
+  async function submitForcedPassword(e){
+    e.preventDefault();setErr('');setMsg('');setBusy(true);
+    if(forcedNewPassword.length<10){setErr('Yeni şifre en az 10 karakter olmalıdır.');setBusy(false);return}
+    if(forcedNewPassword!==forcedNewPasswordConfirm){setErr('Yeni şifreler aynı değil.');setBusy(false);return}
+    try{
+      const r=await api('/security/change-password',{method:'POST',body:JSON.stringify({current_password:password,new_password:forcedNewPassword}),_retries:0});
+      localStorage.removeItem('isg_token');
+      setPassword('');setForcedNewPassword('');setForcedNewPasswordConfirm('');
+      setMsg(r.message||'Şifre güncellendi. Yeni şifrenizle tekrar giriş yapın.');
+      setMode('login');
+    }catch(x){setErr(x.message||'Şifre değiştirilemedi.')}
+    finally{setBusy(false)}
+  }
+
   return (
-    <main className={mode==='mfa_setup'||mode==='recovery'?'login-shell login-shell--form':'login-shell'}>
+    <main className={mode==='mfa_setup'||mode==='recovery'||mode==='forced_password'?'login-shell login-shell--form':'login-shell'}>
       {mode==='login'&&<LoginShowcase/>}
-      <div className={mode==='mfa_setup'||mode==='recovery'?'login-wrap login-wrap--form':'login-wrap'}>
+      <div className={mode==='mfa_setup'||mode==='recovery'||mode==='forced_password'?'login-wrap login-wrap--form':'login-wrap'}>
         {mode!=='login'&&<div className="login-brand"><img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div>}
         <section className="login-card">
           <h1>İSG Suite</h1>
@@ -379,8 +398,18 @@ function Login({done,onApply}){
               <label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email" required/>
               <LoginPasswordInput label="Şifre" value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="current-password"/>
               {err&&<div className="error">{err}</div>}
+              {msg&&<p style={{color:'#166534',fontSize:13}}>{msg}</p>}
               <button disabled={busy}>Giriş Yap</button>
               <p style={{marginTop:12,fontSize:13}}><button type="button" className="linkish" onClick={()=>{setMode('forgot');setErr('');setMsg('')}}>Şifremi unuttum</button></p>
+            </form>
+          )}
+          {mode==='forced_password'&&(
+            <form onSubmit={submitForcedPassword}>
+              <p style={{color:'#64748b',fontSize:14}}>Güvenlik için geçici şifrenizi değiştirin. Yeni şifreniz en az 10 karakter olmalıdır.</p>
+              <LoginPasswordInput label="Yeni şifre" value={forcedNewPassword} onChange={e=>setForcedNewPassword(e.target.value)} minLength={10} required autoComplete="new-password"/>
+              <LoginPasswordInput label="Yeni şifre tekrar" value={forcedNewPasswordConfirm} onChange={e=>setForcedNewPasswordConfirm(e.target.value)} minLength={10} required autoComplete="new-password"/>
+              {err&&<div className="error">{err}</div>}
+              <button disabled={busy}>Şifreyi değiştir</button>
             </form>
           )}
           {mode==='forgot'&&(
@@ -1867,6 +1896,15 @@ function App(){
         if(cancelled) return;
         const[u,s]=await Promise.all([api('/auth/me'),api('/dashboard/summary')]);
         if(cancelled) return;
+        if(u.password_change_required){
+          localStorage.removeItem('isg_token');
+          clearOfflineQueue();
+          setRefreshCookieMode(false);
+          setUser(null);
+          setSummary(null);
+          setLogged(false);
+          return;
+        }
         setUser(u);
         setSummary(s);
         const allowed=modulesForUser(u);

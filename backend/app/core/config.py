@@ -97,6 +97,17 @@ class Settings(BaseSettings):
     remote_basic_ohs_training_force_off: bool = False
     remote_basic_ohs_video_max_upload_mb: int = 2048
     remote_basic_ohs_playback_ttl_seconds: int = 300
+    # Strict remote-training policy is a second, independent gate.  Existing
+    # company programs remain legacy until they are explicitly materialized
+    # from the central catalog and this pilot flag is enabled.
+    remote_basic_ohs_strict_policy_enabled: bool = False
+    remote_basic_ohs_strict_policy_force_off: bool = False
+    # Comma-separated package codes allowed in the strict pilot.  The first
+    # live pilot is deliberately limited to working-at-height-ohs.
+    remote_basic_ohs_strict_policy_package_codes: str = "working-at-height-ohs"
+    # Optional company allowlist.  Empty means package-code scope only; when
+    # populated, only the listed company ids can publish/assign strict pilots.
+    remote_basic_ohs_strict_policy_pilot_company_ids: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
@@ -140,6 +151,50 @@ def remote_basic_ohs_training_active() -> bool:
     if bool(getattr(settings, "remote_basic_ohs_training_force_off", False)):
         return False
     return bool(getattr(settings, "remote_basic_ohs_training_enabled", False))
+
+
+def _positive_csv(raw: str | None) -> frozenset[int]:
+    values: set[int] = set()
+    for token in str(raw or "").split(","):
+        try:
+            value = int(token.strip())
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            values.add(value)
+    return frozenset(values)
+
+
+def remote_basic_ohs_strict_policy_package_codes() -> frozenset[str]:
+    return frozenset(
+        item.strip().lower()
+        for item in str(getattr(settings, "remote_basic_ohs_strict_policy_package_codes", "") or "").split(",")
+        if item.strip()
+    )
+
+
+def remote_basic_ohs_strict_policy_active(
+    package_code: str | None, company_id: int | None = None
+) -> bool:
+    """Return whether the strict policy is open for one package/company.
+
+    The global remote-training flag and this stricter rollout gate are both
+    required.  An optional company allowlist narrows the pilot without
+    changing the behavior of existing customers.
+    """
+    if bool(getattr(settings, "remote_basic_ohs_strict_policy_force_off", False)):
+        return False
+    if not bool(getattr(settings, "remote_basic_ohs_strict_policy_enabled", False)):
+        return False
+    code = str(package_code or "").strip().lower()
+    if not code or code not in remote_basic_ohs_strict_policy_package_codes():
+        return False
+    allowed_companies = _positive_csv(
+        getattr(settings, "remote_basic_ohs_strict_policy_pilot_company_ids", "")
+    )
+    if allowed_companies and (company_id is None or int(company_id) not in allowed_companies):
+        return False
+    return True
 
 
 def nace_training_presentation_active(company_id: int | None = None) -> bool:

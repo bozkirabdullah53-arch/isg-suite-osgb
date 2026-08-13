@@ -66,6 +66,7 @@ def _issue_access(user: User, response: Response) -> TokenResponse:
     ttl_min = access_token_ttl_minutes()
     body = TokenResponse(
         access_token=create_access_token(str(user.id), token_version=tv, minutes=ttl_min),
+        password_change_required=bool(getattr(user, "password_change_required", False)),
         expires_in=max(60, ttl_min * 60),
     )
     if refresh_cookie_enabled():
@@ -473,4 +474,5 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
         subscription_status=sub_status,
         mfa_enabled=bool(getattr(user, "mfa_enabled", False)),
         mfa_required=role_requires_mfa(user.role),
+        password_change_required=bool(getattr(user, "password_change_required", False)),
     )

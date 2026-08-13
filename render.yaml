@@ -102,6 +102,16 @@ services:
         value: "2048"
       - key: REMOTE_BASIC_OHS_PLAYBACK_TTL_SECONDS
         value: "300"
+      # Second gate for the common strict rule engine.  Keep disabled until
+      # the Yüksekte Çalışma pilot passes the full test checklist.
+      - key: REMOTE_BASIC_OHS_STRICT_POLICY_ENABLED
+        value: "false"
+      - key: REMOTE_BASIC_OHS_STRICT_POLICY_FORCE_OFF
+        value: "false"
+      - key: REMOTE_BASIC_OHS_STRICT_POLICY_PACKAGE_CODES
+        value: "working-at-height-ohs"
+      - key: REMOTE_BASIC_OHS_STRICT_POLICY_PILOT_COMPANY_IDS
+        value: ""
 
   - type: cron
     name: isg-suite-api-warmup

@@ -179,6 +179,7 @@ def consume_password_reset(db: Session, raw_token: str, new_password: str) -> Us
     if not user or not user.is_active:
         raise ValueError("Geçersiz veya süresi dolmuş sıfırlama bağlantısı.")
     user.hashed_password = get_password_hash(new_password)
+    user.password_change_required = False
     user.failed_login_count = 0
     user.locked_until = None
     from app.services.token_revoke import bump_token_version
