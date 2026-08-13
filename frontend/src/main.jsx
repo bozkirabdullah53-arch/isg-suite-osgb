@@ -131,7 +131,9 @@ const roleModules={
     'annual_plans','documents',
     'security',
   ],
-  read_only:['dashboard','workplace_status','annual_eval_report','notifications','security'],
+  // Çalışan hesabı yalnızca kendisine atanmış uzaktan eğitimi görür.
+  // İşyeri Durum Merkezi ve yönetim modülleri çalışan ekranına açılmaz.
+  read_only:['training','notifications','security'],
 };
 
 /** Yalnız otomatik üretilen işyeri QR kiosk hesabı — diğer company_admin menüsü bozulmaz. */
@@ -156,7 +158,7 @@ const mobilePrimaryByRole={
   safety_specialist:['visits','dashboard','notifications','risk'],
   workplace_physician:['visits','health','prescriptions','employees'],
   other_health_personnel:['visits','health','employees','documents'],
-  read_only:['dashboard','annual_eval_report','notifications','security'],
+  read_only:['training','notifications','security'],
 };
 
 function mobilePrimaryMenu(menu, role, activeId){
@@ -2018,6 +2020,7 @@ function App(){
     .filter((k)=>menuCatalog[k] && !(fieldRoles.includes(user.role) && (k==='reports' || k==='pro_performance')))
     .map((k)=>{
       const [label, Icon]=menuCatalog[k];
+      if(k==='training' && user.role==='read_only') return [k, 'Çalışan Eğitimleri', GraduationCap];
       if(k==='dashboard' && fieldRoles.includes(user.role)) return [k, 'Ana Sayfa', LayoutDashboard];
       return [k, label, Icon];
     });
