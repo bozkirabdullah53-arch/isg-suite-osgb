@@ -45,6 +45,7 @@ import {CapacityEnginePage} from './capacity_engine';
 import {TrainingPage, TrainingVerifyPage, loadSectorsCatalog} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
 import {PrescriptionPage} from './prescriptions';
 import {TrainingQuestionBank} from './training_question_bank';
+import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
 import {GLOBAL_ADMIN_MODULES} from './app_module_policy';
 import {AdminSummaryDashboard,DutyDashboard} from './duty_dashboard';
 import {SpecialistReportCenterPage} from './specialist_report_center';
@@ -2072,7 +2073,9 @@ function App(){
     isg_kurulu:<OhsCommitteePage user={user}/>,
     belge_onay:<BelgeOnayHub user={user}/>,
     eyas_inbox:<EyasDigitalApprovalPage user={user} mode="inbox"/>,
-    training:<TrainingPage user={user}/>,
+    // Çalışan hesabı eski genel eğitim/planlama sayfasını değil,
+    // atanmış video + kontrol soruları + final sınavı panelini görür.
+    training:user.role==='read_only' ? <RemoteBasicOhsTrainingPanel user={user}/> : <TrainingPage user={user}/>,
     health:<HealthPage user={user}/>,
       prescriptions:<PrescriptionPage user={user}/>,
     documents:<DocumentsPage user={user}/>,
