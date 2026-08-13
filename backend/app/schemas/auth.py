@@ -31,6 +31,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     mfa_required: bool = False
     mfa_setup_required: bool = False
+    password_change_required: bool = False
     mfa_token: str | None = None
     refresh_cookie: bool = False
     # P1-01: saniye; refresh cookie açıkken kısa access süresi
@@ -49,3 +50,4 @@ class CurrentUserResponse(BaseModel):
     subscription_status: str | None = None
     mfa_enabled: bool = False
     mfa_required: bool = False
+    password_change_required: bool = False

@@ -21,7 +21,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.api.company_access import ensure_company_access
-from app.core.config import settings
+from app.core.config import remote_basic_ohs_strict_policy_active, settings
 from app.core.database import SessionLocal
 from app.core.security import ALGORITHM
 from app.models.entities import Branch, Company, Employee, TrainingQuestion, User, UserRole
@@ -36,6 +36,8 @@ from app.models.remote_training import (
     RemoteTrainingAuditLog,
     RemoteTrainingAsset,
     RemoteTrainingCertificate,
+    RemoteTrainingCatalogPackage,
+    RemoteTrainingCatalogVideo,
     RemoteTrainingCheckpointAnswer,
     RemoteTrainingEmployeeAccess,
     RemoteTrainingEvent,
@@ -108,6 +110,45 @@ def require_feature() -> None:
         raise HTTPException(404, "Uzaktan Temel İSG Eğitim modülü etkin değil.")
 
 
+def strict_policy_active(program: RemoteTrainingProgram) -> bool:
+    """Return whether this program is inside the separately gated pilot."""
+    if str(getattr(program, "policy_mode", "legacy") or "legacy").lower() != "strict":
+        return False
+    return remote_basic_ohs_strict_policy_active(
+        getattr(program, "source_catalog_code", None),
+        getattr(program, "company_id", None),
+    )
+
+
+def require_strict_policy_active(program: RemoteTrainingProgram) -> None:
+    if str(getattr(program, "policy_mode", "legacy") or "legacy").lower() != "strict":
+        return
+    if not strict_policy_active(program):
+        raise HTTPException(
+            409,
+            "Bu pilot eğitim henüz güvenli çalışma politikası allowlist'inde etkin değil.",
+        )
+    if (
+        int(getattr(program, "completion_threshold_percent", 0) or 0) < 100
+        or int(getattr(program, "passing_score", 0) or 0) < 70
+        or not bool(getattr(program, "sequence_enforced", False))
+        or not bool(getattr(program, "exam_gate_enforced", False))
+        or not bool(getattr(program, "requires_final_exam", False))
+    ):
+        raise HTTPException(
+            409,
+            "Pilot eğitim politikası eksik: %100 izleme, sıralı ders, %70 sınav ve sınav kilidi zorunludur.",
+        )
+
+
+def strict_sequence_enabled(program: RemoteTrainingProgram) -> bool:
+    return strict_policy_active(program) and bool(getattr(program, "sequence_enforced", False))
+
+
+def strict_exam_gate_enabled(program: RemoteTrainingProgram) -> bool:
+    return strict_policy_active(program) and bool(getattr(program, "exam_gate_enforced", False))
+
+
 def is_manager(user: User) -> bool:
     return user.role in MANAGE_ROLES
 
@@ -140,7 +181,7 @@ def program_sector_codes(db: Session, program_id: int) -> set[str] | None:
     )
     if not rows:
         return None
-    return {"common"} | {
+    return {
         row.sector_code for row in rows if row.is_enabled and row.sector_code in REMOTE_SECTOR_CODES
     }
 
@@ -156,7 +197,7 @@ def assignment_sector_codes(
         ).all()
     )
     if rows:
-        return {"common"} | {
+        return {
             row.sector_code for row in rows if row.sector_code in REMOTE_SECTOR_CODES
         }
     return program_sector_codes(db, assignment.program_id)
@@ -183,7 +224,7 @@ def build_program_sector_catalog(
         ).all()
     )
     configured = bool(rows)
-    selected = {"common"} | {
+    selected = {
         row.sector_code for row in rows if row.is_enabled and row.sector_code in REMOTE_SECTOR_CODES
     }
     sections = list(
@@ -215,7 +256,7 @@ def build_program_sector_catalog(
                 "label": label,
                 "description": description,
                 "enabled": code in selected if configured else False,
-                "locked": code == "common",
+                "locked": code == "common" and code in selected,
                 "section_count": sum(1 for section in sections if section.sector_code == code and section.status != "archived"),
                 "video_count": sum(
                     1
@@ -292,6 +333,11 @@ def assert_assignment_access(
         return "manager"
     mapped = employee_access(db, user)
     if mapped:
+        if bool(getattr(user, "password_change_required", False)):
+            raise HTTPException(
+                403,
+                "Uzaktan eğitime başlamadan önce geçici şifrenizi Güvenlik bölümünden değiştirin.",
+            )
         if mapped.company_id != assignment.company_id or mapped.employee_id != assignment.employee_id:
             raise HTTPException(403, "Bu çalışanın uzaktan eğitim kaydına erişemezsiniz.")
         return "employee"
@@ -392,6 +438,12 @@ def validate_video_bytes(content: bytes, *, extension: str, original_name: str) 
 def storage_key(*, company_id: int, program_id: int, prefix: str, extension: str) -> str:
     clean_ext = extension.lower()
     return f"{company_id}/remote-basic-ohs/{program_id}/{prefix}-{secrets.token_hex(16)}{clean_ext}"
+
+
+def catalog_storage_key(*, package_id: int, prefix: str, extension: str) -> str:
+    """Firma bağımsız katalog nesnesi için kalıcı ve tahmin edilemez anahtar."""
+    clean_ext = extension.lower()
+    return f"remote-basic-ohs/catalog/{package_id}/{prefix}-{secrets.token_hex(16)}{clean_ext}"
 
 
 def _probe_video(path: Path) -> dict[str, Any]:
@@ -496,8 +548,70 @@ def process_remote_video(video_id: int) -> dict[str, Any]:
                 temporary_path.unlink(missing_ok=True)
 
 
+def process_remote_catalog_video(video_id: int) -> dict[str, Any]:
+    """Validate a central-catalog video without linking it to a company."""
+    with SessionLocal() as db:
+        video = db.get(RemoteTrainingCatalogVideo, video_id)
+        if not video:
+            return {"status": "missing", "video_id": video_id}
+        if video.status == "archived":
+            return {"status": "archived", "video_id": video_id}
+        video.status = "processing"
+        video.processing_error = None
+        db.commit()
+        temporary_path: Path | None = None
+        try:
+            store = get_object_store()
+            path = store.resolve_local_path(video.storage_key)
+            if path is None or not path.is_file():
+                content = store.get_bytes(video.storage_key)
+                tmp = tempfile.NamedTemporaryFile(
+                    prefix="remote-catalog-video-",
+                    suffix=Path(video.original_file_name).suffix,
+                    delete=False,
+                )
+                tmp.write(content)
+                tmp.close()
+                temporary_path = Path(tmp.name)
+                path = temporary_path
+            metadata = _probe_video(path)
+            video.duration_seconds = int(metadata.get("duration") or 0)
+            video.width = metadata.get("width")
+            video.height = metadata.get("height")
+            video.codec = metadata.get("codec")
+            video.status = "ready_for_review"
+            video.processing_error = None
+            package = db.get(RemoteTrainingCatalogPackage, video.package_id)
+            if package is not None:
+                durations = db.scalars(
+                    select(RemoteTrainingCatalogVideo.duration_seconds).where(
+                        RemoteTrainingCatalogVideo.package_id == video.package_id,
+                        RemoteTrainingCatalogVideo.is_current.is_(True),
+                        RemoteTrainingCatalogVideo.status.notin_(("archived", "processing_failed")),
+                    )
+                ).all()
+                package.total_duration_seconds = int(sum(int(value or 0) for value in durations))
+            db.commit()
+            return {"status": video.status, "video_id": video.id, **metadata}
+        except Exception as exc:
+            logger.warning("Remote catalog video processing failed: video_id=%s", video_id, exc_info=True)
+            video.status = "processing_failed"
+            video.processing_error = str(exc)[:1000]
+            db.commit()
+            return {"status": video.status, "video_id": video_id, "error": video.processing_error}
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
+
+
 def enqueue_video_processing(db: Session, video: RemoteTrainingVideo) -> str:
     record = enqueue("remote_basic_ohs_video_processing", process_remote_video, video.id)
+    video.processing_job_id = record.id
+    return record.id
+
+
+def enqueue_catalog_video_processing(db: Session, video: RemoteTrainingCatalogVideo) -> str:
+    record = enqueue("remote_basic_ohs_catalog_video_processing", process_remote_catalog_video, video.id)
     video.processing_job_id = record.id
     return record.id
 
@@ -518,20 +632,50 @@ def recalculate_program_duration(db: Session, program_id: int) -> int:
     return program.total_duration_seconds
 
 
+def recalculate_catalog_package_duration(db: Session, package_id: int) -> int:
+    """Keep a central package duration derived from current video revisions."""
+    package = db.get(RemoteTrainingCatalogPackage, package_id)
+    if package is None:
+        return 0
+    durations = db.scalars(
+        select(RemoteTrainingCatalogVideo.duration_seconds).where(
+            RemoteTrainingCatalogVideo.package_id == package_id,
+            RemoteTrainingCatalogVideo.is_current.is_(True),
+            RemoteTrainingCatalogVideo.status.notin_(("archived", "processing_failed")),
+        )
+    ).all()
+    package.total_duration_seconds = int(sum(int(value or 0) for value in durations))
+    return package.total_duration_seconds
+
+
 def _current_required_videos(
     db: Session, program_id: int, sector_codes: set[str] | None = None
 ) -> list[RemoteTrainingVideo]:
+    program = db.get(RemoteTrainingProgram, program_id)
+    strict_program = bool(
+        program and str(getattr(program, "policy_mode", "legacy") or "legacy").lower() == "strict"
+    )
+    conditions = [
+        RemoteTrainingVideo.program_id == program_id,
+        RemoteTrainingVideo.is_current.is_(True),
+        RemoteTrainingVideo.status == "published",
+        RemoteTrainingSection.status == "active",
+    ]
+    # Legacy programs preserve their historical required-only semantics.  A
+    # strict catalog snapshot treats every published video in every active
+    # section as mandatory; an accidental optional flag cannot bypass the
+    # common pilot rule.
+    if not strict_program:
+        conditions.extend(
+            [
+                RemoteTrainingVideo.is_required.is_(True),
+                RemoteTrainingSection.is_required.is_(True),
+            ]
+        )
     stmt = (
         select(RemoteTrainingVideo)
         .join(RemoteTrainingSection, RemoteTrainingSection.id == RemoteTrainingVideo.section_id)
-        .where(
-            RemoteTrainingVideo.program_id == program_id,
-            RemoteTrainingVideo.is_current.is_(True),
-            RemoteTrainingVideo.is_required.is_(True),
-            RemoteTrainingVideo.status == "published",
-            RemoteTrainingSection.status == "active",
-            RemoteTrainingSection.is_required.is_(True),
-        )
+        .where(*conditions)
     )
     if sector_codes is not None:
         stmt = stmt.where(RemoteTrainingSection.sector_code.in_(sector_codes))
@@ -540,6 +684,96 @@ def _current_required_videos(
             stmt.order_by(RemoteTrainingSection.order_index, RemoteTrainingVideo.order_index)
         ).all()
     )
+
+
+def _decode_coverage(value: str | None) -> list[list[float]]:
+    try:
+        raw = json.loads(value or "[]")
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+    intervals: list[list[float]] = []
+    if not isinstance(raw, list):
+        return intervals
+    for item in raw:
+        if not isinstance(item, (list, tuple)) or len(item) != 2:
+            continue
+        try:
+            start, end = float(item[0]), float(item[1])
+        except (TypeError, ValueError):
+            continue
+        if end > start >= 0:
+            intervals.append([start, end])
+    return intervals
+
+
+def _merge_coverage(
+    intervals: list[list[float]], start: float, end: float, duration: float
+) -> tuple[list[list[float]], float]:
+    if end <= start:
+        return intervals, sum(max(0.0, right - left) for left, right in intervals)
+    # Copy existing rows before merging so a retry cannot mutate the object
+    # decoded from the previous database value in place.
+    values = [[float(left), float(right)] for left, right in intervals]
+    values.append([max(0.0, start), min(duration, end)])
+    values = [item for item in values if item[1] > item[0]]
+    values.sort(key=lambda item: item[0])
+    merged: list[list[float]] = []
+    for left, right in values:
+        if not merged or left > merged[-1][1] + 0.05:
+            merged.append([left, right])
+        else:
+            merged[-1][1] = max(merged[-1][1], right)
+    return merged, sum(max(0.0, right - left) for left, right in merged)
+
+
+def _progress_complete_ids(
+    db: Session, assignment_id: int
+) -> set[int]:
+    return {
+        int(row.video_id)
+        for row in db.scalars(
+            select(RemoteTrainingVideoProgress).where(
+                RemoteTrainingVideoProgress.assignment_id == assignment_id,
+                RemoteTrainingVideoProgress.status == "completed",
+            )
+        ).all()
+    }
+
+
+def next_uncompleted_video(
+    db: Session, assignment: RemoteTrainingAssignment
+) -> RemoteTrainingVideo | None:
+    program = load_program(db, assignment.program_id)
+    required = _current_required_videos(db, program.id, assignment_sector_codes(db, assignment))
+    complete_ids = _progress_complete_ids(db, assignment.id)
+    return next((video for video in required if video.id not in complete_ids), None)
+
+
+def assert_video_unlocked(
+    db: Session, assignment: RemoteTrainingAssignment, video: RemoteTrainingVideo
+) -> None:
+    """Block opening/progressing a later lesson in the strict pilot.
+
+    Previously completed lessons remain reviewable.  The first incomplete
+    required lesson is the only forward lesson that can be opened.
+    """
+    program = load_program(db, assignment.program_id)
+    if not strict_sequence_enabled(program):
+        return
+    required = _current_required_videos(db, program.id, assignment_sector_codes(db, assignment))
+    order = {row.id: index for index, row in enumerate(required)}
+    requested_index = order.get(video.id)
+    if requested_index is None:
+        raise HTTPException(403, "Bu video çalışanın zorunlu ders kapsamına dahil değil.")
+    complete_ids = _progress_complete_ids(db, assignment.id)
+    next_video = next((row for row in required if row.id not in complete_ids), None)
+    if next_video is None:
+        return
+    if video.id != next_video.id and video.id not in complete_ids:
+        raise HTTPException(
+            409,
+            f"Önce sıradaki dersi tamamlayın: {next_video.title}.",
+        )
 
 
 def _latest_checkpoint_answer(
@@ -749,6 +983,59 @@ def create_playback_token(
         "exp": expires,
     }
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+
+
+def create_catalog_playback_token(
+    *, user: User, video: RemoteTrainingCatalogVideo
+) -> str:
+    ttl = max(60, min(int(getattr(settings, "remote_basic_ohs_playback_ttl_seconds", 300) or 300), 900))
+    expires = datetime.now(timezone.utc) + timedelta(seconds=ttl)
+    payload = {
+        "sub": str(user.id),
+        "purpose": "remote_catalog_video",
+        "tv": int(getattr(user, "token_version", 0) or 0),
+        "video_id": int(video.id),
+        "jti": secrets.token_hex(16),
+        "exp": expires,
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+
+
+def decode_catalog_playback_token(
+    db: Session, token: str, video_id: int
+) -> tuple[User, RemoteTrainingCatalogVideo]:
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        if payload.get("purpose") != "remote_catalog_video" or int(payload.get("video_id")) != int(video_id):
+            raise ValueError
+        user_id = int(payload.get("sub"))
+        tv = int(payload.get("tv") or 0)
+    except (JWTError, TypeError, ValueError, KeyError):
+        raise HTTPException(401, "Video oynatma bağlantısı geçersiz veya süresi dolmuş.")
+    user = db.get(User, user_id)
+    if not user or not user.is_active or int(getattr(user, "token_version", 0) or 0) != tv:
+        raise HTTPException(401, "Video oynatma oturumu geçersiz.")
+    from app.core.rls import apply_rls_user
+    from app.core.tenant_context import bind_user_tenant
+
+    bind_user_tenant(user)
+    apply_rls_user(db, user)
+    video = db.get(RemoteTrainingCatalogVideo, video_id)
+    if video is None:
+        raise HTTPException(404, "Merkezi eğitim videosu bulunamadı.")
+    package = db.get(RemoteTrainingCatalogPackage, video.package_id)
+    if package is None or not is_manager(user):
+        raise HTTPException(403, "Merkezi video önizleme yetkiniz yok.")
+    if user.role != UserRole.GLOBAL_ADMIN:
+        allowed_osgb_id = user.osgb_id
+        if not allowed_osgb_id and user.company_id:
+            company = db.get(Company, user.company_id)
+            allowed_osgb_id = company.osgb_id if company else None
+        if package.osgb_id != allowed_osgb_id:
+            raise HTTPException(403, "Merkezi video OSGB kapsamınız dışında.")
+    if video.status not in {"ready_for_review", "published", "unpublished"}:
+        raise HTTPException(409, "Bu durumdaki video önizlenemez.")
+    return user, video
 
 
 def decode_playback_token(db: Session, token: str, video_id: int) -> tuple[User, RemoteTrainingVideo, int | None, str]:

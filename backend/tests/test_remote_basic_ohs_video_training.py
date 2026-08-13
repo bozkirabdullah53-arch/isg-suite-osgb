@@ -68,6 +68,52 @@ def test_remote_video_validation_rejects_mismatched_content():
         validate_video_bytes(b"not-a-video", extension=".mp4", original_name="ders.mp4")
 
 
+def test_strict_remote_policy_rollout_is_fail_closed(monkeypatch):
+    from app.core.config import remote_basic_ohs_strict_policy_active, settings
+
+    monkeypatch.setattr(settings, "remote_basic_ohs_training_enabled", True)
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_force_off", False)
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_package_codes", "working-at-height-ohs")
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_pilot_company_ids", "42")
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_enabled", False)
+    assert not remote_basic_ohs_strict_policy_active("working-at-height-ohs", 42)
+
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_enabled", True)
+    assert not remote_basic_ohs_strict_policy_active("working-at-height-ohs", 41)
+    assert remote_basic_ohs_strict_policy_active("working-at-height-ohs", 42)
+    assert not remote_basic_ohs_strict_policy_active("construction-ohs", 42)
+
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_force_off", True)
+    assert not remote_basic_ohs_strict_policy_active("working-at-height-ohs", 42)
+
+
+def test_catalog_package_sections_keep_their_sector_identity():
+    from app.models.remote_training import catalog_package_sector_code
+
+    assert catalog_package_sector_code("battery-production-ohs") == "battery"
+    assert catalog_package_sector_code("construction-ohs") == "construction"
+    assert catalog_package_sector_code("metal-machine-ohs") == "metal"
+    assert catalog_package_sector_code("common-basic-ohs") == "common"
+    # Custom/future packages remain backward compatible until explicitly mapped.
+    assert catalog_package_sector_code("future-custom-package") == "common"
+
+
+def test_strict_video_coverage_does_not_double_count_replay():
+    from app.services.remote_training import _merge_coverage
+
+    coverage, total = _merge_coverage([], 0, 10, 100)
+    assert coverage == [[0.0, 10.0]]
+    assert total == 10.0
+
+    replayed, replayed_total = _merge_coverage(coverage, 0, 10, 100)
+    assert replayed == coverage
+    assert replayed_total == 10.0
+
+    extended, extended_total = _merge_coverage(replayed, 10, 20, 100)
+    assert extended == [[0.0, 20.0]]
+    assert extended_total == 20.0
+
+
 def test_remote_assignment_recalculation_requires_real_progress_and_exam():
     from app.models.remote_training import (
         RemoteTrainingAssignment,
@@ -493,7 +539,7 @@ def test_remote_api_is_feature_flagged_and_uses_basic_type_only(remote_client):
         json={"sector_codes": ["construction"]},
     )
     assert updated_scope.status_code == 200, updated_scope.text
-    assert updated_scope.json()["selected_sector_codes"] == ["common", "construction"]
+    assert updated_scope.json()["selected_sector_codes"] == ["construction"]
 
     from app.core.config import settings
 
@@ -501,6 +547,157 @@ def test_remote_api_is_feature_flagged_and_uses_basic_type_only(remote_client):
     blocked = remote_client.get("/api/v1/trainings/remote/programs", headers=headers)
     assert blocked.status_code == 404
     settings.remote_basic_ohs_training_force_off = False
+
+
+def test_remote_catalog_packages_are_firm_independent(remote_client):
+    """The new catalog is seeded without a company and stays assignable later."""
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import Company, OsgbOrganization, User, UserRole
+    from app.models.remote_training import (
+        RemoteTrainingCatalogPackage,
+        RemoteTrainingCatalogSection,
+    )
+
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(name="Catalog Test OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        company = Company(name="Catalog Test Firma", osgb_id=osgb.id, is_active=True)
+        db.add(company)
+        db.flush()
+        db.add(
+            User(
+                email="catalog-admin@remote-test.com",
+                full_name="Catalog Admin",
+                hashed_password=get_password_hash("TestPass123!"),
+                role=UserRole.COMPANY_ADMIN,
+                company_id=company.id,
+                osgb_id=osgb.id,
+                is_active=True,
+            )
+        )
+        db.commit()
+
+    login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "catalog-admin@remote-test.com", "password": "TestPass123!"},
+    )
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    packages = remote_client.get("/api/v1/trainings/remote/catalog/packages", headers=headers)
+    assert packages.status_code == 200, packages.text
+    rows = packages.json()
+    assert len(rows) == 11
+    assert [row["title"] for row in rows] == [
+        "Ortak Temel İSG",
+        "İnşaat",
+        "Metal-Makine",
+        "Akü-Batarya",
+        "Gıda",
+        "Lojistik",
+        "Kimyasal/Boya",
+        "Maden/Agrega",
+        "Yol/Asfalt/Altyapı",
+        "Ofis/Genel İşyerleri",
+        "Yüksekte Çalışma İSG Paketi",
+    ]
+    assert all("company_id" not in row for row in rows)
+    assert next(row for row in rows if row["code"] == "construction-ohs")["section_count"] == 12
+    assert next(row for row in rows if row["code"] == "metal-machine-ohs")["section_count"] == 10
+    assert next(row for row in rows if row["code"] == "battery-production-ohs")["section_count"] == 10
+    assert next(row for row in rows if row["code"] == "working-at-height-ohs")["section_count"] == 10
+
+    empty_package = next(row for row in rows if row["code"] == "food-production-ohs")
+    created = remote_client.post(
+        f"/api/v1/trainings/remote/catalog/packages/{empty_package['id']}/sections",
+        headers=headers,
+        json={"code": "GID-01", "title": "Gıda tesisi genel güvenlik"},
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["package_id"] == empty_package["id"]
+
+    with SessionLocal() as db:
+        package = db.get(RemoteTrainingCatalogPackage, empty_package["id"])
+        assert package is not None
+        assert not hasattr(package, "company_id")
+        section = db.get(RemoteTrainingCatalogSection, created.json()["id"])
+        assert section.package_id == package.id
+
+
+def test_remote_catalog_video_upload_and_draft_delete(remote_client, monkeypatch):
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import Company, OsgbOrganization, User, UserRole
+
+    class FakeStore:
+        def __init__(self):
+            self.puts = []
+            self.deleted = []
+
+        def put_bytes(self, key, content):
+            self.puts.append((key, content))
+            return key
+
+        def delete(self, key):
+            self.deleted.append(key)
+
+    store = FakeStore()
+    import app.api.remote_training as remote_api
+
+    monkeypatch.setattr(remote_api, "get_object_store", lambda: store)
+    monkeypatch.setattr("app.services.object_store.get_object_store", lambda: store)
+    monkeypatch.setattr(remote_api, "enqueue_catalog_video_processing", lambda _db, _video: "job-catalog")
+
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(name="Catalog Upload OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        company = Company(name="Catalog Upload Firma", osgb_id=osgb.id, is_active=True)
+        db.add(company)
+        db.flush()
+        db.add(
+            User(
+                email="catalog-upload-admin@remote-test.com",
+                full_name="Catalog Upload Admin",
+                hashed_password=get_password_hash("TestPass123!"),
+                role=UserRole.COMPANY_ADMIN,
+                company_id=company.id,
+                osgb_id=osgb.id,
+                is_active=True,
+            )
+        )
+        db.commit()
+
+    login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "catalog-upload-admin@remote-test.com", "password": "TestPass123!"},
+    )
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    packages = remote_client.get("/api/v1/trainings/remote/catalog/packages", headers=headers).json()
+    package = next(row for row in packages if row["code"] == "battery-production-ohs")
+    detail = remote_client.get(f"/api/v1/trainings/remote/catalog/packages/{package['id']}", headers=headers).json()
+    section_id = next(row["id"] for row in detail["sections"] if row["code"] == "AKÜ-05")
+    valid_mp4 = b"\x00\x00\x00\x18ftypisom" + b"\x00" * 16
+
+    uploaded = remote_client.post(
+        f"/api/v1/trainings/remote/catalog/sections/{section_id}/videos",
+        headers=headers,
+        data={"title": "AKÜ-05 test videosu"},
+        files={"file": ("aku-05.mp4", valid_mp4, "video/mp4")},
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    row = uploaded.json()
+    assert row["status"] == "uploading"
+    assert row["package_id"] == package["id"]
+    assert store.puts and store.puts[0][0].startswith("remote-basic-ohs/catalog/")
+
+    deleted = remote_client.delete(f"/api/v1/trainings/remote/catalog/videos/{row['id']}", headers=headers)
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["deleted"] is True
+    assert store.deleted == [store.puts[0][0]]
 
 
 def test_remote_employee_account_onboarding_mapping(remote_client):

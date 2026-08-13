@@ -21,6 +21,7 @@ from app.api.company_access import accessible_company_ids_or_empty, ensure_compa
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.security import get_password_hash
 from app.models.entities import Branch, Company, Employee, TrainingQuestion, User, UserRole
 from app.models.remote_training import (
     ASSET_TYPES,
@@ -32,6 +33,10 @@ from app.models.remote_training import (
     RemoteTrainingAssignmentSector,
     RemoteTrainingAsset,
     RemoteTrainingCertificate,
+    REMOTE_CATALOG_PACKAGE_SPECS,
+    RemoteTrainingCatalogPackage,
+    RemoteTrainingCatalogSection,
+    RemoteTrainingCatalogVideo,
     RemoteTrainingCheckpointAnswer,
     RemoteTrainingEmployeeAccess,
     RemoteTrainingEvent,
@@ -43,11 +48,16 @@ from app.models.remote_training import (
     RemoteTrainingSection,
     RemoteTrainingVideo,
     RemoteTrainingVideoProgress,
+    catalog_package_sector_code,
 )
 from app.schemas.remote_training import (
+    RemoteCatalogSectionCreate,
+    RemoteCatalogSectionUpdate,
+    RemoteCatalogMaterialize,
     RemoteAssignmentCreate,
     RemoteCheckpointQuestionCreate,
     RemoteEmployeeAccessCreate,
+    RemoteEmployeeAccountProvision,
     RemoteExamSubmit,
     RemoteProgramCreate,
     RemoteProgramQuestionLink,
@@ -59,6 +69,7 @@ from app.schemas.remote_training import (
     RemoteVideoUpdate,
 )
 from app.services.object_store import get_object_store
+from app.services.osgb_admin import generate_temporary_password
 from app.services.remote_training import (
     MANAGE_ROLES,
     VIEW_ROLES,
@@ -70,10 +81,14 @@ from app.services.remote_training import (
     build_program_sector_catalog,
     build_certificate_pdf,
     company_snapshot,
+    create_catalog_playback_token,
     create_playback_token,
+    decode_catalog_playback_token,
     decode_playback_token,
     employee_access,
+    catalog_storage_key,
     enqueue_video_processing,
+    enqueue_catalog_video_processing,
     ensure_certificate,
     feature_active,
     is_manager,
@@ -83,12 +98,20 @@ from app.services.remote_training import (
     load_video,
     program_sector_codes,
     recalculate_assignment,
+    recalculate_catalog_package_duration,
     recalculate_program_duration,
+    assert_video_unlocked,
+    strict_exam_gate_enabled,
+    strict_policy_active,
+    require_strict_policy_active,
+    _decode_coverage,
+    _merge_coverage,
     require_feature,
     response_for_video,
     storage_key,
     sector_label,
     validate_sector_code,
+    validate_branch,
     validate_video_bytes,
 )
 
@@ -162,6 +185,9 @@ def _program_output(program: RemoteTrainingProgram) -> dict[str, Any]:
         "id": program.id,
         "company_id": program.company_id,
         "branch_id": program.branch_id,
+        "source_catalog_package_id": program.source_catalog_package_id,
+        "source_catalog_code": program.source_catalog_code,
+        "source_catalog_revision_no": program.source_catalog_revision_no,
         "title": program.title,
         "training_type": REMOTE_TRAINING_TYPE,
         "description": program.description,
@@ -173,6 +199,9 @@ def _program_output(program: RemoteTrainingProgram) -> dict[str, Any]:
         "passing_score": program.passing_score,
         "attempt_limit": program.attempt_limit,
         "requires_final_exam": bool(program.requires_final_exam),
+        "policy_mode": program.policy_mode,
+        "sequence_enforced": bool(program.sequence_enforced),
+        "exam_gate_enforced": bool(program.exam_gate_enforced),
         "status": program.status,
         "revision_no": program.revision_no,
         "published_at": _iso(program.published_at),
@@ -460,6 +489,217 @@ def _safe_asset_content(asset_type: str, extension: str, content: bytes) -> None
         raise HTTPException(400, "DOCX içeriği doğrulanamadı.")
 
 
+def _catalog_scope(db: Session, user: User) -> int | None:
+    """Return the OSGB scope used by the central catalog.
+
+    Global administrators own the shared catalog (``osgb_id IS NULL``).  Other
+    managers must have an OSGB either directly or through their company; a
+    missing tenant is never treated as a wildcard.
+    """
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return None
+    if user.osgb_id:
+        return int(user.osgb_id)
+    if user.company_id:
+        company = db.get(Company, user.company_id)
+        if company and company.osgb_id:
+            return int(company.osgb_id)
+    raise HTTPException(403, "Merkezi eğitim kataloğu için OSGB kapsamı bulunamadı.")
+
+
+def _catalog_package_for_manager(
+    db: Session, user: User, package_id: int
+) -> RemoteTrainingCatalogPackage:
+    require_feature()
+    _manager(user)
+    package = db.get(RemoteTrainingCatalogPackage, package_id)
+    if package is None:
+        raise HTTPException(404, "Merkezi eğitim paketi bulunamadı.")
+    if user.role != UserRole.GLOBAL_ADMIN:
+        scope = _catalog_scope(db, user)
+        if package.osgb_id != scope:
+            raise HTTPException(403, "Bu merkezi eğitim paketi OSGB kapsamınız dışında.")
+    return package
+
+
+def _catalog_section_for_manager(
+    db: Session, user: User, section_id: int
+) -> RemoteTrainingCatalogSection:
+    section = db.get(RemoteTrainingCatalogSection, section_id)
+    if section is None:
+        raise HTTPException(404, "Merkezi eğitim bölümü bulunamadı.")
+    _catalog_package_for_manager(db, user, section.package_id)
+    return section
+
+
+def _catalog_video_for_manager(
+    db: Session, user: User, video_id: int
+) -> RemoteTrainingCatalogVideo:
+    video = db.get(RemoteTrainingCatalogVideo, video_id)
+    if video is None:
+        raise HTTPException(404, "Merkezi eğitim videosu bulunamadı.")
+    _catalog_package_for_manager(db, user, video.package_id)
+    return video
+
+
+def _catalog_video_output(video: RemoteTrainingCatalogVideo) -> dict[str, Any]:
+    return {
+        "id": video.id,
+        "package_id": video.package_id,
+        "section_id": video.section_id,
+        "revision_of_id": video.revision_of_id,
+        "title": video.title,
+        "description": video.description,
+        "learning_objectives": video.learning_objectives,
+        "order_index": video.order_index,
+        "is_required": bool(video.is_required),
+        "revision_no": video.revision_no,
+        "is_current": bool(video.is_current),
+        "status": video.status,
+        "original_file_name": video.original_file_name,
+        "content_type": video.content_type,
+        "file_size_bytes": video.file_size_bytes,
+        "duration_seconds": video.duration_seconds,
+        "width": video.width,
+        "height": video.height,
+        "codec": video.codec,
+        "processing_job_id": video.processing_job_id,
+        "processing_error": video.processing_error,
+        "published_at": _iso(video.published_at),
+        "created_at": _iso(video.created_at),
+    }
+
+
+def _catalog_section_output(
+    db: Session, section: RemoteTrainingCatalogSection
+) -> dict[str, Any]:
+    videos = list(
+        db.scalars(
+            select(RemoteTrainingCatalogVideo)
+            .where(RemoteTrainingCatalogVideo.section_id == section.id)
+            .order_by(RemoteTrainingCatalogVideo.order_index, RemoteTrainingCatalogVideo.id)
+        ).all()
+    )
+    return {
+        "id": section.id,
+        "package_id": section.package_id,
+        "code": section.code,
+        "title": section.title,
+        "description": section.description,
+        "order_index": section.order_index,
+        "is_required": bool(section.is_required),
+        "status": section.status,
+        "videos": [_catalog_video_output(video) for video in videos],
+    }
+
+
+def _catalog_package_output(
+    db: Session, package: RemoteTrainingCatalogPackage, *, detail: bool = False
+) -> dict[str, Any]:
+    sections = list(
+        db.scalars(
+            select(RemoteTrainingCatalogSection)
+            .where(RemoteTrainingCatalogSection.package_id == package.id)
+            .order_by(RemoteTrainingCatalogSection.order_index, RemoteTrainingCatalogSection.id)
+        ).all()
+    )
+    videos = list(
+        db.scalars(
+            select(RemoteTrainingCatalogVideo).where(
+                RemoteTrainingCatalogVideo.package_id == package.id
+            )
+        ).all()
+    )
+    result = {
+        "id": package.id,
+        "code": package.code,
+        "title": package.title,
+        "description": package.description,
+        "training_type": REMOTE_TRAINING_TYPE,
+        "total_duration_seconds": package.total_duration_seconds,
+        "requires_final_exam": bool(package.requires_final_exam),
+        "completion_threshold_percent": package.completion_threshold_percent,
+        "passing_score": package.passing_score,
+        "attempt_limit": package.attempt_limit,
+        "policy_mode": package.policy_mode,
+        "sequence_enforced": bool(package.sequence_enforced),
+        "exam_gate_enforced": bool(package.exam_gate_enforced),
+        "status": package.status,
+        "revision_no": package.revision_no,
+        "published_at": _iso(package.published_at),
+        "archived_at": _iso(package.archived_at),
+        "section_count": len(sections),
+        "video_count": len(videos),
+        "published_video_count": sum(
+            1 for video in videos if video.status == "published" and video.is_current
+        ),
+        "created_at": _iso(package.created_at),
+        "updated_at": _iso(package.updated_at),
+    }
+    if detail:
+        result["sections"] = [_catalog_section_output(db, section) for section in sections]
+    return result
+
+
+def _ensure_catalog_seed(db: Session, user: User) -> int | None:
+    """Idempotently create the requested package catalog in the current scope."""
+    scope = _catalog_scope(db, user)
+    changed = False
+    for spec in REMOTE_CATALOG_PACKAGE_SPECS:
+        scope_filter = (
+            RemoteTrainingCatalogPackage.osgb_id.is_(None)
+            if scope is None
+            else RemoteTrainingCatalogPackage.osgb_id == scope
+        )
+        package = db.scalar(
+            select(RemoteTrainingCatalogPackage).where(
+                RemoteTrainingCatalogPackage.code == spec["code"], scope_filter
+            )
+        )
+        if package is None:
+            package = RemoteTrainingCatalogPackage(
+                osgb_id=scope,
+                code=spec["code"],
+                title=spec["title"],
+                description=spec["description"],
+                training_type=REMOTE_TRAINING_TYPE,
+                created_by_id=user.id,
+            )
+            db.add(package)
+            db.flush()
+            changed = True
+        else:
+            # Keep rows created by an earlier catalog draft aligned with the
+            # approved package names without touching their videos or revisions.
+            if package.title != spec["title"] or package.description != spec["description"]:
+                package.title = spec["title"]
+                package.description = spec["description"]
+                changed = True
+        existing_codes = set(
+            db.scalars(
+                select(RemoteTrainingCatalogSection.code).where(
+                    RemoteTrainingCatalogSection.package_id == package.id
+                )
+            ).all()
+        )
+        for order, (code, title) in enumerate(spec["sections"], start=1):
+            if code in existing_codes:
+                continue
+            db.add(
+                RemoteTrainingCatalogSection(
+                    package_id=package.id,
+                    code=code,
+                    title=title,
+                    order_index=order,
+                    created_by_id=user.id,
+                )
+            )
+            changed = True
+    if changed:
+        _commit(db, "Merkezi eğitim paketleri oluşturulamadı.")
+    return scope
+
+
 @router.get("/meta")
 def remote_training_meta(
     db: Session = Depends(get_db),
@@ -476,9 +716,657 @@ def remote_training_meta(
         "program_statuses": list(PROGRAM_STATUSES),
         "video_statuses": list(VIDEO_STATUSES),
         "asset_types": list(ASSET_TYPES),
+        "catalog_statuses": list(PROGRAM_STATUSES),
         "can_manage": is_manager(user),
         "can_view_employee_panel": bool(feature_active() and employee_access(db, user) is not None),
     }
+
+
+@router.get("/catalog/packages")
+def list_catalog_packages(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    _manager(user)
+    _ensure_catalog_seed(db, user)
+    scope = _catalog_scope(db, user)
+    stmt = select(RemoteTrainingCatalogPackage)
+    allowed_codes = tuple(spec["code"] for spec in REMOTE_CATALOG_PACKAGE_SPECS)
+    # Retired/experimental rows remain recoverable in the database, but the
+    # preparation screen exposes only the approved package catalog.
+    stmt = stmt.where(RemoteTrainingCatalogPackage.code.in_(allowed_codes))
+    if user.role != UserRole.GLOBAL_ADMIN:
+        stmt = stmt.where(RemoteTrainingCatalogPackage.osgb_id == scope)
+    rows = db.scalars(
+        stmt.order_by(RemoteTrainingCatalogPackage.code, RemoteTrainingCatalogPackage.id)
+    ).all()
+    # SQL ordering is intentionally not used for the user-facing catalog.  The
+    # package specification order is the same order in which the administrator
+    # prepares the content.
+    order = {
+        spec["code"]: index
+        for index, spec in enumerate(REMOTE_CATALOG_PACKAGE_SPECS)
+    }
+    rows = sorted(rows, key=lambda row: (order.get(row.code, len(order)), row.id))
+    return [_catalog_package_output(db, row) for row in rows]
+
+
+@router.get("/catalog/packages/{package_id}")
+def get_catalog_package(
+    package_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    package = _catalog_package_for_manager(db, user, package_id)
+    return _catalog_package_output(db, package, detail=True)
+
+
+@router.post("/catalog/packages/{package_id}/materialize", status_code=201)
+def materialize_catalog_package(
+    package_id: int,
+    payload: RemoteCatalogMaterialize,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Snapshot a published central package into one company's program.
+
+    The company program owns its section/video rows after this operation.  A
+    later catalog revision therefore cannot rewrite an employee's historical
+    assignment or progress records.
+    """
+    package = _catalog_package_for_manager(db, user, package_id)
+    if package.status != "published":
+        raise HTTPException(409, "Yalnızca yayımlanmış merkezi paket firmaya hazırlanabilir.")
+    ensure_company_access(db, user, payload.company_id)
+    branch = validate_branch(db, payload.company_id, payload.branch_id)
+    company = db.get(Company, payload.company_id)
+    if not company or not company.is_active:
+        raise HTTPException(404, "Firma bulunamadı veya pasif.")
+    existing_snapshot = db.scalar(
+        select(RemoteTrainingProgram).where(
+            RemoteTrainingProgram.company_id == company.id,
+            RemoteTrainingProgram.source_catalog_package_id == package.id,
+            RemoteTrainingProgram.source_catalog_revision_no == package.revision_no,
+            RemoteTrainingProgram.status != "archived",
+        )
+    )
+    if existing_snapshot:
+        raise HTTPException(
+            409,
+            f"Bu paket revizyonu firma için zaten hazırlandı (program #{existing_snapshot.id}).",
+        )
+
+    catalog_sections = list(
+        db.scalars(
+            select(RemoteTrainingCatalogSection)
+            .where(
+                RemoteTrainingCatalogSection.package_id == package.id,
+                RemoteTrainingCatalogSection.status == "active",
+            )
+            .order_by(RemoteTrainingCatalogSection.order_index, RemoteTrainingCatalogSection.id)
+        ).all()
+    )
+    if not catalog_sections:
+        raise HTTPException(409, "Merkezi pakette aktif bölüm bulunmuyor.")
+
+    videos_by_section: dict[int, list[RemoteTrainingCatalogVideo]] = {}
+    missing_required: list[str] = []
+    for section in catalog_sections:
+        rows = list(
+            db.scalars(
+                select(RemoteTrainingCatalogVideo)
+                .where(
+                    RemoteTrainingCatalogVideo.section_id == section.id,
+                    RemoteTrainingCatalogVideo.status == "published",
+                    RemoteTrainingCatalogVideo.is_current.is_(True),
+                )
+                .order_by(RemoteTrainingCatalogVideo.order_index, RemoteTrainingCatalogVideo.id)
+            ).all()
+        )
+        videos_by_section[section.id] = rows
+        if section.is_required and not rows:
+            missing_required.append(section.code)
+    if missing_required:
+        raise HTTPException(
+            409,
+            "Yayımlanmış videosu olmayan zorunlu bölümler: " + ", ".join(missing_required),
+        )
+
+    program = RemoteTrainingProgram(
+        osgb_id=company.osgb_id,
+        company_id=company.id,
+        branch_id=branch.id if branch else None,
+        source_catalog_package_id=package.id,
+        source_catalog_code=package.code,
+        source_catalog_revision_no=package.revision_no,
+        title=(payload.title or package.title).strip(),
+        training_type=REMOTE_TRAINING_TYPE,
+        description=package.description,
+        instructor_name=payload.instructor_name,
+        instructor_qualification=payload.instructor_qualification,
+        completion_threshold_percent=int(package.completion_threshold_percent),
+        passing_score=int(package.passing_score),
+        attempt_limit=int(package.attempt_limit),
+        requires_final_exam=bool(package.requires_final_exam),
+        policy_mode=str(package.policy_mode or "strict"),
+        sequence_enforced=bool(package.sequence_enforced),
+        exam_gate_enforced=bool(package.exam_gate_enforced),
+        created_by_id=user.id,
+    )
+    db.add(program)
+    db.flush()
+    catalog_sector_code = catalog_package_sector_code(package.code)
+    for code, label, _description in REMOTE_SECTOR_CATALOG:
+        db.add(
+            RemoteTrainingProgramSector(
+                osgb_id=program.osgb_id,
+                company_id=program.company_id,
+                program_id=program.id,
+                sector_code=code,
+                sector_name_snapshot=label,
+                is_enabled=code == catalog_sector_code,
+                created_by_id=user.id,
+            )
+        )
+
+    copied_keys: list[str] = []
+    store = get_object_store()
+    try:
+        for catalog_section in catalog_sections:
+            section = RemoteTrainingSection(
+                osgb_id=program.osgb_id,
+                company_id=program.company_id,
+                program_id=program.id,
+                sector_code=catalog_sector_code,
+                title=catalog_section.title,
+                description=catalog_section.description,
+                order_index=catalog_section.order_index,
+                is_required=bool(catalog_section.is_required),
+                created_by_id=user.id,
+            )
+            db.add(section)
+            db.flush()
+            for catalog_video in videos_by_section[catalog_section.id]:
+                extension = Path(catalog_video.original_file_name or "video.mp4").suffix.lower() or ".mp4"
+                target_key = storage_key(
+                    company_id=program.company_id,
+                    program_id=program.id,
+                    prefix="video",
+                    extension=extension,
+                )
+                store.put_bytes(target_key, store.get_bytes(catalog_video.storage_key))
+                copied_keys.append(target_key)
+                db.add(
+                    RemoteTrainingVideo(
+                        osgb_id=program.osgb_id,
+                        company_id=program.company_id,
+                        program_id=program.id,
+                        section_id=section.id,
+                        title=catalog_video.title,
+                        description=catalog_video.description,
+                        learning_objectives=catalog_video.learning_objectives,
+                        order_index=catalog_video.order_index,
+                        is_required=bool(catalog_video.is_required),
+                        revision_no=catalog_video.revision_no,
+                        is_current=True,
+                        status="published",
+                        original_file_name=catalog_video.original_file_name,
+                        content_type=catalog_video.content_type,
+                        file_size_bytes=catalog_video.file_size_bytes,
+                        duration_seconds=catalog_video.duration_seconds,
+                        width=catalog_video.width,
+                        height=catalog_video.height,
+                        codec=catalog_video.codec,
+                        storage_key=target_key,
+                        published_at=catalog_video.published_at or datetime.utcnow(),
+                        created_by_id=user.id,
+                    )
+                )
+
+        recalculate_program_duration(db, program.id)
+        audit(
+            db,
+            company_id=program.company_id,
+            user=user,
+            action="catalog_package_materialized",
+            entity_type="program",
+            entity_id=program.id,
+            details={"catalog_package_id": package.id, "catalog_code": package.code, "revision_no": package.revision_no},
+        )
+        _commit(db, "Merkezi paket firma programına hazırlanamadı.")
+    except Exception:
+        db.rollback()
+        for key in copied_keys:
+            try:
+                store.delete(key)
+            except Exception:
+                logger.exception("Firma paket kopyası temizlenemedi: %s", key)
+        raise
+    return _program_detail(db, program)
+
+
+@router.post("/catalog/packages/{package_id}/ready-for-review")
+def mark_catalog_package_ready_for_review(
+    package_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    package = _catalog_package_for_manager(db, user, package_id)
+    if package.status in {"published", "archived"}:
+        raise HTTPException(409, "Yayımlanmış veya arşivlenmiş paket incelemeye alınamaz.")
+    sections = db.scalars(
+        select(RemoteTrainingCatalogSection).where(
+            RemoteTrainingCatalogSection.package_id == package.id,
+            RemoteTrainingCatalogSection.status == "active",
+        )
+    ).all()
+    if not sections:
+        raise HTTPException(409, "İnceleme için pakete en az bir aktif bölüm ekleyin.")
+    missing = []
+    for section in sections:
+        count = db.scalar(
+            select(func.count(RemoteTrainingCatalogVideo.id)).where(
+                RemoteTrainingCatalogVideo.section_id == section.id,
+                RemoteTrainingCatalogVideo.status == "published",
+                RemoteTrainingCatalogVideo.is_current.is_(True),
+            )
+        ) or 0
+        if not count:
+            missing.append(section.code)
+    if missing:
+        raise HTTPException(409, "Yayımlanmış videosu olmayan bölümler: " + ", ".join(missing))
+    package.status = "ready_for_review"
+    package.revision_no += 1
+    _commit(db, "Merkezi paket incelemeye alınamadı.")
+    return _catalog_package_output(db, package)
+
+
+@router.post("/catalog/packages/{package_id}/publish")
+def publish_catalog_package(
+    package_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    package = _catalog_package_for_manager(db, user, package_id)
+    if package.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş paket yayımlanamaz.")
+    sections = db.scalars(
+        select(RemoteTrainingCatalogSection).where(
+            RemoteTrainingCatalogSection.package_id == package.id,
+            RemoteTrainingCatalogSection.status == "active",
+        )
+    ).all()
+    if not sections:
+        raise HTTPException(409, "Yayın için pakete en az bir aktif bölüm ekleyin.")
+    missing = []
+    for section in sections:
+        count = db.scalar(
+            select(func.count(RemoteTrainingCatalogVideo.id)).where(
+                RemoteTrainingCatalogVideo.section_id == section.id,
+                RemoteTrainingCatalogVideo.status == "published",
+                RemoteTrainingCatalogVideo.is_current.is_(True),
+            )
+        ) or 0
+        if not count:
+            missing.append(section.code)
+    if missing:
+        raise HTTPException(409, "Yayımlanmış videosu olmayan bölümler: " + ", ".join(missing))
+    package.status = "published"
+    package.published_at = datetime.utcnow()
+    package.revision_no += 1
+    _commit(db, "Merkezi paket yayımlanamadı.")
+    return _catalog_package_output(db, package)
+
+
+@router.post("/catalog/packages/{package_id}/unpublish")
+def unpublish_catalog_package(
+    package_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    package = _catalog_package_for_manager(db, user, package_id)
+    if package.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş paket yayımdan kaldırılamaz.")
+    package.status = "unpublished"
+    package.published_at = None
+    package.revision_no += 1
+    _commit(db, "Merkezi paket yayımdan kaldırılamadı.")
+    return _catalog_package_output(db, package)
+
+
+@router.post("/catalog/packages/{package_id}/archive")
+def archive_catalog_package(
+    package_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    package = _catalog_package_for_manager(db, user, package_id)
+    package.status = "archived"
+    package.archived_at = datetime.utcnow()
+    package.published_at = None
+    _commit(db, "Merkezi paket arşivlenemedi.")
+    return _catalog_package_output(db, package)
+
+
+@router.post("/catalog/packages/{package_id}/sections", status_code=201)
+def create_catalog_section(
+    package_id: int,
+    payload: RemoteCatalogSectionCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    package = _catalog_package_for_manager(db, user, package_id)
+    if package.status in {"published", "archived"}:
+        raise HTTPException(409, "Yayımlanmış/arşivlenmiş pakete bölüm eklenemez.")
+    order = payload.order_index
+    if order is None:
+        order = (
+            db.scalar(
+                select(func.max(RemoteTrainingCatalogSection.order_index)).where(
+                    RemoteTrainingCatalogSection.package_id == package.id
+                )
+            )
+            or 0
+        ) + 1
+    row = RemoteTrainingCatalogSection(
+        package_id=package.id,
+        code=payload.code.strip().upper(),
+        title=payload.title.strip(),
+        description=payload.description,
+        order_index=order,
+        is_required=payload.is_required,
+        created_by_id=user.id,
+    )
+    db.add(row)
+    _commit(db, "Merkezi eğitim bölümü oluşturulamadı; kod veya sıra numarası çakışabilir.")
+    db.refresh(row)
+    return _catalog_section_output(db, row)
+
+
+@router.patch("/catalog/sections/{section_id}")
+def update_catalog_section(
+    section_id: int,
+    payload: RemoteCatalogSectionUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    section = _catalog_section_for_manager(db, user, section_id)
+    package = _catalog_package_for_manager(db, user, section.package_id)
+    if package.status in {"published", "archived"}:
+        raise HTTPException(409, "Yayımlanmış/arşivlenmiş bölüm değiştirilemez.")
+    values = payload.model_dump(exclude_unset=True)
+    for key, value in values.items():
+        if isinstance(value, str):
+            value = value.strip().upper() if key == "code" else value.strip()
+        setattr(section, key, value)
+    _commit(db, "Merkezi eğitim bölümü güncellenemedi.")
+    return _catalog_section_output(db, section)
+
+
+@router.post("/catalog/sections/{section_id}/archive")
+def archive_catalog_section(
+    section_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    section = _catalog_section_for_manager(db, user, section_id)
+    package = _catalog_package_for_manager(db, user, section.package_id)
+    if package.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş paketin bölümü değiştirilemez.")
+    section.status = "archived"
+    _commit(db, "Merkezi eğitim bölümü arşivlenemedi.")
+    return _catalog_section_output(db, section)
+
+
+@router.post("/catalog/sections/{section_id}/videos", status_code=201)
+async def upload_catalog_video(
+    section_id: int,
+    file: UploadFile = File(...),
+    title: str = Form(..., min_length=2, max_length=220),
+    description: str | None = Form(default=None, max_length=5000),
+    learning_objectives: str | None = Form(default=None, max_length=5000),
+    order_index: int = Form(default=1, ge=1),
+    is_required: bool = Form(default=True),
+    revision_of_id: int | None = Form(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    section = _catalog_section_for_manager(db, user, section_id)
+    package = _catalog_package_for_manager(db, user, section.package_id)
+    if package.status == "archived" or section.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş pakete veya bölüme video yüklenemez.")
+    if package.status == "published" and revision_of_id is None:
+        raise HTTPException(409, "Yayımlanmış pakette mevcut videonun yanındaki yeni sürüm işlemini kullanın.")
+    original_name = Path(file.filename or "video").name
+    extension = Path(original_name).suffix.lower()
+    max_bytes = max(1, int(settings.remote_basic_ohs_video_max_upload_mb)) * 1024 * 1024
+    content = await file.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(413, f"Video {settings.remote_basic_ohs_video_max_upload_mb} MB sınırını aşıyor.")
+    validate_video_bytes(content, extension=extension, original_name=original_name)
+
+    revision_of = None
+    revision_no = 1
+    is_current = True
+    if revision_of_id is not None:
+        revision_of = _catalog_video_for_manager(db, user, revision_of_id)
+        if revision_of.package_id != package.id or revision_of.section_id != section.id:
+            raise HTTPException(422, "Video revizyonu aynı paket ve bölüm içinde olmalıdır.")
+        if not revision_of.is_current:
+            raise HTTPException(409, "Yeni sürüm yalnızca bölümün güncel videosundan oluşturulabilir.")
+        if package.status == "published" and revision_of.status != "published":
+            raise HTTPException(409, "Yayımlanmış pakette yalnızca çalışanlara açık video güncellenebilir.")
+        revision_no = revision_of.revision_no + 1
+        is_current = False
+
+    key = catalog_storage_key(package_id=package.id, prefix="video", extension=extension)
+    store = None
+    try:
+        store = get_object_store()
+        store.put_bytes(key, content)
+        row = RemoteTrainingCatalogVideo(
+            package_id=package.id,
+            section_id=section.id,
+            revision_of_id=revision_of.id if revision_of else None,
+            title=title.strip(),
+            description=description,
+            learning_objectives=learning_objectives,
+            order_index=order_index,
+            is_required=is_required,
+            revision_no=revision_no,
+            is_current=is_current,
+            status="uploading",
+            original_file_name=original_name,
+            content_type=(file.content_type or "application/octet-stream")[:120],
+            file_size_bytes=len(content),
+            storage_key=key,
+            created_by_id=user.id,
+        )
+        db.add(row)
+        db.flush()
+        _commit(db, "Merkezi video kaydı oluşturulamadı.")
+        job_id = enqueue_catalog_video_processing(db, row)
+        row.processing_job_id = job_id
+        db.commit()
+        db.refresh(row)
+        return _catalog_video_output(row)
+    except HTTPException:
+        if store is not None:
+            try:
+                store.delete(key)
+            except Exception:
+                pass
+        raise
+    except Exception as exc:
+        db.rollback()
+        if store is not None:
+            try:
+                store.delete(key)
+            except Exception:
+                pass
+        raise HTTPException(500, "Merkezi video yüklenirken güvenli depolama işlemi tamamlanamadı.") from exc
+
+
+@router.patch("/catalog/videos/{video_id}")
+def update_catalog_video(
+    video_id: int,
+    payload: RemoteVideoUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    video = _catalog_video_for_manager(db, user, video_id)
+    package = _catalog_package_for_manager(db, user, video.package_id)
+    if package.status == "archived" or video.status in {"published", "unpublished", "archived"}:
+        raise HTTPException(409, "Tarihsel video doğrudan değiştirilemez; yeni sürüm yükleyin.")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(video, key, value.strip() if isinstance(value, str) else value)
+    _commit(db, "Merkezi video güncellenemedi.")
+    return _catalog_video_output(video)
+
+
+@router.delete("/catalog/videos/{video_id}")
+def delete_catalog_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    video = _catalog_video_for_manager(db, user, video_id)
+    package = _catalog_package_for_manager(db, user, video.package_id)
+    if package.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş pakete ait video silinemez.")
+    if video.status in {"published", "unpublished", "archived"}:
+        raise HTTPException(409, "Yayımlanmış veya tarihsel video silinemez; yeni sürüm yükleyin.")
+    if package.status == "published" and video.revision_of_id is None:
+        raise HTTPException(409, "Yayımlanmış pakette yalnızca yeni sürüm adayı silinebilir.")
+    key = video.storage_key
+    db.delete(video)
+    db.flush()
+    recalculate_catalog_package_duration(db, package.id)
+    _commit(db, "Merkezi video silinemedi.")
+    cleanup_pending = False
+    try:
+        get_object_store().delete(key)
+    except Exception:
+        cleanup_pending = True
+        logger.exception("Silinen katalog videosu temizlenemedi: video_id=%s", video_id)
+    return {"deleted": True, "id": video_id, "storage_cleanup_pending": cleanup_pending}
+
+
+@router.post("/catalog/videos/{video_id}/publish")
+def publish_catalog_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    video = _catalog_video_for_manager(db, user, video_id)
+    if video.status != "ready_for_review":
+        raise HTTPException(409, "Video yalnızca incelemeye hazır durumdayken yayımlanabilir.")
+    if not video.duration_seconds or not video.storage_key:
+        raise HTTPException(409, "Video işleme süresi veya güvenli depolama kaydı eksik.")
+    package = _catalog_package_for_manager(db, user, video.package_id)
+    if package.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş pakete video yayımlanamaz.")
+    current = db.scalars(
+        select(RemoteTrainingCatalogVideo).where(
+            RemoteTrainingCatalogVideo.package_id == video.package_id,
+            RemoteTrainingCatalogVideo.section_id == video.section_id,
+            RemoteTrainingCatalogVideo.is_current.is_(True),
+            RemoteTrainingCatalogVideo.id != video.id,
+            RemoteTrainingCatalogVideo.status == "published",
+        )
+    ).all()
+    for old in current:
+        old.is_current = False
+        old.status = "unpublished"
+    video.is_current = True
+    video.status = "published"
+    video.published_at = datetime.utcnow()
+    recalculate_catalog_package_duration(db, video.package_id)
+    _commit(db, "Merkezi video yayımlanamadı.")
+    return _catalog_video_output(video)
+
+
+@router.post("/catalog/videos/{video_id}/unpublish")
+def unpublish_catalog_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    video = _catalog_video_for_manager(db, user, video_id)
+    if video.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş video yayımdan kaldırılamaz.")
+    video.status = "unpublished"
+    video.published_at = None
+    recalculate_catalog_package_duration(db, video.package_id)
+    _commit(db, "Merkezi video yayımdan kaldırılamadı.")
+    return _catalog_video_output(video)
+
+
+@router.post("/catalog/videos/{video_id}/archive")
+def archive_catalog_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    video = _catalog_video_for_manager(db, user, video_id)
+    video.status = "archived"
+    video.is_current = False
+    video.archived_at = datetime.utcnow()
+    recalculate_catalog_package_duration(db, video.package_id)
+    _commit(db, "Merkezi video arşivlenemedi.")
+    return _catalog_video_output(video)
+
+
+@router.post("/catalog/videos/{video_id}/retry-processing")
+def retry_catalog_video_processing(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    video = _catalog_video_for_manager(db, user, video_id)
+    if video.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş video yeniden işlenemez.")
+    video.status = "uploading"
+    video.processing_error = None
+    db.commit()
+    job_id = enqueue_catalog_video_processing(db, video)
+    video.processing_job_id = job_id
+    db.commit()
+    return _catalog_video_output(video)
+
+
+@router.get("/catalog/videos/{video_id}/playback")
+def create_catalog_playback(
+    video_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    video = _catalog_video_for_manager(db, user, video_id)
+    if video.status not in {"ready_for_review", "published", "unpublished"}:
+        raise HTTPException(409, "Bu durumdaki video önizlenemez.")
+    token = create_catalog_playback_token(user=user, video=video)
+    ttl = max(60, min(int(settings.remote_basic_ohs_playback_ttl_seconds), 900))
+    return {
+        "video_id": video.id,
+        "mode": "preview",
+        "url": f"/api/v1/trainings/remote/catalog/videos/{video.id}/stream?token={token}",
+        "expires_in_seconds": ttl,
+    }
+
+
+@router.get("/catalog/videos/{video_id}/stream")
+def stream_catalog_video(
+    video_id: int,
+    token: str = Query(..., min_length=20),
+    db: Session = Depends(get_db),
+):
+    require_feature()
+    _user, video = decode_catalog_playback_token(db, token, video_id)
+    response = response_for_video(video)
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @router.get("/programs")
@@ -572,6 +1460,8 @@ def update_remote_program_sectors(
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitimde sektör kapsamı değiştirilemez.")
     requested = {validate_sector_code(code) for code in payload.sector_codes}
+    if not requested:
+        raise HTTPException(422, "En az bir sektör/ders kapsamı seçilmelidir.")
     unknown = requested - {code for code, _label, _description in REMOTE_SECTOR_CATALOG}
     if unknown:
         raise HTTPException(422, "Sektör kapsamı katalogda bulunmayan bir kod içeriyor.")
@@ -606,7 +1496,7 @@ def update_remote_program_sectors(
             )
             db.add(row)
         row.sector_name_snapshot = label
-        row.is_enabled = code == "common" or code in requested
+        row.is_enabled = code in requested
         row.updated_at = datetime.utcnow()
     audit(
         db,
@@ -615,7 +1505,7 @@ def update_remote_program_sectors(
         action="program_sector_scope_updated",
         entity_type="program_sector_scope",
         entity_id=program.id,
-        details={"sector_codes": sorted({"common"} | requested), "ip": request.client.host if request.client else None},
+        details={"sector_codes": sorted(requested), "ip": request.client.host if request.client else None},
     )
     _commit(db, "Firma ders kapsamı kaydedilemedi.")
     return build_program_sector_catalog(db, program)
@@ -645,6 +1535,13 @@ def update_remote_program(
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitim önce taslak akışına alınmalıdır.")
     values = payload.model_dump(exclude_unset=True)
+    if str(getattr(program, "policy_mode", "legacy") or "legacy") == "strict":
+        if values.get("completion_threshold_percent", program.completion_threshold_percent) < 100:
+            raise HTTPException(422, "Pilot eğitimlerde video tamamlanma eşiği %100 olmalıdır.")
+        if values.get("passing_score", program.passing_score) < 70:
+            raise HTTPException(422, "Pilot eğitimlerde geçme puanı en az %70 olmalıdır.")
+        if values.get("requires_final_exam", program.requires_final_exam) is False:
+            raise HTTPException(422, "Pilot eğitimlerde final sınavı zorunludur.")
     if "branch_id" in values and values["branch_id"] is not None:
         branch = db.get(Branch, values["branch_id"])
         if not branch or branch.company_id != program.company_id or not branch.is_active:
@@ -681,6 +1578,7 @@ def publish_remote_program(
     user: User = Depends(get_current_user),
 ):
     program = _assert_program_manager(db, user, program_id)
+    require_strict_policy_active(program)
     if program.status == "archived":
         raise HTTPException(409, "Arşivlenmiş eğitim yayımlanamaz.")
     active_sections = db.scalar(
@@ -698,6 +1596,30 @@ def publish_remote_program(
     ) or 0
     if not active_sections or not published_videos:
         raise HTTPException(409, "Yayın için en az bir aktif bölüm ve yayımlanmış video gerekir.")
+    if strict_policy_active(program):
+        incomplete_sections = []
+        for section in db.scalars(
+            select(RemoteTrainingSection).where(
+                RemoteTrainingSection.program_id == program.id,
+                RemoteTrainingSection.status == "active",
+            )
+        ).all():
+            has_required_video = db.scalar(
+                select(func.count(RemoteTrainingVideo.id)).where(
+                    RemoteTrainingVideo.program_id == program.id,
+                    RemoteTrainingVideo.section_id == section.id,
+                    RemoteTrainingVideo.status == "published",
+                    RemoteTrainingVideo.is_current.is_(True),
+                )
+            ) or 0
+            if not has_required_video:
+                incomplete_sections.append(section.title)
+        if incomplete_sections:
+            raise HTTPException(
+                409,
+                "Pilot pakette her aktif bölüm için yayımlanmış bir video gerekir: "
+                + ", ".join(incomplete_sections),
+            )
     sector_scope = program_sector_codes(db, program.id)
     if sector_scope is not None:
         missing_content = []
@@ -1217,11 +2139,13 @@ def create_remote_playback(
             raise HTTPException(422, "Çalışan oynatması için atama seçilmelidir.")
         assignment = load_assignment(db, assignment_id)
         assert_assignment_access(db, user, assignment)
+        require_strict_policy_active(program)
         if assignment.program_id != program.id:
             raise HTTPException(403, "Video bu atamaya bağlı değil.")
         section = load_section(db, video.section_id)
         if not assignment_allows_sector(db, assignment, section.sector_code):
             raise HTTPException(403, "Video bu çalışanın ders kapsamına dahil değil.")
+        assert_video_unlocked(db, assignment, video)
         if program.status != "published" or video.status != "published" or not video.is_current:
             raise HTTPException(403, "Video henüz çalışana açık değil.")
     token = create_playback_token(user=user, video=video, assignment_id=assignment_id, mode=mode)
@@ -1260,6 +2184,7 @@ def assign_remote_program(
     program = _assert_program_manager(db, user, program_id)
     if program.status != "published":
         raise HTTPException(409, "Yalnızca yayımlanmış eğitim çalışanlara atanabilir.")
+    require_strict_policy_active(program)
     sector_codes = program_sector_codes(db, program.id)
     branch_id = payload.branch_id or program.branch_id
     if payload.branch_id and program.branch_id and payload.branch_id != program.branch_id:
@@ -1281,6 +2206,24 @@ def assign_remote_program(
     missing = [employee_id for employee_id in payload.employee_ids if employee_id not in found]
     if missing:
         raise HTTPException(422, "Seçilen çalışanlardan bazıları firma dışı, pasif veya bulunamadı.")
+    if strict_policy_active(program):
+        mapped_employee_ids = {
+            int(employee_id)
+            for employee_id in db.scalars(
+                select(RemoteTrainingEmployeeAccess.employee_id).where(
+                    RemoteTrainingEmployeeAccess.company_id == program.company_id,
+                    RemoteTrainingEmployeeAccess.employee_id.in_(payload.employee_ids),
+                    RemoteTrainingEmployeeAccess.is_active.is_(True),
+                )
+            ).all()
+        }
+        without_login = sorted(set(payload.employee_ids) - mapped_employee_ids)
+        if without_login:
+            raise HTTPException(
+                409,
+                "Pilot ataması için önce seçilen çalışanların aktif giriş hesabı oluşturulup eşlenmelidir: "
+                + ", ".join(str(item) for item in without_login),
+            )
     created: list[RemoteTrainingAssignment] = []
     skipped: list[int] = []
     for employee in employees:
@@ -1390,6 +2333,8 @@ def list_my_remote_assignments(
         program = load_program(db, row.program_id)
         if program.status != "published":
             continue
+        if str(getattr(program, "policy_mode", "legacy") or "legacy").lower() == "strict" and not strict_policy_active(program):
+            continue
         visible.append(_assignment_output(db, row, include_program=True, employee=True))
     return visible
 
@@ -1404,9 +2349,84 @@ def get_remote_assignment(
     assignment = load_assignment(db, assignment_id)
     mode = assert_assignment_access(db, user, assignment)
     program = load_program(db, assignment.program_id)
+    if mode == "employee":
+        require_strict_policy_active(program)
     if mode == "employee" and program.status != "published":
         raise HTTPException(403, "Bu eğitim şu anda çalışana açık değil.")
     return _assignment_output(db, assignment, include_program=True, employee=(mode == "employee"))
+
+
+@router.post("/employee-access/provision", status_code=201)
+def provision_remote_employee_account(
+    payload: RemoteEmployeeAccountProvision,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Create a restricted employee login and bind it in one transaction.
+
+    The generated password is returned once to the manager and never written
+    to audit logs or database columns.  The employee must change it before a
+    strict remote-training assignment can be opened.
+    """
+    require_feature()
+    _manager(user)
+    ensure_company_access(db, user, payload.company_id)
+    company = db.get(Company, payload.company_id)
+    employee = db.get(Employee, payload.employee_id)
+    if not company or not company.is_active:
+        raise HTTPException(404, "Firma bulunamadı veya pasif.")
+    if not employee or not employee.is_active or employee.company_id != payload.company_id:
+        raise HTTPException(422, "Çalışan firma kapsamında değil veya pasif.")
+    if db.scalar(select(User).where(func.lower(User.email) == str(payload.email).lower())):
+        raise HTTPException(409, "Bu e-posta zaten bir kullanıcı hesabına bağlıdır.")
+    if db.scalar(
+        select(RemoteTrainingEmployeeAccess).where(
+            RemoteTrainingEmployeeAccess.employee_id == employee.id,
+            RemoteTrainingEmployeeAccess.is_active.is_(True),
+        )
+    ):
+        raise HTTPException(409, "Bu çalışan zaten aktif bir uzaktan eğitim hesabına eşlenmiş.")
+
+    temporary_password = generate_temporary_password()
+    account = User(
+        email=str(payload.email).lower(),
+        full_name=employee.full_name,
+        hashed_password=get_password_hash(temporary_password),
+        role=UserRole.READ_ONLY,
+        company_id=company.id,
+        osgb_id=company.osgb_id,
+        password_change_required=True,
+    )
+    db.add(account)
+    db.flush()
+    access = RemoteTrainingEmployeeAccess(
+        osgb_id=company.osgb_id,
+        company_id=company.id,
+        user_id=account.id,
+        employee_id=employee.id,
+        created_by_id=user.id,
+    )
+    db.add(access)
+    audit(
+        db,
+        company_id=company.id,
+        user=user,
+        action="employee_account_provisioned",
+        entity_type="employee_access",
+        entity_id=employee.id,
+        details={"user_id": account.id, "email": account.email},
+    )
+    _commit(db, "Çalışan giriş hesabı oluşturulamadı.")
+    return {
+        "access_id": access.id,
+        "user_id": account.id,
+        "employee_id": employee.id,
+        "email": account.email,
+        "full_name": account.full_name,
+        "temporary_password": temporary_password,
+        "password_change_required": True,
+        "message": "Geçici parola yalnızca bu yanıtta gösterildi. Çalışan ilk girişten sonra parolasını değiştirmelidir.",
+    }
 
 
 @router.post("/employee-access", status_code=201)
@@ -1672,6 +2692,14 @@ def get_remote_exam(
     assignment = load_assignment(db, assignment_id)
     assert_assignment_access(db, user, assignment)
     program = load_program(db, assignment.program_id)
+    require_strict_policy_active(program)
+    if strict_exam_gate_enabled(program):
+        summary = recalculate_assignment(db, assignment)
+        if not summary["required_videos_complete"] or not summary["required_checkpoints_complete"]:
+            raise HTTPException(
+                409,
+                "Final sınavı açılmadan önce tüm zorunlu videolar ve video içi kontrol soruları tamamlanmalıdır.",
+            )
     links = _exam_links_for_assignment(db, assignment)
     questions = []
     for link in links:
@@ -1709,8 +2737,18 @@ def submit_remote_exam(
 ):
     require_feature()
     assignment = load_assignment(db, assignment_id)
-    assert_assignment_access(db, user, assignment, write=True)
+    mode = assert_assignment_access(db, user, assignment, write=True)
     program = load_program(db, assignment.program_id)
+    require_strict_policy_active(program)
+    if strict_policy_active(program) and mode != "employee":
+        raise HTTPException(403, "Pilot sınavını yalnızca eşlenmiş çalışan gönderebilir.")
+    if strict_exam_gate_enabled(program):
+        summary = recalculate_assignment(db, assignment)
+        if not summary["required_videos_complete"] or not summary["required_checkpoints_complete"]:
+            raise HTTPException(
+                409,
+                "Final sınavı gönderilemez: tüm zorunlu videolar ve video içi kontrol soruları tamamlanmalıdır.",
+            )
     if not program.requires_final_exam:
         raise HTTPException(409, "Bu eğitimde final sınavı zorunlu değil.")
     links = _exam_links_for_assignment(db, assignment)
@@ -1766,14 +2804,18 @@ def save_remote_progress(
 ):
     require_feature()
     assignment = load_assignment(db, assignment_id)
-    assert_assignment_access(db, user, assignment, write=True)
+    mode = assert_assignment_access(db, user, assignment, write=True)
     video = load_video(db, video_id)
     program = load_program(db, assignment.program_id)
+    require_strict_policy_active(program)
+    if strict_policy_active(program) and mode != "employee":
+        raise HTTPException(403, "Pilot video ilerlemesini yalnızca eşlenmiş çalışan gönderebilir.")
     if video.program_id != program.id or video.status != "published" or not video.is_current:
         raise HTTPException(403, "Video bu atamaya açık değil.")
     section = load_section(db, video.section_id)
     if not assignment_allows_sector(db, assignment, section.sector_code):
         raise HTTPException(403, "Video bu çalışanın ders kapsamına dahil değil.")
+    assert_video_unlocked(db, assignment, video)
     if not video.duration_seconds:
         raise HTTPException(409, "Video süresi işlenmeden ilerleme kaydı alınamaz.")
     position = min(float(payload.position_seconds), float(video.duration_seconds))
@@ -1802,15 +2844,36 @@ def save_remote_progress(
     else:
         elapsed_seconds = max(0.0, (now - previous_access).total_seconds())
     forward_delta = max(0.0, position - current_position)
-    # Do not let a single seek-to-end event turn into completion.  A progress
-    # update can credit only a small amount beyond elapsed wall-clock time;
-    # real playback heartbeats remain smooth while large jumps are capped.
-    credit_cap = min(float(video.duration_seconds), max(5.0, elapsed_seconds + 5.0))
-    credited_delta = min(forward_delta, credit_cap)
-    existing.last_position_seconds = position
-    existing.watched_duration_seconds = min(
-        float(video.duration_seconds), current_watched + credited_delta
-    )
+    strict = strict_policy_active(program)
+    if strict:
+        # A strict heartbeat can only credit elapsed server wall-clock time.
+        # There is intentionally no minimum or positive tolerance: repeated
+        # instant API calls must not farm seconds, and a forward seek cannot
+        # create credit that the server did not observe.
+        credit_cap = min(float(video.duration_seconds), max(0.0, elapsed_seconds))
+        accepted_delta = min(forward_delta, credit_cap)
+        accepted_position = (
+            min(float(video.duration_seconds), current_position + accepted_delta)
+            if position >= current_position
+            else position
+        )
+        coverage, covered_seconds = _merge_coverage(
+            _decode_coverage(existing.coverage_json),
+            current_position,
+            accepted_position,
+            float(video.duration_seconds),
+        )
+        existing.coverage_json = json.dumps(coverage, separators=(",", ":"))
+        existing.last_position_seconds = accepted_position
+        existing.watched_duration_seconds = min(float(video.duration_seconds), covered_seconds)
+    else:
+        # Legacy programs retain their previous capped-delta behavior exactly.
+        credit_cap = min(float(video.duration_seconds), max(5.0, elapsed_seconds + 5.0))
+        credited_delta = min(forward_delta, credit_cap)
+        existing.last_position_seconds = position
+        existing.watched_duration_seconds = min(
+            float(video.duration_seconds), current_watched + credited_delta
+        )
     existing.watched_percentage = min(100.0, existing.watched_duration_seconds / float(video.duration_seconds) * 100)
     existing.last_access_at = now
     existing.device_info = payload.device_info
@@ -1845,7 +2908,7 @@ def save_remote_progress(
     summary = recalculate_assignment(db, assignment)
     certificate = ensure_certificate(db, assignment)
     _commit(db, "Video ilerlemesi kaydedilemedi.")
-    return {"video_id": video.id, "position_seconds": float(existing.last_position_seconds), "watched_percentage": float(existing.watched_percentage), "status": existing.status, "summary": summary, "certificate_id": certificate.id if certificate else None}
+    return {"video_id": video.id, "position_seconds": float(existing.last_position_seconds), "accepted_position_seconds": float(existing.last_position_seconds), "watched_percentage": float(existing.watched_percentage), "status": existing.status, "summary": summary, "certificate_id": certificate.id if certificate else None}
 
 
 @router.post("/assignments/{assignment_id}/checkpoint-questions/{question_id}")
@@ -1858,12 +2921,29 @@ def answer_remote_checkpoint(
 ):
     require_feature()
     assignment = load_assignment(db, assignment_id)
-    assert_assignment_access(db, user, assignment, write=True)
+    mode = assert_assignment_access(db, user, assignment, write=True)
+    program = load_program(db, assignment.program_id)
+    require_strict_policy_active(program)
+    if strict_policy_active(program) and mode != "employee":
+        raise HTTPException(403, "Pilot kontrol sorusunu yalnızca eşlenmiş çalışan yanıtlayabilir.")
     question = db.get(RemoteTrainingQuestion, question_id)
     if not question or question.program_id != assignment.program_id:
         raise HTTPException(404, "Video içi soru bulunamadı.")
     if not assignment_allows_sector(db, assignment, question.sector_code):
         raise HTTPException(403, "Video içi soru bu çalışanın ders kapsamına dahil değil.")
+    if strict_policy_active(program) and question.video_id:
+        checkpoint_video = load_video(db, question.video_id)
+        if checkpoint_video.program_id != program.id or not checkpoint_video.is_current:
+            raise HTTPException(409, "Video içi soru güncel bir pilot videosuna bağlı değil.")
+        completed = db.scalar(
+            select(RemoteTrainingVideoProgress.id).where(
+                RemoteTrainingVideoProgress.assignment_id == assignment.id,
+                RemoteTrainingVideoProgress.video_id == checkpoint_video.id,
+                RemoteTrainingVideoProgress.status == "completed",
+            )
+        )
+        if completed is None:
+            raise HTTPException(409, "Önce bu sorunun bağlı olduğu videoyu tamamlayın.")
     normalized = answer.upper()
     options = json.loads(question.options_json or "{}")
     if normalized not in options:

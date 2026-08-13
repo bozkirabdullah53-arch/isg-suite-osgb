@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models.remote_training import REMOTE_TRAINING_TYPE
 
@@ -64,6 +64,32 @@ class RemoteVideoUpdate(RemoteModel):
     learning_objectives: str | None = Field(default=None, max_length=5000)
     order_index: int | None = Field(default=None, ge=1)
     is_required: bool | None = None
+
+
+class RemoteCatalogSectionCreate(RemoteModel):
+    code: str = Field(min_length=2, max_length=64)
+    title: str = Field(min_length=2, max_length=220)
+    description: str | None = Field(default=None, max_length=5000)
+    order_index: int | None = Field(default=None, ge=1)
+    is_required: bool = True
+
+
+class RemoteCatalogSectionUpdate(RemoteModel):
+    code: str | None = Field(default=None, min_length=2, max_length=64)
+    title: str | None = Field(default=None, min_length=2, max_length=220)
+    description: str | None = Field(default=None, max_length=5000)
+    order_index: int | None = Field(default=None, ge=1)
+    is_required: bool | None = None
+
+
+class RemoteCatalogMaterialize(RemoteModel):
+    """Create an immutable company program from a published catalog package."""
+
+    company_id: int = Field(gt=0)
+    branch_id: int | None = Field(default=None, gt=0)
+    title: str | None = Field(default=None, min_length=3, max_length=220)
+    instructor_name: str | None = Field(default=None, max_length=180)
+    instructor_qualification: str | None = Field(default=None, max_length=220)
 
 
 class RemoteAssignmentCreate(RemoteModel):
@@ -147,6 +173,12 @@ class RemoteEmployeeAccessCreate(RemoteModel):
     company_id: int = Field(gt=0)
     user_id: int = Field(gt=0)
     employee_id: int = Field(gt=0)
+
+
+class RemoteEmployeeAccountProvision(RemoteModel):
+    company_id: int = Field(gt=0)
+    employee_id: int = Field(gt=0)
+    email: EmailStr
 
 
 JsonObject = dict[str, Any]
