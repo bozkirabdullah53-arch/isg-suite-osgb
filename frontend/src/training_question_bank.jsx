@@ -326,9 +326,9 @@ export function TrainingQuestionBank({user, sectors = []}) {
       <section className="qb-hero">
         <div>
           <div className="hero-chip"><ShieldCheck size={15} /> Kaynaklı ve denetlenebilir içerik</div>
-          <h1>NACE uyumlu eğitim soru bankası</h1>
+          <h1>İSG eğitim soru bankası</h1>
           <p>
-            Sorular yalnız doğrulanabilir kaynakla kaydedilir, ikinci bir yönetici onayından sonra sınav havuzuna girer.
+            Soruları İş Güvenliği Uzmanı hazırlar, yayımlar ve sınavlarda kullanır.
             Yayımlanan içerik değiştirilemez; düzeltmeler yeni sürüm olarak hazırlanır.
           </p>
           <div className="qb-hero-actions">
@@ -596,7 +596,7 @@ export function TrainingQuestionBank({user, sectors = []}) {
           <div>
             <label className="tp-label" htmlFor="qb-note">İnceleme notu</label>
             <textarea id="qb-note" className="tp-input qb-textarea qb-textarea--small" maxLength={4000}
-              value={draft.reviewer_note} placeholder="Uzmanın veya ikinci yöneticinin kontrol etmesi gereken notlar"
+              value={draft.reviewer_note} placeholder="Sınavı hazırlayan İş Güvenliği Uzmanının inceleme notu"
               onChange={(e) => patchDraft('reviewer_note', e.target.value)} />
           </div>
 
@@ -644,7 +644,6 @@ export function TrainingQuestionBank({user, sectors = []}) {
             ) : filteredQuestions.length === 0 ? (
               <div className="qb-empty"><BookOpenCheck size={30} /> Bu filtrede henüz soru bulunmuyor.</div>
             ) : filteredQuestions.map((row) => {
-              const ownQuestion = Number(row.created_by_id) === Number(user?.id);
               return (
                 <article className="qb-question-card" key={row.id}>
                   <div className="qb-question-top">
@@ -683,9 +682,6 @@ export function TrainingQuestionBank({user, sectors = []}) {
                       ))}
                     </ul>
                   </details>
-                  {row.status === 'in_review' && ownQuestion && (
-                    <div className="qb-four-eyes"><ShieldCheck size={15} /> Bu soruyu yayımlamak için ikinci bir global yönetici gerekir.</div>
-                  )}
                   <div className="qb-card-actions">
                     {['draft', 'in_review'].includes(row.status) && (
                       <button type="button" onClick={() => editQuestion(row)}><Pencil size={15} /> Düzenle</button>
@@ -696,7 +692,7 @@ export function TrainingQuestionBank({user, sectors = []}) {
                         <Send size={15} /> {actionBusy === `submit-${row.id}` ? 'Gönderiliyor…' : 'İncelemeye gönder'}
                       </button>
                     )}
-                    {row.status === 'in_review' && !ownQuestion && (
+                    {row.status === 'in_review' && (
                       <button type="button" className="success" disabled={!!actionBusy}
                         onClick={() => runAction(row, 'publish')}>
                         <CheckCircle2 size={15} /> {actionBusy === `publish-${row.id}` ? 'Yayımlanıyor…' : 'Onayla ve yayımla'}
