@@ -64,7 +64,7 @@ REMOTE_SECTOR_LABELS = {item[0]: item[1] for item in REMOTE_SECTOR_CATALOG}
 # Merkezi katalog kayıtları firma seçilmeden hazırlanır.  ``sections`` yalnızca
 # hazır müfredatı olan paketlerde başlangıç bölümlerini oluşturur; boş bırakılan
 # paketler yönetici ekranından sonradan bölüm eklenmesine hazırdır. Paket sırası
-# kullanıcıya gösterilen iş akışıdır; yeni bir sektör eklenirse listenin sonuna
+# kullanıcıya gösterilen iş akışıdır; yeni bir paket eklenirse listenin sonuna
 # eklenir.
 REMOTE_CATALOG_PACKAGE_SPECS = (
     {
@@ -168,6 +168,23 @@ REMOTE_CATALOG_PACKAGE_SPECS = (
         "title": "Ofis/Genel İşyerleri",
         "description": "Ofisler ve genel işyerleri için ergonomi, acil durum ve çalışma güvenliği paketi.",
         "sections": (),
+    },
+    {
+        "code": "working-at-height-ohs",
+        "title": "Yüksekte Çalışma İSG Paketi",
+        "description": "Yüksekte çalışma, düşmeyi önleme, ekipman kullanımı ve kurtarma planlamasına yönelik paket.",
+        "sections": (
+            ("YÜK-01", "Yüksekte çalışma esasları ve mevzuat"),
+            ("YÜK-02", "Tehlike tanımlama ve işe özel risk değerlendirmesi"),
+            ("YÜK-03", "Çalışmaktan kaçınma ve toplu korunma tedbirleri"),
+            ("YÜK-04", "İskeleler, platformlar ve güvenli geçişler"),
+            ("YÜK-05", "Merdivenler ve erişim sistemleri"),
+            ("YÜK-06", "Kişisel düşüş durdurma sistemleri ve KKD"),
+            ("YÜK-07", "Ankraj, yaşam hattı ve bağlantı elemanları"),
+            ("YÜK-08", "Çatı, kırılgan yüzeyler ve malzeme düşmesi"),
+            ("YÜK-09", "Hava şartları, kaldırma ekipmanları ve çevresel riskler"),
+            ("YÜK-10", "Kurtarma planı, acil durum ve askıda kalma"),
+        ),
     },
 )
 

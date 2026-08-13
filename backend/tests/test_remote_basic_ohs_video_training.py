@@ -543,7 +543,7 @@ def test_remote_catalog_packages_are_firm_independent(remote_client):
     packages = remote_client.get("/api/v1/trainings/remote/catalog/packages", headers=headers)
     assert packages.status_code == 200, packages.text
     rows = packages.json()
-    assert len(rows) == 10
+    assert len(rows) == 11
     assert [row["title"] for row in rows] == [
         "Ortak Temel İSG",
         "İnşaat",
@@ -555,11 +555,13 @@ def test_remote_catalog_packages_are_firm_independent(remote_client):
         "Maden/Agrega",
         "Yol/Asfalt/Altyapı",
         "Ofis/Genel İşyerleri",
+        "Yüksekte Çalışma İSG Paketi",
     ]
     assert all("company_id" not in row for row in rows)
     assert next(row for row in rows if row["code"] == "construction-ohs")["section_count"] == 12
     assert next(row for row in rows if row["code"] == "metal-machine-ohs")["section_count"] == 10
     assert next(row for row in rows if row["code"] == "battery-production-ohs")["section_count"] == 10
+    assert next(row for row in rows if row["code"] == "working-at-height-ohs")["section_count"] == 10
 
     empty_package = next(row for row in rows if row["code"] == "food-production-ohs")
     created = remote_client.post(
