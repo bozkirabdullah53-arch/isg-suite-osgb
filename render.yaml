@@ -92,10 +92,11 @@ services:
         value: "false"
       - key: NACE_TRAINING_PRESENTATION_TRACEABILITY_FORCE_OFF
         value: "true"
-      # Remote Basic Occupational Health and Safety video training stays
-      # fail-closed until an explicit pilot enables it.
+      # Remote Basic OHS package/catalog management is live. Employee access
+      # still requires an explicit assignment; the strict pilot remains gated
+      # separately below.
       - key: REMOTE_BASIC_OHS_TRAINING_ENABLED
-        value: "false"
+        value: "true"
       - key: REMOTE_BASIC_OHS_TRAINING_FORCE_OFF
         value: "false"
       - key: REMOTE_BASIC_OHS_VIDEO_MAX_UPLOAD_MB
