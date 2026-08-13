@@ -57,6 +57,12 @@ REMOTE_SECTOR_CATALOG = (
     ("foundry", "Döküm", "Dökümhane, ergitme ve sıcak metal çalışma riskleriyle ilgili dersler."),
     ("metal", "Metal", "Metal işleme, kesme, kaynak ve ilgili çalışma riskleriyle ilgili dersler."),
     ("logistics", "Lojistik", "Depolama, yükleme, taşıma ve lojistik çalışma riskleriyle ilgili dersler."),
+    ("food", "Gıda", "Gıda üretimi, işleme, hijyen ve tesis güvenliğiyle ilgili dersler."),
+    ("chemical", "Kimyasal/Boya", "Kimyasal ve boya faaliyetlerinde maruziyet, depolama ve proses güvenliği dersleri."),
+    ("mining", "Maden/Agrega", "Maden, taş ocağı ve agrega faaliyetlerindeki saha ve ekipman riskleriyle ilgili dersler."),
+    ("road", "Yol/Asfalt/Altyapı", "Yol, asfalt, altyapı ve saha trafik güvenliğiyle ilgili dersler."),
+    ("office", "Ofis/Genel İşyerleri", "Ofis ve genel işyerlerinde ergonomi, acil durum ve çalışma güvenliği dersleri."),
+    ("working_at_height", "Yüksekte Çalışma", "Yüksekte çalışma, düşmeyi önleme, ekipman kullanımı ve kurtarma planlaması dersleri."),
 )
 REMOTE_SECTOR_CODES = frozenset(item[0] for item in REMOTE_SECTOR_CATALOG)
 REMOTE_SECTOR_LABELS = {item[0]: item[1] for item in REMOTE_SECTOR_CATALOG}
@@ -73,6 +79,13 @@ REMOTE_CATALOG_PACKAGE_SECTOR_CODES = {
     "construction-ohs": "construction",
     "metal-machine-ohs": "metal",
     "battery-production-ohs": "battery",
+    "food-production-ohs": "food",
+    "logistics-warehouse-transport-ohs": "logistics",
+    "chemical-paint-production-ohs": "chemical",
+    "open-mine-quarry-aggregate-ohs": "mining",
+    "road-asphalt-infrastructure-ohs": "road",
+    "office-general-ohs": "office",
+    "working-at-height-ohs": "working_at_height",
 }
 
 

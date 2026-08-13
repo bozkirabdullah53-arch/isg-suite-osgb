@@ -90,10 +90,20 @@ def test_strict_remote_policy_rollout_is_fail_closed(monkeypatch):
 def test_catalog_package_sections_keep_their_sector_identity():
     from app.models.remote_training import catalog_package_sector_code
 
-    assert catalog_package_sector_code("battery-production-ohs") == "battery"
-    assert catalog_package_sector_code("construction-ohs") == "construction"
-    assert catalog_package_sector_code("metal-machine-ohs") == "metal"
-    assert catalog_package_sector_code("common-basic-ohs") == "common"
+    expected = {
+        "common-basic-ohs": "common",
+        "construction-ohs": "construction",
+        "metal-machine-ohs": "metal",
+        "battery-production-ohs": "battery",
+        "food-production-ohs": "food",
+        "logistics-warehouse-transport-ohs": "logistics",
+        "chemical-paint-production-ohs": "chemical",
+        "open-mine-quarry-aggregate-ohs": "mining",
+        "road-asphalt-infrastructure-ohs": "road",
+        "office-general-ohs": "office",
+        "working-at-height-ohs": "working_at_height",
+    }
+    assert {code: catalog_package_sector_code(code) for code in expected} == expected
     # Custom/future packages remain backward compatible until explicitly mapped.
     assert catalog_package_sector_code("future-custom-package") == "common"
 
@@ -549,7 +559,7 @@ def test_remote_api_is_feature_flagged_and_uses_basic_type_only(remote_client):
     settings.remote_basic_ohs_training_force_off = False
 
 
-def test_remote_catalog_packages_are_firm_independent(remote_client):
+def test_remote_catalog_packages_are_firm_independent(remote_client, monkeypatch):
     """The new catalog is seeded without a company and stays assignable later."""
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
@@ -578,6 +588,7 @@ def test_remote_catalog_packages_are_firm_independent(remote_client):
             )
         )
         db.commit()
+        company_id = company.id
 
     login = remote_client.post(
         "/api/v1/auth/login",
@@ -624,6 +635,17 @@ def test_remote_catalog_packages_are_firm_independent(remote_client):
         assert not hasattr(package, "company_id")
         section = db.get(RemoteTrainingCatalogSection, created.json()["id"])
         assert section.package_id == package.id
+        package.status = "published"
+        db.commit()
+
+    monkeypatch.setattr("app.core.config.settings.remote_basic_ohs_strict_policy_enabled", False)
+    blocked_materialization = remote_client.post(
+        f"/api/v1/trainings/remote/catalog/packages/{empty_package['id']}/materialize",
+        headers=headers,
+        json={"company_id": company_id},
+    )
+    assert blocked_materialization.status_code == 409, blocked_materialization.text
+    assert "kontrollü pilot" in blocked_materialization.json()["detail"]
 
 
 def test_remote_catalog_video_upload_and_draft_delete(remote_client, monkeypatch):

@@ -1,0 +1,226 @@
+.remote-training-panel {
+  --remote-ink: #123b59;
+  --remote-muted: #5e7485;
+  --remote-border: #dbe5ef;
+  --remote-accent: #0b7285;
+  min-width: 0;
+  color: var(--remote-ink);
+}
+
+.remote-training-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.remote-training-panel button {
+  min-height: 40px;
+  max-width: 100%;
+  padding: 9px 13px;
+  border: 1px solid #bfd0dd;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--remote-ink);
+  font: inherit;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease, transform .15s ease;
+}
+
+.remote-training-panel button:hover:not(:disabled) {
+  border-color: var(--remote-accent);
+  box-shadow: 0 2px 8px rgba(11, 114, 133, .14);
+}
+
+.remote-training-panel button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.remote-training-panel button:disabled {
+  opacity: .58;
+  cursor: not-allowed;
+}
+
+.remote-training-panel select,
+.remote-training-panel input:not([type]),
+.remote-training-panel input[type='email'],
+.remote-training-panel input[type='number'],
+.remote-training-panel input[type='text'],
+.remote-training-panel textarea {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #bfd0dd;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--remote-ink);
+  font: inherit;
+}
+
+.remote-training-panel textarea {
+  min-height: 96px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.remote-training-panel select[multiple] {
+  min-height: 120px;
+}
+
+.remote-training-panel input[type='checkbox'],
+.remote-training-panel input[type='radio'] {
+  min-height: auto;
+  width: auto;
+  accent-color: var(--remote-accent);
+}
+
+.remote-training-panel button:focus-visible,
+.remote-training-panel select:focus-visible,
+.remote-training-panel input:focus-visible,
+.remote-training-panel textarea:focus-visible,
+.remote-training-panel summary:focus-visible {
+  outline: 3px solid rgba(14, 165, 183, .35);
+  outline-offset: 2px;
+}
+
+.remote-training-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.remote-training-flow-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #cde1e8;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #f8ffff, #eff8fb);
+}
+
+.remote-training-flow-item > span {
+  display: grid;
+  flex: 0 0 26px;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #d9f2f2;
+  color: #087483;
+  font-weight: 800;
+}
+
+.remote-training-flow-item strong,
+.remote-training-flow-item small {
+  display: block;
+}
+
+.remote-training-flow-item strong {
+  font-size: 13px;
+}
+
+.remote-training-flow-item small {
+  margin-top: 4px;
+  color: var(--remote-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.remote-training-rollout-note {
+  padding: 10px 12px;
+  border: 1px solid #f1d49a;
+  border-radius: 9px;
+  background: #fffaf0;
+  color: #6d4a00;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.remote-training-package-ready,
+.remote-training-package-locked {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.remote-training-package-ready {
+  color: #087443;
+}
+
+.remote-training-package-locked {
+  color: #9a3412;
+}
+
+.remote-training-manager-grid,
+.remote-training-content-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(220px, .8fr) minmax(0, 1.5fr);
+}
+
+.remote-training-manager-grid {
+  grid-template-columns: minmax(230px, .72fr) minmax(0, 1.6fr);
+}
+
+.remote-training-panel table {
+  border-collapse: collapse;
+}
+
+.remote-training-panel th,
+.remote-training-panel td {
+  padding: 8px;
+  border-bottom: 1px solid var(--remote-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.remote-training-panel th {
+  color: var(--remote-muted);
+  font-size: 12px;
+}
+
+.remote-training-panel video {
+  display: block;
+  max-width: 100%;
+  background: #06131d;
+  border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+  .remote-training-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .remote-training-manager-grid,
+  .remote-training-content-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .remote-training-flow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .remote-training-card {
+    padding: 12px !important;
+    border-radius: 11px !important;
+  }
+
+  .remote-training-panel select,
+  .remote-training-panel input:not([type]),
+  .remote-training-panel input[type='email'],
+  .remote-training-panel input[type='number'],
+  .remote-training-panel input[type='text'],
+  .remote-training-panel textarea {
+    width: 100%;
+  }
+
+  .remote-training-panel table {
+    min-width: 620px;
+  }
+}
