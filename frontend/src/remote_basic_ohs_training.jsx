@@ -387,6 +387,7 @@ function ManagerPanel({user}) {
   const [accessEmployeeId, setAccessEmployeeId] = useState('');
   const [accessUserId, setAccessUserId] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploadingSectionId, setUploadingSectionId] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [report, setReport] = useState(null);
@@ -399,6 +400,7 @@ function ManagerPanel({user}) {
   const [questionBank, setQuestionBank] = useState([]);
   const [examQuestionId, setExamQuestionId] = useState('');
   const [examSectorCode, setExamSectorCode] = useState('common');
+  const uploadInputRefs = useRef({});
 
   async function loadCompanies() {
     const rows = await api('/companies');
@@ -513,11 +515,11 @@ function ManagerPanel({user}) {
 
   async function uploadVideo(section, file) {
     if (!file || !program) return;
-    setBusy(true); setError('');
+    setBusy(true); setUploadingSectionId(section.id); setError(''); setMessage(`"${file.name}" yükleniyor. Lütfen bu sayfayı kapatmayın.`);
     try {
       await uploadFile(`/trainings/remote/sections/${section.id}/videos`, file, {title: file.name.replace(/\.[^.]+$/, '') || 'Temel İSG video dersi'});
       await loadDetail(program.id); setMessage('Video yüklendi; durum işleniyor veya incelemeye hazır olabilir.');
-    } catch (err) { setError(err.message || 'Video yüklenemedi.'); } finally { setBusy(false); }
+    } catch (err) { setError(err.message || 'Video yüklenemedi.'); } finally { setBusy(false); setUploadingSectionId(null); }
   }
 
   async function videoAction(video, action) {
@@ -655,6 +657,17 @@ function ManagerPanel({user}) {
           {program ? (
             <>
               <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{statusLabel(program.status)} · eşik %{program.completion_threshold_percent}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button><button type="button" onClick={showReport} disabled={busy}>Rapor</button></div></div>
+              <div style={{marginTop: 14, padding: 16, border: '2px solid #2474a8', borderRadius: 12, background: '#f4fbff'}} aria-labelledby="remote-video-help-title">
+                <h4 id="remote-video-help-title" style={{margin: 0, color: '#123b59', fontSize: 17}}>Video yükleme ve silme — çok kolay</h4>
+                <ol style={{margin: '10px 0 8px', paddingLeft: 22, color: '#36556d', lineHeight: 1.65}}>
+                  <li>Bölüm yoksa önce bölüm adını yazıp <strong>Bölüm ekle</strong> düğmesine bas.</li>
+                  <li>İlgili bölümdeki büyük <strong>Video seç ve yükle</strong> düğmesine bas.</li>
+                  <li>Bilgisayarındaki videoyu seç. Yükleme bitene kadar bekle.</li>
+                  <li>Video geldiğinde satırdaki <strong>Kaydet</strong>, <strong>Önizle</strong> ve durumuna göre <strong>Video yayımla</strong> düğmelerini kullan.</li>
+                  <li>Yanlış yüklediysen, yalnızca taslak videonun yanındaki kırmızı <strong>Taslak videoyu sil</strong> düğmesine bas ve onayla.</li>
+                </ol>
+                <div style={{padding: '9px 11px', borderRadius: 8, background: '#fff8e8', color: '#795500', fontSize: 12}}><strong>Önemli:</strong> Yayımlanmış videolar geçmiş kayıtları korumak için silinmez. Yanlış yüklemeyi yayımlamadan önce taslak durumundayken silebilirsin.</div>
+              </div>
               {sectorScope && <div style={{marginTop: 14, padding: 14, border: '1px solid #b9d8e8', borderRadius: 10, background: '#f4fbff'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
                   <div><strong>Firma için sektör / ders kapsamı</strong><div style={{fontSize: 12, color: '#5e7485', marginTop: 4}}>Tüm dersler tek katalogda tutulur. Çalışana atama yapıldığında yalnızca burada seçilen sektörler açılır ve sınav soruları aynı kapsamdan gelir.</div></div>
@@ -673,12 +686,37 @@ function ManagerPanel({user}) {
                 </div>
                 <div style={{fontSize: 12, color: '#36556d', marginTop: 10}}>Seçili kapsam: <strong>{['common', ...selectedSectorCodes].map(sectorLabel).join(', ')}</strong></div>
               </div>}
-              <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', margin: '14px 0'}}><input value={sectionTitle} onChange={(event) => setSectionTitle(event.target.value)} aria-label="Bölüm başlığı" /><label style={{display: 'flex', alignItems: 'center', gap: 5}}>Bölümün sektörü <select value={sectionSectorCode} onChange={(event) => setSectionSectorCode(event.target.value)}>{(sectorScope?.sectors || []).map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label><button type="button" onClick={createSection} disabled={busy || ['published', 'archived'].includes(program.status)}>Bölüm ekle</button></div>
+              <div style={{marginTop: 14, padding: 14, border: '1px solid #dbe5ef', borderRadius: 10, background: '#fbfdff'}}>
+                <strong style={{display: 'block', color: '#123b59', fontSize: 15}}>1. Önce ders bölümü oluştur</strong>
+                <span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>Örneğin: “Temel İSG”, “İnşaatta güvenlik” veya “Akü çalışma güvenliği”.</span>
+                <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10}}>
+                  <input value={sectionTitle} onChange={(event) => setSectionTitle(event.target.value)} aria-label="Bölüm başlığı" placeholder="Bölüm adı yazın" />
+                  <label style={{display: 'flex', alignItems: 'center', gap: 5}}>Bölümün sektörü <select value={sectionSectorCode} onChange={(event) => setSectionSectorCode(event.target.value)}>{(sectorScope?.sectors || []).map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label>
+                  <button type="button" onClick={createSection} disabled={busy || ['published', 'archived'].includes(program.status)} style={{minHeight: 44, padding: '10px 16px', fontWeight: 700}}>Bölüm ekle</button>
+                </div>
+              </div>
               {(program.sections || []).map((section) => (
                 <div key={section.id} style={{borderTop: '1px solid #e5edf3', paddingTop: 12, marginTop: 12}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}>
                     <div><strong>{section.order_index}. {section.title}</strong><span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 3}}>Sektör: {sectorLabel(section.sector_code)}</span></div>
-                    <label style={{fontSize: 12, color: '#496174', fontWeight: 600}}>Video ekle <input type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" onChange={(event) => {uploadVideo(section, event.target.files?.[0]); event.target.value = '';}} /></label>
+                  </div>
+                  <div style={{marginTop: 10, padding: 14, border: '2px dashed #54a8c5', borderRadius: 10, background: '#f7fcff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
+                    <div>
+                      <strong style={{display: 'block', color: '#123b59', fontSize: 15}}>Bu bölüme video ekle</strong>
+                      <span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>MP4, WEBM veya MOV videonu bilgisayardan seç.</span>
+                    </div>
+                    <input
+                      ref={(node) => { uploadInputRefs.current[section.id] = node; }}
+                      id={`remote-video-upload-${section.id}`}
+                      type="file"
+                      accept="video/mp4,video/webm,video/quicktime,.m4v"
+                      aria-label={`${section.title} bölümü için video seç`}
+                      style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}}
+                      onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadVideo(section, file); }}
+                    />
+                    <button type="button" onClick={() => uploadInputRefs.current[section.id]?.click()} disabled={busy || ['published', 'archived'].includes(program.status)} style={{minHeight: 48, padding: '12px 18px', fontSize: 15, fontWeight: 700, color: '#fff', background: '#1479a6', border: '1px solid #0d5d83', borderRadius: 8, cursor: busy ? 'wait' : 'pointer'}}>
+                      {uploadingSectionId === section.id ? 'Video yükleniyor…' : 'Video seç ve yükle'}
+                    </button>
                   </div>
                   <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8}}><label style={{fontSize: 12, color: '#496174'}}>Bölüm sektörü <select value={sectionSectorDrafts[section.id] || section.sector_code || 'common'} onChange={(event) => setSectionSectorDrafts((current) => ({...current, [section.id]: event.target.value}))}>{(sectorScope?.sectors || []).map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label><button type="button" onClick={() => saveSectionSector(section)} disabled={busy || ['published', 'archived'].includes(program.status)}>Sektörü kaydet</button></div>
                   {(section.videos || []).map((video) => (
@@ -693,7 +731,7 @@ function ManagerPanel({user}) {
                         {['ready_for_review', 'published', 'unpublished'].includes(video.status) && <button type="button" onClick={() => previewVideo(video)} disabled={busy}>Önizle</button>}
                         {video.status === 'ready_for_review' && <button type="button" onClick={() => videoAction(video, 'publish')} disabled={busy}>Video yayımla</button>}
                         {video.status === 'processing_failed' && <button type="button" onClick={() => videoAction(video, 'retry-processing')} disabled={busy}>Yeniden işle</button>}
-                        {!HISTORICAL_VIDEO_STATUSES.includes(video.status) && <button type="button" onClick={() => deleteVideo(video)} disabled={busy || ['published', 'archived'].includes(program.status)} style={{color: '#b42318', borderColor: '#f0b8b1'}}>Sil</button>}
+                        {!HISTORICAL_VIDEO_STATUSES.includes(video.status) && <button type="button" onClick={() => deleteVideo(video)} disabled={busy || ['published', 'archived'].includes(program.status)} style={{minHeight: 42, padding: '10px 14px', color: '#b42318', background: '#fff5f4', border: '2px solid #e39b93', borderRadius: 8, fontWeight: 700}} aria-label={`${video.title} taslak videosunu sil`}>Taslak videoyu sil</button>}
                       </div>
                     </div>
                   ))}
