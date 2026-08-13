@@ -560,7 +560,7 @@ export async function downloadFile(path, filename, {timeoutMs = 90_000} = {}) {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
-export async function uploadFile(path, file, extraFields = null) {
+export async function uploadFile(path, file, extraFields = null, options = {}) {
   await wakeApi();
   const token = localStorage.getItem("isg_token");
   const formData = new FormData();
@@ -572,6 +572,12 @@ export async function uploadFile(path, file, extraFields = null) {
     }
   }
   let response;
+  const uploadPath = String(path || "");
+  const timeoutMs = Number(options?.timeoutMs) > 0
+    ? Number(options.timeoutMs)
+    : uploadPath.includes("/videos")
+      ? 30 * 60 * 1000
+      : 5 * 60 * 1000;
   try {
     response = await fetch(`${API_URL}${path}`, {
       method: "POST",
@@ -579,8 +585,14 @@ export async function uploadFile(path, file, extraFields = null) {
       body: formData,
       mode: "cors",
       credentials: fetchCredentials(path),
+      signal: requestSignal(timeoutMs),
     });
   } catch (e) {
+    if (e?.name === "TimeoutError" || e?.name === "AbortError") {
+      throw new Error(uploadPath.includes("/videos")
+        ? "Video yükleme zaman aşımına uğradı. Bağlantıyı ve video boyutunu kontrol edip tekrar deneyin."
+        : "Dosya yükleme zaman aşımına uğradı. Bağlantıyı kontrol edip tekrar deneyin.");
+    }
     if (isNetworkError(e)) {
       throw new Error("Sunucuya bağlanılamadı. Birkaç saniye bekleyip tekrar deneyin.");
     }

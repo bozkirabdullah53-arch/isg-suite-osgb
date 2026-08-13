@@ -517,6 +517,8 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
   const [uploadTitles, setUploadTitles] = useState({});
   const [companies, setCompanies] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [uploadingCatalogSectionId, setUploadingCatalogSectionId] = useState(null);
+  const [uploadingCatalogVideoId, setUploadingCatalogVideoId] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const uploadInputRefs = useRef({});
@@ -581,6 +583,8 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
 
   async function uploadCatalogVideo(section, file, revisionOf = null, titleOverride = '') {
     if (!selectedPackage || !file) return;
+    const uploadSectionId = Number(section.id);
+    const uploadVideoId = revisionOf ? Number(revisionOf.id) : null;
     const defaultTitle = file.name.replace(/\.[^.]+$/, '') || 'Eğitim videosu';
     const title = (String(titleOverride || '').trim() || uploadTitles[section.id] || defaultTitle).trim();
     const fields = {
@@ -589,13 +593,21 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
       is_required: true,
       ...(revisionOf ? {revision_of_id: revisionOf.id} : {}),
     };
-    setBusy(true); setError(''); setMessage(`"${file.name}" merkezi pakete yükleniyor. Lütfen sayfayı kapatmayın.`);
+    setBusy(true);
+    setUploadingCatalogSectionId(uploadSectionId);
+    setUploadingCatalogVideoId(uploadVideoId);
+    setError('');
+    setMessage(`"${file.name}" ${section.title} bölümüne yükleniyor. Lütfen sayfayı kapatmayın.`);
     try {
       await uploadFile(`/trainings/remote/catalog/sections/${section.id}/videos`, file, fields);
       await loadPackage(selectedPackage.id); await loadPackages();
-      setMessage(revisionOf ? 'Yeni sürüm yüklendi. Kontrol edip yeni sürümün yanındaki “Video yayımla” düğmesine basın.' : 'Video yüklendi. İşleme tamamlanınca durum “İncelemeye hazır” olur.');
+      setMessage(revisionOf ? `${section.title} bölümünün yeni sürümü yüklendi. Kontrol edip “Video yayımla” düğmesine basın.` : `${section.title} bölümüne video eklendi. İşleme tamamlanınca durum “İncelemeye hazır” olur.`);
     } catch (err) { setError(err.message || 'Video yüklenemedi.'); }
-    finally { setBusy(false); }
+    finally {
+      setBusy(false);
+      setUploadingCatalogSectionId(null);
+      setUploadingCatalogVideoId(null);
+    }
   }
 
   async function videoAction(video, action) {
@@ -790,12 +802,12 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
                 <div key={section.id} style={{borderTop: '1px solid #e5edf3', paddingTop: 12, marginTop: 12}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}><div><strong>{section.code} · {section.title}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{section.videos?.length || 0} video · {section.status === 'active' ? 'Aktif' : 'Arşivlendi'}</span></div></div>
                   {!['published', 'archived'].includes(selectedPackage.status) && section.status === 'active' && <div style={{marginTop: 9, padding: 10, border: '2px dashed #54a8c5', borderRadius: 9, background: '#f7fcff'}}>
-                    <div style={{display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center'}}><input value={uploadTitles[section.id] || ''} onChange={(event) => setUploadTitles((current) => ({...current, [section.id]: event.target.value}))} placeholder="Video adı (boş bırakılırsa dosya adı)" aria-label={`${section.title} video adı`} style={{minWidth: 240, flex: 1}} /><input ref={(node) => {uploadInputRefs.current[section.id] = node;}} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label={`${section.title} video dosyası`} style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadCatalogVideo(section, file);}} /><button type="button" onClick={() => uploadInputRefs.current[section.id]?.click()} disabled={busy} style={{minHeight: 42, padding: '10px 14px', color: '#fff', background: '#1479a6', border: '1px solid #0d5d83', borderRadius: 8, fontWeight: 700}}>{busy ? 'İşleniyor…' : 'Video seç ve yükle'}</button></div>
+                    <div style={{display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center'}}><input value={uploadTitles[section.id] || ''} onChange={(event) => setUploadTitles((current) => ({...current, [section.id]: event.target.value}))} placeholder="Video adı (boş bırakılırsa dosya adı)" aria-label={`${section.title} video adı`} style={{minWidth: 240, flex: 1}} /><input ref={(node) => {uploadInputRefs.current[section.id] = node;}} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label={`${section.title} video dosyası`} style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadCatalogVideo(section, file);}} /><button type="button" onClick={() => uploadInputRefs.current[section.id]?.click()} disabled={busy} style={{minHeight: 42, padding: '10px 14px', color: '#fff', background: '#1479a6', border: '1px solid #0d5d83', borderRadius: 8, fontWeight: 700}}>{uploadingCatalogSectionId === Number(section.id) && !uploadingCatalogVideoId ? 'Bu bölüm yükleniyor…' : 'Video seç ve yükle'}</button></div>
                   </div>}
                   {(section.videos || []).map((video) => <div key={video.id} style={{marginTop: 8, padding: 10, borderRadius: 8, background: '#f7fafc', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}>
                     <div style={{minWidth: 240, flex: 1}}><strong>{video.title}</strong><div style={{fontSize: 12, color: '#5e7485', marginTop: 3}}>{statusLabel(video.status)} · {video.duration_seconds ? `${video.duration_seconds} sn` : 'süre bekleniyor'} · rev. {video.revision_no}</div>{video.processing_error && <div style={{fontSize: 12, color: '#b42318', marginTop: 3}}>{video.processing_error}</div>}</div>
                     <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
-                      {video.status === 'published' && video.is_current && selectedPackage.status !== 'archived' && <><input ref={(node) => {uploadInputRefs.current[`revision-${video.id}`] = node;}} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label={`${video.title} yeni sürüm dosyası`} style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadCatalogVideo(section, file, video);}} /><button type="button" onClick={() => uploadInputRefs.current[`revision-${video.id}`]?.click()} disabled={busy}>Yeni sürüm yükle</button></>}
+                      {video.status === 'published' && video.is_current && selectedPackage.status !== 'archived' && <><input ref={(node) => {uploadInputRefs.current[`revision-${video.id}`] = node;}} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label={`${video.title} yeni sürüm dosyası`} style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadCatalogVideo(section, file, video);}} /><button type="button" onClick={() => uploadInputRefs.current[`revision-${video.id}`]?.click()} disabled={busy}>{uploadingCatalogVideoId === Number(video.id) ? 'Yeni sürüm yükleniyor…' : 'Yeni sürüm yükle'}</button></>}
                       {video.status === 'ready_for_review' && <button type="button" onClick={() => videoAction(video, 'publish')} disabled={busy}>Video yayımla</button>}
                       {['ready_for_review', 'published', 'unpublished'].includes(video.status) && <button type="button" onClick={() => previewCatalogVideo(video)} disabled={busy}>Önizle</button>}
                       {video.status === 'published' && <button type="button" onClick={() => videoAction(video, 'unpublish')} disabled={busy}>Yayından kaldır</button>}
