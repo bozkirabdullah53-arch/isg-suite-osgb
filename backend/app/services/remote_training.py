@@ -111,7 +111,7 @@ def require_feature() -> None:
 
 
 def strict_policy_active(program: RemoteTrainingProgram) -> bool:
-    """Return whether this program is inside the separately gated pilot."""
+    """Return whether this program is inside the separately gated policy."""
     if str(getattr(program, "policy_mode", "legacy") or "legacy").lower() != "strict":
         return False
     return remote_basic_ohs_strict_policy_active(
@@ -126,7 +126,7 @@ def require_strict_policy_active(program: RemoteTrainingProgram) -> None:
     if not strict_policy_active(program):
         raise HTTPException(
             409,
-            "Bu pilot eğitim henüz güvenli çalışma politikası allowlist'inde etkin değil.",
+            "Bu sektör eğitim paketi firma bazlı dağıtım politikası etkin değilken kullanılamaz.",
         )
     if (
         int(getattr(program, "completion_threshold_percent", 0) or 0) < 100
@@ -137,7 +137,7 @@ def require_strict_policy_active(program: RemoteTrainingProgram) -> None:
     ):
         raise HTTPException(
             409,
-            "Pilot eğitim politikası eksik: %100 izleme, sıralı ders, %70 sınav ve sınav kilidi zorunludur.",
+            "Sektör eğitim politikası eksik: %100 izleme, sıralı ders, %70 sınav ve sınav kilidi zorunludur.",
         )
 
 
