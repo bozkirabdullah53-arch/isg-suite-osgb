@@ -936,11 +936,11 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
 
   async function programAction(action) {
     if (!program) return;
-    setBusy(true); setError('');
+    setBusy(true); setError(''); setMessage('');
     try {
       await api(`/trainings/remote/programs/${program.id}/${action}`, {method: 'POST'});
       await loadDetail(program.id); await loadPrograms(program.company_id);
-      setMessage(action === 'publish' ? 'Eğitim çalışanlara açıldı.' : 'Eğitim durumu güncellendi.');
+      setMessage(action === 'publish' ? 'Eğitim yayımlandı ve çalışan atamasına açıldı.' : action === 'ready-for-review' ? 'Eğitim incelemeye hazır olarak işaretlendi.' : 'Eğitim durumu güncellendi.');
     } catch (err) { setError(err.message || 'Eğitim işlemi başarısız.'); } finally { setBusy(false); }
   }
 
