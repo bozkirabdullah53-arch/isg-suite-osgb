@@ -373,6 +373,242 @@ function EmployeePanel() {
   );
 }
 
+function CatalogManagerPanel() {
+  const [packages, setPackages] = useState([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [selectedPackage, setSelectedPackage] = useState(null);
+  const [sectionCode, setSectionCode] = useState('');
+  const [sectionTitle, setSectionTitle] = useState('');
+  const [uploadTitles, setUploadTitles] = useState({});
+  const [quickUploadSectionId, setQuickUploadSectionId] = useState('');
+  const [quickUploadTitle, setQuickUploadTitle] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+  const uploadInputRefs = useRef({});
+  const quickUploadInputRef = useRef(null);
+
+  async function loadPackages() {
+    try {
+      const rows = await api('/trainings/remote/catalog/packages');
+      const next = Array.isArray(rows) ? rows : [];
+      setPackages(next);
+      if (!selectedId && next[0]?.id) setSelectedId(String(next[0].id));
+    } catch (err) {
+      setError(err.message || 'Merkezi eğitim paketleri alınamadı.');
+    }
+  }
+
+  async function loadPackage(id = selectedId) {
+    if (!id) return;
+    try {
+      setSelectedPackage(await api(`/trainings/remote/catalog/packages/${Number(id)}`));
+    } catch (err) {
+      setError(err.message || 'Merkezi eğitim paketi alınamadı.');
+    }
+  }
+
+  useEffect(() => { loadPackages(); }, []);
+  useEffect(() => { if (selectedId) loadPackage(selectedId); }, [selectedId]);
+  useEffect(() => {
+    const activeSections = (selectedPackage?.sections || []).filter((section) => section.status === 'active');
+    setQuickUploadSectionId((current) => (
+      activeSections.some((section) => String(section.id) === String(current))
+        ? current
+        : String(activeSections[0]?.id || '')
+    ));
+  }, [selectedPackage]);
+
+  async function refresh() {
+    await loadPackages();
+    await loadPackage();
+  }
+
+  async function createSection() {
+    const code = sectionCode.trim();
+    const title = sectionTitle.trim();
+    if (!selectedPackage || code.length < 2 || title.length < 2) {
+      setError('Bölüm kodu ve bölüm adı birlikte girilmelidir.');
+      return;
+    }
+    setBusy(true); setError(''); setMessage('');
+    try {
+      await api(`/trainings/remote/catalog/packages/${selectedPackage.id}/sections`, {
+        method: 'POST',
+        body: JSON.stringify({code, title, is_required: true}),
+      });
+      setSectionCode(''); setSectionTitle('');
+      await loadPackage(selectedPackage.id); await loadPackages();
+      setMessage('Bölüm oluşturuldu. Şimdi bu bölümün yanındaki video yükleme düğmesini kullanabilirsiniz.');
+    } catch (err) { setError(err.message || 'Bölüm oluşturulamadı.'); }
+    finally { setBusy(false); }
+  }
+
+  async function uploadCatalogVideo(section, file, revisionOf = null, titleOverride = '') {
+    if (!selectedPackage || !file) return;
+    const defaultTitle = file.name.replace(/\.[^.]+$/, '') || 'Eğitim videosu';
+    const title = (String(titleOverride || '').trim() || uploadTitles[section.id] || defaultTitle).trim();
+    const fields = {
+      title,
+      order_index: (section.videos || []).length + 1,
+      is_required: true,
+      ...(revisionOf ? {revision_of_id: revisionOf.id} : {}),
+    };
+    setBusy(true); setError(''); setMessage(`"${file.name}" merkezi pakete yükleniyor. Lütfen sayfayı kapatmayın.`);
+    try {
+      await uploadFile(`/trainings/remote/catalog/sections/${section.id}/videos`, file, fields);
+      await loadPackage(selectedPackage.id); await loadPackages();
+      setMessage(revisionOf ? 'Yeni sürüm yüklendi. Kontrol edip yeni sürümün yanındaki “Video yayımla” düğmesine basın.' : 'Video yüklendi. İşleme tamamlanınca durum “İncelemeye hazır” olur.');
+    } catch (err) { setError(err.message || 'Video yüklenemedi.'); }
+    finally { setBusy(false); }
+  }
+
+  async function uploadQuickVideo(file) {
+    if (!selectedPackage || !file) return;
+    const section = (selectedPackage.sections || []).find(
+      (item) => item.status === 'active' && String(item.id) === String(quickUploadSectionId),
+    );
+    if (!section) {
+      setError('Bu pakette henüz ders bölümü yok. Önce “Yeni ders bölümü” oluşturun.');
+      return;
+    }
+    await uploadCatalogVideo(section, file, null, quickUploadTitle);
+    setQuickUploadTitle('');
+  }
+
+  async function videoAction(video, action) {
+    setBusy(true); setError(''); setMessage('');
+    try {
+      await api(`/trainings/remote/catalog/videos/${video.id}/${action}`, {method: 'POST'});
+      await loadPackage(selectedPackage.id); await loadPackages();
+      setMessage(action === 'publish' ? 'Video yayımlandı.' : action === 'retry-processing' ? 'Video yeniden işleme alındı.' : 'Video durumu güncellendi.');
+    } catch (err) { setError(err.message || 'Video işlemi başarısız.'); }
+    finally { setBusy(false); }
+  }
+
+  async function previewCatalogVideo(video) {
+    setBusy(true); setError('');
+    try {
+      const out = await api(`/trainings/remote/catalog/videos/${video.id}/playback`);
+      const previewWindow = window.open(apiAbsoluteUrl(out.url), '_blank', 'noopener,noreferrer');
+      if (!previewWindow) setMessage('Önizleme bağlantısı üretildi; tarayıcı açılır pencereyi engelledi.');
+    } catch (err) { setError(err.message || 'Video önizlemesi açılamadı.'); }
+    finally { setBusy(false); }
+  }
+
+  async function deleteCatalogVideo(video) {
+    if (!selectedPackage || HISTORICAL_VIDEO_STATUSES.includes(video.status)) return;
+    if (!window.confirm(`"${video.title}" taslak videosu silinsin mi?`)) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const out = await api(`/trainings/remote/catalog/videos/${video.id}`, {method: 'DELETE'});
+      await loadPackage(selectedPackage.id); await loadPackages();
+      setMessage(out.storage_cleanup_pending ? 'Video silindi; depolama temizliği sıraya alındı.' : 'Taslak video silindi.');
+    } catch (err) { setError(err.message || 'Video silinemedi.'); }
+    finally { setBusy(false); }
+  }
+
+  async function packageAction(action) {
+    if (!selectedPackage) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      await api(`/trainings/remote/catalog/packages/${selectedPackage.id}/${action}`, {method: 'POST'});
+      await loadPackage(selectedPackage.id); await loadPackages();
+      setMessage(action === 'publish' ? 'Paket yayıma açıldı; daha sonra firmaya atanabilir.' : 'Paket durumu güncellendi.');
+    } catch (err) { setError(err.message || 'Paket işlemi başarısız.'); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <section style={cardStyle} aria-label="Merkezi uzaktan eğitim paket kataloğu">
+      <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
+        <div>
+          <div style={{fontSize: 12, color: '#0b7285', fontWeight: 800, letterSpacing: '.03em'}}>MERKEZİ EĞİTİM PAKETLERİ</div>
+          <h3 style={{margin: '4px 0'}}>Uzaktan Eğitim Paket Kataloğu</h3>
+          <p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Önce paketleri ve videoları burada hazırlayın. Bu ekranda firma seçilmez; firma atamasını daha sonra siz yaparsınız.</p>
+        </div>
+        <button type="button" onClick={refresh} disabled={busy}>Paketleri yenile</button>
+      </div>
+      <ErrorText value={error} />
+      {message && <div style={{color: '#087443', margin: '10px 0', fontWeight: 600}}>{message}</div>}
+      <div style={{display: 'grid', gridTemplateColumns: 'minmax(230px, .72fr) minmax(420px, 1.6fr)', gap: 16, marginTop: 14}}>
+        <div style={{border: '1px solid #dbe5ef', borderRadius: 10, padding: 12, background: '#fbfdff'}}>
+          <h4 style={{margin: '0 0 10px'}}>Eğitim paketleri</h4>
+          {packages.map((item) => (
+            <button key={item.id} type="button" onClick={() => setSelectedId(String(item.id))} style={{display: 'block', width: '100%', textAlign: 'left', padding: 11, marginBottom: 8, borderRadius: 9, border: `1px solid ${String(item.id) === String(selectedId) ? '#0b9ca8' : '#dbe5ef'}`, background: String(item.id) === String(selectedId) ? '#e9fbfc' : '#fff'}}>
+              <strong style={{display: 'block'}}>{item.title}</strong>
+              <span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{statusLabel(item.status)} · {item.video_count || 0} video</span>
+              <span style={{display: 'block', fontSize: 11, color: '#496174', marginTop: 3}}>{item.published_video_count || 0} yayımlanmış · {item.section_count || 0} bölüm</span>
+            </button>
+          ))}
+          {!packages.length && <p style={{color: '#5e7485'}}>Paket kataloğu hazırlanıyor…</p>}
+        </div>
+        <div style={{border: '1px solid #dbe5ef', borderRadius: 10, padding: 14, background: '#fff'}}>
+          {selectedPackage ? (
+            <>
+              <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}>
+                <div><h4 style={{margin: 0}}>{selectedPackage.title}</h4><div style={{fontSize: 12, color: '#5e7485', marginTop: 4}}>{statusLabel(selectedPackage.status)} · {selectedPackage.video_count || 0} video · {selectedPackage.section_count || 0} bölüm</div></div>
+                <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                  {['draft', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button>}
+                  {['ready_for_review', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('publish')} disabled={busy}>Paketi yayımla</button>}
+                  {selectedPackage.status === 'published' && <button type="button" onClick={() => packageAction('unpublish')} disabled={busy}>Yayından kaldır</button>}
+                  {!['archived'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('archive')} disabled={busy}>Arşivle</button>}
+                </div>
+              </div>
+              <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#f2f9fc', color: '#36556d', fontSize: 12}}><strong>İş akışı:</strong> Bölüm → Video seç ve yükle → İşleme/inceleme → Video yayımla. Yanlış taslak videoları silebilirsiniz. Yayımlanmış videolar geçmiş için korunur; güncelleme gerektiğinde “Yeni sürüm yükle” kullanılır.</div>
+              <div style={{marginTop: 14, padding: 14, border: '2px solid #0b9ca8', borderRadius: 10, background: '#effcfc'}} aria-label="Hızlı video yükleme">
+                <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center'}}>
+                  <div>
+                    <strong style={{display: 'block', color: '#123b59', fontSize: 15}}>Videoyu pakete ekle</strong>
+                    <span style={{display: 'block', color: '#496174', fontSize: 12, marginTop: 4}}>Bölümü seçin, dosyayı seçin; video doğrudan bu pakete yüklenir.</span>
+                  </div>
+                  <span style={{fontSize: 12, fontWeight: 800, color: '#087443'}}>Firma ataması yapılmaz</span>
+                </div>
+                {(selectedPackage.sections || []).some((section) => section.status === 'active') ? <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 11}}>
+                  <label style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#36556d'}}>Ders bölümü
+                    <select value={quickUploadSectionId} onChange={(event) => setQuickUploadSectionId(event.target.value)} disabled={busy || ['published', 'archived'].includes(selectedPackage.status)} aria-label="Hızlı yükleme ders bölümü">
+                      {(selectedPackage.sections || []).filter((section) => section.status === 'active').map((section) => <option key={section.id} value={section.id}>{section.code} · {section.title}</option>)}
+                    </select>
+                  </label>
+                  <input value={quickUploadTitle} onChange={(event) => setQuickUploadTitle(event.target.value)} placeholder="Video adı (isteğe bağlı)" aria-label="Hızlı yükleme video adı" style={{minWidth: 220, flex: 1}} disabled={busy || ['published', 'archived'].includes(selectedPackage.status)} />
+                  <input ref={quickUploadInputRef} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label="Pakete yüklenecek video dosyası" style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadQuickVideo(file);}} />
+                  <button type="button" onClick={() => quickUploadInputRef.current?.click()} disabled={busy || ['published', 'archived'].includes(selectedPackage.status)} style={{minHeight: 42, padding: '10px 16px', color: '#fff', background: '#0b8f96', border: '1px solid #08747a', borderRadius: 8, fontWeight: 800}}>{busy ? 'Yükleniyor…' : 'Dosya seç ve yükle'}</button>
+                </div> : <div style={{marginTop: 11, padding: 10, borderRadius: 8, background: '#fff8e8', color: '#795500', fontSize: 12}}>Bu paket henüz boş. Önce aşağıdaki <strong>Yeni ders bölümü</strong> alanından bir bölüm oluşturun; sonra bu hızlı yükleme kutusu açılacak.</div>}
+              </div>
+              {!['published', 'archived'].includes(selectedPackage.status) && <div style={{marginTop: 14, padding: 12, border: '1px solid #dbe5ef', borderRadius: 9, background: '#fbfdff'}}>
+                <strong>Yeni ders bölümü oluştur</strong>
+                <span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>Örneğin GID-01 — Gıda tesisi genel güvenlik. Bölümü bir kez oluşturduktan sonra videoyu üstteki kutudan seçip yükleyebilirsiniz.</span>
+                <div style={{display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 8}}><input value={sectionCode} onChange={(event) => setSectionCode(event.target.value)} placeholder="Bölüm kodu: GID-01" aria-label="Yeni bölüm kodu" style={{maxWidth: 170}} /><input value={sectionTitle} onChange={(event) => setSectionTitle(event.target.value)} placeholder="Bölüm adı" aria-label="Yeni bölüm adı" style={{minWidth: 220, flex: 1}} /><button type="button" onClick={createSection} disabled={busy}>Bölümü oluştur</button></div>
+              </div>}
+              {(selectedPackage.sections || []).map((section) => (
+                <div key={section.id} style={{borderTop: '1px solid #e5edf3', paddingTop: 12, marginTop: 12}}>
+                  <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}><div><strong>{section.code} · {section.title}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{section.videos?.length || 0} video · {section.status === 'active' ? 'Aktif' : 'Arşivlendi'}</span></div></div>
+                  {!['published', 'archived'].includes(selectedPackage.status) && section.status === 'active' && <div style={{marginTop: 9, padding: 10, border: '2px dashed #54a8c5', borderRadius: 9, background: '#f7fcff'}}>
+                    <div style={{display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center'}}><input value={uploadTitles[section.id] || ''} onChange={(event) => setUploadTitles((current) => ({...current, [section.id]: event.target.value}))} placeholder="Video adı (boş bırakılırsa dosya adı)" aria-label={`${section.title} video adı`} style={{minWidth: 240, flex: 1}} /><input ref={(node) => {uploadInputRefs.current[section.id] = node;}} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label={`${section.title} video dosyası`} style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadCatalogVideo(section, file);}} /><button type="button" onClick={() => uploadInputRefs.current[section.id]?.click()} disabled={busy} style={{minHeight: 42, padding: '10px 14px', color: '#fff', background: '#1479a6', border: '1px solid #0d5d83', borderRadius: 8, fontWeight: 700}}>{busy ? 'İşleniyor…' : 'Video seç ve yükle'}</button></div>
+                  </div>}
+                  {(section.videos || []).map((video) => <div key={video.id} style={{marginTop: 8, padding: 10, borderRadius: 8, background: '#f7fafc', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}>
+                    <div style={{minWidth: 240, flex: 1}}><strong>{video.title}</strong><div style={{fontSize: 12, color: '#5e7485', marginTop: 3}}>{statusLabel(video.status)} · {video.duration_seconds ? `${video.duration_seconds} sn` : 'süre bekleniyor'} · rev. {video.revision_no}</div>{video.processing_error && <div style={{fontSize: 12, color: '#b42318', marginTop: 3}}>{video.processing_error}</div>}</div>
+                    <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
+                      {video.status === 'published' && video.is_current && selectedPackage.status !== 'archived' && <><input ref={(node) => {uploadInputRefs.current[`revision-${video.id}`] = node;}} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label={`${video.title} yeni sürüm dosyası`} style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadCatalogVideo(section, file, video);}} /><button type="button" onClick={() => uploadInputRefs.current[`revision-${video.id}`]?.click()} disabled={busy}>Yeni sürüm yükle</button></>}
+                      {video.status === 'ready_for_review' && <button type="button" onClick={() => videoAction(video, 'publish')} disabled={busy}>Video yayımla</button>}
+                      {['ready_for_review', 'published', 'unpublished'].includes(video.status) && <button type="button" onClick={() => previewCatalogVideo(video)} disabled={busy}>Önizle</button>}
+                      {video.status === 'published' && <button type="button" onClick={() => videoAction(video, 'unpublish')} disabled={busy}>Yayından kaldır</button>}
+                      {['published', 'unpublished'].includes(video.status) && <button type="button" onClick={() => videoAction(video, 'archive')} disabled={busy}>Arşivle</button>}
+                      {video.status === 'processing_failed' && <button type="button" onClick={() => videoAction(video, 'retry-processing')} disabled={busy}>Yeniden işle</button>}
+                      {!HISTORICAL_VIDEO_STATUSES.includes(video.status) && <button type="button" onClick={() => deleteCatalogVideo(video)} disabled={busy || (selectedPackage.status === 'published' && !video.revision_of_id)} style={{color: '#b42318', background: '#fff5f4', border: '1px solid #e39b93'}}>Taslak videoyu sil</button>}
+                    </div>
+                  </div>)}
+                </div>
+              ))}
+              {!selectedPackage.sections?.length && <p style={{marginTop: 14, color: '#5e7485'}}>Bu pakette henüz bölüm yok. Yukarıdaki alandan ilk bölümü ekleyin.</p>}
+            </>
+          ) : <p style={{color: '#5e7485'}}>Soldan bir eğitim paketi seçin.</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ManagerPanel({user}) {
   const [companies, setCompanies] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -808,5 +1044,12 @@ export function RemoteBasicOhsTrainingPanel({user}) {
   if (error) return <section style={cardStyle}><ErrorText value={error} /></section>;
   if (!meta) return <section style={cardStyle}>Uzaktan eğitim modülü yükleniyor…</section>;
   if (!meta.enabled) return <section style={cardStyle}>{REMOTE_TRAINING_DISPLAY_TITLE} pilotu henüz etkin değil.</section>;
-  return <div style={{display: 'grid', gap: 16}}>{canManage && <ManagerPanel user={user} />}<EmployeePanel /></div>;
+  return <div style={{display: 'grid', gap: 16}}>
+    {canManage && <CatalogManagerPanel />}
+    {canManage && <details>
+      <summary style={{cursor: 'pointer', fontWeight: 800, color: '#123b59', padding: '8px 2px'}}>Firma eğitim atama ve çalışan takip yönetimi</summary>
+      <div style={{marginTop: 12}}><ManagerPanel user={user} /></div>
+    </details>}
+    <EmployeePanel />
+  </div>;
 }
