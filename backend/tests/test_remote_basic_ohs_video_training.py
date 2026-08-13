@@ -87,6 +87,17 @@ def test_strict_remote_policy_rollout_is_fail_closed(monkeypatch):
     assert not remote_basic_ohs_strict_policy_active("working-at-height-ohs", 42)
 
 
+def test_catalog_package_sections_keep_their_sector_identity():
+    from app.models.remote_training import catalog_package_sector_code
+
+    assert catalog_package_sector_code("battery-production-ohs") == "battery"
+    assert catalog_package_sector_code("construction-ohs") == "construction"
+    assert catalog_package_sector_code("metal-machine-ohs") == "metal"
+    assert catalog_package_sector_code("common-basic-ohs") == "common"
+    # Custom/future packages remain backward compatible until explicitly mapped.
+    assert catalog_package_sector_code("future-custom-package") == "common"
+
+
 def test_strict_video_coverage_does_not_double_count_replay():
     from app.services.remote_training import _merge_coverage
 
@@ -528,7 +539,7 @@ def test_remote_api_is_feature_flagged_and_uses_basic_type_only(remote_client):
         json={"sector_codes": ["construction"]},
     )
     assert updated_scope.status_code == 200, updated_scope.text
-    assert updated_scope.json()["selected_sector_codes"] == ["common", "construction"]
+    assert updated_scope.json()["selected_sector_codes"] == ["construction"]
 
     from app.core.config import settings
 

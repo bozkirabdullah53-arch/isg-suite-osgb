@@ -48,6 +48,7 @@ from app.models.remote_training import (
     RemoteTrainingSection,
     RemoteTrainingVideo,
     RemoteTrainingVideoProgress,
+    catalog_package_sector_code,
 )
 from app.schemas.remote_training import (
     RemoteCatalogSectionCreate,
@@ -855,6 +856,7 @@ def materialize_catalog_package(
     )
     db.add(program)
     db.flush()
+    catalog_sector_code = catalog_package_sector_code(package.code)
     for code, label, _description in REMOTE_SECTOR_CATALOG:
         db.add(
             RemoteTrainingProgramSector(
@@ -863,7 +865,7 @@ def materialize_catalog_package(
                 program_id=program.id,
                 sector_code=code,
                 sector_name_snapshot=label,
-                is_enabled=code == "common",
+                is_enabled=code == catalog_sector_code,
                 created_by_id=user.id,
             )
         )
@@ -876,7 +878,7 @@ def materialize_catalog_package(
                 osgb_id=program.osgb_id,
                 company_id=program.company_id,
                 program_id=program.id,
-                sector_code="common",
+                sector_code=catalog_sector_code,
                 title=catalog_section.title,
                 description=catalog_section.description,
                 order_index=catalog_section.order_index,
@@ -1458,6 +1460,8 @@ def update_remote_program_sectors(
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitimde sektör kapsamı değiştirilemez.")
     requested = {validate_sector_code(code) for code in payload.sector_codes}
+    if not requested:
+        raise HTTPException(422, "En az bir sektör/ders kapsamı seçilmelidir.")
     unknown = requested - {code for code, _label, _description in REMOTE_SECTOR_CATALOG}
     if unknown:
         raise HTTPException(422, "Sektör kapsamı katalogda bulunmayan bir kod içeriyor.")
@@ -1492,7 +1496,7 @@ def update_remote_program_sectors(
             )
             db.add(row)
         row.sector_name_snapshot = label
-        row.is_enabled = code == "common" or code in requested
+        row.is_enabled = code in requested
         row.updated_at = datetime.utcnow()
     audit(
         db,
@@ -1501,7 +1505,7 @@ def update_remote_program_sectors(
         action="program_sector_scope_updated",
         entity_type="program_sector_scope",
         entity_id=program.id,
-        details={"sector_codes": sorted({"common"} | requested), "ip": request.client.host if request.client else None},
+        details={"sector_codes": sorted(requested), "ip": request.client.host if request.client else None},
     )
     _commit(db, "Firma ders kapsamı kaydedilemedi.")
     return build_program_sector_catalog(db, program)

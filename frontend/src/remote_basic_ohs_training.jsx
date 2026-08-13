@@ -825,8 +825,8 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
     setProgram(row);
     const scope = await api(`/trainings/remote/programs/${Number(id)}/sectors`);
     setSectorScope(scope);
-    setSelectedSectorCodes(scope.mode === 'scoped' ? (scope.selected_sector_codes || []).filter((code) => code !== 'common') : []);
-    setSectionSectorCode((scope.selected_sector_codes || ['common']).find((code) => code !== 'common') || 'common');
+    setSelectedSectorCodes(scope.mode === 'scoped' ? (scope.selected_sector_codes || []) : ['common']);
+    setSectionSectorCode((scope.selected_sector_codes || ['common'])[0] || 'common');
     setExamSectorCode((scope.selected_sector_codes || ['common'])[0] || 'common');
     await loadEmployees(row.company_id);
     await loadEmployeeAccess(row.company_id);
@@ -864,7 +864,7 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
     try {
       const out = await api(`/trainings/remote/programs/${program.id}/sectors`, {method: 'PUT', body: JSON.stringify({sector_codes: selectedSectorCodes})});
       setSectorScope(out);
-      setSelectedSectorCodes((out.selected_sector_codes || []).filter((code) => code !== 'common'));
+      setSelectedSectorCodes(out.selected_sector_codes || []);
       setMessage('Firma ders kapsamı kaydedildi. Yeni çalışan atamalarında yalnızca bu sektörler açılacak.');
       await loadDetail(program.id);
     } catch (err) { setError(err.message || 'Firma ders kapsamı kaydedilemedi.'); } finally { setBusy(false); }
@@ -1056,6 +1056,7 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
                 </ol>
                 <div style={{padding: '9px 11px', borderRadius: 8, background: '#fff8e8', color: '#795500', fontSize: 12}}><strong>Önemli:</strong> Güncelleme yapılabilir. Eski yayımlanmış video geçmişte saklanır; yeni sürüm kontrol edilip yayımlanana kadar çalışan eski videoyu görmeye devam eder.</div>
               </div>
+              {program.source_catalog_package_id && <div style={{marginTop: 12, padding: '10px 12px', border: '1px solid #b9e3c8', borderRadius: 9, background: '#f2fff6', color: '#17643a', fontSize: 12}}><strong>Kolay kullanım:</strong> Bu eğitim merkezi katalogdaki <strong>{localizedTrainingTitle(program.title)}</strong> paketinden hazırlandı. Bölümlerin sektörü otomatik bağlanır; bölümleri tek tek düzeltmeniz gerekmez.</div>}
               {sectorScope && <div style={{marginTop: 14, padding: 14, border: '1px solid #b9d8e8', borderRadius: 10, background: '#f4fbff'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
                   <div><strong>Firma için sektör / ders kapsamı</strong><div style={{fontSize: 12, color: '#5e7485', marginTop: 4}}>Tüm dersler tek katalogda tutulur. Çalışana atama yapıldığında yalnızca burada seçilen sektörler açılır ve sınav soruları aynı kapsamdan gelir.</div></div>
@@ -1064,7 +1065,7 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
                 {sectorScope.mode === 'legacy' && <div style={{marginTop: 10, padding: 8, borderRadius: 7, background: '#fff8e8', color: '#8a5a00', fontSize: 12}}>Bu eski taslakta sektör kapsamı henüz kaydedilmemiş. Mevcut atamalar eski davranışla korunur; yeni atamalardan önce kapsamı kaydetmeniz önerilir.</div>}
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8, marginTop: 12}}>
                   {sectorScope.sectors.map((sector) => {
-                    const checked = sector.code === 'common' || selectedSectorCodes.includes(sector.code);
+                    const checked = selectedSectorCodes.includes(sector.code);
                     return <label key={sector.code} style={{display: 'block', padding: 10, border: `1px solid ${checked ? '#37a6c6' : '#dbe5ef'}`, borderRadius: 8, background: checked ? '#fff' : '#fafcfe', cursor: sector.locked ? 'default' : 'pointer'}}>
                       <input type="checkbox" checked={checked} disabled={sector.locked || busy || ['published', 'archived'].includes(program.status)} onChange={() => setSelectedSectorCodes((current) => current.includes(sector.code) ? current.filter((code) => code !== sector.code) : [...current, sector.code])} /> <strong>{sector.label}</strong>
                       <span style={{display: 'block', color: '#5e7485', fontSize: 11, marginTop: 4}}>{sector.description}</span>
@@ -1072,7 +1073,7 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
                     </label>;
                   })}
                 </div>
-                <div style={{fontSize: 12, color: '#36556d', marginTop: 10}}>Seçili kapsam: <strong>{['common', ...selectedSectorCodes].map(sectorLabel).join(', ')}</strong></div>
+                <div style={{fontSize: 12, color: '#36556d', marginTop: 10}}>Seçili kapsam: <strong>{selectedSectorCodes.map(sectorLabel).join(', ') || 'Henüz seçilmedi'}</strong></div>
               </div>}
               <div style={{marginTop: 14, padding: 14, border: '1px solid #dbe5ef', borderRadius: 10, background: '#fbfdff'}}>
                 <strong style={{display: 'block', color: '#123b59', fontSize: 15}}>1. Önce ders bölümü oluştur</strong>

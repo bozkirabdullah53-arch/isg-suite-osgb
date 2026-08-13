@@ -61,6 +61,26 @@ REMOTE_SECTOR_CATALOG = (
 REMOTE_SECTOR_CODES = frozenset(item[0] for item in REMOTE_SECTOR_CATALOG)
 REMOTE_SECTOR_LABELS = {item[0]: item[1] for item in REMOTE_SECTOR_CATALOG}
 
+# A central package is a reusable curriculum, but its copied sections still
+# need a stable sector identity inside the company-scoped snapshot.  Without
+# this mapping every catalog section was copied as ``common`` and a selected
+# sector displayed zero lessons/videos even though the package was complete.
+# Unknown/future packages intentionally fall back to common so older or custom
+# catalog entries keep their existing behavior until they receive an explicit
+# sector mapping.
+REMOTE_CATALOG_PACKAGE_SECTOR_CODES = {
+    "common-basic-ohs": "common",
+    "construction-ohs": "construction",
+    "metal-machine-ohs": "metal",
+    "battery-production-ohs": "battery",
+}
+
+
+def catalog_package_sector_code(package_code: str | None) -> str:
+    normalized = str(package_code or "").strip().lower()
+    return REMOTE_CATALOG_PACKAGE_SECTOR_CODES.get(normalized, "common")
+
+
 # Merkezi katalog kayıtları firma seçilmeden hazırlanır.  ``sections`` yalnızca
 # hazır müfredatı olan paketlerde başlangıç bölümlerini oluşturur; boş bırakılan
 # paketler yönetici ekranından sonradan bölüm eklenmesine hazırdır. Paket sırası

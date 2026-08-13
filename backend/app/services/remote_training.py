@@ -181,7 +181,7 @@ def program_sector_codes(db: Session, program_id: int) -> set[str] | None:
     )
     if not rows:
         return None
-    return {"common"} | {
+    return {
         row.sector_code for row in rows if row.is_enabled and row.sector_code in REMOTE_SECTOR_CODES
     }
 
@@ -197,7 +197,7 @@ def assignment_sector_codes(
         ).all()
     )
     if rows:
-        return {"common"} | {
+        return {
             row.sector_code for row in rows if row.sector_code in REMOTE_SECTOR_CODES
         }
     return program_sector_codes(db, assignment.program_id)
@@ -224,7 +224,7 @@ def build_program_sector_catalog(
         ).all()
     )
     configured = bool(rows)
-    selected = {"common"} | {
+    selected = {
         row.sector_code for row in rows if row.is_enabled and row.sector_code in REMOTE_SECTOR_CODES
     }
     sections = list(
@@ -256,7 +256,7 @@ def build_program_sector_catalog(
                 "label": label,
                 "description": description,
                 "enabled": code in selected if configured else False,
-                "locked": code == "common",
+                "locked": code == "common" and code in selected,
                 "section_count": sum(1 for section in sections if section.sector_code == code and section.status != "archived"),
                 "video_count": sum(
                     1
