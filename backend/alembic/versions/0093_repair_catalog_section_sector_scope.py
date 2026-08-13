@@ -35,7 +35,11 @@ def upgrade() -> None:
         "remote_training_sections",
         "remote_training_assignments",
     }
-    if not required.issubset({table["name"] for table in inspector.get_table_names()}):
+    # ``Inspector.get_table_names()`` returns a list of table-name strings,
+    # not the dictionaries returned by ``get_columns``/``get_indexes``.
+    # Treating each name as a mapping makes production startup fail before
+    # the optional repair can even begin.
+    if not required.issubset(set(inspector.get_table_names())):
         return
 
     for catalog_code, sector_code in PACKAGE_SECTOR_CODES.items():
