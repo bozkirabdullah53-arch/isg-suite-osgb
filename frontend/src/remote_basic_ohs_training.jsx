@@ -810,7 +810,6 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
   }
 
   async function loadQuestionBank() {
-    if (user?.role !== 'global_admin') return;
     try {
       const rows = await api('/question-bank/questions?status=published');
       setQuestionBank(Array.isArray(rows) ? rows : []);

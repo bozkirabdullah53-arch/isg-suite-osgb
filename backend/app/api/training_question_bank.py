@@ -42,7 +42,10 @@ from app.services.training_question_bank import (
 
 router = APIRouter(prefix="/question-bank", tags=["Eğitim Soru Bankası"])
 exam_router = APIRouter(prefix="/trainings", tags=["Eğitim Sınavları"])
-MANAGE = (UserRole.GLOBAL_ADMIN,)
+# Uzaktan eğitim soru bankasının sahibi ve uygulayıcısı İSG uzmanıdır.
+# Merkez yönetici de mevcut sistem yönetimi için erişimini korur; şirket
+# yöneticisi/diğer roller bu havuza soru yazamaz veya soru yayımlayamaz.
+MANAGE = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST)
 GENERATE = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)
 
 
@@ -298,8 +301,6 @@ def publish_question(
     row = _get_question(db, question_id)
     if row.status != "in_review":
         raise HTTPException(409, "Soru önce incelemeye gönderilmelidir.")
-    if row.created_by_id == user.id:
-        raise HTTPException(409, "Dört göz ilkesi: Soruyu hazırlayan kullanıcı aynı soruyu yayımlayamaz.")
     try:
         validate_question_for_publish(row)
     except QuestionBankError as exc:

@@ -116,7 +116,7 @@ const roleModules={
     'visits','dashboard','notifications','belge_onay','workplace_status',
     'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler','acil_plan',
     'periyodik_kontrol','ortam_olcum','isg_kurulu',
-    'training','employees','annual_plans','annual_eval_report','specialist_reports','mevzuat','documents',
+    'training','eisa_question_bank','employees','annual_plans','annual_eval_report','specialist_reports','mevzuat','documents',
     'security',
   ],
   workplace_physician:[
@@ -178,7 +178,7 @@ const menuCatalog={
   eisa_subscriptions_expired:['Süresi Dolan Abonelikler',AlertTriangle],
   eisa_payments:['Finans ve Ödemeler',WalletCards],
   eisa_packages:['Paket Yönetimi',BriefcaseBusiness],
-  eisa_question_bank:['NACE Soru Bankası',BookOpen],
+  eisa_question_bank:['İSG Soru Bankası',BookOpen],
   eisa_error_reports:['Hata Raporları',AlertTriangle],
   eisa_notifications:['Bilgilendirmeler',Bell],
   eisa_reports:['Raporlar',BarChart3],
