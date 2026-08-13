@@ -203,6 +203,15 @@ class RemoteTrainingProgram(Base):
     company_id: Mapped[int] = mapped_column(
         ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    # Optional immutable source link.  Existing company programs remain NULL
+    # and therefore keep the legacy behavior.
+    source_catalog_package_id: Mapped[int | None] = mapped_column(
+        ForeignKey("remote_training_catalog_packages.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_catalog_code: Mapped[str | None] = mapped_column(String(96), nullable=True, index=True)
+    source_catalog_revision_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
     branch_id: Mapped[int | None] = mapped_column(
         ForeignKey("branches.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -221,6 +230,11 @@ class RemoteTrainingProgram(Base):
     passing_score: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
     attempt_limit: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     requires_final_exam: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # ``legacy`` is deliberately the migration default.  Only catalog
+    # materialization creates ``strict`` programs.
+    policy_mode: Mapped[str] = mapped_column(String(24), default="legacy", nullable=False)
+    sequence_enforced: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    exam_gate_enforced: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="draft", index=True)
     revision_no: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     created_by_id: Mapped[int | None] = mapped_column(
@@ -377,9 +391,12 @@ class RemoteTrainingCatalogPackage(Base):
     )
     total_duration_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     requires_final_exam: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    completion_threshold_percent: Mapped[int] = mapped_column(Integer, default=90, nullable=False)
-    passing_score: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    completion_threshold_percent: Mapped[int] = mapped_column(Integer, default=100, nullable=False)
+    passing_score: Mapped[int] = mapped_column(Integer, default=70, nullable=False)
     attempt_limit: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
+    policy_mode: Mapped[str] = mapped_column(String(24), default="strict", nullable=False)
+    sequence_enforced: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    exam_gate_enforced: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="draft", index=True)
     revision_no: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     created_by_id: Mapped[int | None] = mapped_column(
@@ -610,6 +627,10 @@ class RemoteTrainingVideoProgress(Base):
     last_position_seconds: Mapped[float] = mapped_column(Numeric(12, 3), default=0, nullable=False)
     watched_duration_seconds: Mapped[float] = mapped_column(Numeric(12, 3), default=0, nullable=False)
     watched_percentage: Mapped[float] = mapped_column(Numeric(6, 3), default=0, nullable=False)
+    # Merged watched intervals, e.g. [[0, 12.4], [18, 32.1]].  It prevents a
+    # worker from replaying the same five seconds after seeking backwards and
+    # farming completion with repeated API calls.
+    coverage_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(24), default="not_started", index=True)
     viewing_sessions: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

@@ -40,6 +40,7 @@ def change_password(
     if verify_password(payload.new_password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Yeni şifre mevcut şifreyle aynı olamaz.")
     user.hashed_password = get_password_hash(payload.new_password)
+    user.password_change_required = False
     from app.services.token_revoke import bump_token_version
 
     bump_token_version(user)
@@ -143,6 +144,7 @@ def mfa_enable(
             str(user.id), token_version=getattr(user, "token_version", 0) or 0
         ),
         "token_type": "bearer",
+        "password_change_required": bool(getattr(user, "password_change_required", False)),
     }
 
 

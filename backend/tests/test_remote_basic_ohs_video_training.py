@@ -68,6 +68,41 @@ def test_remote_video_validation_rejects_mismatched_content():
         validate_video_bytes(b"not-a-video", extension=".mp4", original_name="ders.mp4")
 
 
+def test_strict_remote_policy_rollout_is_fail_closed(monkeypatch):
+    from app.core.config import remote_basic_ohs_strict_policy_active, settings
+
+    monkeypatch.setattr(settings, "remote_basic_ohs_training_enabled", True)
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_force_off", False)
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_package_codes", "working-at-height-ohs")
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_pilot_company_ids", "42")
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_enabled", False)
+    assert not remote_basic_ohs_strict_policy_active("working-at-height-ohs", 42)
+
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_enabled", True)
+    assert not remote_basic_ohs_strict_policy_active("working-at-height-ohs", 41)
+    assert remote_basic_ohs_strict_policy_active("working-at-height-ohs", 42)
+    assert not remote_basic_ohs_strict_policy_active("construction-ohs", 42)
+
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_force_off", True)
+    assert not remote_basic_ohs_strict_policy_active("working-at-height-ohs", 42)
+
+
+def test_strict_video_coverage_does_not_double_count_replay():
+    from app.services.remote_training import _merge_coverage
+
+    coverage, total = _merge_coverage([], 0, 10, 100)
+    assert coverage == [[0.0, 10.0]]
+    assert total == 10.0
+
+    replayed, replayed_total = _merge_coverage(coverage, 0, 10, 100)
+    assert replayed == coverage
+    assert replayed_total == 10.0
+
+    extended, extended_total = _merge_coverage(replayed, 10, 20, 100)
+    assert extended == [[0.0, 20.0]]
+    assert extended_total == 20.0
+
+
 def test_remote_assignment_recalculation_requires_real_progress_and_exam():
     from app.models.remote_training import (
         RemoteTrainingAssignment,
