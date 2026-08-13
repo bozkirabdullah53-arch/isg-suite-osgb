@@ -388,6 +388,7 @@ function ManagerPanel({user}) {
   const [accessUserId, setAccessUserId] = useState('');
   const [busy, setBusy] = useState(false);
   const [uploadingSectionId, setUploadingSectionId] = useState(null);
+  const [uploadingVideoId, setUploadingVideoId] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [report, setReport] = useState(null);
@@ -513,13 +514,14 @@ function ManagerPanel({user}) {
     } catch (err) { setError(err.message || 'Bölüm sektörü kaydedilemedi.'); } finally { setBusy(false); }
   }
 
-  async function uploadVideo(section, file) {
+  async function uploadVideo(section, file, revisionOf = null) {
     if (!file || !program) return;
-    setBusy(true); setUploadingSectionId(section.id); setError(''); setMessage(`"${file.name}" yükleniyor. Lütfen bu sayfayı kapatmayın.`);
+    const revisionFields = revisionOf ? {revision_of_id: revisionOf.id} : {};
+    setBusy(true); setUploadingSectionId(section.id); setUploadingVideoId(revisionOf?.id || null); setError(''); setMessage(revisionOf ? `"${file.name}" yeni sürüm olarak yükleniyor. Eski video şimdilik çalışanlara açık.` : `"${file.name}" yükleniyor. Lütfen bu sayfayı kapatmayın.`);
     try {
-      await uploadFile(`/trainings/remote/sections/${section.id}/videos`, file, {title: file.name.replace(/\.[^.]+$/, '') || 'Temel İSG video dersi'});
-      await loadDetail(program.id); setMessage('Video yüklendi; durum işleniyor veya incelemeye hazır olabilir.');
-    } catch (err) { setError(err.message || 'Video yüklenemedi.'); } finally { setBusy(false); setUploadingSectionId(null); }
+      await uploadFile(`/trainings/remote/sections/${section.id}/videos`, file, {title: file.name.replace(/\.[^.]+$/, '') || 'Temel İSG video dersi', ...revisionFields});
+      await loadDetail(program.id); setMessage(revisionOf ? 'Yeni video sürümü yüklendi. Kontrol et; doğruysa yeni sürümün yanındaki Video yayımla düğmesine bas.' : 'Video yüklendi; durum işleniyor veya incelemeye hazır olabilir.');
+    } catch (err) { setError(err.message || 'Video yüklenemedi.'); } finally { setBusy(false); setUploadingSectionId(null); setUploadingVideoId(null); }
   }
 
   async function videoAction(video, action) {
@@ -664,9 +666,9 @@ function ManagerPanel({user}) {
                   <li>İlgili bölümdeki büyük <strong>Video seç ve yükle</strong> düğmesine bas.</li>
                   <li>Bilgisayarındaki videoyu seç. Yükleme bitene kadar bekle.</li>
                   <li>Video geldiğinde satırdaki <strong>Kaydet</strong>, <strong>Önizle</strong> ve durumuna göre <strong>Video yayımla</strong> düğmelerini kullan.</li>
-                  <li>Yanlış yüklediysen, yalnızca taslak videonun yanındaki kırmızı <strong>Taslak videoyu sil</strong> düğmesine bas ve onayla.</li>
+                  <li>Yanlış taslak yüklediysen kırmızı <strong>Taslak videoyu sil</strong> düğmesine bas. Yayımlanmış videoyu değiştireceksen mavi <strong>Yeni sürüm yükle</strong> düğmesini kullan.</li>
                 </ol>
-                <div style={{padding: '9px 11px', borderRadius: 8, background: '#fff8e8', color: '#795500', fontSize: 12}}><strong>Önemli:</strong> Yayımlanmış videolar geçmiş kayıtları korumak için silinmez. Yanlış yüklemeyi yayımlamadan önce taslak durumundayken silebilirsin.</div>
+                <div style={{padding: '9px 11px', borderRadius: 8, background: '#fff8e8', color: '#795500', fontSize: 12}}><strong>Önemli:</strong> Güncelleme yapılabilir. Eski yayımlanmış video geçmişte saklanır; yeni sürüm kontrol edilip yayımlanana kadar çalışan eski videoyu görmeye devam eder.</div>
               </div>
               {sectorScope && <div style={{marginTop: 14, padding: 14, border: '1px solid #b9d8e8', borderRadius: 10, background: '#f4fbff'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
@@ -727,11 +729,25 @@ function ManagerPanel({user}) {
                         {video.processing_error && <div style={{fontSize: 12, color: '#b42318'}}>{video.processing_error}</div>}
                       </div>
                       <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
-                        <button type="button" onClick={() => saveVideo(video)} disabled={busy || ['published', 'archived'].includes(program.status) || HISTORICAL_VIDEO_STATUSES.includes(video.status)}>Kaydet</button>
+                        {video.status === 'published' && video.is_current && program.status !== 'archived' && <>
+                          <input
+                            ref={(node) => { uploadInputRefs.current[`revision-${video.id}`] = node; }}
+                            id={`remote-video-revision-${video.id}`}
+                            type="file"
+                            accept="video/mp4,video/webm,video/quicktime,.m4v"
+                            aria-label={`${video.title} için yeni video sürümü seç`}
+                            style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}}
+                            onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadVideo(section, file, video); }}
+                          />
+                          <button type="button" onClick={() => uploadInputRefs.current[`revision-${video.id}`]?.click()} disabled={busy} style={{minHeight: 42, padding: '10px 14px', color: '#075985', background: '#e8f6ff', border: '2px solid #72b9d7', borderRadius: 8, fontWeight: 700}}>
+                            {uploadingVideoId === video.id ? 'Yeni sürüm yükleniyor…' : 'Yeni sürüm yükle'}
+                          </button>
+                        </>}
+                        <button type="button" onClick={() => saveVideo(video)} disabled={busy || program.status === 'archived' || (program.status === 'published' && !video.revision_of_id) || HISTORICAL_VIDEO_STATUSES.includes(video.status)}>Kaydet</button>
                         {['ready_for_review', 'published', 'unpublished'].includes(video.status) && <button type="button" onClick={() => previewVideo(video)} disabled={busy}>Önizle</button>}
                         {video.status === 'ready_for_review' && <button type="button" onClick={() => videoAction(video, 'publish')} disabled={busy}>Video yayımla</button>}
                         {video.status === 'processing_failed' && <button type="button" onClick={() => videoAction(video, 'retry-processing')} disabled={busy}>Yeniden işle</button>}
-                        {!HISTORICAL_VIDEO_STATUSES.includes(video.status) && <button type="button" onClick={() => deleteVideo(video)} disabled={busy || ['published', 'archived'].includes(program.status)} style={{minHeight: 42, padding: '10px 14px', color: '#b42318', background: '#fff5f4', border: '2px solid #e39b93', borderRadius: 8, fontWeight: 700}} aria-label={`${video.title} taslak videosunu sil`}>Taslak videoyu sil</button>}
+                        {!HISTORICAL_VIDEO_STATUSES.includes(video.status) && <button type="button" onClick={() => deleteVideo(video)} disabled={busy || program.status === 'archived' || (program.status === 'published' && !video.revision_of_id)} style={{minHeight: 42, padding: '10px 14px', color: '#b42318', background: '#fff5f4', border: '2px solid #e39b93', borderRadius: 8, fontWeight: 700}} aria-label={`${video.title} taslak videosunu sil`}>Taslak videoyu sil</button>}
                       </div>
                     </div>
                   ))}
