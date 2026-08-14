@@ -24,7 +24,15 @@ from app.api.company_access import ensure_company_access
 from app.core.config import remote_basic_ohs_strict_policy_active, settings
 from app.core.database import SessionLocal
 from app.core.security import ALGORITHM
-from app.models.entities import Branch, Company, Employee, TrainingQuestion, User, UserRole
+from app.models.entities import (
+    Branch,
+    Company,
+    Employee,
+    TrainingQuestion,
+    TrainingQuestionScope,
+    User,
+    UserRole,
+)
 from app.models.remote_training import (
     ASSET_TYPES,
     REMOTE_SECTOR_CATALOG,
@@ -49,6 +57,7 @@ from app.models.remote_training import (
     RemoteTrainingSection,
     RemoteTrainingVideo,
     RemoteTrainingVideoProgress,
+    catalog_package_sector_code,
 )
 from app.services.job_queue import enqueue
 from app.services.object_store import get_object_store
@@ -170,6 +179,65 @@ def sector_label(code: str) -> str:
     return REMOTE_SECTOR_LABELS.get(code, code)
 
 
+def catalog_program_sector_code(program: RemoteTrainingProgram) -> str | None:
+    """Return the immutable curriculum scope for a catalog-derived snapshot.
+
+    A manually created legacy program deliberately returns ``None`` so its
+    existing multi-sector behavior is preserved.  A company snapshot copied
+    from the central catalog has exactly one curriculum sector; the common
+    package is the only catalog package whose fixed sector is ``common``.
+    """
+
+    if not getattr(program, "source_catalog_package_id", None):
+        return None
+    return catalog_package_sector_code(getattr(program, "source_catalog_code", None))
+
+
+def validate_catalog_program_sector(
+    program: RemoteTrainingProgram, sector_code: str
+) -> str:
+    """Reject unrelated sections/scope values on a catalog snapshot."""
+
+    expected = catalog_program_sector_code(program)
+    if expected is not None and sector_code != expected:
+        raise HTTPException(
+            422,
+            "Bu firma eğitimi merkezi katalogdan hazırlanmıştır; kapsamı yalnızca "
+            f"{sector_label(expected)} olabilir. Farklı eğitim için ilgili merkezi paketi firmaya hazırlayın.",
+        )
+    return sector_code
+
+
+def catalog_question_is_compatible(
+    db: Session, program: RemoteTrainingProgram, question_id: int
+) -> bool:
+    """Keep common and sector-specific catalog exams from being mixed.
+
+    The question bank stores the authoritative scope on ``TrainingQuestion``.
+    For a sector package, any published question with a non-common scope is
+    eligible (NACE, sector profile, or hazard); a common-only question belongs
+    to the separate common package.  Legacy/manual programs keep their
+    historical linking behavior.
+    """
+
+    expected = catalog_program_sector_code(program)
+    if expected is None:
+        return True
+    scopes = list(
+        db.scalars(
+            select(TrainingQuestionScope).where(
+                TrainingQuestionScope.question_id == question_id
+            )
+        ).all()
+    )
+    if expected == "common":
+        return any(
+            scope.scope_type == "common" and str(scope.scope_value or "").strip() in {"", "*"}
+            for scope in scopes
+        )
+    return any(scope.scope_type != "common" for scope in scopes)
+
+
 def program_sector_codes(db: Session, program_id: int) -> set[str] | None:
     """Return the configured scope; ``None`` preserves pre-scope programs."""
     rows = list(
@@ -245,6 +313,7 @@ def build_program_sector_catalog(
             select(RemoteTrainingQuestion).where(RemoteTrainingQuestion.program_id == program.id)
         ).all()
     )
+    catalog_sector_code = catalog_program_sector_code(program)
     catalog = []
     for code, label, description in REMOTE_SECTOR_CATALOG:
         if visible_sector_codes is not None and code not in visible_sector_codes:
@@ -256,7 +325,11 @@ def build_program_sector_catalog(
                 "label": label,
                 "description": description,
                 "enabled": code in selected if configured else False,
-                "locked": code == "common" and code in selected,
+                "locked": (
+                    code == catalog_sector_code
+                    if catalog_sector_code is not None
+                    else code == "common" and code in selected
+                ),
                 "section_count": sum(1 for section in sections if section.sector_code == code and section.status != "archived"),
                 "video_count": sum(
                     1
@@ -273,6 +346,8 @@ def build_program_sector_catalog(
         "mode": "scoped" if configured else "legacy",
         "selected_sector_codes": sorted(selected) if configured else [],
         "selected_sector_labels": [sector_label(code) for code in sorted(selected)] if configured else [],
+        "catalog_fixed": catalog_sector_code is not None,
+        "catalog_sector_code": catalog_sector_code,
         "sectors": catalog,
     }
 

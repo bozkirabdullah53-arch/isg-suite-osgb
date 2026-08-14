@@ -91,6 +91,8 @@ from app.services.remote_training import (
     decode_playback_token,
     employee_access,
     catalog_storage_key,
+    catalog_program_sector_code,
+    catalog_question_is_compatible,
     enqueue_video_processing,
     enqueue_catalog_video_processing,
     ensure_certificate,
@@ -115,6 +117,7 @@ from app.services.remote_training import (
     storage_key,
     sector_label,
     validate_sector_code,
+    validate_catalog_program_sector,
     validate_branch,
     validate_video_bytes,
 )
@@ -1483,6 +1486,14 @@ def update_remote_program_sectors(
     unknown = requested - {code for code, _label, _description in REMOTE_SECTOR_CATALOG}
     if unknown:
         raise HTTPException(422, "Sektör kapsamı katalogda bulunmayan bir kod içeriyor.")
+    catalog_sector_code = catalog_program_sector_code(program)
+    if catalog_sector_code is not None and requested != {catalog_sector_code}:
+        raise HTTPException(
+            422,
+            "Bu firma eğitimi merkezi katalogdan hazırlanmıştır; yalnızca "
+            f"{sector_label(catalog_sector_code)} kapsamı seçilebilir. "
+            "Farklı eğitim için ilgili merkezi paketi firmaya hazırlayın.",
+        )
     assignment_count = db.scalar(
         select(func.count(RemoteTrainingAssignment.id)).where(
             RemoteTrainingAssignment.program_id == program.id
@@ -1668,6 +1679,18 @@ def publish_remote_program(
         ).all()
         if not exam_links:
             raise HTTPException(409, "Final sınavı açıkken mevcut soru bankasından en az bir soru bağlanmalıdır.")
+        incompatible_questions = [
+            str(link.question_id)
+            for link in exam_links
+            if not catalog_question_is_compatible(db, program, link.question_id)
+        ]
+        if incompatible_questions:
+            raise HTTPException(
+                409,
+                "Sınavda eğitim kapsamıyla uyumsuz soru var (ID: "
+                + ", ".join(incompatible_questions)
+                + "). Bu soruyu sınavdan çıkarıp ilgili kapsam sorusunu bağlayın.",
+            )
         scope = program_sector_codes(db, program.id)
         if scope is not None:
             linked_codes = {link.sector_code or "common" for link in exam_links}
@@ -1729,11 +1752,14 @@ def create_remote_section(
     order = payload.order_index
     if order is None:
         order = (db.scalar(select(func.max(RemoteTrainingSection.order_index)).where(RemoteTrainingSection.program_id == program.id)) or 0) + 1
+    sector_code = validate_catalog_program_sector(
+        program, validate_sector_code(payload.sector_code)
+    )
     row = RemoteTrainingSection(
         osgb_id=program.osgb_id,
         company_id=program.company_id,
         program_id=program.id,
-        sector_code=validate_sector_code(payload.sector_code),
+        sector_code=sector_code,
         title=payload.title.strip(),
         description=payload.description,
         learning_objectives=payload.learning_objectives,
@@ -1772,7 +1798,9 @@ def update_remote_section(
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş bölüm değiştirilemez.")
     values = payload.model_dump(exclude_unset=True)
     if "sector_code" in values:
-        values["sector_code"] = validate_sector_code(values["sector_code"])
+        values["sector_code"] = validate_catalog_program_sector(
+            program, validate_sector_code(values["sector_code"])
+        )
         if values["sector_code"] != section.sector_code:
             question_count = db.scalar(
                 select(func.count(RemoteTrainingQuestion.id)).where(
@@ -2224,7 +2252,6 @@ def assign_remote_program(
     missing = [employee_id for employee_id in payload.employee_ids if employee_id not in found]
     if missing:
         raise HTTPException(422, "Seçilen çalışanlardan bazıları firma dışı, pasif veya bulunamadı.")
-    login_pending_employee_ids: list[int] = []
     if strict_policy_active(program):
         mapped_employee_ids = {
             int(employee_id)
@@ -2236,10 +2263,13 @@ def assign_remote_program(
                 )
             ).all()
         }
-        # Eğitim ataması, çalışan giriş hesabından bağımsız olarak saklanır.
-        # Hesabı olmayan çalışanlar güvenli biçimde beklemede kalır; erişim yalnızca
-        # aktif employee_access eşlemesi oluşturulduktan sonra açılır.
-        login_pending_employee_ids = sorted(set(payload.employee_ids) - mapped_employee_ids)
+        without_login = sorted(set(payload.employee_ids) - mapped_employee_ids)
+        if without_login:
+            raise HTTPException(
+                409,
+                "Atama için önce seçilen çalışanların aktif giriş hesabı oluşturulup eşlenmelidir: "
+                + ", ".join(str(item) for item in without_login),
+            )
     created: list[RemoteTrainingAssignment] = []
     skipped: list[int] = []
     for employee in employees:
@@ -2308,8 +2338,6 @@ def assign_remote_program(
         "created": [_assignment_output(db, row) for row in created],
         "created_count": len(created),
         "skipped_employee_ids": skipped,
-        "login_pending_employee_ids": login_pending_employee_ids,
-        "login_pending_count": len(login_pending_employee_ids),
     }
 
 
@@ -2625,7 +2653,10 @@ def create_remote_checkpoint_question(
         if section is None:
             section = load_section(db, video.section_id)
     parent_sector = section.sector_code if section is not None else None
-    sector_code = validate_sector_code(payload.sector_code or parent_sector or "common")
+    sector_code = validate_catalog_program_sector(
+        program,
+        validate_sector_code(payload.sector_code or parent_sector or "common"),
+    )
     if parent_sector and payload.sector_code and sector_code != parent_sector:
         raise HTTPException(422, "Video içi soru, bağlı olduğu bölümün sektör kapsamıyla aynı olmalıdır.")
     row = RemoteTrainingQuestion(
@@ -2672,13 +2703,24 @@ def link_remote_exam_question(
     user: User = Depends(get_current_user),
 ):
     program = _assert_program_manager(db, user, program_id)
+    if program.status in {"published", "archived"}:
+        raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitimde sınav soruları değiştirilemez.")
     question = db.get(TrainingQuestion, payload.question_id)
     if not question or question.status != "published":
         raise HTTPException(422, "Yalnızca yayımlanmış mevcut soru bankası soruları bağlanabilir.")
-    sector_code = validate_sector_code(payload.sector_code or "common")
+    sector_code = validate_catalog_program_sector(
+        program, validate_sector_code(payload.sector_code or "common")
+    )
     scope = program_sector_codes(db, program.id)
     if scope is not None and sector_code not in scope:
         raise HTTPException(422, "Soru, firmanın seçili ders kapsamı dışında bir sektöre bağlanamaz.")
+    if not catalog_question_is_compatible(db, program, question.id):
+        expected = catalog_program_sector_code(program)
+        raise HTTPException(
+            422,
+            "Bu soru yalnızca ortak kapsamda yayımlanmış; "
+            f"{sector_label(expected or sector_code)} paketinin sınavına bağlanamaz.",
+        )
     row = RemoteTrainingProgramQuestion(
         company_id=program.company_id,
         program_id=program.id,
@@ -2698,6 +2740,44 @@ def link_remote_exam_question(
         "position": row.position,
         "sector_code": row.sector_code,
     }
+
+
+@router.delete("/programs/{program_id}/exam/questions/{link_id}")
+def unlink_remote_exam_question(
+    program_id: int,
+    link_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    program = _assert_program_manager(db, user, program_id)
+    if program.status in {"published", "archived"}:
+        raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitimde sınav soruları değiştirilemez.")
+    assignment_count = db.scalar(
+        select(func.count(RemoteTrainingAssignment.id)).where(
+            RemoteTrainingAssignment.program_id == program.id
+        )
+    ) or 0
+    if assignment_count:
+        raise HTTPException(
+            409,
+            "Atama yapılmış eğitimde sınav soruları değiştirilemez; çalışan kayıtları korunmalıdır.",
+        )
+    row = db.get(RemoteTrainingProgramQuestion, link_id)
+    if not row or row.program_id != program.id:
+        raise HTTPException(404, "Bu programa bağlı sınav sorusu bulunamadı.")
+    db.delete(row)
+    audit(
+        db,
+        company_id=program.company_id,
+        user=user,
+        action="exam_question_unlinked",
+        entity_type="exam_question",
+        entity_id=link_id,
+        details={"question_id": row.question_id, "ip": request.client.host if request.client else None},
+    )
+    _commit(db, "Soru sınavdan çıkarılamadı.")
+    return {"deleted": True, "id": link_id, "question_id": row.question_id}
 
 
 @router.get("/assignments/{assignment_id}/exam")
@@ -2759,7 +2839,7 @@ def submit_remote_exam(
     program = load_program(db, assignment.program_id)
     require_strict_policy_active(program)
     if strict_policy_active(program) and mode != "employee":
-            raise HTTPException(403, "Bu sınavı yalnızca eşlenmiş çalışan gönderebilir.")
+        raise HTTPException(403, "Bu sınavı yalnızca eşlenmiş çalışan gönderebilir.")
     if strict_exam_gate_enabled(program):
         summary = recalculate_assignment(db, assignment)
         if not summary["required_videos_complete"] or not summary["required_checkpoints_complete"]:
@@ -2827,7 +2907,7 @@ def save_remote_progress(
     program = load_program(db, assignment.program_id)
     require_strict_policy_active(program)
     if strict_policy_active(program) and mode != "employee":
-            raise HTTPException(403, "Bu video ilerlemesini yalnızca eşlenmiş çalışan gönderebilir.")
+        raise HTTPException(403, "Bu video ilerlemesini yalnızca eşlenmiş çalışan gönderebilir.")
     if video.program_id != program.id or video.status != "published" or not video.is_current:
         raise HTTPException(403, "Video bu atamaya açık değil.")
     section = load_section(db, video.section_id)

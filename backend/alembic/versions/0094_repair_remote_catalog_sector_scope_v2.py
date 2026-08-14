@@ -1,8 +1,11 @@
-"""Complete the sector repair for catalog-derived remote programs.
+"""Repair the scope of unassigned catalog-derived remote programs.
 
-Migration 0093 repaired the first four catalog packages.  The catalog has
-since grown, so this follow-up covers the remaining sector-specific packages
-without touching published, assigned, or manually edited programs.
+The first catalog rollout copied sections correctly for new snapshots but
+left some older company snapshots with the common scope selected for every
+package. This idempotent repair covers every known package and only touches
+unassigned draft/review snapshots that still have a single catalog sector
+shape. Published, assigned, and deliberately multi-sector/manual records are
+left untouched.
 """
 from __future__ import annotations
 
@@ -19,6 +22,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 PACKAGE_SECTOR_CODES = {
+    "common-basic-ohs": "common",
+    "construction-ohs": "construction",
+    "metal-machine-ohs": "metal",
+    "battery-production-ohs": "battery",
     "food-production-ohs": "food",
     "logistics-warehouse-transport-ohs": "logistics",
     "chemical-paint-production-ohs": "chemical",
@@ -43,7 +50,8 @@ def upgrade() -> None:
 
     for catalog_code, sector_code in PACKAGE_SECTOR_CODES.items():
         program_filter = (
-            "p.source_catalog_code = :catalog_code "
+            "p.source_catalog_package_id IS NOT NULL "
+            "AND p.source_catalog_code = :catalog_code "
             "AND p.status IN ('draft', 'ready_for_review') "
             "AND NOT EXISTS ("
             "  SELECT 1 FROM remote_training_assignments a "
@@ -53,7 +61,7 @@ def upgrade() -> None:
             "  SELECT 1 FROM remote_training_sections edited "
             "  WHERE edited.program_id = p.id "
             "    AND edited.status = 'active' "
-            "    AND edited.sector_code <> 'common'"
+            "    AND edited.sector_code NOT IN ('common', :sector_code)"
             ")"
         )
         bind.execute(

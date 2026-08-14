@@ -1040,3 +1040,349 @@ def test_remote_published_video_can_be_revised_without_losing_history(remote_cli
         assert old.storage_key == old_storage_key
         assert old.status == "published"
         assert old.is_current is True
+
+
+def test_catalog_program_scope_is_fixed_to_its_package_sector():
+    from app.models.remote_training import (
+        REMOTE_SECTOR_CATALOG,
+        RemoteTrainingCatalogPackage,
+        RemoteTrainingProgram,
+        RemoteTrainingProgramSector,
+    )
+    from app.services.remote_training import build_program_sector_catalog
+
+    engine = _db()
+    with Session(engine) as db:
+        osgb, company, _branch, _employee, user = _scope_rows(db)
+        package = RemoteTrainingCatalogPackage(
+            osgb_id=osgb.id,
+            code="battery-production-ohs",
+            title="Akü-Batarya",
+            status="published",
+            created_by_id=user.id,
+        )
+        db.add(package)
+        db.flush()
+        program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            source_catalog_package_id=package.id,
+            source_catalog_code=package.code,
+            title="Akü-Batarya",
+            status="ready_for_review",
+        )
+        db.add(program)
+        db.flush()
+        # Simulate the old broken snapshot: common and battery were both
+        # selected even though the copied sections are battery-specific.
+        db.add_all(
+            [
+                RemoteTrainingProgramSector(
+                    osgb_id=osgb.id,
+                    company_id=company.id,
+                    program_id=program.id,
+                    sector_code=code,
+                    sector_name_snapshot=label,
+                    is_enabled=code in {"common", "battery"},
+                )
+                for code, label, _description in REMOTE_SECTOR_CATALOG
+            ]
+        )
+        db.flush()
+
+        scope = build_program_sector_catalog(db, program)
+        assert scope["catalog_fixed"] is True
+        assert scope["catalog_sector_code"] == "battery"
+        assert next(row for row in scope["sectors"] if row["code"] == "battery")["locked"] is True
+        assert next(row for row in scope["sectors"] if row["code"] == "common")["locked"] is False
+
+
+def test_catalog_program_rejects_mixed_scope_and_wrong_question(remote_client):
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import (
+        Company,
+        OsgbOrganization,
+        TrainingQuestion,
+        TrainingQuestionScope,
+        User,
+        UserRole,
+    )
+    from app.models.remote_training import (
+        REMOTE_SECTOR_CATALOG,
+        RemoteTrainingCatalogPackage,
+        RemoteTrainingProgram,
+        RemoteTrainingProgramSector,
+    )
+
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(name="Catalog Scope OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        company = Company(name="Catalog Scope Firma", osgb_id=osgb.id, is_active=True)
+        db.add(company)
+        db.flush()
+        user = User(
+            email="catalog-scope-admin@remote-test.com",
+            full_name="Catalog Scope Admin",
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.COMPANY_ADMIN,
+            company_id=company.id,
+            osgb_id=osgb.id,
+            is_active=True,
+        )
+        db.add(user)
+        db.flush()
+        package = RemoteTrainingCatalogPackage(
+            osgb_id=osgb.id,
+            code="battery-production-ohs",
+            title="Akü-Batarya",
+            status="published",
+            created_by_id=user.id,
+        )
+        db.add(package)
+        db.flush()
+        program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            source_catalog_package_id=package.id,
+            source_catalog_code=package.code,
+            title="Akü-Batarya",
+            status="ready_for_review",
+        )
+        db.add(program)
+        db.flush()
+        db.add_all(
+            [
+                RemoteTrainingProgramSector(
+                    osgb_id=osgb.id,
+                    company_id=company.id,
+                    program_id=program.id,
+                    sector_code=code,
+                    sector_name_snapshot=label,
+                    is_enabled=code in {"common", "battery"},
+                )
+                for code, label, _description in REMOTE_SECTOR_CATALOG
+            ]
+        )
+        common_question = TrainingQuestion(
+            question_code="CATALOG-COMMON-1",
+            version=1,
+            status="published",
+            topic_code="common",
+            topic_label="Ortak İSG",
+            question_text="Ortak kapsam sorusu yeterince uzun metin",
+            option_a="A seçeneği",
+            option_b="B seçeneği",
+            option_c="C seçeneği",
+            option_d="D seçeneği",
+            correct_option="A",
+            answer_explanation="Ortak kapsam gerekçesi yeterince uzun metin",
+            created_by_id=user.id,
+        )
+        battery_question = TrainingQuestion(
+            question_code="CATALOG-BATTERY-1",
+            version=1,
+            status="published",
+            topic_code="battery",
+            topic_label="Akü-Batarya",
+            question_text="Akü kapsam sorusu yeterince uzun metin",
+            option_a="A seçeneği",
+            option_b="B seçeneği",
+            option_c="C seçeneği",
+            option_d="D seçeneği",
+            correct_option="A",
+            answer_explanation="Akü kapsam gerekçesi yeterince uzun metin",
+            created_by_id=user.id,
+        )
+        db.add_all([common_question, battery_question])
+        db.flush()
+        db.add_all(
+            [
+                TrainingQuestionScope(question_id=common_question.id, scope_type="common", scope_value="*"),
+                TrainingQuestionScope(question_id=battery_question.id, scope_type="nace", scope_value="27.20"),
+            ]
+        )
+        db.commit()
+        company_id = company.id
+        program_id = program.id
+        common_question_id = common_question.id
+        battery_question_id = battery_question.id
+
+    login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "catalog-scope-admin@remote-test.com", "password": "TestPass123!"},
+    )
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    mixed = remote_client.put(
+        f"/api/v1/trainings/remote/programs/{program_id}/sectors",
+        headers=headers,
+        json={"sector_codes": ["common", "battery"]},
+    )
+    assert mixed.status_code == 422, mixed.text
+    assert "Akü" in mixed.json()["detail"]
+
+    repaired = remote_client.put(
+        f"/api/v1/trainings/remote/programs/{program_id}/sectors",
+        headers=headers,
+        json={"sector_codes": ["battery"]},
+    )
+    assert repaired.status_code == 200, repaired.text
+    assert repaired.json()["selected_sector_codes"] == ["battery"]
+
+    wrong_section = remote_client.post(
+        f"/api/v1/trainings/remote/programs/{program_id}/sections",
+        headers=headers,
+        json={"title": "Yanlış ortak bölüm", "sector_code": "common"},
+    )
+    assert wrong_section.status_code == 422, wrong_section.text
+
+    wrong_question = remote_client.post(
+        f"/api/v1/trainings/remote/programs/{program_id}/exam/questions",
+        headers=headers,
+        json={"question_id": common_question_id, "position": 1, "sector_code": "battery"},
+    )
+    assert wrong_question.status_code == 422, wrong_question.text
+
+    linked = remote_client.post(
+        f"/api/v1/trainings/remote/programs/{program_id}/exam/questions",
+        headers=headers,
+        json={"question_id": battery_question_id, "position": 1, "sector_code": "battery"},
+    )
+    assert linked.status_code == 201, linked.text
+    link_id = linked.json()["id"]
+    removed = remote_client.delete(
+        f"/api/v1/trainings/remote/programs/{program_id}/exam/questions/{link_id}",
+        headers=headers,
+    )
+    assert removed.status_code == 200, removed.text
+    assert removed.json()["deleted"] is True
+
+
+def test_employee_panel_returns_all_published_assignments_not_notifications(remote_client, monkeypatch):
+    from app.core.config import settings
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import Company, Employee, OsgbOrganization, User, UserRole
+    from app.models.remote_training import (
+        RemoteTrainingAssignment,
+        RemoteTrainingAssignmentSector,
+        RemoteTrainingCatalogPackage,
+        RemoteTrainingEmployeeAccess,
+        RemoteTrainingProgram,
+        RemoteTrainingProgramSector,
+    )
+
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_enabled", True)
+    monkeypatch.setattr(
+        settings,
+        "remote_basic_ohs_strict_policy_package_codes",
+        "common-basic-ohs,battery-production-ohs",
+    )
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_pilot_company_ids", "")
+
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(name="Employee Panel OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        company = Company(name="Employee Panel Firma", osgb_id=osgb.id, is_active=True)
+        db.add(company)
+        db.flush()
+        employee = Employee(company_id=company.id, full_name="Panel Çalışanı", is_active=True)
+        db.add(employee)
+        db.flush()
+        user = User(
+            email="employee-panel@remote-test.com",
+            full_name=employee.full_name,
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.READ_ONLY,
+            company_id=company.id,
+            osgb_id=osgb.id,
+            password_change_required=False,
+            is_active=True,
+        )
+        db.add(user)
+        db.flush()
+        db.add(
+            RemoteTrainingEmployeeAccess(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                user_id=user.id,
+                employee_id=employee.id,
+                is_active=True,
+            )
+        )
+        for code, title, sector in (
+            ("common-basic-ohs", "Ortak Temel İSG", "common"),
+            ("battery-production-ohs", "Akü-Batarya", "battery"),
+        ):
+            package = RemoteTrainingCatalogPackage(
+                osgb_id=osgb.id,
+                code=code,
+                title=title,
+                status="published",
+            )
+            db.add(package)
+            db.flush()
+            program = RemoteTrainingProgram(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                source_catalog_package_id=package.id,
+                source_catalog_code=code,
+                title=title,
+                status="published",
+                policy_mode="strict",
+                completion_threshold_percent=100,
+                passing_score=70,
+                requires_final_exam=True,
+                sequence_enforced=True,
+                exam_gate_enforced=True,
+            )
+            db.add(program)
+            db.flush()
+            db.add(
+                RemoteTrainingProgramSector(
+                    osgb_id=osgb.id,
+                    company_id=company.id,
+                    program_id=program.id,
+                    sector_code=sector,
+                    sector_name_snapshot=title,
+                    is_enabled=True,
+                )
+            )
+            assignment = RemoteTrainingAssignment(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                program_id=program.id,
+                employee_id=employee.id,
+                employee_name_snapshot=employee.full_name,
+                workplace_name_snapshot="Panel işyeri",
+            )
+            db.add(assignment)
+            db.flush()
+            db.add(
+                RemoteTrainingAssignmentSector(
+                    osgb_id=osgb.id,
+                    company_id=company.id,
+                    program_id=program.id,
+                    assignment_id=assignment.id,
+                    employee_id=employee.id,
+                    sector_code=sector,
+                    sector_name_snapshot=title,
+                )
+            )
+        db.commit()
+
+    login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "employee-panel@remote-test.com", "password": "TestPass123!"},
+    )
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    rows = remote_client.get("/api/v1/trainings/remote/my-assignments", headers=headers)
+    assert rows.status_code == 200, rows.text
+    output = rows.json()
+    assert {row["program"]["title"] for row in output} == {"Ortak Temel İSG", "Akü-Batarya"}
+    assert {tuple(row["sector_codes"]) for row in output} == {("common",), ("battery",)}

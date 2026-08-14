@@ -865,7 +865,6 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
     }
     setBusy(true); setError(''); setMessage('');
     const created = [];
-    const alreadyPrepared = [];
     const failed = [];
     try {
       for (const item of selected) {
@@ -876,23 +875,15 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
           });
           created.push(item.title);
         } catch (err) {
-          const message = err.message || 'atanamadı';
-          if (message.includes('zaten hazırlandı')) {
-            alreadyPrepared.push(item.title);
-          } else {
-            failed.push(`${item.title}: ${message}`);
-          }
+          failed.push(`${item.title}: ${err.message || 'atanamadı'}`);
         }
       }
       await refresh();
       setSelectedPackageIds([]);
       if (failed.length) {
         setError(`${created.length} paket hazırlandı. Tamamlanamayanlar: ${failed.join(' · ')}`);
-      } else if (alreadyPrepared.length) {
-        const preparedText = alreadyPrepared.join(' ve ');
-        setMessage(`${preparedText} zaten seçilen firma için hazır. Aşağıdaki çalışan atama bölümünden personeli seçebilirsiniz.`);
       } else {
-        setMessage(`${created.length} paket seçilen firmaya hazırlandı. Aşağıdaki çalışan atama bölümünden personeli seçebilirsiniz.`);
+        setMessage(`${created.length} paket seçilen firmaya hazırlandı. Şimdi çalışan atama bölümünden personeli seçebilirsiniz.`);
       }
     } catch (err) { setError(err.message || 'Paketler firmaya hazırlanamadı.'); }
     finally { setBusy(false); }
@@ -937,7 +928,7 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
             {busy ? 'Hazırlanıyor…' : 'Seçilen sektörleri firmaya ata'}
           </button>
         </div>
-        <div style={{marginTop: 8, color: '#795500', fontSize: 12}}>Bu adım çalışanlara eğitim başlatmaz. Firma sürümü zaten hazırsa tekrar hazırlamanıza gerek yoktur; çalışan ataması aşağıdaki <strong>3. Çalışanlara eğitim ve sınav ataması</strong> bölümünden yapılır.</div>
+        <div style={{marginTop: 8, color: '#795500', fontSize: 12}}>Bu adım çalışanlara eğitim başlatmaz. Önce sizin seçtiğiniz firma için seçtiğiniz sektör paketinin çalışma sürümü hazırlanır; çalışan ataması daha sonra ayrı ekrandan yapılır.</div>
         <div role="status" aria-live="polite" style={{marginTop: 6, color: '#4c1d95', fontSize: 12, fontWeight: 700}}>
           {!companyId ? 'Atama için önce firma seçin.' : !selectedPackageIds.length ? 'Atama için yayımlanmış bir paketin kutusunu işaretleyin.' : `${selectedPackageIds.length} paket atamaya hazır.`}
         </div>
@@ -1015,6 +1006,7 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
   const [program, setProgram] = useState(null);
   const [sectionTitle, setSectionTitle] = useState('Temel İş Sağlığı ve Güvenliği');
   const [selectedEmployees, setSelectedEmployees] = useState([]);
+  const [assignmentDueDate, setAssignmentDueDate] = useState('');
   const [employeeUsers, setEmployeeUsers] = useState([]);
   const [employeeAccess, setEmployeeAccess] = useState([]);
   const [accessEmployeeId, setAccessEmployeeId] = useState('');
@@ -1045,6 +1037,9 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
     () => compactPrograms.reduce((total, item) => total + item.hidden.length, 0),
     [compactPrograms],
   );
+  const scopeSectorOptions = sectorScope?.catalog_fixed && sectorScope.catalog_sector_code
+    ? sectorScope.sectors.filter((sector) => sector.code === sectorScope.catalog_sector_code)
+    : (sectorScope?.sectors || []);
 
   async function loadCompanies() {
     const rows = await api('/companies');
@@ -1096,9 +1091,14 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
     setProgram(row);
     const scope = await api(`/trainings/remote/programs/${Number(id)}/sectors`);
     setSectorScope(scope);
-    setSelectedSectorCodes(scope.mode === 'scoped' ? (scope.selected_sector_codes || []) : ['common']);
-    setSectionSectorCode((scope.selected_sector_codes || ['common'])[0] || 'common');
-    setExamSectorCode((scope.selected_sector_codes || ['common'])[0] || 'common');
+    const selectedCodes = scope.catalog_fixed && scope.catalog_sector_code
+      ? [scope.catalog_sector_code]
+      : (scope.mode === 'scoped' ? (scope.selected_sector_codes || []) : ['common']);
+    const defaultSector = selectedCodes[0] || 'common';
+    setSelectedSectorCodes(selectedCodes);
+    setSectionSectorCode(defaultSector);
+    setExamSectorCode(defaultSector);
+    setCheckpointDraft((current) => ({...current, sector_code: defaultSector}));
     await loadEmployees(row.company_id);
     await loadEmployeeAccess(row.company_id);
     await loadQuestionBank();
@@ -1133,7 +1133,10 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
     if (!program) return;
     setBusy(true); setError('');
     try {
-      const out = await api(`/trainings/remote/programs/${program.id}/sectors`, {method: 'PUT', body: JSON.stringify({sector_codes: selectedSectorCodes})});
+      const sectorCodes = sectorScope?.catalog_fixed && sectorScope.catalog_sector_code
+        ? [sectorScope.catalog_sector_code]
+        : selectedSectorCodes;
+      const out = await api(`/trainings/remote/programs/${program.id}/sectors`, {method: 'PUT', body: JSON.stringify({sector_codes: sectorCodes})});
       setSectorScope(out);
       setSelectedSectorCodes(out.selected_sector_codes || []);
       setMessage('Firma ders kapsamı kaydedildi. Yeni çalışan atamalarında yalnızca bu sektörler açılacak.');
@@ -1219,10 +1222,10 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
     if (!program || !selectedEmployees.length) return setError('En az bir çalışan seçin.');
     setBusy(true); setError('');
     try {
-      const out = await api(`/trainings/remote/programs/${program.id}/assign`, {method: 'POST', body: JSON.stringify({employee_ids: selectedEmployees.map(Number)})});
-      const pendingLoginCount = Number(out.login_pending_count || 0);
-      setMessage(`${out.created_count || 0} çalışan atandı; ${out.skipped_employee_ids?.length || 0} mevcut atama korundu.${pendingLoginCount ? ` ${pendingLoginCount} çalışan için giriş hesabı oluşturulunca eğitim açılacak.` : ''}`);
+      const out = await api(`/trainings/remote/programs/${program.id}/assign`, {method: 'POST', body: JSON.stringify({employee_ids: selectedEmployees.map(Number), due_date: assignmentDueDate || null})});
+      setMessage(`${out.created_count || 0} çalışan atandı; ${out.skipped_employee_ids?.length || 0} mevcut atama korundu.`);
       setSelectedEmployees([]);
+      setAssignmentDueDate('');
     } catch (err) { setError(err.message || 'Çalışan ataması yapılamadı.'); } finally { setBusy(false); }
   }
 
@@ -1273,7 +1276,7 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
     setBusy(true); setError('');
     try {
       await api(`/trainings/remote/programs/${program.id}/checkpoint-questions`, {method: 'POST', body: JSON.stringify({question_text: text, options, correct_option: checkpointDraft.correct_option, sector_code: checkpointDraft.sector_code, video_id: checkpointDraft.video_id ? Number(checkpointDraft.video_id) : null, order_index: (program.checkpoint_questions || []).length + 1, is_required: true})});
-      setCheckpointDraft({question_text: '', options: {A: '', B: '', C: '', D: ''}, correct_option: 'A', video_id: '', sector_code: 'common'});
+      setCheckpointDraft({question_text: '', options: {A: '', B: '', C: '', D: ''}, correct_option: 'A', video_id: '', sector_code: sectorScope?.catalog_fixed ? sectorScope.catalog_sector_code : (selectedSectorCodes[0] || 'common')});
       await loadDetail(program.id);
       setMessage('Video içi kontrol sorusu eklendi.');
     } catch (err) { setError(err.message || 'Video içi soru eklenemedi.'); } finally { setBusy(false); }
@@ -1281,7 +1284,7 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
 
   async function linkExamQuestion() {
     if (!program || !examQuestionId) return setError('Bağlanacak yayımlanmış soru ID değerini seçin.');
-    const position = (program.exam_question_links || []).length + 1;
+    const position = Math.max(0, ...(program.exam_question_links || []).map((link) => Number(link.position) || 0)) + 1;
     setBusy(true); setError('');
     try {
       await api(`/trainings/remote/programs/${program.id}/exam/questions`, {method: 'POST', body: JSON.stringify({question_id: Number(examQuestionId), position, sector_code: examSectorCode})});
@@ -1289,6 +1292,18 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
       await loadDetail(program.id);
       setMessage('Mevcut soru bankası sorusu final sınavına bağlandı.');
     } catch (err) { setError(err.message || 'Soru bankası sorusu bağlanamadı.'); } finally { setBusy(false); }
+  }
+
+  async function unlinkExamQuestion(link) {
+    if (!program || !link) return;
+    const confirmed = window.confirm(`Soru #${link.question_id} final sınavından çıkarılsın mı?`);
+    if (!confirmed) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      await api(`/trainings/remote/programs/${program.id}/exam/questions/${link.id}`, {method: 'DELETE'});
+      await loadDetail(program.id);
+      setMessage('Soru final sınavından çıkarıldı.');
+    } catch (err) { setError(err.message || 'Soru sınavdan çıkarılamadı.'); } finally { setBusy(false); }
   }
 
   async function showReport() {
@@ -1339,14 +1354,16 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
               {sectorScope && <div style={{marginTop: 14, padding: 14, border: '1px solid #b9d8e8', borderRadius: 10, background: '#f4fbff'}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
                   <div><strong>Firma için sektör / ders kapsamı</strong><div style={{fontSize: 12, color: '#5e7485', marginTop: 4}}>Tüm dersler tek katalogda tutulur. Çalışana atama yapıldığında yalnızca burada seçilen sektörler açılır ve sınav soruları aynı kapsamdan gelir.</div></div>
-                  <button type="button" onClick={saveSectorScope} disabled={busy || ['published', 'archived'].includes(program.status)}>Firma ders kapsamını kaydet</button>
+                  <button type="button" onClick={saveSectorScope} disabled={busy || ['published', 'archived'].includes(program.status)}>{sectorScope.catalog_fixed ? 'Katalog kapsamını onayla' : 'Firma ders kapsamını kaydet'}</button>
                 </div>
+                {sectorScope.catalog_fixed && <div style={{marginTop: 10, padding: 9, borderRadius: 7, background: '#eaf8ef', color: '#17643a', fontSize: 12}}><strong>Merkezi paket kapsamı sabit:</strong> Bu kart yalnızca <strong>{sectorLabel(sectorScope.catalog_sector_code)}</strong> dersidir. Ortak Temel İSG ve diğer sektörler ayrı eğitim kartlarından atanır.</div>}
                 {sectorScope.mode === 'legacy' && <div style={{marginTop: 10, padding: 8, borderRadius: 7, background: '#fff8e8', color: '#8a5a00', fontSize: 12}}>Bu eski taslakta sektör kapsamı henüz kaydedilmemiş. Mevcut atamalar eski davranışla korunur; yeni atamalardan önce kapsamı kaydetmeniz önerilir.</div>}
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8, marginTop: 12}}>
                   {sectorScope.sectors.map((sector) => {
                     const checked = selectedSectorCodes.includes(sector.code);
-                    return <label key={sector.code} style={{display: 'block', padding: 10, border: `1px solid ${checked ? '#37a6c6' : '#dbe5ef'}`, borderRadius: 8, background: checked ? '#fff' : '#fafcfe', cursor: sector.locked ? 'default' : 'pointer'}}>
-                      <input type="checkbox" checked={checked} disabled={sector.locked || busy || ['published', 'archived'].includes(program.status)} onChange={() => setSelectedSectorCodes((current) => current.includes(sector.code) ? current.filter((code) => code !== sector.code) : [...current, sector.code])} /> <strong>{sector.label}</strong>
+                    const catalogDisabled = sectorScope.catalog_fixed;
+                    return <label key={sector.code} style={{display: 'block', padding: 10, border: `1px solid ${checked ? '#37a6c6' : '#dbe5ef'}`, borderRadius: 8, background: checked ? '#fff' : '#fafcfe', cursor: catalogDisabled || sector.locked ? 'default' : 'pointer', opacity: catalogDisabled && !checked ? .7 : 1}}>
+                      <input type="checkbox" checked={checked} disabled={catalogDisabled || sector.locked || busy || ['published', 'archived'].includes(program.status)} onChange={() => setSelectedSectorCodes((current) => current.includes(sector.code) ? current.filter((code) => code !== sector.code) : [...current, sector.code])} /> <strong>{sector.label}</strong>
                       <span style={{display: 'block', color: '#5e7485', fontSize: 11, marginTop: 4}}>{sector.description}</span>
                       <span style={{display: 'block', color: '#496174', fontSize: 11, marginTop: 5}}>{sector.section_count} bölüm · {sector.video_count} video · {sector.question_count} soru</span>
                     </label>;
@@ -1359,7 +1376,7 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
                 <span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>Örneğin: “Temel İSG”, “İnşaatta güvenlik” veya “Akü çalışma güvenliği”.</span>
                 <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10}}>
                   <input value={sectionTitle} onChange={(event) => setSectionTitle(event.target.value)} aria-label="Bölüm başlığı" placeholder="Bölüm adı yazın" />
-                  <label style={{display: 'flex', alignItems: 'center', gap: 5}}>Bölümün sektörü <select value={sectionSectorCode} onChange={(event) => setSectionSectorCode(event.target.value)}>{(sectorScope?.sectors || []).map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label>
+                  <label style={{display: 'flex', alignItems: 'center', gap: 5}}>Bölümün sektörü <select value={sectionSectorCode} onChange={(event) => setSectionSectorCode(event.target.value)}>{scopeSectorOptions.map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label>
                   <button type="button" onClick={createSection} disabled={busy || ['published', 'archived'].includes(program.status)} style={{minHeight: 44, padding: '10px 16px', fontWeight: 700}}>Bölüm ekle</button>
                 </div>
               </div>
@@ -1386,7 +1403,7 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
                       {uploadingSectionId === section.id ? 'Video yükleniyor…' : 'Video seç ve yükle'}
                     </button>
                   </div>
-                  <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8}}><label style={{fontSize: 12, color: '#496174'}}>Bölüm sektörü <select value={sectionSectorDrafts[section.id] || section.sector_code || 'common'} onChange={(event) => setSectionSectorDrafts((current) => ({...current, [section.id]: event.target.value}))}>{(sectorScope?.sectors || []).map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label><button type="button" onClick={() => saveSectionSector(section)} disabled={busy || ['published', 'archived'].includes(program.status)}>Sektörü kaydet</button></div>
+                  <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8}}><label style={{fontSize: 12, color: '#496174'}}>Bölüm sektörü <select value={sectionSectorDrafts[section.id] || (sectorScope?.catalog_fixed ? sectorScope.catalog_sector_code : section.sector_code) || 'common'} onChange={(event) => setSectionSectorDrafts((current) => ({...current, [section.id]: event.target.value}))}>{scopeSectorOptions.map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label><button type="button" onClick={() => saveSectionSector(section)} disabled={busy || ['published', 'archived'].includes(program.status)}>Sektörü kaydet</button></div>
                   {(section.videos || []).map((video) => (
                     <div key={video.id} style={{marginTop: 8, padding: 10, borderRadius: 8, background: '#f7fafc', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}>
                       <div style={{minWidth: 240, flex: 1}}>
@@ -1428,7 +1445,7 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
                 <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 6}}>
                   <label>Doğru seçenek <select value={checkpointDraft.correct_option} onChange={(event) => setCheckpointDraft((current) => ({...current, correct_option: event.target.value}))}><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></label>
                   <label>Video <select value={checkpointDraft.video_id} onChange={(event) => setCheckpointDraft((current) => ({...current, video_id: event.target.value}))}><option value="">Genel</option>{programVideoRows(program).map((video) => <option key={video.id} value={video.id}>{video.section_title} · {video.title}</option>)}</select></label>
-                  <label>Sektör <select value={checkpointDraft.sector_code} onChange={(event) => setCheckpointDraft((current) => ({...current, sector_code: event.target.value}))}>{(sectorScope?.sectors || []).map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label>
+                  <label>Sektör <select value={checkpointDraft.sector_code} onChange={(event) => setCheckpointDraft((current) => ({...current, sector_code: event.target.value}))}>{scopeSectorOptions.map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label>
                   <button type="button" onClick={createCheckpointQuestion} disabled={busy || ['published', 'archived'].includes(program.status)}>Soruyu kaydet</button>
                 </div>
                 {(program.checkpoint_questions || []).length > 0 && <div style={{fontSize: 12, color: '#496174', marginTop: 8}}>{program.checkpoint_questions.length} video içi kontrol sorusu tanımlı.</div>}
@@ -1437,10 +1454,10 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
                 <strong>Final sınavı — mevcut soru bankası</strong>
                 <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8}}>
                   {questionBank.length > 0 ? <select value={examQuestionId} onChange={(event) => setExamQuestionId(event.target.value)} aria-label="Soru bankası sorusu"><option value="">Yayımlanmış soru seçin</option>{questionBank.map((question) => <option key={question.id} value={question.id}>#{question.id} · {question.question_text.slice(0, 90)}</option>)}</select> : <input type="number" min="1" value={examQuestionId} onChange={(event) => setExamQuestionId(event.target.value)} placeholder="Yayımlanmış soru ID" aria-label="Yayımlanmış soru ID" />}
-                  <label>Soru sektörü <select value={examSectorCode} onChange={(event) => setExamSectorCode(event.target.value)}>{(sectorScope?.sectors || []).map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label>
+                  <label>Soru sektörü <select value={examSectorCode} onChange={(event) => setExamSectorCode(event.target.value)}>{scopeSectorOptions.map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label>
                   <button type="button" onClick={linkExamQuestion} disabled={busy || ['published', 'archived'].includes(program.status)}>Soruyu sınava bağla</button>
                 </div>
-                {(program.exam_question_links || []).length > 0 && <div style={{fontSize: 12, color: '#496174', marginTop: 8}}>{program.exam_question_links.length} mevcut soru final sınavına bağlı.</div>}
+                {(program.exam_question_links || []).length > 0 && <div style={{display: 'grid', gap: 6, marginTop: 8}}>{program.exam_question_links.map((link) => <div key={link.id} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', padding: '8px 10px', borderRadius: 7, background: '#f4f8fb', color: '#496174', fontSize: 12}}><span><strong>Soru #{link.question_id}</strong> · {sectorLabel(link.sector_code)} · sıra {link.position}</span><button type="button" onClick={() => unlinkExamQuestion(link)} disabled={busy || ['published', 'archived'].includes(program.status)}>Sınavdan çıkar</button></div>)}</div>}
               </div>
               <div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}>
                 <strong>Çalışan giriş hesabı eşleştirme</strong>
@@ -1466,6 +1483,7 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
               <div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}>
                 <strong>2. Personel seçin ve eğitim/sınav ataması yapın</strong>
                 <p style={{margin: '6px 0', color: '#5e7485', fontSize: 12}}>Atama sırasında yukarıda kaydedilen sektör kapsamı çalışana sabitlenir. Çalışan yalnızca bu kapsamın videolarını ve final sınavı sorularını görür; burada seçim yapılmadan hiçbir çalışana otomatik atama yapılmaz.</p>
+                <label style={{display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 4, color: '#36556d', fontSize: 13}}>Eğitim son tarihi <input type="date" value={assignmentDueDate} onChange={(event) => setAssignmentDueDate(event.target.value)} aria-label="Eğitim son tarihi" /><span style={{fontSize: 12, color: '#5e7485'}}>Boş bırakırsanız son tarih belirlenmez.</span></label>
                 <div className="remote-training-employee-picker-toolbar">
                   <span><strong>{selectedEmployees.length}</strong> personel seçildi</span>
                   <button type="button" onClick={() => setSelectedEmployees(employees.map((row) => Number(row.id)))} disabled={busy || !employees.length}>Listedeki hepsini seç</button>
@@ -1517,8 +1535,8 @@ export function RemoteBasicOhsTrainingPanel({user}) {
       <div className="remote-training-flow-item"><span>4</span><div><strong>Sonuç ve belge</strong><small>Video, sınav ve sertifika izlenir.</small></div></div>
     </div>
     {canManage && <CatalogManagerPanel companyId={selectedCompanyId} onCompanyChange={setSelectedCompanyId} rollout={meta.strict_policy} />}
-    {canManage && <details open id="remote-training-assignment-manager">
-      <summary style={{cursor: 'pointer', fontWeight: 800, color: '#123b59', padding: '8px 2px'}}>3. Çalışanlara eğitim ve sınav ataması</summary>
+    {canManage && <details>
+      <summary style={{cursor: 'pointer', fontWeight: 800, color: '#123b59', padding: '8px 2px'}}>Firma eğitim atama ve çalışan takip yönetimi</summary>
       <div style={{marginTop: 12}}><ManagerPanel user={user} initialCompanyId={selectedCompanyId} onCompanyChange={setSelectedCompanyId} /></div>
     </details>}
     {canManage && <details className="remote-training-employee-preview">
