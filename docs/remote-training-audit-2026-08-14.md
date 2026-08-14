@@ -50,7 +50,10 @@ filtreleri, raporlar ve pilot paket kimliği yanlış olabilirdi.
 Uygulanan düzeltme:
 
 - Sektör kataloğu ve paket-sektör eşleşmeleri tamamlandı.
-- `0094_repair_catalog_sector2` migrasyonu eklendi.
+- `0094_repair_catalog_sector2` migrasyonu eklendi; canlıdaki daha eski firma
+  snapshot'larının bu migration'ın güvenli kapsamı dışında kaldığı görülünce
+  `0095_catalog_scope_repair` ile ayrıca yalnızca atanmamış
+  taslak/inceleme kayıtları onarılacak şekilde tamamlandı.
 - Migration yalnızca atanmamış, `draft`/`ready_for_review` durumundaki ve
   yöneticinin özel sektör düzenlemesi bulunmayan katalog snapshot'larını ele
   alır. Yayımlanmış, atanmış veya elle değiştirilmiş programlara dokunmaz.
@@ -120,8 +123,13 @@ Uygulanan düzeltme:
   yayımlama öncesi açık hata ile durduruluyor.
 - Yönetici ekranına bağlı soruları tek tek çıkarma düğmesi eklendi. Atama
   yapılmış veya yayımlanmış programlarda bu işlem kilitli kalıyor.
-- `0094_repair_catalog_sector2` artık tüm bilinen katalog paketlerini kapsıyor;
-  yalnızca atanmamış taslak/inceleme snapshot'larının kapsamını düzeltir.
+- `0095_catalog_scope_repair` mevcut katalogdan hazırlanmış, henüz
+  çalışana atanmamış taslak/inceleme snapshot'larında eski ortak kapsam
+  işaretini temizler; yayımlanmış, çalışana atanmış veya farklı sektör bölümü
+  elle oluşturulmuş kayıtlara dokunmaz.
+- `0096_catalog_exam_repair` aynı güvenli kapsamda, ortak sorunun
+  Akü-Batarya sınavına yanlış bağlanması gibi uyumsuz sınav bağlantılarını
+  kaldırır; soru bankasındaki soruyu silmez.
 
 ## Koruma kararı
 
@@ -138,7 +146,7 @@ seçime bağlıdır; canlı çalışanlara otomatik atama başlamaz.
 - Frontend production build: başarılı (`vite build`).
 - Frontend hedef dosyalar için ESLint: hatasız.
 - Python syntax/compile kontrolü: başarılı.
-- Alembic head kontrolü: tek head, `0094_repair_catalog_sector2`.
+- Alembic head kontrolü: tek head, `0096_catalog_exam_repair`.
 - 0094 migration SQLite smoke testi: başarılı; atanan ve elle değiştirilmiş
   programlar korunuyor.
 - Canlı ortamda oturum açma bilgisi olmadığı için yetkili görsel smoke test

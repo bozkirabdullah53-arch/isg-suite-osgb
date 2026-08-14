@@ -38,6 +38,7 @@ from app.models.remote_training import (
     REMOTE_SECTOR_CATALOG,
     REMOTE_SECTOR_CODES,
     REMOTE_SECTOR_LABELS,
+    REMOTE_CATALOG_PACKAGE_SECTOR_CODES,
     REMOTE_TRAINING_TYPE,
     RemoteTrainingAssignment,
     RemoteTrainingAssignmentSector,
@@ -188,9 +189,12 @@ def catalog_program_sector_code(program: RemoteTrainingProgram) -> str | None:
     package is the only catalog package whose fixed sector is ``common``.
     """
 
-    if not getattr(program, "source_catalog_package_id", None):
+    source_code = str(getattr(program, "source_catalog_code", None) or "").strip().lower()
+    # Older company snapshots may retain the immutable catalog code without
+    # the package FK. Known catalog codes must still have a fixed scope.
+    if not getattr(program, "source_catalog_package_id", None) and source_code not in REMOTE_CATALOG_PACKAGE_SECTOR_CODES:
         return None
-    return catalog_package_sector_code(getattr(program, "source_catalog_code", None))
+    return catalog_package_sector_code(source_code)
 
 
 def validate_catalog_program_sector(
@@ -239,7 +243,16 @@ def catalog_question_is_compatible(
 
 
 def program_sector_codes(db: Session, program_id: int) -> set[str] | None:
-    """Return the configured scope; ``None`` preserves pre-scope programs."""
+    """Return the effective scope; ``None`` preserves pre-scope programs.
+
+    Catalog-derived company snapshots have one immutable curriculum sector.
+    Older snapshots can contain a stale ``common`` row beside the real package
+    sector; using those rows caused false missing-video and exam errors.
+    """
+    program = db.get(RemoteTrainingProgram, program_id)
+    catalog_sector_code = catalog_program_sector_code(program) if program else None
+    if catalog_sector_code is not None:
+        return {catalog_sector_code}
     rows = list(
         db.scalars(
             select(RemoteTrainingProgramSector).where(
@@ -292,9 +305,7 @@ def build_program_sector_catalog(
         ).all()
     )
     configured = bool(rows)
-    selected = {
-        row.sector_code for row in rows if row.is_enabled and row.sector_code in REMOTE_SECTOR_CODES
-    }
+    selected = program_sector_codes(db, program.id) or set()
     sections = list(
         db.scalars(
             select(RemoteTrainingSection).where(RemoteTrainingSection.program_id == program.id)
