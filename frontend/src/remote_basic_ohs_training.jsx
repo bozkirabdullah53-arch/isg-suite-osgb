@@ -487,9 +487,10 @@ function EmployeePanel() {
   const checkpointQuestions = assignment?.program?.checkpoint_questions || [];
   const automaticExam = assignment?.program?.automatic_final_exam;
   const automaticExamCount = automaticExam?.automatic ? automaticExam.question_count : 0;
+  const completionThresholdPercent = assignment?.program?.completion_threshold_percent || (strictSequence ? 100 : 90);
   const progressRule = strictSequence
-    ? `videoları ileri sarmadan %{assignment.program?.completion_threshold_percent || 100} izleyin`
-    : `videoları %{assignment.program?.completion_threshold_percent || 90} tamamlayın`;
+    ? `videoları ileri sarmadan %${completionThresholdPercent} izleyin`
+    : `videoları %${completionThresholdPercent} tamamlayın`;
   const orderedAssignments = useMemo(() => sortEmployeeAssignments(assignments), [assignments]);
   const visibleAssignments = useMemo(
     () => orderedAssignments.filter((row) => assignmentFilter === 'all' || employeeAssignmentTimeline(row).key === assignmentFilter),
@@ -642,7 +643,7 @@ function EmployeePanel() {
                       if (saved > 0 && saved < event.currentTarget.duration - 1) event.currentTarget.currentTime = saved;
                     }}
                   />
-                  <div style={{fontSize: 12, color: '#5e7485', marginTop: 8}}>Kaldığınız yer: {Math.round(currentProgress?.last_position_seconds || 0)} sn · Eşik: %{assignment.program?.completion_threshold_percent || 90}</div>
+                  <div style={{fontSize: 12, color: '#5e7485', marginTop: 8}}>Kaldığınız yer: {Math.round(currentProgress?.last_position_seconds || 0)} sn · Eşik: {completionThresholdPercent}%</div>
                 </>
               ) : <div style={{minHeight: 180, display: 'grid', placeItems: 'center', border: '1px dashed #b9cad8', borderRadius: 10, color: '#5e7485'}}>İzlemek için bir video seçin.</div>}
             </div>
