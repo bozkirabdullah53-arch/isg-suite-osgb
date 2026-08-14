@@ -174,6 +174,14 @@ def _assert_program_manager(db: Session, user: User, program_id: int) -> RemoteT
     ensure_company_access(db, user, program.company_id)
     return program
 
+def _assert_assignment_document_manager(
+    db: Session, user: User, assignment: RemoteTrainingAssignment
+) -> None:
+    """Participation documents are management outputs, never employee self-service."""
+    program = _assert_program_manager(db, user, assignment.program_id)
+    if assignment.company_id != program.company_id:
+        raise HTTPException(403, "Atama firma kapsamı dışında.")
+
 
 def _assert_section_manager(db: Session, user: User, section_id: int) -> RemoteTrainingSection:
     section = load_section(db, section_id)
@@ -3355,12 +3363,12 @@ def get_remote_certificate(
 ):
     require_feature()
     assignment = load_assignment(db, assignment_id)
-    assert_assignment_access(db, user, assignment)
+    _assert_assignment_document_manager(db, user, assignment)
     certificate = ensure_certificate(db, assignment)
     if not certificate:
         if assignment.status != "completed":
-            raise HTTPException(409, "Sertifika için video, video içi sorular ve final sınavı tamamlanmalıdır.")
-        raise HTTPException(409, "Sertifika için atama tarihindeki SGK/NACE/tehlike sınıfı snapshot alanları eksik; veri uydurulmadı.")
+            raise HTTPException(409, "Katılım belgesi için video, video içi sorular ve final sınavı tamamlanmalıdır.")
+        raise HTTPException(409, "Katılım belgesi için atama tarihindeki SGK/NACE/tehlike sınıfı snapshot alanları eksik; veri uydurulmadı.")
     db.commit()
     return {
         "id": certificate.id,
@@ -3392,10 +3400,10 @@ def download_remote_certificate(
 ):
     require_feature()
     assignment = load_assignment(db, assignment_id)
-    assert_assignment_access(db, user, assignment)
+    _assert_assignment_document_manager(db, user, assignment)
     certificate = ensure_certificate(db, assignment)
     if not certificate:
-        raise HTTPException(409, "Sertifika üretimi için tamamlanma ve tarihsel kimlik snapshotları gereklidir.")
+        raise HTTPException(409, "Katılım belgesi üretimi için tamamlanma ve tarihsel kimlik snapshotları gereklidir.")
     db.commit()
     data = build_certificate_pdf(db, certificate)
     return StreamingResponse(
@@ -3412,12 +3420,12 @@ def verify_remote_certificate(
 ):
     clean = (verification_code or "").strip().upper()
     if not feature_active():
-        return {"valid": False, "verification_code": clean, "message": "Uzaktan eğitim sertifika doğrulaması etkin değil."}
+        return {"valid": False, "verification_code": clean, "message": "Uzaktan eğitim katılım belgesi doğrulaması etkin değil."}
     certificate = db.scalar(
         select(RemoteTrainingCertificate).where(RemoteTrainingCertificate.verification_code == clean)
     ) if clean else None
     if not certificate:
-        return {"valid": False, "verification_code": clean, "message": "Bu kodla eşleşen uzaktan eğitim sertifikası bulunamadı."}
+        return {"valid": False, "verification_code": clean, "message": "Bu kodla eşleşen uzaktan eğitim katılım belgesi bulunamadı."}
     return {
         "valid": True,
         "verification_code": clean,
@@ -3431,7 +3439,7 @@ def verify_remote_certificate(
         "examination_score": certificate.examination_score,
         "nace_code": certificate.nace_code_snapshot,
         "hazard_class": certificate.hazard_class_snapshot,
-        "message": "Sertifika doğrulandı.",
+        "message": "Katılım belgesi doğrulandı.",
     }
 
 
@@ -3459,7 +3467,8 @@ def remote_training_report(
         "status_counts": by_status,
         "average_video_progress_percent": avg_progress,
         "exam_attempt_count": len(exam_rows),
-        "certificate_count": int(certificate_count),
+        "certificate_count": int(certificate_count),  # legacy API key
+        "participation_document_count": int(certificate_count),
         "rows": items,
     }
 

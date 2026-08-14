@@ -271,7 +271,6 @@ function EmployeePanel() {
   const [answers, setAnswers] = useState({});
   const [checkpointAnswers, setCheckpointAnswers] = useState({});
   const [checkpointResults, setCheckpointResults] = useState({});
-  const [certificate, setCertificate] = useState(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -322,7 +321,6 @@ function EmployeePanel() {
       setAnswers({});
       setCheckpointAnswers({});
       setCheckpointResults({});
-      setCertificate(null);
     } catch (err) {
       setError(err.message || 'Atama detayı alınamadı.');
     } finally {
@@ -483,32 +481,6 @@ function EmployeePanel() {
       setMessage(out.is_correct ? 'Video içi kontrol sorusu doğru yanıtlandı.' : 'Video içi kontrol sorusu kaydedildi; yanıt yanlış.');
     } catch (err) {
       setError(err.message || 'Video içi soru yanıtı kaydedilemedi.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function loadCertificate() {
-    if (!assignment) return;
-    setBusy(true);
-    setError('');
-    try {
-      setCertificate(await api(`/trainings/remote/assignments/${assignment.id}/certificate`));
-    } catch (err) {
-      setError(err.message || 'Sertifika alınamadı.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function downloadCertificate() {
-    if (!assignment) return;
-    setBusy(true);
-    setError('');
-    try {
-      await downloadFile(`/trainings/remote/assignments/${assignment.id}/certificate.pdf`, `temel-isg-sertifika-${assignment.id}.pdf`);
-    } catch (err) {
-      setError(err.message || 'Sertifika PDF indirilemedi.');
     } finally {
       setBusy(false);
     }
@@ -740,12 +712,8 @@ function EmployeePanel() {
           )}
           {(assignment.status === 'completed' || assignment.summary?.complete) && (
             <div style={{marginTop: 18, paddingTop: 16, borderTop: '1px solid #dbe5ef'}}>
-              <h4 style={{margin: '0 0 8px'}}>Sertifika</h4>
-              <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-                <button type="button" onClick={loadCertificate} disabled={busy}>Sertifika bilgilerini getir</button>
-                <button type="button" onClick={downloadCertificate} disabled={busy}>Sertifika PDF indir</button>
-              </div>
-              {certificate && <div style={{fontSize: 12, color: '#087443', marginTop: 8}}>Sertifika no: <strong>{certificate.certificate_number}</strong> · Doğrulama kodu: <strong>{certificate.verification_code}</strong></div>}
+              <h4 style={{margin: '0 0 8px'}}>Katılım belgesi</h4>
+              <p style={{margin: 0, color: '#496174', fontSize: 12}}>Eğitim tamamlandı. Katılım belgesi çalışan hesabından indirilmez; iş güvenliği uzmanı yönetim ekranındaki rapordan alır ve arşivler.</p>
             </div>
           )}
         </>
@@ -1518,6 +1486,19 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     try { setReport(await api(`/trainings/remote/programs/${program.id}/report`)); } catch (err) { setError(err.message || 'Rapor alınamadı.'); } finally { setBusy(false); }
   }
 
+  async function downloadParticipationDocument(row) {
+    if (!row?.id || row.status !== 'completed') return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      await downloadFile(`/trainings/remote/assignments/${row.id}/certificate.pdf`, `katilim-belgesi-${row.id}.pdf`);
+      setMessage(`${row.employee_name || 'Çalışan'} için katılım belgesi alındı. PDF'yi arşivleyebilirsiniz.`);
+    } catch (err) {
+      setError(err.message || 'Katılım belgesi alınamadı.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section style={{display: 'grid', gap: 16}} aria-label="Firma çalışanlarının eğitim ve sınav ataması yönetimi">
       <div style={cardStyle}>
@@ -1738,7 +1719,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
           ) : <p style={{color: '#5e7485'}}>Detay ve video yaşam döngüsünü görmek için bir taslak seçin.</p>}
         </div>
       </div>
-      {report && <div style={cardStyle}><h4 style={{marginTop: 0}}>Uzaktan eğitim raporu</h4><div style={{display: 'flex', gap: 14, flexWrap: 'wrap', color: '#496174'}}><span>Atama: <strong>{report.assignment_count}</strong></span><span>Ortalama video ilerlemesi: <strong>%{report.average_video_progress_percent}</strong></span><span>Sınav denemesi: <strong>{report.exam_attempt_count}</strong></span><span>Sertifika: <strong>{report.certificate_count}</strong></span></div>{(report.rows || []).length > 0 && <div style={{overflowX: 'auto', marginTop: 10}}><table style={{width: '100%'}}><thead><tr><th>Çalışan</th><th>Durum</th><th>Kimlik snapshot</th><th>İlerleme</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.id}><td>{row.employee_name}</td><td>{statusLabel(row.status)}</td><td>{row.workplace_name_snapshot || '—'} · {row.nace_code_snapshot || 'NACE yok'} · {row.hazard_class_snapshot || 'Tehlike sınıfı yok'}</td><td>{row.summary?.completed_video_count || 0}/{row.summary?.required_video_count || 0}</td></tr>)}</tbody></table></div>}</div>}
+      {report && <div style={cardStyle}><h4 style={{marginTop: 0}}>Uzaktan eğitim raporu</h4><div style={{display: 'flex', gap: 14, flexWrap: 'wrap', color: '#496174'}}><span>Atama: <strong>{report.assignment_count}</strong></span><span>Ortalama video ilerlemesi: <strong>%{report.average_video_progress_percent}</strong></span><span>Sınav denemesi: <strong>{report.exam_attempt_count}</strong></span><span>Katılım belgesi: <strong>{report.participation_document_count ?? report.certificate_count}</strong></span></div>{(report.rows || []).length > 0 && <div style={{overflowX: 'auto', marginTop: 10}}><table style={{width: '100%'}}><thead><tr><th>Çalışan</th><th>Durum</th><th>Kimlik snapshot</th><th>İlerleme</th><th>Belge</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.id}><td>{row.employee_name}</td><td>{statusLabel(row.status)}</td><td>{row.workplace_name_snapshot || '—'} · {row.nace_code_snapshot || 'NACE yok'} · {row.hazard_class_snapshot || 'Tehlike sınıfı yok'}</td><td>{row.summary?.completed_video_count || 0}/{row.summary?.required_video_count || 0}</td><td>{row.status === 'completed' ? <button type="button" onClick={() => downloadParticipationDocument(row)} disabled={busy}>Katılım belgesini al</button> : <span style={{fontSize: 12, color: '#5e7485'}}>Eğitim tamamlanınca uzman alır</span>}</td></tr>)}</tbody></table></div>}</div>}
     </section>
   );
 }
@@ -1760,7 +1741,7 @@ function RemoteTrainingGuide() {
         <span className="remote-training-guide-icon" aria-hidden="true">✓</span>
         <span className="remote-training-guide-heading">
           <strong>Uzaktan Eğitim Kullanım Rehberi</strong>
-          <small>Uzmanı içerik hazırlamadan sertifikaya kadar yönlendiren 8 adım</small>
+          <small>Uzmanı içerik hazırlamadan katılım belgesi arşivine kadar yönlendiren 8 adım</small>
         </span>
         <span className="remote-training-guide-count">8 adım</span>
       </summary>
@@ -1797,7 +1778,7 @@ function RemoteTrainingGuide() {
           </li>
           <li>
             <span className="remote-training-guide-step-number">8</span>
-            <div><strong>Sınav ve belgeyi tamamlayın</strong><p>Tüm videolar bitince final sınavı açılır. Çalışan en az <b>%70</b> almalıdır. Başarılı sonuçtan sonra sertifika oluşur; uzman <b>Rapor</b> düğmesinden ilerlemeyi ve belge durumunu kontrol eder.</p></div>
+            <div><strong>Sınavı tamamlayın, katılım belgesini uzman alsın</strong><p>Tüm videolar bitince final sınavı açılır. Çalışan en az <b>%70</b> almalıdır. Başarılı sonuçtan sonra katılım belgesi oluşur; iş güvenliği uzmanı <b>Rapor</b> düğmesinden belgeyi alır ve arşivler.</p></div>
           </li>
         </ol>
         <div className="remote-training-guide-note"><strong>En önemli ayrım:</strong> Firma / sektör ataması yalnızca eğitimi o firmaya hazırlar. Çalışana eğitim başlatan işlem, aşağıdaki personel kutusunu işaretleyip <b>Seçilen personele eğitim ve sınav ata</b> düğmesine basmaktır.</div>
@@ -1838,7 +1819,7 @@ export function RemoteBasicOhsTrainingPanel({user}) {
       <div className="remote-training-guide-launcher-content">
         <span className="remote-training-guide-kicker">UZMAN EKRANI · HIZLI BAŞLANGIÇ</span>
         <strong>Uzaktan eğitimi başlatmak için adım adım ilerleyin</strong>
-        <span>Video yükleme, firma kapsamı, çalışan ataması, sınav ve sertifika süreci tek rehberde.</span>
+        <span>Video yükleme, firma kapsamı, çalışan ataması, sınav ve katılım belgesi arşivi tek rehberde.</span>
       </div>
       <a className="remote-training-guide-launcher-link" href="#remote-training-guide" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-guide')}>
         <span aria-hidden="true">✦</span><span>Adım adım rehberi aç</span><span aria-hidden="true">↓</span>
