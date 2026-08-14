@@ -894,6 +894,36 @@ def _decode_coverage(value: str | None) -> list[list[float]]:
     return intervals
 
 
+STRICT_END_RECONCILIATION_SECONDS = 8.0
+STRICT_END_POSITION_TOLERANCE_SECONDS = 1.5
+
+
+def reconcile_strict_video_end(
+    intervals: list[list[float]],
+    *,
+    current_position: float,
+    requested_position: float,
+    duration: float,
+) -> tuple[list[list[float]], float, float] | None:
+    """Close only the final observed tail after a real media ``ended`` event.
+
+    Mobile browsers can emit the last heartbeat a few seconds before the
+    media element reaches its exact duration.  The server still knows that the
+    learner was already in the final tail, so accepting that small tail on an
+    ``ended`` event prevents a completed video from remaining locked.  The
+    caller must still verify that the request is an ``ended`` event; this
+    helper intentionally has no seek or forward-progress authority of its own.
+    """
+    if duration <= 0 or requested_position < duration - STRICT_END_POSITION_TOLERANCE_SECONDS:
+        return None
+    coverage_end = max((float(right) for _left, right in intervals), default=0.0)
+    if max(float(current_position), coverage_end) < duration - STRICT_END_RECONCILIATION_SECONDS:
+        return None
+    tail_start = max(0.0, duration - STRICT_END_RECONCILIATION_SECONDS)
+    merged, covered_seconds = _merge_coverage(intervals, tail_start, duration, duration)
+    return merged, covered_seconds, duration
+
+
 def _merge_coverage(
     intervals: list[list[float]], start: float, end: float, duration: float
 ) -> tuple[list[list[float]], float]:
