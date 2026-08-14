@@ -275,7 +275,10 @@ function EmployeePanel() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [videoLoading, setVideoLoading] = useState(false);
   const lastSentAt = useRef(0);
+  const playbackPrefetches = useRef(new Map());
+  const playbackRequestVersion = useRef(0);
 
   async function loadAssignments() {
     setBusy(true);
@@ -292,6 +295,7 @@ function EmployeePanel() {
         setAssignment(null);
         setActiveVideo(null);
         setPlaybackUrl('');
+        playbackPrefetches.current.clear();
       }
     } catch (err) {
       setError(err.message || 'Atamalar alınamadı.');
@@ -304,6 +308,8 @@ function EmployeePanel() {
     if (!id) return;
     setBusy(true);
     setError('');
+    playbackRequestVersion.current += 1;
+    playbackPrefetches.current.clear();
     try {
       const row = await api(`/trainings/remote/assignments/${Number(id)}`);
       setAssignment(row);
@@ -311,6 +317,7 @@ function EmployeePanel() {
       const nextVideo = videos.find((video) => !row.video_progress?.some((progress) => progress.video_id === video.id && progress.status === 'completed')) || videos[0] || null;
       setActiveVideo((current) => videos.find((video) => video.id === current?.id) || nextVideo);
       setPlaybackUrl('');
+      setVideoLoading(false);
       setExam(null);
       setAnswers({});
       setCheckpointAnswers({});
@@ -331,6 +338,23 @@ function EmployeePanel() {
     if (selectedId) loadAssignment(selectedId);
   }, [selectedId]);
 
+  function playbackUrlFor(video, assignmentId) {
+    if (!video || !assignmentId) return Promise.reject(new Error('Video oynatma bilgisi eksik.'));
+    const key = `${assignmentId}:${video.id}`;
+    const cached = playbackPrefetches.current.get(key);
+    if (cached) return cached;
+    const request = api(
+      `/trainings/remote/videos/${video.id}/playback?assignment_id=${assignmentId}`,
+    )
+      .then((out) => apiAbsoluteUrl(out.url))
+      .catch((err) => {
+        playbackPrefetches.current.delete(key);
+        throw err;
+      });
+    playbackPrefetches.current.set(key, request);
+    return request;
+  }
+
   async function openVideo(video) {
     if (!assignment || !video) return;
     if (!isVideoUnlocked(video)) {
@@ -340,13 +364,15 @@ function EmployeePanel() {
     setActiveVideo(video);
     setPlaybackUrl('');
     setError('');
+    setVideoLoading(true);
+    const requestVersion = ++playbackRequestVersion.current;
     try {
-      const out = await api(
-        `/trainings/remote/videos/${video.id}/playback?assignment_id=${assignment.id}`,
-      );
-      setPlaybackUrl(apiAbsoluteUrl(out.url));
+      const url = await playbackUrlFor(video, assignment.id);
+      if (requestVersion === playbackRequestVersion.current) setPlaybackUrl(url);
     } catch (err) {
-      setError(err.message || 'Video oynatma bağlantısı alınamadı.');
+      if (requestVersion === playbackRequestVersion.current) setError(err.message || 'Video oynatma bağlantısı alınamadı.');
+    } finally {
+      if (requestVersion === playbackRequestVersion.current) setVideoLoading(false);
     }
   }
 
@@ -356,12 +382,17 @@ function EmployeePanel() {
     if (eventType === 'progress' && now - lastSentAt.current < 5000) return;
     lastSentAt.current = now;
     try {
+      const mediaPosition = Number(
+        eventType === 'ended' && Number.isFinite(Number(currentTarget.duration))
+          ? currentTarget.duration
+          : currentTarget.currentTime || 0,
+      );
       const out = await api(
         `/trainings/remote/assignments/${assignment.id}/videos/${activeVideo.id}/progress`,
         {
           method: 'POST',
           body: JSON.stringify({
-            position_seconds: Number(currentTarget.currentTime || 0),
+            position_seconds: mediaPosition,
             event_type: eventType,
             device_info: navigator.userAgent.slice(0, 500),
           }),
@@ -386,6 +417,18 @@ function EmployeePanel() {
         return {...current, summary: out.summary, video_progress: progress};
       });
       if (out.status === 'completed') setMessage('Video tamamlanması güvenli ilerleme kaydıyla işlendi.');
+      if (eventType === 'ended' && out.status === 'completed') {
+        const orderedVideos = programVideoRows(assignment.program);
+        const currentIndex = orderedVideos.findIndex((video) => video.id === activeVideo.id);
+        const nextVideo = currentIndex >= 0 ? orderedVideos[currentIndex + 1] : null;
+        if (nextVideo) {
+          void playbackUrlFor(nextVideo, assignment.id).catch(() => {});
+          setMessage('Video tamamlandı. Sonraki ders hazırlandı.');
+        }
+      }
+      if (eventType === 'ended' && out.status !== 'completed') {
+        setMessage('Video sonu kaydı alındı; son bölümün tamamı henüz doğrulanmadı.');
+      }
     } catch (err) {
       setError(err.message || 'Video ilerlemesi kaydedilemedi.');
     }
@@ -645,7 +688,7 @@ function EmployeePanel() {
                   />
                   <div style={{fontSize: 12, color: '#5e7485', marginTop: 8}}>Kaldığınız yer: {Math.round(currentProgress?.last_position_seconds || 0)} sn · Eşik: {completionThresholdPercent}%</div>
                 </>
-              ) : <div style={{minHeight: 180, display: 'grid', placeItems: 'center', border: '1px dashed #b9cad8', borderRadius: 10, color: '#5e7485'}}>İzlemek için bir video seçin.</div>}
+              ) : <div style={{minHeight: 180, display: 'grid', placeItems: 'center', border: '1px dashed #b9cad8', borderRadius: 10, color: '#5e7485'}}>{videoLoading ? 'Video hazırlanıyor…' : 'İzlemek için bir video seçin.'}</div>}
             </div>
           </div>
           {checkpointQuestions.length > 0 && (
