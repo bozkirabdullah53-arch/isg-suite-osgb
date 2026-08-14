@@ -1033,15 +1033,22 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
                   {['ready_for_review', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('publish')} disabled={busy}>Paketi yayımla</button>}
                   {selectedPackage.status === 'published' && <button type="button" onClick={() => packageAction('unpublish')} disabled={busy}>Yayından kaldır</button>}
                   {!['archived'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('archive')} disabled={busy}>Arşivle</button>}
+                  {selectedPackage.status === 'archived' && <button type="button" onClick={() => packageAction('restore')} disabled={busy}>Paketi düzenlemeye aç</button>}
                 </div>
               </div>
               <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#f2f9fc', color: '#36556d', fontSize: 12}}><strong>İş akışı:</strong> Bölüm → Video seç ve yükle → İşleme/inceleme → Video yayımla → Firma/işyeri seçip eğitim kutucuğunu işaretle. {packageAutomaticExamReady(selectedPackage) ? `Yayınlanan programa ${packageAutomaticExamCount(selectedPackage)} onaylı final sorusu ve %${selectedPackage.automatic_exam_passing_score || 70} geçme kuralı otomatik eklenir.` : 'Onaylı soru paketi hazır olmadığı için bu paket firma programına hazırlanamaz.'}</div>
               <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#effcfc', color: '#36556d', fontSize: 12}}><strong>Video yükleme:</strong> Her ders bölümünün altındaki tek <strong>Video seç ve yükle</strong> düğmesini kullanın. Yayımlanmış paketlere de yeni video/bölüm ekleyebilirsiniz; mevcut yayımlanmış videoyu değiştirmek için satırdaki <strong>Yeni sürüm yükle</strong> düğmesini kullanın.</div>
-              {selectedPackage.status !== 'archived' && <div style={{marginTop: 14, padding: 12, border: '1px solid #dbe5ef', borderRadius: 9, background: '#fbfdff'}}>
-                <strong>Yeni ders bölümü oluştur</strong>
-                <span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>Örneğin GID-01 — Gıda tesisi genel güvenlik. Bölümü bir kez oluşturduktan sonra hemen altındaki video düğmesinden yükleyebilirsiniz.</span>
-                <div style={{display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 8}}><input value={sectionCode} onChange={(event) => setSectionCode(event.target.value)} placeholder="Bölüm kodu: GID-01" aria-label="Yeni bölüm kodu" style={{maxWidth: 170}} /><input value={sectionTitle} onChange={(event) => setSectionTitle(event.target.value)} placeholder="Bölüm adı" aria-label="Yeni bölüm adı" style={{minWidth: 220, flex: 1}} /><button type="button" onClick={createSection} disabled={busy}>Bölümü oluştur</button></div>
-              </div>}
+              {selectedPackage.status === 'archived'
+                ? <div style={{marginTop: 14, padding: 12, border: '1px solid #f2c46d', borderRadius: 9, background: '#fff8e8'}}>
+                    <strong style={{display: 'block', color: '#795500'}}>Bu paket arşivlenmiş</strong>
+                    <span style={{display: 'block', color: '#795500', fontSize: 12, marginTop: 4}}>Yeni bölüm veya video eklemek için paketi düzenlemeye açın. Mevcut firma sürümleri, çalışan atamaları ve ilerleme kayıtları değişmez.</span>
+                    <button type="button" onClick={() => packageAction('restore')} disabled={busy} style={{marginTop: 9}}>Paketi düzenlemeye aç</button>
+                  </div>
+                : <div style={{marginTop: 14, padding: 12, border: '1px solid #dbe5ef', borderRadius: 9, background: '#fbfdff'}}>
+                    <strong>Yeni ders bölümü oluştur</strong>
+                    <span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>Örneğin YÜK-11 — Dikey ve yatay yaşam hatları. Bölümü bir kez oluşturduktan sonra hemen altındaki video düğmesinden yükleyebilirsiniz.</span>
+                    <div style={{display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 8}}><input value={sectionCode} onChange={(event) => setSectionCode(event.target.value)} placeholder="Bölüm kodu: YÜK-11" aria-label="Yeni bölüm kodu" style={{maxWidth: 170}} /><input value={sectionTitle} onChange={(event) => setSectionTitle(event.target.value)} placeholder="Bölüm adı" aria-label="Yeni bölüm adı" style={{minWidth: 220, flex: 1}} /><button type="button" onClick={createSection} disabled={busy}>Bölümü oluştur</button></div>
+                  </div>}
               {(selectedPackage.sections || []).map((section) => (
                 <div key={section.id} style={{borderTop: '1px solid #e5edf3', paddingTop: 12, marginTop: 12}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}><div><strong>{section.code} · {section.title}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{section.videos?.length || 0} video · {section.status === 'active' ? 'Aktif' : 'Arşivlendi'}</span></div></div>
