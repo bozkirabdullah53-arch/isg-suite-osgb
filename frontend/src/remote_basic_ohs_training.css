@@ -381,6 +381,19 @@
   font-size: 11px;
 }
 
+.remote-training-question-save-state {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.remote-training-question-save-state.is-saved {
+  color: #087443;
+}
+
+.remote-training-question-save-state.is-error {
+  color: #b42318;
+}
+
 .remote-training-exam-options-editor {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

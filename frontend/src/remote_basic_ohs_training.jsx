@@ -1080,6 +1080,8 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   const [programs, setPrograms] = useState([]);
   const [program, setProgram] = useState(null);
   const [automaticExamQuestions, setAutomaticExamQuestions] = useState([]);
+  const [savingAutomaticQuestionId, setSavingAutomaticQuestionId] = useState(null);
+  const [automaticQuestionSaveStates, setAutomaticQuestionSaveStates] = useState({});
   const [sectionTitle, setSectionTitle] = useState('Temel İş Sağlığı ve Güvenliği');
   const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [assignmentDueDate, setAssignmentDueDate] = useState('');
@@ -1187,6 +1189,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     setProgram(row);
     setAssignmentNotice(null);
     setAutomaticExamQuestions(row.automatic_final_exam?.questions || []);
+    setAutomaticQuestionSaveStates({});
     setBranchId(row.branch_id ? String(row.branch_id) : '');
     onBranchChange?.(row.branch_id ? String(row.branch_id) : '');
     const scope = await api(`/trainings/remote/programs/${Number(id)}/sectors`);
@@ -1205,12 +1208,14 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   }
 
   function updateAutomaticExamQuestion(questionId, field, value) {
+    setAutomaticQuestionSaveStates((current) => ({...current, [questionId]: null}));
     setAutomaticExamQuestions((current) => current.map((question) => (
       question.id === questionId ? {...question, [field]: value} : question
     )));
   }
 
   function updateAutomaticExamOption(questionId, option, value) {
+    setAutomaticQuestionSaveStates((current) => ({...current, [questionId]: null}));
     setAutomaticExamQuestions((current) => current.map((question) => (
       question.id === questionId
         ? {...question, options: {...question.options, [option]: value}}
@@ -1220,20 +1225,25 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
 
   async function saveAutomaticExamQuestion(question) {
     if (!program || !question) return;
+    const rejectQuestionSave = (text) => {
+      setAutomaticQuestionSaveStates((current) => ({...current, [question.id]: 'error'}));
+      setError(text);
+    };
     const text = String(question.question_text || '').trim();
     const options = Object.fromEntries(['A', 'B', 'C', 'D'].map((key) => [
       key,
       String(question.options?.[key] || '').trim(),
     ]));
     if (text.length < 3 || Object.values(options).some((value) => !value)) {
-      setError('Final sorusunda metin ile A, B, C ve D seçenekleri boş bırakılamaz.');
+      rejectQuestionSave('Final sorusunda metin ile A, B, C ve D seçenekleri boş bırakılamaz.');
       return;
     }
     if (new Set(Object.values(options).map((value) => value.toLocaleLowerCase('tr-TR'))).size !== 4) {
-      setError('Final sorusunun A, B, C ve D seçenekleri birbirinden farklı olmalıdır.');
+      rejectQuestionSave('Final sorusunun A, B, C ve D seçenekleri birbirinden farklı olmalıdır.');
       return;
     }
-    setBusy(true); setError(''); setMessage('');
+    setBusy(true); setSavingAutomaticQuestionId(question.id); setError(''); setMessage('');
+    setAutomaticQuestionSaveStates((current) => ({...current, [question.id]: 'saving'}));
     try {
       await api(`/trainings/remote/programs/${program.id}/final-exam-questions/${question.id}`, {
         method: 'PATCH',
@@ -1244,10 +1254,18 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
           explanation: question.explanation || null,
         }),
       });
-      await loadDetail(program.id);
       setMessage(`${question.order_index}. final sorusu kaydedildi. Yayınlamadan önce 10 sorunun tamamını kontrol edin.`);
-    } catch (err) { setError(err.message || 'Final sorusu kaydedilemedi.'); }
-    finally { setBusy(false); }
+      try {
+        await loadDetail(program.id);
+      } catch (refreshError) {
+        setError(`Soru kaydedildi ancak liste yenilenemedi: ${refreshError.message || 'sayfayı yenileyin.'}`);
+      }
+      setAutomaticQuestionSaveStates((current) => ({...current, [question.id]: 'saved'}));
+    } catch (err) {
+      setAutomaticQuestionSaveStates((current) => ({...current, [question.id]: 'error'}));
+      setError(err.message || 'Final sorusu kaydedilemedi.');
+    }
+    finally { setBusy(false); setSavingAutomaticQuestionId(null); }
   }
 
   useEffect(() => {
@@ -1548,7 +1566,9 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                 </div>
                 {(program.automatic_final_exam.validation_errors || []).map((warning) => <div key={warning} className="remote-training-exam-validation-warning" role="alert">{warning}</div>)}
                 {automaticExamQuestions.map((question, index) => {
-                  const locked = busy || ['published', 'archived'].includes(program.status);
+                  const locked = ['published', 'archived'].includes(program.status);
+                  const saveState = automaticQuestionSaveStates[question.id];
+                  const saving = savingAutomaticQuestionId === question.id;
                   return <div key={question.id} className="remote-training-exam-question-editor">
                     <div className="remote-training-exam-question-heading"><strong>{index + 1}. Final sorusu</strong><span>{locked ? 'Yayımlandı — salt okunur' : 'Taslak — düzenlenebilir'}</span></div>
                     <textarea value={question.question_text || ''} onChange={(event) => updateAutomaticExamQuestion(question.id, 'question_text', event.target.value)} disabled={locked} rows={3} aria-label={`${index + 1}. final sorusu`} />
@@ -1558,7 +1578,11 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                     <div className="remote-training-exam-question-footer">
                       <label>Doğru cevap <select value={question.correct_option || 'A'} onChange={(event) => updateAutomaticExamQuestion(question.id, 'correct_option', event.target.value)} disabled={locked} aria-label={`${index + 1}. final sorusu doğru cevap`}><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></label>
                       <input value={question.explanation || ''} onChange={(event) => updateAutomaticExamQuestion(question.id, 'explanation', event.target.value)} disabled={locked} placeholder="Açıklama (isteğe bağlı)" aria-label={`${index + 1}. final sorusu açıklaması`} />
-                      <button type="button" onClick={() => saveAutomaticExamQuestion(question)} disabled={locked}>Soruyu kaydet</button>
+                      <button type="button" onClick={() => saveAutomaticExamQuestion(question)} disabled={locked || busy || saving}>
+                        {saving ? 'Kaydediliyor…' : saveState === 'saved' ? 'Kaydedildi ✓' : 'Soruyu kaydet'}
+                      </button>
+                      {saveState === 'saved' && <span className="remote-training-question-save-state is-saved" role="status" aria-live="polite">Bu soru kaydedildi.</span>}
+                      {saveState === 'error' && <span className="remote-training-question-save-state is-error" role="alert">Kayıt başarısız; üstteki açıklamayı kontrol edin.</span>}
                     </div>
                   </div>;
                 })}
