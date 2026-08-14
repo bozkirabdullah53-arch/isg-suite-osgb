@@ -109,6 +109,7 @@ from app.services.remote_training import (
     recalculate_assignment,
     recalculate_catalog_package_duration,
     recalculate_program_duration,
+    reconcile_strict_video_end,
     assert_video_unlocked,
     strict_exam_gate_enabled,
     strict_policy_active,
@@ -3227,6 +3228,15 @@ def save_remote_progress(
             accepted_position,
             float(video.duration_seconds),
         )
+        if payload.event_type == "ended":
+            reconciled = reconcile_strict_video_end(
+                coverage,
+                current_position=current_position,
+                requested_position=position,
+                duration=float(video.duration_seconds),
+            )
+            if reconciled is not None:
+                coverage, covered_seconds, accepted_position = reconciled
         existing.coverage_json = json.dumps(coverage, separators=(",", ":"))
         existing.last_position_seconds = accepted_position
         existing.watched_duration_seconds = min(float(video.duration_seconds), covered_seconds)
@@ -3270,7 +3280,7 @@ def save_remote_progress(
         )
     )
     summary = recalculate_assignment(db, assignment)
-    certificate = ensure_certificate(db, assignment)
+    certificate = ensure_certificate(db, assignment) if summary["complete"] else None
     _commit(db, "Video ilerlemesi kaydedilemedi.")
     return {"video_id": video.id, "position_seconds": float(existing.last_position_seconds), "accepted_position_seconds": float(existing.last_position_seconds), "watched_percentage": float(existing.watched_percentage), "status": existing.status, "summary": summary, "certificate_id": certificate.id if certificate else None}
 
