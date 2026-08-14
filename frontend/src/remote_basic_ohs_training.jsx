@@ -1082,7 +1082,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   const [automaticExamQuestions, setAutomaticExamQuestions] = useState([]);
   const [savingAutomaticQuestionId, setSavingAutomaticQuestionId] = useState(null);
   const [automaticQuestionSaveStates, setAutomaticQuestionSaveStates] = useState({});
-  const [sectionTitle, setSectionTitle] = useState('Temel İş Sağlığı ve Güvenliği');
+  const [sectionTitle, setSectionTitle] = useState('');
   const [selectedEmployees, setSelectedEmployees] = useState([]);
   const [assignmentDueDate, setAssignmentDueDate] = useState('');
   const [employeeUsers, setEmployeeUsers] = useState([]);
@@ -1119,6 +1119,21 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   const scopeSectorOptions = sectorScope?.catalog_fixed && sectorScope.catalog_sector_code
     ? sectorScope.sectors.filter((sector) => sector.code === sectorScope.catalog_sector_code)
     : (sectorScope?.sectors || []);
+  const catalogSectorCode = sectorScope?.catalog_fixed && sectorScope.catalog_sector_code
+    ? sectorScope.catalog_sector_code
+    : '';
+  const catalogSectorName = catalogSectorCode ? sectorLabel(catalogSectorCode) : '';
+  const catalogProgramHasSections = (program?.sections || []).length > 0;
+  const visibleProgramSections = useMemo(() => {
+    const sections = program?.sections || [];
+    if (!catalogSectorCode) return sections;
+    return sections.filter((section) => !section.sector_code || section.sector_code === catalogSectorCode);
+  }, [program, catalogSectorCode]);
+  const sectionCreateHint = catalogSectorCode === 'working_at_height'
+    ? 'Yüksekte Çalışma paketi seçili. Örnek: “YÜK-11 · Dikey ve yatay yaşam hatları”.'
+    : catalogSectorCode
+      ? `Yalnızca ${catalogSectorName} paketiyle ilgili yeni bir bölüm ekleyin.`
+      : 'Yeni bölüm adını yazın ve ilgili eğitim kapsamını seçin.';
   const visibleEmployees = useMemo(
     () => branchId
       ? employees.filter((row) => String(row.branch_id || '') === String(branchId))
@@ -1187,6 +1202,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     if (!id) return;
     const row = await api(`/trainings/remote/programs/${Number(id)}`);
     setProgram(row);
+    setSectionTitle('');
     setAssignmentNotice(null);
     setAutomaticExamQuestions(row.automatic_final_exam?.questions || []);
     setAutomaticQuestionSaveStates({});
@@ -1298,9 +1314,14 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
 
   async function createSection() {
     if (!program) return;
+    const title = sectionTitle.trim();
+    if (title.length < 2) {
+      setError('Yeni bölüm için ilgili bölüm adını yazın.');
+      return;
+    }
     setBusy(true); setError('');
     try {
-      await api(`/trainings/remote/programs/${program.id}/sections`, {method: 'POST', body: JSON.stringify({title: sectionTitle, sector_code: sectionSectorCode})});
+      await api(`/trainings/remote/programs/${program.id}/sections`, {method: 'POST', body: JSON.stringify({title, sector_code: sectionSectorCode})});
       await loadDetail(program.id); setMessage('Bölüm eklendi.');
     } catch (err) { setError(err.message || 'Bölüm eklenemedi.'); } finally { setBusy(false); }
   }
@@ -1610,15 +1631,18 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                 <div style={{fontSize: 12, color: '#36556d', marginTop: 10}}>Seçili kapsam: <strong>{selectedSectorCodes.map(sectorLabel).join(', ') || 'Henüz seçilmedi'}</strong></div>
               </div>}
               <div style={{marginTop: 14, padding: 14, border: '1px solid #dbe5ef', borderRadius: 10, background: '#fbfdff'}}>
-                <strong style={{display: 'block', color: '#123b59', fontSize: 15}}>1. Önce ders bölümü oluştur</strong>
-                <span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>Örneğin: “Temel İSG”, “İnşaatta güvenlik” veya “Akü çalışma güvenliği”.</span>
+                <strong style={{display: 'block', color: '#123b59', fontSize: 15}}>{catalogProgramHasSections ? 'İsteğe bağlı yeni ders bölümü' : 'Yeni ders bölümü ekle'}</strong>
+                <span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 4}}>{sectionCreateHint}</span>
                 <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10}}>
-                  <input value={sectionTitle} onChange={(event) => setSectionTitle(event.target.value)} aria-label="Bölüm başlığı" placeholder="Bölüm adı yazın" />
-                  <label style={{display: 'flex', alignItems: 'center', gap: 5}}>Bölümün sektörü <select value={sectionSectorCode} onChange={(event) => setSectionSectorCode(event.target.value)}>{scopeSectorOptions.map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label>
-                  <button type="button" onClick={createSection} disabled={busy || program.status === 'archived'} style={{minHeight: 44, padding: '10px 16px', fontWeight: 700}}>Bölüm ekle</button>
+                  <input value={sectionTitle} onChange={(event) => setSectionTitle(event.target.value)} aria-label="Yeni ders bölümü adı" placeholder={catalogSectorCode ? `${catalogSectorName} bölüm adı` : 'Bölüm adı yazın'} />
+                  {catalogSectorCode
+                    ? <span style={{padding: '9px 10px', border: '1px solid #b9d8e8', borderRadius: 7, background: '#f4fbff', color: '#36556d', fontSize: 12}}>Bölüm kapsamı: <strong>{catalogSectorName}</strong></span>
+                    : <label style={{display: 'flex', alignItems: 'center', gap: 5}}>Bölümün sektörü <select value={sectionSectorCode} onChange={(event) => setSectionSectorCode(event.target.value)}>{scopeSectorOptions.map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label>}
+                  <button type="button" onClick={createSection} disabled={busy || program.status === 'archived' || sectionTitle.trim().length < 2} style={{minHeight: 44, padding: '10px 16px', fontWeight: 700}}>{catalogProgramHasSections ? 'Özel bölüm ekle' : 'Bölüm ekle'}</button>
                 </div>
               </div>
-              {(program.sections || []).map((section) => (
+              {program.sections?.length > 0 && visibleProgramSections.length === 0 && <div role="status" style={{marginTop: 10, padding: 10, borderRadius: 8, background: '#fff8e8', color: '#795500', fontSize: 12}}>Seçili paket kapsamı dışında kalan eski bölüm kayıtları gizlendi. Mevcut çalışan atamalarına dokunulmadı.</div>}
+              {visibleProgramSections.map((section) => (
                 <div key={section.id} style={{borderTop: '1px solid #e5edf3', paddingTop: 12, marginTop: 12}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}>
                     <div><strong>{section.order_index}. {section.title}</strong><span style={{display: 'block', color: '#5e7485', fontSize: 12, marginTop: 3}}>Sektör: {sectorLabel(section.sector_code)}</span></div>
