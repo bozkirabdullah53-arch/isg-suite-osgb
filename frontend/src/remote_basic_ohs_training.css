@@ -249,6 +249,15 @@
   border: 1px solid #cde1e8;
   border-radius: 11px;
   background: linear-gradient(135deg, #f8ffff, #eff8fb);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.remote-training-flow-item:hover {
+  border-color: #54a8c5;
+  box-shadow: 0 3px 12px rgba(11, 114, 133, .12);
+  transform: translateY(-1px);
 }
 
 .remote-training-flow-item > span {
@@ -303,6 +312,114 @@
 
 .remote-training-package-locked {
   color: #9a3412;
+}
+
+.remote-training-exam-auto-note {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  color: #17643a;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.remote-training-exam-auto-note-large {
+  display: grid;
+  gap: 3px;
+  padding: 11px 12px;
+  border: 1px solid #b9e3c8;
+  border-radius: 9px;
+  background: #f2fff6;
+  font-size: 12px;
+}
+
+.remote-training-exam-review {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #b9e3c8;
+  border-radius: 10px;
+  background: #fbfffc;
+}
+
+.remote-training-exam-validation-warning {
+  padding: 9px 10px;
+  border: 1px solid #f2c46d;
+  border-radius: 8px;
+  background: #fff8e8;
+  color: #795500;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.remote-training-exam-question-editor {
+  display: grid;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid #dbe5ef;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.remote-training-exam-question-heading,
+.remote-training-exam-question-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.remote-training-exam-question-heading {
+  justify-content: space-between;
+  color: #123b59;
+}
+
+.remote-training-exam-question-heading span {
+  color: #5e7485;
+  font-size: 11px;
+}
+
+.remote-training-exam-options-editor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.remote-training-exam-options-editor label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.remote-training-exam-options-editor label > span {
+  min-width: 22px;
+  color: #123b59;
+  font-weight: 800;
+}
+
+.remote-training-exam-options-editor input,
+.remote-training-exam-question-footer > input {
+  min-width: 0;
+  flex: 1;
+}
+
+@media (max-width: 640px) {
+  .remote-training-exam-options-editor {
+    grid-template-columns: 1fr;
+  }
+}
+
+.remote-training-employee-rule {
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid #b9d8e8;
+  border-radius: 8px;
+  background: #f4fbff;
+  color: #36556d;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .remote-training-employee-picker-toolbar {

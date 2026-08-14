@@ -63,6 +63,7 @@ from app.models.remote_training import (
 from app.services.job_queue import enqueue
 from app.services.object_store import get_object_store
 from app.services.training_nace_classification import resolve_exact_nace
+from app.services.training_question_bank import _curated_pack
 from app.services.upload_security import assert_safe_video_upload
 
 logger = logging.getLogger(__name__)
@@ -107,6 +108,93 @@ ASSET_MIME_TYPES = {
     ".pdf": "application/pdf",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
+
+# Each central package receives a vetted, sector-aligned ten-question exam.
+# The source packs are versioned in the repository and copied into the
+# company-scoped program, so a later question-bank edit cannot alter an
+# already-created employee exam.
+REMOTE_AUTO_EXAM_PACKS = {
+    "common-basic-ohs": "common.json",
+    "construction-ohs": "sector-construction.json",
+    "metal-machine-ohs": "sector-metal.json",
+    "battery-production-ohs": "sector-battery.json",
+    "food-production-ohs": "sector-food-production.json",
+    "logistics-warehouse-transport-ohs": "sector-logistics.json",
+    "chemical-paint-production-ohs": "sector-chemicals.json",
+    "open-mine-quarry-aggregate-ohs": "sector-mining.json",
+    "road-asphalt-infrastructure-ohs": "sector-road-transport.json",
+    "office-general-ohs": "sector-office.json",
+    "working-at-height-ohs": "special-yuksekte-calisma.json",
+}
+# The curated file is also checked against the catalog scope.  A filename
+# alone is not sufficient protection if a future content edit accidentally
+# places an unrelated sector question in the package.
+REMOTE_AUTO_EXAM_PACKAGE_SCOPES = {
+    "common-basic-ohs": {"*"},
+    "construction-ohs": {"F"},
+    "metal-machine-ohs": {"kaynakli_imalat", "makine_imalat", "metal_isleme_torna_freze"},
+    "battery-production-ohs": {"aku_uretimi"},
+    "food-production-ohs": {"firin_unlu_mamuller", "gida_uretim", "gida_uretimi_isleme", "sut_sut_urunleri"},
+    "logistics-warehouse-transport-ohs": {"depo_lojistik", "depolama_lojistik_depo", "e_ticaret_depo_fulfillment"},
+    "chemical-paint-production-ohs": {"boyahaneler_boya_uretimi", "kimya_kimyasal_uretim", "kimyasal_boya"},
+    "open-mine-quarry-aggregate-ohs": {"acik_maden", "madencilik_maden_ocagi", "tas_ocagi_maden_ocagi"},
+    "road-asphalt-infrastructure-ohs": {"karayolu_tasimacilik", "nakliye_karayolu_tasimaciligi", "toplu_tasima_ulasim"},
+    "office-general-ohs": {"ofis", "ofis_idari_hizmetler"},
+    "working-at-height-ohs": {"yuksekte_calisma"},
+}
+REMOTE_AUTO_EXAM_QUESTION_COUNT = 10
+
+
+def automatic_exam_items_for_package(package_code: str | None) -> list[dict[str, Any]]:
+    """Return ten deterministic, reviewed questions for a catalog package.
+
+    The bundled question-bank loader validates the four options, answer,
+    explanation, source and scope before returning a pack.  Evenly spaced
+    selection keeps the special ten-section height package representative
+    instead of taking ten questions from its first topic only.
+    """
+    file_name = REMOTE_AUTO_EXAM_PACKS.get(str(package_code or "").strip().lower())
+    if not file_name:
+        raise RuntimeError(
+            f"Otomatik final sınavı için doğrulanmış sektör paketi eşleşmesi yok: {package_code}"
+        )
+    items = list(_curated_pack(file_name))
+    if len(items) < REMOTE_AUTO_EXAM_QUESTION_COUNT:
+        raise RuntimeError(
+            f"Otomatik final sınavı soru paketi en az {REMOTE_AUTO_EXAM_QUESTION_COUNT} soru içermelidir: {file_name}"
+        )
+    last_index = len(items) - 1
+    selected = [
+        items[(index * last_index) // (REMOTE_AUTO_EXAM_QUESTION_COUNT - 1)]
+        for index in range(REMOTE_AUTO_EXAM_QUESTION_COUNT)
+    ]
+    question_codes = {
+        str(item.get("question_code") or "").strip().casefold() for item in selected
+    }
+    if len(question_codes) != REMOTE_AUTO_EXAM_QUESTION_COUNT:
+        raise RuntimeError(
+            f"Otomatik final sınavı soru paketi tekrar eden sorular içeriyor: {file_name}"
+        )
+    topic_codes = {
+        str(item.get("topic_code") or "").strip().casefold() for item in selected
+    }
+    if len(topic_codes) != REMOTE_AUTO_EXAM_QUESTION_COUNT:
+        raise RuntimeError(
+            f"Otomatik final sınavı aynı öğrenme konusunu tekrar ediyor: {file_name}"
+        )
+    expected_scopes = REMOTE_AUTO_EXAM_PACKAGE_SCOPES[str(package_code or "").strip().lower()]
+    if any(
+        not any(
+            str(scope.get("value") or "").strip() in expected_scopes
+            for scope in (item.get("scopes") or [])
+            if isinstance(scope, dict)
+        )
+        for item in selected
+    ):
+        raise RuntimeError(
+            f"Otomatik final sınavı sektör kapsamıyla uyumsuz soru içeriyor: {file_name}"
+        )
+    return [dict(item) for item in selected]
 
 
 def feature_active() -> bool:
@@ -321,7 +409,18 @@ def build_program_sector_catalog(
         section_ids_by_sector.setdefault(section.sector_code, set()).add(section.id)
     questions = list(
         db.scalars(
-            select(RemoteTrainingQuestion).where(RemoteTrainingQuestion.program_id == program.id)
+            select(RemoteTrainingQuestion).where(
+                RemoteTrainingQuestion.program_id == program.id,
+                RemoteTrainingQuestion.is_final_exam.is_(False),
+            )
+        ).all()
+    )
+    automatic_exam_questions = list(
+        db.scalars(
+            select(RemoteTrainingQuestion).where(
+                RemoteTrainingQuestion.program_id == program.id,
+                RemoteTrainingQuestion.is_final_exam.is_(True),
+            )
         ).all()
     )
     catalog_sector_code = catalog_program_sector_code(program)
@@ -350,6 +449,9 @@ def build_program_sector_catalog(
                     and video.status != "archived"
                 ),
                 "question_count": sum(1 for question in questions if question.sector_code == code),
+                "automatic_exam_question_count": sum(
+                    1 for question in automatic_exam_questions if question.sector_code == code
+                ),
             }
         )
     return {
