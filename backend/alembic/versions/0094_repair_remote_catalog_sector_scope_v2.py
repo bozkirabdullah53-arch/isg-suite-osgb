@@ -1,1 +1,94 @@
-IiIiUmVwYWlyIHRoZSBzY29wZSBvZiB1bmFzc2lnbmVkIGNhdGFsb2ctZGVyaXZlZCByZW1vdGUgcHJvZ3JhbXMuCgpUaGUgZmlyc3QgY2F0YWxvZyByb2xsb3V0IGNvcGllZCBzZWN0aW9ucyBjb3JyZWN0bHkgZm9yIG5ldyBzbmFwc2hvdHMgYnV0CmxlZnQgc29tZSBvbGRlciBjb21wYW55IHNuYXBzaG90cyB3aXRoIHRoZSBjb21tb24gc2NvcGUgc2VsZWN0ZWQgZm9yIGV2ZXJ5CnBhY2thZ2UuIFRoaXMgaWRlbXBvdGVudCByZXBhaXIgY292ZXJzIGV2ZXJ5IGtub3duIHBhY2thZ2UgYW5kIG9ubHkgdG91Y2hlcwp1bmFzc2lnbmVkIGRyYWZ0L3JldmlldyBzbmFwc2hvdHMgdGhhdCBzdGlsbCBoYXZlIGEgc2luZ2xlIGNhdGFsb2cgc2VjdG9yCnNoYXBlLiBQdWJsaXNoZWQsIGFzc2lnbmVkLCBhbmQgZGVsaWJlcmF0ZWx5IG11bHRpLXNlY3Rvci9tYW51YWwgcmVjb3JkcyBhcmUKbGVmdCB1bnRvdWNoZWQuCiIiIgpmcm9tIF9fZnV0dXJlX18gaW1wb3J0IGFubm90YXRpb25zCgpmcm9tIHR5cGluZyBpbXBvcnQgU2VxdWVuY2UsIFVuaW9uCgppbXBvcnQgc3FsYWxjaGVteSBhcyBzYQpmcm9tIGFsZW1iaWMgaW1wb3J0IG9wCgoKcmV2aXNpb246IHN0ciA9ICIwMDk0X3JlcGFpcl9jYXRhbG9nX3NlY3RvcjIiCmRvd25fcmV2aXNpb246IFVuaW9uW3N0ciwgTm9uZV0gPSAiMDA5M19yZXBhaXJfY2F0YWxvZ19zZWN0b3IiCmJyYW5jaF9sYWJlbHM6IFVuaW9uW3N0ciwgU2VxdWVuY2Vbc3RyXSwgTm9uZV0gPSBOb25lCmRlcGVuZHNfb246IFVuaW9uW3N0ciwgU2VxdWVuY2Vbc3RyXSwgTm9uZV0gPSBOb25lCgoKUEFDS0FHRV9TRUNUT1JfQ09ERVMgPSB7CiAgICAiY29tbW9uLWJhc2ljLW9ocyI6ICJjb21tb24iLAogICAgImNvbnN0cnVjdGlvbi1vaHMiOiAiY29uc3RydWN0aW9uIiwKICAgICJtZXRhbC1tYWNoaW5lLW9ocyI6ICJtZXRhbCIsCiAgICAiYmF0dGVyeS1wcm9kdWN0aW9uLW9ocyI6ICJiYXR0ZXJ5IiwKICAgICJmb29kLXByb2R1Y3Rpb24tb2hzIjogImZvb2QiLAogICAgImxvZ2lzdGljcy13YXJlaG91c2UtdHJhbnNwb3J0LW9ocyI6ICJsb2dpc3RpY3MiLAogICAgImNoZW1pY2FsLXBhaW50LXByb2R1Y3Rpb24tb2hzIjogImNoZW1pY2FsIiwKICAgICJvcGVuLW1pbmUtcXVhcnJ5LWFnZ3JlZ2F0ZS1vaHMiOiAibWluaW5nIiwKICAgICJyb2FkLWFzcGhhbHQtaW5mcmFzdHJ1Y3R1cmUtb2hzIjogInJvYWQiLAogICAgIm9mZmljZS1nZW5lcmFsLW9ocyI6ICJvZmZpY2UiLAogICAgIndvcmtpbmctYXQtaGVpZ2h0LW9ocyI6ICJ3b3JraW5nX2F0X2hlaWdodCIsCn0KCgpkZWYgdXBncmFkZSgpIC0+IE5vbmU6CiAgICBiaW5kID0gb3AuZ2V0X2JpbmQoKQogICAgaW5zcGVjdG9yID0gc2EuaW5zcGVjdChiaW5kKQogICAgcmVxdWlyZWQgPSB7CiAgICAgICAgInJlbW90ZV90cmFpbmluZ19wcm9ncmFtcyIsCiAgICAgICAgInJlbW90ZV90cmFpbmluZ19wcm9ncmFtX3NlY3RvcnMiLAogICAgICAgICJyZW1vdGVfdHJhaW5pbmdfc2VjdGlvbnMiLAogICAgICAgICJyZW1vdGVfdHJhaW5pbmdfYXNzaWdubWVudHMiLAogICAgfQogICAgaWYgbm90IHJlcXVpcmVkLmlzc3Vic2V0KHNldChpbnNwZWN0b3IuZ2V0X3RhYmxlX25hbWVzKCkpKToKICAgICAgICByZXR1cm4KCiAgICBmb3IgY2F0YWxvZ19jb2RlLCBzZWN0b3JfY29kZSBpbiBQQUNLQUdFX1NFQ1RPUl9DT0RFUy5pdGVtcygpOgogICAgICAgIHByb2dyYW1fZmlsdGVyID0gKAogICAgICAgICAgICAicC5zb3VyY2VfY2F0YWxvZ19wYWNrYWdlX2lkIElTIE5PVCBOVUxMICIKICAgICAgICAgICAgIkFORCBwLnNvdXJjZV9jYXRhbG9nX2NvZGUgPSA6Y2F0YWxvZ19jb2RlICIKICAgICAgICAgICAgIkFORCBwLnN0YXR1cyBJTiAoJ2RyYWZ0JywgJ3JlYWR5X2Zvcl9yZXZpZXcnKSAiCiAgICAgICAgICAgICJBTkQgTk9UIEVYSVNUUyAoIgogICAgICAgICAgICAiICBTRUxFQ1QgMSBGUk9NIHJlbW90ZV90cmFpbmluZ19hc3NpZ25tZW50cyBhICIKICAgICAgICAgICAgIiAgV0hFUkUgYS5wcm9ncmFtX2lkID0gcC5pZCIKICAgICAgICAgICAgIikgIgogICAgICAgICAgICAiQU5EIE5PVCBFWElTVFMgKCIKICAgICAgICAgICAgIiAgU0VMRUNUIDEgRlJPTSByZW1vdGVfdHJhaW5pbmdfc2VjdGlvbnMgZWRpdGVkICIKICAgICAgICAgICAgIiAgV0hFUkUgZWRpdGVkLnByb2dyYW1faWQgPSBwLmlkICIKICAgICAgICAgICAgIiAgICBBTkQgZWRpdGVkLnN0YXR1cyA9ICdhY3RpdmUnICIKICAgICAgICAgICAgIiAgICBBTkQgZWRpdGVkLnNlY3Rvcl9jb2RlIE5PVCBJTiAoJ2NvbW1vbicsIDpzZWN0b3JfY29kZSkiCiAgICAgICAgICAgICIpIgogICAgICAgICkKICAgICAgICBiaW5kLmV4ZWN1dGUoCiAgICAgICAgICAgIHNhLnRleHQoCiAgICAgICAgICAgICAgICAiVVBEQVRFIHJlbW90ZV90cmFpbmluZ19wcm9ncmFtX3NlY3RvcnMgIgogICAgICAgICAgICAgICAgIlNFVCBpc19lbmFibGVkID0gKHNlY3Rvcl9jb2RlID0gOnNlY3Rvcl9jb2RlKSAiCiAgICAgICAgICAgICAgICAiV0hFUkUgcHJvZ3JhbV9pZCBJTiAoIgogICAgICAgICAgICAgICAgIiAgU0VMRUNUIHAuaWQgRlJPTSByZW1vdGVfdHJhaW5pbmdfcHJvZ3JhbXMgcCBXSEVSRSAiCiAgICAgICAgICAgICAgICArIHByb2dyYW1fZmlsdGVyCiAgICAgICAgICAgICAgICArICIpIgogICAgICAgICAgICApLAogICAgICAgICAgICB7ImNhdGFsb2dfY29kZSI6IGNhdGFsb2dfY29kZSwgInNlY3Rvcl9jb2RlIjogc2VjdG9yX2NvZGV9LAogICAgICAgICkKICAgICAgICBiaW5kLmV4ZWN1dGUoCiAgICAgICAgICAgIHNhLnRleHQoCiAgICAgICAgICAgICAgICAiVVBEQVRFIHJlbW90ZV90cmFpbmluZ19zZWN0aW9ucyAiCiAgICAgICAgICAgICAgICAiU0VUIHNlY3Rvcl9jb2RlID0gOnNlY3Rvcl9jb2RlICIKICAgICAgICAgICAgICAgICJXSEVSRSBzZWN0b3JfY29kZSA9ICdjb21tb24nICIKICAgICAgICAgICAgICAgICJBTkQgcHJvZ3JhbV9pZCBJTiAoIgogICAgICAgICAgICAgICAgIiAgU0VMRUNUIHAuaWQgRlJPTSByZW1vdGVfdHJhaW5pbmdfcHJvZ3JhbXMgcCBXSEVSRSAiCiAgICAgICAgICAgICAgICArIHByb2dyYW1fZmlsdGVyCiAgICAgICAgICAgICAgICArICIpIgogICAgICAgICAgICApLAogICAgICAgICAgICB7ImNhdGFsb2dfY29kZSI6IGNhdGFsb2dfY29kZSwgInNlY3Rvcl9jb2RlIjogc2VjdG9yX2NvZGV9LAogICAgICAgICkKCgpkZWYgZG93bmdyYWRlKCkgLT4gTm9uZToKICAgICMgRG8gbm90IG92ZXJ3cml0ZSBhIG1hbmFnZXIncyBkZWxpYmVyYXRlIGVkaXRzIGR1cmluZyBhIHJvbGxiYWNrLgogICAgcGFzcwo=
+"""Repair the scope of unassigned catalog-derived remote programs.
+
+The first catalog rollout copied sections correctly for new snapshots but
+left some older company snapshots with the common scope selected for every
+package. This idempotent repair covers every known package and only touches
+unassigned draft/review snapshots that still have a single catalog sector
+shape. Published, assigned, and deliberately multi-sector/manual records are
+left untouched.
+"""
+from __future__ import annotations
+
+from typing import Sequence, Union
+
+import sqlalchemy as sa
+from alembic import op
+
+
+revision: str = "0094_repair_catalog_sector2"
+down_revision: Union[str, None] = "0093_repair_catalog_sector"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+PACKAGE_SECTOR_CODES = {
+    "common-basic-ohs": "common",
+    "construction-ohs": "construction",
+    "metal-machine-ohs": "metal",
+    "battery-production-ohs": "battery",
+    "food-production-ohs": "food",
+    "logistics-warehouse-transport-ohs": "logistics",
+    "chemical-paint-production-ohs": "chemical",
+    "open-mine-quarry-aggregate-ohs": "mining",
+    "road-asphalt-infrastructure-ohs": "road",
+    "office-general-ohs": "office",
+    "working-at-height-ohs": "working_at_height",
+}
+
+
+def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    required = {
+        "remote_training_programs",
+        "remote_training_program_sectors",
+        "remote_training_sections",
+        "remote_training_assignments",
+    }
+    if not required.issubset(set(inspector.get_table_names())):
+        return
+
+    for catalog_code, sector_code in PACKAGE_SECTOR_CODES.items():
+        program_filter = (
+            "p.source_catalog_package_id IS NOT NULL "
+            "AND p.source_catalog_code = :catalog_code "
+            "AND p.status IN ('draft', 'ready_for_review') "
+            "AND NOT EXISTS ("
+            "  SELECT 1 FROM remote_training_assignments a "
+            "  WHERE a.program_id = p.id"
+            ") "
+            "AND NOT EXISTS ("
+            "  SELECT 1 FROM remote_training_sections edited "
+            "  WHERE edited.program_id = p.id "
+            "    AND edited.status = 'active' "
+            "    AND edited.sector_code NOT IN ('common', :sector_code)"
+            ")"
+        )
+        bind.execute(
+            sa.text(
+                "UPDATE remote_training_program_sectors "
+                "SET is_enabled = (sector_code = :sector_code) "
+                "WHERE program_id IN ("
+                "  SELECT p.id FROM remote_training_programs p WHERE "
+                + program_filter
+                + ")"
+            ),
+            {"catalog_code": catalog_code, "sector_code": sector_code},
+        )
+        bind.execute(
+            sa.text(
+                "UPDATE remote_training_sections "
+                "SET sector_code = :sector_code "
+                "WHERE sector_code = 'common' "
+                "AND program_id IN ("
+                "  SELECT p.id FROM remote_training_programs p WHERE "
+                + program_filter
+                + ")"
+            ),
+            {"catalog_code": catalog_code, "sector_code": sector_code},
+        )
+
+
+def downgrade() -> None:
+    # Do not overwrite a manager's deliberate edits during a rollback.
+    pass
