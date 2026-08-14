@@ -151,6 +151,30 @@ def test_catalog_packages_receive_ten_relevant_automatic_exam_questions():
         automatic_exam_items_for_package("future-custom-package")
 
 
+def test_automatic_final_exam_question_validation_is_independent():
+    from types import SimpleNamespace
+
+    from app.api.remote_training import (
+        _automatic_final_exam_question_validation,
+        _automatic_final_exam_validation,
+    )
+
+    good = SimpleNamespace(
+        question_text="Geçerli final sorusu",
+        options_json='{"A":"Birinci","B":"İkinci","C":"Üçüncü","D":"Dördüncü"}',
+        correct_option="B",
+    )
+    broken = SimpleNamespace(
+        question_text="",
+        options_json='{"A":"A","B":"A","C":"C","D":"D"}',
+        correct_option="X",
+    )
+
+    assert _automatic_final_exam_question_validation(good, 1) == []
+    assert _automatic_final_exam_question_validation(broken, 2)
+    assert _automatic_final_exam_validation([good, broken])
+
+
 def test_strict_video_coverage_does_not_double_count_replay():
     from app.services.remote_training import _merge_coverage
 
