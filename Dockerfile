@@ -1,17 +1,1 @@
-FROM python:3.11-slim
-
-WORKDIR /app
-
-COPY requirements.txt .
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
-    && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir -r requirements.txt
-
-COPY app ./app
-COPY alembic ./alembic
-COPY alembic.ini ./alembic.ini
-COPY start.sh ./start.sh
-RUN mkdir -p /app/uploads
-
-CMD ["./start.sh"]
+RlJPTSBweXRob246My4xMS1zbGltCgpXT1JLRElSIC9hcHAKCkNPUFkgcmVxdWlyZW1lbnRzLnR4dCAuClJVTiBhcHQtZ2V0IHVwZGF0ZSBcCiAgICAmJiBhcHQtZ2V0IGluc3RhbGwgLXkgLS1uby1pbnN0YWxsLXJlY29tbWVuZHMgZmZtcGVnIFwKICAgICYmIHJtIC1yZiAvdmFyL2xpYi9hcHQvbGlzdHMvKiBcCiAgICAmJiBwaXAgaW5zdGFsbCAtLW5vLWNhY2hlLWRpciAtciByZXF1aXJlbWVudHMudHh0CgpDT1BZIGFwcCAuL2FwcApDT1BZIGFsZW1iaWMgLi9hbGVtYmljCkNPUFkgYWxlbWJpYy5pbmkgLi9hbGVtYmljLmluaQpDT1BZIHN0YXJ0LnNoIC4vc3RhcnQuc2gKUlVOIG1rZGlyIC1wIC9hcHAvdXBsb2FkcwoKQ01EIFsiLi9zdGFydC5zaCJdCg==
