@@ -524,6 +524,221 @@
   border-radius: 8px;
 }
 
+
+.remote-training-guide-launcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid #7bd4d3;
+  border-radius: 14px;
+  background: linear-gradient(115deg, #effdfc 0%, #f4f8ff 55%, #fff8e9 100%);
+  box-shadow: 0 10px 26px rgba(18, 59, 89, .08);
+}
+
+.remote-training-guide-launcher-content {
+  display: grid;
+  gap: 3px;
+  color: #36556d;
+  font-size: 13px;
+}
+
+.remote-training-guide-launcher-content strong {
+  color: #123b59;
+  font-size: 17px;
+}
+
+.remote-training-guide-kicker {
+  color: #087d7b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.remote-training-guide-launcher-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 10px 16px;
+  border: 1px solid #0e8e8b;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #0f8f8b, #145da0);
+  color: #fff !important;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 8px 22px rgba(15, 143, 139, .25);
+  animation: remote-training-guide-pulse 2.2s ease-in-out infinite;
+}
+
+.remote-training-guide-launcher-link:hover {
+  color: #fff !important;
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+@keyframes remote-training-guide-pulse {
+  0%, 100% { box-shadow: 0 8px 22px rgba(15, 143, 139, .22); }
+  50% { box-shadow: 0 8px 30px rgba(15, 143, 139, .52), 0 0 0 5px rgba(15, 143, 139, .10); }
+}
+
+.remote-training-guide {
+  overflow: hidden;
+  border: 1px solid #b9d8e8;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(18, 59, 89, .07);
+}
+
+.remote-training-guide-summary {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+  background: linear-gradient(100deg, #f4fbff, #effcfc);
+  color: #123b59;
+}
+
+.remote-training-guide-summary::-webkit-details-marker {
+  display: none;
+}
+
+.remote-training-guide-icon {
+  display: grid;
+  flex: 0 0 30px;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #d9f4f2;
+  color: #087d7b;
+  font-weight: 900;
+}
+
+.remote-training-guide-heading {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.remote-training-guide-heading strong {
+  font-size: 16px;
+}
+
+.remote-training-guide-heading small {
+  color: #5e7485;
+  font-size: 12px;
+}
+
+.remote-training-guide-count {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #fff;
+  color: #087d7b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.remote-training-guide-body {
+  padding: 14px 16px 16px;
+}
+
+.remote-training-guide-intro {
+  margin: 0 0 12px;
+  color: #496174;
+  font-size: 13px;
+}
+
+.remote-training-guide-steps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.remote-training-guide-steps li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e0ebf2;
+  border-radius: 10px;
+  background: #fbfdff;
+}
+
+.remote-training-guide-steps li p {
+  margin: 5px 0 0;
+  color: #5e7485;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.remote-training-guide-step-number {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #123b59;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.remote-training-guide-note {
+  margin-top: 12px;
+  padding: 11px 13px;
+  border: 1px solid #f2c46d;
+  border-radius: 9px;
+  background: #fff8e8;
+  color: #795500;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.remote-training-guide-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.remote-training-guide-links a {
+  padding: 8px 10px;
+  border: 1px solid #c6dce9;
+  border-radius: 8px;
+  background: #f4fbff;
+  color: #145d85;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.remote-training-guide-links a:hover {
+  background: #e7f5ff;
+}
+
+.remote-training-guide-launcher-link:focus-visible,
+.remote-training-guide-links a:focus-visible,
+.remote-training-guide-summary:focus-visible {
+  outline: 3px solid rgba(14, 165, 183, .35);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .remote-training-guide-launcher-link {
+    animation: none;
+  }
+}
+
 @media (max-width: 900px) {
   .remote-training-flow {
     grid-template-columns: repeat(2, minmax(0, 1fr));
