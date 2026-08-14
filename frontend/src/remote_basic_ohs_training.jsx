@@ -865,6 +865,7 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
     }
     setBusy(true); setError(''); setMessage('');
     const created = [];
+    const alreadyPrepared = [];
     const failed = [];
     try {
       for (const item of selected) {
@@ -875,15 +876,23 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
           });
           created.push(item.title);
         } catch (err) {
-          failed.push(`${item.title}: ${err.message || 'atanamadı'}`);
+          const message = err.message || 'atanamadı';
+          if (message.includes('zaten hazırlandı')) {
+            alreadyPrepared.push(item.title);
+          } else {
+            failed.push(`${item.title}: ${message}`);
+          }
         }
       }
       await refresh();
       setSelectedPackageIds([]);
       if (failed.length) {
         setError(`${created.length} paket hazırlandı. Tamamlanamayanlar: ${failed.join(' · ')}`);
+      } else if (alreadyPrepared.length) {
+        const preparedText = alreadyPrepared.join(' ve ');
+        setMessage(`${preparedText} zaten seçilen firma için hazır. Aşağıdaki çalışan atama bölümünden personeli seçebilirsiniz.`);
       } else {
-        setMessage(`${created.length} paket seçilen firmaya hazırlandı. Şimdi çalışan atama bölümünden personeli seçebilirsiniz.`);
+        setMessage(`${created.length} paket seçilen firmaya hazırlandı. Aşağıdaki çalışan atama bölümünden personeli seçebilirsiniz.`);
       }
     } catch (err) { setError(err.message || 'Paketler firmaya hazırlanamadı.'); }
     finally { setBusy(false); }
@@ -928,7 +937,7 @@ function CatalogManagerPanel({companyId = '', onCompanyChange, rollout = null}) 
             {busy ? 'Hazırlanıyor…' : 'Seçilen sektörleri firmaya ata'}
           </button>
         </div>
-        <div style={{marginTop: 8, color: '#795500', fontSize: 12}}>Bu adım çalışanlara eğitim başlatmaz. Önce sizin seçtiğiniz firma için seçtiğiniz sektör paketinin çalışma sürümü hazırlanır; çalışan ataması daha sonra ayrı ekrandan yapılır.</div>
+        <div style={{marginTop: 8, color: '#795500', fontSize: 12}}>Bu adım çalışanlara eğitim başlatmaz. Firma sürümü zaten hazırsa tekrar hazırlamanıza gerek yoktur; çalışan ataması aşağıdaki <strong>3. Çalışanlara eğitim ve sınav ataması</strong> bölümünden yapılır.</div>
         <div role="status" aria-live="polite" style={{marginTop: 6, color: '#4c1d95', fontSize: 12, fontWeight: 700}}>
           {!companyId ? 'Atama için önce firma seçin.' : !selectedPackageIds.length ? 'Atama için yayımlanmış bir paketin kutusunu işaretleyin.' : `${selectedPackageIds.length} paket atamaya hazır.`}
         </div>
@@ -1508,8 +1517,8 @@ export function RemoteBasicOhsTrainingPanel({user}) {
       <div className="remote-training-flow-item"><span>4</span><div><strong>Sonuç ve belge</strong><small>Video, sınav ve sertifika izlenir.</small></div></div>
     </div>
     {canManage && <CatalogManagerPanel companyId={selectedCompanyId} onCompanyChange={setSelectedCompanyId} rollout={meta.strict_policy} />}
-    {canManage && <details>
-      <summary style={{cursor: 'pointer', fontWeight: 800, color: '#123b59', padding: '8px 2px'}}>Firma eğitim atama ve çalışan takip yönetimi</summary>
+    {canManage && <details open id="remote-training-assignment-manager">
+      <summary style={{cursor: 'pointer', fontWeight: 800, color: '#123b59', padding: '8px 2px'}}>3. Çalışanlara eğitim ve sınav ataması</summary>
       <div style={{marginTop: 12}}><ManagerPanel user={user} initialCompanyId={selectedCompanyId} onCompanyChange={setSelectedCompanyId} /></div>
     </details>}
     {canManage && <details className="remote-training-employee-preview">
