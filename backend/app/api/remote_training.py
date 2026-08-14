@@ -291,10 +291,45 @@ def _question_output(question: RemoteTrainingQuestion, *, reveal_answer: bool) -
     return result
 
 
+def _automatic_final_exam_question_validation(
+    question: RemoteTrainingQuestion, position: int
+) -> list[str]:
+    """Validate one editable question without blocking it on other rows.
+
+    A draft may contain an older malformed row.  A manager must still be able
+    to repair one question at a time; the complete ten-question validation is
+    reserved for publication.
+    """
+    errors: list[str] = []
+    text = " ".join(str(question.question_text or "").split()).casefold()
+    if not text:
+        errors.append(f"{position}. final sorusunun metni boş olamaz.")
+    try:
+        parsed_options = json.loads(question.options_json or "{}")
+    except (TypeError, json.JSONDecodeError):
+        parsed_options = {}
+    options = parsed_options if isinstance(parsed_options, dict) else {}
+    if set(options) != {"A", "B", "C", "D"} or any(
+        not str(options.get(letter) or "").strip()
+        for letter in ("A", "B", "C", "D")
+    ):
+        errors.append(f"{position}. final soruda A, B, C ve D seçenekleri eksiksiz olmalıdır.")
+    elif len(
+        {
+            str(options[letter]).strip().casefold()
+            for letter in ("A", "B", "C", "D")
+        }
+    ) != 4:
+        errors.append(f"{position}. final sorunun seçenekleri birbirinden farklı olmalıdır.")
+    if str(question.correct_option or "").upper() not in {"A", "B", "C", "D"}:
+        errors.append(f"{position}. final sorunun doğru seçeneği geçersiz.")
+    return errors
+
+
 def _automatic_final_exam_validation(
     questions: list[RemoteTrainingQuestion],
 ) -> list[str]:
-    """Validate the frozen catalog exam before it can be published.
+    """Validate the complete frozen catalog exam before publication.
 
     The source pack is curated, but the manager may edit wording and options
     while the program is still a draft.  Publishing therefore re-validates the
@@ -307,31 +342,12 @@ def _automatic_final_exam_validation(
         )
     seen_texts: set[str] = set()
     for position, question in enumerate(questions, start=1):
+        errors.extend(_automatic_final_exam_question_validation(question, position))
         text = " ".join(str(question.question_text or "").split()).casefold()
-        if not text:
-            errors.append(f"{position}. final sorusunun metni boş olamaz.")
-        elif text in seen_texts:
+        if text and text in seen_texts:
             errors.append(f"{position}. final sorusu başka bir soruyla aynı.")
-        else:
+        elif text:
             seen_texts.add(text)
-        try:
-            options = json.loads(question.options_json or "{}")
-        except (TypeError, json.JSONDecodeError):
-            options = {}
-        if set(options) != {"A", "B", "C", "D"} or any(
-            not str(options.get(letter) or "").strip()
-            for letter in ("A", "B", "C", "D")
-        ):
-            errors.append(f"{position}. final soruda A, B, C ve D seçenekleri eksiksiz olmalıdır.")
-        elif len(
-            {
-                str(options[letter]).strip().casefold()
-                for letter in ("A", "B", "C", "D")
-            }
-        ) != 4:
-            errors.append(f"{position}. final sorunun seçenekleri birbirinden farklı olmalıdır.")
-        if str(question.correct_option or "").upper() not in {"A", "B", "C", "D"}:
-            errors.append(f"{position}. final sorunun doğru seçeneği geçersiz.")
     return errors
 
 
@@ -2926,7 +2942,11 @@ def update_remote_final_exam_question(
     question.options_json = json.dumps(payload.options, ensure_ascii=False, sort_keys=True)
     question.correct_option = payload.correct_option
     question.explanation = payload.explanation.strip() if payload.explanation else None
-    validation_errors = _automatic_final_exam_validation(questions)
+    question_position = next(
+        (index for index, row in enumerate(questions, start=1) if row.id == question_id),
+        1,
+    )
+    validation_errors = _automatic_final_exam_question_validation(question, question_position)
     if validation_errors:
         for key, value in original.items():
             setattr(question, key, value)
