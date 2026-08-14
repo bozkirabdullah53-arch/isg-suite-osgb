@@ -7,7 +7,7 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = "0095_repair_existing_catalog_scope"
+revision: str = "0095_catalog_scope_repair"
 down_revision: Union[str, None] = "0094_repair_catalog_sector2"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
