@@ -1127,6 +1127,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   const [uploadingVideoId, setUploadingVideoId] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [assignmentNotice, setAssignmentNotice] = useState(null);
   const [report, setReport] = useState(null);
   const [sectorScope, setSectorScope] = useState(null);
   const [selectedSectorCodes, setSelectedSectorCodes] = useState([]);
@@ -1216,6 +1217,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     if (!id) return;
     const row = await api(`/trainings/remote/programs/${Number(id)}`);
     setProgram(row);
+    setAssignmentNotice(null);
     setAutomaticExamQuestions(row.automatic_final_exam?.questions || []);
     setBranchId(row.branch_id ? String(row.branch_id) : '');
     onBranchChange?.(row.branch_id ? String(row.branch_id) : '');
@@ -1407,18 +1409,34 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   }
 
   async function assign() {
-    if (!program || !selectedEmployees.length) return setError('En az bir çalışan seçin.');
-    setBusy(true); setError('');
+    if (!program || !selectedEmployees.length) {
+      const text = 'En az bir çalışan seçin.';
+      setAssignmentNotice({kind: 'error', text});
+      setError(text);
+      return;
+    }
+    setBusy(true); setError(''); setAssignmentNotice(null);
     try {
       const out = await api(`/trainings/remote/programs/${program.id}/assign`, {method: 'POST', body: JSON.stringify({employee_ids: selectedEmployees.map(Number), branch_id: branchId ? Number(branchId) : null, due_date: assignmentDueDate || null})});
-      setMessage(`${out.created_count || 0} çalışan atandı; ${out.skipped_employee_ids?.length || 0} mevcut atama korundu.`);
+      const createdCount = Number(out.created_count) || 0;
+      const skippedCount = Array.isArray(out.skipped_employee_ids) ? out.skipped_employee_ids.length : 0;
+      const text = createdCount === 0 && skippedCount > 0
+        ? `Seçilen ${skippedCount} çalışanın mevcut ataması zaten vardı; yeni kayıt oluşturulmadı.`
+        : `${createdCount} çalışana eğitim ve sınav atandı${skippedCount ? `; ${skippedCount} mevcut atama korundu` : ''}.`;
+      setAssignmentNotice({kind: 'success', text});
+      setMessage(text);
       setSelectedEmployees([]);
       setAssignmentDueDate('');
-    } catch (err) { setError(err.message || 'Çalışan ataması yapılamadı.'); } finally { setBusy(false); }
+    } catch (err) {
+      const text = err.message || 'Çalışan ataması yapılamadı.';
+      setAssignmentNotice({kind: 'error', text});
+      setError(text);
+    } finally { setBusy(false); }
   }
 
   function toggleEmployee(employeeId) {
     const id = Number(employeeId);
+    setAssignmentNotice(null);
     setSelectedEmployees((current) => current.includes(id)
       ? current.filter((item) => item !== id)
       : [...current, id]);
@@ -1700,8 +1718,8 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                 <label style={{display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 4, color: '#36556d', fontSize: 13}}>Eğitim son tarihi <input type="date" value={assignmentDueDate} onChange={(event) => setAssignmentDueDate(event.target.value)} aria-label="Eğitim son tarihi" /><span style={{fontSize: 12, color: '#5e7485'}}>Boş bırakırsanız son tarih belirlenmez.</span></label>
                 <div className="remote-training-employee-picker-toolbar">
                   <span><strong>{selectedEmployees.length}</strong> personel seçildi{branchId ? ` · ${visibleEmployees.length} kişi bu işyerinde` : ''}</span>
-                  <button type="button" onClick={() => setSelectedEmployees(visibleEmployees.map((row) => Number(row.id)))} disabled={busy || !visibleEmployees.length}>Listedeki hepsini seç</button>
-                  <button type="button" onClick={() => setSelectedEmployees([])} disabled={busy || !selectedEmployees.length}>Seçimi temizle</button>
+                  <button type="button" onClick={() => { setAssignmentNotice(null); setSelectedEmployees(visibleEmployees.map((row) => Number(row.id))); }} disabled={busy || !visibleEmployees.length}>Listedeki hepsini seç</button>
+                  <button type="button" onClick={() => { setAssignmentNotice(null); setSelectedEmployees([]); }} disabled={busy || !selectedEmployees.length}>Seçimi temizle</button>
                 </div>
                 <div className="remote-training-employee-picker" role="group" aria-label="Eğitim ve sınav atanacak personeller">
                   {visibleEmployees.map((row) => <label className="remote-training-employee-option" key={row.id}>
@@ -1710,6 +1728,10 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                   </label>)}
                   {!visibleEmployees.length && <span className="remote-training-employee-empty">{branchId ? 'Seçilen işyerinde aktif personel bulunamadı.' : 'Bu firmada aktif personel bulunamadı.'}</span>}
                 </div>
+                {assignmentNotice && <div role={assignmentNotice.kind === 'error' ? 'alert' : 'status'} aria-live="polite" style={{marginTop: 10, padding: '10px 12px', borderRadius: 8, background: assignmentNotice.kind === 'error' ? '#fff1f0' : '#ecfdf5', color: assignmentNotice.kind === 'error' ? '#b42318' : '#087443', border: `1px solid ${assignmentNotice.kind === 'error' ? '#e39b93' : '#9bd5b1'}`, fontSize: 13, fontWeight: 600}}>
+                  <strong>{assignmentNotice.kind === 'error' ? 'Atama yapılamadı:' : 'Atama onayı:'}</strong> {assignmentNotice.text}
+                </div>}
+                {!assignmentNotice && !selectedEmployees.length && <div style={{marginTop: 10, color: '#795500', fontSize: 12}}>Atama için önce listeden en az bir personelin kutusunu işaretleyin.</div>}
                 <button type="button" onClick={assign} disabled={busy || !selectedEmployees.length} style={{marginTop: 10}}>Seçilen personele eğitim ve sınav ata</button>
               </div>
             </>
