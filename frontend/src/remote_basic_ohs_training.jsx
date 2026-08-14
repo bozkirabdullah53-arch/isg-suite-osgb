@@ -683,7 +683,18 @@ function EmployeePanel() {
                     }}
                     onLoadedMetadata={(event) => {
                       const saved = Number(currentProgress?.last_position_seconds || 0);
-                      if (saved > 0 && saved < event.currentTarget.duration - 1) event.currentTarget.currentTime = saved;
+                      if (saved > 0 && saved < event.currentTarget.duration - 1) {
+                        event.currentTarget.currentTime = saved;
+                      } else if (
+                        currentProgress?.status !== 'completed'
+                        && saved >= event.currentTarget.duration - 8
+                        && saved < event.currentTarget.duration + 2
+                      ) {
+                        // Recover old mobile records that reached the end but
+                        // missed the final ``ended`` request. The next play
+                        // emits a real ended event without replaying the file.
+                        event.currentTarget.currentTime = Math.max(0, event.currentTarget.duration - 0.05);
+                      }
                     }}
                   />
                   <div style={{fontSize: 12, color: '#5e7485', marginTop: 8}}>Kaldığınız yer: {Math.round(currentProgress?.last_position_seconds || 0)} sn · Eşik: {completionThresholdPercent}%</div>
