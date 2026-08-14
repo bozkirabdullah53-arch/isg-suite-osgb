@@ -1,1 +1,46 @@
-aW1wb3J0IHtkZXNjcmliZSwgZXhwZWN0LCBpdH0gZnJvbSAndml0ZXN0JzsKaW1wb3J0IHsKICBlbXBsb3llZUFzc2lnbm1lbnRUaW1lbGluZSwKICBmb3JtYXRFbXBsb3llZURhdGUsCiAgc29ydEVtcGxveWVlQXNzaWdubWVudHMsCn0gZnJvbSAnLi9yZW1vdGVfYmFzaWNfb2hzX3RyYWluaW5nLmpzeCc7Cgpjb25zdCB0b2RheSA9IG5ldyBEYXRlKDIwMjYsIDcsIDE0LCAxMiwgMCwgMCk7CgpkZXNjcmliZSgnZW1wbG95ZWUgdHJhaW5pbmcgYXNzaWdubWVudCBvdmVydmlldycsICgpID0+IHsKICBpdCgna2VlcHMgZnV0dXJlLCBkdWUtdG9kYXksIG92ZXJkdWUsIGFuZCBjb21wbGV0ZWQgYXNzaWdubWVudHMgZGlzdGluZ3Vpc2hhYmxlJywgKCkgPT4gewogICAgZXhwZWN0KGVtcGxveWVlQXNzaWdubWVudFRpbWVsaW5lKHtkdWVfZGF0ZTogJzIwMjYtMDgtMTUnfSwgdG9kYXkpKS50b01hdGNoT2JqZWN0KHsKICAgICAga2V5OiAndXBjb21pbmcnLAogICAgICBsYWJlbDogJ1lha2xhxZ9hbicsCiAgICB9KTsKICAgIGV4cGVjdChlbXBsb3llZUFzc2lnbm1lbnRUaW1lbGluZSh7ZHVlX2RhdGU6ICcyMDI2LTA4LTE0J30sIHRvZGF5KSkudG9NYXRjaE9iamVjdCh7CiAgICAgIGtleTogJ2R1ZScsCiAgICAgIGxhYmVsOiAnU8O8cmVzaSBidWfDvG4nLAogICAgfSk7CiAgICBleHBlY3QoZW1wbG95ZWVBc3NpZ25tZW50VGltZWxpbmUoe2R1ZV9kYXRlOiAnMjAyNi0wOC0xMyd9LCB0b2RheSkpLnRvTWF0Y2hPYmplY3QoewogICAgICBrZXk6ICdvdmVyZHVlJywKICAgICAgbGFiZWw6ICdTw7xyZXNpIGdlw6dtacWfJywKICAgIH0pOwogICAgZXhwZWN0KGVtcGxveWVlQXNzaWdubWVudFRpbWVsaW5lKHtzdGF0dXM6ICdjb21wbGV0ZWQnLCBkdWVfZGF0ZTogJzIwMjYtMDgtMDEnfSwgdG9kYXkpKS50b01hdGNoT2JqZWN0KHsKICAgICAga2V5OiAnY29tcGxldGVkJywKICAgICAgbGFiZWw6ICdUYW1hbWxhbmTEsScsCiAgICB9KTsKICB9KTsKCiAgaXQoJ29yZGVycyBhbGwgYXNzaWdubWVudHMgd2l0aG91dCBkcm9wcGluZyBoaXN0b3JpY2FsIHJlY29yZHMnLCAoKSA9PiB7CiAgICBjb25zdCByb3dzID0gWwogICAgICB7aWQ6IDEsIGR1ZV9kYXRlOiAnMjAyNi0wOC0yMCcsIGFzc2lnbmVkX2F0OiAnMjAyNi0wOC0wMVQxMDowMDowMFonfSwKICAgICAge2lkOiAyLCBkdWVfZGF0ZTogJzIwMjYtMDgtMTMnLCBhc3NpZ25lZF9hdDogJzIwMjYtMDgtMDJUMTA6MDA6MDBaJ30sCiAgICAgIHtpZDogMywgc3RhdHVzOiAnY29tcGxldGVkJywgZHVlX2RhdGU6ICcyMDI2LTA3LTAxJywgYXNzaWduZWRfYXQ6ICcyMDI2LTA4LTAzVDEwOjAwOjAwWid9LAogICAgICB7aWQ6IDQsIGR1ZV9kYXRlOiAnMjAyNi0wOC0xNCcsIGFzc2lnbmVkX2F0OiAnMjAyNi0wOC0wNFQxMDowMDowMFonfSwKICAgIF07CgogICAgZXhwZWN0KHNvcnRFbXBsb3llZUFzc2lnbm1lbnRzKHJvd3MsIHRvZGF5KS5tYXAoKHJvdykgPT4gcm93LmlkKSkudG9FcXVhbChbMiwgNCwgMSwgM10pOwogICAgZXhwZWN0KHNvcnRFbXBsb3llZUFzc2lnbm1lbnRzKHJvd3MsIHRvZGF5KSkudG9IYXZlTGVuZ3RoKDQpOwogIH0pOwoKICBpdCgnZm9ybWF0cyBhc3NpZ25tZW50IGRhdGVzIHVzaW5nIFR1cmtpc2ggZGF0ZSBvcmRlcicsICgpID0+IHsKICAgIGV4cGVjdChmb3JtYXRFbXBsb3llZURhdGUoJzIwMjYtMDgtMTQnKSkudG9CZSgnMTQuMDguMjAyNicpOwogICAgZXhwZWN0KGZvcm1hdEVtcGxveWVlRGF0ZShudWxsKSkudG9CZSgnQmVsaXJsZW5tZWRpJyk7CiAgfSk7Cn0pOwo=
+import {describe, expect, it} from 'vitest';
+import {
+  employeeAssignmentTimeline,
+  formatEmployeeDate,
+  sortEmployeeAssignments,
+} from './remote_basic_ohs_training.jsx';
+
+const today = new Date(2026, 7, 14, 12, 0, 0);
+
+describe('employee training assignment overview', () => {
+  it('keeps future, due-today, overdue, and completed assignments distinguishable', () => {
+    expect(employeeAssignmentTimeline({due_date: '2026-08-15'}, today)).toMatchObject({
+      key: 'upcoming',
+      label: 'Yaklaşan',
+    });
+    expect(employeeAssignmentTimeline({due_date: '2026-08-14'}, today)).toMatchObject({
+      key: 'due',
+      label: 'Süresi bugün',
+    });
+    expect(employeeAssignmentTimeline({due_date: '2026-08-13'}, today)).toMatchObject({
+      key: 'overdue',
+      label: 'Süresi geçmiş',
+    });
+    expect(employeeAssignmentTimeline({status: 'completed', due_date: '2026-08-01'}, today)).toMatchObject({
+      key: 'completed',
+      label: 'Tamamlandı',
+    });
+  });
+
+  it('orders all assignments without dropping historical records', () => {
+    const rows = [
+      {id: 1, due_date: '2026-08-20', assigned_at: '2026-08-01T10:00:00Z'},
+      {id: 2, due_date: '2026-08-13', assigned_at: '2026-08-02T10:00:00Z'},
+      {id: 3, status: 'completed', due_date: '2026-07-01', assigned_at: '2026-08-03T10:00:00Z'},
+      {id: 4, due_date: '2026-08-14', assigned_at: '2026-08-04T10:00:00Z'},
+    ];
+
+    expect(sortEmployeeAssignments(rows, today).map((row) => row.id)).toEqual([2, 4, 1, 3]);
+    expect(sortEmployeeAssignments(rows, today)).toHaveLength(4);
+  });
+
+  it('formats assignment dates using Turkish date order', () => {
+    expect(formatEmployeeDate('2026-08-14')).toBe('14.08.2026');
+    expect(formatEmployeeDate(null)).toBe('Belirlenmedi');
+  });
+});
