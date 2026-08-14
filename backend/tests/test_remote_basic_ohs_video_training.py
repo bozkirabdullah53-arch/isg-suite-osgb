@@ -1016,10 +1016,11 @@ def test_remote_catalog_packages_are_firm_independent(remote_client, monkeypatch
     assert "firma bazlı dağıtım" in blocked_materialization.json()["detail"]
 
 
-def test_remote_catalog_video_upload_and_draft_delete(remote_client, monkeypatch):
+def test_remote_catalog_published_package_accepts_additive_video_and_section(remote_client, monkeypatch):
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
     from app.models.entities import Company, OsgbOrganization, User, UserRole
+    from app.models.remote_training import RemoteTrainingCatalogPackage, RemoteTrainingCatalogVideo
 
     class FakeStore:
         def __init__(self):
@@ -1068,26 +1069,63 @@ def test_remote_catalog_video_upload_and_draft_delete(remote_client, monkeypatch
     headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
     packages = remote_client.get("/api/v1/trainings/remote/catalog/packages", headers=headers).json()
     package = next(row for row in packages if row["code"] == "battery-production-ohs")
-    detail = remote_client.get(f"/api/v1/trainings/remote/catalog/packages/{package['id']}", headers=headers).json()
-    section_id = next(row["id"] for row in detail["sections"] if row["code"] == "AKÜ-05")
+    with SessionLocal() as db:
+        package_row = db.get(RemoteTrainingCatalogPackage, package["id"])
+        package_row.status = "published"
+        package_row.revision_no = 4
+        db.commit()
+
+    added_section = remote_client.post(
+        f"/api/v1/trainings/remote/catalog/packages/{package['id']}/sections",
+        headers=headers,
+        json={"code": "AKÜ-TEST", "title": "Akü ilave test bölümü"},
+    )
+    assert added_section.status_code == 201, added_section.text
+    section_id = added_section.json()["id"]
     valid_mp4 = b"\x00\x00\x00\x18ftypisom" + b"\x00" * 16
 
     uploaded = remote_client.post(
         f"/api/v1/trainings/remote/catalog/sections/{section_id}/videos",
         headers=headers,
-        data={"title": "AKÜ-05 test videosu"},
-        files={"file": ("aku-05.mp4", valid_mp4, "video/mp4")},
+        data={"title": "AKÜ-TEST yeni videosu"},
+        files={"file": ("aku-test.mp4", valid_mp4, "video/mp4")},
     )
     assert uploaded.status_code == 201, uploaded.text
     row = uploaded.json()
     assert row["status"] == "uploading"
     assert row["package_id"] == package["id"]
+    assert row["revision_of_id"] is None
     assert store.puts and store.puts[0][0].startswith("remote-basic-ohs/catalog/")
 
-    deleted = remote_client.delete(f"/api/v1/trainings/remote/catalog/videos/{row['id']}", headers=headers)
+    with SessionLocal() as db:
+        catalog_video = db.get(RemoteTrainingCatalogVideo, row["id"])
+        catalog_video.status = "ready_for_review"
+        catalog_video.duration_seconds = 30
+        db.commit()
+
+    published = remote_client.post(
+        f"/api/v1/trainings/remote/catalog/videos/{row['id']}/publish",
+        headers=headers,
+    )
+    assert published.status_code == 200, published.text
+    assert published.json()["status"] == "published"
+
+    with SessionLocal() as db:
+        package_row = db.get(RemoteTrainingCatalogPackage, package["id"])
+        assert package_row.revision_no == 5
+
+    second_upload = remote_client.post(
+        f"/api/v1/trainings/remote/catalog/sections/{section_id}/videos",
+        headers=headers,
+        data={"title": "AKÜ-TEST silinecek taslak"},
+        files={"file": ("aku-test-2.mp4", valid_mp4, "video/mp4")},
+    )
+    assert second_upload.status_code == 201, second_upload.text
+    second_row = second_upload.json()
+    deleted = remote_client.delete(f"/api/v1/trainings/remote/catalog/videos/{second_row['id']}", headers=headers)
     assert deleted.status_code == 200, deleted.text
     assert deleted.json()["deleted"] is True
-    assert store.deleted == [store.puts[0][0]]
+    assert store.deleted == [store.puts[1][0]]
 
 
 def test_remote_employee_account_onboarding_mapping(remote_client):
@@ -1351,14 +1389,22 @@ def test_remote_published_video_can_be_revised_without_losing_history(remote_cli
     headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
     upload_url = f"/api/v1/trainings/remote/sections/{section_id}/videos"
 
-    blocked_fresh_upload = remote_client.post(
+    additive_upload = remote_client.post(
         upload_url,
         headers=headers,
-        data={"title": "Yanlış yeni ana video"},
-        files={"file": ("yanlis.mp4", valid_mp4, "video/mp4")},
+        data={"title": "Yeni ana video"},
+        files={"file": ("yeni.mp4", valid_mp4, "video/mp4")},
     )
-    assert blocked_fresh_upload.status_code == 409, blocked_fresh_upload.text
-    assert "Yeni sürüm" in blocked_fresh_upload.json()["detail"]
+    assert additive_upload.status_code == 201, additive_upload.text
+    additive = additive_upload.json()
+    assert additive["revision_of_id"] is None
+    additive_storage_key = store.puts[0][0]
+    deleted_additive = remote_client.delete(
+        f"/api/v1/trainings/remote/videos/{additive['id']}",
+        headers=headers,
+    )
+    assert deleted_additive.status_code == 200, deleted_additive.text
+    assert store.deleted == [additive_storage_key]
 
     revision_response = remote_client.post(
         upload_url,
@@ -1374,7 +1420,7 @@ def test_remote_published_video_can_be_revised_without_losing_history(remote_cli
     assert revision["status"] == "uploading"
     assert revision["processing_job_id"] == "job-revision"
     revision_id = revision["id"]
-    revision_storage_key = store.puts[0][0]
+    revision_storage_key = store.puts[1][0]
 
     updated = remote_client.patch(
         f"/api/v1/trainings/remote/videos/{revision_id}",
@@ -1392,8 +1438,8 @@ def test_remote_published_video_can_be_revised_without_losing_history(remote_cli
 
     deleted = remote_client.delete(f"/api/v1/trainings/remote/videos/{revision_id}", headers=headers)
     assert deleted.status_code == 200, deleted.text
-    assert store.deleted == [revision_storage_key]
-    assert store.puts and store.puts[0][0] == revision_storage_key
+    assert store.deleted == [additive_storage_key, revision_storage_key]
+    assert store.puts and store.puts[1][0] == revision_storage_key
 
     with SessionLocal() as db:
         assert db.get(RemoteTrainingVideo, revision_id) is None
