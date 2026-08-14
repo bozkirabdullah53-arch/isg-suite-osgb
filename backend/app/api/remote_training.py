@@ -1271,8 +1271,8 @@ def create_catalog_section(
     user: User = Depends(get_current_user),
 ):
     package = _catalog_package_for_manager(db, user, package_id)
-    if package.status in {"published", "archived"}:
-        raise HTTPException(409, "Yayımlanmış/arşivlenmiş pakete bölüm eklenemez.")
+    if package.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş pakete bölüm eklenemez.")
     order = payload.order_index
     if order is None:
         order = (
@@ -1350,8 +1350,9 @@ async def upload_catalog_video(
     package = _catalog_package_for_manager(db, user, section.package_id)
     if package.status == "archived" or section.status == "archived":
         raise HTTPException(409, "Arşivlenmiş pakete veya bölüme video yüklenemez.")
-    if package.status == "published" and revision_of_id is None:
-        raise HTTPException(409, "Yayımlanmış pakette mevcut videonun yanındaki yeni sürüm işlemini kullanın.")
+    # Published packages accept additive uploads. Replacing an existing
+    # published video still goes through revision_of_id below so the
+    # historical/current-video boundary remains intact.
     original_name = Path(file.filename or "video").name
     extension = Path(original_name).suffix.lower()
     max_bytes = max(1, int(settings.remote_basic_ohs_video_max_upload_mb)) * 1024 * 1024
@@ -1451,8 +1452,7 @@ def delete_catalog_video(
         raise HTTPException(409, "Arşivlenmiş pakete ait video silinemez.")
     if video.status in {"published", "unpublished", "archived"}:
         raise HTTPException(409, "Yayımlanmış veya tarihsel video silinemez; yeni sürüm yükleyin.")
-    if package.status == "published" and video.revision_of_id is None:
-        raise HTTPException(409, "Yayımlanmış pakette yalnızca yeni sürüm adayı silinebilir.")
+
     key = video.storage_key
     db.delete(video)
     db.flush()
@@ -1481,22 +1481,28 @@ def publish_catalog_video(
     package = _catalog_package_for_manager(db, user, video.package_id)
     if package.status == "archived":
         raise HTTPException(409, "Arşivlenmiş pakete video yayımlanamaz.")
-    current = db.scalars(
-        select(RemoteTrainingCatalogVideo).where(
-            RemoteTrainingCatalogVideo.package_id == video.package_id,
-            RemoteTrainingCatalogVideo.section_id == video.section_id,
-            RemoteTrainingCatalogVideo.is_current.is_(True),
-            RemoteTrainingCatalogVideo.id != video.id,
-            RemoteTrainingCatalogVideo.status == "published",
-        )
-    ).all()
-    for old in current:
-        old.is_current = False
-        old.status = "unpublished"
+    if video.revision_of_id is not None:
+        current = db.scalars(
+            select(RemoteTrainingCatalogVideo).where(
+                RemoteTrainingCatalogVideo.package_id == video.package_id,
+                RemoteTrainingCatalogVideo.section_id == video.section_id,
+                RemoteTrainingCatalogVideo.is_current.is_(True),
+                RemoteTrainingCatalogVideo.id != video.id,
+                RemoteTrainingCatalogVideo.status == "published",
+            )
+        ).all()
+        for old in current:
+            old.is_current = False
+            old.status = "unpublished"
     video.is_current = True
     video.status = "published"
     video.published_at = datetime.utcnow()
     recalculate_catalog_package_duration(db, video.package_id)
+    # A published catalog is immutable for existing company snapshots, but
+    # every newly published addition/revision must create a new snapshot
+    # revision for future company preparations.
+    if package.status == "published":
+        package.revision_no += 1
     _commit(db, "Merkezi video yayımlanamadı.")
     return _catalog_video_output(video)
 
@@ -1508,11 +1514,14 @@ def unpublish_catalog_video(
     user: User = Depends(get_current_user),
 ):
     video = _catalog_video_for_manager(db, user, video_id)
+    package = _catalog_package_for_manager(db, user, video.package_id)
     if video.status == "archived":
         raise HTTPException(409, "Arşivlenmiş video yayımdan kaldırılamaz.")
     video.status = "unpublished"
     video.published_at = None
     recalculate_catalog_package_duration(db, video.package_id)
+    if package.status == "published":
+        package.revision_no += 1
     _commit(db, "Merkezi video yayımdan kaldırılamadı.")
     return _catalog_video_output(video)
 
@@ -1524,10 +1533,13 @@ def archive_catalog_video(
     user: User = Depends(get_current_user),
 ):
     video = _catalog_video_for_manager(db, user, video_id)
+    package = _catalog_package_for_manager(db, user, video.package_id)
     video.status = "archived"
     video.is_current = False
     video.archived_at = datetime.utcnow()
     recalculate_catalog_package_duration(db, video.package_id)
+    if package.status == "published":
+        package.revision_no += 1
     _commit(db, "Merkezi video arşivlenemedi.")
     return _catalog_video_output(video)
 
@@ -1955,8 +1967,20 @@ def create_remote_section(
     user: User = Depends(get_current_user),
 ):
     program = _assert_program_manager(db, user, program_id)
-    if program.status in {"published", "archived"}:
-        raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitime bölüm eklenemez.")
+    if program.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş eğitime bölüm eklenemez.")
+    if program.status == "published":
+        assignment_count = db.scalar(
+            select(func.count(RemoteTrainingAssignment.id)).where(
+                RemoteTrainingAssignment.program_id == program.id
+            )
+        ) or 0
+        if assignment_count:
+            raise HTTPException(
+                409,
+                "Atama yapılmış yayımlanmış eğitimde yeni bölüm eklenemez; mevcut çalışan kayıtları korunmalıdır. "
+                "Merkezi katalogda ekleyip yeni firma sürümü hazırlayın.",
+            )
     order = payload.order_index
     if order is None:
         order = (db.scalar(select(func.max(RemoteTrainingSection.order_index)).where(RemoteTrainingSection.program_id == program.id)) or 0) + 1
@@ -2058,10 +2082,17 @@ async def upload_remote_video(
     if program.status == "archived":
         raise HTTPException(409, "Arşivlenmiş eğitime video yüklenemez.")
     if program.status == "published" and revision_of_id is None:
-        raise HTTPException(
-            409,
-            "Yayımlanmış eğitimde mevcut videonun yanındaki 'Yeni sürüm yükle' işlemi kullanılmalıdır.",
-        )
+        assignment_count = db.scalar(
+            select(func.count(RemoteTrainingAssignment.id)).where(
+                RemoteTrainingAssignment.program_id == program.id
+            )
+        ) or 0
+        if assignment_count:
+            raise HTTPException(
+                409,
+                "Atama yapılmış yayımlanmış eğitimde yeni video eklenemez; mevcut çalışan kayıtları korunmalıdır. "
+                "Merkezi katalogda ekleyip yeni firma sürümü hazırlayın.",
+            )
     original_name = Path(file.filename or "video").name
     extension = Path(original_name).suffix.lower()
     max_bytes = max(1, int(settings.remote_basic_ohs_video_max_upload_mb)) * 1024 * 1024
@@ -2149,7 +2180,16 @@ def update_remote_video(
     if program.status == "archived" or video.status in {"published", "unpublished", "archived"}:
         raise HTTPException(409, "Arşivlenmiş veya tarihsel video değiştirilemez; güncelleme için yeni sürüm oluşturun.")
     if program.status == "published" and video.revision_of_id is None:
-        raise HTTPException(409, "Yayımlanmış video doğrudan değiştirilemez; yanındaki yeni sürüm işlemini kullanın.")
+        assignment_count = db.scalar(
+            select(func.count(RemoteTrainingAssignment.id)).where(
+                RemoteTrainingAssignment.program_id == program.id
+            )
+        ) or 0
+        if assignment_count:
+            raise HTTPException(
+                409,
+                "Atama yapılmış yayımlanmış eğitimde yeni video bilgisi değiştirilemez; mevcut çalışan kayıtları korunmalıdır.",
+            )
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(video, key, value.strip() if isinstance(value, str) else value)
     audit(db, company_id=video.company_id, user=user, action="video_updated", entity_type="video", entity_id=video.id)
@@ -2171,7 +2211,16 @@ def delete_remote_video(
     if video.status in {"published", "unpublished", "archived"}:
         raise HTTPException(409, "Yayımlanmış veya tarihsel video silinemez; yeni video revizyonu oluşturun.")
     if program.status == "published" and video.revision_of_id is None:
-        raise HTTPException(409, "Yayımlanmış eğitimde yalnızca yeni sürüm adayı silinebilir.")
+        assignment_count = db.scalar(
+            select(func.count(RemoteTrainingAssignment.id)).where(
+                RemoteTrainingAssignment.program_id == program.id
+            )
+        ) or 0
+        if assignment_count:
+            raise HTTPException(
+                409,
+                "Atama yapılmış yayımlanmış eğitimde yeni video silinemez; mevcut çalışan kayıtları korunmalıdır.",
+            )
 
     program_id = video.program_id
     storage_key = video.storage_key
@@ -2219,18 +2268,19 @@ def publish_remote_video(
     program = load_program(db, video.program_id)
     if program.status == "archived":
         raise HTTPException(409, "Arşivlenmiş programa video yayımlanamaz.")
-    current = db.scalars(
-        select(RemoteTrainingVideo).where(
-            RemoteTrainingVideo.program_id == video.program_id,
-            RemoteTrainingVideo.section_id == video.section_id,
-            RemoteTrainingVideo.is_current.is_(True),
-            RemoteTrainingVideo.id != video.id,
-            RemoteTrainingVideo.status == "published",
-        )
-    ).all()
-    for old in current:
-        old.is_current = False
-        old.status = "unpublished"
+    if video.revision_of_id is not None:
+        current = db.scalars(
+            select(RemoteTrainingVideo).where(
+                RemoteTrainingVideo.program_id == video.program_id,
+                RemoteTrainingVideo.section_id == video.section_id,
+                RemoteTrainingVideo.is_current.is_(True),
+                RemoteTrainingVideo.id != video.id,
+                RemoteTrainingVideo.status == "published",
+            )
+        ).all()
+        for old in current:
+            old.is_current = False
+            old.status = "unpublished"
     video.is_current = True
     video.status = "published"
     video.published_at = datetime.utcnow()
