@@ -1049,7 +1049,7 @@ def test_catalog_program_scope_is_fixed_to_its_package_sector():
         RemoteTrainingProgram,
         RemoteTrainingProgramSector,
     )
-    from app.services.remote_training import build_program_sector_catalog
+    from app.services.remote_training import build_program_sector_catalog, program_sector_codes
 
     engine = _db()
     with Session(engine) as db:
@@ -1073,6 +1073,8 @@ def test_catalog_program_scope_is_fixed_to_its_package_sector():
         )
         db.add(program)
         db.flush()
+        # Older snapshots can retain the code while the package FK is absent.
+        program.source_catalog_package_id = None
         # Simulate the old broken snapshot: common and battery were both
         # selected even though the copied sections are battery-specific.
         db.add_all(
@@ -1093,8 +1095,12 @@ def test_catalog_program_scope_is_fixed_to_its_package_sector():
         scope = build_program_sector_catalog(db, program)
         assert scope["catalog_fixed"] is True
         assert scope["catalog_sector_code"] == "battery"
+        assert scope["selected_sector_codes"] == ["battery"]
         assert next(row for row in scope["sectors"] if row["code"] == "battery")["locked"] is True
         assert next(row for row in scope["sectors"] if row["code"] == "common")["locked"] is False
+        assert next(row for row in scope["sectors"] if row["code"] == "battery")["enabled"] is True
+        assert next(row for row in scope["sectors"] if row["code"] == "common")["enabled"] is False
+        assert program_sector_codes(db, program.id) == {"battery"}
 
 
 def test_catalog_program_rejects_mixed_scope_and_wrong_question(remote_client):
