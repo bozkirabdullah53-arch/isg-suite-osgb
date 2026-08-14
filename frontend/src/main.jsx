@@ -132,9 +132,9 @@ const roleModules={
     'annual_plans','documents',
     'security',
   ],
-  // Çalışan hesabı yalnızca kendisine atanmış uzaktan eğitimi görür.
-  // İşyeri Durum Merkezi ve yönetim modülleri çalışan ekranına açılmaz.
-  read_only:['training','notifications','security'],
+  // Çalışan hesabı yalnızca kendisine atanmış uzaktan eğitim ve sınav ekranını görür.
+  // Bildirim, güvenlik, firma/personel ve yönetim modülleri çalışan ekranına açılmaz.
+  read_only:['training'],
 };
 
 /** Yalnız otomatik üretilen işyeri QR kiosk hesabı — diğer company_admin menüsü bozulmaz. */
@@ -159,7 +159,7 @@ const mobilePrimaryByRole={
   safety_specialist:['visits','dashboard','notifications','risk'],
   workplace_physician:['visits','health','prescriptions','employees'],
   other_health_personnel:['visits','health','employees','documents'],
-  read_only:['training','notifications','security'],
+  read_only:['training'],
 };
 
 function mobilePrimaryMenu(menu, role, activeId){
