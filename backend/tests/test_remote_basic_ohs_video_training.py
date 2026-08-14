@@ -114,6 +114,43 @@ def test_catalog_package_sections_keep_their_sector_identity():
     assert catalog_package_sector_code("future-custom-package") == "common"
 
 
+def test_catalog_packages_receive_ten_relevant_automatic_exam_questions():
+    from app.services.remote_training import automatic_exam_items_for_package
+
+    package_codes = (
+        "common-basic-ohs",
+        "construction-ohs",
+        "metal-machine-ohs",
+        "battery-production-ohs",
+        "food-production-ohs",
+        "logistics-warehouse-transport-ohs",
+        "chemical-paint-production-ohs",
+        "open-mine-quarry-aggregate-ohs",
+        "road-asphalt-infrastructure-ohs",
+        "office-general-ohs",
+        "working-at-height-ohs",
+    )
+    for package_code in package_codes:
+        items = automatic_exam_items_for_package(package_code)
+        assert len(items) == 10
+        assert len({item["question_code"] for item in items}) == 10
+        assert len({item["topic_code"] for item in items}) == 10
+        assert all(
+            item["question_text"]
+            and len(item["options"]) == 4
+            and item["correct_option"] in "ABCD"
+            and item["answer_explanation"]
+            and item["sources"]
+            for item in items
+        )
+
+    height_items = automatic_exam_items_for_package("working-at-height-ohs")
+    assert len({item["topic_code"] for item in height_items}) == 10
+
+    with pytest.raises(RuntimeError):
+        automatic_exam_items_for_package("future-custom-package")
+
+
 def test_strict_video_coverage_does_not_double_count_replay():
     from app.services.remote_training import _merge_coverage
 
@@ -215,6 +252,135 @@ def test_remote_assignment_recalculation_requires_real_progress_and_exam():
         second = recalculate_assignment(db, assignment)
         assert second["complete"] is True
         assert assignment.status == "completed"
+
+
+def test_strict_remote_exam_requires_seventy_percent_for_completion():
+    from app.models.remote_training import (
+        RemoteTrainingAssignment,
+        RemoteTrainingExamAttempt,
+        RemoteTrainingProgram,
+        RemoteTrainingQuestion,
+        RemoteTrainingSection,
+        RemoteTrainingVideo,
+        RemoteTrainingVideoProgress,
+    )
+    from app.services.remote_training import recalculate_assignment
+
+    engine = _db()
+    with Session(engine) as db:
+        osgb, company, branch, employee, _user = _scope_rows(db)
+        program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title="Yüksekte Çalışma",
+            completion_threshold_percent=100,
+            passing_score=70,
+            requires_final_exam=True,
+            policy_mode="strict",
+            sequence_enforced=True,
+            exam_gate_enforced=True,
+        )
+        db.add(program)
+        db.flush()
+        section = RemoteTrainingSection(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            sector_code="working_at_height",
+            title="Yüksekte çalışma",
+        )
+        db.add(section)
+        db.flush()
+        video = RemoteTrainingVideo(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            section_id=section.id,
+            title="Yüksekte çalışma videosu",
+            original_file_name="yuksekte.mp4",
+            content_type="video/mp4",
+            storage_key="1/remote-basic-ohs/yuksekte.mp4",
+            duration_seconds=100,
+            status="published",
+            is_current=True,
+        )
+        db.add(video)
+        db.flush()
+        for position in range(1, 11):
+            db.add(
+                RemoteTrainingQuestion(
+                    osgb_id=osgb.id,
+                    company_id=company.id,
+                    program_id=program.id,
+                    sector_code="working_at_height",
+                    question_text=f"Yüksekte çalışma sorusu {position}",
+                    options_json='{"A":"Doğru","B":"Yanlış","C":"Diğer","D":"Belirsiz"}',
+                    correct_option="A",
+                    is_final_exam=True,
+                    order_index=position,
+                )
+            )
+        assignment = RemoteTrainingAssignment(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            branch_id=branch.id,
+            program_id=program.id,
+            employee_id=employee.id,
+            employee_name_snapshot=employee.full_name,
+        )
+        db.add(assignment)
+        db.flush()
+        db.add(
+            RemoteTrainingVideoProgress(
+                company_id=company.id,
+                program_id=program.id,
+                assignment_id=assignment.id,
+                section_id=section.id,
+                video_id=video.id,
+                employee_id=employee.id,
+                last_position_seconds=100,
+                watched_duration_seconds=100,
+                watched_percentage=100,
+                status="completed",
+                completed_at=datetime.utcnow(),
+            )
+        )
+        db.flush()
+        db.add(
+            RemoteTrainingExamAttempt(
+                company_id=company.id,
+                program_id=program.id,
+                assignment_id=assignment.id,
+                employee_id=employee.id,
+                attempt_no=1,
+                question_ids_json="[1,2,3,4,5,6,7,8,9,10]",
+                answers_json="{}",
+                score=69,
+                passed=False,
+            )
+        )
+        db.flush()
+        failed = recalculate_assignment(db, assignment)
+        assert failed["exam_passed"] is False
+        assert failed["complete"] is False
+
+        db.add(
+            RemoteTrainingExamAttempt(
+                company_id=company.id,
+                program_id=program.id,
+                assignment_id=assignment.id,
+                employee_id=employee.id,
+                attempt_no=2,
+                question_ids_json="[1,2,3,4,5,6,7,8,9,10]",
+                answers_json="{}",
+                score=70,
+                passed=True,
+            )
+        )
+        db.flush()
+        passed = recalculate_assignment(db, assignment)
+        assert passed["exam_passed"] is True
+        assert passed["complete"] is True
 
 
 def test_remote_assignment_sector_snapshot_limits_required_content():

@@ -746,6 +746,9 @@ class RemoteTrainingQuestion(Base):
     timestamp_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     order_index: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     is_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Catalog-derived programs receive ten approved, immutable final-exam
+    # snapshots here.  Existing rows remain video/checkpoint questions.
+    is_final_exam: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     created_by_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

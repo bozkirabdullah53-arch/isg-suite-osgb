@@ -138,6 +138,30 @@ class RemoteCheckpointQuestionCreate(RemoteModel):
         return value.upper()
 
 
+class RemoteFinalExamQuestionUpdate(RemoteModel):
+    """Edit one catalog-derived final question before program publication."""
+
+    question_text: str = Field(min_length=3, max_length=3000)
+    options: dict[str, str]
+    correct_option: str = Field(pattern=r"^[A-Da-d]$")
+    explanation: str | None = Field(default=None, max_length=3000)
+
+    @field_validator("options")
+    @classmethod
+    def validate_options(cls, value: dict[str, str]) -> dict[str, str]:
+        clean = {str(key).upper(): str(text).strip() for key, text in value.items()}
+        if set(clean) != {"A", "B", "C", "D"} or any(not text for text in clean.values()):
+            raise ValueError("Soru seçenekleri tam olarak A, B, C ve D olmalıdır.")
+        if len({text.casefold() for text in clean.values()}) != 4:
+            raise ValueError("Soru seçenekleri birbirinden farklı olmalıdır.")
+        return clean
+
+    @field_validator("correct_option")
+    @classmethod
+    def normalize_correct_option(cls, value: str) -> str:
+        return value.upper()
+
+
 class RemoteProgramQuestionLink(RemoteModel):
     question_id: int = Field(gt=0)
     position: int = Field(default=1, ge=1)

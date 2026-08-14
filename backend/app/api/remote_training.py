@@ -63,6 +63,7 @@ from app.schemas.remote_training import (
     RemoteEmployeeAccessCreate,
     RemoteEmployeeAccountProvision,
     RemoteExamSubmit,
+    RemoteFinalExamQuestionUpdate,
     RemoteProgramCreate,
     RemoteProgramQuestionLink,
     RemoteProgramSectorUpdate,
@@ -76,12 +77,14 @@ from app.services.object_store import get_object_store
 from app.services.osgb_admin import generate_temporary_password
 from app.services.remote_training import (
     MANAGE_ROLES,
+    REMOTE_AUTO_EXAM_QUESTION_COUNT,
     VIEW_ROLES,
     assert_assignment_access,
     assert_program_access,
     assignment_allows_sector,
     assignment_sector_codes,
     audit,
+    automatic_exam_items_for_package,
     build_program_sector_catalog,
     build_certificate_pdf,
     company_snapshot,
@@ -279,6 +282,50 @@ def _question_output(question: RemoteTrainingQuestion, *, reveal_answer: bool) -
     return result
 
 
+def _automatic_final_exam_validation(
+    questions: list[RemoteTrainingQuestion],
+) -> list[str]:
+    """Validate the frozen catalog exam before it can be published.
+
+    The source pack is curated, but the manager may edit wording and options
+    while the program is still a draft.  Publishing therefore re-validates the
+    complete set on the server instead of trusting the browser.
+    """
+    errors: list[str] = []
+    if len(questions) != REMOTE_AUTO_EXAM_QUESTION_COUNT:
+        errors.append(
+            f"Final sınavı tam olarak {REMOTE_AUTO_EXAM_QUESTION_COUNT} soru içermelidir."
+        )
+    seen_texts: set[str] = set()
+    for position, question in enumerate(questions, start=1):
+        text = " ".join(str(question.question_text or "").split()).casefold()
+        if not text:
+            errors.append(f"{position}. final sorusunun metni boş olamaz.")
+        elif text in seen_texts:
+            errors.append(f"{position}. final sorusu başka bir soruyla aynı.")
+        else:
+            seen_texts.add(text)
+        try:
+            options = json.loads(question.options_json or "{}")
+        except (TypeError, json.JSONDecodeError):
+            options = {}
+        if set(options) != {"A", "B", "C", "D"} or any(
+            not str(options.get(letter) or "").strip()
+            for letter in ("A", "B", "C", "D")
+        ):
+            errors.append(f"{position}. final soruda A, B, C ve D seçenekleri eksiksiz olmalıdır.")
+        elif len(
+            {
+                str(options[letter]).strip().casefold()
+                for letter in ("A", "B", "C", "D")
+            }
+        ) != 4:
+            errors.append(f"{position}. final sorunun seçenekleri birbirinden farklı olmalıdır.")
+        if str(question.correct_option or "").upper() not in {"A", "B", "C", "D"}:
+            errors.append(f"{position}. final sorunun doğru seçeneği geçersiz.")
+    return errors
+
+
 def _section_output(
     db: Session,
     section: RemoteTrainingSection,
@@ -338,6 +385,7 @@ def _program_detail(
         db.scalars(
             select(RemoteTrainingQuestion)
             .where(RemoteTrainingQuestion.program_id == program.id)
+            .where(RemoteTrainingQuestion.is_final_exam.is_(False))
             .order_by(RemoteTrainingQuestion.order_index, RemoteTrainingQuestion.id)
         ).all()
     )
@@ -346,6 +394,52 @@ def _program_detail(
     data["checkpoint_questions"] = [
         _question_output(question, reveal_answer=not employee) for question in questions
     ]
+    automatic_exam_questions = list(
+        db.scalars(
+            select(RemoteTrainingQuestion)
+            .where(
+                RemoteTrainingQuestion.program_id == program.id,
+                RemoteTrainingQuestion.is_final_exam.is_(True),
+            )
+            .order_by(RemoteTrainingQuestion.order_index, RemoteTrainingQuestion.id)
+        ).all()
+    )
+    if sector_codes is not None:
+        automatic_exam_questions = [
+            question
+            for question in automatic_exam_questions
+            if question.sector_code in sector_codes
+        ]
+    automatic_exam_errors = _automatic_final_exam_validation(automatic_exam_questions)
+    manual_exam_link_count = db.scalar(
+        select(func.count(RemoteTrainingProgramQuestion.id)).where(
+            RemoteTrainingProgramQuestion.program_id == program.id
+        )
+    ) or 0
+    data["automatic_final_exam"] = {
+        "enabled": bool(program.requires_final_exam),
+        "automatic": bool(automatic_exam_questions),
+        "question_count": len(automatic_exam_questions),
+        "required_question_count": (
+            REMOTE_AUTO_EXAM_QUESTION_COUNT if strict_policy_active(program) else None
+        ),
+        "passing_score": program.passing_score,
+        "valid": bool(automatic_exam_questions) and not automatic_exam_errors,
+        "validation_errors": automatic_exam_errors if not employee else [],
+        "ready": (
+            not program.requires_final_exam
+            or (
+                (bool(automatic_exam_questions) and not automatic_exam_errors)
+                if automatic_exam_questions
+                else bool(manual_exam_link_count)
+            )
+        ),
+    }
+    if not employee:
+        data["automatic_final_exam"]["questions"] = [
+            _question_output(question, reveal_answer=True)
+            for question in automatic_exam_questions
+        ]
     if not employee:
         links = list(
             db.scalars(
@@ -398,6 +492,26 @@ def _exam_links_for_assignment(
     if scope is None:
         return links
     return [link for link in links if (link.sector_code or "common") in scope]
+
+
+def _automatic_exam_questions_for_assignment(
+    db: Session, assignment: RemoteTrainingAssignment
+) -> list[RemoteTrainingQuestion]:
+    """Return frozen catalog questions for the assignment's sector scope."""
+    questions = list(
+        db.scalars(
+            select(RemoteTrainingQuestion)
+            .where(
+                RemoteTrainingQuestion.program_id == assignment.program_id,
+                RemoteTrainingQuestion.is_final_exam.is_(True),
+            )
+            .order_by(RemoteTrainingQuestion.order_index, RemoteTrainingQuestion.id)
+        ).all()
+    )
+    scope = assignment_sector_codes(db, assignment)
+    if scope is None:
+        return questions
+    return [question for question in questions if question.sector_code in scope]
 
 
 def _assignment_output(
@@ -617,6 +731,18 @@ def _catalog_package_output(
             )
         ).all()
     )
+    automatic_exam_ready = True
+    automatic_exam_warning = None
+    automatic_exam_count = 0
+    if package.requires_final_exam:
+        try:
+            automatic_exam_count = len(automatic_exam_items_for_package(package.code))
+        except RuntimeError:
+            automatic_exam_ready = False
+            automatic_exam_warning = (
+                f"{package.title} için doğrulanmış 10 soruluk soru paketi hazır değil. "
+                "Firma programı hazırlanamaz; içerik yöneticisi soru paketini düzeltmelidir."
+            )
     result = {
         "id": package.id,
         "code": package.code,
@@ -628,6 +754,10 @@ def _catalog_package_output(
         "completion_threshold_percent": package.completion_threshold_percent,
         "passing_score": package.passing_score,
         "attempt_limit": package.attempt_limit,
+        "automatic_exam_question_count": automatic_exam_count,
+        "automatic_exam_passing_score": package.passing_score if package.requires_final_exam else None,
+        "automatic_exam_ready": automatic_exam_ready,
+        "automatic_exam_warning": automatic_exam_warning,
         "policy_mode": package.policy_mode,
         "sequence_enforced": bool(package.sequence_enforced),
         "exam_gate_enforced": bool(package.exam_gate_enforced),
@@ -801,6 +931,7 @@ def materialize_catalog_package(
             "firma bazlı dağıtım politikası etkinleştirildiğinde hazırlanabilir.",
         )
     branch = validate_branch(db, payload.company_id, payload.branch_id)
+    snapshot_branch_id = branch.id if branch else None
     company = db.get(Company, payload.company_id)
     if not company or not company.is_active:
         raise HTTPException(404, "Firma bulunamadı veya pasif.")
@@ -809,6 +940,7 @@ def materialize_catalog_package(
             RemoteTrainingProgram.company_id == company.id,
             RemoteTrainingProgram.source_catalog_package_id == package.id,
             RemoteTrainingProgram.source_catalog_revision_no == package.revision_no,
+            RemoteTrainingProgram.branch_id == snapshot_branch_id,
             RemoteTrainingProgram.status != "archived",
         )
     )
@@ -830,6 +962,20 @@ def materialize_catalog_package(
     )
     if not catalog_sections:
         raise HTTPException(409, "Merkezi pakette aktif bölüm bulunmuyor.")
+
+    automatic_exam_items: list[dict[str, Any]] = []
+    if package.requires_final_exam:
+        try:
+            automatic_exam_items = automatic_exam_items_for_package(package.code)
+        except RuntimeError as exc:
+            # Fail closed if the reviewed content pack is damaged or incomplete;
+            # never create a publishable program with guessed questions.
+            raise HTTPException(
+                409,
+                f"{package.title} için otomatik final sınavı hazırlanamadı. "
+                "Onaylı 10 soruluk paket eksik veya okunamıyor; rastgele soru üretilmedi. "
+                "İçerik yöneticisi soru paketini düzeltmelidir.",
+            ) from exc
 
     videos_by_section: dict[int, list[RemoteTrainingCatalogVideo]] = {}
     missing_required: list[str] = []
@@ -857,7 +1003,7 @@ def materialize_catalog_package(
     program = RemoteTrainingProgram(
         osgb_id=company.osgb_id,
         company_id=company.id,
-        branch_id=branch.id if branch else None,
+        branch_id=snapshot_branch_id,
         source_catalog_package_id=package.id,
         source_catalog_code=package.code,
         source_catalog_revision_no=package.revision_no,
@@ -944,6 +1090,28 @@ def materialize_catalog_package(
                         created_by_id=user.id,
                     )
                 )
+
+        for position, item in enumerate(automatic_exam_items, start=1):
+            options = item.get("options") or []
+            db.add(
+                RemoteTrainingQuestion(
+                    osgb_id=program.osgb_id,
+                    company_id=program.company_id,
+                    program_id=program.id,
+                    sector_code=catalog_sector_code,
+                    question_text=str(item["question_text"]).strip(),
+                    options_json=json.dumps(
+                        {letter: str(options[index]).strip() for index, letter in enumerate("ABCD")},
+                        ensure_ascii=False,
+                    ),
+                    correct_option=str(item["correct_option"]).upper(),
+                    explanation=str(item["answer_explanation"]).strip(),
+                    order_index=position,
+                    is_required=False,
+                    is_final_exam=True,
+                    created_by_id=user.id,
+                )
+            )
 
         recalculate_program_duration(db, program.id)
         audit(
@@ -1672,12 +1840,27 @@ def publish_remote_program(
                 "Seçilen sektörlerde yayımlanmış video bulunmuyor: " + ", ".join(missing_content),
             )
     if program.requires_final_exam:
+        automatic_exam_questions = db.scalars(
+            select(RemoteTrainingQuestion).where(
+                RemoteTrainingQuestion.program_id == program.id,
+                RemoteTrainingQuestion.is_final_exam.is_(True),
+            )
+        ).all()
         exam_links = db.scalars(
             select(RemoteTrainingProgramQuestion).where(
                 RemoteTrainingProgramQuestion.program_id == program.id
             )
         ).all()
-        if not exam_links:
+        if strict_policy_active(program) and (
+            automatic_exam_questions or program.source_catalog_code
+        ):
+            validation_errors = _automatic_final_exam_validation(automatic_exam_questions)
+            if validation_errors:
+                raise HTTPException(
+                    409,
+                    "Otomatik final sınavı yayımlanamıyor: " + " ".join(validation_errors),
+                )
+        elif not exam_links:
             raise HTTPException(409, "Final sınavı açıkken mevcut soru bankasından en az bir soru bağlanmalıdır.")
         incompatible_questions = [
             str(link.question_id)
@@ -1692,7 +1875,7 @@ def publish_remote_program(
                 + "). Bu soruyu sınavdan çıkarıp ilgili kapsam sorusunu bağlayın.",
             )
         scope = program_sector_codes(db, program.id)
-        if scope is not None:
+        if scope is not None and not automatic_exam_questions:
             linked_codes = {link.sector_code or "common" for link in exam_links}
             missing_codes = sorted(scope - linked_codes)
             if missing_codes:
@@ -2690,9 +2873,70 @@ def list_remote_checkpoint_questions(
 ):
     program = _assert_program_manager(db, user, program_id)
     rows = db.scalars(
-        select(RemoteTrainingQuestion).where(RemoteTrainingQuestion.program_id == program.id).order_by(RemoteTrainingQuestion.order_index, RemoteTrainingQuestion.id)
+        select(RemoteTrainingQuestion).where(
+            RemoteTrainingQuestion.program_id == program.id,
+            RemoteTrainingQuestion.is_final_exam.is_(False),
+        ).order_by(RemoteTrainingQuestion.order_index, RemoteTrainingQuestion.id)
     ).all()
     return [_question_output(row, reveal_answer=True) for row in rows]
+
+
+@router.patch("/programs/{program_id}/final-exam-questions/{question_id}")
+def update_remote_final_exam_question(
+    program_id: int,
+    question_id: int,
+    payload: RemoteFinalExamQuestionUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Allow managers to review/edit an automatic question before publishing."""
+    program = _assert_program_manager(db, user, program_id)
+    if program.status in {"published", "archived"}:
+        raise HTTPException(409, "Yayımlanmış veya arşivlenmiş eğitimde final soruları değiştirilemez.")
+    questions = list(
+        db.scalars(
+            select(RemoteTrainingQuestion)
+            .where(
+                RemoteTrainingQuestion.program_id == program.id,
+                RemoteTrainingQuestion.is_final_exam.is_(True),
+            )
+            .order_by(RemoteTrainingQuestion.order_index, RemoteTrainingQuestion.id)
+        ).all()
+    )
+    question = next((row for row in questions if row.id == question_id), None)
+    if question is None:
+        raise HTTPException(404, "Otomatik final sorusu bulunamadı.")
+
+    original = {
+        "question_text": question.question_text,
+        "options_json": question.options_json,
+        "correct_option": question.correct_option,
+        "explanation": question.explanation,
+    }
+    question.question_text = payload.question_text.strip()
+    question.options_json = json.dumps(payload.options, ensure_ascii=False, sort_keys=True)
+    question.correct_option = payload.correct_option
+    question.explanation = payload.explanation.strip() if payload.explanation else None
+    validation_errors = _automatic_final_exam_validation(questions)
+    if validation_errors:
+        for key, value in original.items():
+            setattr(question, key, value)
+        raise HTTPException(
+            422,
+            "Final sorusu kaydedilemedi: " + " ".join(validation_errors),
+        )
+    program.revision_no += 1
+    audit(
+        db,
+        company_id=program.company_id,
+        user=user,
+        action="automatic_final_exam_question_updated",
+        entity_type="final_exam_question",
+        entity_id=question.id,
+    )
+    _commit(db, "Otomatik final sorusu kaydedilemedi.")
+    db.refresh(question)
+    return _question_output(question, reveal_answer=True)
 
 
 @router.post("/programs/{program_id}/exam/questions", status_code=201)
@@ -2798,21 +3042,34 @@ def get_remote_exam(
                 409,
                 "Final sınavı açılmadan önce tüm zorunlu videolar ve video içi kontrol soruları tamamlanmalıdır.",
             )
-    links = _exam_links_for_assignment(db, assignment)
+    automatic_questions = _automatic_exam_questions_for_assignment(db, assignment)
     questions = []
-    for link in links:
-        question = db.get(TrainingQuestion, link.question_id)
-        if not question or question.status != "published":
-            continue
-        questions.append(
-            {
-                "id": question.id,
-                "position": link.position,
-                "sector_code": link.sector_code or "common",
-                "question_text": question.question_text,
-                "options": {"A": question.option_a, "B": question.option_b, "C": question.option_c, "D": question.option_d},
-            }
-        )
+    if automatic_questions:
+        for question in automatic_questions:
+            questions.append(
+                {
+                    "id": question.id,
+                    "position": question.order_index,
+                    "sector_code": question.sector_code or "common",
+                    "question_text": question.question_text,
+                    "options": json.loads(question.options_json or "{}"),
+                }
+            )
+    else:
+        links = _exam_links_for_assignment(db, assignment)
+        for link in links:
+            question = db.get(TrainingQuestion, link.question_id)
+            if not question or question.status != "published":
+                continue
+            questions.append(
+                {
+                    "id": question.id,
+                    "position": link.position,
+                    "sector_code": link.sector_code or "common",
+                    "question_text": question.question_text,
+                    "options": {"A": question.option_a, "B": question.option_b, "C": question.option_c, "D": question.option_d},
+                }
+            )
     scope = assignment_sector_codes(db, assignment)
     return {
         "assignment_id": assignment.id,
@@ -2849,13 +3106,18 @@ def submit_remote_exam(
             )
     if not program.requires_final_exam:
         raise HTTPException(409, "Bu eğitimde final sınavı zorunlu değil.")
-    links = _exam_links_for_assignment(db, assignment)
-    if not links:
+    automatic_questions = _automatic_exam_questions_for_assignment(db, assignment)
+    links = [] if automatic_questions else _exam_links_for_assignment(db, assignment)
+    if not automatic_questions and not links:
         raise HTTPException(409, "Bu eğitim için final sınavı sorusu tanımlanmamış.")
     previous_count = db.scalar(select(func.count(RemoteTrainingExamAttempt.id)).where(RemoteTrainingExamAttempt.assignment_id == assignment.id)) or 0
     if previous_count >= program.attempt_limit:
         raise HTTPException(409, "Final sınavı deneme limiti doldu.")
-    question_ids = [link.question_id for link in links]
+    question_ids = (
+        [question.id for question in automatic_questions]
+        if automatic_questions
+        else [link.question_id for link in links]
+    )
     normalized_answers = {str(key): str(value).upper() for key, value in payload.answers.items()}
     if set(normalized_answers) != {str(question_id) for question_id in question_ids}:
         raise HTTPException(422, "Final sınavındaki tüm sorular yanıtlanmalıdır.")
@@ -2864,7 +3126,11 @@ def submit_remote_exam(
         answer = normalized_answers[str(question_id)]
         if answer not in {"A", "B", "C", "D"}:
             raise HTTPException(422, "Sınav yanıtı yalnız A, B, C veya D olabilir.")
-        question = db.get(TrainingQuestion, question_id)
+        question = (
+            next((row for row in automatic_questions if row.id == question_id), None)
+            if automatic_questions
+            else db.get(TrainingQuestion, question_id)
+        )
         if question and answer == question.correct_option:
             correct += 1
     score = round(correct * 100 / len(question_ids))
@@ -3025,7 +3291,7 @@ def answer_remote_checkpoint(
     if strict_policy_active(program) and mode != "employee":
         raise HTTPException(403, "Bu kontrol sorusunu yalnızca eşlenmiş çalışan yanıtlayabilir.")
     question = db.get(RemoteTrainingQuestion, question_id)
-    if not question or question.program_id != assignment.program_id:
+    if not question or question.program_id != assignment.program_id or question.is_final_exam:
         raise HTTPException(404, "Video içi soru bulunamadı.")
     if not assignment_allows_sector(db, assignment, question.sector_code):
         raise HTTPException(403, "Video içi soru bu çalışanın ders kapsamına dahil değil.")
