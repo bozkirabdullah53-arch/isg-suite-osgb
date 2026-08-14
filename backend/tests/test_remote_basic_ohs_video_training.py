@@ -167,6 +167,27 @@ def test_strict_video_coverage_does_not_double_count_replay():
     assert extended_total == 20.0
 
 
+def test_strict_video_end_reconciles_only_the_final_tail():
+    from app.services.remote_training import reconcile_strict_video_end
+
+    reconciled = reconcile_strict_video_end(
+        [[0.0, 103.0]],
+        current_position=103.0,
+        requested_position=110.0,
+        duration=110.0,
+    )
+    assert reconciled == ([[0.0, 110.0]], 110.0, 110.0)
+
+    # An ``ended`` payload cannot jump a learner from the middle of a video to
+    # the end; the server must already have observed the final tail.
+    assert reconcile_strict_video_end(
+        [[0.0, 90.0]],
+        current_position=90.0,
+        requested_position=110.0,
+        duration=110.0,
+    ) is None
+
+
 def test_remote_assignment_recalculation_requires_real_progress_and_exam():
     from app.models.remote_training import (
         RemoteTrainingAssignment,
@@ -660,6 +681,157 @@ def remote_client(tmp_path, monkeypatch):
 
     Base.metadata.create_all(bind=engine)
     yield TestClient(main_mod.app)
+
+
+def test_strict_ended_progress_unlocks_the_next_video(remote_client, monkeypatch):
+    from app.core.config import settings
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import UserRole
+    from app.models.remote_training import (
+        RemoteTrainingAssignment,
+        RemoteTrainingAssignmentSector,
+        RemoteTrainingEmployeeAccess,
+        RemoteTrainingProgram,
+        RemoteTrainingSection,
+        RemoteTrainingVideo,
+        RemoteTrainingVideoProgress,
+    )
+
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_enabled", True)
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_package_codes", "battery-production-ohs")
+    monkeypatch.setattr(settings, "remote_basic_ohs_strict_policy_pilot_company_ids", "")
+
+    with SessionLocal() as db:
+        osgb, company, branch, employee, user = _scope_rows(db)
+        user.hashed_password = get_password_hash("TestPass123!")
+        user.company_id = company.id
+        user.osgb_id = osgb.id
+        user.password_change_required = False
+        user.role = UserRole.READ_ONLY
+        program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            source_catalog_code="battery-production-ohs",
+            title="Akü-Batarya",
+            status="published",
+            policy_mode="strict",
+            completion_threshold_percent=100,
+            passing_score=70,
+            requires_final_exam=True,
+            sequence_enforced=True,
+            exam_gate_enforced=True,
+        )
+        db.add(program)
+        db.flush()
+        sections = []
+        videos = []
+        for index, title in enumerate(("Akü ilk ders", "Akü ikinci ders"), start=1):
+            section = RemoteTrainingSection(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                program_id=program.id,
+                sector_code="battery",
+                title=title,
+                order_index=index,
+            )
+            db.add(section)
+            db.flush()
+            video = RemoteTrainingVideo(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                program_id=program.id,
+                section_id=section.id,
+                title=title,
+                original_file_name=f"aku-{index}.mp4",
+                content_type="video/mp4",
+                storage_key=f"{company.id}/remote-training/aku-{index}.mp4",
+                duration_seconds=110,
+                order_index=1,
+                status="published",
+                is_current=True,
+            )
+            db.add(video)
+            db.flush()
+            sections.append(section)
+            videos.append(video)
+        assignment = RemoteTrainingAssignment(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            branch_id=branch.id,
+            program_id=program.id,
+            employee_id=employee.id,
+            employee_name_snapshot=employee.full_name,
+            workplace_name_snapshot=branch.name,
+            sgk_registration_number_snapshot=branch.sgk_registry_no,
+            nace_code_snapshot=company.nace_code,
+            nace_description_snapshot="Akü üretimi",
+            hazard_class_snapshot=company.hazard_class,
+        )
+        db.add(assignment)
+        db.flush()
+        db.add(
+            RemoteTrainingAssignmentSector(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                program_id=program.id,
+                assignment_id=assignment.id,
+                employee_id=employee.id,
+                sector_code="battery",
+                sector_name_snapshot="Akü ve Otomotiv",
+            )
+        )
+        db.add(
+            RemoteTrainingEmployeeAccess(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                user_id=user.id,
+                employee_id=employee.id,
+                is_active=True,
+            )
+        )
+        db.add(
+            RemoteTrainingVideoProgress(
+                company_id=company.id,
+                program_id=program.id,
+                assignment_id=assignment.id,
+                section_id=sections[0].id,
+                video_id=videos[0].id,
+                employee_id=employee.id,
+                last_position_seconds=103,
+                watched_duration_seconds=103,
+                watched_percentage=103 / 110 * 100,
+                coverage_json="[[0,103]]",
+                status="in_progress",
+                last_access_at=datetime.utcnow(),
+            )
+        )
+        db.commit()
+        assignment_id = assignment.id
+        first_video_id = videos[0].id
+        second_video_id = videos[1].id
+
+    login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "employee-remote@example.com", "password": "TestPass123!"},
+    )
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    ended = remote_client.post(
+        f"/api/v1/trainings/remote/assignments/{assignment_id}/videos/{first_video_id}/progress",
+        headers=headers,
+        json={"position_seconds": 110, "event_type": "ended"},
+    )
+    assert ended.status_code == 200, ended.text
+    assert ended.json()["status"] == "completed"
+    assert ended.json()["watched_percentage"] == 100
+
+    next_playback = remote_client.get(
+        f"/api/v1/trainings/remote/videos/{second_video_id}/playback?assignment_id={assignment_id}",
+        headers=headers,
+    )
+    assert next_playback.status_code == 200, next_playback.text
 
 
 def test_remote_api_is_feature_flagged_and_uses_basic_type_only(remote_client):
