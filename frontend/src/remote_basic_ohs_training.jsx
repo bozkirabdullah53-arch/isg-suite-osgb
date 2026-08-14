@@ -1744,6 +1744,15 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
 }
 
 
+function scrollRemoteTrainingSection(event, sectionId) {
+  event.preventDefault();
+  event.stopPropagation();
+  const target = document.getElementById(sectionId);
+  if (!target) return;
+  if (target instanceof HTMLDetailsElement) target.open = true;
+  target.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
 function RemoteTrainingGuide() {
   return (
     <details className="remote-training-guide" id="remote-training-guide" open>
@@ -1793,9 +1802,9 @@ function RemoteTrainingGuide() {
         </ol>
         <div className="remote-training-guide-note"><strong>En önemli ayrım:</strong> Firma / sektör ataması yalnızca eğitimi o firmaya hazırlar. Çalışana eğitim başlatan işlem, aşağıdaki personel kutusunu işaretleyip <b>Seçilen personele eğitim ve sınav ata</b> düğmesine basmaktır.</div>
         <div className="remote-training-guide-links">
-          <a href="#remote-training-catalog">İçerik ve sektör seçimine git</a>
-          <a href="#remote-training-assignment-manager">Çalışan atamasına git</a>
-          <a href="#remote-training-employee-preview">Çalışan ekranını önizle</a>
+          <a href="#remote-training-catalog" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-catalog')}>İçerik ve sektör seçimine git</a>
+          <a href="#remote-training-assignment-manager" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-assignment-manager')}>Çalışan atamasına git</a>
+          <a href="#remote-training-employee-preview" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-employee-preview')}>Çalışan ekranını önizle</a>
         </div>
       </div>
     </details>
@@ -1831,16 +1840,16 @@ export function RemoteBasicOhsTrainingPanel({user}) {
         <strong>Uzaktan eğitimi başlatmak için adım adım ilerleyin</strong>
         <span>Video yükleme, firma kapsamı, çalışan ataması, sınav ve sertifika süreci tek rehberde.</span>
       </div>
-      <a className="remote-training-guide-launcher-link" href="#remote-training-guide">
+      <a className="remote-training-guide-launcher-link" href="#remote-training-guide" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-guide')}>
         <span aria-hidden="true">✦</span><span>Adım adım rehberi aç</span><span aria-hidden="true">↓</span>
       </a>
     </div>
     <RemoteTrainingGuide />
     <div className="remote-training-flow" aria-label="Uzaktan eğitim yaşam döngüsü">
-      <a className="remote-training-flow-item" href="#remote-training-catalog"><span>1</span><div><strong>Video ekle</strong><small>Paketi seçin, videoları bölümlere yükleyin.</small></div></a>
-      <a className="remote-training-flow-item" href="#remote-training-catalog"><span>2</span><div><strong>Firma / işyeri seç</strong><small>Eğitim kutucuklarını işaretleyip hazırlayın.</small></div></a>
-      <a className="remote-training-flow-item" href="#remote-training-assignment-manager"><span>3</span><div><strong>Personel ata</strong><small>Giriş hesabını eşleyip programı atayın.</small></div></a>
-      <a className="remote-training-flow-item" href="#remote-training-employee-preview"><span>4</span><div><strong>Çalışan tamamlasın</strong><small>%100 video + sınavda en az %70.</small></div></a>
+      <a className="remote-training-flow-item" href="#remote-training-catalog" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-catalog')}><span>1</span><div><strong>Video ekle</strong><small>Paketi seçin, videoları bölümlere yükleyin.</small></div></a>
+      <a className="remote-training-flow-item" href="#remote-training-catalog" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-catalog')}><span>2</span><div><strong>Firma / işyeri seç</strong><small>Eğitim kutucuklarını işaretleyip hazırlayın.</small></div></a>
+      <a className="remote-training-flow-item" href="#remote-training-assignment-manager" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-assignment-manager')}><span>3</span><div><strong>Personel ata</strong><small>Giriş hesabını eşleyip programı atayın.</small></div></a>
+      <a className="remote-training-flow-item" href="#remote-training-employee-preview" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-employee-preview')}><span>4</span><div><strong>Çalışan tamamlasın</strong><small>%100 video + sınavda en az %70.</small></div></a>
     </div>
     {canManage && <div id="remote-training-catalog"><CatalogManagerPanel companyId={selectedCompanyId} branchId={selectedBranchId} onCompanyChange={(value) => { setSelectedCompanyId(value); setSelectedBranchId(''); }} onBranchChange={setSelectedBranchId} onPrepared={() => setProgramRefreshToken((value) => value + 1)} rollout={meta.strict_policy} /></div>}
     {canManage && <details open id="remote-training-assignment-manager">
