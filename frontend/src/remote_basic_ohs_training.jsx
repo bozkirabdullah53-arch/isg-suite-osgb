@@ -1743,6 +1743,65 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   );
 }
 
+
+function RemoteTrainingGuide() {
+  return (
+    <details className="remote-training-guide" id="remote-training-guide" open>
+      <summary className="remote-training-guide-summary">
+        <span className="remote-training-guide-icon" aria-hidden="true">✓</span>
+        <span className="remote-training-guide-heading">
+          <strong>Uzaktan Eğitim Kullanım Rehberi</strong>
+          <small>Uzmanı içerik hazırlamadan sertifikaya kadar yönlendiren 8 adım</small>
+        </span>
+        <span className="remote-training-guide-count">8 adım</span>
+      </summary>
+      <div className="remote-training-guide-body">
+        <p className="remote-training-guide-intro">Bu sırayı takip edin. Her adım tamamlanmadan sonraki adıma geçmeyin; yeşil onay mesajı gördüğünüzde işlem tamamdır.</p>
+        <ol className="remote-training-guide-steps">
+          <li>
+            <span className="remote-training-guide-step-number">1</span>
+            <div><strong>Videoları hazırlayın</strong><p>Merkezi katalogdan eğitim paketini seçin. Bölümleri oluşturun, her bölümün kendi <b>Video seç ve yükle</b> düğmesiyle videoyu yükleyin. Durum <b>Yayımlandı</b> olana kadar bekleyin.</p></div>
+          </li>
+          <li>
+            <span className="remote-training-guide-step-number">2</span>
+            <div><strong>Firmayı ve sektörleri seçin</strong><p>Firma / sektör alanında firmayı seçin. Örneğin Er dil Akü için <b>Ortak Temel İSG</b> ve <b>Akü-Batarya</b> kutularını işaretleyip <b>Seçilen sektörleri firmaya ata</b> düğmesine basın.</p></div>
+          </li>
+          <li>
+            <span className="remote-training-guide-step-number">3</span>
+            <div><strong>Ders kapsamını kontrol edin</strong><p>Firmaya hazırlanan programı açın. <b>Firma için sektör / ders kapsamı</b> bölümünde çalışana açılacak kapsamı kontrol edin ve <b>Firma ders kapsamını kaydet</b> düğmesine basın.</p></div>
+          </li>
+          <li>
+            <span className="remote-training-guide-step-number">4</span>
+            <div><strong>Eğitimi yayımlayın</strong><p>Videolarda hata veya <b>İşleniyor</b> durumu kalmadığını kontrol edin. Programdaki <b>Yayımla</b> düğmesine basın. Üstte <b>Eğitim yayımlandı ve çalışan atamasına açıldı</b> mesajını görmeden atama yapmayın.</p></div>
+          </li>
+          <li>
+            <span className="remote-training-guide-step-number">5</span>
+            <div><strong>Çalışan giriş hesabını hazırlayın</strong><p><b>Çalışan giriş hesabı eşleştirme</b> bölümünde hesabı olmayan personel için hesap oluşturun veya mevcut hesabı eşleştirin. Geçici parolayı güvenli kanaldan iletin; çalışan ilk girişte parolasını değiştirmelidir.</p></div>
+          </li>
+          <li>
+            <span className="remote-training-guide-step-number">6</span>
+            <div><strong>Çalışanı eğitime atayın</strong><p><b>Personel seçin ve eğitim/sınav ataması yapın</b> bölümünde personelin kutusunu işaretleyin. Sayaç 1 veya daha fazla olmalı. İsterseniz son tarih girin, sonra <b>Seçilen personele eğitim ve sınav ata</b> düğmesine basın. Aynı bölümde yeşil <b>Atama onayı</b> mesajını görün.</p></div>
+          </li>
+          <li>
+            <span className="remote-training-guide-step-number">7</span>
+            <div><strong>Çalışan videoları tamamlasın</strong><p>Çalışan kendi hesabıyla <b>Çalışan Eğitimleri</b> sayfasına girer. Kendisine atanmış tüm eğitimleri görür ve videoları ileri sarmadan, sırayla ve %100 tamamlar. Bir video bitmeden sonraki bölüm açılmaz.</p></div>
+          </li>
+          <li>
+            <span className="remote-training-guide-step-number">8</span>
+            <div><strong>Sınav ve belgeyi tamamlayın</strong><p>Tüm videolar bitince final sınavı açılır. Çalışan en az <b>%70</b> almalıdır. Başarılı sonuçtan sonra sertifika oluşur; uzman <b>Rapor</b> düğmesinden ilerlemeyi ve belge durumunu kontrol eder.</p></div>
+          </li>
+        </ol>
+        <div className="remote-training-guide-note"><strong>En önemli ayrım:</strong> Firma / sektör ataması yalnızca eğitimi o firmaya hazırlar. Çalışana eğitim başlatan işlem, aşağıdaki personel kutusunu işaretleyip <b>Seçilen personele eğitim ve sınav ata</b> düğmesine basmaktır.</div>
+        <div className="remote-training-guide-links">
+          <a href="#remote-training-catalog">İçerik ve sektör seçimine git</a>
+          <a href="#remote-training-assignment-manager">Çalışan atamasına git</a>
+          <a href="#remote-training-employee-preview">Çalışan ekranını önizle</a>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 export function RemoteBasicOhsTrainingPanel({user}) {
   const [meta, setMeta] = useState(null);
   const [error, setError] = useState('');
@@ -1766,6 +1825,17 @@ export function RemoteBasicOhsTrainingPanel({user}) {
     </section>;
   }
   return <div className="remote-training-panel" style={{display: 'grid', gap: 16}}>
+    <div className="remote-training-guide-launcher" role="region" aria-label="Uzaktan eğitim başlangıç rehberi">
+      <div className="remote-training-guide-launcher-content">
+        <span className="remote-training-guide-kicker">UZMAN EKRANI · HIZLI BAŞLANGIÇ</span>
+        <strong>Uzaktan eğitimi başlatmak için adım adım ilerleyin</strong>
+        <span>Video yükleme, firma kapsamı, çalışan ataması, sınav ve sertifika süreci tek rehberde.</span>
+      </div>
+      <a className="remote-training-guide-launcher-link" href="#remote-training-guide">
+        <span aria-hidden="true">✦</span><span>Adım adım rehberi aç</span><span aria-hidden="true">↓</span>
+      </a>
+    </div>
+    <RemoteTrainingGuide />
     <div className="remote-training-flow" aria-label="Uzaktan eğitim yaşam döngüsü">
       <a className="remote-training-flow-item" href="#remote-training-catalog"><span>1</span><div><strong>Video ekle</strong><small>Paketi seçin, videoları bölümlere yükleyin.</small></div></a>
       <a className="remote-training-flow-item" href="#remote-training-catalog"><span>2</span><div><strong>Firma / işyeri seç</strong><small>Eğitim kutucuklarını işaretleyip hazırlayın.</small></div></a>
