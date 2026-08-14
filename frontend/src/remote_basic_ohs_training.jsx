@@ -1211,7 +1211,8 @@ function ManagerPanel({user, initialCompanyId = '', onCompanyChange}) {
     setBusy(true); setError('');
     try {
       const out = await api(`/trainings/remote/programs/${program.id}/assign`, {method: 'POST', body: JSON.stringify({employee_ids: selectedEmployees.map(Number)})});
-      setMessage(`${out.created_count || 0} çalışan atandı; ${out.skipped_employee_ids?.length || 0} mevcut atama korundu.`);
+      const pendingLoginCount = Number(out.login_pending_count || 0);
+      setMessage(`${out.created_count || 0} çalışan atandı; ${out.skipped_employee_ids?.length || 0} mevcut atama korundu.${pendingLoginCount ? ` ${pendingLoginCount} çalışan için giriş hesabı oluşturulunca eğitim açılacak.` : ''}`);
       setSelectedEmployees([]);
     } catch (err) { setError(err.message || 'Çalışan ataması yapılamadı.'); } finally { setBusy(false); }
   }

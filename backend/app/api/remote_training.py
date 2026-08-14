@@ -2224,6 +2224,7 @@ def assign_remote_program(
     missing = [employee_id for employee_id in payload.employee_ids if employee_id not in found]
     if missing:
         raise HTTPException(422, "Seçilen çalışanlardan bazıları firma dışı, pasif veya bulunamadı.")
+    login_pending_employee_ids: list[int] = []
     if strict_policy_active(program):
         mapped_employee_ids = {
             int(employee_id)
@@ -2235,13 +2236,10 @@ def assign_remote_program(
                 )
             ).all()
         }
-        without_login = sorted(set(payload.employee_ids) - mapped_employee_ids)
-        if without_login:
-            raise HTTPException(
-                409,
-                "Atama için önce seçilen çalışanların aktif giriş hesabı oluşturulup eşlenmelidir: "
-                + ", ".join(str(item) for item in without_login),
-            )
+        # Eğitim ataması, çalışan giriş hesabından bağımsız olarak saklanır.
+        # Hesabı olmayan çalışanlar güvenli biçimde beklemede kalır; erişim yalnızca
+        # aktif employee_access eşlemesi oluşturulduktan sonra açılır.
+        login_pending_employee_ids = sorted(set(payload.employee_ids) - mapped_employee_ids)
     created: list[RemoteTrainingAssignment] = []
     skipped: list[int] = []
     for employee in employees:
@@ -2310,6 +2308,8 @@ def assign_remote_program(
         "created": [_assignment_output(db, row) for row in created],
         "created_count": len(created),
         "skipped_employee_ids": skipped,
+        "login_pending_employee_ids": login_pending_employee_ids,
+        "login_pending_count": len(login_pending_employee_ids),
     }
 
 
