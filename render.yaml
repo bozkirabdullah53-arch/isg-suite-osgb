@@ -1,22 +1,22 @@
 # Render Blueprint — eğitim belgesi ve sınav davranışları kaynak kontrollüdür; build kaynak dosyaları değiştirmez.
 services:
   - type: web
-    name: isg-suite-api
+    name: isg-suite-remote-training-isolated-api
     runtime: python
     rootDir: backend
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: sh start.sh
     healthCheckPath: /health
-    branch: master
+    branch: agent/remote-training-isolated-render-20260814
     disk:
-      name: isg-suite-api-data
+      name: isg-suite-remote-training-isolated-api-data
       mountPath: /var/data
       sizeGB: 5
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
       - key: ENVIRONMENT
-        value: production
+        value: staging
       # Verified NACE records must always use the frozen five-topic snapshot;
       # cross-sector legacy aliases are not allowed to select live exam questions.
       - key: TRAINING_EXACT_NACE_EXAM_STRICT
@@ -28,7 +28,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: FRONTEND_ORIGIN
-        value: https://www.isgsuite.tr
+        value: https://isg-suite-remote-training-isolated-web.onrender.com
       - key: UPLOAD_DIR
         value: /var/data/uploads
       - key: BACKUP_DIR
@@ -115,27 +115,14 @@ services:
       - key: REMOTE_BASIC_OHS_STRICT_POLICY_PILOT_COMPANY_IDS
         value: ""
 
-  - type: cron
-    name: isg-suite-api-warmup
-    runtime: python
-    rootDir: backend
-    schedule: "*/14 * * * *"
-    buildCommand: "true"
-    startCommand: python scripts/warmup_ping.py
-    branch: master
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.11
-      - key: WARMUP_API_URL
-        value: https://isg-suite-api-1u9t.onrender.com
 
   - type: web
-    name: isg-suite-web
+    name: isg-suite-remote-training-isolated-web
     runtime: static
     rootDir: frontend
     buildCommand: npm ci --no-audit --no-fund && node scripts/apply_training_color_theme.mjs && node scripts/activate_training_exam.mjs && npm run build
     staticPublishPath: dist
-    branch: master
+    branch: agent/remote-training-isolated-render-20260814
     envVars:
       - key: NODE_VERSION
         value: 20.18.0
@@ -144,15 +131,15 @@ services:
     routes:
       - type: rewrite
         source: /api/*
-        destination: https://isg-suite-api-1u9t.onrender.com/api/*
+        destination: https://isg-suite-remote-training-isolated-api.onrender.com/api/*
       - type: rewrite
         source: /health
-        destination: https://isg-suite-api-1u9t.onrender.com/health
+        destination: https://isg-suite-remote-training-isolated-api.onrender.com/health
       - type: rewrite
         source: /*
         destination: /index.html
 
 databases:
-  - name: isg-suite-db
-    databaseName: isgsuite
-    user: isgsuite
+  - name: isg-suite-remote-training-isolated-db
+    databaseName: isg_suite_remote_training_isolated_db
+    user: isg_suite_remote_training_isolated_db_user
