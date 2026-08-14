@@ -402,9 +402,16 @@ export function TrainingPage({user}) {
 
   useEffect(() => {
     api('/trainings/remote/meta')
-      .then((meta) => setRemoteEnabled(Boolean(meta?.enabled)))
+      .then((meta) => {
+        const enabled = Boolean(meta?.enabled);
+        setRemoteEnabled(enabled);
+        // Uzaktan eğitim atama yetkisi olan İSG uzmanı, Eğitimler sayfasına
+        // girdiğinde doğrudan kendisine atanmış işyerlerinin uzaktan eğitim
+        // yönetimini görür. Temel/özel eğitim sekmeleri korunur.
+        if (enabled && user.role === 'safety_specialist') setTab('remote');
+      })
       .catch(() => setRemoteEnabled(false));
-  }, []);
+  }, [user.role]);
 
   const companyEmployees = useMemo(
     () =>
