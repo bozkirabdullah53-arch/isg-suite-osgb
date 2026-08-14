@@ -1764,7 +1764,7 @@ function RemoteTrainingGuide() {
           </li>
           <li>
             <span className="remote-training-guide-step-number">2</span>
-            <div><strong>Firmayı ve sektörleri seçin</strong><p>Firma / sektör alanında firmayı seçin. Örneğin Er dil Akü için <b>Ortak Temel İSG</b> ve <b>Akü-Batarya</b> kutularını işaretleyip <b>Seçilen sektörleri firmaya ata</b> düğmesine basın.</p></div>
+            <div><strong>Firmayı ve sektörleri seçin</strong><p>Firma / sektör alanında firmayı seçin. Örneğin Erdil Akü için <b>Ortak Temel İSG</b> ve <b>Akü-Batarya</b> kutularını işaretleyip <b>Seçilen sektörleri firmaya ata</b> düğmesine basın.</p></div>
           </li>
           <li>
             <span className="remote-training-guide-step-number">3</span>
