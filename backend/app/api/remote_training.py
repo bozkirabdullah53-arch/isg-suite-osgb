@@ -391,6 +391,15 @@ def _program_detail(
     if employee and program.status != "published":
         raise HTTPException(403, "Bu eğitim şu anda çalışana açık değil.")
     data = _program_output(program)
+    if not employee:
+        data["assignment_count"] = int(
+            db.scalar(
+                select(func.count(RemoteTrainingAssignment.id)).where(
+                    RemoteTrainingAssignment.program_id == program.id
+                )
+            )
+            or 0
+        )
     sections = list(
         db.scalars(
             select(RemoteTrainingSection)
