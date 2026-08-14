@@ -1272,6 +1272,22 @@ def archive_catalog_package(
     return _catalog_package_output(db, package)
 
 
+@router.post("/catalog/packages/{package_id}/restore")
+def restore_catalog_package(
+    package_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    package = _catalog_package_for_manager(db, user, package_id)
+    if package.status != "archived":
+        raise HTTPException(409, "Yalnızca arşivlenmiş paket düzenlemeye açılabilir.")
+    package.status = "unpublished"
+    package.archived_at = None
+    package.published_at = None
+    _commit(db, "Merkezi paket düzenlemeye açılamadı.")
+    return _catalog_package_output(db, package)
+
+
 @router.post("/catalog/packages/{package_id}/sections", status_code=201)
 def create_catalog_section(
     package_id: int,
