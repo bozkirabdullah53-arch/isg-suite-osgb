@@ -1,1 +1,158 @@
-IyBSZW5kZXIgQmx1ZXByaW50IOKAlCBlxJ9pdGltIGJlbGdlc2kgdmUgc8SxbmF2IGRhdnJhbsSxxZ9sYXLEsSBrYXluYWsga29udHJvbGzDvGTDvHI7IGJ1aWxkIGtheW5hayBkb3N5YWxhcsSxIGRlxJ9pxZ90aXJtZXouCnNlcnZpY2VzOgogIC0gdHlwZTogd2ViCiAgICBuYW1lOiBpc2ctc3VpdGUtYXBpCiAgICBydW50aW1lOiBweXRob24KICAgIHJvb3REaXI6IGJhY2tlbmQKICAgIGJ1aWxkQ29tbWFuZDogcGlwIGluc3RhbGwgLS11cGdyYWRlIHBpcCAmJiBwaXAgaW5zdGFsbCAtciByZXF1aXJlbWVudHMudHh0CiAgICBzdGFydENvbW1hbmQ6IHNoIHN0YXJ0LnNoCiAgICBoZWFsdGhDaGVja1BhdGg6IC9oZWFsdGgKICAgIGJyYW5jaDogbWFzdGVyCiAgICBkaXNrOgogICAgICBuYW1lOiBpc2ctc3VpdGUtYXBpLWRhdGEKICAgICAgbW91bnRQYXRoOiAvdmFyL2RhdGEKICAgICAgc2l6ZUdCOiA1CiAgICBlbnZWYXJzOgogICAgICAtIGtleTogUFlUSE9OX1ZFUlNJT04KICAgICAgICB2YWx1ZTogMy4xMS4xMQogICAgICAtIGtleTogRU5WSVJPTk1FTlQKICAgICAgICB2YWx1ZTogcHJvZHVjdGlvbgogICAgICAjIFZlcmlmaWVkIE5BQ0UgcmVjb3JkcyBtdXN0IGFsd2F5cyB1c2UgdGhlIGZyb3plbiBmaXZlLXRvcGljIHNuYXBzaG90OwogICAgICAjIGNyb3NzLXNlY3RvciBsZWdhY3kgYWxpYXNlcyBhcmUgbm90IGFsbG93ZWQgdG8gc2VsZWN0IGxpdmUgZXhhbSBxdWVzdGlvbnMuCiAgICAgIC0ga2V5OiBUUkFJTklOR19FWEFDVF9OQUNFX0VYQU1fU1RSSUNUCiAgICAgICAgdmFsdWU6ICJ0cnVlIgogICAgICAtIGtleTogREFUQUJBU0VfVVJMCiAgICAgICAgZnJvbURhdGFiYXNlOgogICAgICAgICAgbmFtZTogaXNnLXN1aXRlLWRiCiAgICAgICAgICBwcm9wZXJ0eTogY29ubmVjdGlvblN0cmluZwogICAgICAtIGtleTogU0VDUkVUX0tFWQogICAgICAgIGdlbmVyYXRlVmFsdWU6IHRydWUKICAgICAgLSBrZXk6IEZST05URU5EX09SSUdJTgogICAgICAgIHZhbHVlOiBodHRwczovL3d3dy5pc2dzdWl0ZS50cgogICAgICAtIGtleTogVVBMT0FEX0RJUgogICAgICAgIHZhbHVlOiAvdmFyL2RhdGEvdXBsb2FkcwogICAgICAtIGtleTogQkFDS1VQX0RJUgogICAgICAgIHZhbHVlOiAvdmFyL2RhdGEvYmFja3VwcwogICAgICAtIGtleTogU0VFRF9BRE1JTl9FTUFJTAogICAgICAgIHN5bmM6IGZhbHNlCiAgICAgIC0ga2V5OiBTRUVEX0FETUlOX1BBU1NXT1JECiAgICAgICAgc3luYzogZmFsc2UKICAgICAgLSBrZXk6IFJFRElTX1VSTAogICAgICAgIHN5bmM6IGZhbHNlCiAgICAgIC0ga2V5OiBBU1lOQ19KT0JTX0ZPUkNFX09GRgogICAgICAgIHZhbHVlOiAiZmFsc2UiCiAgICAgIC0ga2V5OiBBU1lOQ19KT0JTX0VOQUJMRUQKICAgICAgICB2YWx1ZTogInRydWUiCiAgICAgIC0ga2V5OiBPQkpFQ1RfU1RPUkFHRV9CQUNLRU5ECiAgICAgICAgdmFsdWU6ICJsb2NhbCIKICAgICAgLSBrZXk6IE9CSkVDVF9TVE9SQUdFX0JVQ0tFVAogICAgICAgIHN5bmM6IGZhbHNlCiAgICAgIC0ga2V5OiBPQkpFQ1RfU1RPUkFHRV9QUkVGSVgKICAgICAgICB2YWx1ZTogImlzZy1zdWl0ZS1vc2diIgogICAgICAtIGtleTogT0JKRUNUX1NUT1JBR0VfRU5EUE9JTlQKICAgICAgICBzeW5jOiBmYWxzZQogICAgICAtIGtleTogT0JKRUNUX1NUT1JBR0VfUkVHSU9OCiAgICAgICAgc3luYzogZmFsc2UKICAgICAgLSBrZXk6IE9CSkVDVF9TVE9SQUdFX0FDQ0VTU19LRVkKICAgICAgICBzeW5jOiBmYWxzZQogICAgICAtIGtleTogT0JKRUNUX1NUT1JBR0VfU0VDUkVUX0tFWQogICAgICAgIHN5bmM6IGZhbHNlCiAgICAgIC0ga2V5OiBVUExPQURfR0FURVdBWV9FTkFCTEVECiAgICAgICAgdmFsdWU6ICJ0cnVlIgogICAgICAtIGtleTogVVBMT0FEX0dBVEVXQVlfRk9SQ0VfT0ZGCiAgICAgICAgdmFsdWU6ICJmYWxzZSIKICAgICAgLSBrZXk6IEFVVEhfUkVGUkVTSF9DT09LSUVfRU5BQkxFRAogICAgICAgIHZhbHVlOiAidHJ1ZSIKICAgICAgLSBrZXk6IEFDQ0VTU19UT0tFTl9FWFBJUkVfTUlOVVRFU19TSE9SVAogICAgICAgIHZhbHVlOiAiMTUiCiAgICAgIC0ga2V5OiBBVVRIX1JFRlJFU0hfQ09PS0lFX0ZPUkNFX09GRgogICAgICAgIHZhbHVlOiAiZmFsc2UiCiAgICAgIC0ga2V5OiBIRUFMVEhfRklFTERfRU5DUllQVElPTl9FTkFCTEVECiAgICAgICAgdmFsdWU6ICJmYWxzZSIKICAgICAgLSBrZXk6IEhFQUxUSF9GSUVMRF9FTkNSWVBUSU9OX0tFWQogICAgICAgIHN5bmM6IGZhbHNlCiAgICAgIC0ga2V5OiBIRUFMVEhfRklFTERfRU5DUllQVElPTl9GT1JDRV9PRkYKICAgICAgICB2YWx1ZTogImZhbHNlIgogICAgICAtIGtleTogT0JKRUNUX1NUT1JBR0VfQVVUT19DVVRPVkVSCiAgICAgICAgdmFsdWU6ICJ0cnVlIgogICAgICAtIGtleTogT0JKRUNUX1NUT1JBR0VfRk9SQ0VfTE9DQUwKICAgICAgICB2YWx1ZTogImZhbHNlIgogICAgICAtIGtleTogQkFDS1VQX1JFU1RPUkVfRU5BQkxFRAogICAgICAgIHZhbHVlOiAiZmFsc2UiCiAgICAgIC0ga2V5OiBCQUNLVVBfRU5DUllQVElPTl9LRVkKICAgICAgICBzeW5jOiBmYWxzZQogICAgICAtIGtleTogQkFDS1VQX0VOQ1JZUFRJT05fRk9SQ0VfT0ZGCiAgICAgICAgdmFsdWU6ICJmYWxzZSIKICAgICAgLSBrZXk6IENMQU1BVl9IT1NUCiAgICAgICAgc3luYzogZmFsc2UKICAgICAgIyBFbWVyZ2VuY3kgY29tcGF0aWJpbGl0eSByb2xsYmFjazoga2VlcCB0aGUgZXN0YWJsaXNoZWQgdHJhaW5pbmcgUERGLAogICAgICAjIGNlcnRpZmljYXRlIGFuZCBwcmVzZW50YXRpb24gZmxvd3MgYXZhaWxhYmxlIHdoaWxlIHN0cmljdCBWMi9WMyBnYXRlcwogICAgICAjIGFyZSBjb21wbGV0ZWQgZm9yIHRoZSBmdWxsIHNlY3RvciBjYXRhbG9nLgogICAgICAtIGtleTogVFJBSU5JTkdfQ09NUExFVElPTl9TVFJJQ1QKICAgICAgICB2YWx1ZTogImZhbHNlIgogICAgICAtIGtleTogTkFDRV9UUkFJTklOR19QUkVTRU5UQVRJT05fVFJBQ0VBQklMSVRZX0ZPUkNFX09GRgogICAgICAgIHZhbHVlOiAidHJ1ZSIKICAgICAgIyBSZW1vdGUgQmFzaWMgT0hTIHBhY2thZ2UvY2F0YWxvZyBtYW5hZ2VtZW50IGlzIGxpdmUuIEVtcGxveWVlIGFjY2VzcwogICAgICAjIHN0aWxsIHJlcXVpcmVzIGFuIGV4cGxpY2l0IGFzc2lnbm1lbnQ7IHRoZSBzdHJpY3Qgc2VjdG9yIHBvbGljeSByZW1haW5zCiAgICAgICMgZW5mb3JjZWQgc2VwYXJhdGVseSBiZWxvdy4KICAgICAgLSBrZXk6IFJFTU9URV9CQVNJQ19PSFNfVFJBSU5JTkdfRU5BQkxFRAogICAgICAgIHZhbHVlOiAidHJ1ZSIKICAgICAgLSBrZXk6IFJFTU9URV9CQVNJQ19PSFNfVFJBSU5JTkdfRk9SQ0VfT0ZGCiAgICAgICAgdmFsdWU6ICJmYWxzZSIKICAgICAgLSBrZXk6IFJFTU9URV9CQVNJQ19PSFNfVklERU9fTUFYX1VQTE9BRF9NQgogICAgICAgIHZhbHVlOiAiMjA0OCIKICAgICAgLSBrZXk6IFJFTU9URV9CQVNJQ19PSFNfUExBWUJBQ0tfVFRMX1NFQ09ORFMKICAgICAgICB2YWx1ZTogIjMwMCIKICAgICAgIyBGaXJtYSB2ZSBzZWt0w7ZyIGF0YW1hc8SxIHnDtm5ldGljaW5pbiBzZcOnaW1peWxlIHlhcMSxbMSxci4gIE90b21hdGlrIGZpcm1hCiAgICAgICMgYXRhbWFzxLEgeW9rdHVyOyBib8WfIMWfaXJrZXQgYWxsb3dsaXN0J2kgdMO8bSBmaXJtYWxhcsSxbiB5w7ZuZXRpY2luaW4KICAgICAgIyBzZcOndGnEn2kgeWF5xLFtbGFubcSxxZ8gc2VrdMO2ciBwYWtldGxlcmluaSBhbGFiaWxtZXNpbmkgc2HEn2xhci4KICAgICAgLSBrZXk6IFJFTU9URV9CQVNJQ19PSFNfU1RSSUNUX1BPTElDWV9FTkFCTEVECiAgICAgICAgdmFsdWU6ICJ0cnVlIgogICAgICAtIGtleTogUkVNT1RFX0JBU0lDX09IU19TVFJJQ1RfUE9MSUNZX0ZPUkNFX09GRgogICAgICAgIHZhbHVlOiAiZmFsc2UiCiAgICAgIC0ga2V5OiBSRU1PVEVfQkFTSUNfT0hTX1NUUklDVF9QT0xJQ1lfUEFDS0FHRV9DT0RFUwogICAgICAgIHZhbHVlOiAiY29tbW9uLWJhc2ljLW9ocyxjb25zdHJ1Y3Rpb24tb2hzLG1ldGFsLW1hY2hpbmUtb2hzLGJhdHRlcnktcHJvZHVjdGlvbi1vaHMsZm9vZC1wcm9kdWN0aW9uLW9ocyxsb2dpc3RpY3Mtd2FyZWhvdXNlLXRyYW5zcG9ydC1vaHMsY2hlbWljYWwtcGFpbnQtcHJvZHVjdGlvbi1vaHMsb3Blbi1taW5lLXF1YXJyeS1hZ2dyZWdhdGUtb2hzLHJvYWQtYXNwaGFsdC1pbmZyYXN0cnVjdHVyZS1vaHMsb2ZmaWNlLWdlbmVyYWwtb2hzLHdvcmtpbmctYXQtaGVpZ2h0LW9ocyIKICAgICAgLSBrZXk6IFJFTU9URV9CQVNJQ19PSFNfU1RSSUNUX1BPTElDWV9QSUxPVF9DT01QQU5ZX0lEUwogICAgICAgIHZhbHVlOiAiIgoKICAtIHR5cGU6IGNyb24KICAgIG5hbWU6IGlzZy1zdWl0ZS1hcGktd2FybXVwCiAgICBydW50aW1lOiBweXRob24KICAgIHJvb3REaXI6IGJhY2tlbmQKICAgIHNjaGVkdWxlOiAiKi8xNCAqICogKiAqIgogICAgYnVpbGRDb21tYW5kOiAidHJ1ZSIKICAgIHN0YXJ0Q29tbWFuZDogcHl0aG9uIHNjcmlwdHMvd2FybXVwX3BpbmcucHkKICAgIGJyYW5jaDogbWFzdGVyCiAgICBlbnZWYXJzOgogICAgICAtIGtleTogUFlUSE9OX1ZFUlNJT04KICAgICAgICB2YWx1ZTogMy4xMS4xMQogICAgICAtIGtleTogV0FSTVVQX0FQSV9VUkwKICAgICAgICB2YWx1ZTogaHR0cHM6Ly9pc2ctc3VpdGUtYXBpLTF1OXQub25yZW5kZXIuY29tCgogIC0gdHlwZTogd2ViCiAgICBuYW1lOiBpc2ctc3VpdGUtd2ViCiAgICBydW50aW1lOiBzdGF0aWMKICAgIHJvb3REaXI6IGZyb250ZW5kCiAgICBidWlsZENvbW1hbmQ6IG5wbSBjaSAtLW5vLWF1ZGl0IC0tbm8tZnVuZCAmJiBub2RlIHNjcmlwdHMvYXBwbHlfdHJhaW5pbmdfY29sb3JfdGhlbWUubWpzICYmIG5vZGUgc2NyaXB0cy9hY3RpdmF0ZV90cmFpbmluZ19leGFtLm1qcyAmJiBucG0gcnVuIGJ1aWxkCiAgICBzdGF0aWNQdWJsaXNoUGF0aDogZGlzdAogICAgYnJhbmNoOiBtYXN0ZXIKICAgIGVudlZhcnM6CiAgICAgIC0ga2V5OiBOT0RFX1ZFUlNJT04KICAgICAgICB2YWx1ZTogMjAuMTguMAogICAgICAtIGtleTogVklURV9BUElfVVJMCiAgICAgICAgdmFsdWU6IC9hcGkvdjEKICAgIHJvdXRlczoKICAgICAgLSB0eXBlOiByZXdyaXRlCiAgICAgICAgc291cmNlOiAvYXBpLyoKICAgICAgICBkZXN0aW5hdGlvbjogaHR0cHM6Ly9pc2ctc3VpdGUtYXBpLTF1OXQub25yZW5kZXIuY29tL2FwaS8qCiAgICAgIC0gdHlwZTogcmV3cml0ZQogICAgICAgIHNvdXJjZTogL2hlYWx0aAogICAgICAgIGRlc3RpbmF0aW9uOiBodHRwczovL2lzZy1zdWl0ZS1hcGktMXU5dC5vbnJlbmRlci5jb20vaGVhbHRoCiAgICAgIC0gdHlwZTogcmV3cml0ZQogICAgICAgIHNvdXJjZTogLyoKICAgICAgICBkZXN0aW5hdGlvbjogL2luZGV4Lmh0bWwKCmRhdGFiYXNlczoKICAtIG5hbWU6IGlzZy1zdWl0ZS1kYgogICAgZGF0YWJhc2VOYW1lOiBpc2dzdWl0ZQogICAgdXNlcjogaXNnc3VpdGUK
+# Render Blueprint — eğitim belgesi ve sınav davranışları kaynak kontrollüdür; build kaynak dosyaları değiştirmez.
+services:
+  - type: web
+    name: isg-suite-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: sh start.sh
+    healthCheckPath: /health
+    branch: master
+    disk:
+      name: isg-suite-api-data
+      mountPath: /var/data
+      sizeGB: 5
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: ENVIRONMENT
+        value: production
+      # Verified NACE records must always use the frozen five-topic snapshot;
+      # cross-sector legacy aliases are not allowed to select live exam questions.
+      - key: TRAINING_EXACT_NACE_EXAM_STRICT
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: isg-suite-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FRONTEND_ORIGIN
+        value: https://www.isgsuite.tr
+      - key: UPLOAD_DIR
+        value: /var/data/uploads
+      - key: BACKUP_DIR
+        value: /var/data/backups
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: ASYNC_JOBS_FORCE_OFF
+        value: "false"
+      - key: ASYNC_JOBS_ENABLED
+        value: "true"
+      - key: OBJECT_STORAGE_BACKEND
+        value: "local"
+      - key: OBJECT_STORAGE_BUCKET
+        sync: false
+      - key: OBJECT_STORAGE_PREFIX
+        value: "isg-suite-osgb"
+      - key: OBJECT_STORAGE_ENDPOINT
+        sync: false
+      - key: OBJECT_STORAGE_REGION
+        sync: false
+      - key: OBJECT_STORAGE_ACCESS_KEY
+        sync: false
+      - key: OBJECT_STORAGE_SECRET_KEY
+        sync: false
+      - key: UPLOAD_GATEWAY_ENABLED
+        value: "true"
+      - key: UPLOAD_GATEWAY_FORCE_OFF
+        value: "false"
+      - key: AUTH_REFRESH_COOKIE_ENABLED
+        value: "true"
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES_SHORT
+        value: "15"
+      - key: AUTH_REFRESH_COOKIE_FORCE_OFF
+        value: "false"
+      - key: HEALTH_FIELD_ENCRYPTION_ENABLED
+        value: "false"
+      - key: HEALTH_FIELD_ENCRYPTION_KEY
+        sync: false
+      - key: HEALTH_FIELD_ENCRYPTION_FORCE_OFF
+        value: "false"
+      - key: OBJECT_STORAGE_AUTO_CUTOVER
+        value: "true"
+      - key: OBJECT_STORAGE_FORCE_LOCAL
+        value: "false"
+      - key: BACKUP_RESTORE_ENABLED
+        value: "false"
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
+      - key: BACKUP_ENCRYPTION_FORCE_OFF
+        value: "false"
+      - key: CLAMAV_HOST
+        sync: false
+      # Emergency compatibility rollback: keep the established training PDF,
+      # certificate and presentation flows available while strict V2/V3 gates
+      # are completed for the full sector catalog.
+      - key: TRAINING_COMPLETION_STRICT
+        value: "false"
+      - key: NACE_TRAINING_PRESENTATION_TRACEABILITY_FORCE_OFF
+        value: "true"
+      # Remote Basic OHS package/catalog management is live. Employee access
+      # still requires an explicit assignment; the strict sector policy remains
+      # enforced separately below.
+      - key: REMOTE_BASIC_OHS_TRAINING_ENABLED
+        value: "true"
+      - key: REMOTE_BASIC_OHS_TRAINING_FORCE_OFF
+        value: "false"
+      - key: REMOTE_BASIC_OHS_VIDEO_MAX_UPLOAD_MB
+        value: "2048"
+      - key: REMOTE_BASIC_OHS_PLAYBACK_TTL_SECONDS
+        value: "300"
+      # Firma ve sektör ataması yöneticinin seçimiyle yapılır.  Otomatik firma
+      # ataması yoktur; boş şirket allowlist'i tüm firmaların yöneticinin
+      # seçtiği yayımlanmış sektör paketlerini alabilmesini sağlar.
+      - key: REMOTE_BASIC_OHS_STRICT_POLICY_ENABLED
+        value: "true"
+      - key: REMOTE_BASIC_OHS_STRICT_POLICY_FORCE_OFF
+        value: "false"
+      - key: REMOTE_BASIC_OHS_STRICT_POLICY_PACKAGE_CODES
+        value: "common-basic-ohs,construction-ohs,metal-machine-ohs,battery-production-ohs,food-production-ohs,logistics-warehouse-transport-ohs,chemical-paint-production-ohs,open-mine-quarry-aggregate-ohs,road-asphalt-infrastructure-ohs,office-general-ohs,working-at-height-ohs"
+      - key: REMOTE_BASIC_OHS_STRICT_POLICY_PILOT_COMPANY_IDS
+        value: ""
+
+  - type: cron
+    name: isg-suite-api-warmup
+    runtime: python
+    rootDir: backend
+    schedule: "*/14 * * * *"
+    buildCommand: "true"
+    startCommand: python scripts/warmup_ping.py
+    branch: master
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: WARMUP_API_URL
+        value: https://isg-suite-api-1u9t.onrender.com
+
+  - type: web
+    name: isg-suite-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci --no-audit --no-fund && node scripts/apply_training_color_theme.mjs && node scripts/activate_training_exam.mjs && npm run build
+    staticPublishPath: dist
+    branch: master
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+      - key: VITE_API_URL
+        value: /api/v1
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://isg-suite-api-1u9t.onrender.com/api/*
+      - type: rewrite
+        source: /health
+        destination: https://isg-suite-api-1u9t.onrender.com/health
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+databases:
+  - name: isg-suite-db
+    databaseName: isgsuite
+    user: isgsuite
