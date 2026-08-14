@@ -6,6 +6,7 @@ const MANAGE_ROLES = ['global_admin', 'company_admin', 'safety_specialist'];
 const HISTORICAL_VIDEO_STATUSES = ['published', 'unpublished', 'archived'];
 const REMOTE_TRAINING_CANONICAL_TITLE = 'Basic Occupational Health and Safety Training';
 const REMOTE_TRAINING_DISPLAY_TITLE = 'Temel İş Sağlığı ve Güvenliği Eğitimi';
+const EMPLOYEE_TRAINING_DISPLAY_TITLE = 'Eğitimlerim';
 const REMOTE_SECTOR_LABELS = {
   common: 'Temel Ortak İSG',
   construction: 'İnşaat',
@@ -76,6 +77,85 @@ function localizedTrainingTitle(value) {
   return String(value || '').trim() === REMOTE_TRAINING_CANONICAL_TITLE
     ? REMOTE_TRAINING_DISPLAY_TITLE
     : value;
+}
+
+function employeeAssignmentTitle(assignment) {
+  return localizedTrainingTitle(assignment?.program?.title)
+    || assignment?.program?.training_type
+    || 'Atanan eğitim';
+}
+
+function employeeAssignmentKind(assignment) {
+  const packageCode = assignment?.program?.source_catalog_code;
+  if (packageCode && REMOTE_PACKAGE_LABELS[packageCode]) return REMOTE_PACKAGE_LABELS[packageCode];
+  return assignment?.program?.training_type === REMOTE_TRAINING_CANONICAL_TITLE
+    ? 'Uzaktan eğitim'
+    : assignment?.program?.training_type || 'Eğitim';
+}
+
+function dateKey(value) {
+  const raw = String(value || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : '';
+}
+
+function localDateKey(value = new Date()) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function formatEmployeeDate(value) {
+  const key = dateKey(value);
+  if (!key) return 'Belirlenmedi';
+  const [year, month, day] = key.split('-').map(Number);
+  return new Intl.DateTimeFormat('tr-TR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(year, month - 1, day));
+}
+
+export function employeeAssignmentTimeline(assignment, now = new Date()) {
+  if (assignment?.status === 'completed' || assignment?.summary?.complete) {
+    return {key: 'completed', label: 'Tamamlandı', tone: 'success', rank: 5};
+  }
+  const dueDate = dateKey(assignment?.due_date);
+  const today = localDateKey(now);
+  if (dueDate && dueDate < today) {
+    return {key: 'overdue', label: 'Süresi geçmiş', tone: 'danger', rank: 0};
+  }
+  if (dueDate && dueDate === today) {
+    return {key: 'due', label: 'Süresi bugün', tone: 'warning', rank: 1};
+  }
+  if (dueDate && dueDate > today) {
+    return {key: 'upcoming', label: 'Yaklaşan', tone: 'info', rank: 3};
+  }
+  if (assignment?.status === 'in_progress') {
+    return {key: 'in_progress', label: 'Devam ediyor', tone: 'accent', rank: 2};
+  }
+  return {key: 'not_started', label: 'Başlamadı', tone: 'muted', rank: 4};
+}
+
+function employeeAssignmentProgress(assignment) {
+  const summary = assignment?.summary || {};
+  const completed = Number(summary.completed_video_count || 0);
+  const required = Number(summary.required_video_count || 0);
+  const exam = summary.exam_required
+    ? (summary.exam_passed ? 'Sınav başarılı' : 'Sınav bekliyor')
+    : 'Sınav zorunlu değil';
+  return `${completed}/${required} video · ${exam}`;
+}
+
+export function sortEmployeeAssignments(rows, now = new Date()) {
+  return [...(rows || [])].sort((left, right) => {
+    const leftTimeline = employeeAssignmentTimeline(left, now);
+    const rightTimeline = employeeAssignmentTimeline(right, now);
+    const rankDelta = leftTimeline.rank - rightTimeline.rank;
+    if (rankDelta) return rankDelta;
+    return String(right.assigned_at || '').localeCompare(String(left.assigned_at || ''))
+      || Number(right.id || 0) - Number(left.id || 0);
+  });
 }
 
 function programTitleKey(value) {
@@ -172,6 +252,7 @@ function ProgressBadge({assignment}) {
 function EmployeePanel() {
   const [assignments, setAssignments] = useState([]);
   const [selectedId, setSelectedId] = useState('');
+  const [assignmentFilter, setAssignmentFilter] = useState('all');
   const [assignment, setAssignment] = useState(null);
   const [activeVideo, setActiveVideo] = useState(null);
   const [playbackUrl, setPlaybackUrl] = useState('');
@@ -186,13 +267,25 @@ function EmployeePanel() {
   const lastSentAt = useRef(0);
 
   async function loadAssignments() {
+    setBusy(true);
+    setError('');
     try {
       const rows = await api('/trainings/remote/my-assignments');
       const next = Array.isArray(rows) ? rows : [];
       setAssignments(next);
-      if (next.length && !selectedId) setSelectedId(String(next[0].id));
+      setSelectedId((current) => {
+        if (current && next.some((row) => String(row.id) === String(current))) return current;
+        return next.length ? String(next[0].id) : '';
+      });
+      if (!next.length) {
+        setAssignment(null);
+        setActiveVideo(null);
+        setPlaybackUrl('');
+      }
     } catch (err) {
       setError(err.message || 'Atamalar alınamadı.');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -381,30 +474,108 @@ function EmployeePanel() {
   }
   const currentProgress = assignment?.video_progress?.find((row) => row.video_id === activeVideo?.id);
   const checkpointQuestions = assignment?.program?.checkpoint_questions || [];
+  const orderedAssignments = useMemo(() => sortEmployeeAssignments(assignments), [assignments]);
+  const visibleAssignments = useMemo(
+    () => orderedAssignments.filter((row) => assignmentFilter === 'all' || employeeAssignmentTimeline(row).key === assignmentFilter),
+    [assignmentFilter, orderedAssignments],
+  );
+  const assignmentFilterOptions = [
+    {key: 'all', label: 'Tümü'},
+    {key: 'upcoming', label: 'Yaklaşan'},
+    {key: 'due', label: 'Süresi bugün'},
+    {key: 'overdue', label: 'Süresi geçmiş'},
+    {key: 'completed', label: 'Tamamlanan'},
+  ];
+  const assignmentCounts = useMemo(() => {
+    const counts = {all: assignments.length, upcoming: 0, due: 0, overdue: 0, completed: 0};
+    assignments.forEach((row) => {
+      const key = employeeAssignmentTimeline(row).key;
+      if (Object.prototype.hasOwnProperty.call(counts, key)) counts[key] += 1;
+    });
+    return counts;
+  }, [assignments]);
 
   return (
     <section className="remote-training-card" style={cardStyle} aria-label="Çalışan uzaktan eğitim paneli">
       <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
         <div>
-          <div style={{fontSize: 12, color: '#547187', fontWeight: 700, letterSpacing: '.03em'}}>ÇALIŞAN PANELİ</div>
-          <h3 style={{margin: '4px 0 4px'}}>{REMOTE_TRAINING_DISPLAY_TITLE}</h3>
-          <p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Video açılması tamamlanma sayılmaz; ilerleme ve sınav kaydı birlikte değerlendirilir.</p>
+          <div style={{fontSize: 12, color: '#547187', fontWeight: 700, letterSpacing: '.03em'}}>ÇALIŞAN EĞİTİM VE SINAV SAYFASI</div>
+          <h3 style={{margin: '4px 0 4px'}}>{EMPLOYEE_TRAINING_DISPLAY_TITLE}</h3>
+          <p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Size atanmış tüm eğitimleri, son tarihlerini, ilerlemenizi, sınavlarınızı ve tamamlanan belgelerinizi burada görürsünüz.</p>
         </div>
-        <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} aria-label="Uzaktan eğitim ataması">
-          <option value="">Atama seçin</option>
-          {assignments.map((row) => <option key={row.id} value={row.id}>{localizedTrainingTitle(row.program?.title) || `Eğitim #${row.program_id}`} · {statusLabel(row.status)}</option>)}
-        </select>
+        <button type="button" onClick={loadAssignments} disabled={busy}>Eğitimleri yenile</button>
       </div>
       <ErrorText value={error} />
       {message && <div role="status" aria-live="polite" style={{color: '#087443', margin: '10px 0', fontWeight: 600}}>{message}</div>}
-      {!assignments.length && !busy && <p style={{color: '#5e7485'}}>Henüz size atanmış yayımlanmış uzaktan eğitim yok.</p>}
+      {assignments.length > 0 && (
+        <div className="remote-training-assignment-overview" aria-label="Size atanmış tüm eğitimler">
+          <div className="remote-training-assignment-overview-heading">
+            <div>
+              <strong>Atanan tüm eğitimler</strong>
+              <span>{assignments.length} eğitim</span>
+            </div>
+            <div className="remote-training-assignment-filters" role="group" aria-label="Eğitim durumuna göre filtrele">
+              {assignmentFilterOptions.map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  className={assignmentFilter === option.key ? 'active' : ''}
+                  aria-pressed={assignmentFilter === option.key}
+                  onClick={() => setAssignmentFilter(option.key)}
+                >
+                  {option.label} ({assignmentCounts[option.key]})
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="remote-training-assignment-list">
+            {visibleAssignments.map((row) => {
+              const timeline = employeeAssignmentTimeline(row);
+              const selected = String(row.id) === String(selectedId);
+              return (
+                <button
+                  key={row.id}
+                  type="button"
+                  className={`remote-training-assignment-item${selected ? ' selected' : ''}`}
+                  aria-pressed={selected}
+                  onClick={() => setSelectedId(String(row.id))}
+                  disabled={busy}
+                >
+                  <span className="remote-training-assignment-item-main">
+                    <strong>{employeeAssignmentTitle(row)}</strong>
+                    <span>{employeeAssignmentKind(row)}{row.workplace_name_snapshot ? ` · ${row.workplace_name_snapshot}` : ''}</span>
+                  </span>
+                  <span className={`remote-training-assignment-pill ${timeline.tone}`}>{timeline.label}</span>
+                  <span className="remote-training-assignment-item-meta">
+                    <span>{employeeAssignmentProgress(row)}</span>
+                    <span>{row.due_date ? `Son tarih: ${formatEmployeeDate(row.due_date)}` : 'Son tarih belirlenmedi'}</span>
+                    <span>{row.assigned_at ? `Atanma: ${formatEmployeeDate(row.assigned_at)}` : ''}</span>
+                  </span>
+                </button>
+              );
+            })}
+            {!visibleAssignments.length && <p className="remote-training-assignment-empty">Bu duruma ait atanmış eğitim bulunmuyor.</p>}
+          </div>
+        </div>
+      )}
+      {!assignments.length && !busy && <p style={{color: '#5e7485'}}>Henüz size atanmış eğitim yok. Yeni bir eğitim atandığında burada görünecek.</p>}
       {assignment && (
         <>
-          <div style={{marginTop: 16, padding: 12, borderRadius: 10, background: '#f4f8fb'}}>
-            <strong>{localizedTrainingTitle(assignment.program?.title)}</strong>
+          <div className="remote-training-selected-assignment" style={{marginTop: 16, padding: 12, borderRadius: 10, background: '#f4f8fb'}}>
+            <div className="remote-training-selected-assignment-heading">
+              <div>
+                <span className="remote-training-selected-label">SEÇİLİ EĞİTİM</span>
+                <strong>{employeeAssignmentTitle(assignment)}</strong>
+                <span>{employeeAssignmentKind(assignment)}{assignment.workplace_name_snapshot ? ` · ${assignment.workplace_name_snapshot}` : ''}</span>
+              </div>
+              <span className={`remote-training-assignment-pill ${employeeAssignmentTimeline(assignment).tone}`}>{employeeAssignmentTimeline(assignment).label}</span>
+            </div>
             <ProgressBadge assignment={assignment} />
             <div style={{marginTop: 6, color: '#36556d', fontSize: 12}}>
               Ders kapsamı: <strong>{assignment.sector_names?.length ? assignment.sector_names.join(', ') : 'Eski kayıt — tüm yayımlanmış içerik'}</strong>
+            </div>
+            <div style={{marginTop: 4, color: '#36556d', fontSize: 12}}>
+              Atanma tarihi: <strong>{formatEmployeeDate(assignment.assigned_at)}</strong> · Son tarih: <strong>{formatEmployeeDate(assignment.due_date)}</strong>
             </div>
             {assignment.snapshot_warnings?.length > 0 && <p style={{margin: '8px 0 0', color: '#9a3412', fontSize: 12}}>Belge snapshot uyarısı: {assignment.snapshot_warnings.join(' ')}</p>}
           </div>

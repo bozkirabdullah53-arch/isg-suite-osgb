@@ -12,6 +12,156 @@
   overflow: hidden;
 }
 
+.remote-training-assignment-overview {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--remote-border);
+  border-radius: 12px;
+  background: #f8fbfd;
+}
+
+.remote-training-assignment-overview-heading,
+.remote-training-selected-assignment-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.remote-training-assignment-overview-heading > div:first-child,
+.remote-training-selected-assignment-heading > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.remote-training-assignment-overview-heading > div:first-child span,
+.remote-training-selected-assignment-heading > div:first-child > span {
+  color: var(--remote-muted);
+  font-size: 12px;
+}
+
+.remote-training-assignment-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.remote-training-assignment-filters button {
+  min-height: 32px;
+  padding: 6px 9px;
+  color: var(--remote-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.remote-training-assignment-filters button.active {
+  border-color: var(--remote-accent);
+  background: #e7f8f8;
+  color: #087483;
+}
+
+.remote-training-assignment-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.remote-training-assignment-item {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) auto minmax(220px, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 11px 12px;
+  border-color: #dbe5ef !important;
+  text-align: left;
+  background: #fff !important;
+}
+
+.remote-training-assignment-item:hover:not(:disabled),
+.remote-training-assignment-item.selected {
+  border-color: #3aaeb7 !important;
+  background: #f0fcfc !important;
+}
+
+.remote-training-assignment-item-main,
+.remote-training-assignment-item-meta {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.remote-training-assignment-item-main > span,
+.remote-training-assignment-item-meta {
+  overflow: hidden;
+  color: var(--remote-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.remote-training-assignment-item-meta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.remote-training-assignment-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: max-content;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.remote-training-assignment-pill.success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.remote-training-assignment-pill.danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.remote-training-assignment-pill.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.remote-training-assignment-pill.info,
+.remote-training-assignment-pill.accent {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.remote-training-assignment-pill.muted {
+  background: #eef2f7;
+  color: #496174;
+}
+
+.remote-training-assignment-empty {
+  margin: 4px 0 0;
+  color: var(--remote-muted);
+  font-size: 12px;
+}
+
+.remote-training-selected-label {
+  color: #547187 !important;
+  font-size: 11px !important;
+  font-weight: 800;
+  letter-spacing: .03em;
+}
+
+.remote-training-selected-assignment-heading strong {
+  display: block;
+}
+
 .remote-training-panel button {
   min-height: 40px;
   max-width: 100%;
@@ -262,6 +412,14 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .remote-training-assignment-item {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .remote-training-assignment-item-meta {
+    grid-column: 1 / -1;
+  }
+
   .remote-training-manager-grid,
   .remote-training-content-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -276,6 +434,18 @@
   .remote-training-card {
     padding: 12px !important;
     border-radius: 11px !important;
+  }
+
+  .remote-training-assignment-overview {
+    padding: 10px;
+  }
+
+  .remote-training-assignment-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .remote-training-assignment-item-meta {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .remote-training-panel select,
