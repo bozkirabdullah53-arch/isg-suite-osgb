@@ -1044,11 +1044,12 @@ def fork_catalog_package(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Create an OSGB-owned copy of a shared, published package.
+    """Create an OSGB-owned copy of a shared package.
 
-    Rows and video objects are copied into the tenant scope.  Existing
-    company programs reference their original package snapshot and are
-    untouched.
+    A draft/unpublished shared package can be copied so an OSGB can prepare
+    its own content without changing the central catalog. Rows and video
+    objects are copied into the tenant scope. Existing company programs
+    reference their original package snapshot and are untouched.
     """
     source = _catalog_package_for_manager(db, user, package_id)
     _assert_catalog_content_editor(db, user)
@@ -1057,8 +1058,8 @@ def fork_catalog_package(
         raise HTTPException(409, "Global yönetici ortak paket için özel OSGB kopyası oluşturamaz.")
     if source.osgb_id is not None:
         raise HTTPException(409, "Bu paket zaten OSGB özel sürümüdür.")
-    if source.status != "published":
-        raise HTTPException(409, "Yalnızca yayımlanmış hazır paket özel kopyalanabilir.")
+    if source.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş ortak paket özel kopyalanamaz.")
 
     existing = db.scalar(
         select(RemoteTrainingCatalogPackage).where(
