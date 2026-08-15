@@ -298,6 +298,7 @@ function EmployeePanel() {
   const lastSentAt = useRef(0);
   const playbackPrefetches = useRef(new Map());
   const playbackRequestVersion = useRef(0);
+  const playbackRetryRef = useRef(new Set());
   const progressQueue = useRef(Promise.resolve());
   const playerRef = useRef(null);
   const latestProgressRef = useRef(null);
@@ -369,19 +370,72 @@ function EmployeePanel() {
     });
   }
 
-  function continueVideo() {
+  async function continueVideo() {
     const player = playerRef.current;
     if (!player) return;
-    try {
-      const playback = player.play();
-      if (playback?.catch) {
-        playback.catch(() => {
-          setMessage('Tarayıcı otomatik oynatmayı engelledi. Videoyu devam ettirmek için düğmeye basın.');
-        });
-      }
-    } catch (_err) {
-      setMessage('Videoyu devam ettirmek için düğmeye basın.');
+    setError('');
+    setMessage('');
+    if (player.error) {
+      await refreshPlaybackUrl();
+      return;
     }
+    try {
+      await player.play();
+    } catch (err) {
+      if (String(err?.name || '') === 'NotAllowedError') {
+        const wasMuted = player.muted;
+        player.muted = true;
+        try {
+          await player.play();
+          setMessage('Tarayıcı sesli otomatik oynatmayı engelledi; video sessiz devam ediyor. Sesi video üzerindeki hoparlör düğmesinden açabilirsiniz.');
+        } catch (_mutedError) {
+          player.muted = wasMuted;
+          setError('Video başlatılamadı; bağlantı yenileniyor…');
+          await refreshPlaybackUrl();
+        }
+        return;
+      }
+      setError('Video oynatılamadı; bağlantı yenileniyor…');
+      await refreshPlaybackUrl();
+    }
+  }
+
+  async function refreshPlaybackUrl() {
+    if (!assignment || !activeVideo) return;
+    const key = `${assignment.id}:${activeVideo.id}`;
+    playbackPrefetches.current.delete(key);
+    const requestVersion = ++playbackRequestVersion.current;
+    setPlaybackUrl('');
+    setVideoPlaying(false);
+    setVideoLoading(true);
+    try {
+      const url = await playbackUrlFor(activeVideo, assignment.id);
+      if (requestVersion === playbackRequestVersion.current) {
+        setPlaybackUrl(url);
+        setMessage('Video bağlantısı yenilendi.');
+      }
+    } catch (err) {
+      if (requestVersion === playbackRequestVersion.current) {
+        setError(err.message || 'Video bağlantısı yenilenemedi.');
+      }
+    } finally {
+      if (requestVersion === playbackRequestVersion.current) setVideoLoading(false);
+    }
+  }
+
+  function handleVideoError(event) {
+    if (playerRef.current !== event.currentTarget || !assignment || !activeVideo) return;
+    const key = `${assignment.id}:${activeVideo.id}`;
+    if (playbackRetryRef.current.has(key)) {
+      setVideoPlaying(false);
+      setError('Video kaynağı oynatılamadı. Eğitimleri yenileyip tekrar deneyin.');
+      return;
+    }
+    playbackRetryRef.current.add(key);
+    setVideoPlaying(false);
+    setError('');
+    setMessage('Video bağlantısı yenileniyor…');
+    void refreshPlaybackUrl();
   }
 
   async function loadAssignments() {
@@ -400,6 +454,7 @@ function EmployeePanel() {
         setActiveVideo(null);
         setPlaybackUrl('');
         playbackPrefetches.current.clear();
+    playbackRetryRef.current.clear();
       }
     } catch (err) {
       setError(err.message || 'Atamalar alınamadı.');
@@ -484,6 +539,8 @@ function EmployeePanel() {
       setError('Bu ders kilitli. Önce sıradaki önceki videoyu tamamlayın.');
       return;
     }
+    const retryKey = `${assignment.id}:${video.id}`;
+    playbackRetryRef.current.delete(retryKey);
     setActiveVideo(video);
     setPlaybackUrl('');
     setVideoPlaying(false);
@@ -785,6 +842,7 @@ function EmployeePanel() {
                       const playback = event.currentTarget.play();
                       if (playback?.catch) playback.catch(() => {});
                     }}
+                    onError={handleVideoError}
                     onPlay={(event) => {
                       setVideoPlaying(true);
                       saveProgress('start', event.currentTarget);
@@ -821,7 +879,7 @@ function EmployeePanel() {
                     }}
                   />
                   <div style={{fontSize: 12, color: '#5e7485', marginTop: 8}}>Kaldığınız yer: {Math.round(currentProgress?.last_position_seconds || 0)} sn · Eşik: {completionThresholdPercent}%</div>
-                {!videoPlaying && <button type="button" onClick={continueVideo} style={{marginTop: 8}}>Videoyu devam ettir</button>}
+                {!videoPlaying && <button type="button" onClick={() => { void continueVideo(); }} style={{marginTop: 8}}>Videoyu devam ettir</button>}
                 </>
               ) : <div style={{minHeight: 180, display: 'grid', placeItems: 'center', border: '1px dashed #b9cad8', borderRadius: 10, color: '#5e7485'}}>{videoLoading ? 'Video hazırlanıyor…' : 'İzlemek için bir video seçin.'}</div>}
             </div>
