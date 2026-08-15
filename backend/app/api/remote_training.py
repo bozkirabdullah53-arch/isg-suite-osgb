@@ -1933,12 +1933,13 @@ def create_catalog_playback(
 @router.get("/catalog/videos/{video_id}/stream")
 def stream_catalog_video(
     video_id: int,
+    request: Request,
     token: str = Query(..., min_length=20),
     db: Session = Depends(get_db),
 ):
     require_feature()
     _user, video = decode_catalog_playback_token(db, token, video_id)
-    response = response_for_video(video)
+    response = response_for_video(video, request)
     response.headers["Cache-Control"] = "private, no-store, max-age=0"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
@@ -2823,12 +2824,13 @@ def create_remote_playback(
 @router.get("/videos/{video_id}/stream")
 def stream_remote_video(
     video_id: int,
+    request: Request,
     token: str = Query(..., min_length=20),
     db: Session = Depends(get_db),
 ):
     require_feature()
     _user, video, _assignment_id, _mode = decode_playback_token(db, token, video_id)
-    response = response_for_video(video)
+    response = response_for_video(video, request)
     response.headers["Cache-Control"] = "private, no-store, max-age=0"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
