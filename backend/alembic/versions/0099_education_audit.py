@@ -23,6 +23,14 @@ def _columns(bind, table_name: str) -> set[str]:
     return {column["name"] for column in sa.inspect(bind).get_columns(table_name)}
 
 
+def _indexes(bind, table_name: str) -> set[str]:
+    return {
+        index["name"]
+        for index in sa.inspect(bind).get_indexes(table_name)
+        if index.get("name")
+    }
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     tables = set(sa.inspect(bind).get_table_names())
@@ -49,11 +57,7 @@ def upgrade() -> None:
                 "training_sessions",
                 sa.Column("archive_reason", sa.String(length=500), nullable=True),
             )
-        indexes = {
-            index["name"]
-            for index in sa.inspect(bind).get_indexes("training_sessions")
-        }
-        if "ix_training_sessions_archived_at" not in indexes:
+        if "ix_training_sessions_archived_at" not in _indexes(bind, "training_sessions"):
             op.create_index(
                 "ix_training_sessions_archived_at",
                 "training_sessions",
@@ -91,11 +95,7 @@ def downgrade() -> None:
 
     if "training_sessions" in tables:
         columns = _columns(bind, "training_sessions")
-        indexes = {
-            index["name"]
-            for index in sa.inspect(bind).get_indexes("training_sessions")
-        }
-        if "ix_training_sessions_archived_at" in indexes:
+        if "ix_training_sessions_archived_at" in _indexes(bind, "training_sessions"):
             op.drop_index(
                 "ix_training_sessions_archived_at",
                 table_name="training_sessions",
