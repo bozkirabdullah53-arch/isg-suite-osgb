@@ -1,7 +1,7 @@
 """Regression tests for the isolated Basic OHS remote-training layer."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
