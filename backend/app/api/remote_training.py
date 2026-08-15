@@ -949,11 +949,12 @@ def materialize_catalog_package(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Snapshot a published central package into one company's program.
+    """Create an assignment-ready snapshot from a published central package.
 
     The company program owns its section/video rows after this operation.  A
     later catalog revision therefore cannot rewrite an employee's historical
-    assignment or progress records.
+    assignment or progress records.  This operation never assigns employees;
+    it only makes the selected company revision available for assignment.
     """
     package = _catalog_package_for_manager(db, user, package_id)
     if package.status != "published":
@@ -980,10 +981,39 @@ def materialize_catalog_package(
         )
     )
     if existing_snapshot:
-        raise HTTPException(
-            409,
-            f"Bu paket revizyonu firma için zaten hazırlandı (program #{existing_snapshot.id}).",
-        )
+        # The copy can take longer than a browser request timeout.  If the
+        # server committed before the client disconnected, return that same
+        # snapshot instead of creating a duplicate.  A materialized catalog
+        # snapshot is already validated by the published central package, so a
+        # previously interrupted draft can safely be opened for assignment.
+        if existing_snapshot.status in {"draft", "ready_for_review"}:
+            assignment_count = db.scalar(
+                select(func.count(RemoteTrainingAssignment.id)).where(
+                    RemoteTrainingAssignment.program_id == existing_snapshot.id
+                )
+            ) or 0
+            if assignment_count:
+                raise HTTPException(
+                    409,
+                    "Bu firma sürümünde mevcut çalışan atamaları bulunduğu için yeni katalog sürümü ayrı hazırlanmalıdır.",
+                )
+            existing_snapshot.status = "published"
+            existing_snapshot.published_at = datetime.utcnow()
+            audit(
+                db,
+                company_id=existing_snapshot.company_id,
+                user=user,
+                action="catalog_package_materialized_recovered",
+                entity_type="program",
+                entity_id=existing_snapshot.id,
+                details={
+                    "catalog_package_id": package.id,
+                    "catalog_code": package.code,
+                    "revision_no": package.revision_no,
+                },
+            )
+            _commit(db, "Yarım kalan merkezi paket firma sürümü açılamadı.")
+        return _program_detail(db, existing_snapshot)
 
     catalog_sections = list(
         db.scalars(
@@ -1043,6 +1073,11 @@ def materialize_catalog_package(
         source_catalog_code=package.code,
         source_catalog_revision_no=package.revision_no,
         title=(payload.title or package.title).strip(),
+        # The central package is already published and its automatic exam was
+        # validated above.  Publish only this new, unassigned company snapshot;
+        # historical programs and employee progress remain untouched.
+        status="published",
+        published_at=datetime.utcnow(),
         training_type=REMOTE_TRAINING_TYPE,
         description=package.description,
         instructor_name=payload.instructor_name,
@@ -1156,7 +1191,12 @@ def materialize_catalog_package(
             action="catalog_package_materialized",
             entity_type="program",
             entity_id=program.id,
-            details={"catalog_package_id": package.id, "catalog_code": package.code, "revision_no": package.revision_no},
+            details={
+                "catalog_package_id": package.id,
+                "catalog_code": package.code,
+                "revision_no": package.revision_no,
+                "auto_published": True,
+            },
         )
         _commit(db, "Merkezi paket firma programına hazırlanamadı.")
     except Exception:
