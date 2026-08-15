@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {
+  canEditRemoteContent,
   employeeAssignmentTimeline,
   formatEmployeeDate,
   sortEmployeeAssignments,
@@ -42,5 +43,15 @@ describe('employee training assignment overview', () => {
   it('formats assignment dates using Turkish date order', () => {
     expect(formatEmployeeDate('2026-08-14')).toBe('14.08.2026');
     expect(formatEmployeeDate(null)).toBe('Belirlenmedi');
+  });
+});
+
+
+describe('remote content editor access', () => {
+  it('allows OSGB administrators with a company scope to edit content', () => {
+    expect(canEditRemoteContent({role: 'company_admin', company_id: 42})).toBe(true);
+    expect(canEditRemoteContent({role: 'company_admin', osgb_id: 7})).toBe(true);
+    expect(canEditRemoteContent({role: 'safety_specialist', osgb_id: 7})).toBe(false);
+    expect(canEditRemoteContent({role: 'global_admin'})).toBe(true);
   });
 });

@@ -70,9 +70,11 @@ const cardStyle = {
   boxShadow: '0 3px 12px rgba(15, 35, 55, .05)',
 };
 
-function canEditRemoteContent(user) {
+export function canEditRemoteContent(user) {
+  // OSGB yöneticisi firma seçimiyle ilişkilendirilmiş olsa bile içerik
+  // yönetebilir; kapsamı backend ayrıca doğrular. Uzman yalnızca önizler.
   return CONTENT_EDIT_ROLES.includes(user?.role)
-    && (user?.role === 'global_admin' || (!user?.company_id && Boolean(user?.osgb_id)));
+    && (user?.role === 'global_admin' || Boolean(user?.osgb_id || user?.company_id));
 }
 
 function statusLabel(value) {
