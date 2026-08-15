@@ -27,6 +27,7 @@ from app.core.database import Base
 
 
 REMOTE_TRAINING_TYPE = "Basic Occupational Health and Safety Training"
+REMOTE_CERTIFICATE_TRAINING_TYPE = "Uzaktan Eğitim"
 
 PROGRAM_STATUSES = ("draft", "ready_for_review", "published", "unpublished", "archived")
 VIDEO_STATUSES = (
