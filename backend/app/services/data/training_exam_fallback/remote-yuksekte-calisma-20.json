@@ -1,0 +1,344 @@
+{
+  "items": [
+    {
+      "question_code": "YCF-001",
+      "version": 1,
+      "topic_code": "YCF-T01",
+      "topic_label": "Risklerden korunma ve işi yerde yapma",
+      "question_text": "Yüksekte çalışma risklerini azaltmada ilk tercih hangisidir?",
+      "options": [
+        "Önce tam vücut kemeri seçmek",
+        "İşin mümkünse yerde veya güvenli zeminde yapılmasını değerlendirmek",
+        "Sadece uyarı levhası asmak",
+        "Daha yüksek bir platform kurmak"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İşi yerde veya güvenli zeminde yapabilmek, yüksekte çalışma ihtiyacını ve düşme riskini ortadan kaldıran öncelikli kontroldür.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Risklerden korunma ilkeleri, toplu korunma ve güvenli çalışma uygulamaları"}]
+    },
+    {
+      "question_code": "YCF-002",
+      "version": 1,
+      "topic_code": "YCF-T02",
+      "topic_label": "İşi durdurma hakkı",
+      "question_text": "Çalışan ciddi ve kontrolsüz bir tehlike gördüğünde ne yapmalıdır?",
+      "options": [
+        "Deneyimliyse çalışmaya devam etmelidir",
+        "Sadece kişisel koruyucu donanımını değiştirmelidir",
+        "Kaza gerçekleşene kadar beklemelidir",
+        "Çalışmayı durdurmalı, güvenli alana geçmeli ve durumu bildirmelidir"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Tehlike kontrol altına alınmadan çalışmaya devam edilmemeli; çalışan işi durdurup durumu sorumlu kişiye bildirmelidir.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Güvenlik kültürü, tehlikeli çalışmayı durdurma ve bildirim"}]
+    },
+    {
+      "question_code": "YCF-003",
+      "version": 1,
+      "topic_code": "YCF-T03",
+      "topic_label": "Sağlık uygunluğu",
+      "question_text": "Yüksekte çalışacak kişinin sağlık uygunluğu nasıl belirlenmelidir?",
+      "options": [
+        "İşyeri hekiminin değerlendirmesi ve işe uygunluk raporu esas alınmalıdır",
+        "Kararı yalnızca çalışan kendisi vermelidir",
+        "Herhangi bir hastalığı olan kişi otomatik olarak yasaklanmalıdır",
+        "Sadece göz muayenesi yeterli kabul edilmelidir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Sağlık uygunluğu işyeri hekiminin değerlendirmesiyle belirlenir; hastalıklar otomatik yasak listesi olarak uygulanmaz.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "İşyeri hekimi değerlendirmesi, işe uygunluk ve sağlık riskleri"}]
+    },
+    {
+      "question_code": "YCF-004",
+      "version": 1,
+      "topic_code": "YCF-T04",
+      "topic_label": "Çalışma alanının hazırlanması",
+      "question_text": "Çalışma alanı hazırlanırken hangisi doğrudur?",
+      "options": [
+        "Yalnızca zemin kontrolü yeterlidir",
+        "Sadece çalışma alanına bir levha asılması yeterlidir",
+        "Zemin, erişim, aydınlatma ve hava koşulları kontrol edilmeli; bariyer kurulmalı ve aşağı kot kapatılmalıdır",
+        "Önlem almadan önce çalışanın kemer takması yeterlidir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Çalışma alanı; zemin, erişim, aydınlatma, hava koşulları, bariyerler, levhalar ve aşağı kot güvenliği birlikte değerlendirilerek hazırlanır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Çalışma alanı hazırlığı, erişim, aydınlatma ve çevresel riskler"}]
+    },
+    {
+      "question_code": "YCF-005",
+      "version": 1,
+      "topic_code": "YCF-T05",
+      "topic_label": "Toplu koruma sistemleri",
+      "question_text": "Aşağıdakilerden hangisi toplu koruma sistemidir?",
+      "options": [
+        "Tam vücut kemeri ve bağlantı halatı",
+        "Korkuluk, ara korkuluk, topuk levhası, kapak ve güvenlik ağı",
+        "Koruyucu baret",
+        "Ankraj karabinası"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Korkuluklar, kapaklar ve güvenlik ağları aynı anda birden fazla çalışanı koruyan toplu koruma önlemleridir.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Korkuluk, topuk levhası, kapak ve güvenlik ağları"}]
+    },
+    {
+      "question_code": "YCF-006",
+      "version": 1,
+      "topic_code": "YCF-T06",
+      "topic_label": "Merdivenler ve güvenli erişim",
+      "question_text": "Seyyar merdiven kullanımı için hangisi güvenlidir?",
+      "options": [
+        "Merdiveni sabitlemeden kullanmak",
+        "En üst basamakta çalışmak",
+        "İki elle ağır malzeme taşıyarak çıkmak",
+        "Merdiveni uygun açıyla kurmak, sabitlemek ve üç nokta temasını korumak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Merdiven sabitlenmeli, uygun açıyla kurulmalı ve çıkış-iniş sırasında üç nokta teması korunmalıdır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Seyyar merdiven, sabitleme, doğru açı ve üç nokta teması"}]
+    },
+    {
+      "question_code": "YCF-007",
+      "version": 1,
+      "topic_code": "YCF-T07",
+      "topic_label": "İskelelerde güvenli çalışma",
+      "question_text": "İskele kullanılmadan önce hangisi yapılmalıdır?",
+      "options": [
+        "Zemin, taban plakaları, ankrajlar, çaprazlar, platform, korkuluklar, erişim ve etiketleme kontrol edilmelidir",
+        "Sadece platformun temiz olması yeterlidir",
+        "Kontrol etiketi olmadan iskele kullanılabilir",
+        "Korkuluk ve topuk levhası gerekli değildir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "İskelede zemin ve stabilite, platform, korkuluk, topuk levhası, erişim ve kontrol/etiketleme birlikte doğrulanmalıdır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "İskele kurulumu, kontrolü, erişimi ve güvenli kullanımı"}]
+    },
+    {
+      "question_code": "YCF-008",
+      "version": 1,
+      "topic_code": "YCF-T08",
+      "topic_label": "Yükseltilebilir ve asılı platformlar",
+      "question_text": "Yükseltilebilir ve asılı platformlarda hangisi doğrudur?",
+      "options": [
+        "Platformu herkes kullanabilir",
+        "Rüzgâr ve hava koşulları dikkate alınmaz",
+        "Yetkin operatör, rüzgâr sınırları, acil indirme sistemi ve ankrajlar kontrol edilmelidir",
+        "Acil indirme sistemi yalnızca bakım sırasında gereklidir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Platformlar yetkin operatörce kullanılmalı; rüzgâr, ankraj ve acil indirme imkânı çalışma öncesi kontrol edilmelidir.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Platform operatör yetkinliği, rüzgâr, acil indirme ve ankraj"}]
+    },
+    {
+      "question_code": "YCF-009",
+      "version": 1,
+      "topic_code": "YCF-T09",
+      "topic_label": "Tam vücut kemerleri",
+      "question_text": "Düşüş yaşayan bir tam vücut kemeri için ne yapılmalıdır?",
+      "options": [
+        "Görünüşü sağlam ise tekrar kullanılmalıdır",
+        "Kullanımdan çıkarılmalı ve yetkili kişi veya üretici talimatına göre incelenmelidir",
+        "Yıkanıp tekrar kullanılmalıdır",
+        "Başka bir çalışana verilmelidir"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Düşüşe maruz kalan kemer görünür hasar olmasa bile hizmetten çıkarılmalı ve yetkili inceleme/üretici talimatı uygulanmalıdır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Tam vücut kemeri ön kontrolü, etiket, bakım ve düşüş sonrası kullanım dışı bırakma"}]
+    },
+    {
+      "question_code": "YCF-010",
+      "version": 1,
+      "topic_code": "YCF-T10",
+      "topic_label": "Ankrajlar ve yaşam hatları",
+      "question_text": "Ankraj ve yaşam hatlarıyla ilgili hangisi doğrudur?",
+      "options": [
+        "Her sağlam görünen nokta ankraj olarak kullanılabilir",
+        "Bağlantı elemanlarının uyumluluğu önemli değildir",
+        "Enerji emici kullanılması gerekli değildir",
+        "Uyumluluk, düşüş mesafesi ve sarkaç etkisi birlikte değerlendirilmelidir"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Ankraj, yaşam hattı ve bağlantı elemanları uyumlu olmalı; düşüş mesafesi ile sarkaç etkisi çalışma öncesi hesaplanmalıdır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Ankraj, dikey/yatay yaşam hattı, bağlantı, enerji emici, düşüş mesafesi ve sarkaç etkisi"}]
+    },
+    {
+      "question_code": "YCF-011",
+      "version": 1,
+      "topic_code": "YCF-T11",
+      "topic_label": "Düşüşten korunma sistemleri",
+      "question_text": "Aşağıdaki eşleştirmelerden hangisi doğrudur?",
+      "options": [
+        "Kısıtlama sistemi kenara ulaşmayı önler; konumlandırma destek sağlar; düşüş durdurma sistemi düşüşü yakalar",
+        "Bu üç sistemin görevleri tamamen aynıdır",
+        "Çalışma konumlandırma sistemi her durumda düşüşü durdurur",
+        "Kısıtlama sistemi yalnızca düşüş gerçekleştikten sonra kullanılır"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Kısıtlama erişimi sınırlar, konumlandırma çalışanı destekler, düşüş durdurma sistemi ise gerçekleşen düşüşün etkisini azaltır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Kısıtlama, çalışma konumlandırma, düşüş durdurma ve sürekli bağlantı"}]
+    },
+    {
+      "question_code": "YCF-012",
+      "version": 1,
+      "topic_code": "YCF-T12",
+      "topic_label": "Sürekli bağlantı ve güvenli geçiş",
+      "question_text": "Yaşam hattı üzerinde güvenli geçiş nasıl sağlanmalıdır?",
+      "options": [
+        "Geçiş sırasında tüm bağlantılar çıkarılmalıdır",
+        "Çalışan bağlantısız şekilde kısa mesafe geçebilir",
+        "Bir bağlantı güvenli şekilde sabitlenmeden diğer bağlantı çıkarılmamalıdır",
+        "Sürekli bağlantı yalnızca merdivenlerde gereklidir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Geçişte bağlantının tamamen kesilmemesi için yeni bağlantı güvenli hale getirilmeden mevcut bağlantı çıkarılmamalıdır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Sürekli bağlantı ve güvenli geçiş uygulamaları"}]
+    },
+    {
+      "question_code": "YCF-013",
+      "version": 1,
+      "topic_code": "YCF-T13",
+      "topic_label": "Çatı, kırılgan yüzey ve açıklıklar",
+      "question_text": "Kırılgan çatılar ve ışıklıklarla ilgili hangisi doğrudur?",
+      "options": [
+        "Yüzey kuruysa üzerine basılabilir",
+        "Kırılgan yüzeyler açıklık gibi değerlendirilmeli, korunmalı ve güvenli sistem olmadan üzerine basılmamalıdır",
+        "İnce bir tahta konulması yeterlidir",
+        "Uyarı levhası bulunması fiziksel korumayı gereksiz kılar"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Kırılgan yüzeyler ve ışıklıklar taşıma kapasitesi güvenilir kabul edilmeden korunmalı; güvenli geçiş veya çalışma sistemi kurulmalıdır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Çatı kaplamaları, ışıklıklar, kırılgan yüzeyler ve açıklıkların korunması"}]
+    },
+    {
+      "question_code": "YCF-014",
+      "version": 1,
+      "topic_code": "YCF-T14",
+      "topic_label": "Düşen cisimler",
+      "question_text": "Düşen cisimlere karşı hangisi yapılmalıdır?",
+      "options": [
+        "El aletleri aşağıya bırakılabilir",
+        "Küçük malzemeler için önlem gerekmez",
+        "Malzemeler kenara yakın istiflenebilir",
+        "El aletleri ve malzemeler güvenceye alınmalı, alt kot kapatılmalı ve eş zamanlı işler koordine edilmelidir"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Alet ve malzemelerin düşmesi önlenmeli; alt kot fiziksel olarak ayrılmalı ve üst-alt kotta yapılan işler birlikte planlanmalıdır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "El aletleri, malzeme taşıma, üstten-altlı çalışma ve düşen cisimler"}]
+    },
+    {
+      "question_code": "YCF-015",
+      "version": 1,
+      "topic_code": "YCF-T15",
+      "topic_label": "Elektrik ve çevresel riskler",
+      "question_text": "Elektrik ve çevresel risklerle ilgili hangisi doğrudur?",
+      "options": [
+        "Enerji nakil hatları belirlenmeli, güvenli mesafe veya enerji kesme planlanmalı; rüzgâr ve yağış gibi koşullar değerlendirilmelidir",
+        "Enerji nakil hatlarının yakınında çalışmak her zaman serbesttir",
+        "Rüzgâr ve yağış çalışma güvenliğini etkilemez",
+        "Sıcak çalışma izin almadan yapılabilir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Elektrik hatları ve çevresel koşullar işe başlamadan değerlendirilmelidir; gerekli izolasyon, mesafe, izin ve durdurma kriterleri uygulanmalıdır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Elektrik, sıcak çalışma, rüzgâr, yağış, sıcak-soğuk ve eş zamanlı işler"}]
+    },
+    {
+      "question_code": "YCF-016",
+      "version": 1,
+      "topic_code": "YCF-T16",
+      "topic_label": "Sektörel uygulamalar",
+      "question_text": "Sektörel uygulama paketlerinin amacı nedir?",
+      "options": [
+        "Her sektörde aynı riskleri varsaymak",
+        "Yalnızca inşaat çalışmalarını kapsamak",
+        "Eğitimi sektörün ve yapılan işin özel tehlikelerine göre uyarlamak",
+        "Risk değerlendirmesini tamamen ortadan kaldırmak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "İnşaat, yol-asfalt, enerji, telekomünikasyon, çatı, depo veya maden gibi işlerdeki özel riskler uygulama paketine yansıtılmalıdır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Sektörel uygulama paketleri ve işe özgü tehlikeler"}]
+    },
+    {
+      "question_code": "YCF-017",
+      "version": 1,
+      "topic_code": "YCF-T17",
+      "topic_label": "İple erişim",
+      "question_text": "İple erişim çalışmaları kimler tarafından yapılmalıdır?",
+      "options": [
+        "Kısa süre eğitim alan herkes tarafından",
+        "Yetkin personel tarafından; iniş-çıkış, çalışma konumlandırması ve yedek emniyet hattı kullanılarak",
+        "Yedek emniyet hattı olmadan",
+        "Tek başına ve kurtarma planı olmadan"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İple erişim özel yetkinlik gerektirir; ana çalışma hattına ek olarak yedek emniyet hattı ve kurtarma düzeni bulunmalıdır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Halatla erişim, iniş-çıkış, düğümler, konumlandırma ve yedek emniyet hattı"}]
+    },
+    {
+      "question_code": "YCF-018",
+      "version": 1,
+      "topic_code": "YCF-T18",
+      "topic_label": "Acil durum ve kurtarma",
+      "question_text": "Acil durum ve kurtarma planı için hangisi doğrudur?",
+      "options": [
+        "Kurtarma planı yalnızca kaza olduktan sonra hazırlanmalıdır",
+        "Askıda kalan çalışan vardiya sonuna kadar bekletilebilir",
+        "Sadece ambulans çağırılması yeterlidir",
+        "Çalışma öncesinde iletişim, ekipman ve kurtarma yöntemi belirlenmeli; tatbikat yapılmalı ve askıda kalma süresi azaltılmalıdır"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Kurtarma planı işe başlamadan hazır olmalı; iletişim, ekipman, görevler ve askıda kalma travmasına karşı hızlı tahliye yöntemi belirlenmelidir.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Kurtarma planı, iletişim, askıda kalma travması, ilk yardım ve tatbikat"}]
+    },
+    {
+      "question_code": "YCF-019",
+      "version": 1,
+      "topic_code": "YCF-T19",
+      "topic_label": "Kontrol, kayıt ve belgelendirme",
+      "question_text": "Kontrol, kayıt ve belgelendirme sürecinde hangisi doğrudur?",
+      "options": [
+        "Günlük kontroller, periyodik kontroller, bakım ve sonuçlar kaydedilmeli; uygulama değerlendirmesi ve sınav ilgili eğitim sürümüyle ilişkilendirilmelidir",
+        "Sözlü kontrol yeterlidir",
+        "Kayıt tutulmasına gerek yoktur",
+        "Ekipman yalnızca kazadan sonra kontrol edilmelidir"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Ekipman kontrolü, periyodik kontrol, bakım, eğitim sürümü, uygulama değerlendirmesi ve sınav sonucu izlenebilir kayıtlarla tutulmalıdır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "Günlük ekipman kontrolü, periyodik kontrol, bakım, kayıt, sınav ve belgelendirme"}]
+    },
+    {
+      "question_code": "YCF-020",
+      "version": 1,
+      "topic_code": "YCF-T20",
+      "topic_label": "Görev ve sorumluluklar",
+      "question_text": "Yüksekte çalışma sorumluluklarıyla ilgili hangisi doğrudur?",
+      "options": [
+        "Tüm sorumluluk çalışana aittir",
+        "İşveren sorumluluğu tamamen çalışana devredebilir",
+        "İşveren güvenli organizasyon ve kaynakları sağlamalı; çalışan talimatlara uymalı ve tehlikeleri bildirmeli; uzman, hekim ve ehil kişiler görev alanlarında hareket etmelidir",
+        "Yetkisi olmayan herkes iskele ve yaşam hattını onaylayabilir"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "Güvenli çalışma; işverenin organizasyonu ve kaynakları sağlaması, çalışanın kurallara uyması ve yetkili uzman, hekim ve ehil kişilerin görevlerini yerine getirmesiyle sağlanır.",
+      "scopes": [{"type": "special", "value": "yuksekte_calisma"}],
+      "sources": [{"title": "Yüksekte Çalışma Eğitimi – 18 bölümlük eğitim paketi", "url": "https://www.mevzuat.gov.tr/mevzuatmetin/1.5.6331.pdf", "reference": "6331 sayılı Kanun, işveren-çalışan-uzman-hekim-ehil kişi ve alt işveren sorumlulukları"}]
+    }
+  ]
+}

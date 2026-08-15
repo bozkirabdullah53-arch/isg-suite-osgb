@@ -114,8 +114,11 @@ def test_catalog_package_sections_keep_their_sector_identity():
     assert catalog_package_sector_code("future-custom-package") == "common"
 
 
-def test_catalog_packages_receive_ten_relevant_automatic_exam_questions():
-    from app.services.remote_training import automatic_exam_items_for_package
+def test_catalog_packages_receive_their_configured_automatic_exam_questions():
+    from app.services.remote_training import (
+        automatic_exam_items_for_package,
+        automatic_exam_question_count,
+    )
 
     package_codes = (
         "common-basic-ohs",
@@ -132,9 +135,11 @@ def test_catalog_packages_receive_ten_relevant_automatic_exam_questions():
     )
     for package_code in package_codes:
         items = automatic_exam_items_for_package(package_code)
-        assert len(items) == 10
-        assert len({item["question_code"] for item in items}) == 10
-        assert len({item["topic_code"] for item in items}) == 10
+        expected_count = 20 if package_code == "working-at-height-ohs" else 10
+        assert automatic_exam_question_count(package_code) == expected_count
+        assert len(items) == expected_count
+        assert len({item["question_code"] for item in items}) == expected_count
+        assert len({item["topic_code"] for item in items}) == expected_count
         assert all(
             item["question_text"]
             and len(item["options"]) == 4
@@ -145,7 +150,7 @@ def test_catalog_packages_receive_ten_relevant_automatic_exam_questions():
         )
 
     height_items = automatic_exam_items_for_package("working-at-height-ohs")
-    assert len({item["topic_code"] for item in height_items}) == 10
+    assert len({item["topic_code"] for item in height_items}) == 20
 
     with pytest.raises(RuntimeError):
         automatic_exam_items_for_package("future-custom-package")
@@ -986,7 +991,9 @@ def test_remote_catalog_packages_are_firm_independent(remote_client, monkeypatch
     assert next(row for row in rows if row["code"] == "construction-ohs")["section_count"] == 12
     assert next(row for row in rows if row["code"] == "metal-machine-ohs")["section_count"] == 10
     assert next(row for row in rows if row["code"] == "battery-production-ohs")["section_count"] == 10
-    assert next(row for row in rows if row["code"] == "working-at-height-ohs")["section_count"] == 10
+    height_package = next(row for row in rows if row["code"] == "working-at-height-ohs")
+    assert height_package["section_count"] == 10
+    assert height_package["automatic_exam_question_count"] == 20
 
     empty_package = next(row for row in rows if row["code"] == "food-production-ohs")
     created = remote_client.post(

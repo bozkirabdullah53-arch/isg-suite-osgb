@@ -30,7 +30,7 @@ from app.services import remote_training as remote_service
 
 CUSTOM_PACKAGE_PREFIX = "custom--"
 
-# A custom curriculum may only reuse a sector whose reviewed 10-question pack
+# A custom curriculum may only reuse a sector whose reviewed automatic exam
 # and strict rollout code already exist.  This deliberately fails closed for
 # "foundry" until a dedicated reviewed package is introduced.
 CUSTOM_SECTOR_BASE_PACKAGE = {
@@ -196,7 +196,7 @@ def create_custom_catalog_package(
     if sector_code not in CUSTOM_PACKAGE_SECTOR_CODES:
         raise HTTPException(
             422,
-            "Bu kategori için doğrulanmış 10 soruluk sektör soru paketi henüz hazır değil.",
+            "Bu kategori için doğrulanmış sektör soru paketi henüz hazır değil.",
         )
 
     remote_api.assert_osgb_subscription_access(db, user, scope)
