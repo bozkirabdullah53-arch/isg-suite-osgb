@@ -2123,3 +2123,119 @@ def test_manager_can_delete_assignment_and_training_history(remote_client):
         f"/api/v1/trainings/remote/programs/{program_id}/assignments/{assignment_id}",
         headers=manager_headers,
     ).status_code == 404
+
+
+def test_company_certificate_hub_lists_failed_records_exports_and_bulk_deletes(remote_client):
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import User, UserRole
+    from app.models.remote_training import (
+        RemoteTrainingAssignment,
+        RemoteTrainingExamAttempt,
+        RemoteTrainingEmployeeAccess,
+        RemoteTrainingProgram,
+    )
+
+    with SessionLocal() as db:
+        osgb, company, _branch, employee, employee_user = _scope_rows(db)
+        employee_user.hashed_password = get_password_hash("TestPass123!")
+        employee_user.company_id = company.id
+        employee_user.osgb_id = osgb.id
+        employee_user.password_change_required = False
+        manager = User(
+            email="certificate-hub-manager@remote-test.com",
+            full_name="Belge Rapor Yöneticisi",
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            company_id=company.id,
+            is_active=True,
+        )
+        program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title="Ortak Temel İSG",
+            status="published",
+            requires_final_exam=True,
+        )
+        db.add_all([manager, program])
+        db.flush()
+        db.add(
+            RemoteTrainingEmployeeAccess(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                user_id=employee_user.id,
+                employee_id=employee.id,
+                is_active=True,
+            )
+        )
+        db.commit()
+        program_id = program.id
+        company_id = company.id
+        employee_id = employee.id
+
+    manager_login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "certificate-hub-manager@remote-test.com", "password": "TestPass123!"},
+    )
+    assert manager_login.status_code == 200, manager_login.text
+    manager_headers = {"Authorization": f"Bearer {manager_login.json()['access_token']}"}
+
+    assigned = remote_client.post(
+        f"/api/v1/trainings/remote/programs/{program_id}/assign",
+        headers=manager_headers,
+        json={"employee_ids": [employee_id]},
+    )
+    assert assigned.status_code == 200, assigned.text
+    assignment_id = assigned.json()["created"][0]["id"]
+    with SessionLocal() as db:
+        db.add(
+            RemoteTrainingExamAttempt(
+                company_id=company_id,
+                program_id=program_id,
+                assignment_id=assignment_id,
+                employee_id=employee_id,
+                attempt_no=1,
+                question_ids_json="[1]",
+                answers_json='{"1":"A"}',
+                score=40,
+                passed=False,
+                submitted_at=datetime.utcnow(),
+            )
+        )
+        db.commit()
+
+    failed = remote_client.get(
+        f"/api/v1/trainings/remote/certificates?company_id={company_id}&status=failed",
+        headers=manager_headers,
+    )
+    assert failed.status_code == 200, failed.text
+    assert failed.json()[0]["report_status"] == "failed"
+    assert failed.json()[0]["examination_score"] == 40
+
+    xlsx = remote_client.get(
+        f"/api/v1/trainings/remote/certificates/export.xlsx?company_id={company_id}&status=failed",
+        headers=manager_headers,
+    )
+    assert xlsx.status_code == 200, xlsx.text
+    assert xlsx.content.startswith(b"PK")
+
+    pdf = remote_client.get(
+        f"/api/v1/trainings/remote/certificates/export.pdf?company_id={company_id}&status=failed",
+        headers=manager_headers,
+    )
+    assert pdf.status_code == 200, pdf.text
+    assert pdf.content.startswith(b"%PDF")
+
+    deleted = remote_client.request(
+        "DELETE",
+        "/api/v1/trainings/remote/certificates/records",
+        headers=manager_headers,
+        json={"assignment_ids": [assignment_id]},
+    )
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["deleted_count"] == 1
+    assert remote_client.get(
+        f"/api/v1/trainings/remote/certificates?company_id={company_id}",
+        headers=manager_headers,
+    ).json() == []
