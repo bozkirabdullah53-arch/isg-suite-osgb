@@ -31,6 +31,10 @@ _OSGB_FIELD_ROLES = {
 }
 
 _STRICT_HEALTH_ASSIGNMENT_ROLES = {
+    # İSG uzmanı da yalnızca aktif görevlendirme kapsamındaki işyerlerine
+    # erişebilir. Eski user.company_id veya WorkplaceMembership satırları
+    # görevlendirme kapsamını genişletemez.
+    UserRole.SAFETY_SPECIALIST,
     UserRole.WORKPLACE_PHYSICIAN,
     UserRole.OTHER_HEALTH_PERSONNEL,
 }

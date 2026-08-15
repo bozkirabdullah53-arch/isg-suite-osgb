@@ -213,6 +213,10 @@ class TrainingUpdate(BaseModel):
     participant_ids: list[int] | None = None
 
 
+class TrainingArchiveRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
 class ParticipantResponse(BaseModel):
     id: int
     employee_id: int
@@ -252,6 +256,9 @@ class TrainingResponse(BaseModel):
     status: TrainingStatus
     notes: str | None
     created_at: datetime
+    archived_at: datetime | None = None
+    archived_by_id: int | None = None
+    archive_reason: str | None = None
     participants: list[ParticipantResponse] = []
     model_config = ConfigDict(from_attributes=True)
 

@@ -1860,6 +1860,174 @@ function scrollRemoteTrainingSection(event, sectionId) {
   target.scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
+function RemoteCertificateHub() {
+  const [companies, setCompanies] = useState([]);
+  const [companyId, setCompanyId] = useState('');
+  const [status, setStatus] = useState('all');
+  const [query, setQuery] = useState('');
+  const [rows, setRows] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
+
+  async function load(search = query) {
+    setBusy(true);
+    setError('');
+    try {
+      const params = new URLSearchParams();
+      if (companyId) params.set('company_id', companyId);
+      if (status && status !== 'all') params.set('status', status);
+      if (search.trim()) params.set('q', search.trim());
+      const [companyRows, documentRows] = await Promise.all([
+        api('/companies'),
+        api('/trainings/remote/certificates' + (params.toString() ? '?' + params.toString() : '')),
+      ]);
+      setCompanies(Array.isArray(companyRows) ? companyRows : []);
+      setRows(Array.isArray(documentRows) ? documentRows : []);
+    } catch (err) {
+      setError(err.message || 'Uzaktan eğitim belge listesi alınamadı.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    load('').catch(() => {});
+    // Firma ve durum filtresi değişince listeyi yenile; arama metni için Ara düğmesi kullanılır.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId, status]);
+
+  async function download(row) {
+    if (!row?.certificate_ready) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      await downloadFile(
+        '/trainings/remote/assignments/' + row.id + '/certificate.pdf',
+        'uzaktan-egitim-belgesi-' + row.id + '.pdf',
+      );
+      setMessage((row.employee_name || 'Çalışan') + ' için belge PDF’i indirildi.');
+    } catch (err) {
+      setError(err.message || 'Belge PDF’i alınamadı.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const completedCount = rows.filter((row) => row.status === 'completed').length;
+  const readyCount = rows.filter((row) => row.certificate_ready).length;
+
+  return (
+    <section id="remote-training-certificate-hub" style={cardStyle} aria-label="Uzaktan eğitim belgeleri merkezi">
+      <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start'}}>
+        <div>
+          <div style={{fontSize: 12, color: '#0b7f83', fontWeight: 800, letterSpacing: '.04em'}}>BELGE VE ARŞİV MERKEZİ</div>
+          <h3 style={{margin: '4px 0'}}>Uzaktan eğitim belgeleri</h3>
+          <p style={{margin: 0, color: '#496174', fontSize: 13}}>
+            Tamamlanan ve final sınavını geçen çalışanların belgelerini burada bulun ve indirin.
+            Bu ekran çalışanların kendi eğitim ekranından ayrıdır.
+          </p>
+        </div>
+        <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+          <span style={{padding: '7px 10px', borderRadius: 999, background: '#ecfdf5', color: '#087443', fontWeight: 800, fontSize: 12}}>
+            {readyCount} belge hazır
+          </span>
+          <span style={{padding: '7px 10px', borderRadius: 999, background: '#eff6ff', color: '#1d4ed8', fontWeight: 800, fontSize: 12}}>
+            {completedCount} eğitim tamamlandı
+          </span>
+        </div>
+      </div>
+
+      <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 14, padding: 10, borderRadius: 10, background: '#f7fbfd'}}>
+        <select value={companyId} onChange={(event) => setCompanyId(event.target.value)} aria-label="Belge firması">
+          <option value="">Tüm erişebildiğim firmalar</option>
+          {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+        </select>
+        <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Belge durumu">
+          <option value="all">Tüm durumlar</option>
+          <option value="completed">Tamamlandı / belge hazır</option>
+          <option value="in_progress">Devam ediyor</option>
+          <option value="not_started">Başlamadı</option>
+          <option value="failed">Başarısız</option>
+          <option value="expired">Süresi geçti</option>
+        </select>
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => { if (event.key === 'Enter') load().catch(() => {}); }}
+          placeholder="Firma, çalışan veya eğitim ara..."
+          aria-label="Uzaktan eğitim belge araması"
+          style={{minWidth: 240, flex: 1}}
+        />
+        <button type="button" onClick={() => load()} disabled={busy}>Ara</button>
+        <button type="button" onClick={() => load()} disabled={busy}>Yenile</button>
+      </div>
+
+      {error && <div role="alert" style={{marginTop: 10, color: '#b42318', fontWeight: 700}}>{error}</div>}
+      {message && <div role="status" aria-live="polite" style={{marginTop: 10, color: '#087443', fontWeight: 700}}>{message}</div>}
+
+      <div style={{overflowX: 'auto', marginTop: 12}}>
+        <table style={{width: '100%'}}>
+          <thead>
+            <tr>
+              <th>Firma / İşyeri</th>
+              <th>Eğitim paketi</th>
+              <th>Çalışan</th>
+              <th>Durum / İlerleme</th>
+              <th>Sınav</th>
+              <th>Belge</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.id}>
+                <td>
+                  <strong>{row.company_name}</strong>
+                  <small style={{display: 'block', color: '#5e7485'}}>{row.branch_name || 'Firma geneli'}</small>
+                </td>
+                <td>
+                  <strong>{localizedTrainingTitle(row.program_title)}</strong>
+                  <small style={{display: 'block', color: '#5e7485'}}>
+                    {row.source_catalog_revision_no ? 'Katalog sürümü ' + row.source_catalog_revision_no : 'Firma programı'}
+                  </small>
+                </td>
+                <td>{row.employee_name}</td>
+                <td>
+                  <strong>{statusLabel(row.status)}</strong>
+                  <small style={{display: 'block', color: '#5e7485'}}>
+                    {(row.summary?.completed_video_count || 0) + '/' + (row.summary?.required_video_count || 0) + ' video'}
+                  </small>
+                </td>
+                <td>{row.examination_score == null ? '—' : '%' + row.examination_score}</td>
+                <td>
+                  {row.certificate_ready ? (
+                    <button type="button" onClick={() => download(row)} disabled={busy}>PDF belgeyi al</button>
+                  ) : (
+                    <span title={row.certificate_block_reason || 'Eğitim tamamlanınca açılır'} style={{color: '#795500', fontSize: 12}}>
+                      Belge henüz hazır değil
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {!rows.length && (
+              <tr>
+                <td colSpan={6} style={{padding: 18, textAlign: 'center', color: '#5e7485'}}>
+                  {busy ? 'Belgeler yükleniyor…' : 'Bu filtrelerle eşleşen uzaktan eğitim kaydı bulunamadı.'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div style={{marginTop: 10, color: '#5e7485', fontSize: 12}}>
+        Yetki kuralı: OSGB yöneticisi kendi OSGB’sini, uzman ise yalnızca aktif görevlendirmesinin bulunduğu firmaları görür.
+      </div>
+    </section>
+  );
+}
+
 function RemoteTrainingGuide() {
   return (
     <details className="remote-training-guide" id="remote-training-guide" open>
@@ -1954,11 +2122,13 @@ export function RemoteBasicOhsTrainingPanel({user}) {
       </a>
     </div>
     <RemoteTrainingGuide />
+    <RemoteCertificateHub />
     <div className="remote-training-flow" aria-label="Uzaktan eğitim yaşam döngüsü">
       <a className="remote-training-flow-item" href="#remote-training-catalog" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-catalog')}><span>1</span><div><strong>Video ekle</strong><small>Paketi seçin, videoları bölümlere yükleyin.</small></div></a>
       <a className="remote-training-flow-item" href="#remote-training-catalog" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-catalog')}><span>2</span><div><strong>Firma / işyeri seç</strong><small>Eğitim kutucuklarını işaretleyip hazırlayın.</small></div></a>
       <a className="remote-training-flow-item" href="#remote-training-assignment-manager" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-assignment-manager')}><span>3</span><div><strong>Personel ata</strong><small>Giriş hesabını eşleyip programı atayın.</small></div></a>
       <a className="remote-training-flow-item" href="#remote-training-employee-preview" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-employee-preview')}><span>4</span><div><strong>Çalışan tamamlasın</strong><small>%100 video + sınavda en az %70.</small></div></a>
+      <a className="remote-training-flow-item" href="#remote-training-certificate-hub" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-certificate-hub')}><span>5</span><div><strong>Belgeyi al</strong><small>Başarılı çalışanın PDF belgesini indirin.</small></div></a>
     </div>
     {canManage && <div id="remote-training-catalog"><CatalogManagerPanel companyId={selectedCompanyId} branchId={selectedBranchId} onCompanyChange={(value) => { setSelectedCompanyId(value); setSelectedBranchId(''); }} onBranchChange={setSelectedBranchId} onPrepared={() => setProgramRefreshToken((value) => value + 1)} rollout={meta.strict_policy} canEditContent={canEditContent} canEditSharedContent={canEditSharedContent} /></div>}
     {canManage && <details open id="remote-training-assignment-manager">

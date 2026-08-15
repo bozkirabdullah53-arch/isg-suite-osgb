@@ -27,6 +27,11 @@ def test_company_admin_only_own_firm(monkeypatch):
     assert exc.value.status_code == 403
 
 
+def test_specialist_scope_is_strict_even_with_legacy_membership():
+    """Uzman erişimi üyelik/user.company_id ile aktif görevlendirmeyi aşmamalı."""
+    assert UserRole.SAFETY_SPECIALIST in ca._STRICT_HEALTH_ASSIGNMENT_ROLES
+
+
 def test_specialist_only_assigned_firms(monkeypatch):
     db = MagicMock()
     user = SimpleNamespace(

@@ -909,6 +909,12 @@ class TrainingSession(Base):
     notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Tamamlanmış eğitim kayıtları fiziksel olarak silinmez; arşivlenir.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    archived_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    archive_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     participants: Mapped[list["TrainingParticipant"]] = relationship(back_populates="training", cascade="all, delete-orphan")
     exam_snapshots: Mapped[list["TrainingExamSnapshot"]] = relationship(
         back_populates="training", cascade="all, delete-orphan"

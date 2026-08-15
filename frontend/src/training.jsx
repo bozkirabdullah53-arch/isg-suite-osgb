@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {Award, CheckCircle2, ClipboardList, Download, FileSpreadsheet, Search, ShieldCheck, Upload, Users} from 'lucide-react';
+import {Archive, Award, CheckCircle2, ClipboardList, Download, FileSpreadsheet, Search, ShieldCheck, Upload, Users} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
 import './training_pro.css';
@@ -22,7 +22,7 @@ const TABS = [
   {id: 'temel', label: 'Temel İSG Eğitimi'},
   {id: 'ozel', label: 'Özel Eğitimler'},
   {id: 'yenileme', label: 'Yenileme Takibi'},
-  {id: 'kayitlar', label: 'Kayıtlar'},
+  {id: 'kayitlar', label: 'Yüz Yüze Kayıtlar'},
 ];
 
 const STATUS_STYLES = {
@@ -383,6 +383,7 @@ export function TrainingPage({user}) {
   const [manualInstructor, setManualInstructor] = useState(false);
   const [rows, setRows] = useState([]);
   const [q, setQ] = useState('');
+  const [showArchived, setShowArchived] = useState(false);
   const [form, setForm] = useState(() => emptyForm(user));
   const [err, setErr] = useState('');
   const [okMsg, setOkMsg] = useState('');
@@ -664,7 +665,7 @@ export function TrainingPage({user}) {
     return Array.isArray(list) ? list : [];
   }
 
-  const load = async (searchQ = q) => {
+  const load = async (searchQ = q, includeArchived = showArchived) => {
     setBusy(true);
     setErr('');
     try {
@@ -675,7 +676,13 @@ export function TrainingPage({user}) {
       // Önce hafif istekler: firma + eğitim listesi + (önbellekli) sektör
       const [c, t, sec] = await Promise.all([
         api('/companies'),
-        api('/trainings' + (searchQ ? `?q=${encodeURIComponent(searchQ)}` : '')),
+        (() => {
+          const params = new URLSearchParams();
+          if (searchQ) params.set('q', searchQ);
+          if (includeArchived) params.set('include_archived', 'true');
+          const queryString = params.toString();
+          return api('/trainings' + (queryString ? '?' + queryString : ''));
+        })(),
         loadSectorsCatalog(),
       ]);
       setCompanies(c);
@@ -1244,7 +1251,7 @@ export function TrainingPage({user}) {
   }
 
   async function deleteTraining(row) {
-    if (!canEdit || !row?.id || deleteTrainingId) return;
+    if (!canEdit || !row?.id || deleteTrainingId || row.archived_at || row.status !== 'planned') return;
     const title = row.title || `#${row.id}`;
     const confirmed = window.confirm(
       `“${title}” eğitim kaydı ve bağlı katılımcı/belge verileri kalıcı olarak silinecek.\n\n` +
@@ -1271,7 +1278,29 @@ export function TrainingPage({user}) {
     }
   }
 
-  /* ───────── Temel İSG tab ───────── */
+  async function archiveTraining(row) {
+    if (!canEdit || !row?.id || row.archived_at) return;
+    const reason = window.prompt(
+      'Arşivleme nedeni (ör. belge üretildi, kayıt düzeltildi):',
+      'Eğitim kaydı tarihsel belge ve denetim izi korunarak arşivlendi.',
+    );
+    if (!reason?.trim()) return;
+    setErr('');
+    setOkMsg('');
+    try {
+      await api(`/trainings/${row.id}/archive`, {
+        method: 'POST',
+        body: JSON.stringify({reason: reason.trim()}),
+      });
+      if (detail?.id === row.id) setDetail(null);
+      await load();
+      setOkMsg(`Eğitim kaydı #${row.id} arşivlendi; katılımcı ve belge geçmişi korundu.`);
+    } catch (x) {
+      setErr(x.message || 'Eğitim kaydı arşivlenemedi.');
+    }
+  }
+
+  /* ───────── Temel İSG tabı ───────── */
   function renderTemelTab() {
     return (
       <>
@@ -2480,7 +2509,7 @@ export function TrainingPage({user}) {
               <button type="button" className="btn-outline-premium" style={{width: 'auto', minHeight: 42, padding: '0 16px'}} onClick={() => setDetail(null)}>
                 Listeye dön
               </button>
-              {canEdit && (
+              {canEdit && !detail.archived_at && detail.status === 'planned' && (
                 <button
                   type="button"
                   className="btn-outline-premium"
@@ -2488,7 +2517,17 @@ export function TrainingPage({user}) {
                   disabled={deleteTrainingId === detail.id}
                   onClick={() => deleteTraining(detail)}
                 >
-                  {deleteTrainingId === detail.id ? 'Siliniyor…' : 'Eğitim kaydını sil'}
+                  {deleteTrainingId === detail.id ? 'Siliniyor…' : 'Taslak kaydı sil'}
+                </button>
+              )}
+              {canEdit && !detail.archived_at && detail.status !== 'planned' && (
+                <button
+                  type="button"
+                  className="btn-outline-premium"
+                  style={{width: 'auto', minHeight: 42, padding: '0 16px'}}
+                  onClick={() => archiveTraining(detail)}
+                >
+                  <Archive size={16} style={{verticalAlign: -3, marginRight: 6}} /> Arşivle
                 </button>
               )}
             </div>
@@ -2499,7 +2538,7 @@ export function TrainingPage({user}) {
             <div><span className="tp-help">Sektör</span><div><strong>{sectorLabel(sectors, detail.sector)}</strong></div></div>
             <div>
               <span className="tp-help">Durum</span>
-              <div><strong>{STATUS[detail.status] || detail.status}</strong></div>
+              <div><strong>{detail.archived_at ? 'Arşivlendi' : (STATUS[detail.status] || detail.status)}</strong></div>
             </div>
           </div>
 
@@ -2578,7 +2617,14 @@ export function TrainingPage({user}) {
 
   return (
     <div className="panel-card">
-      <div className="section-title" style={{marginBottom: 6}}>Eğitim Kayıtları</div>
+      <div className="section-title" style={{marginBottom: 6}}>Yüz Yüze Eğitim Kayıtları</div>
+      <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12, padding: '12px 14px', border: '1px solid #8cc6dc', borderRadius: 10, background: '#f6fcff'}}>
+        <div>
+          <strong style={{color: '#123b59'}}>Bu bölüm yüz yüze / klasik eğitim kayıtları içindir.</strong>
+          <div className="tp-help" style={{marginTop: 4}}>Uzaktan eğitim atama, çalışan takibi ve PDF belgeleri için ayrı Uzaktan Eğitim / Belgeler sekmesini kullanın.</div>
+        </div>
+        {remoteEnabled && <button type="button" className="btn-outline-premium" style={{width: 'auto', minHeight: 40, padding: '0 14px', fontWeight: 800}} onClick={() => setTab('remote')}>Uzaktan Eğitim Belgelerine Git</button>}
+      </div>
       <div style={{marginBottom: 12}}>
         <button
           type="button"
@@ -2589,6 +2635,7 @@ export function TrainingPage({user}) {
             const params = new URLSearchParams();
             if (form.company_id) params.set('company_id', String(form.company_id));
             if (q.trim()) params.set('q', q.trim());
+            if (showArchived) params.set('include_archived', 'true');
             downloadFile(`/trainings/export.xlsx?${params}`, `egitim-listesi-${stamp}.xlsx`).catch((x) =>
               setErr(x.message || 'Excel indirilemedi.'),
             );
@@ -2617,6 +2664,20 @@ export function TrainingPage({user}) {
           >
             Ara
           </button>
+          {canEdit && (
+            <label style={{display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 48, padding: '0 10px', color: '#496174', fontSize: 12}}>
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(event) => {
+                  const next = event.target.checked;
+                  setShowArchived(next);
+                  load(q, next).catch((x) => setErr(x.message));
+                }}
+              />
+              Arşivlenmişleri göster
+            </label>
+          )}
         </div>
         {err && <div className="tp-alert err">{err}</div>}
         {okMsg && <div className="tp-alert ok">{okMsg}</div>}
@@ -2643,7 +2704,7 @@ export function TrainingPage({user}) {
                   <td>{r.hazard_class}</td>
                   <td>{r.duration_hours}</td>
                   <td>{r.participants?.length || 0}</td>
-                  <td>{STATUS[r.status] || r.status}</td>
+                  <td>{r.archived_at ? 'Arşivlendi' : (STATUS[r.status] || r.status)}</td>
                   <td>
                     <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
                       <button
@@ -2654,7 +2715,17 @@ export function TrainingPage({user}) {
                       >
                         Belgeler
                       </button>
-                      {canEdit && (
+                      {canEdit && !r.archived_at && r.status !== 'planned' && (
+                        <button
+                          type="button"
+                          className="btn-outline-premium"
+                          style={{width: 'auto', minHeight: 36, padding: '0 12px', fontSize: 12}}
+                          onClick={() => archiveTraining(r)}
+                        >
+                          <Archive size={14} style={{verticalAlign: -3, marginRight: 4}} /> Arşivle
+                        </button>
+                      )}
+                      {canEdit && !r.archived_at && r.status === 'planned' && (
                         <button
                           type="button"
                           className="btn-outline-premium"
@@ -2662,7 +2733,7 @@ export function TrainingPage({user}) {
                           disabled={deleteTrainingId === r.id}
                           onClick={() => deleteTraining(r)}
                         >
-                          {deleteTrainingId === r.id ? 'Siliniyor…' : 'Sil'}
+                          {deleteTrainingId === r.id ? 'Siliniyor…' : 'Taslak kaydı sil'}
                         </button>
                       )}
                     </div>

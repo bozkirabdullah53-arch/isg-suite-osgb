@@ -33,7 +33,13 @@ from app.models.entities import (
     UserRole,
 )
 from app.models.training_presentation_approval import TrainingPresentationApproval
-from app.schemas.training import TrainingCreate, TrainingResponse, TrainingUpdate, TrainingVerifyResponse
+from app.schemas.training import (
+    TrainingArchiveRequest,
+    TrainingCreate,
+    TrainingResponse,
+    TrainingUpdate,
+    TrainingVerifyResponse,
+)
 from app.services.assigned_team import assigned_team, training_defaults
 from app.services.training_employee_import import resolve_or_create_employees
 from app.services.training_excel import parse_employee_upload
@@ -412,6 +418,7 @@ async def parse_excel(
 def list_trainings(
     q: str | None = Query(None, max_length=100),
     company_id: int | None = None,
+    include_archived: bool = Query(False),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -420,6 +427,8 @@ def list_trainings(
         .options(selectinload(TrainingSession.participants))
         .order_by(TrainingSession.start_date.desc())
     )
+    if not include_archived:
+        query = query.where(TrainingSession.archived_at.is_(None))
     if user.role == UserRole.GLOBAL_ADMIN:
         if company_id:
             query = query.where(TrainingSession.company_id == company_id)
@@ -448,6 +457,7 @@ def list_trainings(
 def export_trainings_xlsx(
     q: str | None = Query(None, max_length=100),
     company_id: int | None = None,
+    include_archived: bool = Query(False),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -458,6 +468,8 @@ def export_trainings_xlsx(
         .order_by(TrainingSession.start_date.desc())
     )
     rows: list = []
+    if not include_archived:
+        query = query.where(TrainingSession.archived_at.is_(None))
     if user.role == UserRole.GLOBAL_ADMIN:
         if company_id:
             query = query.where(TrainingSession.company_id == company_id)
@@ -652,6 +664,8 @@ async def upload_participants(
     """Canlı API uyumu: eğitim kaydına Excel ile katılımcı ekler."""
     row = _load_training(db, training_id)
     ensure_access(db, user, row.company_id)
+    if row.archived_at:
+        raise HTTPException(409, "Arşivlenmiş eğitim kaydı değiştirilemez.")
     name = (file.filename or "").lower()
     if not name.endswith(EXCEL_EXT):
         raise HTTPException(
@@ -707,6 +721,8 @@ async def upload_training_logo(
     """Firma / eğitim logosu — PDF başlığına basılır."""
     row = _load_training(db, training_id)
     ensure_access(db, user, row.company_id)
+    if row.archived_at:
+        raise HTTPException(409, "Arşivlenmiş eğitim kaydı değiştirilemez.")
     original = Path(file.filename or "logo.png")
     ext = original.suffix.lower()
     if ext not in LOGO_EXT or (file.content_type and file.content_type not in LOGO_MIME):
@@ -740,12 +756,33 @@ def update_training(
 ):
     row = _load_training(db, training_id)
     ensure_access(db, user, row.company_id)
+    if row.archived_at:
+        raise HTTPException(409, "Arşivlenmiş eğitim kaydı değiştirilemez.")
     values = payload.model_dump(exclude_unset=True)
     new_ids = values.pop("participant_ids", None)
     for k, v in values.items():
         setattr(row, k, v)
     if new_ids is not None:
         _replace_participants(db, row, new_ids)
+    db.commit()
+    return _load_training(db, training_id)
+
+
+@router.post("/{training_id}/archive", response_model=TrainingResponse)
+def archive_training(
+    training_id: int,
+    payload: TrainingArchiveRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Tamamlanmış eğitim kaydını katılımcıları silmeden arşivler."""
+    row = _load_training(db, training_id)
+    ensure_access(db, user, row.company_id)
+    if row.archived_at:
+        return row
+    row.archived_at = datetime.utcnow()
+    row.archived_by_id = user.id
+    row.archive_reason = payload.reason.strip()
     db.commit()
     return _load_training(db, training_id)
 
@@ -765,6 +802,15 @@ def delete_training(
     """
     row = _load_training(db, training_id)
     ensure_access(db, user, row.company_id)
+
+    if row.archived_at:
+        raise HTTPException(409, "Arşivlenmiş eğitim kaydı silinemez.")
+    if row.status != TrainingStatus.PLANNED:
+        raise HTTPException(
+            409,
+            "Tamamlanmış veya iptal edilmiş eğitim kaydı silinemez; "
+            "katılımcı ve belge geçmişini korumak için Arşivle işlemini kullanın.",
+        )
 
     approved_audit_id = db.scalar(
         select(TrainingPresentationApproval.id)

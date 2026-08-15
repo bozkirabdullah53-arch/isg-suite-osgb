@@ -3727,6 +3727,117 @@ def answer_remote_checkpoint(
     return {"question_id": question.id, "is_correct": row.is_correct, "summary": summary, "certificate_id": certificate.id if certificate else None}
 
 
+@router.get("/certificates")
+def list_remote_certificate_records(
+    company_id: int | None = None,
+    branch_id: int | None = None,
+    status: str | None = Query(default=None, max_length=24),
+    q: str | None = Query(default=None, max_length=120),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Return a scoped management list for remote training documents.
+
+    This is deliberately separate from the employee self-service endpoint.
+    It exposes only the companies the OSGB administrator or assigned specialist
+    may manage and never changes an assignment or issues a certificate merely
+    by listing it.
+    """
+    require_feature()
+    _manager(user)
+    company_ids = _company_ids(db, user, company_id)
+    if company_ids is not None and not company_ids:
+        return []
+
+    stmt = (
+        select(RemoteTrainingAssignment, RemoteTrainingProgram, Company, Branch)
+        .join(
+            RemoteTrainingProgram,
+            RemoteTrainingProgram.id == RemoteTrainingAssignment.program_id,
+        )
+        .join(Company, Company.id == RemoteTrainingAssignment.company_id)
+        .outerjoin(Branch, Branch.id == RemoteTrainingAssignment.branch_id)
+        .order_by(
+            desc(RemoteTrainingAssignment.completed_at),
+            desc(RemoteTrainingAssignment.assigned_at),
+        )
+        .limit(500)
+    )
+    if company_ids is not None:
+        stmt = stmt.where(RemoteTrainingAssignment.company_id.in_(company_ids))
+    if branch_id is not None:
+        stmt = stmt.where(RemoteTrainingAssignment.branch_id == branch_id)
+    if status and status != "all":
+        stmt = stmt.where(RemoteTrainingAssignment.status == status)
+    if q and q.strip():
+        pattern = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                RemoteTrainingAssignment.employee_name_snapshot.ilike(pattern),
+                Company.name.ilike(pattern),
+                RemoteTrainingProgram.title.ilike(pattern),
+                Branch.name.ilike(pattern),
+            )
+        )
+
+    rows = db.execute(stmt).all()
+    assignment_ids = [assignment.id for assignment, _program, _company, _branch in rows]
+    certificates = {}
+    if assignment_ids:
+        certificates = {
+            certificate.assignment_id: certificate
+            for certificate in db.scalars(
+                select(RemoteTrainingCertificate).where(
+                    RemoteTrainingCertificate.assignment_id.in_(assignment_ids)
+                )
+            ).all()
+        }
+
+    result = []
+    for assignment, program, company, branch in rows:
+        item = _assignment_output(db, assignment)
+        certificate = certificates.get(assignment.id)
+        snapshot_ready = all(
+            (
+                assignment.employee_name_snapshot,
+                assignment.workplace_name_snapshot,
+                assignment.sgk_registration_number_snapshot,
+                assignment.nace_code_snapshot,
+                assignment.nace_description_snapshot,
+                assignment.hazard_class_snapshot,
+            )
+        )
+        item.update(
+            {
+                "company_name": company.name if company else str(assignment.company_id),
+                "branch_name": branch.name if branch else None,
+                "program_title": program.title,
+                "program_status": program.status,
+                "source_catalog_code": program.source_catalog_code,
+                "source_catalog_revision_no": program.source_catalog_revision_no,
+                "certificate_ready": bool(
+                    assignment.status == "completed" and snapshot_ready
+                ),
+                "certificate_number": certificate.certificate_number if certificate else None,
+                "certificate_issue_date": _iso(certificate.issue_date) if certificate else None,
+                "examination_score": (
+                    certificate.examination_score if certificate else None
+                ),
+                "certificate_block_reason": (
+                    None
+                    if assignment.status == "completed" and snapshot_ready
+                    else (
+                        "Video ve final sınavı tamamlanmadı."
+                        if assignment.status != "completed"
+                        else "Belge için tarihsel işyeri bilgileri eksik."
+                    )
+                ),
+            }
+        )
+        result.append(item)
+    return result
+
+
 @router.get("/assignments/{assignment_id}/certificate")
 def get_remote_certificate(
     assignment_id: int,
@@ -3757,6 +3868,9 @@ def get_remote_certificate(
         "training_duration_seconds": certificate.training_duration_seconds,
         "training_date": _iso(certificate.training_date),
         "instructor_name": certificate.instructor_name_snapshot,
+        "instructor_qualification": certificate.instructor_qualification_snapshot,
+        "workplace_physician": certificate.workplace_physician_snapshot,
+        "employer_representative": certificate.employer_representative_snapshot,
         "examination_score": certificate.examination_score,
         "certificate_number": certificate.certificate_number,
         "verification_code": certificate.verification_code,
