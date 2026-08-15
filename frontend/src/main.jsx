@@ -89,6 +89,8 @@ const roleModules={
     'osgb_dashboard',
     'visits',
     'notifications',
+    // Uzaktan Eğitim / Belgeler sekmesine OSGB yöneticisi de buradan ulaşır.
+    'training',
     'employer_oversight',
     'eyas_inbox',
     'companies',
