@@ -91,10 +91,15 @@ def downgrade() -> None:
 
     if "training_sessions" in tables:
         columns = _columns(bind, "training_sessions")
-        try:
-            op.drop_index("ix_training_sessions_archived_at", table_name="training_sessions")
-        except Exception:
-            pass
+        indexes = {
+            index["name"]
+            for index in sa.inspect(bind).get_indexes("training_sessions")
+        }
+        if "ix_training_sessions_archived_at" in indexes:
+            op.drop_index(
+                "ix_training_sessions_archived_at",
+                table_name="training_sessions",
+            )
         if "archive_reason" in columns:
             op.drop_column("training_sessions", "archive_reason")
         if "archived_by_id" in columns:
