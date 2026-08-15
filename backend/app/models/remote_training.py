@@ -40,7 +40,7 @@ VIDEO_STATUSES = (
     "unpublished",
     "archived",
 )
-ASSIGNMENT_STATUSES = ("not_started", "in_progress", "completed", "failed", "expired")
+ASSIGNMENT_STATUSES = ("not_started", "in_progress", "completed", "failed", "expired", "revoked")
 PROGRESS_STATUSES = ("not_started", "in_progress", "completed")
 ASSET_TYPES = ("thumbnail", "subtitle", "supporting_document")
 

@@ -2904,6 +2904,111 @@ def assign_remote_program(
     }
 
 
+@router.delete("/programs/{program_id}/assignments/{assignment_id}")
+def revoke_remote_assignment(
+    program_id: int,
+    assignment_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Remove an assignment from the employee without destroying evidence.
+
+    The assignment is intentionally soft-revoked.  The employee immediately
+    loses access to the course, while progress, exam attempts, certificates
+    and the audit trail remain available to the authorized workplace manager.
+    """
+    program = _assert_program_manager(db, user, program_id)
+    assignment = load_assignment(db, assignment_id)
+    if assignment.program_id != program.id or assignment.company_id != program.company_id:
+        raise HTTPException(404, "Atama bu eğitim kaydına ait değil.")
+
+    previous_status = assignment.status
+    if previous_status == "revoked":
+        return {
+            "ok": True,
+            "revoked": True,
+            "already_revoked": True,
+            "assignment": _assignment_output(db, assignment),
+            "message": "Bu çalışanın ataması zaten kaldırılmış.",
+        }
+
+    assignment.status = "revoked"
+    audit(
+        db,
+        company_id=program.company_id,
+        user=user,
+        action="program_assignment_revoked",
+        entity_type="assignment",
+        entity_id=assignment.id,
+        details={
+            "program_id": program.id,
+            "employee_id": assignment.employee_id,
+            "previous_status": previous_status,
+            "ip": request.client.host if request.client else None,
+        },
+    )
+    _commit(db, "Çalışan eğitim ataması kaldırılamadı; işlem geri alındı.")
+    return {
+        "ok": True,
+        "revoked": True,
+        "already_revoked": False,
+        "assignment": _assignment_output(db, assignment),
+        "message": "Eğitim çalışanın ekranından kaldırıldı; ilerleme ve belge geçmişi korundu.",
+    }
+
+
+@router.post("/programs/{program_id}/assignments/{assignment_id}/restore")
+def restore_remote_assignment(
+    program_id: int,
+    assignment_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Re-enable an assignment that was previously removed from the employee."""
+    program = _assert_program_manager(db, user, program_id)
+    assignment = load_assignment(db, assignment_id)
+    if assignment.program_id != program.id or assignment.company_id != program.company_id:
+        raise HTTPException(404, "Atama bu eğitim kaydına ait değil.")
+    if assignment.status != "revoked":
+        return {
+            "ok": True,
+            "restored": False,
+            "assignment": _assignment_output(db, assignment),
+            "message": "Bu atama zaten aktif.",
+        }
+    if program.status == "archived":
+        raise HTTPException(409, "Arşivlenmiş eğitim ataması yeniden etkinleştirilemez.")
+
+    assignment.status = "not_started"
+    assignment.completed_at = None
+    # Existing progress and exam evidence is intentionally retained.  The
+    # normal calculation restores the correct current state (not_started,
+    # in_progress or completed) from that evidence.
+    recalculate_assignment(db, assignment)
+    audit(
+        db,
+        company_id=program.company_id,
+        user=user,
+        action="program_assignment_restored",
+        entity_type="assignment",
+        entity_id=assignment.id,
+        details={
+            "program_id": program.id,
+            "employee_id": assignment.employee_id,
+            "ip": request.client.host if request.client else None,
+        },
+    )
+    _commit(db, "Çalışan eğitim ataması yeniden etkinleştirilemedi; işlem geri alındı.")
+    return {
+        "ok": True,
+        "restored": True,
+        "assignment": _assignment_output(db, assignment),
+        "message": "Eğitim ataması yeniden etkinleştirildi; mevcut ilerleme geçmişi korundu.",
+    }
+
+
 @router.get("/programs/{program_id}/assignments")
 def list_remote_assignments(
     program_id: int,
@@ -2934,6 +3039,7 @@ def list_my_remote_assignments(
         .where(
             RemoteTrainingAssignment.company_id == mapping.company_id,
             RemoteTrainingAssignment.employee_id == mapping.employee_id,
+            RemoteTrainingAssignment.status != "revoked",
         )
         .order_by(RemoteTrainingAssignment.assigned_at.desc())
     ).all()
@@ -3810,6 +3916,11 @@ def list_remote_certificate_records(
                 assignment.hazard_class_snapshot,
             )
         )
+        certificate_ready = (
+            bool(certificate)
+            if assignment.status == "revoked"
+            else bool(assignment.status == "completed" and snapshot_ready)
+        )
         item.update(
             {
                 "company_name": company.name if company else str(assignment.company_id),
@@ -3818,9 +3929,7 @@ def list_remote_certificate_records(
                 "program_status": program.status,
                 "source_catalog_code": program.source_catalog_code,
                 "source_catalog_revision_no": program.source_catalog_revision_no,
-                "certificate_ready": bool(
-                    assignment.status == "completed" and snapshot_ready
-                ),
+                "certificate_ready": certificate_ready,
                 "certificate_number": certificate.certificate_number if certificate else None,
                 "certificate_issue_date": _iso(certificate.issue_date) if certificate else None,
                 "examination_score": (
@@ -3828,11 +3937,15 @@ def list_remote_certificate_records(
                 ),
                 "certificate_block_reason": (
                     None
-                    if assignment.status == "completed" and snapshot_ready
+                    if certificate_ready
                     else (
-                        "Video ve final sınavı tamamlanmadı."
-                        if assignment.status != "completed"
-                        else "Belge için tarihsel işyeri bilgileri eksik."
+                        "Atama kaldırıldı; bu kayıt için oluşturulmuş belge bulunmuyor."
+                        if assignment.status == "revoked"
+                        else (
+                            "Video ve final sınavı tamamlanmadı."
+                            if assignment.status != "completed"
+                            else "Belge için tarihsel işyeri bilgileri eksik."
+                        )
                     )
                 ),
             }
@@ -3959,6 +4072,27 @@ def remote_training_report(
         select(RemoteTrainingAssignment).where(RemoteTrainingAssignment.program_id == program.id).order_by(RemoteTrainingAssignment.employee_name_snapshot)
     ).all()
     items = [_assignment_output(db, row) for row in rows]
+    certificates = {
+        certificate.assignment_id: certificate
+        for certificate in db.scalars(
+            select(RemoteTrainingCertificate).where(
+                RemoteTrainingCertificate.assignment_id.in_([row.id for row in rows])
+            )
+        ).all()
+    } if rows else {}
+    for row, item in zip(rows, items):
+        # A revoked assignment can still expose a certificate that was issued
+        # before removal; it must remain visible to the authorized manager.
+        item["certificate_ready"] = bool(
+            certificates.get(row.id)
+            if row.status == "revoked"
+            else row.status == "completed"
+        )
+        item["certificate_number"] = (
+            certificates[row.id].certificate_number
+            if row.id in certificates
+            else None
+        )
     by_status: dict[str, int] = {}
     for item in items:
         by_status[item["status"]] = by_status.get(item["status"], 0) + 1

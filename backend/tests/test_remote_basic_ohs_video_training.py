@@ -711,7 +711,7 @@ def test_strict_ended_progress_unlocks_the_next_video(remote_client, monkeypatch
     from app.core.config import settings
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
-    from app.models.entities import UserRole
+    from app.models.entities import User, UserRole
     from app.models.remote_training import (
         RemoteTrainingAssignment,
         RemoteTrainingAssignmentSector,
@@ -2015,3 +2015,100 @@ def test_shared_catalog_preview_is_allowed_for_expert_and_old_video_revisions_ar
         assert output["published_video_count"] == 1
         assert len(output["sections"][0]["videos"]) == 1
         assert output["sections"][0]["videos"][0]["id"] == current_video.id
+
+
+def test_manager_can_revoke_and_restore_assignment_without_deleting_history(remote_client):
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import UserRole
+    from app.models.remote_training import (
+        RemoteTrainingAssignment,
+        RemoteTrainingEmployeeAccess,
+        RemoteTrainingProgram,
+    )
+
+    with SessionLocal() as db:
+        osgb, company, _branch, employee, employee_user = _scope_rows(db)
+        employee_user.hashed_password = get_password_hash("TestPass123!")
+        employee_user.company_id = company.id
+        employee_user.osgb_id = osgb.id
+        employee_user.password_change_required = False
+        manager = User(
+            email="training-manager@remote-test.com",
+            full_name="Eğitim Yöneticisi",
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            company_id=company.id,
+            is_active=True,
+        )
+        program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title="Ortak Temel İSG",
+            status="published",
+            requires_final_exam=False,
+        )
+        db.add_all([manager, program])
+        db.flush()
+        db.add(
+            RemoteTrainingEmployeeAccess(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                user_id=employee_user.id,
+                employee_id=employee.id,
+                is_active=True,
+            )
+        )
+        db.commit()
+        program_id = program.id
+        employee_id = employee.id
+
+    manager_login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "training-manager@remote-test.com", "password": "TestPass123!"},
+    )
+    assert manager_login.status_code == 200, manager_login.text
+    manager_headers = {"Authorization": f"Bearer {manager_login.json()['access_token']}"}
+
+    assigned = remote_client.post(
+        f"/api/v1/trainings/remote/programs/{program_id}/assign",
+        headers=manager_headers,
+        json={"employee_ids": [employee_id]},
+    )
+    assert assigned.status_code == 200, assigned.text
+    assignment_id = assigned.json()["created"][0]["id"]
+
+    employee_login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "employee-remote@example.com", "password": "TestPass123!"},
+    )
+    assert employee_login.status_code == 200, employee_login.text
+    employee_headers = {"Authorization": f"Bearer {employee_login.json()['access_token']}"}
+    assert len(remote_client.get("/api/v1/trainings/remote/my-assignments", headers=employee_headers).json()) == 1
+
+    revoked = remote_client.delete(
+        f"/api/v1/trainings/remote/programs/{program_id}/assignments/{assignment_id}",
+        headers=manager_headers,
+    )
+    assert revoked.status_code == 200, revoked.text
+    assert revoked.json()["revoked"] is True
+
+    assert remote_client.get("/api/v1/trainings/remote/my-assignments", headers=employee_headers).json() == []
+    assert remote_client.get(
+        f"/api/v1/trainings/remote/assignments/{assignment_id}",
+        headers=employee_headers,
+    ).status_code == 404
+
+    with SessionLocal() as db:
+        stored = db.get(RemoteTrainingAssignment, assignment_id)
+        assert stored is not None
+        assert stored.status == "revoked"
+
+    restored = remote_client.post(
+        f"/api/v1/trainings/remote/programs/{program_id}/assignments/{assignment_id}/restore",
+        headers=manager_headers,
+    )
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["restored"] is True
+    assert len(remote_client.get("/api/v1/trainings/remote/my-assignments", headers=employee_headers).json()) == 1

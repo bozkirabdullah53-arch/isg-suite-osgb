@@ -533,6 +533,8 @@ def assert_assignment_access(
     if is_manager(user):
         ensure_company_access(db, user, assignment.company_id)
         return "manager"
+    if assignment.status == "revoked":
+        raise HTTPException(404, "Bu uzaktan eğitim ataması artık çalışana açık değil.")
     mapped = employee_access(db, user)
     if mapped:
         if bool(getattr(user, "password_change_required", False)):
@@ -1064,7 +1066,11 @@ def recalculate_assignment(db: Session, assignment: RemoteTrainingAssignment) ->
     required_complete = bool(required_videos) and all(video_complete.values())
     complete = required_complete and checkpoint_complete and exam_complete
     now = datetime.utcnow()
-    if complete:
+    if assignment.status == "revoked":
+        # Kaldırılmış atamanın ilerleme/sınav geçmişi rapor ve denetim için
+        # korunur; ancak aktif çalışan akışında tamamlanmış sayılmaz.
+        complete = False
+    elif complete:
         assignment.status = "completed"
         assignment.completed_at = assignment.completed_at or now
     elif assignment.status not in {"expired", "failed"}:
@@ -1100,6 +1106,15 @@ def _remote_document_defaults(db: Session, company_id: int) -> dict[str, Any]:
 
 
 def ensure_certificate(db: Session, assignment: RemoteTrainingAssignment) -> RemoteTrainingCertificate | None:
+    current = db.scalar(
+        select(RemoteTrainingCertificate).where(
+            RemoteTrainingCertificate.assignment_id == assignment.id
+        )
+    )
+    # Atama çalışandan kaldırılmış olsa bile daha önce üretilmiş tarihsel belge
+    # geçerliliğini korur ve yetkili yönetici tarafından indirilebilir.
+    if assignment.status == "revoked":
+        return current
     # A certificate request may be the first operation after the last progress
     # event.  Recalculate here so completion cannot depend on a prior UI call.
     if assignment.status != "completed":
@@ -1119,11 +1134,6 @@ def ensure_certificate(db: Session, assignment: RemoteTrainingAssignment) -> Rem
         )
     ):
         return None
-    current = db.scalar(
-        select(RemoteTrainingCertificate).where(
-            RemoteTrainingCertificate.assignment_id == assignment.id
-        )
-    )
     program = load_program(db, assignment.program_id)
     company = db.get(Company, assignment.company_id)
     defaults = _remote_document_defaults(db, assignment.company_id)
@@ -1215,10 +1225,16 @@ def related_remote_certificate_assignments(
     db: Session, assignment: RemoteTrainingAssignment
 ) -> list[RemoteTrainingAssignment]:
     """Find the same employee's remote packages for one certificate scope."""
+    if assignment.status == "revoked":
+        # A removed assignment must not force an active package to wait for a
+        # training that is no longer assigned. Existing certificates remain
+        # downloadable through the single revoked assignment record.
+        return [assignment]
     candidates = db.scalars(
         select(RemoteTrainingAssignment).where(
             RemoteTrainingAssignment.company_id == assignment.company_id,
             RemoteTrainingAssignment.employee_id == assignment.employee_id,
+            RemoteTrainingAssignment.status != "revoked",
         )
     ).all()
     key = remote_certificate_group_key(assignment)

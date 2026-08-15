@@ -60,6 +60,7 @@ const STATUS_LABELS = {
   not_started: 'Başlamadı',
   in_progress: 'Devam ediyor',
   completed: 'Tamamlandı',
+  revoked: 'Atama kaldırıldı',
 };
 
 const cardStyle = {
@@ -1149,6 +1150,8 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [assignmentNotice, setAssignmentNotice] = useState(null);
+  const [assignments, setAssignments] = useState([]);
+  const [assignmentActionId, setAssignmentActionId] = useState(null);
   const [report, setReport] = useState(null);
   const [sectorScope, setSectorScope] = useState(null);
   const [selectedSectorCodes, setSelectedSectorCodes] = useState([]);
@@ -1251,8 +1254,22 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     }
   }
 
+  async function loadAssignments(programId = program?.id) {
+    if (!programId) {
+      setAssignments([]);
+      return [];
+    }
+    const rows = await api(`/trainings/remote/programs/${Number(programId)}/assignments`);
+    const next = Array.isArray(rows) ? rows : [];
+    setAssignments(next);
+    return next;
+  }
+
   async function loadDetail(id) {
-    if (!id) return;
+    if (!id) {
+      setAssignments([]);
+      return;
+    }
     const row = await api(`/trainings/remote/programs/${Number(id)}`);
     setProgram(row);
     setSectionTitle('');
@@ -1274,6 +1291,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     await loadEmployees(row.company_id);
     await loadEmployeeAccess(row.company_id);
     await loadQuestionBank();
+    await loadAssignments(row.id);
   }
 
   function updateAutomaticExamQuestion(questionId, field, value) {
@@ -1491,15 +1509,54 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
       const text = createdCount === 0 && skippedCount > 0
         ? `Seçilen ${skippedCount} çalışanın mevcut ataması zaten vardı; yeni kayıt oluşturulmadı.`
         : `${createdCount} çalışana eğitim ve sınav atandı${skippedCount ? `; ${skippedCount} mevcut atama korundu` : ''}.`;
-      setAssignmentNotice({kind: 'success', text});
-      setMessage(text);
       setSelectedEmployees([]);
       setAssignmentDueDate('');
+      await loadDetail(program.id);
+      setAssignmentNotice({kind: 'success', text});
+      setMessage(text);
     } catch (err) {
       const text = err.message || 'Çalışan ataması yapılamadı.';
       setAssignmentNotice({kind: 'error', text});
       setError(text);
     } finally { setBusy(false); }
+  }
+
+  async function revokeAssignment(row) {
+    if (!program || !row?.id || row.status === 'revoked' || assignmentActionId) return;
+    const confirmed = window.confirm(
+      `${row.employee_name || 'Çalışan'} kişisinin “${localizedTrainingTitle(program.title)}” eğitimi çalışan ekranından kaldırılacak.\n\n` +
+      'İzleme, sınav, belge ve denetim kayıtları korunacaktır. Devam edilsin mi?',
+    );
+    if (!confirmed) return;
+    setBusy(true); setAssignmentActionId(row.id); setError(''); setMessage('');
+    try {
+      const out = await api(`/trainings/remote/programs/${program.id}/assignments/${row.id}`, {method: 'DELETE'});
+      setMessage(out.message || 'Eğitim ataması çalışanın ekranından kaldırıldı.');
+      await loadDetail(program.id);
+    } catch (err) {
+      setError(err.message || 'Eğitim ataması kaldırılamadı.');
+    } finally {
+      setBusy(false); setAssignmentActionId(null);
+    }
+  }
+
+  async function restoreAssignment(row) {
+    if (!program || !row?.id || row.status !== 'revoked' || assignmentActionId) return;
+    const confirmed = window.confirm(
+      `${row.employee_name || 'Çalışan'} kişisinin eğitim ataması yeniden etkinleştirilecek.\n\n` +
+      'Mevcut izleme ve sınav geçmişi korunacaktır. Devam edilsin mi?',
+    );
+    if (!confirmed) return;
+    setBusy(true); setAssignmentActionId(row.id); setError(''); setMessage('');
+    try {
+      const out = await api(`/trainings/remote/programs/${program.id}/assignments/${row.id}/restore`, {method: 'POST'});
+      setMessage(out.message || 'Eğitim ataması yeniden etkinleştirildi.');
+      await loadDetail(program.id);
+    } catch (err) {
+      setError(err.message || 'Eğitim ataması yeniden etkinleştirilemedi.');
+    } finally {
+      setBusy(false); setAssignmentActionId(null);
+    }
   }
 
   function toggleEmployee(employeeId) {
@@ -1591,7 +1648,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   }
 
   async function downloadParticipationDocument(row) {
-    if (!row?.id || row.status !== 'completed') return;
+    if (!row?.id || (row.status !== 'completed' && !row.certificate_ready)) return;
     setBusy(true); setError(''); setMessage('');
     try {
       await downloadFile(`/trainings/remote/assignments/${row.id}/certificate.pdf`, `uzaktan-egitim-belgesi-${row.id}.pdf`);
@@ -1609,7 +1666,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
         <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
           <div><div style={{fontSize: 12, color: '#547187', fontWeight: 700}}>FİRMA EĞİTİM VE SINAV YÖNETİMİ</div><h3 style={{margin: '4px 0'}}>Firma/işyeri personeline eğitim atayın</h3><p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Firma ve işyerini seçin, hazır programı açın, giriş hesabı olmayan personel için hesabı oluşturun ve eğitimi tek seçimle atayın. Katalog programlarında 10 final sorusu otomatik hazırdır.</p></div>
           <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
-            <select value={companyId} onChange={(event) => {setCompanyId(event.target.value); setBranchId(''); onBranchChange?.(''); onCompanyChange?.(event.target.value); setProgram(null); setAutomaticExamQuestions([]);}} aria-label="Firma seçin"><option value="">Firma seçin</option>{companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
+            <select value={companyId} onChange={(event) => {setCompanyId(event.target.value); setBranchId(''); onBranchChange?.(''); onCompanyChange?.(event.target.value); setProgram(null); setAssignments([]); setAutomaticExamQuestions([]);}} aria-label="Firma seçin"><option value="">Firma seçin</option>{companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
             <select value={branchId} onChange={(event) => {setBranchId(event.target.value); onBranchChange?.(event.target.value); setSelectedEmployees([]);}} disabled={!companyId} aria-label="Personel ve eğitim işyeri seçin"><option value="">Firma geneli / işyeri seçilmedi</option>{branches.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
           </div>
         </div>
@@ -1848,12 +1905,65 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                 </div>}
                 {!assignmentNotice && !selectedEmployees.length && <div style={{marginTop: 10, color: '#795500', fontSize: 12}}>Atama için önce listeden en az bir personelin kutusunu işaretleyin.</div>}
                 <button type="button" onClick={assign} disabled={busy || !selectedEmployees.length} style={{marginTop: 10}}>Seçilen personele eğitim ve sınav ata</button>
+                <div style={{marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5edf3'}}>
+                  <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
+                    <strong>Bu eğitime atanmış çalışanlar</strong>
+                    <span style={{fontSize: 12, color: '#5e7485'}}>{assignments.length} atama · kaldırılanlar geçmişte tutulur</span>
+                  </div>
+                  {assignments.length ? (
+                    <div style={{overflowX: 'auto', marginTop: 8}}>
+                      <table style={{width: '100%', fontSize: 12}}>
+                        <thead>
+                          <tr>
+                            <th style={{textAlign: 'left'}}>Çalışan</th>
+                            <th style={{textAlign: 'left'}}>Durum</th>
+                            <th style={{textAlign: 'left'}}>İlerleme</th>
+                            <th style={{textAlign: 'left'}}>Atanma</th>
+                            <th style={{textAlign: 'left'}}>Son tarih</th>
+                            <th style={{textAlign: 'left'}}>İşlem</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {assignments.map((row) => {
+                            const revoked = row.status === 'revoked';
+                            const actionBusy = assignmentActionId === row.id;
+                            return (
+                              <tr key={row.id} style={{opacity: revoked ? 0.72 : 1}}>
+                                <td><strong>{row.employee_name || `Personel #${row.employee_id}`}</strong></td>
+                                <td>{statusLabel(row.status)}</td>
+                                <td>{row.summary?.completed_video_count || 0}/{row.summary?.required_video_count || 0} video</td>
+                                <td>{formatEmployeeDate(row.assigned_at)}</td>
+                                <td>{formatEmployeeDate(row.due_date)}</td>
+                                <td>
+                                  {revoked ? (
+                                    <button type="button" onClick={() => restoreAssignment(row)} disabled={busy || actionBusy} style={{fontSize: 12, padding: '7px 10px'}}>
+                                      {actionBusy ? 'İşleniyor…' : 'Yeniden etkinleştir'}
+                                    </button>
+                                  ) : (
+                                    <button type="button" onClick={() => revokeAssignment(row)} disabled={busy || actionBusy} style={{fontSize: 12, padding: '7px 10px', color: '#b42318', background: '#fff5f4', border: '1px solid #e39b93'}}>
+                                      {actionBusy ? 'Kaldırılıyor…' : 'Atamayı geri al / kaldır'}
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p style={{margin: '8px 0 0', color: '#5e7485', fontSize: 12}}>Bu eğitime henüz çalışan atanmamış.</p>
+                  )}
+                  <div style={{marginTop: 8, color: '#5e7485', fontSize: 11}}>
+                    Kaldırma işlemi çalışan ekranındaki erişimi kapatır; izleme, sınav, belge ve denetim geçmişi silinmez.
+                  </div>
+                </div>
               </div>
             </>
           ) : <p style={{color: '#5e7485'}}>Detay ve video yaşam döngüsünü görmek için bir taslak seçin.</p>}
         </div>
       </div>
-      {report && <div id="remote-training-report" style={cardStyle}><h4 style={{marginTop: 0}}>Uzaktan eğitim raporu ve belgelendirme</h4><p style={{margin: '6px 0 10px', color: '#496174', fontSize: 12}}>Başarılı çalışanlar için çıktı, yüz yüze eğitimde kullanılan mevcut belge şablonuyla aynı düzen ve imza alanlarıyla hazırlanır; belgede eğitim şekli <strong>Uzaktan Eğitim</strong> olarak görünür.</p><div style={{display: 'flex', gap: 14, flexWrap: 'wrap', color: '#496174'}}><span>Atama: <strong>{report.assignment_count}</strong></span><span>Ortalama video ilerlemesi: <strong>%{report.average_video_progress_percent}</strong></span><span>Sınav denemesi: <strong>{report.exam_attempt_count}</strong></span><span>Uzaktan eğitim belgesi: <strong>{report.participation_document_count ?? report.certificate_count}</strong></span></div>{(report.rows || []).length > 0 && <div style={{overflowX: 'auto', marginTop: 10}}><table style={{width: '100%'}}><thead><tr><th>Çalışan</th><th>Durum</th><th>Kimlik snapshot</th><th>İlerleme</th><th>Belge</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.id}><td>{row.employee_name}</td><td>{statusLabel(row.status)}</td><td>{row.workplace_name_snapshot || '—'} · {row.nace_code_snapshot || 'NACE yok'} · {row.hazard_class_snapshot || 'Tehlike sınıfı yok'}</td><td>{row.summary?.completed_video_count || 0}/{row.summary?.required_video_count || 0}</td><td>{row.status === 'completed' ? <button type="button" onClick={() => downloadParticipationDocument(row)} disabled={busy}>Uzaktan Eğitim belgesini al</button> : <button type="button" disabled style={{fontSize: 12, padding: '6px 9px', color: '#5e7485', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 7}} title="Tüm videolar ve en az %70 final sınavı tamamlanınca aktif olur">Belge çıktısı eğitim tamamlanınca açılır</button>}</td></tr>)}</tbody></table></div>}</div>}
+      {report && <div id="remote-training-report" style={cardStyle}><h4 style={{marginTop: 0}}>Uzaktan eğitim raporu ve belgelendirme</h4><p style={{margin: '6px 0 10px', color: '#496174', fontSize: 12}}>Başarılı çalışanlar için çıktı, yüz yüze eğitimde kullanılan mevcut belge şablonuyla aynı düzen ve imza alanlarıyla hazırlanır; belgede eğitim şekli <strong>Uzaktan Eğitim</strong> olarak görünür.</p><div style={{display: 'flex', gap: 14, flexWrap: 'wrap', color: '#496174'}}><span>Atama: <strong>{report.assignment_count}</strong></span><span>Ortalama video ilerlemesi: <strong>%{report.average_video_progress_percent}</strong></span><span>Sınav denemesi: <strong>{report.exam_attempt_count}</strong></span><span>Uzaktan eğitim belgesi: <strong>{report.participation_document_count ?? report.certificate_count}</strong></span></div>{(report.rows || []).length > 0 && <div style={{overflowX: 'auto', marginTop: 10}}><table style={{width: '100%'}}><thead><tr><th>Çalışan</th><th>Durum</th><th>Kimlik snapshot</th><th>İlerleme</th><th>Belge</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.id}><td>{row.employee_name}</td><td>{statusLabel(row.status)}</td><td>{row.workplace_name_snapshot || '—'} · {row.nace_code_snapshot || 'NACE yok'} · {row.hazard_class_snapshot || 'Tehlike sınıfı yok'}</td><td>{row.summary?.completed_video_count || 0}/{row.summary?.required_video_count || 0}</td><td>{(row.status === 'completed' || row.certificate_ready) ? <button type="button" onClick={() => downloadParticipationDocument(row)} disabled={busy}>{row.status === 'revoked' ? 'Arşiv belgesini al' : 'Uzaktan Eğitim belgesini al'}</button> : <button type="button" disabled style={{fontSize: 12, padding: '6px 9px', color: '#5e7485', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 7}} title="Tüm videolar ve en az %70 final sınavı tamamlanınca aktif olur">Belge çıktısı eğitim tamamlanınca açılır</button>}</td></tr>)}</tbody></table></div>}</div>}
     </section>
   );
 }
