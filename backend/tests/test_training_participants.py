@@ -193,6 +193,51 @@ def test_patch_rejects_empty_or_foreign_participants(client):
     assert foreign.status_code == 422
 
 
+def test_completed_training_is_archived_instead_of_deleted(client):
+    headers, company_id, employee_ids = _seed(client)
+    created = client.post(
+        "/api/v1/trainings",
+        headers=headers,
+        json=_payload(company_id, employee_ids[:2]),
+    )
+    assert created.status_code == 200, created.text
+    training_id = created.json()["id"]
+
+    completed = client.patch(
+        f"/api/v1/trainings/{training_id}",
+        headers=headers,
+        json={
+            "status": "completed",
+            "attendance_verified": True,
+            "success_verified": True,
+        },
+    )
+    assert completed.status_code == 200, completed.text
+
+    archived = client.post(
+        f"/api/v1/trainings/{training_id}/archive",
+        headers=headers,
+        json={"reason": "Belge üretimi tamamlandı; tarihsel kayıt korundu."},
+    )
+    assert archived.status_code == 200, archived.text
+    assert archived.json()["archived_at"]
+    assert archived.json()["archive_reason"]
+
+    hidden = client.get("/api/v1/trainings", headers=headers)
+    assert hidden.status_code == 200, hidden.text
+    assert all(row["id"] != training_id for row in hidden.json())
+
+    visible = client.get(
+        "/api/v1/trainings?include_archived=true",
+        headers=headers,
+    )
+    assert visible.status_code == 200, visible.text
+    assert next(row for row in visible.json() if row["id"] == training_id)["archived_at"]
+
+    deleted = client.delete(f"/api/v1/trainings/{training_id}", headers=headers)
+    assert deleted.status_code == 409, deleted.text
+
+
 def test_safety_specialist_can_delete_training_record(client):
     admin_headers, company_id, employee_ids = _seed(client)
     created = client.post(
