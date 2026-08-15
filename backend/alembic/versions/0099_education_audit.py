@@ -49,16 +49,16 @@ def upgrade() -> None:
                 "training_sessions",
                 sa.Column("archive_reason", sa.String(length=500), nullable=True),
             )
-        try:
+        indexes = {
+            index["name"]
+            for index in sa.inspect(bind).get_indexes("training_sessions")
+        }
+        if "ix_training_sessions_archived_at" not in indexes:
             op.create_index(
                 "ix_training_sessions_archived_at",
                 "training_sessions",
                 ["archived_at"],
             )
-        except Exception:
-            # Existing installations may have created the index during a
-            # partially completed deployment.
-            pass
 
     if "remote_training_certificates" in tables:
         columns = _columns(bind, "remote_training_certificates")
