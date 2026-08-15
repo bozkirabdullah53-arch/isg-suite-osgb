@@ -1290,11 +1290,14 @@ def decode_catalog_playback_token(
     package = db.get(RemoteTrainingCatalogPackage, video.package_id)
     if package is None or not is_manager(user):
         raise HTTPException(403, "Merkezi video önizleme yetkiniz yok.")
-    if user.role != UserRole.GLOBAL_ADMIN:
-        allowed_osgb_id = user.osgb_id
-        if not allowed_osgb_id and user.company_id:
-            company = db.get(Company, user.company_id)
-            allowed_osgb_id = company.osgb_id if company else None
+    # Shared catalog packages (osgb_id=None) are intentionally readable by
+    # every subscribed OSGB manager.  Tenant-owned copies remain restricted
+    # to their own OSGB.  This check is for a signed preview stream only; it
+    # does not grant any content-editing capability.
+    if user.role != UserRole.GLOBAL_ADMIN and package.osgb_id is not None:
+        from app.services.osgb_subscription import resolve_user_osgb_id
+
+        allowed_osgb_id = resolve_user_osgb_id(db, user)
         if package.osgb_id != allowed_osgb_id:
             raise HTTPException(403, "Merkezi video OSGB kapsamınız dışında.")
     if video.status not in {"ready_for_review", "published", "unpublished"}:
