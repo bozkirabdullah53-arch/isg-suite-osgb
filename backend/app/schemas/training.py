@@ -252,6 +252,9 @@ class TrainingResponse(BaseModel):
     status: TrainingStatus
     notes: str | None
     created_at: datetime
+    archived_at: datetime | None = None
+    archived_by_id: int | None = None
+    archive_reason: str | None = None
     participants: list[ParticipantResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
