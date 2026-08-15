@@ -1539,7 +1539,11 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   async function showReport() {
     if (!program) return;
     setBusy(true); setError('');
-    try { setReport(await api(`/trainings/remote/programs/${program.id}/report`)); } catch (err) { setError(err.message || 'Rapor alınamadı.'); } finally { setBusy(false); }
+    try {
+      const nextReport = await api(`/trainings/remote/programs/${program.id}/report`);
+      setReport(nextReport);
+      window.setTimeout(() => document.getElementById('remote-training-report')?.scrollIntoView({behavior: 'smooth', block: 'start'}), 60);
+    } catch (err) { setError(err.message || 'Rapor alınamadı.'); } finally { setBusy(false); }
   }
 
   async function downloadParticipationDocument(row) {
@@ -1584,7 +1588,17 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
         <div style={cardStyle}>
           {program ? (
             <>
-              <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{program.source_catalog_code ? `Atanan sektör: ${packageSectorLabel(program.source_catalog_code)} · ` : ''}{statusLabel(program.status)} · video %{program.completion_threshold_percent} · sınav %{program.passing_score}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button><button type="button" onClick={showReport} disabled={busy}>Rapor</button></div></div>
+              <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{program.source_catalog_code ? `Atanan sektör: ${packageSectorLabel(program.source_catalog_code)} · ` : ''}{statusLabel(program.status)} · video %{program.completion_threshold_percent} · sınav %{program.passing_score}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button><button type="button" onClick={showReport} disabled={busy} title="Çalışanların durumunu ve belge PDF çıktısını açar">Belge / Rapor çıktıları</button></div></div>
+              <div id="remote-training-certificate-output" style={{marginTop: 12, padding: '12px 14px', border: '1px solid #8cc6dc', borderRadius: 10, background: '#f6fcff'}} aria-label="Uzaktan eğitim belge çıktıları">
+                <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap'}}>
+                  <div>
+                    <strong style={{color: '#123b59'}}>Uzaktan eğitim belge çıktısı</strong>
+                    <div style={{marginTop: 4, fontSize: 12, color: '#496174'}}>Tamamlanan ve final sınavından geçen çalışanlar için PDF burada açılır.</div>
+                  </div>
+                  <button type="button" onClick={showReport} disabled={busy} style={{minHeight: 40, padding: '8px 14px', fontWeight: 800}}>Belge listesini aç</button>
+                </div>
+                <div style={{marginTop: 8, fontSize: 12, color: '#795500'}}>Tamamlanmayan eğitimlerde belge üretilemez; çalışan başarıyla tamamladığında satırdaki indirme düğmesi aktif olur.</div>
+              </div>
               <div style={{marginTop: 14, padding: 16, border: '2px solid #2474a8', borderRadius: 12, background: '#f4fbff'}} aria-labelledby="remote-video-help-title">
                 <h4 id="remote-video-help-title" style={{margin: 0, color: '#123b59', fontSize: 17}}>Video yükleme ve silme — çok kolay</h4>
                 <ol style={{margin: '10px 0 8px', paddingLeft: 22, color: '#36556d', lineHeight: 1.65}}>
@@ -1793,7 +1807,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
           ) : <p style={{color: '#5e7485'}}>Detay ve video yaşam döngüsünü görmek için bir taslak seçin.</p>}
         </div>
       </div>
-      {report && <div style={cardStyle}><h4 style={{marginTop: 0}}>Uzaktan eğitim raporu ve belgelendirme</h4><p style={{margin: '6px 0 10px', color: '#496174', fontSize: 12}}>Başarılı çalışanlar için çıktı, yüz yüze eğitimde kullanılan mevcut belge şablonuyla aynı düzen ve imza alanlarıyla hazırlanır; belgede eğitim şekli <strong>Uzaktan Eğitim</strong> olarak görünür.</p><div style={{display: 'flex', gap: 14, flexWrap: 'wrap', color: '#496174'}}><span>Atama: <strong>{report.assignment_count}</strong></span><span>Ortalama video ilerlemesi: <strong>%{report.average_video_progress_percent}</strong></span><span>Sınav denemesi: <strong>{report.exam_attempt_count}</strong></span><span>Uzaktan eğitim belgesi: <strong>{report.participation_document_count ?? report.certificate_count}</strong></span></div>{(report.rows || []).length > 0 && <div style={{overflowX: 'auto', marginTop: 10}}><table style={{width: '100%'}}><thead><tr><th>Çalışan</th><th>Durum</th><th>Kimlik snapshot</th><th>İlerleme</th><th>Belge</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.id}><td>{row.employee_name}</td><td>{statusLabel(row.status)}</td><td>{row.workplace_name_snapshot || '—'} · {row.nace_code_snapshot || 'NACE yok'} · {row.hazard_class_snapshot || 'Tehlike sınıfı yok'}</td><td>{row.summary?.completed_video_count || 0}/{row.summary?.required_video_count || 0}</td><td>{row.status === 'completed' ? <button type="button" onClick={() => downloadParticipationDocument(row)} disabled={busy}>Uzaktan Eğitim belgesini al</button> : <span style={{fontSize: 12, color: '#5e7485'}}>Eğitim tamamlanınca uzman alır</span>}</td></tr>)}</tbody></table></div>}</div>}
+      {report && <div id="remote-training-report" style={cardStyle}><h4 style={{marginTop: 0}}>Uzaktan eğitim raporu ve belgelendirme</h4><p style={{margin: '6px 0 10px', color: '#496174', fontSize: 12}}>Başarılı çalışanlar için çıktı, yüz yüze eğitimde kullanılan mevcut belge şablonuyla aynı düzen ve imza alanlarıyla hazırlanır; belgede eğitim şekli <strong>Uzaktan Eğitim</strong> olarak görünür.</p><div style={{display: 'flex', gap: 14, flexWrap: 'wrap', color: '#496174'}}><span>Atama: <strong>{report.assignment_count}</strong></span><span>Ortalama video ilerlemesi: <strong>%{report.average_video_progress_percent}</strong></span><span>Sınav denemesi: <strong>{report.exam_attempt_count}</strong></span><span>Uzaktan eğitim belgesi: <strong>{report.participation_document_count ?? report.certificate_count}</strong></span></div>{(report.rows || []).length > 0 && <div style={{overflowX: 'auto', marginTop: 10}}><table style={{width: '100%'}}><thead><tr><th>Çalışan</th><th>Durum</th><th>Kimlik snapshot</th><th>İlerleme</th><th>Belge</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.id}><td>{row.employee_name}</td><td>{statusLabel(row.status)}</td><td>{row.workplace_name_snapshot || '—'} · {row.nace_code_snapshot || 'NACE yok'} · {row.hazard_class_snapshot || 'Tehlike sınıfı yok'}</td><td>{row.summary?.completed_video_count || 0}/{row.summary?.required_video_count || 0}</td><td>{row.status === 'completed' ? <button type="button" onClick={() => downloadParticipationDocument(row)} disabled={busy}>Uzaktan Eğitim belgesini al</button> : <button type="button" disabled style={{fontSize: 12, padding: '6px 9px', color: '#5e7485', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: 7}} title="Tüm videolar ve en az %70 final sınavı tamamlanınca aktif olur">Belge çıktısı eğitim tamamlanınca açılır</button>}</td></tr>)}</tbody></table></div>}</div>}
     </section>
   );
 }
