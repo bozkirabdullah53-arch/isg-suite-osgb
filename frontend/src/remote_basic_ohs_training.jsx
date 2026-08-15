@@ -295,6 +295,7 @@ function EmployeePanel() {
   const [busy, setBusy] = useState(false);
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoPlaying, setVideoPlaying] = useState(false);
+  const [videoMuted, setVideoMuted] = useState(false);
   const lastSentAt = useRef(0);
   const playbackPrefetches = useRef(new Map());
   const playbackRequestVersion = useRef(0);
@@ -370,6 +371,36 @@ function EmployeePanel() {
     });
   }
 
+  async function playVideoElement(player, {retryOnFailure = false} = {}) {
+    if (!player || playerRef.current !== player || player.error || !player.paused) return false;
+    try {
+      await player.play();
+      setVideoMuted(Boolean(player.muted));
+      return true;
+    } catch (err) {
+      if (String(err?.name || '') === 'NotAllowedError') {
+        player.muted = true;
+        setVideoMuted(true);
+        try {
+          await player.play();
+          setMessage('Tarayıcı sesli otomatik oynatmayı engelledi; video sessiz devam ediyor. Sesi açmak için “Sesi aç ve devam et” düğmesine basın.');
+          return true;
+        } catch (_mutedError) {
+          if (retryOnFailure) {
+            setError('Video başlatılamadı; bağlantı yenileniyor…');
+            await refreshPlaybackUrl();
+          }
+          return false;
+        }
+      }
+      if (retryOnFailure) {
+        setError('Video oynatılamadı; bağlantı yenileniyor…');
+        await refreshPlaybackUrl();
+      }
+      return false;
+    }
+  }
+
   async function continueVideo() {
     const player = playerRef.current;
     if (!player) return;
@@ -379,24 +410,32 @@ function EmployeePanel() {
       await refreshPlaybackUrl();
       return;
     }
+    await playVideoElement(player, {retryOnFailure: true});
+  }
+
+  async function unmuteVideo() {
+    const player = playerRef.current;
+    if (!player) return;
+    setError('');
+    setMessage('');
+    if (player.error) {
+      await refreshPlaybackUrl();
+      return;
+    }
+    const wasMuted = player.muted;
+    player.muted = false;
+    setVideoMuted(false);
     try {
       await player.play();
+      setMessage('Video sesli devam ediyor.');
     } catch (err) {
-      if (String(err?.name || '') === 'NotAllowedError') {
-        const wasMuted = player.muted;
-        player.muted = true;
-        try {
-          await player.play();
-          setMessage('Tarayıcı sesli otomatik oynatmayı engelledi; video sessiz devam ediyor. Sesi video üzerindeki hoparlör düğmesinden açabilirsiniz.');
-        } catch (_mutedError) {
-          player.muted = wasMuted;
-          setError('Video başlatılamadı; bağlantı yenileniyor…');
-          await refreshPlaybackUrl();
-        }
-        return;
-      }
-      setError('Video oynatılamadı; bağlantı yenileniyor…');
-      await refreshPlaybackUrl();
+      player.muted = wasMuted;
+      setVideoMuted(wasMuted);
+      setError(
+        String(err?.name || '') === 'NotAllowedError'
+          ? 'Ses açılamadı; tarayıcı video üzerindeki ses düğmesine basmanızı bekliyor.'
+          : 'Video sesli başlatılamadı.',
+      );
     }
   }
 
@@ -837,10 +876,14 @@ function EmployeePanel() {
                     disablePictureInPicture
                     playsInline
                     autoPlay
+                    preload="auto"
+                    muted={videoMuted}
                     style={{width: '100%', maxHeight: 430, background: '#102b3d', borderRadius: 10}}
                     onCanPlay={(event) => {
-                      const playback = event.currentTarget.play();
-                      if (playback?.catch) playback.catch(() => {});
+                      // Sesli autoplay tarayıcı tarafından reddedilirse aynı
+                      // kullanıcı etkileşimini beklemeden sessiz fallback ile
+                      // videoyu ilerlet. Kullanıcı sesi görünür düğmeden açabilir.
+                      void playVideoElement(event.currentTarget);
                     }}
                     onError={handleVideoError}
                     onPlay={(event) => {
@@ -851,6 +894,7 @@ function EmployeePanel() {
                       setVideoPlaying(false);
                       saveProgress('pause', event.currentTarget);
                     }}
+                    onVolumeChange={(event) => setVideoMuted(Boolean(event.currentTarget.muted))}
                     onTimeUpdate={(event) => saveProgress('progress', event.currentTarget)}
                     onEnded={(event) => {
                       setVideoPlaying(false);
@@ -879,7 +923,8 @@ function EmployeePanel() {
                     }}
                   />
                   <div style={{fontSize: 12, color: '#5e7485', marginTop: 8}}>Kaldığınız yer: {Math.round(currentProgress?.last_position_seconds || 0)} sn · Eşik: {completionThresholdPercent}%</div>
-                {!videoPlaying && <button type="button" onClick={() => { void continueVideo(); }} style={{marginTop: 8}}>Videoyu devam ettir</button>}
+                  {!videoPlaying && <button type="button" onClick={() => { void continueVideo(); }} style={{marginTop: 8}}>Videoyu devam ettir</button>}
+                  {videoPlaying && videoMuted && <button type="button" onClick={() => { void unmuteVideo(); }} style={{marginTop: 8}}>Sesi aç ve devam et</button>}
                 </>
               ) : <div style={{minHeight: 180, display: 'grid', placeItems: 'center', border: '1px dashed #b9cad8', borderRadius: 10, color: '#5e7485'}}>{videoLoading ? 'Video hazırlanıyor…' : 'İzlemek için bir video seçin.'}</div>}
             </div>
