@@ -1546,10 +1546,10 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     if (!row?.id || row.status !== 'completed') return;
     setBusy(true); setError(''); setMessage('');
     try {
-      await downloadFile(`/trainings/remote/assignments/${row.id}/certificate.pdf`, `katilim-belgesi-${row.id}.pdf`);
-      setMessage(`${row.employee_name || 'Çalışan'} için katılım belgesi alındı. PDF'yi arşivleyebilirsiniz.`);
+      await downloadFile(`/trainings/remote/assignments/${row.id}/certificate.pdf`, `uzaktan-egitim-belgesi-${row.id}.pdf`);
+      setMessage(`${row.employee_name || 'Çalışan'} için uzaktan eğitim belgesi alındı. PDF'yi arşivleyebilirsiniz.`);
     } catch (err) {
-      setError(err.message || 'Katılım belgesi alınamadı.');
+      setError(err.message || 'Uzaktan eğitim belgesi alınamadı.');
     } finally {
       setBusy(false);
     }
@@ -1793,7 +1793,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
           ) : <p style={{color: '#5e7485'}}>Detay ve video yaşam döngüsünü görmek için bir taslak seçin.</p>}
         </div>
       </div>
-      {report && <div style={cardStyle}><h4 style={{marginTop: 0}}>Uzaktan eğitim raporu</h4><div style={{display: 'flex', gap: 14, flexWrap: 'wrap', color: '#496174'}}><span>Atama: <strong>{report.assignment_count}</strong></span><span>Ortalama video ilerlemesi: <strong>%{report.average_video_progress_percent}</strong></span><span>Sınav denemesi: <strong>{report.exam_attempt_count}</strong></span><span>Katılım belgesi: <strong>{report.participation_document_count ?? report.certificate_count}</strong></span></div>{(report.rows || []).length > 0 && <div style={{overflowX: 'auto', marginTop: 10}}><table style={{width: '100%'}}><thead><tr><th>Çalışan</th><th>Durum</th><th>Kimlik snapshot</th><th>İlerleme</th><th>Belge</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.id}><td>{row.employee_name}</td><td>{statusLabel(row.status)}</td><td>{row.workplace_name_snapshot || '—'} · {row.nace_code_snapshot || 'NACE yok'} · {row.hazard_class_snapshot || 'Tehlike sınıfı yok'}</td><td>{row.summary?.completed_video_count || 0}/{row.summary?.required_video_count || 0}</td><td>{row.status === 'completed' ? <button type="button" onClick={() => downloadParticipationDocument(row)} disabled={busy}>Katılım belgesini al</button> : <span style={{fontSize: 12, color: '#5e7485'}}>Eğitim tamamlanınca uzman alır</span>}</td></tr>)}</tbody></table></div>}</div>}
+      {report && <div style={cardStyle}><h4 style={{marginTop: 0}}>Uzaktan eğitim raporu ve belgelendirme</h4><p style={{margin: '6px 0 10px', color: '#496174', fontSize: 12}}>Başarılı çalışanlar için çıktı, yüz yüze eğitimde kullanılan mevcut belge şablonuyla aynı düzen ve imza alanlarıyla hazırlanır; belgede eğitim şekli <strong>Uzaktan Eğitim</strong> olarak görünür.</p><div style={{display: 'flex', gap: 14, flexWrap: 'wrap', color: '#496174'}}><span>Atama: <strong>{report.assignment_count}</strong></span><span>Ortalama video ilerlemesi: <strong>%{report.average_video_progress_percent}</strong></span><span>Sınav denemesi: <strong>{report.exam_attempt_count}</strong></span><span>Uzaktan eğitim belgesi: <strong>{report.participation_document_count ?? report.certificate_count}</strong></span></div>{(report.rows || []).length > 0 && <div style={{overflowX: 'auto', marginTop: 10}}><table style={{width: '100%'}}><thead><tr><th>Çalışan</th><th>Durum</th><th>Kimlik snapshot</th><th>İlerleme</th><th>Belge</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.id}><td>{row.employee_name}</td><td>{statusLabel(row.status)}</td><td>{row.workplace_name_snapshot || '—'} · {row.nace_code_snapshot || 'NACE yok'} · {row.hazard_class_snapshot || 'Tehlike sınıfı yok'}</td><td>{row.summary?.completed_video_count || 0}/{row.summary?.required_video_count || 0}</td><td>{row.status === 'completed' ? <button type="button" onClick={() => downloadParticipationDocument(row)} disabled={busy}>Uzaktan Eğitim belgesini al</button> : <span style={{fontSize: 12, color: '#5e7485'}}>Eğitim tamamlanınca uzman alır</span>}</td></tr>)}</tbody></table></div>}</div>}
     </section>
   );
 }
