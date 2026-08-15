@@ -1886,3 +1886,44 @@ def test_remote_certificate_adapter_uses_shared_label_and_signatory_context(monk
     assert training.instructor_qualification == "A Sınıfı İş Güvenliği Uzmanı"
     assert training.employer_representative == "İşveren Test"
     assert training.passing_score == 70
+
+
+def test_remote_content_permission_separates_osgb_admin_and_expert():
+    from fastapi import HTTPException
+
+    from app.api.remote_training import _assert_catalog_content_editor
+    from app.models.entities import OsgbOrganization, User, UserRole
+    from app.services.remote_training import is_catalog_content_manager, is_manager
+
+    engine = _db()
+    with Session(engine) as db:
+        osgb = OsgbOrganization(name="Permission Test OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        admin = User(
+            email="osgb-admin@example.com",
+            full_name="OSGB Yönetici",
+            hashed_password="x",
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            company_id=None,
+            is_active=True,
+        )
+        expert = User(
+            email="expert@example.com",
+            full_name="İSG Uzmanı",
+            hashed_password="x",
+            role=UserRole.SAFETY_SPECIALIST,
+            osgb_id=osgb.id,
+            is_active=True,
+        )
+        db.add_all([admin, expert])
+        db.flush()
+
+        assert is_manager(expert)
+        assert not is_catalog_content_manager(expert)
+        with pytest.raises(HTTPException) as error:
+            _assert_catalog_content_editor(db, expert)
+        assert error.value.status_code == 403
+
+        _assert_catalog_content_editor(db, admin)

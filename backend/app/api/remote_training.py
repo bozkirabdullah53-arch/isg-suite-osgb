@@ -75,8 +75,14 @@ from app.schemas.remote_training import (
     RemoteVideoUpdate,
 )
 from app.services.object_store import get_object_store
+from app.services.osgb_subscription import (
+    assert_osgb_subscription_access,
+    assert_osgb_write_access,
+    resolve_user_osgb_id,
+)
 from app.services.osgb_admin import generate_temporary_password
 from app.services.remote_training import (
+    CATALOG_CONTENT_ROLES,
     MANAGE_ROLES,
     REMOTE_AUTO_EXAM_QUESTION_COUNT,
     VIEW_ROLES,
@@ -101,6 +107,7 @@ from app.services.remote_training import (
     enqueue_catalog_video_processing,
     ensure_certificate,
     feature_active,
+    is_catalog_content_manager,
     is_manager,
     load_assignment,
     load_program,
@@ -134,6 +141,26 @@ logger = logging.getLogger(__name__)
 def _manager(user: User) -> None:
     if user.role not in MANAGE_ROLES:
         raise HTTPException(403, "Bu uzaktan eğitim işlemi için eğitici/yönetici yetkisi gerekir.")
+
+
+def _assert_catalog_content_editor(db: Session, user: User) -> None:
+    """Require the OSGB administrator for curriculum/package changes."""
+    _manager(user)
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return
+    if (
+        user.role not in CATALOG_CONTENT_ROLES
+        or user.role != UserRole.COMPANY_ADMIN
+        or not user.osgb_id
+        or user.company_id is not None
+        or not is_catalog_content_manager(user)
+    ):
+        raise HTTPException(
+            403,
+            "Uzaktan eğitim içeriğini yalnızca OSGB yöneticisi değiştirebilir. "
+            "Uzmanlar sadece kendilerine atanmış firmalara paket atayabilir.",
+        )
+    assert_osgb_write_access(db, user, int(user.osgb_id))
 
 
 def _viewer(user: User) -> None:
@@ -175,6 +202,13 @@ def _assert_program_manager(db: Session, user: User, program_id: int) -> RemoteT
     ensure_company_access(db, user, program.company_id)
     return program
 
+def _assert_program_content_manager(
+    db: Session, user: User, program_id: int
+) -> RemoteTrainingProgram:
+    program = _assert_program_manager(db, user, program_id)
+    _assert_catalog_content_editor(db, user)
+    return program
+
 def _assert_assignment_document_manager(
     db: Session, user: User, assignment: RemoteTrainingAssignment
 ) -> None:
@@ -186,7 +220,7 @@ def _assert_assignment_document_manager(
 
 def _assert_section_manager(db: Session, user: User, section_id: int) -> RemoteTrainingSection:
     section = load_section(db, section_id)
-    program = _assert_program_manager(db, user, section.program_id)
+    program = _assert_program_content_manager(db, user, section.program_id)
     if section.company_id != program.company_id:
         raise HTTPException(403, "Bölüm firma kapsamı dışında.")
     return section
@@ -194,7 +228,7 @@ def _assert_section_manager(db: Session, user: User, section_id: int) -> RemoteT
 
 def _assert_video_manager(db: Session, user: User, video_id: int) -> RemoteTrainingVideo:
     video = load_video(db, video_id)
-    program = _assert_program_manager(db, user, video.program_id)
+    program = _assert_program_content_manager(db, user, video.program_id)
     if video.company_id != program.company_id:
         raise HTTPException(403, "Video firma kapsamı dışında.")
     return video
@@ -646,21 +680,14 @@ def _safe_asset_content(asset_type: str, extension: str, content: bytes) -> None
 
 
 def _catalog_scope(db: Session, user: User) -> int | None:
-    """Return the OSGB scope used by the central catalog.
-
-    Global administrators own the shared catalog (``osgb_id IS NULL``).  Other
-    managers must have an OSGB either directly or through their company; a
-    missing tenant is never treated as a wildcard.
-    """
+    """Return the OSGB scope used by the central catalog."""
     if user.role == UserRole.GLOBAL_ADMIN:
         return None
-    if user.osgb_id:
-        return int(user.osgb_id)
-    if user.company_id:
-        company = db.get(Company, user.company_id)
-        if company and company.osgb_id:
-            return int(company.osgb_id)
+    scope = resolve_user_osgb_id(db, user)
+    if scope:
+        return int(scope)
     raise HTTPException(403, "Merkezi eğitim kataloğu için OSGB kapsamı bulunamadı.")
+
 
 
 def _catalog_package_for_manager(
@@ -673,8 +700,28 @@ def _catalog_package_for_manager(
         raise HTTPException(404, "Merkezi eğitim paketi bulunamadı.")
     if user.role != UserRole.GLOBAL_ADMIN:
         scope = _catalog_scope(db, user)
-        if package.osgb_id != scope:
+        if package.osgb_id not in (None, scope):
             raise HTTPException(403, "Bu merkezi eğitim paketi OSGB kapsamınız dışında.")
+        assert_osgb_subscription_access(db, user, scope)
+    return package
+
+
+def _catalog_content_package_for_manager(
+    db: Session, user: User, package_id: int
+) -> RemoteTrainingCatalogPackage:
+    """Return an OSGB-owned package that may be changed."""
+    package = _catalog_package_for_manager(db, user, package_id)
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return package
+    _assert_catalog_content_editor(db, user)
+    scope = _catalog_scope(db, user)
+    if package.osgb_id is None:
+        raise HTTPException(
+            409,
+            "Ortak hazır paket değiştirilemez. Önce OSGB özel kopyasını oluşturun.",
+        )
+    if package.osgb_id != scope:
+        raise HTTPException(403, "Bu OSGB özel eğitim paketi kapsamınız dışında.")
     return package
 
 
@@ -688,6 +735,14 @@ def _catalog_section_for_manager(
     return section
 
 
+def _catalog_section_for_content_manager(
+    db: Session, user: User, section_id: int
+) -> RemoteTrainingCatalogSection:
+    section = _catalog_section_for_manager(db, user, section_id)
+    _catalog_content_package_for_manager(db, user, section.package_id)
+    return section
+
+
 def _catalog_video_for_manager(
     db: Session, user: User, video_id: int
 ) -> RemoteTrainingCatalogVideo:
@@ -696,6 +751,15 @@ def _catalog_video_for_manager(
         raise HTTPException(404, "Merkezi eğitim videosu bulunamadı.")
     _catalog_package_for_manager(db, user, video.package_id)
     return video
+
+
+def _catalog_video_for_content_manager(
+    db: Session, user: User, video_id: int
+) -> RemoteTrainingCatalogVideo:
+    video = _catalog_video_for_manager(db, user, video_id)
+    _catalog_content_package_for_manager(db, user, video.package_id)
+    return video
+
 
 
 def _catalog_video_output(video: RemoteTrainingCatalogVideo) -> dict[str, Any]:
@@ -807,6 +871,7 @@ def _catalog_package_output(
         ),
         "created_at": _iso(package.created_at),
         "updated_at": _iso(package.updated_at),
+        "is_shared": package.osgb_id is None,
     }
     if detail:
         result["sections"] = [_catalog_section_output(db, section) for section in sections]
@@ -814,20 +879,32 @@ def _catalog_package_output(
 
 
 def _ensure_catalog_seed(db: Session, user: User) -> int | None:
-    """Idempotently create the requested package catalog in the current scope."""
+    """Ensure the approved catalog exists without creating tenant shadow copies."""
     scope = _catalog_scope(db, user)
     changed = False
     for spec in REMOTE_CATALOG_PACKAGE_SPECS:
-        scope_filter = (
-            RemoteTrainingCatalogPackage.osgb_id.is_(None)
-            if scope is None
-            else RemoteTrainingCatalogPackage.osgb_id == scope
-        )
-        package = db.scalar(
-            select(RemoteTrainingCatalogPackage).where(
-                RemoteTrainingCatalogPackage.code == spec["code"], scope_filter
+        package = None
+        if scope is None:
+            package = db.scalar(
+                select(RemoteTrainingCatalogPackage).where(
+                    RemoteTrainingCatalogPackage.code == spec["code"],
+                    RemoteTrainingCatalogPackage.osgb_id.is_(None),
+                )
             )
-        )
+        else:
+            package = db.scalar(
+                select(RemoteTrainingCatalogPackage).where(
+                    RemoteTrainingCatalogPackage.code == spec["code"],
+                    RemoteTrainingCatalogPackage.osgb_id == scope,
+                )
+            )
+            if package is None:
+                package = db.scalar(
+                    select(RemoteTrainingCatalogPackage).where(
+                        RemoteTrainingCatalogPackage.code == spec["code"],
+                        RemoteTrainingCatalogPackage.osgb_id.is_(None),
+                    )
+                )
         if package is None:
             package = RemoteTrainingCatalogPackage(
                 osgb_id=scope,
@@ -840,13 +917,17 @@ def _ensure_catalog_seed(db: Session, user: User) -> int | None:
             db.add(package)
             db.flush()
             changed = True
-        else:
-            # Keep rows created by an earlier catalog draft aligned with the
-            # approved package names without touching their videos or revisions.
-            if package.title != spec["title"] or package.description != spec["description"]:
+        elif package.title != spec["title"] or package.description != spec["description"]:
+            # Shared package metadata is repaired only by the global owner.
+            if scope is None or package.osgb_id == scope:
                 package.title = spec["title"]
                 package.description = spec["description"]
                 changed = True
+
+        # A tenant request must never mutate a shared package while seeding.
+        if scope is not None and package.osgb_id is None:
+            continue
+
         existing_codes = set(
             db.scalars(
                 select(RemoteTrainingCatalogSection.code).where(
@@ -870,7 +951,6 @@ def _ensure_catalog_seed(db: Session, user: User) -> int | None:
     if changed:
         _commit(db, "Merkezi eğitim paketleri oluşturulamadı.")
     return scope
-
 
 @router.get("/meta")
 def remote_training_meta(
@@ -911,23 +991,33 @@ def list_catalog_packages(
     _manager(user)
     _ensure_catalog_seed(db, user)
     scope = _catalog_scope(db, user)
-    stmt = select(RemoteTrainingCatalogPackage)
+    if scope is not None:
+        assert_osgb_subscription_access(db, user, scope)
     allowed_codes = tuple(spec["code"] for spec in REMOTE_CATALOG_PACKAGE_SPECS)
-    # Retired/experimental rows remain recoverable in the database, but the
-    # preparation screen exposes only the approved package catalog.
-    stmt = stmt.where(RemoteTrainingCatalogPackage.code.in_(allowed_codes))
-    if user.role != UserRole.GLOBAL_ADMIN:
-        stmt = stmt.where(RemoteTrainingCatalogPackage.osgb_id == scope)
-    rows = db.scalars(
-        stmt.order_by(RemoteTrainingCatalogPackage.code, RemoteTrainingCatalogPackage.id)
-    ).all()
-    # SQL ordering is intentionally not used for the user-facing catalog.  The
-    # package specification order is the same order in which the administrator
-    # prepares the content.
-    order = {
-        spec["code"]: index
-        for index, spec in enumerate(REMOTE_CATALOG_PACKAGE_SPECS)
-    }
+    stmt = select(RemoteTrainingCatalogPackage).where(
+        RemoteTrainingCatalogPackage.code.in_(allowed_codes)
+    )
+    if user.role == UserRole.GLOBAL_ADMIN:
+        stmt = stmt.where(RemoteTrainingCatalogPackage.osgb_id.is_(None))
+    else:
+        stmt = stmt.where(
+            or_(
+                RemoteTrainingCatalogPackage.osgb_id.is_(None),
+                RemoteTrainingCatalogPackage.osgb_id == scope,
+            )
+        )
+    rows = list(
+        db.scalars(
+            stmt.order_by(RemoteTrainingCatalogPackage.code, RemoteTrainingCatalogPackage.id)
+        ).all()
+    )
+    # An OSGB override replaces the shared card for the same package code.
+    if scope is not None:
+        own = {row.code: row for row in rows if row.osgb_id == scope}
+        shared = {row.code: row for row in rows if row.osgb_id is None}
+        rows = [own.get(code) or shared.get(code) for code in allowed_codes]
+        rows = [row for row in rows if row is not None]
+    order = {spec["code"]: index for index, spec in enumerate(REMOTE_CATALOG_PACKAGE_SPECS)}
     rows = sorted(rows, key=lambda row: (order.get(row.code, len(order)), row.id))
     return [_catalog_package_output(db, row) for row in rows]
 
@@ -939,6 +1029,148 @@ def get_catalog_package(
     user: User = Depends(get_current_user),
 ):
     package = _catalog_package_for_manager(db, user, package_id)
+    return _catalog_package_output(db, package, detail=True)
+
+
+@router.post("/catalog/packages/{package_id}/fork", status_code=201)
+def fork_catalog_package(
+    package_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Create an OSGB-owned copy of a shared, published package.
+
+    Rows and video objects are copied into the tenant scope.  Existing
+    company programs reference their original package snapshot and are
+    untouched.
+    """
+    source = _catalog_package_for_manager(db, user, package_id)
+    _assert_catalog_content_editor(db, user)
+    scope = _catalog_scope(db, user)
+    if scope is None:
+        raise HTTPException(409, "Global yönetici ortak paket için özel OSGB kopyası oluşturamaz.")
+    if source.osgb_id is not None:
+        raise HTTPException(409, "Bu paket zaten OSGB özel sürümüdür.")
+    if source.status != "published":
+        raise HTTPException(409, "Yalnızca yayımlanmış hazır paket özel kopyalanabilir.")
+
+    existing = db.scalar(
+        select(RemoteTrainingCatalogPackage).where(
+            RemoteTrainingCatalogPackage.osgb_id == scope,
+            RemoteTrainingCatalogPackage.code == source.code,
+        )
+    )
+    if existing:
+        return _catalog_package_output(db, existing, detail=True)
+
+    package = RemoteTrainingCatalogPackage(
+        osgb_id=scope,
+        code=source.code,
+        title=source.title,
+        description=source.description,
+        training_type=source.training_type,
+        total_duration_seconds=source.total_duration_seconds,
+        requires_final_exam=bool(source.requires_final_exam),
+        completion_threshold_percent=source.completion_threshold_percent,
+        passing_score=source.passing_score,
+        attempt_limit=source.attempt_limit,
+        policy_mode=source.policy_mode,
+        sequence_enforced=bool(source.sequence_enforced),
+        exam_gate_enforced=bool(source.exam_gate_enforced),
+        status="unpublished",
+        revision_no=source.revision_no,
+        created_by_id=user.id,
+    )
+    db.add(package)
+    db.flush()
+
+    source_sections = list(
+        db.scalars(
+            select(RemoteTrainingCatalogSection).where(
+                RemoteTrainingCatalogSection.package_id == source.id,
+                RemoteTrainingCatalogSection.status == "active",
+            ).order_by(
+                RemoteTrainingCatalogSection.order_index,
+                RemoteTrainingCatalogSection.id,
+            )
+        ).all()
+    )
+    store = get_object_store()
+    copied_keys: list[str] = []
+    try:
+        for source_section in source_sections:
+            section = RemoteTrainingCatalogSection(
+                package_id=package.id,
+                code=source_section.code,
+                title=source_section.title,
+                description=source_section.description,
+                order_index=source_section.order_index,
+                is_required=bool(source_section.is_required),
+                status="active",
+                created_by_id=user.id,
+            )
+            db.add(section)
+            db.flush()
+            source_videos = list(
+                db.scalars(
+                    select(RemoteTrainingCatalogVideo).where(
+                        RemoteTrainingCatalogVideo.section_id == source_section.id,
+                        RemoteTrainingCatalogVideo.status == "published",
+                        RemoteTrainingCatalogVideo.is_current.is_(True),
+                    ).order_by(
+                        RemoteTrainingCatalogVideo.order_index,
+                        RemoteTrainingCatalogVideo.id,
+                    )
+                ).all()
+            )
+            for source_video in source_videos:
+                extension = Path(source_video.original_file_name or "video.mp4").suffix.lower() or ".mp4"
+                target_key = catalog_storage_key(
+                    package_id=package.id,
+                    prefix="video",
+                    extension=extension,
+                )
+                store.put_bytes(target_key, store.get_bytes(source_video.storage_key))
+                copied_keys.append(target_key)
+                db.add(
+                    RemoteTrainingCatalogVideo(
+                        package_id=package.id,
+                        section_id=section.id,
+                        revision_of_id=None,
+                        title=source_video.title,
+                        description=source_video.description,
+                        learning_objectives=source_video.learning_objectives,
+                        order_index=source_video.order_index,
+                        is_required=bool(source_video.is_required),
+                        revision_no=1,
+                        is_current=True,
+                        status="published",
+                        original_file_name=source_video.original_file_name,
+                        content_type=source_video.content_type,
+                        file_size_bytes=source_video.file_size_bytes,
+                        duration_seconds=source_video.duration_seconds,
+                        width=source_video.width,
+                        height=source_video.height,
+                        codec=source_video.codec,
+                        storage_key=target_key,
+                        processing_job_id=None,
+                        processing_error=None,
+                        published_at=source_video.published_at or datetime.utcnow(),
+                        created_by_id=user.id,
+                    )
+                )
+        recalculate_catalog_package_duration(db, package.id)
+        _commit(db, "OSGB özel eğitim paketi oluşturulamadı.")
+    except Exception as exc:
+        db.rollback()
+        for key in copied_keys:
+            try:
+                store.delete(key)
+            except Exception:
+                logger.exception("Özel paket kopyası temizlenemedi: %s", key)
+        if isinstance(exc, HTTPException):
+            raise
+        raise HTTPException(500, "OSGB özel eğitim paketi hazırlanırken içerik kopyalanamadı.") from exc
     return _catalog_package_output(db, package, detail=True)
 
 
@@ -1216,7 +1448,7 @@ def mark_catalog_package_ready_for_review(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    package = _catalog_package_for_manager(db, user, package_id)
+    package = _catalog_content_package_for_manager(db, user, package_id)
     if package.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış veya arşivlenmiş paket incelemeye alınamaz.")
     sections = db.scalars(
@@ -1252,7 +1484,7 @@ def publish_catalog_package(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    package = _catalog_package_for_manager(db, user, package_id)
+    package = _catalog_content_package_for_manager(db, user, package_id)
     if package.status == "archived":
         raise HTTPException(409, "Arşivlenmiş paket yayımlanamaz.")
     sections = db.scalars(
@@ -1289,7 +1521,7 @@ def unpublish_catalog_package(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    package = _catalog_package_for_manager(db, user, package_id)
+    package = _catalog_content_package_for_manager(db, user, package_id)
     if package.status == "archived":
         raise HTTPException(409, "Arşivlenmiş paket yayımdan kaldırılamaz.")
     package.status = "unpublished"
@@ -1305,7 +1537,7 @@ def archive_catalog_package(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    package = _catalog_package_for_manager(db, user, package_id)
+    package = _catalog_content_package_for_manager(db, user, package_id)
     package.status = "archived"
     package.archived_at = datetime.utcnow()
     package.published_at = None
@@ -1319,7 +1551,7 @@ def restore_catalog_package(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    package = _catalog_package_for_manager(db, user, package_id)
+    package = _catalog_content_package_for_manager(db, user, package_id)
     if package.status != "archived":
         raise HTTPException(409, "Yalnızca arşivlenmiş paket düzenlemeye açılabilir.")
     package.status = "unpublished"
@@ -1336,7 +1568,7 @@ def create_catalog_section(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    package = _catalog_package_for_manager(db, user, package_id)
+    package = _catalog_content_package_for_manager(db, user, package_id)
     if package.status == "archived":
         raise HTTPException(409, "Arşivlenmiş pakete bölüm eklenemez.")
     order = payload.order_index
@@ -1371,8 +1603,8 @@ def update_catalog_section(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    section = _catalog_section_for_manager(db, user, section_id)
-    package = _catalog_package_for_manager(db, user, section.package_id)
+    section = _catalog_section_for_content_manager(db, user, section_id)
+    package = _catalog_content_package_for_manager(db, user, section.package_id)
     if package.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş bölüm değiştirilemez.")
     values = payload.model_dump(exclude_unset=True)
@@ -1390,8 +1622,8 @@ def archive_catalog_section(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    section = _catalog_section_for_manager(db, user, section_id)
-    package = _catalog_package_for_manager(db, user, section.package_id)
+    section = _catalog_section_for_content_manager(db, user, section_id)
+    package = _catalog_content_package_for_manager(db, user, section.package_id)
     if package.status == "archived":
         raise HTTPException(409, "Arşivlenmiş paketin bölümü değiştirilemez.")
     section.status = "archived"
@@ -1412,8 +1644,8 @@ async def upload_catalog_video(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    section = _catalog_section_for_manager(db, user, section_id)
-    package = _catalog_package_for_manager(db, user, section.package_id)
+    section = _catalog_section_for_content_manager(db, user, section_id)
+    package = _catalog_content_package_for_manager(db, user, section.package_id)
     if package.status == "archived" or section.status == "archived":
         raise HTTPException(409, "Arşivlenmiş pakete veya bölüme video yüklenemez.")
     # Published packages accept additive uploads. Replacing an existing
@@ -1431,7 +1663,7 @@ async def upload_catalog_video(
     revision_no = 1
     is_current = True
     if revision_of_id is not None:
-        revision_of = _catalog_video_for_manager(db, user, revision_of_id)
+        revision_of = _catalog_video_for_content_manager(db, user, revision_of_id)
         if revision_of.package_id != package.id or revision_of.section_id != section.id:
             raise HTTPException(422, "Video revizyonu aynı paket ve bölüm içinde olmalıdır.")
         if not revision_of.is_current:
@@ -1496,8 +1728,8 @@ def update_catalog_video(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    video = _catalog_video_for_manager(db, user, video_id)
-    package = _catalog_package_for_manager(db, user, video.package_id)
+    video = _catalog_video_for_content_manager(db, user, video_id)
+    package = _catalog_content_package_for_manager(db, user, video.package_id)
     if package.status == "archived" or video.status in {"published", "unpublished", "archived"}:
         raise HTTPException(409, "Tarihsel video doğrudan değiştirilemez; yeni sürüm yükleyin.")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -1512,8 +1744,8 @@ def delete_catalog_video(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    video = _catalog_video_for_manager(db, user, video_id)
-    package = _catalog_package_for_manager(db, user, video.package_id)
+    video = _catalog_video_for_content_manager(db, user, video_id)
+    package = _catalog_content_package_for_manager(db, user, video.package_id)
     if package.status == "archived":
         raise HTTPException(409, "Arşivlenmiş pakete ait video silinemez.")
     if video.status in {"published", "unpublished", "archived"}:
@@ -1539,12 +1771,12 @@ def publish_catalog_video(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    video = _catalog_video_for_manager(db, user, video_id)
+    video = _catalog_video_for_content_manager(db, user, video_id)
     if video.status != "ready_for_review":
         raise HTTPException(409, "Video yalnızca incelemeye hazır durumdayken yayımlanabilir.")
     if not video.duration_seconds or not video.storage_key:
         raise HTTPException(409, "Video işleme süresi veya güvenli depolama kaydı eksik.")
-    package = _catalog_package_for_manager(db, user, video.package_id)
+    package = _catalog_content_package_for_manager(db, user, video.package_id)
     if package.status == "archived":
         raise HTTPException(409, "Arşivlenmiş pakete video yayımlanamaz.")
     if video.revision_of_id is not None:
@@ -1579,8 +1811,8 @@ def unpublish_catalog_video(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    video = _catalog_video_for_manager(db, user, video_id)
-    package = _catalog_package_for_manager(db, user, video.package_id)
+    video = _catalog_video_for_content_manager(db, user, video_id)
+    package = _catalog_content_package_for_manager(db, user, video.package_id)
     if video.status == "archived":
         raise HTTPException(409, "Arşivlenmiş video yayımdan kaldırılamaz.")
     video.status = "unpublished"
@@ -1598,8 +1830,8 @@ def archive_catalog_video(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    video = _catalog_video_for_manager(db, user, video_id)
-    package = _catalog_package_for_manager(db, user, video.package_id)
+    video = _catalog_video_for_content_manager(db, user, video_id)
+    package = _catalog_content_package_for_manager(db, user, video.package_id)
     video.status = "archived"
     video.is_current = False
     video.archived_at = datetime.utcnow()
@@ -1616,7 +1848,7 @@ def retry_catalog_video_processing(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    video = _catalog_video_for_manager(db, user, video_id)
+    video = _catalog_video_for_content_manager(db, user, video_id)
     if video.status == "archived":
         raise HTTPException(409, "Arşivlenmiş video yeniden işlenemez.")
     video.status = "uploading"
@@ -1686,7 +1918,7 @@ def create_remote_program(
     user: User = Depends(get_current_user),
 ):
     require_feature()
-    _manager(user)
+    _assert_catalog_content_editor(db, user)
     ensure_company_access(db, user, payload.company_id)
     branch = None
     if payload.branch_id is not None:
@@ -1748,7 +1980,7 @@ def update_remote_program_sectors(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitimde sektör kapsamı değiştirilemez.")
     requested = {validate_sector_code(code) for code in payload.sector_codes}
@@ -1831,7 +2063,7 @@ def update_remote_program(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitim önce taslak akışına alınmalıdır.")
     values = payload.model_dump(exclude_unset=True)
@@ -1862,7 +2094,7 @@ def mark_program_ready_for_review(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Bu eğitim taslak incelemesine alınamaz.")
     program.status = "ready_for_review"
@@ -1877,7 +2109,7 @@ def publish_remote_program(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     require_strict_policy_active(program)
     if program.status == "archived":
         raise HTTPException(409, "Arşivlenmiş eğitim yayımlanamaz.")
@@ -2000,7 +2232,7 @@ def unpublish_remote_program(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status == "archived":
         raise HTTPException(409, "Arşivlenmiş eğitim yayımdan kaldırılamaz.")
     program.status = "unpublished"
@@ -2016,7 +2248,7 @@ def archive_remote_program(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     program.status = "archived"
     program.archived_at = datetime.utcnow()
     program.published_at = None
@@ -2032,7 +2264,7 @@ def create_remote_section(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status == "archived":
         raise HTTPException(409, "Arşivlenmiş eğitime bölüm eklenemez.")
     if program.status == "published":
@@ -2961,7 +3193,7 @@ def create_remote_checkpoint_question(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     section = None
     video = None
     if payload.section_id is not None:
@@ -3031,7 +3263,7 @@ def update_remote_final_exam_question(
     user: User = Depends(get_current_user),
 ):
     """Allow managers to review/edit an automatic question before publishing."""
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış veya arşivlenmiş eğitimde final soruları değiştirilemez.")
     questions = list(
@@ -3091,7 +3323,7 @@ def link_remote_exam_question(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitimde sınav soruları değiştirilemez.")
     question = db.get(TrainingQuestion, payload.question_id)
@@ -3139,7 +3371,7 @@ def unlink_remote_exam_question(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitimde sınav soruları değiştirilemez.")
     assignment_count = db.scalar(

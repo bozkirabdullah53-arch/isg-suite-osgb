@@ -120,6 +120,34 @@ def subscription_allows_write(sub: OsgbSubscription | None, now: datetime | None
     return effective_subscription_status(sub, now) in WRITE_STATUSES
 
 
+def subscription_allows_access(sub: OsgbSubscription | None, now: datetime | None = None) -> bool:
+    """Return whether an OSGB can use subscribed EİSA modules.
+
+    Remote training catalog reads and writes are available during trial and
+    active subscription periods.  Expired, suspended and cancelled tenants
+    remain isolated and read-only outside the module's existing rules.
+    """
+    return subscription_allows_write(sub, now)
+
+
+def assert_osgb_subscription_access(
+    db: Session, user: User, osgb_id: int | None = None
+) -> None:
+    """Require an active/trial EİSA subscription for remote-training access."""
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return
+    oid = osgb_id or resolve_user_osgb_id(db, user)
+    if not oid:
+        raise HTTPException(403, "EİSA aboneliği için OSGB kapsamı belirlenemedi.")
+    sub = get_or_create_subscription(db, int(oid))
+    if not subscription_allows_access(sub):
+        raise HTTPException(
+            403,
+            "EİSA aboneliğiniz aktif değil. Uzaktan eğitim paketleri abonelik "
+            "aktifleşene kadar kullanılamaz.",
+        )
+
+
 def resolve_user_osgb_id(db: Session, user: User) -> int | None:
     if user.osgb_id:
         return user.osgb_id
