@@ -1989,7 +1989,7 @@ function RemoteCertificateHub() {
         '/trainings/remote/assignments/' + row.id + '/certificate.pdf',
         'uzaktan-egitim-belgesi-' + row.id + '.pdf',
       );
-      setMessage((row.employee_name || 'Çalışan') + ' için ' + (row.program_count || 1) + ' eğitimi içeren tek PDF belge indirildi.');
+      setMessage((row.company_name || 'Firma') + ' · ' + (row.employee_name || 'Çalışan') + ' için ' + (row.program_count || 1) + ' eğitimi içeren tek PDF belge indirildi.');
     } catch (err) {
       setError(err.message || 'Belge PDF’i alınamadı.');
     } finally {
@@ -2038,6 +2038,13 @@ function RemoteCertificateHub() {
         </div>
       </div>
 
+      <div role="note" style={{marginTop: 14, padding: '11px 13px', borderRadius: 10, border: '1px solid #b9e3c8', background: '#f2fff6', color: '#17643a', fontSize: 12}}>
+        <strong>Belgeyi doğru kaydı seçerek alın:</strong> Her satır tek bir <strong>firma + işyeri/şube + çalışan</strong> kapsamıdır.
+        Önce firma ve işyeri adını kontrol edin; aynı çalışan için aynı işyeri kapsamındaki tamamlanmış uzaktan eğitim paketleri
+        <strong>tek PDF belgede birleşir</strong>. PDF indirme düğmesi yalnızca tüm videolar ve final sınavı başarıyla tamamlanınca açılır.
+        İş güvenliği uzmanı, sadece aktif olarak görevlendirildiği firmaların belgelerini görebilir ve indirebilir.
+      </div>
+
       <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 14, padding: 10, borderRadius: 10, background: '#f7fbfd'}}>
         <select value={companyId} onChange={(event) => setCompanyId(event.target.value)} aria-label="Belge firması">
           <option value="">Tüm erişebildiğim firmalar</option>
@@ -2071,7 +2078,7 @@ function RemoteCertificateHub() {
           <thead>
             <tr>
               <th>Firma / İşyeri</th>
-              <th>Eğitim paketi</th>
+              <th>Eğitim / belge kapsamı</th>
               <th>Çalışan</th>
               <th>Durum / İlerleme</th>
               <th>Sınav</th>
@@ -2082,13 +2089,17 @@ function RemoteCertificateHub() {
             {visibleRows.map((row) => (
               <tr key={row.id}>
                 <td>
-                  <strong>{row.company_name}</strong>
-                  <small style={{display: 'block', color: '#5e7485'}}>{row.branch_name || 'Firma geneli'}</small>
+                  <div style={{fontSize: 11, color: '#0b7f83', fontWeight: 800, letterSpacing: '.04em'}}>FİRMA / İŞYERİ</div>
+                  <strong>{row.company_name || 'Firma bilgisi yok'}</strong>
+                  <small style={{display: 'block', color: '#5e7485'}}>İşyeri: {row.branch_name || 'Firma geneli'}</small>
+                  <small style={{display: 'block', color: '#5e7485'}}>
+                    {row.nace_code_snapshot || 'NACE yok'} · {row.hazard_class_snapshot || 'Tehlike sınıfı yok'}
+                  </small>
                 </td>
                 <td>
                   <strong>{localizedTrainingTitle(row.program_title)}</strong>
                   <small style={{display: 'block', color: '#5e7485'}}>
-                    {row.program_count > 1 ? row.program_count + ' eğitim · tek PDF belge' : (row.source_catalog_revision_no ? 'Katalog sürümü ' + row.source_catalog_revision_no : 'Firma programı')}
+                    Uzaktan eğitim · {row.program_count > 1 ? row.program_count + ' eğitim · tek PDF belge' : (row.source_catalog_revision_no ? 'Katalog sürümü ' + row.source_catalog_revision_no : 'Firma programı')}
                   </small>
                 </td>
                 <td>{row.employee_name}</td>
@@ -2101,7 +2112,14 @@ function RemoteCertificateHub() {
                 <td>{row.examination_score == null ? '—' : '%' + row.examination_score}</td>
                 <td>
                   {row.certificate_ready ? (
-                    <button type="button" onClick={() => download(row)} disabled={busy}>PDF belgeyi al</button>
+                    <button
+                      type="button"
+                      onClick={() => download(row)}
+                      disabled={busy}
+                      title={(row.company_name || 'Firma') + ' · ' + (row.employee_name || 'Çalışan') + ' PDF belgesi'}
+                    >
+                      PDF belgeyi al
+                    </button>
                   ) : (
                     <span title={row.certificate_block_reason || 'Eğitim tamamlanınca açılır'} style={{color: '#795500', fontSize: 12}}>
                       Belge henüz hazır değil
@@ -2121,6 +2139,8 @@ function RemoteCertificateHub() {
         </table>
       </div>
       <div style={{marginTop: 10, color: '#5e7485', fontSize: 12}}>
+        Listeyi kullanırken önce <strong>Firma / İşyeri</strong> ve <strong>Çalışan</strong> alanlarını kontrol edin.
+        Bu merkezdeki PDF, rastgele bir çalışana verilecek belge değildir; seçtiğiniz satırın firma ve çalışan kapsamına aittir.
         Yetki kuralı: OSGB yöneticisi kendi OSGB’sini, uzman ise yalnızca aktif görevlendirmesinin bulunduğu firmaları görür.
       </div>
     </section>
