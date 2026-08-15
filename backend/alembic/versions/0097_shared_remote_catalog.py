@@ -14,7 +14,7 @@ from alembic import op
 
 
 revision: str = "0097_shared_remote_catalog"
-down_revision: Union[str, None] = "0096_catalog_exam_repair"
+down_revision: Union[str, None] = "0097_remote_auto_exam"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
