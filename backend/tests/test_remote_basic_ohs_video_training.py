@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
@@ -2017,12 +2017,13 @@ def test_shared_catalog_preview_is_allowed_for_expert_and_old_video_revisions_ar
         assert output["sections"][0]["videos"][0]["id"] == current_video.id
 
 
-def test_manager_can_revoke_and_restore_assignment_without_deleting_history(remote_client):
+def test_manager_can_delete_assignment_and_training_history(remote_client):
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
-    from app.models.entities import UserRole
+    from app.models.entities import User, UserRole
     from app.models.remote_training import (
         RemoteTrainingAssignment,
+        RemoteTrainingAuditLog,
         RemoteTrainingEmployeeAccess,
         RemoteTrainingProgram,
     )
@@ -2087,12 +2088,12 @@ def test_manager_can_revoke_and_restore_assignment_without_deleting_history(remo
     employee_headers = {"Authorization": f"Bearer {employee_login.json()['access_token']}"}
     assert len(remote_client.get("/api/v1/trainings/remote/my-assignments", headers=employee_headers).json()) == 1
 
-    revoked = remote_client.delete(
+    deleted = remote_client.delete(
         f"/api/v1/trainings/remote/programs/{program_id}/assignments/{assignment_id}",
         headers=manager_headers,
     )
-    assert revoked.status_code == 200, revoked.text
-    assert revoked.json()["revoked"] is True
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["deleted"] is True
 
     assert remote_client.get("/api/v1/trainings/remote/my-assignments", headers=employee_headers).json() == []
     assert remote_client.get(
@@ -2102,13 +2103,16 @@ def test_manager_can_revoke_and_restore_assignment_without_deleting_history(remo
 
     with SessionLocal() as db:
         stored = db.get(RemoteTrainingAssignment, assignment_id)
-        assert stored is not None
-        assert stored.status == "revoked"
+        assert stored is None
+        audit_row = db.scalar(
+            select(RemoteTrainingAuditLog).where(
+                RemoteTrainingAuditLog.action == "program_assignment_deleted",
+                RemoteTrainingAuditLog.entity_id == str(assignment_id),
+            )
+        )
+        assert audit_row is not None
 
-    restored = remote_client.post(
-        f"/api/v1/trainings/remote/programs/{program_id}/assignments/{assignment_id}/restore",
+    assert remote_client.delete(
+        f"/api/v1/trainings/remote/programs/{program_id}/assignments/{assignment_id}",
         headers=manager_headers,
-    )
-    assert restored.status_code == 200, restored.text
-    assert restored.json()["restored"] is True
-    assert len(remote_client.get("/api/v1/trainings/remote/my-assignments", headers=employee_headers).json()) == 1
+    ).status_code == 404

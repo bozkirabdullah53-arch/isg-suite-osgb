@@ -1521,39 +1521,20 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     } finally { setBusy(false); }
   }
 
-  async function revokeAssignment(row) {
-    if (!program || !row?.id || row.status === 'revoked' || assignmentActionId) return;
+  async function deleteAssignment(row) {
+    if (!program || !row?.id || assignmentActionId) return;
     const confirmed = window.confirm(
-      `${row.employee_name || 'Çalışan'} kişisinin “${localizedTrainingTitle(program.title)}” eğitimi çalışan ekranından kaldırılacak.\n\n` +
-      'İzleme, sınav, belge ve denetim kayıtları korunacaktır. Devam edilsin mi?',
+      `${row.employee_name || 'Çalışan'} kişisinin “${localizedTrainingTitle(program.title)}” eğitim ataması kalıcı olarak silinecek.\n\n` +
+      'Atama, izleme, sınav, belge ve ilgili geçmiş kayıtları geri döndürülemez şekilde silinecektir. Devam edilsin mi?',
     );
     if (!confirmed) return;
     setBusy(true); setAssignmentActionId(row.id); setError(''); setMessage('');
     try {
       const out = await api(`/trainings/remote/programs/${program.id}/assignments/${row.id}`, {method: 'DELETE'});
-      setMessage(out.message || 'Eğitim ataması çalışanın ekranından kaldırıldı.');
+      setMessage(out.message || 'Eğitim ataması kalıcı olarak silindi.');
       await loadDetail(program.id);
     } catch (err) {
-      setError(err.message || 'Eğitim ataması kaldırılamadı.');
-    } finally {
-      setBusy(false); setAssignmentActionId(null);
-    }
-  }
-
-  async function restoreAssignment(row) {
-    if (!program || !row?.id || row.status !== 'revoked' || assignmentActionId) return;
-    const confirmed = window.confirm(
-      `${row.employee_name || 'Çalışan'} kişisinin eğitim ataması yeniden etkinleştirilecek.\n\n` +
-      'Mevcut izleme ve sınav geçmişi korunacaktır. Devam edilsin mi?',
-    );
-    if (!confirmed) return;
-    setBusy(true); setAssignmentActionId(row.id); setError(''); setMessage('');
-    try {
-      const out = await api(`/trainings/remote/programs/${program.id}/assignments/${row.id}/restore`, {method: 'POST'});
-      setMessage(out.message || 'Eğitim ataması yeniden etkinleştirildi.');
-      await loadDetail(program.id);
-    } catch (err) {
-      setError(err.message || 'Eğitim ataması yeniden etkinleştirilemedi.');
+      setError(err.message || 'Eğitim ataması silinemedi.');
     } finally {
       setBusy(false); setAssignmentActionId(null);
     }
@@ -1908,7 +1889,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                 <div style={{marginTop: 16, paddingTop: 12, borderTop: '1px solid #e5edf3'}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
                     <strong>Bu eğitime atanmış çalışanlar</strong>
-                    <span style={{fontSize: 12, color: '#5e7485'}}>{assignments.length} atama · kaldırılanlar geçmişte tutulur</span>
+                    <span style={{fontSize: 12, color: '#5e7485'}}>{assignments.length} aktif atama</span>
                   </div>
                   {assignments.length ? (
                     <div style={{overflowX: 'auto', marginTop: 8}}>
@@ -1925,25 +1906,18 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                         </thead>
                         <tbody>
                           {assignments.map((row) => {
-                            const revoked = row.status === 'revoked';
                             const actionBusy = assignmentActionId === row.id;
                             return (
-                              <tr key={row.id} style={{opacity: revoked ? 0.72 : 1}}>
+                              <tr key={row.id}>
                                 <td><strong>{row.employee_name || `Personel #${row.employee_id}`}</strong></td>
                                 <td>{statusLabel(row.status)}</td>
                                 <td>{row.summary?.completed_video_count || 0}/{row.summary?.required_video_count || 0} video</td>
                                 <td>{formatEmployeeDate(row.assigned_at)}</td>
                                 <td>{formatEmployeeDate(row.due_date)}</td>
                                 <td>
-                                  {revoked ? (
-                                    <button type="button" onClick={() => restoreAssignment(row)} disabled={busy || actionBusy} style={{fontSize: 12, padding: '7px 10px'}}>
-                                      {actionBusy ? 'İşleniyor…' : 'Yeniden etkinleştir'}
-                                    </button>
-                                  ) : (
-                                    <button type="button" onClick={() => revokeAssignment(row)} disabled={busy || actionBusy} style={{fontSize: 12, padding: '7px 10px', color: '#b42318', background: '#fff5f4', border: '1px solid #e39b93'}}>
-                                      {actionBusy ? 'Kaldırılıyor…' : 'Atamayı geri al / kaldır'}
-                                    </button>
-                                  )}
+                                  <button type="button" onClick={() => deleteAssignment(row)} disabled={busy || actionBusy} style={{fontSize: 12, padding: '7px 10px', color: '#b42318', background: '#fff5f4', border: '1px solid #e39b93'}}>
+                                    {actionBusy ? 'Siliniyor…' : 'Atamayı kalıcı sil'}
+                                  </button>
                                 </td>
                               </tr>
                             );
@@ -1955,7 +1929,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                     <p style={{margin: '8px 0 0', color: '#5e7485', fontSize: 12}}>Bu eğitime henüz çalışan atanmamış.</p>
                   )}
                   <div style={{marginTop: 8, color: '#5e7485', fontSize: 11}}>
-                    Kaldırma işlemi çalışan ekranındaki erişimi kapatır; izleme, sınav, belge ve denetim geçmişi silinmez.
+                    Silme işlemi atamayı ve bu atamaya bağlı ilerleme, sınav ve belge kayıtlarını kalıcı olarak siler.
                   </div>
                 </div>
               </div>
