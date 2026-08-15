@@ -390,6 +390,15 @@ def install_training_completion_guard() -> dict[str, str]:
     _original_certificate_builder = current
 
     def guarded_builder(*, company_name: str, training, employees: dict) -> bytes:
+        # Remote certificate views are document-only projections, not persisted
+        # TrainingSession ORM rows. They must use the same renderer while
+        # remaining outside the face-to-face completion guard.
+        if getattr(training, "_remote_certificate_view", False):
+            return _original_certificate_builder(
+                company_name=company_name,
+                training=training,
+                employees=employees,
+            )
         db = object_session(training)
         applies, _snapshot = completion_strict_applies(db, training) if db is not None else (False, None)
         if not applies:
