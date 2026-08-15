@@ -991,6 +991,8 @@ def list_catalog_packages(
     _manager(user)
     _ensure_catalog_seed(db, user)
     scope = _catalog_scope(db, user)
+    if scope is not None:
+        assert_osgb_subscription_access(db, user, scope)
     allowed_codes = tuple(spec["code"] for spec in REMOTE_CATALOG_PACKAGE_SPECS)
     stmt = select(RemoteTrainingCatalogPackage).where(
         RemoteTrainingCatalogPackage.code.in_(allowed_codes)
