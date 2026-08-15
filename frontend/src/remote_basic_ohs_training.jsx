@@ -3,6 +3,7 @@ import {api, API_URL, downloadFile, uploadFile} from './api';
 import './remote_basic_ohs_training.css';
 
 const MANAGE_ROLES = ['global_admin', 'company_admin', 'safety_specialist'];
+const CONTENT_EDIT_ROLES = ['global_admin', 'company_admin'];
 const HISTORICAL_VIDEO_STATUSES = ['published', 'unpublished', 'archived'];
 const REMOTE_TRAINING_CANONICAL_TITLE = 'Basic Occupational Health and Safety Training';
 const REMOTE_TRAINING_DISPLAY_TITLE = 'Temel İş Sağlığı ve Güvenliği Eğitimi';
@@ -68,6 +69,11 @@ const cardStyle = {
   padding: 16,
   boxShadow: '0 3px 12px rgba(15, 35, 55, .05)',
 };
+
+function canEditRemoteContent(user) {
+  return CONTENT_EDIT_ROLES.includes(user?.role)
+    && (user?.role === 'global_admin' || (!user?.company_id && Boolean(user?.osgb_id)));
+}
 
 function statusLabel(value) {
   return STATUS_LABELS[value] || value || '—';
@@ -722,7 +728,7 @@ function EmployeePanel() {
   );
 }
 
-function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, onBranchChange, onPrepared, rollout = null}) {
+function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, onBranchChange, onPrepared, rollout = null, canEditContent = false, canEditSharedContent = false}) {
   const [packages, setPackages] = useState([]);
   const [selectedId, setSelectedId] = useState('');
   const [selectedPackage, setSelectedPackage] = useState(null);
@@ -792,6 +798,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   }
 
   async function createSection() {
+    if (!canEditContent) return;
     const code = sectionCode.trim();
     const title = sectionTitle.trim();
     if (!selectedPackage || code.length < 2 || title.length < 2) {
@@ -812,7 +819,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   }
 
   async function uploadCatalogVideo(section, file, revisionOf = null, titleOverride = '') {
-    if (!selectedPackage || !file) return;
+    if (!canEditContent || !selectedPackage || !file) return;
     const uploadSectionId = Number(section.id);
     const uploadVideoId = revisionOf ? Number(revisionOf.id) : null;
     const defaultTitle = file.name.replace(/\.[^.]+$/, '') || 'Eğitim videosu';
@@ -841,6 +848,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   }
 
   async function videoAction(video, action) {
+    if (!canEditContent) return;
     setBusy(true); setError(''); setMessage('');
     try {
       await api(`/trainings/remote/catalog/videos/${video.id}/${action}`, {method: 'POST'});
@@ -861,7 +869,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   }
 
   async function deleteCatalogVideo(video) {
-    if (!selectedPackage || HISTORICAL_VIDEO_STATUSES.includes(video.status)) return;
+    if (!canEditContent || !selectedPackage || HISTORICAL_VIDEO_STATUSES.includes(video.status)) return;
     if (!window.confirm(`"${video.title}" taslak videosu silinsin mi?`)) return;
     setBusy(true); setError(''); setMessage('');
     try {
@@ -873,7 +881,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   }
 
   async function packageAction(action) {
-    if (!selectedPackage) return;
+    if (!selectedPackage || !canEditContent) return;
     setBusy(true); setError(''); setMessage('');
     try {
       await api(`/trainings/remote/catalog/packages/${selectedPackage.id}/${action}`, {method: 'POST'});
@@ -891,6 +899,23 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
     } catch (err) { setError(err.message || 'Paket işlemi başarısız.'); }
     finally { setBusy(false); }
   }
+
+  async function forkPackage() {
+    if (!selectedPackage || !selectedPackage.is_shared || !canEditContent || canEditSharedContent) return;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const out = await api('/trainings/remote/catalog/packages/' + selectedPackage.id + '/fork', {method: 'POST'});
+      setSelectedId(String(out.id));
+      setSelectedPackage(out);
+      await loadPackages();
+      setMessage('OSGB özel paketiniz oluşturuldu. Artık bu kopyaya bölüm ve video ekleyebilirsiniz; ortak hazır paket değişmedi.');
+    } catch (err) { setError(err.message || 'OSGB özel paket oluşturulamadı.'); }
+    finally { setBusy(false); }
+  }
+
+  const directContentEdit = Boolean(
+    canEditContent && selectedPackage && (canEditSharedContent || !selectedPackage.is_shared),
+  );
 
   function togglePackageSelection(packageId) {
     setSelectedPackageIds((current) => current.includes(String(packageId))
@@ -965,7 +990,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
         <div>
           <div style={{fontSize: 12, color: '#0b7285', fontWeight: 800, letterSpacing: '.03em'}}>MERKEZİ EĞİTİM PAKETLERİ</div>
           <h3 style={{margin: '4px 0'}}>Uzaktan Eğitim Paket Kataloğu</h3>
-          <p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Videoları sektör paketlerinde hazırlayın; firma seçip seçtiğiniz sektörleri tek işlemle firmaya atayın.</p>
+          <p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Ortak hazır paketleri inceleyin; isterseniz OSGB özel kopyası oluşturup yalnız kendi OSGB’nize bölüm ve video ekleyin.</p>
         </div>
         <button type="button" onClick={refresh} disabled={busy}>Paketleri yenile</button>
       </div>
@@ -1014,13 +1039,13 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
       <div className="remote-training-manager-grid" style={{gap: 16, marginTop: 14}}>
         <div style={{border: '1px solid #dbe5ef', borderRadius: 10, padding: 12, background: '#fbfdff'}}>
           <h4 style={{margin: '0 0 6px'}}>Sektör eğitim paketleri</h4>
-          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>İçeriği düzenlemek için karta, seçtiğiniz sektörü firmaya atamak için kutucuğa tıklayın.</div>
+          <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>Paketi incelemek için karta, seçtiğiniz sektörü firmaya atamak için kutucuğa tıklayın. Ortak hazır paketler tüm abonelik OSGB’lerde aynıdır.</div>
           {packages.map((item) => (
             <div key={item.id} style={{display: 'flex', gap: 8, alignItems: 'flex-start', padding: 10, marginBottom: 8, borderRadius: 9, border: `1px solid ${String(item.id) === String(selectedId) ? '#0b9ca8' : '#dbe5ef'}`, background: String(item.id) === String(selectedId) ? '#e9fbfc' : '#fff'}}>
               <input type="checkbox" checked={selectedPackageIds.includes(String(item.id))} onChange={() => togglePackageSelection(item.id)} disabled={busy || item.status !== 'published' || !packageAutomaticExamReady(item) || !packageDistributionState(item, rollout).allowed} title={item.status !== 'published' ? 'Önce bu paketi yayımlayın' : !packageAutomaticExamReady(item) ? (item.automatic_exam_warning || 'Onaylı soru paketi hazır değil') : packageDistributionState(item, rollout).allowed ? 'Bu sektörü seçilen firmaya ata' : 'Firma ataması açılmadan firmaya hazırlanamaz'} aria-label={`${item.title} sektör paketini firmaya seç`} style={{marginTop: 3}} />
               <button type="button" onClick={() => setSelectedId(String(item.id))} style={{display: 'block', flex: 1, textAlign: 'left', padding: 0, border: 0, background: 'transparent', cursor: 'pointer'}}>
                 <strong style={{display: 'block'}}>{item.title}</strong>
-                <span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{statusLabel(item.status)} · {item.video_count || 0} video</span>
+                <span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{item.is_shared ? 'Ortak hazır paket' : 'OSGB özel paket'} · {statusLabel(item.status)} · {item.video_count || 0} video</span>
                 <span style={{display: 'block', fontSize: 11, color: packageAutomaticExamReady(item) ? '#496174' : '#b42318', marginTop: 3}}>{item.published_video_count || 0} yayımlanmış · {item.section_count || 0} bölüm · {packageAutomaticExamReady(item) ? `${packageAutomaticExamCount(item)} otomatik soru` : 'Otomatik soru paketi eksik'}</span>
                 {item.status === 'published' && <span className={packageDistributionState(item, rollout).allowed ? 'remote-training-package-ready' : 'remote-training-package-locked'}>{packageDistributionState(item, rollout).label}</span>}
               </button>
@@ -1034,11 +1059,11 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
               <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}>
                 <div><h4 style={{margin: 0}}>{selectedPackage.title}</h4><div style={{fontSize: 12, color: '#5e7485', marginTop: 4}}>Sektör: {packageSectorLabel(selectedPackage.code)} · {statusLabel(selectedPackage.status)} · {selectedPackage.video_count || 0} video · {selectedPackage.section_count || 0} bölüm</div>{packageAutomaticExamReady(selectedPackage) ? <div className="remote-training-exam-auto-note">Otomatik final sınavı: <strong>{packageAutomaticExamCount(selectedPackage)} soru</strong> · geçme puanı <strong>%{selectedPackage.automatic_exam_passing_score || 70}</strong></div> : <div className="remote-training-exam-validation-warning">{selectedPackage.automatic_exam_warning || 'Otomatik final soru paketi hazır değil.'}</div>}{selectedPackage.status === 'published' && <div className={packageDistributionState(selectedPackage, rollout).allowed ? 'remote-training-package-ready' : 'remote-training-package-locked'}>{packageDistributionState(selectedPackage, rollout).label}</div>}</div>
                 <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
-                  {['draft', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button>}
-                  {['ready_for_review', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('publish')} disabled={busy}>Paketi yayımla</button>}
-                  {selectedPackage.status === 'published' && <button type="button" onClick={() => packageAction('unpublish')} disabled={busy}>Yayından kaldır</button>}
-                  {!['archived'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('archive')} disabled={busy}>Arşivle</button>}
-                  {selectedPackage.status === 'archived' && <button type="button" onClick={() => packageAction('restore')} disabled={busy}>Paketi düzenlemeye aç</button>}
+                  {directContentEdit && ['draft', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button>}
+                  {directContentEdit && ['ready_for_review', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('publish')} disabled={busy}>Paketi yayımla</button>}
+                  {directContentEdit && selectedPackage.status === 'published' && <button type="button" onClick={() => packageAction('unpublish')} disabled={busy}>Yayından kaldır</button>}
+                  {directContentEdit && !['archived'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('archive')} disabled={busy}>Arşivle</button>}
+                  {directContentEdit && selectedPackage.status === 'archived' && <button type="button" onClick={() => packageAction('restore')} disabled={busy}>Paketi düzenlemeye aç</button>}
                 </div>
               </div>
               <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#f2f9fc', color: '#36556d', fontSize: 12}}><strong>İş akışı:</strong> Bölüm → Video seç ve yükle → İşleme/inceleme → Video yayımla → Firma/işyeri seçip eğitim kutucuğunu işaretle. {packageAutomaticExamReady(selectedPackage) ? `Yayınlanan programa ${packageAutomaticExamCount(selectedPackage)} onaylı final sorusu ve %${selectedPackage.automatic_exam_passing_score || 70} geçme kuralı otomatik eklenir.` : 'Onaylı soru paketi hazır olmadığı için bu paket firma programına hazırlanamaz.'}</div>
@@ -1057,19 +1082,19 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
               {(selectedPackage.sections || []).map((section) => (
                 <div key={section.id} style={{borderTop: '1px solid #e5edf3', paddingTop: 12, marginTop: 12}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}><div><strong>{section.code} · {section.title}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{section.videos?.length || 0} video · {section.status === 'active' ? 'Aktif' : 'Arşivlendi'}</span></div></div>
-                  {selectedPackage.status !== 'archived' && section.status === 'active' && <div style={{marginTop: 9, padding: 10, border: '2px dashed #54a8c5', borderRadius: 9, background: '#f7fcff'}}>
+                  {directContentEdit && selectedPackage.status !== 'archived' && section.status === 'active' && <div style={{marginTop: 9, padding: 10, border: '2px dashed #54a8c5', borderRadius: 9, background: '#f7fcff'}}>
                     <div style={{display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center'}}><input value={uploadTitles[section.id] || ''} onChange={(event) => setUploadTitles((current) => ({...current, [section.id]: event.target.value}))} placeholder="Video adı (boş bırakılırsa dosya adı)" aria-label={`${section.title} video adı`} style={{minWidth: 240, flex: 1}} /><input ref={(node) => {uploadInputRefs.current[section.id] = node;}} id={`remote-catalog-video-upload-${section.id}`} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label={`${section.title} video dosyası`} style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadCatalogVideo(section, file);}} /><label htmlFor={`remote-catalog-video-upload-${section.id}`} aria-disabled={busy} onClick={(event) => {if (busy) event.preventDefault();}} style={{minHeight: 42, padding: '10px 14px', color: '#fff', background: busy ? '#7faec2' : '#1479a6', border: '1px solid #0d5d83', borderRadius: 8, fontWeight: 700, display: 'inline-flex', alignItems: 'center', cursor: busy ? 'wait' : 'pointer'}}>{uploadingCatalogSectionId === Number(section.id) && !uploadingCatalogVideoId ? 'Bu bölüm yükleniyor…' : 'Video seç ve yükle'}</label></div>
                   </div>}
                   {(section.videos || []).map((video) => <div key={video.id} style={{marginTop: 8, padding: 10, borderRadius: 8, background: '#f7fafc', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}>
                     <div style={{minWidth: 240, flex: 1}}><strong>{video.title}</strong><div style={{fontSize: 12, color: '#5e7485', marginTop: 3}}>{statusLabel(video.status)} · {video.duration_seconds ? `${video.duration_seconds} sn` : 'süre bekleniyor'} · rev. {video.revision_no}</div>{video.processing_error && <div style={{fontSize: 12, color: '#b42318', marginTop: 3}}>{video.processing_error}</div>}</div>
                     <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
-                      {video.status === 'published' && video.is_current && selectedPackage.status !== 'archived' && <><input ref={(node) => {uploadInputRefs.current[`revision-${video.id}`] = node;}} id={`remote-catalog-video-revision-${video.id}`} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label={`${video.title} yeni sürüm dosyası`} style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadCatalogVideo(section, file, video);}} /><label htmlFor={`remote-catalog-video-revision-${video.id}`} aria-disabled={busy} onClick={(event) => {if (busy) event.preventDefault();}} style={{display: 'inline-flex', alignItems: 'center', minHeight: 42, padding: '10px 14px', color: '#075985', background: busy ? '#d7edf8' : '#e8f6ff', border: '2px solid #72b9d7', borderRadius: 8, fontWeight: 700, cursor: busy ? 'wait' : 'pointer'}}>{uploadingCatalogVideoId === Number(video.id) ? 'Yeni sürüm yükleniyor…' : 'Yeni sürüm yükle'}</label></>}
-                      {video.status === 'ready_for_review' && <button type="button" onClick={() => videoAction(video, 'publish')} disabled={busy}>Video yayımla</button>}
+                      {directContentEdit && video.status === 'published' && video.is_current && selectedPackage.status !== 'archived' && <><input ref={(node) => {uploadInputRefs.current[`revision-${video.id}`] = node;}} id={`remote-catalog-video-revision-${video.id}`} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label={`${video.title} yeni sürüm dosyası`} style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.target.files?.[0]; event.target.value = ''; if (file) uploadCatalogVideo(section, file, video);}} /><label htmlFor={`remote-catalog-video-revision-${video.id}`} aria-disabled={busy} onClick={(event) => {if (busy) event.preventDefault();}} style={{display: 'inline-flex', alignItems: 'center', minHeight: 42, padding: '10px 14px', color: '#075985', background: busy ? '#d7edf8' : '#e8f6ff', border: '2px solid #72b9d7', borderRadius: 8, fontWeight: 700, cursor: busy ? 'wait' : 'pointer'}}>{uploadingCatalogVideoId === Number(video.id) ? 'Yeni sürüm yükleniyor…' : 'Yeni sürüm yükle'}</label></>}
+                      {directContentEdit && video.status === 'ready_for_review' && <button type="button" onClick={() => videoAction(video, 'publish')} disabled={busy}>Video yayımla</button>}
                       {['ready_for_review', 'published', 'unpublished'].includes(video.status) && <button type="button" onClick={() => previewCatalogVideo(video)} disabled={busy}>Önizle</button>}
-                      {video.status === 'published' && <button type="button" onClick={() => videoAction(video, 'unpublish')} disabled={busy}>Yayından kaldır</button>}
-                      {['published', 'unpublished'].includes(video.status) && <button type="button" onClick={() => videoAction(video, 'archive')} disabled={busy}>Arşivle</button>}
-                      {video.status === 'processing_failed' && <button type="button" onClick={() => videoAction(video, 'retry-processing')} disabled={busy}>Yeniden işle</button>}
-                      {!HISTORICAL_VIDEO_STATUSES.includes(video.status) && <button type="button" onClick={() => deleteCatalogVideo(video)} disabled={busy} style={{color: '#b42318', background: '#fff5f4', border: '1px solid #e39b93'}}>Taslak videoyu sil</button>}
+                      {directContentEdit && video.status === 'published' && <button type="button" onClick={() => videoAction(video, 'unpublish')} disabled={busy}>Yayından kaldır</button>}
+                      {directContentEdit && ['published', 'unpublished'].includes(video.status) && <button type="button" onClick={() => videoAction(video, 'archive')} disabled={busy}>Arşivle</button>}
+                      {directContentEdit && video.status === 'processing_failed' && <button type="button" onClick={() => videoAction(video, 'retry-processing')} disabled={busy}>Yeniden işle</button>}
+                      {directContentEdit && !HISTORICAL_VIDEO_STATUSES.includes(video.status) && <button type="button" onClick={() => deleteCatalogVideo(video)} disabled={busy} style={{color: '#b42318', background: '#fff5f4', border: '1px solid #e39b93'}}>Taslak videoyu sil</button>}
                     </div>
                   </div>)}
                 </div>
