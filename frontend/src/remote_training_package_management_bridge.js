@@ -1,0 +1,480 @@
+import {api} from './api';
+
+const CATALOG_API = '/trainings/remote/catalog/packages';
+const STYLE_ID = 'remote-training-package-management-style';
+const TOOLBAR_ATTR = 'data-remote-package-management-toolbar';
+const SECTION_ACTION_ATTR = 'data-remote-section-management-actions';
+const DIALOG_ATTR = 'data-remote-package-management-dialog';
+
+let allowed = null;
+let packageRows = [];
+let selectedPackageId = null;
+let selectedDetail = null;
+let renderPending = false;
+let packageLoadPromise = null;
+
+function ensureStyles() {
+  if (document.getElementById(STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = `
+    .rt-package-manage-toolbar {
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid #b8d8d5;
+      border-radius: 10px;
+      background: #f4fbfa;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .rt-package-manage-toolbar__text { color: #31566b; font-size: 12px; line-height: 1.45; }
+    .rt-package-manage-toolbar__text strong { color: #0f766e; }
+    .rt-package-manage-toolbar__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .rt-package-manage-btn {
+      min-height: 36px;
+      padding: 8px 11px;
+      border: 1px solid #9fc7c3;
+      border-radius: 8px;
+      background: #fff;
+      color: #174b57;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    .rt-package-manage-btn:hover { background: #edf8f6; }
+    .rt-package-manage-btn--danger { border-color: #e6a19a; color: #a5271f; background: #fff8f7; }
+    .rt-section-manage-actions { display: inline-flex; gap: 6px; margin-left: 10px; vertical-align: middle; }
+    .rt-section-manage-actions button {
+      min-height: 30px;
+      padding: 5px 9px;
+      border-radius: 7px;
+      border: 1px solid #bfd0dc;
+      background: #fff;
+      color: #24465f;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .rt-section-manage-actions button:last-child { color: #a5271f; border-color: #e6a19a; background: #fff8f7; }
+    .rt-pm-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10120;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+      background: rgba(8, 25, 39, .58);
+      backdrop-filter: blur(2px);
+    }
+    .rt-pm-dialog {
+      width: min(620px, 96vw);
+      max-height: 92vh;
+      overflow: auto;
+      border-radius: 16px;
+      background: #fff;
+      border: 1px solid #dbe5ef;
+      box-shadow: 0 24px 70px rgba(7, 30, 48, .28);
+    }
+    .rt-pm-head { display: flex; justify-content: space-between; gap: 14px; padding: 19px 21px 13px; border-bottom: 1px solid #e6edf3; }
+    .rt-pm-head h3 { margin: 0; color: #173b57; font-size: 20px; }
+    .rt-pm-head p { margin: 6px 0 0; color: #5e7485; font-size: 12px; line-height: 1.45; }
+    .rt-pm-close { border: 0; background: transparent; font-size: 26px; cursor: pointer; color: #496174; }
+    .rt-pm-form { padding: 18px 21px 21px; }
+    .rt-pm-field { display: block; margin-bottom: 14px; }
+    .rt-pm-field > span { display: block; margin-bottom: 6px; color: #24465f; font-size: 13px; font-weight: 750; }
+    .rt-pm-field input[type="text"], .rt-pm-field textarea {
+      width: 100%; box-sizing: border-box; border: 1px solid #bfd0dc; border-radius: 9px; padding: 10px 11px; font: inherit; color: #173b57;
+    }
+    .rt-pm-field textarea { min-height: 95px; resize: vertical; }
+    .rt-pm-check { display: flex; align-items: center; gap: 8px; color: #36556d; font-size: 13px; margin: 4px 0 14px; }
+    .rt-pm-error { display: none; margin-bottom: 12px; padding: 9px 11px; border-radius: 8px; background: #fff2f0; color: #b42318; font-size: 12px; font-weight: 700; }
+    .rt-pm-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .rt-pm-actions button { min-height: 38px; padding: 8px 12px; border: 1px solid #bfd0dc; border-radius: 8px; background: #fff; color: #24465f; font-weight: 750; cursor: pointer; }
+    .rt-pm-actions .primary { background: #0f766e; border-color: #0f766e; color: #fff; }
+    .rt-pm-toast { position: fixed; z-index: 10150; right: 22px; bottom: 22px; max-width: min(480px, 90vw); padding: 12px 14px; border-radius: 10px; background: #0f766e; color: #fff; box-shadow: 0 12px 34px rgba(8,40,55,.24); font-size: 13px; font-weight: 700; }
+    .rt-pm-toast--error { background: #b42318; }
+  `;
+  document.head.appendChild(style);
+}
+
+function catalogSection() {
+  return [...document.querySelectorAll('section')].find((section) => {
+    const text = section.textContent || '';
+    return text.includes('Uzaktan Eğitim Paket Kataloğu') && text.includes('Sektör eğitim paketleri');
+  }) || null;
+}
+
+function packageListPanel(section = catalogSection()) {
+  if (!section) return null;
+  const heading = [...section.querySelectorAll('h4')].find((node) => node.textContent?.trim() === 'Sektör eğitim paketleri');
+  return heading?.parentElement || null;
+}
+
+function packageCardButtons(section = catalogSection()) {
+  const panel = packageListPanel(section);
+  if (!panel) return [];
+  return [...panel.querySelectorAll('button')].filter((button) => button.querySelector('strong'));
+}
+
+function refreshButton(section = catalogSection()) {
+  if (!section) return null;
+  return [...section.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Paketleri yenile') || null;
+}
+
+function showToast(message, isError = false) {
+  document.querySelector('.rt-pm-toast')?.remove();
+  const node = document.createElement('div');
+  node.className = `rt-pm-toast${isError ? ' rt-pm-toast--error' : ''}`;
+  node.setAttribute('role', isError ? 'alert' : 'status');
+  node.textContent = message;
+  document.body.appendChild(node);
+  window.setTimeout(() => node.remove(), isError ? 6500 : 4500);
+}
+
+async function canManage() {
+  if (allowed !== null) return allowed;
+  try {
+    const user = await api('/auth/me', {_retries: 1});
+    allowed = Boolean(user?.role === 'company_admin' && Number(user?.osgb_id || 0) > 0 && !user?.company_id);
+  } catch (_error) {
+    allowed = false;
+  }
+  return allowed;
+}
+
+async function loadPackageRows(force = false) {
+  if (!force && packageRows.length) return packageRows;
+  if (!packageLoadPromise) {
+    packageLoadPromise = api(CATALOG_API, {_retries: 1})
+      .then((rows) => {
+        packageRows = Array.isArray(rows) ? rows : [];
+        return packageRows;
+      })
+      .finally(() => { packageLoadPromise = null; });
+  }
+  return packageLoadPromise;
+}
+
+function selectedCardIndex() {
+  const buttons = packageCardButtons();
+  for (let index = 0; index < buttons.length; index += 1) {
+    const row = buttons[index].parentElement;
+    if (!row) continue;
+    const border = window.getComputedStyle(row).borderTopColor;
+    if (border === 'rgb(11, 156, 168)') return index;
+  }
+  return -1;
+}
+
+function detailHeadingTitle(section = catalogSection()) {
+  if (!section) return '';
+  const headings = [...section.querySelectorAll('h4')]
+    .map((node) => node.textContent?.trim() || '')
+    .filter((text) => text && text !== 'Sektör eğitim paketleri');
+  return headings[0] || '';
+}
+
+async function resolveSelectedPackageId() {
+  const rows = await loadPackageRows();
+  if (selectedPackageId && rows.some((row) => String(row.id) === String(selectedPackageId))) return selectedPackageId;
+
+  const selectedIndex = selectedCardIndex();
+  if (selectedIndex >= 0 && rows[selectedIndex]?.id) {
+    selectedPackageId = Number(rows[selectedIndex].id);
+    return selectedPackageId;
+  }
+
+  const title = detailHeadingTitle();
+  if (title) {
+    const matches = rows.filter((row) => String(row.title || '').trim() === title);
+    if (matches.length === 1) {
+      selectedPackageId = Number(matches[0].id);
+      return selectedPackageId;
+    }
+  }
+  return null;
+}
+
+async function resolveSelectedDetail(force = false) {
+  const packageId = await resolveSelectedPackageId();
+  if (!packageId) return null;
+  if (!force && selectedDetail && Number(selectedDetail.id) === Number(packageId)) return selectedDetail;
+  try {
+    selectedDetail = await api(`${CATALOG_API}/${packageId}`, {_retries: 1});
+    return selectedDetail;
+  } catch (_error) {
+    selectedDetail = null;
+    return null;
+  }
+}
+
+function closeDialog() {
+  document.querySelector(`[${DIALOG_ATTR}]`)?.remove();
+  document.body.style.removeProperty('overflow');
+}
+
+function dialogShell(title, note) {
+  ensureStyles();
+  closeDialog();
+  const overlay = document.createElement('div');
+  overlay.className = 'rt-pm-overlay';
+  overlay.setAttribute(DIALOG_ATTR, 'true');
+  overlay.innerHTML = `
+    <div class="rt-pm-dialog" role="dialog" aria-modal="true">
+      <div class="rt-pm-head">
+        <div><h3></h3><p></p></div>
+        <button type="button" class="rt-pm-close" aria-label="Kapat">×</button>
+      </div>
+      <form class="rt-pm-form"></form>
+    </div>`;
+  overlay.querySelector('h3').textContent = title;
+  overlay.querySelector('p').textContent = note;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+  overlay.querySelector('.rt-pm-close')?.addEventListener('click', closeDialog);
+  overlay.addEventListener('click', (event) => { if (event.target === overlay) closeDialog(); });
+  return {overlay, form: overlay.querySelector('form')};
+}
+
+async function refreshCurrentPackage() {
+  selectedDetail = null;
+  await loadPackageRows(true);
+  refreshButton()?.click();
+  window.setTimeout(() => {
+    selectedDetail = null;
+    scheduleRender(true);
+  }, 450);
+}
+
+function openPackageEdit(detail) {
+  const {form} = dialogShell(
+    'Eğitim Paketini Düzenle',
+    'Paket adı ve açıklamasını değiştirebilirsiniz. Daha önce firmaya hazırlanmış sürümler ve çalışan ilerlemeleri geriye dönük değişmez.',
+  );
+  form.innerHTML = `
+    <label class="rt-pm-field"><span>Paket adı *</span><input type="text" name="title" maxlength="220" required /></label>
+    <label class="rt-pm-field"><span>Açıklama</span><textarea name="description" maxlength="5000"></textarea></label>
+    <div class="rt-pm-error" role="alert"></div>
+    <div class="rt-pm-actions"><button type="button" class="cancel">Vazgeç</button><button type="submit" class="primary">Değişiklikleri Kaydet</button></div>`;
+  const title = form.querySelector('[name="title"]');
+  const description = form.querySelector('[name="description"]');
+  const errorBox = form.querySelector('.rt-pm-error');
+  title.value = detail.title || '';
+  description.value = detail.description || '';
+  form.querySelector('.cancel')?.addEventListener('click', closeDialog);
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const cleanTitle = String(title.value || '').trim().replace(/\s+/g, ' ');
+    if (cleanTitle.length < 3) {
+      errorBox.textContent = 'Paket adı en az 3 karakter olmalıdır.';
+      errorBox.style.display = 'block';
+      return;
+    }
+    const submit = form.querySelector('[type="submit"]');
+    submit.disabled = true;
+    try {
+      await api(`${CATALOG_API}/${detail.id}`, {
+        method: 'PATCH',
+        _retries: 0,
+        body: JSON.stringify({title: cleanTitle, description: String(description.value || '').trim() || null}),
+      });
+      closeDialog();
+      showToast('Paket bilgileri güncellendi.');
+      await refreshCurrentPackage();
+    } catch (error) {
+      errorBox.textContent = error?.message || 'Paket bilgileri güncellenemedi.';
+      errorBox.style.display = 'block';
+      submit.disabled = false;
+    }
+  });
+  window.setTimeout(() => title.focus(), 0);
+}
+
+async function deletePackage(detail) {
+  const warning = `“${detail.title}” paketi kalıcı olarak silinsin mi?\n\nPaket daha önce bir firmaya hazırlanmışsa sistem çalışan/belge geçmişini korumak için silmeye izin vermeyecek ve arşivlemenizi isteyecektir.`;
+  if (!window.confirm(warning)) return;
+  try {
+    const out = await api(`${CATALOG_API}/${detail.id}`, {method: 'DELETE', _retries: 0});
+    if (out?.storage_cleanup_pending) {
+      showToast('Paket silindi. Depolama temizliğinin bir kısmı arka planda tamamlanacak.');
+    } else {
+      showToast('Paket silindi.');
+    }
+    window.setTimeout(() => window.location.reload(), 300);
+  } catch (error) {
+    showToast(error?.message || 'Paket silinemedi.', true);
+  }
+}
+
+function openSectionEdit(detail, section) {
+  const {form} = dialogShell(
+    'Ders Bölümünü Düzenle',
+    `${detail.title} içindeki bölüm kodu, adı ve açıklaması değiştirilebilir. Firma/çalışan geçmişindeki eski kopyalar değişmez.`,
+  );
+  form.innerHTML = `
+    <label class="rt-pm-field"><span>Bölüm kodu *</span><input type="text" name="code" maxlength="64" required /></label>
+    <label class="rt-pm-field"><span>Bölüm adı *</span><input type="text" name="title" maxlength="220" required /></label>
+    <label class="rt-pm-field"><span>Açıklama</span><textarea name="description" maxlength="5000"></textarea></label>
+    <label class="rt-pm-check"><input type="checkbox" name="required" /> Zorunlu bölüm</label>
+    <div class="rt-pm-error" role="alert"></div>
+    <div class="rt-pm-actions"><button type="button" class="cancel">Vazgeç</button><button type="submit" class="primary">Bölümü Güncelle</button></div>`;
+  const code = form.querySelector('[name="code"]');
+  const title = form.querySelector('[name="title"]');
+  const description = form.querySelector('[name="description"]');
+  const required = form.querySelector('[name="required"]');
+  const errorBox = form.querySelector('.rt-pm-error');
+  code.value = section.code || '';
+  title.value = section.title || '';
+  description.value = section.description || '';
+  required.checked = section.is_required !== false;
+  form.querySelector('.cancel')?.addEventListener('click', closeDialog);
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const cleanCode = String(code.value || '').trim().replace(/\s+/g, ' ');
+    const cleanTitle = String(title.value || '').trim().replace(/\s+/g, ' ');
+    if (cleanCode.length < 2 || cleanTitle.length < 2) {
+      errorBox.textContent = 'Bölüm kodu ve bölüm adı birlikte girilmelidir.';
+      errorBox.style.display = 'block';
+      return;
+    }
+    const submit = form.querySelector('[type="submit"]');
+    submit.disabled = true;
+    try {
+      await api(`/trainings/remote/catalog/sections/${section.id}`, {
+        method: 'PATCH',
+        _retries: 0,
+        body: JSON.stringify({
+          code: cleanCode,
+          title: cleanTitle,
+          description: String(description.value || '').trim() || null,
+          is_required: Boolean(required.checked),
+        }),
+      });
+      closeDialog();
+      showToast('Ders bölümü güncellendi.');
+      await refreshCurrentPackage();
+    } catch (error) {
+      errorBox.textContent = error?.message || 'Ders bölümü güncellenemedi.';
+      errorBox.style.display = 'block';
+      submit.disabled = false;
+    }
+  });
+  window.setTimeout(() => code.focus(), 0);
+}
+
+async function deleteSection(detail, section) {
+  const videoCount = Array.isArray(section.videos) ? section.videos.length : 0;
+  const message = `“${section.code} · ${section.title}” bölümü silinsin mi?${videoCount ? `\n\nBu bölümde ${videoCount} video bulunuyor; paket kataloğundaki bu videolar da silinecek.` : ''}\n\nDaha önce firmaya hazırlanmış çalışan eğitim kopyaları değişmez.`;
+  if (!window.confirm(message)) return;
+  try {
+    const out = await api(`/trainings/remote/catalog/sections/${section.id}`, {method: 'DELETE', _retries: 0});
+    showToast(out?.storage_cleanup_pending ? 'Bölüm silindi; depolama temizliğinin bir kısmı arka planda tamamlanacak.' : 'Bölüm silindi.');
+    await refreshCurrentPackage();
+  } catch (error) {
+    showToast(error?.message || 'Bölüm silinemedi.', true);
+  }
+}
+
+function removeInjectedControls() {
+  document.querySelector(`[${TOOLBAR_ATTR}]`)?.remove();
+  document.querySelectorAll(`[${SECTION_ACTION_ATTR}]`).forEach((node) => node.remove());
+}
+
+async function renderControls(forceDetail = false) {
+  renderPending = false;
+  if (!(await canManage())) return;
+  const sectionRoot = catalogSection();
+  if (!sectionRoot) return;
+  const detail = await resolveSelectedDetail(forceDetail);
+  if (!detail) return;
+
+  removeInjectedControls();
+  if (detail.is_shared) return;
+
+  const heading = [...sectionRoot.querySelectorAll('h4')].find((node) => node.textContent?.trim() === String(detail.title || '').trim());
+  if (!heading) return;
+  const topRow = heading.parentElement?.parentElement;
+  if (!topRow?.parentElement) return;
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'rt-package-manage-toolbar';
+  toolbar.setAttribute(TOOLBAR_ATTR, 'true');
+  toolbar.innerHTML = `
+    <div class="rt-package-manage-toolbar__text">
+      <strong>Paket yönetimi:</strong> Paket adını/açıklamasını değiştirebilir, yanlış oluşturulan kullanılmamış paketi silebilirsiniz.${detail.status === 'archived' ? ' İçeriği değiştirmek için önce paketi düzenlemeye açın.' : ''}
+    </div>
+    <div class="rt-package-manage-toolbar__actions">
+      <button type="button" class="rt-package-manage-btn edit">Paket Bilgilerini Düzenle</button>
+      <button type="button" class="rt-package-manage-btn rt-package-manage-btn--danger delete">Paketi Sil</button>
+    </div>`;
+  toolbar.querySelector('.edit')?.addEventListener('click', () => openPackageEdit(detail));
+  toolbar.querySelector('.delete')?.addEventListener('click', () => void deletePackage(detail));
+  topRow.insertAdjacentElement('afterend', toolbar);
+
+  if (detail.status === 'archived') return;
+  for (const item of detail.sections || []) {
+    const wanted = `${item.code} · ${item.title}`;
+    const label = [...sectionRoot.querySelectorAll('strong')].find((node) => node.textContent?.trim() === wanted);
+    if (!label || label.parentElement?.querySelector(`[${SECTION_ACTION_ATTR}]`)) continue;
+    const actions = document.createElement('span');
+    actions.className = 'rt-section-manage-actions';
+    actions.setAttribute(SECTION_ACTION_ATTR, 'true');
+    actions.innerHTML = '<button type="button">Düzenle</button><button type="button">Bölümü Sil</button>';
+    const [editButton, deleteButton] = actions.querySelectorAll('button');
+    editButton.addEventListener('click', () => openSectionEdit(detail, item));
+    deleteButton.addEventListener('click', () => void deleteSection(detail, item));
+    label.insertAdjacentElement('afterend', actions);
+  }
+}
+
+function scheduleRender(forceDetail = false) {
+  if (renderPending) return;
+  renderPending = true;
+  window.setTimeout(() => void renderControls(forceDetail), 120);
+}
+
+document.addEventListener('click', (event) => {
+  const card = event.target.closest?.('button');
+  const buttons = packageCardButtons();
+  const index = card ? buttons.indexOf(card) : -1;
+  if (index >= 0) {
+    void loadPackageRows().then((rows) => {
+      if (rows[index]?.id) {
+        selectedPackageId = Number(rows[index].id);
+        selectedDetail = null;
+        scheduleRender(true);
+      }
+    });
+    return;
+  }
+
+  const text = card?.textContent?.trim() || '';
+  if (['Paketi düzenlemeye aç', 'Paketi yayımla', 'Yayından kaldır', 'Arşivle', 'İncelemeye hazır'].includes(text)) {
+    window.setTimeout(() => {
+      selectedDetail = null;
+      scheduleRender(true);
+    }, 450);
+  }
+}, true);
+
+const observer = new MutationObserver(() => scheduleRender(false));
+observer.observe(document.documentElement, {childList: true, subtree: true});
+
+window.addEventListener('hashchange', () => {
+  selectedPackageId = null;
+  selectedDetail = null;
+  packageRows = [];
+  scheduleRender(true);
+});
+window.addEventListener('isg:auth-lost', () => {
+  allowed = null;
+  selectedPackageId = null;
+  selectedDetail = null;
+  packageRows = [];
+  closeDialog();
+  removeInjectedControls();
+});
+
+scheduleRender(true);
