@@ -1945,7 +1945,8 @@ function combineRemoteCertificateRows(rows) {
 function RemoteCertificateHub() {
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState('');
-  const [status, setStatus] = useState('all');
+  // Belge merkezi arşiv mantığıyla tamamlanan belgeleri önce gösterir; diğer durumlar isteğe bağlı filtrelenebilir.
+  const [status, setStatus] = useState('completed');
   const [query, setQuery] = useState('');
   const [rows, setRows] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -2016,13 +2017,22 @@ function RemoteCertificateHub() {
     0,
   );
   const readyCount = visibleRows.filter((row) => row.certificate_ready).length;
+  const selectedCompany = companies.find((company) => String(company.id) === String(companyId));
+  const selectedCompanyName = selectedCompany?.name || 'Seçilen firma';
+  const emptyMessage = busy
+    ? 'Belgeler yükleniyor…'
+    : companyId
+      ? `“${selectedCompanyName}” firmasına ait tamamlanmış eğitim belgesi bulunamadı.`
+      : status === 'completed'
+        ? 'Henüz tamamlanmış uzaktan eğitim belgesi bulunmuyor.'
+        : 'Bu filtrelerle eşleşen uzaktan eğitim kaydı bulunamadı.';
 
   return (
     <section id="remote-training-certificate-hub" style={cardStyle} aria-label="Uzaktan eğitim belgeleri merkezi">
       <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start'}}>
         <div>
           <div style={{fontSize: 12, color: '#0b7f83', fontWeight: 800, letterSpacing: '.04em'}}>BELGE VE ARŞİV MERKEZİ</div>
-          <h3 style={{margin: '4px 0'}}>Uzaktan eğitim belgeleri</h3>
+          <h3 style={{margin: '4px 0'}}>Tamamlanmış uzaktan eğitim belgeleri</h3>
           <p style={{margin: 0, color: '#496174', fontSize: 13}}>
             Tamamlanan ve final sınavını geçen çalışanların belgelerini burada bulun ve indirin.
             Bu ekran çalışanların kendi eğitim ekranından ayrıdır.
@@ -2052,7 +2062,7 @@ function RemoteCertificateHub() {
         </select>
         <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Belge durumu">
           <option value="all">Tüm durumlar</option>
-          <option value="completed">Tamamlandı / belge hazır</option>
+          <option value="completed">Tamamlanan belgeler (arşiv)</option>
           <option value="in_progress">Devam ediyor</option>
           <option value="not_started">Başlamadı</option>
           <option value="failed">Başarısız</option>
@@ -2072,6 +2082,11 @@ function RemoteCertificateHub() {
 
       {error && <div role="alert" style={{marginTop: 10, color: '#b42318', fontWeight: 700}}>{error}</div>}
       {message && <div role="status" aria-live="polite" style={{marginTop: 10, color: '#087443', fontWeight: 700}}>{message}</div>}
+      <div role="status" aria-live="polite" style={{marginTop: 10, padding: '9px 12px', borderRadius: 9, background: '#f8fafc', color: '#496174', fontSize: 12}}>
+        {companyId
+          ? <><strong>{selectedCompanyName}</strong> seçildi. Bu firmaya ait tamamlanmış belgeler ve eğitim kapsamları aşağıda listelenir.</>
+          : 'Firma seçerek yalnızca o firmaya ait tamamlanmış eğitim belgelerini ve PDF dökümlerini görebilirsiniz.'}
+      </div>
 
       <div style={{overflowX: 'auto', marginTop: 12}}>
         <table style={{width: '100%'}}>
@@ -2097,8 +2112,12 @@ function RemoteCertificateHub() {
                   </small>
                 </td>
                 <td>
-                  <strong>{localizedTrainingTitle(row.program_title)}</strong>
-                  <small style={{display: 'block', color: '#5e7485'}}>
+                  <div style={{display: 'grid', gap: 4}}>
+                    {(row.program_titles?.length ? row.program_titles : [row.program_title]).map((title, index) => (
+                      <strong key={title + '-' + index}>{localizedTrainingTitle(title)}</strong>
+                    ))}
+                  </div>
+                  <small style={{display: 'block', color: '#5e7485', marginTop: 3}}>
                     Uzaktan eğitim · {row.program_count > 1 ? row.program_count + ' eğitim · tek PDF belge' : (row.source_catalog_revision_no ? 'Katalog sürümü ' + row.source_catalog_revision_no : 'Firma programı')}
                   </small>
                 </td>
@@ -2131,7 +2150,7 @@ function RemoteCertificateHub() {
             {!visibleRows.length && (
               <tr>
                 <td colSpan={6} style={{padding: 18, textAlign: 'center', color: '#5e7485'}}>
-                  {busy ? 'Belgeler yükleniyor…' : 'Bu filtrelerle eşleşen uzaktan eğitim kaydı bulunamadı.'}
+                  {emptyMessage}
                 </td>
               </tr>
             )}
