@@ -232,6 +232,7 @@ function EducationOutputPanel({
   canEdit,
   busy,
   certificateReady = true,
+  onOpenRemote,
 }) {
   const ready = !!savedTrainingId;
   return (
@@ -276,6 +277,15 @@ function EducationOutputPanel({
         </span>
       </div>
 
+      {onOpenRemote && (
+        <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12, padding: '12px 14px', border: '1px solid #8cc6dc', borderRadius: 10, background: '#f6fcff'}} aria-label="Uzaktan eğitim belge çıktıları">
+          <div>
+            <strong style={{color: '#123b59'}}>Uzaktan eğitim belge çıktıları</strong>
+            <div className="tp-help" style={{marginTop: 4}}>Uzaktan eğitimi tamamlayan ve sınavı geçen çalışanların PDF belgelerini açmak için bu bölüme geçin.</div>
+          </div>
+          <button type="button" className="btn-outline-premium" style={{width: 'auto', minHeight: 40, padding: '0 14px', fontWeight: 800}} onClick={onOpenRemote}>Uzaktan Eğitim / Belgeler bölümüne git</button>
+        </div>
+      )}
       <div className="education-output-row">
         {ready ? (
           <button
@@ -357,7 +367,7 @@ function EducationOutputPanel({
 export function TrainingPage({user}) {
   const canEdit = ['global_admin', 'company_admin', 'safety_specialist'].includes(user.role);
   const [remoteEnabled, setRemoteEnabled] = useState(false);
-  const visibleTabs = remoteEnabled ? [...TABS, {id: 'remote', label: 'Uzaktan Temel İSG'}] : TABS;
+  const visibleTabs = remoteEnabled ? [...TABS, {id: 'remote', label: 'Uzaktan Eğitim / Belgeler'}] : TABS;
   const excelInputRef = useRef(null);
   const logoInputRef = useRef(null);
   const pendingLogoRef = useRef(null);
@@ -1964,6 +1974,7 @@ export function TrainingPage({user}) {
             dlBusy={dlBusy}
             canEdit={canEdit}
             busy={busy}
+            onOpenRemote={remoteEnabled ? () => setTab('remote') : null}
             onDownloadCertificates={() => downloadCertificates(savedTrainingId)}
             onDownloadAttendance={() => downloadAttendance(savedTrainingId)}
             onDownloadExam={() => downloadExam(savedTrainingId)}
