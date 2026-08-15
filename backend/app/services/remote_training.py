@@ -75,11 +75,10 @@ MANAGE_ROLES = {
     UserRole.COMPANY_ADMIN,
     UserRole.SAFETY_SPECIALIST,
 }
-# Assignment/report workflows remain available to experts.  Editing any
-# curriculum/package content is reserved for the EİSA global administrator or
-# the OSGB administrator (company_admin with an OSGB scope).
+# Assignment/report workflows remain available to experts.  Adding, editing,
+# publishing, archiving or deleting any curriculum/package content is reserved
+# for the OSGB administrator (company_admin with an OSGB scope).
 CATALOG_CONTENT_ROLES = {
-    UserRole.GLOBAL_ADMIN,
     UserRole.COMPANY_ADMIN,
 }
 VIEW_ROLES = MANAGE_ROLES | {
@@ -279,7 +278,11 @@ def is_manager(user: User) -> bool:
 
 
 def is_catalog_content_manager(user: User) -> bool:
-    """Return whether the user may add/change remote training content."""
+    """Return whether the user may add/change remote training content.
+
+    Scope validation belongs to the API guard; this role check deliberately
+    excludes global administrators, experts and workplace-scoped accounts.
+    """
     return user.role in CATALOG_CONTENT_ROLES
 
 
