@@ -82,6 +82,12 @@ function statusLabel(value) {
   return STATUS_LABELS[value] || value || '—';
 }
 
+function participationStatusLabel(value) {
+  if (value === 'completed') return 'Başarılı';
+  if (value === 'failed') return 'Başarısız';
+  return statusLabel(value);
+}
+
 function localizedTrainingTitle(value) {
   return String(value || '').trim() === REMOTE_TRAINING_CANONICAL_TITLE
     ? REMOTE_TRAINING_DISPLAY_TITLE
@@ -1986,8 +1992,8 @@ function combineRemoteCertificateRows(rows) {
       if (title && !titles.includes(title)) titles.push(title);
     });
     const summaries = items.map((item) => item.summary || {});
-    const statuses = new Set(items.map((item) => item.status));
-    const status = statusPriority.find((value) => statuses.has(value)) || first.status;
+    const statuses = new Set(items.map((item) => item.report_status || item.status));
+    const reportStatus = statusPriority.find((value) => statuses.has(value)) || first.report_status || first.status;
     const allCompleted = items.every((item) => item.status === 'completed');
     const certificateReady = allCompleted && items.every((item) => item.certificate_ready);
     const scores = items
@@ -2006,7 +2012,7 @@ function combineRemoteCertificateRows(rows) {
       exam_required: summaries.some((item) => item.exam_required),
       exam_passed: summaries.every((item) => item.exam_passed),
       complete: summaries.every((item) => item.complete),
-      status,
+      status: reportStatus,
       exam_score: averageScore,
     };
     return {
@@ -2016,7 +2022,7 @@ function combineRemoteCertificateRows(rows) {
       program_count: titles.length || items.length,
       program_titles: titles,
       program_title: titles.join(' + ') || first.program_title,
-      status,
+      report_status: reportStatus,
       assigned_at: items.map((item) => item.assigned_at).filter(Boolean).sort()[0] || first.assigned_at,
       completed_at: items.map((item) => item.completed_at).filter(Boolean).sort().slice(-1)[0] || null,
       summary,
@@ -2033,8 +2039,11 @@ function combineRemoteCertificateRows(rows) {
 function RemoteCertificateHub() {
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState('');
-  // Belge merkezi arşiv mantığıyla tamamlanan belgeleri önce gösterir; diğer durumlar isteğe bağlı filtrelenebilir.
-  const [status, setStatus] = useState('completed');
+  const [branches, setBranches] = useState([]);
+  const [branchId, setBranchId] = useState('');
+  // Firma seçilince tüm katılım sonuçları açılır; başarılı/başarısız kayıtlar
+  // aynı raporda karşılaştırılabilir.
+  const [status, setStatus] = useState('all');
   const [query, setQuery] = useState('');
   const [rows, setRows] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -2045,18 +2054,21 @@ function RemoteCertificateHub() {
     setBusy(true);
     setError('');
     try {
+      const companyRows = await api('/companies');
+      setCompanies(Array.isArray(companyRows) ? companyRows : []);
+      if (!companyId) {
+        setRows([]);
+        return;
+      }
       const params = new URLSearchParams();
-      if (companyId) params.set('company_id', companyId);
+      params.set('company_id', companyId);
+      if (branchId) params.set('branch_id', branchId);
       // Status and search are applied after grouping so one employee never
       // appears as two partial certificate rows.
-      const [companyRows, documentRows] = await Promise.all([
-        api('/companies'),
-        api('/trainings/remote/certificates' + (params.toString() ? '?' + params.toString() : '')),
-      ]);
-      setCompanies(Array.isArray(companyRows) ? companyRows : []);
+      const documentRows = await api('/trainings/remote/certificates?' + params.toString());
       setRows(Array.isArray(documentRows) ? documentRows : []);
     } catch (err) {
-      setError(err.message || 'Uzaktan eğitim belge listesi alınamadı.');
+      setError(err.message || 'Eğitim katılım listesi alınamadı.');
     } finally {
       setBusy(false);
     }
@@ -2064,9 +2076,20 @@ function RemoteCertificateHub() {
 
   useEffect(() => {
     load().catch(() => {});
-    // Firma ve durum filtresi değişince listeyi yenile; arama metni için Ara düğmesi kullanılır.
+    // Firma, işyeri veya durum filtresi değişince listeyi yenile.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyId, status]);
+  }, [companyId, branchId, status]);
+
+  useEffect(() => {
+    if (!companyId) {
+      setBranches([]);
+      setBranchId('');
+      return;
+    }
+    api(`/branches?company_id=${Number(companyId)}`)
+      .then((items) => setBranches(Array.isArray(items) ? items.filter((row) => row.is_active !== false) : []))
+      .catch(() => setBranches([]));
+  }, [companyId]);
 
   async function download(row) {
     if (!row?.certificate_ready) return;
@@ -2086,11 +2109,61 @@ function RemoteCertificateHub() {
     }
   }
 
+  async function downloadReport(format) {
+    if (!companyId) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const params = new URLSearchParams({company_id: companyId});
+      if (branchId) params.set('branch_id', branchId);
+      if (status && status !== 'all') params.set('status', status);
+      if (query.trim()) params.set('q', query.trim());
+      await downloadFile(
+        `/trainings/remote/certificates/export.${format}?${params.toString()}`,
+        `egitim-katilim-raporu-${companyId}.${format}`,
+      );
+      setMessage(`${selectedCompanyName} için ${format.toUpperCase()} eğitim katılım raporu indirildi.`);
+    } catch (err) {
+      setError(err.message || 'Eğitim katılım raporu alınamadı.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteParticipationRecord(row) {
+    const assignmentIds = Array.isArray(row?.assignment_ids) && row.assignment_ids.length
+      ? row.assignment_ids
+      : row?.id ? [row.id] : [];
+    if (!assignmentIds.length || !companyId) return;
+    const confirmed = window.confirm(
+      `${row.employee_name || 'Çalışan'} kişisinin seçili firmadaki ${assignmentIds.length} eğitim katılım kaydı kalıcı olarak silinecek.\n\n` +
+      'Atama, video ilerlemesi, sınav, katılım belgesi ve bağlı geçmiş kayıtları geri döndürülemez şekilde silinecektir. Devam edilsin mi?',
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      const out = await api('/trainings/remote/certificates/records', {
+        method: 'DELETE',
+        body: JSON.stringify({assignment_ids: assignmentIds}),
+      });
+      setMessage(out.message || 'Eğitim katılım kaydı kalıcı olarak silindi.');
+      await load();
+    } catch (err) {
+      setError(err.message || 'Eğitim katılım kaydı silinemedi.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const groupedRows = useMemo(() => combineRemoteCertificateRows(rows), [rows]);
   const visibleRows = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase('tr-TR');
     return groupedRows.filter((row) => {
-      const statusMatches = !status || status === 'all' || row.status === status;
+      const reportStatus = row.report_status || row.status;
+      const statusMatches = !status || status === 'all' || reportStatus === status;
       const searchMatches = !needle || [
         row.company_name,
         row.employee_name,
@@ -2100,60 +2173,63 @@ function RemoteCertificateHub() {
       return statusMatches && searchMatches;
     });
   }, [groupedRows, query, status]);
-  const completedCount = visibleRows.reduce(
-    (total, row) => total + (row.status === 'completed' ? (row.assignment_count || 1) : 0),
-    0,
-  );
+  const completedCount = visibleRows.filter((row) => (row.report_status || row.status) === 'completed').length;
+  const failedCount = visibleRows.filter((row) => (row.report_status || row.status) === 'failed').length;
   const readyCount = visibleRows.filter((row) => row.certificate_ready).length;
   const selectedCompany = companies.find((company) => String(company.id) === String(companyId));
   const selectedCompanyName = selectedCompany?.name || 'Seçilen firma';
   const emptyMessage = busy
-    ? 'Belgeler yükleniyor…'
+    ? 'Eğitim katılım kayıtları yükleniyor…'
     : companyId
-      ? `“${selectedCompanyName}” firmasına ait tamamlanmış eğitim belgesi bulunamadı.`
-      : status === 'completed'
-        ? 'Henüz tamamlanmış uzaktan eğitim belgesi bulunmuyor.'
-        : 'Bu filtrelerle eşleşen uzaktan eğitim kaydı bulunamadı.';
+      ? `“${selectedCompanyName}” firmasına ait bu filtrelerle eşleşen eğitim katılım kaydı bulunamadı.`
+      : 'Kayıtları görmek için önce firma seçin.';
 
   return (
-    <section id="remote-training-certificate-hub" style={cardStyle} aria-label="Uzaktan eğitim belgeleri merkezi">
+    <section style={cardStyle} aria-label="Firma eğitim katılım ve belgelendirme raporu">
       <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start'}}>
         <div>
-          <div style={{fontSize: 12, color: '#0b7f83', fontWeight: 800, letterSpacing: '.04em'}}>BELGE VE ARŞİV MERKEZİ</div>
-          <h3 style={{margin: '4px 0'}}>Tamamlanmış uzaktan eğitim belgeleri</h3>
+          <div style={{fontSize: 12, color: '#0b7f83', fontWeight: 800, letterSpacing: '.04em'}}>FİRMA EĞİTİM KATILIM RAPORU</div>
+          <h3 style={{margin: '4px 0'}}>Eğitime katılan personel ve belgelendirme</h3>
           <p style={{margin: 0, color: '#496174', fontSize: 13}}>
-            Tamamlanan ve final sınavını geçen çalışanların belgelerini burada bulun ve indirin.
-            Bu ekran çalışanların kendi eğitim ekranından ayrıdır.
+            Firma/işyeri seçildiğinde o kapsamdaki başarılı, başarısız ve devam eden çalışan eğitim kayıtlarını görün.
+            Bu rapor çalışanların kendi eğitim ekranından ayrıdır.
           </p>
         </div>
         <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
           <span style={{padding: '7px 10px', borderRadius: 999, background: '#ecfdf5', color: '#087443', fontWeight: 800, fontSize: 12}}>
-            {readyCount} belge hazır
+            {completedCount} başarılı
           </span>
           <span style={{padding: '7px 10px', borderRadius: 999, background: '#eff6ff', color: '#1d4ed8', fontWeight: 800, fontSize: 12}}>
-            {completedCount} eğitim tamamlandı
+            {failedCount} başarısız
+          </span>
+          <span style={{padding: '7px 10px', borderRadius: 999, background: '#f8fafc', color: '#496174', fontWeight: 800, fontSize: 12}}>
+            {readyCount} belge hazır
           </span>
         </div>
       </div>
 
       <div role="note" style={{marginTop: 14, padding: '11px 13px', borderRadius: 10, border: '1px solid #b9e3c8', background: '#f2fff6', color: '#17643a', fontSize: 12}}>
-        <strong>Belgeyi doğru kaydı seçerek alın:</strong> Her satır tek bir <strong>firma + işyeri/şube + çalışan</strong> kapsamıdır.
-        Önce firma ve işyeri adını kontrol edin; aynı çalışan için aynı işyeri kapsamındaki tamamlanmış uzaktan eğitim paketleri
-        <strong>tek PDF belgede birleşir</strong>. PDF indirme düğmesi yalnızca tüm videolar ve final sınavı başarıyla tamamlanınca açılır.
-        İş güvenliği uzmanı, sadece aktif olarak görevlendirildiği firmaların belgelerini görebilir ve indirebilir.
+        <strong>Önce firma/işyeri seçin:</strong> Her satır tek bir <strong>firma + işyeri/şube + çalışan</strong> kapsamıdır.
+        Başarılı çalışanlarda katılım belgesi PDF’i açılır; başarısız veya devam eden çalışanlar sonuç raporunda görünür.
+        Aynı çalışan için aynı işyeri kapsamındaki tamamlanmış paketler <strong>tek PDF belgede birleşir</strong>.
+        İş güvenliği uzmanı yalnızca yetkili olduğu firmaları görebilir.
       </div>
 
       <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 14, padding: 10, borderRadius: 10, background: '#f7fbfd'}}>
         <select value={companyId} onChange={(event) => setCompanyId(event.target.value)} aria-label="Belge firması">
-          <option value="">Tüm erişebildiğim firmalar</option>
+          <option value="">Firma seçin</option>
           {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+        </select>
+        <select value={branchId} onChange={(event) => setBranchId(event.target.value)} disabled={!companyId} aria-label="Eğitim raporu işyeri veya şube">
+          <option value="">Firma geneli / tüm işyerleri</option>
+          {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
         </select>
         <select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Belge durumu">
           <option value="all">Tüm durumlar</option>
-          <option value="completed">Tamamlanan belgeler (arşiv)</option>
+          <option value="completed">Başarılı / tamamlanan</option>
+          <option value="failed">Başarısız</option>
           <option value="in_progress">Devam ediyor</option>
           <option value="not_started">Başlamadı</option>
-          <option value="failed">Başarısız</option>
           <option value="expired">Süresi geçti</option>
         </select>
         <input
@@ -2166,14 +2242,16 @@ function RemoteCertificateHub() {
         />
         <button type="button" onClick={() => load()} disabled={busy}>Ara</button>
         <button type="button" onClick={() => load()} disabled={busy}>Yenile</button>
+        <button type="button" onClick={() => downloadReport('xlsx')} disabled={busy || !companyId}>Excel çıktısı</button>
+        <button type="button" onClick={() => downloadReport('pdf')} disabled={busy || !companyId}>PDF raporu</button>
       </div>
 
       {error && <div role="alert" style={{marginTop: 10, color: '#b42318', fontWeight: 700}}>{error}</div>}
       {message && <div role="status" aria-live="polite" style={{marginTop: 10, color: '#087443', fontWeight: 700}}>{message}</div>}
       <div role="status" aria-live="polite" style={{marginTop: 10, padding: '9px 12px', borderRadius: 9, background: '#f8fafc', color: '#496174', fontSize: 12}}>
         {companyId
-          ? <><strong>{selectedCompanyName}</strong> seçildi. Bu firmaya ait tamamlanmış belgeler ve eğitim kapsamları aşağıda listelenir.</>
-          : 'Firma seçerek yalnızca o firmaya ait tamamlanmış eğitim belgelerini ve PDF dökümlerini görebilirsiniz.'}
+          ? <><strong>{selectedCompanyName}</strong> seçildi. Başarılı, başarısız ve devam eden eğitim katılım kayıtları aşağıda listelenir.</>
+          : 'Firma seçerek yalnızca o firmaya ait eğitim katılım ve belgelendirme kayıtlarını görebilirsiniz.'}
       </div>
 
       <div style={{overflowX: 'auto', marginTop: 12}}>
@@ -2186,6 +2264,7 @@ function RemoteCertificateHub() {
               <th>Durum / İlerleme</th>
               <th>Sınav</th>
               <th>Belge</th>
+              <th>İşlem</th>
             </tr>
           </thead>
           <tbody>
@@ -2211,7 +2290,7 @@ function RemoteCertificateHub() {
                 </td>
                 <td>{row.employee_name}</td>
                 <td>
-                  <strong>{statusLabel(row.status)}</strong>
+                  <strong style={{color: (row.report_status || row.status) === 'completed' ? '#087443' : (row.report_status || row.status) === 'failed' ? '#b42318' : '#36556d'}}>{participationStatusLabel(row.report_status || row.status)}</strong>
                   <small style={{display: 'block', color: '#5e7485'}}>
                     {(row.summary?.completed_video_count || 0) + '/' + (row.summary?.required_video_count || 0) + ' video'}
                   </small>
@@ -2233,11 +2312,22 @@ function RemoteCertificateHub() {
                     </span>
                   )}
                 </td>
+                <td>
+                  <button
+                    type="button"
+                    onClick={() => deleteParticipationRecord(row)}
+                    disabled={busy}
+                    style={{color: '#b42318', background: '#fff5f4', border: '1px solid #e39b93', fontSize: 12}}
+                    title="Bu çalışanın seçili firmadaki eğitim katılım kaydını kalıcı sil"
+                  >
+                    Kaydı kalıcı sil
+                  </button>
+                </td>
               </tr>
             ))}
             {!visibleRows.length && (
               <tr>
-                <td colSpan={6} style={{padding: 18, textAlign: 'center', color: '#5e7485'}}>
+                <td colSpan={7} style={{padding: 18, textAlign: 'center', color: '#5e7485'}}>
                   {emptyMessage}
                 </td>
               </tr>
@@ -2247,7 +2337,7 @@ function RemoteCertificateHub() {
       </div>
       <div style={{marginTop: 10, color: '#5e7485', fontSize: 12}}>
         Listeyi kullanırken önce <strong>Firma / İşyeri</strong> ve <strong>Çalışan</strong> alanlarını kontrol edin.
-        Bu merkezdeki PDF, rastgele bir çalışana verilecek belge değildir; seçtiğiniz satırın firma ve çalışan kapsamına aittir.
+        Excel/PDF çıktısı seçili firma ve filtrelere göre hazırlanır. <strong>Kaydı kalıcı sil</strong> işlemi seçili çalışanın bu firma kapsamındaki bağlı atama, ilerleme, sınav ve belge kayıtlarını siler.
         Yetki kuralı: OSGB yöneticisi kendi OSGB’sini, uzman ise yalnızca aktif görevlendirmesinin bulunduğu firmaları görür.
       </div>
     </section>
@@ -2348,7 +2438,13 @@ export function RemoteBasicOhsTrainingPanel({user}) {
       </a>
     </div>
     <RemoteTrainingGuide />
-    <RemoteCertificateHub />
+    <details id="remote-training-certificate-hub" style={{border: '1px solid #dbe5ef', borderRadius: 14, background: '#fff', padding: '0 16px', boxShadow: '0 3px 12px rgba(15, 35, 55, .05)'}}>
+      <summary style={{cursor: 'pointer', fontWeight: 800, color: '#123b59', padding: '15px 2px'}}>
+        Firma eğitim katılım ve belgelendirme raporu
+        <span style={{display: 'block', marginTop: 4, fontSize: 12, fontWeight: 500, color: '#5e7485'}}>Firma seçince başarılı/başarısız personeli görün, çıktı alın veya gerektiğinde kayıt silin.</span>
+      </summary>
+      <div style={{margin: '0 0 16px'}}><RemoteCertificateHub /></div>
+    </details>
     <div className="remote-training-flow" aria-label="Uzaktan eğitim yaşam döngüsü">
       <a className="remote-training-flow-item" href="#remote-training-catalog" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-catalog')}><span>1</span><div><strong>Video ekle</strong><small>Paketi seçin, videoları bölümlere yükleyin.</small></div></a>
       <a className="remote-training-flow-item" href="#remote-training-catalog" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-catalog')}><span>2</span><div><strong>Firma / işyeri seç</strong><small>Eğitim kutucuklarını işaretleyip hazırlayın.</small></div></a>

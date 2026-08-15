@@ -11,7 +11,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, desc, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -135,6 +135,10 @@ from app.services.remote_training import (
     validate_catalog_program_sector,
     validate_branch,
     validate_video_bytes,
+)
+from app.services.remote_training_reports import (
+    build_remote_training_status_pdf,
+    build_remote_training_status_xlsx,
 )
 
 router = APIRouter(prefix="/trainings/remote", tags=["Uzaktan Temel İSG Eğitimi"])
@@ -2956,6 +2960,72 @@ def assign_remote_program(
     }
 
 
+def _permanently_delete_assignments(
+    db: Session,
+    user: User,
+    request: Request,
+    assignment_ids: list[int],
+) -> list[int]:
+    """Delete one or more authorized employee training records atomically."""
+    normalized_ids = list(dict.fromkeys(int(value) for value in assignment_ids))
+    if not normalized_ids:
+        raise HTTPException(422, "Silinecek eğitim katılım kaydı seçilmedi.")
+    if len(normalized_ids) > 100:
+        raise HTTPException(422, "Tek işlemde en fazla 100 eğitim katılım kaydı silinebilir.")
+
+    rows = list(
+        db.scalars(
+            select(RemoteTrainingAssignment).where(
+                RemoteTrainingAssignment.id.in_(normalized_ids)
+            )
+        ).all()
+    )
+    if len(rows) != len(normalized_ids):
+        raise HTTPException(404, "Seçilen eğitim katılım kayıtlarından biri bulunamadı.")
+    rows_by_id = {row.id: row for row in rows}
+    rows = [rows_by_id[row_id] for row_id in normalized_ids]
+
+    company_ids = {row.company_id for row in rows}
+    if len(company_ids) != 1:
+        raise HTTPException(422, "Aynı işlemde yalnızca aynı firmaya ait kayıtlar silinebilir.")
+    for row in rows:
+        _assert_assignment_document_manager(db, user, row)
+
+    ip = request.client.host if request.client else None
+    for row in rows:
+        audit(
+            db,
+            company_id=row.company_id,
+            user=user,
+            action="program_assignment_deleted",
+            entity_type="assignment",
+            entity_id=row.id,
+            details={
+                "program_id": row.program_id,
+                "employee_id": row.employee_id,
+                "previous_status": row.status,
+                "permanent": True,
+                "source": "certificate_hub",
+                "ip": ip,
+            },
+        )
+        # These rows carry the employee-specific learning history. Delete them
+        # explicitly instead of relying only on database-level ON DELETE
+        # CASCADE so PostgreSQL and local test databases behave identically.
+        for model in (
+            RemoteTrainingAssignmentSector,
+            RemoteTrainingVideoProgress,
+            RemoteTrainingEvent,
+            RemoteTrainingCheckpointAnswer,
+            RemoteTrainingExamAttempt,
+            RemoteTrainingCertificate,
+        ):
+            db.execute(delete(model).where(model.assignment_id == row.id))
+        db.delete(row)
+    _commit(db, "Çalışan eğitim ataması kalıcı olarak silinemedi; işlem geri alındı.")
+    return normalized_ids
+
+
 @router.delete("/programs/{program_id}/assignments/{assignment_id}")
 def delete_remote_assignment(
     program_id: int,
@@ -2969,42 +3039,37 @@ def delete_remote_assignment(
     assignment = load_assignment(db, assignment_id)
     if assignment.program_id != program.id or assignment.company_id != program.company_id:
         raise HTTPException(404, "Atama bu eğitim kaydına ait değil.")
-
-    previous_status = assignment.status
-    audit(
-        db,
-        company_id=program.company_id,
-        user=user,
-        action="program_assignment_deleted",
-        entity_type="assignment",
-        entity_id=assignment.id,
-        details={
-            "program_id": program.id,
-            "employee_id": assignment.employee_id,
-            "previous_status": previous_status,
-            "permanent": True,
-            "ip": request.client.host if request.client else None,
-        },
-    )
-    # These rows carry the employee-specific learning history.  Delete them
-    # explicitly instead of relying only on database-level ON DELETE CASCADE;
-    # this keeps the behavior identical on PostgreSQL and local test databases.
-    for model in (
-        RemoteTrainingAssignmentSector,
-        RemoteTrainingVideoProgress,
-        RemoteTrainingEvent,
-        RemoteTrainingCheckpointAnswer,
-        RemoteTrainingExamAttempt,
-        RemoteTrainingCertificate,
-    ):
-        db.execute(delete(model).where(model.assignment_id == assignment.id))
-    db.delete(assignment)
-    _commit(db, "Çalışan eğitim ataması kalıcı olarak silinemedi; işlem geri alındı.")
+    deleted_ids = _permanently_delete_assignments(db, user, request, [assignment.id])
     return {
         "ok": True,
         "deleted": True,
-        "assignment_id": assignment.id,
+        "assignment_id": deleted_ids[0],
         "message": "Eğitim ataması ve bu atamaya bağlı ilerleme, sınav ve belge kayıtları kalıcı olarak silindi.",
+    }
+
+
+@router.delete("/certificates/records")
+def delete_remote_certificate_records(
+    request: Request,
+    assignment_ids: list[int] = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Delete the selected company-scoped participation records permanently."""
+    require_feature()
+    _manager(user)
+    deleted_ids = _permanently_delete_assignments(
+        db,
+        user,
+        request,
+        assignment_ids,
+    )
+    return {
+        "ok": True,
+        "deleted": True,
+        "assignment_ids": deleted_ids,
+        "deleted_count": len(deleted_ids),
+        "message": f"{len(deleted_ids)} eğitim katılım kaydı ve bağlı ilerleme, sınav ve belge kayıtları kalıcı olarak silindi.",
     }
 
 
@@ -3853,6 +3918,7 @@ def list_remote_certificate_records(
     """
     require_feature()
     _manager(user)
+    requested_status = str(status or "").strip().lower()
     company_ids = _company_ids(db, user, company_id)
     if company_ids is not None and not company_ids:
         return []
@@ -3875,8 +3941,11 @@ def list_remote_certificate_records(
         stmt = stmt.where(RemoteTrainingAssignment.company_id.in_(company_ids))
     if branch_id is not None:
         stmt = stmt.where(RemoteTrainingAssignment.branch_id == branch_id)
-    if status and status != "all":
-        stmt = stmt.where(RemoteTrainingAssignment.status == status)
+    # "failed" is a report status: an assignment can still be retryable while
+    # its latest final-exam attempt failed. It is therefore applied after the
+    # latest attempt is read below rather than only against assignment.status.
+    if requested_status and requested_status not in {"all", "completed", "failed"}:
+        stmt = stmt.where(RemoteTrainingAssignment.status == requested_status)
     if q and q.strip():
         pattern = f"%{q.strip()}%"
         stmt = stmt.where(
@@ -3905,6 +3974,19 @@ def list_remote_certificate_records(
     for assignment, program, company, branch in rows:
         item = _assignment_output(db, assignment)
         certificate = certificates.get(assignment.id)
+        latest_exam = db.scalar(
+            select(RemoteTrainingExamAttempt)
+            .where(RemoteTrainingExamAttempt.assignment_id == assignment.id)
+            .order_by(desc(RemoteTrainingExamAttempt.id))
+            .limit(1)
+        )
+        report_status = assignment.status
+        if (
+            latest_exam
+            and latest_exam.passed is False
+            and assignment.status not in {"completed", "revoked"}
+        ):
+            report_status = "failed"
         snapshot_ready = all(
             (
                 assignment.employee_name_snapshot,
@@ -3928,11 +4010,15 @@ def list_remote_certificate_records(
                 "program_status": program.status,
                 "source_catalog_code": program.source_catalog_code,
                 "source_catalog_revision_no": program.source_catalog_revision_no,
+                "report_status": report_status,
+                "latest_exam_passed": latest_exam.passed if latest_exam else None,
                 "certificate_ready": certificate_ready,
                 "certificate_number": certificate.certificate_number if certificate else None,
                 "certificate_issue_date": _iso(certificate.issue_date) if certificate else None,
                 "examination_score": (
-                    certificate.examination_score if certificate else None
+                    certificate.examination_score
+                    if certificate
+                    else latest_exam.score if latest_exam else item["summary"].get("exam_score")
                 ),
                 "certificate_block_reason": (
                     None
@@ -3949,8 +4035,100 @@ def list_remote_certificate_records(
                 ),
             }
         )
+        if requested_status and requested_status != "all" and report_status != requested_status:
+            continue
         result.append(item)
     return result
+
+
+def _certificate_export_scope(
+    db: Session,
+    user: User,
+    company_id: int | None,
+    branch_id: int | None,
+) -> tuple[Company, Branch | None]:
+    require_feature()
+    _manager(user)
+    if company_id is None:
+        raise HTTPException(422, "Çıktı almak için önce firma seçmelisiniz.")
+    ensure_company_access(db, user, company_id)
+    company = db.get(Company, company_id)
+    if not company or not company.is_active:
+        raise HTTPException(404, "Firma bulunamadı veya pasif.")
+    branch = None
+    if branch_id is not None:
+        branch = db.get(Branch, branch_id)
+        if not branch or branch.company_id != company.id:
+            raise HTTPException(422, "Seçilen işyeri/şube bu firmaya ait değil.")
+    return company, branch
+
+
+@router.get("/certificates/export.xlsx")
+def export_remote_certificate_records_xlsx(
+    company_id: int | None = None,
+    branch_id: int | None = None,
+    status: str | None = Query(default="all", max_length=24),
+    q: str | None = Query(default=None, max_length=120),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Export one selected company's participation/status register to Excel."""
+    company, branch = _certificate_export_scope(db, user, company_id, branch_id)
+    rows = list_remote_certificate_records(
+        company_id=company.id,
+        branch_id=branch.id if branch else None,
+        status=status,
+        q=q,
+        db=db,
+        user=user,
+    )
+    data = build_remote_training_status_xlsx(
+        rows,
+        company_name=company.name,
+        branch_name=branch.name if branch else None,
+    )
+    stamp = datetime.utcnow().strftime("%Y%m%d-%H%M")
+    return StreamingResponse(
+        iter([data]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="egitim-katilim-raporu-{company.id}-{stamp}.xlsx"'
+        },
+    )
+
+
+@router.get("/certificates/export.pdf")
+def export_remote_certificate_records_pdf(
+    company_id: int | None = None,
+    branch_id: int | None = None,
+    status: str | None = Query(default="all", max_length=24),
+    q: str | None = Query(default=None, max_length=120),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Export one selected company's participation/status register to PDF."""
+    company, branch = _certificate_export_scope(db, user, company_id, branch_id)
+    rows = list_remote_certificate_records(
+        company_id=company.id,
+        branch_id=branch.id if branch else None,
+        status=status,
+        q=q,
+        db=db,
+        user=user,
+    )
+    data = build_remote_training_status_pdf(
+        rows,
+        company_name=company.name,
+        branch_name=branch.name if branch else None,
+    )
+    stamp = datetime.utcnow().strftime("%Y%m%d-%H%M")
+    return StreamingResponse(
+        iter([data]),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="egitim-katilim-raporu-{company.id}-{stamp}.pdf"'
+        },
+    )
 
 
 @router.get("/assignments/{assignment_id}/certificate")
