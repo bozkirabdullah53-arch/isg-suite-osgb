@@ -1112,7 +1112,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   );
 }
 
-function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onCompanyChange, onBranchChange, refreshToken = 0}) {
+function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onCompanyChange, onBranchChange, refreshToken = 0, canEditContent = false}) {
   const [companies, setCompanies] = useState([]);
   const [branches, setBranches] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -1622,7 +1622,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
         <div style={cardStyle}>
           {program ? (
             <>
-              <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{program.source_catalog_code ? `Atanan sektör: ${packageSectorLabel(program.source_catalog_code)} · ` : ''}{statusLabel(program.status)} · video %{program.completion_threshold_percent} · sınav %{program.passing_score}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button><button type="button" onClick={showReport} disabled={busy} title="Çalışanların durumunu ve belge PDF çıktısını açar">Belge / Rapor çıktıları</button></div></div>
+              <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{program.source_catalog_code ? `Atanan sektör: ${packageSectorLabel(program.source_catalog_code)} · ` : ''}{statusLabel(program.status)} · video %{program.completion_threshold_percent} · sınav %{program.passing_score}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>{canEditContent && <><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button></>}<button type="button" onClick={showReport} disabled={busy} title="Çalışanların durumunu ve belge PDF çıktısını açar">Belge / Rapor çıktıları</button></div></div>
               <div id="remote-training-certificate-output" style={{marginTop: 12, padding: '12px 14px', border: '1px solid #8cc6dc', borderRadius: 10, background: '#f6fcff'}} aria-label="Uzaktan eğitim belge çıktıları">
                 <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap'}}>
                   <div>
@@ -1633,7 +1633,8 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                 </div>
                 <div style={{marginTop: 8, fontSize: 12, color: '#795500'}}>Tamamlanmayan eğitimlerde belge üretilemez; çalışan başarıyla tamamladığında satırdaki indirme düğmesi aktif olur.</div>
               </div>
-              <div style={{marginTop: 14, padding: 16, border: '2px solid #2474a8', borderRadius: 12, background: '#f4fbff'}} aria-labelledby="remote-video-help-title">
+              {canEditContent && <>
+<div style={{marginTop: 14, padding: 16, border: '2px solid #2474a8', borderRadius: 12, background: '#f4fbff'}} aria-labelledby="remote-video-help-title">
                 <h4 id="remote-video-help-title" style={{margin: 0, color: '#123b59', fontSize: 17}}>Video yükleme ve silme — çok kolay</h4>
                 <ol style={{margin: '10px 0 8px', paddingLeft: 22, color: '#36556d', lineHeight: 1.65}}>
                   <li>Bölüm yoksa önce bölüm adını yazıp <strong>Bölüm ekle</strong> düğmesine bas.</li>
@@ -1794,7 +1795,8 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                 </div>
                 {(program.exam_question_links || []).length > 0 && <div style={{display: 'grid', gap: 6, marginTop: 8}}>{program.exam_question_links.map((link) => <div key={link.id} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', padding: '8px 10px', borderRadius: 7, background: '#f4f8fb', color: '#496174', fontSize: 12}}><span><strong>Soru #{link.question_id}</strong> · {sectorLabel(link.sector_code)} · sıra {link.position}</span><button type="button" onClick={() => unlinkExamQuestion(link)} disabled={busy || ['published', 'archived'].includes(program.status)}>Sınavdan çıkar</button></div>)}</div>}
               </div>}
-              <div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}>
+              </>}
+<div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}>
                 <strong>Çalışan giriş hesabı eşleştirme</strong>
                 <p style={{margin: '6px 0', color: '#5e7485', fontSize: 12}}>Eğitim ve sınav atayacağınız personel için aşağıdan doğrudan salt-okunur hesap oluşturabilirsiniz. Hesap oluşturulunca geçici parola yalnızca bir kez gösterilir; çalışan ilk girişte değiştirmeden eğitime başlayamaz.</p>
                 <div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}>
@@ -1921,6 +1923,8 @@ export function RemoteBasicOhsTrainingPanel({user}) {
   const [selectedBranchId, setSelectedBranchId] = useState('');
   const [programRefreshToken, setProgramRefreshToken] = useState(0);
   const canManage = MANAGE_ROLES.includes(user?.role);
+  const canEditContent = canEditRemoteContent(user);
+  const canEditSharedContent = user?.role === 'global_admin';
 
   useEffect(() => {
     api('/trainings/remote/meta').then(setMeta).catch((err) => setError(err.message || 'Uzaktan eğitim modülü yüklenemedi.'));
@@ -1954,10 +1958,10 @@ export function RemoteBasicOhsTrainingPanel({user}) {
       <a className="remote-training-flow-item" href="#remote-training-assignment-manager" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-assignment-manager')}><span>3</span><div><strong>Personel ata</strong><small>Giriş hesabını eşleyip programı atayın.</small></div></a>
       <a className="remote-training-flow-item" href="#remote-training-employee-preview" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-employee-preview')}><span>4</span><div><strong>Çalışan tamamlasın</strong><small>%100 video + sınavda en az %70.</small></div></a>
     </div>
-    {canManage && <div id="remote-training-catalog"><CatalogManagerPanel companyId={selectedCompanyId} branchId={selectedBranchId} onCompanyChange={(value) => { setSelectedCompanyId(value); setSelectedBranchId(''); }} onBranchChange={setSelectedBranchId} onPrepared={() => setProgramRefreshToken((value) => value + 1)} rollout={meta.strict_policy} /></div>}
+    {canManage && <div id="remote-training-catalog"><CatalogManagerPanel companyId={selectedCompanyId} branchId={selectedBranchId} onCompanyChange={(value) => { setSelectedCompanyId(value); setSelectedBranchId(''); }} onBranchChange={setSelectedBranchId} onPrepared={() => setProgramRefreshToken((value) => value + 1)} rollout={meta.strict_policy} canEditContent={canEditContent} canEditSharedContent={canEditSharedContent} /></div>}
     {canManage && <details open id="remote-training-assignment-manager">
       <summary style={{cursor: 'pointer', fontWeight: 800, color: '#123b59', padding: '8px 2px'}}>Firma eğitim atama ve çalışan takip yönetimi</summary>
-      <div style={{marginTop: 12}}><ManagerPanel user={user} initialCompanyId={selectedCompanyId} initialBranchId={selectedBranchId} onCompanyChange={(value) => { setSelectedCompanyId(value); setSelectedBranchId(''); }} onBranchChange={setSelectedBranchId} refreshToken={programRefreshToken} /></div>
+      <div style={{marginTop: 12}}><ManagerPanel user={user} initialCompanyId={selectedCompanyId} initialBranchId={selectedBranchId} onCompanyChange={(value) => { setSelectedCompanyId(value); setSelectedBranchId(''); }} onBranchChange={setSelectedBranchId} refreshToken={programRefreshToken} canEditContent={canEditContent} /></div>
     </details>}
     {canManage && <details className="remote-training-employee-preview" id="remote-training-employee-preview">
       <summary style={{cursor: 'pointer', fontWeight: 800, color: '#123b59', padding: '8px 2px'}}>Çalışan ekranı önizlemesi / kendi eğitimlerim</summary>
