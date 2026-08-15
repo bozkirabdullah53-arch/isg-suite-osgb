@@ -1191,6 +1191,46 @@ def ensure_certificate(db: Session, assignment: RemoteTrainingAssignment) -> Rem
     return certificate
 
 
+
+def remote_certificate_group_key(assignment: RemoteTrainingAssignment) -> tuple:
+    """Return the immutable scope used to combine remote certificates.
+
+    Common and sector packages assigned to the same employee are one document
+    only when their historical workplace/NACE snapshots are identical.
+    """
+    return (
+        assignment.osgb_id,
+        assignment.company_id,
+        assignment.employee_id,
+        assignment.branch_id,
+        assignment.workplace_name_snapshot or "",
+        assignment.sgk_registration_number_snapshot or "",
+        assignment.nace_code_snapshot or "",
+        assignment.nace_description_snapshot or "",
+        assignment.hazard_class_snapshot or "",
+    )
+
+
+def related_remote_certificate_assignments(
+    db: Session, assignment: RemoteTrainingAssignment
+) -> list[RemoteTrainingAssignment]:
+    """Find the same employee's remote packages for one certificate scope."""
+    candidates = db.scalars(
+        select(RemoteTrainingAssignment).where(
+            RemoteTrainingAssignment.company_id == assignment.company_id,
+            RemoteTrainingAssignment.employee_id == assignment.employee_id,
+        )
+    ).all()
+    key = remote_certificate_group_key(assignment)
+    return sorted(
+        [row for row in candidates if remote_certificate_group_key(row) == key],
+        key=lambda row: (
+            row.assigned_at.isoformat() if row.assigned_at else "",
+            row.id,
+        ),
+    )
+
+
 def build_certificate_pdf(db: Session, certificate: RemoteTrainingCertificate) -> bytes:
     """Render remote success through the existing face-to-face certificate template."""
     program = load_program(db, certificate.program_id)
@@ -1260,6 +1300,65 @@ def build_certificate_pdf(db: Session, certificate: RemoteTrainingCertificate) -
         training=training,
         employees={certificate.employee_id: employee},
     )
+
+
+
+def combined_remote_certificate_view(
+    certificates: list[RemoteTrainingCertificate],
+) -> SimpleNamespace:
+    """Build a document-only certificate view without altering stored records."""
+    if not certificates:
+        raise ValueError("Birleştirilecek uzaktan eğitim belgesi bulunamadı.")
+    primary = certificates[0]
+    titles: list[str] = []
+    scores: list[int] = []
+    dates: list[date] = []
+    duration_seconds = 0
+    for certificate in certificates:
+        title = str(certificate.training_name or "").strip()
+        if title and title not in titles:
+            titles.append(title)
+        duration_seconds += int(certificate.training_duration_seconds or 0)
+        if certificate.examination_score is not None:
+            scores.append(int(certificate.examination_score))
+        if certificate.training_date:
+            dates.append(certificate.training_date)
+
+    return SimpleNamespace(
+        id=primary.id,
+        company_id=primary.company_id,
+        program_id=primary.program_id,
+        assignment_id=primary.assignment_id,
+        employee_id=primary.employee_id,
+        employee_name_snapshot=primary.employee_name_snapshot,
+        company_name_snapshot=primary.company_name_snapshot,
+        workplace_name_snapshot=primary.workplace_name_snapshot,
+        sgk_registration_number_snapshot=primary.sgk_registration_number_snapshot,
+        nace_code_snapshot=primary.nace_code_snapshot,
+        nace_description_snapshot=primary.nace_description_snapshot,
+        hazard_class_snapshot=primary.hazard_class_snapshot,
+        training_name=" + ".join(titles) or primary.training_name,
+        training_type=primary.training_type,
+        training_duration_seconds=duration_seconds,
+        training_date=min(dates) if dates else primary.training_date,
+        instructor_name_snapshot=primary.instructor_name_snapshot,
+        instructor_qualification_snapshot=primary.instructor_qualification_snapshot,
+        workplace_physician_snapshot=primary.workplace_physician_snapshot,
+        employer_representative_snapshot=primary.employer_representative_snapshot,
+        examination_score=round(sum(scores) / len(scores)) if scores else primary.examination_score,
+        certificate_number=primary.certificate_number,
+        verification_code=primary.verification_code,
+        revision_no=primary.revision_no,
+        issue_date=primary.issue_date,
+        created_at=primary.created_at,
+    )
+
+
+def build_combined_certificate_pdf(
+    db: Session, certificates: list[RemoteTrainingCertificate]
+) -> bytes:
+    """Render one standard certificate for all packages in one remote scope."""
+    return build_certificate_pdf(db, combined_remote_certificate_view(certificates))
 
 
 def create_playback_token(
