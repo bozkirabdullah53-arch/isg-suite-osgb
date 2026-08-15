@@ -796,7 +796,10 @@ def _catalog_section_output(
     videos = list(
         db.scalars(
             select(RemoteTrainingCatalogVideo)
-            .where(RemoteTrainingCatalogVideo.section_id == section.id)
+            .where(
+                RemoteTrainingCatalogVideo.section_id == section.id,
+                RemoteTrainingCatalogVideo.is_current.is_(True),
+            )
             .order_by(RemoteTrainingCatalogVideo.order_index, RemoteTrainingCatalogVideo.id)
         ).all()
     )
@@ -826,7 +829,8 @@ def _catalog_package_output(
     videos = list(
         db.scalars(
             select(RemoteTrainingCatalogVideo).where(
-                RemoteTrainingCatalogVideo.package_id == package.id
+                RemoteTrainingCatalogVideo.package_id == package.id,
+                RemoteTrainingCatalogVideo.is_current.is_(True),
             )
         ).all()
     )
