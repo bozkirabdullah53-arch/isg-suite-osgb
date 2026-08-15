@@ -1291,6 +1291,9 @@ def build_certificate_pdf(db: Session, certificate: RemoteTrainingCertificate) -
         ),
         verification_code=certificate.verification_code,
         logo_path=None,
+        # Internal marker: use the same certificate renderer without treating
+        # this document-only projection as a face-to-face ORM training.
+        _remote_certificate_view=True,
         participants=[participant],
     )
     from app.services.training_pdfs import build_certificates_pdf
