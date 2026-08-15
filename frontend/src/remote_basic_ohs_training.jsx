@@ -907,10 +907,12 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
     setBusy(true); setError(''); setMessage('');
     try {
       const out = await api('/trainings/remote/catalog/packages/' + selectedPackage.id + '/fork', {method: 'POST'});
-      setSelectedId(String(out.id));
-      setSelectedPackage(out);
+      if (!out?.id) throw new Error('OSGB özel kopyası oluşturuldu ancak yeni paket seçilemedi.');
+      const forkedId = String(out.id);
+      setSelectedId(forkedId);
       await loadPackages();
-      setMessage('OSGB özel paketiniz oluşturuldu. Artık bu kopyaya bölüm ve video ekleyebilirsiniz; ortak hazır paket değişmedi.');
+      await loadPackage(forkedId);
+      setMessage('OSGB özel paketiniz oluşturuldu ve seçildi. Şimdi “Yeni ders bölümü oluştur” alanından bölüm ekleyebilirsiniz; ortak hazır paket değişmedi.');
     } catch (err) { setError(err.message || 'OSGB özel paket oluşturulamadı.'); }
     finally { setBusy(false); }
   }
@@ -1061,7 +1063,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
               <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}>
                 <div><h4 style={{margin: 0}}>{selectedPackage.title}</h4><div style={{fontSize: 12, color: '#5e7485', marginTop: 4}}>Sektör: {packageSectorLabel(selectedPackage.code)} · {statusLabel(selectedPackage.status)} · {selectedPackage.video_count || 0} video · {selectedPackage.section_count || 0} bölüm</div>{packageAutomaticExamReady(selectedPackage) ? <div className="remote-training-exam-auto-note">Otomatik final sınavı: <strong>{packageAutomaticExamCount(selectedPackage)} soru</strong> · geçme puanı <strong>%{selectedPackage.automatic_exam_passing_score || 70}</strong></div> : <div className="remote-training-exam-validation-warning">{selectedPackage.automatic_exam_warning || 'Otomatik final soru paketi hazır değil.'}</div>}{selectedPackage.status === 'published' && <div className={packageDistributionState(selectedPackage, rollout).allowed ? 'remote-training-package-ready' : 'remote-training-package-locked'}>{packageDistributionState(selectedPackage, rollout).label}</div>}</div>
                 <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
-                  {selectedPackage.is_shared && canEditContent && !canEditSharedContent && <button type="button" onClick={forkPackage} disabled={busy}>OSGB özel kopya oluştur</button>}
+                  {selectedPackage.is_shared && canEditContent && !canEditSharedContent && <button type="button" onClick={forkPackage} disabled={busy} aria-label="Bölüm eklemeye başla; OSGB özel kopyası oluştur" title="Ortak pakete dokunulmaz; yalnız sizin OSGB’nize özel kopya oluşturulur ve bölüm ekleme alanı açılır." style={{color: '#fff', background: busy ? '#7aa6a3' : '#0f766e', borderColor: '#0f766e', fontWeight: 800}}>{busy ? 'Özel kopya hazırlanıyor…' : 'Bölüm eklemeye başla'}</button>}
                   {directContentEdit && ['draft', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button>}
                   {directContentEdit && ['ready_for_review', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('publish')} disabled={busy}>Paketi yayımla</button>}
                   {directContentEdit && selectedPackage.status === 'published' && <button type="button" onClick={() => packageAction('unpublish')} disabled={busy}>Yayından kaldır</button>}
@@ -1070,7 +1072,11 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
                 </div>
               </div>
               <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#f2f9fc', color: '#36556d', fontSize: 12}}><strong>İş akışı:</strong> Bölüm → Video seç ve yükle → İşleme/inceleme → Video yayımla → Firma/işyeri seçip eğitim kutucuğunu işaretle. {packageAutomaticExamReady(selectedPackage) ? `Yayınlanan programa ${packageAutomaticExamCount(selectedPackage)} onaylı final sorusu ve %${selectedPackage.automatic_exam_passing_score || 70} geçme kuralı otomatik eklenir.` : 'Onaylı soru paketi hazır olmadığı için bu paket firma programına hazırlanamaz.'}</div>
-              {selectedPackage.is_shared && <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#fff8e8', color: '#795500', fontSize: 12}}><strong>Ortak hazır paket:</strong> Bu paket tüm aktif EİSA aboneliği olan OSGB’lerde aynıdır. Uzmanlar içeriği değiştiremez; OSGB yöneticisi kendi kopyasını oluşturup yalnız kendi OSGB’sinde düzenleyebilir.</div>}
+              {selectedPackage.is_shared && <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#fff8e8', color: '#795500', fontSize: 12}}>
+                {canEditContent && !canEditSharedContent
+                  ? <><strong>OSGB olarak bölüm eklemek için:</strong> Önce yukarıdaki <strong>“Bölüm eklemeye başla”</strong> düğmesine basın. Sistem yalnız sizin OSGB’nize ait özel bir kopya oluşturur; ardından bu alanda <strong>“Yeni ders bölümü oluştur”</strong> formu açılır. Ortak paket ve diğer OSGB’ler etkilenmez.</>
+                  : <><strong>Ortak hazır paket:</strong> Bu paket tüm aktif EİSA aboneliği olan OSGB’lerde aynıdır. Uzmanlar içeriği değiştiremez; OSGB yöneticisi kendi kopyasını oluşturup yalnız kendi OSGB’sinde düzenleyebilir.</>}
+              </div>}
               <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#effcfc', color: '#36556d', fontSize: 12}}><strong>Video yükleme:</strong> Her ders bölümünün altındaki tek <strong>Video seç ve yükle</strong> düğmesini kullanın. Yayımlanmış paketlere de yeni video/bölüm ekleyebilirsiniz; mevcut yayımlanmış videoyu değiştirmek için satırdaki <strong>Yeni sürüm yükle</strong> düğmesini kullanın.</div>
               {directContentEdit && <>
 {selectedPackage.status === 'archived'
