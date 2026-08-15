@@ -1898,8 +1898,12 @@ def test_remote_certificate_adapter_uses_shared_label_and_signatory_context(monk
 def test_remote_content_permission_separates_osgb_admin_and_expert():
     from fastapi import HTTPException
 
-    from app.api.remote_training import _assert_catalog_content_editor
+    from app.api.remote_training import (
+        _assert_catalog_content_editor,
+        _catalog_content_package_for_manager,
+    )
     from app.models.entities import OsgbOrganization, User, UserRole
+    from app.models.remote_training import RemoteTrainingCatalogPackage
     from app.services.remote_training import is_catalog_content_manager, is_manager
 
     engine = _db()
@@ -1924,13 +1928,36 @@ def test_remote_content_permission_separates_osgb_admin_and_expert():
             osgb_id=osgb.id,
             is_active=True,
         )
-        db.add_all([admin, expert])
+        global_admin = User(
+            email="global-admin@example.com",
+            full_name="Global Yönetici",
+            hashed_password="x",
+            role=UserRole.GLOBAL_ADMIN,
+            is_active=True,
+        )
+        db.add_all([admin, expert, global_admin])
         db.flush()
 
         assert is_manager(expert)
         assert not is_catalog_content_manager(expert)
         with pytest.raises(HTTPException) as error:
             _assert_catalog_content_editor(db, expert)
+        assert error.value.status_code == 403
+        assert not is_catalog_content_manager(global_admin)
+        with pytest.raises(HTTPException) as error:
+            _assert_catalog_content_editor(db, global_admin)
+        assert error.value.status_code == 403
+
+        package = RemoteTrainingCatalogPackage(
+            osgb_id=osgb.id,
+            code="osgb-only-package",
+            title="OSGB Özel Paket",
+            status="draft",
+        )
+        db.add(package)
+        db.flush()
+        with pytest.raises(HTTPException) as error:
+            _catalog_content_package_for_manager(db, global_admin, package.id)
         assert error.value.status_code == 403
 
         _assert_catalog_content_editor(db, admin)

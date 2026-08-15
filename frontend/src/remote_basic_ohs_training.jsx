@@ -3,7 +3,7 @@ import {api, API_URL, downloadFile, uploadFile} from './api';
 import './remote_basic_ohs_training.css';
 
 const MANAGE_ROLES = ['global_admin', 'company_admin', 'safety_specialist'];
-const CONTENT_EDIT_ROLES = ['global_admin', 'company_admin'];
+const CONTENT_EDIT_ROLES = ['company_admin'];
 const HISTORICAL_VIDEO_STATUSES = ['published', 'unpublished', 'archived'];
 const REMOTE_TRAINING_CANONICAL_TITLE = 'Basic Occupational Health and Safety Training';
 const REMOTE_TRAINING_DISPLAY_TITLE = 'Temel İş Sağlığı ve Güvenliği Eğitimi';
@@ -72,10 +72,13 @@ const cardStyle = {
 };
 
 export function canEditRemoteContent(user) {
-  // OSGB yöneticisi firma seçimiyle ilişkilendirilmiş olsa bile içerik
-  // yönetebilir; kapsamı backend ayrıca doğrular. Uzman yalnızca önizler.
+  // Yalnızca OSGB yöneticisi paket içeriği değiştirebilir. Firma/işyeri
+  // kapsamındaki company_admin hesapları atama ve izleme yapabilir; paket
+  // ekleme, düzenleme, yayımlama ve silme yetkisi yoktur. Backend aynı kuralı
+  // ayrıca uygular.
   return CONTENT_EDIT_ROLES.includes(user?.role)
-    && (user?.role === 'global_admin' || Boolean(user?.osgb_id || user?.company_id));
+    && Boolean(user?.osgb_id)
+    && !user?.company_id;
 }
 
 function statusLabel(value) {
@@ -2410,7 +2413,9 @@ export function RemoteBasicOhsTrainingPanel({user}) {
   const [programRefreshToken, setProgramRefreshToken] = useState(0);
   const canManage = MANAGE_ROLES.includes(user?.role);
   const canEditContent = canEditRemoteContent(user);
-  const canEditSharedContent = user?.role === 'global_admin';
+  // Ortak merkezi paketler de kullanıcı arayüzünden değiştirilemez. OSGB
+  // yöneticisi yalnız kendi OSGB özel kopyasını düzenler.
+  const canEditSharedContent = false;
 
   useEffect(() => {
     api('/trainings/remote/meta').then(setMeta).catch((err) => setError(err.message || 'Uzaktan eğitim modülü yüklenemedi.'));
