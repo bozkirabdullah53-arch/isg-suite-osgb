@@ -48,10 +48,10 @@ describe('employee training assignment overview', () => {
 
 
 describe('remote content editor access', () => {
-  it('allows OSGB administrators with a company scope to edit content', () => {
-    expect(canEditRemoteContent({role: 'company_admin', company_id: 42})).toBe(true);
+  it('allows only an OSGB administrator scope to edit content', () => {
+    expect(canEditRemoteContent({role: 'company_admin', company_id: 42})).toBe(false);
     expect(canEditRemoteContent({role: 'company_admin', osgb_id: 7})).toBe(true);
     expect(canEditRemoteContent({role: 'safety_specialist', osgb_id: 7})).toBe(false);
-    expect(canEditRemoteContent({role: 'global_admin'})).toBe(true);
+    expect(canEditRemoteContent({role: 'global_admin'})).toBe(false);
   });
 });
