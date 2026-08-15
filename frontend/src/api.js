@@ -320,7 +320,8 @@ export function reportClientError(payload = {}) {
 /** Geçici / MFA token ile çağrı (localStorage isg_token kullanmaz). */
 export async function apiWithBearer(bearerToken, path, options = {}) {
   const retries = options._retries ?? 4;
-  const { _retries, headers: optHeaders, ...fetchOpts } = options;
+  const { _retries, timeoutMs: optionTimeoutMs, headers: optHeaders, ...fetchOpts } = options;
+  const requestTimeoutMs = Number(optionTimeoutMs) > 0 ? Number(optionTimeoutMs) : 25_000;
   const method = (fetchOpts.method || "GET").toUpperCase();
   const headers = {
     ...(optHeaders || {}),
@@ -342,7 +343,7 @@ export async function apiWithBearer(bearerToken, path, options = {}) {
         headers,
         mode: "cors",
         credentials: fetchCredentials(path),
-        signal: fetchOpts.signal || requestSignal(),
+        signal: fetchOpts.signal || requestSignal(requestTimeoutMs),
       });
       if (!response.ok) {
         const err = new Error(await parseError(response));
@@ -381,7 +382,8 @@ export async function api(path, options = {}) {
   // API yakın zamanda uyandıysa gereksiz 4× retry yapma (sayfa “dakikalarca” bekler)
   const warm = Date.now() - _lastWakeOkAt < 60_000;
   const retries = options._retries ?? (warm ? 1 : 3);
-  const { _retries, _didRefresh, _didProactiveRefresh, headers: optHeaders, ...fetchOpts } = options;
+  const { _retries, _didRefresh, _didProactiveRefresh, timeoutMs: optionTimeoutMs, headers: optHeaders, ...fetchOpts } = options;
+  const requestTimeoutMs = Number(optionTimeoutMs) > 0 ? Number(optionTimeoutMs) : 25_000;
 
   // Access JWT süresi dolmak üzereyse önce refresh dene (bayrak yoksa da)
   if (!_didProactiveRefresh && !_didRefresh && accessTokenExpiresSoon() && localStorage.getItem("isg_token")) {
@@ -423,7 +425,7 @@ export async function api(path, options = {}) {
         headers,
         mode: "cors",
         credentials: fetchCredentials(path),
-        signal: fetchOpts.signal || requestSignal(),
+        signal: fetchOpts.signal || requestSignal(requestTimeoutMs),
       });
       if (!response.ok) {
         lastStatus = response.status;
