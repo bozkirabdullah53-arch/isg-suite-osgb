@@ -1124,11 +1124,29 @@ def ensure_certificate(db: Session, assignment: RemoteTrainingAssignment) -> Rem
             RemoteTrainingCertificate.assignment_id == assignment.id
         )
     )
-    if current:
-        return current
     program = load_program(db, assignment.program_id)
     company = db.get(Company, assignment.company_id)
     defaults = _remote_document_defaults(db, assignment.company_id)
+    if current:
+        # Migration öncesi üretilmiş belgelerde yeni imza alanları boş olabilir.
+        # Tarihsel çalışan/işyeri snapshot'ını değiştirmeden, belge ilk kez
+        # tekrar açıldığında mevcut sertifikanın imza bağlamını kalıcılaştır.
+        signatory_snapshots = {
+            "instructor_qualification_snapshot": (
+                program.instructor_qualification
+                or defaults.get("instructor_qualification")
+            ),
+            "workplace_physician_snapshot": defaults.get("workplace_physician"),
+            "employer_representative_snapshot": defaults.get("employer_representative"),
+        }
+        changed = False
+        for field_name, value in signatory_snapshots.items():
+            if getattr(current, field_name, None) is None and value:
+                setattr(current, field_name, value)
+                changed = True
+        if changed:
+            db.flush()
+        return current
     score = db.scalar(
         select(RemoteTrainingExamAttempt.score)
         .where(
