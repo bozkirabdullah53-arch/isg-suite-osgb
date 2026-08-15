@@ -36,6 +36,7 @@ from app.services.training_completion import install_training_completion_guard
 from app.services.training_presentation_phase8 import install_training_presentation_phase8
 from app.services.training_presentation_phase8_generation_guard import install_phase8_generation_guard
 from app.services.remote_training_custom_packages import install_remote_training_custom_packages
+from app.services.remote_training_package_management import install_remote_training_package_management
 
 logger = logging.getLogger(__name__)
 _training_runtime_status = install_training_runtime_patches()
@@ -50,6 +51,7 @@ _training_completion_status = install_training_completion_guard()
 _training_presentation_phase8_status = install_training_presentation_phase8()
 _training_presentation_phase8_generation_status = install_phase8_generation_guard()
 _remote_training_custom_packages_status = install_remote_training_custom_packages()
+_remote_training_package_management_status = install_remote_training_package_management()
 logger.info("training runtime patches: %s", _training_runtime_status)
 logger.info("training document consistency: %s", _training_document_consistency_status)
 logger.info("training premium lifecycle v2: %s", _training_lifecycle_v2_status)
@@ -62,6 +64,7 @@ logger.info("training completion guard: %s", _training_completion_status)
 logger.info("training presentation phase 8: %s", _training_presentation_phase8_status)
 logger.info("training presentation phase 8 generation guard: %s", _training_presentation_phase8_generation_status)
 logger.info("remote training custom packages: %s", _remote_training_custom_packages_status)
+logger.info("remote training package management: %s", _remote_training_package_management_status)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
