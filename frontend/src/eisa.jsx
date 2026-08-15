@@ -1548,8 +1548,10 @@ export function EisaArchivesPage() {
 
   return (
     <Page title="Merkezi Arşiv" action={<RefreshButton busy={busy} onClick={load} />}>
-      <p style={{ marginTop: 0, color: '#64748b', maxWidth: 720 }}>
-        Tüm kurum yedekleri ve silinen dosya kopyaları burada tutulur. Kullanıcı silse bile tarihli arşiv EİSA elinde kalır.
+      <p style={{ marginTop: 0, color: '#64748b', maxWidth: 820 }}>
+        Bu ekran eğitim belgeleri için değil; kurum yedekleri ve silinen dosya kopyaları içindir.
+        Uzaktan eğitim PDF belgeleri <strong>Eğitimler → Uzaktan Eğitim / Belgeler</strong> bölümünden alınır.
+        Aşağıdaki her kayıt, ait olduğu OSGB veya firmayı açıkça gösterir.
       </p>
       <Msg text={msg} />
       <div className="actions" style={{ marginBottom: 12 }}>
@@ -1567,8 +1569,7 @@ export function EisaArchivesPage() {
             <tr>
               <th>Tarih</th>
               <th>Tür</th>
-              <th>OSGB</th>
-              <th>Firma</th>
+              <th>Arşiv kapsamı</th>
               <th>Dosya</th>
               <th>Boyut</th>
               <th>Not</th>
@@ -1580,8 +1581,16 @@ export function EisaArchivesPage() {
               <tr key={r.id}>
                 <td>{new Date(r.created_at).toLocaleString('tr-TR')}</td>
                 <td>{r.kind === 'tenant_backup' ? 'Yedek' : 'Silinen dosya'}</td>
-                <td>{r.osgb_id || '—'}</td>
-                <td>{r.company_id || '—'}</td>
+                <td>
+                  <strong>{r.company_name || r.osgb_name || 'Merkezi kayıt'}</strong>
+                  <small style={{display: 'block', color: '#64748b'}}>
+                    {r.company_name
+                      ? 'OSGB: ' + (r.osgb_name || '—') + ' · Firma yedeği'
+                      : r.osgb_name
+                        ? 'OSGB geneli · tüm firmalar'
+                        : 'Kapsam bilgisi yok'}
+                  </small>
+                </td>
                 <td>{r.original_name || '—'}</td>
                 <td>{Math.max(1, Math.round((r.size_bytes || 0) / 1024))} KB</td>
                 <td>{r.notes || '—'}</td>
@@ -1623,7 +1632,7 @@ export function EisaArchivesPage() {
                 </td>
               </tr>
             )) : (
-              <tr><td colSpan={8} className="empty">Arşiv kaydı yok.</td></tr>
+              <tr><td colSpan={7} className="empty">Arşiv kaydı yok.</td></tr>
             )}
           </tbody>
         </table>

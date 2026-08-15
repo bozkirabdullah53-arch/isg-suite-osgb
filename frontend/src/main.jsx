@@ -1434,8 +1434,16 @@ function SecurityPage({user}){
   const archCols=[
     {key:'created_at',label:'Tarih',render:r=>new Date(r.created_at).toLocaleString('tr-TR')},
     {key:'kind',label:'Tür',render:r=>r.kind==='tenant_backup'?'Kurum yedeği':'Silinen dosya arşivi'},
+    {key:'scope_label',label:'Arşiv kapsamı',render:r=>(
+      <div>
+        <strong>{r.company_name || r.osgb_name || 'Merkezi kayıt'}</strong>
+        <small style={{display:'block',color:'#64748b'}}>
+          {r.company_name ? 'Firma yedeği' : r.osgb_name ? 'OSGB geneli · tüm firmalar' : 'Kapsam bilgisi yok'}
+        </small>
+      </div>
+    )},
     {key:'original_name',label:'Dosya'},
-    {key:'size_bytes',label:'Boyut',render:r=>`${Math.max(1,Math.round((r.size_bytes||0)/1024))} KB`},
+    {key:'size_bytes',label:'Boyut',render:r=>Math.max(1,Math.round((r.size_bytes||0)/1024))+' KB'},
     {key:'notes',label:'Not'},
     {key:'dl',label:'',render:r=>(
       <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
@@ -1521,7 +1529,7 @@ function SecurityPage({user}){
         </ul>
       </section>
     </div>
-    {canBackup&&<section className="panel" style={{marginTop:16}}><div className="page-title" style={{marginBottom:12}}><h3 style={{margin:0,fontSize:18}}>Kurum Yedekleme</h3><button type="button" disabled={archBusy} onClick={createBackup}>{archBusy?'Yedekleniyor…':'Yedek Oluştur'}</button></div><p style={{marginTop:0,color:'#64748b'}}>Yedekler tarihli olarak merkezi arşive kaydedilir. <strong>İçeriği gör</strong> ile yedekte ne olduğunu yazmadan incelersiniz. Canlıya otomatik geri yükleme kapalıdır.</p>{archMsg&&<p style={{color:archMsg.includes('oluştur')||archMsg.includes('gösterildi')?'#166534':'#b91c1c'}}>{archMsg}</p>}<Table cols={archCols} rows={archives} empty="Henüz yedek yok."/></section>}
+    {canBackup&&<section className="panel" style={{marginTop:16}}><div className="page-title" style={{marginBottom:12}}><h3 style={{margin:0,fontSize:18}}>Kurum Yedekleme</h3><button type="button" disabled={archBusy} onClick={createBackup}>{archBusy?'Yedekleniyor…':'Yedek Oluştur'}</button></div><p style={{marginTop:0,color:'#64748b'}}>Bu alan kurum yedekleri içindir; uzaktan eğitim katılım PDF'leri burada aranmaz. Uzaktan eğitim belgeleri <strong>Eğitimler → Uzaktan Eğitim / Belgeler</strong> bölümünden, firma ve çalışan bilgisi kontrol edilerek alınır. Yedekler tarihli tutulur; canlıya otomatik geri yükleme kapalıdır.</p>{archMsg&&<p style={{color:archMsg.includes('oluştur')||archMsg.includes('gösterildi')?'#166534':'#b91c1c'}}>{archMsg}</p>}<Table cols={archCols} rows={archives} empty="Henüz yedek yok."/></section>}
     <LegalAcceptancesPanel/>
     <MembershipsPanel user={user}/>
     {canView&&<section className="panel"><h3>Denetim Kayıtları</h3><Table cols={cols} rows={logs}/></section>}

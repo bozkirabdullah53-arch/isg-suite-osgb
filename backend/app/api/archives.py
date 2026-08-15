@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
 from app.api.tenant_access import accessible_company_ids_for_admin
 from app.core.database import SessionLocal, get_db
-from app.models.entities import ArchiveKind, EisaArchiveRecord, User, UserRole
+from app.models.entities import ArchiveKind, Company, EisaArchiveRecord, OsgbOrganization, User, UserRole
 from app.services.archive_store import create_tenant_backup, resolve_archive_path
 from app.services.audit import add_audit_log
 from app.services.backup_restore import inspect_backup_file, restore_files_from_backup
@@ -23,6 +23,9 @@ class ArchiveResponse(BaseModel):
     kind: str
     osgb_id: int | None
     company_id: int | None
+    osgb_name: str | None = None
+    company_name: str | None = None
+    scope_label: str | None = None
     entity_type: str | None
     entity_id: str | None
     original_name: str | None
@@ -44,12 +47,35 @@ class RestoreRequest(BaseModel):
     confirm: str | None = None
 
 
-def _to_response(row: EisaArchiveRecord) -> ArchiveResponse:
+def _to_response(
+    row: EisaArchiveRecord,
+    *,
+    osgb_name: str | None = None,
+    company_name: str | None = None,
+) -> ArchiveResponse:
+    resolved_osgb_name = osgb_name or (
+        f"OSGB #{row.osgb_id}" if row.osgb_id is not None else None
+    )
+    resolved_company_name = company_name or (
+        f"Firma #{row.company_id}" if row.company_id is not None else None
+    )
+    scope_label = (
+        f"{resolved_company_name} · OSGB: {resolved_osgb_name or '—'}"
+        if resolved_company_name
+        else (
+            f"{resolved_osgb_name} · tüm firmalar"
+            if resolved_osgb_name
+            else "Merkezi kayıt"
+        )
+    )
     return ArchiveResponse(
         id=row.id,
         kind=row.kind.value if hasattr(row.kind, "value") else str(row.kind),
         osgb_id=row.osgb_id,
         company_id=row.company_id,
+        osgb_name=resolved_osgb_name,
+        company_name=resolved_company_name,
+        scope_label=scope_label,
         entity_type=row.entity_type,
         entity_id=row.entity_id,
         original_name=row.original_name,
@@ -103,7 +129,16 @@ def list_archives(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
-    stmt = select(EisaArchiveRecord).order_by(EisaArchiveRecord.created_at.desc()).limit(500)
+    stmt = (
+        select(EisaArchiveRecord, OsgbOrganization.name, Company.name)
+        .outerjoin(
+            OsgbOrganization,
+            OsgbOrganization.id == EisaArchiveRecord.osgb_id,
+        )
+        .outerjoin(Company, Company.id == EisaArchiveRecord.company_id)
+        .order_by(EisaArchiveRecord.created_at.desc())
+        .limit(500)
+    )
     if kind:
         try:
             stmt = stmt.where(EisaArchiveRecord.kind == ArchiveKind(kind))
@@ -117,7 +152,10 @@ def list_archives(
             if not company_ids:
                 return []
             stmt = stmt.where(EisaArchiveRecord.company_id.in_(company_ids))
-    return [_to_response(r) for r in db.scalars(stmt).all()]
+    return [
+        _to_response(row, osgb_name=osgb_name, company_name=company_name)
+        for row, osgb_name, company_name in db.execute(stmt).all()
+    ]
 
 
 def _run_tenant_backup_job(
@@ -194,7 +232,17 @@ def create_backup(
     row = db.get(EisaArchiveRecord, archive_id) if archive_id else None
     if not row:
         raise HTTPException(500, "Yedek kaydı okunamadı.")
-    return _to_response(row)
+    osgb_name = (
+        db.scalar(select(OsgbOrganization.name).where(OsgbOrganization.id == row.osgb_id))
+        if row.osgb_id is not None
+        else None
+    )
+    company_name = (
+        db.scalar(select(Company.name).where(Company.id == row.company_id))
+        if row.company_id is not None
+        else None
+    )
+    return _to_response(row, osgb_name=osgb_name, company_name=company_name)
 
 
 @router.get("/{archive_id}/download")
