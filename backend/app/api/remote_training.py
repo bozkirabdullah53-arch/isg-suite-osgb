@@ -31,6 +31,7 @@ from app.models.remote_training import (
     ASSET_TYPES,
     PROGRAM_STATUSES,
     REMOTE_SECTOR_CATALOG,
+    REMOTE_CERTIFICATE_TRAINING_TYPE,
     REMOTE_TRAINING_TYPE,
     VIDEO_STATUSES,
     RemoteTrainingAssignment,
@@ -782,7 +783,7 @@ def _catalog_package_output(
         "code": package.code,
         "title": package.title,
         "description": package.description,
-        "training_type": REMOTE_TRAINING_TYPE,
+        "training_type": REMOTE_CERTIFICATE_TRAINING_TYPE,
         "total_duration_seconds": package.total_duration_seconds,
         "requires_final_exam": bool(package.requires_final_exam),
         "completion_threshold_percent": package.completion_threshold_percent,
@@ -879,7 +880,7 @@ def remote_training_meta(
     _viewer(user)
     return {
         "enabled": feature_active(),
-        "training_type": REMOTE_TRAINING_TYPE,
+        "training_type": REMOTE_CERTIFICATE_TRAINING_TYPE,
         "sector_catalog": [
             {"code": code, "label": label, "description": description}
             for code, label, description in REMOTE_SECTOR_CATALOG
@@ -3476,7 +3477,7 @@ def get_remote_certificate(
         "nace_description": certificate.nace_description_snapshot,
         "hazard_class": certificate.hazard_class_snapshot,
         "training_name": certificate.training_name,
-        "training_type": REMOTE_TRAINING_TYPE,
+        "training_type": REMOTE_CERTIFICATE_TRAINING_TYPE,
         "training_duration_seconds": certificate.training_duration_seconds,
         "training_date": _iso(certificate.training_date),
         "instructor_name": certificate.instructor_name_snapshot,
@@ -3529,7 +3530,7 @@ def verify_remote_certificate(
         "company_name": certificate.company_name_snapshot,
         "workplace_name": certificate.workplace_name_snapshot,
         "training_name": certificate.training_name,
-        "training_type": REMOTE_TRAINING_TYPE,
+        "training_type": REMOTE_CERTIFICATE_TRAINING_TYPE,
         "training_date": _iso(certificate.training_date),
         "examination_score": certificate.examination_score,
         "nace_code": certificate.nace_code_snapshot,
