@@ -94,7 +94,9 @@ from app.services.remote_training import (
     automatic_exam_items_for_package,
     build_program_sector_catalog,
     build_certificate_pdf,
+    build_combined_certificate_pdf,
     company_snapshot,
+    related_remote_certificate_assignments,
     create_catalog_playback_token,
     create_playback_token,
     decode_catalog_playback_token,
@@ -3887,15 +3889,31 @@ def download_remote_certificate(
     require_feature()
     assignment = load_assignment(db, assignment_id)
     _assert_assignment_document_manager(db, user, assignment)
-    certificate = ensure_certificate(db, assignment)
-    if not certificate:
-        raise HTTPException(409, "Katılım belgesi üretimi için tamamlanma ve tarihsel kimlik snapshotları gereklidir.")
+
+    # One remote document covers all packages in the same company/employee/
+    # workplace/NACE scope. Existing direct links therefore receive the same
+    # combined output as the certificate hub.
+    grouped_assignments = related_remote_certificate_assignments(db, assignment)
+    for grouped_assignment in grouped_assignments:
+        _assert_assignment_document_manager(db, user, grouped_assignment)
+
+    certificates = []
+    for grouped_assignment in grouped_assignments:
+        certificate = ensure_certificate(db, grouped_assignment)
+        if not certificate:
+            raise HTTPException(
+                409,
+                "Aynı firma ve çalışan kapsamındaki tüm eğitimler tamamlanmadan tek PDF belge üretilemez.",
+            )
+        certificates.append(certificate)
+
     db.commit()
-    data = build_certificate_pdf(db, certificate)
+    data = build_combined_certificate_pdf(db, certificates)
+    primary = certificates[0]
     return StreamingResponse(
         iter([data]),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{certificate.certificate_number}.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="{primary.certificate_number}-tek-belge.pdf"'},
     )
 
 
