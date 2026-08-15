@@ -294,6 +294,7 @@ function EmployeePanel() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [videoLoading, setVideoLoading] = useState(false);
+  const [videoPlaying, setVideoPlaying] = useState(false);
   const lastSentAt = useRef(0);
   const playbackPrefetches = useRef(new Map());
   const playbackRequestVersion = useRef(0);
@@ -368,6 +369,21 @@ function EmployeePanel() {
     });
   }
 
+  function continueVideo() {
+    const player = playerRef.current;
+    if (!player) return;
+    try {
+      const playback = player.play();
+      if (playback?.catch) {
+        playback.catch(() => {
+          setMessage('Tarayıcı otomatik oynatmayı engelledi. Videoyu devam ettirmek için düğmeye basın.');
+        });
+      }
+    } catch (_err) {
+      setMessage('Videoyu devam ettirmek için düğmeye basın.');
+    }
+  }
+
   async function loadAssignments() {
     setBusy(true);
     setError('');
@@ -407,6 +423,7 @@ function EmployeePanel() {
       setActiveVideo((current) => videos.find((video) => video.id === current?.id) || nextVideo);
       setPlaybackUrl('');
       setVideoLoading(false);
+      setVideoPlaying(false);
       setExam(null);
       setAnswers({});
       setCheckpointAnswers({});
@@ -469,6 +486,7 @@ function EmployeePanel() {
     }
     setActiveVideo(video);
     setPlaybackUrl('');
+    setVideoPlaying(false);
     setError('');
     setVideoLoading(true);
     const requestVersion = ++playbackRequestVersion.current;
@@ -761,11 +779,25 @@ function EmployeePanel() {
                     controlsList="nodownload noplaybackrate"
                     disablePictureInPicture
                     playsInline
+                    autoPlay
                     style={{width: '100%', maxHeight: 430, background: '#102b3d', borderRadius: 10}}
-                    onPlay={(event) => saveProgress('start', event.currentTarget)}
-                    onPause={(event) => saveProgress('pause', event.currentTarget)}
+                    onCanPlay={(event) => {
+                      const playback = event.currentTarget.play();
+                      if (playback?.catch) playback.catch(() => {});
+                    }}
+                    onPlay={(event) => {
+                      setVideoPlaying(true);
+                      saveProgress('start', event.currentTarget);
+                    }}
+                    onPause={(event) => {
+                      setVideoPlaying(false);
+                      saveProgress('pause', event.currentTarget);
+                    }}
                     onTimeUpdate={(event) => saveProgress('progress', event.currentTarget)}
-                    onEnded={(event) => saveProgress('ended', event.currentTarget)}
+                    onEnded={(event) => {
+                      setVideoPlaying(false);
+                      saveProgress('ended', event.currentTarget);
+                    }}
                     onRateChange={(event) => { if (event.currentTarget.playbackRate !== 1) event.currentTarget.playbackRate = 1; }}
                     onSeeking={(event) => {
                       if (strictSequence && currentProgress && Math.abs(event.currentTarget.currentTime - Number(currentProgress.last_position_seconds || 0)) > 3) {
@@ -789,6 +821,7 @@ function EmployeePanel() {
                     }}
                   />
                   <div style={{fontSize: 12, color: '#5e7485', marginTop: 8}}>Kaldığınız yer: {Math.round(currentProgress?.last_position_seconds || 0)} sn · Eşik: {completionThresholdPercent}%</div>
+                {!videoPlaying && <button type="button" onClick={continueVideo} style={{marginTop: 8}}>Videoyu devam ettir</button>}
                 </>
               ) : <div style={{minHeight: 180, display: 'grid', placeItems: 'center', border: '1px dashed #b9cad8', borderRadius: 10, color: '#5e7485'}}>{videoLoading ? 'Video hazırlanıyor…' : 'İzlemek için bir video seçin.'}</div>}
             </div>
