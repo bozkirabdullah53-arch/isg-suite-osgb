@@ -39,6 +39,7 @@ from app.models.remote_training import (
     REMOTE_SECTOR_CODES,
     REMOTE_SECTOR_LABELS,
     REMOTE_CATALOG_PACKAGE_SECTOR_CODES,
+    REMOTE_CERTIFICATE_TRAINING_TYPE,
     REMOTE_TRAINING_TYPE,
     RemoteTrainingAssignment,
     RemoteTrainingAssignmentSector,
@@ -60,6 +61,7 @@ from app.models.remote_training import (
     RemoteTrainingVideoProgress,
     catalog_package_sector_code,
 )
+from app.services.assigned_team import training_defaults
 from app.services.job_queue import enqueue
 from app.services.object_store import get_object_store
 from app.services.training_nace_classification import resolve_exact_nace
@@ -1073,6 +1075,18 @@ def recalculate_assignment(db: Session, assignment: RemoteTrainingAssignment) ->
     }
 
 
+def _remote_document_defaults(db: Session, company_id: int) -> dict[str, Any]:
+    """Resolve current document signatories without changing training records.
+
+    Remote programs historically stored only the instructor name.  The shared
+    face-to-face certificate renderer also needs the qualification, workplace
+    physician and employer fields, so use the same assigned-team defaults used
+    by the existing training form.  These values are read-only at PDF time;
+    the immutable employee/workplace identity remains the assignment snapshot.
+    """
+    return (training_defaults(db, company_id) or {}).get("defaults") or {}
+
+
 def ensure_certificate(db: Session, assignment: RemoteTrainingAssignment) -> RemoteTrainingCertificate | None:
     # A certificate request may be the first operation after the last progress
     # event.  Recalculate here so completion cannot depend on a prior UI call.
@@ -1102,6 +1116,7 @@ def ensure_certificate(db: Session, assignment: RemoteTrainingAssignment) -> Rem
         return current
     program = load_program(db, assignment.program_id)
     company = db.get(Company, assignment.company_id)
+    defaults = _remote_document_defaults(db, assignment.company_id)
     score = db.scalar(
         select(RemoteTrainingExamAttempt.score)
         .where(
@@ -1125,10 +1140,12 @@ def ensure_certificate(db: Session, assignment: RemoteTrainingAssignment) -> Rem
         nace_description_snapshot=assignment.nace_description_snapshot,
         hazard_class_snapshot=assignment.hazard_class_snapshot,
         training_name=program.title,
+        # Keep the persisted legacy type for compatibility; the document
+        # adapter below deliberately presents the Turkish certificate label.
         training_type=REMOTE_TRAINING_TYPE,
         training_duration_seconds=program.total_duration_seconds,
         training_date=(assignment.completed_at.date() if assignment.completed_at else date.today()),
-        instructor_name_snapshot=program.instructor_name,
+        instructor_name_snapshot=program.instructor_name or defaults.get("instructor_name"),
         examination_score=int(score) if score is not None else None,
         certificate_number=f"ROHS-{date.today():%Y%m%d}-{assignment.id:08d}",
         verification_code=hashlib.sha256(seed.encode("utf-8")).hexdigest()[:32].upper(),
@@ -1139,7 +1156,10 @@ def ensure_certificate(db: Session, assignment: RemoteTrainingAssignment) -> Rem
 
 
 def build_certificate_pdf(db: Session, certificate: RemoteTrainingCertificate) -> bytes:
-    """Reuse the existing certificate renderer through a read-only adapter."""
+    """Render remote success through the existing face-to-face certificate template."""
+    program = load_program(db, certificate.program_id)
+    defaults = _remote_document_defaults(db, certificate.company_id)
+
     employee = SimpleNamespace(
         id=certificate.employee_id,
         full_name=certificate.employee_name_snapshot,
@@ -1151,26 +1171,40 @@ def build_certificate_pdf(db: Session, certificate: RemoteTrainingCertificate) -
         certificate_number=certificate.certificate_number,
     )
     duration_hours = max(1, (int(certificate.training_duration_seconds or 0) + 2699) // 2700)
+    instructor_name = (
+        certificate.instructor_name_snapshot
+        or program.instructor_name
+        or defaults.get("instructor_name")
+        or ""
+    )
+    instructor_qualification = (
+        program.instructor_qualification
+        or defaults.get("instructor_qualification")
+        or ""
+    )
     training = SimpleNamespace(
         id=certificate.program_id,
         title=certificate.training_name,
-        training_type=REMOTE_TRAINING_TYPE,
-        delivery_method="Uzaktan",
+        # This is document-only: the remote program's stored legacy type and
+        # all existing program APIs remain unchanged.
+        training_type=REMOTE_CERTIFICATE_TRAINING_TYPE,
+        delivery_method=REMOTE_CERTIFICATE_TRAINING_TYPE,
         start_date=certificate.training_date,
         end_date=certificate.training_date,
         duration_hours=duration_hours,
-        # Do not infer an official hazard class for historical evidence.  The
-        # existing renderer tolerates an empty display value; the certificate
-        # keeps the exact snapshot captured at assignment time.
+        evaluation_method="Final sınavı",
+        passing_score=program.passing_score,
+        location=certificate.workplace_name_snapshot or "Uzaktan eğitim",
+        # Keep the historical workplace identity captured at assignment time.
         hazard_class=certificate.hazard_class_snapshot or "",
         sector=certificate.nace_code_snapshot or "",
-        instructor_name=certificate.instructor_name_snapshot or "",
-        instructor_qualification="",
-        workplace_physician=None,
-        employer_representative=None,
+        instructor_name=instructor_name,
+        instructor_qualification=instructor_qualification,
+        workplace_physician=defaults.get("workplace_physician"),
+        employer_representative=defaults.get("employer_representative"),
         stamp_text=(
-            "Bu kayıt, Basic Occupational Health and Safety Training uzaktan eğitim "
-            "modülündeki video, sınav ve tamamlanma kayıtlarına dayanır."
+            "Bu belge, uzaktan eğitim video, video içi kontrol soruları ve "
+            "final sınavı tamamlanma kayıtlarına dayanır."
         ),
         verification_code=certificate.verification_code,
         logo_path=None,

@@ -1,7 +1,7 @@
 """Regression tests for the isolated Basic OHS remote-training layer."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -1800,3 +1800,89 @@ def test_employee_panel_returns_all_published_assignments_not_notifications(remo
     output = rows.json()
     assert {row["program"]["title"] for row in output} == {"Ortak Temel İSG", "Akü-Batarya"}
     assert {tuple(row["sector_codes"]) for row in output} == {("common",), ("battery",)}
+
+
+
+def test_remote_certificate_adapter_uses_shared_label_and_signatory_context(monkeypatch):
+    from app.models.remote_training import (
+        RemoteTrainingAssignment,
+        RemoteTrainingCertificate,
+        RemoteTrainingProgram,
+    )
+    from app.services.remote_training import build_certificate_pdf
+
+    captured = {}
+
+    def fake_build_certificates_pdf(**kwargs):
+        captured.update(kwargs)
+        return b"%PDF-test"
+
+    monkeypatch.setattr(
+        "app.services.training_pdfs.build_certificates_pdf",
+        fake_build_certificates_pdf,
+    )
+
+    engine = _db()
+    with Session(engine) as db:
+        _osgb, company, branch, employee, _user = _scope_rows(db)
+        company.authorized_person = "İşveren Test"
+        program = RemoteTrainingProgram(
+            company_id=company.id,
+            title="Yüksekte Çalışma İSG Paketi",
+            instructor_name="Uzman Test",
+            instructor_qualification="A Sınıfı İş Güvenliği Uzmanı",
+            total_duration_seconds=3600,
+            passing_score=70,
+        )
+        db.add(program)
+        db.flush()
+        assignment = RemoteTrainingAssignment(
+            company_id=company.id,
+            branch_id=branch.id,
+            program_id=program.id,
+            employee_id=employee.id,
+            employee_name_snapshot=employee.full_name,
+            workplace_name_snapshot="Merkez İşyeri",
+            sgk_registration_number_snapshot="SGK-BRANCH-1",
+            nace_code_snapshot="46.83.06",
+            nace_description_snapshot="Faaliyet alanı",
+            hazard_class_snapshot="Tehlikeli",
+            status="completed",
+            completed_at=datetime.utcnow(),
+        )
+        db.add(assignment)
+        db.flush()
+        certificate = RemoteTrainingCertificate(
+            company_id=company.id,
+            program_id=program.id,
+            assignment_id=assignment.id,
+            employee_id=employee.id,
+            employee_name_snapshot=employee.full_name,
+            company_name_snapshot=company.name,
+            workplace_name_snapshot=assignment.workplace_name_snapshot,
+            sgk_registration_number_snapshot=assignment.sgk_registration_number_snapshot,
+            nace_code_snapshot=assignment.nace_code_snapshot,
+            nace_description_snapshot=assignment.nace_description_snapshot,
+            hazard_class_snapshot=assignment.hazard_class_snapshot,
+            training_name=program.title,
+            training_type="Basic Occupational Health and Safety Training",
+            training_duration_seconds=program.total_duration_seconds,
+            training_date=date.today(),
+            instructor_name_snapshot=program.instructor_name,
+            examination_score=80,
+            certificate_number="ROHS-TEST-0001",
+            verification_code="REMOTE-TEST-CERTIFICATE",
+        )
+        db.add(certificate)
+        db.flush()
+
+        assert build_certificate_pdf(db, certificate) == b"%PDF-test"
+
+    training = captured["training"]
+    assert captured["company_name"] == "Remote Test Firma"
+    assert training.training_type == "Uzaktan Eğitim"
+    assert training.delivery_method == "Uzaktan Eğitim"
+    assert training.instructor_name == "Uzman Test"
+    assert training.instructor_qualification == "A Sınıfı İş Güvenliği Uzmanı"
+    assert training.employer_representative == "İşveren Test"
+    assert training.passing_score == 70
