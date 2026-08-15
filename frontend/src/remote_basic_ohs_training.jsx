@@ -1866,6 +1866,80 @@ function scrollRemoteTrainingSection(event, sectionId) {
   target.scrollIntoView({behavior: 'smooth', block: 'start'});
 }
 
+function remoteCertificateGroupKey(row) {
+  return JSON.stringify([
+    row.company_id,
+    row.employee_id,
+    row.branch_id || '',
+    row.workplace_name_snapshot || '',
+    row.sgk_registration_number_snapshot || '',
+    row.nace_code_snapshot || '',
+    row.nace_description_snapshot || '',
+    row.hazard_class_snapshot || '',
+  ]);
+}
+
+function combineRemoteCertificateRows(rows) {
+  const groups = new Map();
+  (rows || []).forEach((row) => {
+    const key = remoteCertificateGroupKey(row);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  });
+
+  const statusPriority = ['failed', 'expired', 'in_progress', 'not_started', 'completed'];
+  return [...groups.values()].map((items) => {
+    const first = items[0];
+    const titles = [];
+    items.forEach((item) => {
+      const title = String(item.program_title || '').trim();
+      if (title && !titles.includes(title)) titles.push(title);
+    });
+    const summaries = items.map((item) => item.summary || {});
+    const statuses = new Set(items.map((item) => item.status));
+    const status = statusPriority.find((value) => statuses.has(value)) || first.status;
+    const allCompleted = items.every((item) => item.status === 'completed');
+    const certificateReady = allCompleted && items.every((item) => item.certificate_ready);
+    const scores = items
+      .map((item) => Number(item.examination_score))
+      .filter((value) => Number.isFinite(value));
+    const averageScore = scores.length
+      ? Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length)
+      : null;
+    const summary = {
+      ...first.summary,
+      required_video_count: summaries.reduce((sum, item) => sum + Number(item.required_video_count || 0), 0),
+      completed_video_count: summaries.reduce((sum, item) => sum + Number(item.completed_video_count || 0), 0),
+      required_videos_complete: summaries.every((item) => item.required_videos_complete),
+      required_checkpoint_count: summaries.reduce((sum, item) => sum + Number(item.required_checkpoint_count || 0), 0),
+      required_checkpoints_complete: summaries.every((item) => item.required_checkpoints_complete),
+      exam_required: summaries.some((item) => item.exam_required),
+      exam_passed: summaries.every((item) => item.exam_passed),
+      complete: summaries.every((item) => item.complete),
+      status,
+      exam_score: averageScore,
+    };
+    return {
+      ...first,
+      assignment_ids: items.map((item) => item.id),
+      assignment_count: items.length,
+      program_count: titles.length || items.length,
+      program_titles: titles,
+      program_title: titles.join(' + ') || first.program_title,
+      status,
+      assigned_at: items.map((item) => item.assigned_at).filter(Boolean).sort()[0] || first.assigned_at,
+      completed_at: items.map((item) => item.completed_at).filter(Boolean).sort().slice(-1)[0] || null,
+      summary,
+      certificate_ready: certificateReady,
+      examination_score: averageScore,
+      certificate_block_reason: allCompleted
+        ? (certificateReady ? null : 'Belge için tarihsel işyeri ve NACE bilgileri eksik.')
+        : 'Tek PDF belge için bu çalışanın tüm eğitim paketleri tamamlanmalıdır.',
+    };
+  });
+}
+
+
 function RemoteCertificateHub() {
   const [companies, setCompanies] = useState([]);
   const [companyId, setCompanyId] = useState('');
@@ -1876,14 +1950,14 @@ function RemoteCertificateHub() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  async function load(search = query) {
+  async function load() {
     setBusy(true);
     setError('');
     try {
       const params = new URLSearchParams();
       if (companyId) params.set('company_id', companyId);
-      if (status && status !== 'all') params.set('status', status);
-      if (search.trim()) params.set('q', search.trim());
+      // Status and search are applied after grouping so one employee never
+      // appears as two partial certificate rows.
       const [companyRows, documentRows] = await Promise.all([
         api('/companies'),
         api('/trainings/remote/certificates' + (params.toString() ? '?' + params.toString() : '')),
@@ -1898,7 +1972,7 @@ function RemoteCertificateHub() {
   }
 
   useEffect(() => {
-    load('').catch(() => {});
+    load().catch(() => {});
     // Firma ve durum filtresi değişince listeyi yenile; arama metni için Ara düğmesi kullanılır.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId, status]);
@@ -1913,7 +1987,7 @@ function RemoteCertificateHub() {
         '/trainings/remote/assignments/' + row.id + '/certificate.pdf',
         'uzaktan-egitim-belgesi-' + row.id + '.pdf',
       );
-      setMessage((row.employee_name || 'Çalışan') + ' için belge PDF’i indirildi.');
+      setMessage((row.employee_name || 'Çalışan') + ' için ' + (row.program_count || 1) + ' eğitimi içeren tek PDF belge indirildi.');
     } catch (err) {
       setError(err.message || 'Belge PDF’i alınamadı.');
     } finally {
@@ -1921,8 +1995,25 @@ function RemoteCertificateHub() {
     }
   }
 
-  const completedCount = rows.filter((row) => row.status === 'completed').length;
-  const readyCount = rows.filter((row) => row.certificate_ready).length;
+  const groupedRows = useMemo(() => combineRemoteCertificateRows(rows), [rows]);
+  const visibleRows = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase('tr-TR');
+    return groupedRows.filter((row) => {
+      const statusMatches = !status || status === 'all' || row.status === status;
+      const searchMatches = !needle || [
+        row.company_name,
+        row.employee_name,
+        row.program_title,
+        row.branch_name,
+      ].some((value) => String(value || '').toLocaleLowerCase('tr-TR').includes(needle));
+      return statusMatches && searchMatches;
+    });
+  }, [groupedRows, query, status]);
+  const completedCount = visibleRows.reduce(
+    (total, row) => total + (row.status === 'completed' ? (row.assignment_count || 1) : 0),
+    0,
+  );
+  const readyCount = visibleRows.filter((row) => row.certificate_ready).length;
 
   return (
     <section id="remote-training-certificate-hub" style={cardStyle} aria-label="Uzaktan eğitim belgeleri merkezi">
@@ -1986,7 +2077,7 @@ function RemoteCertificateHub() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
+            {visibleRows.map((row) => (
               <tr key={row.id}>
                 <td>
                   <strong>{row.company_name}</strong>
@@ -1995,7 +2086,7 @@ function RemoteCertificateHub() {
                 <td>
                   <strong>{localizedTrainingTitle(row.program_title)}</strong>
                   <small style={{display: 'block', color: '#5e7485'}}>
-                    {row.source_catalog_revision_no ? 'Katalog sürümü ' + row.source_catalog_revision_no : 'Firma programı'}
+                    {row.program_count > 1 ? row.program_count + ' eğitim · tek PDF belge' : (row.source_catalog_revision_no ? 'Katalog sürümü ' + row.source_catalog_revision_no : 'Firma programı')}
                   </small>
                 </td>
                 <td>{row.employee_name}</td>
@@ -2017,7 +2108,7 @@ function RemoteCertificateHub() {
                 </td>
               </tr>
             ))}
-            {!rows.length && (
+            {!visibleRows.length && (
               <tr>
                 <td colSpan={6} style={{padding: 18, textAlign: 'center', color: '#5e7485'}}>
                   {busy ? 'Belgeler yükleniyor…' : 'Bu filtrelerle eşleşen uzaktan eğitim kaydı bulunamadı.'}
