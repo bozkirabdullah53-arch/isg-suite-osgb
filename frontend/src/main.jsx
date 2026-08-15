@@ -132,9 +132,9 @@ const roleModules={
     'annual_plans','documents',
     'security',
   ],
-  // Çalışan hesabı yalnızca kendisine atanmış uzaktan eğitim ve sınav ekranını görür.
-  // Bildirim, güvenlik, firma/personel ve yönetim modülleri çalışan ekranına açılmaz.
-  read_only:['training'],
+  // Çalışan hesabı yalnızca kendisine atanmış uzaktan eğitimi görür.
+  // İşyeri Durum Merkezi ve yönetim modülleri çalışan ekranına açılmaz.
+  read_only:['employee_training','notifications','security'],
 };
 
 /** Yalnız otomatik üretilen işyeri QR kiosk hesabı — diğer company_admin menüsü bozulmaz. */
@@ -159,7 +159,7 @@ const mobilePrimaryByRole={
   safety_specialist:['visits','dashboard','notifications','risk'],
   workplace_physician:['visits','health','prescriptions','employees'],
   other_health_personnel:['visits','health','employees','documents'],
-  read_only:['training'],
+  read_only:['employee_training','notifications','security'],
 };
 
 function mobilePrimaryMenu(menu, role, activeId){
@@ -222,6 +222,7 @@ const menuCatalog={
   belge_onay:['Belge Onay / İmza',FileText],
   eyas_inbox:['Onay Kutum (Hekim/İşveren)',FileText],
   training:['Eğitimler',GraduationCap],
+  employee_training:['Çalışan Eğitimleri',GraduationCap],
   health:['Sağlık',HeartPulse],
   prescriptions:['e-Reçete',Pill],
   documents:['Dokümanlar',FileText],
@@ -2021,7 +2022,6 @@ function App(){
     .filter((k)=>menuCatalog[k] && !(fieldRoles.includes(user.role) && (k==='reports' || k==='pro_performance')))
     .map((k)=>{
       const [label, Icon]=menuCatalog[k];
-      if(k==='training' && user.role==='read_only') return [k, 'Çalışan Eğitimleri', GraduationCap];
       if(k==='dashboard' && fieldRoles.includes(user.role)) return [k, 'Ana Sayfa', LayoutDashboard];
       return [k, label, Icon];
     });
@@ -2075,7 +2075,8 @@ function App(){
     eyas_inbox:<EyasDigitalApprovalPage user={user} mode="inbox"/>,
     // Çalışan hesabı eski genel eğitim/planlama sayfasını değil,
     // atanmış video + kontrol soruları + final sınavı panelini görür.
-    training:user.role==='read_only' ? <RemoteBasicOhsTrainingPanel user={user}/> : <TrainingPage user={user}/>,
+    training:<TrainingPage user={user}/>,
+    employee_training:<RemoteBasicOhsTrainingPanel user={user}/>,
     health:<HealthPage user={user}/>,
       prescriptions:<PrescriptionPage user={user}/>,
     documents:<DocumentsPage user={user}/>,
