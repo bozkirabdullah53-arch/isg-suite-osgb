@@ -153,8 +153,6 @@ def _manager(user: User) -> None:
 def _assert_catalog_content_editor(db: Session, user: User) -> None:
     """Require the OSGB administrator for curriculum/package changes."""
     _manager(user)
-    if user.role == UserRole.GLOBAL_ADMIN:
-        return
     if (
         user.role not in CATALOG_CONTENT_ROLES
         or user.role != UserRole.COMPANY_ADMIN
@@ -731,8 +729,6 @@ def _catalog_content_package_for_manager(
 ) -> RemoteTrainingCatalogPackage:
     """Return an OSGB-owned package that may be changed."""
     package = _catalog_package_for_manager(db, user, package_id)
-    if user.role == UserRole.GLOBAL_ADMIN:
-        return package
     _assert_catalog_content_editor(db, user)
     scope = _catalog_scope(db, user)
     if package.osgb_id is None:
