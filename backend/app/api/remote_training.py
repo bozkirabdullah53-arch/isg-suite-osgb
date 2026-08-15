@@ -1030,6 +1030,148 @@ def get_catalog_package(
     return _catalog_package_output(db, package, detail=True)
 
 
+@router.post("/catalog/packages/{package_id}/fork", status_code=201)
+def fork_catalog_package(
+    package_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Create an OSGB-owned copy of a shared, published package.
+
+    Rows and video objects are copied into the tenant scope.  Existing
+    company programs reference their original package snapshot and are
+    untouched.
+    """
+    source = _catalog_package_for_manager(db, user, package_id)
+    _assert_catalog_content_editor(db, user)
+    scope = _catalog_scope(db, user)
+    if scope is None:
+        raise HTTPException(409, "Global yönetici ortak paket için özel OSGB kopyası oluşturamaz.")
+    if source.osgb_id is not None:
+        raise HTTPException(409, "Bu paket zaten OSGB özel sürümüdür.")
+    if source.status != "published":
+        raise HTTPException(409, "Yalnızca yayımlanmış hazır paket özel kopyalanabilir.")
+
+    existing = db.scalar(
+        select(RemoteTrainingCatalogPackage).where(
+            RemoteTrainingCatalogPackage.osgb_id == scope,
+            RemoteTrainingCatalogPackage.code == source.code,
+        )
+    )
+    if existing:
+        return _catalog_package_output(db, existing, detail=True)
+
+    package = RemoteTrainingCatalogPackage(
+        osgb_id=scope,
+        code=source.code,
+        title=source.title,
+        description=source.description,
+        training_type=source.training_type,
+        total_duration_seconds=source.total_duration_seconds,
+        requires_final_exam=bool(source.requires_final_exam),
+        completion_threshold_percent=source.completion_threshold_percent,
+        passing_score=source.passing_score,
+        attempt_limit=source.attempt_limit,
+        policy_mode=source.policy_mode,
+        sequence_enforced=bool(source.sequence_enforced),
+        exam_gate_enforced=bool(source.exam_gate_enforced),
+        status="unpublished",
+        revision_no=source.revision_no,
+        created_by_id=user.id,
+    )
+    db.add(package)
+    db.flush()
+
+    source_sections = list(
+        db.scalars(
+            select(RemoteTrainingCatalogSection).where(
+                RemoteTrainingCatalogSection.package_id == source.id,
+                RemoteTrainingCatalogSection.status == "active",
+            ).order_by(
+                RemoteTrainingCatalogSection.order_index,
+                RemoteTrainingCatalogSection.id,
+            )
+        ).all()
+    )
+    store = get_object_store()
+    copied_keys: list[str] = []
+    try:
+        for source_section in source_sections:
+            section = RemoteTrainingCatalogSection(
+                package_id=package.id,
+                code=source_section.code,
+                title=source_section.title,
+                description=source_section.description,
+                order_index=source_section.order_index,
+                is_required=bool(source_section.is_required),
+                status="active",
+                created_by_id=user.id,
+            )
+            db.add(section)
+            db.flush()
+            source_videos = list(
+                db.scalars(
+                    select(RemoteTrainingCatalogVideo).where(
+                        RemoteTrainingCatalogVideo.section_id == source_section.id,
+                        RemoteTrainingCatalogVideo.status == "published",
+                        RemoteTrainingCatalogVideo.is_current.is_(True),
+                    ).order_by(
+                        RemoteTrainingCatalogVideo.order_index,
+                        RemoteTrainingCatalogVideo.id,
+                    )
+                ).all()
+            )
+            for source_video in source_videos:
+                extension = Path(source_video.original_file_name or "video.mp4").suffix.lower() or ".mp4"
+                target_key = catalog_storage_key(
+                    package_id=package.id,
+                    prefix="video",
+                    extension=extension,
+                )
+                store.put_bytes(target_key, store.get_bytes(source_video.storage_key))
+                copied_keys.append(target_key)
+                db.add(
+                    RemoteTrainingCatalogVideo(
+                        package_id=package.id,
+                        section_id=section.id,
+                        revision_of_id=None,
+                        title=source_video.title,
+                        description=source_video.description,
+                        learning_objectives=source_video.learning_objectives,
+                        order_index=source_video.order_index,
+                        is_required=bool(source_video.is_required),
+                        revision_no=1,
+                        is_current=True,
+                        status="published",
+                        original_file_name=source_video.original_file_name,
+                        content_type=source_video.content_type,
+                        file_size_bytes=source_video.file_size_bytes,
+                        duration_seconds=source_video.duration_seconds,
+                        width=source_video.width,
+                        height=source_video.height,
+                        codec=source_video.codec,
+                        storage_key=target_key,
+                        processing_job_id=None,
+                        processing_error=None,
+                        published_at=source_video.published_at or datetime.utcnow(),
+                        created_by_id=user.id,
+                    )
+                )
+        recalculate_catalog_package_duration(db, package.id)
+        _commit(db, "OSGB özel eğitim paketi oluşturulamadı.")
+    except Exception as exc:
+        db.rollback()
+        for key in copied_keys:
+            try:
+                store.delete(key)
+            except Exception:
+                logger.exception("Özel paket kopyası temizlenemedi: %s", key)
+        if isinstance(exc, HTTPException):
+            raise
+        raise HTTPException(500, "OSGB özel eğitim paketi hazırlanırken içerik kopyalanamadı.") from exc
+    return _catalog_package_output(db, package, detail=True)
+
+
 @router.post("/catalog/packages/{package_id}/materialize", status_code=201)
 def materialize_catalog_package(
     package_id: int,
