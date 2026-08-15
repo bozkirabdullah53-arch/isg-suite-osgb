@@ -847,6 +847,14 @@ def test_strict_ended_progress_unlocks_the_next_video(remote_client, monkeypatch
     assert login.status_code == 200, login.text
     headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 
+    stale = remote_client.post(
+        f"/api/v1/trainings/remote/assignments/{assignment_id}/videos/{first_video_id}/progress",
+        headers=headers,
+        json={"position_seconds": 0, "event_type": "start"},
+    )
+    assert stale.status_code == 200, stale.text
+    assert stale.json()["accepted_position_seconds"] >= 103
+
     ended = remote_client.post(
         f"/api/v1/trainings/remote/assignments/{assignment_id}/videos/{first_video_id}/progress",
         headers=headers,

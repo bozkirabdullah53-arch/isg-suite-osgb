@@ -294,9 +294,95 @@ function EmployeePanel() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [videoLoading, setVideoLoading] = useState(false);
+  const [videoPlaying, setVideoPlaying] = useState(false);
   const lastSentAt = useRef(0);
   const playbackPrefetches = useRef(new Map());
   const playbackRequestVersion = useRef(0);
+  const progressQueue = useRef(Promise.resolve());
+  const playerRef = useRef(null);
+  const latestProgressRef = useRef(null);
+  const lastKeepaliveFlushRef = useRef(null);
+
+  function progressSnapshot(eventType, currentTarget) {
+    if (!assignment || !activeVideo || !currentTarget) return null;
+    const mediaPosition = Number(
+      eventType === 'ended' && Number.isFinite(Number(currentTarget.duration))
+        ? currentTarget.duration
+        : currentTarget.currentTime || 0,
+    );
+    const snapshot = {
+      assignmentId: Number(assignment.id),
+      videoId: Number(activeVideo.id),
+      positionSeconds: Number.isFinite(mediaPosition) ? Math.max(0, mediaPosition) : 0,
+      eventType,
+      deviceInfo: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 500) : '',
+    };
+    // Keep the most recent media position even when the five-second heartbeat
+    // throttle skips the API request. This is used by pagehide/unmount flushes.
+    latestProgressRef.current = snapshot;
+    return snapshot;
+  }
+
+  function sendProgressKeepalive(snapshot) {
+    if (!snapshot?.assignmentId || !snapshot?.videoId) return;
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('isg_token') : null;
+    const path = `/trainings/remote/assignments/${snapshot.assignmentId}/videos/${snapshot.videoId}/progress`;
+    try {
+      void fetch(`${API_URL}${path}`, {
+        method: 'POST',
+        headers: {
+          ...(token ? {Authorization: `Bearer ${token}`} : {}),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          position_seconds: snapshot.positionSeconds,
+          event_type: snapshot.eventType === 'ended' ? 'ended' : 'pause',
+          device_info: snapshot.deviceInfo,
+        }),
+        mode: 'cors',
+        credentials: 'include',
+        keepalive: true,
+      }).catch(() => {});
+    } catch (_err) {
+      // Page-exit persistence must never block navigation.
+    }
+  }
+
+  function flushProgressOnExit() {
+    const snapshot = latestProgressRef.current;
+    if (!snapshot) return;
+    const now = Date.now();
+    const previous = lastKeepaliveFlushRef.current;
+    if (
+      previous
+      && previous.assignmentId === snapshot.assignmentId
+      && previous.videoId === snapshot.videoId
+      && Math.abs(previous.positionSeconds - snapshot.positionSeconds) < 0.25
+      && now - previous.at < 1000
+    ) {
+      return;
+    }
+    lastKeepaliveFlushRef.current = {...snapshot, at: now};
+    sendProgressKeepalive({
+      ...snapshot,
+      eventType: snapshot.eventType === 'ended' ? 'ended' : 'pause',
+    });
+  }
+
+  function continueVideo() {
+    const player = playerRef.current;
+    if (!player) return;
+    try {
+      const playback = player.play();
+      if (playback?.catch) {
+        playback.catch(() => {
+          setMessage('Tarayıcı otomatik oynatmayı engelledi. Videoyu devam ettirmek için düğmeye basın.');
+        });
+      }
+    } catch (_err) {
+      setMessage('Videoyu devam ettirmek için düğmeye basın.');
+    }
+  }
 
   async function loadAssignments() {
     setBusy(true);
@@ -324,6 +410,7 @@ function EmployeePanel() {
 
   async function loadAssignment(id) {
     if (!id) return;
+    flushProgressOnExit();
     setBusy(true);
     setError('');
     playbackRequestVersion.current += 1;
@@ -336,6 +423,7 @@ function EmployeePanel() {
       setActiveVideo((current) => videos.find((video) => video.id === current?.id) || nextVideo);
       setPlaybackUrl('');
       setVideoLoading(false);
+      setVideoPlaying(false);
       setExam(null);
       setAnswers({});
       setCheckpointAnswers({});
@@ -354,6 +442,23 @@ function EmployeePanel() {
   useEffect(() => {
     if (selectedId) loadAssignment(selectedId);
   }, [selectedId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handlePageExit = () => flushProgressOnExit();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') handlePageExit();
+    };
+    window.addEventListener('pagehide', handlePageExit);
+    window.addEventListener('beforeunload', handlePageExit);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      handlePageExit();
+      window.removeEventListener('pagehide', handlePageExit);
+      window.removeEventListener('beforeunload', handlePageExit);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   function playbackUrlFor(video, assignmentId) {
     if (!video || !assignmentId) return Promise.reject(new Error('Video oynatma bilgisi eksik.'));
@@ -374,12 +479,14 @@ function EmployeePanel() {
 
   async function openVideo(video) {
     if (!assignment || !video) return;
+    flushProgressOnExit();
     if (!isVideoUnlocked(video)) {
       setError('Bu ders kilitli. Önce sıradaki önceki videoyu tamamlayın.');
       return;
     }
     setActiveVideo(video);
     setPlaybackUrl('');
+    setVideoPlaying(false);
     setError('');
     setVideoLoading(true);
     const requestVersion = ++playbackRequestVersion.current;
@@ -393,62 +500,72 @@ function EmployeePanel() {
     }
   }
 
-  async function saveProgress(eventType, currentTarget) {
-    if (!assignment || !activeVideo || !currentTarget) return;
+  function saveProgress(eventType, currentTarget) {
+    const snapshot = progressSnapshot(eventType, currentTarget);
+    if (!snapshot) return;
     const now = Date.now();
     if (eventType === 'progress' && now - lastSentAt.current < 5000) return;
     lastSentAt.current = now;
-    try {
-      const mediaPosition = Number(
-        eventType === 'ended' && Number.isFinite(Number(currentTarget.duration))
-          ? currentTarget.duration
-          : currentTarget.currentTime || 0,
-      );
-      const out = await api(
-        `/trainings/remote/assignments/${assignment.id}/videos/${activeVideo.id}/progress`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            position_seconds: mediaPosition,
-            event_type: eventType,
-            device_info: navigator.userAgent.slice(0, 500),
-          }),
-        },
-      );
-      if (strictSequence && typeof out.accepted_position_seconds === 'number' && Math.abs(Number(currentTarget.currentTime || 0) - out.accepted_position_seconds) > 1.5) {
-        currentTarget.currentTime = out.accepted_position_seconds;
-      }
-      setAssignment((current) => {
-        if (!current) return current;
-        const progress = [...(current.video_progress || [])];
-        const index = progress.findIndex((row) => row.video_id === activeVideo.id);
-        const nextProgress = {
-          ...(index >= 0 ? progress[index] : {}),
-          video_id: activeVideo.id,
-          status: out.status,
-          watched_percentage: out.watched_percentage,
-          last_position_seconds: out.accepted_position_seconds ?? out.position_seconds,
-        };
-        if (index >= 0) progress[index] = nextProgress;
-        else progress.push(nextProgress);
-        return {...current, summary: out.summary, video_progress: progress};
-      });
-      if (out.status === 'completed') setMessage('Video tamamlanması güvenli ilerleme kaydıyla işlendi.');
-      if (eventType === 'ended' && out.status === 'completed') {
-        const orderedVideos = programVideoRows(assignment.program);
-        const currentIndex = orderedVideos.findIndex((video) => video.id === activeVideo.id);
-        const nextVideo = currentIndex >= 0 ? orderedVideos[currentIndex + 1] : null;
-        if (nextVideo) {
-          void playbackUrlFor(nextVideo, assignment.id).catch(() => {});
-          setMessage('Video tamamlandı. Sonraki ders hazırlandı.');
+
+    const path = `/trainings/remote/assignments/${snapshot.assignmentId}/videos/${snapshot.videoId}/progress`;
+    progressQueue.current = progressQueue.current
+      .catch(() => {})
+      .then(async () => {
+        try {
+          const out = await api(path, {
+            method: 'POST',
+            body: JSON.stringify({
+              position_seconds: snapshot.positionSeconds,
+              event_type: snapshot.eventType,
+              device_info: snapshot.deviceInfo,
+            }),
+          });
+          if (
+            playerRef.current === currentTarget
+            && strictSequence
+            && typeof out.accepted_position_seconds === 'number'
+            && Math.abs(Number(currentTarget.currentTime || 0) - out.accepted_position_seconds) > 1.5
+          ) {
+            currentTarget.currentTime = out.accepted_position_seconds;
+          }
+          setAssignment((current) => {
+            if (!current || Number(current.id) !== snapshot.assignmentId) return current;
+            const progress = [...(current.video_progress || [])];
+            const index = progress.findIndex((row) => row.video_id === snapshot.videoId);
+            const nextProgress = {
+              ...(index >= 0 ? progress[index] : {}),
+              video_id: snapshot.videoId,
+              status: out.status,
+              watched_percentage: out.watched_percentage,
+              last_position_seconds: out.accepted_position_seconds ?? out.position_seconds,
+            };
+            if (index >= 0) progress[index] = nextProgress;
+            else progress.push(nextProgress);
+            return {...current, summary: out.summary, video_progress: progress};
+          });
+          if (out.status === 'completed') setMessage('Video tamamlanması güvenli ilerleme kaydıyla işlendi.');
+          if (snapshot.eventType === 'ended' && out.status === 'completed') {
+            const currentProgram = assignment?.id === snapshot.assignmentId ? assignment.program : null;
+            const orderedVideos = programVideoRows(currentProgram);
+            const currentIndex = orderedVideos.findIndex((video) => video.id === snapshot.videoId);
+            const nextVideo = currentIndex >= 0 ? orderedVideos[currentIndex + 1] : null;
+            if (nextVideo) {
+              void playbackUrlFor(nextVideo, snapshot.assignmentId).catch(() => {});
+              setMessage('Video tamamlandı. Sonraki ders hazırlandı.');
+            }
+          }
+          if (snapshot.eventType === 'ended' && out.status !== 'completed') {
+            setMessage('Video sonu kaydı alındı; son bölümün tamamı henüz doğrulanmadı.');
+          }
+          return out;
+        } catch (err) {
+          if (assignment?.id === snapshot.assignmentId) {
+            setError(err.message || 'Video ilerlemesi kaydedilemedi.');
+          }
+          throw err;
         }
-      }
-      if (eventType === 'ended' && out.status !== 'completed') {
-        setMessage('Video sonu kaydı alındı; son bölümün tamamı henüz doğrulanmadı.');
-      }
-    } catch (err) {
-      setError(err.message || 'Video ilerlemesi kaydedilemedi.');
-    }
+      });
+    return progressQueue.current;
   }
 
   async function loadExam() {
@@ -655,17 +772,32 @@ function EmployeePanel() {
               {activeVideo && playbackUrl ? (
                 <>
                   <video
+                    ref={playerRef}
                     key={playbackUrl}
                     src={playbackUrl}
                     controls
                     controlsList="nodownload noplaybackrate"
                     disablePictureInPicture
                     playsInline
+                    autoPlay
                     style={{width: '100%', maxHeight: 430, background: '#102b3d', borderRadius: 10}}
-                    onPlay={(event) => saveProgress('start', event.currentTarget)}
-                    onPause={(event) => saveProgress('pause', event.currentTarget)}
+                    onCanPlay={(event) => {
+                      const playback = event.currentTarget.play();
+                      if (playback?.catch) playback.catch(() => {});
+                    }}
+                    onPlay={(event) => {
+                      setVideoPlaying(true);
+                      saveProgress('start', event.currentTarget);
+                    }}
+                    onPause={(event) => {
+                      setVideoPlaying(false);
+                      saveProgress('pause', event.currentTarget);
+                    }}
                     onTimeUpdate={(event) => saveProgress('progress', event.currentTarget)}
-                    onEnded={(event) => saveProgress('ended', event.currentTarget)}
+                    onEnded={(event) => {
+                      setVideoPlaying(false);
+                      saveProgress('ended', event.currentTarget);
+                    }}
                     onRateChange={(event) => { if (event.currentTarget.playbackRate !== 1) event.currentTarget.playbackRate = 1; }}
                     onSeeking={(event) => {
                       if (strictSequence && currentProgress && Math.abs(event.currentTarget.currentTime - Number(currentProgress.last_position_seconds || 0)) > 3) {
@@ -689,6 +821,7 @@ function EmployeePanel() {
                     }}
                   />
                   <div style={{fontSize: 12, color: '#5e7485', marginTop: 8}}>Kaldığınız yer: {Math.round(currentProgress?.last_position_seconds || 0)} sn · Eşik: {completionThresholdPercent}%</div>
+                {!videoPlaying && <button type="button" onClick={continueVideo} style={{marginTop: 8}}>Videoyu devam ettir</button>}
                 </>
               ) : <div style={{minHeight: 180, display: 'grid', placeItems: 'center', border: '1px dashed #b9cad8', borderRadius: 10, color: '#5e7485'}}>{videoLoading ? 'Video hazırlanıyor…' : 'İzlemek için bir video seçin.'}</div>}
             </div>

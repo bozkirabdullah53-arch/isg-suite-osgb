@@ -3766,10 +3766,13 @@ def save_remote_progress(
         # create credit that the server did not observe.
         credit_cap = min(float(video.duration_seconds), max(0.0, elapsed_seconds))
         accepted_delta = min(forward_delta, credit_cap)
+        # Strict playback does not permit rewinding. Keeping the current
+        # position for a lower, stale heartbeat prevents an older in-flight
+        # request from rolling a valid resume point back to zero.
         accepted_position = (
             min(float(video.duration_seconds), current_position + accepted_delta)
             if position >= current_position
-            else position
+            else current_position
         )
         coverage, covered_seconds = _merge_coverage(
             _decode_coverage(existing.coverage_json),
