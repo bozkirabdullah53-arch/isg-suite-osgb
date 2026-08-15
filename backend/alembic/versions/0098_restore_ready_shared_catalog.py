@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = "0098_restore_ready_shared_catalog"
+revision: str = "0098_restore_shared_ready"
 down_revision: Union[str, None] = "0097_shared_remote_catalog"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
