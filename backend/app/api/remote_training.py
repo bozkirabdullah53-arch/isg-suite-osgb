@@ -1446,7 +1446,7 @@ def mark_catalog_package_ready_for_review(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    package = _catalog_package_for_manager(db, user, package_id)
+    package = _catalog_content_package_for_manager(db, user, package_id)
     if package.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış veya arşivlenmiş paket incelemeye alınamaz.")
     sections = db.scalars(
@@ -1482,7 +1482,7 @@ def publish_catalog_package(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    package = _catalog_package_for_manager(db, user, package_id)
+    package = _catalog_content_package_for_manager(db, user, package_id)
     if package.status == "archived":
         raise HTTPException(409, "Arşivlenmiş paket yayımlanamaz.")
     sections = db.scalars(
@@ -1519,7 +1519,7 @@ def unpublish_catalog_package(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    package = _catalog_package_for_manager(db, user, package_id)
+    package = _catalog_content_package_for_manager(db, user, package_id)
     if package.status == "archived":
         raise HTTPException(409, "Arşivlenmiş paket yayımdan kaldırılamaz.")
     package.status = "unpublished"
@@ -1535,7 +1535,7 @@ def archive_catalog_package(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    package = _catalog_package_for_manager(db, user, package_id)
+    package = _catalog_content_package_for_manager(db, user, package_id)
     package.status = "archived"
     package.archived_at = datetime.utcnow()
     package.published_at = None
@@ -1549,7 +1549,7 @@ def restore_catalog_package(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    package = _catalog_package_for_manager(db, user, package_id)
+    package = _catalog_content_package_for_manager(db, user, package_id)
     if package.status != "archived":
         raise HTTPException(409, "Yalnızca arşivlenmiş paket düzenlemeye açılabilir.")
     package.status = "unpublished"
@@ -1566,7 +1566,7 @@ def create_catalog_section(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    package = _catalog_package_for_manager(db, user, package_id)
+    package = _catalog_content_package_for_manager(db, user, package_id)
     if package.status == "archived":
         raise HTTPException(409, "Arşivlenmiş pakete bölüm eklenemez.")
     order = payload.order_index
@@ -1601,8 +1601,8 @@ def update_catalog_section(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    section = _catalog_section_for_manager(db, user, section_id)
-    package = _catalog_package_for_manager(db, user, section.package_id)
+    section = _catalog_section_for_content_manager(db, user, section_id)
+    package = _catalog_content_package_for_manager(db, user, section.package_id)
     if package.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş bölüm değiştirilemez.")
     values = payload.model_dump(exclude_unset=True)
@@ -1620,8 +1620,8 @@ def archive_catalog_section(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    section = _catalog_section_for_manager(db, user, section_id)
-    package = _catalog_package_for_manager(db, user, section.package_id)
+    section = _catalog_section_for_content_manager(db, user, section_id)
+    package = _catalog_content_package_for_manager(db, user, section.package_id)
     if package.status == "archived":
         raise HTTPException(409, "Arşivlenmiş paketin bölümü değiştirilemez.")
     section.status = "archived"
@@ -1642,8 +1642,8 @@ async def upload_catalog_video(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    section = _catalog_section_for_manager(db, user, section_id)
-    package = _catalog_package_for_manager(db, user, section.package_id)
+    section = _catalog_section_for_content_manager(db, user, section_id)
+    package = _catalog_content_package_for_manager(db, user, section.package_id)
     if package.status == "archived" or section.status == "archived":
         raise HTTPException(409, "Arşivlenmiş pakete veya bölüme video yüklenemez.")
     # Published packages accept additive uploads. Replacing an existing
@@ -1661,7 +1661,7 @@ async def upload_catalog_video(
     revision_no = 1
     is_current = True
     if revision_of_id is not None:
-        revision_of = _catalog_video_for_manager(db, user, revision_of_id)
+        revision_of = _catalog_video_for_content_manager(db, user, revision_of_id)
         if revision_of.package_id != package.id or revision_of.section_id != section.id:
             raise HTTPException(422, "Video revizyonu aynı paket ve bölüm içinde olmalıdır.")
         if not revision_of.is_current:
@@ -1726,8 +1726,8 @@ def update_catalog_video(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    video = _catalog_video_for_manager(db, user, video_id)
-    package = _catalog_package_for_manager(db, user, video.package_id)
+    video = _catalog_video_for_content_manager(db, user, video_id)
+    package = _catalog_content_package_for_manager(db, user, video.package_id)
     if package.status == "archived" or video.status in {"published", "unpublished", "archived"}:
         raise HTTPException(409, "Tarihsel video doğrudan değiştirilemez; yeni sürüm yükleyin.")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -1742,8 +1742,8 @@ def delete_catalog_video(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    video = _catalog_video_for_manager(db, user, video_id)
-    package = _catalog_package_for_manager(db, user, video.package_id)
+    video = _catalog_video_for_content_manager(db, user, video_id)
+    package = _catalog_content_package_for_manager(db, user, video.package_id)
     if package.status == "archived":
         raise HTTPException(409, "Arşivlenmiş pakete ait video silinemez.")
     if video.status in {"published", "unpublished", "archived"}:
@@ -1769,12 +1769,12 @@ def publish_catalog_video(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    video = _catalog_video_for_manager(db, user, video_id)
+    video = _catalog_video_for_content_manager(db, user, video_id)
     if video.status != "ready_for_review":
         raise HTTPException(409, "Video yalnızca incelemeye hazır durumdayken yayımlanabilir.")
     if not video.duration_seconds or not video.storage_key:
         raise HTTPException(409, "Video işleme süresi veya güvenli depolama kaydı eksik.")
-    package = _catalog_package_for_manager(db, user, video.package_id)
+    package = _catalog_content_package_for_manager(db, user, video.package_id)
     if package.status == "archived":
         raise HTTPException(409, "Arşivlenmiş pakete video yayımlanamaz.")
     if video.revision_of_id is not None:
@@ -1809,8 +1809,8 @@ def unpublish_catalog_video(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    video = _catalog_video_for_manager(db, user, video_id)
-    package = _catalog_package_for_manager(db, user, video.package_id)
+    video = _catalog_video_for_content_manager(db, user, video_id)
+    package = _catalog_content_package_for_manager(db, user, video.package_id)
     if video.status == "archived":
         raise HTTPException(409, "Arşivlenmiş video yayımdan kaldırılamaz.")
     video.status = "unpublished"
@@ -1828,8 +1828,8 @@ def archive_catalog_video(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    video = _catalog_video_for_manager(db, user, video_id)
-    package = _catalog_package_for_manager(db, user, video.package_id)
+    video = _catalog_video_for_content_manager(db, user, video_id)
+    package = _catalog_content_package_for_manager(db, user, video.package_id)
     video.status = "archived"
     video.is_current = False
     video.archived_at = datetime.utcnow()
@@ -1846,7 +1846,7 @@ def retry_catalog_video_processing(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    video = _catalog_video_for_manager(db, user, video_id)
+    video = _catalog_video_for_content_manager(db, user, video_id)
     if video.status == "archived":
         raise HTTPException(409, "Arşivlenmiş video yeniden işlenemez.")
     video.status = "uploading"
@@ -1916,7 +1916,7 @@ def create_remote_program(
     user: User = Depends(get_current_user),
 ):
     require_feature()
-    _manager(user)
+    _assert_catalog_content_editor(db, user)
     ensure_company_access(db, user, payload.company_id)
     branch = None
     if payload.branch_id is not None:
@@ -1978,7 +1978,7 @@ def update_remote_program_sectors(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitimde sektör kapsamı değiştirilemez.")
     requested = {validate_sector_code(code) for code in payload.sector_codes}
@@ -2061,7 +2061,7 @@ def update_remote_program(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitim önce taslak akışına alınmalıdır.")
     values = payload.model_dump(exclude_unset=True)
@@ -2092,7 +2092,7 @@ def mark_program_ready_for_review(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Bu eğitim taslak incelemesine alınamaz.")
     program.status = "ready_for_review"
@@ -2107,7 +2107,7 @@ def publish_remote_program(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     require_strict_policy_active(program)
     if program.status == "archived":
         raise HTTPException(409, "Arşivlenmiş eğitim yayımlanamaz.")
@@ -2230,7 +2230,7 @@ def unpublish_remote_program(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status == "archived":
         raise HTTPException(409, "Arşivlenmiş eğitim yayımdan kaldırılamaz.")
     program.status = "unpublished"
@@ -2246,7 +2246,7 @@ def archive_remote_program(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     program.status = "archived"
     program.archived_at = datetime.utcnow()
     program.published_at = None
@@ -2262,7 +2262,7 @@ def create_remote_section(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status == "archived":
         raise HTTPException(409, "Arşivlenmiş eğitime bölüm eklenemez.")
     if program.status == "published":
@@ -3191,7 +3191,7 @@ def create_remote_checkpoint_question(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     section = None
     video = None
     if payload.section_id is not None:
@@ -3261,7 +3261,7 @@ def update_remote_final_exam_question(
     user: User = Depends(get_current_user),
 ):
     """Allow managers to review/edit an automatic question before publishing."""
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış veya arşivlenmiş eğitimde final soruları değiştirilemez.")
     questions = list(
@@ -3321,7 +3321,7 @@ def link_remote_exam_question(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitimde sınav soruları değiştirilemez.")
     question = db.get(TrainingQuestion, payload.question_id)
@@ -3369,7 +3369,7 @@ def unlink_remote_exam_question(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    program = _assert_program_manager(db, user, program_id)
+    program = _assert_program_content_manager(db, user, program_id)
     if program.status in {"published", "archived"}:
         raise HTTPException(409, "Yayımlanmış/arşivlenmiş eğitimde sınav soruları değiştirilemez.")
     assignment_count = db.scalar(
