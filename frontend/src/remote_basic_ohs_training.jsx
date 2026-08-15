@@ -935,6 +935,11 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
         try {
           await api(`/trainings/remote/catalog/packages/${item.id}/materialize`, {
             method: 'POST',
+            // A package snapshot copies the published video files.  Keep this
+            // mutation alive long enough for the server to commit; never retry
+            // it automatically because the server already makes it idempotent.
+            timeoutMs: 180_000,
+            _retries: 0,
             body: JSON.stringify({company_id: Number(companyId), branch_id: branchId ? Number(branchId) : null}),
           });
           created.push(item.title);
@@ -948,7 +953,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
       if (failed.length) {
         setError(`${created.length} paket hazırlandı. Tamamlanamayanlar: ${failed.join(' · ')}`);
       } else {
-        setMessage(`${created.length} paket seçilen firma/işyerine hazırlandı; her programa 10 soruluk final sınavı otomatik eklendi. Aşağıdaki çalışan atama bölümünden personeli seçebilirsiniz.`);
+        setMessage(`${created.length} paket seçilen firma/işyerine yayımlandı; yeni bölümler ve 10 soruluk final sınavı çalışan atamasına hazır. Aşağıdaki çalışan atama bölümünden personeli seçebilirsiniz.`);
       }
     } catch (err) { setError(err.message || 'Paketler firmaya hazırlanamadı.'); }
     finally { setBusy(false); }
