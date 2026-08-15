@@ -1520,8 +1520,58 @@ def decode_playback_token(db: Session, token: str, video_id: int) -> tuple[User,
     return user, video, assignment_id, mode
 
 
-def response_for_video(video: RemoteTrainingVideo):
-    """Return a protected inline response without exposing a permanent storage path."""
+def _invalid_video_range(total_size: int) -> None:
+    raise HTTPException(
+        status_code=416,
+        detail="İstenen video aralığı geçersiz.",
+        headers={"Content-Range": f"bytes */{total_size}"},
+    )
+
+
+def _parse_video_range(range_header: str | None, total_size: int) -> tuple[int, int] | None:
+    """Parse one HTTP byte range for browser video playback."""
+    if not range_header:
+        return None
+    if total_size <= 0 or not range_header.lower().startswith("bytes="):
+        _invalid_video_range(total_size)
+    value = range_header[6:].split(",", 1)[0].strip()
+    if "-" not in value:
+        _invalid_video_range(total_size)
+    start_raw, end_raw = value.split("-", 1)
+    try:
+        if not start_raw:
+            suffix_length = int(end_raw)
+            if suffix_length <= 0:
+                _invalid_video_range(total_size)
+            start = max(0, total_size - suffix_length)
+            end = total_size - 1
+        else:
+            start = int(start_raw)
+            end = int(end_raw) if end_raw else total_size - 1
+            if start < 0 or end < start:
+                _invalid_video_range(total_size)
+            end = min(end, total_size - 1)
+    except (TypeError, ValueError):
+        _invalid_video_range(total_size)
+    if start >= total_size or end < start:
+        _invalid_video_range(total_size)
+    return start, end
+
+
+def _iter_local_video_range(path: Path, start: int, end: int):
+    with path.open("rb") as handle:
+        handle.seek(start)
+        remaining = end - start + 1
+        while remaining > 0:
+            chunk = handle.read(min(1024 * 1024, remaining))
+            if not chunk:
+                break
+            remaining -= len(chunk)
+            yield chunk
+
+
+def response_for_video(video: RemoteTrainingVideo, request: Any | None = None):
+    """Return a protected inline response with browser-friendly byte ranges."""
     from fastapi.responses import FileResponse, StreamingResponse
 
     store = get_object_store()
@@ -1529,17 +1579,60 @@ def response_for_video(video: RemoteTrainingVideo):
     media_type = video.content_type or "video/mp4"
     safe_name = Path(video.original_file_name or "video").name
     safe_name = "".join(char for char in safe_name if char not in {"\r", "\n", '"'}) or "video"
+    range_header = request.headers.get("range") if request is not None else None
+    disposition = f'inline; filename="{safe_name}"'
+
     if local is not None and local.is_file():
-        return FileResponse(
-            local,
+        total_size = local.stat().st_size
+        requested_range = _parse_video_range(range_header, total_size)
+        if requested_range is None:
+            return FileResponse(
+                local,
+                media_type=media_type,
+                filename=safe_name,
+                headers={
+                    "Content-Disposition": disposition,
+                    "Accept-Ranges": "bytes",
+                },
+            )
+        start, end = requested_range
+        length = end - start + 1
+        return StreamingResponse(
+            _iter_local_video_range(local, start, end),
+            status_code=206,
             media_type=media_type,
-            filename=safe_name,
-            headers={"Content-Disposition": f'inline; filename="{safe_name}"'},
+            headers={
+                "Content-Disposition": disposition,
+                "Accept-Ranges": "bytes",
+                "Content-Range": f"bytes {start}-{end}/{total_size}",
+                "Content-Length": str(length),
+            },
         )
+
     if not store.exists(video.storage_key):
         raise HTTPException(404, "Video depolamada bulunamadı.")
+    data = store.get_bytes(video.storage_key)
+    total_size = len(data)
+    requested_range = _parse_video_range(range_header, total_size)
+    if requested_range is None:
+        return StreamingResponse(
+            BytesIO(data),
+            media_type=media_type,
+            headers={
+                "Content-Disposition": disposition,
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(total_size),
+            },
+        )
+    start, end = requested_range
     return StreamingResponse(
-        BytesIO(store.get_bytes(video.storage_key)),
+        BytesIO(data[start:end + 1]),
+        status_code=206,
         media_type=media_type,
-        headers={"Content-Disposition": f'inline; filename="{safe_name}"'},
+        headers={
+            "Content-Disposition": disposition,
+            "Accept-Ranges": "bytes",
+            "Content-Range": f"bytes {start}-{end}/{total_size}",
+            "Content-Length": str(end - start + 1),
+        },
     )

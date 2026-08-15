@@ -2274,3 +2274,17 @@ def test_company_certificate_hub_lists_failed_records_exports_and_bulk_deletes(r
         f"/api/v1/trainings/remote/certificates?company_id={company_id}",
         headers=manager_headers,
     ).json() == []
+
+def test_remote_video_range_parser_supports_browser_ranges():
+    from fastapi import HTTPException
+
+    from app.services.remote_training import _parse_video_range
+
+    assert _parse_video_range(None, 100) is None
+    assert _parse_video_range("bytes=0-9", 100) == (0, 9)
+    assert _parse_video_range("bytes=90-", 100) == (90, 99)
+    assert _parse_video_range("bytes=-10", 100) == (90, 99)
+
+    with pytest.raises(HTTPException) as error:
+        _parse_video_range("bytes=100-", 100)
+    assert error.value.status_code == 416
