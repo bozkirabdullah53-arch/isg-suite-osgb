@@ -118,7 +118,9 @@ ASSET_MIME_TYPES = {
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 }
 
-# Each central package receives a vetted, sector-aligned ten-question exam.
+# Each central package receives a vetted, sector-aligned automatic exam.  Ten
+# questions remain the default for existing packages; packages with a larger
+# approved bank can opt into their own count without changing other packages.
 # The source packs are versioned in the repository and copied into the
 # company-scoped program, so a later question-bank edit cannot alter an
 # already-created employee exam.
@@ -133,7 +135,7 @@ REMOTE_AUTO_EXAM_PACKS = {
     "open-mine-quarry-aggregate-ohs": "sector-mining.json",
     "road-asphalt-infrastructure-ohs": "sector-road-transport.json",
     "office-general-ohs": "sector-office.json",
-    "working-at-height-ohs": "special-yuksekte-calisma.json",
+    "working-at-height-ohs": "remote-yuksekte-calisma-20.json",
 }
 # The curated file is also checked against the catalog scope.  A filename
 # alone is not sufficient protection if a future content edit accidentally
@@ -152,42 +154,58 @@ REMOTE_AUTO_EXAM_PACKAGE_SCOPES = {
     "working-at-height-ohs": {"yuksekte_calisma"},
 }
 REMOTE_AUTO_EXAM_QUESTION_COUNT = 10
+REMOTE_AUTO_EXAM_QUESTION_COUNTS = {
+    "working-at-height-ohs": 20,
+}
+
+
+def automatic_exam_question_count(package_code: str | None) -> int:
+    """Return the reviewed automatic-exam size for a central package."""
+    normalized = str(package_code or "").strip().lower()
+    return int(
+        REMOTE_AUTO_EXAM_QUESTION_COUNTS.get(
+            normalized,
+            REMOTE_AUTO_EXAM_QUESTION_COUNT,
+        )
+    )
 
 
 def automatic_exam_items_for_package(package_code: str | None) -> list[dict[str, Any]]:
-    """Return ten deterministic, reviewed questions for a catalog package.
+    """Return deterministic, reviewed questions for a catalog package.
 
     The bundled question-bank loader validates the four options, answer,
     explanation, source and scope before returning a pack.  Evenly spaced
-    selection keeps the special ten-section height package representative
-    instead of taking ten questions from its first topic only.
+    selection keeps larger source packs representative instead of taking all
+    questions from the first topic only.
     """
-    file_name = REMOTE_AUTO_EXAM_PACKS.get(str(package_code or "").strip().lower())
+    normalized = str(package_code or "").strip().lower()
+    file_name = REMOTE_AUTO_EXAM_PACKS.get(normalized)
     if not file_name:
         raise RuntimeError(
             f"Otomatik final sınavı için doğrulanmış sektör paketi eşleşmesi yok: {package_code}"
         )
+    question_count = automatic_exam_question_count(normalized)
     items = list(_curated_pack(file_name))
-    if len(items) < REMOTE_AUTO_EXAM_QUESTION_COUNT:
+    if len(items) < question_count:
         raise RuntimeError(
-            f"Otomatik final sınavı soru paketi en az {REMOTE_AUTO_EXAM_QUESTION_COUNT} soru içermelidir: {file_name}"
+            f"Otomatik final sınavı soru paketi en az {question_count} soru içermelidir: {file_name}"
         )
     last_index = len(items) - 1
     selected = [
-        items[(index * last_index) // (REMOTE_AUTO_EXAM_QUESTION_COUNT - 1)]
-        for index in range(REMOTE_AUTO_EXAM_QUESTION_COUNT)
+        items[(index * last_index) // (question_count - 1)]
+        for index in range(question_count)
     ]
     question_codes = {
         str(item.get("question_code") or "").strip().casefold() for item in selected
     }
-    if len(question_codes) != REMOTE_AUTO_EXAM_QUESTION_COUNT:
+    if len(question_codes) != question_count:
         raise RuntimeError(
             f"Otomatik final sınavı soru paketi tekrar eden sorular içeriyor: {file_name}"
         )
     topic_codes = {
         str(item.get("topic_code") or "").strip().casefold() for item in selected
     }
-    if len(topic_codes) != REMOTE_AUTO_EXAM_QUESTION_COUNT:
+    if len(topic_codes) != question_count:
         raise RuntimeError(
             f"Otomatik final sınavı aynı öğrenme konusunu tekrar ediyor: {file_name}"
         )

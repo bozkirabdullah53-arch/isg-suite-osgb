@@ -294,7 +294,7 @@ async function openDialog() {
         </label>
         <div class="remote-custom-package-rules">
           <strong>Sabit eğitim kuralları:</strong> %100 zorunlu video izleme · ileri sarma kapalı ·
-          seçilen sektörün onaylı soru paketinden <strong>tam 10 final sorusu</strong> ·
+          seçilen sektörün onaylı soru paketinden final soruları ·
           geçme puanı <strong>%70</strong>. Rastgele veya uydurma soru üretilmez.
         </div>
         <div class="remote-custom-package-error" role="alert"></div>

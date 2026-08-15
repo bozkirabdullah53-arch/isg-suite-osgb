@@ -14,9 +14,9 @@ def test_custom_package_code_keeps_selected_sector_and_reviewed_exam_pack():
     assert custom_package_base_code(code) == "working-at-height-ohs"
 
     items = automatic_exam_items_for_package_with_custom(code)
-    assert len(items) == 10
-    assert len({item["question_code"] for item in items}) == 10
-    assert len({item["topic_code"] for item in items}) == 10
+    assert len(items) == 20
+    assert len({item["question_code"] for item in items}) == 20
+    assert len({item["topic_code"] for item in items}) == 20
     assert all(
         item["question_text"]
         and len(item["options"]) == 4

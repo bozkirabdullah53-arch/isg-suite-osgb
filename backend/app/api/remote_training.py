@@ -92,6 +92,7 @@ from app.services.remote_training import (
     assignment_sector_codes,
     audit,
     automatic_exam_items_for_package,
+    automatic_exam_question_count,
     build_program_sector_catalog,
     build_certificate_pdf,
     build_combined_certificate_pdf,
@@ -334,7 +335,7 @@ def _automatic_final_exam_question_validation(
     """Validate one editable question without blocking it on other rows.
 
     A draft may contain an older malformed row.  A manager must still be able
-    to repair one question at a time; the complete ten-question validation is
+    to repair one question at a time; complete package-count validation is
     reserved for publication.
     """
     errors: list[str] = []
@@ -365,6 +366,8 @@ def _automatic_final_exam_question_validation(
 
 def _automatic_final_exam_validation(
     questions: list[RemoteTrainingQuestion],
+    *,
+    expected_count: int = REMOTE_AUTO_EXAM_QUESTION_COUNT,
 ) -> list[str]:
     """Validate the complete frozen catalog exam before publication.
 
@@ -373,9 +376,9 @@ def _automatic_final_exam_validation(
     complete set on the server instead of trusting the browser.
     """
     errors: list[str] = []
-    if len(questions) != REMOTE_AUTO_EXAM_QUESTION_COUNT:
+    if len(questions) != expected_count:
         errors.append(
-            f"Final sınavı tam olarak {REMOTE_AUTO_EXAM_QUESTION_COUNT} soru içermelidir."
+            f"Final sınavı tam olarak {expected_count} soru içermelidir."
         )
     seen_texts: set[str] = set()
     for position, question in enumerate(questions, start=1):
@@ -481,7 +484,18 @@ def _program_detail(
             for question in automatic_exam_questions
             if question.sector_code in sector_codes
         ]
-    automatic_exam_errors = _automatic_final_exam_validation(automatic_exam_questions)
+    # The exam rows are an immutable company snapshot.  Using their count for
+    # an already-created program keeps old ten-question programs valid while
+    # newly materialized height programs carry the new twenty-question set.
+    automatic_exam_expected_count = (
+        len(automatic_exam_questions)
+        if automatic_exam_questions
+        else automatic_exam_question_count(program.source_catalog_code)
+    )
+    automatic_exam_errors = _automatic_final_exam_validation(
+        automatic_exam_questions,
+        expected_count=automatic_exam_expected_count,
+    )
     manual_exam_link_count = db.scalar(
         select(func.count(RemoteTrainingProgramQuestion.id)).where(
             RemoteTrainingProgramQuestion.program_id == program.id
@@ -492,7 +506,7 @@ def _program_detail(
         "automatic": bool(automatic_exam_questions),
         "question_count": len(automatic_exam_questions),
         "required_question_count": (
-            REMOTE_AUTO_EXAM_QUESTION_COUNT if strict_policy_active(program) else None
+            automatic_exam_expected_count if strict_policy_active(program) else None
         ),
         "passing_score": program.passing_score,
         "valid": bool(automatic_exam_questions) and not automatic_exam_errors,
@@ -839,13 +853,14 @@ def _catalog_package_output(
     automatic_exam_ready = True
     automatic_exam_warning = None
     automatic_exam_count = 0
+    automatic_exam_expected_count = automatic_exam_question_count(package.code)
     if package.requires_final_exam:
         try:
             automatic_exam_count = len(automatic_exam_items_for_package(package.code))
         except RuntimeError:
             automatic_exam_ready = False
             automatic_exam_warning = (
-                f"{package.title} için doğrulanmış 10 soruluk soru paketi hazır değil. "
+                f"{package.title} için doğrulanmış {automatic_exam_expected_count} soruluk soru paketi hazır değil. "
                 "Firma programı hazırlanamaz; içerik yöneticisi soru paketini düzeltmelidir."
             )
     result = {
@@ -1210,15 +1225,48 @@ def materialize_catalog_package(
     company = db.get(Company, payload.company_id)
     if not company or not company.is_active:
         raise HTTPException(404, "Firma bulunamadı veya pasif.")
-    existing_snapshot = db.scalar(
-        select(RemoteTrainingProgram).where(
-            RemoteTrainingProgram.company_id == company.id,
-            RemoteTrainingProgram.source_catalog_package_id == package.id,
-            RemoteTrainingProgram.source_catalog_revision_no == package.revision_no,
-            RemoteTrainingProgram.branch_id == snapshot_branch_id,
-            RemoteTrainingProgram.status != "archived",
-        )
+    existing_snapshots = list(
+        db.scalars(
+            select(RemoteTrainingProgram)
+            .where(
+                RemoteTrainingProgram.company_id == company.id,
+                RemoteTrainingProgram.source_catalog_package_id == package.id,
+                RemoteTrainingProgram.source_catalog_revision_no == package.revision_no,
+                RemoteTrainingProgram.branch_id == snapshot_branch_id,
+                RemoteTrainingProgram.status != "archived",
+            )
+            .order_by(RemoteTrainingProgram.id.desc())
+        ).all()
     )
+
+    automatic_exam_items: list[dict[str, Any]] = []
+    automatic_exam_error: RuntimeError | None = None
+    if package.requires_final_exam:
+        try:
+            automatic_exam_items = automatic_exam_items_for_package(package.code)
+        except RuntimeError as exc:
+            # Keep an already-created company snapshot usable if a later
+            # question-bank edit is damaged; fail closed only when a new
+            # snapshot would otherwise have to be created.
+            automatic_exam_error = exc
+
+    existing_snapshot = None
+    if automatic_exam_error is not None:
+        existing_snapshot = existing_snapshots[0] if existing_snapshots else None
+    elif not package.requires_final_exam:
+        existing_snapshot = existing_snapshots[0] if existing_snapshots else None
+    else:
+        expected_exam_count = len(automatic_exam_items)
+        for candidate in existing_snapshots:
+            candidate_exam_count = db.scalar(
+                select(func.count(RemoteTrainingQuestion.id)).where(
+                    RemoteTrainingQuestion.program_id == candidate.id,
+                    RemoteTrainingQuestion.is_final_exam.is_(True),
+                )
+            ) or 0
+            if int(candidate_exam_count) == expected_exam_count:
+                existing_snapshot = candidate
+                break
     if existing_snapshot:
         # The copy can take longer than a browser request timeout.  If the
         # server committed before the client disconnected, return that same
@@ -1254,6 +1302,16 @@ def materialize_catalog_package(
             _commit(db, "Yarım kalan merkezi paket firma sürümü açılamadı.")
         return _program_detail(db, existing_snapshot)
 
+    if automatic_exam_error is not None:
+        # Fail closed if the reviewed content pack is damaged or incomplete;
+        # never create a publishable program with guessed questions.
+        raise HTTPException(
+            409,
+            f"{package.title} için otomatik final sınavı hazırlanamadı. "
+            f"Onaylı {automatic_exam_question_count(package.code)} soruluk paket eksik veya okunamıyor; rastgele soru üretilmedi. "
+            "İçerik yöneticisi soru paketini düzeltmelidir.",
+        ) from automatic_exam_error
+
     catalog_sections = list(
         db.scalars(
             select(RemoteTrainingCatalogSection)
@@ -1266,20 +1324,6 @@ def materialize_catalog_package(
     )
     if not catalog_sections:
         raise HTTPException(409, "Merkezi pakette aktif bölüm bulunmuyor.")
-
-    automatic_exam_items: list[dict[str, Any]] = []
-    if package.requires_final_exam:
-        try:
-            automatic_exam_items = automatic_exam_items_for_package(package.code)
-        except RuntimeError as exc:
-            # Fail closed if the reviewed content pack is damaged or incomplete;
-            # never create a publishable program with guessed questions.
-            raise HTTPException(
-                409,
-                f"{package.title} için otomatik final sınavı hazırlanamadı. "
-                "Onaylı 10 soruluk paket eksik veya okunamıyor; rastgele soru üretilmedi. "
-                "İçerik yöneticisi soru paketini düzeltmelidir.",
-            ) from exc
 
     videos_by_section: dict[int, list[RemoteTrainingCatalogVideo]] = {}
     missing_required: list[str] = []
@@ -2196,7 +2240,15 @@ def publish_remote_program(
         if strict_policy_active(program) and (
             automatic_exam_questions or program.source_catalog_code
         ):
-            validation_errors = _automatic_final_exam_validation(automatic_exam_questions)
+            automatic_exam_expected_count = (
+                len(automatic_exam_questions)
+                if automatic_exam_questions
+                else automatic_exam_question_count(program.source_catalog_code)
+            )
+            validation_errors = _automatic_final_exam_validation(
+                automatic_exam_questions,
+                expected_count=automatic_exam_expected_count,
+            )
             if validation_errors:
                 raise HTTPException(
                     409,

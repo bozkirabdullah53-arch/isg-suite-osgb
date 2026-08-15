@@ -229,7 +229,8 @@ function packageAutomaticExamReady(packageRow) {
 function packageAutomaticExamCount(packageRow) {
   if (!packageAutomaticExamReady(packageRow)) return 0;
   if (packageRow?.automatic_exam_question_count != null) return Number(packageRow.automatic_exam_question_count);
-  return packageRow?.requires_final_exam === false ? 0 : 10;
+  if (packageRow?.requires_final_exam === false) return 0;
+  return packageRow?.code === 'working-at-height-ohs' ? 20 : 10;
 }
 
 function rolloutPackageLabel(code) {
@@ -983,7 +984,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
       if (failed.length) {
         setError(`${created.length} paket hazırlandı. Tamamlanamayanlar: ${failed.join(' · ')}`);
       } else {
-        setMessage(`${created.length} paket seçilen firma/işyerine yayımlandı; yeni bölümler ve 10 soruluk final sınavı çalışan atamasına hazır. Aşağıdaki çalışan atama bölümünden personeli seçebilirsiniz.`);
+        setMessage(`${created.length} paket seçilen firma/işyerine yayımlandı; yeni bölümler ve pakete göre otomatik final sınavı çalışan atamasına hazır. Aşağıdaki çalışan atama bölümünden personeli seçebilirsiniz.`);
       }
     } catch (err) { setError(err.message || 'Paketler firmaya hazırlanamadı.'); }
     finally { setBusy(false); }
@@ -1036,7 +1037,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
             {busy ? 'Hazırlanıyor…' : 'Seçilen eğitimleri hazırla'}
           </button>
         </div>
-        <div style={{marginTop: 8, color: '#795500', fontSize: 12}}>Bu adım çalışanlara eğitim başlatmaz. Firma sürümü hazırlanırken <strong>10 soruluk final sınavı ve %70 geçme kuralı otomatik eklenir</strong>; çalışan ataması aşağıdaki <strong>4. Çalışanlara eğitim ve sınav ataması</strong> bölümünden yapılır.</div>
+        <div style={{marginTop: 8, color: '#795500', fontSize: 12}}>Bu adım çalışanlara eğitim başlatmaz. Firma sürümü hazırlanırken <strong>pakete göre otomatik final sınavı ve %70 geçme kuralı eklenir</strong>; çalışan ataması aşağıdaki <strong>4. Çalışanlara eğitim ve sınav ataması</strong> bölümünden yapılır.</div>
         <div role="status" aria-live="polite" style={{marginTop: 6, color: '#4c1d95', fontSize: 12, fontWeight: 700}}>
           {!companyId ? 'Atama için önce firma seçin.' : !selectedPackageIds.length ? 'Atama için yayımlanmış bir paketin kutusunu işaretleyin.' : `${selectedPackageIds.length} paket atamaya hazır.`}
         </div>
@@ -1341,7 +1342,10 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
           explanation: question.explanation || null,
         }),
       });
-      setMessage(`${question.order_index}. final sorusu kaydedildi. Yayınlamadan önce 10 sorunun tamamını kontrol edin.`);
+      const finalExamQuestionCount = program.automatic_final_exam?.required_question_count
+        || program.automatic_final_exam?.question_count
+        || automaticExamQuestions.length;
+      setMessage(`${question.order_index}. final sorusu kaydedildi. Yayınlamadan önce ${finalExamQuestionCount} sorunun tamamını kontrol edin.`);
       try {
         await loadDetail(program.id);
       } catch (refreshError) {
@@ -1645,7 +1649,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     <section style={{display: 'grid', gap: 16}} aria-label="Firma çalışanlarının eğitim ve sınav ataması yönetimi">
       <div style={cardStyle}>
         <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'}}>
-          <div><div style={{fontSize: 12, color: '#547187', fontWeight: 700}}>FİRMA EĞİTİM VE SINAV YÖNETİMİ</div><h3 style={{margin: '4px 0'}}>Firma/işyeri personeline eğitim atayın</h3><p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Firma ve işyerini seçin, hazır programı açın, giriş hesabı olmayan personel için hesabı oluşturun ve eğitimi tek seçimle atayın. Katalog programlarında 10 final sorusu otomatik hazırdır.</p></div>
+          <div><div style={{fontSize: 12, color: '#547187', fontWeight: 700}}>FİRMA EĞİTİM VE SINAV YÖNETİMİ</div><h3 style={{margin: '4px 0'}}>Firma/işyeri personeline eğitim atayın</h3><p style={{margin: 0, color: '#5e7485', fontSize: 13}}>Firma ve işyerini seçin, hazır programı açın, giriş hesabı olmayan personel için hesabı oluşturun ve eğitimi tek seçimle atayın. Katalog programlarında pakete göre final soruları otomatik hazırdır.</p></div>
           <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
             <select value={companyId} onChange={(event) => {setCompanyId(event.target.value); setBranchId(''); onBranchChange?.(''); onCompanyChange?.(event.target.value); setProgram(null); setAssignments([]); setAutomaticExamQuestions([]);}} aria-label="Firma seçin"><option value="">Firma seçin</option>{companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
             <select value={branchId} onChange={(event) => {setBranchId(event.target.value); onBranchChange?.(event.target.value); setSelectedEmployees([]);}} disabled={!companyId} aria-label="Personel ve eğitim işyeri seçin"><option value="">Firma geneli / işyeri seçilmedi</option>{branches.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select>
@@ -1697,7 +1701,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
               {program.status === 'published' && <div style={{marginTop: 10, padding: '10px 12px', border: '1px solid #f2c46d', borderRadius: 9, background: '#fff8e8', color: '#795500', fontSize: 12}}><strong>Yayımlanmış program:</strong> {programContentLocked ? <>Bu firma sürümünde <strong>{programAssignmentCount}</strong> çalışan ataması var. Yeni bölüm/video bu sürüme eklenmez; çalışanların mevcut ilerleme kayıtları korunur. <a href="#remote-training-catalog" onClick={(event) => scrollRemoteTrainingSection(event, 'remote-training-catalog')} style={{color: '#075985', fontWeight: 700}}>Yüksekte Çalışma merkezi kataloğuna git</a> ve yeni içeriği oradan yayımlayın.</> : <>Henüz çalışan ataması yapılmadıysa yeni bölüm ve video ekleyebilirsiniz. Atama yapıldığında bu firma sürümü korunur; yeni içerik için merkezi katalogdaki paketi kullanın.</>}</div>}
               {(program.automatic_final_exam?.automatic || (program.source_catalog_code && program.automatic_final_exam?.enabled)) && <div className="remote-training-exam-review" aria-label="Otomatik final sınavı soru inceleme alanı">
                 <div className="remote-training-exam-auto-note-large">
-                  <strong>{program.automatic_final_exam.question_count === (program.automatic_final_exam.required_question_count || 10) ? 'Final sınavı otomatik hazırlandı' : 'Final sınavı otomatik hazırlanamadı'} — {program.automatic_final_exam.question_count}/{program.automatic_final_exam.required_question_count || 10} soru</strong>
+                  <strong>{program.automatic_final_exam.question_count === (program.automatic_final_exam.required_question_count ?? program.automatic_final_exam.question_count) ? 'Final sınavı otomatik hazırlandı' : 'Final sınavı otomatik hazırlanamadı'} — {program.automatic_final_exam.question_count}/{program.automatic_final_exam.required_question_count ?? program.automatic_final_exam.question_count ?? 0} soru</strong>
                   <span>Sorular yalnızca seçilen sektör eğitim paketinden alınır. Yayımlamadan önce metin, seçenekler ve doğru cevap yetkili kullanıcı tarafından incelenebilir. Geçme puanı %{program.automatic_final_exam.passing_score || 70}.</span>
                 </div>
                 {(program.automatic_final_exam.validation_errors || []).map((warning) => <div key={warning} className="remote-training-exam-validation-warning" role="alert">{warning}</div>)}
