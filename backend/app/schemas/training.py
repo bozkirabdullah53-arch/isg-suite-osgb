@@ -213,6 +213,10 @@ class TrainingUpdate(BaseModel):
     participant_ids: list[int] | None = None
 
 
+class TrainingArchiveRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+
 class ParticipantResponse(BaseModel):
     id: int
     employee_id: int
