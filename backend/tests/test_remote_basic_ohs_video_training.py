@@ -1927,3 +1927,91 @@ def test_remote_content_permission_separates_osgb_admin_and_expert():
         assert error.value.status_code == 403
 
         _assert_catalog_content_editor(db, admin)
+
+
+def test_shared_catalog_preview_is_allowed_for_expert_and_old_video_revisions_are_hidden():
+    from app.api.remote_training import _catalog_package_output
+    from app.models.entities import OsgbOrganization, User, UserRole
+    from app.models.remote_training import (
+        RemoteTrainingCatalogPackage,
+        RemoteTrainingCatalogSection,
+        RemoteTrainingCatalogVideo,
+    )
+    from app.services.remote_training import (
+        create_catalog_playback_token,
+        decode_catalog_playback_token,
+    )
+
+    engine = _db()
+    with Session(engine) as db:
+        osgb = OsgbOrganization(name="Shared Preview OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        expert = User(
+            email="shared-preview-expert@example.com",
+            full_name="Önizleme Uzmanı",
+            hashed_password="x",
+            role=UserRole.SAFETY_SPECIALIST,
+            osgb_id=osgb.id,
+            is_active=True,
+        )
+        package = RemoteTrainingCatalogPackage(
+            osgb_id=None,
+            code="food-production-ohs",
+            title="Gıda",
+            status="published",
+        )
+        db.add_all([expert, package])
+        db.flush()
+        section = RemoteTrainingCatalogSection(
+            package_id=package.id,
+            code="GID-01",
+            title="Gıda üretimi",
+            status="active",
+        )
+        db.add(section)
+        db.flush()
+        old_video = RemoteTrainingCatalogVideo(
+            package_id=package.id,
+            section_id=section.id,
+            title="GID-01_CORE_FULL",
+            revision_no=1,
+            is_current=False,
+            status="unpublished",
+            original_file_name="gid-01-eski.mp4",
+            content_type="video/mp4",
+            file_size_bytes=100,
+            duration_seconds=139,
+            storage_key="catalog/shared/gid-01-old.mp4",
+        )
+        db.add(old_video)
+        db.flush()
+        current_video = RemoteTrainingCatalogVideo(
+            package_id=package.id,
+            section_id=section.id,
+            revision_of_id=old_video.id,
+            title="GID-01_CORE_FULL",
+            revision_no=2,
+            is_current=True,
+            status="published",
+            original_file_name="gid-01-guncel.mp4",
+            content_type="video/mp4",
+            file_size_bytes=100,
+            duration_seconds=139,
+            storage_key="catalog/shared/gid-01-current.mp4",
+        )
+        db.add(current_video)
+        db.commit()
+
+        token = create_catalog_playback_token(user=expert, video=current_video)
+        decoded_user, decoded_video = decode_catalog_playback_token(
+            db, token, current_video.id
+        )
+        assert decoded_user.id == expert.id
+        assert decoded_video.id == current_video.id
+
+        output = _catalog_package_output(db, package, detail=True)
+        assert output["video_count"] == 1
+        assert output["published_video_count"] == 1
+        assert len(output["sections"][0]["videos"]) == 1
+        assert output["sections"][0]["videos"][0]["id"] == current_video.id
