@@ -202,6 +202,13 @@ def _assert_program_manager(db: Session, user: User, program_id: int) -> RemoteT
     ensure_company_access(db, user, program.company_id)
     return program
 
+def _assert_program_content_manager(
+    db: Session, user: User, program_id: int
+) -> RemoteTrainingProgram:
+    program = _assert_program_manager(db, user, program_id)
+    _assert_catalog_content_editor(db, user)
+    return program
+
 def _assert_assignment_document_manager(
     db: Session, user: User, assignment: RemoteTrainingAssignment
 ) -> None:
@@ -213,7 +220,7 @@ def _assert_assignment_document_manager(
 
 def _assert_section_manager(db: Session, user: User, section_id: int) -> RemoteTrainingSection:
     section = load_section(db, section_id)
-    program = _assert_program_manager(db, user, section.program_id)
+    program = _assert_program_content_manager(db, user, section.program_id)
     if section.company_id != program.company_id:
         raise HTTPException(403, "Bölüm firma kapsamı dışında.")
     return section
@@ -221,7 +228,7 @@ def _assert_section_manager(db: Session, user: User, section_id: int) -> RemoteT
 
 def _assert_video_manager(db: Session, user: User, video_id: int) -> RemoteTrainingVideo:
     video = load_video(db, video_id)
-    program = _assert_program_manager(db, user, video.program_id)
+    program = _assert_program_content_manager(db, user, video.program_id)
     if video.company_id != program.company_id:
         raise HTTPException(403, "Video firma kapsamı dışında.")
     return video
@@ -673,21 +680,14 @@ def _safe_asset_content(asset_type: str, extension: str, content: bytes) -> None
 
 
 def _catalog_scope(db: Session, user: User) -> int | None:
-    """Return the OSGB scope used by the central catalog.
-
-    Global administrators own the shared catalog (``osgb_id IS NULL``).  Other
-    managers must have an OSGB either directly or through their company; a
-    missing tenant is never treated as a wildcard.
-    """
+    """Return the OSGB scope used by the central catalog."""
     if user.role == UserRole.GLOBAL_ADMIN:
         return None
-    if user.osgb_id:
-        return int(user.osgb_id)
-    if user.company_id:
-        company = db.get(Company, user.company_id)
-        if company and company.osgb_id:
-            return int(company.osgb_id)
+    scope = resolve_user_osgb_id(db, user)
+    if scope:
+        return int(scope)
     raise HTTPException(403, "Merkezi eğitim kataloğu için OSGB kapsamı bulunamadı.")
+
 
 
 def _catalog_package_for_manager(
@@ -700,8 +700,28 @@ def _catalog_package_for_manager(
         raise HTTPException(404, "Merkezi eğitim paketi bulunamadı.")
     if user.role != UserRole.GLOBAL_ADMIN:
         scope = _catalog_scope(db, user)
-        if package.osgb_id != scope:
+        if package.osgb_id not in (None, scope):
             raise HTTPException(403, "Bu merkezi eğitim paketi OSGB kapsamınız dışında.")
+        assert_osgb_subscription_access(db, user, scope)
+    return package
+
+
+def _catalog_content_package_for_manager(
+    db: Session, user: User, package_id: int
+) -> RemoteTrainingCatalogPackage:
+    """Return an OSGB-owned package that may be changed."""
+    package = _catalog_package_for_manager(db, user, package_id)
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return package
+    _assert_catalog_content_editor(db, user)
+    scope = _catalog_scope(db, user)
+    if package.osgb_id is None:
+        raise HTTPException(
+            409,
+            "Ortak hazır paket değiştirilemez. Önce OSGB özel kopyasını oluşturun.",
+        )
+    if package.osgb_id != scope:
+        raise HTTPException(403, "Bu OSGB özel eğitim paketi kapsamınız dışında.")
     return package
 
 
@@ -715,6 +735,14 @@ def _catalog_section_for_manager(
     return section
 
 
+def _catalog_section_for_content_manager(
+    db: Session, user: User, section_id: int
+) -> RemoteTrainingCatalogSection:
+    section = _catalog_section_for_manager(db, user, section_id)
+    _catalog_content_package_for_manager(db, user, section.package_id)
+    return section
+
+
 def _catalog_video_for_manager(
     db: Session, user: User, video_id: int
 ) -> RemoteTrainingCatalogVideo:
@@ -723,6 +751,15 @@ def _catalog_video_for_manager(
         raise HTTPException(404, "Merkezi eğitim videosu bulunamadı.")
     _catalog_package_for_manager(db, user, video.package_id)
     return video
+
+
+def _catalog_video_for_content_manager(
+    db: Session, user: User, video_id: int
+) -> RemoteTrainingCatalogVideo:
+    video = _catalog_video_for_manager(db, user, video_id)
+    _catalog_content_package_for_manager(db, user, video.package_id)
+    return video
+
 
 
 def _catalog_video_output(video: RemoteTrainingCatalogVideo) -> dict[str, Any]:
@@ -834,6 +871,7 @@ def _catalog_package_output(
         ),
         "created_at": _iso(package.created_at),
         "updated_at": _iso(package.updated_at),
+        "is_shared": package.osgb_id is None,
     }
     if detail:
         result["sections"] = [_catalog_section_output(db, section) for section in sections]
@@ -841,20 +879,32 @@ def _catalog_package_output(
 
 
 def _ensure_catalog_seed(db: Session, user: User) -> int | None:
-    """Idempotently create the requested package catalog in the current scope."""
+    """Ensure the approved catalog exists without creating tenant shadow copies."""
     scope = _catalog_scope(db, user)
     changed = False
     for spec in REMOTE_CATALOG_PACKAGE_SPECS:
-        scope_filter = (
-            RemoteTrainingCatalogPackage.osgb_id.is_(None)
-            if scope is None
-            else RemoteTrainingCatalogPackage.osgb_id == scope
-        )
-        package = db.scalar(
-            select(RemoteTrainingCatalogPackage).where(
-                RemoteTrainingCatalogPackage.code == spec["code"], scope_filter
+        package = None
+        if scope is None:
+            package = db.scalar(
+                select(RemoteTrainingCatalogPackage).where(
+                    RemoteTrainingCatalogPackage.code == spec["code"],
+                    RemoteTrainingCatalogPackage.osgb_id.is_(None),
+                )
             )
-        )
+        else:
+            package = db.scalar(
+                select(RemoteTrainingCatalogPackage).where(
+                    RemoteTrainingCatalogPackage.code == spec["code"],
+                    RemoteTrainingCatalogPackage.osgb_id == scope,
+                )
+            )
+            if package is None:
+                package = db.scalar(
+                    select(RemoteTrainingCatalogPackage).where(
+                        RemoteTrainingCatalogPackage.code == spec["code"],
+                        RemoteTrainingCatalogPackage.osgb_id.is_(None),
+                    )
+                )
         if package is None:
             package = RemoteTrainingCatalogPackage(
                 osgb_id=scope,
@@ -867,13 +917,17 @@ def _ensure_catalog_seed(db: Session, user: User) -> int | None:
             db.add(package)
             db.flush()
             changed = True
-        else:
-            # Keep rows created by an earlier catalog draft aligned with the
-            # approved package names without touching their videos or revisions.
-            if package.title != spec["title"] or package.description != spec["description"]:
+        elif package.title != spec["title"] or package.description != spec["description"]:
+            # Shared package metadata is repaired only by the global owner.
+            if scope is None or package.osgb_id == scope:
                 package.title = spec["title"]
                 package.description = spec["description"]
                 changed = True
+
+        # A tenant request must never mutate a shared package while seeding.
+        if scope is not None and package.osgb_id is None:
+            continue
+
         existing_codes = set(
             db.scalars(
                 select(RemoteTrainingCatalogSection.code).where(
@@ -897,7 +951,6 @@ def _ensure_catalog_seed(db: Session, user: User) -> int | None:
     if changed:
         _commit(db, "Merkezi eğitim paketleri oluşturulamadı.")
     return scope
-
 
 @router.get("/meta")
 def remote_training_meta(
@@ -938,23 +991,31 @@ def list_catalog_packages(
     _manager(user)
     _ensure_catalog_seed(db, user)
     scope = _catalog_scope(db, user)
-    stmt = select(RemoteTrainingCatalogPackage)
     allowed_codes = tuple(spec["code"] for spec in REMOTE_CATALOG_PACKAGE_SPECS)
-    # Retired/experimental rows remain recoverable in the database, but the
-    # preparation screen exposes only the approved package catalog.
-    stmt = stmt.where(RemoteTrainingCatalogPackage.code.in_(allowed_codes))
-    if user.role != UserRole.GLOBAL_ADMIN:
-        stmt = stmt.where(RemoteTrainingCatalogPackage.osgb_id == scope)
-    rows = db.scalars(
-        stmt.order_by(RemoteTrainingCatalogPackage.code, RemoteTrainingCatalogPackage.id)
-    ).all()
-    # SQL ordering is intentionally not used for the user-facing catalog.  The
-    # package specification order is the same order in which the administrator
-    # prepares the content.
-    order = {
-        spec["code"]: index
-        for index, spec in enumerate(REMOTE_CATALOG_PACKAGE_SPECS)
-    }
+    stmt = select(RemoteTrainingCatalogPackage).where(
+        RemoteTrainingCatalogPackage.code.in_(allowed_codes)
+    )
+    if user.role == UserRole.GLOBAL_ADMIN:
+        stmt = stmt.where(RemoteTrainingCatalogPackage.osgb_id.is_(None))
+    else:
+        stmt = stmt.where(
+            or_(
+                RemoteTrainingCatalogPackage.osgb_id.is_(None),
+                RemoteTrainingCatalogPackage.osgb_id == scope,
+            )
+        )
+    rows = list(
+        db.scalars(
+            stmt.order_by(RemoteTrainingCatalogPackage.code, RemoteTrainingCatalogPackage.id)
+        ).all()
+    )
+    # An OSGB override replaces the shared card for the same package code.
+    if scope is not None:
+        own = {row.code: row for row in rows if row.osgb_id == scope}
+        shared = {row.code: row for row in rows if row.osgb_id is None}
+        rows = [own.get(code) or shared.get(code) for code in allowed_codes]
+        rows = [row for row in rows if row is not None]
+    order = {spec["code"]: index for index, spec in enumerate(REMOTE_CATALOG_PACKAGE_SPECS)}
     rows = sorted(rows, key=lambda row: (order.get(row.code, len(order)), row.id))
     return [_catalog_package_output(db, row) for row in rows]
 
