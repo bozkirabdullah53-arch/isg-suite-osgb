@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
-from sqlalchemy import desc, func, or_, select
+from sqlalchemy import delete, desc, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -2905,107 +2905,54 @@ def assign_remote_program(
 
 
 @router.delete("/programs/{program_id}/assignments/{assignment_id}")
-def revoke_remote_assignment(
+def delete_remote_assignment(
     program_id: int,
     assignment_id: int,
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Remove an assignment from the employee without destroying evidence.
-
-    The assignment is intentionally soft-revoked.  The employee immediately
-    loses access to the course, while progress, exam attempts, certificates
-    and the audit trail remain available to the authorized workplace manager.
-    """
+    """Permanently delete an assignment and its employee-specific records."""
     program = _assert_program_manager(db, user, program_id)
     assignment = load_assignment(db, assignment_id)
     if assignment.program_id != program.id or assignment.company_id != program.company_id:
         raise HTTPException(404, "Atama bu eğitim kaydına ait değil.")
 
     previous_status = assignment.status
-    if previous_status == "revoked":
-        return {
-            "ok": True,
-            "revoked": True,
-            "already_revoked": True,
-            "assignment": _assignment_output(db, assignment),
-            "message": "Bu çalışanın ataması zaten kaldırılmış.",
-        }
-
-    assignment.status = "revoked"
     audit(
         db,
         company_id=program.company_id,
         user=user,
-        action="program_assignment_revoked",
+        action="program_assignment_deleted",
         entity_type="assignment",
         entity_id=assignment.id,
         details={
             "program_id": program.id,
             "employee_id": assignment.employee_id,
             "previous_status": previous_status,
+            "permanent": True,
             "ip": request.client.host if request.client else None,
         },
     )
-    _commit(db, "Çalışan eğitim ataması kaldırılamadı; işlem geri alındı.")
+    # These rows carry the employee-specific learning history.  Delete them
+    # explicitly instead of relying only on database-level ON DELETE CASCADE;
+    # this keeps the behavior identical on PostgreSQL and local test databases.
+    for model in (
+        RemoteTrainingAssignmentSector,
+        RemoteTrainingVideoProgress,
+        RemoteTrainingEvent,
+        RemoteTrainingCheckpointAnswer,
+        RemoteTrainingExamAttempt,
+        RemoteTrainingCertificate,
+    ):
+        db.execute(delete(model).where(model.assignment_id == assignment.id))
+    db.delete(assignment)
+    _commit(db, "Çalışan eğitim ataması kalıcı olarak silinemedi; işlem geri alındı.")
     return {
         "ok": True,
-        "revoked": True,
-        "already_revoked": False,
-        "assignment": _assignment_output(db, assignment),
-        "message": "Eğitim çalışanın ekranından kaldırıldı; ilerleme ve belge geçmişi korundu.",
-    }
-
-
-@router.post("/programs/{program_id}/assignments/{assignment_id}/restore")
-def restore_remote_assignment(
-    program_id: int,
-    assignment_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """Re-enable an assignment that was previously removed from the employee."""
-    program = _assert_program_manager(db, user, program_id)
-    assignment = load_assignment(db, assignment_id)
-    if assignment.program_id != program.id or assignment.company_id != program.company_id:
-        raise HTTPException(404, "Atama bu eğitim kaydına ait değil.")
-    if assignment.status != "revoked":
-        return {
-            "ok": True,
-            "restored": False,
-            "assignment": _assignment_output(db, assignment),
-            "message": "Bu atama zaten aktif.",
-        }
-    if program.status == "archived":
-        raise HTTPException(409, "Arşivlenmiş eğitim ataması yeniden etkinleştirilemez.")
-
-    assignment.status = "not_started"
-    assignment.completed_at = None
-    # Existing progress and exam evidence is intentionally retained.  The
-    # normal calculation restores the correct current state (not_started,
-    # in_progress or completed) from that evidence.
-    recalculate_assignment(db, assignment)
-    audit(
-        db,
-        company_id=program.company_id,
-        user=user,
-        action="program_assignment_restored",
-        entity_type="assignment",
-        entity_id=assignment.id,
-        details={
-            "program_id": program.id,
-            "employee_id": assignment.employee_id,
-            "ip": request.client.host if request.client else None,
-        },
-    )
-    _commit(db, "Çalışan eğitim ataması yeniden etkinleştirilemedi; işlem geri alındı.")
-    return {
-        "ok": True,
-        "restored": True,
-        "assignment": _assignment_output(db, assignment),
-        "message": "Eğitim ataması yeniden etkinleştirildi; mevcut ilerleme geçmişi korundu.",
+        "deleted": True,
+        "assignment_id": assignment.id,
+        "message": "Eğitim ataması ve bu atamaya bağlı ilerleme, sınav ve belge kayıtları kalıcı olarak silindi.",
     }
 
 
