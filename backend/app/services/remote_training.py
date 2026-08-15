@@ -1158,6 +1158,12 @@ def ensure_certificate(db: Session, assignment: RemoteTrainingAssignment) -> Rem
         training_duration_seconds=program.total_duration_seconds,
         training_date=(assignment.completed_at.date() if assignment.completed_at else date.today()),
         instructor_name_snapshot=program.instructor_name or defaults.get("instructor_name"),
+        instructor_qualification_snapshot=(
+            program.instructor_qualification
+            or defaults.get("instructor_qualification")
+        ),
+        workplace_physician_snapshot=defaults.get("workplace_physician"),
+        employer_representative_snapshot=defaults.get("employer_representative"),
         examination_score=int(score) if score is not None else None,
         certificate_number=f"ROHS-{date.today():%Y%m%d}-{assignment.id:08d}",
         verification_code=hashlib.sha256(seed.encode("utf-8")).hexdigest()[:32].upper(),
@@ -1190,7 +1196,8 @@ def build_certificate_pdf(db: Session, certificate: RemoteTrainingCertificate) -
         or ""
     )
     instructor_qualification = (
-        program.instructor_qualification
+        certificate.instructor_qualification_snapshot
+        or program.instructor_qualification
         or defaults.get("instructor_qualification")
         or ""
     )
@@ -1212,8 +1219,14 @@ def build_certificate_pdf(db: Session, certificate: RemoteTrainingCertificate) -
         sector=certificate.nace_code_snapshot or "",
         instructor_name=instructor_name,
         instructor_qualification=instructor_qualification,
-        workplace_physician=defaults.get("workplace_physician"),
-        employer_representative=defaults.get("employer_representative"),
+        workplace_physician=(
+            certificate.workplace_physician_snapshot
+            or defaults.get("workplace_physician")
+        ),
+        employer_representative=(
+            certificate.employer_representative_snapshot
+            or defaults.get("employer_representative")
+        ),
         stamp_text=(
             "Bu belge, uzaktan eğitim video, video içi kontrol soruları ve "
             "final sınavı tamamlanma kayıtlarına dayanır."
