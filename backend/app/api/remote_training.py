@@ -75,8 +75,14 @@ from app.schemas.remote_training import (
     RemoteVideoUpdate,
 )
 from app.services.object_store import get_object_store
+from app.services.osgb_subscription import (
+    assert_osgb_subscription_access,
+    assert_osgb_write_access,
+    resolve_user_osgb_id,
+)
 from app.services.osgb_admin import generate_temporary_password
 from app.services.remote_training import (
+    CATALOG_CONTENT_ROLES,
     MANAGE_ROLES,
     REMOTE_AUTO_EXAM_QUESTION_COUNT,
     VIEW_ROLES,
@@ -101,6 +107,7 @@ from app.services.remote_training import (
     enqueue_catalog_video_processing,
     ensure_certificate,
     feature_active,
+    is_catalog_content_manager,
     is_manager,
     load_assignment,
     load_program,
@@ -134,6 +141,26 @@ logger = logging.getLogger(__name__)
 def _manager(user: User) -> None:
     if user.role not in MANAGE_ROLES:
         raise HTTPException(403, "Bu uzaktan eğitim işlemi için eğitici/yönetici yetkisi gerekir.")
+
+
+def _assert_catalog_content_editor(db: Session, user: User) -> None:
+    """Require the OSGB administrator for curriculum/package changes."""
+    _manager(user)
+    if user.role == UserRole.GLOBAL_ADMIN:
+        return
+    if (
+        user.role not in CATALOG_CONTENT_ROLES
+        or user.role != UserRole.COMPANY_ADMIN
+        or not user.osgb_id
+        or user.company_id is not None
+        or not is_catalog_content_manager(user)
+    ):
+        raise HTTPException(
+            403,
+            "Uzaktan eğitim içeriğini yalnızca OSGB yöneticisi değiştirebilir. "
+            "Uzmanlar sadece kendilerine atanmış firmalara paket atayabilir.",
+        )
+    assert_osgb_write_access(db, user, int(user.osgb_id))
 
 
 def _viewer(user: User) -> None:
