@@ -45,6 +45,13 @@ class RemoteCatalogSectionMetadataUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=5000)
     is_required: bool | None = None
 
+class RemoteCatalogSectionReorder(BaseModel):
+    """Complete ordered list of sections for one catalog package."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    section_ids: list[int] = Field(min_length=1, max_length=2000)
+
 
 def _private_package(
     db: Session, user: User, package_id: int
@@ -229,6 +236,76 @@ def update_catalog_section_metadata(
     return remote_api._catalog_section_output(db, section)
 
 
+def reorder_catalog_sections(
+    package_id: int,
+    payload: RemoteCatalogSectionReorder,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Persist a complete, validated order for an OSGB-owned catalog package.
+
+    Section rows have a unique (package_id, order_index) constraint. They are
+    moved through a temporary negative range first so PostgreSQL and SQLite
+    both remain safe when two sections exchange positions.
+    """
+
+    package = _private_package(db, user, package_id)
+    if package.status == "archived":
+        raise HTTPException(
+            409,
+            "Arşivlenmiş paketin bölümleri sıralanamaz. Önce paketi düzenlemeye açın.",
+        )
+
+    requested_ids = [int(section_id) for section_id in payload.section_ids]
+    if len(set(requested_ids)) != len(requested_ids):
+        raise HTTPException(422, "Bölüm sıralamasında aynı bölüm birden fazla kez gönderilemez.")
+
+    sections = list(
+        db.scalars(
+            select(RemoteTrainingCatalogSection)
+            .where(RemoteTrainingCatalogSection.package_id == package.id)
+            .order_by(
+                RemoteTrainingCatalogSection.order_index,
+                RemoteTrainingCatalogSection.id,
+            )
+        ).all()
+    )
+    actual_ids = {int(section.id) for section in sections}
+    requested_set = set(requested_ids)
+    if requested_set != actual_ids:
+        missing = sorted(actual_ids - requested_set)
+        unknown = sorted(requested_set - actual_ids)
+        details = []
+        if missing:
+            details.append(f"eksik bölüm kimlikleri: {', '.join(map(str, missing))}")
+        if unknown:
+            details.append(f"pakete ait olmayan kimlikler: {', '.join(map(str, unknown))}")
+        raise HTTPException(
+            422,
+            "Bölüm sıralaması paketteki tüm bölümleri tam olarak içermelidir"
+            + (f" ({'; '.join(details)})." if details else "."),
+        )
+
+    current_ids = [int(section.id) for section in sections]
+    changed = current_ids != requested_ids
+    if changed:
+        # Avoid transient unique-key collisions while swapping/reordering rows.
+        for section in sections:
+            section.order_index = -1_000_000_000 - int(section.id)
+        db.flush()
+
+        by_id = {int(section.id): section for section in sections}
+        for order_index, section_id in enumerate(requested_ids, start=1):
+            by_id[section_id].order_index = order_index
+
+        package.revision_no = int(package.revision_no or 0) + 1
+        remote_api._commit(db, "Bölüm sırası kaydedilemedi.")
+
+    result = remote_api._catalog_package_output(db, package, detail=True)
+    result["reordered"] = changed
+    return result
+
+
 def delete_catalog_section_safely(
     section_id: int,
     db: Session = Depends(get_db),
@@ -284,6 +361,11 @@ def install_remote_training_package_management() -> dict[str, Any]:
 
     routes = (
         (
+            "/catalog/packages/{package_id}/sections/order",
+            reorder_catalog_sections,
+            ["PATCH"],
+        ),
+        (
             "/catalog/packages/{package_id}",
             update_catalog_package_metadata,
             ["PATCH"],
@@ -323,3 +405,4 @@ def install_remote_training_package_management() -> dict[str, Any]:
         "already_installed": False,
         "routes_added": added,
     }
+

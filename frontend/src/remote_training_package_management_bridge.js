@@ -4,6 +4,8 @@ const CATALOG_API = '/trainings/remote/catalog/packages';
 const STYLE_ID = 'remote-training-package-management-style';
 const TOOLBAR_ATTR = 'data-remote-package-management-toolbar';
 const SECTION_ACTION_ATTR = 'data-remote-section-management-actions';
+const SECTION_ROOT_ATTR = 'data-remote-catalog-section-root';
+const SECTION_HANDLE_ATTR = 'data-remote-section-drag-handle';
 const DIALOG_ATTR = 'data-remote-package-management-dialog';
 
 let allowed = null;
@@ -13,6 +15,13 @@ let selectedDetail = null;
 let packageLoadPromise = null;
 let renderPending = false;
 let forceRequested = false;
+let sectionReorderEnabled = false;
+let sectionReorderSaving = false;
+let draggingSectionRoot = null;
+let dragStartSectionOrder = null;
+let dragStartSectionContainer = null;
+let dragDropCommitted = false;
+const boundSectionRoots = new WeakSet();
 
 function ensureStyles() {
   if (document.getElementById(STYLE_ID)) return;
@@ -25,6 +34,13 @@ function ensureStyles() {
     .rt-package-manage-btn,.rt-section-manage-actions button{min-height:34px;padding:7px 10px;border:1px solid #a9c9c6;border-radius:8px;background:#fff;color:#174b57;font-weight:750;cursor:pointer}
     .rt-section-manage-actions{display:inline-flex;margin-left:10px;vertical-align:middle}.rt-section-manage-actions button{min-height:29px;padding:4px 8px;font-size:12px}
     .rt-package-manage-btn--danger,.rt-section-manage-actions button:last-child{border-color:#e6a19a;color:#a5271f;background:#fff8f7}
+    .rt-section-reorder-hint{margin-top:8px;color:#31566b;font-size:12px;line-height:1.45}
+    .rt-section-sort-root{transition:opacity .15s ease,outline-color .15s ease,background-color .15s ease}
+    .rt-section-sort-root.is-dragging{opacity:.48}
+    .rt-section-sort-root.is-drop-target{outline:2px solid #159f9a;outline-offset:3px;background:#f2fffd}
+    .rt-section-drag-handle{display:inline-flex;align-items:center;gap:5px;min-height:28px;margin:0 7px 5px 0;padding:4px 8px;border:1px dashed #56a7a5;border-radius:7px;background:#f2fbfa;color:#0f766e;font:inherit;font-size:12px;font-weight:800;cursor:grab;user-select:none}
+    .rt-section-drag-handle:active{cursor:grabbing}
+    .rt-section-drag-handle[aria-disabled="true"]{opacity:.6;cursor:not-allowed}
     .rt-pm-overlay{position:fixed;inset:0;z-index:10120;display:grid;place-items:center;padding:22px;background:rgba(8,25,39,.58);backdrop-filter:blur(2px)}
     .rt-pm-dialog{width:min(620px,96vw);max-height:92vh;overflow:auto;border-radius:16px;background:#fff;border:1px solid #dbe5ef;box-shadow:0 24px 70px rgba(7,30,48,.28)}
     .rt-pm-head{display:flex;justify-content:space-between;gap:14px;padding:19px 21px 13px;border-bottom:1px solid #e6edf3}.rt-pm-head h3{margin:0;color:#173b57;font-size:20px}.rt-pm-head p{margin:6px 0 0;color:#5e7485;font-size:12px;line-height:1.45}
@@ -154,6 +170,7 @@ function dialogShell(title, note) {
 }
 
 async function refreshCurrentPackage() {
+  sectionReorderEnabled = false;
   selectedDetail = null;
   await loadPackageRows(true);
   refreshButton()?.click();
@@ -161,6 +178,165 @@ async function refreshCurrentPackage() {
     selectedDetail = null;
     scheduleRender(true);
   }, 450);
+}
+
+
+function sectionRootForItem(sectionRoot, item) {
+  const wanted = String(item.code || '') + ' · ' + String(item.title || '');
+  const label = [...sectionRoot.querySelectorAll('strong')]
+    .find((node) => node.textContent?.trim() === wanted);
+  // strong -> heading group -> header row -> complete section card
+  return label?.parentElement?.parentElement?.parentElement || null;
+}
+
+function sectionRootsInOrder(sectionContainer) {
+  if (!sectionContainer) return [];
+  return [...sectionContainer.children]
+    .filter((node) => node.matches?.('[' + SECTION_ROOT_ATTR + ']'))
+    .filter((node) => node.dataset.remoteCatalogSectionId);
+}
+
+function sectionOrderFromDom(sectionContainer) {
+  return sectionRootsInOrder(sectionContainer)
+    .map((node) => Number(node.dataset.remoteCatalogSectionId))
+    .filter((id) => Number.isInteger(id) && id > 0);
+}
+
+function applySectionOrder(sectionContainer, orderedIds) {
+  const roots = sectionRootsInOrder(sectionContainer);
+  const byId = new Map(roots.map((root) => [Number(root.dataset.remoteCatalogSectionId), root]));
+  let cursor = roots[0] || null;
+  for (const id of orderedIds) {
+    const root = byId.get(Number(id));
+    if (!root) continue;
+    if (root !== cursor) {
+      if (cursor) sectionContainer.insertBefore(root, cursor);
+      else sectionContainer.appendChild(root);
+    }
+    cursor = root.nextElementSibling;
+  }
+}
+
+function clearDragState() {
+  document.querySelectorAll('[' + SECTION_ROOT_ATTR + ']').forEach((node) => {
+    node.classList.remove('is-dragging', 'is-drop-target');
+  });
+  draggingSectionRoot = null;
+  dragStartSectionOrder = null;
+  dragStartSectionContainer = null;
+  dragDropCommitted = false;
+}
+
+async function persistSectionOrder(detail, sectionContainer, previousOrder, nextOrder) {
+  if (!detail?.id) {
+    applySectionOrder(sectionContainer, previousOrder);
+    showToast('Bölüm sırası kaydedilemedi; paket bilgisi yenileniyor.', true);
+    return;
+  }
+  if (sectionReorderSaving || !nextOrder.length || previousOrder.join(',') === nextOrder.join(',')) return;
+  sectionReorderSaving = true;
+  try {
+    await api(CATALOG_API + '/' + detail.id + '/sections/order', {
+      method: 'PATCH',
+      _retries: 0,
+      body: JSON.stringify({section_ids: nextOrder}),
+    });
+    showToast('Bölüm sırası kaydedildi. Yeni firma/çalışan eğitim kopyaları bu sırayı kullanacak.');
+    await refreshCurrentPackage();
+  } catch (error) {
+    applySectionOrder(sectionContainer, previousOrder);
+    showToast(error?.message || 'Bölüm sırası kaydedilemedi; eski sıra geri yüklendi.', true);
+  } finally {
+    sectionReorderSaving = false;
+    scheduleRender(true);
+  }
+}
+
+function bindSectionReorder(sectionRoot, item, label, detail) {
+  const root = sectionRootForItem(sectionRoot, item);
+  if (!root || !label) return null;
+  root.setAttribute(SECTION_ROOT_ATTR, 'true');
+  root.dataset.remoteCatalogSectionId = String(item.id);
+  root.classList.add('rt-section-sort-root');
+
+  const headingGroup = label.parentElement;
+  let handle = headingGroup?.querySelector('[' + SECTION_HANDLE_ATTR + ']');
+  if (!handle && headingGroup) {
+    handle = document.createElement('button');
+    handle.type = 'button';
+    handle.setAttribute(SECTION_HANDLE_ATTR, 'true');
+    handle.className = 'rt-section-drag-handle';
+    handle.textContent = '☷ Tut ve taşı';
+    handle.title = 'Bölümü fareyle tutup istediğiniz sıraya taşıyın';
+    handle.setAttribute('aria-label', String(item.title || 'Bölüm') + ' bölümünü sırada taşımak için tutun');
+    headingGroup.insertBefore(handle, headingGroup.firstChild);
+  }
+  if (!handle) return root;
+
+  handle.draggable = !sectionReorderSaving;
+  handle.setAttribute('aria-disabled', sectionReorderSaving ? 'true' : 'false');
+  if (!handle.dataset.reorderBound) {
+    handle.dataset.reorderBound = 'true';
+    handle.addEventListener('dragstart', (event) => {
+      if (!sectionReorderEnabled || sectionReorderSaving) {
+        event.preventDefault();
+        return;
+      }
+      dragDropCommitted = false;
+      draggingSectionRoot = root;
+      dragStartSectionContainer = root.parentElement;
+      dragStartSectionOrder = sectionOrderFromDom(dragStartSectionContainer);
+      root.classList.add('is-dragging');
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(item.id));
+      }
+    });
+    handle.addEventListener('dragend', () => {
+      if (draggingSectionRoot && !dragDropCommitted && dragStartSectionContainer && dragStartSectionOrder) {
+        applySectionOrder(dragStartSectionContainer, dragStartSectionOrder);
+      }
+      clearDragState();
+    });
+  }
+
+  if (!boundSectionRoots.has(root)) {
+    boundSectionRoots.add(root);
+    root.addEventListener('dragover', (event) => {
+      if (!sectionReorderEnabled || !draggingSectionRoot || draggingSectionRoot === root) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('[' + SECTION_ROOT_ATTR + ']').forEach((node) => node.classList.remove('is-drop-target'));
+      root.classList.add('is-drop-target');
+      const rect = root.getBoundingClientRect();
+      const before = event.clientY < rect.top + (rect.height / 2);
+      const reference = before ? root : root.nextElementSibling;
+      if (reference && reference !== draggingSectionRoot) root.parentElement?.insertBefore(draggingSectionRoot, reference);
+      else if (!reference && draggingSectionRoot.parentElement === root.parentElement) root.parentElement.appendChild(draggingSectionRoot);
+    });
+    root.addEventListener('drop', (event) => {
+      if (!sectionReorderEnabled || !draggingSectionRoot || draggingSectionRoot === root) return;
+      event.preventDefault();
+      const container = dragStartSectionContainer || draggingSectionRoot.parentElement;
+      const previousOrder = dragStartSectionOrder ? [...dragStartSectionOrder] : [];
+      const nextOrder = sectionOrderFromDom(container);
+      dragDropCommitted = true;
+      clearDragState();
+      void persistSectionOrder(detail, container, previousOrder, nextOrder);
+    });
+  }
+  return root;
+}
+
+function removeSectionReorderControls() {
+  sectionReorderEnabled = false;
+  document.querySelectorAll('[' + SECTION_HANDLE_ATTR + ']').forEach((node) => node.remove());
+  document.querySelectorAll('[' + SECTION_ROOT_ATTR + ']').forEach((node) => {
+    node.classList.remove('rt-section-sort-root', 'is-dragging', 'is-drop-target');
+    node.removeAttribute(SECTION_ROOT_ATTR);
+    delete node.dataset.remoteCatalogSectionId;
+  });
+  clearDragState();
 }
 
 function openPackageEdit(detail) {
@@ -265,6 +441,7 @@ async function deleteSection(detail, item) {
 function removeInjectedControls() {
   document.querySelector(`[${TOOLBAR_ATTR}]`)?.remove();
   document.querySelectorAll(`[${SECTION_ACTION_ATTR}]`).forEach((node) => node.remove());
+  removeSectionReorderControls();
 }
 
 function addToolbar(sectionRoot, detail, heading) {
@@ -274,7 +451,7 @@ function addToolbar(sectionRoot, detail, heading) {
   toolbar.className = 'rt-package-manage-toolbar';
   toolbar.setAttribute(TOOLBAR_ATTR, 'true');
   toolbar.dataset.packageId = String(detail.id);
-  toolbar.innerHTML = `<div class="rt-package-manage-toolbar__text"><strong>Paket yönetimi:</strong> Paket adını/açıklamasını değiştirebilir ve OSGB özel paketini silebilirsiniz. Daha önce hazırlanmış firma/çalışan kopyaları korunur.${detail.status === 'archived' ? ' İçeriği değiştirmek için önce paketi düzenlemeye açın.' : ''}</div><div class="rt-package-manage-toolbar__actions"><button type="button" class="rt-package-manage-btn edit">Paket Bilgilerini Düzenle</button><button type="button" class="rt-package-manage-btn rt-package-manage-btn--danger delete">Paketi Sil</button></div>`;
+  toolbar.innerHTML = '<div class="rt-package-manage-toolbar__text"><strong>Paket yönetimi:</strong> Paket adını/açıklamasını değiştirebilir ve OSGB özel paketini silebilirsiniz. Daha önce hazırlanmış firma/çalışan kopyaları korunur.' + (detail.status === 'archived' ? ' İçeriği değiştirmek için önce paketi düzenlemeye açın.' : '') + '<div class="rt-section-reorder-hint">Bölüm sırası: <strong>☷ Tut ve taşı</strong> düğmesine basılı tutup bölümü istediğiniz yere bırakın. Sıra otomatik kaydedilir; daha önce firmaya hazırlanmış çalışan kopyaları geriye dönük değişmez.</div></div><div class="rt-package-manage-toolbar__actions"><button type="button" class="rt-package-manage-btn edit">Paket Bilgilerini Düzenle</button><button type="button" class="rt-package-manage-btn rt-package-manage-btn--danger delete">Paketi Sil</button></div>';
   toolbar.querySelector('.edit')?.addEventListener('click', () => openPackageEdit(detail));
   toolbar.querySelector('.delete')?.addEventListener('click', () => void deletePackage(detail));
   topRow.insertAdjacentElement('afterend', toolbar);
@@ -291,7 +468,7 @@ async function renderControls(forceDetail = false) {
 
   const existingToolbar = sectionRoot.querySelector(`[${TOOLBAR_ATTR}]`);
   if (detail.is_shared) {
-    if (existingToolbar || sectionRoot.querySelector(`[${SECTION_ACTION_ATTR}]`)) removeInjectedControls();
+    if (existingToolbar || sectionRoot.querySelector(`[${SECTION_ACTION_ATTR}]`) || sectionRoot.querySelector(`[${SECTION_HANDLE_ATTR}]`)) removeInjectedControls();
     return;
   }
 
@@ -307,13 +484,17 @@ async function renderControls(forceDetail = false) {
 
   if (detail.status === 'archived') {
     sectionRoot.querySelectorAll(`[${SECTION_ACTION_ATTR}]`).forEach((node) => node.remove());
+    removeSectionReorderControls();
     return;
   }
 
+  sectionReorderEnabled = true;
   for (const item of detail.sections || []) {
     const wanted = `${item.code} · ${item.title}`;
     const label = [...sectionRoot.querySelectorAll('strong')].find((node) => node.textContent?.trim() === wanted);
-    if (!label || label.parentElement?.querySelector(`[${SECTION_ACTION_ATTR}]`)) continue;
+    if (!label) continue;
+    bindSectionReorder(sectionRoot, item, label, detail);
+    if (label.parentElement?.querySelector(`[${SECTION_ACTION_ATTR}]`)) continue;
     const actions = document.createElement('span');
     actions.className = 'rt-section-manage-actions';
     actions.setAttribute(SECTION_ACTION_ATTR, 'true');
