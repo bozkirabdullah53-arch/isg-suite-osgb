@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from types import SimpleNamespacefrom sqlalchemy import create_engine
+from types import SimpleNamespace
+
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
@@ -144,3 +146,56 @@ def test_management_route_installer_is_idempotent():
     assert ("/trainings/remote/catalog/packages/{package_id}", "DELETE") in routes
     assert ("/trainings/remote/catalog/sections/{section_id}", "PATCH") in routes
     assert ("/trainings/remote/catalog/sections/{section_id}", "DELETE") in routes
+    assert ("/trainings/remote/catalog/packages/{package_id}/sections/order", "PATCH") in routes
+
+
+
+def test_catalog_section_reorder_uses_contiguous_order_and_preserves_snapshot_boundary(monkeypatch):
+    from sqlalchemy import select
+
+    from app.models.remote_training import RemoteTrainingCatalogSection
+    from app.services import remote_training_package_management as management
+
+    db = _db()
+    package = _package(db)
+    sections = [
+        RemoteTrainingCatalogSection(
+            package_id=package.id,
+            code=f"SEC-{index}",
+            title=f"Bölüm {index}",
+            order_index=index,
+        )
+        for index in (1, 2, 3)
+    ]
+    db.add_all(sections)
+    db.commit()
+    for section in sections:
+        db.refresh(section)
+
+    monkeypatch.setattr(
+        management,
+        "_private_package",
+        lambda session, _user, package_id: session.get(type(package), package_id),
+    )
+    out = management.reorder_catalog_sections(
+        package.id,
+        management.RemoteCatalogSectionReorder(
+            section_ids=[sections[2].id, sections[0].id, sections[1].id],
+        ),
+        db=db,
+        user=SimpleNamespace(id=1),
+    )
+
+    rows = list(
+        db.scalars(
+            select(RemoteTrainingCatalogSection)
+            .where(RemoteTrainingCatalogSection.package_id == package.id)
+            .order_by(RemoteTrainingCatalogSection.order_index)
+        ).all()
+    )
+    assert [row.id for row in rows] == [sections[2].id, sections[0].id, sections[1].id]
+    assert [row.order_index for row in rows] == [1, 2, 3]
+    db.refresh(package)
+    assert package.revision_no == 2
+    assert out["reordered"] is True
+
