@@ -3,6 +3,7 @@ import {
   canEditRemoteContent,
   employeeAssignmentTimeline,
   formatEmployeeDate,
+  protectedPlaybackFallbackFetchOptions,
   sortEmployeeAssignments,
 } from './remote_basic_ohs_training.jsx';
 
@@ -43,6 +44,18 @@ describe('employee training assignment overview', () => {
   it('formats assignment dates using Turkish date order', () => {
     expect(formatEmployeeDate('2026-08-14')).toBe('14.08.2026');
     expect(formatEmployeeDate(null)).toBe('Belirlenmedi');
+  });
+});
+
+describe('protected video fallback', () => {
+  it('requests the authorized local stream instead of following the R2 redirect', () => {
+    expect(protectedPlaybackFallbackFetchOptions()).toEqual({
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'omit',
+      cache: 'no-store',
+      headers: {'X-ISG-Local-Video-Fallback': '1'},
+    });
   });
 });
 

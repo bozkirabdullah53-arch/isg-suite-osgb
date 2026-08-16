@@ -83,6 +83,67 @@ def test_video_media_type_prefers_browser_compatible_extension():
     )) == "video/webm"
 
 
+def test_direct_object_playback_is_opt_in_and_force_off_wins(monkeypatch):
+    from app.core.config import remote_basic_ohs_direct_object_playback_active, settings
+
+    monkeypatch.setattr(settings, "remote_basic_ohs_direct_object_playback_enabled", False)
+    monkeypatch.setattr(settings, "remote_basic_ohs_direct_object_playback_force_off", False)
+    assert remote_basic_ohs_direct_object_playback_active() is False
+
+    monkeypatch.setattr(settings, "remote_basic_ohs_direct_object_playback_enabled", True)
+    assert remote_basic_ohs_direct_object_playback_active() is True
+
+    monkeypatch.setattr(settings, "remote_basic_ohs_direct_object_playback_force_off", True)
+    assert remote_basic_ohs_direct_object_playback_active() is False
+
+
+def test_video_response_redirects_to_r2_and_local_fallback_remains(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from fastapi.responses import FileResponse, RedirectResponse
+
+    from app.core.config import settings
+    from app.services import object_store as object_store_service
+    from app.services import remote_training as service
+
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    monkeypatch.setattr(settings, "object_storage_backend", "local")
+    monkeypatch.setattr(settings, "remote_basic_ohs_direct_object_playback_enabled", True)
+    monkeypatch.setattr(settings, "remote_basic_ohs_direct_object_playback_force_off", False)
+    monkeypatch.setattr(settings, "remote_basic_ohs_direct_object_playback_ttl_seconds", 3600)
+    object_store_service.reset_object_store_for_tests()
+    store = object_store_service.get_object_store()
+    key = store.put_bytes("4/video/lesson.mp4", b"video-bytes")
+    video = SimpleNamespace(
+        storage_key=key,
+        original_file_name="lesson.mp4",
+        content_type="video/mp4",
+    )
+    calls = []
+    monkeypatch.setattr(
+        service,
+        "presigned_object_read_url",
+        lambda storage_key, *, expires_in_seconds: calls.append(
+            (storage_key, expires_in_seconds)
+        ) or "https://r2.example/signed-video",
+    )
+
+    redirected = service.response_for_video(video, SimpleNamespace(headers={}))
+    assert isinstance(redirected, RedirectResponse)
+    assert redirected.status_code == 307
+    assert redirected.headers["location"] == "https://r2.example/signed-video"
+    assert redirected.headers["cache-control"] == "private, no-store, max-age=0"
+    assert calls == [(key, 3600)]
+
+    local = service.response_for_video(
+        video,
+        SimpleNamespace(headers={"x-isg-local-video-fallback": "1"}),
+    )
+    assert isinstance(local, FileResponse)
+    assert calls == [(key, 3600)]
+    object_store_service.reset_object_store_for_tests()
+
+
 
 def test_strict_remote_policy_rollout_is_fail_closed(monkeypatch):
     from app.core.config import remote_basic_ohs_strict_policy_active, settings
