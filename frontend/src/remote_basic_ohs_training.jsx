@@ -374,14 +374,15 @@ function EmployeePanel() {
     });
   }
 
-  async function fallbackToBlob() {
+  async function fallbackToBlob({force = false} = {}) {
     if (!assignment || !activeVideo) return;
     const key = `${assignment.id}:${activeVideo.id}`;
-    if (playbackBlobFallbackRef.current.has(key)) {
+    if (playbackBlobFallbackRef.current.has(key) && !force) {
       setVideoPlaying(false);
       setError('Video kaynağı doğrudan oynatılamadı. Alternatif oynatma da başarısız oldu; eğitim yöneticisi video dosyasını yeniden yüklemelidir.');
       return;
     }
+    if (force && playbackBlobUrls.current.has(key)) releasePlaybackBlob(key);
     playbackBlobFallbackRef.current.add(key);
     playbackRetryRef.current.add(key);
     setVideoPlaying(false);
@@ -390,10 +391,28 @@ function EmployeePanel() {
     await refreshPlaybackUrl({useBlob: true});
   }
 
+  async function playWithTimeout(player) {
+    let timeoutId;
+    try {
+      await Promise.race([
+        Promise.resolve().then(() => player.play()),
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(() => {
+            const error = new Error('Video oynatma zaman aşımına uğradı.');
+            error.name = 'PlaybackTimeoutError';
+            reject(error);
+          }, 2500);
+        }),
+      ]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  }
+
   async function playVideoElement(player, {retryOnFailure = false} = {}) {
     if (!player || playerRef.current !== player || player.error || !player.paused) return false;
     try {
-      await player.play();
+      await playWithTimeout(player);
       setVideoMuted(Boolean(player.muted));
       return true;
     } catch (err) {
@@ -401,7 +420,7 @@ function EmployeePanel() {
         player.muted = true;
         setVideoMuted(true);
         try {
-          await player.play();
+          await playWithTimeout(player);
           setMessage('Tarayıcı sesli otomatik oynatmayı engelledi; video sessiz devam ediyor. Sesi açmak için “Sesi aç ve devam et” düğmesine basın.');
           return true;
         } catch (_mutedError) {
@@ -419,11 +438,9 @@ function EmployeePanel() {
     if (!player) return;
     setError('');
     setMessage('');
-    if (player.error) {
-      await fallbackToBlob();
-      return;
-    }
-    await playVideoElement(player, {retryOnFailure: true});
+    // The user explicitly requested continuation. Use the stable protected
+    // blob source immediately instead of waiting on the stalled direct stream.
+    await fallbackToBlob({force: true});
   }
 
   async function unmuteVideo() {
@@ -432,7 +449,7 @@ function EmployeePanel() {
     setError('');
     setMessage('');
     if (player.error) {
-      await fallbackToBlob();
+      await fallbackToBlob({force: true});
       return;
     }
     const wasMuted = player.muted;
@@ -959,7 +976,7 @@ function EmployeePanel() {
                       // Sesli autoplay tarayıcı tarafından reddedilirse aynı
                       // kullanıcı etkileşimini beklemeden sessiz fallback ile
                       // videoyu ilerlet. Kullanıcı sesi görünür düğmeden açabilir.
-                      void playVideoElement(event.currentTarget);
+                      void playVideoElement(event.currentTarget, {retryOnFailure: true});
                     }}
                     onError={handleVideoError}
                     onStalled={(event) => {
@@ -1009,7 +1026,8 @@ function EmployeePanel() {
                     }}
                   />
                   <div style={{fontSize: 12, color: '#5e7485', marginTop: 8}}>Kaldığınız yer: {Math.round(currentProgress?.last_position_seconds || 0)} sn · Eşik: {completionThresholdPercent}%</div>
-                  {!videoPlaying && <button type="button" onClick={() => { void continueVideo(); }} style={{marginTop: 8}}>Videoyu devam ettir</button>}
+                  {videoLoading && <div role="status" aria-live="polite" style={{marginTop: 8, color: '#36556d', fontSize: 12}}>Video akışı hazırlanıyor…</div>}
+                  {!videoPlaying && <button type="button" disabled={videoLoading} onClick={() => { void continueVideo(); }} style={{marginTop: 8}}>{videoLoading ? 'Video hazırlanıyor…' : 'Videoyu devam ettir'}</button>}
                   {videoPlaying && videoMuted && <button type="button" onClick={() => { void unmuteVideo(); }} style={{marginTop: 8}}>Sesi aç ve devam et</button>}
                 </>
               ) : <div style={{minHeight: 180, display: 'grid', placeItems: 'center', border: '1px dashed #b9cad8', borderRadius: 10, color: '#5e7485'}}>{videoLoading ? 'Video hazırlanıyor…' : 'İzlemek için bir video seçin.'}</div>}
