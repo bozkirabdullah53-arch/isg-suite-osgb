@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
-import pytest
-from fastapi import HTTPException
-from sqlalchemy import create_engine
+from types import SimpleNamespacefrom sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
