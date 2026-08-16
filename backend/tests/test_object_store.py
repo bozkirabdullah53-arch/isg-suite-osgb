@@ -87,6 +87,45 @@ def test_s3_presigned_read_url_uses_prefixed_key_and_bounded_ttl():
     )
 
 
+def test_s3_put_file_streams_and_verifies_remote_size(tmp_path):
+    source = tmp_path / "lesson.mp4"
+    source.write_bytes(b"video-bytes" * 100)
+
+    class _Body:
+        def read(self):
+            return b"video"
+
+    class _Client:
+        def __init__(self):
+            self.upload = None
+
+        def upload_file(self, *args, **kwargs):
+            self.upload = (args, kwargs)
+
+        def head_object(self, **_kwargs):
+            return {"ContentLength": source.stat().st_size}
+
+        def get_object(self, **kwargs):
+            assert kwargs["Range"] == "bytes=0-4"
+            return {"Body": _Body()}
+
+    client = _Client()
+    store = object.__new__(os_mod.S3ObjectStore)
+    store.bucket = "training"
+    store.prefix = "isg-suite-osgb"
+    store._client = client
+
+    assert (
+        store.put_file("4/video/lesson.mp4", source, content_type="video/mp4")
+        == "4/video/lesson.mp4"
+    )
+    assert client.upload == (
+        (str(source), "training", "isg-suite-osgb/4/video/lesson.mp4"),
+        {"ExtraArgs": {"ContentType": "video/mp4"}},
+    )
+    assert store.get_range("4/video/lesson.mp4", start=0, end=4) == b"video"
+
+
 def test_presigned_read_failure_returns_none_and_preserves_fallback(monkeypatch):
     class _Store:
         def presigned_get_url(self, key, *, expires_in_seconds):

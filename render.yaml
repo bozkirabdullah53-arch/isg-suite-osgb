@@ -77,6 +77,10 @@ services:
         value: "true"
       - key: OBJECT_STORAGE_FORCE_LOCAL
         value: "false"
+      # One-shot safe mirror; enable temporarily only after R2 probe succeeds.
+      # The job is idempotent and never deletes persistent-disk videos.
+      - key: OBJECT_STORAGE_VIDEO_BACKFILL_ON_STARTUP
+        value: "false"
       - key: BACKUP_RESTORE_ENABLED
         value: "false"
       - key: BACKUP_ENCRYPTION_KEY

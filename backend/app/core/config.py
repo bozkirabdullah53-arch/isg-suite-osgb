@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     # P0-06: credential + HeadBucket OK ise local→dual (production, güvenli aynalama)
     object_storage_auto_cutover: bool = True
     object_storage_force_local: bool = False
+    # One-shot, additive legacy video mirror. The worker never deletes local
+    # files or mutates database rows and is idempotent across restarts.
+    object_storage_video_backfill_on_startup: bool = False
     # P1-2 rate limit
     rate_limit_rpm: int = 120
     rate_limit_auth_rpm: int = 30

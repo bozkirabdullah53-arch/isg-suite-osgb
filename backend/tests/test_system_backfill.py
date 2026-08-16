@@ -1,4 +1,5 @@
 """GA health crypto backfill endpoint."""
+import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
@@ -9,6 +10,27 @@ def test_health_crypto_backfill_requires_auth():
     client = TestClient(app)
     r = client.post("/api/v1/system/health-crypto-backfill")
     assert r.status_code in (401, 403)
+
+
+def test_object_storage_video_backfill_requires_auth():
+    client = TestClient(app)
+    r = client.post(
+        "/api/v1/system/object-storage/video-backfill",
+        params={"confirm": "COPY_TO_R2"},
+    )
+    assert r.status_code in (401, 403)
+
+
+def test_object_storage_video_backfill_requires_explicit_confirm():
+    from app.api import system as system_api
+    from fastapi import HTTPException
+
+    class _User:
+        role = type("R", (), {"value": "global_admin"})()
+
+    with pytest.raises(HTTPException) as exc:
+        system_api.start_object_storage_video_backfill(confirm=None, user=_User())
+    assert exc.value.status_code == 400
 
 
 def test_health_crypto_backfill_write_needs_confirm(monkeypatch):
