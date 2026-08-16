@@ -1570,13 +1570,28 @@ def _iter_local_video_range(path: Path, start: int, end: int):
             yield chunk
 
 
+def _video_media_type(video: RemoteTrainingVideo) -> str:
+    """Return a browser-compatible media type from the stored file extension."""
+    extension = Path(video.original_file_name or "").suffix.lower()
+    extension_types = {
+        ".mp4": "video/mp4",
+        ".m4v": "video/mp4",
+        ".webm": "video/webm",
+        ".mov": "video/quicktime",
+    }
+    if extension in extension_types:
+        return extension_types[extension]
+    declared = str(video.content_type or "").split(";", 1)[0].strip().lower()
+    return declared if declared.startswith("video/") else "video/mp4"
+
+
 def response_for_video(video: RemoteTrainingVideo, request: Any | None = None):
     """Return a protected inline response with browser-friendly byte ranges."""
     from fastapi.responses import FileResponse, StreamingResponse
 
     store = get_object_store()
     local = store.resolve_local_path(video.storage_key)
-    media_type = video.content_type or "video/mp4"
+    media_type = _video_media_type(video)
     safe_name = Path(video.original_file_name or "video").name
     safe_name = "".join(char for char in safe_name if char not in {"\r", "\n", '"'}) or "video"
     range_header = request.headers.get("range") if request is not None else None
