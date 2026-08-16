@@ -197,10 +197,14 @@ function openPackageEdit(detail) {
 }
 
 async function deletePackage(detail) {
-  if (!window.confirm(`“${detail.title}” paketi kalıcı olarak silinsin mi?\n\nPaket daha önce bir firmaya hazırlanmışsa sistem çalışan ve belge geçmişini korumak için silmeye izin vermeyecektir.`)) return;
+  if (!window.confirm(`“${detail.title}” paketi katalogdan kalıcı olarak silinsin mi?\n\nDaha önce firmaya hazırlanmış çalışan eğitimleri, izleme/sınav kayıtları ve belgeler korunur; yalnızca bu katalog paketi ve kaynak videoları kaldırılır.`)) return;
   try {
     const out = await api(`${CATALOG_API}/${detail.id}`, {method: 'DELETE', _retries: 0});
-    showToast(out?.storage_cleanup_pending ? 'Paket silindi; depolama temizliğinin bir kısmı arka planda tamamlanacak.' : 'Paket silindi.');
+    const preserved = Number(out?.materialized_program_count || 0);
+    const message = preserved
+      ? `Paket silindi; ${preserved} firma eğitim kopyasının çalışan ve belge geçmişi korundu.`
+      : 'Paket silindi.';
+    showToast(out?.storage_cleanup_pending ? `${message} Depolama temizliği arka planda tamamlanacak.` : message);
     window.setTimeout(() => window.location.reload(), 300);
   } catch (error) {
     showToast(error?.message || 'Paket silinemedi.', true);
@@ -270,7 +274,7 @@ function addToolbar(sectionRoot, detail, heading) {
   toolbar.className = 'rt-package-manage-toolbar';
   toolbar.setAttribute(TOOLBAR_ATTR, 'true');
   toolbar.dataset.packageId = String(detail.id);
-  toolbar.innerHTML = `<div class="rt-package-manage-toolbar__text"><strong>Paket yönetimi:</strong> Paket adını/açıklamasını değiştirebilir, yanlış oluşturulan kullanılmamış paketi silebilirsiniz.${detail.status === 'archived' ? ' İçeriği değiştirmek için önce paketi düzenlemeye açın.' : ''}</div><div class="rt-package-manage-toolbar__actions"><button type="button" class="rt-package-manage-btn edit">Paket Bilgilerini Düzenle</button><button type="button" class="rt-package-manage-btn rt-package-manage-btn--danger delete">Paketi Sil</button></div>`;
+  toolbar.innerHTML = `<div class="rt-package-manage-toolbar__text"><strong>Paket yönetimi:</strong> Paket adını/açıklamasını değiştirebilir ve OSGB özel paketini silebilirsiniz. Daha önce hazırlanmış firma/çalışan kopyaları korunur.${detail.status === 'archived' ? ' İçeriği değiştirmek için önce paketi düzenlemeye açın.' : ''}</div><div class="rt-package-manage-toolbar__actions"><button type="button" class="rt-package-manage-btn edit">Paket Bilgilerini Düzenle</button><button type="button" class="rt-package-manage-btn rt-package-manage-btn--danger delete">Paketi Sil</button></div>`;
   toolbar.querySelector('.edit')?.addEventListener('click', () => openPackageEdit(detail));
   toolbar.querySelector('.delete')?.addEventListener('click', () => void deletePackage(detail));
   topRow.insertAdjacentElement('afterend', toolbar);

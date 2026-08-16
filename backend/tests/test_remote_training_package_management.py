@@ -67,7 +67,7 @@ def test_package_metadata_update_changes_only_catalog_record(monkeypatch):
     assert out["title"] == "Yeni Paket Adı"
 
 
-def test_used_catalog_package_cannot_be_hard_deleted(monkeypatch):
+def test_used_catalog_package_can_be_deleted_without_historical_program(monkeypatch):
     from app.models.remote_training import RemoteTrainingProgram
     from app.services import remote_training_package_management as management
 
@@ -90,14 +90,19 @@ def test_used_catalog_package_cannot_be_hard_deleted(monkeypatch):
         lambda session, _user, package_id: session.get(type(package), package_id),
     )
 
-    with pytest.raises(HTTPException) as exc:
-        management.delete_catalog_package_safely(
-            package.id,
-            db=db,
-            user=SimpleNamespace(id=1),
-        )
-    assert exc.value.status_code == 409
-    assert db.get(type(package), package.id) is not None
+    out = management.delete_catalog_package_safely(
+        package.id,
+        db=db,
+        user=SimpleNamespace(id=1),
+    )
+
+    assert out["deleted"] is True
+    assert out["history_preserved"] is True
+    assert out["materialized_program_count"] == 1
+    assert db.get(type(package), package.id) is None
+    db.refresh(program)
+    assert program.source_catalog_package_id is None
+    assert program.source_catalog_code == package.code
     assert db.get(RemoteTrainingProgram, program.id) is not None
 
 
@@ -119,6 +124,8 @@ def test_unused_catalog_package_can_be_deleted(monkeypatch):
         user=SimpleNamespace(id=1),
     )
     assert out["deleted"] is True
+    assert out["history_preserved"] is False
+    assert out["materialized_program_count"] == 0
     assert db.get(type(package), package_id) is None
 
 
