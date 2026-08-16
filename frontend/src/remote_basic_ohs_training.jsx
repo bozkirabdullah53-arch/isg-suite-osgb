@@ -650,6 +650,10 @@ function EmployeePanel() {
     const retryKey = `${assignment.id}:${video.id}`;
     const previousKey = activeVideo ? `${assignment.id}:${activeVideo.id}` : '';
     if (previousKey && previousKey !== retryKey) releasePlaybackBlob(previousKey);
+    // Invalidate every previous URL request before switching the player source.
+    // Otherwise a late response from the previously selected lesson can replace
+    // the newly selected lesson's source (the exact "stuck at 0:02" symptom).
+    const requestVersion = ++playbackRequestVersion.current;
     playbackRetryRef.current.delete(retryKey);
     playbackBlobFallbackRef.current.delete(retryKey);
     const cachedBlob = playbackBlobUrls.current.get(retryKey);
@@ -659,7 +663,6 @@ function EmployeePanel() {
     setError('');
     setVideoLoading(!cachedBlob);
     if (cachedBlob) return;
-    const requestVersion = ++playbackRequestVersion.current;
     try {
       const url = await playbackUrlFor(video, assignment.id);
       if (requestVersion === playbackRequestVersion.current) setPlaybackUrl(url);
