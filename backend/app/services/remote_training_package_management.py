@@ -1,9 +1,9 @@
 """Additive edit/delete controls for OSGB-owned remote-training catalog content.
 
-This module deliberately leaves shared catalog packages and materialized employee
-training snapshots untouched.  It only exposes management operations for an
-OSGB-owned catalog package, so accidental draft/package/section entries can be
-corrected without rewriting historical employee progress.
+Shared catalog packages remain protected. OSGB-owned packages can be edited or
+deleted by the OSGB content manager. When a package has already been materialized
+for a company, deleting the catalog row detaches only the source link; the
+company/employee snapshot, progress, exams, and certificates remain untouched.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.api import remote_training as remote_api
@@ -148,10 +148,14 @@ def delete_catalog_package_safely(
         )
         or 0
     )
+    # Materialized programs own their copied sections, videos, questions and
+    # employee progress. Detach the optional catalog source link before removing
+    # the catalog row so historical company records stay valid and traceable.
     if materialized_count:
-        raise HTTPException(
-            409,
-            "Bu paket daha önce en az bir firmaya hazırlanmış. Çalışan ve belge geçmişini korumak için kalıcı olarak silinemez; paketi arşivleyin.",
+        db.execute(
+            update(RemoteTrainingProgram)
+            .where(RemoteTrainingProgram.source_catalog_package_id == package.id)
+            .values(source_catalog_package_id=None)
         )
 
     storage_keys = list(
@@ -179,6 +183,8 @@ def delete_catalog_package_safely(
         "deleted": True,
         "id": package_id,
         "title": title,
+        "history_preserved": bool(materialized_count),
+        "materialized_program_count": materialized_count,
         "storage_cleanup_pending": _cleanup_storage(storage_keys),
     }
 
