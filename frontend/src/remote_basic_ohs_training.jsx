@@ -300,6 +300,9 @@ function EmployeePanel() {
   const playbackPrefetches = useRef(new Map());
   const playbackRequestVersion = useRef(0);
   const playbackRetryRef = useRef(new Set());
+  const playbackBlobUrls = useRef(new Map());
+  const playbackBlobRequests = useRef(new Map());
+  const playbackBlobFallbackRef = useRef(new Set());
   const progressQueue = useRef(Promise.resolve());
   const playerRef = useRef(null);
   const latestProgressRef = useRef(null);
@@ -439,7 +442,7 @@ function EmployeePanel() {
     }
   }
 
-  async function refreshPlaybackUrl() {
+  async function refreshPlaybackUrl({useBlob = false} = {}) {
     if (!assignment || !activeVideo) return;
     const key = `${assignment.id}:${activeVideo.id}`;
     playbackPrefetches.current.delete(key);
@@ -448,10 +451,12 @@ function EmployeePanel() {
     setVideoPlaying(false);
     setVideoLoading(true);
     try {
-      const url = await playbackUrlFor(activeVideo, assignment.id);
+      const url = useBlob
+        ? await playbackBlobUrlFor(activeVideo, assignment.id)
+        : await playbackUrlFor(activeVideo, assignment.id);
       if (requestVersion === playbackRequestVersion.current) {
         setPlaybackUrl(url);
-        setMessage('Video bağlantısı yenilendi.');
+        setMessage(useBlob ? 'Video alternatif oynatma ile hazırlanıyor.' : 'Video bağlantısı yenilendi.');
       }
     } catch (err) {
       if (requestVersion === playbackRequestVersion.current) {
@@ -465,16 +470,17 @@ function EmployeePanel() {
   function handleVideoError(event) {
     if (playerRef.current !== event.currentTarget || !assignment || !activeVideo) return;
     const key = `${assignment.id}:${activeVideo.id}`;
-    if (playbackRetryRef.current.has(key)) {
+    if (playbackBlobFallbackRef.current.has(key)) {
       setVideoPlaying(false);
-      setError('Video kaynağı oynatılamadı. Eğitimleri yenileyip tekrar deneyin.');
+      setError('Video kaynağı doğrudan oynatılamadı. Alternatif oynatma da başarısız oldu; eğitim yöneticisi video dosyasını yeniden yüklemelidir.');
       return;
     }
+    playbackBlobFallbackRef.current.add(key);
     playbackRetryRef.current.add(key);
     setVideoPlaying(false);
     setError('');
-    setMessage('Video bağlantısı yenileniyor…');
-    void refreshPlaybackUrl();
+    setMessage('Video akışı alternatif oynatma ile hazırlanıyor…');
+    void refreshPlaybackUrl({useBlob: true});
   }
 
   async function loadAssignments() {
@@ -493,7 +499,9 @@ function EmployeePanel() {
         setActiveVideo(null);
         setPlaybackUrl('');
         playbackPrefetches.current.clear();
-    playbackRetryRef.current.clear();
+        playbackRetryRef.current.clear();
+        playbackBlobFallbackRef.current.clear();
+        clearPlaybackBlobs();
       }
     } catch (err) {
       setError(err.message || 'Atamalar alınamadı.');
@@ -554,6 +562,8 @@ function EmployeePanel() {
     };
   }, []);
 
+  useEffect(() => () => clearPlaybackBlobs(), []);
+  
   function playbackUrlFor(video, assignmentId) {
     if (!video || !assignmentId) return Promise.reject(new Error('Video oynatma bilgisi eksik.'));
     const key = `${assignmentId}:${video.id}`;
@@ -571,6 +581,65 @@ function EmployeePanel() {
     return request;
   }
 
+  function releasePlaybackBlob(key) {
+    const blobUrl = playbackBlobUrls.current.get(key);
+    if (blobUrl && typeof URL !== 'undefined') URL.revokeObjectURL(blobUrl);
+    playbackBlobUrls.current.delete(key);
+    playbackBlobRequests.current.delete(key);
+  }
+
+  function clearPlaybackBlobs() {
+    if (typeof URL !== 'undefined') {
+      for (const blobUrl of playbackBlobUrls.current.values()) URL.revokeObjectURL(blobUrl);
+    }
+    playbackBlobUrls.current.clear();
+    playbackBlobRequests.current.clear();
+  }
+
+  function normalizedPlaybackMediaType(video, responseType = '') {
+    const declared = String(responseType || video?.content_type || '')
+      .split(';', 1)[0]
+      .trim()
+      .toLowerCase();
+    if (declared.startsWith('video/')) return declared;
+    const filename = String(video?.original_file_name || '').toLowerCase();
+    if (filename.endsWith('.webm')) return 'video/webm';
+    if (filename.endsWith('.mov')) return 'video/quicktime';
+    return 'video/mp4';
+  }
+
+  function playbackBlobUrlFor(video, assignmentId) {
+    if (!video || !assignmentId) return Promise.reject(new Error('Video oynatma bilgisi eksik.'));
+    const key = `${assignmentId}:${video.id}`;
+    const cached = playbackBlobUrls.current.get(key);
+    if (cached) return Promise.resolve(cached);
+    const pending = playbackBlobRequests.current.get(key);
+    if (pending) return pending;
+    const request = playbackUrlFor(video, assignmentId)
+      .then((url) => fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        credentials: 'omit',
+        cache: 'no-store',
+      }))
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Video akışı alınamadı (${response.status}).`);
+        const body = await response.blob();
+        if (!body.size) throw new Error('Video akışı boş döndü.');
+        const mediaType = normalizedPlaybackMediaType(video, response.headers.get('content-type'));
+        const normalizedBody = body.type === mediaType ? body : new Blob([body], {type: mediaType});
+        if (typeof URL === 'undefined') throw new Error('Tarayıcı video oynatma desteği bulunamadı.');
+        const objectUrl = URL.createObjectURL(normalizedBody);
+        const previous = playbackBlobUrls.current.get(key);
+        if (previous && previous !== objectUrl) URL.revokeObjectURL(previous);
+        playbackBlobUrls.current.set(key, objectUrl);
+        return objectUrl;
+      })
+      .finally(() => playbackBlobRequests.current.delete(key));
+    playbackBlobRequests.current.set(key, request);
+    return request;
+  }
+
   async function openVideo(video) {
     if (!assignment || !video) return;
     flushProgressOnExit();
@@ -579,12 +648,17 @@ function EmployeePanel() {
       return;
     }
     const retryKey = `${assignment.id}:${video.id}`;
+    const previousKey = activeVideo ? `${assignment.id}:${activeVideo.id}` : '';
+    if (previousKey && previousKey !== retryKey) releasePlaybackBlob(previousKey);
     playbackRetryRef.current.delete(retryKey);
+    playbackBlobFallbackRef.current.delete(retryKey);
+    const cachedBlob = playbackBlobUrls.current.get(retryKey);
     setActiveVideo(video);
-    setPlaybackUrl('');
+    setPlaybackUrl(cachedBlob || '');
     setVideoPlaying(false);
     setError('');
-    setVideoLoading(true);
+    setVideoLoading(!cachedBlob);
+    if (cachedBlob) return;
     const requestVersion = ++playbackRequestVersion.current;
     try {
       const url = await playbackUrlFor(video, assignment.id);
@@ -856,7 +930,7 @@ function EmployeePanel() {
                 return (
                   <button key={video.id} type="button" disabled={!unlocked || busy} onClick={() => openVideo(video)} style={{display: 'block', textAlign: 'left', width: '100%', marginBottom: 8, padding: 10, borderRadius: 9, border: `1px solid ${activeVideo?.id === video.id ? '#2474a8' : '#dbe5ef'}`, background: unlocked ? (activeVideo?.id === video.id ? '#edf7ff' : '#fff') : '#f3f4f6', color: unlocked ? '#172b4d' : '#94a3b8', cursor: unlocked ? 'pointer' : 'not-allowed', opacity: unlocked ? 1 : .75}}>
                     <strong style={{display: 'block'}}>{video.title}</strong>
-                    <span style={{fontSize: 12, color: unlocked ? '#5e7485' : '#94a3b8'}}>{video.section_title} · {progress?.status === 'completed' ? 'Tamamlandı' : unlocked ? `${Math.round(progress?.watched_percentage || 0)}%` : 'Kilitli — önceki ders bekleniyor'}</span>
+                    <span style={{fontSize: 12, color: unlocked ? '#5e7485' : '#94a3b8'}}>{video.section_title} · {progress?.status === 'completed' ? 'Tamamlandı · Tekrar izle' : unlocked ? `${Math.round(progress?.watched_percentage || 0)}%` : 'Kilitli — önceki ders bekleniyor'}</span>
                   </button>
                 );
               })}
@@ -902,11 +976,17 @@ function EmployeePanel() {
                     }}
                     onRateChange={(event) => { if (event.currentTarget.playbackRate !== 1) event.currentTarget.playbackRate = 1; }}
                     onSeeking={(event) => {
-                      if (strictSequence && currentProgress && Math.abs(event.currentTarget.currentTime - Number(currentProgress.last_position_seconds || 0)) > 3) {
+                      if (strictSequence && currentProgress?.status !== 'completed' && Math.abs(event.currentTarget.currentTime - Number(currentProgress.last_position_seconds || 0)) > 3) {
                         event.currentTarget.currentTime = Number(currentProgress.last_position_seconds || 0);
                       }
                     }}
                     onLoadedMetadata={(event) => {
+                      if (currentProgress?.status === 'completed') {
+                        // Tamamlanan ders yeniden açıldığında baştan izlenebilir;
+                        // strict sıra kilidi bu tekrar izlemeyi engellemez.
+                        event.currentTarget.currentTime = 0;
+                        return;
+                      }
                       const saved = Number(currentProgress?.last_position_seconds || 0);
                       if (saved > 0 && saved < event.currentTarget.duration - 1) {
                         event.currentTarget.currentTime = saved;
