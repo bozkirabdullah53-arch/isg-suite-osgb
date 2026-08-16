@@ -49,6 +49,56 @@ def test_local_config_always_ok():
     assert os_mod.storage_backend_label() == "local-v2"
 
 
+def test_s3_presigned_read_url_uses_prefixed_key_and_bounded_ttl():
+    class _Client:
+        def __init__(self):
+            self.head = None
+            self.presign = None
+
+        def head_object(self, **kwargs):
+            self.head = kwargs
+
+        def generate_presigned_url(self, operation, **kwargs):
+            self.presign = (operation, kwargs)
+            return "https://r2.example/signed-video"
+
+    client = _Client()
+    store = object.__new__(os_mod.S3ObjectStore)
+    store.bucket = "training"
+    store.prefix = "isg-suite-osgb"
+    store._client = client
+
+    url = store.presigned_get_url("4/video/lesson.mp4", expires_in_seconds=99_999)
+
+    assert url == "https://r2.example/signed-video"
+    assert client.head == {
+        "Bucket": "training",
+        "Key": "isg-suite-osgb/4/video/lesson.mp4",
+    }
+    assert client.presign == (
+        "get_object",
+        {
+            "Params": {
+                "Bucket": "training",
+                "Key": "isg-suite-osgb/4/video/lesson.mp4",
+            },
+            "ExpiresIn": 7200,
+        },
+    )
+
+
+def test_presigned_read_failure_returns_none_and_preserves_fallback(monkeypatch):
+    class _Store:
+        def presigned_get_url(self, key, *, expires_in_seconds):
+            raise RuntimeError("temporary R2 failure")
+
+    monkeypatch.setattr(os_mod, "get_object_store", lambda: _Store())
+    assert os_mod.presigned_object_read_url(
+        "4/video/lesson.mp4",
+        expires_in_seconds=3600,
+    ) is None
+
+
 def test_r2_config_requires_endpoint(monkeypatch):
     monkeypatch.setattr(settings, "object_storage_backend", "r2")
     monkeypatch.setattr(settings, "object_storage_bucket", "isg-uploads")

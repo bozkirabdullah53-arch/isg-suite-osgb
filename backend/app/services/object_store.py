@@ -33,6 +33,7 @@ class ObjectStore(Protocol):
     def resolve_local_path(self, key: str) -> Path | None:
         """Local backend için mutlak Path; uzak backend'de None."""
         ...
+    def presigned_get_url(self, key: str, *, expires_in_seconds: int) -> str | None: ...
 
 
 def _normalize_key(key: str) -> str:
@@ -85,6 +86,9 @@ class LocalObjectStore:
 
     def resolve_local_path(self, key: str) -> Path | None:
         return self._path(key)
+
+    def presigned_get_url(self, key: str, *, expires_in_seconds: int) -> str | None:
+        return None
 
 
 class S3ObjectStore:
@@ -157,6 +161,17 @@ class S3ObjectStore:
 
     def resolve_local_path(self, key: str) -> Path | None:
         return None
+
+    def presigned_get_url(self, key: str, *, expires_in_seconds: int) -> str | None:
+        """Create a short-lived direct read URL only when the remote object exists."""
+        full_key = self._full_key(key)
+        self._client.head_object(Bucket=self.bucket, Key=full_key)
+        ttl = max(60, min(int(expires_in_seconds or 3600), 7200))
+        return self._client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self.bucket, "Key": full_key},
+            ExpiresIn=ttl,
+        )
 
 
 class DualObjectStore:
@@ -231,6 +246,12 @@ class DualObjectStore:
     def resolve_local_path(self, key: str) -> Path | None:
         return self.local.resolve_local_path(key)
 
+    def presigned_get_url(self, key: str, *, expires_in_seconds: int) -> str | None:
+        return self.remote.presigned_get_url(
+            key,
+            expires_in_seconds=expires_in_seconds,
+        )
+
 
 _store: ObjectStore | None = None
 
@@ -249,6 +270,21 @@ def get_object_store() -> ObjectStore:
     else:
         raise RuntimeError(f"Bilinmeyen OBJECT_STORAGE_BACKEND: {backend}")
     return _store
+
+
+def presigned_object_read_url(key: str, *, expires_in_seconds: int) -> str | None:
+    """Best-effort direct R2/S3 delivery; callers retain their local fallback."""
+    try:
+        return get_object_store().presigned_get_url(
+            key,
+            expires_in_seconds=expires_in_seconds,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Doğrudan nesne oynatma kullanılamadı; yerel akış korunuyor: %s",
+            type(exc).__name__,
+        )
+        return None
 
 
 def reset_object_store_for_tests() -> None:

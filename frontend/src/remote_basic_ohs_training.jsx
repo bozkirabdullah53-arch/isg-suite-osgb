@@ -81,6 +81,16 @@ export function canEditRemoteContent(user) {
     && !user?.company_id;
 }
 
+export function protectedPlaybackFallbackFetchOptions() {
+  return {
+    method: 'GET',
+    mode: 'cors',
+    credentials: 'omit',
+    cache: 'no-store',
+    headers: {'X-ISG-Local-Video-Fallback': '1'},
+  };
+}
+
 function statusLabel(value) {
   return STATUS_LABELS[value] || value || '—';
 }
@@ -632,12 +642,7 @@ function EmployeePanel() {
     const pending = playbackBlobRequests.current.get(key);
     if (pending) return pending;
     const request = playbackUrlFor(video, assignmentId)
-      .then((url) => fetch(url, {
-        method: 'GET',
-        mode: 'cors',
-        credentials: 'omit',
-        cache: 'no-store',
-      }))
+      .then((url) => fetch(url, protectedPlaybackFallbackFetchOptions()))
       .then(async (response) => {
         if (!response.ok) throw new Error(`Video akışı alınamadı (${response.status}).`);
         const body = await response.blob();

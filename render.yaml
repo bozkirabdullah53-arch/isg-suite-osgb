@@ -103,6 +103,14 @@ services:
         value: "2048"
       - key: REMOTE_BASIC_OHS_PLAYBACK_TTL_SECONDS
         value: "300"
+      # Deploy ile davranış değişmez. R2 doğrulandıktan sonra Dashboard'dan
+      # kontrollü açılır; FORCE_OFF anında mevcut yerel akışa döndürür.
+      - key: REMOTE_BASIC_OHS_DIRECT_OBJECT_PLAYBACK_ENABLED
+        value: "false"
+      - key: REMOTE_BASIC_OHS_DIRECT_OBJECT_PLAYBACK_FORCE_OFF
+        value: "false"
+      - key: REMOTE_BASIC_OHS_DIRECT_OBJECT_PLAYBACK_TTL_SECONDS
+        value: "3600"
       # Firma ve sektör ataması yöneticinin seçimiyle yapılır.  Otomatik firma
       # ataması yoktur; boş şirket allowlist'i tüm firmaların yöneticinin
       # seçtiği yayımlanmış sektör paketlerini alabilmesini sağlar.

@@ -21,7 +21,11 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.api.company_access import ensure_company_access
-from app.core.config import remote_basic_ohs_strict_policy_active, settings
+from app.core.config import (
+    remote_basic_ohs_direct_object_playback_active,
+    remote_basic_ohs_strict_policy_active,
+    settings,
+)
 from app.core.database import SessionLocal
 from app.core.security import ALGORITHM
 from app.models.entities import (
@@ -63,7 +67,7 @@ from app.models.remote_training import (
 )
 from app.services.assigned_team import training_defaults
 from app.services.job_queue import enqueue
-from app.services.object_store import get_object_store
+from app.services.object_store import get_object_store, presigned_object_read_url
 from app.services.training_nace_classification import resolve_exact_nace
 from app.services.training_question_bank import _curated_pack
 from app.services.upload_security import assert_safe_video_upload
@@ -1587,9 +1591,40 @@ def _video_media_type(video: RemoteTrainingVideo) -> str:
 
 def response_for_video(video: RemoteTrainingVideo, request: Any | None = None):
     """Return a protected inline response with browser-friendly byte ranges."""
-    from fastapi.responses import FileResponse, StreamingResponse
+    from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 
     store = get_object_store()
+    local_fallback = bool(
+        request is not None
+        and str(request.headers.get("x-isg-local-video-fallback") or "").strip() == "1"
+    )
+    if remote_basic_ohs_direct_object_playback_active() and not local_fallback:
+        direct_url = presigned_object_read_url(
+            video.storage_key,
+            expires_in_seconds=max(
+                300,
+                min(
+                    int(
+                        getattr(
+                            settings,
+                            "remote_basic_ohs_direct_object_playback_ttl_seconds",
+                            3600,
+                        )
+                        or 3600
+                    ),
+                    7200,
+                ),
+            ),
+        )
+        if direct_url:
+            return RedirectResponse(
+                direct_url,
+                status_code=307,
+                headers={
+                    "Cache-Control": "private, no-store, max-age=0",
+                    "Referrer-Policy": "no-referrer",
+                },
+            )
     local = store.resolve_local_path(video.storage_key)
     media_type = _video_media_type(video)
     safe_name = Path(video.original_file_name or "video").name

@@ -97,6 +97,12 @@ class Settings(BaseSettings):
     remote_basic_ohs_training_force_off: bool = False
     remote_basic_ohs_video_max_upload_mb: int = 2048
     remote_basic_ohs_playback_ttl_seconds: int = 300
+    # Opt-in direct object delivery. Authorization remains on the API; after
+    # validation, the protected stream route may redirect to a short-lived
+    # S3/R2 URL. FORCE_OFF is the immediate rollback switch.
+    remote_basic_ohs_direct_object_playback_enabled: bool = False
+    remote_basic_ohs_direct_object_playback_force_off: bool = False
+    remote_basic_ohs_direct_object_playback_ttl_seconds: int = 3600
     # Strict remote-training policy is a second, independent gate.  Existing
     # company programs remain legacy until they are explicitly materialized
     # from the central catalog and this pilot flag is enabled.
@@ -113,6 +119,13 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def remote_basic_ohs_direct_object_playback_active() -> bool:
+    """Return the opt-in R2/S3 delivery state with an emergency kill switch."""
+    if bool(getattr(settings, "remote_basic_ohs_direct_object_playback_force_off", False)):
+        return False
+    return bool(getattr(settings, "remote_basic_ohs_direct_object_playback_enabled", False))
 
 
 def eyas_digital_approval_active() -> bool:
