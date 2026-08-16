@@ -374,6 +374,22 @@ function EmployeePanel() {
     });
   }
 
+  async function fallbackToBlob() {
+    if (!assignment || !activeVideo) return;
+    const key = `${assignment.id}:${activeVideo.id}`;
+    if (playbackBlobFallbackRef.current.has(key)) {
+      setVideoPlaying(false);
+      setError('Video kaynağı doğrudan oynatılamadı. Alternatif oynatma da başarısız oldu; eğitim yöneticisi video dosyasını yeniden yüklemelidir.');
+      return;
+    }
+    playbackBlobFallbackRef.current.add(key);
+    playbackRetryRef.current.add(key);
+    setVideoPlaying(false);
+    setError('');
+    setMessage('Video akışı alternatif oynatma ile hazırlanıyor…');
+    await refreshPlaybackUrl({useBlob: true});
+  }
+
   async function playVideoElement(player, {retryOnFailure = false} = {}) {
     if (!player || playerRef.current !== player || player.error || !player.paused) return false;
     try {
@@ -389,17 +405,11 @@ function EmployeePanel() {
           setMessage('Tarayıcı sesli otomatik oynatmayı engelledi; video sessiz devam ediyor. Sesi açmak için “Sesi aç ve devam et” düğmesine basın.');
           return true;
         } catch (_mutedError) {
-          if (retryOnFailure) {
-            setError('Video başlatılamadı; bağlantı yenileniyor…');
-            await refreshPlaybackUrl();
-          }
+          if (retryOnFailure) await fallbackToBlob();
           return false;
         }
       }
-      if (retryOnFailure) {
-        setError('Video oynatılamadı; bağlantı yenileniyor…');
-        await refreshPlaybackUrl();
-      }
+      if (retryOnFailure) await fallbackToBlob();
       return false;
     }
   }
@@ -410,7 +420,7 @@ function EmployeePanel() {
     setError('');
     setMessage('');
     if (player.error) {
-      await refreshPlaybackUrl();
+      await fallbackToBlob();
       return;
     }
     await playVideoElement(player, {retryOnFailure: true});
@@ -422,7 +432,7 @@ function EmployeePanel() {
     setError('');
     setMessage('');
     if (player.error) {
-      await refreshPlaybackUrl();
+      await fallbackToBlob();
       return;
     }
     const wasMuted = player.muted;
@@ -469,18 +479,7 @@ function EmployeePanel() {
 
   function handleVideoError(event) {
     if (playerRef.current !== event.currentTarget || !assignment || !activeVideo) return;
-    const key = `${assignment.id}:${activeVideo.id}`;
-    if (playbackBlobFallbackRef.current.has(key)) {
-      setVideoPlaying(false);
-      setError('Video kaynağı doğrudan oynatılamadı. Alternatif oynatma da başarısız oldu; eğitim yöneticisi video dosyasını yeniden yüklemelidir.');
-      return;
-    }
-    playbackBlobFallbackRef.current.add(key);
-    playbackRetryRef.current.add(key);
-    setVideoPlaying(false);
-    setError('');
-    setMessage('Video akışı alternatif oynatma ile hazırlanıyor…');
-    void refreshPlaybackUrl({useBlob: true});
+    void fallbackToBlob();
   }
 
   async function loadAssignments() {
@@ -963,6 +962,10 @@ function EmployeePanel() {
                       void playVideoElement(event.currentTarget);
                     }}
                     onError={handleVideoError}
+                    onStalled={(event) => {
+                      if (!event.currentTarget.paused || !activeVideo) return;
+                      void fallbackToBlob();
+                    }}
                     onPlay={(event) => {
                       setVideoPlaying(true);
                       saveProgress('start', event.currentTarget);
