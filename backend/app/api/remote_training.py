@@ -409,6 +409,14 @@ def _section_output(
     )
     if employee:
         videos = [v for v in videos if v.status == "published" and v.is_current]
+    else:
+        # Management views need the active video and any newly uploaded
+        # review candidate, but must not expose removed or stale revisions.
+        videos = [
+            v for v in videos
+            if v.status not in {"unpublished", "archived"}
+            and not (v.status == "published" and not v.is_current)
+        ]
     return {
         "id": section.id,
         "program_id": section.program_id,
