@@ -68,6 +68,22 @@ def test_remote_video_validation_rejects_mismatched_content():
         validate_video_bytes(b"not-a-video", extension=".mp4", original_name="ders.mp4")
 
 
+def test_video_media_type_prefers_browser_compatible_extension():
+    from types import SimpleNamespace
+
+    from app.services.remote_training import _video_media_type
+
+    assert _video_media_type(SimpleNamespace(
+        original_file_name="ders.mp4",
+        content_type="application/octet-stream",
+    )) == "video/mp4"
+    assert _video_media_type(SimpleNamespace(
+        original_file_name="ders.webm",
+        content_type="application/octet-stream",
+    )) == "video/webm"
+
+
+
 def test_strict_remote_policy_rollout_is_fail_closed(monkeypatch):
     from app.core.config import remote_basic_ohs_strict_policy_active, settings
 
