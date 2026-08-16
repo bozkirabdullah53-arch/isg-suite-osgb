@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from io import BytesIO
 from pathlib import Path
 
@@ -25,6 +26,16 @@ from app.services.training_topics import sectors_list_for_api
 
 FONT_REGULAR = "ExamSans"
 FONT_BOLD = "ExamSans-Bold"
+_GENERATED_TOPIC_DURATION_RE = re.compile(
+    r"\s*[-–—]\s*\d+(?:[.,]\d+)?\s*DK"
+    r"(?=\s+(?:konusu|kapsamındaki|kapsamında|eğitiminin|için|konusunda)\b)",
+    re.IGNORECASE,
+)
+
+
+def _exam_pdf_question_text(value: str | None) -> str:
+    """Konu başlığından taşınan süre etiketini yalnız PDF görünümünden kaldır."""
+    return _GENERATED_TOPIC_DURATION_RE.sub("", str(value or "")).strip()
 
 
 def _register_fonts() -> None:
@@ -249,7 +260,8 @@ def build_exam_pdf(
         y -= 42 * mm
         for item in items:
             options = json.loads(item.options_json)
-            stem_lines = _wrap(c, f"{item.position}. {item.question_text}", w - 32 * mm, FONT_BOLD, 8.5)
+            question_text = _exam_pdf_question_text(item.question_text)
+            stem_lines = _wrap(c, f"{item.position}. {question_text}", w - 32 * mm, FONT_BOLD, 8.5)
             option_lines = sum(len(_wrap(c, f"{key}) {value}", w - 42 * mm, FONT_REGULAR, 7.5)) for key, value in options.items())
             needed_mm = len(stem_lines) * 4.2 + option_lines * 3.7 + 7
             if y < (25 + needed_mm) * mm:
