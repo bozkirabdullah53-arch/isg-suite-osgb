@@ -11,7 +11,11 @@ from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from app.api.company_access import ensure_company_access, find_professional_for_user
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import (
+    get_current_user,
+    reject_company_bound_admin_from_osgb_internal,
+    require_roles,
+)
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import (AssignmentStatus, ChemicalProduct, Company, CrmLead, FinanceTransaction,
@@ -33,7 +37,11 @@ from app.services.site_verify import (
 from app.services.upload_gateway import delete_relative, persist_relative
 from app.services.upload_security import assert_safe_upload
 
-router = APIRouter(prefix="/operations", tags=["OSGB Operasyonları"])
+router = APIRouter(
+    prefix="/operations",
+    tags=["OSGB Operasyonları"],
+    dependencies=[Depends(reject_company_bound_admin_from_osgb_internal)],
+)
 logger = logging.getLogger(__name__)
 ADMIN = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
 VISIT_ROLES = (

@@ -40,6 +40,11 @@ def user_in_admin_scope(db: Session, current: User, target: User) -> bool:
     if target.role == UserRole.GLOBAL_ADMIN:
         return False
 
+    # Tek işyerine bağlı yönetici, aynı OSGB id'sini taşısa bile OSGB yöneticisi
+    # değildir. Önce şirket bağına bakmak çapraz işyeri kullanıcı erişimini keser.
+    if current.company_id is not None:
+        return target.company_id == current.company_id
+
     if current.osgb_id:
         if target.osgb_id == current.osgb_id:
             return True
@@ -49,10 +54,7 @@ def user_in_admin_scope(db: Session, current: User, target: User) -> bool:
                 return True
         return False
 
-    # Yalnızca company_id ile bağlı firma admini — NULL eşleşmesi yasak
-    if current.company_id is None:
-        return False
-    return target.company_id == current.company_id
+    return False
 
 
 def assert_can_manage_user(db: Session, current: User, target: User) -> None:
@@ -67,6 +69,9 @@ def users_scope_filter(db: Session, current: User) -> ColumnElement | None:
     if current.role != UserRole.COMPANY_ADMIN:
         raise HTTPException(403, "Yetkisiz.")
 
+    if current.company_id is not None:
+        return User.company_id == current.company_id
+
     if current.osgb_id:
         company_ids = company_ids_for_osgb(db, current.osgb_id)
         parts = [User.osgb_id == current.osgb_id]
@@ -74,15 +79,18 @@ def users_scope_filter(db: Session, current: User) -> ColumnElement | None:
             parts.append(User.company_id.in_(company_ids))
         return or_(*parts)
 
-    if current.company_id is not None:
-        return User.company_id == current.company_id
-
     # Ne osgb ne company — hiçbir kullanıcıyı görme
     return User.id == -1
 
 
 def assert_company_in_admin_scope(db: Session, current: User, company_id: int | None) -> None:
     if current.role == UserRole.GLOBAL_ADMIN:
+        return
+    if current.role != UserRole.COMPANY_ADMIN:
+        raise HTTPException(403, "Bu firmaya kullanıcı bağlayamazsınız.")
+    if current.company_id is not None:
+        if company_id != current.company_id:
+            raise HTTPException(403, "Bu firmaya kullanıcı bağlayamazsınız.")
         return
     if company_id is None:
         return

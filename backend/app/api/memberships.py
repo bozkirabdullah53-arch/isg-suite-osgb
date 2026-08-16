@@ -8,7 +8,16 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import (
+    get_current_user,
+    reject_company_bound_admin_from_osgb_internal,
+    require_roles,
+)
+from app.api.tenant_access import (
+    assert_can_manage_user,
+    assert_company_in_admin_scope,
+    accessible_company_ids_for_admin,
+)
 from app.core.database import get_db
 from app.models.entities import (
     OrganizationMembership,
@@ -76,18 +85,25 @@ def my_memberships(
             )
         ).all()
     )
-    wp_rows = list(
-        db.scalars(
-            select(WorkplaceMembership).where(
-                WorkplaceMembership.user_id == user.id,
-                WorkplaceMembership.is_active.is_(True),
-            )
-        ).all()
+    wp_stmt = select(WorkplaceMembership).where(
+        WorkplaceMembership.user_id == user.id,
+        WorkplaceMembership.is_active.is_(True),
     )
+    if user.role == UserRole.COMPANY_ADMIN and user.company_id is not None:
+        # Eski/hatalı ek üyelikler tek-işyeri hesabının kendi özetini dahi
+        # başka işyeri id'leriyle genişletmesin.
+        wp_stmt = wp_stmt.where(WorkplaceMembership.company_id == user.company_id)
+    wp_rows = list(db.scalars(wp_stmt).all())
     has_rows = bool(org_rows or wp_rows)
+    if user.role == UserRole.COMPANY_ADMIN and user.company_id is not None:
+        osgb_ids = [int(user.osgb_id)] if user.osgb_id is not None else []
+        company_ids = [int(user.company_id)]
+    else:
+        osgb_ids = active_osgb_ids_for_user(db, user)
+        company_ids = active_company_ids_for_user(db, user)
     return MembershipMeOut(
-        osgb_ids=active_osgb_ids_for_user(db, user),
-        company_ids=active_company_ids_for_user(db, user),
+        osgb_ids=osgb_ids,
+        company_ids=company_ids,
         organization_rows=len(org_rows),
         workplace_rows=len(wp_rows),
         source="membership_tables" if has_rows else "user_fields_fallback",
@@ -99,6 +115,7 @@ def list_org_memberships(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
+    reject_company_bound_admin_from_osgb_internal(user)
     stmt = select(OrganizationMembership).order_by(OrganizationMembership.id.desc()).limit(200)
     if user.role != UserRole.GLOBAL_ADMIN:
         if not user.osgb_id:
@@ -112,13 +129,10 @@ def list_wp_memberships(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
+    reject_company_bound_admin_from_osgb_internal(user)
     stmt = select(WorkplaceMembership).order_by(WorkplaceMembership.id.desc()).limit(200)
     if user.role != UserRole.GLOBAL_ADMIN:
-        allowed = set(active_company_ids_for_user(db, user))
-        if user.osgb_id and not allowed:
-            from app.models.entities import Company
-
-            allowed = set(db.scalars(select(Company.id).where(Company.osgb_id == user.osgb_id)).all())
+        allowed = set(accessible_company_ids_for_admin(db, user))
         if not allowed:
             return []
         stmt = stmt.where(WorkplaceMembership.company_id.in_(allowed))
@@ -131,11 +145,14 @@ def create_org_membership(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
+    reject_company_bound_admin_from_osgb_internal(user)
     if user.role != UserRole.GLOBAL_ADMIN and user.osgb_id != payload.osgb_id:
         raise HTTPException(403, "Yalnızca kendi OSGB kapsamınıza üyelik ekleyebilirsiniz.")
     target = db.get(User, payload.user_id)
     if not target:
         raise HTTPException(404, "Kullanıcı bulunamadı.")
+    if user.role != UserRole.GLOBAL_ADMIN:
+        assert_can_manage_user(db, user, target)
     existing = db.scalar(
         select(OrganizationMembership).where(
             OrganizationMembership.user_id == payload.user_id,
@@ -167,17 +184,14 @@ def create_wp_membership(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
+    reject_company_bound_admin_from_osgb_internal(user)
     if user.role != UserRole.GLOBAL_ADMIN:
-        allowed = set(active_company_ids_for_user(db, user))
-        if payload.company_id not in allowed and user.company_id != payload.company_id:
-            from app.models.entities import Company
-
-            co = db.get(Company, payload.company_id)
-            if not co or co.osgb_id != user.osgb_id:
-                raise HTTPException(403, "Bu işyerine üyelik ekleyemezsiniz.")
+        assert_company_in_admin_scope(db, user, payload.company_id)
     target = db.get(User, payload.user_id)
     if not target:
         raise HTTPException(404, "Kullanıcı bulunamadı.")
+    if user.role != UserRole.GLOBAL_ADMIN:
+        assert_can_manage_user(db, user, target)
     existing = db.scalar(
         select(WorkplaceMembership).where(
             WorkplaceMembership.user_id == payload.user_id,

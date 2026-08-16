@@ -4,7 +4,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.company_access import companies_query_for_user, ensure_company_access
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import (
+    get_current_user,
+    reject_company_bound_admin_from_osgb_internal,
+    require_roles,
+)
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import (
@@ -322,6 +326,11 @@ def company_overview(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
+    # Müşteri 360 özeti OSGB sözleşme ve finans verilerini de içerir. Tek
+    # işyerine bağlı işveren / İK hesabı kendi firması için dahi bu OSGB-içi
+    # ticari görünüme giremez; operasyonel işyeri durumu ayrı endpointtedir.
+    if user.role == UserRole.COMPANY_ADMIN and user.company_id:
+        raise HTTPException(403, "Bu görünüm yalnızca OSGB yönetimine açıktır.")
     ensure_company_access(db, user, company_id)
     obj = db.get(Company, company_id)
     if not obj:
@@ -517,6 +526,7 @@ def create_company(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
+    reject_company_bound_admin_from_osgb_internal(user)
     data = payload.model_dump()
     if user.role == UserRole.COMPANY_ADMIN:
         if not user.osgb_id:
@@ -588,6 +598,7 @@ def create_company(
 
 
 def _assert_company_admin_scope(user: User, obj: Company) -> None:
+    reject_company_bound_admin_from_osgb_internal(user)
     if user.role == UserRole.GLOBAL_ADMIN:
         return
     if user.role != UserRole.COMPANY_ADMIN:

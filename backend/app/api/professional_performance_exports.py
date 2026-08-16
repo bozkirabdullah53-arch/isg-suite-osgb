@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_roles
+from app.api.deps import reject_company_bound_admin_from_osgb_internal, require_roles
 from app.core.database import get_db
 from app.models.entities import IsgProfessional, User, UserRole
 from app.services.professional_performance_detail_excel import (
@@ -19,7 +19,11 @@ from app.services.professional_performance_excel import (
     build_professional_performance_roster_xlsx,
 )
 
-router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
+router = APIRouter(
+    prefix="/osgb",
+    tags=["OSGB Yönetimi"],
+    dependencies=[Depends(reject_company_bound_admin_from_osgb_internal)],
+)
 ADMIN_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
 
 

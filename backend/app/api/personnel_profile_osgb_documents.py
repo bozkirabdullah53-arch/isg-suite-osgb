@@ -3,7 +3,9 @@
 The exact document paths are isolated under /osgb-personnel-profiles and are
 registered before the generic OSGB profile routes.
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from app.api.deps import reject_company_bound_admin_from_osgb_internal
 
 from app.api.personnel_profile_osgb import (
     archive_osgb_document,
@@ -13,7 +15,11 @@ from app.api.personnel_profile_osgb import (
     upload_osgb_document,
 )
 
-router = APIRouter(prefix="/osgb-personnel-profiles", tags=["OSGB Dijital Profesyonel Kartı Belgeleri"])
+router = APIRouter(
+    prefix="/osgb-personnel-profiles",
+    tags=["OSGB Dijital Profesyonel Kartı Belgeleri"],
+    dependencies=[Depends(reject_company_bound_admin_from_osgb_internal)],
+)
 router.add_api_route(
     "/{profile_id}/documents/upload",
     upload_osgb_document,
