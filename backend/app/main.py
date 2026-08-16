@@ -101,6 +101,21 @@ async def lifespan(_: FastAPI):
         logger.exception("object storage auto-cutover failed at startup")
         if bool(getattr(settings, "object_storage_remote_required", False)):
             raise
+    if bool(getattr(settings, "object_storage_video_backfill_on_startup", False)):
+        try:
+            from app.services.job_queue import async_jobs_enabled
+            from app.services.remote_training_video_r2_backfill import (
+                enqueue_remote_training_video_r2_backfill,
+            )
+
+            if not async_jobs_enabled():
+                raise RuntimeError("R2 video backfill requires the async job queue.")
+            record = enqueue_remote_training_video_r2_backfill()
+            logger.warning("R2 video backfill queued at startup: job_id=%s", record.id)
+        except Exception:
+            # A backfill problem must not make the working application
+            # unavailable. The local video path remains the fallback.
+            logger.exception("R2 video backfill could not be queued at startup")
     _boot_env = (settings.environment or "").strip().lower()
     if _boot_env in ("production", "prod", "live"):
         logger.info("production boot: skipping create_all/schema_repair (alembic-only)")

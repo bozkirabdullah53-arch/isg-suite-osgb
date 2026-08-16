@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.version import APP_VERSION
 from app.models.entities import User, UserRole
-from app.services.job_queue import async_jobs_enabled, get_job
+from app.services.job_queue import JobStatus, async_jobs_enabled, get_job
 from app.services.object_store import probe_object_storage, storage_backend_label
 
 router = APIRouter(prefix="/system", tags=["Sistem"])
@@ -56,6 +56,60 @@ def storage_probe(
             if result.get("status") == "reachable"
             else "Önce Render'a OBJECT_STORAGE_* doldurun; backend local kalsın, probe reachable olunca dual moda geçin."
         ),
+    }
+
+
+@router.post("/object-storage/video-backfill")
+def start_object_storage_video_backfill(
+    confirm: str | None = None,
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """Queue an additive local→R2 copy after explicit admin confirmation."""
+    _ = user
+    if (confirm or "").strip().upper() != "COPY_TO_R2":
+        raise HTTPException(400, "Başlatmak için confirm=COPY_TO_R2 gerekli.")
+    if not async_jobs_enabled():
+        raise HTTPException(409, "Uzun R2 aktarımı için asenkron iş kuyruğu açık olmalıdır.")
+    probe = probe_object_storage()
+    if probe.get("status") != "reachable":
+        raise HTTPException(
+            409,
+            f"R2 bağlantısı hazır değil (durum={probe.get('status') or 'unknown'}).",
+        )
+    from app.services.remote_training_video_r2_backfill import (
+        enqueue_remote_training_video_r2_backfill,
+    )
+
+    record = enqueue_remote_training_video_r2_backfill()
+    return {
+        "job_id": record.id,
+        "status": record.status.value,
+        "local_files_will_be_deleted": False,
+        "database_rows_will_change": False,
+    }
+
+
+@router.get("/object-storage/video-backfill/{job_id}")
+def object_storage_video_backfill_status(
+    job_id: str,
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    _ = user
+    record = get_job(job_id)
+    if not record:
+        raise HTTPException(404, "R2 video kopyalama işi bulunamadı.")
+    from app.services.remote_training_video_r2_backfill import (
+        is_remote_training_video_r2_backfill_job,
+    )
+
+    if not is_remote_training_video_r2_backfill_job(record):
+        raise HTTPException(404, "R2 video kopyalama işi bulunamadı.")
+    return {
+        "job_id": record.id,
+        "status": record.status.value,
+        "finished": record.status in {JobStatus.DONE, JobStatus.FAILED},
+        "error": record.error,
+        "result": record.result,
     }
 
 

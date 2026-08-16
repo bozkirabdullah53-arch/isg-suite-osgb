@@ -46,7 +46,10 @@ jobs:
         run: >
           pytest -q
           tests/test_security_config.py
+          tests/test_object_store.py
           tests/test_object_storage_remote_required.py
+          tests/test_remote_training_video_r2_backfill.py
+          tests/test_system_backfill.py
           tests/test_rate_limit_runtime_fallback.py
           tests/test_health_crypto_inventory.py
           tests/test_training_runtime_patches.py

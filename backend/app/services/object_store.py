@@ -137,6 +137,73 @@ class S3ObjectStore:
             )
         return normalized
 
+    def remote_size(self, key: str) -> int | None:
+        """Return the remote object size without falling back to the local disk."""
+        try:
+            metadata = self._client.head_object(
+                Bucket=self.bucket,
+                Key=self._full_key(key),
+            )
+        except Exception as exc:
+            response = getattr(exc, "response", {}) or {}
+            error = response.get("Error", {}) if isinstance(response, dict) else {}
+            code = str(error.get("Code") or "").strip().lower()
+            status = (
+                (response.get("ResponseMetadata", {}) or {}).get("HTTPStatusCode")
+                if isinstance(response, dict)
+                else None
+            )
+            if code in {"404", "nosuchkey", "notfound"} or status == 404:
+                return None
+            raise
+        return int(metadata.get("ContentLength", -1))
+
+    def put_file(
+        self,
+        key: str,
+        path: Path,
+        *,
+        content_type: str | None = None,
+    ) -> str:
+        """Stream a local file with boto3's managed multipart uploader and verify size."""
+        normalized = _normalize_key(key)
+        source = Path(path)
+        if not source.is_file():
+            raise FileNotFoundError(str(source))
+        expected_size = int(source.stat().st_size)
+        full_key = self._full_key(normalized)
+        upload_kwargs: dict = {}
+        normalized_content_type = (content_type or "").strip()
+        if normalized_content_type:
+            upload_kwargs["ExtraArgs"] = {"ContentType": normalized_content_type[:120]}
+        self._client.upload_file(
+            str(source),
+            self.bucket,
+            full_key,
+            **upload_kwargs,
+        )
+        remote_size = self.remote_size(normalized)
+        if remote_size != expected_size:
+            try:
+                self._client.delete_object(Bucket=self.bucket, Key=full_key)
+            except Exception:
+                logger.exception("Boyutu doğrulanamayan uzak nesne temizlenemedi: %s", full_key)
+            raise RuntimeError(
+                f"Uzak depolama boyut doğrulaması başarısız: beklenen={expected_size}, gelen={remote_size}"
+            )
+        return normalized
+
+    def get_range(self, key: str, *, start: int, end: int) -> bytes:
+        """Read a byte range directly from R2/S3 for migration verification."""
+        first = max(0, int(start))
+        last = max(first, int(end))
+        obj = self._client.get_object(
+            Bucket=self.bucket,
+            Key=self._full_key(key),
+            Range=f"bytes={first}-{last}",
+        )
+        return bytes(obj["Body"].read())
+
     def get_bytes(self, key: str) -> bytes:
         try:
             obj = self._client.get_object(Bucket=self.bucket, Key=self._full_key(key))
