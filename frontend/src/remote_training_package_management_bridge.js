@@ -468,7 +468,7 @@ async function renderControls(forceDetail = false) {
 
   const existingToolbar = sectionRoot.querySelector(`[${TOOLBAR_ATTR}]`);
   if (detail.is_shared) {
-    if (existingToolbar || sectionRoot.querySelector(`[${SECTION_ACTION_ATTR}]`)) removeInjectedControls();
+    if (existingToolbar || sectionRoot.querySelector(`[${SECTION_ACTION_ATTR}]`) || sectionRoot.querySelector(`[${SECTION_HANDLE_ATTR}]`)) removeInjectedControls();
     return;
   }
 
