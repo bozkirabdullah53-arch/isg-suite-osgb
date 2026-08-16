@@ -256,9 +256,16 @@ function apiAbsoluteUrl(path) {
   return new URL(path, `${window.location.origin}${base || '/api/v1'}`).toString();
 }
 
+function managerVisibleVideoRows(videos) {
+  return (videos || []).filter((video) => (
+    !['unpublished', 'archived'].includes(video?.status)
+    && !(video?.status === 'published' && video?.is_current === false)
+  ));
+}
+
 function programVideoRows(program) {
   return (program?.sections || []).flatMap((section) =>
-    (section.videos || []).map((video) => ({...video, section_title: section.title, sector_code: section.sector_code})),
+    managerVisibleVideoRows(section.videos).map((video) => ({...video, section_title: section.title, sector_code: section.sector_code})),
   );
 }
 
@@ -2141,7 +2148,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                         </label>}
                   </div>
                   <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8}}><label style={{fontSize: 12, color: '#496174'}}>Bölüm sektörü <select value={sectionSectorDrafts[section.id] || (sectorScope?.catalog_fixed ? sectorScope.catalog_sector_code : section.sector_code) || 'common'} onChange={(event) => setSectionSectorDrafts((current) => ({...current, [section.id]: event.target.value}))}>{scopeSectorOptions.map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label><button type="button" onClick={() => saveSectionSector(section)} disabled={busy || ['published', 'archived'].includes(program.status)}>Sektörü kaydet</button></div>
-                  {(section.videos || []).map((video) => (
+                  {managerVisibleVideoRows(section.videos).map((video) => (
                     <div key={video.id} style={{marginTop: 8, padding: 10, borderRadius: 8, background: '#f7fafc', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}>
                       <div style={{minWidth: 240, flex: 1}}>
                         <input value={Object.prototype.hasOwnProperty.call(videoTitles, video.id) ? videoTitles[video.id] : video.title} onChange={(event) => setVideoTitles((current) => ({...current, [video.id]: event.target.value}))} aria-label={`${video.title} video başlığı`} style={{width: '100%'}} />
