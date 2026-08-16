@@ -3,7 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import (
+    get_current_user,
+    reject_company_bound_admin_from_osgb_internal,
+    require_roles,
+)
 from app.core.database import get_db
 from app.models.entities import Company, CompanySubscription, OsgbSubscription, SubscriptionPlan, SubscriptionStatus, User, UserRole
 from app.schemas.osgb_subscription import OsgbSubscriptionResponse
@@ -49,6 +53,7 @@ def osgb_current_subscription(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    reject_company_bound_admin_from_osgb_internal(user)
     if user.role == UserRole.GLOBAL_ADMIN:
         if not osgb_id:
             raise HTTPException(status_code=400, detail="EİSA için osgb_id parametresi gerekli.")

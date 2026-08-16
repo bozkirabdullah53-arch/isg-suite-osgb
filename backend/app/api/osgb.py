@@ -8,7 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.api.company_access import find_professional_for_user, link_user_to_professional
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import (
+    get_current_user,
+    reject_company_bound_admin_from_osgb_internal,
+    require_roles,
+)
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import (AssignmentStatus, Company, IsgProfessional, OsgbOrganization, ServiceContract,
@@ -43,7 +47,11 @@ from app.services.capacity_engine import (
 )
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
-router = APIRouter(prefix="/osgb", tags=["OSGB Yönetimi"])
+router = APIRouter(
+    prefix="/osgb",
+    tags=["OSGB Yönetimi"],
+    dependencies=[Depends(reject_company_bound_admin_from_osgb_internal)],
+)
 logger = logging.getLogger(__name__)
 ADMIN_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
 

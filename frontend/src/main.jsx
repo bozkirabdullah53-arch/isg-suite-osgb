@@ -74,6 +74,11 @@ import {
   nextNavigationIndex,
   parseNavigationLocation,
 } from './navigation_history';
+import {
+  isWorkplaceKioskUser,
+  isWorkplaceManagerUser,
+  WORKPLACE_MANAGER_MODULES,
+} from './workplace_user_policy';
 const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 /**
  * Sol menü sırası (yukarı→aşağı): ana panel → günlük operasyon → master data →
@@ -139,17 +144,13 @@ const roleModules={
   read_only:['employee_training','security'],
 };
 
-/** Yalnız otomatik üretilen işyeri QR kiosk hesabı — diğer company_admin menüsü bozulmaz. */
-function isWorkplaceKioskUser(user){
-  if(user?.role!=='company_admin' || !user.company_id) return false;
-  const email=String(user.email||'').toLowerCase();
-  return email.endsWith('@kiosk.isgsuite.tr');
-}
-
-/** OSGB / firma admin menüsü aynı kalır; kiosk hesabı yalnız QR ekranı görür. */
+/** OSGB, işyeri yetkilisi ve QR kiosk menüleri birbirine karışmaz. */
 function modulesForUser(user){
   if(isWorkplaceKioskUser(user)){
     return ['site_qr_kiosk'];
+  }
+  if(isWorkplaceManagerUser(user)){
+    return [...WORKPLACE_MANAGER_MODULES];
   }
   return roleModules[user?.role]||[];
 }
@@ -158,6 +159,7 @@ function modulesForUser(user){
 const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
   company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
+  workplace_manager:['employer_oversight','employees','ppe','accident'],
   safety_specialist:['visits','dashboard','notifications','risk'],
   workplace_physician:['visits','health','prescriptions','employees'],
   other_health_personnel:['visits','health','employees','documents'],
@@ -926,7 +928,7 @@ function UserPage({user}){
         style={{maxWidth:180}}
         title="Rol değiştir"
       >
-        {Object.entries(roles).filter(([k])=>user.role==='global_admin'||k!=='global_admin').map(([k,v])=><option key={k} value={k}>{v}</option>)}
+        {Object.entries(roles).filter(([k])=>user.role==='global_admin'||k!=='global_admin').map(([k,v])=><option key={k} value={k}>{k==='company_admin'&&r.company_id?'İşyeri Yetkilisi / İşveren Vekili':v}</option>)}
       </select>
     )},
     {key:'company_id',label:'Firma',render:r=>companies.find(c=>c.id===r.company_id)?.name||'Sistem Geneli'},
@@ -941,7 +943,7 @@ function UserPage({user}){
     )},
   ];
   return <Page title="Kullanıcı ve Yetki Yönetimi" action={<div className="actions"><button type="button" className="secondary" disabled={busy} onClick={syncRoles}>Hekim/Uzman Rollerini Eşle</button><button onClick={()=>{setErr('');setOpen(true)}}><Plus/>Kullanıcı Ekle</button></div>}>
-    <p style={{marginTop:0,color:'#475569',fontSize:14}}>Hekim / uzman / DSP için kullanıcı rolü <strong>İşyeri Hekimi</strong> / <strong>İş Güvenliği Uzmanı</strong> / <strong>DSP</strong> olmalı. Görevlendirme sonrası e-posta veya ad eşleşirse otomatik düzelir; gerekirse aşağıdaki eşle butonunu kullanın.</p>
+    <p style={{marginTop:0,color:'#475569',fontSize:14}}>Hekim / uzman / DSP için kullanıcı rolü <strong>İşyeri Hekimi</strong> / <strong>İş Güvenliği Uzmanı</strong> / <strong>DSP</strong> olmalı. İşyeri İK müdürü veya işveren vekili hesabı için firmayı seçip <strong>İşyeri Yetkilisi / İşveren Vekili</strong> rolünü kullanın. Görevlendirme sonrası e-posta veya ad eşleşirse saha rolleri otomatik düzelir.</p>
     {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
     <Table cols={cols} rows={data}/>
     {open&&<Modal title="Yeni Kullanıcı" close={()=>setOpen(false)}>
@@ -950,7 +952,7 @@ function UserPage({user}){
         <Field label="E-posta" type="email" required value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/>
         <PasswordField label="Geçici Şifre" minLength="10" required value={form.password} onChange={e=>setForm({...form,password:e.target.value})} autoComplete="new-password"/>
         <Select label="Rol" value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>
-          {Object.entries(roles).filter(([k])=>user.role==='global_admin'||k!=='global_admin').map(([k,v])=><option key={k} value={k}>{v}</option>)}
+          {Object.entries(roles).filter(([k])=>user.role==='global_admin'||k!=='global_admin').map(([k,v])=><option key={k} value={k}>{k==='company_admin'&&form.company_id?'İşyeri Yetkilisi / İşveren Vekili':v}</option>)}
         </Select>
         {form.role!=='global_admin'&&<Select label="Firma" value={form.company_id} onChange={e=>setForm({...form,company_id:e.target.value})} required={!['safety_specialist','workplace_physician','other_health_personnel'].includes(form.role)}>
           <option value="">Seçiniz / OSGB saha (opsiyonel)</option>{companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
@@ -962,6 +964,7 @@ function UserPage({user}){
   </Page>
 }
 function Employees({user}){
+  const isWorkplaceManager=isWorkplaceManagerUser(user);
   const[companies,setCompanies]=useState([]);
   const[branches,setBranches]=useState([]);
   const[data,setData]=useState([]);
@@ -1115,9 +1118,9 @@ function Employees({user}){
 
   return <Page title="Personel Yönetimi" action={<div className="actions">
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
-    <button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Şablon İndir</button>
-    <label className="button secondary" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>
-    <button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Sil ({selectedIds.length})</button>
+    {!isWorkplaceManager&&<button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Şablon İndir</button>}
+    {!isWorkplaceManager&&<label className="button secondary" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>}
+    {!isWorkplaceManager&&<button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Sil ({selectedIds.length})</button>}
     <button disabled={busy||!selectedCompanyId} onClick={openCreate}><Plus/>Personel Ekle</button>
   </div>}>
     <div className="form-grid" style={{gridTemplateColumns:'minmax(280px,1fr) minmax(220px,.7fr)',marginBottom:14}}>
@@ -1137,16 +1140,17 @@ function Employees({user}){
           {selectedIds.length?` — ${selectedIds.length} personel seçildi`:''}
         </div>
       : <div style={{padding:'12px 14px',marginBottom:12,borderRadius:12,background:'#fff7ed',border:'1px solid #fed7aa',color:'#9a3412',fontWeight:700}}>
-          Personel listesi, tekli ekleme ve toplu Excel yükleme için önce işyeri seçmelisiniz.
+          {isWorkplaceManager?'Personel listesi ve tekli personel ekleme için işyeriniz yükleniyor.':'Personel listesi, tekli ekleme ve toplu Excel yükleme için önce işyeri seçmelisiniz.'}
         </div>}
 
     <p style={{margin:'0 0 12px',fontSize:13,color:'#475569'}}>
-      Her Excel dosyası yalnızca yukarıda seçilen işyerine aktarılır. İşyerini değiştirdiğinizde liste de otomatik olarak o işyerinin personeline geçer.
-      Şablon sütunları: Adı Soyadı, TC Kimlik, Görevi, İşe Giriş Tarihi, Engelli/Hükümlü Durumu.
+      {isWorkplaceManager
+        ? 'Bu ekranda yalnız kendi işyerinizin personeli görünür; yeni işe girenleri Personel Ekle ile tek tek kaydedebilirsiniz.'
+        : 'Her Excel dosyası yalnızca yukarıda seçilen işyerine aktarılır. İşyerini değiştirdiğinizde liste de otomatik olarak o işyerinin personeline geçer. Şablon sütunları: Adı Soyadı, TC Kimlik, Görevi, İşe Giriş Tarihi, Engelli/Hükümlü Durumu.'}
     </p>
     <SearchBar q={q} setQ={setQ} go={()=>loadEmployees(selectedCompanyId,q)}/>
     <Table cols={[
-      {key:'select',label:<input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Listedeki tüm personelleri seç"/>,render:r=><input type="checkbox" checked={selectedIds.includes(Number(r.id))} onChange={()=>toggleSelected(r.id)} aria-label={`${r.full_name} personelini seç`}/>},
+      ...(!isWorkplaceManager?[{key:'select',label:<input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Listedeki tüm personelleri seç"/>,render:r=><input type="checkbox" checked={selectedIds.includes(Number(r.id))} onChange={()=>toggleSelected(r.id)} aria-label={`${r.full_name} personelini seç`}/>}]:[]),
       {key:'full_name',label:'Ad Soyad'},
       {key:'job_title',label:'Görev'},
       {key:'department',label:'Departman'},
@@ -1154,7 +1158,7 @@ function Employees({user}){
       {key:'start_date',label:'İşe Giriş'},
       {key:'special_status',label:'Özel Durum',render:r=>r.special_status||'—'},
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
-      {key:'actions',label:'İşlem',render:r=><button type="button" className="mini secondary" disabled={busy} onClick={()=>deleteOne(r)}>Sil</button>}
+      ...(!isWorkplaceManager?[{key:'actions',label:'İşlem',render:r=><button type="button" className="mini secondary" disabled={busy} onClick={()=>deleteOne(r)}>Sil</button>}]:[]),
     ]} rows={selectedCompanyId?data:[]}/>
 
     {open&&<Modal title={`Yeni Personel — ${selectedCompany?.name||''}`} close={()=>setOpen(false)}><form className="form-grid" onSubmit={save}>
@@ -1825,6 +1829,15 @@ function App(){
   function goModule(id,{replace=false}={}){
     setMobileMoreOpen(false);
     if(id!=='customer_360') setC360Id(null);
+    if(id==='customer_360' && isWorkplaceManagerUser(user)){
+      const home=homeModuleForUser(user);
+      if(home){
+        setActive(home);
+        try{sessionStorage.setItem('isg_active',home)}catch(_){ /* ignore */ }
+        writeModuleToLocation(home,{replace:true});
+      }
+      return;
+    }
     const allowed=modulesForUser(user);
     if(id && id!=='customer_360' && !allowed.includes(id)){
       // Yetkisiz / menüde olmayan modül — ana panele düş
@@ -1842,6 +1855,7 @@ function App(){
   }
 
   function openCustomer360(companyId){
+    if(isWorkplaceManagerUser(user)) return;
     const nextCompanyId=Number(companyId);
     if(!Number.isFinite(nextCompanyId) || nextCompanyId<=0) return;
     setC360Id(nextCompanyId);
@@ -1926,18 +1940,19 @@ function App(){
         const locationNavigation=readNavigationFromLocation();
         const fromUrl=locationNavigation.module;
         const locationCompanyId=Number(locationNavigation.companyId);
-        const validCustomerRoute=fromUrl==='customer_360'
+        const validCustomerRoute=!isWorkplaceManagerUser(u)
+          && fromUrl==='customer_360'
           && Number.isFinite(locationCompanyId)
           && locationCompanyId>0;
         let next='';
         if(verifyCode && allowed.includes('training')) next='training';
         else if(validCustomerRoute) next=fromUrl;
         else if(fromUrl && allowed.includes(fromUrl)) next=fromUrl;
-        else if(active && (active==='customer_360' || allowed.includes(active))) next=active;
+        else if(active && ((active==='customer_360' && !isWorkplaceManagerUser(u)) || allowed.includes(active))) next=active;
         else {
           try{
             const saved=sessionStorage.getItem('isg_active');
-            if(saved && (saved==='customer_360' || allowed.includes(saved))) next=saved;
+            if(saved && ((saved==='customer_360' && !isWorkplaceManagerUser(u)) || allowed.includes(saved))) next=saved;
           }catch(_){ /* ignore */ }
         }
         if(!next){
@@ -1971,7 +1986,7 @@ function App(){
       const id=locationNavigation.module;
       const allowed=modulesForUser(user);
       const customerId=Number(locationNavigation.companyId);
-      if(id==='customer_360' && Number.isFinite(customerId) && customerId>0){
+      if(id==='customer_360' && !isWorkplaceManagerUser(user) && Number.isFinite(customerId) && customerId>0){
         setActive(id);
         setC360Id(customerId);
         try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
@@ -2099,7 +2114,8 @@ function App(){
     security:<SecurityPage user={user}/>,
     users:<UserPage user={user}/>,
   };
-  const mobilePrimary=mobilePrimaryMenu(menu, user.role, active);
+  const mobileRole=isWorkplaceManagerUser(user)?'workplace_manager':user.role;
+  const mobilePrimary=mobilePrimaryMenu(menu, mobileRole, active);
   return (
     <div className={`app-shell${mobileMoreOpen?' mobile-nav-open':''}`}>
       <aside>
@@ -2109,7 +2125,7 @@ function App(){
             alt="EİSA PROGRAMLAMA"
             className="sidebar-logo eisa-logo-icon"
           />
-          <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':'İSG Suite OSGB'}</span>
+          <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':isWorkplaceManagerUser(user)?'İşyeri Paneli':'İSG Suite OSGB'}</span>
         </button>
         <nav className="nav-desktop" ref={navRef}>
           {menu.map(([id,l,I])=>(
@@ -2181,8 +2197,8 @@ function App(){
       <section className="workspace">
         <header>
           <div>
-            <h2>{user.role==='global_admin'?'EİSA Platform':'İSG Suite OSGB'}</h2>
-            <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
+            <h2>{user.role==='global_admin'?'EİSA Platform':isWorkplaceManagerUser(user)?'İşyeri Yönetim Paneli':'İSG Suite OSGB'}</h2>
+            <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':isWorkplaceManagerUser(user)?'Yalnız kendi işyerinizin İSG kayıtları':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
           </div>
           <div className="header-actions">
             <button type="button" className="header-icon" onClick={goBack} title="Önceki sayfaya dön" aria-label="Önceki sayfaya dön">
@@ -2200,7 +2216,7 @@ function App(){
             )}
           <div className="user-chip">
             <strong>{user.full_name}</strong>
-            <span>{roles[user.role]}</span>
+            <span>{isWorkplaceManagerUser(user)?'İşyeri Yetkilisi':roles[user.role]}</span>
             </div>
             <button type="button" className="header-icon logout-mobile" onClick={logout} title="Çıkış" aria-label="Çıkış">
               <LogOut size={18}/>
@@ -2214,7 +2230,7 @@ function App(){
             </div>
           )}
           <ErrorBoundary key={active==='customer_360'?`c360-${c360Id}`:(active||'none')} onHome={goHome}>
-            {active==='customer_360' && c360Id ? (
+            {active==='customer_360' && c360Id && !isWorkplaceManagerUser(user) ? (
               <Customer360Page companyId={c360Id} onBack={closeCustomer360} onNavigate={goModule} user={user}/>
             ) : pages[active] || (
               <section className="panel">

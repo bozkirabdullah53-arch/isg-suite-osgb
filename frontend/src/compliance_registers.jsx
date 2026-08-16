@@ -7,6 +7,7 @@ import {
 } from './isg_signer_agent';
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
+import {isWorkplaceManagerUser} from './workplace_user_policy';
 import {ESignCenterPage} from './esign_center';
 import {EyasDigitalApprovalPage} from './eyas_digital_approval';
 import {EmergencyKrokiEditor} from './emergency_kroki_editor';
@@ -113,7 +114,7 @@ function useCompanies(user) {
 
 /** Periyodik kontrol + yangın ekipmanı sicili */
 export function PeriodicControlsPage({user}) {
-  const canEdit = ['safety_specialist', 'global_admin'].includes(user.role);
+  const canEdit = ['safety_specialist', 'global_admin'].includes(user.role) || isWorkplaceManagerUser(user);
   const companies = useCompanies(user);
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState({categories: []});
@@ -528,7 +529,7 @@ export function EmergencyPlansPage({user}) {
 
 /** Ortam ölçüm defteri */
 export function WorkplaceMeasurementsPage({user}) {
-  const canEdit = ['safety_specialist', 'global_admin'].includes(user.role);
+  const canEdit = ['safety_specialist', 'global_admin'].includes(user.role) || isWorkplaceManagerUser(user);
   const physicianReadOnly = user.role === 'workplace_physician';
   const companies = useCompanies(user);
   const [rows, setRows] = useState([]);

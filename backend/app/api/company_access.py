@@ -207,7 +207,10 @@ def assigned_company_ids(db: Session, user: User) -> list[int]:
         return []  # sınırsız — çağıran filtre kullanmaz
     if user.role == UserRole.COMPANY_ADMIN:
         if user.company_id:
-            base = [user.company_id]
+            # İşyeri yöneticisi / işveren vekili tek tenant hesabıdır. Eski veya
+            # hatalı WorkplaceMembership satırları bu hesabın kapsamını başka
+            # işyerlerine genişletemez.
+            return [user.company_id]
         elif user.osgb_id:
             base = list(
                 db.scalars(select(Company.id).where(Company.osgb_id == user.osgb_id)).all()

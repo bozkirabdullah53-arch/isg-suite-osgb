@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.company_access import ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.api.tenant_access import accessible_company_ids_for_admin
 from app.core.database import SessionLocal, get_db
@@ -91,6 +92,10 @@ def _assert_can_access(db: Session, user: User, row: EisaArchiveRecord) -> None:
         return
     if user.role != UserRole.COMPANY_ADMIN:
         raise HTTPException(403, "Arşive erişim yetkiniz yok.")
+    if user.company_id is not None:
+        if row.company_id == user.company_id:
+            return
+        raise HTTPException(403, "Bu arşiv kaydına erişemezsiniz.")
     try:
         from app.core.tenant_context import assert_company_access, assert_osgb_access, current_tenant
 
@@ -145,7 +150,9 @@ def list_archives(
         except ValueError:
             raise HTTPException(422, "Geçersiz arşiv türü.") from None
     if user.role != UserRole.GLOBAL_ADMIN:
-        if user.osgb_id:
+        if user.company_id is not None:
+            stmt = stmt.where(EisaArchiveRecord.company_id == user.company_id)
+        elif user.osgb_id:
             stmt = stmt.where(EisaArchiveRecord.osgb_id == user.osgb_id)
         else:
             company_ids = accessible_company_ids_for_admin(db, user)
@@ -207,6 +214,16 @@ def create_backup(
     user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
 ):
     """Yedek oluştur. ASYNC_JOBS_ENABLED açıkken 202 + job_id; kapalıyken senkron ArchiveResponse."""
+    resolved_company_id = payload.company_id
+    if user.role != UserRole.GLOBAL_ADMIN:
+        if payload.osgb_id is not None and payload.osgb_id != user.osgb_id:
+            raise HTTPException(403, "Başka bir OSGB için yedek oluşturamazsınız.")
+        if user.company_id is not None:
+            if payload.company_id is not None and payload.company_id != user.company_id:
+                raise HTTPException(403, "Başka bir işyeri için yedek oluşturamazsınız.")
+            resolved_company_id = user.company_id
+        elif payload.company_id is not None:
+            ensure_company_access(db, user, payload.company_id)
     job = enqueue(
         "tenant_backup",
         _run_tenant_backup_job,
@@ -215,7 +232,7 @@ def create_backup(
         user_osgb_id=user.osgb_id,
         user_company_id=user.company_id,
         payload_osgb_id=payload.osgb_id,
-        payload_company_id=payload.company_id,
+        payload_company_id=resolved_company_id,
     )
     if async_jobs_enabled():
         return JSONResponse(

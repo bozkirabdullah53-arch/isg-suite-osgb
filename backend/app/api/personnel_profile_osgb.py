@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, reject_company_bound_admin_from_osgb_internal
 from app.api.personnel_profile_documents import _TrackedObjectStore, _private_profile_object_store
 from app.core.database import get_db
 from app.models.entities import User
@@ -63,8 +63,17 @@ from app.services.personnel_profile_osgb_scope import (
     require_osgb_profile_write,
 )
 
-osgb_router = APIRouter(prefix="/osgb-personnel-profiles", tags=["OSGB Dijital Profesyonel Kartı"])
-profile_router = APIRouter(prefix="/osgb-personnel-profiles", tags=["OSGB Dijital Profesyonel Kartı"])
+_OSGB_INTERNAL_DEPENDENCIES = [Depends(reject_company_bound_admin_from_osgb_internal)]
+osgb_router = APIRouter(
+    prefix="/osgb-personnel-profiles",
+    tags=["OSGB Dijital Profesyonel Kartı"],
+    dependencies=_OSGB_INTERNAL_DEPENDENCIES,
+)
+profile_router = APIRouter(
+    prefix="/osgb-personnel-profiles",
+    tags=["OSGB Dijital Profesyonel Kartı"],
+    dependencies=_OSGB_INTERNAL_DEPENDENCIES,
+)
 
 
 def _commit_retry(db: Session, operation):

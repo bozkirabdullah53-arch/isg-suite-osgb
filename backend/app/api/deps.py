@@ -70,3 +70,47 @@ def require_roles(*roles: UserRole):
             raise HTTPException(status_code=403, detail="Bu işlem için yetkiniz yok.")
         return user
     return dependency
+
+
+def is_workplace_manager_account(user: User) -> bool:
+    """Tek işyerine bağlı gerçek yönetici hesabı (QR kiosk hesabı hariç)."""
+    if user.role != UserRole.COMPANY_ADMIN or not user.company_id:
+        return False
+    email = (user.email or "").strip().casefold()
+    return not email.endswith("@kiosk.isgsuite.tr")
+
+
+def reject_company_bound_admin_from_osgb_internal(
+    user: User = Depends(get_current_user),
+) -> User:
+    """Tek işyerine bağlı ``company_admin`` hesabını OSGB-içi API'lerden çıkarır.
+
+    Tarihsel olarak OSGB yöneticisi, işyeri yetkilisi ve QR kiosk hesabı aynı
+    ``company_admin`` rolünü kullanıyor. ``company_id`` bulunan son iki hesap
+    OSGB operasyonu, finansı veya profesyonel havuzu gibi kurum geneli
+    endpointlere doğrudan URL ile erişmemelidir. Endpointlerin mevcut rol
+    kontrolleri ayrıca çalışmaya devam eder; bu bağımlılık yalnızca kapsamı
+    daraltır.
+    """
+    if user.role == UserRole.COMPANY_ADMIN and user.company_id is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="Bu işlem yalnızca OSGB yönetimine açıktır.",
+        )
+    return user
+
+
+def require_roles_or_workplace_manager(*roles: UserRole):
+    """Mevcut rollere ek olarak yalnız tek işyerine bağlı yetkiliyi kabul eder.
+
+    ``company_admin`` rolünü doğrudan listeye eklemek OSGB yöneticilerine de saha
+    yazma yetkisi verir. Bu bağımlılık o genişlemeyi yapmadan işyeri yetkilisini
+    açıkça ayırır; QR kiosk hesabı da operasyonel veri giremez.
+    """
+
+    def dependency(user: User = Depends(get_current_user)) -> User:
+        if user.role not in roles and not is_workplace_manager_account(user):
+            raise HTTPException(status_code=403, detail="Bu işlem için yetkiniz yok.")
+        return user
+
+    return dependency

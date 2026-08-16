@@ -45,6 +45,13 @@ def _clear_tenant_vars(db: Session) -> None:
     _set(db, "app.health_clinical_access", "")
 
 
+def _has_osgb_admin_rls_privilege(user: User) -> bool:
+    """RLS yönetici bayrağı yalnız global ve işyerine bağlı olmayan OSGB adminindir."""
+    return user.role == UserRole.GLOBAL_ADMIN or (
+        user.role == UserRole.COMPANY_ADMIN and user.company_id is None
+    )
+
+
 def apply_rls_user(db: Session, user: User | int | None) -> None:
     bind = db.get_bind()
     if bind is None or bind.dialect.name != "postgresql":
@@ -61,8 +68,9 @@ def apply_rls_user(db: Session, user: User | int | None) -> None:
     _set(db, "app.current_company_id", str(int(user.company_id)) if user.company_id else "")
     _set(db, "app.current_osgb_id", str(int(user.osgb_id)) if user.osgb_id else "")
 
-    # Memberships: global / OSGB admin kendi satırları dışında yönetim
-    admin = "1" if user.role in (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN) else ""
+    # Aynı uygulama rolünü kullanan işyeri yetkilisi / kiosk, OSGB geneli RLS
+    # yönetici bayrağını alamaz; kendi company_id'si allowed_company_ids ile korunur.
+    admin = "1" if _has_osgb_admin_rls_privilege(user) else ""
     _set(db, "app.rls_admin", admin)
     health_clinical = "1" if user.role in (
         UserRole.WORKPLACE_PHYSICIAN,

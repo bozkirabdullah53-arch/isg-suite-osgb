@@ -12,7 +12,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.api.company_access import company_ids_for_query, ensure_company_access
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import get_current_user, require_roles_or_workplace_manager
 from app.core.database import get_db
 from app.models.entities import (
     ChemicalProduct,
@@ -119,7 +119,7 @@ def export_sds_xlsx(
     q: str | None = Query(default=None, max_length=100),
     active_only: bool = True,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     """SDS / kimyasal ürün sicili Excel."""
     stmt = select(ChemicalProduct).order_by(ChemicalProduct.product_name.asc())
@@ -201,7 +201,7 @@ def due_summary(
     company_id: int | None = None,
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     company_ids = company_ids_for_query(db, user, company_id)
     if company_ids == []:
@@ -237,7 +237,7 @@ def list_products(
     q: str | None = Query(default=None, max_length=100),
     active_only: bool = True,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     stmt = select(ChemicalProduct).order_by(ChemicalProduct.product_name.asc())
     company_ids = company_ids_for_query(db, user, company_id)
@@ -263,7 +263,7 @@ def list_products(
 def create_product(
     payload: ChemicalProductCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     _ensure_edit(db, user, payload.company_id)
     now = datetime.utcnow()
@@ -291,7 +291,7 @@ def update_product(
     product_id: int,
     payload: ChemicalProductUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     row = db.get(ChemicalProduct, product_id)
     if not row:
@@ -310,7 +310,7 @@ def update_product(
 def ensure_sds_document(
     product_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     """Dokümanlar modülüne SDS kaydı oluşturur / bağlar (dosya yükleme için)."""
     row = db.get(ChemicalProduct, product_id)
@@ -356,7 +356,7 @@ def ensure_sds_document(
 def mark_sds_uploaded(
     product_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     """Doküman dosyası yüklendikten sonra has_sds_file bayrağını günceller."""
     row = db.get(ChemicalProduct, product_id)
@@ -382,7 +382,7 @@ def mark_sds_uploaded(
 def get_ghs_checklist(
     product_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*VIEW_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*VIEW_ROLES)),
 ):
     row = db.get(ChemicalProduct, product_id)
     if not row:
@@ -399,7 +399,7 @@ def put_ghs_checklist(
     product_id: int,
     payload: GhsChecklistUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT_ROLES)),
 ):
     """0.9.120 — GHS/CLP tehlike etiketi piktogram checklist stub."""
     row = db.get(ChemicalProduct, product_id)

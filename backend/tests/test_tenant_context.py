@@ -94,12 +94,13 @@ def test_company_admin_scope_uses_tenant_context():
     from app.api.companies import _assert_company_admin_scope
 
     clear_tenant()
-    bind_user_tenant(_user(role=UserRole.COMPANY_ADMIN, osgb_id=7))
+    osgb_admin = _user(role=UserRole.COMPANY_ADMIN, osgb_id=7, company_id=None)
+    bind_user_tenant(osgb_admin)
     ok = SimpleNamespace(osgb_id=7)
-    _assert_company_admin_scope(_user(role=UserRole.COMPANY_ADMIN, osgb_id=7), ok)
+    _assert_company_admin_scope(osgb_admin, ok)
     with pytest.raises(HTTPException) as exc:
         _assert_company_admin_scope(
-            _user(role=UserRole.COMPANY_ADMIN, osgb_id=7),
+            osgb_admin,
             SimpleNamespace(osgb_id=99),
         )
     assert exc.value.status_code == 403
