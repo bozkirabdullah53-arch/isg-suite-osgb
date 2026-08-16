@@ -83,6 +83,95 @@ def test_video_media_type_prefers_browser_compatible_extension():
     )) == "video/webm"
 
 
+def test_manager_section_output_hides_removed_revisions_but_keeps_review_candidate():
+    from app.api.remote_training import _section_output
+    from app.models.remote_training import (
+        RemoteTrainingProgram,
+        RemoteTrainingSection,
+        RemoteTrainingVideo,
+    )
+
+    engine = _db()
+    with Session(engine) as db:
+        _, company, _, _, _ = _scope_rows(db)
+        program = RemoteTrainingProgram(
+            company_id=company.id,
+            title="Yüksekte Çalışma",
+            status="published",
+        )
+        db.add(program)
+        db.flush()
+        section = RemoteTrainingSection(
+            company_id=company.id,
+            program_id=program.id,
+            title="Bölüm 4",
+            order_index=4,
+            status="active",
+        )
+        db.add(section)
+        db.flush()
+
+        active = RemoteTrainingVideo(
+            company_id=company.id,
+            program_id=program.id,
+            section_id=section.id,
+            title="Bölüm 4 premium",
+            order_index=1,
+            revision_no=2,
+            is_current=True,
+            status="published",
+            original_file_name="bolum-04-premium.mp4",
+            content_type="video/mp4",
+            storage_key="remote-test/bolum-04-premium.mp4",
+        )
+        review_candidate = RemoteTrainingVideo(
+            company_id=company.id,
+            program_id=program.id,
+            section_id=section.id,
+            title="Bölüm 4 yeni aday",
+            order_index=1,
+            revision_no=3,
+            is_current=False,
+            status="ready_for_review",
+            original_file_name="bolum-04-yeni.mp4",
+            content_type="video/mp4",
+            storage_key="remote-test/bolum-04-yeni.mp4",
+        )
+        removed = RemoteTrainingVideo(
+            company_id=company.id,
+            program_id=program.id,
+            section_id=section.id,
+            title="Bölüm 4 eski",
+            order_index=1,
+            revision_no=1,
+            is_current=False,
+            status="unpublished",
+            original_file_name="bolum-04-eski.mp4",
+            content_type="video/mp4",
+            storage_key="remote-test/bolum-04-eski.mp4",
+        )
+        archived = RemoteTrainingVideo(
+            company_id=company.id,
+            program_id=program.id,
+            section_id=section.id,
+            title="Bölüm 4 arşiv",
+            order_index=1,
+            revision_no=0,
+            is_current=False,
+            status="archived",
+            original_file_name="bolum-04-arsiv.mp4",
+            content_type="video/mp4",
+            storage_key="remote-test/bolum-04-arsiv.mp4",
+        )
+        db.add_all([active, review_candidate, removed, archived])
+        db.flush()
+
+        output = _section_output(db, section)
+        visible_titles = {video["title"] for video in output["videos"]}
+
+        assert visible_titles == {"Bölüm 4 premium", "Bölüm 4 yeni aday"}
+
+
 
 def test_strict_remote_policy_rollout_is_fail_closed(monkeypatch):
     from app.core.config import remote_basic_ohs_strict_policy_active, settings
