@@ -32,7 +32,11 @@ from app.services.training_question_bank import (
     valid_nace_scope,
     validate_question_for_publish,
 )
-from app.services.training_exam_pdf import _load_or_create_snapshot, build_exam_pdf
+from app.services.training_exam_pdf import (
+    _exam_pdf_question_text,
+    _load_or_create_snapshot,
+    build_exam_pdf,
+)
 from app.services.training_pdfs import build_attendance_pdf, build_certificates_pdf
 from app.services.training_topics import sectors_list_for_api
 
@@ -334,6 +338,68 @@ def test_exam_pdf_is_generated_with_twenty_questions(db: Session):
     snapshot = _load_or_create_snapshot(db, training, user.id)
     assert snapshot.question_count == QUESTION_COUNT
     assert len(snapshot.items) == QUESTION_COUNT
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "Kesici-delici yaralanmaları ve tıbbi atıklar - 30 DK "
+            "eğitiminin sahada etkili olduğunun göstergesi hangisidir?",
+            "Kesici-delici yaralanmaları ve tıbbi atıklar eğitiminin "
+            "sahada etkili olduğunun göstergesi hangisidir?",
+        ),
+        (
+            "Makine güvenliği – 45 dk konusu için doğru uygulama hangisidir?",
+            "Makine güvenliği konusu için doğru uygulama hangisidir?",
+        ),
+        (
+            "Kimyasal riskler — 25 DK kapsamında hangi kontrol önceliklidir?",
+            "Kimyasal riskler kapsamında hangi kontrol önceliklidir?",
+        ),
+        (
+            "Yaralanma en geç 30 dk içinde bildirilmelidir.",
+            "Yaralanma en geç 30 dk içinde bildirilmelidir.",
+        ),
+    ],
+)
+def test_exam_pdf_question_text_removes_only_generated_topic_duration(
+    source: str, expected: str
+):
+    assert _exam_pdf_question_text(source) == expected
+
+
+def test_exam_pdf_hides_topic_duration_without_rewriting_snapshot(db: Session):
+    training, user = _seed_training(db)
+    training.sector = "genel_uretim"
+    db.commit()
+    snapshot = _load_or_create_snapshot(db, training, user.id)
+    item = snapshot.items[FOUNDATIONAL_QUESTION_COUNT]
+    stored_question = (
+        "Kesici-delici yaralanmaları ve tıbbi atıklar - 30 DK "
+        "eğitiminin sahada etkili olduğunun en güvenilir göstergesi hangisidir?"
+    )
+    item.question_text = stored_question
+    db.commit()
+
+    pdf = build_exam_pdf(
+        company_name="Tersane Test",
+        training=training,
+        db=db,
+        created_by_id=user.id,
+    )
+    pdf_text = " ".join(
+        (page.extract_text() or "") for page in PdfReader(BytesIO(pdf)).pages
+    )
+    pdf_text = " ".join(pdf_text.split())
+
+    assert "- 30 DK" not in pdf_text
+    assert (
+        "Kesici-delici yaralanmaları ve tıbbi atıklar eğitiminin sahada etkili"
+        in pdf_text
+    )
+    db.refresh(item)
+    assert item.question_text == stored_question
 
 
 def test_food_water_hygiene_exam_uses_ten_dedicated_questions(db: Session):
