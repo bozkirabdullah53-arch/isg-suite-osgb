@@ -6,7 +6,9 @@ from app.core.input_rules import assert_event_date, assert_meaningful_text, asse
 
 
 class EmployeeCreate(BaseModel):
-    company_id: int
+    # İşyeri yetkilisi hesabında firma backend tarafından kullanıcıya bağlı
+    # company_id'den otomatik belirlenir. Diğer roller için zorunludur.
+    company_id: int | None = None
     branch_id: int | None = None
     full_name: str = Field(min_length=2, max_length=160)
     national_id_masked: str | None = None
