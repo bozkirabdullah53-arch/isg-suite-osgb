@@ -2,6 +2,7 @@ const TOOLBAR_ATTR='data-personnel-bulk-toolbar';
 const FILTER_ATTR='data-personnel-status-filter';
 const PROXY_DELETE_ATTR='data-personnel-bulk-delete-proxy';
 const PROXY_CLEAR_ATTR='data-personnel-bulk-clear-proxy';
+const PROXY_SELECT_ALL_ATTR='data-personnel-bulk-select-all-proxy';
 let observer=null;
 let timer=null;
 let applying=false;
@@ -26,7 +27,7 @@ function findEmployeeTable(){
 function findOriginalDeleteButton(){
   return Array.from(document.querySelectorAll('button')).find((button)=>{
     if(button.hasAttribute(PROXY_DELETE_ATTR)) return false;
-    return /^Seçilenleri Sil\s*\(\d+\)$/i.test(norm(button.textContent));
+    return /^Seçilenleri Kalıcı Sil\s*\(\d+\)$/i.test(norm(button.textContent));
   })||null;
 }
 
@@ -39,6 +40,15 @@ function clearSelection(table){
   const checked=Array.from(table?.querySelectorAll('tbody input[type="checkbox"]:checked')||[]);
   for(const box of checked){
     if(box instanceof HTMLInputElement) box.click();
+  }
+}
+
+function selectVisibleRows(table){
+  const rows=Array.from(table?.querySelectorAll('tbody tr')||[]);
+  for(const row of rows){
+    if(row.hidden||row.style.display==='none') continue;
+    const box=row.querySelector('input[type="checkbox"]');
+    if(box instanceof HTMLInputElement&&!box.checked&&!box.disabled) box.click();
   }
 }
 
@@ -113,6 +123,13 @@ function buildToolbar(table){
 
   const right=document.createElement('div');
   right.className='personnel-bulk-right';
+  const selectAll=document.createElement('button');
+  selectAll.type='button';
+  selectAll.className='secondary';
+  selectAll.setAttribute(PROXY_SELECT_ALL_ATTR,'');
+  selectAll.textContent='Görünenlerin Tümünü Seç';
+  selectAll.addEventListener('click',()=>selectVisibleRows(table));
+
   const clear=document.createElement('button');
   clear.type='button';
   clear.className='secondary';
@@ -123,16 +140,16 @@ function buildToolbar(table){
   const remove=document.createElement('button');
   remove.type='button';
   remove.setAttribute(PROXY_DELETE_ATTR,'');
-  remove.textContent='Seçilenleri Sil (0)';
+  remove.textContent='Seçilenleri Kalıcı Sil (0)';
   remove.disabled=true;
-  remove.title='Seçili personelleri güvenli şekilde pasife alır; geçmiş kayıtları silmez.';
+  remove.title='Seçili pasif ve bağlantısız personelleri kalıcı olarak siler.';
   remove.addEventListener('click',()=>{
     const original=findOriginalDeleteButton();
     if(!original||original.disabled) return;
     original.click();
   });
 
-  right.append(clear,remove);
+  right.append(selectAll,clear,remove);
   toolbar.append(left,right);
   const parent=table.parentElement||table;
   parent.insertBefore(toolbar,table);
@@ -154,7 +171,7 @@ function syncToolbar(){
     const clear=toolbar.querySelector(`[${PROXY_CLEAR_ATTR}]`);
     const count=selectedCount(original);
     if(proxy){
-      proxy.textContent=`Seçilenleri Sil (${count})`;
+      proxy.textContent=`Seçilenleri Kalıcı Sil (${count})`;
       proxy.disabled=!original||original.disabled||count<1;
     }
     if(clear) clear.disabled=count<1;
