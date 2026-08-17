@@ -1103,8 +1103,16 @@ function Employees({user}){
         alert(typeof out.detail==='string'?out.detail:(out.detail||'Yükleme başarısız. Şablonu indirip tekrar deneyin.'));
         return;
       }
-      const errN=(out.errors||[]).length;
-      alert(`${out.created||0} personel “${companyName}” işyerine aktarıldı.${errN?` ${errN} satır atlandı.`:''}`);
+      const created=Number(out.created||0);
+      const updated=Number(out.updated||0);
+      const reactivated=Number(out.reactivated||0);
+      const errN=Number(out.error_count??(out.errors||[]).length);
+      const parts=[`${created} yeni personel eklendi`];
+      if(updated) parts.push(`${updated} mevcut personel güncellendi`);
+      if(reactivated) parts.push(`${reactivated} pasif personel yeniden aktifleştirildi`);
+      if(errN) parts.push(`${errN} satır TC kimlik çakışması nedeniyle aktarılamadı`);
+      if(out.warning) parts.push(out.warning);
+      alert(`“${companyName}” işyeri:\n\n${parts.join('\n')}`);
       await loadEmployees();
     }catch(x){alert(x.message||'Yükleme başarısız.')}
     finally{setBusy(false)}

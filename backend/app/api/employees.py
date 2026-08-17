@@ -229,13 +229,39 @@ async def import_excel(
         )
 
     created = 0
+    updated = 0
+    reactivated = 0
     errors: list[str] = []
     for row_no, data in enumerate(rows, start=2):
+        national_id = data.get("national_id_masked")
+        existing = None
+        if national_id:
+            existing = db.scalar(
+                select(Employee).where(
+                    Employee.company_id == company_id,
+                    Employee.national_id_masked == national_id,
+                )
+            )
+
+        if existing is not None:
+            was_inactive = not existing.is_active
+            existing.branch_id = branch_id
+            existing.full_name = data["full_name"]
+            existing.job_title = data.get("job_title")
+            existing.department = data.get("department")
+            existing.start_date = data.get("start_date")
+            existing.special_status = data.get("special_status")
+            existing.is_active = True
+            updated += 1
+            if was_inactive:
+                reactivated += 1
+            continue
+
         obj = Employee(
             company_id=company_id,
             branch_id=branch_id,
             full_name=data["full_name"],
-            national_id_masked=data.get("national_id_masked"),
+            national_id_masked=national_id,
             job_title=data.get("job_title"),
             department=data.get("department"),
             start_date=data.get("start_date"),
@@ -247,8 +273,17 @@ async def import_excel(
                 db.add(obj)
                 db.flush()
             created += 1
-        except IntegrityError:
-            errors.append(f"Satır {row_no} ({data['full_name']}): mükerrer veya geçersiz kayıt")
+        except IntegrityError as exc:
+            logger.warning(
+                "Personel satırı eklenemedi: company_id=%s row=%s name=%s error=%s",
+                company_id,
+                row_no,
+                data["full_name"],
+                exc.orig,
+            )
+            errors.append(
+                f"Satır {row_no} ({data['full_name']}): TC kimlik başka bir kayıtla çakışıyor"
+            )
     try:
         db.commit()
     except SQLAlchemyError as exc:
@@ -269,7 +304,10 @@ async def import_excel(
 
     return {
         "created": created,
+        "updated": updated,
+        "reactivated": reactivated,
         "errors": errors[:50],
+        "error_count": len(errors),
         "count": len(rows),
         "warning": warning,
     }
