@@ -1082,6 +1082,27 @@ function Employees({user}){
     finally{setBusy(false)}
   }
 
+  async function purgeSelected(){
+    if(!requireCompany()) return;
+    if(!selectedIds.length){alert('Önce kalıcı silinecek pasif personelleri seçmelisiniz.');return}
+    const selectedRows=employees.filter(row=>selectedIds.includes(row.id));
+    const activeCount=selectedRows.filter(row=>row.is_active).length;
+    const passiveCount=selectedRows.length-activeCount;
+    if(!passiveCount){alert('Kalıcı silme yalnızca pasif personeller için kullanılabilir.');return}
+    const companyName=selectedCompany?.name||'seçili işyeri';
+    if(!window.confirm(`${passiveCount} pasif personel “${companyName}” işyerinden KALICI olarak silinsin mi?\n\nBu işlem geri alınamaz. Bağlı sağlık veya eğitim kaydı bulunan personeller korunacaktır.`)) return;
+    setBusy(true);
+    try{
+      const result=await api('/employees/bulk-purge',{
+        method:'POST',
+        body:JSON.stringify({employee_ids:selectedIds,company_id:Number(selectedCompanyId)}),
+      });
+      await loadEmployees();
+      alert(result?.message||`${passiveCount} pasif personel kalıcı olarak silindi.`);
+    }catch(ex){alert(ex.message||'Pasif personeller kalıcı olarak silinemedi.')}
+    finally{setBusy(false)}
+  }
+
   async function upload(e){
     const f=e.target.files[0];
     e.target.value='';
@@ -1128,7 +1149,8 @@ function Employees({user}){
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
     {!isWorkplaceManager&&<button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Şablon İndir</button>}
     {!isWorkplaceManager&&<label className="button secondary" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>}
-    {!isWorkplaceManager&&<button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Sil ({selectedIds.length})</button>}
+    {!isWorkplaceManager&&<button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Pasife Al ({selectedIds.length})</button>}
+    {!isWorkplaceManager&&<button type="button" className="danger" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={purgeSelected}>Seçilenleri Kalıcı Sil ({selectedIds.length})</button>}
     <button disabled={busy||!selectedCompanyId} onClick={openCreate}><Plus/>Personel Ekle</button>
   </div>}>
     <div className="form-grid" style={{gridTemplateColumns:'minmax(280px,1fr) minmax(220px,.7fr)',marginBottom:14}}>
