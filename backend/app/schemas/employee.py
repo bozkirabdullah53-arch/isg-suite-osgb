@@ -51,7 +51,21 @@ class EmployeeUpdate(BaseModel):
         return self
 
 
-class EmployeeResponse(EmployeeCreate):
+class EmployeeResponse(BaseModel):
+    """Read model: existing historical records must serialize without write validation.
+
+    Create/update inputs keep the strict business rules above. Responses mirror
+    persisted data and must not turn legacy employment dates into HTTP 500.
+    """
+
     id: int
+    company_id: int
+    branch_id: int | None = None
+    full_name: str
+    national_id_masked: str | None = None
+    job_title: str | None = None
+    department: str | None = None
+    start_date: date | None = None
+    special_status: str | None = None
     is_active: bool
     model_config = ConfigDict(from_attributes=True)
