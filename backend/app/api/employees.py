@@ -192,6 +192,63 @@ def bulk_deactivate_employees(
     }
 
 
+@router.post("/bulk-purge")
+def bulk_purge_inactive_employees(
+    employee_ids: list[int] = Body(..., embed=True),
+    company_id: int = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Kalıcı olarak yalnızca seçili, pasif ve bağlantısız personelleri siler."""
+    check_company(db, user, company_id)
+    ids = sorted({int(x) for x in employee_ids if int(x) > 0})
+    if not ids:
+        raise HTTPException(422, "Kalıcı silinecek personel seçilmedi.")
+    if len(ids) > 1000:
+        raise HTTPException(422, "Tek işlemde en fazla 1000 personel kalıcı silinebilir.")
+
+    rows = list(
+        db.scalars(
+            select(Employee).where(
+                Employee.id.in_(ids),
+                Employee.company_id == company_id,
+            )
+        ).all()
+    )
+    found_ids = {row.id for row in rows}
+    if len(found_ids) != len(ids):
+        raise HTTPException(409, "Seçilen personellerden bazıları bu işyerine ait değil veya bulunamadı.")
+
+    deleted = 0
+    active_skipped = 0
+    linked_skipped = 0
+    for row in rows:
+        if row.is_active:
+            active_skipped += 1
+            continue
+        try:
+            with db.begin_nested():
+                db.delete(row)
+                db.flush()
+            deleted += 1
+        except IntegrityError:
+            linked_skipped += 1
+
+    db.commit()
+    message = f"{deleted} pasif personel kalıcı olarak silindi."
+    if active_skipped:
+        message += f" {active_skipped} aktif kayıt güvenlik nedeniyle silinmedi."
+    if linked_skipped:
+        message += f" {linked_skipped} bağlı sağlık/eğitim kaydı bulunduğu için korundu."
+    return {
+        "message": message,
+        "deleted": deleted,
+        "active_skipped": active_skipped,
+        "linked_skipped": linked_skipped,
+        "requested": len(ids),
+    }
+
+
 @router.post("/import-excel")
 async def import_excel(
     company_id: int,
