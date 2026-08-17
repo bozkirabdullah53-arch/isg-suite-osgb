@@ -1084,13 +1084,9 @@ function Employees({user}){
 
   async function purgeSelected(){
     if(!requireCompany()) return;
-    if(!selectedIds.length){alert('Önce kalıcı silinecek pasif personelleri seçmelisiniz.');return}
-    const selectedRows=employees.filter(row=>selectedIds.includes(row.id));
-    const activeCount=selectedRows.filter(row=>row.is_active).length;
-    const passiveCount=selectedRows.length-activeCount;
-    if(!passiveCount){alert('Kalıcı silme yalnızca pasif personeller için kullanılabilir.');return}
+    if(!selectedIds.length){alert('Önce kalıcı silinecek personelleri seçmelisiniz.');return}
     const companyName=selectedCompany?.name||'seçili işyeri';
-    if(!window.confirm(`${passiveCount} pasif personel “${companyName}” işyerinden KALICI olarak silinsin mi?\n\nBu işlem geri alınamaz. Bağlı sağlık veya eğitim kaydı bulunan personeller korunacaktır.`)) return;
+    if(!window.confirm(`${selectedIds.length} personel “${companyName}” işyerinden KALICI olarak silinsin mi?\n\nAktif ve pasif seçili kayıtlar silinecektir. Bu işlem geri alınamaz. Bağlı sağlık veya eğitim kaydı bulunan personeller veri bütünlüğü için korunacaktır.`)) return;
     setBusy(true);
     try{
       const result=await api('/employees/bulk-purge',{
@@ -1098,8 +1094,8 @@ function Employees({user}){
         body:JSON.stringify({employee_ids:selectedIds,company_id:Number(selectedCompanyId)}),
       });
       await loadEmployees();
-      alert(result?.message||`${passiveCount} pasif personel kalıcı olarak silindi.`);
-    }catch(ex){alert(ex.message||'Pasif personeller kalıcı olarak silinemedi.')}
+      alert(result?.message||`${selectedIds.length} personel kalıcı olarak silindi.`);
+    }catch(ex){alert(ex.message||'Seçilen personeller kalıcı olarak silinemedi.')}
     finally{setBusy(false)}
   }
 
