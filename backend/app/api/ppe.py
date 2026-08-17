@@ -458,8 +458,12 @@ def assignment_pdf(
     story.append(Spacer(1, 8*mm))
 
     sig_data = [
-        [Paragraph("TESLİM EDEN", label_style), Paragraph("TESLİM ALAN ÇALIŞAN", label_style), Paragraph("İŞVEREN / VEKİLİ", label_style)],
-        [Paragraph(row.delivered_by or "", value_style), Paragraph(employee.full_name or "", value_style), Paragraph("", value_style)],
+        [Paragraph("TESLİM EDEN", label_style), Paragraph("TESLİM ALAN ÇALIŞAN", label_style), Paragraph("İŞVEREN / İŞVEREN VEKİLİ", label_style)],
+        [
+            Paragraph(row.delivered_by or "", value_style),
+            Paragraph(employee.full_name or "", value_style),
+            Paragraph((company.authorized_person if company else None) or "", value_style),
+        ],
         [Paragraph("Tarih / Kaşe / İmza", subtitle_style), Paragraph("Tarih / İmza", subtitle_style), Paragraph("Tarih / Kaşe / İmza", subtitle_style)],
     ]
     sig = Table(sig_data, colWidths=[58.6*mm, 58.6*mm, 58.6*mm], rowHeights=[9*mm, 22*mm, 10*mm])
