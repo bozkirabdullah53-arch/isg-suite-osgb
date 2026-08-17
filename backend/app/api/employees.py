@@ -1,9 +1,13 @@
 from io import BytesIO
+import logging
+from zipfile import BadZipFile
+
+from openpyxl.utils.exceptions import InvalidFileException
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy import or_, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.company_access import accessible_company_ids_or_empty, ensure_company_access, resolve_employee_company_id
@@ -17,6 +21,7 @@ from app.services.national_id_format import normalize_national_id
 from app.services.upload_security import assert_safe_upload
 
 router = APIRouter(prefix="/employees", tags=["Personel"])
+logger = logging.getLogger(__name__)
 EDIT_ROLES = (
     UserRole.GLOBAL_ADMIN,
     UserRole.COMPANY_ADMIN,
@@ -206,6 +211,17 @@ async def import_excel(
         rows = parse_employees_workbook(content)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+    except (BadZipFile, InvalidFileException, OSError) as exc:
+        raise HTTPException(
+            422,
+            "Excel dosyası açılamadı. Dosyayı Microsoft Excel'de .xlsx biçiminde yeniden kaydedip tekrar yükleyin.",
+        ) from exc
+    except Exception as exc:
+        logger.exception("Personel Excel dosyası okunamadı: %s", file.filename)
+        raise HTTPException(
+            422,
+            "Excel dosyası okunamadı. Güncel personel şablonunu indirip bilgileri bu şablona aktarın.",
+        ) from exc
     if not rows:
         raise HTTPException(
             422,
@@ -233,6 +249,27 @@ async def import_excel(
             created += 1
         except IntegrityError:
             errors.append(f"Satır {row_no} ({data['full_name']}): mükerrer veya geçersiz kayıt")
-    sync_company_service_requirements(db, company_id, commit=False)
-    db.commit()
-    return {"created": created, "errors": errors[:50], "count": len(rows)}
+    try:
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception("Personel Excel kayıtları veritabanına yazılamadı: company_id=%s", company_id)
+        raise HTTPException(
+            409,
+            "Personeller kaydedilemedi. Dosyada mükerrer veya geçersiz kayıt olup olmadığını kontrol edin.",
+        ) from exc
+
+    warning = None
+    try:
+        sync_company_service_requirements(db, company_id, commit=True)
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("Personel yüklemesi sonrası hizmet süresi senkronizasyonu başarısız: company_id=%s", company_id)
+        warning = "Personeller yüklendi; hizmet süresi hesaplaması daha sonra yenilenecek."
+
+    return {
+        "created": created,
+        "errors": errors[:50],
+        "count": len(rows),
+        "warning": warning,
+    }
