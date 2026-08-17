@@ -203,6 +203,11 @@ export function PpePage({user}) {
     window.print();
   }
 
+  const zimmetCompany = zimmet
+    ? companies.find((company) => String(company.id) === String(zimmet.company_id))
+    : null;
+  const employerSignatory = zimmetCompany?.authorized_person || '';
+
   if (zimmet) {
     return (
       <>
@@ -245,7 +250,7 @@ export function PpePage({user}) {
             {[
               ['Teslim Eden (İSG)', zimmet.delivered_by],
               ['Teslim Alan (Çalışan)', zimmet.employee_name],
-              ['İşveren / Vekili', ''],
+              ['İşveren / İşveren Vekili', employerSignatory],
             ].map(([t, n]) => (
               <div key={t} style={{border: '1px solid #d0dbe3', borderRadius: 10, padding: 12, minHeight: 90}}>
                 <strong style={{fontSize: 13}}>{t}</strong>
