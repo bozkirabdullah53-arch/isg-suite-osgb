@@ -297,7 +297,7 @@ async def import_excel(
     warning = None
     try:
         sync_company_service_requirements(db, company_id, commit=True)
-    except SQLAlchemyError:
+    except Exception:
         db.rollback()
         logger.exception("Personel yüklemesi sonrası hizmet süresi senkronizasyonu başarısız: company_id=%s", company_id)
         warning = "Personeller yüklendi; hizmet süresi hesaplaması daha sonra yenilenecek."
