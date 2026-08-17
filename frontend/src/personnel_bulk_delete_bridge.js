@@ -142,7 +142,7 @@ function buildToolbar(table){
   remove.setAttribute(PROXY_DELETE_ATTR,'');
   remove.textContent='Seçilenleri Kalıcı Sil (0)';
   remove.disabled=true;
-  remove.title='Seçili pasif ve bağlantısız personelleri kalıcı olarak siler.';
+  remove.title='Seçili aktif veya pasif bağlantısız personelleri kalıcı olarak siler.';
   remove.addEventListener('click',()=>{
     const original=findOriginalDeleteButton();
     if(!original||original.disabled) return;
