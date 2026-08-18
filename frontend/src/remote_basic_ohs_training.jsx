@@ -11,7 +11,7 @@ const EMPLOYEE_TRAINING_DISPLAY_TITLE = 'Eğitimlerim';
 const REMOTE_SECTOR_LABELS = {
   common: 'Temel Ortak İSG',
   construction: 'İnşaat',
-  battery: 'Akü ve Otomotiv',
+  battery: 'Akü, Pil ve Enerji Depolama',
   foundry: 'Döküm',
   metal: 'Metal',
   logistics: 'Lojistik',
@@ -21,6 +21,19 @@ const REMOTE_SECTOR_LABELS = {
   road: 'Yol/Asfalt/Altyapı',
   office: 'Ofis/Genel İşyerleri',
   health: 'Hastaneler ve Sağlık Hizmetleri',
+  education_universities: 'Eğitim Kurumları ve Üniversiteler',
+  public_municipalities: 'Kamu Kurumları ve Belediyeler',
+  agriculture_livestock_forestry: 'Tarım, Hayvancılık ve Ormancılık',
+  hospitality_tourism_restaurants: 'Konaklama, Turizm ve Restoran',
+  trade_retail_markets: 'Ticaret, Perakende ve Marketler',
+  energy_electricity_gas: 'Enerji, Elektrik ve Doğalgaz',
+  water_sewerage_waste: 'Su, Kanalizasyon ve Atık Yönetimi',
+  textile_clothing_leather: 'Tekstil, Giyim ve Deri',
+  plastic_rubber: 'Plastik ve Kauçuk',
+  wood_furniture: 'Ağaç ve Mobilya',
+  ceramic_glass_marble: 'Seramik, Cam ve Mermer',
+  building_cleaning_security: 'Bina, Temizlik ve Güvenlik Hizmetleri',
+  automotive_vehicle_services: 'Otomotiv ve Araç Servisleri',
   working_at_height: 'Yüksekte Çalışma',
 };
 const REMOTE_PACKAGE_LABELS = {
@@ -259,8 +272,8 @@ function rolloutPackageLabel(code) {
   return REMOTE_PACKAGE_LABELS[code] || code || 'paket';
 }
 
-function packageSectorLabel(code) {
-  return sectorLabel(REMOTE_PACKAGE_SECTOR_CODES[code] || code);
+function packageSectorLabel(code, sectorCode = '') {
+  return sectorLabel(sectorCode || REMOTE_PACKAGE_SECTOR_CODES[code] || code);
 }
 
 function apiAbsoluteUrl(path) {
@@ -1430,7 +1443,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
           {selectedPackage ? (
             <>
               <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}>
-                <div><h4 style={{margin: 0}}>{selectedPackage.title}</h4><div style={{fontSize: 12, color: '#5e7485', marginTop: 4}}>Sektör: {packageSectorLabel(selectedPackage.code)} · {statusLabel(selectedPackage.status)} · {selectedPackage.video_count || 0} video · {selectedPackage.section_count || 0} bölüm</div>{packageAutomaticExamReady(selectedPackage) ? <div className="remote-training-exam-auto-note">Otomatik final sınavı: <strong>{packageAutomaticExamCount(selectedPackage)} soru</strong> · geçme puanı <strong>%{selectedPackage.automatic_exam_passing_score || 70}</strong></div> : <div className="remote-training-exam-validation-warning">{selectedPackage.automatic_exam_warning || 'Otomatik final soru paketi hazır değil.'}</div>}{selectedPackage.status === 'published' && <div className={packageDistributionState(selectedPackage, rollout).allowed ? 'remote-training-package-ready' : 'remote-training-package-locked'}>{packageDistributionState(selectedPackage, rollout).label}</div>}</div>
+                <div><h4 style={{margin: 0}}>{selectedPackage.title}</h4><div style={{fontSize: 12, color: '#5e7485', marginTop: 4}}>Sektör: {packageSectorLabel(selectedPackage.code, selectedPackage.sector_code)} · {statusLabel(selectedPackage.status)} · {selectedPackage.video_count || 0} video · {selectedPackage.section_count || 0} bölüm</div>{packageAutomaticExamReady(selectedPackage) ? <div className="remote-training-exam-auto-note">Otomatik final sınavı: <strong>{packageAutomaticExamCount(selectedPackage)} soru</strong> · geçme puanı <strong>%{selectedPackage.automatic_exam_passing_score || 70}</strong></div> : <div className="remote-training-exam-validation-warning">{selectedPackage.automatic_exam_warning || 'Otomatik final soru paketi hazır değil.'}</div>}{selectedPackage.status === 'published' && <div className={packageDistributionState(selectedPackage, rollout).allowed ? 'remote-training-package-ready' : 'remote-training-package-locked'}>{packageDistributionState(selectedPackage, rollout).label}</div>}</div>
                 <div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>
                   {selectedPackage.is_shared && canEditContent && !canEditSharedContent && selectedPackage.status !== 'archived' && <button type="button" onClick={forkPackage} disabled={busy} aria-label="Bölüm eklemeye başla; OSGB özel kopyası oluştur" title="Ortak pakete dokunulmaz; yalnız sizin OSGB’nize özel kopya oluşturulur ve bölüm ekleme alanı açılır." style={{color: '#fff', background: busy ? '#7aa6a3' : '#0f766e', borderColor: '#0f766e', fontWeight: 800}}>{busy ? 'Özel kopya hazırlanıyor…' : 'Bölüm eklemeye başla'}</button>}
                   {directContentEdit && ['draft', 'unpublished'].includes(selectedPackage.status) && <button type="button" onClick={() => packageAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button>}
@@ -2032,7 +2045,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
           <h4 style={{marginTop: 0}}>Firmaya atanmış sektör eğitimleri</h4>
           <div style={{fontSize: 12, color: '#5e7485', marginBottom: 10}}>Bu listede yalnızca seçtiğiniz firmaya hazırlanmış eğitimler görünür. Eski aynı adlı taslaklar silinmez; isterseniz geçmişten açabilirsiniz.</div>
           {(showOldPrograms ? programs.map((row) => ({row, hidden: []})) : compactPrograms).map(({row, hidden}) => <div key={row.id} style={{marginBottom: 8}}>
-            <button type="button" onClick={() => loadDetail(row.id)} style={{display: 'block', width: '100%', textAlign: 'left', padding: 10, borderRadius: 9, border: `1px solid ${program?.id === row.id ? '#2474a8' : '#dbe5ef'}`, background: program?.id === row.id ? '#edf7ff' : '#fff'}}><strong>{localizedTrainingTitle(row.title)}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485'}}>{row.source_catalog_code ? `Sektör: ${packageSectorLabel(row.source_catalog_code)} · ` : ''}{statusLabel(row.status)} · sürüm {row.revision_no}</span>{row.source_catalog_package_id && <span style={{display: 'block', fontSize: 11, color: '#087443', marginTop: 3}}>Merkezi katalogdan bu firmaya atanmış</span>}</button>
+            <button type="button" onClick={() => loadDetail(row.id)} style={{display: 'block', width: '100%', textAlign: 'left', padding: 10, borderRadius: 9, border: `1px solid ${program?.id === row.id ? '#2474a8' : '#dbe5ef'}`, background: program?.id === row.id ? '#edf7ff' : '#fff'}}><strong>{localizedTrainingTitle(row.title)}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485'}}>{row.source_catalog_code ? `Sektör: ${packageSectorLabel(row.source_catalog_code, row.sector_code || row.source_catalog_sector_code)} · ` : ''}{statusLabel(row.status)} · sürüm {row.revision_no}</span>{row.source_catalog_package_id && <span style={{display: 'block', fontSize: 11, color: '#087443', marginTop: 3}}>Merkezi katalogdan bu firmaya atanmış</span>}</button>
             {!showOldPrograms && hidden.length > 0 && <div style={{fontSize: 11, color: '#795500', padding: '4px 8px'}}>Bu adla {hidden.length} eski taslak gizlendi.</div>}
           </div>)}
           {duplicateProgramCount > 0 && <button type="button" onClick={() => setShowOldPrograms((current) => !current)} style={{fontSize: 12, marginTop: 2}}>{showOldPrograms ? 'Eski kayıtları gizle' : `Eski/tekrarlı kayıtları göster (${duplicateProgramCount})`}</button>}
@@ -2041,7 +2054,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
         <div style={cardStyle}>
           {program ? (
             <>
-              <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{program.source_catalog_code ? `Atanan sektör: ${packageSectorLabel(program.source_catalog_code)} · ` : ''}{statusLabel(program.status)} · video %{program.completion_threshold_percent} · sınav %{program.passing_score}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>{canEditContent && <><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button></>}<button type="button" onClick={showReport} disabled={busy} title="Çalışanların durumunu ve belge PDF çıktısını açar">Belge / Rapor çıktıları</button></div></div>
+              <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{program.source_catalog_code ? `Atanan sektör: ${packageSectorLabel(program.source_catalog_code, program.sector_code || program.source_catalog_sector_code)} · ` : ''}{statusLabel(program.status)} · video %{program.completion_threshold_percent} · sınav %{program.passing_score}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>{canEditContent && <><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button></>}<button type="button" onClick={showReport} disabled={busy} title="Çalışanların durumunu ve belge PDF çıktısını açar">Belge / Rapor çıktıları</button></div></div>
               <div id="remote-training-certificate-output" style={{marginTop: 12, padding: '12px 14px', border: '1px solid #8cc6dc', borderRadius: 10, background: '#f6fcff'}} aria-label="Uzaktan eğitim belge çıktıları">
                 <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap'}}>
                   <div>
