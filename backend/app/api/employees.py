@@ -125,7 +125,11 @@ def update_employee(
             v = normalize_national_id(v) or None
         setattr(obj, k, v)
     sync_company_service_requirements(db, obj.company_id, commit=False)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, "Bu işyerinde aynı maskeli T.C. kimlik numarasına sahip başka bir personel var.") from exc
     db.refresh(obj)
     return obj
 

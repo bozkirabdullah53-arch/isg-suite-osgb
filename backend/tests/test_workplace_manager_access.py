@@ -301,6 +301,20 @@ def test_workplace_manager_can_write_target_modules_only_in_own_company(workplac
     )
     assert created_employee.status_code == 200, created_employee.text
     assert created_employee.json()["company_id"] == own
+    updated_employee = client.put(
+        f"/api/v1/employees/{created_employee.json()['id']}",
+        headers=headers,
+        json={
+            "full_name": "Düzeltilmiş Çalışan Adı",
+            "job_title": "Güvenli Üretim Personeli",
+            "department": "Üretim",
+            "special_status": "—",
+        },
+    )
+    assert updated_employee.status_code == 200, updated_employee.text
+    assert updated_employee.json()["full_name"] == "Düzeltilmiş Çalışan Adı"
+    assert updated_employee.json()["job_title"] == "Güvenli Üretim Personeli"
+    assert updated_employee.json()["department"] == "Üretim"
     assert client.post(
         "/api/v1/employees",
         headers=headers,
