@@ -52,8 +52,8 @@ REMOTE_SECTOR_CATALOG = (
     ("construction", "İnşaat", "İnşaat işleri ve saha riskleriyle ilgili dersler."),
     (
         "battery",
-        "Akü ve Otomotiv",
-        "Akü üretimi, servis ve otomotiv çalışma riskleriyle ilgili dersler.",
+        "Akü, Pil ve Enerji Depolama",
+        "Akü, pil, batarya ve enerji depolama üretimi, servisi ve güvenliğiyle ilgili dersler.",
     ),
     ("foundry", "Döküm", "Dökümhane, ergitme ve sıcak metal çalışma riskleriyle ilgili dersler."),
     ("metal", "Metal", "Metal işleme, kesme, kaynak ve ilgili çalışma riskleriyle ilgili dersler."),
@@ -66,7 +66,72 @@ REMOTE_SECTOR_CATALOG = (
     (
         "health",
         "Hastaneler ve Sağlık Hizmetleri",
-        "Hastane, klinik ve sağlık kuruluşlarında biyolojik, kimyasal, radyasyon, ergonomi ve acil durum risklerine yönelik dersler.",
+        "Hastane ve insan sağlığı hizmetlerinde biyolojik, kimyasal, radyasyon, ergonomi ve acil durum risklerine yönelik dersler.",
+    ),
+    (
+        "education_universities",
+        "Eğitim Kurumları ve Üniversiteler",
+        "Okul, kampüs, laboratuvar, atölye ve üniversite yerleşkelerindeki iş sağlığı ve güvenliği risklerine yönelik dersler.",
+    ),
+    (
+        "public_municipalities",
+        "Kamu Kurumları ve Belediyeler",
+        "Kamu hizmet binaları, belediye birimleri, saha ekipleri ve yerel hizmetlerdeki iş sağlığı ve güvenliği risklerine yönelik dersler.",
+    ),
+    (
+        "agriculture_livestock_forestry",
+        "Tarım, Hayvancılık ve Ormancılık",
+        "Tarım, hayvancılık, seracılık, orman işleri ve tarımsal makine kullanımındaki risklere yönelik dersler.",
+    ),
+    (
+        "hospitality_tourism_restaurants",
+        "Konaklama, Turizm ve Restoran",
+        "Otel, konaklama, turizm tesisi, mutfak ve restoran faaliyetlerindeki iş sağlığı ve güvenliği risklerine yönelik dersler.",
+    ),
+    (
+        "trade_retail_markets",
+        "Ticaret, Perakende ve Marketler",
+        "Mağaza, market, perakende, ticaret ve müşteri hizmetleri faaliyetlerindeki iş sağlığı ve güvenliği risklerine yönelik dersler.",
+    ),
+    (
+        "energy_electricity_gas",
+        "Enerji, Elektrik ve Doğalgaz",
+        "Elektrik üretimi ve dağıtımı, enerji tesisleri ve doğalgaz faaliyetlerindeki iş sağlığı ve güvenliği risklerine yönelik dersler.",
+    ),
+    (
+        "water_sewerage_waste",
+        "Su, Kanalizasyon ve Atık Yönetimi",
+        "Su temini, kanalizasyon, arıtma, atık toplama ve atık yönetimi faaliyetlerindeki risklere yönelik dersler.",
+    ),
+    (
+        "textile_clothing_leather",
+        "Tekstil, Giyim ve Deri",
+        "Tekstil, hazır giyim, konfeksiyon ve deri üretimindeki makine, kimyasal, ergonomi ve yangın risklerine yönelik dersler.",
+    ),
+    (
+        "plastic_rubber",
+        "Plastik ve Kauçuk",
+        "Plastik ve kauçuk üretimindeki proses, makine, kimyasal, sıcak yüzey ve yangın risklerine yönelik dersler.",
+    ),
+    (
+        "wood_furniture",
+        "Ağaç ve Mobilya",
+        "Ağaç işleme, mobilya, marangozluk, toz, kesim ve makine kullanımındaki risklere yönelik dersler.",
+    ),
+    (
+        "ceramic_glass_marble",
+        "Seramik, Cam ve Mermer",
+        "Seramik, cam, mermer ve taş işleme faaliyetlerindeki kesilme, toz, sıcak yüzey, kaldırma ve makine risklerine yönelik dersler.",
+    ),
+    (
+        "building_cleaning_security",
+        "Bina, Temizlik ve Güvenlik Hizmetleri",
+        "Bina yönetimi, temizlik, bakım, özel güvenlik ve saha hizmetlerindeki iş sağlığı ve güvenliği risklerine yönelik dersler.",
+    ),
+    (
+        "automotive_vehicle_services",
+        "Otomotiv ve Araç Servisleri",
+        "Araç bakım, onarım, servis, lastik, kaporta, boya ve otomotiv saha faaliyetlerindeki risklere yönelik dersler.",
     ),
     ("working_at_height", "Yüksekte Çalışma", "Yüksekte çalışma, düşmeyi önleme, ekipman kullanımı ve kurtarma planlaması dersleri."),
 )

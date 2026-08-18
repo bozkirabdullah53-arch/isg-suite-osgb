@@ -31,8 +31,9 @@ from app.services import remote_training as remote_service
 CUSTOM_PACKAGE_PREFIX = "custom--"
 
 # A custom curriculum may only reuse a sector whose reviewed automatic exam
-# and strict rollout code already exist.  This deliberately fails closed for
-# "foundry" until a dedicated reviewed package is introduced.
+# and strict rollout code already exist.  Categories without a dedicated
+# reviewed sector bank use the common reviewed OHS exam until their own bank is
+# introduced; unrelated sector banks are never substituted.
 CUSTOM_SECTOR_BASE_PACKAGE = {
     "common": "common-basic-ohs",
     "construction": "construction-ohs",
@@ -45,6 +46,19 @@ CUSTOM_SECTOR_BASE_PACKAGE = {
     "road": "road-asphalt-infrastructure-ohs",
     "office": "office-general-ohs",
     "health": "health-services-ohs",
+    "education_universities": "common-basic-ohs",
+    "public_municipalities": "common-basic-ohs",
+    "agriculture_livestock_forestry": "common-basic-ohs",
+    "hospitality_tourism_restaurants": "common-basic-ohs",
+    "trade_retail_markets": "common-basic-ohs",
+    "energy_electricity_gas": "common-basic-ohs",
+    "water_sewerage_waste": "common-basic-ohs",
+    "textile_clothing_leather": "common-basic-ohs",
+    "plastic_rubber": "common-basic-ohs",
+    "wood_furniture": "common-basic-ohs",
+    "ceramic_glass_marble": "common-basic-ohs",
+    "building_cleaning_security": "common-basic-ohs",
+    "automotive_vehicle_services": "common-basic-ohs",
     "working_at_height": "working-at-height-ohs",
 }
 CUSTOM_PACKAGE_SECTOR_CODES = frozenset(CUSTOM_SECTOR_BASE_PACKAGE)
