@@ -44,6 +44,7 @@ CUSTOM_SECTOR_BASE_PACKAGE = {
     "mining": "open-mine-quarry-aggregate-ohs",
     "road": "road-asphalt-infrastructure-ohs",
     "office": "office-general-ohs",
+    "health": "health-services-ohs",
     "working_at_height": "working-at-height-ohs",
 }
 CUSTOM_PACKAGE_SECTOR_CODES = frozenset(CUSTOM_SECTOR_BASE_PACKAGE)
