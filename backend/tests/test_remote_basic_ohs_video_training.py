@@ -56,6 +56,33 @@ def _scope_rows(db: Session):
     return osgb, company, branch, employee, user
 
 
+def test_remote_assignment_display_uses_current_employee_name_after_personnel_edit(monkeypatch):
+    from app.api import remote_training as remote_api
+    from app.models.remote_training import RemoteTrainingAssignment
+
+    engine = _db()
+    with Session(engine) as db:
+        _osgb, company, branch, employee, _user = _scope_rows(db)
+        assignment = RemoteTrainingAssignment(
+            company_id=company.id,
+            branch_id=branch.id,
+            program_id=1,
+            employee_id=employee.id,
+            employee_name_snapshot="Çalışan Test",
+            status="not_started",
+        )
+        db.add(assignment)
+        db.flush()
+        monkeypatch.setattr(remote_api, "recalculate_assignment", lambda _db, _row: {})
+        monkeypatch.setattr(remote_api, "assignment_sector_codes", lambda _db, _row: None)
+
+        employee.full_name = "Ramiz GENÇTÜRK"
+        output = remote_api._assignment_output(db, assignment)
+
+        assert output["employee_name"] == "Ramiz GENÇTÜRK"
+        assert assignment.employee_name_snapshot == "Çalışan Test"
+
+
 def test_remote_video_validation_rejects_mismatched_content():
     from app.services.remote_training import validate_video_bytes
 

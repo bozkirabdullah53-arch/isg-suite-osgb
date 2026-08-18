@@ -610,13 +610,21 @@ def _assignment_output(
 ) -> dict[str, Any]:
     summary = recalculate_assignment(db, assignment)
     sector_codes = assignment_sector_codes(db, assignment)
+    # The assignment keeps an immutable name snapshot for historical
+    # documents, but active education screens must reflect corrections made in
+    # the Personel List.  Resolve the current name by stable employee_id;
+    # never try to match a person by the old spelling.
+    employee_row = db.get(Employee, assignment.employee_id)
+    current_employee_name = (
+        employee_row.full_name if employee_row else assignment.employee_name_snapshot
+    )
     result = {
         "id": assignment.id,
         "company_id": assignment.company_id,
         "branch_id": assignment.branch_id,
         "program_id": assignment.program_id,
         "employee_id": assignment.employee_id,
-        "employee_name": assignment.employee_name_snapshot,
+        "employee_name": current_employee_name,
         "status": assignment.status,
         "due_date": _iso(assignment.due_date),
         "assigned_at": _iso(assignment.assigned_at),
@@ -3930,6 +3938,7 @@ def list_remote_certificate_records(
             RemoteTrainingProgram,
             RemoteTrainingProgram.id == RemoteTrainingAssignment.program_id,
         )
+        .join(Employee, Employee.id == RemoteTrainingAssignment.employee_id)
         .join(Company, Company.id == RemoteTrainingAssignment.company_id)
         .outerjoin(Branch, Branch.id == RemoteTrainingAssignment.branch_id)
         .order_by(
@@ -3951,6 +3960,7 @@ def list_remote_certificate_records(
         pattern = f"%{q.strip()}%"
         stmt = stmt.where(
             or_(
+                Employee.full_name.ilike(pattern),
                 RemoteTrainingAssignment.employee_name_snapshot.ilike(pattern),
                 Company.name.ilike(pattern),
                 RemoteTrainingProgram.title.ilike(pattern),
@@ -4247,7 +4257,10 @@ def remote_training_report(
 ):
     program = _assert_program_manager(db, user, program_id)
     rows = db.scalars(
-        select(RemoteTrainingAssignment).where(RemoteTrainingAssignment.program_id == program.id).order_by(RemoteTrainingAssignment.employee_name_snapshot)
+        select(RemoteTrainingAssignment)
+        .join(Employee, Employee.id == RemoteTrainingAssignment.employee_id)
+        .where(RemoteTrainingAssignment.program_id == program.id)
+        .order_by(Employee.full_name)
     ).all()
     items = [_assignment_output(db, row) for row in rows]
     certificates = {

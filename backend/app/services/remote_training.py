@@ -1194,12 +1194,13 @@ def ensure_certificate(db: Session, assignment: RemoteTrainingAssignment) -> Rem
         .limit(1)
     )
     seed = f"remote-basic-ohs|{assignment.id}|{assignment.employee_id}|{datetime.utcnow().isoformat()}|{secrets.token_hex(8)}"
+    employee = db.get(Employee, assignment.employee_id)
     certificate = RemoteTrainingCertificate(
         company_id=assignment.company_id,
         program_id=assignment.program_id,
         assignment_id=assignment.id,
         employee_id=assignment.employee_id,
-        employee_name_snapshot=assignment.employee_name_snapshot,
+        employee_name_snapshot=(employee.full_name if employee else assignment.employee_name_snapshot),
         company_name_snapshot=company.name if company else str(assignment.company_id),
         workplace_name_snapshot=assignment.workplace_name_snapshot,
         sgk_registration_number_snapshot=assignment.sgk_registration_number_snapshot,
