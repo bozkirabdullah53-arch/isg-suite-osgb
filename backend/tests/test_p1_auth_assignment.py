@@ -99,6 +99,45 @@ def test_refresh_cookie_flow_when_enabled(client, monkeypatch):
     settings.auth_refresh_cookie_enabled = False
 
 
+def test_me_bootstraps_refresh_cookie_for_existing_access_session(client, monkeypatch):
+    """Existing sessions must survive the short access-token window."""
+    from app.core.auth_cookies import REFRESH_COOKIE_NAME
+    from app.core.database import SessionLocal
+
+    settings.auth_refresh_cookie_enabled = True
+    settings.environment = "development"
+    settings.auth_refresh_cookie_force_off = False
+    monkeypatch.setattr("app.api.auth.refresh_cookie_enabled", lambda: True)
+    monkeypatch.setattr("app.core.auth_cookies.refresh_cookie_enabled", lambda: True)
+
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(name="Existing Session OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        user = User(
+            email="existing-session@test.com",
+            full_name="Existing Session User",
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.COMPANY_ADMIN,
+            osgb_id=osgb.id,
+            company_id=None,
+            is_active=True,
+            token_version=0,
+        )
+        db.add(user)
+        db.commit()
+        token = create_access_token(str(user.id), token_version=0, minutes=15)
+
+    response = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200, response.text
+    assert REFRESH_COOKIE_NAME in client.cookies
+
+    settings.auth_refresh_cookie_enabled = False
+
+
 def test_assignment_ended_allows_reassign(tmp_path):
     """P1-06: ended kayıttan sonra aynı üçlü ile yeni active eklenebilmeli (model düzeyi)."""
     from datetime import date
