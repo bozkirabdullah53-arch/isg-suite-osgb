@@ -5,6 +5,7 @@ does not change the existing in-person training routes or their records.
 """
 from __future__ import annotations
 
+import errno
 import json
 import logging
 from datetime import date, datetime
@@ -74,7 +75,12 @@ from app.schemas.remote_training import (
     RemoteSectionUpdate,
     RemoteVideoUpdate,
 )
-from app.services.object_store import get_object_store
+from app.services.object_store import (
+    get_object_store,
+    get_remote_object_store,
+    object_storage_config_ok,
+    storage_backend_label,
+)
 from app.services.osgb_subscription import (
     assert_osgb_subscription_access,
     assert_osgb_write_access,
@@ -143,6 +149,11 @@ from app.services.remote_training_reports import (
 
 router = APIRouter(prefix="/trainings/remote", tags=["Uzaktan Temel İSG Eğitimi"])
 logger = logging.getLogger(__name__)
+
+
+def _remote_training_video_store():
+    """Write large remote-training videos to R2 before using local fallback."""
+    return get_remote_object_store() or get_object_store()
 
 
 def _manager(user: User) -> None:
@@ -1125,7 +1136,7 @@ def fork_catalog_package(
             )
         ).all()
     )
-    store = get_object_store()
+    store = _remote_training_video_store()
     copied_keys: list[str] = []
     try:
         for source_section in source_sections:
@@ -1399,7 +1410,7 @@ def materialize_catalog_package(
         )
 
     copied_keys: list[str] = []
-    store = get_object_store()
+    store = _remote_training_video_store()
     try:
         for catalog_section in catalog_sections:
             section = RemoteTrainingSection(
@@ -1735,7 +1746,7 @@ async def upload_catalog_video(
     key = catalog_storage_key(package_id=package.id, prefix="video", extension=extension)
     store = None
     try:
-        store = get_object_store()
+        store = _remote_training_video_store()
         store.put_bytes(key, content)
         row = RemoteTrainingCatalogVideo(
             package_id=package.id,
@@ -1776,8 +1787,39 @@ async def upload_catalog_video(
             try:
                 store.delete(key)
             except Exception:
-                pass
-        raise HTTPException(500, "Merkezi video yüklenirken güvenli depolama işlemi tamamlanamadı.") from exc
+                logger.exception(
+                    "Video yükleme başarısızlığı sonrası depolama temizlenemedi: "
+                    "section_id=%s package_id=%s key=%s",
+                    section.id,
+                    package.id,
+                    key,
+                )
+
+        backend = storage_backend_label()
+        logger.exception(
+            "Merkezi video depolama işlemi başarısız: section_id=%s package_id=%s "
+            "file_size=%s backend=%s storage_config_ok=%s error_type=%s",
+            section.id,
+            package.id,
+            len(content),
+            backend,
+            object_storage_config_ok(),
+            type(exc).__name__,
+        )
+        if isinstance(exc, OSError) and exc.errno == errno.ENOSPC:
+            raise HTTPException(
+                status_code=507,
+                detail="Video depolama alanı dolu. Cloudflare R2 depolamasını etkinleştirin.",
+            ) from exc
+        if backend.startswith(("r2-", "s3-", "dual-")) and not object_storage_config_ok():
+            raise HTTPException(
+                status_code=503,
+                detail="Video depolama bağlantısı yapılandırılmamış veya kullanılamıyor.",
+            ) from exc
+        raise HTTPException(
+            status_code=503,
+            detail="Video depolama hizmetine ulaşılamadı; mevcut videolar korunmuştur.",
+        ) from exc
 
 
 @router.patch("/catalog/videos/{video_id}")
@@ -2483,9 +2525,7 @@ async def upload_remote_video(
     key = storage_key(company_id=program.company_id, program_id=program.id, prefix="video", extension=extension)
     store = None
     try:
-        from app.services.object_store import get_object_store
-
-        store = get_object_store()
+        store = _remote_training_video_store()
         store.put_bytes(key, content)
         row = RemoteTrainingVideo(
             osgb_id=program.osgb_id,
