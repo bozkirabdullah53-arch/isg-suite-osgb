@@ -24,6 +24,9 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str = Field(min_length=20, max_length=200)
     new_password: str = Field(min_length=10, max_length=128)
+    # Optional for backward compatibility with existing API clients; new UI
+    # sends it so a mistyped password cannot lock the employee out again.
+    new_password_confirm: str | None = Field(default=None, min_length=10, max_length=128)
 
 
 class TokenResponse(BaseModel):

@@ -416,6 +416,8 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Sessio
 
 @router.post("/reset-password")
 def reset_password(payload: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    if payload.new_password_confirm is not None and payload.new_password != payload.new_password_confirm:
+        raise HTTPException(status_code=422, detail="Yeni şifreler aynı değil.")
     try:
         user = consume_password_reset(db, payload.token, payload.new_password)
     except ValueError as exc:

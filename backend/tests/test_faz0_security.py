@@ -192,6 +192,40 @@ def test_password_reset_flow(client):
     assert r.json().get("access_token")
 
 
+def test_password_reset_rejects_mismatched_confirmation_without_consuming_token(client):
+    import app.core.database as dbmod
+    from app.models.entities import User
+    from app.services.auth_security import create_password_reset
+
+    db = dbmod.SessionLocal()
+    try:
+        user = db.query(User).filter_by(email="uzman@example.com").one()
+        raw = create_password_reset(db, user)
+        db.commit()
+    finally:
+        db.close()
+
+    mismatch = client.post(
+        "/api/v1/auth/reset-password",
+        json={
+            "token": raw,
+            "new_password": "YeniSifre12345!",
+            "new_password_confirm": "FarkliSifre12345!",
+        },
+    )
+    assert mismatch.status_code == 422
+
+    completed = client.post(
+        "/api/v1/auth/reset-password",
+        json={
+            "token": raw,
+            "new_password": "YeniSifre12345!",
+            "new_password_confirm": "YeniSifre12345!",
+        },
+    )
+    assert completed.status_code == 200, completed.text
+
+
 def test_health_confidential_write_locked_for_dsp(client):
     r = _login(client, "dsp@example.com", "DspPass12345!")
     assert r.status_code == 200
