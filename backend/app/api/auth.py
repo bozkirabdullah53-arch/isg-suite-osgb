@@ -435,7 +435,12 @@ def reset_password(payload: ResetPasswordRequest, request: Request, db: Session 
 
 
 @router.get("/me", response_model=CurrentUserResponse)
-def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def me(
+    request: Request,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     from app.api.company_access import sync_user_from_professional
     from app.models.entities import UserRole
     from app.services.osgb_subscription import (
@@ -447,6 +452,21 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
 
     user = sync_user_from_professional(db, user, commit=True)
     is_eisa = user.role == UserRole.GLOBAL_ADMIN
+
+    # Refresh-cookie rollout was enabled after some users already had a valid
+    # access token.  Those sessions had no HttpOnly refresh cookie, so the
+    # first long/serial upload failed as soon as the 15-minute access token
+    # expired.  Bootstrap the cookie from an already authenticated /me call;
+    # this does not change the access token or any authorization decision.
+    if refresh_cookie_enabled() and not request.cookies.get(REFRESH_COOKIE_NAME):
+        set_refresh_cookie(
+            response,
+            create_refresh_token(
+                str(user.id),
+                token_version=int(getattr(user, "token_version", 0) or 0),
+            ),
+        )
+
     sub_status = None
     write_ok = True
     if not is_eisa:
