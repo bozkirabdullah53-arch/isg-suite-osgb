@@ -564,31 +564,49 @@ export async function downloadFile(path, filename, {timeoutMs = 90_000} = {}) {
 
 export async function uploadFile(path, file, extraFields = null, options = {}) {
   await wakeApi();
-  const token = localStorage.getItem("isg_token");
-  const formData = new FormData();
-  formData.append("file", file);
-  if (extraFields && typeof extraFields === "object") {
-    for (const [k, v] of Object.entries(extraFields)) {
-      if (v === undefined || v === null || v === "") continue;
-      formData.append(k, String(v));
-    }
-  }
-  let response;
   const uploadPath = String(path || "");
   const timeoutMs = Number(options?.timeoutMs) > 0
     ? Number(options.timeoutMs)
     : uploadPath.includes("/videos")
       ? 30 * 60 * 1000
       : 5 * 60 * 1000;
-  try {
-    response = await fetch(`${API_URL}${path}`, {
+  let didRefresh = false;
+  const currentToken = localStorage.getItem("isg_token");
+  if (currentToken && accessTokenExpiresSoon() && canAttemptTokenRefresh(uploadPath, 401)) {
+    didRefresh = await tryRefreshAccessToken();
+  }
+  const buildFormData = () => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (extraFields && typeof extraFields === "object") {
+      for (const [k, v] of Object.entries(extraFields)) {
+        if (v === undefined || v === null || v === "") continue;
+        formData.append(k, String(v));
+      }
+    }
+    return formData;
+  };
+  const sendUpload = () => {
+    const token = localStorage.getItem("isg_token");
+    return fetch(API_URL + path, {
       method: "POST",
-      headers: token ? {Authorization: `Bearer ${token}`} : {},
-      body: formData,
+      headers: token ? {Authorization: "Bearer " + token} : {},
+      body: buildFormData(),
       mode: "cors",
-      credentials: fetchCredentials(path),
+      credentials: fetchCredentials(uploadPath),
       signal: requestSignal(timeoutMs),
     });
+  };
+  let response;
+  try {
+    response = await sendUpload();
+    if (!didRefresh && canAttemptTokenRefresh(uploadPath, response.status)) {
+      const refreshed = await tryRefreshAccessToken();
+      if (refreshed) {
+        didRefresh = true;
+        response = await sendUpload();
+      }
+    }
   } catch (e) {
     if (e?.name === "TimeoutError" || e?.name === "AbortError") {
       throw new Error(uploadPath.includes("/videos")
@@ -602,6 +620,7 @@ export async function uploadFile(path, file, extraFields = null, options = {}) {
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 401 && uploadPath !== "/auth/login") notifyAuthLost();
     const detail = data.detail;
     if (typeof detail === "string" && detail.trim()) throw new Error(detail);
     if (Array.isArray(detail)) {
@@ -613,7 +632,7 @@ export async function uploadFile(path, file, extraFields = null, options = {}) {
             const field = loc.length ? String(loc[loc.length - 1]) : "";
             const msg = localizeValidationMsg(d.msg || JSON.stringify(d));
             const label = fieldLabelTr(field);
-            return label ? `${label}: ${msg}` : msg;
+            return label ? label + ": " + msg : msg;
           })
           .join(" · "),
       );
