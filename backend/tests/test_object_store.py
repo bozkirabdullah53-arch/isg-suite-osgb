@@ -151,6 +151,47 @@ def test_r2_config_requires_endpoint(monkeypatch):
     assert os_mod.storage_backend_label() == "r2-ready-v2"
 
 
+def test_remote_video_store_prefers_r2_without_changing_global_backend(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "object_storage_backend", "local")
+    monkeypatch.setattr(settings, "object_storage_bucket", "isg-uploads")
+    monkeypatch.setattr(settings, "object_storage_access_key", "ak")
+    monkeypatch.setattr(settings, "object_storage_secret_key", "sk")
+    monkeypatch.setattr(settings, "object_storage_endpoint", "https://x.r2.cloudflarestorage.com")
+    monkeypatch.setattr(settings, "upload_dir", str(tmp_path))
+    remote = object()
+    monkeypatch.setattr(os_mod, "S3ObjectStore", lambda: remote)
+    os_mod.reset_object_store_for_tests()
+
+    assert os_mod.get_remote_video_store() is remote
+    assert settings.object_storage_backend == "local"
+    assert isinstance(os_mod.get_object_store(), os_mod.LocalObjectStore)
+
+
+def test_r2_client_defaults_region_to_auto(monkeypatch):
+    import sys
+
+    monkeypatch.setattr(settings, "object_storage_backend", "r2")
+    monkeypatch.setattr(settings, "object_storage_bucket", "isg-uploads")
+    monkeypatch.setattr(settings, "object_storage_access_key", "ak")
+    monkeypatch.setattr(settings, "object_storage_secret_key", "sk")
+    monkeypatch.setattr(settings, "object_storage_endpoint", "https://x.r2.cloudflarestorage.com")
+    monkeypatch.setattr(settings, "object_storage_region", "")
+    captured = {}
+
+    class _Boto3:
+        @staticmethod
+        def client(service, **kwargs):
+            captured["service"] = service
+            captured.update(kwargs)
+            return object()
+
+    monkeypatch.setitem(sys.modules, "boto3", _Boto3())
+    os_mod.S3ObjectStore()
+
+    assert captured["service"] == "s3"
+    assert captured["region_name"] == "auto"
+
+
 def test_dual_config_requires_remote_credentials(monkeypatch):
     monkeypatch.setattr(settings, "object_storage_backend", "dual")
     monkeypatch.setattr(settings, "object_storage_bucket", None)

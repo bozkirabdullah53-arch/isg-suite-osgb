@@ -67,7 +67,10 @@ from app.models.remote_training import (
 )
 from app.services.assigned_team import training_defaults
 from app.services.job_queue import enqueue
-from app.services.object_store import get_object_store, presigned_object_read_url
+from app.services.object_store import (
+    get_remote_video_store,
+    presigned_object_read_url,
+)
 from app.services.training_nace_classification import resolve_exact_nace
 from app.services.training_question_bank import _curated_pack
 from app.services.upload_security import assert_safe_video_upload
@@ -740,7 +743,7 @@ def process_remote_video(video_id: int) -> dict[str, Any]:
         db.commit()
         temporary_path: Path | None = None
         try:
-            store = get_object_store()
+            store = get_remote_video_store()
             path = store.resolve_local_path(video.storage_key)
             if path is None or not path.is_file():
                 content = store.get_bytes(video.storage_key)
@@ -792,7 +795,7 @@ def process_remote_catalog_video(video_id: int) -> dict[str, Any]:
         db.commit()
         temporary_path: Path | None = None
         try:
-            store = get_object_store()
+            store = get_remote_video_store()
             path = store.resolve_local_path(video.storage_key)
             if path is None or not path.is_file():
                 content = store.get_bytes(video.storage_key)
@@ -1596,7 +1599,7 @@ def response_for_video(video: RemoteTrainingVideo, request: Any | None = None):
     """Return a protected inline response with browser-friendly byte ranges."""
     from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 
-    store = get_object_store()
+    store = get_remote_video_store()
     local_fallback = bool(
         request is not None
         and str(request.headers.get("x-isg-local-video-fallback") or "").strip() == "1"

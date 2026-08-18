@@ -115,6 +115,14 @@ class S3ObjectStore:
             kwargs["aws_secret_access_key"] = settings.object_storage_secret_key
         if settings.object_storage_region:
             kwargs["region_name"] = settings.object_storage_region
+        elif (
+            settings.object_storage_endpoint
+            and ".r2.cloudflarestorage.com" in settings.object_storage_endpoint
+        ):
+            # Cloudflare R2 is S3-compatible but does not expose an AWS
+            # region. boto3 still requires one; Cloudflare documents "auto"
+            # as the correct placeholder.
+            kwargs["region_name"] = "auto"
         self._client = boto3.client("s3", **kwargs)
 
     def _full_key(self, key: str) -> str:
@@ -321,6 +329,7 @@ class DualObjectStore:
 
 
 _store: ObjectStore | None = None
+_remote_store: S3ObjectStore | None = None
 
 
 def get_object_store() -> ObjectStore:
@@ -339,10 +348,34 @@ def get_object_store() -> ObjectStore:
     return _store
 
 
+def get_remote_object_store() -> S3ObjectStore | None:
+    """Return a remote-first store when R2/S3 credentials are configured.
+
+    This is deliberately separate from ``get_object_store``. Existing
+    application uploads may still use the local/dual compatibility path, but
+    large remote-training videos must not consume the small Render disk before
+    they reach R2. ``OBJECT_STORAGE_FORCE_LOCAL`` remains an emergency
+    rollback switch and disables this path.
+    """
+    global _remote_store
+    if bool(getattr(settings, "object_storage_force_local", False)):
+        return None
+    if not remote_object_storage_credentials_ok():
+        return None
+    if _remote_store is None:
+        _remote_store = S3ObjectStore()
+    return _remote_store
+
+
+def get_remote_video_store() -> ObjectStore:
+    """Use R2/S3 for remote-training videos, with the old store as fallback."""
+    return get_remote_object_store() or get_object_store()
+
+
 def presigned_object_read_url(key: str, *, expires_in_seconds: int) -> str | None:
     """Best-effort direct R2/S3 delivery; callers retain their local fallback."""
     try:
-        return get_object_store().presigned_get_url(
+        return get_remote_video_store().presigned_get_url(
             key,
             expires_in_seconds=expires_in_seconds,
         )
@@ -355,8 +388,9 @@ def presigned_object_read_url(key: str, *, expires_in_seconds: int) -> str | Non
 
 
 def reset_object_store_for_tests() -> None:
-    global _store
+    global _remote_store, _store
     _store = None
+    _remote_store = None
 
 
 def storage_backend_label() -> str:
@@ -440,6 +474,11 @@ def probe_object_storage() -> dict:
         kwargs["endpoint_url"] = settings.object_storage_endpoint
     if settings.object_storage_region:
         kwargs["region_name"] = settings.object_storage_region
+    elif (
+        settings.object_storage_endpoint
+        and ".r2.cloudflarestorage.com" in settings.object_storage_endpoint
+    ):
+        kwargs["region_name"] = "auto"
 
     started = time.monotonic()
     try:
