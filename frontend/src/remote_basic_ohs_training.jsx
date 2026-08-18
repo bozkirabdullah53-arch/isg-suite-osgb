@@ -20,6 +20,7 @@ const REMOTE_SECTOR_LABELS = {
   mining: 'Maden/Agrega',
   road: 'Yol/Asfalt/Altyapı',
   office: 'Ofis/Genel İşyerleri',
+  health: 'Hastaneler ve Sağlık Hizmetleri',
   working_at_height: 'Yüksekte Çalışma',
 };
 const REMOTE_PACKAGE_LABELS = {
@@ -33,6 +34,7 @@ const REMOTE_PACKAGE_LABELS = {
   'open-mine-quarry-aggregate-ohs': 'Maden/Agrega',
   'road-asphalt-infrastructure-ohs': 'Yol/Asfalt/Altyapı',
   'office-general-ohs': 'Ofis/Genel İşyerleri',
+  'health-services-ohs': 'Hastaneler ve Sağlık Hizmetleri',
   'working-at-height-ohs': 'Yüksekte Çalışma İSG Paketi',
 };
 const REMOTE_PACKAGE_SECTOR_CODES = {
@@ -46,6 +48,7 @@ const REMOTE_PACKAGE_SECTOR_CODES = {
   'open-mine-quarry-aggregate-ohs': 'mining',
   'road-asphalt-infrastructure-ohs': 'road',
   'office-general-ohs': 'office',
+  'health-services-ohs': 'health',
   'working-at-height-ohs': 'working_at_height',
 };
 const STATUS_LABELS = {

@@ -138,6 +138,7 @@ REMOTE_AUTO_EXAM_PACKS = {
     "open-mine-quarry-aggregate-ohs": "sector-mining.json",
     "road-asphalt-infrastructure-ohs": "sector-road-transport.json",
     "office-general-ohs": "sector-office.json",
+    "health-services-ohs": "sector-health.json",
     "working-at-height-ohs": "remote-yuksekte-calisma-20.json",
 }
 # The curated file is also checked against the catalog scope.  A filename
@@ -154,6 +155,7 @@ REMOTE_AUTO_EXAM_PACKAGE_SCOPES = {
     "open-mine-quarry-aggregate-ohs": {"acik_maden", "madencilik_maden_ocagi", "tas_ocagi_maden_ocagi"},
     "road-asphalt-infrastructure-ohs": {"karayolu_tasimacilik", "nakliye_karayolu_tasimaciligi", "toplu_tasima_ulasim"},
     "office-general-ohs": {"ofis", "ofis_idari_hizmetler"},
+    "health-services-ohs": {"saglik", "saglik_hastane_klinik"},
     "working-at-height-ohs": {"yuksekte_calisma"},
 }
 REMOTE_AUTO_EXAM_QUESTION_COUNT = 10

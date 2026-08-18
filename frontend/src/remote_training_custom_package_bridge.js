@@ -15,6 +15,7 @@ const SUPPORTED_SECTOR_CODES = new Set([
   'mining',
   'road',
   'office',
+  'health',
   'working_at_height',
 ]);
 
@@ -29,6 +30,7 @@ const FALLBACK_SECTORS = [
   {code: 'mining', label: 'Maden/Agrega'},
   {code: 'road', label: 'Yol/Asfalt/Altyapı'},
   {code: 'office', label: 'Ofis/Genel İşyerleri'},
+  {code: 'health', label: 'Hastaneler ve Sağlık Hizmetleri'},
   {code: 'working_at_height', label: 'Yüksekte Çalışma'},
 ];
 

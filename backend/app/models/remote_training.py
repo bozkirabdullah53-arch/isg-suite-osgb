@@ -63,6 +63,11 @@ REMOTE_SECTOR_CATALOG = (
     ("mining", "Maden/Agrega", "Maden, taş ocağı ve agrega faaliyetlerindeki saha ve ekipman riskleriyle ilgili dersler."),
     ("road", "Yol/Asfalt/Altyapı", "Yol, asfalt, altyapı ve saha trafik güvenliğiyle ilgili dersler."),
     ("office", "Ofis/Genel İşyerleri", "Ofis ve genel işyerlerinde ergonomi, acil durum ve çalışma güvenliği dersleri."),
+    (
+        "health",
+        "Hastaneler ve Sağlık Hizmetleri",
+        "Hastane, klinik ve sağlık kuruluşlarında biyolojik, kimyasal, radyasyon, ergonomi ve acil durum risklerine yönelik dersler.",
+    ),
     ("working_at_height", "Yüksekte Çalışma", "Yüksekte çalışma, düşmeyi önleme, ekipman kullanımı ve kurtarma planlaması dersleri."),
 )
 REMOTE_SECTOR_CODES = frozenset(item[0] for item in REMOTE_SECTOR_CATALOG)
@@ -86,6 +91,7 @@ REMOTE_CATALOG_PACKAGE_SECTOR_CODES = {
     "open-mine-quarry-aggregate-ohs": "mining",
     "road-asphalt-infrastructure-ohs": "road",
     "office-general-ohs": "office",
+    "health-services-ohs": "health",
     "working-at-height-ohs": "working_at_height",
 }
 
@@ -202,6 +208,23 @@ REMOTE_CATALOG_PACKAGE_SPECS = (
         "title": "Ofis/Genel İşyerleri",
         "description": "Ofisler ve genel işyerleri için ergonomi, acil durum ve çalışma güvenliği paketi.",
         "sections": (),
+    },
+    {
+        "code": "health-services-ohs",
+        "title": "Hastaneler ve Sağlık Hizmetleri",
+        "description": "Hastane, klinik ve sağlık kuruluşlarında biyolojik, kimyasal, radyasyon, ergonomi, tıbbi ekipman ve acil durum güvenliği.",
+        "sections": (
+            ("SAG-01", "Hastane İSG organizasyonu ve işveren sorumluluğu"),
+            ("SAG-02", "Biyolojik riskler ve enfeksiyonlardan korunma"),
+            ("SAG-03", "Kesici-delici aletler ve kan/vücut sıvısı maruziyeti"),
+            ("SAG-04", "Kimyasal maddeler, dezenfeksiyon ve sterilizasyon"),
+            ("SAG-05", "Sitotoksik ilaçlar ve laboratuvar güvenliği"),
+            ("SAG-06", "İyonlaştırıcı radyasyon ve görüntüleme birimleri"),
+            ("SAG-07", "Hasta taşıma, ergonomi ve kas-iskelet riskleri"),
+            ("SAG-08", "Şiddet, vardiya ve psikososyal riskler"),
+            ("SAG-09", "Tıbbi atıklar, gaz tüpleri ve ekipman güvenliği"),
+            ("SAG-10", "Hastane yangın, tahliye ve acil durum planı"),
+        ),
     },
     {
         "code": "working-at-height-ohs",
