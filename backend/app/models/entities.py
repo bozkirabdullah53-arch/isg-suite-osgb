@@ -909,6 +909,12 @@ class TrainingSession(Base):
     notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Tamamlanmış eğitim kayıtları fiziksel olarak silinmez; arşivlenir.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    archived_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    archive_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
     participants: Mapped[list["TrainingParticipant"]] = relationship(back_populates="training", cascade="all, delete-orphan")
     exam_snapshots: Mapped[list["TrainingExamSnapshot"]] = relationship(
         back_populates="training", cascade="all, delete-orphan"
@@ -1172,6 +1178,14 @@ class RiskAssessment(Base):
     department_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     activity: Mapped[str] = mapped_column(String(500))
     risk_definition: Mapped[str] = mapped_column(String(2000))
+    # Risk kontrol tedbirini fiilen uygulayacak firma personeli. Nullable
+    # tutulur; eski risk kayıtları sorumlusu olmadan da okunmaya devam eder.
+    responsible_employee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    responsible_employee: Mapped[Employee | None] = relationship(
+        foreign_keys=[responsible_employee_id]
+    )
     affected_people: Mapped[str | None] = mapped_column(String(500), nullable=True)
     affected_group: Mapped[str | None] = mapped_column(String(100), nullable=True)
     existing_measures: Mapped[str | None] = mapped_column(String(2000), nullable=True)
