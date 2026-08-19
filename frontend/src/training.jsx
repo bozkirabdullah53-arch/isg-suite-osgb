@@ -18,6 +18,11 @@ const HAZARD_HINT = {
   'Çok Tehlikeli': '16 ders saati · en az 2 güne yayılır (1 günde 16 saat olmaz) · her yıl yenilenir',
 };
 const STATUS = {planned: 'Planlandı', completed: 'Tamamlandı', cancelled: 'İptal'};
+const DELIVERY_METHOD_OPTIONS = [
+  {value: 'Asenkron', label: 'Asenkron'},
+  {value: 'Uzaktan Eğitim', label: 'Uzaktan Eğitim'},
+  {value: 'Yüz Yüze Eğitim', label: 'Yüz Yüze Eğitim'},
+];
 const TABS = [
   {id: 'temel', label: 'Temel İSG Eğitimi'},
   {id: 'ozel', label: 'Özel Eğitimler'},
@@ -43,6 +48,13 @@ function foldTrainingText(value) {
     .replaceAll('ü', 'u')
     .replaceAll('ö', 'o')
     .replaceAll('ç', 'c');
+}
+
+function canonicalDeliveryMethod(value) {
+  const text = foldTrainingText(value);
+  if (text.includes('asenkron')) return 'Asenkron';
+  if (text.includes('uzaktan')) return 'Uzaktan Eğitim';
+  return 'Yüz Yüze Eğitim';
 }
 
 function trainingPolicyKind(formValue) {
@@ -1584,6 +1596,22 @@ export function TrainingPage({user}) {
                   <option>İşe Özel Eğitim</option>
                   <option>Yenileme Eğitimi</option>
                 </select>
+              </div>
+              <div>
+                <label className="tp-label">Eğitim yöntemi</label>
+                <select
+                  className="tp-select"
+                  value={canonicalDeliveryMethod(form.delivery_method)}
+                  disabled={!canEdit}
+                  onChange={(e) => setForm({...form, delivery_method: e.target.value})}
+                >
+                  {DELIVERY_METHOD_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <div className="tp-help">
+                  Eğitimin hangi yöntemle yürütüleceğini seçin. Bu alan, “Eğitim türü”nden bağımsızdır.
+                </div>
               </div>
             </div>
             <div className="tp-grid-2" style={{marginTop: 12}}>
