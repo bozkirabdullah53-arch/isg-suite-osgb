@@ -98,6 +98,7 @@ class RiskCreate(BaseModel):
     method_code: str | None = Field(default=None, max_length=40)
     activity: str = Field(min_length=2, max_length=500)
     risk_definition: str = Field(min_length=3, max_length=2000)
+    responsible_employee_id: int | None = Field(default=None, gt=0)
     affected_people: str | None = Field(default=None, max_length=500)
     affected_group: str | None = Field(default=None, max_length=100)
     existing_measures: str | None = Field(default=None, max_length=2000)
@@ -127,6 +128,7 @@ class RiskUpdate(BaseModel):
     method_code: str | None = Field(default=None, max_length=40)
     activity: str | None = Field(default=None, min_length=2, max_length=500)
     risk_definition: str | None = Field(default=None, min_length=3, max_length=2000)
+    responsible_employee_id: int | None = Field(default=None, gt=0)
     affected_people: str | None = Field(default=None, max_length=500)
     affected_group: str | None = Field(default=None, max_length=100)
     existing_measures: str | None = Field(default=None, max_length=2000)
@@ -232,6 +234,11 @@ class RiskResponse(BaseModel):
     department_name: str | None
     activity: str
     risk_definition: str
+    responsible_employee_id: int | None = None
+    responsible_person_name: str | None = None
+    responsible_person_job_title: str | None = None
+    responsible_person_department: str | None = None
+    responsible_person_active: bool | None = None
     affected_people: str | None
     affected_group: str | None
     existing_measures: str | None
@@ -261,6 +268,19 @@ class RiskResponse(BaseModel):
     media: list[RiskMediaResponse] = []
     revisions: list[RiskRevisionResponse] = []
     model_config = ConfigDict(from_attributes=True)
+
+
+class RiskResponsibleCandidateResponse(BaseModel):
+    """Firma içinden risk kontrolü için önerilen sorumlu aday."""
+
+    id: int
+    full_name: str
+    job_title: str | None = None
+    department: str | None = None
+    branch_id: int | None = None
+    score: int
+    recommended: bool = False
+    reasons: list[str] = Field(default_factory=list)
 
 
 class HazardCategoryResponse(BaseModel):

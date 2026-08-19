@@ -1178,6 +1178,14 @@ class RiskAssessment(Base):
     department_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     activity: Mapped[str] = mapped_column(String(500))
     risk_definition: Mapped[str] = mapped_column(String(2000))
+    # Risk kontrol tedbirini fiilen uygulayacak firma personeli. Nullable
+    # tutulur; eski risk kayıtları sorumlusu olmadan da okunmaya devam eder.
+    responsible_employee_id: Mapped[int | None] = mapped_column(
+        ForeignKey("employees.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    responsible_employee: Mapped[Employee | None] = relationship(
+        foreign_keys=[responsible_employee_id]
+    )
     affected_people: Mapped[str | None] = mapped_column(String(500), nullable=True)
     affected_group: Mapped[str | None] = mapped_column(String(100), nullable=True)
     existing_measures: Mapped[str | None] = mapped_column(String(2000), nullable=True)

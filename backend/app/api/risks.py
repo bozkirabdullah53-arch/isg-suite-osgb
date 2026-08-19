@@ -24,6 +24,7 @@ from app.core.database import get_db
 from app.models.entities import (
     Branch,
     Company,
+    Employee,
     Hazard,
     HazardCategory,
     IsgModule,
@@ -59,6 +60,7 @@ from app.schemas.risk import (
     RiskMediaTagsUpdate,
     RiskResponse,
     RiskRevisionResponse,
+    RiskResponsibleCandidateResponse,
     RiskUpdate,
 )
 from app.services.ai_hazard_hint import HINT_ENGINE, suggest_hazard_from_text
@@ -74,6 +76,7 @@ from app.services.risk_photo_tags import (
 )
 from app.services.risk_reports import build_dof_excel, build_risk_excel, build_risk_pdf
 from app.services.risk_nace_roadmap import build_risk_nace_roadmap
+from app.services.risk_responsible import rank_responsible_candidates
 from app.services.training_nace_classification import resolve_exact_nace
 from app.models.training_nace import TrainingNaceSnapshot
 from app.services.risk_methods import DEFAULT_METHOD, METHOD_CATALOG, resolve_method
@@ -120,6 +123,7 @@ REVISION_FIELDS = (
     "residual_level",
     "term_days",
     "term_date",
+    "responsible_employee_id",
     "status",
 )
 
@@ -312,6 +316,7 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
         RiskRevisionResponse.model_validate(r)
         for r in list(getattr(row, "revisions", None) or [])[:40]
     ]
+    responsible = getattr(row, "responsible_employee", None)
     return RiskResponse(
         id=row.id,
         risk_code=row.risk_code,
@@ -329,6 +334,11 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
         department_name=row.department_name,
         activity=row.activity,
         risk_definition=row.risk_definition,
+        responsible_employee_id=getattr(row, "responsible_employee_id", None),
+        responsible_person_name=getattr(responsible, "full_name", None),
+        responsible_person_job_title=getattr(responsible, "job_title", None),
+        responsible_person_department=getattr(responsible, "department", None),
+        responsible_person_active=getattr(responsible, "is_active", None),
         affected_people=row.affected_people,
         affected_group=row.affected_group,
         existing_measures=row.existing_measures,
@@ -405,12 +415,39 @@ def _load_risk(db: Session, risk_id: int) -> RiskAssessment:
             selectinload(RiskAssessment.dofs),
             selectinload(RiskAssessment.media_files),
             selectinload(RiskAssessment.revisions),
+            selectinload(RiskAssessment.responsible_employee),
         )
         .where(RiskAssessment.id == risk_id)
     )
     if not row:
         raise HTTPException(404, "Risk kaydı bulunamadı.")
     return row
+
+
+def _validate_responsible_employee(
+    db: Session,
+    *,
+    company_id: int,
+    employee_id: int | None,
+    branch_id: int | None = None,
+    allow_inactive: bool = False,
+) -> Employee | None:
+    """Validate that a selected termin responsible belongs to this workplace."""
+    if employee_id is None:
+        return None
+    employee = db.get(Employee, employee_id)
+    if not employee or employee.company_id != company_id:
+        raise HTTPException(
+            422,
+            "Termin sorumlusu seçilen firma personellerinden biri olmalıdır.",
+        )
+    if not employee.is_active and not allow_inactive:
+        raise HTTPException(422, "Pasif personel termin sorumlusu olarak seçilemez.")
+    # A company-wide employee (branch_id=None) may be assigned to a branch;
+    # a person belonging to another explicit branch may not.
+    if branch_id is not None and employee.branch_id not in (None, branch_id):
+        raise HTTPException(422, "Termin sorumlusu seçilen şubeyle uyumlu değil.")
+    return employee
 
 
 def _resolve_department(
@@ -1226,6 +1263,7 @@ def list_risks(
         .options(
             selectinload(RiskAssessment.dofs),
             selectinload(RiskAssessment.media_files),
+            selectinload(RiskAssessment.responsible_employee),
         )
         .order_by(RiskAssessment.created_at.desc())
     )
@@ -1278,6 +1316,7 @@ def _load_company_risks(
         .options(
             selectinload(RiskAssessment.dofs),
             selectinload(RiskAssessment.media_files),
+            selectinload(RiskAssessment.responsible_employee),
         )
         .where(RiskAssessment.company_id == effective)
         .order_by(RiskAssessment.risk_score.desc(), RiskAssessment.id.asc())
@@ -1560,6 +1599,80 @@ def migrate_isg_records(
     }
 
 
+@router.get(
+    "/responsible-candidates",
+    response_model=list[RiskResponsibleCandidateResponse],
+)
+def list_responsible_candidates(
+    company_id: int | None = None,
+    branch_id: int | None = None,
+    department_id: int | None = None,
+    department_name: str | None = None,
+    hazard_id: int | None = None,
+    activity: str | None = None,
+    risk_definition: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Return transparent, firm-scoped responsible suggestions.
+
+    This endpoint never assigns a person. It ranks active company employees
+    using branch, department, job title and risk context; the specialist must
+    explicitly select the final responsible employee in the risk form.
+    """
+    effective = effective_company_id(db, user, company_id)
+    if branch_id is not None:
+        branch = db.get(Branch, branch_id)
+        if not branch or branch.company_id != effective:
+            raise HTTPException(422, "Şube firma ile uyumlu değil.")
+
+    resolved_department = department_name
+    if department_id is not None:
+        department = db.get(WorkplaceDepartment, department_id)
+        if not department or department.company_id != effective:
+            raise HTTPException(422, "Bölüm firma ile uyumlu değil.")
+        resolved_department = department.name
+
+    hazard = db.get(Hazard, hazard_id) if hazard_id is not None else None
+    category_name = None
+    if hazard is not None:
+        category = db.get(HazardCategory, hazard.category_id)
+        category_name = category.name if category else None
+
+    employees = list(
+        db.scalars(
+            select(Employee)
+            .where(
+                Employee.company_id == effective,
+                Employee.is_active.is_(True),
+            )
+            .order_by(Employee.full_name.asc())
+        ).all()
+    )
+    ranked = rank_responsible_candidates(
+        employees,
+        branch_id=branch_id,
+        department_name=resolved_department,
+        activity=activity,
+        risk_definition=risk_definition,
+        hazard_name=hazard.name if hazard else None,
+        category_name=category_name,
+    )
+    return [
+        RiskResponsibleCandidateResponse(
+            id=employee.id,
+            full_name=employee.full_name,
+            job_title=employee.job_title,
+            department=employee.department,
+            branch_id=employee.branch_id,
+            score=score,
+            recommended=index < 3 and score > 1,
+            reasons=reasons,
+        )
+        for index, (employee, score, reasons) in enumerate(ranked)
+    ]
+
+
 @router.get("/{risk_id}", response_model=RiskResponse)
 def get_risk(risk_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     row = _load_risk(db, risk_id)
@@ -1589,6 +1702,12 @@ def create_risk(
         b = db.get(Branch, payload.branch_id)
         if not b or b.company_id != payload.company_id:
             raise HTTPException(422, "Şube firma ile uyumlu değil.")
+    responsible_employee = _validate_responsible_employee(
+        db,
+        company_id=payload.company_id,
+        employee_id=payload.responsible_employee_id,
+        branch_id=payload.branch_id,
+    )
     hazard = db.get(Hazard, payload.hazard_id)
     if not hazard or not hazard.is_active:
         raise HTTPException(404, "Tehlike bulunamadı. Tehlike kütüphanesinden seçim yapın.")
@@ -1627,6 +1746,7 @@ def create_risk(
         department_name=dep_name,
         activity=payload.activity,
         risk_definition=payload.risk_definition,
+        responsible_employee_id=responsible_employee.id if responsible_employee else None,
         affected_people=payload.affected_people,
         affected_group=payload.affected_group,
         existing_measures=payload.existing_measures,
@@ -1678,6 +1798,8 @@ def update_risk(
     data = payload.model_dump(exclude_unset=True)
     reason = data.pop("change_reason", None)
     term_override = data.pop("term_override_days", None)
+    has_responsible_employee = "responsible_employee_id" in data
+    responsible_employee_id = data.pop("responsible_employee_id", None) if has_responsible_employee else None
     has_hazop_data = "hazop_data" in data
     hazop_data = data.pop("hazop_data", None)
     requested_method = data.get("method_code", getattr(row, "method_code", None) or DEFAULT_METHOD)
@@ -1706,6 +1828,26 @@ def update_risk(
             row.department_id = resolved_id
         if resolved_name is not None:
             row.department_name = resolved_name
+
+    target_branch_id = data.get("branch_id", row.branch_id)
+    if has_responsible_employee:
+        responsible_employee = _validate_responsible_employee(
+            db,
+            company_id=row.company_id,
+            employee_id=responsible_employee_id,
+            branch_id=target_branch_id,
+            allow_inactive=responsible_employee_id == row.responsible_employee_id,
+        )
+        row.responsible_employee_id = responsible_employee.id if responsible_employee else None
+    elif "branch_id" in data and row.responsible_employee_id is not None:
+        # Do not leave an explicitly branch-owned responsible person attached
+        # to a risk moved into another branch.
+        _validate_responsible_employee(
+            db,
+            company_id=row.company_id,
+            employee_id=row.responsible_employee_id,
+            branch_id=target_branch_id,
+        )
 
     for key, val in data.items():
         setattr(row, key, val)
