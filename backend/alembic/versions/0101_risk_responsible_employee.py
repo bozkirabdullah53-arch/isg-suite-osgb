@@ -13,7 +13,7 @@ from alembic import op
 
 
 revision: str = "0101_risk_responsible_employee"
-down_revision: Union[str, None] = "0100_employee_national_scope"
+down_revision: Union[str, None] = "0094_repair_catalog_sector2"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
