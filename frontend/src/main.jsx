@@ -14,7 +14,7 @@ import {createRoot} from 'react-dom/client';
   }catch{ /* ignore */ }
 })();
 
-import {AlertTriangle,ArrowLeft,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
+import {AlertTriangle,ArrowLeft,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,Pencil,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
 import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
 import {clearOfflineQueue} from './field_offline';
 import {LoginPasswordInput, PasswordField} from './password_field';
@@ -659,6 +659,7 @@ function SiteQrKioskPage({user,onLogout}){
 function Companies({canEdit, canAdd, onOpen360}){
   const[data,setData]=useState([]);
   const[open,setOpen]=useState(false);
+  const[editing,setEditing]=useState(null);
   const[q,setQ]=useState('');
   const[busy,setBusy]=useState(false);
   const[err,setErr]=useState('');
@@ -669,6 +670,26 @@ function Companies({canEdit, canAdd, onOpen360}){
   const[siteQrBusy,setSiteQrBusy]=useState(false);
   const emptyForm={name:'',sgk_registry_no:'',nace_code:'',address:'',phone:'',authorized_person:'',hazard_class:'Az Tehlikeli'};
   const[form,setForm]=useState(emptyForm);
+  function openCreate(){
+    setErr('');
+    setEditing(null);
+    setForm({...emptyForm});
+    setOpen(true);
+  }
+  function openEdit(row){
+    setErr('');
+    setEditing(row);
+    setForm({
+      name:row?.name||'',
+      sgk_registry_no:row?.sgk_registry_no||'',
+      nace_code:row?.nace_code||'',
+      address:row?.address||'',
+      phone:row?.phone||'',
+      authorized_person:row?.authorized_person||'',
+      hazard_class:row?.hazard_class||'Az Tehlikeli',
+    });
+    setOpen(true);
+  }
   async function copyText(text){
     const v=String(text||'');
     if(!v) return false;
@@ -693,12 +714,14 @@ function Companies({canEdit, canAdd, onOpen360}){
     const payload={...form,sgk_registry_no:(form.sgk_registry_no||'').trim()};
     if(!payload.sgk_registry_no){setErr('İşyeri sicil numarası zorunludur.');setBusy(false);return}
     try{
-      const created=await api('/companies',{method:'POST',body:JSON.stringify(payload)});
+      const isEditing=Boolean(editing?.id);
+      const saved=await api(isEditing?`/companies/${editing.id}`:'/companies',{method:isEditing?'PUT':'POST',body:JSON.stringify(payload)});
       setOpen(false);
-      setForm(emptyForm);
+      setEditing(null);
+      setForm({...emptyForm});
       await load();
-      if(created?.login_account){
-        setCreds(created.login_account);
+      if(!isEditing&&saved?.login_account){
+        setCreds(saved.login_account);
       }
     }catch(ex){setErr(ex.message)}
     finally{setBusy(false)}
@@ -751,14 +774,14 @@ function Companies({canEdit, canAdd, onOpen360}){
     }catch(ex){setErr(ex.message||'Kiosk şifresi sıfırlanamadı.')}
     finally{setBusy(false)}
   }
-  return <Page title="Firma Yönetimi" action={canAdd&&<button type="button" disabled={busy} onClick={()=>{setErr('');setOpen(true)}}><Plus/>Firma Ekle</button>}>
+  return <Page title="Firma Yönetimi" action={canAdd&&<button type="button" disabled={busy} onClick={openCreate}><Plus/>Firma Ekle</button>}>
     {err&&<p style={{color:'#b91c1c'}}>{err}</p>}
     <SearchBar q={q} setQ={setQ} go={load}/>
     <Table cols={[
       {key:'name',label:'Firma'},
       {key:'sgk_registry_no',label:'İşyeri Sicil No'},
       {key:'nace_code',label:'NACE Kodu',render:r=>r.nace_code||'—'},
-      {key:'authorized_person',label:'Yetkili Kişi'},
+      {key:'authorized_person',label:'İşveren / Vekili'},
       {key:'phone',label:'Telefon'},
       {key:'address',label:'Adres'},
       {key:'hazard_class',label:'Tehlike Sınıfı'},
@@ -775,6 +798,9 @@ function Companies({canEdit, canAdd, onOpen360}){
       )}]:[]),
       ...(canEdit?[{key:'actions',label:'İşlem',render:r=>(
         <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
+          <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)} title="İşyeri bilgilerini düzenle">
+            <Pencil size={14} style={{verticalAlign:'middle',marginRight:4}}/>Düzenle
+          </button>
           {r.is_active
             ? <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'deactivate')}>Pasife Al</button>
             : <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>Aktifleştir</button>}
@@ -783,19 +809,19 @@ function Companies({canEdit, canAdd, onOpen360}){
         </div>
       )}]:[]),
     ]} rows={data}/>
-    {open&&<Modal title="Yeni Firma" close={()=>setOpen(false)}>
+    {open&&<Modal title={editing?'İşyeri Bilgilerini Düzenle':'Yeni Firma'} close={()=>{setOpen(false);setEditing(null)}}>
       <form className="form-grid" onSubmit={save}>
         <Field label="Firma Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
         <Field label="İşyeri Sicil No" required value={form.sgk_registry_no} onChange={e=>setForm({...form,sgk_registry_no:e.target.value})}/>
         <Field label="NACE Kodu" value={form.nace_code} onChange={e=>setForm({...form,nace_code:e.target.value})} placeholder="Örn. 46.83.06"/>
-        <Field label="Yetkili Kişi" value={form.authorized_person} onChange={e=>setForm({...form,authorized_person:e.target.value})}/>
+        <Field label="İşveren / İşveren Vekili" value={form.authorized_person} onChange={e=>setForm({...form,authorized_person:e.target.value})}/>
         <Field label="Telefon" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
         <Field label="Adres" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/>
         <Select label="Tehlike Sınıfı" value={form.hazard_class} onChange={e=>setForm({...form,hazard_class:e.target.value})}>
           <option>Az Tehlikeli</option><option>Tehlikeli</option><option>Çok Tehlikeli</option>
         </Select>
         {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
-        <div className="form-actions"><button type="submit" disabled={busy}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>
+        <div className="form-actions"><button type="submit" disabled={busy}>{busy?'Kaydediliyor...':(editing?'Güncelle':'Kaydet')}</button></div>
       </form>
     </Modal>}
     {creds&&<Modal title="İşyeri Kiosk Giriş Bilgileri" close={()=>{setCreds(null);setCopyMsg('')}}>
