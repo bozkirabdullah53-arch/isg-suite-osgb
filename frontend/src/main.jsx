@@ -403,7 +403,7 @@ function Login({done,onApply}){
           <p>İş Sağlığı ve Güvenliği Yönetim Sistemi</p>
           {mode==='login'&&(
             <form onSubmit={submitLogin}>
-              <label>E-posta</label><input value={email} onChange={e=>setEmail(e.target.value)} type="email" required/>
+              <label>E-posta veya kullanıcı adı</label><input value={email} onChange={e=>setEmail(e.target.value)} type="text" placeholder="Örn. A.bozkir" autoComplete="username" required/>
               <LoginPasswordInput label="Şifre" value={password} onChange={e=>setPassword(e.target.value)} required autoComplete="current-password"/>
               {err&&<div className="error">{err}</div>}
               {msg&&<p style={{color:'#166534',fontSize:13}}>{msg}</p>}

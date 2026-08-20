@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 import logging
 
@@ -83,15 +83,23 @@ def login(
     db: Session = Depends(get_db),
 ):
     ip = _client_ip(request)
-    email = str(payload.email).strip().lower()
+    identifier = str(payload.email).strip()
+    lookup_value = identifier.casefold()
     try:
-        throttle_login(email, ip)
+        throttle_login(lookup_value, ip)
     except ValueError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
 
-    user = db.scalar(select(User).where(func.lower(User.email) == email))
+    user = db.scalar(
+        select(User).where(
+            or_(
+                func.lower(User.email) == lookup_value,
+                func.lower(User.username) == lookup_value,
+            )
+        )
+    )
     if user and is_locked(user):
-        register_failed_login(db, user, email=email, ip=ip)
+        register_failed_login(db, user, email=identifier, ip=ip)
         db.commit()
         raise HTTPException(
             status_code=423,
@@ -99,18 +107,18 @@ def login(
         )
 
     if not user or not verify_password(payload.password, user.hashed_password):
-        register_failed_login(db, user, email=email, ip=ip)
+        register_failed_login(db, user, email=identifier, ip=ip)
         db.commit()
-        raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı.")
+        raise HTTPException(status_code=401, detail="E-posta/kullanıcı adı veya şifre hatalı.")
 
     if not user.is_active:
-        register_failed_login(db, user, email=email, ip=ip)
+        register_failed_login(db, user, email=identifier, ip=ip)
         db.commit()
         raise HTTPException(status_code=401, detail="Hesap pasif. Yöneticinizle iletişime geçin.")
 
     user = _sync_field(db, user)
     ensure_login_scope(db, user)
-    clear_throttle(email, ip)
+    clear_throttle(lookup_value, ip)
 
     mfa_on = bool(getattr(user, "mfa_enabled", False))
     mfa_secret = get_mfa_secret(user) if mfa_on else None
@@ -150,19 +158,27 @@ def restart_mfa_setup(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    """Authenticator kurulumu yapılamadıysa: e-posta+şifre ile MFA’yı sıfırlayıp kurulum ekranına düşür."""
+    """Authenticator kurulumu yapılamadıysa: giriş bilgileriyle MFA’yı sıfırlar."""
     ip = _client_ip(request)
-    email = str(payload.email).strip().lower()
+    identifier = str(payload.email).strip()
+    lookup_value = identifier.casefold()
     try:
-        throttle_login(email, ip)
+        throttle_login(lookup_value, ip)
     except ValueError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
 
-    user = db.scalar(select(User).where(func.lower(User.email) == email))
+    user = db.scalar(
+        select(User).where(
+            or_(
+                func.lower(User.email) == lookup_value,
+                func.lower(User.username) == lookup_value,
+            )
+        )
+    )
     if not user or not verify_password(payload.password, user.hashed_password):
-        register_failed_login(db, user, email=email, ip=ip)
+        register_failed_login(db, user, email=identifier, ip=ip)
         db.commit()
-        raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı.")
+        raise HTTPException(status_code=401, detail="E-posta/kullanıcı adı veya şifre hatalı.")
     if not user.is_active:
         raise HTTPException(status_code=401, detail="Hesap pasif. Yöneticinizle iletişime geçin.")
     user = _sync_field(db, user)
@@ -173,7 +189,7 @@ def restart_mfa_setup(
     user.mfa_enabled = False
     user.mfa_secret_encrypted = None
     user.mfa_recovery_hashes = None
-    clear_throttle(email, ip)
+    clear_throttle(lookup_value, ip)
     add_audit_log(
         db,
         user=user,
@@ -487,6 +503,7 @@ def me(
     return CurrentUserResponse(
         id=user.id,
         email=user.email,
+        username=getattr(user, "username", None),
         full_name=user.full_name,
         role=user.role.value,
         company_id=user.company_id,

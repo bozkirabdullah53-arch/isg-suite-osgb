@@ -5,10 +5,12 @@ import hashlib
 import json
 import logging
 import os
+import re
 import secrets
 import shutil
 import subprocess
 import tempfile
+import unicodedata
 from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
@@ -76,6 +78,69 @@ from app.services.training_question_bank import _curated_pack
 from app.services.upload_security import assert_safe_video_upload
 
 logger = logging.getLogger(__name__)
+
+_REMOTE_USERNAME_TRANSLATION = str.maketrans(
+    {
+        "ç": "c",
+        "Ç": "C",
+        "ğ": "g",
+        "Ğ": "G",
+        "ı": "i",
+        "İ": "I",
+        "ö": "o",
+        "Ö": "O",
+        "ş": "s",
+        "Ş": "S",
+        "ü": "u",
+        "Ü": "U",
+    }
+)
+
+
+def _remote_username_fragment(value: str) -> str:
+    translated = str(value or "").translate(_REMOTE_USERNAME_TRANSLATION)
+    normalized = unicodedata.normalize("NFKD", translated)
+    ascii_value = normalized.encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^A-Za-z0-9]", "", ascii_value)
+
+
+def remote_employee_username(full_name: str) -> str:
+    """Build the employee login name from the first name and surname.
+
+    The format is intentionally human-readable and stable: ``A.bozkir``.
+    Turkish letters are transliterated to ASCII so the same identifier works
+    in browsers, mobile keyboards and the login endpoint without encoding
+    surprises.  For a compound name, the first token is treated as the given
+    name and the last token as the surname.
+    """
+    parts = re.split(r"\s+", str(full_name or "").strip())
+    if len(parts) < 2:
+        raise ValueError("Kullanıcı adı için çalışanın ad ve soyadı birlikte bulunmalıdır.")
+    first = _remote_username_fragment(parts[0])
+    surname = _remote_username_fragment(parts[-1])
+    if not first or not surname:
+        raise ValueError("Çalışanın ad ve soyadı geçerli bir kullanıcı adı oluşturamadı.")
+    return f"{first[0].upper()}.{surname.lower()}"
+
+
+def suggested_remote_employee_username(full_name: str) -> str | None:
+    """Return the preview value without making candidate listing fail."""
+    try:
+        return remote_employee_username(full_name)
+    except ValueError:
+        return None
+
+
+def remote_employee_login_email(username: str, employee_id: int) -> str:
+    """Return a non-delivery alias required by legacy User.email storage.
+
+    Remote employees see and use ``username``.  The alias keeps the existing
+    non-null User.email contract intact for audit and legacy response models;
+    it is not shown as the employee's login name and no mail is sent to it.
+    """
+    local = re.sub(r"[^a-z0-9]+", "-", str(username or "").casefold()).strip("-")
+    local = local or "employee"
+    return f"{local}.{int(employee_id)}@remote.isgsuite.tr"
 
 MANAGE_ROLES = {
     UserRole.GLOBAL_ADMIN,

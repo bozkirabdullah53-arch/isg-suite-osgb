@@ -202,7 +202,9 @@ class RemoteEmployeeAccessCreate(RemoteModel):
 class RemoteEmployeeAccountProvision(RemoteModel):
     company_id: int = Field(gt=0)
     employee_id: int = Field(gt=0)
-    email: EmailStr
+    # Eski istemcilerden gelen alanı kabul ederiz; yeni akış bu alanı
+    # kullanmaz ve kullanıcı adını çalışanın ad-soyadından üretir.
+    email: EmailStr | None = None
 
 
 JsonObject = dict[str, Any]
