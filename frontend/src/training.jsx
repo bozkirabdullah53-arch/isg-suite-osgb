@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Archive, Award, CheckCircle2, ClipboardList, Download, FileSpreadsheet, Search, ShieldCheck, Upload, Users} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
+import {canManageTrainingPackage, canOperateTraining} from './training_role_policy';
 import './training_pro.css';
 
 const HAZARD_HOURS = {'Az Tehlikeli': 8, Tehlikeli: 12, 'Çok Tehlikeli': 16};
@@ -377,7 +378,11 @@ function EducationOutputPanel({
 }
 
 export function TrainingPage({user}) {
-  const canEdit = ['global_admin', 'company_admin', 'safety_specialist'].includes(user.role);
+  const canManagePackage = canManageTrainingPackage(user);
+  const canOperate = canOperateTraining(user);
+  // Klasik/yüz yüze paket yaşam döngüsü OSGB merkez yöneticisinde; uzaktan
+  // eğitim atama yetkisi RemoteBasicOhsTrainingPanel içinde ayrı korunur.
+  const canEdit = canManagePackage;
   const [remoteEnabled, setRemoteEnabled] = useState(false);
   const visibleTabs = remoteEnabled ? [...TABS, {id: 'remote', label: 'Uzaktan Eğitim / Belgeler'}] : TABS;
   const excelInputRef = useRef(null);
@@ -2598,7 +2603,7 @@ export function TrainingPage({user}) {
             </button>
           </div>
 
-          {canEdit && detail.status !== 'completed' && (
+          {canOperate && detail.status !== 'completed' && (
             <button
               type="button"
               className="btn-outline-premium"
@@ -2781,6 +2786,13 @@ export function TrainingPage({user}) {
 
   return (
     <div className="training-pro">
+      {!canManagePackage && tab !== 'remote' && (
+        <div className="tp-alert warn" style={{marginBottom: 12}}>
+          Klasik/yüz yüze eğitim paketini yalnızca OSGB yöneticisi veya global yönetici oluşturabilir,
+          değiştirebilir, arşivleyebilir ve silebilir. İSG uzmanı mevcut kaydı tamamlayabilir;
+          uzaktan eğitim atama ve rapor yetkileri ayrı akışta korunur.
+        </div>
+      )}
       {busy && (
         <div className="tp-alert" style={{marginBottom: 12, background: '#eef6ff', color: '#1e3a5f', border: '1px solid #bfdbfe'}}>
           Veriler yükleniyor… (ilk açılışta API uyanıyorsa 10–30 sn sürebilir)
