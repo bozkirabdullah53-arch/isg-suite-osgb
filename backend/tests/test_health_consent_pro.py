@@ -271,6 +271,26 @@ def test_periodic_exam_rejects_date_beyond_hazard_ceiling(client):
     assert "azami periyodu" in rejected.json()["detail"]
 
 
+def test_special_policy_employee_defaults_to_six_months(client):
+    import app.core.database as dbmod
+    from app.models.entities import Employee
+
+    with dbmod.SessionLocal() as db:
+        employee = db.query(Employee).first()
+        employee.special_status = "Gebe"
+        db.commit()
+
+    headers = _headers(client, "onam-hekim@test.com", "HekimPass123!")
+    company_id, employee_id = _ids()
+    created = client.post(
+        "/api/v1/health-records",
+        headers=headers,
+        json=_payload(company_id, employee_id, examination_date="2026-03-10"),
+    )
+    assert created.status_code in (200, 201), created.text
+    assert created.json()["next_examination_date"] == "2026-09-10"
+
+
 def test_osgb_admin_cannot_reach_health_records(client):
     """OSGB merkez yöneticisi çalışanların tıbbi kaydını göremez/açamaz."""
     headers = _headers(client, "onam-osgb@test.com", "OsgbPass123!")
@@ -470,6 +490,7 @@ def test_clinical_and_employer_documents_are_separated(client):
     clinical = client.get(f"/api/v1/health-records/{record_id}/form.html", headers=headers)
     assert clinical.status_code == 200, clinical.text
     assert "Gizli Klinik Sağlık Dosyası" in clinical.text
+    assert "İşe Giriş / Periyodik Muayene Formu" in clinical.text
     assert "KLINIK_OZET_GIZLI" in clinical.text
     assert "İşveren / Vekili" not in clinical.text
 
