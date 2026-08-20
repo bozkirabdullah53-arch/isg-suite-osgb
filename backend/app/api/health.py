@@ -260,6 +260,7 @@ def _validate_periodic_exam_ceiling(
     examination_date: date,
     next_examination_date: date | None,
     hazard_class: str | None,
+    special_status: str | None = None,
 ) -> None:
     """Periyodik muayene tarihini mevzuattaki azami aralıkta tutar.
 
@@ -269,7 +270,7 @@ def _validate_periodic_exam_ceiling(
     """
     if record_type != HealthRecordType.PERIODIC_EXAM or not next_examination_date:
         return
-    ceiling = default_next_exam(examination_date, hazard_class)
+    ceiling = default_next_exam(examination_date, hazard_class, special_status)
     if next_examination_date > ceiling:
         raise HTTPException(
             status_code=422,
@@ -575,6 +576,7 @@ def create_health_record(
         examination_date=payload.examination_date,
         next_examination_date=payload.next_examination_date,
         hazard_class=company.hazard_class if company else None,
+        special_status=employee.special_status,
     )
     supplied_fields = {
         field for field in payload.model_fields_set
@@ -597,7 +599,9 @@ def create_health_record(
     data["informed_consent_at"] = datetime.utcnow()
     if not data.get("next_examination_date"):
         data["next_examination_date"] = default_next_exam(
-            payload.examination_date, company.hazard_class if company else None
+            payload.examination_date,
+            company.hazard_class if company else None,
+            employee.special_status if payload.record_type == HealthRecordType.PERIODIC_EXAM else None,
         )
     if user.role == UserRole.WORKPLACE_PHYSICIAN and not data.get("suggested_tests") and not data.get("exposures"):
         sug = suggest_for_job(employee.job_title, employee.department)
@@ -885,6 +889,7 @@ def update_health_record(
         raise HTTPException(404, "Sağlık kaydı bulunamadı.")
     ensure_access(db, user, record.company_id)
     company = db.get(Company, record.company_id)
+    schedule_employee = db.get(Employee, record.employee_id)
     date_fields = {"examination_date", "next_examination_date"} & payload.model_fields_set
     if date_fields:
         _validate_health_date_pair(
@@ -916,6 +921,7 @@ def update_health_record(
             else record.next_examination_date
         ),
         hazard_class=company.hazard_class if company else None,
+        special_status=schedule_employee.special_status if schedule_employee else None,
     )
     supplied_fields = {
         field for field in payload.model_fields_set
@@ -1019,6 +1025,20 @@ def health_form_html(
     employee = db.get(Employee, record.employee_id)
     view = DecryptedRecordView(record)
     is_physician = True
+    is_ek2_record = record.record_type in (
+        HealthRecordType.ENTRY_EXAM,
+        HealthRecordType.PERIODIC_EXAM,
+    )
+    document_heading = (
+        "İşe Giriş / Periyodik Muayene Formu — Gizli Klinik Sağlık Dosyası"
+        if is_ek2_record
+        else "Gizli Klinik Sağlık Dosyası"
+    )
+    document_note = (
+        "EK-2 kapsamında işyeri hekimi kaydı"
+        if is_ek2_record
+        else "Klinik sağlık gözetimi kaydı"
+    )
     conf = view.confidential_note if is_physician else None
     # P0-07: form HTML'de klinik metin yalnız hekim/GA
     audiometry_txt = view.audiometry_result if is_physician else None
@@ -1049,7 +1069,7 @@ def health_form_html(
     company_name = safe(company.name if company else "")
     employee_name = safe(employee.full_name if employee else "")
     html = f"""<!doctype html><html lang="tr"><head><meta charset="utf-8">
-<title>Gizli Klinik Sağlık Dosyası</title>
+<title>{safe(document_heading)}</title>
 <style>
 body{{margin:0;background:#eef2f7;font-family:Segoe UI,Arial,sans-serif;color:#0f172a}}
 .top{{background:#0f2744;color:#fff;padding:18px 28px}}
@@ -1063,8 +1083,8 @@ h2{{margin:0 0 8px}} h3{{margin:18px 0 8px;color:#0f2744}}
 .sign div{{flex:1;text-align:center;border-top:1px solid #94a3b8;padding-top:10px;font-size:13px}}
 @media print{{body{{background:#fff}}.wrap{{box-shadow:none;margin:0;max-width:none}}}}
 </style></head><body>
-<div class="top"><h2>Gizli Klinik Sağlık Dosyası</h2>
-<p style="margin:0;opacity:.9">Yalnız işyeri hekimi erişimine açıktır · {company_name} · {employee_name}</p></div>
+<div class="top"><h2>{safe(document_heading)}</h2>
+<p style="margin:0;opacity:.9">{safe(document_note)} · Yalnız işyeri hekimi erişimine açıktır · {company_name} · {employee_name}</p></div>
 <div class="wrap">
 <div class="grid">
 {cell('Personel', employee.full_name if employee else '')}
