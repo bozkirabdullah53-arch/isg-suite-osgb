@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {Download, FileText, Link2, Plus, RefreshCw} from 'lucide-react';
+import {chooseAnnualEvalCompanyId} from './annual_eval_company_selection';
 import {api, downloadFile, uploadFile} from './api';
 
 const OUTCOME_LABEL = {
@@ -72,7 +73,10 @@ export function AnnualEvalReportPage({user, onNavigate}) {
 
   async function loadCompanies() {
     try {
-      setCompanies(await api('/companies'));
+      const rows = await api('/companies');
+      const list = Array.isArray(rows) ? rows : [];
+      setCompanies(list);
+      setCompanyId((current) => chooseAnnualEvalCompanyId(list, current, user.company_id));
     } catch (e) {
       setErr(e.message || 'Firmalar yüklenemedi.');
     }
