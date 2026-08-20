@@ -16,6 +16,7 @@ from app.api.company_access import ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.input_rules import assert_date_order, assert_event_date
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 from app.models.entities import (
@@ -125,6 +126,33 @@ def _get_eval(db: Session, company_id: int, year: int) -> AnnualPlanEvaluation |
 def _assert_editable(ev: AnnualPlanEvaluation) -> None:
     if ev.report_status in LOCKED_REPORT:
         raise HTTPException(409, "Onaylı/arşiv rapor üzerinde değişiklik yapılamaz. Revizyon süreci gerekir.")
+
+
+def _validate_eval_actual_date_pair(
+    *,
+    actual_start: date | None,
+    actual_end: date | None,
+) -> tuple[date | None, date | None]:
+    try:
+        start = assert_event_date(
+            actual_start,
+            label="Fiili başlangıç tarihi",
+            required=False,
+        )
+        end = assert_event_date(
+            actual_end,
+            label="Fiili bitiş tarihi",
+            required=False,
+        )
+        assert_date_order(
+            start,
+            end,
+            earlier_label="Fiili başlangıç tarihi",
+            later_label="Fiili bitiş tarihi",
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return start, end
 
 
 def _to_item_resp(row: AnnualPlanEvaluationItem, plan: AnnualPlanItem, evidence_count: int = 0) -> EvalItemResponse:
@@ -565,6 +593,15 @@ def bulk_action(
             raise HTTPException(404, "Değerlendirme bulunamadı.")
         _assert_editable(ev)
 
+    if payload.action == "complete":
+        if not payload.actual_end or not (payload.result_text or "").strip():
+            raise HTTPException(422, "Toplu tamamlamada gerçekleşme tarihi ve sonuç zorunlu.")
+        for row in rows:
+            _validate_eval_actual_date_pair(
+                actual_start=row.actual_start,
+                actual_end=payload.actual_end,
+            )
+
     updated = 0
     skipped = []
     for row in rows:
@@ -662,6 +699,12 @@ def update_item(
             )
         ) or 0
         return _to_item_resp(row, plan, int(evc))
+
+    if {"actual_start", "actual_end"} & set(data):
+        _validate_eval_actual_date_pair(
+            actual_start=data.get("actual_start", row.actual_start),
+            actual_end=data.get("actual_end", row.actual_end),
+        )
 
     outcome = data.get("outcome_status", row.outcome_status)
     merged = {
