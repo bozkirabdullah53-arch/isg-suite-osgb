@@ -191,6 +191,26 @@ function sectorLabel(sectors, code) {
   return s ? (s.label || s.name) : code || '—';
 }
 
+function compactNace(value) {
+  return String(value || '')
+    .trim()
+    .toLocaleLowerCase('tr-TR')
+    .replace(/^nace[_-]?/, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function companyNaceSector(company, catalog) {
+  const raw = String(company?.nace_code || '').trim();
+  if (!raw || !Array.isArray(catalog) || !catalog.length) return null;
+  const dotted = raw.match(/\d{2}\.\d{2}\.\d{2}/)?.[0] || '';
+  const candidates = [raw, dotted].filter(Boolean).map(compactNace);
+  return (
+    catalog.find((item) =>
+      [item?.code, item?.nace].some((value) => candidates.includes(compactNace(value))),
+    ) || null
+  );
+}
+
 function normalizedStampText(value) {
   return String(value || '').trim().slice(0, 400) || null;
 }
@@ -594,6 +614,40 @@ export function TrainingPage({user}) {
     return '';
   }
 
+  function resetCompanyContext(companyId) {
+    const cid = String(companyId || '');
+    const picked = companies.find((company) => String(company.id) === cid);
+    const mappedSector = companyNaceSector(picked, sectors);
+
+    // Firma değişiminde önceki işyerinin NACE'i, katılımcıları ve kayıt
+    // snapshot'ı yeni işyerine taşınmamalıdır.
+    setSavedTrainingId(null);
+    setSavedPayload(null);
+    setExcelPreview([]);
+    setExcelInfo('');
+    setEmpQuery('');
+    setEmpDept('');
+    setSectorQuery('');
+    setSectorPickerOpen(false);
+    setForm((current) => ({
+      ...current,
+      company_id: cid,
+      participant_ids: [],
+      sector: mappedSector?.code || '',
+      hazard_class: mappedSector?.hazard_class || picked?.hazard_class || 'Çok Tehlikeli',
+    }));
+
+    if (cid) {
+      refreshEmployees(cid).catch((x) =>
+        setErr('Personel listesi alınamadı: ' + (x.message || x)),
+      );
+      loadAssignedTeam(cid, {force: true});
+    } else {
+      setEmployees([]);
+      setAssignedTeam(null);
+    }
+  }
+
   const TEAM_FIELDS = ['instructor_name', 'instructor_qualification', 'workplace_physician', 'employer_representative'];
 
   /** Görevlendirmeden gelen adları forma yazar; kullanıcının elle yazdığını ezmez. */
@@ -709,8 +763,20 @@ export function TrainingPage({user}) {
       const cid =
         preferredCid ||
         (c.length === 1 ? String(c[0].id) : '');
-      if (cid && !form.company_id) {
-        setForm((f) => ({...f, company_id: cid}));
+      const selectedCompany = c.find((company) => String(company.id) === String(cid));
+      const mappedCompanySector = companyNaceSector(selectedCompany, sec);
+      const shouldApplyCompanyNace =
+        !!cid && (!form.company_id || !form.sector || form.sector === 'genel_uretim');
+      if (shouldApplyCompanyNace) {
+        setForm((current) => ({
+          ...current,
+          company_id: cid,
+          sector: mappedCompanySector?.code || '',
+          hazard_class:
+            mappedCompanySector?.hazard_class ||
+            selectedCompany?.hazard_class ||
+            current.hazard_class,
+        }));
       }
 
       // Tüm firmaların personelini çekme — sadece seçili / tek firma
@@ -1409,27 +1475,9 @@ export function TrainingPage({user}) {
                 value={form.company_id}
                 disabled={!canEdit}
                 onChange={(e) => {
-                  setExcelPreview([]);
-                  setExcelInfo('');
                   setOkMsg('');
                   setErr('');
-                  setSavedTrainingId(null);
-                  const cid = e.target.value;
-                  const picked = companies.find((c) => String(c.id) === String(cid));
-                  setForm({
-                    ...form,
-                    company_id: cid,
-                    participant_ids: [],
-                    hazard_class: picked?.hazard_class || form.hazard_class,
-                  });
-                  if (cid) {
-                    refreshEmployees(cid).catch((x) =>
-                      setErr('Personel listesi alınamadı: ' + (x.message || x)),
-                    );
-                    loadAssignedTeam(cid, {force: true});
-                  } else {
-                    setAssignedTeam(null);
-                  }
+                  resetCompanyContext(e.target.value);
                 }}
               >
                 <option value="">Seçiniz</option>
@@ -2130,9 +2178,9 @@ export function TrainingPage({user}) {
                   value={form.company_id}
                   disabled={!canEdit}
                   onChange={(e) => {
-                    const cid = e.target.value;
-                    setForm({...form, company_id: cid, participant_ids: []});
-                    if (cid) refreshEmployees(cid).catch(() => {});
+                    setOkMsg('');
+                    setErr('');
+                    resetCompanyContext(e.target.value);
                   }}
                 >
                   <option value="">Seçiniz</option>
