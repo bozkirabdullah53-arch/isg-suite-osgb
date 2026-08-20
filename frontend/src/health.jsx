@@ -97,15 +97,17 @@ function emptyForm(user) {
   };
 }
 
-function fitnessBadge(status, overdue) {
-  const color =
-    status === 'fit' ? '#16a34a'
+function fitnessBadge(status, overdue, masked = false) {
+  const color = masked
+    ? '#64748b'
+    : status === 'fit' ? '#16a34a'
       : status === 'unfit' ? '#b91c1c'
         : status === 'conditional' || status === 'tracking' ? '#d97706'
           : '#64748b';
+  const label = masked ? 'Hekim kararı' : (FITNESS_FALLBACK[status] || '—');
   return (
     <span style={{display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap'}}>
-      <span className="badge" style={{background: color + '22', color}}>{FITNESS_FALLBACK[status] || status}</span>
+      <span className="badge" style={{background: color + '22', color}}>{label}</span>
       {overdue && (
         <span style={{
           padding: '2px 8px', borderRadius: 999, background: '#fee2e2', color: '#b91c1c',
@@ -682,7 +684,7 @@ export function HealthPage({user}) {
                     <td>{r.physician_name || '—'}</td>
                     <td style={{fontSize: 12, maxWidth: 180}}>{r.tetkik_summary || '—'}</td>
                     <td style={{fontSize: 12, maxWidth: 200}}>{r.smart_summary || '—'}</td>
-                    <td>{fitnessBadge(r.fitness_status, r.is_overdue)}</td>
+                    <td>{fitnessBadge(r.fitness_status, r.is_overdue, !isPhysician)}</td>
                     <td>
                       <div className="actions" style={{gap: 6, flexWrap: 'wrap'}}>
                         <button type="button" className="mini" onClick={() => openEdit(r)}>Düzenle</button>
