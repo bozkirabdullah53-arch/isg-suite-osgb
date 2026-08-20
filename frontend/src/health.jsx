@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {Download, FileText, HeartPulse, Plus, Printer, RefreshCw, Search, Upload, X} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
+import {canLoadHealthAnalysis} from './health_role_policy';
 
 const TYPE_FALLBACK = {
   entry_exam: 'İşe Giriş',
@@ -151,7 +152,7 @@ function MiniTable({title, rows, empty}) {
 
 export function HealthPage({user}) {
   const canEdit = ['workplace_physician', 'other_health_personnel'].includes(user.role);
-  const isPhysician = user.role === 'workplace_physician';
+  const isPhysician = canLoadHealthAnalysis(user.role);
 
   const [companies, setCompanies] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -232,7 +233,7 @@ export function HealthPage({user}) {
         api(`/health-records?${recordQs}`),
         api(`/health-records/summary?${sumQs}`),
         api('/health-records/meta'),
-        api(`/health-records/analysis?${sumQs}`),
+        isPhysician ? api(`/health-records/analysis?${sumQs}`) : Promise.resolve(null),
       ]);
 
       setRows(Array.isArray(r) ? r : []);
