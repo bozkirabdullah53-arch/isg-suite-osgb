@@ -133,7 +133,7 @@ function writeQueue(list) {
 }
 
 export function listOfflineFindings(scope) {
-  return readRaw().filter((row) => scopeMatches(row, scope));
+  return prune(readRaw()).filter((row) => scopeMatches(row, scope));
 }
 
 export function enqueueOfflineFinding(item) {
