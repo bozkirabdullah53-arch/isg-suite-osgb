@@ -398,7 +398,7 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
               {detail.event_type === 'is_kazasi' && (
                 <>
                   <div className="field"><span>SGK</span><strong>{detail.sgk_reported ? `Evet (${detail.sgk_report_date || '—'})` : 'Hayır'}</strong></div>
-                  <div className="field"><span>SGK süre</span><strong>{detail.sgk_due_date || '—'} · {detail.sgk_notification_status || '—'}</strong></div>
+                  <div className="field"><span>SGK son bildirim (3 iş günü)</span><strong>{detail.sgk_due_date || '—'} · {detail.sgk_notification_status || '—'}</strong></div>
                   <div className="field"><span>Kolluk</span><strong>{detail.police_reported ? 'Evet' : 'Hayır'}</strong></div>
                   <div className="field"><span>Kaza türü</span><strong>{detail.accident_type || '—'}</strong></div>
                 </>
