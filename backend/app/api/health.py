@@ -208,6 +208,9 @@ def _to_response(row: HealthRecord, employee: Employee | None, include_confident
 
         for field in SENSITIVE_TEXT_FIELDS:
             setattr(data, field, None)
+        # DSP klinik karar üretmez; liste yanıtı hekim uygunluk kararını da
+        # taşımamalıdır. Kayıt ve dosya kapsamı yine atama + tenant ile korunur.
+        data.fitness_status = None
         data.blood_lead_eval = None
         data.smart_summary = None
         data.tetkik_summary = None
@@ -492,6 +495,11 @@ def list_health_records(
     if record_type:
         query = query.where(HealthRecord.record_type == record_type)
     if fitness_status:
+        if user.role not in PHYSICIAN_ROLES:
+            raise HTTPException(
+                status_code=403,
+                detail="Uygunluk kararı filtresi yalnızca işyeri hekimine açıktır.",
+            )
         query = query.where(HealthRecord.fitness_status == fitness_status)
     rows = list(db.scalars(query).all())
     employees = _employees_map(db, {r.employee_id for r in rows})
@@ -503,7 +511,9 @@ def list_health_records(
         if q:
             needle = q.casefold()
             view = DecryptedRecordView(r)
-            hay = f"{emp.full_name if emp else ''} {r.physician_name or ''} {view.summary or ''}".casefold()
+            hay = f"{emp.full_name if emp else ''} {r.physician_name or ''}".casefold()
+            if include_conf:
+                hay = f"{hay} {view.summary or ''}".casefold()
             if needle not in hay:
                 continue
         if overdue_only and not (r.next_examination_date and r.next_examination_date < today):

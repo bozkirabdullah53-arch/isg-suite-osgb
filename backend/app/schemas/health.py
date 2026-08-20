@@ -118,7 +118,7 @@ class HealthRecordResponse(BaseModel):
     record_type: HealthRecordType
     examination_date: date
     next_examination_date: date | None
-    fitness_status: HealthFitnessStatus
+    fitness_status: HealthFitnessStatus | None = None
     physician_professional_id: int | None = None
     physician_name: str | None
     summary: str | None
