@@ -33,6 +33,12 @@ const EXPOSURE_FALLBACK = [
   'Soğuk ortam', 'Kapalı alan', 'Gece çalışması',
 ];
 
+function isSpecialPolicyStatus(value) {
+  const text = String(value || '').toLocaleLowerCase('tr-TR');
+  return ['çocuk', 'cocuk', 'genç', 'genc', 'gebe', 'hamile', 'gebelik']
+    .some((marker) => text.includes(marker));
+}
+
 function Modal({title, close, children}) {
   return <AppModal title={title} close={close} wide>{children}</AppModal>;
 }
@@ -297,6 +303,12 @@ export function HealthPage({user}) {
     () => employees.filter((x) => String(x.company_id) === String(form.company_id || companyId) && x.is_active !== false),
     [employees, form.company_id, companyId],
   );
+
+  const selectedEmployee = useMemo(
+    () => companyEmployees.find((x) => String(x.id) === String(form.employee_id)),
+    [companyEmployees, form.employee_id],
+  );
+  const specialPolicy = isSpecialPolicyStatus(selectedEmployee?.special_status);
 
   const physicianOptions = useMemo(() => {
     return (physicians || []).map((p) => ({
@@ -688,7 +700,7 @@ export function HealthPage({user}) {
                     <td>
                       <div className="actions" style={{gap: 6, flexWrap: 'wrap'}}>
                         <button type="button" className="mini" onClick={() => openEdit(r)}>Düzenle</button>
-                        {isPhysician && <button type="button" className="mini" onClick={() => openForm(r)}><Printer size={12} /> Klinik Dosya</button>}
+                        {isPhysician && <button type="button" className="mini" onClick={() => openForm(r)}><Printer size={12} /> EK-2 / Klinik Dosya</button>}
                         {isPhysician && r.fitness_status !== 'pending' && <button type="button" className="mini" onClick={() => openFitness(r)}><Printer size={12} /> İşveren Belgesi</button>}
                         {isPhysician && r.has_report && (
                           <button type="button" className="mini" onClick={() => downloadReport(r)}><FileText size={12} /> Rapor</button>
@@ -747,7 +759,9 @@ export function HealthPage({user}) {
             <Field label="Sonraki muayene" type="date" value={form.next_examination_date} onChange={(e) => setForm({...form, next_examination_date: e.target.value})} />
             {isPhysician && form.record_type === 'periodic_exam' && (
               <div style={{gridColumn: '1/-1', fontSize: 12, color: '#475569'}}>
-                Periyodik muayenede hekim daha kısa bir tarih belirleyebilir; mevzuattaki azami periyodu aşan tarih kaydedilmez.
+                {specialPolicy
+                  ? 'Bu çalışan özel politika grubunda görünüyor: periyodik muayene en geç 6 ayda bir planlanır; hekim daha kısa tarih seçebilir.'
+                  : 'Periyodik muayenede hekim daha kısa bir tarih belirleyebilir; mevzuattaki azami periyodu aşan tarih kaydedilmez.'}
               </div>
             )}
             {isPhysician && (

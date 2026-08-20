@@ -1,6 +1,7 @@
 """Sağlık gözetimi yardımcıları — İSG PRO 2026 parity."""
 from __future__ import annotations
 
+import calendar
 from datetime import date, timedelta
 from typing import Any
 
@@ -154,7 +155,40 @@ def health_period_years(hazard_class: str | None) -> int:
     return 5
 
 
-def default_next_exam(exam_date: date, hazard_class: str | None) -> date:
+SPECIAL_POLICY_STATUS_MARKERS = (
+    "cocuk",
+    "genc",
+    "gebe",
+    "hamile",
+    "gebelik",
+    "child",
+    "young",
+    "pregnant",
+    "pregnancy",
+)
+
+
+def is_special_policy_status(special_status: str | None) -> bool:
+    """Çocuk/genç/gebe çalışanlar için özel politika periyodunu tanır."""
+    normalized = _norm(special_status)
+    return any(marker in normalized for marker in SPECIAL_POLICY_STATUS_MARKERS)
+
+
+def _add_calendar_months(value: date, months: int) -> date:
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(value.day, calendar.monthrange(year, month)[1])
+    return value.replace(year=year, month=month, day=day)
+
+
+def default_next_exam(
+    exam_date: date,
+    hazard_class: str | None,
+    special_status: str | None = None,
+) -> date:
+    if is_special_policy_status(special_status):
+        return _add_calendar_months(exam_date, 6)
     years = health_period_years(hazard_class)
     try:
         return exam_date.replace(year=exam_date.year + years)
