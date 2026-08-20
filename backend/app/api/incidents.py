@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.company_access import company_ids_for_query, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
+from app.core.input_rules import assert_date_order, assert_event_date
 from app.models.entities import (
     Company,
     IncidentDof,
@@ -72,6 +73,37 @@ def _apply_sgk_process(row: IncidentEvent) -> None:
         row.sgk_notification_status = "gecikti"
     else:
         row.sgk_notification_status = "bekliyor"
+
+
+def _validate_incident_date_state(
+    *,
+    event_date: date | None,
+    sgk_report_date: date | None,
+    sgk_reported: bool | None,
+) -> tuple[date, date | None]:
+    try:
+        actual_event_date = assert_event_date(
+            event_date,
+            label="Olay tarihi",
+            allow_future_days=0,
+        )
+        actual_sgk_report_date = assert_event_date(
+            sgk_report_date,
+            label="SGK bildirim tarihi",
+            required=False,
+            allow_future_days=0,
+        )
+        assert_date_order(
+            actual_event_date,
+            actual_sgk_report_date,
+            earlier_label="Olay tarihi",
+            later_label="SGK bildirim tarihi",
+        )
+        if sgk_reported is True and actual_sgk_report_date is None:
+            raise ValueError("SGK bildirildi işaretliyse bildirim tarihi girilmelidir.")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return actual_event_date, actual_sgk_report_date
 
 
 def _apply_scoring(row: IncidentEvent) -> None:
@@ -398,7 +430,31 @@ def update_incident(
 ):
     row = _load(db, incident_id)
     ensure_access(db, user, row.company_id)
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    date_fields = {"event_date", "sgk_report_date", "sgk_reported"} & payload.model_fields_set
+    if date_fields:
+        effective_event_date, effective_sgk_report_date = _validate_incident_date_state(
+            event_date=(
+                payload.event_date
+                if "event_date" in date_fields
+                else row.event_date
+            ),
+            sgk_report_date=(
+                payload.sgk_report_date
+                if "sgk_report_date" in date_fields
+                else row.sgk_report_date
+            ),
+            sgk_reported=(
+                payload.sgk_reported
+                if "sgk_reported" in date_fields and payload.sgk_reported is not None
+                else row.sgk_reported
+            ),
+        )
+        if "event_date" in date_fields:
+            updates["event_date"] = effective_event_date
+        if "sgk_report_date" in date_fields:
+            updates["sgk_report_date"] = effective_sgk_report_date
+    for k, v in updates.items():
         setattr(row, k, v)
     _apply_scoring(row)
     _apply_sgk_process(row)
