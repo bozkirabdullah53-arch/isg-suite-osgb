@@ -17,6 +17,7 @@ import {createRoot} from 'react-dom/client';
 import {AlertTriangle,ArrowLeft,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,Pencil,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
 import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
 import {clearOfflineQueue} from './field_offline';
+import {clearFieldInspectionCache} from './field_inspection_offline';
 import {LoginPasswordInput, PasswordField} from './password_field';
 import {LoginShowcase} from './login_showcase';
 import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';
@@ -42,7 +43,7 @@ import {EyasDigitalApprovalPage} from './eyas_digital_approval_v2';
 import {AnnualEvalReportPage} from './annual_eval_report';
 import {Customer360Page, WorkplaceStatusPage} from './customer_360';
 import {CapacityEnginePage} from './capacity_engine';
-import {TrainingPage, TrainingVerifyPage, loadSectorsCatalog} from './training';import {RiskPage} from './risk';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
+import {TrainingPage, TrainingVerifyPage, loadSectorsCatalog} from './training';import {RiskPage} from './risk';import {FieldInspectionPage} from './field_inspection';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
 import {PrescriptionPage} from './prescriptions';
 import {TrainingQuestionBank} from './training_question_bank';
 import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
@@ -121,7 +122,7 @@ const roleModules={
     'security',
   ],
   safety_specialist:[
-    'visits','dashboard','notifications','belge_onay','workplace_status',
+    'visits','field_inspection','dashboard','notifications','belge_onay','workplace_status',
     'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler','acil_plan',
     'periyodik_kontrol','ortam_olcum','isg_kurulu',
     'training','eisa_question_bank','employees','annual_plans','annual_eval_report','specialist_reports','mevzuat','documents',
@@ -160,7 +161,7 @@ const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
   company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
   workplace_manager:['employer_oversight','employees','ppe','accident'],
-  safety_specialist:['visits','dashboard','notifications','risk'],
+  safety_specialist:['field_inspection','visits','dashboard','risk'],
   workplace_physician:['visits','health','prescriptions','employees'],
   other_health_personnel:['visits','health','employees','documents'],
   read_only:['employee_training','security'],
@@ -201,6 +202,7 @@ const menuCatalog={
   professionals:['İSG Profesyonelleri',Stethoscope],
   assignments:['Görevlendirmeler',BriefcaseBusiness],
   visits:['Saha Takvimi',CalendarDays],
+  field_inspection:['Saha Denetimi',ClipboardCheck],
   employer_oversight:['İşyeri Denetim Durumu',ShieldCheck],
   workplace_status:['İşyeri Durum Merkezi',ClipboardCheck],
   site_qr_kiosk:['İşyeri QR',QrCode],
@@ -1468,7 +1470,7 @@ function SecurityPage({user}){
       setMessage(r.message||'Tüm oturumlar kapatıldı.');
       localStorage.removeItem('isg_token');
       localStorage.removeItem('isg_mfa_setup_token');
-      clearOfflineQueue();
+      clearOfflineQueue();clearFieldInspectionCache();
       setRefreshCookieMode(false);
       setTimeout(()=>window.location.reload(),800);
     }catch(err){setMessage(err.message)}
@@ -1976,7 +1978,7 @@ function App(){
 
   useEffect(()=>{
     function onAuthLost(){
-      clearOfflineQueue();
+      clearOfflineQueue();clearFieldInspectionCache();
       setLogged(false);
       setUser(null);
       setSummary(null);
@@ -1992,7 +1994,7 @@ function App(){
     }catch(_){ /* ağ hatası olsa da yerel oturumu kapat */ }
     localStorage.removeItem('isg_token');
     localStorage.removeItem('isg_mfa_setup_token');
-    clearOfflineQueue();
+    clearOfflineQueue();clearFieldInspectionCache();
     setRefreshCookieMode(false);
     try{sessionStorage.removeItem('isg_active')}catch(_){ /* ignore */ }
     setLogged(false);
@@ -2031,7 +2033,7 @@ function App(){
         if(cancelled) return;
         if(u.password_change_required){
           localStorage.removeItem('isg_token');
-          clearOfflineQueue();
+          clearOfflineQueue();clearFieldInspectionCache();
           setRefreshCookieMode(false);
           setUser(null);
           setSummary(null);
@@ -2075,7 +2077,7 @@ function App(){
       }catch(_){
         if(cancelled) return;
         localStorage.removeItem('isg_token');
-        clearOfflineQueue();
+        clearOfflineQueue();clearFieldInspectionCache();
         setRefreshCookieMode(false);
         setLogged(false);
       }
@@ -2179,6 +2181,7 @@ function App(){
     professionals:<ProfessionalsPage user={user} onNavigate={goModule}/>,
     assignments:<AssignmentsPage user={user}/>,
     visits:<VisitsPage user={user} onNavigate={goModule}/>,
+    field_inspection:<FieldInspectionPage user={user}/>,
     employer_oversight:<EmployerOversightPage user={user}/>,
     workplace_status:<WorkplaceStatusPage user={user} onNavigate={goModule}/>,
     site_qr_kiosk:<SiteQrKioskPage user={user} onLogout={logout}/>,

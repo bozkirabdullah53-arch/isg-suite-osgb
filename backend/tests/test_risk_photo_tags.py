@@ -195,12 +195,33 @@ def test_upload_media_with_tags(client):
         f"/api/v1/risks/{risk_id}/media",
         headers=headers,
         files={"file": ("scene.png", io.BytesIO(png), "image/png")},
-        data={"tags": '["ppe_missing","slippery_floor"]'},
+        data={
+            "tags": '["ppe_missing","slippery_floor"]',
+            "client_reference": "media-photo-test-1",
+            "captured_at": "2026-08-20T10:15:00+03:00",
+            "gps_lat": "41.123456",
+            "gps_lng": "29.123456",
+            "gps_accuracy_m": "7.5",
+        },
     )
     assert up.status_code == 200, up.text
     body = up.json()
     assert body["tags"] == ["ppe_missing", "slippery_floor"]
     assert "PPE / KKD eksik" in body["tag_labels"]
+    assert body["client_reference"] == "media-photo-test-1"
+    assert body["captured_at"].startswith("2026-08-20T07:15:00")
+    assert body["gps_lat"] == 41.123456
+    assert body["gps_lng"] == 29.123456
+    assert body["gps_accuracy_m"] == 7.5
+
+    retry = client.post(
+        f"/api/v1/risks/{risk_id}/media",
+        headers=headers,
+        files={"file": ("different.png", io.BytesIO(png), "image/png")},
+        data={"client_reference": "media-photo-test-1"},
+    )
+    assert retry.status_code == 200, retry.text
+    assert retry.json()["id"] == body["id"]
 
     put = client.put(
         f"/api/v1/risks/{risk_id}/media/{body['id']}/tags",
@@ -209,3 +230,56 @@ def test_upload_media_with_tags(client):
     )
     assert put.status_code == 200, put.text
     assert put.json()["tags"] == ["electrical", "work_at_height"]
+
+
+def test_field_inspection_risk_and_dof_are_idempotent(client):
+    token, risk_id = _seed(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    base = client.get(f"/api/v1/risks/{risk_id}", headers=headers)
+    assert base.status_code == 200, base.text
+    source = base.json()
+    payload = {
+        "company_id": source["company_id"],
+        "department_name": "Saha Denetimi",
+        "hazard_id": source["hazard_id"],
+        "method_code": "5x5_l",
+        "record_origin": "field_inspection",
+        "client_reference": "field-risk-client-1",
+        "observed_at": "2026-08-20T10:15:00+03:00",
+        "observation_location": "Pres önü",
+        "gps_lat": 41.123456,
+        "gps_lng": 29.123456,
+        "gps_accuracy_m": 7.5,
+        "activity": "Saha denetimi — Pres önü",
+        "risk_definition": "Makine koruyucusu eksik.",
+        "affected_group": "Çalışan",
+        "probability": 3,
+        "frequency": 3,
+        "severity": 4,
+        "status": "Açık",
+    }
+    created = client.post("/api/v1/risks", headers=headers, json=payload)
+    assert created.status_code == 200, created.text
+    row = created.json()
+    assert row["record_origin"] == "field_inspection"
+    assert row["client_reference"] == "field-risk-client-1"
+    assert row["observation_location"] == "Pres önü"
+    assert row["gps_accuracy_m"] == 7.5
+
+    retry = client.post("/api/v1/risks", headers=headers, json=payload)
+    assert retry.status_code == 200, retry.text
+    assert retry.json()["id"] == row["id"]
+
+    dof_payload = {
+        "description": "Makine koruyucusu takılacak.",
+        "responsible_person": "Sorumlu",
+        "term_date": "2026-08-30",
+        "client_reference": "field-dof-client-1",
+    }
+    dof = client.post(f"/api/v1/risks/{row['id']}/dofs", headers=headers, json=dof_payload)
+    assert dof.status_code == 200, dof.text
+    dof_row = dof.json()
+    assert dof_row["client_reference"] == "field-dof-client-1"
+    dof_retry = client.post(f"/api/v1/risks/{row['id']}/dofs", headers=headers, json=dof_payload)
+    assert dof_retry.status_code == 200, dof_retry.text
+    assert dof_retry.json()["id"] == dof_row["id"]
