@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {
   AlertTriangle,
   BellRing,
@@ -134,6 +134,7 @@ export function DutyDashboard({user, summary, onNavigate}) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState('');
 
   async function load() {
     setBusy(true);
@@ -153,6 +154,23 @@ export function DutyDashboard({user, summary, onNavigate}) {
   const alerts = data?.alerts || {overdue: [], due_soon: [], missing: [], done: []};
   const boardError = data?.error || err;
   const pct = sm.completion_pct ?? 0;
+  const visibleAlerts = useMemo(() => {
+    const q = filter.trim().toLocaleLowerCase('tr-TR');
+    if (!q) return alerts;
+    const matches = (items) => (items || []).filter((a) =>
+      [a.company_name, a.title, a.detail, a.module_label, a.module]
+        .filter(Boolean)
+        .join(' ')
+        .toLocaleLowerCase('tr-TR')
+        .includes(q)
+    );
+    return {
+      overdue: matches(alerts.overdue),
+      due_soon: matches(alerts.due_soon),
+      missing: matches(alerts.missing),
+      done: matches(alerts.done),
+    };
+  }, [alerts, filter]);
 
   async function exportReport() {
     try {
@@ -206,6 +224,20 @@ export function DutyDashboard({user, summary, onNavigate}) {
         </section>
       )}
 
+      <div style={{marginBottom: 12}}>
+        <label htmlFor="duty-filter" style={{display: 'block', fontSize: 13, fontWeight: 650, marginBottom: 5}}>
+          Görev ara
+        </label>
+        <input
+          id="duty-filter"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Firma, görev, açıklama veya modül ara…"
+          aria-label="Görevleri filtrele"
+          style={{width: '100%', maxWidth: 520}}
+        />
+      </div>
+
       <div className="cards" style={{marginBottom: 16}}>
         <article className="metric" style={{borderTop: '3px solid #dc2626'}}>
           <span>Günü geçen</span>
@@ -257,10 +289,10 @@ export function DutyDashboard({user, summary, onNavigate}) {
       )}
 
       <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 14, marginBottom: 16}}>
-        <AlertColumn title="Günü geçenler" items={alerts.overdue || []} tone="overdue" onGo={onNavigate} />
-        <AlertColumn title="Yaklaşanlar" items={alerts.due_soon || []} tone="due_soon" onGo={onNavigate} />
-        <AlertColumn title="Yapılmayanlar" items={alerts.missing || []} tone="missing" onGo={onNavigate} />
-        <AlertColumn title="Yapılanlar" items={alerts.done || []} tone="done" onGo={onNavigate} />
+        <AlertColumn title="Günü geçenler" items={visibleAlerts.overdue || []} tone="overdue" onGo={onNavigate} />
+        <AlertColumn title="Yaklaşanlar" items={visibleAlerts.due_soon || []} tone="due_soon" onGo={onNavigate} />
+        <AlertColumn title="Yapılmayanlar" items={visibleAlerts.missing || []} tone="missing" onGo={onNavigate} />
+        <AlertColumn title="Yapılanlar" items={visibleAlerts.done || []} tone="done" onGo={onNavigate} />
       </div>
 
       {!busy && data?.supported && (sm.overdue || 0) === 0 && (sm.due_soon || 0) === 0 && (sm.missing || 0) === 0 && data.workplace_count > 0 && (
