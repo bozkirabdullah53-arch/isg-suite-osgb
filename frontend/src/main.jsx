@@ -1927,7 +1927,7 @@ function App(){
     }catch(_){ /* ignore */ }
   }
 
-  function goModule(id,{replace=false}={}){
+  function goModule(id,{replace=false,companyId=''}={}){
     setMobileMoreOpen(false);
     if(id!=='customer_360') setC360Id(null);
     if(id==='customer_360' && isWorkplaceManagerUser(user)){
@@ -1950,9 +1950,13 @@ function App(){
       }
       return;
     }
+    if(id==='customer_360'){
+      const nextCompanyId=Number(companyId);
+      if(Number.isFinite(nextCompanyId) && nextCompanyId>0) setC360Id(nextCompanyId);
+    }
     setActive(id);
     try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
-    writeModuleToLocation(id,{replace});
+    writeModuleToLocation(id,{replace,companyId:id==='customer_360'?companyId:''});
   }
 
   function openCustomer360(companyId){
