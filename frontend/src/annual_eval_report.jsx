@@ -72,7 +72,10 @@ export function AnnualEvalReportPage({user, onNavigate}) {
 
   async function loadCompanies() {
     try {
-      setCompanies(await api('/companies'));
+      const rows = await api('/companies');
+      const list = Array.isArray(rows) ? rows : [];
+      setCompanies(list);
+      setCompanyId((current) => chooseAnnualEvalCompanyId(list, current, user.company_id));
     } catch (e) {
       setErr(e.message || 'Firmalar yüklenemedi.');
     }
