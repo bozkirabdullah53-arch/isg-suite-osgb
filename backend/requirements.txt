@@ -22,3 +22,4 @@ httpx==0.28.1
 pypdf==5.9.0
 pyotp==2.9.0
 qrcode==8.0
+holidays==0.80
