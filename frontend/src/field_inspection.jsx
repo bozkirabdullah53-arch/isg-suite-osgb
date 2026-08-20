@@ -180,7 +180,8 @@ export function FieldInspectionPage({user}) {
 
   async function synchronize() {
     refreshPending();
-    if (!online || !scope.user_id || !scope.osgb_id) return;
+    const networkAvailable = typeof navigator === "undefined" || navigator.onLine !== false;
+    if (!networkAvailable || !scope.user_id || !scope.osgb_id) return;
     setSyncBusy(true);
     try {
       const result = await flushOfflineFindings(api, uploadFile, scope);
@@ -526,7 +527,7 @@ export function FieldInspectionPage({user}) {
       <div className={online ? "field-connectivity online" : "field-connectivity offline"}>
         {online ? <Wifi size={17} /> : <WifiOff size={17} />}
         <span>{online ? "Çevrimiçi" : "Çevrimdışı"} · {pending.length ? `${pending.length} kayıt bekliyor` : "Bekleyen kayıt yok"}</span>
-        {pending.length > 0 && <strong>Veri cihazda şifreli olmayan yerel kuyrukta tutulur; çıkışta temizlenir.</strong>}
+        {pending.length > 0 && <strong>Veri cihazdaki kullanıcı/OSGB kapsamlı yerel kuyrukta tutulur; çıkışta temizlenir.</strong>}
       </div>
 
       {(message || error) && (
