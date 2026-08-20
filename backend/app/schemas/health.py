@@ -85,6 +85,28 @@ class HealthRecordUpdate(BaseModel):
     follow_up_note: str | None = Field(default=None, max_length=1500)
     other_biological_test: str | None = Field(default=None, max_length=1000)
 
+    @model_validator(mode="after")
+    def sanitize_dates(self):
+        if self.examination_date is not None:
+            self.examination_date = assert_event_date(
+                self.examination_date, label="Muayene tarihi", allow_future_days=0
+            )
+        if self.next_examination_date is not None:
+            self.next_examination_date = assert_event_date(
+                self.next_examination_date,
+                label="Sonraki muayene",
+                required=False,
+                allow_future_days=3650,
+            )
+        if self.examination_date is not None and self.next_examination_date is not None:
+            assert_date_order(
+                self.examination_date,
+                self.next_examination_date,
+                earlier_label="Muayene tarihi",
+                later_label="Sonraki muayene",
+            )
+        return self
+
 
 class HealthRecordResponse(BaseModel):
     id: int

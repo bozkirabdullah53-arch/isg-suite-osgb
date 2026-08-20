@@ -24,6 +24,7 @@ from app.api.company_access import (
 )
 from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
+from app.core.input_rules import assert_date_order, assert_event_date
 from app.core.database import get_db
 from app.models.entities import (
     AssignmentStatus,
@@ -220,6 +221,34 @@ def _apply_lead_eval(record: HealthRecord) -> None:
             record.blood_lead_unit = "µg/dL"
     elif record.blood_lead_value is None and record.blood_lead_eval:
         record.blood_lead_eval = None
+
+
+def _validate_health_date_pair(
+    *,
+    examination_date: date | None,
+    next_examination_date: date | None,
+) -> tuple[date, date | None]:
+    try:
+        exam_date = assert_event_date(
+            examination_date,
+            label="Muayene tarihi",
+            allow_future_days=0,
+        )
+        next_date = assert_event_date(
+            next_examination_date,
+            label="Sonraki muayene",
+            required=False,
+            allow_future_days=3650,
+        )
+        assert_date_order(
+            exam_date,
+            next_date,
+            earlier_label="Muayene tarihi",
+            later_label="Sonraki muayene",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return exam_date, next_date
 
 
 def _company_records(db: Session, company_id: int) -> list[HealthRecord]:
@@ -812,6 +841,20 @@ def update_health_record(
     if not record or record.deleted_at:
         raise HTTPException(404, "Sağlık kaydı bulunamadı.")
     ensure_access(db, user, record.company_id)
+    date_fields = {"examination_date", "next_examination_date"} & payload.model_fields_set
+    if date_fields:
+        _validate_health_date_pair(
+            examination_date=(
+                payload.examination_date
+                if "examination_date" in date_fields
+                else record.examination_date
+            ),
+            next_examination_date=(
+                payload.next_examination_date
+                if "next_examination_date" in date_fields
+                else record.next_examination_date
+            ),
+        )
     supplied_fields = {
         field for field in payload.model_fields_set
         if getattr(payload, field, None) is not None
