@@ -1167,9 +1167,20 @@ class RiskAssessment(Base):
     """Firma bazlı risk kaydı — generic IsgRecord(module=risk) yerine."""
 
     __tablename__ = "risk_assessments"
+    __table_args__ = (
+        UniqueConstraint("company_id", "client_reference", name="uq_risk_company_client_reference"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     risk_code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
+    # Offline saha kaydının kaynağı ve istemci tarafı idempotency anahtarı.
+    record_origin: Mapped[str | None] = mapped_column(String(30), default="risk", nullable=True, index=True)
+    client_reference: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    observed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    observation_location: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    gps_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    gps_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    gps_accuracy_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id"), nullable=True, index=True)
     department_id: Mapped[int | None] = mapped_column(ForeignKey("workplace_departments.id"), nullable=True, index=True)
     hazard_id: Mapped[int] = mapped_column(ForeignKey("hazards.id"), index=True)
@@ -1219,6 +1230,9 @@ class RiskAssessment(Base):
 class RiskMedia(Base):
     """Risk kaydına bağlı medya (PRO MediaFile parity)."""
     __tablename__ = "risk_media"
+    __table_args__ = (
+        UniqueConstraint("risk_id", "client_reference", name="uq_risk_media_client_reference"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     risk_id: Mapped[int] = mapped_column(ForeignKey("risk_assessments.id", ondelete="CASCADE"), index=True)
     dof_id: Mapped[int | None] = mapped_column(
@@ -1230,6 +1244,12 @@ class RiskMedia(Base):
     file_type: Mapped[str | None] = mapped_column(String(20), nullable=True)  # photo|video|pdf|drawing
     file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Offline fotoğraf yüklemelerinde tekrar denemeyi güvenli/idempotent tutar.
+    client_reference: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    captured_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    gps_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    gps_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    gps_accuracy_m: Mapped[float | None] = mapped_column(Float, nullable=True)
     # 0.9.121 — isteğe bağlı tehlike etiketi checklist (JSON)
     tags_json: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
@@ -1254,10 +1274,14 @@ class RiskRevision(Base):
 
 class RiskDof(Base):
     __tablename__ = "risk_dofs"
+    __table_args__ = (
+        UniqueConstraint("risk_id", "client_reference", name="uq_risk_dof_client_reference"),
+    )
     id: Mapped[int] = mapped_column(primary_key=True)
     dof_code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
     risk_id: Mapped[int] = mapped_column(ForeignKey("risk_assessments.id", ondelete="CASCADE"), index=True)
     description: Mapped[str] = mapped_column(String(2000))
+    client_reference: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     responsible_person: Mapped[str | None] = mapped_column(String(150), nullable=True)
     responsible_department: Mapped[str | None] = mapped_column(String(150), nullable=True)
     term_date: Mapped[date | None] = mapped_column(Date, nullable=True)
