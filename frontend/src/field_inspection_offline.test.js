@@ -113,9 +113,13 @@ describe("field inspection offline queue", () => {
     });
     localStorage.setItem(_test.KEY, JSON.stringify([old]));
     expect(listOfflineFindings(scope)).toHaveLength(0);
+    const tooLarge = Array.from({length: 5}, (_, index) => ({
+      id: `large-${index}`,
+      data_url: "data:image/jpeg;base64," + "a".repeat(1_450_000),
+    }));
     expect(() => enqueueOfflineFinding(valid({
       id: "too-large",
-      photos: [{data_url: "data:image/jpeg;base64," + "a".repeat(_test.MAX_TOTAL_DATA_URL_CHARS)}],
+      photos: tooLarge,
     }))).toThrow(/sınırını/);
   });
 
