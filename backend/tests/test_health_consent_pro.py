@@ -254,6 +254,23 @@ def test_duplicate_exam_same_day_rejected(client):
     assert other_day.status_code in (200, 201), other_day.text
 
 
+def test_periodic_exam_rejects_date_beyond_hazard_ceiling(client):
+    headers = _headers(client, "onam-hekim@test.com", "HekimPass123!")
+    company_id, employee_id = _ids()
+    rejected = client.post(
+        "/api/v1/health-records",
+        headers=headers,
+        json=_payload(
+            company_id,
+            employee_id,
+            examination_date="2026-03-10",
+            next_examination_date="2030-03-10",
+        ),
+    )
+    assert rejected.status_code == 422, rejected.text
+    assert "azami periyodu" in rejected.json()["detail"]
+
+
 def test_osgb_admin_cannot_reach_health_records(client):
     """OSGB merkez yöneticisi çalışanların tıbbi kaydını göremez/açamaz."""
     headers = _headers(client, "onam-osgb@test.com", "OsgbPass123!")

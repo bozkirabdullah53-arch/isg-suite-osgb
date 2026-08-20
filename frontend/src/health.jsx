@@ -745,6 +745,11 @@ export function HealthPage({user}) {
             </Select>
             <Field label="Muayene tarihi" type="date" required value={form.examination_date} onChange={(e) => setForm({...form, examination_date: e.target.value})} />
             <Field label="Sonraki muayene" type="date" value={form.next_examination_date} onChange={(e) => setForm({...form, next_examination_date: e.target.value})} />
+            {isPhysician && form.record_type === 'periodic_exam' && (
+              <div style={{gridColumn: '1/-1', fontSize: 12, color: '#475569'}}>
+                Periyodik muayenede hekim daha kısa bir tarih belirleyebilir; mevzuattaki azami periyodu aşan tarih kaydedilmez.
+              </div>
+            )}
             {isPhysician && (
               <Select label="Uygunluk" value={form.fitness_status} onChange={(e) => setForm({...form, fitness_status: e.target.value})}>
                 {fitnessOpts.map((s) => <option key={s.code} value={s.code}>{s.label}</option>)}

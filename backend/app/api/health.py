@@ -254,6 +254,33 @@ def _validate_health_date_pair(
     return exam_date, next_date
 
 
+def _validate_periodic_exam_ceiling(
+    *,
+    record_type: HealthRecordType,
+    examination_date: date,
+    next_examination_date: date | None,
+    hazard_class: str | None,
+) -> None:
+    """Periyodik muayene tarihini mevzuattaki azami aralıkta tutar.
+
+    Hekim daha kısa bir aralık belirleyebilir; yalnızca azami periyodu aşan
+    yeni/güncellenen tarihleri reddeder. Mevcut kayıtlar geriye dönük
+    değiştirilmez.
+    """
+    if record_type != HealthRecordType.PERIODIC_EXAM or not next_examination_date:
+        return
+    ceiling = default_next_exam(examination_date, hazard_class)
+    if next_examination_date > ceiling:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Periyodik muayene için sonraki tarih mevzuattaki azami periyodu "
+                f"aşamaz ({ceiling.isoformat()} tarihine kadar). "
+                "İşyeri hekimi risk değerlendirmesine göre daha kısa tarih seçebilir."
+            ),
+        )
+
+
 def _company_records(db: Session, company_id: int) -> list[HealthRecord]:
     return list(
         db.scalars(
@@ -543,6 +570,12 @@ def create_health_record(
     if not employee or employee.company_id != payload.company_id:
         raise HTTPException(status_code=400, detail="Personel ve firma eşleşmiyor.")
     company = db.get(Company, payload.company_id)
+    _validate_periodic_exam_ceiling(
+        record_type=payload.record_type,
+        examination_date=payload.examination_date,
+        next_examination_date=payload.next_examination_date,
+        hazard_class=company.hazard_class if company else None,
+    )
     supplied_fields = {
         field for field in payload.model_fields_set
         if getattr(payload, field, None) is not None
@@ -851,6 +884,7 @@ def update_health_record(
     if not record or record.deleted_at:
         raise HTTPException(404, "Sağlık kaydı bulunamadı.")
     ensure_access(db, user, record.company_id)
+    company = db.get(Company, record.company_id)
     date_fields = {"examination_date", "next_examination_date"} & payload.model_fields_set
     if date_fields:
         _validate_health_date_pair(
@@ -865,6 +899,24 @@ def update_health_record(
                 else record.next_examination_date
             ),
         )
+    _validate_periodic_exam_ceiling(
+        record_type=(
+            payload.record_type
+            if "record_type" in payload.model_fields_set and payload.record_type is not None
+            else record.record_type
+        ),
+        examination_date=(
+            payload.examination_date
+            if "examination_date" in payload.model_fields_set and payload.examination_date is not None
+            else record.examination_date
+        ),
+        next_examination_date=(
+            payload.next_examination_date
+            if "next_examination_date" in payload.model_fields_set
+            else record.next_examination_date
+        ),
+        hazard_class=company.hazard_class if company else None,
+    )
     supplied_fields = {
         field for field in payload.model_fields_set
         if getattr(payload, field, None) is not None

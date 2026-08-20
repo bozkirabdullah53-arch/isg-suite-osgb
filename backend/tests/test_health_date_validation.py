@@ -4,7 +4,8 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from app.api.health import _validate_health_date_pair
+from app.api.health import _validate_health_date_pair, _validate_periodic_exam_ceiling
+from app.models.entities import HealthRecordType
 from app.schemas.health import HealthRecordUpdate
 
 
@@ -49,3 +50,14 @@ def test_partial_health_update_rejects_future_examination_against_existing_next_
 
     assert error.value.status_code == 422
     assert "Muayene tarihi" in str(error.value.detail)
+
+
+def test_periodic_exam_ceiling_allows_shorter_physician_interval():
+    from datetime import date
+
+    _validate_periodic_exam_ceiling(
+        record_type=HealthRecordType.PERIODIC_EXAM,
+        examination_date=date(2026, 1, 10),
+        next_examination_date=date(2028, 1, 10),
+        hazard_class="Tehlikeli",
+    )
