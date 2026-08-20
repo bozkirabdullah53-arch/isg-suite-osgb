@@ -25,7 +25,7 @@ from reportlab.pdfgen import canvas
 from app.services.risk_validity import METHOD_LABEL, document_meta_rows
 from app.services.risk_hazop import guide_word_label, normalize_hazop_data, priority_details
 from app.services.risk_methods import resolve_method
-from app.services.risk_scoring import fine_kinney_level_details
+from app.services.risk_scoring import canonical_risk_level, fine_kinney_level_details
 
 PDF_FONT = "Helvetica"
 PDF_FONT_BOLD = "Helvetica-Bold"
@@ -128,6 +128,19 @@ def _hazard_code(risk, hazard_map: dict) -> str:
 
 def _risk_method(risk, fallback_code: str = "5x5_l") -> dict:
     return resolve_method(getattr(risk, "method_code", None) or fallback_code)
+
+
+def _normalized_risk_level(risk, fallback_code: str = "5x5_l") -> str:
+    """Return a method-aware normalized level for reports and colors."""
+    method_code = getattr(risk, "method_code", None) or fallback_code
+    return (
+        canonical_risk_level(
+            method_code,
+            getattr(risk, "risk_score", None),
+            getattr(risk, "risk_level", None),
+        )
+        or "—"
+    )
 
 
 def _hazop_data(risk) -> dict:
@@ -572,7 +585,7 @@ def build_risk_pdf(
     total = len(risks)
     risk_levels: dict[str, int] = {}
     for r in risks:
-        rl = r.risk_level or "Tanımsız"
+        rl = _normalized_risk_level(r)
         risk_levels[rl] = risk_levels.get(rl, 0) + 1
 
     elements.append(Spacer(1, 5 * mm))
@@ -615,7 +628,7 @@ def build_risk_pdf(
 
     for risk in risks:
         risk_method = _risk_method(risk, method.get("code", "5x5_l"))
-        risk_level_label = getattr(risk, "risk_level", None) or "—"
+        risk_level_label = _normalized_risk_level(risk, method.get("code", "5x5_l"))
         if risk_method.get("code") == "fine_kinney":
             _, risk_level_label, _ = fine_kinney_level_details(float(risk.risk_score or 0))
         elif risk_method.get("code") == "hazop":
@@ -684,7 +697,7 @@ def build_risk_pdf(
                 _, residual_label, _ = fine_kinney_level_details(float(risk.residual_score or 0))
             risk_data.append(["Artık risk skoru / seviyesi", f"{_score_text(risk.residual_score)} / {residual_label}"])
         risk_table = Table(risk_data, colWidths=[100, 370])
-        bg = _level_color(risk.risk_level or "")
+        bg = _level_color(_normalized_risk_level(risk, risk_method.get("code", "5x5_l")))
         score_label = "HAZOP önceliği" if risk_method.get("code") == "hazop" else "Risk Skoru"
         score_row = next((index for index, item in enumerate(risk_data) if item[0] == score_label), 0)
         risk_table.setStyle(
@@ -1133,7 +1146,7 @@ def build_risk_excel(
         elif risk_method.get("code") == "hazop":
             risk_level_label = priority_details(_hazop_data(risk).get("priority"))["label"]
         else:
-            risk_level_label = risk.risk_level or "—"
+            risk_level_label = _normalized_risk_level(risk, (validity or {}).get("method_code") or "5x5_l")
         hazop = _hazop_data(risk) if risk_method.get("code") == "hazop" else {}
         data = (
             [
@@ -1168,7 +1181,7 @@ def build_risk_excel(
             cell.border = thin
             cell.alignment = Alignment(wrap_text=True, vertical="top")
             cell.font = Font(size=9)
-        level = risk.risk_level or ""
+        level = _normalized_risk_level(risk, (validity or {}).get("method_code") or "5x5_l")
         if level in level_fills:
             if has_hazop:
                 ws.cell(row=idx, column=17).fill = level_fills[level]
@@ -1317,7 +1330,7 @@ def build_risk_excel(
 
     risk_levels: dict[str, int] = {}
     for r in risks:
-        rl = r.risk_level or "Tanımsız"
+        rl = _normalized_risk_level(r)
         risk_levels[rl] = risk_levels.get(rl, 0) + 1
     total = len(risks)
     for i, level in enumerate(["Çok Yüksek", "Yüksek", "Orta", "Düşük", "Kabul Edilebilir"], 4):
