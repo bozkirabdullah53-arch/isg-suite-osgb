@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "tr.isgsuite.app",
+      "sha256_cert_fingerprints": [
+        "7C:90:AD:B0:58:1C:09:E2:FF:5A:10:E2:0D:95:5A:FC:4D:F4:FE:74:D4:BC:04:5E:2F:4B:34:01:38:7D:4A:92"
+      ]
+    }
+  }
+]

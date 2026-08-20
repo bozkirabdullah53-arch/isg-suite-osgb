@@ -31,3 +31,22 @@ backend/scripts/demo_testers.json
 backend/scripts/demo_matrix_testers.json
 backend/scripts/demo_matrix_mfa.json
 backend/scripts/demo_matrix_provision_run.txt
+
+# Android/TWA local toolchains, credentials, and build outputs
+android-sdk/
+android-sdk2/
+android-sdk2-install*.log
+jdk17/
+jdk17.tar.gz
+bubblewrap-inspect/
+android-twa/.gradle/
+android-twa/build/
+android-twa/app/build/
+android-twa/local.properties
+android-twa/gradle-truststore
+android-twa/android.keystore
+android-twa/manifest-checksum.txt
+android-twa/app-release-*.apk
+android-twa/app-release-*.aab
+android-twa/app-release-unsigned*.apk
+android-twa/*.idsig
