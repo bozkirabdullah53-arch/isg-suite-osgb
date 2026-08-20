@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from types import SimpleNamespace
 
 from sqlalchemy import create_engine
@@ -63,6 +65,36 @@ def test_package_metadata_update_changes_only_catalog_record(monkeypatch):
     assert package.description == "Yeni açıklama"
     assert package.revision_no == 2
     assert out["title"] == "Yeni Paket Adı"
+
+
+def test_archived_catalog_package_metadata_requires_restore(monkeypatch):
+    from fastapi import HTTPException
+
+    from app.services import remote_training_package_management as management
+
+    db = _db()
+    package = _package(db)
+    package.status = "archived"
+    db.commit()
+    monkeypatch.setattr(
+        management,
+        "_private_package",
+        lambda session, _user, package_id: session.get(type(package), package_id),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        management.update_catalog_package_metadata(
+            package.id,
+            management.RemoteCatalogPackageMetadataUpdate(title="Yeni Paket Adı"),
+            db=db,
+            user=SimpleNamespace(id=1),
+        )
+
+    assert exc_info.value.status_code == 409
+    assert "düzenlemeye açın" in str(exc_info.value.detail)
+    db.refresh(package)
+    assert package.title == "Deneme Paketi"
+    assert package.revision_no == 1
 
 
 def test_used_catalog_package_can_be_deleted_without_historical_program(monkeypatch):

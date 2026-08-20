@@ -123,6 +123,12 @@ def update_catalog_package_metadata(
     user: User = Depends(get_current_user),
 ):
     package = _private_package(db, user, package_id)
+    if package.status == "archived":
+        raise HTTPException(
+            409,
+            "Arşivlenmiş paketin bilgileri değiştirilemez. Önce paketi düzenlemeye açın.",
+        )
+
     fields = payload.model_fields_set
     if not fields:
         raise HTTPException(422, "Değiştirilecek paket bilgisi gönderilmedi.")

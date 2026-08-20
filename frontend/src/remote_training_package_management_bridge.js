@@ -451,7 +451,10 @@ function addToolbar(sectionRoot, detail, heading) {
   toolbar.className = 'rt-package-manage-toolbar';
   toolbar.setAttribute(TOOLBAR_ATTR, 'true');
   toolbar.dataset.packageId = String(detail.id);
-  toolbar.innerHTML = '<div class="rt-package-manage-toolbar__text"><strong>Paket yönetimi:</strong> Paket adını/açıklamasını değiştirebilir ve OSGB özel paketini silebilirsiniz. Daha önce hazırlanmış firma/çalışan kopyaları korunur.' + (detail.status === 'archived' ? ' İçeriği değiştirmek için önce paketi düzenlemeye açın.' : '') + '<div class="rt-section-reorder-hint">Bölüm sırası: <strong>☷ Tut ve taşı</strong> düğmesine basılı tutup bölümü istediğiniz yere bırakın. Sıra otomatik kaydedilir; daha önce firmaya hazırlanmış çalışan kopyaları geriye dönük değişmez.</div></div><div class="rt-package-manage-toolbar__actions"><button type="button" class="rt-package-manage-btn edit">Paket Bilgilerini Düzenle</button><button type="button" class="rt-package-manage-btn rt-package-manage-btn--danger delete">Paketi Sil</button></div>';
+  const packageActions = detail.status === 'archived'
+    ? '<button type="button" class="rt-package-manage-btn rt-package-manage-btn--danger delete">Paketi Sil</button>'
+    : '<button type="button" class="rt-package-manage-btn edit">Paket Bilgilerini Düzenle</button><button type="button" class="rt-package-manage-btn rt-package-manage-btn--danger delete">Paketi Sil</button>';
+  toolbar.innerHTML = '<div class="rt-package-manage-toolbar__text"><strong>Paket yönetimi:</strong> Paket adını/açıklamasını değiştirebilir ve OSGB özel paketini silebilirsiniz. Daha önce hazırlanmış firma/çalışan kopyaları korunur.' + (detail.status === 'archived' ? ' Arşivli paket yalnızca silinebilir; düzenlemek için önce ana panelde paketi düzenlemeye açın.' : '') + '<div class="rt-section-reorder-hint">Bölüm sırası: <strong>☷ Tut ve taşı</strong> düğmesine basılı tutup bölümü istediğiniz yere bırakın. Sıra otomatik kaydedilir; daha önce firmaya hazırlanmış çalışan kopyaları geriye dönük değişmez.</div></div><div class="rt-package-manage-toolbar__actions">' + packageActions + '</div>';
   toolbar.querySelector('.edit')?.addEventListener('click', () => openPackageEdit(detail));
   toolbar.querySelector('.delete')?.addEventListener('click', () => void deletePackage(detail));
   topRow.insertAdjacentElement('afterend', toolbar);
