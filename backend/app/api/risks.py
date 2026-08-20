@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, selectinload
 
@@ -82,6 +82,7 @@ from app.services.risk_scoring import (
     SUPPORTED_SCORING_METHODS,
     evaluate,
     evaluate_method,
+    canonical_risk_level,
     fine_kinney_level_details,
     fine_kinney_meta_payload,
     meta_payload,
@@ -138,6 +139,44 @@ def _implemented_method(code: str | None, *, fallback: str = DEFAULT_METHOD) -> 
             return DEFAULT_METHOD
         raise HTTPException(422, f"{method['label']} henüz aktif değil; bu yöntem sırayla geliştirilecek.")
     return key
+
+
+def _display_risk_level(row: RiskAssessment) -> str:
+    """Use the score for 5x5 display so legacy labels cannot drift."""
+    return (
+        canonical_risk_level(
+            getattr(row, "method_code", None),
+            getattr(row, "risk_score", None),
+            getattr(row, "risk_level", None),
+        )
+        or "Tanımsız"
+    )
+
+
+def _risk_level_filter(level: str):
+    """Filter 5x5 rows by score while keeping other methods' labels intact."""
+    method_is_5x5 = or_(
+        RiskAssessment.method_code == "5x5_l",
+        RiskAssessment.method_code.is_(None),
+    )
+    method_is_other = and_(
+        RiskAssessment.method_code.is_not(None),
+        RiskAssessment.method_code != "5x5_l",
+    )
+    score = RiskAssessment.risk_score
+    bounds = {
+        "Kabul Edilebilir": score <= 5,
+        "Düşük": and_(score >= 6, score <= 8),
+        "Orta": and_(score >= 9, score <= 12),
+        "Yüksek": and_(score >= 13, score <= 16),
+        "Çok Yüksek": score >= 17,
+    }
+    if level not in bounds:
+        return RiskAssessment.risk_level == level
+    return or_(
+        and_(method_is_5x5, bounds[level]),
+        and_(method_is_other, RiskAssessment.risk_level == level),
+    )
 
 
 def _calculate_risk(
@@ -296,6 +335,7 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
             hazop_data = HazopData.model_validate(json.loads(row.hazop_data_json))
         except (TypeError, ValueError, json.JSONDecodeError):
             logger.warning("Geçersiz HAZOP verisi risk kaydında bulundu: %s", row.id)
+    display_level = _display_risk_level(row)
     if method_code == "fine_kinney":
         _, level_label, risk_action = fine_kinney_level_details(float(row.risk_score or 0))
     elif method_code == "hazop":
@@ -303,9 +343,9 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
         level_label = priority["label"]
         risk_action = priority["action"]
     else:
-        level_label = row.risk_level
+        level_label = display_level
         risk_action = next(
-            (note for _, level, note in method.get("levels", []) if level == row.risk_level),
+            (note for _, level, note in method.get("levels", []) if level == display_level),
             None,
         )
     revisions = [
@@ -337,7 +377,7 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
         frequency=getattr(row, "frequency", None),
         severity=row.severity,
         risk_score=row.risk_score,
-        risk_level=row.risk_level,
+        risk_level=display_level,
         risk_level_label=level_label,
         risk_action=risk_action,
         residual_probability=getattr(row, "residual_probability", None),
@@ -670,8 +710,9 @@ def risk_stats(
     open_risks = 0
     overdue_terms = 0
     for r in risks:
-        if r.risk_level in level_counts:
-            level_counts[r.risk_level] += 1
+        level = _display_risk_level(r)
+        if level in level_counts:
+            level_counts[level] += 1
         if (r.status or "") == "Açık":
             open_risks += 1
             if r.term_date and r.term_date < today:
@@ -1235,7 +1276,7 @@ def list_risks(
     if company_ids is not None:
         stmt = stmt.where(RiskAssessment.company_id.in_(company_ids))
     if level:
-        stmt = stmt.where(RiskAssessment.risk_level == level)
+        stmt = stmt.where(_risk_level_filter(level))
     if status:
         stmt = stmt.where(RiskAssessment.status == status)
     if q:
@@ -1283,7 +1324,7 @@ def _load_company_risks(
         .order_by(RiskAssessment.risk_score.desc(), RiskAssessment.id.asc())
     )
     if level:
-        stmt = stmt.where(RiskAssessment.risk_level == level)
+        stmt = stmt.where(_risk_level_filter(level))
     if status:
         stmt = stmt.where(RiskAssessment.status == status)
     if selected_method:
