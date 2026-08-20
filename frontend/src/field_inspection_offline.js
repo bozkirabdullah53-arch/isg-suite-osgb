@@ -163,7 +163,41 @@ export function clearOfflineFindings(scope = null) {
     try { localStorage.removeItem(KEY); } catch { /* ignore */ }
     return;
   }
-  writeQueue(readRaw().filter((row) => !scopeMatches(normalizeFinding(row), scope)));
+  writeQueue(readRaw().filter((row) => {
+    const normalized = normalizeFinding(row);
+    return normalized && !scopeMatches(normalized, scope);
+  }));
+}
+
+export function readOfflineReference(scope) {
+  if (!scope) return null;
+  try {
+    const raw = localStorage.getItem(REFERENCE_KEY);
+    const cached = raw ? JSON.parse(raw) : null;
+    if (!cached || !scopeMatches(cached, scope)) return null;
+    return cached;
+  } catch {
+    return null;
+  }
+}
+
+export function saveOfflineReference(scope, data) {
+  if (!scope || !scopeMatches({...scope, user_id: Number(scope.userId ?? scope.user_id), osgb_id: Number(scope.osgbId ?? scope.osgb_id)}, scope)) return;
+  try {
+    localStorage.setItem(REFERENCE_KEY, JSON.stringify({
+      user_id: Number(scope.userId ?? scope.user_id),
+      osgb_id: Number(scope.osgbId ?? scope.osgb_id),
+      ...data,
+      saved_at: nowIso(),
+    }));
+  } catch {
+    /* Reference data is a convenience cache; the online API remains authoritative. */
+  }
+}
+
+export function clearFieldInspectionCache() {
+  try { localStorage.removeItem(KEY); } catch { /* ignore */ }
+  try { localStorage.removeItem(REFERENCE_KEY); } catch { /* ignore */ }
 }
 
 function isNetworkError(error) {
@@ -261,6 +295,7 @@ export async function flushOfflineFindings(apiFn, uploadFn, scope) {
 
 export const _test = {
   KEY,
+  REFERENCE_KEY,
   MAX_ITEMS,
   MAX_AGE_MS,
   MAX_RETRIES,
