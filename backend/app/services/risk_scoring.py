@@ -85,13 +85,14 @@ def compute_score(probability: int, severity: int) -> int:
 
 
 def risk_level(score: int) -> str:
-    if score <= 4:
+    # Keep the calculation aligned with METHOD_CATALOG["5x5_l"] thresholds.
+    if score <= 5:
         return "Kabul Edilebilir"
-    if score <= 9:
+    if score <= 8:
         return "Düşük"
-    if score <= 14:
+    if score <= 12:
         return "Orta"
-    if score <= 19:
+    if score <= 16:
         return "Yüksek"
     return "Çok Yüksek"
 
