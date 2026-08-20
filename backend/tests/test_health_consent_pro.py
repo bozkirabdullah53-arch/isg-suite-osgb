@@ -309,6 +309,46 @@ def test_restrictions_encrypted_at_rest_and_hidden_from_dsp(client, monkeypatch)
     assert rows.status_code == 200, rows.text
     row = next(x for x in rows.json() if x["id"] == record_id)
     assert row["restrictions"] is None
+    assert row["fitness_status"] is None
+    assert row["smart_summary"] is None
+    assert row["tetkik_summary"] is None
+
+
+def test_dsp_cannot_search_or_filter_clinical_decisions(client):
+    physician = _headers(client, "onam-hekim@test.com", "HekimPass123!")
+    company_id, employee_id = _ids()
+    created = client.post(
+        "/api/v1/health-records",
+        headers=physician,
+        json=_payload(
+            company_id,
+            employee_id,
+            examination_date="2026-08-10",
+            summary="KLINIK_OZET_GIZLI",
+        ),
+    )
+    assert created.status_code in (200, 201), created.text
+
+    dsp = _headers(client, "onam-dsp@test.com", "DspPass12345!")
+    clinical_search = client.get(
+        f"/api/v1/health-records?company_id={company_id}&q=KLINIK_OZET_GIZLI",
+        headers=dsp,
+    )
+    assert clinical_search.status_code == 200, clinical_search.text
+    assert clinical_search.json() == []
+
+    employee_search = client.get(
+        f"/api/v1/health-records?company_id={company_id}&q=Personel",
+        headers=dsp,
+    )
+    assert employee_search.status_code == 200, employee_search.text
+    assert len(employee_search.json()) == 1
+
+    status_filter = client.get(
+        f"/api/v1/health-records?company_id={company_id}&fitness_status=fit",
+        headers=dsp,
+    )
+    assert status_filter.status_code == 403, status_filter.text
 
 
 def test_physician_identity_is_locked_to_own_active_assignment(client):
@@ -373,7 +413,8 @@ def test_dsp_field_matrix_blocks_clinical_decisions(client):
     )
     assert allowed.status_code in (200, 201), allowed.text
     record_id = allowed.json()["id"]
-    assert allowed.json()["fitness_status"] == "pending"
+    # DSP klinik uygunluk kararını göremez; yalnız teknik kaydı oluşturur.
+    assert allowed.json()["fitness_status"] is None
 
     clinical_patch = client.patch(
         f"/api/v1/health-records/{record_id}",
