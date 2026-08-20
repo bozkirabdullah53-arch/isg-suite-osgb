@@ -123,6 +123,23 @@ function localizedTrainingTitle(value) {
     : value;
 }
 
+function remoteEmployeeUsernamePreview(fullName) {
+  const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return 'Ad ve soyad tamamlanınca oluşturulur';
+  const normalize = (value) => String(value || '')
+    .replace(/[çÇ]/g, (char) => char === 'Ç' ? 'C' : 'c')
+    .replace(/[ğĞ]/g, (char) => char === 'Ğ' ? 'G' : 'g')
+    .replace(/[ıİ]/g, (char) => char === 'İ' ? 'I' : 'i')
+    .replace(/[öÖ]/g, (char) => char === 'Ö' ? 'O' : 'o')
+    .replace(/[şŞ]/g, (char) => char === 'Ş' ? 'S' : 's')
+    .replace(/[üÜ]/g, (char) => char === 'Ü' ? 'U' : 'u')
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9]/g, '');
+  const first = normalize(parts[0]);
+  const surname = normalize(parts[parts.length - 1]);
+  return first && surname ? `${first.slice(0, 1).toUpperCase()}.${surname.toLowerCase()}` : 'Otomatik oluşturulur';
+}
+
 function employeeAssignmentTitle(assignment) {
   return localizedTrainingTitle(assignment?.program?.title)
     || assignment?.program?.training_type
@@ -1523,7 +1540,6 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   const [accessEmployeeId, setAccessEmployeeId] = useState('');
   const [accessUserId, setAccessUserId] = useState('');
   const [provisionEmployeeId, setProvisionEmployeeId] = useState('');
-  const [provisionEmail, setProvisionEmail] = useState('');
   const [provisionedCredentials, setProvisionedCredentials] = useState(null);
   const [busy, setBusy] = useState(false);
   const [uploadingSectionId, setUploadingSectionId] = useState(null);
@@ -1576,6 +1592,10 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
       ? employees.filter((row) => String(row.branch_id || '') === String(branchId))
       : employees,
     [branchId, employees],
+  );
+  const provisionEmployee = useMemo(
+    () => visibleEmployees.find((row) => String(row.id) === String(provisionEmployeeId)),
+    [visibleEmployees, provisionEmployeeId],
   );
 
   async function loadCompanies() {
@@ -1948,16 +1968,15 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   }
 
   async function provisionEmployeeAccount() {
-    if (!companyId || !provisionEmployeeId || !provisionEmail.trim()) return setError('Çalışan ve e-posta birlikte girilmelidir.');
+    if (!companyId || !provisionEmployeeId) return setError('Kullanıcı hesabı oluşturmak için çalışan seçilmelidir.');
     setBusy(true); setError(''); setMessage(''); setProvisionedCredentials(null);
     try {
       const out = await api('/trainings/remote/employee-access/provision', {
         method: 'POST',
-        body: JSON.stringify({company_id: Number(companyId), employee_id: Number(provisionEmployeeId), email: provisionEmail.trim()}),
+        body: JSON.stringify({company_id: Number(companyId), employee_id: Number(provisionEmployeeId)}),
       });
       setProvisionedCredentials(out);
       setProvisionEmployeeId('');
-      setProvisionEmail('');
       await loadEmployeeAccess(companyId);
       setMessage('Çalışan hesabı oluşturuldu ve personel kaydıyla eşleştirildi.');
     } catch (err) { setError(err.message || 'Çalışan hesabı oluşturulamadı.'); }
@@ -2230,21 +2249,21 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
               </>}
 <div style={{borderTop: '1px solid #e5edf3', marginTop: 16, paddingTop: 12}}>
                 <strong>Çalışan giriş hesabı eşleştirme</strong>
-                <p style={{margin: '6px 0', color: '#5e7485', fontSize: 12}}>Eğitim ve sınav atayacağınız personel için aşağıdan doğrudan salt-okunur hesap oluşturabilirsiniz. Hesap oluşturulunca geçici parola yalnızca bir kez gösterilir; çalışan ilk girişte değiştirmeden eğitime başlayamaz.</p>
+                <p style={{margin: '6px 0', color: '#5e7485', fontSize: 12}}>Eğitim ve sınav atayacağınız personel için aşağıdan doğrudan salt-okunur hesap oluşturabilirsiniz. Kullanıcı adı adın ilk harfi ve soyadından otomatik üretilir; geçici parola yalnızca bir kez gösterilir.</p>
                 <div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}>
                   <select value={provisionEmployeeId} onChange={(event) => setProvisionEmployeeId(event.target.value)} aria-label="Yeni giriş için personel seçin"><option value="">Yeni hesap için personel seçin</option>{visibleEmployees.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</select>
-                  <input type="email" value={provisionEmail} onChange={(event) => setProvisionEmail(event.target.value)} placeholder="Çalışanın e-posta adresi" aria-label="Çalışan e-posta adresi" />
-                  <button type="button" onClick={provisionEmployeeAccount} disabled={busy || !provisionEmployeeId || !provisionEmail.trim()}>Hesap oluştur ve eşleştir</button>
+                  <span style={{display: 'inline-flex', alignItems: 'center', minHeight: 42, padding: '0 12px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#f8fafc', color: '#36556d', fontSize: 13}}>Otomatik kullanıcı adı: <strong style={{marginLeft: 5}}>{provisionEmployee ? remoteEmployeeUsernamePreview(provisionEmployee.full_name) : '—'}</strong></span>
+                  <button type="button" onClick={provisionEmployeeAccount} disabled={busy || !provisionEmployeeId}>Kullanıcı hesabı oluştur ve eşleştir</button>
                 </div>
                 {provisionedCredentials && <div style={{marginTop: 9, padding: 10, borderRadius: 8, background: '#fff8e8', border: '1px solid #f2c46d', color: '#795500', fontSize: 12}}>
                   <strong>Geçici giriş bilgisi — yalnızca şimdi gösteriliyor:</strong><br />
-                  Kullanıcı adı: <code>{provisionedCredentials.email}</code><br />
+                  Kullanıcı adı: <code>{provisionedCredentials.username}</code><br />
                   Geçici parola: <code style={{userSelect: 'all'}}>{provisionedCredentials.temporary_password}</code><br />
                   Bu bilgiyi güvenli kanaldan çalışana iletin; ilk girişte değiştirmesi zorunludur.
                 </div>}
                 <div style={{display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap'}}>
                   <select value={accessEmployeeId} onChange={(event) => setAccessEmployeeId(event.target.value)} aria-label="Giriş için personel seçin"><option value="">Personel seçin</option>{visibleEmployees.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</select>
-                  <select value={accessUserId} onChange={(event) => setAccessUserId(event.target.value)} aria-label="Personel giriş hesabı seçin"><option value="">Giriş hesabı seçin</option>{employeeUsers.map((row) => <option key={row.id} value={row.id}>{row.full_name} · {row.email}</option>)}</select>
+                  <select value={accessUserId} onChange={(event) => setAccessUserId(event.target.value)} aria-label="Personel giriş hesabı seçin"><option value="">Giriş hesabı seçin</option>{employeeUsers.map((row) => <option key={row.id} value={row.id}>{row.full_name} · {row.username || row.email}</option>)}</select>
                   <button type="button" onClick={saveEmployeeAccess} disabled={busy || !accessEmployeeId || !accessUserId}>Hesabı eşleştir</button>
                 </div>
                 {employeeAccess.length > 0 && <div style={{fontSize: 12, color: '#496174', marginTop: 8}}>Eşleştirilmiş çalışan hesabı: {employeeAccess.length}</div>}

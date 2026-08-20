@@ -127,6 +127,9 @@ from app.services.remote_training import (
     recalculate_catalog_package_duration,
     recalculate_program_duration,
     reconcile_strict_video_end,
+    remote_employee_login_email,
+    remote_employee_username,
+    suggested_remote_employee_username,
     assert_video_unlocked,
     strict_exam_gate_enabled,
     strict_policy_active,
@@ -3202,7 +3205,9 @@ def provision_remote_employee_account(
         raise HTTPException(404, "Firma bulunamadı veya pasif.")
     if not employee or not employee.is_active or employee.company_id != payload.company_id:
         raise HTTPException(422, "Çalışan firma kapsamında değil veya pasif.")
-    if db.scalar(select(User).where(func.lower(User.email) == str(payload.email).lower())):
+    if payload.email and db.scalar(
+        select(User).where(func.lower(User.email) == str(payload.email).casefold())
+    ):
         raise HTTPException(409, "Bu e-posta zaten bir kullanıcı hesabına bağlıdır.")
     if db.scalar(
         select(RemoteTrainingEmployeeAccess).where(
@@ -3212,9 +3217,35 @@ def provision_remote_employee_account(
     ):
         raise HTTPException(409, "Bu çalışan zaten aktif bir uzaktan eğitim hesabına eşlenmiş.")
 
+    try:
+        username_base = remote_employee_username(employee.full_name)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+    # Aynı ad-soyad birden fazla çalışanda bulunabilir. İlk hesap A.soyad,
+    # sonraki hesaplar A.soyad-2, A.soyad-3 ... biçiminde ayrıştırılır.
+    username = username_base
+    suffix = 2
+    while db.scalar(
+        select(User.id).where(
+            or_(
+                func.lower(User.username) == username.casefold(),
+                func.lower(User.email) == username.casefold(),
+            )
+        )
+    ):
+        username = f"{username_base}-{suffix}"
+        suffix += 1
+    internal_email = remote_employee_login_email(username, employee.id)
+    while db.scalar(select(User.id).where(func.lower(User.email) == internal_email.casefold())):
+        username = f"{username_base}-{suffix}"
+        suffix += 1
+        internal_email = remote_employee_login_email(username, employee.id)
+
     temporary_password = generate_temporary_password()
     account = User(
-        email=str(payload.email).lower(),
+        email=internal_email,
+        username=username,
         full_name=employee.full_name,
         hashed_password=get_password_hash(temporary_password),
         role=UserRole.READ_ONLY,
@@ -3239,14 +3270,14 @@ def provision_remote_employee_account(
         action="employee_account_provisioned",
         entity_type="employee_access",
         entity_id=employee.id,
-        details={"user_id": account.id, "email": account.email},
+        details={"user_id": account.id, "username": account.username},
     )
     _commit(db, "Çalışan giriş hesabı oluşturulamadı.")
     return {
         "access_id": access.id,
         "user_id": account.id,
         "employee_id": employee.id,
-        "email": account.email,
+        "username": account.username,
         "full_name": account.full_name,
         "temporary_password": temporary_password,
         "password_change_required": True,
@@ -3345,13 +3376,19 @@ def list_remote_employee_access_candidates(
     return {
         "company_id": company_id,
         "employees": [
-            {"id": row.id, "full_name": row.full_name, "branch_id": row.branch_id}
+            {
+                "id": row.id,
+                "full_name": row.full_name,
+                "branch_id": row.branch_id,
+                "suggested_username": suggested_remote_employee_username(row.full_name),
+            }
             for row in employees
         ],
         "users": [
             {
                 "id": row.id,
                 "full_name": row.full_name,
+                "username": row.username,
                 "email": row.email,
                 "role": row.role.value if hasattr(row.role, "value") else str(row.role),
                 "company_id": row.company_id,
@@ -3387,7 +3424,7 @@ def list_remote_employee_access(
     for row in rows:
         target_user = db.get(User, row.user_id)
         employee = db.get(Employee, row.employee_id)
-        output.append({"id": row.id, "company_id": row.company_id, "user_id": row.user_id, "user_email": target_user.email if target_user else None, "user_name": target_user.full_name if target_user else None, "employee_id": row.employee_id, "employee_name": employee.full_name if employee else None, "is_active": row.is_active})
+        output.append({"id": row.id, "company_id": row.company_id, "user_id": row.user_id, "user_username": target_user.username if target_user else None, "user_email": target_user.email if target_user else None, "user_name": target_user.full_name if target_user else None, "employee_id": row.employee_id, "employee_name": employee.full_name if employee else None, "is_active": row.is_active})
     return output
 
 

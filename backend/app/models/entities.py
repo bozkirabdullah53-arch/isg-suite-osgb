@@ -153,6 +153,9 @@ class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    # E-posta kullanmadan giriş yapabilen hesaplar için geriye dönük uyumlu
+    # kullanıcı adı. Mevcut hesapların username değeri NULL kalabilir.
+    username: Mapped[str | None] = mapped_column(String(160), unique=True, index=True, nullable=True)
     full_name: Mapped[str] = mapped_column(String(160))
     hashed_password: Mapped[str] = mapped_column(String(255))
     role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.READ_ONLY)

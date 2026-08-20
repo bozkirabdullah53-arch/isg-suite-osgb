@@ -2,7 +2,9 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # Eski istemciler alanı "email" adıyla göndermeye devam eder; değer artık
+    # e-posta adresi veya kullanıcı adı olabilir (ör. A.bozkir).
+    email: str = Field(min_length=1, max_length=255)
     password: str
 
 
@@ -13,7 +15,9 @@ class MfaVerifyRequest(BaseModel):
 class MfaRestartSetupRequest(BaseModel):
     """Authenticator yoksa: şifre doğrulanır, MFA sıfırlanır, kurulum token’ı verilir."""
 
-    email: EmailStr
+    # Eski istemciler alanı "email" adıyla gönderir; değer e-posta veya
+    # kullanıcı adı olabilir.
+    email: str = Field(min_length=1, max_length=255)
     password: str
 
 
@@ -44,6 +48,7 @@ class TokenResponse(BaseModel):
 class CurrentUserResponse(BaseModel):
     id: int
     email: EmailStr
+    username: str | None = None
     full_name: str
     role: str
     company_id: int | None

@@ -1304,6 +1304,56 @@ def test_remote_employee_account_onboarding_mapping(remote_client):
     assert remote_client.get("/api/v1/trainings/remote/my-assignments", headers=employee_headers).json() == []
 
 
+def test_remote_employee_account_provision_uses_username_and_username_login(remote_client):
+    from app.core.database import SessionLocal
+    from app.core.security import get_password_hash
+    from app.models.entities import User, UserRole
+
+    with SessionLocal() as db:
+        osgb, company, _branch, employee, _employee_user = _scope_rows(db)
+        employee.full_name = "Abdullah BOZKIR"
+        admin = User(
+            email="employee-provision-admin@remote-test.com",
+            full_name="Employee Provision Admin",
+            hashed_password=get_password_hash("TestPass123!"),
+            role=UserRole.COMPANY_ADMIN,
+            company_id=company.id,
+            osgb_id=osgb.id,
+            is_active=True,
+        )
+        db.add(admin)
+        db.commit()
+        company_id = company.id
+        employee_id = employee.id
+
+    login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": "employee-provision-admin@remote-test.com", "password": "TestPass123!"},
+    )
+    assert login.status_code == 200, login.text
+    admin_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    provisioned = remote_client.post(
+        "/api/v1/trainings/remote/employee-access/provision",
+        headers=admin_headers,
+        json={"company_id": company_id, "employee_id": employee_id},
+    )
+    assert provisioned.status_code == 201, provisioned.text
+    credentials = provisioned.json()
+    assert credentials["username"] == "A.bozkir"
+    assert credentials["password_change_required"] is True
+
+    employee_login = remote_client.post(
+        "/api/v1/auth/login",
+        json={"email": credentials["username"], "password": credentials["temporary_password"]},
+    )
+    assert employee_login.status_code == 200, employee_login.text
+    employee_headers = {"Authorization": f"Bearer {employee_login.json()['access_token']}"}
+    current_user = remote_client.get("/api/v1/auth/me", headers=employee_headers)
+    assert current_user.status_code == 200, current_user.text
+    assert current_user.json()["username"] == "A.bozkir"
+
+
 def test_remote_video_delete_removes_only_draft_uploads(remote_client, monkeypatch):
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
