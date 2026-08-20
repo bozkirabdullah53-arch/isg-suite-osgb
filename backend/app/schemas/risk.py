@@ -92,6 +92,13 @@ class RiskAssessmentInfoUpdate(BaseModel):
 class RiskCreate(BaseModel):
     company_id: int
     branch_id: int | None = None
+    record_origin: str = Field(default="risk", max_length=30)
+    client_reference: str | None = Field(default=None, max_length=80)
+    observed_at: datetime | None = None
+    observation_location: str | None = Field(default=None, max_length=220)
+    gps_lat: float | None = Field(default=None, ge=-90, le=90)
+    gps_lng: float | None = Field(default=None, ge=-180, le=180)
+    gps_accuracy_m: float | None = Field(default=None, ge=0, le=100000)
     department_id: int | None = None
     department_name: str | None = Field(default=None, max_length=200)
     hazard_id: int
@@ -116,6 +123,12 @@ class RiskCreate(BaseModel):
     def department_required(self):
         if not self.department_id and not (self.department_name or "").strip():
             raise ValueError("Bölüm seçiniz veya yeni bölüm adı giriniz.")
+        if self.record_origin not in {"risk", "field_inspection"}:
+            raise ValueError("Risk kaynağı geçersiz.")
+        if self.client_reference:
+            self.client_reference = self.client_reference.strip() or None
+        if self.observation_location:
+            self.observation_location = self.observation_location.strip() or None
         return self
 
 
@@ -145,6 +158,7 @@ class RiskUpdate(BaseModel):
 
 class RiskDofCreate(BaseModel):
     description: str = Field(min_length=3, max_length=2000)
+    client_reference: str | None = Field(default=None, max_length=80)
     responsible_person: str | None = Field(default=None, max_length=150)
     responsible_department: str | None = Field(default=None, max_length=150)
     term_date: date | None = None
@@ -169,6 +183,7 @@ class RiskDofResponse(BaseModel):
     id: int
     dof_code: str
     risk_id: int
+    client_reference: str | None = None
     description: str
     responsible_person: str | None
     responsible_department: str | None
@@ -186,12 +201,17 @@ class RiskDofResponse(BaseModel):
 class RiskMediaResponse(BaseModel):
     id: int
     risk_id: int
+    client_reference: str | None = None
     original_name: str | None
     content_type: str | None
     file_type: str | None = None
     file_size: int | None = None
     description: str | None = None
     dof_id: int | None = None
+    captured_at: datetime | None = None
+    gps_lat: float | None = None
+    gps_lng: float | None = None
+    gps_accuracy_m: float | None = None
     created_at: datetime
     tags: list[str] = []
     tag_labels: list[str] = []
@@ -220,6 +240,13 @@ class RiskResponse(BaseModel):
     risk_code: str
     company_id: int
     branch_id: int | None
+    record_origin: str = "risk"
+    client_reference: str | None = None
+    observed_at: datetime | None = None
+    observation_location: str | None = None
+    gps_lat: float | None = None
+    gps_lng: float | None = None
+    gps_accuracy_m: float | None = None
     department_id: int | None = None
     hazard_id: int
     method_code: str = "5x5_l"
