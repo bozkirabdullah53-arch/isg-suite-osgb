@@ -5,6 +5,7 @@
  * kayıtları risk + DÖF + medya zincirini ağ geldiğinde sırayla senkronlar.
  */
 const KEY = "isg_field_finding_queue_v1";
+const REFERENCE_KEY = "isg_field_inspection_reference_v1";
 const MAX_ITEMS = 30;
 const MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 const MAX_RETRIES = 8;
