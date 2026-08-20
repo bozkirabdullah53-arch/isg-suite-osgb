@@ -97,6 +97,18 @@ def risk_level(score: int) -> str:
     return "Çok Yüksek"
 
 
+def canonical_risk_level(
+    method_code: str | None,
+    score: float | int | None,
+    stored_level: str | None,
+) -> str | None:
+    """Return the display level without trusting stale derived 5x5 text."""
+    code = (method_code or "5x5_l").strip()
+    if code == "5x5_l" and score is not None:
+        return risk_level(int(float(score)))
+    return stored_level
+
+
 def suggested_term_days(score: int) -> int:
     if score == 25:
         return 0
