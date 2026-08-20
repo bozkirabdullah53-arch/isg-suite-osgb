@@ -1,6 +1,13 @@
-const CACHE = "isg-suite-v7";
+const CACHE = "isg-suite-v8";
 // "/" cache'leme — eski index.html / eski bundle'a kilitlenmeyi önler
-const CORE = ["/manifest.webmanifest", "/icon.svg"];
+const CORE = [
+  "/manifest.webmanifest",
+  "/icon.svg",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+  "/icons/icon-512-maskable.png",
+  "/icons/apple-touch-icon.png",
+];
 
 function isCacheableAsset(request) {
   if (request.method !== "GET") return false;
