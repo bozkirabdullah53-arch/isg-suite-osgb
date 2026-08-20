@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.api.company_access import company_ids_for_query, effective_company_id, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
+from app.core.input_rules import assert_date_order, assert_event_date
 from app.models.entities import AnnualPlanItem, AnnualPlanStatus, Company, User, UserRole
 from app.schemas.annual_plan import (
     AnnualPlanCreate,
@@ -55,6 +56,35 @@ def ensure_access(db: Session, user: User, company_id: int) -> None:
 
 def _active_stmt():
     return select(AnnualPlanItem).where(AnnualPlanItem.deleted_at.is_(None))
+
+
+def _validate_plan_date_pair(
+    *,
+    target_date: date | None,
+    completion_date: date | None,
+) -> tuple[date | None, date | None]:
+    try:
+        actual_target_date = assert_event_date(
+            target_date,
+            label="Hedef tarih",
+            required=False,
+            allow_future_days=800,
+        )
+        actual_completion_date = assert_event_date(
+            completion_date,
+            label="Tamamlanma tarihi",
+            required=False,
+            allow_future_days=0,
+        )
+        assert_date_order(
+            actual_target_date,
+            actual_completion_date,
+            earlier_label="Hedef tarih",
+            later_label="Tamamlanma tarihi",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return actual_target_date, actual_completion_date
 
 
 def _refresh_delayed(db: Session, items: list[AnnualPlanItem]) -> None:
@@ -473,7 +503,26 @@ def update_plan_item(
     if not item or item.deleted_at:
         raise HTTPException(404, "Plan maddesi bulunamadı.")
     ensure_access(db, user, item.company_id)
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    date_fields = {"target_date", "completion_date"} & payload.model_fields_set
+    if date_fields:
+        actual_target_date, actual_completion_date = _validate_plan_date_pair(
+            target_date=(
+                payload.target_date
+                if "target_date" in date_fields
+                else item.target_date
+            ),
+            completion_date=(
+                payload.completion_date
+                if "completion_date" in date_fields
+                else item.completion_date
+            ),
+        )
+        if "target_date" in date_fields:
+            updates["target_date"] = actual_target_date
+        if "completion_date" in date_fields:
+            updates["completion_date"] = actual_completion_date
+    for k, v in updates.items():
         setattr(item, k, v)
     db.commit()
     db.refresh(item)
