@@ -142,10 +142,16 @@ class AssignmentCreate(BaseModel):
     professional_type: ProfessionalType
     start_date: date
     end_date: date | None = None
-    required_minutes_monthly: int = 0
-    planned_minutes_monthly: int = 0
-    actual_minutes_monthly: int = 0
+    required_minutes_monthly: int = Field(default=0, ge=0)
+    planned_minutes_monthly: int = Field(default=0, ge=0)
+    actual_minutes_monthly: int = Field(default=0, ge=0)
     isg_katip_contract_number: str | None = None
+
+    @model_validator(mode="after")
+    def validate_period_and_minutes(self):
+        if self.end_date and self.end_date < self.start_date:
+            raise ValueError("Görevlendirme bitiş tarihi başlangıç tarihinden önce olamaz.")
+        return self
 
 class AssignmentResponse(AssignmentCreate):
     id: int
