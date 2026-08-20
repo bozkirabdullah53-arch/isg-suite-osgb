@@ -71,7 +71,13 @@ def downgrade() -> None:
         ("risk_dofs", "uq_risk_dof_client_reference"),
         ("risk_media", "uq_risk_media_client_reference"),
     ):
-        if inspector.has_table(table) and name in _names(inspector, table):
+        if not inspector.has_table(table):
+            continue
+        constraints = {item.get("name") for item in inspector.get_unique_constraints(table)}
+        indexes = {item.get("name") for item in inspector.get_indexes(table)}
+        if name in constraints:
+            op.drop_constraint(name, table_name=table, type_="unique")
+        elif name in indexes:
             op.drop_index(name, table_name=table)
     for table, columns in (
         ("risk_media", ("gps_accuracy_m", "gps_lng", "gps_lat", "captured_at", "client_reference")),
