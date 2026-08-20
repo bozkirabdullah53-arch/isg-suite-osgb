@@ -89,11 +89,13 @@ services:
         value: "false"
       - key: CLAMAV_HOST
         sync: false
-      # Emergency compatibility rollback: keep the established training PDF,
-      # certificate and presentation flows available while strict V2/V3 gates
-      # are completed for the full sector catalog.
+      # Controlled compliance cutover: existing and pre-cutover verified
+      # trainings keep the established certificate flow; only new verified
+      # NACE snapshot trainings after the timestamp use completion preflight.
       - key: TRAINING_COMPLETION_STRICT
-        value: "false"
+        value: "true"
+      - key: TRAINING_COMPLETION_STRICT_AFTER
+        value: "2026-08-20T12:10:00Z"
       - key: NACE_TRAINING_PRESENTATION_TRACEABILITY_FORCE_OFF
         value: "true"
       # Remote Basic OHS package/catalog management is live. Employee access
