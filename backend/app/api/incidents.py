@@ -1,7 +1,7 @@
 """Olay kayıtları API — ramak kala / iş kazası / kök neden / olay DÖF."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -32,6 +32,7 @@ from app.schemas.incident import (
     RootCauseUpsert,
 )
 from app.services.assigned_team import team_names
+from app.services.business_days import add_turkish_business_days
 from app.services.incident_meta import (
     EVENT_PREFIX,
     build_auto_warning,
@@ -53,7 +54,7 @@ def ensure_access(db: Session, user: User, company_id: int) -> None:
 
 
 def _apply_sgk_process(row: IncidentEvent) -> None:
-    """İş kazasında SGK bildirim süresi (3 takvim günü) ve durum takibi."""
+    """İş kazasında SGK bildirim süresi (3 iş günü) ve durum takibi."""
     if row.event_type != "is_kazasi":
         row.sgk_due_date = None
         if not row.sgk_notification_status:
@@ -62,10 +63,10 @@ def _apply_sgk_process(row: IncidentEvent) -> None:
     if row.sgk_reported:
         row.sgk_notification_status = "tamamlandi"
         if not row.sgk_due_date and row.event_date:
-            row.sgk_due_date = row.event_date + timedelta(days=3)
+            row.sgk_due_date = add_turkish_business_days(row.event_date, 3)
         return
     if row.event_date:
-        row.sgk_due_date = row.event_date + timedelta(days=3)
+        row.sgk_due_date = add_turkish_business_days(row.event_date, 3)
     today = date.today()
     if row.sgk_due_date and row.sgk_due_date < today:
         row.sgk_notification_status = "gecikti"
