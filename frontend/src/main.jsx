@@ -1681,12 +1681,13 @@ function NotificationsPage({onNavigate, user}){
     finally{setBusy(false)}
   }
   async function read(id){await api(`/notifications/${id}/read`,{method:'PATCH'});load()}
+  async function complete(id){await api(`/notifications/${id}/complete`,{method:'PATCH'});load()}
   const cols=[
     {key:'type',label:'Seviye',render:r=><span className={'notice '+r.type}>{notificationTypeNames[r.type]}</span>},
     {key:'title',label:'Başlık'},
     {key:'message',label:'Açıklama'},
     {key:'created_at',label:'Tarih',render:r=>String(r.created_at||'').slice(0,16).replace('T',' ')},
-    {key:'action',label:'İşlem',render:r=><div className="actions" style={{gap:6,flexWrap:'wrap'}}>{notificationModule(r)&&<button type="button" className="mini secondary" onClick={()=>onNavigate?.(notificationModule(r))}>Aç</button>}{r.is_read?'Okundu':<button type="button" className="mini" onClick={()=>read(r.id)}>Okundu Yap</button>}</div>},
+    {key:'action',label:'İşlem',render:r=><div className="actions" style={{gap:6,flexWrap:'wrap'}}>{notificationModule(r)&&<button type="button" className="mini secondary" onClick={()=>onNavigate?.(notificationModule(r))}>Aç</button>}{r.is_read?'Okundu':<button type="button" className="mini" onClick={()=>read(r.id)}>Okundu Yap</button>}{r.is_completed?'Tamamlandı':<button type="button" className="mini secondary" onClick={()=>complete(r.id)}>Tamamlandı Yap</button>}</div>},
   ];
   return <Page title="Bildirim Merkezi" action={<button type="button" disabled={busy} onClick={refresh}><RefreshCw/>{busy?'Taranıyor...':'Süreleri Kontrol Et'}</button>}>
     <p style={{marginTop:0,color:'#64748b',fontSize:13,maxWidth:720}}>
