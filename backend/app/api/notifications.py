@@ -141,3 +141,27 @@ def mark_read(
     item.is_read = True
     db.commit()
     return {"message": "Bildirim okundu."}
+
+
+@router.patch("/{notification_id}/complete")
+def mark_completed(
+    notification_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    item = db.get(Notification, notification_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Bildirim bulunamadı.")
+    if not _can_see_notification(user, item):
+        raise HTTPException(status_code=403, detail="Bu klinik bildirime erişemezsiniz.")
+    if user.role != UserRole.GLOBAL_ADMIN:
+        if item.user_id == user.id:
+            pass
+        elif item.company_id:
+            if item.company_id not in _notification_company_ids(db, user):
+                raise HTTPException(status_code=403, detail="Bu bildirime erişemezsiniz.")
+        else:
+            raise HTTPException(status_code=403, detail="Bu bildirime erişemezsiniz.")
+    item.is_completed = True
+    db.commit()
+    return {"message": "Bildirim tamamlandı."}
