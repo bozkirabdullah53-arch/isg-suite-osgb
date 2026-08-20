@@ -5,7 +5,7 @@ import json
 import logging
 import re
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from io import BytesIO
 from pathlib import Path
 
@@ -309,17 +309,42 @@ def _media_file_type(ext: str) -> str:
     return "drawing"
 
 
+
+
+def _as_naive_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+    return value
+
+
+def _parse_form_datetime(value: str | None) -> datetime | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    try:
+        return _as_naive_utc(datetime.fromisoformat(raw.replace("Z", "+00:00")))
+    except ValueError as exc:
+        raise HTTPException(422, "Fotoğraf tarihi geçersiz.") from exc
+
+
 def _media_response(m: RiskMedia) -> RiskMediaResponse:
     parsed = parse_tags(getattr(m, "tags_json", None))
     return RiskMediaResponse(
         id=m.id,
         risk_id=m.risk_id,
+        client_reference=getattr(m, "client_reference", None),
         original_name=m.original_name,
         content_type=m.content_type,
         file_type=getattr(m, "file_type", None),
         file_size=getattr(m, "file_size", None),
         description=getattr(m, "description", None),
         dof_id=getattr(m, "dof_id", None),
+        captured_at=getattr(m, "captured_at", None),
+        gps_lat=getattr(m, "gps_lat", None),
+        gps_lng=getattr(m, "gps_lng", None),
+        gps_accuracy_m=getattr(m, "gps_accuracy_m", None),
         created_at=m.created_at,
         tags=list(parsed["selected"]),
         tag_labels=list(parsed["labels"]),
@@ -357,6 +382,13 @@ def _to_response(row: RiskAssessment, hazard: Hazard | None = None, category: Ha
         risk_code=row.risk_code,
         company_id=row.company_id,
         branch_id=row.branch_id,
+        record_origin=getattr(row, "record_origin", None) or "risk",
+        client_reference=getattr(row, "client_reference", None),
+        observed_at=getattr(row, "observed_at", None),
+        observation_location=getattr(row, "observation_location", None),
+        gps_lat=getattr(row, "gps_lat", None),
+        gps_lng=getattr(row, "gps_lng", None),
+        gps_accuracy_m=getattr(row, "gps_accuracy_m", None),
         department_id=getattr(row, "department_id", None),
         hazard_id=row.hazard_id,
         method_code=method_code,
@@ -1620,6 +1652,20 @@ def create_risk(
     company = db.get(Company, payload.company_id)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
+    # Mobil/offline tekrar denemesinde ağ yanıtı kaybolsa bile ikinci POST
+    # aynı saha kaydını üretmez.
+    if payload.client_reference:
+        existing = db.scalar(
+            select(RiskAssessment).where(
+                RiskAssessment.company_id == payload.company_id,
+                RiskAssessment.client_reference == payload.client_reference,
+            )
+        )
+        if existing:
+            row = _load_risk(db, existing.id)
+            hazard = db.get(Hazard, row.hazard_id)
+            category = db.get(HazardCategory, hazard.category_id) if hazard else None
+            return _to_response(row, hazard, category)
     method_code = _implemented_method(payload.method_code, fallback=company.risk_method or DEFAULT_METHOD)
     if method_code == "hazop" and payload.hazop_data is None:
         raise HTTPException(422, "HAZOP kaydı için çalışma satırını doldurmalısınız.")
@@ -1661,6 +1707,13 @@ def create_risk(
         risk_code=code,
         company_id=payload.company_id,
         branch_id=payload.branch_id,
+        record_origin=payload.record_origin,
+        client_reference=payload.client_reference,
+        observed_at=_as_naive_utc(payload.observed_at),
+        observation_location=payload.observation_location,
+        gps_lat=payload.gps_lat,
+        gps_lng=payload.gps_lng,
+        gps_accuracy_m=payload.gps_accuracy_m,
         department_id=dep_id,
         hazard_id=payload.hazard_id,
         method_code=method_code,
@@ -1822,6 +1875,15 @@ def add_dof(
 ):
     row = _load_risk(db, risk_id)
     ensure_access(db, user, row.company_id)
+    if payload.client_reference:
+        existing = db.scalar(
+            select(RiskDof).where(
+                RiskDof.risk_id == row.id,
+                RiskDof.client_reference == payload.client_reference,
+            )
+        )
+        if existing:
+            return existing
     code = _next_code(db, "DÖF", RiskDof, RiskDof.dof_code)
     while db.scalar(select(RiskDof).where(RiskDof.dof_code == code)):
         n = int("".join(ch for ch in code if ch.isdigit()) or "0") + 1
@@ -1829,6 +1891,7 @@ def add_dof(
     dof = RiskDof(
         dof_code=code,
         risk_id=row.id,
+        client_reference=payload.client_reference,
         description=payload.description,
         responsible_person=payload.responsible_person,
         responsible_department=payload.responsible_department,
@@ -1892,6 +1955,11 @@ async def upload_risk_media(
     tags: str | None = Form(default=None),
     description: str | None = Form(default=None),
     dof_id: int | None = Form(default=None),
+    client_reference: str | None = Form(default=None),
+    captured_at: str | None = Form(default=None),
+    gps_lat: float | None = Form(default=None),
+    gps_lng: float | None = Form(default=None),
+    gps_accuracy_m: float | None = Form(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
@@ -1905,6 +1973,22 @@ async def upload_risk_media(
         dof = db.get(RiskDof, dof_id)
         if not dof or dof.risk_id != risk_id:
             raise HTTPException(422, "DÖF bu riske ait değil.")
+    if client_reference:
+        existing = db.scalar(
+            select(RiskMedia).where(
+                RiskMedia.risk_id == row.id,
+                RiskMedia.client_reference == client_reference,
+            )
+        )
+        if existing:
+            return _media_response(existing)
+    if gps_lat is not None and not -90 <= gps_lat <= 90:
+        raise HTTPException(422, "Fotoğraf enlemi geçersiz.")
+    if gps_lng is not None and not -180 <= gps_lng <= 180:
+        raise HTTPException(422, "Fotoğraf boylamı geçersiz.")
+    if gps_accuracy_m is not None and not 0 <= gps_accuracy_m <= 100000:
+        raise HTTPException(422, "Fotoğraf GPS doğruluğu geçersiz.")
+    captured_at_value = _parse_form_datetime(captured_at)
     data = await file.read()
     if len(data) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(413, f"Dosya {settings.max_upload_mb} MB sınırını aşıyor.")
@@ -1926,6 +2010,11 @@ async def upload_risk_media(
         file_type=ftype,
         file_size=len(data),
         description=(description or "").strip() or None,
+        client_reference=(client_reference or "").strip() or None,
+        captured_at=captured_at_value,
+        gps_lat=gps_lat,
+        gps_lng=gps_lng,
+        gps_accuracy_m=gps_accuracy_m,
         tags_json=serialize_selected(parse_form_tags(tags)) if ftype == "photo" else None,
         created_by_id=user.id,
     )
