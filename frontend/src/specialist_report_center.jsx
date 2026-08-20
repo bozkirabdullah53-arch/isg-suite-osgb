@@ -190,7 +190,13 @@ export function SpecialistReportCenterPage({onNavigate}) {
                         <span style={{fontSize: 12, color: '#166534'}}>Kontroller uygun</span>
                       )}
                     </td>
-                    <td><div className="actions" style={{gap: 6, flexWrap: 'wrap'}}><button type="button" className="mini" onClick={() => onNavigate?.('risk')}>Risk</button><button type="button" className="mini secondary" onClick={() => onNavigate?.('training')}>Eğitim</button></div></td>
+                    <td>
+                      <div className="actions" style={{gap: 6, flexWrap: 'wrap'}}>
+                        <button type="button" className="mini secondary" onClick={() => onNavigate?.('customer_360', {companyId: row.company_id})}>İşyeri</button>
+                        <button type="button" className="mini" onClick={() => onNavigate?.('risk')}>Risk</button>
+                        <button type="button" className="mini secondary" onClick={() => onNavigate?.('training')}>Eğitim</button>
+                      </div>
+                    </td>
                   </tr>
                 );
               }) : <tr><td colSpan={7} className="empty">Atanmış aktif işyeri bulunamadı.</td></tr>}
@@ -213,7 +219,10 @@ export function SpecialistReportCenterPage({onNavigate}) {
                     <div style={{fontSize: 13, color: '#64748b'}}>{event.company_name} · {event.detail}{event.due_date ? ' · Termin ' + event.due_date : ''}</div>
                     <div style={{marginTop: 4}}><LegalLink reference={reference} /></div>
                   </div>
-                  <button type="button" className="mini" onClick={() => onNavigate?.(module)}>Aç: {MODULE_LABEL[module] || module}</button>
+                  <div className="actions" style={{gap: 6, flexWrap: 'wrap'}}>
+                    <button type="button" className="mini secondary" onClick={() => onNavigate?.('customer_360', {companyId: event.company_id})}>İşyeri</button>
+                    <button type="button" className="mini" onClick={() => onNavigate?.(module)}>Aç: {MODULE_LABEL[module] || module}</button>
+                  </div>
                 </article>
               );
             })}
