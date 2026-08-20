@@ -102,7 +102,7 @@ def _seed(client: TestClient) -> tuple[dict, int, list[int]]:
                 hashed_password=get_password_hash("TestPass123!"),
                 role=UserRole.COMPANY_ADMIN,
                 osgb_id=osgb.id,
-                company_id=company.id,
+                company_id=None,
                 is_active=True,
             )
         )
@@ -238,7 +238,7 @@ def test_completed_training_is_archived_instead_of_deleted(client):
     assert deleted.status_code == 409, deleted.text
 
 
-def test_safety_specialist_can_delete_training_record(client):
+def test_safety_specialist_can_complete_but_cannot_manage_training_package(client):
     admin_headers, company_id, employee_ids = _seed(client)
     created = client.post(
         "/api/v1/trainings",
@@ -264,8 +264,8 @@ def test_safety_specialist_can_delete_training_record(client):
         company = db.get(Company, company_id)
         professional = IsgProfessional(
             osgb_id=company.osgb_id,
-            full_name="Silme Uzmanı",
-            email="silme-uzmani@test.com",
+            full_name="Rol Uzmanı",
+            email="rol-uzmani@test.com",
             professional_type=ProfessionalType.SAFETY_SPECIALIST,
             certificate_class="A",
             is_active=True,
@@ -284,8 +284,8 @@ def test_safety_specialist_can_delete_training_record(client):
         )
         db.add(
             User(
-                email="silme-uzmani@test.com",
-                full_name="Silme Uzmanı",
+                email="rol-uzmani@test.com",
+                full_name="Rol Uzmanı",
                 hashed_password=get_password_hash("TestPass123!"),
                 role=UserRole.SAFETY_SPECIALIST,
                 osgb_id=company.osgb_id,
@@ -297,25 +297,39 @@ def test_safety_specialist_can_delete_training_record(client):
 
     login = client.post(
         "/api/v1/auth/login",
-        json={"email": "silme-uzmani@test.com", "password": "TestPass123!"},
+        json={"email": "rol-uzmani@test.com", "password": "TestPass123!"},
     )
     assert login.status_code == 200, login.text
     specialist_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 
+    create_as_specialist = client.post(
+        "/api/v1/trainings",
+        headers=specialist_headers,
+        json=_payload(company_id, employee_ids[:1]),
+    )
+    assert create_as_specialist.status_code == 403, create_as_specialist.text
+
+    completed = client.patch(
+        f"/api/v1/trainings/{training_id}",
+        headers=specialist_headers,
+        json={
+            "status": "completed",
+            "attendance_verified": True,
+            "success_verified": True,
+        },
+    )
+    assert completed.status_code == 200, completed.text
+
+    rename_as_specialist = client.patch(
+        f"/api/v1/trainings/{training_id}",
+        headers=specialist_headers,
+        json={"notes": "Paket tanımı değiştirilemez."},
+    )
+    assert rename_as_specialist.status_code == 403, rename_as_specialist.text
+
     deleted = client.delete(f"/api/v1/trainings/{training_id}", headers=specialist_headers)
-    assert deleted.status_code == 200, deleted.text
-    assert deleted.json()["deleted"] is True
-    assert deleted.json()["participant_count"] == 2
-
-    from sqlalchemy import select
-    from app.models.entities import TrainingParticipant, TrainingSession
-
-    with SessionLocal() as db:
-        assert db.get(TrainingSession, training_id) is None
-        assert db.scalars(
-            select(TrainingParticipant).where(TrainingParticipant.training_id == training_id)
-        ).all() == []
+    assert deleted.status_code == 403, deleted.text
 
     listed = client.get("/api/v1/trainings", headers=admin_headers)
     assert listed.status_code == 200
-    assert all(row["id"] != training_id for row in listed.json())
+    assert any(row["id"] == training_id for row in listed.json())

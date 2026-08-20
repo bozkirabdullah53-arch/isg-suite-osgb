@@ -18,7 +18,7 @@ from app.api.company_access import (
     effective_company_id,
     ensure_company_access,
 )
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import get_current_user
 from app.api.files import safe_upload_root
 from app.core.config import settings
 from app.core.database import get_db
@@ -64,9 +64,59 @@ from app.schemas.training import resolve_training_hours
 
 router = APIRouter(prefix="/trainings", tags=["Eğitim Yönetimi"])
 logger = logging.getLogger(__name__)
-EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)
-# test_training_rules.py bu sabiti kullanır
+PACKAGE_MANAGER_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
+OPERATIONAL_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)
+# Cevap anahtarı gibi eğitici çıktılar için geriye dönük rol kümesi.
+# Paket yaşam döngüsü için PACKAGE_MANAGER_ROLES + OSGB kapsamı ayrıca doğrulanır.
+EDIT_ROLES = OPERATIONAL_ROLES
+OPERATIONAL_UPDATE_FIELDS = frozenset({
+    "status",
+    "attendance_verified",
+    "success_verified",
+    "participant_ids",
+})
 RULES = {"Az Tehlikeli": (8, 3), "Tehlikeli": (12, 2), "Çok Tehlikeli": (16, 1)}
+
+
+def is_training_package_manager(user: User) -> bool:
+    """Klasik eğitim paketini yalnız OSGB merkezi yöneticisi yönetebilir."""
+    return user.role == UserRole.GLOBAL_ADMIN or (
+        user.role == UserRole.COMPANY_ADMIN
+        and bool(user.osgb_id)
+        and user.company_id is None
+    )
+
+
+def require_training_package_manager(user: User = Depends(get_current_user)) -> User:
+    if not is_training_package_manager(user):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Yüz yüze eğitim paketini yalnızca OSGB yöneticisi "
+                "veya global yönetici yönetebilir."
+            ),
+        )
+    return user
+
+
+def require_training_operator(user: User = Depends(get_current_user)) -> User:
+    if user.role not in OPERATIONAL_ROLES:
+        raise HTTPException(status_code=403, detail="Bu eğitim işlemi için yetkiniz yok.")
+    return user
+
+
+def assert_training_update_scope(user: User, fields) -> None:
+    """Uzman ve işyeri hesaplarının PATCH işlemini operasyonla sınırlar."""
+    if is_training_package_manager(user):
+        return
+    if set(fields) - OPERATIONAL_UPDATE_FIELDS:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Eğitim paketinin tanım alanlarını yalnızca OSGB yöneticisi "
+                "değiştirebilir; uzmanlar katılımcı ve gerçekleşme durumunu yönetebilir."
+            ),
+        )
 LOGO_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
 LOGO_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif"}
 EXCEL_EXT = (".xlsx", ".xlsm", ".csv")
@@ -364,7 +414,7 @@ async def parse_excel(
     create_missing: bool = Query(False),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_training_operator),
 ):
     """Excel/CSV çalışan listesini okur; isteğe bağlı eksik personeli oluşturur (Pro parity)."""
     ensure_access(db, user, company_id)
@@ -557,7 +607,7 @@ def export_trainings_xlsx(
 def create_training(
     payload: TrainingCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_training_package_manager),
 ):
     ensure_access(db, user, payload.company_id)
     company = db.get(Company, payload.company_id)
@@ -659,7 +709,7 @@ async def upload_participants(
     file: UploadFile = File(...),
     create_missing: bool = Query(True),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_training_operator),
 ):
     """Canlı API uyumu: eğitim kaydına Excel ile katılımcı ekler."""
     row = _load_training(db, training_id)
@@ -716,7 +766,7 @@ async def upload_training_logo(
     training_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_training_package_manager),
 ):
     """Firma / eğitim logosu — PDF başlığına basılır."""
     row = _load_training(db, training_id)
@@ -752,13 +802,14 @@ def update_training(
     training_id: int,
     payload: TrainingUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_training_operator),
 ):
     row = _load_training(db, training_id)
     ensure_access(db, user, row.company_id)
     if row.archived_at:
         raise HTTPException(409, "Arşivlenmiş eğitim kaydı değiştirilemez.")
     values = payload.model_dump(exclude_unset=True)
+    assert_training_update_scope(user, values.keys())
     new_ids = values.pop("participant_ids", None)
     for k, v in values.items():
         setattr(row, k, v)
@@ -773,7 +824,7 @@ def archive_training(
     training_id: int,
     payload: TrainingArchiveRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_training_package_manager),
 ):
     """Tamamlanmış eğitim kaydını katılımcıları silmeden arşivler."""
     row = _load_training(db, training_id)
@@ -791,9 +842,9 @@ def archive_training(
 def delete_training(
     training_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_training_package_manager),
 ):
-    """Yetkili uzmanın yalnızca erişebildiği eğitim kaydını kaldırır.
+    """OSGB yöneticisinin erişebildiği klasik eğitim kaydını kaldırır.
 
     Katılımcı, sınav ve diğer eğitim alt kayıtları mevcut FK/ORM cascade
     kurallarıyla birlikte silinir. Çalışan, işyeri, atama ve kullanıcı
