@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.company_access import company_ids_for_query, ensure_company_access
 from app.api.deps import get_current_user, require_roles
 from app.core.database import get_db
-from app.core.input_rules import assert_date_order, assert_event_date
+from app.core.input_rules import assert_date_order, assert_event_date, assert_meaningful_text, assert_person_name
 from app.models.entities import (
     Company,
     IncidentDof,
@@ -52,6 +52,24 @@ EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPE
 
 def ensure_access(db: Session, user: User, company_id: int) -> None:
     ensure_company_access(db, user, company_id)
+
+
+def _validate_dof_completion(payload: IncidentDofComplete) -> tuple[str, str]:
+    try:
+        evidence = assert_meaningful_text(
+            payload.effectiveness_note,
+            label="DÖF kapanış kanıtı",
+            min_len=10,
+            required=True,
+        )
+        approver = assert_person_name(
+            payload.close_approval,
+            label="DÖF kapatan kişi",
+            required=True,
+        )
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return evidence, approver
 
 
 def _apply_sgk_process(row: IncidentEvent) -> None:
@@ -550,12 +568,11 @@ def complete_incident_dof(
     dof = db.get(IncidentDof, dof_id)
     if not dof or dof.incident_id != incident_id:
         raise HTTPException(404, "Olay DÖF kaydı bulunamadı.")
+    evidence, approver = _validate_dof_completion(payload)
     dof.status = "Tamamlandı"
     dof.completion_date = date.today()
-    if payload.effectiveness_note:
-        dof.effectiveness_note = payload.effectiveness_note
-    if payload.close_approval:
-        dof.close_approval = payload.close_approval
+    dof.effectiveness_note = evidence
+    dof.close_approval = approver
     db.commit()
     db.refresh(dof)
     return dof
