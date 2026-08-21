@@ -260,6 +260,49 @@ def test_catalog_packages_receive_their_configured_automatic_exam_questions():
         automatic_exam_items_for_package("future-custom-package")
 
 
+def test_legacy_battery_program_is_repaired_with_the_reviewed_exam_pool():
+    from app.models.remote_training import RemoteTrainingProgram, RemoteTrainingQuestion
+    from app.services.remote_training import materialize_legacy_automatic_exam_pool
+
+    engine = _db()
+    with Session(engine) as db:
+        osgb, company, _branch, _employee, user = _scope_rows(db)
+        program = RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title="Akü-Batarya",
+            status="published",
+            requires_final_exam=True,
+            attempt_limit=1,
+            created_by_id=user.id,
+        )
+        db.add(program)
+        db.flush()
+
+        created = materialize_legacy_automatic_exam_pool(
+            db,
+            program,
+            created_by_id=user.id,
+        )
+
+        assert len(created) == 10
+        assert [row.order_index for row in created] == list(range(1, 11))
+        assert all(row.is_final_exam for row in created)
+        assert {row.sector_code for row in created} == {"battery"}
+        assert program.attempt_limit == 3
+
+        # A second request must not duplicate or reorder the immutable pool.
+        assert materialize_legacy_automatic_exam_pool(db, program) == []
+        assert len(
+            db.scalars(
+                select(RemoteTrainingQuestion).where(
+                    RemoteTrainingQuestion.program_id == program.id,
+                    RemoteTrainingQuestion.is_final_exam.is_(True),
+                )
+            ).all()
+        ) == 10
+
+
 def test_automatic_final_exam_question_validation_is_independent():
     from types import SimpleNamespace
 
