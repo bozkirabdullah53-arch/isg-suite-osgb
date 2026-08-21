@@ -297,6 +297,102 @@ def automatic_exam_items_for_package(package_code: str | None) -> list[dict[str,
     return [dict(item) for item in selected]
 
 
+# A small number of remote-training programs were created before the central
+# catalog snapshot flow was introduced.  Those rows have no source catalog
+# code, even though their title identifies a reviewed package.  Keep this
+# compatibility map deliberately narrow: an unknown/manual program must retain
+# its existing, manager-selected question links.
+def automatic_exam_package_code_for_program(
+    program: RemoteTrainingProgram,
+) -> str | None:
+    source_code = str(getattr(program, "source_catalog_code", None) or "").strip().lower()
+    if source_code in REMOTE_AUTO_EXAM_PACKS:
+        return source_code
+
+    title = " ".join(str(getattr(program, "title", None) or "").casefold().split())
+    if "akü" in title and "batarya" in title:
+        return "battery-production-ohs"
+    return None
+
+
+def materialize_legacy_automatic_exam_pool(
+    db: Session,
+    program: RemoteTrainingProgram,
+    *,
+    created_by_id: int | None = None,
+) -> list[RemoteTrainingQuestion]:
+    """Repair an old recognized program without touching its exam history.
+
+    Current catalog snapshots already contain immutable ``is_final_exam`` rows
+    and therefore return immediately.  A pre-catalog Akü–Batarya program may
+    only have one ``TrainingQuestion`` link; in that case we copy the reviewed
+    package snapshot into the remote-training table.  Existing manual links
+    remain intact for audit/history, while the exam endpoint consistently
+    prefers the newly materialized immutable pool.
+
+    The operation is idempotent and intentionally refuses to guess for
+    unknown/manual programs.
+    """
+    if not bool(getattr(program, "requires_final_exam", False)):
+        return []
+
+    existing = list(
+        db.scalars(
+            select(RemoteTrainingQuestion).where(
+                RemoteTrainingQuestion.program_id == program.id,
+                RemoteTrainingQuestion.is_final_exam.is_(True),
+            )
+        ).all()
+    )
+    if existing:
+        return []
+
+    package_code = automatic_exam_package_code_for_program(program)
+    if not package_code:
+        return []
+
+    items = automatic_exam_items_for_package(package_code)
+    sector_code = catalog_package_sector_code(package_code)
+    owner_id = created_by_id or getattr(program, "created_by_id", None)
+    rows: list[RemoteTrainingQuestion] = []
+    for position, item in enumerate(items, start=1):
+        options = item.get("options") or []
+        if len(options) != 4:
+            raise RuntimeError(
+                f"Otomatik final sınavı soru seçenekleri geçersiz: {item.get('question_code')}"
+            )
+        rows.append(
+            RemoteTrainingQuestion(
+                osgb_id=program.osgb_id,
+                company_id=program.company_id,
+                program_id=program.id,
+                sector_code=sector_code,
+                question_text=str(item["question_text"]).strip(),
+                options_json=json.dumps(
+                    {letter: str(options[index]).strip() for index, letter in enumerate("ABCD")},
+                    ensure_ascii=False,
+                ),
+                correct_option=str(item["correct_option"]).upper(),
+                explanation=str(item["answer_explanation"]).strip(),
+                order_index=position,
+                is_required=False,
+                is_final_exam=True,
+                created_by_id=owner_id,
+            )
+        )
+
+    db.add_all(rows)
+    # The caller owns the transaction so assignment creation and pool repair
+    # can be committed atomically.  A read-only employee exam request commits
+    # this one-time repair explicitly after recording an audit event.
+    db.flush()
+    if int(getattr(program, "attempt_limit", 0) or 0) < 3:
+        # Central packages allow three attempts.  Bring only this recognized
+        # legacy record up to that safe minimum; previous attempts are kept.
+        program.attempt_limit = 3
+    return rows
+
+
 def feature_active() -> bool:
     from app.core.config import remote_basic_ohs_training_active
 

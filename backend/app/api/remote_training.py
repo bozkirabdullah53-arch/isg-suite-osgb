@@ -122,6 +122,7 @@ from app.services.remote_training import (
     load_program,
     load_section,
     load_video,
+    materialize_legacy_automatic_exam_pool,
     program_sector_codes,
     recalculate_assignment,
     recalculate_catalog_package_duration,
@@ -2899,6 +2900,25 @@ def assign_remote_program(
     if program.status != "published":
         raise HTTPException(409, "Yalnızca yayımlanmış eğitim çalışanlara atanabilir.")
     require_strict_policy_active(program)
+    repaired_exam_questions = materialize_legacy_automatic_exam_pool(
+        db,
+        program,
+        created_by_id=user.id,
+    )
+    if repaired_exam_questions:
+        audit(
+            db,
+            company_id=program.company_id,
+            user=user,
+            action="legacy_final_exam_pool_repaired",
+            entity_type="program",
+            entity_id=program.id,
+            details={
+                "question_count": len(repaired_exam_questions),
+                "source": "assignment_flow",
+                "ip": request.client.host if request.client else None,
+            },
+        )
     sector_codes = program_sector_codes(db, program.id)
     branch_id = payload.branch_id or program.branch_id
     if payload.branch_id and program.branch_id and payload.branch_id != program.branch_id:
@@ -3679,6 +3699,25 @@ def get_remote_exam(
                 409,
                 "Final sınavı açılmadan önce tüm zorunlu videolar ve video içi kontrol soruları tamamlanmalıdır.",
             )
+    repaired_exam_questions = materialize_legacy_automatic_exam_pool(
+        db,
+        program,
+        created_by_id=user.id,
+    )
+    if repaired_exam_questions:
+        audit(
+            db,
+            company_id=program.company_id,
+            user=user,
+            action="legacy_final_exam_pool_repaired",
+            entity_type="program",
+            entity_id=program.id,
+            details={
+                "question_count": len(repaired_exam_questions),
+                "source": "employee_exam_open",
+            },
+        )
+        _commit(db, "Eski final sınavı soru havuzu onarılamadı.")
     automatic_questions = _automatic_exam_questions_for_assignment(db, assignment)
     questions = []
     if automatic_questions:
@@ -3743,6 +3782,25 @@ def submit_remote_exam(
             )
     if not program.requires_final_exam:
         raise HTTPException(409, "Bu eğitimde final sınavı zorunlu değil.")
+    repaired_exam_questions = materialize_legacy_automatic_exam_pool(
+        db,
+        program,
+        created_by_id=user.id,
+    )
+    if repaired_exam_questions:
+        audit(
+            db,
+            company_id=program.company_id,
+            user=user,
+            action="legacy_final_exam_pool_repaired",
+            entity_type="program",
+            entity_id=program.id,
+            details={
+                "question_count": len(repaired_exam_questions),
+                "source": "employee_exam_submit",
+            },
+        )
+        _commit(db, "Eski final sınavı soru havuzu onarılamadı.")
     automatic_questions = _automatic_exam_questions_for_assignment(db, assignment)
     links = [] if automatic_questions else _exam_links_for_assignment(db, assignment)
     if not automatic_questions and not links:
