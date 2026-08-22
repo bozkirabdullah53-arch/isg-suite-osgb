@@ -2229,7 +2229,7 @@ function App(){
   const mobileRole=isWorkplaceManagerUser(user)?'workplace_manager':user.role;
   const mobilePrimary=mobilePrimaryMenu(menu, mobileRole, active);
   return (
-    <div className={`app-shell${mobileMoreOpen?' mobile-nav-open':''}`}>
+    <div className={`app-shell${mobileMoreOpen?' mobile-nav-open':''}${active==='field_inspection'?' field-inspection-shell':''}`}>
       <aside>
         <button type="button" className="logo" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfaya dön">
           <img
