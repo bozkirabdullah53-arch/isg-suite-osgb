@@ -571,3 +571,197 @@
     font-size: 16px;
   }
 }
+
+
+/* Mobile hardening for field inspection */
+.field-inspection-page .field-card {
+  display: block;
+  min-width: 0;
+}
+
+.field-inspection-page .field-form {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.field-inspection-page .field-side,
+.field-inspection-page .field-queue-card,
+.field-inspection-page .field-recent-card,
+.field-inspection-page .field-help-card {
+  min-width: 0;
+}
+
+.field-inspection-page .field-side {
+  display: grid;
+}
+
+.field-inspection-page .field-recent-item p,
+.field-inspection-page .field-queue-item strong {
+  overflow-wrap: anywhere;
+}
+
+.field-inspection-page .field-card-title {
+  min-width: 0;
+}
+
+html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
+  transform: none;
+}
+
+@media (max-width: 620px) {
+  .workspace:has(.field-inspection-page) > header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 56px;
+    padding: 9px 12px;
+    overflow: hidden;
+  }
+
+  .workspace:has(.field-inspection-page) > header > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .workspace:has(.field-inspection-page) > header h2 {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 16px;
+  }
+
+  .workspace:has(.field-inspection-page) > header .header-actions {
+    flex: 0 0 auto;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .workspace:has(.field-inspection-page) > header .user-chip {
+    display: none !important;
+  }
+
+  .workspace:has(.field-inspection-page) > header .header-actions > .header-icon:not(:first-child):not(.logout-mobile) {
+    display: none !important;
+  }
+
+  .workspace:has(.field-inspection-page) > header .header-actions > .header-icon,
+  .workspace:has(.field-inspection-page) > header .header-actions > .theme-toggle {
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+  }
+
+  .field-inspection-page {
+    padding: 12px 0 32px;
+  }
+
+  .field-inspection-head {
+    margin-bottom: 10px;
+  }
+
+  .field-inspection-head h1 {
+    font-size: 24px;
+  }
+
+  .field-inspection-head p {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .field-sync-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 42px;
+    margin-top: 10px;
+  }
+
+  .field-connectivity {
+    align-items: flex-start;
+    padding: 9px 10px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .field-connectivity strong {
+    font-size: 10px;
+    line-height: 1.35;
+  }
+
+  .field-alert {
+    align-items: flex-start;
+  }
+
+  .field-alert span {
+    min-width: 0;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+
+  .field-form {
+    padding: 13px;
+    border-radius: 14px;
+  }
+
+  .field-card-title h2 {
+    font-size: 16px;
+  }
+
+  .field-score-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .field-score-grid .field-control {
+    min-width: 0;
+  }
+
+  .field-score-grid .field-control > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .field-photo-picker {
+    min-height: 64px;
+    padding: 10px;
+  }
+
+  .field-photo-picker span {
+    min-width: 0;
+  }
+
+  .field-side {
+    gap: 10px;
+  }
+
+  .field-queue-card,
+  .field-recent-card,
+  .field-help-card {
+    padding: 13px;
+  }
+}
+
+@media (max-width: 380px) {
+  .workspace:has(.field-inspection-page) > header {
+    padding-inline: 9px;
+  }
+
+  .workspace:has(.field-inspection-page) > header .header-actions {
+    gap: 4px;
+  }
+
+  .workspace:has(.field-inspection-page) > header .header-actions > .header-icon,
+  .workspace:has(.field-inspection-page) > header .header-actions > .theme-toggle {
+    flex-basis: 36px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .field-form {
+    padding: 11px;
+  }
+}
