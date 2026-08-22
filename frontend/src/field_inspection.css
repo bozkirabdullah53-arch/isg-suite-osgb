@@ -611,6 +611,9 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
 
 @media (max-width: 620px) {
   .workspace:has(.field-inspection-page) > header {
+    position: relative;
+    top: auto;
+    margin: 8px 10px 0;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -763,5 +766,87 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
 
   .field-form {
     padding: 11px;
+  }
+}
+
+
+/* Mobile camera and gallery controls */
+.field-photo-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.field-photo-action {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  min-height: 68px;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  color: #24515e;
+  background: #f8fafc;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, opacity .15s ease;
+}
+
+.field-photo-action.primary {
+  border-color: #5eead4;
+  color: var(--field-primary-dark);
+  background: #f0fdfa;
+}
+
+.field-photo-action:hover,
+.field-photo-action:focus-within {
+  border-color: #0f766e;
+  background: #ecfdf5;
+}
+
+.field-photo-action input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+}
+
+.field-photo-action span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.field-photo-action strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.field-photo-action small {
+  color: var(--field-muted);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.field-photo-action.is-disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+@media (max-width: 380px) {
+  .field-photo-actions {
+    grid-template-columns: 1fr;
   }
 }
