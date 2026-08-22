@@ -46,3 +46,31 @@ Alembic migration, yedekleme, SMTP altyapısı, PWA ve üretim kontrol listesi e
 ## OSGB v0.9 güncellemesi
 
 Proje artık OSGB üst kuruluşu, müşteri işyerleri, uzman/hekim/DSP, görevlendirme, saha takvimi, CRM ve finans işlevlerini içerir. Yayın ve ortam değişkenleri için `FINAL_OSGB_RELEASE_GUIDE.md` belgesine bakın.
+
+## Güvenlik sertleştirmesi
+
+- JWT altyapısı `PyJWT==2.10.1` ve sınırlı algoritma listesiyle çalışır; `python-jose` kaldırılmıştır.
+- Docker imajları UID 1000 ile çalışan `appuser` kullanır.
+- Docker Compose PostgreSQL kullanıcı adı, veritabanı, parola ve `DATABASE_URL` değerlerini zorunlu ortam değişkeni olarak ister; kaynak kodunda varsayılan parola yoktur.
+- Render üretim Blueprint'inde sağlık alanı şifrelemesi ve kontrollü dosya geri yükleme etkinleştirilmiştir. `HEALTH_FIELD_ENCRYPTION_KEY` ve `BACKUP_ENCRYPTION_KEY` değerleri Render Dashboard'da gizli olarak tanımlanmalıdır.
+
+## Docker Compose ile yerel çalıştırma
+
+`docker compose` çalıştırmadan önce `.env` dosyanızda aşağıdaki değişkenleri güçlü, yerel değerlerle tanımlayın:
+
+```dotenv
+POSTGRES_DB=isgsuite
+POSTGRES_USER=isgsuite
+POSTGRES_PASSWORD=<güçlü-postgres-parolası>
+DATABASE_URL=postgresql+psycopg://<kullanıcı>:<parola>@db:5432/<veritabanı>
+SECRET_KEY=<en-az-32-karakter-rastgele-anahtar>
+```
+
+Ardından yapılandırmayı doğrulayın ve servisleri başlatın:
+
+```bash
+docker compose config
+docker compose up --build
+```
+
+`POSTGRES_*`, `DATABASE_URL` veya `SECRET_KEY` eksikse Compose'un başlamayı reddetmesi beklenen güvenlik davranışıdır.

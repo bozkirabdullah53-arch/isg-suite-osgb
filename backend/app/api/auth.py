@@ -268,7 +268,8 @@ def refresh_access_token(request: Request, response: Response, db: Session = Dep
         raise HTTPException(404, "Refresh cookie kapalı.")
     from datetime import datetime, timezone
 
-    from jose import JWTError, jwt
+    import jwt
+    from jwt import InvalidTokenError
 
     from app.core.security import ALGORITHM
     from app.services.token_revoke import is_jti_revoked, revoke_jti
@@ -284,7 +285,7 @@ def refresh_access_token(request: Request, response: Response, db: Session = Dep
         jti = payload.get("jti")
         tv = int(payload.get("tv") or 0)
         exp = payload.get("exp")
-    except (JWTError, TypeError, ValueError, HTTPException):
+    except (InvalidTokenError, TypeError, ValueError, HTTPException):
         clear_refresh_cookie(response)
         raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
 
@@ -327,7 +328,8 @@ def logout(
     """Aktif access token'ı denylist'e yazar; istemci localStorage temizlemeli."""
     from datetime import datetime, timezone
 
-    from jose import JWTError, jwt
+    import jwt
+    from jwt import InvalidTokenError
 
     from app.core.security import ALGORITHM
     from app.services.token_revoke import revoke_jti
@@ -350,13 +352,13 @@ def logout(
                 module="auth",
             )
             db.commit()
-    except (JWTError, TypeError, ValueError):
+    except (InvalidTokenError, TypeError, ValueError):
         logger.warning("logout: access jti revoke failed", exc_info=True)
     # Refresh cookie varsa temizle (flag açıkken)
     raw = (request.cookies.get(REFRESH_COOKIE_NAME) or "").strip()
     if raw:
         try:
-            from jose import JWTError, jwt
+            import jwt
 
             from app.core.security import ALGORITHM
             from app.services.token_revoke import revoke_jti

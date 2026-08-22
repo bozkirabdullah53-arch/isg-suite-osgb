@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.database import Base
 from app.models.entities import Company, TrainingSession, User, UserRole
 from app.models.training_nace import TrainingNaceSnapshot
+import app.models.training_presentation  # noqa: F401
 from app.services.training_nace_classification import resolve_exact_nace
 from app.services.training_question_selection_v2 import (
     exact_nace_exam_strict_active,

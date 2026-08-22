@@ -11,7 +11,7 @@ from email.message import EmailMessage
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
-from jose import JWTError, jwt
+import jwt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 

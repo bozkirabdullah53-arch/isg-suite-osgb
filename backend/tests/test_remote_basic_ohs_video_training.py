@@ -1036,7 +1036,7 @@ def test_remote_api_is_feature_flagged_and_uses_basic_type_only(remote_client):
                 full_name="Remote Admin",
                 hashed_password=get_password_hash("TestPass123!"),
                 role=UserRole.COMPANY_ADMIN,
-                company_id=company.id,
+                company_id=None,
                 osgb_id=osgb.id,
                 is_active=True,
             )
@@ -1054,7 +1054,7 @@ def test_remote_api_is_feature_flagged_and_uses_basic_type_only(remote_client):
     meta = remote_client.get("/api/v1/trainings/remote/meta", headers=headers)
     assert meta.status_code == 200, meta.text
     assert meta.json()["enabled"] is True
-    assert meta.json()["training_type"] == "Basic Occupational Health and Safety Training"
+    assert meta.json()["training_type"] == "Uzaktan Eğitim"
 
     created = remote_client.post(
         "/api/v1/trainings/remote/programs",
@@ -1110,7 +1110,7 @@ def test_remote_catalog_packages_are_firm_independent(remote_client, monkeypatch
                 full_name="Catalog Admin",
                 hashed_password=get_password_hash("TestPass123!"),
                 role=UserRole.COMPANY_ADMIN,
-                company_id=company.id,
+                company_id=None,
                 osgb_id=osgb.id,
                 is_active=True,
             )
@@ -1128,7 +1128,7 @@ def test_remote_catalog_packages_are_firm_independent(remote_client, monkeypatch
     packages = remote_client.get("/api/v1/trainings/remote/catalog/packages", headers=headers)
     assert packages.status_code == 200, packages.text
     rows = packages.json()
-    assert len(rows) == 11
+    assert len(rows) == 12
     assert [row["title"] for row in rows] == [
         "Ortak Temel İSG",
         "İnşaat",
@@ -1140,6 +1140,7 @@ def test_remote_catalog_packages_are_firm_independent(remote_client, monkeypatch
         "Maden/Agrega",
         "Yol/Asfalt/Altyapı",
         "Ofis/Genel İşyerleri",
+        "Hastaneler ve Sağlık Hizmetleri",
         "Yüksekte Çalışma İSG Paketi",
     ]
     assert all("company_id" not in row for row in rows)
@@ -1216,7 +1217,7 @@ def test_remote_catalog_published_package_accepts_additive_video_and_section(rem
                 full_name="Catalog Upload Admin",
                 hashed_password=get_password_hash("TestPass123!"),
                 role=UserRole.COMPANY_ADMIN,
-                company_id=company.id,
+                company_id=None,
                 osgb_id=osgb.id,
                 is_active=True,
             )
@@ -1432,7 +1433,7 @@ def test_remote_video_delete_removes_only_draft_uploads(remote_client, monkeypat
                 full_name="Delete Admin",
                 hashed_password=get_password_hash("TestPass123!"),
                 role=UserRole.COMPANY_ADMIN,
-                company_id=company.id,
+                company_id=None,
                 osgb_id=osgb.id,
                 is_active=True,
             )
@@ -1552,7 +1553,7 @@ def test_remote_published_video_can_be_revised_without_losing_history(remote_cli
                 full_name="Revision Admin",
                 hashed_password=get_password_hash("TestPass123!"),
                 role=UserRole.COMPANY_ADMIN,
-                company_id=company.id,
+                company_id=None,
                 osgb_id=osgb.id,
                 is_active=True,
             )
@@ -1750,11 +1751,11 @@ def test_catalog_program_rejects_mixed_scope_and_wrong_question(remote_client):
         db.flush()
         user = User(
             email="catalog-scope-admin@remote-test.com",
-            full_name="Catalog Scope Admin",
-            hashed_password=get_password_hash("TestPass123!"),
-            role=UserRole.COMPANY_ADMIN,
-            company_id=company.id,
-            osgb_id=osgb.id,
+                full_name="Catalog Scope Admin",
+                hashed_password=get_password_hash("TestPass123!"),
+                role=UserRole.COMPANY_ADMIN,
+                company_id=None,
+                osgb_id=osgb.id,
             is_active=True,
         )
         db.add(user)
@@ -2100,8 +2101,9 @@ def test_remote_certificate_adapter_uses_shared_label_and_signatory_context(monk
     assert training.passing_score == 70
 
 
-def test_remote_content_permission_separates_osgb_admin_and_expert():
+def test_remote_content_permission_separates_osgb_admin_and_expert(monkeypatch):
     from fastapi import HTTPException
+    from app.core.config import settings
 
     from app.api.remote_training import (
         _assert_catalog_content_editor,
@@ -2110,6 +2112,9 @@ def test_remote_content_permission_separates_osgb_admin_and_expert():
     from app.models.entities import OsgbOrganization, User, UserRole
     from app.models.remote_training import RemoteTrainingCatalogPackage
     from app.services.remote_training import is_catalog_content_manager, is_manager
+
+    monkeypatch.setattr(settings, "remote_basic_ohs_training_enabled", True)
+    monkeypatch.setattr(settings, "remote_basic_ohs_training_force_off", False)
 
     engine = _db()
     with Session(engine) as db:

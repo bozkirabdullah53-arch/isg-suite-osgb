@@ -21,7 +21,7 @@ Canlı veritabanına geri yüklemeden önce ayrı bir test veritabanında doğru
 
 - `GET /api/v1/archives/{id}/restore-plan` — salt okunur inceleme (`inspect_backup_file`). Canlı veriyi değiştirmez.
 - `POST /api/v1/archives/{id}/restore` with `dry_run=true` — dosya yolu eşlemesini listeler (yazmaz); flag gerekmez.
-- `POST .../restore` with `dry_run=false` — **kapalı** (`BACKUP_RESTORE_ENABLED=false`) + `confirm=RESTORE`.
+- `POST .../restore` with `dry_run=false` — `BACKUP_RESTORE_ENABLED=true` + `confirm=RESTORE`; önce staging dry-run ve geri yükleme testi yapılmalıdır.
 - Tenant ZIP arşivi satır satır tüm DB domain'ini geri kurmaz; object/manifest odaklıdır. Tam DB restore için yukarıdaki `pg_restore` / SQLite adımlarını kullanın.
 
 ## %100 cutover (Render env — Dashboard)
@@ -37,5 +37,5 @@ Blueprint sync yetmezse API Environment'ta elle:
    - `OBJECT_STORAGE_REGION=auto`
 4. Probe: `GET /api/v1/system/storage-probe` (global_admin) → `reachable`
 5. Sonra `OBJECT_STORAGE_BACKEND=r2` (local'den çık)
-6. Opsiyonel: `HEALTH_FIELD_ENCRYPTION_KEY` (32+ char) sonra `HEALTH_FIELD_ENCRYPTION_ENABLED=true`
-7. `BACKUP_RESTORE_ENABLED` yalnız staging restore drill sonrası
+6. `HEALTH_FIELD_ENCRYPTION_KEY` (32+ char) tanımlı olmalı; Render Blueprint'inde `HEALTH_FIELD_ENCRYPTION_ENABLED=true` olarak gelir.
+7. Render Blueprint'inde `BACKUP_RESTORE_ENABLED=true` gelir; canlı geri yükleme yalnız staging restore drill sonrası ve `confirm=RESTORE` ile yapılmalıdır.

@@ -20,6 +20,7 @@ def client(tmp_path, monkeypatch):
     from sqlalchemy.orm import sessionmaker
     import app.core.database as dbmod
     import app.models.entities as ent
+    import app.models.training_nace  # noqa: F401
     from app.core.config import settings
 
     settings.database_url = url

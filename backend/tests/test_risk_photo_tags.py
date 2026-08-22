@@ -254,7 +254,6 @@ def test_field_inspection_risk_and_dof_are_idempotent(client):
         "risk_definition": "Makine koruyucusu eksik.",
         "affected_group": "Çalışan",
         "probability": 3,
-        "frequency": 3,
         "severity": 4,
         "status": "Açık",
     }

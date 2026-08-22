@@ -1,7 +1,8 @@
 """Abonelik süresi dolunca yazma işlemlerini engeller (salt okunur)."""
 from __future__ import annotations
 
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -45,7 +46,7 @@ class OsgbSubscriptionWriteMiddleware(BaseHTTPMiddleware):
         try:
             payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
             user_id = int(payload.get("sub"))
-        except (JWTError, TypeError, ValueError):
+        except (InvalidTokenError, TypeError, ValueError):
             return await call_next(request)
 
         with dbmod.SessionLocal() as db:

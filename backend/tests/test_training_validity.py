@@ -114,11 +114,16 @@ def client(tmp_path, monkeypatch):
     return TestClient(app)
 
 
-def _seed(client: TestClient) -> dict:
+def _seed(
+    client: TestClient,
+    with_assignment: bool = True,
+    role: UserRole | None = None,
+) -> dict:
     """3 personel: biri geçerli, biri süresi dolmuş, biri hiç eğitimsiz."""
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
     from app.models.entities import (
+        AssignmentStatus,
         Company,
         Employee,
         IsgProfessional,
@@ -129,6 +134,7 @@ def _seed(client: TestClient) -> dict:
         TrainingStatus,
         User,
         UserRole,
+        WorkplaceAssignment,
     )
 
     today = date.today()
@@ -143,27 +149,23 @@ def _seed(client: TestClient) -> dict:
             email="egitim-uzman@test.com",
             full_name="Egitim Uzman",
             hashed_password=get_password_hash("TestPass123!"),
-            role=UserRole.SAFETY_SPECIALIST,
+            role=role or UserRole.SAFETY_SPECIALIST,
             osgb_id=osgb.id,
             company_id=company.id,
             is_active=True,
         )
         db.add(user)
         db.flush()
-        # Mesleki kullanıcı oturumu, aktif profesyonel kartıyla eşleşmelidir.
-        # Görevlendirme satırı bu test grubunun konusu olmadığından ayrıca
-        # eklenmez; erişim için mevcut company_id geri dönüşü kullanılır.
-        db.add(
-            IsgProfessional(
-                osgb_id=osgb.id,
-                full_name="Egitim Uzman",
-                email="egitim-uzman@test.com",
-                professional_type=ProfessionalType.SAFETY_SPECIALIST,
-                certificate_class="B",
-                certificate_number="TEST-UZM-1",
-                is_active=True,
-            )
+        professional = IsgProfessional(
+            osgb_id=osgb.id,
+            full_name="Egitim Uzman",
+            email="egitim-uzman@test.com",
+            professional_type=ProfessionalType.SAFETY_SPECIALIST,
+            certificate_class="B",
+            certificate_number="TEST-UZM-1",
+            is_active=True,
         )
+        db.add(professional)
 
         gecerli = Employee(company_id=company.id, full_name="Gecerli Kisi", department="Uretim", is_active=True)
         dolmus = Employee(company_id=company.id, full_name="Dolmus Kisi", department="Depo", is_active=True)
@@ -176,6 +178,17 @@ def _seed(client: TestClient) -> dict:
         )
         db.add_all([gecerli, dolmus, egitimsiz])
         db.flush()
+        if with_assignment:
+            db.add(
+                WorkplaceAssignment(
+                    osgb_id=osgb.id,
+                    company_id=company.id,
+                    professional_id=professional.id,
+                    professional_type=professional.professional_type,
+                    start_date=today - timedelta(days=30),
+                    status=AssignmentStatus.ACTIVE,
+                )
+            )
 
         yeni = TrainingSession(
             company_id=company.id,
@@ -389,7 +402,9 @@ def test_assigned_team_fills_instructor_and_physician(client):
 
 
 def test_assigned_team_empty_when_no_assignment(client):
-    seed = _seed(client)
+    from app.models.entities import UserRole
+
+    seed = _seed(client, with_assignment=False, role=UserRole.COMPANY_ADMIN)
     headers = _headers(client)
     body = client.get(
         f"/api/v1/trainings/assigned-team?company_id={seed['company_id']}", headers=headers

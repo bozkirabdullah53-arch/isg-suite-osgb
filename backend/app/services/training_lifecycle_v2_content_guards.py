@@ -95,14 +95,15 @@ def install_training_lifecycle_v2_content_guards() -> dict[str, str]:
     if getattr(current_curriculum, "_premium_record_only_curriculum", False):
         status["record_only_curriculum"] = "already-active"
     else:
-        _original_curriculum = current_curriculum
+        original_curriculum = current_curriculum
+        _original_curriculum = original_curriculum
 
         @wraps(current_curriculum)
         def premium_curriculum(training):
             kind = _record_only_kind(training)
             if kind == "information_refresh":
                 return _information_refresh_curriculum(training, training_pdfs)
-            return _original_curriculum(training)
+            return original_curriculum(training)
 
         premium_curriculum._premium_record_only_curriculum = True
         training_pdfs.resolve_training_curriculum = premium_curriculum
@@ -112,7 +113,8 @@ def install_training_lifecycle_v2_content_guards() -> dict[str, str]:
     if getattr(current_exam, "_premium_training_lifecycle_v2", False):
         status["record_only_exam"] = "already-active"
     else:
-        _original_exam_builder = current_exam
+        original_exam_builder = current_exam
+        _original_exam_builder = original_exam_builder
 
         @wraps(current_exam)
         def premium_exam_builder(
@@ -130,7 +132,7 @@ def install_training_lifecycle_v2_content_guards() -> dict[str, str]:
                     f"{_label(kind)} için 20 soruluk Temel İSG sınavı oluşturulmaz. "
                     "Bu kayıt türünde katılım/tutanak akışını kullanın."
                 )
-            return _original_exam_builder(
+            return original_exam_builder(
                 company_name=company_name,
                 training=training,
                 db=db,
@@ -148,7 +150,8 @@ def install_training_lifecycle_v2_content_guards() -> dict[str, str]:
     if getattr(current_certificate, "_premium_record_only_certificate_guard", False):
         status["record_only_certificate"] = "already-active"
     else:
-        _original_certificate_builder = current_certificate
+        original_certificate_builder = current_certificate
+        _original_certificate_builder = original_certificate_builder
 
         @wraps(current_certificate)
         def premium_certificate_builder(*, company_name: str, training, employees: dict) -> bytes:
@@ -158,7 +161,7 @@ def install_training_lifecycle_v2_content_guards() -> dict[str, str]:
                     f"{_label(kind)} için Temel İSG katılım belgesi oluşturulmaz. "
                     "Bu eğitim türünün Katılım/Tutanak PDF kaydını kullanın."
                 )
-            return _original_certificate_builder(
+            return original_certificate_builder(
                 company_name=company_name,
                 training=training,
                 employees=employees,
@@ -173,11 +176,12 @@ def install_training_lifecycle_v2_content_guards() -> dict[str, str]:
     if getattr(current_readiness, "_premium_training_lifecycle_v2", False):
         status["record_only_presentation_readiness"] = "already-active"
     else:
-        _original_presentation_readiness = current_readiness
+        original_presentation_readiness = current_readiness
+        _original_presentation_readiness = original_presentation_readiness
 
         @wraps(current_readiness)
         def premium_presentation_readiness(db, *, training):
-            payload = dict(_original_presentation_readiness(db, training=training))
+            payload = dict(original_presentation_readiness(db, training=training))
             kind = _record_only_kind(training)
             if not kind:
                 return payload
@@ -222,7 +226,8 @@ def install_training_lifecycle_v2_content_guards() -> dict[str, str]:
     if getattr(current_access, "_premium_training_lifecycle_v2", False):
         status["record_only_presentation_generation"] = "already-active"
     else:
-        _original_pilot_access = current_access
+        original_pilot_access = current_access
+        _original_pilot_access = original_pilot_access
 
         @wraps(current_access)
         def premium_pilot_access(training) -> None:
@@ -239,7 +244,7 @@ def install_training_lifecycle_v2_content_guards() -> dict[str, str]:
                         "core_training_unaffected": True,
                     },
                 )
-            return _original_pilot_access(training)
+            return original_pilot_access(training)
 
         premium_pilot_access._premium_training_lifecycle_v2 = True
         training_presentation._ensure_pilot_access = premium_pilot_access

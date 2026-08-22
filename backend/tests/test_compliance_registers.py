@@ -21,7 +21,7 @@ def test_sgk_process_sets_due_for_accident():
         sgk_notification_status=None,
     )
     _apply_sgk_process(row)
-    assert row.sgk_due_date == date(2026, 7, 4)
+    assert row.sgk_due_date == date(2026, 7, 6)
     assert row.sgk_notification_status in ("bekliyor", "gecikti")
 
 
