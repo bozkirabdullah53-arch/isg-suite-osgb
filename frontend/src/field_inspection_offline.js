@@ -90,7 +90,16 @@ export function normalizeFinding(item) {
     user_id: userId,
     osgb_id: osgbId,
     company_id: companyId,
-    payload: item.payload,
+    payload: (() => {
+      const payload = {...item.payload};
+      // 5x5 L tipi yalnızca olasılık × şiddet kullanır. Eski cihaz kuyruğunda
+      // kalan hatalı frekans alanını da senkron öncesi geriye dönük temizle.
+      if (String(payload.method_code || "5x5_l") === "5x5_l") {
+        delete payload.frequency;
+        delete payload.residual_frequency;
+      }
+      return payload;
+    })(),
     action,
     photos,
     risk_id: Number(item.risk_id) > 0 ? Number(item.risk_id) : null,
