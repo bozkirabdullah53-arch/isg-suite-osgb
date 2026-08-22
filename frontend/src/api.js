@@ -1,4 +1,10 @@
-import { canAttemptTokenRefresh, setRefreshCookieMode } from "./auth_session.js";
+import {
+  canAttemptTokenRefresh,
+  clearAccessToken,
+  getAccessToken,
+  setAccessToken,
+  setRefreshCookieMode,
+} from "./auth_session.js";
 
 export { setRefreshCookieMode } from "./auth_session.js";
 
@@ -42,7 +48,7 @@ let _refreshInFlight = null;
 
 function accessTokenExpiresSoon(skewSec = 90) {
   try {
-    const token = localStorage.getItem("isg_token");
+    const token = getAccessToken();
     if (!token || !token.includes(".")) return true;
     const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
     const exp = Number(payload?.exp || 0);
@@ -55,7 +61,7 @@ function accessTokenExpiresSoon(skewSec = 90) {
 
 function notifyAuthLost() {
   try {
-    localStorage.removeItem("isg_token");
+    clearAccessToken();
     setRefreshCookieMode(false);
   } catch { /* ignore */ }
   try {
@@ -78,7 +84,7 @@ async function tryRefreshAccessToken() {
       }
       const body = await response.json().catch(() => ({}));
       if (body?.access_token) {
-        localStorage.setItem("isg_token", body.access_token);
+        setAccessToken(body.access_token);
         setRefreshCookieMode(true);
         return true;
       }
@@ -275,7 +281,7 @@ const _reportRecent = new Set();
 
 export function reportClientError(payload = {}) {
   try {
-    const token = localStorage.getItem("isg_token");
+    const token = getAccessToken();
     if (!token) return;
     const httpPath = String(payload.http_path || "").slice(0, 500);
     if (httpPath.includes("/error-reports")) return;
@@ -317,7 +323,7 @@ export function reportClientError(payload = {}) {
   }
 }
 
-/** Geçici / MFA token ile çağrı (localStorage isg_token kullanmaz). */
+/** Geçici / MFA token ile çağrı (saklanan access token kullanılmaz). */
 export async function apiWithBearer(bearerToken, path, options = {}) {
   const retries = options._retries ?? 4;
   const { _retries, timeoutMs: optionTimeoutMs, headers: optHeaders, ...fetchOpts } = options;
@@ -386,7 +392,7 @@ export async function api(path, options = {}) {
   const requestTimeoutMs = Number(optionTimeoutMs) > 0 ? Number(optionTimeoutMs) : 25_000;
 
   // Access JWT süresi dolmak üzereyse önce refresh dene (bayrak yoksa da)
-  if (!_didProactiveRefresh && !_didRefresh && accessTokenExpiresSoon() && localStorage.getItem("isg_token")) {
+  if (!_didProactiveRefresh && !_didRefresh && accessTokenExpiresSoon() && getAccessToken()) {
     const p = String(path || "");
     if (!p.startsWith("/auth/login") && !p.startsWith("/auth/refresh") && !p.startsWith("/auth/mfa")) {
       const ok = await tryRefreshAccessToken();
@@ -396,7 +402,7 @@ export async function api(path, options = {}) {
     }
   }
 
-  const token = localStorage.getItem("isg_token");
+  const token = getAccessToken();
   const method = (fetchOpts.method || "GET").toUpperCase();
   const headers = {...(optHeaders || {})};
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -491,7 +497,7 @@ export async function api(path, options = {}) {
 /** Auth header ile blob URL üretir (önizleme görselleri için). */
 export async function authBlobUrl(path) {
   await wakeApi();
-  const token = localStorage.getItem("isg_token");
+  const token = getAccessToken();
   const response = await fetch(`${API_URL}${path}`, {
     headers: token ? {Authorization: `Bearer ${token}`} : {},
     mode: "cors",
@@ -506,7 +512,7 @@ export async function authBlobUrl(path) {
 
 export async function downloadFile(path, filename, {timeoutMs = 90_000} = {}) {
   await wakeApi();
-  const token = localStorage.getItem("isg_token");
+  const token = getAccessToken();
   let response;
   try {
     response = await fetch(`${API_URL}${path}`, {
@@ -571,7 +577,7 @@ export async function uploadFile(path, file, extraFields = null, options = {}) {
       ? 30 * 60 * 1000
       : 5 * 60 * 1000;
   let didRefresh = false;
-  const currentToken = localStorage.getItem("isg_token");
+  const currentToken = getAccessToken();
   if (currentToken && accessTokenExpiresSoon() && canAttemptTokenRefresh(uploadPath, 401)) {
     didRefresh = await tryRefreshAccessToken();
   }
@@ -587,7 +593,7 @@ export async function uploadFile(path, file, extraFields = null, options = {}) {
     return formData;
   };
   const sendUpload = () => {
-    const token = localStorage.getItem("isg_token");
+    const token = getAccessToken();
     return fetch(API_URL + path, {
       method: "POST",
       headers: token ? {Authorization: "Bearer " + token} : {},

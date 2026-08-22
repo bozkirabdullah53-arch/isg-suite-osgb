@@ -6,6 +6,8 @@ preserved.
 """
 from __future__ import annotations
 
+from urllib.parse import urlsplit
+
 
 PRODUCTION_ENVIRONMENTS = frozenset({"production", "prod", "live"})
 APPROVED_PRODUCTION_ORIGINS = (
@@ -29,8 +31,25 @@ def build_cors_origins(
     frontend_origin: str | None,
 ) -> list[str]:
     """Return an ordered, deduplicated origin allowlist for the environment."""
+    production = is_production_environment(environment)
     origins: list[str | None] = [frontend_origin, *APPROVED_PRODUCTION_ORIGINS]
-    if not is_production_environment(environment):
+    if not production:
         origins.extend(LOCAL_DEVELOPMENT_ORIGINS)
 
-    return list(dict.fromkeys(origin.strip() for origin in origins if origin and origin.strip()))
+    normalized: list[str] = []
+    for raw in origins:
+        value = (raw or "").strip()
+        if not value:
+            continue
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.netloc
+            or parsed.path not in ("", "/")
+            or parsed.query
+            or parsed.fragment
+            or (production and parsed.scheme != "https")
+        ):
+            continue
+        normalized.append(f"{parsed.scheme}://{parsed.netloc}")
+    return list(dict.fromkeys(normalized))

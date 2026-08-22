@@ -3,6 +3,7 @@ import {
   ArrowLeft, BookOpen, Download, Lock, Map, Plus, RefreshCw, Save, Trash2, Unlock, Upload,
 } from 'lucide-react';
 import {API_URL, api, uploadFile} from './api';
+import {getAccessToken} from './auth_session';
 import {
   KROKI_SYMBOLS, SYMBOL_BY_TYPE, SYMBOL_GROUPS, EXTINGUISHER_SUBTYPES, ROOM_PRESETS,
   LINE_TOOLS, createSymbolObject, emptyScene, parseScene, hitTestObject,
@@ -172,7 +173,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
       return undefined;
     }
     let revoked = false;
-    const token = localStorage.getItem('isg_token');
+    const token = getAccessToken();
     fetch(`${API_URL}/emergency-plans/${planId}/floors/${floorId}/background`, {
       headers: token ? {Authorization: `Bearer ${token}`} : {},
     })

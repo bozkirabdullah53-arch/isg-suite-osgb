@@ -16,6 +16,7 @@ import {createRoot} from 'react-dom/client';
 
 import {AlertTriangle,ArrowLeft,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,Pencil,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
 import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
+import {clearAccessToken, clearMfaSetupToken, getAccessToken, getMfaSetupToken, setAccessToken, setMfaSetupToken} from './auth_session';
 import {clearOfflineQueue} from './field_offline';
 import {clearFieldInspectionCache} from './field_inspection_offline';
 import {LoginPasswordInput, PasswordField} from './password_field';
@@ -286,7 +287,7 @@ function Login({done,onApply}){
     try{
       const r=await api('/auth/login',{method:'POST',body:JSON.stringify({email,password}),_retries:3});
       if(r.access_token){
-        localStorage.setItem('isg_token',r.access_token);
+        setAccessToken(r.access_token);
         setRefreshCookieMode(!!r.refresh_cookie);
         if(r.password_change_required){setMode('forced_password');return}
         done();
@@ -295,7 +296,7 @@ function Login({done,onApply}){
       if(r.mfa_required&&r.mfa_token){setMfaToken(r.mfa_token);setMode('mfa');return}
       if(r.mfa_setup_required&&r.mfa_token){
         setMfaToken(r.mfa_token);
-        localStorage.setItem('isg_mfa_setup_token',r.mfa_token);
+        setMfaSetupToken(r.mfa_token);
         try{
           const setup=await apiWithBearer(r.mfa_token,'/security/mfa/setup',{method:'POST'});
           setSetupInfo(setup);setMode('mfa_setup');return
@@ -314,7 +315,7 @@ function Login({done,onApply}){
     e.preventDefault();setErr('');setBusy(true);
     try{
       const body=await apiWithBearer(mfaToken,'/auth/mfa/verify',{method:'POST',body:JSON.stringify({code}),_retries:3});
-      localStorage.setItem('isg_token',body.access_token);
+      setAccessToken(body.access_token);
       setRefreshCookieMode(!!body.refresh_cookie);
       if(body.password_change_required){setMode('forced_password');return}
       done();
@@ -336,7 +337,7 @@ function Login({done,onApply}){
         return;
       }
       setMfaToken(r.mfa_token);
-      localStorage.setItem('isg_mfa_setup_token',r.mfa_token);
+      setMfaSetupToken(r.mfa_token);
       const setup=await apiWithBearer(r.mfa_token,'/security/mfa/setup',{method:'POST'});
       setSetupInfo(setup);
       setCode('');
@@ -348,12 +349,12 @@ function Login({done,onApply}){
   async function submitMfaSetup(e){
     e.preventDefault();setErr('');setBusy(true);
     try{
-      const tok=mfaToken||localStorage.getItem('isg_mfa_setup_token');
+      const tok=mfaToken||getMfaSetupToken();
       const body=await apiWithBearer(tok,'/security/mfa/enable',{method:'POST',body:JSON.stringify({code})});
       if(body.recovery_codes)setRecoveryCodes(body.recovery_codes);
-      localStorage.setItem('isg_token',body.access_token);
+      setAccessToken(body.access_token);
       setRefreshCookieMode(!!body.refresh_cookie);
-      localStorage.removeItem('isg_mfa_setup_token');
+      clearMfaSetupToken();
       if(body.password_change_required){setMode('forced_password');return}
       if(body.recovery_codes?.length){setMode('recovery');return}
       done();
@@ -387,7 +388,7 @@ function Login({done,onApply}){
     if(forcedNewPassword!==forcedNewPasswordConfirm){setErr('Yeni şifreler aynı değil.');setBusy(false);return}
     try{
       const r=await api('/security/change-password',{method:'POST',body:JSON.stringify({current_password:password,new_password:forcedNewPassword}),_retries:0});
-      localStorage.removeItem('isg_token');
+      clearAccessToken();
       setPassword('');setForcedNewPassword('');setForcedNewPasswordConfirm('');
       setMsg(r.message||'Şifre güncellendi. Yeni şifrenizle tekrar giriş yapın.');
       setMode('login');
@@ -1179,7 +1180,7 @@ function Employees({user}){
     try{
       const fd=new FormData();
       fd.append('file',f);
-      const token=localStorage.getItem('isg_token');
+      const token=getAccessToken();
       const base=import.meta.env.VITE_API_URL||'http://localhost:8000/api/v1';
       const query=new URLSearchParams({company_id:String(selectedCompanyId)});
       if(selectedBranchId) query.set('branch_id',String(selectedBranchId));
@@ -1468,8 +1469,8 @@ function SecurityPage({user}){
     try{
       const r=await api('/auth/logout-all',{method:'POST'});
       setMessage(r.message||'Tüm oturumlar kapatıldı.');
-      localStorage.removeItem('isg_token');
-      localStorage.removeItem('isg_mfa_setup_token');
+      clearAccessToken();
+      clearMfaSetupToken();
       clearOfflineQueue();clearFieldInspectionCache();
       setRefreshCookieMode(false);
       setTimeout(()=>window.location.reload(),800);
@@ -1902,7 +1903,7 @@ function homeModuleForUser(user){
 
 function App(){
   const[uiTheme,toggleUiTheme]=useUiTheme();
-  const[logged,setLogged]=useState(!!localStorage.getItem('isg_token'));
+  const[logged,setLogged]=useState(!!getAccessToken());
   const[user,setUser]=useState(null);
   const[summary,setSummary]=useState(null);
   const[active,setActive]=useState(()=>{
@@ -1992,8 +1993,8 @@ function App(){
     try{
       await api('/auth/logout',{method:'POST'});
     }catch(_){ /* ağ hatası olsa da yerel oturumu kapat */ }
-    localStorage.removeItem('isg_token');
-    localStorage.removeItem('isg_mfa_setup_token');
+    clearAccessToken();
+    clearMfaSetupToken();
     clearOfflineQueue();clearFieldInspectionCache();
     setRefreshCookieMode(false);
     try{sessionStorage.removeItem('isg_active')}catch(_){ /* ignore */ }
@@ -2032,7 +2033,7 @@ function App(){
         const[u,s]=await Promise.all([api('/auth/me'),api('/dashboard/summary')]);
         if(cancelled) return;
         if(u.password_change_required){
-          localStorage.removeItem('isg_token');
+          clearAccessToken();
           clearOfflineQueue();clearFieldInspectionCache();
           setRefreshCookieMode(false);
           setUser(null);
@@ -2076,7 +2077,7 @@ function App(){
         });
       }catch(_){
         if(cancelled) return;
-        localStorage.removeItem('isg_token');
+        clearAccessToken();
         clearOfflineQueue();clearFieldInspectionCache();
         setRefreshCookieMode(false);
         setLogged(false);

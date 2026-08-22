@@ -1,5 +1,91 @@
 /** P1-01 refresh cookie oturum bayrağı — Vitest ile test edilebilir. */
 const REFRESH_FLAG_KEY = "isg_refresh_cookie";
+const ACCESS_TOKEN_KEY = "isg_token";
+const MFA_SETUP_TOKEN_KEY = "isg_mfa_setup_token";
+let accessTokenMemory = null;
+
+function readSessionValue(key) {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function migrateLegacyValue(key) {
+  try {
+    const legacy = localStorage.getItem(key);
+    if (!legacy) return null;
+    try {
+      sessionStorage.setItem(key, legacy);
+      localStorage.removeItem(key);
+      return legacy;
+    } catch {
+      return legacy;
+    }
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionValue(key, value) {
+  try {
+    if (value) sessionStorage.setItem(key, value);
+    else sessionStorage.removeItem(key);
+  } catch {
+    return;
+  }
+}
+
+export function getAccessToken() {
+  if (accessTokenMemory) return accessTokenMemory;
+  accessTokenMemory = readSessionValue(ACCESS_TOKEN_KEY) || migrateLegacyValue(ACCESS_TOKEN_KEY);
+  return accessTokenMemory;
+}
+
+export function setAccessToken(value) {
+  const token = String(value || "").trim();
+  accessTokenMemory = token || null;
+  writeSessionValue(ACCESS_TOKEN_KEY, accessTokenMemory);
+  try {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+  } catch {
+    return;
+  }
+}
+
+export function clearAccessToken() {
+  accessTokenMemory = null;
+  writeSessionValue(ACCESS_TOKEN_KEY, null);
+  try {
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+  } catch {
+    return;
+  }
+}
+
+export function getMfaSetupToken() {
+  return readSessionValue(MFA_SETUP_TOKEN_KEY) || migrateLegacyValue(MFA_SETUP_TOKEN_KEY);
+}
+
+export function setMfaSetupToken(value) {
+  const token = String(value || "").trim();
+  writeSessionValue(MFA_SETUP_TOKEN_KEY, token || null);
+  try {
+    localStorage.removeItem(MFA_SETUP_TOKEN_KEY);
+  } catch {
+    return;
+  }
+}
+
+export function clearMfaSetupToken() {
+  writeSessionValue(MFA_SETUP_TOKEN_KEY, null);
+  try {
+    localStorage.removeItem(MFA_SETUP_TOKEN_KEY);
+  } catch {
+    return;
+  }
+}
 
 export function setRefreshCookieMode(enabled) {
   try {

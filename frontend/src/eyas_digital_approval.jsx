@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {CheckCircle2, Plus, RefreshCw, ShieldAlert, Inbox, Download} from 'lucide-react';
 import {api} from './api';
+import {getAccessToken} from './auth_session';
 import {AppModal} from './ui_modal';
 
 /**
@@ -179,7 +180,7 @@ export function EyasDigitalApprovalPage({user, mode = 'full', autoOpenCreate = f
         setErr('Bu belge için indirme yolu yok.');
         return;
       }
-      const token = localStorage.getItem('isg_token');
+      const token = getAccessToken();
       const isLocal =
         window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       const apiBase = isLocal

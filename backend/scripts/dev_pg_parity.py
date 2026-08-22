@@ -1,6 +1,7 @@
 """Docker PostgreSQL parity helper (B-02). No-op when Docker is unavailable."""
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -26,9 +27,13 @@ def main() -> int:
     subprocess.run(["docker", "compose", "-f", str(COMPOSE), "up", "-d", "db"], check=True, cwd=ROOT)
 
     print("=== alembic upgrade head (Postgres) ===")
+    database_url = (os.environ.get("DATABASE_URL") or "").strip()
+    if not database_url:
+        print("FAIL DATABASE_URL zorunlu; yerel PostgreSQL parolası kaynakta tutulmaz.")
+        return 1
     env = {
-        **dict(__import__("os").environ),
-        "DATABASE_URL": "postgresql+psycopg://isgsuite:isgsuite_dev_password@localhost:5432/isgsuite",
+        **dict(os.environ),
+        "DATABASE_URL": database_url,
     }
     backend = ROOT / "backend"
     r = subprocess.run(

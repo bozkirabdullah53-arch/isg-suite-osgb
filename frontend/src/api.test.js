@@ -1,5 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {uploadFile} from './api.js';
+import {clearAccessToken} from './auth_session.js';
 
 function tokenWithExpiry(exp) {
   const payload = btoa(JSON.stringify({exp})).replace(/=/g, '');
@@ -16,6 +17,8 @@ function jsonResponse(body, status = 200) {
 describe('uploadFile oturum sürekliliği', () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
+    clearAccessToken();
   });
 
   afterEach(() => {

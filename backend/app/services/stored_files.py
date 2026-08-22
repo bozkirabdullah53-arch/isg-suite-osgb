@@ -15,6 +15,13 @@ from fastapi.responses import FileResponse, StreamingResponse
 from app.services.object_store import LocalObjectStore, get_object_store
 
 
+def _safe_download_name(value: str | None, key: str) -> str:
+    raw = str(value or Path(key).name).replace("\\", "/")
+    name = Path(raw).name
+    name = "".join(char for char in name if char not in {"\r", "\n", '"'})[:180]
+    return name or "download"
+
+
 def response_for_storage_key(
     relative_key: str,
     *,
@@ -26,7 +33,7 @@ def response_for_storage_key(
     if not key or ".." in key.split("/"):
         raise HTTPException(status_code=400, detail="Geçersiz dosya yolu.")
 
-    name = filename or Path(key).name
+    name = _safe_download_name(filename, key)
     store = get_object_store()
 
     local = store.resolve_local_path(key)
@@ -36,7 +43,7 @@ def response_for_storage_key(
     if store.exists(key):
         data = store.get_bytes(key)
         headers = {
-            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}",
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(name, safe='')}",
         }
         return StreamingResponse(io.BytesIO(data), media_type=media_type, headers=headers)
 

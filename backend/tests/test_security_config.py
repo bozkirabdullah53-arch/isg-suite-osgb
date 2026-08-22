@@ -167,7 +167,27 @@ def test_request_id_header_present():
 def test_production_allows_strong_secret(monkeypatch):
     monkeypatch.setattr(settings, "environment", "production")
     monkeypatch.setattr(settings, "secret_key", "x" * 40)
+    monkeypatch.setattr(settings, "database_url", "postgresql+psycopg://user:pass@db:5432/isgsuite")
+    monkeypatch.setattr(settings, "frontend_origin", "https://www.isgsuite.tr")
     validate_runtime_settings()
+
+
+def test_production_requires_postgresql(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "secret_key", "x" * 40)
+    monkeypatch.setattr(settings, "database_url", "sqlite:///./isgsuite.db")
+    monkeypatch.setattr(settings, "frontend_origin", "https://www.isgsuite.tr")
+    with pytest.raises(RuntimeError, match="PostgreSQL"):
+        validate_runtime_settings()
+
+
+def test_production_requires_https_frontend(monkeypatch):
+    monkeypatch.setattr(settings, "environment", "production")
+    monkeypatch.setattr(settings, "secret_key", "x" * 40)
+    monkeypatch.setattr(settings, "database_url", "postgresql+psycopg://user:pass@db:5432/isgsuite")
+    monkeypatch.setattr(settings, "frontend_origin", "http://www.isgsuite.tr")
+    with pytest.raises(RuntimeError, match="HTTPS"):
+        validate_runtime_settings()
 
 
 def test_production_blocks_default_secret(monkeypatch):
@@ -211,6 +231,14 @@ def test_configured_cors_origin_is_preserved():
     )
     assert origins[0] == custom_origin
     assert all(origin in origins for origin in APPROVED_PRODUCTION_ORIGINS)
+
+
+def test_production_cors_rejects_insecure_custom_origin():
+    origins = build_cors_origins(
+        environment="production",
+        frontend_origin="http://customer.example.test",
+    )
+    assert "http://customer.example.test" not in origins
 
 
 def test_cors_origins_are_trimmed_and_deduplicated():

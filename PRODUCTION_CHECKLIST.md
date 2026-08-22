@@ -5,7 +5,7 @@
 - [ ] `SECRET_KEY` en az 32 rastgele karakter olmalı; örnek/değiştirilmesi gereken anahtar kullanılmamalıdır.
 - [ ] `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` ve `DATABASE_URL` yalnızca ortam değişkenlerinden verilmelidir.
 - [ ] Varsayılan global yönetici şifresi değiştirilmelidir.
-- [ ] PostgreSQL ve HTTPS kullanılmalıdır.
+- [ ] Production'da PostgreSQL ve HTTPS kullanılmalıdır; backend SQLite veya HTTP frontend origin'iyle başlamamalıdır.
 - [ ] CORS yalnızca gerçek frontend alan adına açılmalıdır.
 - [ ] SMTP, PostgreSQL, sağlık şifreleme ve yedek şifreleme sırları kaynak koduna yazılmamalıdır.
 - [ ] Render'da `HEALTH_FIELD_ENCRYPTION_ENABLED=true` ve güçlü `HEALTH_FIELD_ENCRYPTION_KEY` tanımlı olmalıdır.
@@ -14,13 +14,15 @@
 - [ ] Dosyalar kalıcı nesne depolamada saklanmalı ve zararlı yazılım taraması etkin olmalıdır.
 - [ ] Günlük otomatik yedekleme, geri yükleme ve geri dönüş prosedürü test edilmelidir.
 - [ ] PyJWT ve frontend lockfile bağımlılıkları güncel/senkron olmalıdır.
+- [ ] Access token `localStorage` içinde bulunmamalı; refresh cookie HttpOnly/Secure ve SameSite=Lax olmalıdır.
+- [ ] Ayrıntılı sistem sağlık ve asenkron iş durumu endpoint'leri kimlik doğrulama gerektirmelidir; herkese açık `/health` yalnızca liveness için kullanılmalıdır.
 
 ## Yayın sırası
 
 1. PostgreSQL veritabanını oluşturun ve tüm zorunlu sırları Dashboard'a tanımlayın.
 2. `docker compose config` veya Render Blueprint doğrulamasıyla eksik ortam değişkenlerini kontrol edin.
 3. `alembic upgrade head` çalıştırın.
-4. Backend `/health` ve `/api/v1/system/health` adreslerini kontrol edin.
+4. Backend herkese açık `/health` liveness yanıtını ve global yönetici kimliğiyle `/api/v1/system/health` yanıtını kontrol edin.
 5. Frontend `VITE_API_URL` değerini backend adresine yönlendirin.
 6. Global yönetici ile giriş yapın.
 7. Demo şifresini değiştirin.
@@ -39,5 +41,6 @@
 - ClamAV veya eşdeğer dosya taraması
 - Redis tabanlı rate limiting
 - Otomatik zamanlanmış bildirim görevleri
+- Resmi İBYS/İSG-KATİP API sözleşmesi, erişim bilgileri ve sandbox/contract testleri
 - KVKK aydınlatma, açık rıza ve veri saklama politikaları
 - Penetrasyon testi

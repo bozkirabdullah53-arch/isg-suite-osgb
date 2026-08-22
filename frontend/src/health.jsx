@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Download, FileText, HeartPulse, Plus, Printer, RefreshCw, Search, Upload, X} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
+import {getAccessToken} from './auth_session';
 import {AppModal} from './ui_modal';
 import {canLoadHealthAnalysis} from './health_role_policy';
 
@@ -513,7 +514,7 @@ export function HealthPage({user}) {
   }
   async function openHtmlDocument(row, kind) {
     try {
-      const token = localStorage.getItem('isg_token');
+      const token = getAccessToken();
       const base = import.meta.env.VITE_API_URL
         || ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
           ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`

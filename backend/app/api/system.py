@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_roles
+from app.api.deps import get_current_user, require_roles
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.version import APP_VERSION
@@ -16,7 +16,11 @@ router = APIRouter(prefix="/system", tags=["Sistem"])
 
 
 @router.get("/health")
-def health(db: Session = Depends(get_db)):
+def health(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    _ = user
     db.execute(text("SELECT 1"))
     return {
         "status": "healthy",
@@ -149,8 +153,12 @@ def health_crypto_backfill(
 
 
 @router.get("/jobs/{job_id}")
-def job_status(job_id: str):
+def job_status(
+    job_id: str,
+    user: User = Depends(get_current_user),
+):
     """Async iş durumu (P1-10). Kayıt yoksa 404."""
+    _ = user
     rec = get_job(job_id)
     if not rec:
         raise HTTPException(404, "İş bulunamadı.")

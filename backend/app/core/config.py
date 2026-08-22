@@ -1,3 +1,5 @@
+from urllib.parse import urlsplit
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -301,3 +303,20 @@ def validate_runtime_settings() -> None:
                 "OBJECT_STORAGE_REMOTE_REQUIRED=true iken bucket, access key, secret key "
                 "ve endpoint veya region zorunludur."
             )
+    database_url = (settings.database_url or "").strip().lower()
+    if not database_url.startswith(("postgresql://", "postgres://", "postgresql+")):
+        raise RuntimeError(
+            "Production ortamında PostgreSQL DATABASE_URL zorunludur; SQLite kullanılamaz."
+        )
+    frontend_origin = (settings.frontend_origin or "").strip()
+    parsed_origin = urlsplit(frontend_origin)
+    if (
+        parsed_origin.scheme != "https"
+        or not parsed_origin.netloc
+        or parsed_origin.path not in ("", "/")
+        or parsed_origin.query
+        or parsed_origin.fragment
+    ):
+        raise RuntimeError(
+            "Production ortamında FRONTEND_ORIGIN yalnızca tam bir HTTPS origin olmalıdır."
+        )
