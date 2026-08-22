@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.api.company_access import accessible_company_ids_or_empty, ensure_company_access, resolve_employee_company_id
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import get_current_user, is_workplace_manager_account, require_roles
 from app.core.database import get_db
 from app.models.entities import Branch, Employee, User, UserRole
 from app.schemas.employee import EmployeeCreate, EmployeeResponse, EmployeeUpdate
@@ -40,6 +40,26 @@ def validate_branch(db: Session, cid: int, bid: int | None):
         branch = db.get(Branch, bid)
         if not branch or branch.company_id != cid:
             raise HTTPException(422, "Şube firma ile uyumlu değil.")
+
+
+def resolve_create_company_id(db: Session, user: User, requested_company_id: int | None) -> int:
+    """Personel oluşturma tenant kapsamını backend'de kesinleştirir.
+
+    İşyeri yetkilisi (company_admin + company_id) için firma kimliği istemciden
+    belirlenmez; hesabın bağlı olduğu tek işyeri kullanılır. İstemci yabancı bir
+    firma kimliği gönderirse istek açıkça 403 ile reddedilir.
+    """
+    if is_workplace_manager_account(user):
+        own_company_id = int(user.company_id)
+        if requested_company_id is not None and int(requested_company_id) != own_company_id:
+            raise HTTPException(403, "Bu işyerine bağlı hesap yalnızca kendi işyerine personel ekleyebilir.")
+        check_company(db, user, own_company_id)
+        return own_company_id
+
+    if requested_company_id is None:
+        raise HTTPException(422, "Firma seçilmelidir.")
+    check_company(db, user, int(requested_company_id))
+    return int(requested_company_id)
 
 
 @router.get("", response_model=list[EmployeeResponse])
@@ -92,14 +112,15 @@ def create_employee(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
-    check_company(db, user, payload.company_id)
-    validate_branch(db, payload.company_id, payload.branch_id)
+    cid = resolve_create_company_id(db, user, payload.company_id)
+    validate_branch(db, cid, payload.branch_id)
     values = payload.model_dump()
+    values["company_id"] = cid
     values["national_id_masked"] = normalize_national_id(values.get("national_id_masked")) or None
     obj = Employee(**values)
     db.add(obj)
     try:
-        sync_company_service_requirements(db, payload.company_id, commit=False)
+        sync_company_service_requirements(db, cid, commit=False)
         db.commit()
     except IntegrityError:
         db.rollback()
