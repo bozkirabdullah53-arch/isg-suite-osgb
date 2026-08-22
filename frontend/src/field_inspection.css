@@ -910,3 +910,27 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
     backdrop-filter: none !important;
   }
 }
+
+/* Mobile/tablet field layout: force the form and side cards into one flow. */
+@media (max-width: 1040px) {
+  .field-inspection-page .field-inspection-layout {
+    display: block !important;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .field-inspection-page .field-form,
+  .field-inspection-page .field-side {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .field-inspection-page .field-side {
+    position: static !important;
+    display: grid;
+    margin-top: 14px;
+  }
+}
