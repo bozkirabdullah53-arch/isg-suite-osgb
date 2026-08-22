@@ -1932,6 +1932,10 @@ function App(){
 
   function goModule(id,{replace=false,companyId=''}={}){
     setMobileMoreOpen(false);
+    if(typeof window!=='undefined' && typeof window.scrollTo==='function'){
+      window.scrollTo({top:0,left:0,behavior:'auto'});
+    }
+    setMobileMoreOpen(false);
     if(id!=='customer_360') setC360Id(null);
     if(id==='customer_360' && isWorkplaceManagerUser(user)){
       const home=homeModuleForUser(user);
