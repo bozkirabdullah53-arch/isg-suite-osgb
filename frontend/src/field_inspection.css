@@ -893,3 +893,20 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
 }
+
+/* Keep the field form heading in normal flow on mobile.
+   The global header rule is sticky and also matches this nested header. */
+@media (max-width: 620px) {
+  .field-inspection-page > .field-inspection-head {
+    position: static !important;
+    inset: auto !important;
+    top: auto !important;
+    z-index: auto !important;
+    margin: 0 0 10px !important;
+    padding: 12px 0 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+}
