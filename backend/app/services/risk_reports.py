@@ -116,6 +116,15 @@ def _dept(risk) -> str:
     return getattr(risk, "department_name", None) or "—"
 
 
+def _risk_responsible_name(risk) -> str:
+    employee = getattr(risk, "responsible_employee", None)
+    name = getattr(employee, "full_name", None)
+    if not name:
+        return "—"
+    title = getattr(employee, "job_title", None)
+    return f"{name} — {title}" if title else name
+
+
 def _hazard_name(risk, hazard_map: dict) -> str:
     h = hazard_map.get(getattr(risk, "hazard_id", None))
     return h.name if h else "—"
@@ -685,6 +694,7 @@ def build_risk_pdf(
         risk_data.extend(
             [
             ["Termin Tarihi", _fmt_date(risk.term_date)],
+            ["Termin Sorumlusu", _risk_responsible_name(risk)],
             ["Durum", risk.status or "Açık"],
             ["DÖF sayısı", str(len(getattr(risk, "dofs", None) or []))],
             ["Revizyon (kayıt)", str(getattr(risk, "revision_no", None) or "—")],
@@ -1070,7 +1080,7 @@ def build_risk_excel(
     doc_label = f"Risk Değerlendirme Raporu — {getattr(company, 'name', '')}"
     has_hazop = any(getattr(risk, "method_code", None) == "hazop" for risk in risks)
     has_fine_kinney = any(getattr(risk, "method_code", None) == "fine_kinney" for risk in risks)
-    column_count = 21 if has_hazop else (19 if has_fine_kinney else 17)
+    column_count = 22 if has_hazop else (20 if has_fine_kinney else 18)
     last_column = get_column_letter(column_count)
 
     ws = wb.active
@@ -1115,20 +1125,20 @@ def build_risk_excel(
             "Risk Kodu", "Yöntem", "Bölüm", "Faaliyet", "Proses Düğümü", "Tasarım Amacı",
             "Parametre", "Kılavuz Kelime", "Sapma", "Tehlike", "Tehlike Kodu", "Nedenler",
             "Sonuçlar", "Mevcut Korumalar", "Öneriler", "Etkilenenler", "HAZOP Önceliği",
-            "Termin Tarihi", "Durum", "DÖF Sayısı", "Fotoğraf",
+            "Termin Tarihi", "Termin Sorumlusu", "Durum", "DÖF Sayısı", "Fotoğraf",
         ]
         if has_hazop
         else [
             "Risk Kodu", "Yöntem", "Bölüm", "Faaliyet", "Tehlike", "Tehlike Kodu",
             "Risk Tanımı", "Etkilenenler", "Olasılık", "Frekans / Maruziyet", "Şiddet",
-            "Risk Skoru", "Risk Seviyesi", "Termin Tarihi", "Mevcut Önlemler",
+            "Risk Skoru", "Risk Seviyesi", "Termin Tarihi", "Termin Sorumlusu", "Mevcut Önlemler",
             "İlave Önlemler", "Durum", "DÖF Sayısı", "Fotoğraf",
         ]
         if has_fine_kinney
         else [
             "Risk Kodu", "Bölüm", "Faaliyet", "Tehlike", "Tehlike Kodu", "Risk Tanımı",
             "Etkilenenler", "Olasılık (1-5)", "Şiddet (1-5)", "Risk Skoru", "Risk Seviyesi",
-            "Termin Tarihi", "Mevcut Önlemler", "İlave Önlemler", "Durum", "DÖF Sayısı", "Fotoğraf",
+            "Termin Tarihi", "Termin Sorumlusu", "Mevcut Önlemler", "İlave Önlemler", "Durum", "DÖF Sayısı", "Fotoğraf",
         ]
     )
     for col, header in enumerate(headers, 1):
@@ -1156,7 +1166,7 @@ def build_risk_excel(
                 _hazard_name(risk, hazard_map), _hazard_code(risk, hazard_map), hazop.get("causes") or "—",
                 hazop.get("consequences") or "—", hazop.get("safeguards") or "—",
                 hazop.get("recommendations") or "—", risk.affected_people or "—", risk_level_label,
-                _fmt_date(risk.term_date), risk.status or "Açık", len(dofs), "",
+                _fmt_date(risk.term_date), _risk_responsible_name(risk), risk.status or "Açık", len(dofs), "",
             ]
             if has_hazop
             else [
@@ -1164,7 +1174,7 @@ def build_risk_excel(
                 _hazard_name(risk, hazard_map), _hazard_code(risk, hazard_map), risk.risk_definition,
                 risk.affected_people or "—", _score_text(risk.probability), _score_text(getattr(risk, "frequency", None)),
                 _score_text(risk.severity), _score_text(risk.risk_score), risk_level_label,
-                _fmt_date(risk.term_date), risk.existing_measures or "—", risk.additional_measures or "—",
+                _fmt_date(risk.term_date), _risk_responsible_name(risk), risk.existing_measures or "—", risk.additional_measures or "—",
                 risk.status or "Açık", len(dofs), "",
             ]
             if has_fine_kinney
@@ -1172,7 +1182,7 @@ def build_risk_excel(
                 risk.risk_code, _dept(risk), risk.activity, _hazard_name(risk, hazard_map),
                 _hazard_code(risk, hazard_map), risk.risk_definition, risk.affected_people or "—",
                 _score_text(risk.probability), _score_text(risk.severity), _score_text(risk.risk_score),
-                risk_level_label, _fmt_date(risk.term_date), risk.existing_measures or "—",
+                risk_level_label, _fmt_date(risk.term_date), _risk_responsible_name(risk), risk.existing_measures or "—",
                 risk.additional_measures or "—", risk.status or "Açık", len(dofs), "",
             ]
         )
@@ -1206,12 +1216,12 @@ def build_risk_excel(
                 ws.cell(row=idx, column=column_count, value="Fotoğraf var / eklenemedi")
 
     widths = (
-        [12, 24, 15, 20, 20, 24, 18, 18, 30, 18, 12, 30, 30, 30, 30, 18, 18, 12, 10, 10, 18]
+        [12, 24, 15, 20, 20, 24, 18, 18, 30, 18, 12, 30, 30, 30, 30, 18, 18, 12, 24, 10, 10, 18]
         if has_hazop
         else (
-            [12, 20, 15, 20, 18, 12, 28, 16, 10, 16, 10, 10, 22, 12, 28, 28, 10, 10, 18]
+            [12, 20, 15, 20, 18, 12, 28, 16, 10, 16, 10, 10, 22, 12, 24, 28, 28, 10, 10, 18]
             if has_fine_kinney
-            else [12, 15, 20, 18, 12, 28, 16, 10, 10, 10, 14, 12, 28, 28, 10, 10, 18]
+            else [12, 15, 20, 18, 12, 28, 16, 10, 10, 10, 14, 12, 24, 28, 28, 10, 10, 18]
         )
     )
     for i, w in enumerate(widths, 1):
