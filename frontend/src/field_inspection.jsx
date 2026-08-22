@@ -674,11 +674,32 @@ export function FieldInspectionPage({user}) {
             </div>
             <ImagePlus size={22} />
           </div>
-          <label className="field-photo-picker">
-            <input type="file" accept="image/*" capture="environment" multiple onChange={handlePhotoSelect} disabled={busy || photos.length >= 5} />
-            <Camera size={25} />
-            <span><strong>Kamera / galeriden ekle</strong><small>Fotoğraflar cihazda küçültülür; bağlantı gelince güvenli medya akışına gönderilir.</small></span>
-          </label>
+          <div className="field-photo-actions" aria-label="Fotoğraf kanıtı ekleme">
+            <label className={`field-photo-action primary${photos.length >= 5 ? " is-disabled" : ""}`}>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handlePhotoSelect}
+                disabled={busy || photos.length >= 5}
+                aria-label="Kamera ile fotoğraf çek"
+              />
+              <Camera size={22} />
+              <span><strong>Fotoğraf çek</strong><small>Kamerayı aç</small></span>
+            </label>
+            <label className={`field-photo-action${photos.length >= 5 ? " is-disabled" : ""}`}>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handlePhotoSelect}
+                disabled={busy || photos.length >= 5}
+                aria-label="Galeriden fotoğraf seç"
+              />
+              <ImagePlus size={22} />
+              <span><strong>Galeriden seç</strong><small>En fazla {Math.max(0, 5 - photos.length)} fotoğraf</small></span>
+            </label>
+          </div>
           {photos.length > 0 && (
             <div className="field-photo-grid">
               {photos.map((photo) => (
