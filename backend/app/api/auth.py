@@ -1,9 +1,11 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 import jwt
 from jwt import InvalidTokenError
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import logging
 
@@ -17,14 +19,24 @@ from app.core.auth_cookies import (
 )
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import ALGORITHM, create_access_token, create_refresh_token, verify_password
-from app.models.entities import User
+from app.core.security import ALGORITHM, create_access_token, create_refresh_token, get_password_hash, verify_password
+from app.models.entities import (
+    IsgProfessional,
+    OsgbOrganization,
+    OsgbSubscription,
+    OsgbSubscriptionPlan,
+    ProfessionalType,
+    SubscriptionStatus,
+    User,
+    UserRole,
+)
 from app.schemas.auth import (
     CurrentUserResponse,
     ForgotPasswordRequest,
     LoginRequest,
     MfaRestartSetupRequest,
     MfaVerifyRequest,
+    RegisterRequest,
     ResetPasswordRequest,
     TokenResponse,
 )
@@ -78,6 +90,110 @@ def _issue_access(user: User, response: Response) -> TokenResponse:
         set_refresh_cookie(response, create_refresh_token(str(user.id), token_version=tv))
         body.refresh_cookie = True
     return body
+
+
+@router.post("/register", response_model=TokenResponse, status_code=201)
+def register(
+    payload: RegisterRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """Mobil uygulamadan bireysel İSG uzmanı hesabı oluşturur.
+
+    Yeni hesap, mevcut tenant kapsam modelini bozmamak için otomatik olarak
+    kişisel bir OSGB çalışma alanına ve deneme aboneliğine bağlanır. Böylece
+    uzman kaydı oluşmadan token verilmez ve mevcut ``ensure_login_scope``
+    güvenlik kontrolü devre dışı bırakılmaz.
+    """
+    email = str(payload.email).strip().lower()
+    full_name = payload.full_name.strip()
+    certificate_number = payload.certificate_number.strip()
+    if payload.password != payload.password_confirm:
+        raise HTTPException(422, "Şifreler aynı değil.")
+    if not payload.contract_accepted or not payload.personal_data_accepted:
+        raise HTTPException(422, "Kullanım koşulları ve kişisel veri işleme onayı zorunludur.")
+    if len(full_name) < 2:
+        raise HTTPException(422, "Ad soyad zorunludur.")
+    if len(certificate_number) < 3:
+        raise HTTPException(422, "İSG sertifika numarası zorunludur.")
+
+    ip = _client_ip(request)
+    try:
+        throttle_login(f"register:{email}", ip)
+    except ValueError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+
+    existing = db.scalar(
+        select(User).where(
+            or_(func.lower(User.email) == email, func.lower(User.username) == email)
+        )
+    )
+    if existing:
+        raise HTTPException(409, "Bu e-posta zaten kayıtlı. Giriş yapın veya şifremi unuttum seçeneğini kullanın.")
+
+    from app.services.eisa_platform import resolved_trial_days
+    from app.services.audit import add_audit_log
+
+    now = datetime.utcnow()
+    trial_days = resolved_trial_days(db)
+    workspace = OsgbOrganization(
+        name=f"{full_name} — Bireysel Uzman Çalışma Alanı"[:220],
+        authorization_number=f"MOBIL-{uuid4().hex[:12].upper()}",
+        email=email,
+        phone=(payload.phone or "").strip() or None,
+        responsible_manager=full_name,
+        is_active=True,
+    )
+    db.add(workspace)
+    db.flush()
+
+    user = User(
+        email=email,
+        full_name=full_name,
+        hashed_password=get_password_hash(payload.password),
+        role=UserRole.SAFETY_SPECIALIST,
+        osgb_id=workspace.id,
+        is_active=True,
+    )
+    professional = IsgProfessional(
+        osgb_id=workspace.id,
+        full_name=full_name,
+        email=email,
+        phone=(payload.phone or "").strip() or None,
+        professional_type=ProfessionalType.SAFETY_SPECIALIST,
+        certificate_class=payload.certificate_class,
+        certificate_number=certificate_number,
+        is_active=True,
+    )
+    subscription = OsgbSubscription(
+        osgb_id=workspace.id,
+        plan=OsgbSubscriptionPlan.STANDARD,
+        status=SubscriptionStatus.TRIAL,
+        trial_ends_at=now + timedelta(days=trial_days),
+        max_users=1,
+        max_workplaces=50,
+    )
+    db.add_all([user, professional, subscription])
+    db.flush()
+    add_audit_log(
+        db,
+        user=user,
+        action="self_register",
+        entity_type="user",
+        entity_id=str(user.id),
+        description="Mobil uygulamadan bireysel İSG uzmanı hesabı oluşturuldu; kullanım ve KVKK onayları alındı.",
+        ip_address=ip,
+        module="auth",
+    )
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, "Bu e-posta veya sertifika numarası zaten kayıtlı.") from exc
+
+    db.refresh(user)
+    return _issue_access(user, response)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -402,104 +518,3 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Sessio
     email = str(payload.email).strip().lower()
     user = db.scalar(select(User).where(func.lower(User.email) == email))
     if user and user.is_active:
-        raw = create_password_reset(db, user)
-        send_reset_email(user.email, raw)
-        add_audit_log(
-            db,
-            user=user,
-            action="password_reset_requested",
-            entity_type="user",
-            entity_id=str(user.id),
-            description="Parola sıfırlama istendi",
-            ip_address=_client_ip(request),
-            module="auth",
-        )
-        db.commit()
-    return {"message": "Eğer hesap varsa sıfırlama bağlantısı e-posta ile gönderildi."}
-
-
-@router.post("/reset-password")
-def reset_password(payload: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
-    if payload.new_password_confirm is not None and payload.new_password != payload.new_password_confirm:
-        raise HTTPException(status_code=422, detail="Yeni şifreler aynı değil.")
-    try:
-        user = consume_password_reset(db, payload.token, payload.new_password)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    add_audit_log(
-        db,
-        user=user,
-        action="password_reset_completed",
-        entity_type="user",
-        entity_id=str(user.id),
-        description="Parola sıfırlandı",
-        ip_address=_client_ip(request),
-        module="auth",
-    )
-    db.commit()
-    return {"message": "Şifreniz güncellendi. Giriş yapabilirsiniz."}
-
-
-@router.get("/me", response_model=CurrentUserResponse)
-def me(
-    request: Request,
-    response: Response,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    from app.api.company_access import sync_user_from_professional
-    from app.models.entities import UserRole
-    from app.services.osgb_subscription import (
-        effective_subscription_status,
-        get_or_create_subscription,
-        resolve_user_osgb_id,
-        subscription_allows_write,
-    )
-
-    user = sync_user_from_professional(db, user, commit=True)
-    is_eisa = user.role == UserRole.GLOBAL_ADMIN
-
-    # Refresh-cookie rollout was enabled after some users already had a valid
-    # access token.  Those sessions had no HttpOnly refresh cookie, so the
-    # first long/serial upload failed as soon as the 15-minute access token
-    # expired.  Bootstrap the cookie from an already authenticated /me call;
-    # this does not change the access token or any authorization decision.
-    if refresh_cookie_enabled() and not request.cookies.get(REFRESH_COOKIE_NAME):
-        set_refresh_cookie(
-            response,
-            create_refresh_token(
-                str(user.id),
-                token_version=int(getattr(user, "token_version", 0) or 0),
-            ),
-        )
-
-    sub_status = None
-    write_ok = True
-    if not is_eisa:
-        try:
-            oid = resolve_user_osgb_id(db, user)
-            if oid:
-                sub = get_or_create_subscription(db, oid)
-                eff = effective_subscription_status(sub)
-                sub_status = eff.value
-                write_ok = subscription_allows_write(sub)
-        except Exception:
-            # Lokal/eski kayıtlarda enum uyumsuzluğu oturumu düşürmesin
-            logger.exception("auth/me subscription lookup failed user_id=%s", getattr(user, "id", None))
-            sub_status = None
-            write_ok = True
-    return CurrentUserResponse(
-        id=user.id,
-        email=user.email,
-        username=getattr(user, "username", None),
-        full_name=user.full_name,
-        role=user.role.value,
-        company_id=user.company_id,
-        osgb_id=user.osgb_id,
-        is_eisa=is_eisa,
-        subscription_write_allowed=write_ok,
-        subscription_status=sub_status,
-        mfa_enabled=bool(getattr(user, "mfa_enabled", False)),
-        mfa_required=role_requires_mfa(user.role),
-        password_change_required=bool(getattr(user, "password_change_required", False)),
-    )

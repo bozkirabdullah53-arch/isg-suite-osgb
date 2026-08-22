@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -6,6 +8,20 @@ class LoginRequest(BaseModel):
     # e-posta adresi veya kullanıcı adı olabilir (ör. A.bozkir).
     email: str = Field(min_length=1, max_length=255)
     password: str
+
+
+class RegisterRequest(BaseModel):
+    """Bireysel İSG uzmanı mobil kayıt formu."""
+
+    full_name: str = Field(min_length=2, max_length=160)
+    email: EmailStr
+    password: str = Field(min_length=10, max_length=128)
+    password_confirm: str = Field(min_length=10, max_length=128)
+    phone: str | None = Field(default=None, max_length=40)
+    certificate_class: Literal["A", "B", "C"]
+    certificate_number: str = Field(min_length=3, max_length=80)
+    contract_accepted: bool
+    personal_data_accepted: bool
 
 
 class MfaVerifyRequest(BaseModel):
