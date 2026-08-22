@@ -162,17 +162,27 @@ class AssignmentResponse(AssignmentCreate):
     model_config = ConfigDict(from_attributes=True)
 
 class ContractCreate(BaseModel):
-    osgb_id: int
-    company_id: int
-    contract_number: str
+    osgb_id: int = Field(gt=0)
+    company_id: int = Field(gt=0)
+    contract_number: str = Field(min_length=1, max_length=100)
     start_date: date
     end_date: date | None = None
-    monthly_fee: int | None = None
+    monthly_fee: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_period(self):
+        self.contract_number = assert_meaningful_text(
+            self.contract_number, label="Sözleşme numarası", min_len=1, required=True
+        )
+        if self.end_date and self.end_date < self.start_date:
+            raise ValueError("Sözleşme bitiş tarihi başlangıç tarihinden önce olamaz.")
+        return self
 
 class ContractUpdate(BaseModel):
     status: str | None = None
+    start_date: date | None = None
     end_date: date | None = None
-    monthly_fee: int | None = None
+    monthly_fee: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def sanitize(self):

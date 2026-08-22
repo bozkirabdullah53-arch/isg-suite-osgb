@@ -58,6 +58,20 @@ Proje artık OSGB üst kuruluşu, müşteri işyerleri, uzman/hekim/DSP, görevl
 - Access token kalıcı `localStorage` içinde tutulmaz; sekme oturumu bellekte/`sessionStorage` içinde, yenileme belirteci HttpOnly cookie içindedir.
 - İBYS/İSG-KATİP adapter'ları resmi API sözleşmesi ve erişim bilgileri sağlanana kadar kontrollü stub/dry-run durumundadır; sahte canlı entegrasyon eklenmemiştir.
 
+## Yetkili Firma Yönetimi
+
+OSGB yöneticileri için tenant-kapsamlı **Yetkili Firma Yönetimi** modülü eklenmiştir.
+
+- Firma kartı: OSGB/işyeri bağlantısı, unvan, konum, temsilci, iletişim, çalışan sayısı, tehlike sınıfı, yetki kapsamı/numarası ve düzenlenme–başlangıç–bitiş–inceleme tarihleri.
+- Belge ve profesyonel uygunluğu: eksik, süresi dolmuş, 30/60/90 gün içinde dolacak belge uyarıları; profesyonel belge/geçerlilik/görevlendirme/sözleşme/hizmet süresi kontrolleri.
+- Şeffaf skor: 10 uygunluk ve 8 kalite kategorisi; puan, ağırlık, başarısız kontrol, kritik engel, önerilen aksiyon ve skor geçmişi görünürdür. Kara kutu puanlama kullanılmaz.
+- Ticari ve denetim araçları: çoklu filtreler, OSGB durum özeti, tek tık firma PDF/Excel dosyası, durum Excel'i, bildirimler, otomatik eksik listesi ve ZIP denetim hazırlık paketi.
+- Gelişmiş akışlar: 11 adımlı onboarding, otomatik görev/belge kontrol listesi, OSGB-içi firma kalite sıralaması, yalnız global yöneticiye açık anonim OSGB karşılaştırma API'si ve Denetim Günü görünümü.
+- Gizlilik: sağlık bilgisi yalnız anonim toplamlar olarak kullanılır; kişi veya klinik ayrıntı firma kartı, skor, bildirim ya da çıktılarda yer almaz.
+- Kapsam sınırı: yeni modül yalnız kurum içi kayıt ve hazırlık yönetimidir; harici gönderim, resmî doğrulama veya kabul işlemi yapmaz.
+
+Veritabanı geçişi: `0104_authorized_firm_compliance`. Uygulama ve güvenlik ayrıntıları için `AUTHORIZED_FIRM_UPGRADE_REPORT.md` belgesine bakın.
+
 ## Docker Compose ile yerel çalıştırma
 
 `docker compose` çalıştırmadan önce `.env` dosyanızda aşağıdaki değişkenleri güçlü, yerel değerlerle tanımlayın:

@@ -16,6 +16,8 @@ export default [
       "src/legal_docs.jsx",
       "src/training_question_bank_logic.js",
       "src/training_question_bank_logic.test.js",
+      "src/authorized_firm*.js",
+      "src/authorized_firm*.jsx",
       "src/personnel_profile*.js",
       "src/personnel_profile*.jsx",
     ],
@@ -29,6 +31,14 @@ export default [
       ...js.configs.recommended.rules,
       "no-unused-vars": ["warn", {argsIgnorePattern: "^_", varsIgnorePattern: "^_"}],
       "no-undef": "error",
+    },
+  },
+  {
+    files: ["src/authorized_firms.jsx"],
+    rules: {
+      // Core ESLint JSX identifiersini kullanım olarak işaretlemez; Vite build
+      // ve no-undef kontrolü bu dosyada etkin kalır.
+      "no-unused-vars": "off",
     },
   },
 ];

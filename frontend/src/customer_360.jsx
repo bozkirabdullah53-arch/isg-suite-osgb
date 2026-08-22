@@ -18,6 +18,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import {api, downloadFile} from './api';
+import {AuthorizedFirmCompanyCard} from './authorized_firms';
 
 const STATUS_LABELS = {ok: 'Uygun', warning: 'İzlem', critical: 'Kritik', unknown: 'Belirsiz'};
 const EVENT_LABELS = {
@@ -203,6 +204,8 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
               İBYS durumu: Resmî doğrulama ve kabul bekleniyor. Bu ekran “İBYS Ready” beyanı değildir.
             </p>
           </section>
+
+          <AuthorizedFirmCompanyCard companyId={companyId} onNavigate={onNavigate} />
 
           {(data.alerts || []).length > 0 && (
             <section className="panel" style={{marginBottom: 16, borderLeft: '4px solid #dc2626'}}>

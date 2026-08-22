@@ -33,6 +33,21 @@
 12. Yedek alıp önce dry-run, sonra staging geri yükleme testi yapın.
 13. Log ve uptime izleme hizmetini etkinleştirin.
 
+## Yetkili Firma Yönetimi yayın kapısı
+
+- [ ] `alembic current` çıktısı `0104_authorized_firm_compliance (head)` olmalıdır.
+- [ ] OSGB yöneticisi yalnız kendi OSGB'sindeki firma kartlarını listeleyebilmeli; başka OSGB kartı kimliğiyle doğrudan istek kayıt varlığını açığa çıkarmadan `404` dönmelidir.
+- [ ] Tek işyerine bağlı yönetici/kiosk hesapları `/api/v1/authorized-firms` uçlarına erişememelidir.
+- [ ] Yetki, belge, profesyonel sertifikası, görevlendirme ve sözleşme tarih aralıkları ters girildiğinde kayıt reddedilmelidir.
+- [ ] Aktif yetkili firma görevlendirmesi geçerli aktif sözleşme tarih aralığının dışına çıkamamalıdır.
+- [ ] 30/60/90 günlük belge uyarıları ve bildirim yenileme akışı staging verisiyle doğrulanmalıdır.
+- [ ] PDF, Excel, durum Excel'i ve denetim ZIP'i farklı tenant/rollerle indirme testinden geçmelidir.
+- [ ] Excel formül enjeksiyonu ve PDF metin kaçışlama testleri geçmelidir.
+- [ ] Firma kartı, Denetim Günü ve çıktılarda kişi/klinik sağlık ayrıntısı bulunmadığı doğrulanmalıdır.
+- [ ] Uygunluk/kalite kategorileri, ağırlıklar, kritik engeller, önerilen aksiyonlar ve skor geçmişi kullanıcıya görünür olmalıdır.
+- [ ] Production deploy yalnız backend testleri, frontend test/lint/build ve bağımlılık taramaları başarılı olduktan sonra yapılmalıdır.
+- [ ] Migration öncesi PostgreSQL yedeği alınmalı; geri dönüşte yalnız yeni 0104 tablolarının kaldırılacağı doğrulanmalıdır.
+
 ## Ticari yayından önce kalan kritik entegrasyonlar
 
 - Gerçek ödeme sağlayıcısı
