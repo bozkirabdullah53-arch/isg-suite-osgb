@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from "react";
+import React, {useEffect, useMemo, useRef, useState} from "react";
 import {
   AlertTriangle,
   Camera,
@@ -141,6 +141,8 @@ export function FieldInspectionPage({user}) {
   const [recent, setRecent] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [photos, setPhotos] = useState([]);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
   const [selectedPhotoTags, setSelectedPhotoTags] = useState([]);
   const [gps, setGps] = useState({lat: null, lng: null, accuracy: null, captured_at: null});
   const [pending, setPending] = useState([]);
@@ -675,30 +677,46 @@ export function FieldInspectionPage({user}) {
             <ImagePlus size={22} />
           </div>
           <div className="field-photo-actions" aria-label="Fotoğraf kanıtı ekleme">
-            <label className={`field-photo-action primary${photos.length >= 5 ? " is-disabled" : ""}`}>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handlePhotoSelect}
-                disabled={busy || photos.length >= 5}
-                aria-label="Kamera ile fotoğraf çek"
-              />
+            <button
+              type="button"
+              className="field-photo-action primary"
+              onClick={() => cameraInputRef.current?.click()}
+              disabled={busy || photos.length >= 5}
+              aria-label="Kamera ile fotoğraf çek"
+            >
               <Camera size={22} />
               <span><strong>Fotoğraf çek</strong><small>Kamerayı aç</small></span>
-            </label>
-            <label className={`field-photo-action${photos.length >= 5 ? " is-disabled" : ""}`}>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handlePhotoSelect}
-                disabled={busy || photos.length >= 5}
-                aria-label="Galeriden fotoğraf seç"
-              />
+            </button>
+            <button
+              type="button"
+              className="field-photo-action"
+              onClick={() => galleryInputRef.current?.click()}
+              disabled={busy || photos.length >= 5}
+              aria-label="Galeriden fotoğraf seç"
+            >
               <ImagePlus size={22} />
               <span><strong>Galeriden seç</strong><small>En fazla {Math.max(0, 5 - photos.length)} fotoğraf</small></span>
-            </label>
+            </button>
+            <input
+              ref={cameraInputRef}
+              className="field-photo-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handlePhotoSelect}
+              disabled={busy || photos.length >= 5}
+              aria-label="Kamera dosyası"
+            />
+            <input
+              ref={galleryInputRef}
+              className="field-photo-input"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotoSelect}
+              disabled={busy || photos.length >= 5}
+              aria-label="Galeri dosyası"
+            />
           </div>
           {photos.length > 0 && (
             <div className="field-photo-grid">
