@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {CheckCircle2, Clock3, Download, Eye, FileSignature, RefreshCw, Send, ShieldCheck, XCircle} from 'lucide-react';
 import {api, downloadFile} from './api';
+import {getAccessToken} from './auth_session';
 import {AppModal} from './ui_modal';
 import {downloadBase64Pdf, probeIsgSigner, signPdfWithIsgSigner} from './isg_signer_agent';
 import './committee-workflow.css';
@@ -48,7 +49,7 @@ function apiUrl(path) {
 }
 
 async function fetchPdfBuffer(path) {
-  const token = localStorage.getItem('isg_token');
+  const token = getAccessToken();
   const response = await fetch(apiUrl(path), {
     headers: token ? {Authorization: `Bearer ${token}`} : {},
     credentials: 'include',

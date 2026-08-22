@@ -1,4 +1,8 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+import jwt
+from jwt import InvalidTokenError
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 import logging
@@ -13,7 +17,7 @@ from app.core.auth_cookies import (
 )
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import create_access_token, create_refresh_token, verify_password
+from app.core.security import ALGORITHM, create_access_token, create_refresh_token, verify_password
 from app.models.entities import User
 from app.schemas.auth import (
     CurrentUserResponse,
@@ -40,6 +44,7 @@ from app.services.auth_security import (
 )
 from app.services.audit import add_audit_log
 from app.services.access_scope import ensure_login_scope
+from app.services.token_revoke import is_jti_revoked, revoke_jti
 
 router = APIRouter(prefix="/auth", tags=["Kimlik Doğrulama"])
 logger = logging.getLogger(__name__)
@@ -266,13 +271,6 @@ def refresh_access_token(request: Request, response: Response, db: Session = Dep
     """HttpOnly refresh cookie → yeni access token. Flag kapalıysa 404."""
     if not refresh_cookie_enabled():
         raise HTTPException(404, "Refresh cookie kapalı.")
-    from datetime import datetime, timezone
-
-    import jwt
-    from jwt import InvalidTokenError
-
-    from app.core.security import ALGORITHM
-    from app.services.token_revoke import is_jti_revoked, revoke_jti
 
     raw = (request.cookies.get(REFRESH_COOKIE_NAME) or "").strip()
     if not raw:
@@ -285,7 +283,7 @@ def refresh_access_token(request: Request, response: Response, db: Session = Dep
         jti = payload.get("jti")
         tv = int(payload.get("tv") or 0)
         exp = payload.get("exp")
-    except (InvalidTokenError, TypeError, ValueError, HTTPException):
+    except (InvalidTokenError, TypeError, ValueError, OverflowError, OSError, HTTPException):
         clear_refresh_cookie(response)
         raise HTTPException(401, "Oturum yenilenemedi — tekrar giriş yapın.")
 
@@ -325,14 +323,7 @@ def logout(
     user: User = Depends(get_current_user),
     token: str = Depends(oauth2_scheme),
 ):
-    """Aktif access token'ı denylist'e yazar; istemci localStorage temizlemeli."""
-    from datetime import datetime, timezone
-
-    import jwt
-    from jwt import InvalidTokenError
-
-    from app.core.security import ALGORITHM
-    from app.services.token_revoke import revoke_jti
+    """Aktif access token'ı denylist'e yazar; istemci oturum belirtecini temizlemeli."""
 
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
@@ -352,17 +343,12 @@ def logout(
                 module="auth",
             )
             db.commit()
-    except (InvalidTokenError, TypeError, ValueError):
+    except (InvalidTokenError, TypeError, ValueError, OverflowError, OSError):
         logger.warning("logout: access jti revoke failed", exc_info=True)
     # Refresh cookie varsa temizle (flag açıkken)
     raw = (request.cookies.get(REFRESH_COOKIE_NAME) or "").strip()
     if raw:
         try:
-            import jwt
-
-            from app.core.security import ALGORITHM
-            from app.services.token_revoke import revoke_jti
-
             payload = jwt.decode(raw, settings.secret_key, algorithms=[ALGORITHM])
             jti = payload.get("jti")
             exp = payload.get("exp")
@@ -370,7 +356,7 @@ def logout(
                 expires_at = datetime.fromtimestamp(int(exp), tz=timezone.utc).replace(tzinfo=None)
                 revoke_jti(db, jti=str(jti), user_id=user.id, expires_at=expires_at)
                 db.commit()
-        except Exception:
+        except (InvalidTokenError, TypeError, ValueError, OverflowError, OSError):
             logger.warning("logout: refresh jti revoke failed", exc_info=True)
     clear_refresh_cookie(response)
     return {"ok": True, "message": "Oturum sonlandırıldı."}

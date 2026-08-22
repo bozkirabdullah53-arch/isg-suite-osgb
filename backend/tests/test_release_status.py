@@ -41,3 +41,13 @@ def test_infra_detail_endpoint_requires_auth():
 
     r = TestClient(app).get("/api/v1/system/infra-detail")
     assert r.status_code in (401, 403)
+
+
+def test_system_health_and_job_status_require_auth():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    assert client.get("/api/v1/system/health").status_code in (401, 403)
+    assert client.get("/api/v1/system/jobs/not-a-real-job").status_code in (401, 403)

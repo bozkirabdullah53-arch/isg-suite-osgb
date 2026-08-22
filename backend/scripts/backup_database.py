@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlparse, urlunparse
 
 from app.core.config import settings
 
@@ -18,14 +19,36 @@ def backup_sqlite(database_url: str, target: Path) -> None:
 
 def backup_postgresql(database_url: str, target: Path) -> None:
     parsed = urlparse(database_url.replace("postgresql+psycopg://", "postgresql://"))
+    query_items = parse_qsl(parsed.query, keep_blank_values=True)
+    password = unquote(parsed.password or "") or next(
+        (unquote(value) for key, value in query_items if key.casefold() == "password"),
+        "",
+    )
+    hostname = parsed.hostname or ""
+    if ":" in hostname and not hostname.startswith("["):
+        hostname = f"[{hostname}]"
+    netloc = hostname
+    if parsed.port:
+        netloc = f"{netloc}:{parsed.port}"
+    if parsed.username:
+        netloc = f"{quote(unquote(parsed.username), safe='')}@{netloc}"
+    query = urlencode(
+        (key, value)
+        for key, value in query_items
+        if key.casefold() != "password"
+    )
+    safe_url = urlunparse((parsed.scheme, netloc, parsed.path, parsed.params, query, ""))
     output = target.with_suffix(".dump")
     command = [
         "pg_dump",
         "--format=custom",
         "--file", str(output),
-        database_url.replace("postgresql+psycopg://", "postgresql://"),
+        safe_url,
     ]
-    subprocess.run(command, check=True)
+    env = dict(os.environ)
+    if password:
+        env["PGPASSWORD"] = password
+    subprocess.run(command, check=True, env=env)
 
 
 def main() -> None:

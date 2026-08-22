@@ -108,13 +108,18 @@ def test_system_job_endpoint(monkeypatch):
 
     monkeypatch.setattr("app.services.job_queue.async_jobs_enabled", lambda: False)
     from app.main import app
+    from app.api.deps import get_current_user
 
     rec = enqueue("ping", lambda: "ok")
     client = TestClient(app)
-    r = client.get(f"/api/v1/system/jobs/{rec.id}")
-    assert r.status_code == 200
-    assert r.json()["status"] == "done"
-    assert client.get("/api/v1/system/jobs/missing").status_code == 404
+    app.dependency_overrides[get_current_user] = lambda: object()
+    try:
+        r = client.get(f"/api/v1/system/jobs/{rec.id}")
+        assert r.status_code == 200
+        assert r.json()["status"] == "done"
+        assert client.get("/api/v1/system/jobs/missing").status_code == 404
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
 
 
 def test_redis_enqueue_persists_importable_handler_reference(monkeypatch):

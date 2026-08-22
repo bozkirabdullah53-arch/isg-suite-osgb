@@ -1,5 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {api, API_URL, downloadFile, uploadFile} from './api';
+import {getAccessToken} from './auth_session';
 import './remote_basic_ohs_training.css';
 
 const MANAGE_ROLES = ['global_admin', 'company_admin', 'safety_specialist'];
@@ -373,7 +374,7 @@ function EmployeePanel() {
 
   function sendProgressKeepalive(snapshot) {
     if (!snapshot?.assignmentId || !snapshot?.videoId) return;
-    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('isg_token') : null;
+    const token = getAccessToken();
     const path = `/trainings/remote/assignments/${snapshot.assignmentId}/videos/${snapshot.videoId}/progress`;
     try {
       void fetch(`${API_URL}${path}`, {

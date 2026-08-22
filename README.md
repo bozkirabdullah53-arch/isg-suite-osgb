@@ -53,6 +53,10 @@ Proje artık OSGB üst kuruluşu, müşteri işyerleri, uzman/hekim/DSP, görevl
 - Docker imajları UID 1000 ile çalışan `appuser` kullanır.
 - Docker Compose PostgreSQL kullanıcı adı, veritabanı, parola ve `DATABASE_URL` değerlerini zorunlu ortam değişkeni olarak ister; kaynak kodunda varsayılan parola yoktur.
 - Render üretim Blueprint'inde sağlık alanı şifrelemesi ve kontrollü dosya geri yükleme etkinleştirilmiştir. `HEALTH_FIELD_ENCRYPTION_KEY` ve `BACKUP_ENCRYPTION_KEY` değerleri Render Dashboard'da gizli olarak tanımlanmalıdır.
+- Production ortamı SQLite'ı, HTTP frontend origin'lerini ve geçersiz CORS origin'lerini reddeder.
+- Ayrıntılı sistem sağlık ve iş durumu endpoint'leri kimlik doğrulamalıdır; herkese açık `/health` yalnızca liveness bilgisi verir.
+- Access token kalıcı `localStorage` içinde tutulmaz; sekme oturumu bellekte/`sessionStorage` içinde, yenileme belirteci HttpOnly cookie içindedir.
+- İBYS/İSG-KATİP adapter'ları resmi API sözleşmesi ve erişim bilgileri sağlanana kadar kontrollü stub/dry-run durumundadır; sahte canlı entegrasyon eklenmemiştir.
 
 ## Docker Compose ile yerel çalıştırma
 

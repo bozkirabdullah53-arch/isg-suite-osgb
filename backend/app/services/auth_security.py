@@ -10,9 +10,9 @@ from datetime import datetime, timedelta
 from email.message import EmailMessage
 from typing import Any
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet
 import jwt
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -53,7 +53,7 @@ def encrypt_secret(plain: str) -> str:
 def decrypt_secret(token: str) -> str | None:
     try:
         return _fernet().decrypt(token.encode("utf-8")).decode("utf-8")
-    except (InvalidToken, Exception):
+    except Exception:
         return None
 
 
@@ -154,12 +154,21 @@ def hash_token(raw: str) -> str:
 
 def create_password_reset(db: Session, user: User) -> str:
     raw = secrets.token_urlsafe(32)
+    now = _utcnow()
+    db.execute(
+        update(PasswordResetToken)
+        .where(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at.is_(None),
+        )
+        .values(used_at=now)
+    )
     db.add(
         PasswordResetToken(
             user_id=user.id,
             token_hash=hash_token(raw),
-            expires_at=_utcnow() + timedelta(hours=RESET_TOKEN_HOURS),
-            created_at=_utcnow(),
+            expires_at=now + timedelta(hours=RESET_TOKEN_HOURS),
+            created_at=now,
         )
     )
     return raw
@@ -167,13 +176,14 @@ def create_password_reset(db: Session, user: User) -> str:
 
 def consume_password_reset(db: Session, raw_token: str, new_password: str) -> User:
     th = hash_token(raw_token)
+    now = _utcnow()
     row = db.scalar(
         select(PasswordResetToken).where(
             PasswordResetToken.token_hash == th,
             PasswordResetToken.used_at.is_(None),
-        )
+        ).with_for_update()
     )
-    if not row or row.expires_at < _utcnow():
+    if not row or row.expires_at < now:
         raise ValueError("Geçersiz veya süresi dolmuş sıfırlama bağlantısı.")
     user = db.get(User, row.user_id)
     if not user or not user.is_active:
@@ -185,7 +195,7 @@ def consume_password_reset(db: Session, raw_token: str, new_password: str) -> Us
     from app.services.token_revoke import bump_token_version
 
     bump_token_version(user)
-    row.used_at = _utcnow()
+    row.used_at = now
     return user
 
 

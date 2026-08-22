@@ -116,7 +116,7 @@ def infra_detail_payload() -> dict:
         "ci_postgres": "workflow-v1-migrate-parity",
         "tenant_context": "contextvar-wired-v1",
         "auth_refresh_cookie": "on" if refresh_cookie_enabled() else "off",
-        "auth_refresh_rollout": "prod-on-samesite-none-v2",
+        "auth_refresh_rollout": "prod-on-samesite-lax-v3",
         "assignment_unique": "active-partial-v2",
         "access_log": "json-request-id-v1",
         "async_jobs": "on" if async_jobs_enabled() else "off-sync-fallback",

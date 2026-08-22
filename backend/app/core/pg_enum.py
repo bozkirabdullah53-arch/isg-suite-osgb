@@ -1,7 +1,22 @@
 """Postgres enum ADD VALUE — savepoint ile güvenli (transaction abort önleme)."""
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import text
+
+
+_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _quote_identifier(value: str) -> str:
+    if not _IDENTIFIER.fullmatch(value or ""):
+        raise ValueError("Geçersiz PostgreSQL enum adı.")
+    return f'"{value}"'
+
+
+def _quote_literal(value: str) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
 
 
 def pg_add_enum_value(bind, enum_name: str, value: str) -> None:
@@ -25,4 +40,9 @@ def pg_add_enum_value(bind, enum_name: str, value: str) -> None:
     if has:
         return
     with bind.begin_nested():
-        bind.execute(text(f"ALTER TYPE {enum_name} ADD VALUE '{value}'"))
+        bind.execute(
+            text(
+                f"ALTER TYPE {_quote_identifier(enum_name)} "
+                f"ADD VALUE {_quote_literal(value)}"
+            )
+        )
