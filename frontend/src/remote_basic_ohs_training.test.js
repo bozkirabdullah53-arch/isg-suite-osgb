@@ -5,6 +5,7 @@ import {
   formatEmployeeDate,
   protectedPlaybackFallbackFetchOptions,
   sortEmployeeAssignments,
+  visibleCatalogVideos,
 } from './remote_basic_ohs_training.jsx';
 
 const today = new Date(2026, 7, 14, 12, 0, 0);
@@ -66,5 +67,19 @@ describe('remote content editor access', () => {
     expect(canEditRemoteContent({role: 'company_admin', osgb_id: 7})).toBe(true);
     expect(canEditRemoteContent({role: 'safety_specialist', osgb_id: 7})).toBe(false);
     expect(canEditRemoteContent({role: 'global_admin'})).toBe(false);
+  });
+});
+
+
+describe('remote catalog video visibility', () => {
+  it('hides removed and archived revisions from management lists', () => {
+    const rows = [
+      {id: 1, title: 'Yayınlanan sürüm', status: 'published'},
+      {id: 2, title: 'Taslak sürüm', status: 'draft'},
+      {id: 3, title: 'Kaldırılan sürüm', status: 'unpublished'},
+      {id: 4, title: 'Arşivlenen sürüm', status: 'archived'},
+    ];
+
+    expect(visibleCatalogVideos(rows).map((row) => row.id)).toEqual([1, 2]);
   });
 });

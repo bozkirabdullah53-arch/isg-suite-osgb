@@ -6,6 +6,7 @@ import './remote_basic_ohs_training.css';
 const MANAGE_ROLES = ['global_admin', 'company_admin', 'safety_specialist'];
 const CONTENT_EDIT_ROLES = ['company_admin'];
 const HISTORICAL_VIDEO_STATUSES = ['published', 'unpublished', 'archived'];
+const HIDDEN_CATALOG_VIDEO_STATUSES = ['unpublished', 'archived'];
 const REMOTE_TRAINING_CANONICAL_TITLE = 'Basic Occupational Health and Safety Training';
 const REMOTE_TRAINING_DISPLAY_TITLE = 'Temel İş Sağlığı ve Güvenliği Eğitimi';
 const EMPLOYEE_TRAINING_DISPLAY_TITLE = 'Eğitimlerim';
@@ -106,6 +107,10 @@ export function protectedPlaybackFallbackFetchOptions() {
     cache: 'no-store',
     headers: {'X-ISG-Local-Video-Fallback': '1'},
   };
+}
+
+export function visibleCatalogVideos(videos) {
+  return (videos || []).filter((video) => !HIDDEN_CATALOG_VIDEO_STATUSES.includes(video?.status));
 }
 
 function statusLabel(value) {
@@ -1495,11 +1500,11 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
 </>}
               {(selectedPackage.sections || []).map((section) => (
                 <div key={section.id} style={{borderTop: '1px solid #e5edf3', paddingTop: 12, marginTop: 12}}>
-                  <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}><div><strong>{section.code} · {section.title}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{section.videos?.length || 0} video · {section.status === 'active' ? 'Aktif' : 'Arşivlendi'}</span></div></div>
+                  <div style={{display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}><div><strong>{section.code} · {section.title}</strong><span style={{display: 'block', fontSize: 12, color: '#5e7485', marginTop: 3}}>{visibleCatalogVideos(section.videos).length} video · {section.status === 'active' ? 'Aktif' : 'Arşivlendi'}</span></div></div>
                   {directContentEdit && selectedPackage.status !== 'archived' && section.status === 'active' && <div style={{marginTop: 9, padding: 10, border: '2px dashed #54a8c5', borderRadius: 9, background: '#f7fcff'}}>
                     <div style={{display: 'flex', gap: 7, flexWrap: 'wrap', alignItems: 'center'}}><input value={uploadTitles[section.id] || ''} onChange={(event) => setUploadTitles((current) => ({...current, [section.id]: event.target.value}))} placeholder="Video adı (boş bırakılırsa dosya adı)" aria-label={`${section.title} video adı`} style={{minWidth: 240, flex: 1}} /><input ref={(node) => {uploadInputRefs.current[section.id] = node;}} id={`remote-catalog-video-upload-${section.id}`} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label={`${section.title} video dosyası`} style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void uploadCatalogVideo(section, file);}} /><button type="button" onClick={() => openCatalogVideoPicker(section.id)} disabled={busy} style={{minHeight: 42, padding: '10px 14px', color: '#fff', background: busy ? '#7faec2' : '#1479a6', border: '1px solid #0d5d83', borderRadius: 8, fontWeight: 700, display: 'inline-flex', alignItems: 'center', cursor: busy ? 'wait' : 'pointer'}}>{uploadingCatalogSectionId === Number(section.id) && !uploadingCatalogVideoId ? 'Bu bölüm yükleniyor…' : 'Video seç ve yükle'}</button></div>
                   </div>}
-                  {(section.videos || []).map((video) => <div key={video.id} style={{marginTop: 8, padding: 10, borderRadius: 8, background: '#f7fafc', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}>
+                  {visibleCatalogVideos(section.videos).map((video) => <div key={video.id} style={{marginTop: 8, padding: 10, borderRadius: 8, background: '#f7fafc', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}>
                     <div style={{minWidth: 240, flex: 1}}><strong>{video.title}</strong><div style={{fontSize: 12, color: '#5e7485', marginTop: 3}}>{statusLabel(video.status)} · {video.duration_seconds ? `${video.duration_seconds} sn` : 'süre bekleniyor'} · rev. {video.revision_no}</div>{video.processing_error && <div style={{fontSize: 12, color: '#b42318', marginTop: 3}}>{video.processing_error}</div>}</div>
                     <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
                       {directContentEdit && video.status === 'published' && video.is_current && selectedPackage.status !== 'archived' && <><input ref={(node) => {uploadInputRefs.current[`revision-${video.id}`] = node;}} id={`remote-catalog-video-revision-${video.id}`} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label={`${video.title} yeni sürüm dosyası`} style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void uploadCatalogVideo(section, file, video);}} /><button type="button" onClick={() => openCatalogVideoPicker(`revision-${video.id}`)} disabled={busy} style={{display: 'inline-flex', alignItems: 'center', minHeight: 42, padding: '10px 14px', color: '#075985', background: busy ? '#d7edf8' : '#e8f6ff', border: '2px solid #72b9d7', borderRadius: 8, fontWeight: 700, cursor: busy ? 'wait' : 'pointer'}}>{uploadingCatalogVideoId === Number(video.id) ? 'Yeni sürüm yükleniyor…' : 'Yeni sürüm yükle'}</button></>}
@@ -2192,7 +2197,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                         </label>}
                   </div>
                   <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8}}><label style={{fontSize: 12, color: '#496174'}}>Bölüm sektörü <select value={sectionSectorDrafts[section.id] || (sectorScope?.catalog_fixed ? sectorScope.catalog_sector_code : section.sector_code) || 'common'} onChange={(event) => setSectionSectorDrafts((current) => ({...current, [section.id]: event.target.value}))}>{scopeSectorOptions.map((sector) => <option key={sector.code} value={sector.code}>{sector.label}</option>)}</select></label><button type="button" onClick={() => saveSectionSector(section)} disabled={busy || ['published', 'archived'].includes(program.status)}>Sektörü kaydet</button></div>
-                  {(section.videos || []).map((video) => (
+                  {visibleCatalogVideos(section.videos).map((video) => (
                     <div key={video.id} style={{marginTop: 8, padding: 10, borderRadius: 8, background: '#f7fafc', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}>
                       <div style={{minWidth: 240, flex: 1}}>
                         <input value={Object.prototype.hasOwnProperty.call(videoTitles, video.id) ? videoTitles[video.id] : video.title} onChange={(event) => setVideoTitles((current) => ({...current, [video.id]: event.target.value}))} aria-label={`${video.title} video başlığı`} style={{width: '100%'}} />
