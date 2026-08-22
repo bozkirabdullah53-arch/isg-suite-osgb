@@ -39,7 +39,6 @@ const EMPTY_FORM = {
   responsible_department: "",
   term_date: "",
   probability: 3,
-  frequency: 3,
   severity: 3,
 };
 
@@ -446,7 +445,6 @@ export function FieldInspectionPage({user}) {
       existing_measures: String(form.existing_measures || "").trim() || null,
       additional_measures: actionText || null,
       probability: Number(form.probability),
-      frequency: Number(form.frequency),
       severity: Number(form.severity),
       status: "Açık",
     };
@@ -630,12 +628,11 @@ export function FieldInspectionPage({user}) {
               <span className="eyebrow">3 · Risk skoru</span>
               <h2>5 × 5 değerlendirme</h2>
             </div>
-            <span className="field-score-preview">{Number(form.probability) * Number(form.frequency) * Number(form.severity)}</span>
+            <span className="field-score-preview">{Number(form.probability) * Number(form.severity)}</span>
           </div>
           <div className="field-score-grid">
             {[
               ["probability", "Olasılık"],
-              ["frequency", "Frekans"],
               ["severity", "Şiddet"],
             ].map(([key, label]) => (
               <label className="field-control" key={key}>
