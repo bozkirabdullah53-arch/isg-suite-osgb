@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
-from jose import jwt
+import jwt
 from passlib.context import CryptContext
 
 from app.core.auth_cookies import access_token_ttl_minutes

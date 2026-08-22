@@ -48,13 +48,15 @@ def _seed(client: TestClient) -> dict:
     from app.core.security import get_password_hash
     from app.models.entities import (
         AnnualPlanItem,
-            AnnualPlanStatus,
-            Company,
-            IsgProfessional,
-            OsgbOrganization,
-            ProfessionalType,
-            User,
+        AnnualPlanStatus,
+        AssignmentStatus,
+        Company,
+        IsgProfessional,
+        OsgbOrganization,
+        ProfessionalType,
+        User,
         UserRole,
+        WorkplaceAssignment,
     )
 
     with SessionLocal() as db:
@@ -73,15 +75,15 @@ def _seed(client: TestClient) -> dict:
         company = Company(name="Eval Firma", osgb_id=osgb.id, is_active=True)
         db.add(company)
         db.flush()
-        db.add(
-            IsgProfessional(
-                osgb_id=osgb.id,
-                full_name="Eval Uzman",
-                email="eval-uzman@test.com",
-                professional_type=ProfessionalType.SAFETY_SPECIALIST,
-                is_active=True,
-            )
+        professional = IsgProfessional(
+            osgb_id=osgb.id,
+            full_name="Eval Uzman",
+            email="eval-uzman@test.com",
+            professional_type=ProfessionalType.SAFETY_SPECIALIST,
+            is_active=True,
         )
+        db.add(professional)
+        db.flush()
         user = User(
             email="eval-uzman@test.com",
             full_name="Eval Uzman",
@@ -93,6 +95,16 @@ def _seed(client: TestClient) -> dict:
         )
         db.add(user)
         db.flush()
+        db.add(
+            WorkplaceAssignment(
+                osgb_id=osgb.id,
+                company_id=company.id,
+                professional_id=professional.id,
+                professional_type=professional.professional_type,
+                start_date=date(2025, 1, 1),
+                status=AssignmentStatus.ACTIVE,
+            )
+        )
         plan = AnnualPlanItem(
             company_id=company.id,
             year=2026,

@@ -68,7 +68,7 @@ services:
       - key: AUTH_REFRESH_COOKIE_FORCE_OFF
         value: "false"
       - key: HEALTH_FIELD_ENCRYPTION_ENABLED
-        value: "false"
+        value: "true"
       - key: HEALTH_FIELD_ENCRYPTION_KEY
         sync: false
       - key: HEALTH_FIELD_ENCRYPTION_FORCE_OFF
@@ -82,7 +82,7 @@ services:
       - key: OBJECT_STORAGE_VIDEO_BACKFILL_ON_STARTUP
         value: "false"
       - key: BACKUP_RESTORE_ENABLED
-        value: "false"
+        value: "true"
       - key: BACKUP_ENCRYPTION_KEY
         sync: false
       - key: BACKUP_ENCRYPTION_FORCE_OFF

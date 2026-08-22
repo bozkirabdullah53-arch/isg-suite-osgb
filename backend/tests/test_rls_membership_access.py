@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 import pytest
-from jose import jwt
+import jwt
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 

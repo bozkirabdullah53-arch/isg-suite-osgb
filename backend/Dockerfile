@@ -11,7 +11,10 @@ RUN apt-get update \
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./alembic.ini
-COPY start.sh ./start.sh
 RUN mkdir -p /app/uploads
+COPY start.sh ./start.sh
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app
+USER appuser
 
 CMD ["./start.sh"]

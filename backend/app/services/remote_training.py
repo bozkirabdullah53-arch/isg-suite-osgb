@@ -18,7 +18,8 @@ from types import SimpleNamespace
 from typing import Any
 
 from fastapi import HTTPException
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
@@ -1615,7 +1616,7 @@ def decode_catalog_playback_token(
             raise ValueError
         user_id = int(payload.get("sub"))
         tv = int(payload.get("tv") or 0)
-    except (JWTError, TypeError, ValueError, KeyError):
+    except (InvalidTokenError, TypeError, ValueError, KeyError):
         raise HTTPException(401, "Video oynatma bağlantısı geçersiz veya süresi dolmuş.")
     user = db.get(User, user_id)
     if not user or not user.is_active or int(getattr(user, "token_version", 0) or 0) != tv:
@@ -1655,7 +1656,7 @@ def decode_playback_token(db: Session, token: str, video_id: int) -> tuple[User,
         tv = int(payload.get("tv") or 0)
         assignment_id = int(payload["assignment_id"]) if payload.get("assignment_id") else None
         mode = str(payload.get("mode") or "")
-    except (JWTError, TypeError, ValueError, KeyError):
+    except (InvalidTokenError, TypeError, ValueError, KeyError):
         raise HTTPException(401, "Video oynatma bağlantısı geçersiz veya süresi dolmuş.")
     user = db.get(User, user_id)
     if not user or not user.is_active or int(getattr(user, "token_version", 0) or 0) != tv:

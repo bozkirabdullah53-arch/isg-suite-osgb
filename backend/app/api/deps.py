@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -27,7 +28,7 @@ def _user_from_token(token: str, db: Session, *, allowed_purposes: set[str]) -> 
         purpose = payload.get("purpose") or "access"
         jti = payload.get("jti")
         tv = int(payload.get("tv") or 0)
-    except (JWTError, TypeError, ValueError):
+    except (InvalidTokenError, TypeError, ValueError):
         raise credentials_error
 
     if purpose not in allowed_purposes:
