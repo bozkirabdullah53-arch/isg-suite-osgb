@@ -45,6 +45,7 @@ from app.services.capacity_engine import (
     build_capacity_overview,
     sync_assignment_required,
 )
+from app.services.authorized_firm_compliance import validate_authorized_assignment_period
 from pydantic import EmailStr, TypeAdapter, ValidationError
 
 router = APIRouter(
@@ -761,6 +762,16 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
             "İşyeri başka bir OSGB'ye bağlı. Görevlendirme için aynı OSGB'deki işyerini seçin "
             "veya işyerinin OSGB bağlantısını güncelleyin.",
         )
+    try:
+        validate_authorized_assignment_period(
+            db,
+            osgb_id=payload.osgb_id,
+            company_id=payload.company_id,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     if professional.professional_type != payload.professional_type:
         payload = payload.model_copy(update={"professional_type": professional.professional_type})
     existing = db.scalar(
@@ -914,9 +925,18 @@ def activate_assignment(
     user: User = Depends(require_roles(*ADMIN_ROLES)),
 ):
     obj = _get_assignment(db, assignment_id, user)
+    try:
+        validate_authorized_assignment_period(
+            db,
+            osgb_id=obj.osgb_id,
+            company_id=obj.company_id,
+            start_date=obj.start_date,
+            end_date=None,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     obj.status = AssignmentStatus.ACTIVE
-    if obj.end_date:
-        obj.end_date = None
+    obj.end_date = None
     sync_assignment_required(db, obj, commit=False)
     db.commit()
     db.refresh(obj)
@@ -938,6 +958,8 @@ def end_assignment(
     from datetime import date as date_cls
 
     obj = _get_assignment(db, assignment_id, user)
+    if obj.start_date > date_cls.today():
+        raise HTTPException(400, "Başlamamış görevlendirme bugünün tarihiyle sonlandırılamaz.")
     obj.status = AssignmentStatus.ENDED
     obj.end_date = date_cls.today()
     db.commit()
@@ -964,6 +986,8 @@ def delete_assignment(
         obj = db.get(WorkplaceAssignment, aid)
         if not obj:
             raise HTTPException(404, "Görevlendirme bulunamadı.") from None
+        if obj.start_date > date_cls.today():
+            raise HTTPException(400, "Başlamamış görevlendirme bugünün tarihiyle sonlandırılamaz.")
         obj.status = AssignmentStatus.ENDED
         obj.end_date = obj.end_date or date_cls.today()
         db.commit()
@@ -983,6 +1007,25 @@ def _get_contract(db: Session, contract_id: int, user: User) -> ServiceContract:
         raise HTTPException(404, "Sözleşme bulunamadı.")
     _scope_osgb(user, obj.osgb_id)
     return obj
+
+
+def _validate_authorized_contract_assignments(db: Session, contract: ServiceContract) -> None:
+    """Yetkili firma sözleşme değişikliği aktif görevlendirmeyi açıkta bırakamaz."""
+    assignments = db.scalars(
+        select(WorkplaceAssignment).where(
+            WorkplaceAssignment.osgb_id == contract.osgb_id,
+            WorkplaceAssignment.company_id == contract.company_id,
+            WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+        )
+    ).all()
+    for assignment in assignments:
+        validate_authorized_assignment_period(
+            db,
+            osgb_id=assignment.osgb_id,
+            company_id=assignment.company_id,
+            start_date=assignment.start_date,
+            end_date=assignment.end_date,
+        )
 
 
 @router.get("/contracts", response_model=list[ContractResponse])
@@ -1021,8 +1064,18 @@ def update_contract(
             raise HTTPException(400, "Sonlandırılmış sözleşme askıya alınamaz. Önce aktifleştirin.")
         if new_status == "ended" and "end_date" not in data:
             data.setdefault("end_date", date_cls.today())
+    merged_start = data.get("start_date", obj.start_date)
+    merged_end = data.get("end_date", obj.end_date)
+    if merged_start and merged_end and merged_end < merged_start:
+        raise HTTPException(400, "Sözleşme bitiş tarihi başlangıç tarihinden önce olamaz.")
     for k, v in data.items():
         setattr(obj, k, v)
+    try:
+        db.flush()
+        _validate_authorized_contract_assignments(db, obj)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc)) from exc
     db.commit()
     db.refresh(obj)
     return obj
@@ -1038,6 +1091,12 @@ def suspend_contract(
     if obj.status == "ended":
         raise HTTPException(400, "Sonlandırılmış sözleşme askıya alınamaz. Önce aktifleştirin.")
     obj.status = "suspended"
+    try:
+        db.flush()
+        _validate_authorized_contract_assignments(db, obj)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc)) from exc
     db.commit()
     db.refresh(obj)
     return obj
@@ -1051,8 +1110,13 @@ def activate_contract(
 ):
     obj = _get_contract(db, contract_id, user)
     obj.status = "active"
-    if obj.end_date:
-        obj.end_date = None
+    obj.end_date = None
+    try:
+        db.flush()
+        _validate_authorized_contract_assignments(db, obj)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc)) from exc
     db.commit()
     db.refresh(obj)
     return obj
@@ -1068,8 +1132,16 @@ def end_contract(
     from datetime import date as date_cls
 
     obj = _get_contract(db, contract_id, user)
+    if obj.start_date > date_cls.today():
+        raise HTTPException(400, "Başlamamış sözleşme bugünün tarihiyle sonlandırılamaz.")
     obj.status = "ended"
     obj.end_date = date_cls.today()
+    try:
+        db.flush()
+        _validate_authorized_contract_assignments(db, obj)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc)) from exc
     db.commit()
     db.refresh(obj)
     return obj

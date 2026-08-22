@@ -439,6 +439,9 @@ def rebuild_osgb_notifications(db: Session, osgb_id: int) -> int:
         "osgb_professional",
         "osgb_katip",
         "osgb_summary",
+        "authorized_firm_profile",
+        "authorized_firm_document",
+        "professional_compliance",
     )
     if company_ids:
         db.execute(
@@ -595,8 +598,11 @@ def rebuild_osgb_notifications(db: Session, osgb_id: int) -> int:
         )
 
     db.add_all(notifications)
+    from app.services.authorized_firm_compliance import rebuild_authorized_firm_notifications
+
+    authorized_firm_count = rebuild_authorized_firm_notifications(db, osgb_id)
     db.commit()
-    return len(notifications)
+    return len(notifications) + authorized_firm_count
 
 
 def rebuild_all_notifications(db: Session, *, osgb_id: int | None = None, company_id: int | None = None) -> int:

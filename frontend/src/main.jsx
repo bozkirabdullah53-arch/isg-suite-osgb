@@ -43,6 +43,7 @@ import {OhsCommitteePage} from './ohs_committee_page';
 import {EyasDigitalApprovalPage} from './eyas_digital_approval_v2';
 import {AnnualEvalReportPage} from './annual_eval_report';
 import {Customer360Page, WorkplaceStatusPage} from './customer_360';
+import {AuthorizedFirmDashboardPanel, AuthorizedFirmsPage} from './authorized_firms';
 import {CapacityEnginePage} from './capacity_engine';
 import {TrainingPage, TrainingVerifyPage, loadSectorsCatalog} from './training';import {RiskPage} from './risk';import {FieldInspectionPage} from './field_inspection';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
 import {PrescriptionPage} from './prescriptions';
@@ -101,6 +102,7 @@ const roleModules={
     'employer_oversight',
     'eyas_inbox',
     'companies',
+    'authorized_firms',
     'workplace_status',
     // 2) İnsan, görev, performans (birbirini izler)
     'professionals',
@@ -205,6 +207,7 @@ const menuCatalog={
   visits:['Saha Takvimi',CalendarDays],
   field_inspection:['Saha Denetimi',ClipboardCheck],
   employer_oversight:['İşyeri Denetim Durumu',ShieldCheck],
+  authorized_firms:['Yetkili Firma Yönetimi',Building2],
   workplace_status:['İşyeri Durum Merkezi',ClipboardCheck],
   site_qr_kiosk:['İşyeri QR',QrCode],
   crm:['CRM / Teklif',BriefcaseBusiness],
@@ -1661,6 +1664,9 @@ function notificationModule(row){
     incident_sgk:'accident',
     osgb_assignment:'assignments',
     osgb_contract:'contracts',
+    authorized_firm_profile:'authorized_firms',
+    authorized_firm_document:'authorized_firms',
+    professional_compliance:'authorized_firms',
     specialist_duty:'dashboard',
   };
   if(row?.entity_type==='specialist_duty'){
@@ -1695,7 +1701,7 @@ function NotificationsPage({onNavigate, user}){
   return <Page title="Bildirim Merkezi" action={<button type="button" disabled={busy} onClick={refresh}><RefreshCw/>{busy?'Taranıyor...':'Süreleri Kontrol Et'}</button>}>
     <p style={{marginTop:0,color:'#64748b',fontSize:13,maxWidth:720}}>
       Bu merkez otomatik süre uyarısı üretir: görevlendirme / sözleşme bitişi, KATİP no eksikliği,
-      atanmamış profesyonel, doküman geçerliliği, sağlık muayenesi, geciken yıllık plan ve SDS / PKD
+      atanmamış profesyonel, yetkili firma ve profesyonel belge geçerliliği, sağlık muayenesi, geciken yıllık plan ve SDS / PKD
       gözden geçirme terminleri. Liste boşsa «Süreleri Kontrol Et» ile tarayın; gerçek kayıt yoksa bilgi bildirimi gelir.
       {user?.role==='safety_specialist'&&' Uzman görünümünde klinik sağlık bildirimleri gösterilmez.'}
     </p>
@@ -2173,7 +2179,7 @@ function App(){
     eisa_audit_logs:<EisaAuditLogsPage/>,
     eisa_system_settings:<EisaSystemSettingsPage/>,
     eisa_question_bank:<EisaQuestionBankPage user={user}/>,
-    osgb_dashboard:<OsgbDashboard user={user} onNavigate={goModule}/>,
+    osgb_dashboard:<><OsgbDashboard user={user} onNavigate={goModule}/><AuthorizedFirmDashboardPanel user={user} onNavigate={goModule}/></>,
     osgb_oversight:<OsgbOversightPage user={user} onNavigate={goModule}/>,
     capacity_engine:<CapacityEnginePage user={user} onNavigate={goModule}/>,
     pro_performance:<ProPerformancePage user={user} onNavigate={goModule}/>,
@@ -2184,6 +2190,7 @@ function App(){
     visits:<VisitsPage user={user} onNavigate={goModule}/>,
     field_inspection:<FieldInspectionPage user={user}/>,
     employer_oversight:<EmployerOversightPage user={user}/>,
+    authorized_firms:<AuthorizedFirmsPage user={user} onNavigate={goModule}/>,
     workplace_status:<WorkplaceStatusPage user={user} onNavigate={goModule}/>,
     site_qr_kiosk:<SiteQrKioskPage user={user} onLogout={logout}/>,
     crm:<CrmPage user={user} onNavigate={goModule}/>,

@@ -4,7 +4,7 @@ from io import BytesIO
 from zipfile import ZipFile
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from PIL import Image
 from reportlab.pdfgen import canvas
 
@@ -191,7 +191,12 @@ def test_profile_documents_require_remote_only_object_storage() -> None:
 
 
 def test_specific_document_archive_route_precedes_generic_archive_route() -> None:
-    paths = [route.path for route in management_router.routes]
+    app = FastAPI()
+    app.include_router(management_router)
+    # Use FastAPI's public OpenAPI view instead of inspecting APIRouter internals.
+    # FastAPI 0.141 keeps included routers as lazy route objects, while the
+    # generated path order still mirrors the effective runtime route order.
+    paths = list(app.openapi()["paths"])
     document_path = next(
         index
         for index, path in enumerate(paths)
