@@ -518,3 +518,104 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Sessio
     email = str(payload.email).strip().lower()
     user = db.scalar(select(User).where(func.lower(User.email) == email))
     if user and user.is_active:
+        raw = create_password_reset(db, user)
+        send_reset_email(user.email, raw)
+        add_audit_log(
+            db,
+            user=user,
+            action="password_reset_requested",
+            entity_type="user",
+            entity_id=str(user.id),
+            description="Parola sıfırlama istendi",
+            ip_address=_client_ip(request),
+            module="auth",
+        )
+        db.commit()
+    return {"message": "Eğer hesap varsa sıfırlama bağlantısı e-posta ile gönderildi."}
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    if payload.new_password_confirm is not None and payload.new_password != payload.new_password_confirm:
+        raise HTTPException(status_code=422, detail="Yeni şifreler aynı değil.")
+    try:
+        user = consume_password_reset(db, payload.token, payload.new_password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    add_audit_log(
+        db,
+        user=user,
+        action="password_reset_completed",
+        entity_type="user",
+        entity_id=str(user.id),
+        description="Parola sıfırlandı",
+        ip_address=_client_ip(request),
+        module="auth",
+    )
+    db.commit()
+    return {"message": "Şifreniz güncellendi. Giriş yapabilirsiniz."}
+
+
+@router.get("/me", response_model=CurrentUserResponse)
+def me(
+    request: Request,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from app.api.company_access import sync_user_from_professional
+    from app.models.entities import UserRole
+    from app.services.osgb_subscription import (
+        effective_subscription_status,
+        get_or_create_subscription,
+        resolve_user_osgb_id,
+        subscription_allows_write,
+    )
+
+    user = sync_user_from_professional(db, user, commit=True)
+    is_eisa = user.role == UserRole.GLOBAL_ADMIN
+
+    # Refresh-cookie rollout was enabled after some users already had a valid
+    # access token.  Those sessions had no HttpOnly refresh cookie, so the
+    # first long/serial upload failed as soon as the 15-minute access token
+    # expired.  Bootstrap the cookie from an already authenticated /me call;
+    # this does not change the access token or any authorization decision.
+    if refresh_cookie_enabled() and not request.cookies.get(REFRESH_COOKIE_NAME):
+        set_refresh_cookie(
+            response,
+            create_refresh_token(
+                str(user.id),
+                token_version=int(getattr(user, "token_version", 0) or 0),
+            ),
+        )
+
+    sub_status = None
+    write_ok = True
+    if not is_eisa:
+        try:
+            oid = resolve_user_osgb_id(db, user)
+            if oid:
+                sub = get_or_create_subscription(db, oid)
+                eff = effective_subscription_status(sub)
+                sub_status = eff.value
+                write_ok = subscription_allows_write(sub)
+        except Exception:
+            # Lokal/eski kayıtlarda enum uyumsuzluğu oturumu düşürmesin
+            logger.exception("auth/me subscription lookup failed user_id=%s", getattr(user, "id", None))
+            sub_status = None
+            write_ok = True
+    return CurrentUserResponse(
+        id=user.id,
+        email=user.email,
+        username=getattr(user, "username", None),
+        full_name=user.full_name,
+        role=user.role.value,
+        company_id=user.company_id,
+        osgb_id=user.osgb_id,
+        is_eisa=is_eisa,
+        subscription_write_allowed=write_ok,
+        subscription_status=sub_status,
+        mfa_enabled=bool(getattr(user, "mfa_enabled", False)),
+        mfa_required=role_requires_mfa(user.role),
+        password_change_required=bool(getattr(user, "password_change_required", False)),
+    )
