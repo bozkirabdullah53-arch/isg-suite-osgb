@@ -23,13 +23,27 @@ def is_production_environment(environment: str | None) -> bool:
     return (environment or "").strip().lower() in PRODUCTION_ENVIRONMENTS
 
 
+def _split_configured_origins(value: str | None) -> list[str]:
+    """Parse one or more comma-separated origins without changing old values."""
+    return [
+        origin.strip()
+        for origin in (value or "").split(",")
+        if origin and origin.strip()
+    ]
+
+
 def build_cors_origins(
     *,
     environment: str | None,
     frontend_origin: str | None,
+    frontend_origins: str | None = None,
 ) -> list[str]:
     """Return an ordered, deduplicated origin allowlist for the environment."""
-    origins: list[str | None] = [frontend_origin, *APPROVED_PRODUCTION_ORIGINS]
+    configured_origins = [
+        *_split_configured_origins(frontend_origin),
+        *_split_configured_origins(frontend_origins),
+    ]
+    origins: list[str] = [*configured_origins, *APPROVED_PRODUCTION_ORIGINS]
     if not is_production_environment(environment):
         origins.extend(LOCAL_DEVELOPMENT_ORIGINS)
 

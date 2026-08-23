@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     # P1-01: refresh cookie açıkken kısa access (dakika)
     access_token_expire_minutes_short: int = 15
     frontend_origin: str = "http://localhost:5173"
+    # Optional comma-separated additive allowlist; FRONTEND_ORIGIN remains unchanged.
+    frontend_origins: str = ""
     upload_dir: str = "./uploads"
     max_upload_mb: int = 10
     smtp_host: str | None = None

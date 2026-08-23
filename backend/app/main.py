@@ -152,7 +152,11 @@ app.add_middleware(TenantContextMiddleware)
 app.add_middleware(OsgbSubscriptionWriteMiddleware)
 app.add_middleware(PremiumTrainingLifecycleMiddleware)
 app.add_middleware(SimpleRateLimitMiddleware, requests_per_minute=settings.rate_limit_rpm, auth_requests_per_minute=settings.rate_limit_auth_rpm)
-_cors_origins = build_cors_origins(environment=settings.environment, frontend_origin=settings.frontend_origin)
+_cors_origins = build_cors_origins(
+    environment=settings.environment,
+    frontend_origin=settings.frontend_origin,
+    frontend_origins=settings.frontend_origins,
+)
 app.add_middleware(CORSMiddleware, allow_origins=_cors_origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 for router in (
     auth.router,
