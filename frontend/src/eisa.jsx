@@ -117,7 +117,7 @@ function fromDatetimeLocalValue(value) {
 
 function ApplicationsPanel({ apps, busy, onApprove, onReject, onDelete, showActions = true }) {
   return (
-    <div className="table-wrap">
+    <div className="table-wrap eisa-applications-table">
       <table>
         <thead>
           <tr>
@@ -134,15 +134,15 @@ function ApplicationsPanel({ apps, busy, onApprove, onReject, onDelete, showActi
         <tbody>
           {apps.length ? apps.map((a) => (
             <tr key={a.id}>
-              <td>{a.name}</td>
-              <td>{a.authorization_number}</td>
-              <td>{a.tax_number}</td>
-              <td>{a.applicant_name}<br /><small>{a.applicant_email}</small></td>
-              <td><StatusBadge status={a.status} /></td>
-              <td>{a.auto_matched ? 'Otomatik (mevcut)' : (a.matched_osgb_id ? 'Eşleşti' : 'Yeni kayıt')}</td>
-              <td>{a.created_at ? new Date(a.created_at).toLocaleString('tr-TR') : '—'}</td>
+              <td data-label="OSGB">{a.name}</td>
+              <td data-label="Yetki No">{a.authorization_number}</td>
+              <td data-label="Vergi No">{a.tax_number}</td>
+              <td data-label="Başvuran">{a.applicant_name}<br /><small>{a.applicant_email}</small></td>
+              <td data-label="Durum"><StatusBadge status={a.status} /></td>
+              <td data-label="Eşleşme">{a.auto_matched ? 'Otomatik (mevcut)' : (a.matched_osgb_id ? 'Eşleşti' : 'Yeni kayıt')}</td>
+              <td data-label="Tarih">{a.created_at ? new Date(a.created_at).toLocaleString('tr-TR') : '—'}</td>
               {showActions && (
-                <td style={{ whiteSpace: 'nowrap' }}>
+                <td data-label="İşlemler" style={{ whiteSpace: 'nowrap' }}>
                   {a.status === 'pending' && (
                     <>
                       <button type="button" className="icon" title="Onayla" disabled={busy} onClick={() => onApprove(a.id)}><Check size={16} /></button>
