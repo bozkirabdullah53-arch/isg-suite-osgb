@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 
 from app.core.auth_cookies import refresh_cookie_enabled
-from app.core.config import eyas_digital_approval_active, settings
+from app.core.config import employee_self_service_active, eyas_digital_approval_active, settings
 from app.core.rate_limit import rate_limit_backend, redis_status_label
 from app.core.version import APP_VERSION
 from app.services.job_queue import async_jobs_enabled, job_backend_label
@@ -138,6 +138,7 @@ def infra_detail_payload() -> dict:
         "esign_orchestration": "esign-orch-v1",
         "eyas_digital_approval": "on-v1" if eyas_digital_approval_active() else "off",
         "field_offline": "tenant-bound-v1",
+        "employee_self_service": "on-v1" if employee_self_service_active() else "off",
         "tenant_isolation": "osgb-scoped-v1",
         "central_archive": "tenant-backup-v3-domains",
         "backup_restore": "off" if not settings.backup_restore_enabled else "on",

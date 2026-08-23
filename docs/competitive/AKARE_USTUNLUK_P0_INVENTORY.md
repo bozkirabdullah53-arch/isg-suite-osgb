@@ -90,7 +90,7 @@ Her yeni commit için aşağıdaki kombinasyonlar çalıştırılacak:
 | Veri | Eski kayıt / yeni kayıt / boş liste / hata yanıtı |
 | Geri dönüş | Retry / sayfa yenileme / session yenileme / rollback |
 
-## 6. Bir sonraki güvenli kod işi
+## 6. Tamamlanan güvenli kod işi
 
 **MOB-P0-01 — Sync durum adapter'ı**
 
@@ -103,5 +103,18 @@ Sınırları:
 - Yeni davranış feature flag kapalıyken hiç çalışmayacak.
 - Unit test + mevcut saha E2E + gerçek cihaz smoke olmadan yayınlanmayacak.
 
-Bu adapter tamamlanmadan mevcut offline kuyruklarının doğrudan yeniden
-yazılması yasaktır.
+Bu adapter tamamlandı; mevcut offline kuyruklarının doğrudan yeniden yazılması
+yine yasaktır.
+
+## 7. Sıradaki güvenli kod işi
+
+**ESS-P0-01 — Çalışan Panelim salt okunur self-servis özeti**
+
+- Backend ve frontend bayrakları varsayılan olarak kapalıdır.
+- Yeni `/api/v1/self-service/me` ucu yalnızca `read_only` rolünü kabul eder.
+- Açık kullanıcı→çalışan eşleştirmesi, firma ve OSGB bağı tekrar doğrulanır.
+- Eğitim, KKD, bildirim ve yalnız tarih seviyesinde sağlık özeti sunulur.
+- Mevcut İBYS ve MEDULA/e-Reçete akışlarına dokunulmaz.
+- Global yönetici ve OSGB saha menü matrisi değiştirilmez.
+- Flag kapalı legacy smoke, çapraz tenant/rol negatif testleri, gerçek cihaz
+  smoke ve kill-switch kontrolü olmadan canary açılmaz.
