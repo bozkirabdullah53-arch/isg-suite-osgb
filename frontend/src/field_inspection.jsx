@@ -23,6 +23,7 @@ import {
   readOfflineReference,
   saveOfflineReference,
 } from "./field_inspection_offline";
+import {buildMobileSyncStatus, isMobileSyncStatusEnabled} from "./mobile_sync_status";
 import "./field_inspection.css";
 
 const EMPTY_FORM = {
@@ -153,6 +154,15 @@ export function FieldInspectionPage({user}) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [referenceLoading, setReferenceLoading] = useState(true);
+
+  const mobileSyncStatusEnabled = isMobileSyncStatusEnabled();
+  const pendingCount = pending.length;
+  const mobileSyncStatus = useMemo(
+    () => mobileSyncStatusEnabled
+      ? buildMobileSyncStatus({online, pendingCount, syncBusy})
+      : null,
+    [mobileSyncStatusEnabled, online, pendingCount, syncBusy],
+  );
 
   const selectedCompany = companies.find((row) => Number(row.id) === Number(form.company_id));
   const selectedDepartment = departments.find((row) => Number(row.id) === Number(form.department_id));
@@ -527,6 +537,11 @@ export function FieldInspectionPage({user}) {
       <div className={online ? "field-connectivity online" : "field-connectivity offline"}>
         {online ? <Wifi size={17} /> : <WifiOff size={17} />}
         <span>{online ? "Çevrimiçi" : "Çevrimdışı"} · {pending.length ? `${pending.length} kayıt bekliyor` : "Bekleyen kayıt yok"}</span>
+        {mobileSyncStatusEnabled && mobileSyncStatus && (
+          <span className="field-sync-status-v1" data-sync-state={mobileSyncStatus.state} aria-live="polite">
+            {mobileSyncStatus.label}
+          </span>
+        )}
         {pending.length > 0 && <strong>Veri cihazdaki kullanıcı/OSGB kapsamlı yerel kuyrukta tutulur; çıkışta temizlenir.</strong>}
       </div>
 
