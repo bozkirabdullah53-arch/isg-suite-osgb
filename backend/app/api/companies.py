@@ -57,6 +57,8 @@ from app.models.entities import (
     PeriodicControl,
     PpeAssignment,
     PpeAssignmentPhoto,
+    PpeInventoryItem,
+    PpeInventoryMovement,
     RiskAssessment,
     RiskDof,
     RiskMedia,
@@ -134,6 +136,11 @@ def _purge_company_data(db: Session, company_id: int) -> None:
         db.execute(delete(IncidentEvent).where(IncidentEvent.id.in_(incident_ids)))
 
     ppe_ids = _ids(db, PpeAssignment, company_id)
+    # KKD stok hareketleri ve kartları, zimmet/şirket silinmeden önce temizlenir.
+    # PostgreSQL CASCADE bunu güvenceye alsa da SQLite ve eski kurulumlarda
+    # açık temizlik, şirket silme akışını tutarlı tutar.
+    db.execute(delete(PpeInventoryMovement).where(PpeInventoryMovement.company_id == company_id))
+    db.execute(delete(PpeInventoryItem).where(PpeInventoryItem.company_id == company_id))
     if ppe_ids:
         db.execute(delete(PpeAssignmentPhoto).where(PpeAssignmentPhoto.assignment_id.in_(ppe_ids)))
         db.execute(delete(PpeAssignment).where(PpeAssignment.id.in_(ppe_ids)))

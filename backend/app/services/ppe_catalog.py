@@ -79,4 +79,7 @@ def catalog_payload() -> dict:
 
 
 def status_label(code: str | None) -> str:
-    return STATUS_LABELS.get((code or "teslim").strip(), "Teslim Edildi")
+    normalized = (code or "teslim").strip()
+    if normalized == "fire":
+        return "Fireye Ayrıldı"
+    return STATUS_LABELS.get(normalized, "Teslim Edildi")
