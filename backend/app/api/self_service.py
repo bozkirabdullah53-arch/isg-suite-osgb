@@ -215,31 +215,49 @@ def _ppe_summary(db: Session, company_id: int, employee_id: int) -> dict[str, An
 
 
 def _notification_summary(db: Session, user_id: int, company_id: int) -> dict[str, Any]:
+    # Company/global notifications are management work queues.  They may
+    # contain annual-plan, risk, document or another employee's health data;
+    # they must never appear in a worker's panel.  Only direct user-targeted
+    # notifications are eligible, and the company binding is rechecked.
+    notification_filters = [
+        Notification.user_id == user_id,
+        or_(Notification.company_id == company_id, Notification.company_id.is_(None)),
+    ]
+    is_completed = getattr(Notification, "is_completed", None)
+    if is_completed is not None:
+        notification_filters.insert(0, is_completed.is_(False))
     rows = db.scalars(
         select(Notification)
-        .where(
-            Notification.is_completed.is_(False),
-            or_(
-                Notification.user_id == user_id,
-                and_(Notification.company_id == company_id, Notification.user_id.is_(None)),
-                and_(Notification.company_id.is_(None), Notification.user_id.is_(None)),
-            ),
-        )
+        .where(*notification_filters)
         .order_by(Notification.created_at.desc(), Notification.id.desc())
         .limit(10)
     ).all()
+    hidden_types = {
+        "annual_plan",
+        "annual_eval",
+        "annual_plan_item",
+        "annual_plan_evaluation",
+        "annual_plan_evaluation_item",
+    }
+    visible_rows = [
+        row for row in rows
+        if str(row.entity_type or "").strip().lower() not in hidden_types
+        and "yıllık plan" not in str(row.title or "").lower()
+        and "yıllık değerlendirme" not in str(row.title or "").lower()
+    ]
     return {
-        "unread": sum(1 for row in rows if not row.is_read),
+        "unread": sum(1 for row in visible_rows if not row.is_read),
         "items": [
             {
                 "id": row.id,
                 "type": _enum_value(row.type),
                 "title": row.title,
                 "message": row.message,
+                "entity_type": row.entity_type,
                 "is_read": bool(row.is_read),
                 "created_at": _iso(row.created_at),
             }
-            for row in rows
+            for row in visible_rows
         ],
     }
 
