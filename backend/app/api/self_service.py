@@ -215,16 +215,22 @@ def _ppe_summary(db: Session, company_id: int, employee_id: int) -> dict[str, An
 
 
 def _notification_summary(db: Session, user_id: int, company_id: int) -> dict[str, Any]:
+    notification_filters = [
+        or_(
+            Notification.user_id == user_id,
+            and_(Notification.company_id == company_id, Notification.user_id.is_(None)),
+            and_(Notification.company_id.is_(None), Notification.user_id.is_(None)),
+        ),
+    ]
+    # Older canary schemas do not yet have completion tracking.  Keep the
+    # read-only summary compatible with those schemas; newer schemas remain
+    # protected from showing completed notifications.
+    is_completed = getattr(Notification, "is_completed", None)
+    if is_completed is not None:
+        notification_filters.insert(0, is_completed.is_(False))
     rows = db.scalars(
         select(Notification)
-        .where(
-            Notification.is_completed.is_(False),
-            or_(
-                Notification.user_id == user_id,
-                and_(Notification.company_id == company_id, Notification.user_id.is_(None)),
-                and_(Notification.company_id.is_(None), Notification.user_id.is_(None)),
-            ),
-        )
+        .where(*notification_filters)
         .order_by(Notification.created_at.desc(), Notification.id.desc())
         .limit(10)
     ).all()
