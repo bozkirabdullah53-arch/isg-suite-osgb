@@ -46,6 +46,8 @@ import {TrainingPage, TrainingVerifyPage, loadSectorsCatalog} from './training';
 import {PrescriptionPage} from './prescriptions';
 import {TrainingQuestionBank} from './training_question_bank';
 import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
+import {EmployeeSelfServicePage} from './employee_self_service';
+import {selfServiceFeatureEnabled} from './employee_self_service_logic';
 import {GLOBAL_ADMIN_MODULES} from './app_module_policy';
 import {AdminSummaryDashboard,DutyDashboard} from './duty_dashboard';
 import {SpecialistReportCenterPage} from './specialist_report_center';
@@ -75,6 +77,7 @@ import {
   parseNavigationLocation,
 } from './navigation_history';
 const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
+const EMPLOYEE_SELF_SERVICE_ENABLED=selfServiceFeatureEnabled(import.meta.env.VITE_EMPLOYEE_SELF_SERVICE_V1);
 /**
  * Sol menü sırası (yukarı→aşağı): ana panel → günlük operasyon → master data →
  * İSG saha işleri (risk/olay yoğunluğu) → ticari → rapor/denetim → sistem ayarları.
@@ -149,6 +152,9 @@ function modulesForUser(user){
   if(isWorkplaceKioskUser(user)){
     return ['site_qr_kiosk'];
   }
+  if(user?.role==='read_only' && EMPLOYEE_SELF_SERVICE_ENABLED){
+    return ['employee_self_service','employee_training','security'];
+  }
   return roleModules[user?.role]||[];
 }
 
@@ -159,7 +165,7 @@ const mobilePrimaryByRole={
   safety_specialist:['visits','dashboard','notifications','risk'],
   workplace_physician:['visits','health','prescriptions','employees'],
   other_health_personnel:['visits','health','employees','documents'],
-  read_only:['training'],
+  read_only:EMPLOYEE_SELF_SERVICE_ENABLED ? ['employee_self_service','employee_training','security'] : ['training'],
 };
 
 function mobilePrimaryMenu(menu, role, activeId){
@@ -222,6 +228,8 @@ const menuCatalog={
   belge_onay:['Belge Onay / İmza',FileText],
   eyas_inbox:['Onay Kutum (Hekim/İşveren)',FileText],
   training:['Eğitimler',GraduationCap],
+  employee_training:['Çalışan Eğitimleri',GraduationCap],
+  employee_self_service:['Çalışan Panelim',ShieldCheck],
   health:['Sağlık',HeartPulse],
   prescriptions:['e-Reçete',Pill],
   documents:['Dokümanlar',FileText],
@@ -2076,6 +2084,8 @@ function App(){
     // Çalışan hesabı eski genel eğitim/planlama sayfasını değil,
     // atanmış video + kontrol soruları + final sınavı panelini görür.
     training:user.role==='read_only' ? <RemoteBasicOhsTrainingPanel user={user}/> : <TrainingPage user={user}/>,
+    employee_training:<RemoteBasicOhsTrainingPanel user={user}/>,
+    employee_self_service:<EmployeeSelfServicePage user={user}/>,
     health:<HealthPage user={user}/>,
       prescriptions:<PrescriptionPage user={user}/>,
     documents:<DocumentsPage user={user}/>,
