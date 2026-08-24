@@ -1,6 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {api, API_URL, downloadFile, uploadFile} from './api';
 import {getAccessToken} from './auth_session';
+import {consumeEmployeeTrainingAssignment} from './employee_self_service_logic';
 import './remote_basic_ohs_training.css';
 
 const MANAGE_ROLES = ['global_admin', 'company_admin', 'safety_specialist'];
@@ -325,7 +326,7 @@ function ProgressBadge({assignment}) {
 
 function EmployeePanel() {
   const [assignments, setAssignments] = useState([]);
-  const [selectedId, setSelectedId] = useState('');
+  const [selectedId, setSelectedId] = useState(() => consumeEmployeeTrainingAssignment());
   const [assignmentFilter, setAssignmentFilter] = useState('all');
   const [assignment, setAssignment] = useState(null);
   const [activeVideo, setActiveVideo] = useState(null);

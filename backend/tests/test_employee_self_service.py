@@ -17,6 +17,8 @@ from app.models.entities import (
     HealthFitnessStatus,
     HealthRecord,
     HealthRecordType,
+    Notification,
+    NotificationType,
     OsgbOrganization,
     User,
     UserRole,
@@ -159,3 +161,32 @@ def test_self_service_uses_explicit_mapping_and_minimizes_health_data(db: Sessio
         _resolve_employee_scope(db, user)
     assert exc.value.status_code == 403
     assert mapping.company_id == company.id
+
+
+def test_self_service_notifications_are_direct_and_hide_annual_plan(db: Session):
+    _, company, _, _, user, _ = _seed(db)
+    db.add_all([
+        Notification(
+            company_id=company.id,
+            user_id=None,
+            type=NotificationType.WARNING,
+            title="Geciken yıllık plan faaliyeti",
+            message="2026/8: yönetim faaliyeti",
+            entity_type="annual_plan",
+        ),
+        Notification(
+            company_id=company.id,
+            user_id=user.id,
+            type=NotificationType.INFO,
+            title="Eğitiminiz devam ediyor",
+            message="Atanan eğitiminize devam edebilirsiniz.",
+            entity_type="remote_training",
+        ),
+    ])
+    db.flush()
+
+    from app.api.self_service import _notification_summary
+
+    payload = _notification_summary(db, user.id, company.id)
+    assert [row["title"] for row in payload["items"]] == ["Eğitiminiz devam ediyor"]
+    assert payload["unread"] == 1

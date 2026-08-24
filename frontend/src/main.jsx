@@ -49,7 +49,7 @@ import {PrescriptionPage} from './prescriptions';
 import {TrainingQuestionBank} from './training_question_bank';
 import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
 import {EmployeeSelfServicePage} from './employee_self_service';
-import {selfServiceFeatureEnabled} from './employee_self_service_logic';
+import {rememberEmployeeTrainingAssignment, selfServiceFeatureEnabled} from './employee_self_service_logic';
 import {GLOBAL_ADMIN_MODULES} from './app_module_policy';
 import {AdminSummaryDashboard,DutyDashboard} from './duty_dashboard';
 import {SpecialistReportCenterPage} from './specialist_report_center';
@@ -2221,7 +2221,10 @@ function App(){
     // atanmış video + kontrol soruları + final sınavı panelini görür.
     training:<TrainingPage user={user}/>,
     employee_training:<RemoteBasicOhsTrainingPanel user={user}/>,
-    employee_self_service:<EmployeeSelfServicePage user={user}/>,
+    employee_self_service:<EmployeeSelfServicePage user={user} onOpenTraining={(assignmentId)=>{
+      rememberEmployeeTrainingAssignment(assignmentId);
+      goModule('employee_training');
+    }}/>,
     health:<HealthPage user={user}/>,
       prescriptions:<PrescriptionPage user={user}/>,
     documents:<DocumentsPage user={user}/>,

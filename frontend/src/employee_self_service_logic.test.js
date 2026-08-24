@@ -3,6 +3,7 @@ import {describe, expect, it} from 'vitest';
 import {
   completedSelfServiceTraining,
   formatSelfServiceDate,
+  isEmployeeNotificationVisible,
   normalizeSelfServicePayload,
   selfServiceFeatureEnabled,
   totalSelfServiceTraining,
@@ -43,5 +44,10 @@ describe('employee self-service payload', () => {
     expect(completedSelfServiceTraining(summary)).toBe(2);
     expect(summary.health.detailsIncluded).toBe(false);
     expect(formatSelfServiceDate(summary.health.nextExaminationDate)).toContain('2027');
+  });
+
+  it('hides annual-plan management notifications from the employee view', () => {
+    expect(isEmployeeNotificationVisible({entity_type: 'annual_plan', title: 'Geciken yıllık plan faaliyeti'})).toBe(false);
+    expect(isEmployeeNotificationVisible({entity_type: 'remote_training', title: 'Eğitiminiz devam ediyor'})).toBe(true);
   });
 });
