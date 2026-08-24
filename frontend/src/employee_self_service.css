@@ -180,6 +180,25 @@
   background: #fbfefe;
 }
 
+.ess-training-row {
+  align-items: center;
+}
+
+.ess-training-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.ess-button-small {
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .ess-list-row > div:first-child {
   display: grid;
   min-width: 0;
@@ -345,6 +364,15 @@
 
   .ess-list-row {
     align-items: flex-start;
+  }
+
+  .ess-training-row {
+    flex-wrap: wrap;
+  }
+
+  .ess-training-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .ess-badge {
