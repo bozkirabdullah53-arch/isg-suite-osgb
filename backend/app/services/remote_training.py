@@ -231,8 +231,8 @@ REMOTE_AUTO_EXAM_QUESTION_COUNT = 10
 REMOTE_AUTO_EXAM_QUESTION_COUNTS = {
     "working-at-height-ohs": 20,
 }
-REMOTE_PRE_ASSESSMENT_PACK = "foundation.json"
-REMOTE_PRE_ASSESSMENT_QUESTION_COUNT = 5
+REMOTE_PRE_ASSESSMENT_PACK = "pre_assessment_foundation.json"
+REMOTE_PRE_ASSESSMENT_QUESTION_COUNT = 10
 
 
 def automatic_exam_question_count(package_code: str | None) -> int:
@@ -421,7 +421,7 @@ def materialize_pre_assessment_pool(
     *,
     created_by_id: int | None = None,
 ) -> list[RemoteTrainingQuestion]:
-    """Create the immutable five-question baseline pool once per program."""
+    """Create the immutable ten-question baseline pool once per program."""
     existing = list(
         db.scalars(
             select(RemoteTrainingQuestion).where(
