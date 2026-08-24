@@ -193,6 +193,17 @@ class RemoteExamSubmit(RemoteModel):
         return {str(key): str(answer).strip().upper() for key, answer in value.items()}
 
 
+class RemotePreAssessmentSubmit(RemoteModel):
+    """Tek seferlik eğitim öncesi başlangıç ölçümü yanıtları."""
+
+    answers: dict[str, str]
+
+    @field_validator("answers")
+    @classmethod
+    def normalize_answers(cls, value: dict[str, str]) -> dict[str, str]:
+        return {str(key): str(answer).strip().upper() for key, answer in value.items()}
+
+
 class RemoteEmployeeAccessCreate(RemoteModel):
     company_id: int = Field(gt=0)
     user_id: int = Field(gt=0)

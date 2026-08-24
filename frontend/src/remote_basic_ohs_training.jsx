@@ -333,6 +333,8 @@ function EmployeePanel() {
   const [playbackUrl, setPlaybackUrl] = useState('');
   const [exam, setExam] = useState(null);
   const [answers, setAnswers] = useState({});
+  const [preAssessment, setPreAssessment] = useState(null);
+  const [preAssessmentAnswers, setPreAssessmentAnswers] = useState({});
   const [checkpointAnswers, setCheckpointAnswers] = useState({});
   const [checkpointResults, setCheckpointResults] = useState({});
   const [message, setMessage] = useState('');
@@ -559,6 +561,8 @@ function EmployeePanel() {
         setAssignment(null);
         setActiveVideo(null);
         setPlaybackUrl('');
+        setPreAssessment(null);
+        setPreAssessmentAnswers({});
         playbackPrefetches.current.clear();
         playbackRetryRef.current.clear();
         playbackBlobFallbackRef.current.clear();
@@ -578,23 +582,28 @@ function EmployeePanel() {
     setError('');
     playbackRequestVersion.current += 1;
     playbackPrefetches.current.clear();
+    setActiveVideo(null);
+    setPlaybackUrl('');
+    setVideoLoading(false);
+    setVideoPlaying(false);
+    setPreAssessment(null);
+    setPreAssessmentAnswers({});
+    setExam(null);
+    setAnswers({});
+    setCheckpointAnswers({});
+    setCheckpointResults({});
     try {
       const row = await api(`/trainings/remote/assignments/${Number(id)}`);
       setAssignment(row);
+      const assessment = await api(`/trainings/remote/assignments/${Number(id)}/pre-assessment`);
+      setPreAssessment(assessment);
       const videos = programVideoRows(row.program);
       const nextVideo = videos.find((video) => !row.video_progress?.some((progress) => progress.video_id === video.id && progress.status === 'completed')) || videos[0] || null;
-      setActiveVideo(nextVideo);
-      setPlaybackUrl('');
-      setVideoLoading(false);
-      setVideoPlaying(false);
-      setExam(null);
-      setAnswers({});
-      setCheckpointAnswers({});
-      setCheckpointResults({});
-      // Selecting an assignment (including the employee-panel "Devam et" path)
-      // must also prepare its first incomplete video. Previously D06 could be
-      // highlighted while the player stayed empty until the user tapped it.
-      if (nextVideo) void openVideo(nextVideo, row, {skipUnlock: true});
+      if (assessment?.completed) {
+        setActiveVideo(nextVideo);
+        // The first video is prepared only after the one-time baseline test.
+        if (nextVideo) void openVideo(nextVideo, row, {skipUnlock: true});
+      }
     } catch (err) {
       setError(err.message || 'Atama detayı alınamadı.');
     } finally {
@@ -836,6 +845,27 @@ function EmployeePanel() {
     }
   }
 
+  async function submitPreAssessment() {
+    if (!assignment || !preAssessment || preAssessment.completed) return;
+    const questions = Array.isArray(preAssessment.questions) ? preAssessment.questions : [];
+    if (Object.keys(preAssessmentAnswers).length !== questions.length) return;
+    setBusy(true);
+    setError('');
+    try {
+      const out = await api('/trainings/remote/assignments/' + assignment.id + '/pre-assessment/attempts', {
+        method: 'POST',
+        body: JSON.stringify({answers: preAssessmentAnswers}),
+      });
+      setMessage('Eğitim öncesi ilk test sonucu: ' + out.score + '/100. Bu puan başlangıç ölçümüdür.');
+      await loadAssignment(assignment.id);
+    } catch (err) {
+      setError(err.message || 'Eğitim öncesi ilk test gönderilemedi.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+
   async function submitCheckpoint(question) {
     if (!assignment || !question || !checkpointAnswers[String(question.id)]) return;
     setBusy(true);
@@ -985,6 +1015,27 @@ function EmployeePanel() {
             </div>
             {assignment.snapshot_warnings?.length > 0 && <p style={{margin: '8px 0 0', color: '#9a3412', fontSize: 12}}>Belge snapshot uyarısı: {assignment.snapshot_warnings.join(' ')}</p>}
           </div>
+          {preAssessment && !preAssessment.completed && (
+            <div style={{marginTop: 16, padding: 16, border: '1px solid #c9ddec', borderRadius: 10, background: '#f7fbfe'}}>
+              <h4 style={{margin: '0 0 6px'}}>Eğitim Öncesi İlk Test</h4>
+              <p style={{margin: '0 0 12px', color: '#496174', fontSize: 12}}>{preAssessment.description}</p>
+              {preAssessment.questions.map((question, index) => (
+                <fieldset key={question.id} style={{border: 0, padding: 0, margin: '0 0 14px'}}>
+                  <legend style={{fontWeight: 700}}>{index + 1}. {question.question_text}</legend>
+                  {Object.entries(question.options || {}).map(([key, label]) => (
+                    <label key={key} style={{display: 'block', marginTop: 6}}><input type="radio" name={'remote-pre-assessment-' + question.id} checked={preAssessmentAnswers[String(question.id)] === key} onChange={() => setPreAssessmentAnswers((current) => ({...current, [String(question.id)]: key}))} /> {key}) {label}</label>
+                  ))}
+                </fieldset>
+              ))}
+              <button type="button" onClick={submitPreAssessment} disabled={busy || Object.keys(preAssessmentAnswers).length !== preAssessment.questions.length}>İlk testi tamamla ve eğitime başla</button>
+            </div>
+          )}
+          {preAssessment?.completed && (
+            <div style={{marginTop: 16, padding: 12, borderRadius: 10, background: '#eef9f2', color: '#235b3a', fontSize: 12}} role="status">
+              <strong>Eğitim öncesi ilk test tamamlandı.</strong> Başlangıç puanı: {preAssessment.score}/100. Bu sonuç başarı/kalma şartı değildir ve final sınavına aktarılmaz.
+            </div>
+          )}
+          {preAssessment?.completed && (
           <div className="remote-training-content-grid" style={{gap: 16, marginTop: 16}}>
             <div>
               <div style={{fontWeight: 700, marginBottom: 8}}>Ders videoları</div>
@@ -1114,6 +1165,7 @@ function EmployeePanel() {
               <button type="button" onClick={submitExam} disabled={busy || Object.keys(answers).length !== exam.questions.length}>Sınavı gönder</button>
             </div>
           )}
+        )}
           {(assignment.status === 'completed' || assignment.summary?.complete) && (
             <div style={{marginTop: 18, paddingTop: 16, borderTop: '1px solid #dbe5ef'}}>
               <h4 style={{margin: '0 0 8px'}}>Katılım belgesi</h4>

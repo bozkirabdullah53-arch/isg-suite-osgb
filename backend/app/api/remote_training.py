@@ -47,6 +47,7 @@ from app.models.remote_training import (
     RemoteTrainingEmployeeAccess,
     RemoteTrainingEvent,
     RemoteTrainingExamAttempt,
+    RemoteTrainingPreAssessmentAttempt,
     RemoteTrainingProgram,
     RemoteTrainingProgramQuestion,
     RemoteTrainingProgramSector,
@@ -65,6 +66,7 @@ from app.schemas.remote_training import (
     RemoteEmployeeAccessCreate,
     RemoteEmployeeAccountProvision,
     RemoteExamSubmit,
+    RemotePreAssessmentSubmit,
     RemoteFinalExamQuestionUpdate,
     RemoteProgramCreate,
     RemoteProgramQuestionLink,
@@ -123,6 +125,7 @@ from app.services.remote_training import (
     load_section,
     load_video,
     materialize_legacy_automatic_exam_pool,
+    materialize_pre_assessment_pool,
     program_sector_codes,
     recalculate_assignment,
     recalculate_catalog_package_duration,
@@ -477,6 +480,7 @@ def _program_detail(
             select(RemoteTrainingQuestion)
             .where(RemoteTrainingQuestion.program_id == program.id)
             .where(RemoteTrainingQuestion.is_final_exam.is_(False))
+            .where(RemoteTrainingQuestion.is_pre_assessment.is_(False))
             .order_by(RemoteTrainingQuestion.order_index, RemoteTrainingQuestion.id)
         ).all()
     )
@@ -684,6 +688,62 @@ def _assignment_output(
             sector_codes=sector_codes if employee else None,
         )
     return result
+
+
+def _pre_assessment_questions_for_assignment(
+    db: Session, assignment: RemoteTrainingAssignment
+) -> list[RemoteTrainingQuestion]:
+    return list(
+        db.scalars(
+            select(RemoteTrainingQuestion).where(
+                RemoteTrainingQuestion.program_id == assignment.program_id,
+                RemoteTrainingQuestion.is_pre_assessment.is_(True),
+            ).order_by(RemoteTrainingQuestion.order_index, RemoteTrainingQuestion.id)
+        ).all()
+    )
+
+
+def _pre_assessment_attempt_for_assignment(
+    db: Session, assignment: RemoteTrainingAssignment
+) -> RemoteTrainingPreAssessmentAttempt | None:
+    return db.scalar(
+        select(RemoteTrainingPreAssessmentAttempt).where(
+            RemoteTrainingPreAssessmentAttempt.assignment_id == assignment.id
+        )
+    )
+
+
+def _pre_assessment_output(
+    db: Session,
+    assignment: RemoteTrainingAssignment,
+    questions: list[RemoteTrainingQuestion],
+    attempt: RemoteTrainingPreAssessmentAttempt | None,
+) -> dict[str, Any]:
+    return {
+        "assignment_id": assignment.id,
+        "program_id": assignment.program_id,
+        "title": "Eğitim Öncesi İlk Test",
+        "description": (
+            "Bu test eğitim başlamadan önce mevcut bilgi düzeyini ölçer. "
+            "Başarı şartı yoktur ve sonucu final sınavı puanına dahil edilmez."
+        ),
+        "completed": attempt is not None,
+        "score": attempt.score if attempt else None,
+        "correct_count": attempt.correct_count if attempt else None,
+        "question_count": attempt.question_count if attempt else len(questions),
+        "submitted_at": _iso(attempt.submitted_at) if attempt else None,
+        "questions": [_question_output(question, reveal_answer=False) for question in questions],
+    }
+
+
+def _require_pre_assessment_completed(
+    db: Session, assignment: RemoteTrainingAssignment
+) -> None:
+    if _pre_assessment_attempt_for_assignment(db, assignment) is None:
+        raise HTTPException(
+            409,
+            "Eğitime başlamadan önce Eğitim Öncesi İlk Test tamamlanmalıdır.",
+        )
 
 
 def _commit(db: Session, message: str) -> None:
@@ -2821,6 +2881,7 @@ def download_remote_asset(
         assert_assignment_access(db, user, assignment)
         if assignment.program_id != video.program_id or video.status != "published" or not video.is_current:
             raise HTTPException(403, "Video eki çalışana açık değil.")
+        _require_pre_assessment_completed(db, assignment)
         section = load_section(db, video.section_id)
         if not assignment_allows_sector(db, assignment, section.sector_code):
             raise HTTPException(403, "Video eki bu çalışanın ders kapsamına dahil değil.")
@@ -2856,6 +2917,8 @@ def create_remote_playback(
         require_strict_policy_active(program)
         if assignment.program_id != program.id:
             raise HTTPException(403, "Video bu atamaya bağlı değil.")
+        if mode == "employee":
+            _require_pre_assessment_completed(db, assignment)
         section = load_section(db, video.section_id)
         if not assignment_allows_sector(db, assignment, section.sector_code):
             raise HTTPException(403, "Video bu çalışanın ders kapsamına dahil değil.")
@@ -2882,6 +2945,9 @@ def stream_remote_video(
 ):
     require_feature()
     _user, video, _assignment_id, _mode = decode_playback_token(db, token, video_id)
+    if _mode == "employee" and _assignment_id:
+        assignment = load_assignment(db, _assignment_id)
+        _require_pre_assessment_completed(db, assignment)
     response = response_for_video(video, request)
     response.headers["Cache-Control"] = "private, no-store, max-age=0"
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -3087,6 +3153,7 @@ def _permanently_delete_assignments(
             RemoteTrainingEvent,
             RemoteTrainingCheckpointAnswer,
             RemoteTrainingExamAttempt,
+            RemoteTrainingPreAssessmentAttempt,
             RemoteTrainingCertificate,
         ):
             db.execute(delete(model).where(model.assignment_id == row.id))
@@ -3529,6 +3596,7 @@ def list_remote_checkpoint_questions(
         select(RemoteTrainingQuestion).where(
             RemoteTrainingQuestion.program_id == program.id,
             RemoteTrainingQuestion.is_final_exam.is_(False),
+            RemoteTrainingQuestion.is_pre_assessment.is_(False),
         ).order_by(RemoteTrainingQuestion.order_index, RemoteTrainingQuestion.id)
     ).all()
     return [_question_output(row, reveal_answer=True) for row in rows]
@@ -3681,6 +3749,142 @@ def unlink_remote_exam_question(
     return {"deleted": True, "id": link_id, "question_id": row.question_id}
 
 
+@router.get("/assignments/{assignment_id}/pre-assessment")
+def get_remote_pre_assessment(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    assignment = load_assignment(db, assignment_id)
+    mode = assert_assignment_access(db, user, assignment)
+    program = load_program(db, assignment.program_id)
+    if mode == "employee":
+        require_strict_policy_active(program)
+        if program.status != "published":
+            raise HTTPException(403, "Bu eğitim şu anda çalışana açık değil.")
+    created = materialize_pre_assessment_pool(
+        db,
+        program,
+        created_by_id=user.id,
+    )
+    if created:
+        audit(
+            db,
+            company_id=assignment.company_id,
+            user=user,
+            action="pre_assessment_pool_created",
+            entity_type="program",
+            entity_id=program.id,
+            details={"question_count": len(created), "source": "pre_assessment_open"},
+        )
+        _commit(db, "Eğitim öncesi ilk test soru havuzu kaydedilemedi.")
+    questions = _pre_assessment_questions_for_assignment(db, assignment)
+    if not questions:
+        raise HTTPException(409, "Bu eğitim için eğitim öncesi ilk test soru havuzu bulunmuyor.")
+    attempt = _pre_assessment_attempt_for_assignment(db, assignment)
+    return _pre_assessment_output(db, assignment, questions, attempt)
+
+
+@router.post("/assignments/{assignment_id}/pre-assessment/attempts")
+def submit_remote_pre_assessment(
+    assignment_id: int,
+    payload: RemotePreAssessmentSubmit,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    require_feature()
+    assignment = load_assignment(db, assignment_id)
+    mode = assert_assignment_access(db, user, assignment, write=True)
+    if mode != "employee":
+        raise HTTPException(403, "Bu ilk testi yalnızca eşlenmiş çalışan gönderebilir.")
+    program = load_program(db, assignment.program_id)
+    require_strict_policy_active(program)
+    if program.status != "published":
+        raise HTTPException(403, "Bu eğitim şu anda çalışana açık değil.")
+    created = materialize_pre_assessment_pool(
+        db,
+        program,
+        created_by_id=user.id,
+    )
+    if created:
+        audit(
+            db,
+            company_id=assignment.company_id,
+            user=user,
+            action="pre_assessment_pool_created",
+            entity_type="program",
+            entity_id=program.id,
+            details={"question_count": len(created), "source": "pre_assessment_submit"},
+        )
+    existing = _pre_assessment_attempt_for_assignment(db, assignment)
+    if existing is not None:
+        return {
+            "attempt_id": existing.id,
+            "already_submitted": True,
+            "score": existing.score,
+            "correct_count": existing.correct_count,
+            "question_count": existing.question_count,
+            "submitted_at": _iso(existing.submitted_at),
+        }
+    questions = _pre_assessment_questions_for_assignment(db, assignment)
+    if not questions:
+        raise HTTPException(409, "Bu eğitim için eğitim öncesi ilk test soru havuzu bulunmuyor.")
+    normalized_answers = {str(key): str(value).strip().upper() for key, value in payload.answers.items()}
+    expected_ids = {str(question.id) for question in questions}
+    if set(normalized_answers) != expected_ids:
+        raise HTTPException(422, "Eğitim öncesi ilk testteki tüm sorular yanıtlanmalıdır.")
+    correct = 0
+    for question in questions:
+        answer = normalized_answers[str(question.id)]
+        if answer not in {"A", "B", "C", "D"}:
+            raise HTTPException(422, "İlk test yanıtı yalnız A, B, C veya D olabilir.")
+        if answer == question.correct_option:
+            correct += 1
+    score = round(correct * 100 / len(questions))
+    now = datetime.utcnow()
+    attempt = RemoteTrainingPreAssessmentAttempt(
+        company_id=assignment.company_id,
+        program_id=program.id,
+        assignment_id=assignment.id,
+        employee_id=assignment.employee_id,
+        question_ids_json=json.dumps([question.id for question in questions]),
+        answers_json=json.dumps(normalized_answers),
+        question_count=len(questions),
+        correct_count=correct,
+        score=score,
+        started_at=now,
+        submitted_at=now,
+        submitted_by_id=user.id,
+    )
+    db.add(attempt)
+    db.flush()
+    audit(
+        db,
+        company_id=assignment.company_id,
+        user=user,
+        action="pre_assessment_submitted",
+        entity_type="pre_assessment_attempt",
+        entity_id=attempt.id,
+        details={
+            "score": score,
+            "correct_count": correct,
+            "question_count": len(questions),
+            "ip": request.client.host if request.client else None,
+        },
+    )
+    _commit(db, "Eğitim öncesi ilk test sonucu kaydedilemedi.")
+    return {
+        "attempt_id": attempt.id,
+        "already_submitted": False,
+        "score": score,
+        "correct_count": correct,
+        "question_count": len(questions),
+        "submitted_at": _iso(attempt.submitted_at),
+    }
+
+
 @router.get("/assignments/{assignment_id}/exam")
 def get_remote_exam(
     assignment_id: int,
@@ -3689,9 +3893,11 @@ def get_remote_exam(
 ):
     require_feature()
     assignment = load_assignment(db, assignment_id)
-    assert_assignment_access(db, user, assignment)
+    mode = assert_assignment_access(db, user, assignment)
     program = load_program(db, assignment.program_id)
     require_strict_policy_active(program)
+    if mode == "employee":
+        _require_pre_assessment_completed(db, assignment)
     if strict_exam_gate_enabled(program):
         summary = recalculate_assignment(db, assignment)
         if not summary["required_videos_complete"] or not summary["required_checkpoints_complete"]:
@@ -3773,6 +3979,8 @@ def submit_remote_exam(
     require_strict_policy_active(program)
     if strict_policy_active(program) and mode != "employee":
         raise HTTPException(403, "Bu sınavı yalnızca eşlenmiş çalışan gönderebilir.")
+    if mode == "employee":
+        _require_pre_assessment_completed(db, assignment)
     if strict_exam_gate_enabled(program):
         summary = recalculate_assignment(db, assignment)
         if not summary["required_videos_complete"] or not summary["required_checkpoints_complete"]:
@@ -3869,6 +4077,8 @@ def save_remote_progress(
     require_strict_policy_active(program)
     if strict_policy_active(program) and mode != "employee":
         raise HTTPException(403, "Bu video ilerlemesini yalnızca eşlenmiş çalışan gönderebilir.")
+    if mode == "employee":
+        _require_pre_assessment_completed(db, assignment)
     if video.program_id != program.id or video.status != "published" or not video.is_current:
         raise HTTPException(403, "Video bu atamaya açık değil.")
     section = load_section(db, video.section_id)
@@ -3997,8 +4207,10 @@ def answer_remote_checkpoint(
     require_strict_policy_active(program)
     if strict_policy_active(program) and mode != "employee":
         raise HTTPException(403, "Bu kontrol sorusunu yalnızca eşlenmiş çalışan yanıtlayabilir.")
+    if mode == "employee":
+        _require_pre_assessment_completed(db, assignment)
     question = db.get(RemoteTrainingQuestion, question_id)
-    if not question or question.program_id != assignment.program_id or question.is_final_exam:
+    if not question or question.program_id != assignment.program_id or question.is_final_exam or question.is_pre_assessment:
         raise HTTPException(404, "Video içi soru bulunamadı.")
     if not assignment_allows_sector(db, assignment, question.sector_code):
         raise HTTPException(403, "Video içi soru bu çalışanın ders kapsamına dahil değil.")

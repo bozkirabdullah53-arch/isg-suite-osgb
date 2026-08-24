@@ -19,6 +19,60 @@ def _db():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     return engine
+def test_pre_assessment_pack_is_separate_from_the_final_exam():
+    from app.services.remote_training import (
+        REMOTE_PRE_ASSESSMENT_QUESTION_COUNT,
+        pre_assessment_items_for_program,
+    )
+
+    items = pre_assessment_items_for_program("common-basic-ohs")
+    assert len(items) == REMOTE_PRE_ASSESSMENT_QUESTION_COUNT == 5
+    assert len({item["question_code"] for item in items}) == 5
+    assert all(len(item["options"]) == 4 for item in items)
+
+
+def test_pre_assessment_pool_is_idempotent_and_not_a_final_exam_pool():
+    from app.models.remote_training import RemoteTrainingProgram, RemoteTrainingQuestion
+    from app.services.remote_training import materialize_pre_assessment_pool
+
+    engine = _db()
+    with Session(engine) as db:
+        _osgb, company, _branch, _employee, user = _scope_rows(db)
+        program = RemoteTrainingProgram(
+            company_id=company.id,
+            source_catalog_code="common-basic-ohs",
+            title="Temel İSG",
+            requires_final_exam=True,
+            created_by_id=user.id,
+        )
+        db.add(program)
+        db.flush()
+
+        first = materialize_pre_assessment_pool(db, program, created_by_id=user.id)
+        second = materialize_pre_assessment_pool(db, program, created_by_id=user.id)
+        rows = list(
+            db.scalars(
+                select(RemoteTrainingQuestion).where(
+                    RemoteTrainingQuestion.program_id == program.id,
+                    RemoteTrainingQuestion.is_pre_assessment.is_(True),
+                ).order_by(RemoteTrainingQuestion.order_index)
+            ).all()
+        )
+
+        assert len(first) == 5
+        assert second == []
+        assert [row.id for row in rows] == [row.id for row in first]
+        assert all(row.is_pre_assessment for row in rows)
+        assert all(not row.is_final_exam for row in rows)
+        assert db.scalar(
+            select(RemoteTrainingQuestion.id).where(
+                RemoteTrainingQuestion.program_id == program.id,
+                RemoteTrainingQuestion.is_final_exam.is_(True),
+            )
+        ) is None
+
+
+
 
 
 def _scope_rows(db: Session):

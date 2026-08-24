@@ -231,6 +231,8 @@ REMOTE_AUTO_EXAM_QUESTION_COUNT = 10
 REMOTE_AUTO_EXAM_QUESTION_COUNTS = {
     "working-at-height-ohs": 20,
 }
+REMOTE_PRE_ASSESSMENT_PACK = "foundation.json"
+REMOTE_PRE_ASSESSMENT_QUESTION_COUNT = 5
 
 
 def automatic_exam_question_count(package_code: str | None) -> int:
@@ -296,6 +298,25 @@ def automatic_exam_items_for_package(package_code: str | None) -> list[dict[str,
             f"Otomatik final sınavı sektör kapsamıyla uyumsuz soru içeriyor: {file_name}"
         )
     return [dict(item) for item in selected]
+
+
+def pre_assessment_items_for_program(package_code: str | None = None) -> list[dict[str, Any]]:
+    """Return the reviewed common foundation questions for the baseline test."""
+    del package_code  # The baseline is common to every Basic OHS package.
+    items = [dict(item) for item in _curated_pack(REMOTE_PRE_ASSESSMENT_PACK)]
+    if len(items) != REMOTE_PRE_ASSESSMENT_QUESTION_COUNT:
+        raise RuntimeError(
+            "Eğitim öncesi ilk test paketi tam olarak "
+            f"{REMOTE_PRE_ASSESSMENT_QUESTION_COUNT} soru içermelidir."
+        )
+    question_codes = {
+        str(item.get("question_code") or "").strip().casefold() for item in items
+    }
+    if len(question_codes) != len(items) or "" in question_codes:
+        raise RuntimeError("Eğitim öncesi ilk test paketi tekrar eden/eksik soru kodu içeriyor.")
+    if any(len(item.get("options") or []) != 4 for item in items):
+        raise RuntimeError("Eğitim öncesi ilk test paketi dört seçenekli olmalıdır.")
+    return items
 
 
 # A small number of remote-training programs were created before the central
@@ -391,6 +412,54 @@ def materialize_legacy_automatic_exam_pool(
         # Central packages allow three attempts.  Bring only this recognized
         # legacy record up to that safe minimum; previous attempts are kept.
         program.attempt_limit = 3
+    return rows
+
+
+def materialize_pre_assessment_pool(
+    db: Session,
+    program: RemoteTrainingProgram,
+    *,
+    created_by_id: int | None = None,
+) -> list[RemoteTrainingQuestion]:
+    """Create the immutable five-question baseline pool once per program."""
+    existing = list(
+        db.scalars(
+            select(RemoteTrainingQuestion).where(
+                RemoteTrainingQuestion.program_id == program.id,
+                RemoteTrainingQuestion.is_pre_assessment.is_(True),
+            ).order_by(RemoteTrainingQuestion.order_index, RemoteTrainingQuestion.id)
+        ).all()
+    )
+    if existing:
+        return []
+
+    owner_id = created_by_id or getattr(program, "created_by_id", None)
+    rows: list[RemoteTrainingQuestion] = []
+    for position, item in enumerate(pre_assessment_items_for_program(getattr(program, "source_catalog_code", None)), start=1):
+        options = item.get("options") or []
+        rows.append(
+            RemoteTrainingQuestion(
+                osgb_id=program.osgb_id,
+                company_id=program.company_id,
+                program_id=program.id,
+                sector_code="common",
+                question_text=str(item["question_text"]).strip(),
+                options_json=json.dumps(
+                    {letter: str(options[index]).strip() for index, letter in enumerate("ABCD")},
+                    ensure_ascii=False,
+                ),
+                correct_option=str(item["correct_option"]).upper(),
+                explanation=str(item["answer_explanation"]).strip(),
+                order_index=position,
+                is_required=False,
+                is_final_exam=False,
+                is_pre_assessment=True,
+                created_by_id=owner_id,
+            )
+        )
+
+    db.add_all(rows)
+    db.flush()
     return rows
 
 
@@ -618,6 +687,7 @@ def build_program_sector_catalog(
             select(RemoteTrainingQuestion).where(
                 RemoteTrainingQuestion.program_id == program.id,
                 RemoteTrainingQuestion.is_final_exam.is_(False),
+                RemoteTrainingQuestion.is_pre_assessment.is_(False),
             )
         ).all()
     )

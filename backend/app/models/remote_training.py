@@ -838,10 +838,47 @@ class RemoteTrainingQuestion(Base):
     # Catalog-derived programs receive ten approved, immutable final-exam
     # snapshots here.  Existing rows remain video/checkpoint questions.
     is_final_exam: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    # Eğitim öncesi ilk test soruları final sınavı ve video içi sorulardan ayrıdır.
+    is_pre_assessment: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     created_by_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class RemoteTrainingPreAssessmentAttempt(Base):
+    """Immutable, one-time baseline result recorded before remote training."""
+
+    __tablename__ = "remote_training_pre_assessment_attempts"
+    __table_args__ = (
+        UniqueConstraint("assignment_id", name="uq_remote_pre_assessment_assignment"),
+        Index("ix_remote_pre_assessment_attempts_company", "company_id"),
+        Index("ix_remote_pre_assessment_attempts_assignment", "assignment_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    program_id: Mapped[int] = mapped_column(
+        ForeignKey("remote_training_programs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    assignment_id: Mapped[int] = mapped_column(
+        ForeignKey("remote_training_assignments.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    employee_id: Mapped[int] = mapped_column(
+        ForeignKey("employees.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    question_ids_json: Mapped[str] = mapped_column(Text, nullable=False)
+    answers_json: Mapped[str] = mapped_column(Text, nullable=False)
+    question_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    correct_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    score: Mapped[int] = mapped_column(Integer, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    submitted_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
 
 class RemoteTrainingCheckpointAnswer(Base):
