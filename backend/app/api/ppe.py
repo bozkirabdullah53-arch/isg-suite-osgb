@@ -18,7 +18,7 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.company_access import company_ids_for_query, effective_company_id, ensure_company_access
@@ -33,14 +33,21 @@ from app.models.entities import (
     Employee,
     PpeAssignment,
     PpeAssignmentPhoto,
+    PpeInventoryItem,
+    PpeInventoryMovement,
     User,
     UserRole,
 )
 from app.schemas.ppe import (
+    PpeAssignmentAction,
     PpeAssignmentCreate,
     PpeAssignmentResponse,
     PpeAssignmentUpdate,
     PpeDueSummary,
+    PpeInventoryCreate,
+    PpeInventoryMovementCreate,
+    PpeInventoryMovementResponse,
+    PpeInventoryResponse,
     PpePhotoResponse,
 )
 from app.services.ppe_catalog import catalog_payload, status_label
@@ -63,11 +70,14 @@ def _upload_root() -> Path:
 
 def _to_response(row: PpeAssignment, employee: Employee | None = None) -> PpeAssignmentResponse:
     emp = employee
+    returned = int(row.returned_quantity or 0)
+    scrapped = int(row.scrapped_quantity or 0)
     return PpeAssignmentResponse(
         id=row.id,
         company_id=row.company_id,
         branch_id=row.branch_id,
         employee_id=row.employee_id,
+        inventory_item_id=row.inventory_item_id,
         employee_name=emp.full_name if emp else None,
         employee_department=emp.department if emp else None,
         employee_job_title=emp.job_title if emp else None,
@@ -85,6 +95,9 @@ def _to_response(row: PpeAssignment, employee: Employee | None = None) -> PpeAss
         renewal_date=row.renewal_date,
         status=row.status,
         status_label=status_label(row.status),
+        returned_quantity=returned,
+        scrapped_quantity=scrapped,
+        remaining_quantity=max(0, int(row.quantity or 0) - returned - scrapped),
         delivered_by=row.delivered_by,
         risk_note=row.risk_note,
         notes=row.notes,
@@ -104,6 +117,104 @@ def _load(db: Session, assignment_id: int) -> PpeAssignment:
     if not row:
         raise HTTPException(404, "KKD kaydı bulunamadı.")
     return row
+
+
+def _movement_totals(db: Session, inventory_item_id: int) -> dict[str, int]:
+    rows = db.execute(
+        select(PpeInventoryMovement.movement_type, func.coalesce(func.sum(PpeInventoryMovement.quantity), 0))
+        .where(PpeInventoryMovement.inventory_item_id == inventory_item_id)
+        .group_by(PpeInventoryMovement.movement_type)
+    ).all()
+    return {str(kind): int(total or 0) for kind, total in rows}
+
+
+def _stock_response(row: PpeInventoryItem, totals: dict[str, int]) -> PpeInventoryResponse:
+    received = totals.get("inbound", 0)
+    issued = totals.get("issue", 0)
+    returned = totals.get("return", 0)
+    scrapped = totals.get("scrap", 0)
+    available = max(0, received + returned - issued - scrapped)
+    today = date.today()
+    due_dates = [item_date for item_date in (row.expiry_date, row.renewal_date) if item_date]
+    next_due = min(due_dates) if due_dates else None
+    if next_due and next_due < today:
+        state = "expired"
+    elif next_due and next_due <= today + timedelta(days=30):
+        state = "due_soon"
+    elif available <= row.min_stock:
+        state = "low"
+    else:
+        state = "ok"
+    return PpeInventoryResponse(
+        id=row.id,
+        company_id=row.company_id,
+        branch_id=row.branch_id,
+        category=row.category,
+        item_type=row.item_type,
+        brand=row.brand,
+        model=row.model,
+        size=row.size,
+        shelf_life_text=row.shelf_life_text,
+        expiry_date=row.expiry_date,
+        renewal_date=row.renewal_date,
+        min_stock=row.min_stock,
+        notes=row.notes,
+        is_active=row.is_active,
+        received_quantity=received,
+        issued_quantity=issued,
+        returned_quantity=returned,
+        scrapped_quantity=scrapped,
+        available_quantity=available,
+        stock_state=state,
+        created_by_id=row.created_by_id,
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+
+def _inventory_item(db: Session, inventory_item_id: int, company_id: int) -> PpeInventoryItem:
+    row = db.scalar(
+        select(PpeInventoryItem).where(
+            PpeInventoryItem.id == inventory_item_id,
+            PpeInventoryItem.company_id == company_id,
+            PpeInventoryItem.is_active.is_(True),
+        )
+    )
+    if not row:
+        raise HTTPException(404, "KKD stok kartı bulunamadı.")
+    return row
+
+
+def _available_quantity(db: Session, inventory_item_id: int) -> int:
+    totals = _movement_totals(db, inventory_item_id)
+    return max(0, totals.get("inbound", 0) + totals.get("return", 0) - totals.get("issue", 0) - totals.get("scrap", 0))
+
+
+def _record_movement(
+    db: Session,
+    *,
+    item: PpeInventoryItem,
+    movement_type: str,
+    quantity: int,
+    user: User,
+    movement_date: date,
+    reason: str | None = None,
+    assignment_id: int | None = None,
+) -> PpeInventoryMovement:
+    if movement_type in {"issue", "scrap"} and quantity > _available_quantity(db, item.id):
+        raise HTTPException(422, "KKD stok miktarı yetersiz.")
+    movement = PpeInventoryMovement(
+        company_id=item.company_id,
+        inventory_item_id=item.id,
+        assignment_id=assignment_id,
+        movement_type=movement_type,
+        quantity=quantity,
+        movement_date=movement_date,
+        reason=reason,
+        created_by_id=user.id,
+    )
+    db.add(movement)
+    return movement
 
 
 @router.get("/catalog")
@@ -141,7 +252,145 @@ def due_summary(
             overdue += 1
         elif dmin <= soon:
             due_soon += 1
-    return PpeDueSummary(overdue=overdue, due_soon=due_soon, total_active=len(rows))
+    inventory_rows = list(
+        db.scalars(
+            select(PpeInventoryItem).where(
+                PpeInventoryItem.company_id == effective,
+                PpeInventoryItem.is_active.is_(True),
+            )
+        ).all()
+    )
+    low_stock = 0
+    stock_overdue = 0
+    stock_due_soon = 0
+    for item in inventory_rows:
+        totals = _movement_totals(db, item.id)
+        available = totals.get("inbound", 0) + totals.get("return", 0) - totals.get("issue", 0) - totals.get("scrap", 0)
+        if available <= item.min_stock:
+            low_stock += 1
+        due_dates = [item_date for item_date in (item.expiry_date, item.renewal_date) if item_date]
+        if due_dates:
+            next_due = min(due_dates)
+            if next_due < today:
+                stock_overdue += 1
+            elif next_due <= soon:
+                stock_due_soon += 1
+    return PpeDueSummary(
+        overdue=overdue,
+        due_soon=due_soon,
+        total_active=len(rows),
+        low_stock=low_stock,
+        stock_overdue=stock_overdue,
+        stock_due_soon=stock_due_soon,
+    )
+
+
+@router.get("/inventory", response_model=list[PpeInventoryResponse])
+def list_inventory(
+    company_id: int | None = None,
+    q: str | None = Query(None, max_length=120),
+    include_inactive: bool = False,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    company_ids = company_ids_for_query(db, user, company_id)
+    if company_ids == []:
+        return []
+    stmt = select(PpeInventoryItem).order_by(PpeInventoryItem.item_type, PpeInventoryItem.id)
+    if company_ids is not None:
+        stmt = stmt.where(PpeInventoryItem.company_id.in_(company_ids))
+    if not include_inactive:
+        stmt = stmt.where(PpeInventoryItem.is_active.is_(True))
+    if q:
+        like = f"%{q.strip()}%"
+        stmt = stmt.where(
+            or_(
+                PpeInventoryItem.category.ilike(like),
+                PpeInventoryItem.item_type.ilike(like),
+                PpeInventoryItem.brand.ilike(like),
+                PpeInventoryItem.model.ilike(like),
+                PpeInventoryItem.size.ilike(like),
+            )
+        )
+    rows = list(db.scalars(stmt.limit(500)).all())
+    return [_stock_response(row, _movement_totals(db, row.id)) for row in rows]
+
+
+@router.post("/inventory", response_model=PpeInventoryResponse)
+def create_inventory(
+    payload: PpeInventoryCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    ensure_access(db, user, payload.company_id)
+    if not db.get(Company, payload.company_id):
+        raise HTTPException(404, "Firma bulunamadı.")
+    if payload.branch_id:
+        branch = db.get(Branch, payload.branch_id)
+        if not branch or branch.company_id != payload.company_id:
+            raise HTTPException(422, "Şube firmaya ait değil.")
+    data = payload.model_dump(exclude={"initial_quantity"})
+    row = PpeInventoryItem(**data, created_by_id=user.id)
+    db.add(row)
+    db.flush()
+    if payload.initial_quantity:
+        _record_movement(
+            db,
+            item=row,
+            movement_type="inbound",
+            quantity=payload.initial_quantity,
+            user=user,
+            movement_date=date.today(),
+            reason="İlk stok girişi",
+        )
+    db.commit()
+    db.refresh(row)
+    return _stock_response(row, _movement_totals(db, row.id))
+
+
+@router.get("/inventory/{inventory_item_id}/movements", response_model=list[PpeInventoryMovementResponse])
+def list_inventory_movements(
+    inventory_item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    item = db.get(PpeInventoryItem, inventory_item_id)
+    if not item:
+        raise HTTPException(404, "KKD stok kartı bulunamadı.")
+    ensure_access(db, user, item.company_id)
+    return list(
+        db.scalars(
+            select(PpeInventoryMovement)
+            .where(PpeInventoryMovement.inventory_item_id == item.id)
+            .order_by(PpeInventoryMovement.movement_date.desc(), PpeInventoryMovement.id.desc())
+            .limit(500)
+        ).all()
+    )
+
+
+@router.post("/inventory/{inventory_item_id}/movements", response_model=PpeInventoryMovementResponse)
+def create_inventory_movement(
+    inventory_item_id: int,
+    payload: PpeInventoryMovementCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    item = db.get(PpeInventoryItem, inventory_item_id)
+    if not item:
+        raise HTTPException(404, "KKD stok kartı bulunamadı.")
+    ensure_access(db, user, item.company_id)
+    movement = _record_movement(
+        db,
+        item=item,
+        movement_type=payload.movement_type,
+        quantity=payload.quantity,
+        user=user,
+        movement_date=payload.movement_date,
+        reason=payload.reason,
+    )
+    db.commit()
+    db.refresh(movement)
+    return movement
 
 
 @router.get("/assignments", response_model=list[PpeAssignmentResponse])
@@ -215,11 +464,32 @@ def create_assignment(
         b = db.get(Branch, payload.branch_id)
         if not b or b.company_id != payload.company_id:
             raise HTTPException(422, "Şube firmaya ait değil.")
+    inventory_item = None
+    if payload.inventory_item_id:
+        inventory_item = _inventory_item(db, payload.inventory_item_id, payload.company_id)
+        if inventory_item.category != payload.category or inventory_item.item_type != payload.item_type:
+            raise HTTPException(422, "Seçilen stok kartı KKD kategorisi veya türüyle eşleşmiyor.")
+        if inventory_item.branch_id and payload.branch_id and inventory_item.branch_id != payload.branch_id:
+            raise HTTPException(422, "Seçilen stok kartı şubeyle eşleşmiyor.")
+        if _available_quantity(db, inventory_item.id) < payload.quantity:
+            raise HTTPException(422, "KKD stok miktarı yetersiz.")
     data = payload.model_dump()
     data["delivered_by"] = payload.delivered_by or user.full_name
     row = PpeAssignment(**data, created_by_id=user.id)
     db.add(row)
     try:
+        db.flush()
+        if inventory_item:
+            _record_movement(
+                db,
+                item=inventory_item,
+                movement_type="issue",
+                quantity=payload.quantity,
+                user=user,
+                movement_date=payload.delivery_date,
+                reason="Çalışana KKD zimmeti",
+                assignment_id=row.id,
+            )
         db.commit()
     except Exception:
         db.rollback()
@@ -253,12 +523,79 @@ def update_assignment(
     data = payload.model_dump(exclude_unset=True)
     if "status" in data and data["status"] and data["status"] not in ("teslim", "yenilenecek", "iade", "kayip"):
         raise HTTPException(422, "Geçersiz durum.")
+    if "quantity" in data:
+        closed_quantity = int(row.returned_quantity or 0) + int(row.scrapped_quantity or 0)
+        if int(data["quantity"]) < closed_quantity:
+            raise HTTPException(422, "Adet, iade veya fireye ayrılmış miktarın altına indirilemez.")
+        if row.inventory_item_id and int(data["quantity"]) != int(row.quantity):
+            raise HTTPException(422, "Stok bağlantılı zimmetin adedi zimmet hareketiyle değiştirilmelidir.")
     for k, v in data.items():
         setattr(row, k, v)
     db.commit()
     row = _load(db, assignment_id)
     emp = db.get(Employee, row.employee_id)
     return _to_response(row, emp)
+
+
+def _close_assignment_quantity(
+    assignment_id: int,
+    payload: PpeAssignmentAction,
+    *,
+    action: str,
+    db: Session,
+    user: User,
+) -> PpeAssignmentResponse:
+    row = _load(db, assignment_id)
+    ensure_access(db, user, row.company_id)
+    remaining = max(0, int(row.quantity or 0) - int(row.returned_quantity or 0) - int(row.scrapped_quantity or 0))
+    quantity = payload.quantity or remaining
+    if quantity < 1 or quantity > remaining:
+        raise HTTPException(422, "İşlem adedi kalan zimmet adedini aşamaz.")
+
+    if action == "return":
+        row.returned_quantity = int(row.returned_quantity or 0) + quantity
+        next_status = "iade"
+        if row.inventory_item_id:
+            item = _inventory_item(db, row.inventory_item_id, row.company_id)
+            _record_movement(
+                db,
+                item=item,
+                movement_type="return",
+                quantity=quantity,
+                user=user,
+                movement_date=payload.movement_date,
+                reason=payload.reason or "Çalışandan KKD iadesi",
+                assignment_id=row.id,
+            )
+    else:
+        row.scrapped_quantity = int(row.scrapped_quantity or 0) + quantity
+        next_status = "fire"
+
+    next_remaining = remaining - quantity
+    row.status = next_status if next_remaining == 0 else "teslim"
+    db.commit()
+    row = _load(db, assignment_id)
+    return _to_response(row, db.get(Employee, row.employee_id))
+
+
+@router.post("/assignments/{assignment_id}/return", response_model=PpeAssignmentResponse)
+def return_assignment(
+    assignment_id: int,
+    payload: PpeAssignmentAction,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    return _close_assignment_quantity(assignment_id, payload, action="return", db=db, user=user)
+
+
+@router.post("/assignments/{assignment_id}/scrap", response_model=PpeAssignmentResponse)
+def scrap_assignment(
+    assignment_id: int,
+    payload: PpeAssignmentAction,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    return _close_assignment_quantity(assignment_id, payload, action="scrap", db=db, user=user)
 
 
 @router.delete("/assignments/{assignment_id}")
