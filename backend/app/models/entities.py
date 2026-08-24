@@ -1404,6 +1404,32 @@ class IncidentDof(Base):
     incident: Mapped[IncidentEvent] = relationship(back_populates="dofs")
 
 
+class PpeInventoryItem(Base):
+    """KKD stok kartı; hareketler üzerinden mevcut adet hesaplanır."""
+    __tablename__ = "ppe_inventory_items"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id", ondelete="SET NULL"), nullable=True)
+    category: Mapped[str] = mapped_column(String(120))
+    item_type: Mapped[str] = mapped_column(String(160), index=True)
+    brand: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    size: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    shelf_life_text: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    expiry_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    renewal_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    min_stock: Mapped[int] = mapped_column(Integer, default=0)
+    notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    movements: Mapped[list["PpeInventoryMovement"]] = relationship(
+        back_populates="inventory_item", cascade="all, delete-orphan"
+    )
+    assignments: Mapped[list["PpeAssignment"]] = relationship(back_populates="inventory_item")
+
+
 class PpeAssignment(Base):
     """KKD zimmet / teslim kaydı (PRO kkd_takip parity)."""
     __tablename__ = "ppe_assignments"
@@ -1411,6 +1437,9 @@ class PpeAssignment(Base):
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), index=True)
     branch_id: Mapped[int | None] = mapped_column(ForeignKey("branches.id"), nullable=True)
     employee_id: Mapped[int] = mapped_column(ForeignKey("employees.id"), index=True)
+    inventory_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ppe_inventory_items.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     delivery_date: Mapped[date] = mapped_column(Date, index=True)
     category: Mapped[str] = mapped_column(String(120))
     item_type: Mapped[str] = mapped_column(String(160))
@@ -1424,6 +1453,8 @@ class PpeAssignment(Base):
     warranty_text: Mapped[str | None] = mapped_column(String(120), nullable=True)
     renewal_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(40), default="teslim", index=True)
+    returned_quantity: Mapped[int] = mapped_column(Integer, default=0)
+    scrapped_quantity: Mapped[int] = mapped_column(Integer, default=0)
     delivered_by: Mapped[str | None] = mapped_column(String(160), nullable=True)
     risk_note: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     notes: Mapped[str | None] = mapped_column(String(2000), nullable=True)
@@ -1434,6 +1465,7 @@ class PpeAssignment(Base):
     photos: Mapped[list["PpeAssignmentPhoto"]] = relationship(
         back_populates="assignment", cascade="all, delete-orphan"
     )
+    inventory_item: Mapped[PpeInventoryItem | None] = relationship(back_populates="assignments")
 
 
 class PpeAssignmentPhoto(Base):
@@ -1447,6 +1479,27 @@ class PpeAssignmentPhoto(Base):
     content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     assignment: Mapped[PpeAssignment] = relationship(back_populates="photos")
+
+
+class PpeInventoryMovement(Base):
+    """KKD stok hareket defteri: giriş, zimmet, iade ve fire kayıtları."""
+    __tablename__ = "ppe_inventory_movements"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
+    inventory_item_id: Mapped[int] = mapped_column(
+        ForeignKey("ppe_inventory_items.id", ondelete="CASCADE"), index=True
+    )
+    assignment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ppe_assignments.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    movement_type: Mapped[str] = mapped_column(String(20), index=True)
+    quantity: Mapped[int] = mapped_column(Integer)
+    movement_date: Mapped[date] = mapped_column(Date, index=True)
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    inventory_item: Mapped[PpeInventoryItem] = relationship(back_populates="movements")
+    assignment: Mapped[PpeAssignment | None] = relationship()
 
 
 class IntegrationDryRunLog(Base):
