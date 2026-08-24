@@ -28,7 +28,7 @@ def test_pre_assessment_pack_is_separate_from_the_final_exam():
     )
 
     items = pre_assessment_items_for_program("common-basic-ohs")
-    assert len(items) == REMOTE_PRE_ASSESSMENT_QUESTION_COUNT == 5
+    assert len(items) == REMOTE_PRE_ASSESSMENT_QUESTION_COUNT == 10
     assert len({item["question_code"] for item in items}) == 5
     assert all(len(item["options"]) == 4 for item in items)
 
@@ -61,7 +61,7 @@ def test_pre_assessment_pool_is_idempotent_and_not_a_final_exam_pool():
             ).all()
         )
 
-        assert len(first) == 5
+        assert len(first) == 10
         assert second == []
         assert [row.id for row in rows] == [row.id for row in first]
         assert all(row.is_pre_assessment for row in rows)
