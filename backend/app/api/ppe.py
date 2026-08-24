@@ -606,6 +606,10 @@ def delete_assignment(
 ):
     row = _load(db, assignment_id)
     ensure_access(db, user, row.company_id)
+    if row.inventory_item_id:
+        remaining = int(row.quantity or 0) - int(row.returned_quantity or 0) - int(row.scrapped_quantity or 0)
+        if remaining > 0:
+            raise HTTPException(409, "Stok bağlantılı açık zimmet silinemez; önce iade veya fire işlemi yapın.")
     row.deleted_at = datetime.utcnow()
     db.commit()
     return {"ok": True, "id": assignment_id}
