@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Download, Plus, Printer, Search, Trash2, Upload, X} from 'lucide-react';
+import {Download, Plus, Printer, Search, Trash2, Upload} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
 
@@ -42,6 +42,7 @@ function emptyForm(user) {
     delivery_date: new Date().toISOString().slice(0, 10),
     category: '',
     item_type: '',
+    inventory_item_id: '',
     quantity: 1,
     brand: '',
     model: '',
@@ -58,12 +59,32 @@ function emptyForm(user) {
   };
 }
 
+function emptyInventoryForm(user) {
+  return {
+    company_id: user.company_id || '',
+    branch_id: '',
+    category: '',
+    item_type: '',
+    brand: '',
+    model: '',
+    size: '',
+    shelf_life_text: '',
+    expiry_date: '',
+    renewal_date: '',
+    min_stock: 0,
+    initial_quantity: 0,
+    notes: '',
+  };
+}
+
 export function PpePage({user}) {
   const canEdit = ['global_admin', 'company_admin', 'safety_specialist'].includes(user.role);
   const [companies, setCompanies] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [catalog, setCatalog] = useState({categories: [], statuses: []});
   const [rows, setRows] = useState([]);
+  const [inventory, setInventory] = useState([]);
+  const [inventorySupported, setInventorySupported] = useState(false);
   const [due, setDue] = useState(null);
   const [companyId, setCompanyId] = useState(user.company_id || '');
   const [q, setQ] = useState('');
@@ -71,6 +92,8 @@ export function PpePage({user}) {
   const [open, setOpen] = useState(false);
   const [zimmet, setZimmet] = useState(null);
   const [form, setForm] = useState(() => emptyForm(user));
+  const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [inventoryForm, setInventoryForm] = useState(() => emptyInventoryForm(user));
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -79,9 +102,23 @@ export function PpePage({user}) {
     return cat?.types || [];
   }, [catalog, form.category]);
 
+  const inventoryTypesForCategory = useMemo(() => {
+    const cat = catalog.categories.find((c) => c.name === inventoryForm.category);
+    return cat?.types || [];
+  }, [catalog, inventoryForm.category]);
+
   const companyEmployees = useMemo(
     () => employees.filter((e) => String(e.company_id) === String(form.company_id || companyId)),
     [employees, form.company_id, companyId],
+  );
+
+  const assignmentStock = useMemo(
+    () => inventory.filter((item) => (
+      String(item.company_id) === String(form.company_id || companyId)
+      && (!form.category || item.category === form.category)
+      && (!form.item_type || item.item_type === form.item_type)
+    )),
+    [inventory, form.company_id, form.category, form.item_type, companyId],
   );
 
   const load = async () => {
@@ -96,6 +133,8 @@ export function PpePage({user}) {
     if (cid && !companyId) setCompanyId(String(cid));
     if (!cid) {
       setRows([]);
+      setInventory([]);
+      setInventorySupported(false);
       setDue(null);
       setEmployees([]);
       if (user.role === 'global_admin') setErr('KKD listesi için firma seçiniz.');
@@ -112,6 +151,15 @@ export function PpePage({user}) {
     setRows(list);
     setDue(summary);
     setEmployees(Array.isArray(e) ? e : []);
+    try {
+      const stock = await api(`/ppe/inventory?company_id=${encodeURIComponent(cid)}`);
+      setInventory(Array.isArray(stock) ? stock : []);
+      setInventorySupported(true);
+    } catch {
+      // Yeni stok API'si eski backend ile birlikte dönerken mevcut KKD ekranı çalışmaya devam eder.
+      setInventory([]);
+      setInventorySupported(false);
+    }
   };
 
   useEffect(() => {
@@ -127,6 +175,7 @@ export function PpePage({user}) {
         ...form,
         company_id: Number(form.company_id || companyId),
         employee_id: Number(form.employee_id),
+        inventory_item_id: form.inventory_item_id ? Number(form.inventory_item_id) : null,
         branch_id: form.branch_id ? Number(form.branch_id) : null,
         quantity: Number(form.quantity) || 1,
         expiry_date: form.expiry_date || null,
@@ -155,6 +204,87 @@ export function PpePage({user}) {
     if (!window.confirm('Bu KKD zimmet kaydını silmek istiyor musunuz?')) return;
     await api(`/ppe/assignments/${id}`, {method: 'DELETE'});
     load();
+  }
+
+  async function assignmentAction(row, action) {
+    const remaining = Number(row.remaining_quantity ?? row.quantity ?? 0);
+    if (remaining <= 0) return;
+    const label = action === 'return' ? 'iade' : 'fire';
+    const rawQuantity = window.prompt(`${label} adedi (kalan: ${remaining})`, String(remaining));
+    if (rawQuantity === null) return;
+    const quantity = Number(rawQuantity);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > remaining) {
+      alert('Geçerli bir adet girin.');
+      return;
+    }
+    const reason = window.prompt('Açıklama (isteğe bağlı):', '') || null;
+    setBusy(true);
+    try {
+      await api(`/ppe/assignments/${row.id}/${action}`, {
+        method: 'POST',
+        body: JSON.stringify({quantity, reason}),
+      });
+      await load();
+      if (zimmet?.id === row.id) setZimmet(await api(`/ppe/assignments/${row.id}`));
+    } catch (x) {
+      alert(x.message || 'KKD hareketi kaydedilemedi.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveInventory(e) {
+    e.preventDefault();
+    setErr('');
+    setBusy(true);
+    try {
+      const payload = {
+        ...inventoryForm,
+        company_id: Number(inventoryForm.company_id || companyId),
+        branch_id: inventoryForm.branch_id ? Number(inventoryForm.branch_id) : null,
+        min_stock: Number(inventoryForm.min_stock) || 0,
+        initial_quantity: Number(inventoryForm.initial_quantity) || 0,
+        expiry_date: inventoryForm.expiry_date || null,
+        renewal_date: inventoryForm.renewal_date || null,
+        brand: inventoryForm.brand || null,
+        model: inventoryForm.model || null,
+        size: inventoryForm.size || null,
+        shelf_life_text: inventoryForm.shelf_life_text || null,
+        notes: inventoryForm.notes || null,
+      };
+      await api('/ppe/inventory', {method: 'POST', body: JSON.stringify(payload)});
+      setInventoryOpen(false);
+      setInventoryForm(emptyInventoryForm(user));
+      await load();
+    } catch (x) {
+      setErr(x.message || 'Stok kartı oluşturulamadı.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function stockMovement(item, movement_type) {
+    const actionLabel = movement_type === 'inbound' ? 'stok giriş' : 'fire';
+    const rawQuantity = window.prompt(`${actionLabel} adedi`, '1');
+    if (rawQuantity === null) return;
+    const quantity = Number(rawQuantity);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      alert('Geçerli bir adet girin.');
+      return;
+    }
+    const reason = window.prompt('Açıklama (isteğe bağlı):', '') || null;
+    setBusy(true);
+    try {
+      await api(`/ppe/inventory/${item.id}/movements`, {
+        method: 'POST',
+        body: JSON.stringify({movement_type, quantity, reason}),
+      });
+      await load();
+    } catch (x) {
+      alert(x.message || 'Stok hareketi kaydedilemedi.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function onPhoto(id, file) {
@@ -238,6 +368,8 @@ export function PpePage({user}) {
             <div className="field"><span>Yenileme</span><strong>{zimmet.renewal_date || '—'}</strong></div>
             <div className="field"><span>SKT</span><strong>{zimmet.expiry_date || '—'}</strong></div>
             <div className="field"><span>Durum</span><strong>{zimmet.status_label}</strong></div>
+            <div className="field"><span>Kalan Adet</span><strong>{zimmet.remaining_quantity ?? zimmet.quantity}</strong></div>
+            <div className="field"><span>İade / Fire</span><strong>{zimmet.returned_quantity || 0} / {zimmet.scrapped_quantity || 0}</strong></div>
             <div className="field" style={{gridColumn: '1 / -1'}}><span>Risk / Kullanım Alanı</span><p>{zimmet.risk_note || '—'}</p></div>
             <div className="field" style={{gridColumn: '1 / -1'}}><span>Açıklama</span><p>{zimmet.notes || '—'}</p></div>
           </div>
@@ -296,7 +428,7 @@ export function PpePage({user}) {
         <div style={{marginBottom: 12, padding: '10px 12px', background: '#eef5fb', borderRadius: 10, fontSize: 14, lineHeight: 1.5}}>
           PRO uyumlu KKD zimmet: kategori → tür, yenileme / SKT takibi, zimmet formu ve Excel.
           {due && (
-            <span> · Aktif {due.total_active} · yaklaşan {due.due_soon} · geciken {due.overdue}</span>
+            <span> · Aktif {due.total_active} · yaklaşan {due.due_soon} · geciken {due.overdue} · düşük stok {due.low_stock || 0}</span>
           )}
         </div>
         <div className="search" style={{marginBottom: 12, flexWrap: 'wrap'}}>
@@ -324,6 +456,7 @@ export function PpePage({user}) {
                 <th>Personel</th>
                 <th>KKD</th>
                 <th>Adet</th>
+                <th>Kalan</th>
                 <th>Marka/Model</th>
                 <th>Yenileme</th>
                 <th>Durum</th>
@@ -344,28 +477,65 @@ export function PpePage({user}) {
                     <div style={{fontSize: 12, color: '#64748b'}}>{r.category}</div>
                   </td>
                   <td>{r.quantity}</td>
+                  <td>{r.remaining_quantity ?? r.quantity}</td>
                   <td>{[r.brand, r.model, r.size].filter(Boolean).join(' ') || '—'}</td>
                   <td>{r.renewal_date || '—'}</td>
                   <td><span className={'badge ' + (r.status === 'teslim' ? 'ok' : 'off')}>{r.status_label}</span></td>
                   <td>
                     <button className="mini" type="button" onClick={() => openZimmet(r)}>Zimmet</button>
+                    {canEdit && Number(r.remaining_quantity ?? r.quantity) > 0 && (
+                      <>
+                        <button className="mini" type="button" style={{marginLeft: 6}} disabled={busy} onClick={() => void assignmentAction(r, 'return')}>İade</button>
+                        <button className="mini" type="button" style={{marginLeft: 6}} disabled={busy} onClick={() => void assignmentAction(r, 'scrap')}>Fire</button>
+                      </>
+                    )}
                     {canEdit && (
                       <button className="mini" type="button" style={{marginLeft: 6}} onClick={() => remove(r.id)}><Trash2 size={12} /></button>
                     )}
                   </td>
                 </tr>
               )) : (
-                <tr><td colSpan={9} className="empty">KKD kaydı yok. Yeni zimmet ekleyin.</td></tr>
+                <tr><td colSpan={10} className="empty">KKD kaydı yok. Yeni zimmet ekleyin.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </section>
 
+      {inventorySupported && (
+        <section className="panel" style={{marginTop: 16}}>
+          <div className="page-title" style={{margin: 0, padding: 0}}>
+            <div>
+              <h3 style={{marginBottom: 4}}>KKD Stok Yönetimi</h3>
+              <p style={{margin: 0, color: '#64748b', fontSize: 13}}>Stok girişini, zimmet çıkışını, iadeyi, fireyi ve SKT/yenileme tarihlerini aynı kartta izleyin.</p>
+            </div>
+            {canEdit && <button type="button" onClick={() => {setInventoryForm({...emptyInventoryForm(user), company_id: companyId || user.company_id || companies[0]?.id || ''}); setInventoryOpen(true);}}><Plus size={16} /> Yeni stok kartı</button>}
+          </div>
+          <div className="table-wrap" style={{marginTop: 12}}>
+            <table>
+              <thead><tr><th>KKD</th><th>Marka / Beden</th><th>Mevcut</th><th>Min.</th><th>Süre</th><th>Durum</th><th>İşlem</th></tr></thead>
+              <tbody>
+                {inventory.length ? inventory.map((item) => (
+                  <tr key={item.id}>
+                    <td><strong>{item.item_type}</strong><div style={{fontSize: 12, color: '#64748b'}}>{item.category}</div></td>
+                    <td>{[item.brand, item.model, item.size].filter(Boolean).join(' ') || '—'}</td>
+                    <td><strong>{item.available_quantity}</strong><div style={{fontSize: 12, color: '#64748b'}}>Giriş {item.received_quantity} · İade {item.returned_quantity} · Fire {item.scrapped_quantity}</div></td>
+                    <td>{item.min_stock}</td>
+                    <td><div>SKT: {item.expiry_date || '—'}</div><div style={{fontSize: 12, color: '#64748b'}}>Yenileme: {item.renewal_date || '—'}</div></td>
+                    <td><span className={'badge ' + (item.stock_state === 'ok' ? 'ok' : 'off')}>{item.stock_state === 'expired' ? 'Süre geçti' : item.stock_state === 'due_soon' ? 'Süre yaklaşıyor' : item.stock_state === 'low' ? 'Düşük stok' : 'Normal'}</span></td>
+                    <td>{canEdit && <><button className="mini" type="button" disabled={busy} onClick={() => void stockMovement(item, 'inbound')}>+ Giriş</button><button className="mini" type="button" style={{marginLeft: 6}} disabled={busy} onClick={() => void stockMovement(item, 'scrap')}>Fire</button></>}</td>
+                  </tr>
+                )) : <tr><td colSpan={7} className="empty">Stok kartı yok. İlk kartı oluşturarak başlayın.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       {open && (
         <Modal title="Yeni KKD Zimmet Kaydı" close={() => setOpen(false)} wide>
           <form className="form-grid" onSubmit={save}>
-            <Select label="Firma" required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value, employee_id: ''})}>
+            <Select label="Firma" required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value, employee_id: '', inventory_item_id: ''})}>
               <option value="">Seçiniz</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
@@ -375,14 +545,18 @@ export function PpePage({user}) {
             </Select>
             <Field label="Teslim Tarihi" type="date" required value={form.delivery_date} onChange={(e) => setForm({...form, delivery_date: e.target.value})} />
             <Field label="Adet" type="number" min="1" required value={form.quantity} onChange={(e) => setForm({...form, quantity: e.target.value})} />
-            <Select label="KKD Kategorisi" required value={form.category} onChange={(e) => setForm({...form, category: e.target.value, item_type: ''})}>
+            <Select label="KKD Kategorisi" required value={form.category} onChange={(e) => setForm({...form, category: e.target.value, item_type: '', inventory_item_id: ''})}>
               <option value="">Seçiniz</option>
               {(catalog.categories || []).map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
             </Select>
-            <Select label="KKD Türü" required value={form.item_type} onChange={(e) => setForm({...form, item_type: e.target.value})}>
+            <Select label="KKD Türü" required value={form.item_type} onChange={(e) => setForm({...form, item_type: e.target.value, inventory_item_id: ''})}>
               <option value="">Önce kategori seçin</option>
               {typesForCategory.map((t) => <option key={t} value={t}>{t}</option>)}
             </Select>
+            {inventorySupported && <Select label="Stoktan düş (isteğe bağlı)" value={form.inventory_item_id} onChange={(e) => setForm({...form, inventory_item_id: e.target.value})}>
+              <option value="">Stok kartı seçmeden devam et</option>
+              {assignmentStock.map((item) => <option key={item.id} value={item.id}>{item.item_type} · mevcut {item.available_quantity}</option>)}
+            </Select>}
             <Field label="Marka" value={form.brand} onChange={(e) => setForm({...form, brand: e.target.value})} />
             <Field label="Model" value={form.model} onChange={(e) => setForm({...form, model: e.target.value})} />
             <Field label="Beden" value={form.size} onChange={(e) => setForm({...form, size: e.target.value})} />
@@ -401,6 +575,35 @@ export function PpePage({user}) {
             <div className="form-actions" style={{gridColumn: '1 / -1'}}>
               <button type="submit" disabled={busy}>{busy ? 'Kaydediliyor…' : 'Kaydet'}</button>
             </div>
+          </form>
+        </Modal>
+      )}
+      {inventoryOpen && (
+        <Modal title="Yeni KKD Stok Kartı" close={() => setInventoryOpen(false)} wide>
+          <form className="form-grid" onSubmit={saveInventory}>
+            <Select label="Firma" required value={inventoryForm.company_id} onChange={(e) => setInventoryForm({...inventoryForm, company_id: e.target.value})}>
+              <option value="">Seçiniz</option>
+              {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+            <Select label="KKD Kategorisi" required value={inventoryForm.category} onChange={(e) => setInventoryForm({...inventoryForm, category: e.target.value, item_type: ''})}>
+              <option value="">Seçiniz</option>
+              {(catalog.categories || []).map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+            </Select>
+            <Select label="KKD Türü" required value={inventoryForm.item_type} onChange={(e) => setInventoryForm({...inventoryForm, item_type: e.target.value})}>
+              <option value="">Önce kategori seçin</option>
+              {inventoryTypesForCategory.map((t) => <option key={t} value={t}>{t}</option>)}
+            </Select>
+            <Field label="Marka" value={inventoryForm.brand} onChange={(e) => setInventoryForm({...inventoryForm, brand: e.target.value})} />
+            <Field label="Model" value={inventoryForm.model} onChange={(e) => setInventoryForm({...inventoryForm, model: e.target.value})} />
+            <Field label="Beden" value={inventoryForm.size} onChange={(e) => setInventoryForm({...inventoryForm, size: e.target.value})} />
+            <Field label="İlk Stok Adedi" type="number" min="0" value={inventoryForm.initial_quantity} onChange={(e) => setInventoryForm({...inventoryForm, initial_quantity: e.target.value})} />
+            <Field label="Asgari Stok" type="number" min="0" value={inventoryForm.min_stock} onChange={(e) => setInventoryForm({...inventoryForm, min_stock: e.target.value})} />
+            <Field label="Raf Ömrü" value={inventoryForm.shelf_life_text} onChange={(e) => setInventoryForm({...inventoryForm, shelf_life_text: e.target.value})} />
+            <Field label="Son Kullanma" type="date" value={inventoryForm.expiry_date} onChange={(e) => setInventoryForm({...inventoryForm, expiry_date: e.target.value})} />
+            <Field label="Yenileme / Kontrol" type="date" value={inventoryForm.renewal_date} onChange={(e) => setInventoryForm({...inventoryForm, renewal_date: e.target.value})} />
+            <TextArea label="Açıklama" value={inventoryForm.notes} onChange={(e) => setInventoryForm({...inventoryForm, notes: e.target.value})} />
+            {err && <div className="error" style={{gridColumn: '1 / -1'}}>{err}</div>}
+            <div className="form-actions" style={{gridColumn: '1 / -1'}}><button type="submit" disabled={busy}>{busy ? 'Kaydediliyor…' : 'Stok kartını kaydet'}</button></div>
           </form>
         </Modal>
       )}
