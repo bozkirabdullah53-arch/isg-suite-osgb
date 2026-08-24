@@ -1,0 +1,71 @@
+name: Employee self-service isolated canary
+
+on:
+  push:
+    branches:
+      - codex/employee-self-service-isolated-canary-20260824
+  pull_request:
+    branches:
+      - agent/remote-training-isolated-render-20260814
+    paths:
+      - backend/app/api/self_service.py
+      - backend/app/core/config.py
+      - backend/app/main.py
+      - backend/app/services/release_status.py
+      - backend/tests/test_employee_self_service.py
+      - frontend/src/employee_self_service.*
+      - frontend/src/main.jsx
+      - frontend/package.json
+      - frontend/eslint.config.js
+      - .github/workflows/employee-self-service-canary.yml
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      ENVIRONMENT: development
+      SECRET_KEY: ci-self-service-canary-secret-key-at-least-32
+      DATABASE_URL: sqlite:///./employee_self_service_canary.db
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install backend dependencies
+        run: pip install -r requirements.txt
+      - name: Self-service and adjacent regression
+        run: >
+          pytest -q
+          tests/test_employee_self_service.py
+          tests/test_release_status.py
+          tests/test_remote_basic_ohs_video_training.py
+
+  frontend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.18.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Self-service logic tests
+        run: npm run test -- src/employee_self_service_logic.test.js
+      - name: Self-service lint
+        run: npx eslint src/employee_self_service_logic.js src/employee_self_service_logic.test.js src/employee_self_service.jsx
+      - name: Production build
+        run: npm run build
