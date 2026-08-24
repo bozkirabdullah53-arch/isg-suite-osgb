@@ -583,7 +583,7 @@ function EmployeePanel() {
       setAssignment(row);
       const videos = programVideoRows(row.program);
       const nextVideo = videos.find((video) => !row.video_progress?.some((progress) => progress.video_id === video.id && progress.status === 'completed')) || videos[0] || null;
-      setActiveVideo((current) => videos.find((video) => video.id === current?.id) || nextVideo);
+      setActiveVideo(nextVideo);
       setPlaybackUrl('');
       setVideoLoading(false);
       setVideoPlaying(false);
@@ -591,6 +591,10 @@ function EmployeePanel() {
       setAnswers({});
       setCheckpointAnswers({});
       setCheckpointResults({});
+      // Selecting an assignment (including the employee-panel "Devam et" path)
+      // must also prepare its first incomplete video. Previously D06 could be
+      // highlighted while the player stayed empty until the user tapped it.
+      if (nextVideo) void openVideo(nextVideo, row, {skipUnlock: true});
     } catch (err) {
       setError(err.message || 'Atama detayı alınamadı.');
     } finally {
@@ -696,15 +700,16 @@ function EmployeePanel() {
     return request;
   }
 
-  async function openVideo(video) {
-    if (!assignment || !video) return;
+  async function openVideo(video, assignmentOverride = assignment, {skipUnlock = false} = {}) {
+    const currentAssignment = assignmentOverride || assignment;
+    if (!currentAssignment || !video) return;
     flushProgressOnExit();
-    if (!isVideoUnlocked(video)) {
+    if (!skipUnlock && !isVideoUnlocked(video)) {
       setError('Bu ders kilitli. Önce sıradaki önceki videoyu tamamlayın.');
       return;
     }
-    const retryKey = `${assignment.id}:${video.id}`;
-    const previousKey = activeVideo ? `${assignment.id}:${activeVideo.id}` : '';
+    const retryKey = `${currentAssignment.id}:${video.id}`;
+    const previousKey = activeVideo ? `${assignment?.id || currentAssignment.id}:${activeVideo.id}` : '';
     if (previousKey && previousKey !== retryKey) releasePlaybackBlob(previousKey);
     // Invalidate every previous URL request before switching the player source.
     // Otherwise a late response from the previously selected lesson can replace
@@ -720,7 +725,7 @@ function EmployeePanel() {
     setVideoLoading(!cachedBlob);
     if (cachedBlob) return;
     try {
-      const url = await playbackUrlFor(video, assignment.id);
+      const url = await playbackUrlFor(video, currentAssignment.id);
       if (requestVersion === playbackRequestVersion.current) setPlaybackUrl(url);
     } catch (err) {
       if (requestVersion === playbackRequestVersion.current) setError(err.message || 'Video oynatma bağlantısı alınamadı.');
