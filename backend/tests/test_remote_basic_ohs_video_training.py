@@ -29,7 +29,7 @@ def test_pre_assessment_pack_is_separate_from_the_final_exam():
 
     items = pre_assessment_items_for_program("common-basic-ohs")
     assert len(items) == REMOTE_PRE_ASSESSMENT_QUESTION_COUNT == 10
-    assert len({item["question_code"] for item in items}) == 5
+    assert len({item["question_code"] for item in items}) == 10
     assert all(len(item["options"]) == 4 for item in items)
 
 
