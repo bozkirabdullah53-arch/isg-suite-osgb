@@ -108,11 +108,22 @@ class Settings(BaseSettings):
     # Optional company allowlist.  Empty means package-code scope only; when
     # populated, only the listed company ids can publish/assign strict pilots.
     remote_basic_ohs_strict_policy_pilot_company_ids: str = ""
+    # Çalışan self-servis özeti — yalnızca açıkça eşleştirilmiş read-only
+    # çalışan hesabı için; mevcut çalışan/rol/menü akışlarını değiştirmez.
+    employee_self_service_enabled: bool = False
+    employee_self_service_force_off: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
 
 settings = Settings()
+
+
+def employee_self_service_active() -> bool:
+    """Çalışan self-servis panelinin fail-closed rollout kapısı."""
+    if bool(getattr(settings, "employee_self_service_force_off", False)):
+        return False
+    return bool(getattr(settings, "employee_self_service_enabled", False))
 
 
 def eyas_digital_approval_active() -> bool:
