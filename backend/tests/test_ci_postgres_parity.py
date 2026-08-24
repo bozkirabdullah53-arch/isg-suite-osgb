@@ -53,6 +53,8 @@ EXPECTED_RLS_TABLES = {
     "organization_memberships",
     "periodic_controls",
     "ppe_assignments",
+    "ppe_inventory_items",
+    "ppe_inventory_movements",
     "prescription_items",
     "prescription_submission_attempts",
     "prescription_submissions",
