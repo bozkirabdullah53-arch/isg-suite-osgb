@@ -1036,7 +1036,8 @@ function EmployeePanel() {
             </div>
           )}
           {preAssessment?.completed && (
-          <div className="remote-training-content-grid" style={{gap: 16, marginTop: 16}}>
+            <>
+              <div className="remote-training-content-grid" style={{gap: 16, marginTop: 16}}>
             <div>
               <div style={{fontWeight: 700, marginBottom: 8}}>Ders videoları</div>
               {videos.map((video) => {
@@ -1165,7 +1166,8 @@ function EmployeePanel() {
               <button type="button" onClick={submitExam} disabled={busy || Object.keys(answers).length !== exam.questions.length}>Sınavı gönder</button>
             </div>
           )}
-        )}
+            </>
+          )}
           {(assignment.status === 'completed' || assignment.summary?.complete) && (
             <div style={{marginTop: 18, paddingTop: 16, borderTop: '1px solid #dbe5ef'}}>
               <h4 style={{margin: '0 0 8px'}}>Katılım belgesi</h4>

@@ -714,7 +714,6 @@ def _pre_assessment_attempt_for_assignment(
 
 
 def _pre_assessment_output(
-    db: Session,
     assignment: RemoteTrainingAssignment,
     questions: list[RemoteTrainingQuestion],
     attempt: RemoteTrainingPreAssessmentAttempt | None,
@@ -3783,7 +3782,7 @@ def get_remote_pre_assessment(
     if not questions:
         raise HTTPException(409, "Bu eğitim için eğitim öncesi ilk test soru havuzu bulunmuyor.")
     attempt = _pre_assessment_attempt_for_assignment(db, assignment)
-    return _pre_assessment_output(db, assignment, questions, attempt)
+    return _pre_assessment_output(assignment, questions, attempt)
 
 
 @router.post("/assignments/{assignment_id}/pre-assessment/attempts")

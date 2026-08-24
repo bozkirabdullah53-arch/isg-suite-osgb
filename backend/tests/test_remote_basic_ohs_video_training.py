@@ -19,6 +19,8 @@ def _db():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     return engine
+
+
 def test_pre_assessment_pack_is_separate_from_the_final_exam():
     from app.services.remote_training import (
         REMOTE_PRE_ASSESSMENT_QUESTION_COUNT,
@@ -70,8 +72,6 @@ def test_pre_assessment_pool_is_idempotent_and_not_a_final_exam_pool():
                 RemoteTrainingQuestion.is_final_exam.is_(True),
             )
         ) is None
-
-
 
 
 
