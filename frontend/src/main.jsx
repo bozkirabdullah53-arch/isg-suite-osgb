@@ -102,7 +102,6 @@ const roleModules={
     // Uzaktan Eğitim / Belgeler sekmesine OSGB yöneticisi de buradan ulaşır.
     'training',
     'employer_oversight',
-    'eyas_inbox',
     'companies',
     'workplace_status',
     // 2) İnsan, görev, performans (birbirini izler)
