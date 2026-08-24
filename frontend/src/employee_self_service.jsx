@@ -4,6 +4,7 @@ import {api} from './api';
 import {
   completedSelfServiceTraining,
   formatSelfServiceDate,
+  rememberEmployeeTrainingAssignment,
   normalizeSelfServicePayload,
   totalSelfServiceTraining,
 } from './employee_self_service_logic';
@@ -30,7 +31,7 @@ function Empty({children}) {
   return <div className="ess-empty">{children}</div>;
 }
 
-export function EmployeeSelfServicePage() {
+export function EmployeeSelfServicePage({onOpenTraining}) {
   const [summary, setSummary] = useState(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
@@ -113,9 +114,22 @@ export function EmployeeSelfServicePage() {
           {data.training.remote.available && data.training.remote.assignments.length > 0 && (
             <div className="ess-list">
               {data.training.remote.assignments.map((item) => (
-                <div className="ess-list-row" key={`remote-${item.id}`}>
+                <div className="ess-list-row ess-training-row" key={`remote-${item.id}`}>
                   <div><strong>{item.title}</strong><small>Uzaktan eğitim · Son tarih: {formatSelfServiceDate(item.due_date)}</small></div>
-                  <StatusBadge value={item.status}/>
+                  <div className="ess-training-actions">
+                    <StatusBadge value={item.status}/>
+                    <button
+                      type="button"
+                      className="ess-button ess-button-small"
+                      disabled={typeof onOpenTraining !== 'function'}
+                      onClick={() => {
+                        rememberEmployeeTrainingAssignment(item.id);
+                        onOpenTraining?.(item.id);
+                      }}
+                    >
+                      {item.status === 'in_progress' ? 'Devam et' : item.status === 'completed' ? 'Tekrar görüntüle' : 'Eğitimi aç'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
