@@ -1,0 +1,284 @@
+{
+  "items": [
+    {
+      "question_code": "TR-TEMEL-ISG-001",
+      "version": 1,
+      "topic_code": "CALISMA-MEVZUATI",
+      "topic_label": "Çalışma mevzuatı",
+      "question_text": "6331 sayılı İş Sağlığı ve Güvenliği Kanununun temel amacı aşağıdakilerden hangisidir?",
+      "options": [
+        "Yalnız üretim hedeflerini ve çalışma hızını belirlemek",
+        "Sadece iş kazası olduktan sonra ödenecek tazminatı düzenlemek",
+        "İşyerlerinde sağlık ve güvenliği sağlamak, şartları iyileştirmek ve tarafların hak ile yükümlülüklerini düzenlemek",
+        "İş sağlığı ve güvenliği sorumluluğunu tamamen çalışanlara bırakmak"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "6331 sayılı Kanun; işyerlerinde iş sağlığı ve güvenliğinin sağlanmasını, mevcut şartların iyileştirilmesini ve işveren ile çalışanların görev, yetki, sorumluluk, hak ve yükümlülüklerinin düzenlenmesini amaçlar.",
+      "scopes": [
+        {
+          "type": "foundation",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 1"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEMEL-ISG-002",
+      "version": 1,
+      "topic_code": "YASAL-HAK-SORUMLULUK",
+      "topic_label": "Çalışanın yasal hak ve sorumlulukları",
+      "question_text": "Çalışan ciddi ve yakın bir tehlike veya koruma tedbirlerinde eksiklik gördüğünde kanuna uygun temel davranış hangisidir?",
+      "options": [
+        "Tehlikeyi gizleyip çalışmaya aynı şekilde devam etmek",
+        "Durumu derhal işverene veya çalışan temsilcisine bildirmek ve belirlenen güvenli prosedürü izlemek",
+        "Güvenlik donanımını izinsiz sökerek kendi çözümünü uygulamak",
+        "Yalnız vardiya sonunda arkadaşlarına söylemek"
+      ],
+      "correct_option": "B",
+      "answer_explanation": "Çalışan, ciddi ve yakın tehlikeyi veya koruma tedbirlerindeki eksikliği işverene ya da çalışan temsilcisine derhal bildirmeli ve güvenli çalışma düzenine uymalıdır.",
+      "scopes": [
+        {
+          "type": "foundation",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 13 ve Madde 19"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEMEL-ISG-003",
+      "version": 1,
+      "topic_code": "MESLEK-HASTALIGINDAN-KORUNMA",
+      "topic_label": "Meslek hastalıklarından korunma",
+      "question_text": "Meslek hastalıklarından korunmada öncelikli ve doğru yaklaşım hangisidir?",
+      "options": [
+        "Tehlikeyi mümkünse ortadan kaldırmak veya kaynağında kontrol etmek; gerekli organizasyon, KKD ve sağlık gözetimiyle önlemleri tamamlamak",
+        "Belirti ortaya çıkana kadar hiçbir önlem almamak",
+        "Yalnız kişisel koruyucu donanım verip diğer önlemleri uygulamamak",
+        "Maruziyet kayıtlarını tutmadan çalışanı sık sık bölüm değiştirmek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Meslek hastalıkları; tehlikenin ortadan kaldırılması veya kaynağında kontrolü, uygun çalışma düzeni, kişisel korunma, eğitim ve sağlık gözetiminin birlikte uygulanmasıyla önlenir.",
+      "scopes": [
+        {
+          "type": "foundation",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Çalışanların İş Sağlığı ve Güvenliği Eğitimleri Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/5cgjmjgo/%C3%A7al%C4%B1%C5%9Fanlar%C4%B1n-i%C5%9F-sa%C4%9Fl%C4%B1%C4%9F%C4%B1-ve-g%C3%BCvenli%C4%9Fi-e%C4%9Fitimleri-uygulama-rehberi.pdf",
+          "reference": "Ek-1 Eğitim Konuları Tablosu – Sağlık konuları"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEMEL-ISG-004",
+      "version": 1,
+      "topic_code": "ISYERI-TEMIZLIK-DUZEN",
+      "topic_label": "İşyeri temizliği ve düzeni",
+      "question_text": "İşyeri temizliği ve düzeni bakımından doğru uygulama hangisidir?",
+      "options": [
+        "Geçiş yollarında malzeme bırakmak ve temizliği haftalık güne ertelemek",
+        "Acil çıkış önünü geçici depolama alanı olarak kullanmak",
+        "Dökülmeleri yalnız uyarı levhasıyla belirtip vardiya sonuna kadar bekletmek",
+        "Dökülmeleri gecikmeden güvenli biçimde temizlemek, atıkları düzenli toplamak ve geçişlerle acil çıkışları açık tutmak"
+      ],
+      "correct_option": "D",
+      "answer_explanation": "Düzenli temizlik, atıkların kontrollü toplanması ve geçişlerle acil çıkışların sürekli açık tutulması kayma, takılma, düşme ve tahliye risklerini azaltır.",
+      "scopes": [
+        {
+          "type": "foundation",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Çalışanların İş Sağlığı ve Güvenliği Eğitimleri Uygulama Rehberi",
+          "url": "https://www.csgb.gov.tr/Media/5cgjmjgo/%C3%A7al%C4%B1%C5%9Fanlar%C4%B1n-i%C5%9F-sa%C4%9Fl%C4%B1%C4%9F%C4%B1-ve-g%C3%BCvenli%C4%9Fi-e%C4%9Fitimleri-uygulama-rehberi.pdf",
+          "reference": "Ek-1 Eğitim Konuları Tablosu – Genel konular: işyeri temizliği ve düzeni"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-TEMEL-ISG-005",
+      "version": 1,
+      "topic_code": "SAGLIK-GUVENLIK-ISARETLERI",
+      "topic_label": "Sağlık ve güvenlik işaretleri",
+      "question_text": "Sarı zeminli, siyah kenarlı üçgen biçimindeki sağlık ve güvenlik işareti neyi bildirir?",
+      "options": [
+        "Bir tehlikeye karşı uyarı yapılacağını",
+        "Yapılması zorunlu bir davranışı",
+        "Acil çıkış veya ilk yardım yerini",
+        "Yangınla mücadele ekipmanının yerini"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Sarı zeminli ve siyah kenarlı üçgen levhalar uyarı işaretidir; çalışanı bir tehlike veya risk konusunda dikkatli olmaya çağırır.",
+      "scopes": [
+        {
+          "type": "foundation",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. ÇSGB – Güvenlik ve Sağlık İşaretleri",
+          "url": "https://www.csgb.gov.tr/isggm/yayinlar-ve-afisler/",
+          "reference": "Sağlık ve Güvenlik İşaretleri Yönetmeliği; Uyarı (Tehlike) İşaretleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-001",
+      "version": 1,
+      "topic_code": "ISVEREN-SORUMLULUGU",
+      "topic_label": "İşverenin genel yükümlülüğü",
+      "question_text": "İşverenin iş sağlığı ve güvenliği hizmetini dışarıdan bir uzman veya OSGB'den alması kendi sorumluluğunu nasıl etkiler?",
+      "options": [
+        "Sorumluluk tamamen hizmet sağlayıcıya geçer.",
+        "İşverenin kanuni sorumluluğu devam eder.",
+        "Sorumluluk çalışanlara paylaştırılır.",
+        "Sorumluluk yalnız iş güvenliği uzmanına geçer."
+      ],
+      "correct_option": "B",
+      "answer_explanation": "İşyeri dışındaki uzman kişi veya kuruluşlardan hizmet alınması, işverenin iş sağlığı ve güvenliği sorumluluğunu ortadan kaldırmaz.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 4/2, sayfa 2"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-002",
+      "version": 1,
+      "topic_code": "ISG-MALIYETI",
+      "topic_label": "İSG tedbirlerinin maliyeti",
+      "question_text": "İş sağlığı ve güvenliği tedbirlerinin maliyeti konusunda aşağıdaki ifadelerden hangisi doğrudur?",
+      "options": [
+        "Maliyet çalışan ve işveren arasında eşit paylaşılır.",
+        "Kişisel koruyucu donanımın maliyeti çalışandan kesilir.",
+        "Çalışan yalnız eğitim maliyetini karşılar.",
+        "İşveren bu maliyeti çalışanlara yansıtamaz."
+      ],
+      "correct_option": "D",
+      "answer_explanation": "6331 sayılı Kanun, iş sağlığı ve güvenliği tedbirlerinin maliyetinin çalışanlara yansıtılmasını açıkça yasaklar.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 4/4, sayfa 2"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-003",
+      "version": 1,
+      "topic_code": "RISK-DEGERLENDIRMESI",
+      "topic_label": "Risk değerlendirmesi yükümlülüğü",
+      "question_text": "İşyerinde iş sağlığı ve güvenliği yönünden risk değerlendirmesini yapmak veya yaptırmak kimin yükümlülüğüdür?",
+      "options": [
+        "İşverenin",
+        "Yalnız çalışan temsilcisinin",
+        "Sadece işyeri hekiminin",
+        "Yalnız denetim makamının"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "İşveren, işyerinde iş sağlığı ve güvenliği yönünden risk değerlendirmesi yapmak veya yaptırmakla yükümlüdür.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 10/1, sayfa 6"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-004",
+      "version": 1,
+      "topic_code": "TEHLIKE-SINIFI",
+      "topic_label": "İşyeri tehlike sınıfının belirlenmesi",
+      "question_text": "Bir işyerinin tehlike sınıfı belirlenirken esas olarak hangi faaliyet dikkate alınır?",
+      "options": [
+        "İşyerindeki en yeni makine",
+        "Çalışanların yaş ortalaması",
+        "İşyerinde yapılan asıl iş",
+        "İşyerinin bulunduğu ilin nüfusu"
+      ],
+      "correct_option": "C",
+      "answer_explanation": "İşyeri tehlike sınıfının tespitinde, işyerinde yürütülen yan faaliyetler değil yapılan asıl iş dikkate alınır.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 9/2, sayfa 5"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ORTAK-005",
+      "version": 1,
+      "topic_code": "ACIL-TAHLIYE",
+      "topic_label": "Ciddi ve yakın tehlikede tahliye",
+      "question_text": "Ciddi, yakın ve önlenemeyen bir tehlike ortaya çıktığında çalışanların yapması gereken temel davranış hangisidir?",
+      "options": [
+        "İşi bırakıp önceden belirlenen güvenli yere gitmek",
+        "Tehlike bölgesinde amir gelene kadar beklemek",
+        "Kişisel eşyalarını topladıktan sonra binadan ayrılmak",
+        "Üretim tamamlanıncaya kadar çalışmayı sürdürmek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Ciddi, yakın ve önlenemeyen tehlikede çalışanların işi bırakarak çalışma yerinden ayrılması ve güvenli yere gidebilmesi için gerekli düzenlemeler önceden yapılmalıdır.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+          "url": "https://www.csgb.gov.tr/Media/fldk2co0/6331_isgkanunu_tr.pdf",
+          "reference": "Madde 12/1-a, sayfa 7"
+        }
+      ]
+    }
+  ]
+}
