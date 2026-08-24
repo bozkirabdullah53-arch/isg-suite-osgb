@@ -15,6 +15,44 @@ export function selfServiceFeatureEnabled(value) {
   return String(value || '').trim().toLowerCase() === 'true';
 }
 
+export const EMPLOYEE_TRAINING_ASSIGNMENT_STORAGE_KEY = 'isg_employee_training_assignment';
+
+export function rememberEmployeeTrainingAssignment(assignmentId) {
+  const value = String(assignmentId || '').trim();
+  if (!value || typeof sessionStorage === 'undefined') return;
+  try {
+    sessionStorage.setItem(EMPLOYEE_TRAINING_ASSIGNMENT_STORAGE_KEY, value);
+  } catch (_) {
+    // Navigation remains usable when browser storage is unavailable.
+  }
+}
+
+export function consumeEmployeeTrainingAssignment() {
+  if (typeof sessionStorage === 'undefined') return '';
+  try {
+    const value = String(sessionStorage.getItem(EMPLOYEE_TRAINING_ASSIGNMENT_STORAGE_KEY) || '').trim();
+    sessionStorage.removeItem(EMPLOYEE_TRAINING_ASSIGNMENT_STORAGE_KEY);
+    return value;
+  } catch (_) {
+    return '';
+  }
+}
+
+const EMPLOYEE_HIDDEN_NOTIFICATION_TYPES = new Set([
+  'annual_plan',
+  'annual_eval',
+  'annual_plan_item',
+  'annual_plan_evaluation',
+  'annual_plan_evaluation_item',
+]);
+
+export function isEmployeeNotificationVisible(item) {
+  const entityType = String(item?.entity_type || '').trim().toLowerCase();
+  const title = String(item?.title || '').trim().toLocaleLowerCase('tr-TR');
+  if (EMPLOYEE_HIDDEN_NOTIFICATION_TYPES.has(entityType)) return false;
+  return !title.includes('yıllık plan') && !title.includes('yıllık değerlendirme');
+}
+
 export function normalizeSelfServicePayload(payload) {
   const source = payload && typeof payload === 'object' ? payload : {};
   const scope = source.scope && typeof source.scope === 'object' ? source.scope : {};
@@ -27,6 +65,8 @@ export function normalizeSelfServicePayload(payload) {
     ? source.notifications
     : {};
   const health = source.health && typeof source.health === 'object' ? source.health : {};
+  const notificationItems = (Array.isArray(notifications.items) ? notifications.items : [])
+    .filter(isEmployeeNotificationVisible);
 
   return {
     scope: {
@@ -57,8 +97,8 @@ export function normalizeSelfServicePayload(payload) {
       items: Array.isArray(ppe.items) ? ppe.items : [],
     },
     notifications: {
-      unread: Number(notifications.unread || 0),
-      items: Array.isArray(notifications.items) ? notifications.items : [],
+      unread: notificationItems.filter((item) => !item.is_read).length,
+      items: notificationItems,
     },
     health: {
       hasRecord: Boolean(health.has_record),
