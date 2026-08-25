@@ -21,18 +21,23 @@ export function capacityHoursText(value) {
 }
 
 export function capacityPercentValue(value) {
-  return Math.round((Math.max(0, Number(value) || 0) / NORMAL_CAPACITY_MINUTES) * 100);
+  return Number(((Math.max(0, Number(value) || 0) / NORMAL_CAPACITY_MINUTES) * 100).toFixed(1));
+}
+
+export function capacityPercentText(value) {
+  const number = Number(value) || 0;
+  return `%${Number.isInteger(number) ? number : number.toLocaleString('tr-TR', {minimumFractionDigits: 1, maximumFractionDigits: 1})}`;
 }
 
 function percentText(value) {
-  return `%${Math.round(Number(value) || 0)}`;
+  return capacityPercentText(Math.round(Number(value) || 0));
 }
 
-function CapacityMetric({label, minutes, pct, tone}) {
+function CapacityMetric({label, minutes, tone}) {
   if (minutes == null) {
     return <article className="metric"><span>{label}</span><strong>—</strong></article>;
   }
-  const percent = pct == null ? capacityPercentValue(minutes) : Math.max(0, Number(pct) || 0);
+  const percent = capacityPercentValue(minutes);
   return (
     <article className="metric" style={tone ? {borderColor: tone} : undefined}>
       <span>{label}</span>
@@ -42,9 +47,9 @@ function CapacityMetric({label, minutes, pct, tone}) {
   );
 }
 
-function CapacityCell({minutes, pct, tone}) {
+function CapacityCell({minutes, tone}) {
   if (minutes == null) return '—';
-  const percent = pct == null ? capacityPercentValue(minutes) : Math.max(0, Number(pct) || 0);
+  const percent = capacityPercentValue(minutes);
   return (
     <span style={{color: tone || undefined}}>
       <strong>{capacityHoursText(minutes)}</strong>
@@ -270,10 +275,10 @@ export function CapacityEnginePage({user, onNavigate}) {
                   </span>
                 )},
                 {key: 'capacity_used_minutes', label: 'Kullanılan süre', render: (r) => (
-                  <CapacityCell minutes={r.capacity_used_minutes} pct={r.capacity_used_pct} tone={r.capacity_overloaded ? '#b91c1c' : undefined} />
+                  <CapacityCell minutes={r.capacity_used_minutes} tone={r.capacity_overloaded ? '#b91c1c' : undefined} />
                 )},
                 {key: 'capacity_remaining_minutes', label: 'Kalan süre', render: (r) => (
-                  <CapacityCell minutes={r.capacity_remaining_minutes} pct={r.capacity_remaining_pct} tone={r.capacity_overloaded ? '#b91c1c' : '#166534'} />
+                  <CapacityCell minutes={r.capacity_remaining_minutes} tone={r.capacity_overloaded ? '#b91c1c' : '#166534'} />
                 )},
                 {key: 'capacity_overloaded', label: 'Durum', render: (r) => r.capacity_overloaded
                   ? <StatusBadge status="critical" />
@@ -324,9 +329,7 @@ export function ProfessionalCapacityPanel({user}) {
   const professional = data.professionals?.[0] || null;
   const viewer = data.professional || professional;
   const usedMinutes = professional?.capacity_used_minutes ?? professional?.planned_total ?? 0;
-  const usedPct = professional?.capacity_used_pct ?? professional?.capacity_utilization_pct;
   const capacityRemaining = professional?.capacity_remaining_minutes;
-  const remainingPct = professional?.capacity_remaining_pct;
 
   return (
     <section className="panel" style={{marginBottom: 16, borderTop: '3px solid #0f766e'}}>
@@ -346,8 +349,8 @@ export function ProfessionalCapacityPanel({user}) {
       {data.error && <p style={{margin: '10px 0 0', color: '#b45309', fontSize: 13}}>{data.error}</p>}
 
       <div className="cards" style={{margin: '14px 0 16px'}}>
-        <CapacityMetric label="Kullanılan süre" minutes={professional ? usedMinutes : null} pct={usedPct} tone={professional?.capacity_overloaded ? '#b91c1c' : undefined} />
-        <CapacityMetric label="Kalan süre" minutes={professional ? capacityRemaining : null} pct={remainingPct} tone={professional?.capacity_overloaded ? '#b91c1c' : '#166534'} />
+        <CapacityMetric label="Kullanılan süre" minutes={professional ? usedMinutes : null} tone={professional?.capacity_overloaded ? '#b91c1c' : undefined} />
+        <CapacityMetric label="Kalan süre" minutes={professional ? capacityRemaining : null} tone={professional?.capacity_overloaded ? '#b91c1c' : '#166534'} />
       </div>
 
       <p style={{fontSize: 12, color: '#64748b', margin: '12px 0 0'}}>
