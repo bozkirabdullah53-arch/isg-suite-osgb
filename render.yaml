@@ -150,6 +150,28 @@ services:
     buildCommand: npm ci --no-audit --no-fund && node scripts/apply_training_color_theme.mjs && node scripts/activate_training_exam.mjs && npm run build
     staticPublishPath: dist
     branch: master
+    # --- Güvenlik başlıkları (smoke test D2 bulgusu) ---
+    # Render static sites, nginx.conf'u kullanmaz; headers direktifiyle
+    # tüm yanıtlara güvenlik başlıkları eklenir.
+    headers:
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000; includeSubDomains
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(self), microphone=(), geolocation=(self)
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     envVars:
       - key: NODE_VERSION
         value: 20.18.0
