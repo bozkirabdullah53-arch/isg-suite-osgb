@@ -11,10 +11,12 @@ import {
   Gavel,
   HardHat,
   HeartPulse,
+  Lightbulb,
   Printer,
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
   Stethoscope,
   Users,
   WalletCards,
@@ -105,6 +107,12 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
   const [inspBusy, setInspBusy] = useState(false);
   const [inspErr, setInspErr] = useState('');
   const [inspOpen, setInspOpen] = useState(false);
+  const [aiText, setAiText] = useState('');
+  const [aiActivity, setAiActivity] = useState('');
+  const [aiResult, setAiResult] = useState(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiErr, setAiErr] = useState('');
+  const [aiOpen, setAiOpen] = useState(false);
 
   async function runInspector() {
     setInspOpen(true);
@@ -121,6 +129,26 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
       setInspErr(e.message || 'Sanal Müfettiş çalıştırılamadı.');
     } finally {
       setInspBusy(false);
+    }
+  }
+
+  async function runAssistant(e) {
+    e?.preventDefault?.();
+    setAiBusy(true);
+    setAiErr('');
+    setAiResult(null);
+    try {
+      const body = {
+        text: (aiText || '').trim(),
+        activity: (aiActivity || '').trim() || null,
+      };
+      if (companyId) body.company_id = Number(companyId);
+      const r = await api('/risks/assistant', {method: 'POST', body: JSON.stringify(body)});
+      setAiResult(r);
+    } catch (ex) {
+      setAiErr(ex.message || 'AI Asistan çalıştırılamadı.');
+    } finally {
+      setAiBusy(false);
     }
   }
 
@@ -200,6 +228,9 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
             </button>
             <button type="button" className="mini" disabled={inspBusy} onClick={runInspector}>
               <Gavel size={14} style={{verticalAlign: 'middle', marginRight: 4}} />Sanal Müfettiş
+            </button>
+            <button type="button" className="mini" onClick={() => setAiOpen(true)}>
+              <Sparkles size={14} style={{verticalAlign: 'middle', marginRight: 4}} />AI Asistan
             </button>
           </div>
         </div>
@@ -527,6 +558,112 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
                   ) : (
                     <div style={{background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: 14, color: '#166534'}}>
                       <ShieldCheck size={18} style={{verticalAlign: 'middle', marginRight: 6}} />Bu işyerinde mevzuat uyum ihlali tespit edilmedi. Tam uyumlu.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {aiOpen && (
+        <div
+          className="modal-bg"
+          onMouseDown={(e) => e.target === e.currentTarget && setAiOpen(false)}
+          style={{position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16}}
+        >
+          <section className="modal" role="dialog" aria-modal="true" style={{maxWidth: 720, width: '100%', maxHeight: '88vh', overflow: 'auto', background: '#fff', borderRadius: 12, padding: 0}}>
+            <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, background: '#fff', zIndex: 1}}>
+              <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                <Sparkles size={20} style={{color: '#7c3aed'}} />
+                <div>
+                  <h3 style={{margin: 0}}>AI Asistan — {c?.name || 'İşyeri'}</h3>
+                  <p style={{margin: 0, fontSize: 12, color: '#64748b'}}>Tehlike önerisi + risk skor + mevzuat önizleme</p>
+                </div>
+              </div>
+              <button type="button" className="icon" onClick={() => setAiOpen(false)} aria-label="Kapat" style={{border: 'none', background: 'none', cursor: 'pointer', padding: 4}}>
+                <X size={20} />
+              </button>
+            </header>
+            <div style={{padding: '20px'}}>
+              <form onSubmit={runAssistant} style={{display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14}}>
+                <label className="field">
+                  <span>Faaliyet / işlem</span>
+                  <input value={aiActivity} onChange={(e) => setAiActivity(e.target.value)} placeholder="Örn. boyama, kaynak, pres, ambar taşıma" />
+                </label>
+                <label className="field">
+                  <span>Risk tanımı (serbest metin)</span>
+                  <textarea rows={3} value={aiText} onChange={(e) => setAiText(e.target.value)} placeholder="Örn. solvent ile kaplama, dokuhasiyet ve gaz tehlikesi" />
+                </label>
+                <div className="form-actions">
+                  <button type="submit" className="btn btn-primary" disabled={aiBusy}>
+                    {aiBusy ? 'Analiz ediliyor…' : 'AI öneri al'}
+                  </button>
+                </div>
+              </form>
+              {aiErr && <p style={{color: '#b91c1c'}}>{aiErr}</p>}
+              {aiResult && (
+                <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
+                  {aiResult.hazard_hint?.matched ? (
+                    <div style={{background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 10, padding: '12px 14px'}}>
+                      <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6}}>
+                        <AlertTriangle size={16} style={{color: '#7c3aed'}} />
+                        <strong>Önerilen tehlike: {aiResult.hazard_hint.suggested_category}</strong>
+                        <span style={{background: '#ede9fe', color: '#6d28d9', borderRadius: 99, padding: '2px 8px', fontSize: 11, fontWeight: 700}}>
+                          {Math.round((aiResult.hazard_hint.confidence || 0) * 100)}% güven
+                        </span>
+                      </div>
+                      {aiResult.hazard_hint.matched_keywords?.length > 0 && (
+                        <div style={{fontSize: 12, color: '#6b7280'}}>Eşleşen: {aiResult.hazard_hint.matched_keywords.join(', ')}</div>
+                      )}
+                      {aiResult.hazard_hint.suggested_photo_tags?.length > 0 && (
+                        <div style={{marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap'}}>
+                          {aiResult.hazard_hint.suggested_photo_tags.map((t) => (
+                            <span key={t} style={{background: '#fff', border: '1px solid #ddd6fe', color: '#6d28d9', borderRadius: 6, padding: '2px 8px', fontSize: 11}}>{t}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{background: '#f1f5f9', borderRadius: 10, padding: '12px 14px', color: '#64748b', fontSize: 13}}>
+                      {aiResult.hazard_hint?.note || 'Eşleşme yok; daha fazla detay girin.'}
+                    </div>
+                  )}
+                  {aiResult.risk_suggestion && (
+                    <div style={{background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 14px'}}>
+                      <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8}}>
+                        <Lightbulb size={16} style={{color: '#ca8a04'}} />
+                        <strong>Fine-Kinney skor önerisi ({aiResult.risk_suggestion.suggested_method})</strong>
+                      </div>
+                      <div style={{display: 'flex', gap: 12, flexWrap: 'wrap'}}>
+                        {[['Olasılık (O)', aiResult.risk_suggestion.probability_hint], ['Frekans (F)', aiResult.risk_suggestion.frequency_hint], ['Şiddet (S)', aiResult.risk_suggestion.severity_hint]].map(([label, val]) => (
+                          <div key={label} style={{background: '#f8fafc', borderRadius: 8, padding: '8px 14px', textAlign: 'center', minWidth: 90}}>
+                            <div style={{fontSize: 11, color: '#64748b'}}>{label}</div>
+                            <div style={{fontSize: 22, fontWeight: 700, color: '#0f172a'}}>{val ?? '—'}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {aiResult.compliance_preview && (
+                    <div style={{background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 14px'}}>
+                      <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6}}>
+                        <ShieldCheck size={16} style={{color: '#d97706'}} />
+                        <strong>Mevzuat uyum önizleme (bu işyeri)</strong>
+                        <span style={{background: '#fef3c7', borderRadius: 99, padding: '2px 10px', fontSize: 12, fontWeight: 700}}>
+                          {aiResult.compliance_preview.compliance_score}/100
+                        </span>
+                      </div>
+                      <p style={{fontSize: 12, color: '#6b7280', margin: 0}}>{aiResult.compliance_preview.summary}</p>
+                    </div>
+                  )}
+                  {aiResult.next_actions?.length > 0 && (
+                    <div style={{background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '12px 14px'}}>
+                      <strong style={{display: 'block', marginBottom: 6, color: '#166534'}}>Önerilen sonraki adımlar</strong>
+                      <ul style={{margin: 0, paddingLeft: 18, fontSize: 13, color: '#374151'}}>
+                        {aiResult.next_actions.map((a, i) => <li key={i}>{a}</li>)}
+                      </ul>
                     </div>
                   )}
                 </div>
