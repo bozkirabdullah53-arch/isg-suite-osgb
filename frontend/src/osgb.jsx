@@ -4,7 +4,7 @@ import {Camera,Clock3,FileCheck2,Plus,ScanLine,TrendingDown,TrendingUp,Wallet} f
 import {enqueueOfflineComplete,flushOfflineCompletes,listOfflineCompletes,removeOfflineItem} from './field_offline';
 import {SiteQrCameraModal} from './field_qr_scan';
 import {AppModal} from './ui_modal';
-import {capacityHoursText,capacityPercentValue} from './capacity_engine';
+import {capacityHoursText,capacityPercentText,capacityPercentValue} from './capacity_engine';
 
 const ptypes={safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli'};
 const stages={new:'Yeni',contacted:'Görüşüldü',proposal:'Teklif',negotiation:'Müzakere',won:'Kazanıldı',lost:'Kaybedildi'};
@@ -1328,8 +1328,8 @@ export function AssignmentsPage({user}){
       <strong>{selectedProfessional.full_name} aylık kapasitesi</strong>
       {capacityApplicable?(
        <div style={{display:'flex',gap:16,flexWrap:'wrap',marginTop:4}}>
-        <span>Kullanılan: <strong>{capacityHoursText(selectedCapacity?.capacity_used_minutes??selectedCapacity?.planned_total)} ({`%${capacityPercentValue(selectedCapacity?.capacity_used_minutes??selectedCapacity?.planned_total)}`})</strong></span>
-        <span>Kalan: <strong style={{color:'#166534'}}>{capacityHoursText(remainingMinutes)} ({`%${capacityPercentValue(remainingMinutes)}`})</strong></span>
+        <span>Kullanılan: <strong>{capacityHoursText(selectedCapacity?.capacity_used_minutes??selectedCapacity?.planned_total)} ({capacityPercentText(capacityPercentValue(selectedCapacity?.capacity_used_minutes??selectedCapacity?.planned_total))})</strong></span>
+        <span>Kalan: <strong style={{color:'#166534'}}>{capacityHoursText(remainingMinutes)} ({capacityPercentText(capacityPercentValue(remainingMinutes))})</strong></span>
        </div>
       ):<div style={{marginTop:4,color:'#64748b'}}>Bu rol için 195 saatlik uzman/hekim kapasite kontrolü uygulanmaz.</div>}
       {capacityApplicable&&requestedMinutes>Number(remainingMinutes||0)&&(
