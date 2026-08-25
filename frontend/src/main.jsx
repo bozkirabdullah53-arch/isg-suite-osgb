@@ -551,7 +551,7 @@ function Login({done,onApply}){
 function Modal({title,close,children}){return <AppModal title={title} close={close}>{children}</AppModal>}
 function Field({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
-function Table({cols,rows,empty='Kayıt bulunamadı.',className=''}){return <div className={'table-wrap '+className}><table><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key} data-label={c.label}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
+function Table({cols,rows,empty='Kayıt bulunamadı.',className=''}){return <div className={'table-wrap '+className}><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key} data-label={c.label}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
 
 /** İşyeri kiosk — QR + salt-okunur denetim durumu. Menü yok; müdahale yok. */
 function SiteQrKioskPage({user,onLogout}){
