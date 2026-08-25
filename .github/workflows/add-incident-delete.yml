@@ -1,16 +1,15 @@
 name: Add incident delete
 
 on:
-  push:
-    branches: [master]
-    paths:
-      - .github/workflows/add-incident-delete.yml
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   apply:
+    # One-time hotfix is already in master; keep this manual definition inert.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
