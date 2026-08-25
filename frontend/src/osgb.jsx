@@ -1260,11 +1260,11 @@ export function AssignmentsPage({user}){
        <tbody>
         {katipPrep.gaps.slice(0,25).map(g=>(
          <tr key={g.assignment_id}>
-          <td>{g.company_name}</td>
-          <td>{g.professional_name}</td>
-          <td>{g.isg_katip_contract_number||'—'}</td>
-          <td>{g.contract_file_name||'—'}</td>
-          <td>{g.reminder_hint}</td>
+          <td data-label="İşyeri">{g.company_name}</td>
+          <td data-label="Profesyonel">{g.professional_name}</td>
+          <td data-label="KATİP No">{g.isg_katip_contract_number||'—'}</td>
+          <td data-label="Dosya">{g.contract_file_name||'—'}</td>
+          <td data-label="Eksik">{g.reminder_hint}</td>
          </tr>
         ))}
        </tbody>
