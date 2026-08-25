@@ -2,14 +2,14 @@ name: One-time incident delete hotfix
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '*/5 * * * *'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   apply-hotfix:
+    # One-time hotfix is already in master; keep this manual definition inert.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
