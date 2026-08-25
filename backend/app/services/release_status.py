@@ -11,12 +11,14 @@ from app.services.job_queue import async_jobs_enabled, job_backend_label
 
 
 def public_health_payload() -> dict:
-    """Warmup / load balancer — minimal, recon-safe."""
+    """Warmup / load balancer — minimal, recon-safe.
+
+    Sürüm ve environment bilgisi herkese açık endpoint'ten kaldırıldı
+    (smoke test B3 bulgusu). Load balancer/warmup yalnızca status'a bakar.
+    """
     return {
         "status": "ok",
         "service": settings.app_name,
-        "version": APP_VERSION,
-        "environment": (settings.environment or "development").strip().lower() or "development",
     }
 
 

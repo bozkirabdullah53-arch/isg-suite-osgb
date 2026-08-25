@@ -76,6 +76,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "Referrer-Policy": "strict-origin-when-cross-origin",
             "Permissions-Policy": "camera=(self), microphone=(), geolocation=(self)",
             "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
         })
         return response
 

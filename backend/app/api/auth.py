@@ -40,6 +40,7 @@ from app.schemas.auth import (
     ResetPasswordRequest,
     TokenResponse,
 )
+from app.core.input_rules import assert_person_name
 from app.services.auth_security import (
     clear_throttle,
     consume_password_reset,
@@ -53,6 +54,7 @@ from app.services.auth_security import (
     send_reset_email,
     throttle_login,
     verify_recovery_code,
+    LOGIN_WINDOW_MINUTES,
 )
 from app.services.audit import add_audit_log
 from app.services.access_scope import ensure_login_scope
@@ -107,14 +109,15 @@ def register(
     güvenlik kontrolü devre dışı bırakılmaz.
     """
     email = str(payload.email).strip().lower()
-    full_name = payload.full_name.strip()
+    try:
+        full_name = assert_person_name(payload.full_name, label="Ad Soyad", required=True)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     certificate_number = payload.certificate_number.strip()
     if payload.password != payload.password_confirm:
         raise HTTPException(422, "Şifreler aynı değil.")
     if not payload.contract_accepted or not payload.personal_data_accepted:
         raise HTTPException(422, "Kullanım koşulları ve kişisel veri işleme onayı zorunludur.")
-    if len(full_name) < 2:
-        raise HTTPException(422, "Ad soyad zorunludur.")
     if len(certificate_number) < 3:
         raise HTTPException(422, "İSG sertifika numarası zorunludur.")
 
@@ -122,7 +125,11 @@ def register(
     try:
         throttle_login(f"register:{email}", ip)
     except ValueError as exc:
-        raise HTTPException(status_code=429, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=429,
+            detail=str(exc),
+            headers={"Retry-After": str(LOGIN_WINDOW_MINUTES * 60)},
+        ) from exc
 
     existing = db.scalar(
         select(User).where(
@@ -209,7 +216,11 @@ def login(
     try:
         throttle_login(lookup_value, ip)
     except ValueError as exc:
-        raise HTTPException(status_code=429, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=429,
+            detail=str(exc),
+            headers={"Retry-After": str(LOGIN_WINDOW_MINUTES * 60)},
+        ) from exc
 
     user = db.scalar(
         select(User).where(
@@ -286,7 +297,11 @@ def restart_mfa_setup(
     try:
         throttle_login(lookup_value, ip)
     except ValueError as exc:
-        raise HTTPException(status_code=429, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=429,
+            detail=str(exc),
+            headers={"Retry-After": str(LOGIN_WINDOW_MINUTES * 60)},
+        ) from exc
 
     user = db.scalar(
         select(User).where(

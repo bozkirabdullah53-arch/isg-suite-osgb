@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     # P1-2 rate limit
     rate_limit_rpm: int = 120
     rate_limit_auth_rpm: int = 30
+    # Güvenilir proxy zinciri derinliği: X-Forwarded-For zincirinin
+    # kaç girişinin güvenilir sayılacağı (Render/Cloudflare = 1). İstemci
+    # spoof edemez çünkü proxy en sağıdaki girişi ekler/kontrol eder.
+    proxy_trust_depth: int = 1
     # P1-02 Redis rate limit — boşsa bellek içi (çoklu instance paylaşılmaz)
     redis_url: str | None = None
     # P1-01 HttpOnly refresh cookie

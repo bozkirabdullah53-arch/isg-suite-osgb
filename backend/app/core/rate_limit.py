@@ -3,7 +3,7 @@
 Sertleştirme:
 - /health muaf
 - /api/v1/auth/* daha düşük limit
-- X-Forwarded-For
+- Güvenilir proxy zincirinden IP (XFF spoof koruması)
 - 429 + Retry-After
 - REDIS_URL yoksa veya Redis hata verirse bellek içi koruma devam eder
 """
@@ -25,13 +25,26 @@ _EXEMPT_PREFIXES = ("/health",)
 _AUTH_PREFIXES = ("/api/v1/auth",)
 _REDIS_KEY_PREFIX = "isg:rl:"
 
+# Güvenilir proxy zinciri: Render/Cloudflare her zaman bu header'ları ekler.
+# İstemci bu header'ları spoof edemez çünkü proxy en sağdaki (en dış) giriştedir
+# ve güvenilmeyen değerleri çıkarır/üzerine yazar. Yine de XFF içindeki en sağdaki
+# (proxy'ye en yakın) segmenti alırız; istemci tarafından eklenen sol taraftaki
+# spoof değerleri yok sayılır.
+_PROXY_TRUST_DEPTH = int(getattr(settings, "proxy_trust_depth", 1))
+
 
 def _client_ip(request) -> str:
+    # Güvenilir proxy arkasında çalışıyoruz: X-Forwarded-For zincirinin en
+    # sağındaki (proxy'ye en yakın) girişi al. Sol taraftaki girişler istemci
+    # tarafından spoof edilebilir ve yok sayılır.
     xff = (request.headers.get("x-forwarded-for") or "").strip()
     if xff:
-        first = xff.split(",")[0].strip()
-        if first:
-            return first
+        parts = [p.strip() for p in xff.split(",") if p.strip()]
+        if parts:
+            idx = max(0, len(parts) - _PROXY_TRUST_DEPTH)
+            candidate = parts[idx]
+            if candidate:
+                return candidate
     real = (request.headers.get("x-real-ip") or "").strip()
     if real:
         return real

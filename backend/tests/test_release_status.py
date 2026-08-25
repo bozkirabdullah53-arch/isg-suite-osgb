@@ -4,8 +4,12 @@ from app.services import release_status as rs
 
 def test_public_health_is_minimal():
     body = rs.public_health_payload()
-    assert set(body.keys()) == {"status", "service", "version", "environment"}
+    # Sürüm/environment herkese açıktan kaldırıldı (smoke test B3 bulgusu).
+    # Yalnızca status ve service kalır — recon yüzeyi en aza indirildi.
+    assert set(body.keys()) == {"status", "service"}
     assert body["status"] == "ok"
+    assert "version" not in body
+    assert "environment" not in body
     assert "health_field_encryption_key" not in body
     assert "infra_cutover_remaining" not in body
 
@@ -13,6 +17,8 @@ def test_public_health_is_minimal():
 def test_infra_detail_has_crypto_and_gaps():
     body = rs.infra_detail_payload()
     assert body["status"] == "ok"
+    assert "version" in body
+    assert "environment" in body
     assert "health_field_encryption_key" in body
     assert "infra_cutover_remaining" in body
     assert "infra_cutover_optional" in body
@@ -30,7 +36,8 @@ def test_public_health_endpoint_exposes_no_feature_flags():
 
     r = TestClient(app).get("/health")
     assert r.status_code == 200
-    assert set(r.json().keys()) == {"status", "service", "version", "environment"}
+    # version/environment artık public /health'te yok
+    assert set(r.json().keys()) == {"status", "service"}
 
 
 def test_infra_detail_endpoint_requires_auth():
