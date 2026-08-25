@@ -40,6 +40,7 @@ from app.models.entities import (
     WorkplaceDepartment,
 )
 from app.schemas.risk import (
+    AssistantRequest,
     DepartmentCreate,
     DepartmentResponse,
     DepartmentUpdate,
@@ -60,7 +61,9 @@ from app.schemas.risk import (
     RiskResponse,
     RiskRevisionResponse,
     RiskUpdate,
+    VirtualInspectorRequest,
 )
+from app.services.ai_assistant import suggest as assistant_suggest
 from app.services.ai_hazard_hint import HINT_ENGINE, suggest_hazard_from_text
 from app.services.assigned_team import team_names
 from app.services.audit import add_audit_log
@@ -73,6 +76,7 @@ from app.services.risk_photo_tags import (
     serialize_selected,
 )
 from app.services.risk_reports import build_dof_excel, build_risk_excel, build_risk_pdf
+from app.services.virtual_inspector import inspect_company
 from app.services.risk_nace_roadmap import build_risk_nace_roadmap
 from app.services.training_nace_classification import resolve_exact_nace
 from app.models.training_nace import TrainingNaceSnapshot
@@ -582,6 +586,42 @@ def hazard_hint(
         "alternatives": alts,
         "engine": HINT_ENGINE,
     }
+
+
+@router.post("/assistant")
+def ai_assistant(
+    payload: AssistantRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """AI Asistan — karar destek: tehlike önerisi + risk skor + mevzuat önizleme.
+
+    aKare 'Solamente' tarzı; ücretli API olmadan, mevcut İSG Suite AI
+    servislerini birleştirir.
+    """
+    return assistant_suggest(
+        text=payload.text,
+        activity=payload.activity,
+        risk_definition=payload.risk_definition,
+        company_id=payload.company_id,
+        db=db,
+    )
+
+
+@router.post("/virtual-inspector")
+def virtual_inspector(
+    payload: VirtualInspectorRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Sanal Müfettiş — işyeri İSG mevzuat uyum denetimi ve ceza tahmini.
+
+    6331 sayılı Kanun ve alt yönetmeliklere dayalı kural tabanlı denetim.
+    Uyum skoru, ihlal bulguları ve tahmini ceza aralığı döner.
+    """
+    ensure_company_access(db, user, payload.company_id)
+    report = inspect_company(db, payload.company_id)
+    return report.to_dict()
 
 
 @router.get("/photo-tag-catalog")

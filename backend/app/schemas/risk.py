@@ -57,6 +57,19 @@ class HazardHintRequest(BaseModel):
     risk_definition: str | None = Field(default=None, max_length=2000)
 
 
+class AssistantRequest(BaseModel):
+    """AI Asistan — karar destek önerisi."""
+    text: str = Field(default="", max_length=4000)
+    activity: str | None = Field(default=None, max_length=500)
+    risk_definition: str | None = Field(default=None, max_length=2000)
+    company_id: int | None = None
+
+
+class VirtualInspectorRequest(BaseModel):
+    """Sanal Müfettiş — mevzuat uyum denetimi."""
+    company_id: int
+
+
 class RiskAssessmentInfoUpdate(BaseModel):
     """Risk değerlendirme belgesi künyesi — tarih + ekip + belge kontrolü."""
 

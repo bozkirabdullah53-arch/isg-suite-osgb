@@ -60,6 +60,8 @@ def infra_detail_payload() -> dict:
         "backup_encryption_key": backup_encryption_key_status(),
         "backup_crypto_ready": backup_crypto_ready_label(),
         "ai_hazard_hint": "keyword-v2",
+        "ai_assistant": "assistant-v1",
+        "virtual_inspector": "rule-v1-6331",
         "mevzuat_panel": "highlights-v1",
         "sds_register": "chemical-register-v1",
         "ghs_label_checklist": "ghs-label-checklist-v1",
