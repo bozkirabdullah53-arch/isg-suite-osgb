@@ -10,11 +10,33 @@ const STATUS_COLOR = {
   unknown: '#64748b',
 };
 
+function minuteText(value) {
+  const total = Math.max(0, Number(value) || 0);
+  const hours = Math.floor(total / 60);
+  const minutes = String(total % 60).padStart(2, '0');
+  return `${total} dk · ${hours} s ${minutes} dk`;
+}
+
+function percentText(value) {
+  return `%${Math.round(Number(value) || 0)}`;
+}
+
 function displayRequirement(requirement) {
   if (!requirement || requirement.required_minutes == null || requirement.equivalent === 'Hesaplanamadı') return 'Hesaplanamadı';
   const hours = Number(requirement.hours) || 0;
   const minutes = String(Number(requirement.remaining_minutes) || 0).padStart(2, '0');
   return `${Number(requirement.required_minutes) || 0} dk/ay · ${hours} s ${minutes} dk`;
+}
+
+function fullTimeDescription(requirement) {
+  const threshold = Number(requirement?.full_time_threshold_employees) || 0;
+  if (!threshold) return '';
+  const units = Number(requirement?.full_time_units) || 0;
+  const remainder = Number(requirement?.full_time_remainder_employees) || 0;
+  if (units > 0) return remainder > 0
+    ? `${units} tam süreli eşik · kalan ${remainder} çalışan için kısmi süre`
+    : `${units} tam süreli eşik`;
+  return `Tam süreli eşik: ${threshold.toLocaleString('tr-TR')} çalışan`;
 }
 
 function RequirementCell({requirement}) {
@@ -23,6 +45,9 @@ function RequirementCell({requirement}) {
       <strong>{displayRequirement(requirement)}</strong>
       {requirement?.calculation && (
         <small style={{display: 'block', color: '#64748b', marginTop: 3}}>{requirement.calculation}</small>
+      )}
+      {fullTimeDescription(requirement) && (
+        <small style={{display: 'block', color: '#475569', marginTop: 3}}>{fullTimeDescription(requirement)}</small>
       )}
     </span>
   );
@@ -113,10 +138,15 @@ export function CapacityEnginePage({user, onNavigate}) {
         <>
           <div className="cards osgb-cards" style={{marginBottom: 16}}>
             <article className="metric"><span>Aktif görevlendirme</span><strong>{s.assignments ?? 0}</strong></article>
+            <article className="metric"><span>Mevzuat asgari dk</span><strong>{s.required_minutes_total ?? 0}</strong></article>
+            <article className="metric"><span>Planlanan dk</span><strong>{s.planned_minutes_total ?? 0}</strong></article>
+            <article className="metric"><span>Gerçekleşen dk</span><strong>{s.actual_minutes_total ?? 0}</strong></article>
+            <article className="metric"><span>Asgari hedefe kalan dk</span><strong style={{color: s.remaining_minutes_total ? '#b91c1c' : '#166534'}}>{s.remaining_minutes_total ?? 0}</strong></article>
             <article className="metric"><span>Kritik eksik işyeri</span><strong style={{color: s.under_served_firms ? '#b91c1c' : undefined}}>{s.under_served_firms ?? 0}</strong></article>
             <article className="metric"><span>İzlemde işyeri</span><strong style={{color: s.at_risk_firms ? '#b45309' : undefined}}>{s.at_risk_firms ?? 0}</strong></article>
             <article className="metric"><span>Kayıt ≠ mevzuat</span><strong style={{color: s.stored_mismatch ? '#b45309' : undefined}}>{s.stored_mismatch ?? 0}</strong></article>
             <article className="metric"><span>Aşırı yüklü profesyonel</span><strong style={{color: s.overloaded_professionals ? '#b91c1c' : undefined}}>{s.overloaded_professionals ?? 0}</strong></article>
+            <article className="metric"><span>Normal kapasite üstü</span><strong style={{color: s.capacity_overloaded_professionals ? '#b91c1c' : undefined}}>{s.capacity_overloaded_professionals ?? 0}</strong></article>
             <article className="metric"><span>Tehlike sınıfı eksik</span><strong style={{color: s.unknown_hazard_workplaces ? '#b91c1c' : undefined}}>{s.unknown_hazard_workplaces ?? 0}</strong></article>
           </div>
 
@@ -183,7 +213,10 @@ export function CapacityEnginePage({user, onNavigate}) {
                     {r.stored_required_minutes || '—'}
                   </span>
                 )},
-                {key: 'actual_minutes', label: 'Fiili dk'},
+                {key: 'planned_minutes', label: 'Planlanan dk'},
+                {key: 'actual_minutes', label: 'Gerçekleşen dk'},
+                {key: 'remaining_minutes', label: 'Kalan/boş dk'},
+                {key: 'completion_pct', label: 'Hedef doluluğu', render: (r) => percentText(r.completion_pct)},
                 {key: 'gap_minutes', label: 'Fark', render: (r) => (
                   <span style={{color: r.gap_minutes > 0 ? '#b91c1c' : '#166534', fontWeight: 700}}>
                     {r.gap_minutes > 0 ? `-${r.gap_minutes}` : r.gap_minutes}
@@ -201,6 +234,7 @@ export function CapacityEnginePage({user, onNavigate}) {
               rows={data.professionals || []}
               cols={[
                 {key: 'full_name', label: 'Profesyonel'},
+                {key: 'role_label', label: 'Rol'},
                 {key: 'certificate_class', label: 'Sınıf'},
                 {key: 'firm_count', label: 'İşyeri', render: (r) => (
                   <span style={{color: r.overload_firms ? '#b91c1c' : undefined, fontWeight: r.overload_firms ? 700 : undefined}}>
@@ -209,19 +243,107 @@ export function CapacityEnginePage({user, onNavigate}) {
                 )},
                 {key: 'legal_total', label: 'Mevzuat toplam dk'},
                 {key: 'required_total', label: 'Hedef toplam dk'},
+                {key: 'planned_total', label: 'Planlanan dk'},
                 {key: 'actual_total', label: 'Fiili toplam dk'},
-                {key: 'utilization_pct', label: 'Doluluk', render: (r) => `%${r.utilization_pct}`},
+                {key: 'remaining_total', label: 'Asgari hedefe kalan dk'},
+                {key: 'capacity_remaining_minutes', label: 'Boş kapasite dk'},
+                {key: 'capacity_utilization_pct', label: 'Kapasite doluluğu', render: (r) => percentText(r.capacity_utilization_pct)},
                 {key: 'status', label: 'Durum', render: (r) => <StatusBadge status={r.status} />},
               ]}
             />
           </section>
 
           <p style={{fontSize: 12, color: '#94a3b8', marginTop: 12}}>
-            {data.legal_basis}. Fiili süre: bu ay tamamlanan / defter yüklenen saha ziyaretleri.
+            {data.legal_basis}. Fiili süre: bu ay tamamlanan / defter yüklenen saha ziyaretleri. Boş kapasite, profesyonelin 11.700 dakikalık normal tam süreli aylık kapasitesinden planlanan görevlendirmeler çıkarılarak gösterilir; bu değer görevlendirmeyi kilitlemez. Tam süreli görevlendirmelerde işyeri dışı fazla çalışma kuralı ayrıca dikkate alınmalıdır.
           </p>
         </>
       )}
     </div>
+  );
+}
+
+/** Uzman/hekim ana sayfası — yalnızca giriş yapan profesyonelin kapasitesi. */
+export function ProfessionalCapacityPanel({user}) {
+  const [data, setData] = useState(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const supported = user?.role === 'safety_specialist' || user?.role === 'workplace_physician';
+
+  const load = useCallback(async () => {
+    if (!supported) return;
+    setBusy(true);
+    setErr('');
+    try {
+      setData(await api('/dashboard/my-capacity'));
+    } catch (e) {
+      setErr(e.message || 'Aylık kapasite verisi yüklenemedi.');
+    } finally {
+      setBusy(false);
+    }
+  }, [supported]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  if (!supported) return null;
+  if (err) {
+    return <section className="panel" style={{marginBottom: 16, borderColor: '#fecaca', color: '#991b1b'}}>{err}</section>;
+  }
+  if (!data) {
+    return <section className="panel" style={{marginBottom: 16, color: '#64748b'}}>Aylık görevlendirme kapasitesi yükleniyor…</section>;
+  }
+
+  const s = data.summary || {};
+  const professional = data.professionals?.[0] || null;
+  const viewer = data.professional || professional;
+  const capacityMinutes = professional?.normal_capacity_minutes_monthly;
+  const capacityRemaining = professional?.capacity_remaining_minutes;
+
+  return (
+    <section className="panel" style={{marginBottom: 16, borderTop: '3px solid #0f766e'}}>
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap'}}>
+        <div>
+          <h3 style={{margin: '0 0 5px', fontSize: 16}}>
+            Aylık görevlendirme sürem{data.period ? ` · ${data.period}` : ''}
+          </h3>
+          <p style={{margin: 0, color: '#64748b', fontSize: 13}}>
+            {viewer?.role_label || 'İSG profesyoneli'}{viewer?.full_name ? ` · ${viewer.full_name}` : ''}
+            {viewer?.certificate_class ? ` · Sınıf ${viewer.certificate_class}` : ''}
+          </p>
+        </div>
+        <button type="button" className="mini" disabled={busy} onClick={() => void load()}><RefreshCw size={14} /> Yenile</button>
+      </div>
+
+      {data.error && <p style={{margin: '10px 0 0', color: '#b45309', fontSize: 13}}>{data.error}</p>}
+
+      <div className="cards" style={{margin: '14px 0 16px'}}>
+        <article className="metric"><span>Mevzuat asgari hedefi</span><strong>{minuteText(s.required_minutes_total)}</strong></article>
+        <article className="metric"><span>Planlanan görevlendirme</span><strong>{minuteText(s.planned_minutes_total)}</strong></article>
+        <article className="metric"><span>Gerçekleşen hizmet</span><strong>{minuteText(s.actual_minutes_total)}</strong></article>
+        <article className="metric"><span>Asgari hedefe kalan</span><strong style={{color: s.remaining_minutes_total ? '#b91c1c' : '#166534'}}>{minuteText(s.remaining_minutes_total)}</strong></article>
+        <article className="metric"><span>Normal kapasite boşluğu</span><strong>{capacityMinutes != null ? minuteText(capacityRemaining) : '—'}</strong></article>
+        <article className="metric"><span>Normal kapasite doluluğu</span><strong>{professional ? percentText(professional.capacity_utilization_pct) : '—'}</strong></article>
+      </div>
+
+      <Table
+        empty="Bu ay aktif görevlendirme bulunamadı."
+        rows={data.firms || []}
+        cols={[
+          {key: 'company_name', label: 'İşyeri'},
+          {key: 'hazard_class', label: 'Tehlike'},
+          {key: 'employee_count', label: 'Çalışan'},
+          {key: 'legal_required_minutes', label: 'Asgari dk', render: (r) => <span><strong>{r.legal_required_minutes || 0} dk</strong><small style={{display: 'block', color: '#64748b', marginTop: 3}}>{r.required_hours || 0} s {String(r.required_remaining_minutes || 0).padStart(2, '0')} dk</small>{fullTimeDescription(r.service_requirement?.roles?.[r.professional_type]) && <small style={{display: 'block', color: '#475569', marginTop: 3}}>{fullTimeDescription(r.service_requirement.roles[r.professional_type])}</small>}</span>},
+          {key: 'planned_minutes', label: 'Planlanan dk'},
+          {key: 'actual_minutes', label: 'Gerçekleşen dk'},
+          {key: 'remaining_minutes', label: 'Kalan/boş dk', render: (r) => <strong style={{color: r.remaining_minutes ? '#b91c1c' : '#166534'}}>{r.remaining_minutes || 0}</strong>},
+          {key: 'completion_pct', label: 'Hedef doluluğu', render: (r) => percentText(r.completion_pct)},
+          {key: 'status', label: 'Durum', render: (r) => <StatusBadge status={r.status} />},
+        ]}
+      />
+
+      <p style={{fontSize: 12, color: '#64748b', margin: '12px 0 0'}}>
+        Kalan/boş süre = mevzuat asgari hedefi − gerçekleşen hizmet. Normal kapasite boşluğu = 11.700 dk − planlanan görevlendirme; 195 saatlik normal tam süreli kapasite raporlama tabanıdır, yıllık 270 saat fazla çalışma bu aylık değere eklenmez, tam süreli görevlendirmelerde işyeri dışı fazla çalışma kuralı ayrıca değerlendirilir ve sistem görevlendirmeyi kilitlemez.
+      </p>
+    </section>
   );
 }
 
