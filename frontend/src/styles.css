@@ -939,28 +939,28 @@ header.workspace-header,
   padding: 8px;
   font-size: 11px;
 }
-.companies-table th:nth-child(1),
-.companies-table td:nth-child(1) { width: 13%; }
-.companies-table th:nth-child(2),
-.companies-table td:nth-child(2) { width: 18%; }
-.companies-table th:nth-child(3),
-.companies-table td:nth-child(3) { width: 11%; }
-.companies-table th:nth-child(4),
-.companies-table td:nth-child(4) { width: 7%; }
-.companies-table th:nth-child(5),
-.companies-table td:nth-child(5) { width: 11%; }
-.companies-table th:nth-child(6),
-.companies-table td:nth-child(6) { width: 8%; }
-.companies-table th:nth-child(7),
-.companies-table td:nth-child(7) { width: 12%; }
-.companies-table th:nth-child(8),
-.companies-table td:nth-child(8) { width: 7%; }
-.companies-table th:nth-child(9),
-.companies-table td:nth-child(9) { width: 5%; }
-.companies-table th:nth-child(10),
-.companies-table td:nth-child(10) { width: 4%; }
-.companies-table th:nth-child(11),
-.companies-table td:nth-child(11) { width: 4%; }
+.companies-table--editable th:nth-child(1),
+.companies-table--editable td:nth-child(1) { width: 12%; }
+.companies-table--editable th:nth-child(2),
+.companies-table--editable td:nth-child(2) { width: 18%; }
+.companies-table--editable th:nth-child(3),
+.companies-table--editable td:nth-child(3) { width: 11%; }
+.companies-table--editable th:nth-child(4),
+.companies-table--editable td:nth-child(4) { width: 7%; }
+.companies-table--editable th:nth-child(5),
+.companies-table--editable td:nth-child(5) { width: 10%; }
+.companies-table--editable th:nth-child(6),
+.companies-table--editable td:nth-child(6) { width: 8%; }
+.companies-table--editable th:nth-child(7),
+.companies-table--editable td:nth-child(7) { width: 11%; }
+.companies-table--editable th:nth-child(8),
+.companies-table--editable td:nth-child(8) { width: 7%; }
+.companies-table--editable th:nth-child(9),
+.companies-table--editable td:nth-child(9) { width: 6%; }
+.companies-table--editable th:nth-child(10),
+.companies-table--editable td:nth-child(10) { width: 5%; }
+.companies-table--editable th:nth-child(11),
+.companies-table--editable td:nth-child(11) { width: 5%; }
 
 .companies-table .company-actions {
   display: grid;
@@ -976,10 +976,11 @@ header.workspace-header,
   width: 100%;
   min-width: 0;
   justify-content: center;
-  gap: 4px;
-  padding: 5px 6px;
-  font-size: 11px;
+  gap: 3px;
+  padding: 4px 5px;
+  font-size: 10px;
   line-height: 1.15;
+  min-height: 26px;
   white-space: nowrap;
 }
 .companies-table .company-actions svg {
@@ -987,6 +988,38 @@ header.workspace-header,
   height: 12px;
   flex: 0 0 auto;
   margin-right: 0 !important;
+}
+
+
+.companies-table--editable th:nth-child(9),
+.companies-table--editable td:nth-child(9),
+.companies-table--editable th:nth-child(10),
+.companies-table--editable td:nth-child(10),
+.companies-table--editable th:nth-child(11),
+.companies-table--editable td:nth-child(11) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.companies-table--editable td:nth-child(9) {
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.companies-table--editable td:nth-child(10),
+.companies-table--editable td:nth-child(11) {
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.companies-table--editable td:nth-child(10) button,
+.companies-table--editable td:nth-child(11) button {
+  padding: 4px 5px;
+  font-size: 10px;
+  gap: 2px;
+  white-space: nowrap;
+}
+.companies-table--editable td:nth-child(9) .badge {
+  white-space: nowrap;
 }
 
 @media (max-width: 760px) {

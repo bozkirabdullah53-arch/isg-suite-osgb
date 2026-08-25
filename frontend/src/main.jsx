@@ -817,7 +817,7 @@ function Companies({canEdit, canAdd, onOpen360}){
           <QrCode size={14} style={{verticalAlign:'middle',marginRight:4}}/>QR
         </button>
       )}]:[]),
-    ]} rows={data} className="companies-table"/>
+    ]} rows={data} className={canEdit?'companies-table companies-table--editable':'companies-table'}/>
     {open&&<Modal title={editing?'İşyeri Bilgilerini Düzenle':'Yeni Firma'} close={()=>{setOpen(false);setEditing(null)}}>
       <form className="form-grid" onSubmit={save}>
         <Field label="Firma Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
