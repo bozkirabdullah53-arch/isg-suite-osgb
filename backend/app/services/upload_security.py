@@ -78,6 +78,12 @@ def assert_safe_upload(content: bytes, extension: str, original_name: str = "") 
             detail="Dosya uzantısı ile içerik uyuşmuyor (içerik doğrulama).",
         )
 
+    if settings.clamav_required and not is_clamav_configured():
+        quarantine_bytes(content, "clamav_required_unconfigured", original_name)
+        raise HTTPException(
+            status_code=503,
+            detail="Antivirüs kontrolü hazır değil; dosya yükleme daha sonra tekrar denenmelidir.",
+        )
     if is_clamav_configured():
         clean, detail = scan_bytes(content)
         if not clean:
@@ -106,6 +112,12 @@ def assert_safe_video_upload(content: bytes, extension: str, original_name: str 
     if not valid:
         quarantine_bytes(content, f"video_magic_mismatch:{ext}", original_name)
         raise HTTPException(status_code=400, detail="Video uzantısı ile dosya içeriği uyuşmuyor.")
+    if settings.clamav_required and not is_clamav_configured():
+        quarantine_bytes(content, "clamav_required_unconfigured", original_name)
+        raise HTTPException(
+            status_code=503,
+            detail="Antivirüs kontrolü hazır değil; video yükleme daha sonra tekrar denenmelidir.",
+        )
     if is_clamav_configured():
         clean, detail = scan_bytes(content)
         if not clean:
