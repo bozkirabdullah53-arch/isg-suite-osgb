@@ -13,7 +13,7 @@ tabanlı mevzuat kontrolü + uyum skorlaması.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 INSPECTOR_ENGINE = "rule-v1-6331"
@@ -70,9 +70,11 @@ class InspectionReport:
         }
 
 
-def _days_since(d: date | None) -> int | None:
+def _days_since(d: date | datetime | None) -> int | None:
     if d is None:
         return None
+    if isinstance(d, datetime):
+        d = d.date()
     return (date.today() - d).days
 
 
