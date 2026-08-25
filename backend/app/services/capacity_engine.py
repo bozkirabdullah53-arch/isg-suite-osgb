@@ -51,14 +51,48 @@ SERVICE_ROLE_KEYS = (
 )
 CAPACITY_ROLE_KEYS = ("safety_specialist", "workplace_physician")
 
-# Tam süreli normal çalışma kapasitesi raporlama tabanıdır. Bu değer bir
-# görevlendirmeyi engelleyen sert bir limit değildir; OSGB yöneticisine
-# planlanan/gerçekleşen yükün normal tam süreli kapasiteye göre durumunu
-# gösterir. Yıllık fazla çalışma limiti aylık kapasiteye otomatik eklenmez.
+# Tam süreli normal çalışma kapasitesi hem raporlama tabanı hem de yeni uzman /
+# hekim görevlendirmeleri için üst sınırdır. Yıllık fazla çalışma limiti aylık
+# kapasiteye otomatik eklenmez.
 NORMAL_FULL_TIME_MONTHLY_MINUTES = 11_700
 NORMAL_FULL_TIME_MONTHLY_HOURS = 195
 NORMAL_WEEKLY_WORKING_HOURS = 45
 ANNUAL_OVERTIME_HOURS = 270
+
+
+class ProfessionalCapacityExceeded(ValueError):
+    """A single assignment would exceed the professional's normal capacity."""
+
+    def __init__(
+        self,
+        *,
+        professional_id: int,
+        used_minutes: int,
+        requested_minutes: int,
+        capacity_minutes: int = NORMAL_FULL_TIME_MONTHLY_MINUTES,
+    ) -> None:
+        self.professional_id = professional_id
+        self.used_minutes = used_minutes
+        self.requested_minutes = requested_minutes
+        self.capacity_minutes = capacity_minutes
+        self.total_minutes = used_minutes + requested_minutes
+        self.remaining_minutes = max(capacity_minutes - used_minutes, 0)
+        super().__init__(self._message())
+
+    def _message(self) -> str:
+        used_hours = self.used_minutes / 60
+        requested_hours = self.requested_minutes / 60
+        total_hours = self.total_minutes / 60
+        capacity_hours = self.capacity_minutes / 60
+        remaining_hours = self.remaining_minutes / 60
+        return (
+            "Bu görevlendirme kaydedilemez: profesyonelin aylık toplamı "
+            f"{total_hours:.2f} saat ({self.total_minutes} dk) olacak; "
+            f"normal kapasite {capacity_hours:.0f} saat ({self.capacity_minutes} dk). "
+            f"Mevcut kullanılan süre {used_hours:.2f} saat, kalan süre "
+            f"{remaining_hours:.2f} saat ({self.remaining_minutes} dk); "
+            f"yeni kayıt {requested_hours:.2f} saat."
+        )
 
 # Tam süreli görevlendirme eşiği, kişi başı aylık asgari dakika kuralından
 # ayrıdır. Eşik aşılınca tam süreli profesyonel sayısı ve kalan çalışanlar için
@@ -563,6 +597,11 @@ def build_capacity_overview(
         capacity_utilization = round(100 * planned / NORMAL_FULL_TIME_MONTHLY_MINUTES) if capacity_applicable else None
         actual_capacity_utilization = round(100 * act / NORMAL_FULL_TIME_MONTHLY_MINUTES) if capacity_applicable else None
         capacity_overflow = max(planned - NORMAL_FULL_TIME_MONTHLY_MINUTES, 0) if capacity_applicable else 0
+        capacity_remaining_pct = (
+            round(100 * capacity_remaining / NORMAL_FULL_TIME_MONTHLY_MINUTES)
+            if capacity_applicable
+            else None
+        )
         pro_rows.append(
             {
                 **row,
@@ -574,7 +613,10 @@ def build_capacity_overview(
                 "normal_capacity_minutes_monthly": NORMAL_FULL_TIME_MONTHLY_MINUTES if capacity_applicable else None,
                 "normal_capacity_hours_monthly": NORMAL_FULL_TIME_MONTHLY_HOURS if capacity_applicable else None,
                 "capacity_remaining_minutes": capacity_remaining,
+                "capacity_remaining_pct": capacity_remaining_pct,
                 "actual_capacity_remaining_minutes": actual_capacity_remaining,
+                "capacity_used_minutes": planned if capacity_applicable else None,
+                "capacity_used_pct": capacity_utilization,
                 "capacity_utilization_pct": capacity_utilization,
                 "actual_capacity_utilization_pct": actual_capacity_utilization,
                 "capacity_overflow_minutes": capacity_overflow,
@@ -702,3 +744,70 @@ def sync_assignment_required(
         db.commit()
         db.refresh(assignment)
     return required
+
+
+def ensure_professional_capacity(
+    db: Session,
+    *,
+    professional_id: int,
+    planned_minutes: int,
+    exclude_assignment_id: int | None = None,
+) -> dict[str, int | bool | None]:
+    """Validate one active assignment against the professional's monthly load.
+
+    The check is deliberately scoped to safety specialists and workplace
+    physicians. It sums active planned assignment minutes, excludes the row
+    being reactivated when requested, and locks the professional row on
+    databases that support row locks so concurrent assignment requests cannot
+    both consume the same remaining capacity.
+    """
+    professional = db.scalar(
+        select(IsgProfessional)
+        .where(IsgProfessional.id == professional_id)
+        .with_for_update()
+    )
+    professional_type = (
+        getattr(professional.professional_type, "value", professional.professional_type)
+        if professional
+        else None
+    )
+    if professional_type not in CAPACITY_ROLE_KEYS:
+        return {
+            "applicable": False,
+            "professional_id": professional_id,
+            "used_minutes": 0,
+            "requested_minutes": normalize_employee_count(planned_minutes),
+            "total_minutes": 0,
+            "remaining_minutes": 0,
+            "remaining_pct": 0,
+        }
+
+    stmt = select(WorkplaceAssignment.planned_minutes_monthly).where(
+        WorkplaceAssignment.professional_id == professional_id,
+        WorkplaceAssignment.status == AssignmentStatus.ACTIVE,
+    )
+    if exclude_assignment_id is not None:
+        stmt = stmt.where(WorkplaceAssignment.id != exclude_assignment_id)
+    used_minutes = sum(
+        normalize_employee_count(value)
+        for value in db.scalars(stmt).all()
+    )
+    requested_minutes = normalize_employee_count(planned_minutes)
+    total_minutes = used_minutes + requested_minutes
+    remaining_minutes = max(NORMAL_FULL_TIME_MONTHLY_MINUTES - total_minutes, 0)
+    if total_minutes > NORMAL_FULL_TIME_MONTHLY_MINUTES:
+        raise ProfessionalCapacityExceeded(
+            professional_id=professional_id,
+            used_minutes=used_minutes,
+            requested_minutes=requested_minutes,
+        )
+    return {
+        "applicable": True,
+        "professional_id": professional_id,
+        "used_minutes": used_minutes,
+        "requested_minutes": requested_minutes,
+        "total_minutes": total_minutes,
+        "remaining_minutes": remaining_minutes,
+        "used_pct": round(100 * total_minutes / NORMAL_FULL_TIME_MONTHLY_MINUTES),
+        "remaining_pct": round(100 * remaining_minutes / NORMAL_FULL_TIME_MONTHLY_MINUTES),
+    }
