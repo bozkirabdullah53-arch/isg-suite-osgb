@@ -29,6 +29,32 @@ export function capacityPercentText(value) {
   return `%${Number.isInteger(number) ? number : number.toLocaleString('tr-TR', {minimumFractionDigits: 1, maximumFractionDigits: 1})}`;
 }
 
+export function CapacityMeter({usedMinutes, remainingMinutes, compact = false}) {
+  if (usedMinutes == null || remainingMinutes == null) return null;
+  const usedPercent = capacityPercentValue(usedMinutes);
+  const remainingPercent = capacityPercentValue(remainingMinutes);
+  const usedWidth = Math.min(Math.max(usedPercent, 0), 100);
+  const remainingWidth = Math.min(Math.max(remainingPercent, 0), Math.max(100 - usedWidth, 0));
+  return (
+    <span
+      role="img"
+      aria-label={`Doluluk ${capacityPercentText(usedPercent)}, kalan ${capacityPercentText(remainingPercent)}`}
+      style={{display: 'block', minWidth: compact ? 92 : 210}}
+    >
+      <span style={{display: 'flex', height: compact ? 7 : 9, width: '100%', overflow: 'hidden', borderRadius: 999, background: '#dcfce7', boxShadow: 'inset 0 0 0 1px #bbf7d0'}}>
+        <span style={{width: `${usedWidth}%`, background: '#dc2626', transition: 'width .25s ease'}} />
+        <span style={{width: `${remainingWidth}%`, background: '#16a34a', transition: 'width .25s ease'}} />
+      </span>
+      {!compact && (
+        <small style={{display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 4, color: '#64748b', fontSize: 11}}>
+          <span style={{color: '#b91c1c', fontWeight: 700}}>Dolu {capacityPercentText(usedPercent)}</span>
+          <span style={{color: '#166534', fontWeight: 700}}>Boş {capacityPercentText(remainingPercent)}</span>
+        </small>
+      )}
+    </span>
+  );
+}
+
 function percentText(value) {
   return capacityPercentText(Math.round(Number(value) || 0));
 }
@@ -41,7 +67,7 @@ function CapacityMetric({label, minutes, tone}) {
   return (
     <article className="metric" style={tone ? {borderColor: tone} : undefined}>
       <span>{label}</span>
-      <strong>{capacityHoursText(minutes)}</strong>
+      <strong style={{color: tone || undefined}}>{capacityHoursText(minutes)}</strong>
       <small style={{display: 'block', marginTop: 4, color: tone || '#64748b', fontWeight: 700}}>{percentText(percent)} kapasite</small>
     </article>
   );
@@ -275,10 +301,13 @@ export function CapacityEnginePage({user, onNavigate}) {
                   </span>
                 )},
                 {key: 'capacity_used_minutes', label: 'Kullanılan süre', render: (r) => (
-                  <CapacityCell minutes={r.capacity_used_minutes} tone={r.capacity_overloaded ? '#b91c1c' : undefined} />
+                  <CapacityCell minutes={r.capacity_used_minutes} tone="#b91c1c" />
                 )},
                 {key: 'capacity_remaining_minutes', label: 'Kalan süre', render: (r) => (
-                  <CapacityCell minutes={r.capacity_remaining_minutes} tone={r.capacity_overloaded ? '#b91c1c' : '#166534'} />
+                  <CapacityCell minutes={r.capacity_remaining_minutes} tone="#166534" />
+                )},
+                {key: 'capacity_meter', label: 'Doluluk', render: (r) => (
+                  <CapacityMeter usedMinutes={r.capacity_used_minutes} remainingMinutes={r.capacity_remaining_minutes} compact />
                 )},
                 {key: 'capacity_overloaded', label: 'Durum', render: (r) => r.capacity_overloaded
                   ? <StatusBadge status="critical" />
@@ -349,9 +378,11 @@ export function ProfessionalCapacityPanel({user}) {
       {data.error && <p style={{margin: '10px 0 0', color: '#b45309', fontSize: 13}}>{data.error}</p>}
 
       <div className="cards" style={{margin: '14px 0 16px'}}>
-        <CapacityMetric label="Kullanılan süre" minutes={professional ? usedMinutes : null} tone={professional?.capacity_overloaded ? '#b91c1c' : undefined} />
-        <CapacityMetric label="Kalan süre" minutes={professional ? capacityRemaining : null} tone={professional?.capacity_overloaded ? '#b91c1c' : '#166534'} />
+        <CapacityMetric label="Kullanılan süre" minutes={professional ? usedMinutes : null} tone="#b91c1c" />
+        <CapacityMetric label="Kalan süre" minutes={professional ? capacityRemaining : null} tone="#166534" />
       </div>
+
+      {professional && <CapacityMeter usedMinutes={usedMinutes} remainingMinutes={capacityRemaining} />}
 
       <p style={{fontSize: 12, color: '#64748b', margin: '12px 0 0'}}>
         Kullanılan süre = aktif görevlendirmelerinizin aylık toplamı. Kalan süre = 195 saatlik normal aylık kapasite − kullanılan süre.
