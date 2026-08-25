@@ -49,6 +49,32 @@ SERVICE_ROLE_KEYS = (
     "workplace_physician",
     "other_health_personnel",
 )
+CAPACITY_ROLE_KEYS = ("safety_specialist", "workplace_physician")
+
+# Tam süreli normal çalışma kapasitesi raporlama tabanıdır. Bu değer bir
+# görevlendirmeyi engelleyen sert bir limit değildir; OSGB yöneticisine
+# planlanan/gerçekleşen yükün normal tam süreli kapasiteye göre durumunu
+# gösterir. Yıllık fazla çalışma limiti aylık kapasiteye otomatik eklenmez.
+NORMAL_FULL_TIME_MONTHLY_MINUTES = 11_700
+NORMAL_FULL_TIME_MONTHLY_HOURS = 195
+NORMAL_WEEKLY_WORKING_HOURS = 45
+ANNUAL_OVERTIME_HOURS = 270
+
+# Tam süreli görevlendirme eşiği, kişi başı aylık asgari dakika kuralından
+# ayrıdır. Eşik aşılınca tam süreli profesyonel sayısı ve kalan çalışanlar için
+# ayrıca kısmi süreli dakika ihtiyacı birlikte raporlanır.
+FULL_TIME_EMPLOYEE_THRESHOLDS: dict[str, dict[str, int]] = {
+    "safety_specialist": {
+        "Az Tehlikeli": 1_000,
+        "Tehlikeli": 500,
+        "Çok Tehlikeli": 250,
+    },
+    "workplace_physician": {
+        "Az Tehlikeli": 2_000,
+        "Tehlikeli": 1_000,
+        "Çok Tehlikeli": 750,
+    },
+}
 
 _BRACKETS = ("1-9", "10-49", "50-249", "250+")
 
@@ -247,6 +273,7 @@ def build_service_requirement_summary(
         per_employee = int(SERVICE_MINUTES_PER_EMPLOYEE.get(hazard or "", {}).get(role, 0))
         total = count * per_employee if known_hazard else 0
         display = minutes_to_display(total)
+        full_time_rule = _full_time_rule(hazard, count, role, per_employee)
         role_rows[role] = {
             "role": role,
             "minutes_per_employee": per_employee,
@@ -255,6 +282,7 @@ def build_service_requirement_summary(
             "hours": display["hours"],
             "remaining_minutes": display["remaining_minutes"],
             "equivalent": display["equivalent"] if known_hazard else "Hesaplanamadı",
+            **full_time_rule,
         }
 
     return {
@@ -282,6 +310,27 @@ def compute_company_service_requirements(company: Company, employee_count: int) 
     )
 
 
+def _full_time_rule(hazard: str | None, employee_count: int, role: str, per_employee: int) -> dict:
+    """Return full-time trigger information without changing the minute target."""
+    threshold = int(FULL_TIME_EMPLOYEE_THRESHOLDS.get(role, {}).get(hazard or "", 0) or 0)
+    if threshold <= 0:
+        return {
+            "full_time_threshold_employees": None,
+            "full_time_units": 0,
+            "full_time_remainder_employees": 0,
+            "full_time_remainder_minutes": 0,
+            "full_time_triggered": False,
+        }
+    units, remainder = divmod(normalize_employee_count(employee_count), threshold)
+    return {
+        "full_time_threshold_employees": threshold,
+        "full_time_units": units,
+        "full_time_remainder_employees": remainder,
+        "full_time_remainder_minutes": remainder * max(0, int(per_employee or 0)),
+        "full_time_triggered": units > 0,
+    }
+
+
 def _capacity_status(required: int, actual: int) -> str:
     if required <= 0:
         return "unknown"
@@ -293,18 +342,37 @@ def _capacity_status(required: int, actual: int) -> str:
     return "critical"
 
 
-def build_capacity_overview(db: Session, osgb_id: int | None) -> dict:
+def build_capacity_overview(
+    db: Session,
+    osgb_id: int | None,
+    *,
+    professional_id: int | None = None,
+) -> dict:
+    """Build the current monthly capacity view.
+
+    ``professional_id`` is an optional server-side scope used by the personal
+    specialist/physician panel. The existing OSGB view remains unchanged when
+    it is omitted; when supplied, both assignments and workplaces are limited
+    to that professional's own records.
+    """
     month_start, month_end = _month_bounds()
     period_label = month_start.strftime("%Y-%m")
 
     assign_q = select(WorkplaceAssignment).where(WorkplaceAssignment.status == AssignmentStatus.ACTIVE)
-    if osgb_id:
+    if osgb_id is not None:
         assign_q = assign_q.where(WorkplaceAssignment.osgb_id == osgb_id)
+    if professional_id is not None:
+        assign_q = assign_q.where(WorkplaceAssignment.professional_id == professional_id)
     assignments = list(db.scalars(assign_q).all())
 
     assigned_company_ids = {a.company_id for a in assignments}
-    company_scope = or_(Company.is_active.is_(True), Company.id.in_(assigned_company_ids or {0}))
-    if osgb_id:
+    if professional_id is not None:
+        # Kişisel panelde OSGB'nin diğer firmalarının varlığını bile
+        # göstermemek için işyeri kapsamını görevlendirme üzerinden daralt.
+        company_scope = Company.id.in_(assigned_company_ids or {0})
+    else:
+        company_scope = or_(Company.is_active.is_(True), Company.id.in_(assigned_company_ids or {0}))
+    if osgb_id is not None and professional_id is None:
         company_scope = or_(Company.osgb_id == osgb_id, Company.id.in_(assigned_company_ids or {0}))
     companies = {
         c.id: c
@@ -331,6 +399,13 @@ def build_capacity_overview(db: Session, osgb_id: int | None) -> dict:
         }
 
     pro_ids = {a.professional_id for a in assignments}
+    if professional_id is None:
+        pro_scope = select(IsgProfessional.id).where(IsgProfessional.is_active.is_(True))
+        if osgb_id is not None:
+            pro_scope = pro_scope.where(IsgProfessional.osgb_id == osgb_id)
+        pro_ids.update(db.scalars(pro_scope).all())
+    elif professional_id is not None:
+        pro_ids.add(professional_id)
     pros = {
         p.id: p for p in db.scalars(select(IsgProfessional).where(IsgProfessional.id.in_(pro_ids or {0}))).all()
     } if pro_ids else {}
@@ -382,6 +457,10 @@ def build_capacity_overview(db: Session, osgb_id: int | None) -> dict:
         # göstergesi olarak tutulur ve hedefi hiçbir zaman geçersiz kılmaz.
         target = legal
         gap = target - actual
+        planned = normalize_employee_count(a.planned_minutes_monthly)
+        remaining = max(target - actual, 0)
+        surplus = max(actual - target, 0)
+        completion_pct = round(100 * actual / target) if target > 0 else (100 if actual == 0 else 0)
         stored_mismatch = stored != legal
 
         firm_rows.append(
@@ -407,10 +486,13 @@ def build_capacity_overview(db: Session, osgb_id: int | None) -> dict:
                 "required_hours": role_requirement["hours"],
                 "required_remaining_minutes": role_requirement["remaining_minutes"],
                 "required_equivalent": role_requirement["equivalent"],
-                "planned_minutes": int(a.planned_minutes_monthly or 0),
+                "planned_minutes": planned,
                 "actual_minutes": actual,
                 "visit_count": visit_count,
                 "gap_minutes": gap,
+                "remaining_minutes": remaining,
+                "surplus_minutes": surplus,
+                "completion_pct": completion_pct,
                 "stored_mismatch": stored_mismatch,
                 "status": _capacity_status(target, actual),
                 "service_requirement": requirements,
@@ -427,13 +509,40 @@ def build_capacity_overview(db: Session, osgb_id: int | None) -> dict:
                 "firm_count": 0,
                 "required_total": 0,
                 "legal_total": 0,
+                "planned_total": 0,
                 "actual_total": 0,
+                "remaining_total": 0,
+                "surplus_total": 0,
             },
         )
         bucket["firm_count"] += 1
         bucket["required_total"] += target
         bucket["legal_total"] += legal
+        bucket["planned_total"] += planned
         bucket["actual_total"] += actual
+        bucket["remaining_total"] += remaining
+        bucket["surplus_total"] += surplus
+
+    # Aktif görevlendirmesi olmayan uzman/hekim de OSGB yöneticisinin toplam
+    # kapasite görünümünde yer alır; böylece 11.700 dakikalık boş kapasite
+    # kaybolmaz. Kişisel panelde de eşleşen profesyonel boş olarak gösterilir.
+    for pid, pro in pros.items():
+        pro_load.setdefault(
+            pid,
+            {
+                "professional_id": pid,
+                "full_name": pro.full_name,
+                "professional_type": pro.professional_type.value if pro.professional_type else "safety_specialist",
+                "certificate_class": getattr(pro, "certificate_class", None),
+                "firm_count": 0,
+                "required_total": 0,
+                "legal_total": 0,
+                "planned_total": 0,
+                "actual_total": 0,
+                "remaining_total": 0,
+                "surplus_total": 0,
+            },
+        )
 
     pro_rows: list[dict] = []
     for pid, row in pro_load.items():
@@ -447,12 +556,29 @@ def build_capacity_overview(db: Session, osgb_id: int | None) -> dict:
         req = row["required_total"]
         act = row["actual_total"]
         utilization = round(100 * act / req) if req > 0 else (100 if act == 0 else 0)
+        planned = row["planned_total"]
+        capacity_applicable = ptype in CAPACITY_ROLE_KEYS
+        capacity_remaining = max(NORMAL_FULL_TIME_MONTHLY_MINUTES - planned, 0) if capacity_applicable else None
+        actual_capacity_remaining = max(NORMAL_FULL_TIME_MONTHLY_MINUTES - act, 0) if capacity_applicable else None
+        capacity_utilization = round(100 * planned / NORMAL_FULL_TIME_MONTHLY_MINUTES) if capacity_applicable else None
+        actual_capacity_utilization = round(100 * act / NORMAL_FULL_TIME_MONTHLY_MINUTES) if capacity_applicable else None
+        capacity_overflow = max(planned - NORMAL_FULL_TIME_MONTHLY_MINUTES, 0) if capacity_applicable else 0
         pro_rows.append(
             {
                 **row,
+                "role_label": ROLE_LABELS.get(ptype, ptype),
                 "firm_limit": firm_limit,
                 "overload_firms": overload_firms,
                 "utilization_pct": utilization,
+                "completion_pct": utilization,
+                "normal_capacity_minutes_monthly": NORMAL_FULL_TIME_MONTHLY_MINUTES if capacity_applicable else None,
+                "normal_capacity_hours_monthly": NORMAL_FULL_TIME_MONTHLY_HOURS if capacity_applicable else None,
+                "capacity_remaining_minutes": capacity_remaining,
+                "actual_capacity_remaining_minutes": actual_capacity_remaining,
+                "capacity_utilization_pct": capacity_utilization,
+                "actual_capacity_utilization_pct": actual_capacity_utilization,
+                "capacity_overflow_minutes": capacity_overflow,
+                "capacity_overloaded": capacity_overflow > 0,
                 "status": _capacity_status(req, act),
                 "is_active": bool(pro.is_active) if pro else True,
             }
@@ -463,6 +589,7 @@ def build_capacity_overview(db: Session, osgb_id: int | None) -> dict:
     at_risk = sum(1 for r in firm_rows if r["status"] == "warning")
     mismatch = sum(1 for r in firm_rows if r["stored_mismatch"])
     overloaded = sum(1 for r in pro_rows if r["overload_firms"] or r["status"] == "critical")
+    capacity_overloaded = sum(1 for r in pro_rows if r["capacity_overloaded"])
 
     firm_rows.sort(key=lambda r: ({"critical": 0, "warning": 1, "ok": 2, "unknown": 3}[r["status"]], r["company_name"]))
     workplace_rows.sort(key=lambda r: r["company_name"])
@@ -481,11 +608,30 @@ def build_capacity_overview(db: Session, osgb_id: int | None) -> dict:
             "at_risk_firms": at_risk,
             "stored_mismatch": mismatch,
             "overloaded_professionals": overloaded,
+            "capacity_overloaded_professionals": capacity_overloaded,
             "unknown_hazard_workplaces": sum(1 for r in workplace_rows if not r["hazard_known"]),
+            "required_minutes_total": sum(r["legal_required_minutes"] for r in firm_rows),
+            "planned_minutes_total": sum(r["planned_minutes"] for r in firm_rows),
+            "actual_minutes_total": sum(r["actual_minutes"] for r in firm_rows),
+            "remaining_minutes_total": sum(r["remaining_minutes"] for r in firm_rows),
+            "surplus_minutes_total": sum(r["surplus_minutes"] for r in firm_rows),
+            "normal_capacity_minutes_total": sum(
+                r["normal_capacity_minutes_monthly"] or 0 for r in pro_rows
+            ),
         },
         "workplaces": workplace_rows,
         "firms": firm_rows,
         "professionals": pro_rows,
+        "capacity_basis": {
+            "normal_full_time_monthly_minutes": NORMAL_FULL_TIME_MONTHLY_MINUTES,
+            "normal_full_time_monthly_hours": NORMAL_FULL_TIME_MONTHLY_HOURS,
+            "normal_weekly_working_hours": NORMAL_WEEKLY_WORKING_HOURS,
+            "annual_overtime_hours": ANNUAL_OVERTIME_HOURS,
+            "overtime_added_to_monthly_capacity": False,
+            "note": "11.700 dakika / 195 saat normal tam süreli aylık kapasite raporlama tabanıdır; yıllık 270 saat fazla çalışma aylık sabit kapasiteye eklenmez.",
+            "full_time_external_work_note": "Tam süreli görevlendirilen uzman/hekim için tam gün çalıştığı işyeri dışında fazla çalışma kuralı ayrıca dikkate alınmalıdır.",
+        },
+        "full_time_employee_thresholds": FULL_TIME_EMPLOYEE_THRESHOLDS,
     }
 
 
