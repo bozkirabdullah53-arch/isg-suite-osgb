@@ -4,6 +4,7 @@ import {Camera,Clock3,FileCheck2,Plus,ScanLine,TrendingDown,TrendingUp,Wallet} f
 import {enqueueOfflineComplete,flushOfflineCompletes,listOfflineCompletes,removeOfflineItem} from './field_offline';
 import {SiteQrCameraModal} from './field_qr_scan';
 import {AppModal} from './ui_modal';
+import {capacityHoursText,capacityPercentValue} from './capacity_engine';
 
 const ptypes={safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli'};
 const stages={new:'Yeni',contacted:'Görüşüldü',proposal:'Teklif',negotiation:'Müzakere',won:'Kazanıldı',lost:'Kaybedildi'};
@@ -1098,7 +1099,7 @@ export function ProfessionalsPage({user, onNavigate}){
 
 export function AssignmentsPage({user}){
  const isGlobal=user.role==='global_admin';
- const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]);
+ const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]),[capacityData,setCapacityData]=useState(null);
  const[open,setOpen]=useState(false),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
  const[statusFilter,setStatusFilter]=useState('active'); // active | suspended | ended | all
  const[contractFile,setContractFile]=useState(null);
@@ -1122,9 +1123,15 @@ export function AssignmentsPage({user}){
    if(oid){
     const[p,a]=await Promise.all([api(`/osgb/professionals?osgb_id=${oid}`),api('/osgb/assignments')]);
     setPros(p);setRows(a);
+    try{
+     setCapacityData(await api(`/osgb/capacity?osgb_id=${oid}`));
+    }catch(_){
+     setCapacityData(null);
+    }
     await loadKatipPrep(oid);
    }else{
     setKatipPrep(null);
+    setCapacityData(null);
    }
   }catch(ex){setErr(ex.message||'Liste yüklenemedi.')}
  };
@@ -1138,6 +1145,14 @@ export function AssignmentsPage({user}){
   if(statusFilter==='all') return true;
   return (r.status||'active')===statusFilter;
  });
+ const selectedProfessional=pros.find(x=>x.id===Number(form.professional_id));
+ const selectedCapacity=capacityData?.professionals?.find(x=>x.professional_id===Number(form.professional_id));
+ const selectedWorkplace=capacityData?.workplaces?.find(x=>x.company_id===Number(form.company_id));
+ const selectedRole=selectedProfessional?.professional_type||form.professional_type;
+ const selectedRequirement=selectedWorkplace?.service_requirements?.roles?.[selectedRole];
+ const requestedMinutes=Number(form.planned_minutes_monthly)||Number(selectedRequirement?.required_minutes)||0;
+ const remainingMinutes=selectedCapacity?.capacity_remaining_minutes;
+ const capacityApplicable=remainingMinutes!=null;
  function resetFormExtras(){
   setContractFile(null);
   setForm(f=>({...f,company_id:'',professional_id:'',start_date:'',end_date:'',required_minutes_monthly:0,planned_minutes_monthly:0,actual_minutes_monthly:0,isg_katip_contract_number:''}));
@@ -1156,6 +1171,14 @@ export function AssignmentsPage({user}){
    const ext=(contractFile.name||'').split('.').pop()?.toLowerCase();
    if(!['pdf','jpg','jpeg','png'].includes(ext||'')) throw new Error('Sadece pdf, jpg veya png yükleyin.');
    const pro=pros.find(x=>x.id===Number(form.professional_id));
+   const capacity=capacityData?.professionals?.find(x=>x.professional_id===Number(form.professional_id));
+   const workplace=capacityData?.workplaces?.find(x=>x.company_id===Number(form.company_id));
+   const role=pro?.professional_type||form.professional_type;
+   const legalMinutes=Number(workplace?.service_requirements?.roles?.[role]?.required_minutes)||0;
+   const requested=Number(form.planned_minutes_monthly)||legalMinutes;
+   if(capacity?.capacity_remaining_minutes!=null && requested>Number(capacity.capacity_remaining_minutes||0)){
+    throw new Error(`Bu kayıt ${capacityHoursText(requested)} süre kullanıyor; ${capacityHoursText(capacity.capacity_remaining_minutes)} kalan kapasite var. Süre aşımı olan görevlendirme kaydedilemez.`);
+   }
    const created=await api('/osgb/assignments',{method:'POST',body:JSON.stringify({
     osgb_id:Number(form.osgb_id),
     company_id:Number(form.company_id),
@@ -1300,6 +1323,22 @@ export function AssignmentsPage({user}){
      <option value="">Seçiniz</option>
      {pros.map(x=><option key={x.id} value={x.id}>{x.full_name} — {ptypes[x.professional_type]}</option>)}
     </S>
+    {selectedProfessional&&(
+     <div style={{gridColumn:'1/-1',padding:'10px 12px',borderRadius:10,background:'#f8fafc',border:'1px solid #e2e8f0',fontSize:13,lineHeight:1.5}}>
+      <strong>{selectedProfessional.full_name} aylık kapasitesi</strong>
+      {capacityApplicable?(
+       <div style={{display:'flex',gap:16,flexWrap:'wrap',marginTop:4}}>
+        <span>Kullanılan: <strong>{capacityHoursText(selectedCapacity?.capacity_used_minutes??selectedCapacity?.planned_total)} ({`%${capacityPercentValue(selectedCapacity?.capacity_used_minutes??selectedCapacity?.planned_total)}`})</strong></span>
+        <span>Kalan: <strong style={{color:'#166534'}}>{capacityHoursText(remainingMinutes)} ({`%${capacityPercentValue(remainingMinutes)}`})</strong></span>
+       </div>
+      ):<div style={{marginTop:4,color:'#64748b'}}>Bu rol için 195 saatlik uzman/hekim kapasite kontrolü uygulanmaz.</div>}
+      {capacityApplicable&&requestedMinutes>Number(remainingMinutes||0)&&(
+       <div style={{marginTop:5,color:'#b91c1c',fontWeight:700}}>
+        Bu görevlendirme yaklaşık {capacityHoursText(requestedMinutes)} kullanır; kalan süre aşılacağı için kaydedilemez.
+       </div>
+      )}
+     </div>
+    )}
     <F label="Başlangıç" type="date" required value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/>
     <F label="Bitiş" type="date" value={form.end_date} onChange={e=>setForm({...form,end_date:e.target.value})}/>
     <div style={{gridColumn:'1/-1',padding:'10px 12px',borderRadius:10,background:'#eff9f7',color:'#166b67',fontSize:13,lineHeight:1.45}}>
