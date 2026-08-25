@@ -620,21 +620,38 @@ def _assert_company_admin_scope(user: User, obj: Company) -> None:
         raise HTTPException(403, "Bu işyerini yönetemezsiniz — yalnızca kendi OSGB kapsamınız.")
 
 
+def _assert_company_edit_scope(db: Session, user: User, obj: Company) -> None:
+    """Firma kartı düzenleme kapsamı.
+
+    OSGB yöneticisi mevcut OSGB kapsamını korur. İş güvenliği uzmanı ise
+    yalnızca kendisine aktif olarak atanmış işyerinin kart bilgilerini
+    güncelleyebilir; bu kontrol şirket hesabı / üyelik kayıtlarıyla
+    genişletilemez.
+    """
+    if user.role == UserRole.SAFETY_SPECIALIST:
+        ensure_company_access(db, user, obj.id)
+        return
+    _assert_company_admin_scope(user, obj)
+
+
 @router.put("/{company_id}", response_model=CompanyResponse)
 def update_company(
     company_id: int,
     payload: CompanyUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)),
 ):
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
-    _assert_company_admin_scope(user, obj)
+    _assert_company_edit_scope(db, user, obj)
     data = payload.model_dump(exclude_unset=True)
-    # OSGB admin başka OSGB'ye taşıyamaz
-    if user.role == UserRole.COMPANY_ADMIN:
+    # OSGB admin ve uzman başka OSGB'ye taşıyamaz. Uzman ayrıca firma
+    # kaydının aktiflik durumunu değiştiremez; bu yalnızca OSGB yönetimidir.
+    if user.role in (UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST):
         data.pop("osgb_id", None)
+    if user.role == UserRole.SAFETY_SPECIALIST:
+        data.pop("is_active", None)
     next_name = data.get("name", obj.name)
     next_osgb = data.get("osgb_id", obj.osgb_id)
     if "name" in data or "osgb_id" in data:
