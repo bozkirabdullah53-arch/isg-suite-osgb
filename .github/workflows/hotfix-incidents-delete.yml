@@ -1,114 +1,14 @@
-name: One-time incident delete hotfix
+name: Retired incident delete hotfix
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '*/5 * * * *'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply-hotfix:
+  retired:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: master
-          fetch-depth: 0
-
-      - name: Add incident delete API and UI
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          frontend = Path('frontend/src/incidents.jsx')
-          text = frontend.read_text(encoding='utf-8')
-
-          delete_fn = '''
-  async function deleteIncident(row) {
-    if (!canEdit || !row?.id) return;
-    const ok = window.confirm(
-      `${row.form_no || 'Bu olay kaydı'} kalıcı olarak silinsin mi? Bu işlem geri alınamaz.`,
-    );
-    if (!ok) return;
-    setErr('');
-    try {
-      await api(`/incidents/${row.id}`, {method: 'DELETE'});
-      if (detail?.id === row.id) setDetail(null);
-      await load();
-    } catch (x) {
-      setErr(x.message || 'Olay kaydı silinemedi.');
-    }
-  }
-
-'''
-          marker = '  async function closeIncident() {'
-          if 'async function deleteIncident(row)' not in text:
-              if marker not in text:
-                  raise SystemExit('Frontend function marker not found')
-              text = text.replace(marker, delete_fn + marker, 1)
-
-          old_button = '''                  <td>
-                    <button className="mini" type="button" onClick={() => openDetail(r.id)}>Detay</button>
-                  </td>'''
-          new_button = '''                  <td>
-                    <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
-                      <button className="mini" type="button" onClick={() => openDetail(r.id)}>Detay</button>
-                      {canEdit && (
-                        <button
-                          className="mini secondary"
-                          type="button"
-                          onClick={() => deleteIncident(r)}
-                          style={{color: '#b42318', borderColor: 'rgba(180,35,24,.28)'}}
-                        >
-                          Sil
-                        </button>
-                      )}
-                    </div>
-                  </td>'''
-          if 'onClick={() => deleteIncident(r)}' not in text:
-              if old_button not in text:
-                  raise SystemExit('Frontend detail button marker not found')
-              text = text.replace(old_button, new_button, 1)
-          frontend.write_text(text, encoding='utf-8')
-
-          backend = Path('backend/app/api/incidents.py')
-          text = backend.read_text(encoding='utf-8')
-          delete_api = '''
-
-@router.delete("/{incident_id}")
-def delete_incident(
-    incident_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
-):
-    """Olay kaydını kök neden ve bağlı DÖF kayıtlarıyla birlikte kalıcı siler."""
-    row = _load(db, incident_id)
-    ensure_access(db, user, row.company_id)
-    form_no = row.form_no
-    db.delete(row)
-    db.commit()
-    return {"ok": True, "id": incident_id, "message": f"{form_no} numaralı olay kaydı silindi."}
-'''
-          marker = '\n\n@router.patch("/{incident_id}", response_model=IncidentResponse)'
-          if '@router.delete("/{incident_id}")' not in text:
-              if marker not in text:
-                  raise SystemExit('Backend patch marker not found')
-              text = text.replace(marker, delete_api + marker, 1)
-          backend.write_text(text, encoding='utf-8')
-          PY
-
-      - name: Commit hotfix
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend/src/incidents.jsx backend/app/api/incidents.py
-          if git diff --cached --quiet; then
-            echo "Hotfix already applied."
-            exit 0
-          fi
-          git commit -m "fix: add delete action for incident records"
-          git push origin master
+      - name: Confirm retirement
+        run: echo "Incident delete hotfix is already present in master; no source mutation is performed."
