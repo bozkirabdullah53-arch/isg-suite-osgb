@@ -1352,7 +1352,7 @@ export function AssignmentsPage({user}){
      {contractFile&&<small style={{color:'#475569'}}>{contractFile.name}</small>}
     </label>
     {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
-    <div className="form-actions"><button disabled={busy}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>
+    <div className="form-actions"><button disabled={busy||(capacityApplicable&&requestedMinutes>Number(remainingMinutes||0))}>{busy?'Kaydediliyor...':'Kaydet'}</button></div>
    </form>
   </M>}
  </P>
