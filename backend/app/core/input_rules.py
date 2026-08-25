@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
+
+
+_APPLICATION_TIMEZONE = ZoneInfo("Europe/Istanbul")
 
 # Tipik anlamsız / test girdileri (küçük harf, TR karakter yok sayılır)
 _PLACEHOLDER = frozenset({
@@ -84,11 +88,11 @@ def assert_event_date(
         if required:
             raise ValueError(f"{label} zorunludur.")
         return None
-    from datetime import datetime, timezone
-
     floor = earliest or date(2000, 1, 1)
-    # Sunucu UTC ise TR “bugün” gelecek sayılmasın
-    today = datetime.now(timezone.utc).date()
+    # Tarih girisleri uygulamanin Turkiye yerel gunune gore degerlendirilir.
+    # Sunucunun UTC olmasi, yerel gun baslangicinda bugunun reddedilmesine
+    # neden olmamalidir.
+    today = datetime.now(_APPLICATION_TIMEZONE).date()
     ceiling = today + timedelta(days=max(0, allow_future_days))
     if value < floor:
         raise ValueError(f"{label} {floor.isoformat()} tarihinden önce olamaz.")
