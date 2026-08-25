@@ -551,7 +551,7 @@ function Login({done,onApply}){
 function Modal({title,close,children}){return <AppModal title={title} close={close}>{children}</AppModal>}
 function Field({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
-function Table({cols,rows,empty='Kayıt bulunamadı.'}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
+function Table({cols,rows,empty='Kayıt bulunamadı.',className=''}){return <div className={'table-wrap '+className}><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key} data-label={c.label}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
 
 /** İşyeri kiosk — QR + salt-okunur denetim durumu. Menü yok; müdahale yok. */
 function SiteQrKioskPage({user,onLogout}){
@@ -789,7 +789,7 @@ function Companies({canEdit, canAdd, onOpen360}){
     <Table cols={[
       {key:'name',label:'Firma'},
       ...(canEdit?[{key:'actions',label:'İşlem',render:r=>(
-        <div className="actions" style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:6,alignItems:'start',justifyContent:'start',width:280,minWidth:280,whiteSpace:'nowrap'}}>
+        <div className="actions company-actions">
           <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)} title="İşyeri bilgilerini düzenle">
             <Pencil size={14} style={{verticalAlign:'middle',marginRight:4}}/>Düzenle
           </button>
@@ -817,7 +817,7 @@ function Companies({canEdit, canAdd, onOpen360}){
           <QrCode size={14} style={{verticalAlign:'middle',marginRight:4}}/>QR
         </button>
       )}]:[]),
-    ]} rows={data}/>
+    ]} rows={data} className="companies-table"/>
     {open&&<Modal title={editing?'İşyeri Bilgilerini Düzenle':'Yeni Firma'} close={()=>{setOpen(false);setEditing(null)}}>
       <form className="form-grid" onSubmit={save}>
         <Field label="Firma Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
