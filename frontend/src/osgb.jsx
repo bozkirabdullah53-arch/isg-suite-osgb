@@ -12,7 +12,7 @@ const money=v=>new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY',ma
 function F({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function S({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
 function M({title,close,children,wide}){return <AppModal title={title} close={close} wide={wide}>{children}</AppModal>}
-function T({cols,rows}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.k}>{c.l}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id||i}>{cols.map(c=><td key={c.k}>{c.f?c.f(r):String(r[c.k]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">Henüz kayıt bulunmuyor.</td></tr>}</tbody></table></div>}
+function T({cols,rows,className=''}){return <div className={['table-wrap',className].filter(Boolean).join(' ')}><table><thead><tr>{cols.map(c=><th key={c.k}>{c.l}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id||i}>{cols.map(c=><td key={c.k} data-label={c.l}>{c.f?c.f(r):String(r[c.k]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">Henüz kayıt bulunmuyor.</td></tr>}</tbody></table></div>}
 function P({title,action,children}){return <><div className="page-title"><h3>{title}</h3>{action}</div><section className="panel">{children}</section></>}
 function osgbId(user,orgs){return user.osgb_id||orgs[0]?.id||''}
 function offlineScope(user,orgs,formOid){
@@ -1252,7 +1252,7 @@ export function AssignmentsPage({user}){
      <span>Hatırlatılacak: <strong>{katipPrep?.reminder_counts?.ready_to_remind??0}</strong></span>
     </div>
     {(katipPrep.gaps||[]).length>0&&(
-     <div className="table-wrap" style={{marginTop:10}}>
+     <div className="table-wrap assignments-prep-table" style={{marginTop:10}}>
       <table>
        <thead><tr>
         <th>İşyeri</th><th>Profesyonel</th><th>KATİP No</th><th>Dosya</th><th>Eksik</th>
@@ -1260,11 +1260,11 @@ export function AssignmentsPage({user}){
        <tbody>
         {katipPrep.gaps.slice(0,25).map(g=>(
          <tr key={g.assignment_id}>
-          <td>{g.company_name}</td>
-          <td>{g.professional_name}</td>
-          <td>{g.isg_katip_contract_number||'—'}</td>
-          <td>{g.contract_file_name||'—'}</td>
-          <td>{g.reminder_hint}</td>
+          <td data-label="İşyeri">{g.company_name}</td>
+          <td data-label="Profesyonel">{g.professional_name}</td>
+          <td data-label="KATİP No">{g.isg_katip_contract_number||'—'}</td>
+          <td data-label="Dosya">{g.contract_file_name||'—'}</td>
+          <td data-label="Eksik">{g.reminder_hint}</td>
          </tr>
         ))}
        </tbody>
@@ -1286,18 +1286,18 @@ export function AssignmentsPage({user}){
    </label>
    <button type="button" className="secondary" disabled={busy} onClick={()=>load(form.osgb_id)}>Yenile</button>
   </div>
-  <T rows={filtered} cols={[
+  <T className="assignments-table" rows={filtered} cols={[
    {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||r.company_id},
    {k:'professional_id',l:'Profesyonel',f:r=>pros.find(x=>x.id===r.professional_id)?.full_name||r.professional_id},
    {k:'professional_type',l:'Görev',f:r=>ptypes[r.professional_type]},
    {k:'isg_katip_contract_number',l:'İSG-KATİP No'},
-   {k:'contract_file_name',l:'Sözleşme',f:r=>r.contract_file_name?<button type="button" className="mini" onClick={()=>downloadContract(r)}>{r.contract_file_name}</button>:'—'},
+   {k:'contract_file_name',l:'Sözleşme',f:r=>r.contract_file_name?<button type="button" className="mini assignment-document" title={r.contract_file_name} onClick={()=>downloadContract(r)}>{r.contract_file_name}</button>:'—'},
    {k:'start_date',l:'Başlangıç'},
    {k:'end_date',l:'Bitiş',f:r=>r.end_date||'—'},
    {k:'required_minutes_monthly',l:'Otomatik zorunlu dk.',f:r=>`${Number(r.required_minutes_monthly)||0} dk/ay`},
    {k:'status',l:'Durum',f:r=><span className={`badge ${r.status==='active'?'ok':'off'}`}>{statusLabel[r.status]||r.status}</span>},
    {k:'actions',l:'İşlem',f:r=>(
-    <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
+    <div className="actions assignments-actions">
      {r.status==='active'&&<>
       <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'suspend')}>Askıya Al</button>
       <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'end')}>Sonlandır</button>

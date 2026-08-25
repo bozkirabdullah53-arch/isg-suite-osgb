@@ -1107,3 +1107,263 @@ header.workspace-header,
     display: none;
   }
 }
+
+/* Assignments table: keep every field and action reachable without horizontal scrolling. */
+.assignments-table {
+  overflow-x: hidden;
+}
+.assignments-table table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+.assignments-table th,
+.assignments-table td {
+  min-width: 0;
+  padding: 9px 8px;
+  font-size: 12px;
+  line-height: 1.3;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.assignments-table th {
+  padding: 8px;
+  font-size: 10px;
+}
+.assignments-table th:nth-child(1),
+.assignments-table td:nth-child(1) { width: 11%; }
+.assignments-table th:nth-child(2),
+.assignments-table td:nth-child(2) { width: 11%; }
+.assignments-table th:nth-child(3),
+.assignments-table td:nth-child(3) { width: 9%; }
+.assignments-table th:nth-child(4),
+.assignments-table td:nth-child(4) { width: 10%; }
+.assignments-table th:nth-child(5),
+.assignments-table td:nth-child(5) { width: 15%; }
+.assignments-table th:nth-child(6),
+.assignments-table td:nth-child(6) { width: 7%; }
+.assignments-table th:nth-child(7),
+.assignments-table td:nth-child(7) { width: 7%; }
+.assignments-table th:nth-child(8),
+.assignments-table td:nth-child(8) { width: 10%; }
+.assignments-table th:nth-child(9),
+.assignments-table td:nth-child(9) { width: 6%; }
+.assignments-table th:nth-child(10),
+.assignments-table td:nth-child(10) { width: 14%; }
+
+.assignments-table td:nth-child(4) {
+  word-break: break-all;
+}
+.assignments-table td:nth-child(5) {
+  overflow: hidden;
+}
+.assignments-table td:nth-child(5) > button.assignment-document {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 6px 8px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.assignments-table td:nth-child(6),
+.assignments-table td:nth-child(7) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.assignments-table td:nth-child(9) {
+  text-align: center;
+}
+.assignments-table td:nth-child(9) .badge {
+  white-space: nowrap;
+}
+.assignments-table .assignments-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+.assignments-table .assignments-actions button {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 4px;
+  min-height: 28px;
+  font-size: 10px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.assignments-prep-table {
+  overflow-x: hidden;
+}
+.assignments-prep-table table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+.assignments-prep-table th,
+.assignments-prep-table td {
+  min-width: 0;
+  padding: 8px;
+  font-size: 12px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.assignments-prep-table th:nth-child(1),
+.assignments-prep-table td:nth-child(1) { width: 22%; }
+.assignments-prep-table th:nth-child(2),
+.assignments-prep-table td:nth-child(2) { width: 22%; }
+.assignments-prep-table th:nth-child(3),
+.assignments-prep-table td:nth-child(3) { width: 17%; }
+.assignments-prep-table th:nth-child(4),
+.assignments-prep-table td:nth-child(4) { width: 20%; }
+.assignments-prep-table th:nth-child(5),
+.assignments-prep-table td:nth-child(5) { width: 19%; }
+
+@media (max-width: 760px) {
+  .assignments-table {
+    overflow: visible;
+    border: 0;
+  }
+  .assignments-table table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    table-layout: auto;
+  }
+  .assignments-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .assignments-table tbody {
+    display: grid;
+    gap: 8px;
+  }
+  .assignments-table tbody tr {
+    display: block;
+    min-width: 0;
+    padding: 7px 10px;
+    border: 1px solid #e0ecee;
+    border-radius: 12px;
+    background: #fff;
+  }
+  .assignments-table tbody td {
+    display: grid;
+    grid-template-columns: minmax(88px, 32%) minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    min-width: 0;
+    padding: 6px 0;
+    border-bottom: 1px solid #edf2f3;
+    text-align: left;
+    font-size: 12px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+  .assignments-table tbody td::before {
+    content: attr(data-label);
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.35;
+    text-transform: uppercase;
+  }
+  .assignments-table tbody td:last-child {
+    border-bottom: 0;
+  }
+  .assignments-table tbody td[data-label="İşlem"] {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .assignments-table tbody td[data-label="İşlem"]::before {
+    display: block;
+  }
+  .assignments-table .assignments-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .assignments-table .assignments-actions button {
+    padding: 6px 5px;
+    font-size: 11px;
+    border-radius: 7px;
+  }
+  .assignments-table tbody td.empty {
+    display: block;
+    padding: 24px 0;
+    border-bottom: 0;
+    text-align: center;
+  }
+  .assignments-table tbody td.empty::before {
+    display: none;
+  }
+
+  .assignments-prep-table {
+    overflow: visible;
+    border: 0;
+  }
+  .assignments-prep-table table {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    table-layout: auto;
+  }
+  .assignments-prep-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .assignments-prep-table tbody {
+    display: grid;
+    gap: 8px;
+  }
+  .assignments-prep-table tbody tr {
+    display: block;
+    padding: 7px 10px;
+    border: 1px solid #e0ecee;
+    border-radius: 12px;
+    background: #fff;
+  }
+  .assignments-prep-table tbody td {
+    display: grid;
+    grid-template-columns: minmax(88px, 32%) minmax(0, 1fr);
+    gap: 8px;
+    min-width: 0;
+    padding: 6px 0;
+    border-bottom: 1px solid #edf2f3;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .assignments-prep-table tbody td::before {
+    content: attr(data-label);
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+  .assignments-prep-table tbody td:last-child {
+    border-bottom: 0;
+  }
+}
