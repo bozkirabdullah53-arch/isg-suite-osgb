@@ -816,7 +816,7 @@ function Companies({canEdit, canManage=canEdit, canAdd, onOpen360}){
               : <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>Aktifleştir</button>}
             <button type="button" className="mini secondary" disabled={busy} onClick={()=>resetKioskLogin(r)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>
             <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'delete')}>Sil</button>
-          </>
+          </>}
         </div>
       )}]:[]),
     ]} rows={data}/>
