@@ -125,7 +125,7 @@ const roleModules={
     'security',
   ],
   safety_specialist:[
-    'visits','field_inspection','dashboard','notifications','belge_onay','workplace_status',
+    'visits','field_inspection','dashboard','notifications','belge_onay','workplace_status','companies',
     'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler','acil_plan',
     'periyodik_kontrol','ortam_olcum','isg_kurulu',
     'training','eisa_question_bank','employees','annual_plans','annual_eval_report','specialist_reports','mevzuat','documents',
@@ -665,7 +665,7 @@ function SiteQrKioskPage({user,onLogout}){
   );
 }
 
-function Companies({canEdit, canAdd, onOpen360}){
+function Companies({canEdit, canManage=canEdit, canAdd, onOpen360}){
   const[data,setData]=useState([]);
   const[open,setOpen]=useState(false);
   const[editing,setEditing]=useState(null);
@@ -800,7 +800,7 @@ function Companies({canEdit, canAdd, onOpen360}){
           <Eye size={14} style={{verticalAlign:'middle',marginRight:4}}/>360
         </button>
       )}]:[]),
-      ...(canEdit?[{key:'qr',label:'Saha QR',render:r=>(
+      ...(canManage?[{key:'qr',label:'Saha QR',render:r=>(
         <button type="button" className="mini secondary" disabled={busy||siteQrBusy} onClick={()=>openSiteQr(r)} title="İşyeri QR kodu">
           <QrCode size={14} style={{verticalAlign:'middle',marginRight:4}}/>QR
         </button>
@@ -810,11 +810,13 @@ function Companies({canEdit, canAdd, onOpen360}){
           <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)} title="İşyeri bilgilerini düzenle">
             <Pencil size={14} style={{verticalAlign:'middle',marginRight:4}}/>Düzenle
           </button>
-          {r.is_active
-            ? <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'deactivate')}>Pasife Al</button>
-            : <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>Aktifleştir</button>}
-          <button type="button" className="mini secondary" disabled={busy} onClick={()=>resetKioskLogin(r)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>
-          <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'delete')}>Sil</button>
+          {canManage&&<>
+            {r.is_active
+              ? <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'deactivate')}>Pasife Al</button>
+              : <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>Aktifleştir</button>}
+            <button type="button" className="mini secondary" disabled={busy} onClick={()=>resetKioskLogin(r)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>
+            <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'delete')}>Sil</button>
+          </>
         </div>
       )}]:[]),
     ]} rows={data}/>
@@ -2199,7 +2201,7 @@ function App(){
     contracts:<ContractsPage user={user}/>,
     finance:<FinancePage user={user}/>,
     dashboard:<Dashboard summary={summary} user={user} onNavigate={goModule}/>,
-    companies:<Companies canEdit={user.role==='global_admin'||user.role==='company_admin'} canAdd={user.role==='global_admin'||(user.role==='company_admin'&&!user.company_id)} onOpen360={user.role==='company_admin'?openCustomer360:undefined}/>,
+    companies:<Companies canEdit={['global_admin','company_admin','safety_specialist'].includes(user.role)} canManage={['global_admin','company_admin'].includes(user.role)} canAdd={user.role==='global_admin'||(user.role==='company_admin'&&!user.company_id)} onOpen360={user.role==='company_admin'?openCustomer360:undefined}/>,
     branches:<Branches user={user}/>,
     employees:<Employees user={user}/>,
     risk:<RiskPage user={user}/>,
