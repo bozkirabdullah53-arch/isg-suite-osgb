@@ -81,6 +81,7 @@ from app.services.object_store import (
     object_storage_config_ok,
     storage_backend_label,
 )
+from app.services.upload_security import assert_safe_video_upload
 from app.services.osgb_subscription import (
     assert_osgb_subscription_access,
     assert_osgb_write_access,
@@ -1731,6 +1732,7 @@ async def upload_catalog_video(
     content = await file.read(max_bytes + 1)
     if len(content) > max_bytes:
         raise HTTPException(413, f"Video {settings.remote_basic_ohs_video_max_upload_mb} MB sınırını aşıyor.")
+    assert_safe_video_upload(content, extension, original_name)
     validate_video_bytes(content, extension=extension, original_name=original_name)
 
     revision_of = None
@@ -2511,6 +2513,7 @@ async def upload_remote_video(
     content = await file.read(max_bytes + 1)
     if len(content) > max_bytes:
         raise HTTPException(413, f"Video {settings.remote_basic_ohs_video_max_upload_mb} MB sınırını aşıyor.")
+    assert_safe_video_upload(content, extension, original_name)
     validate_video_bytes(content, extension=extension, original_name=original_name)
 
     revision_of = None
