@@ -789,7 +789,7 @@ function Companies({canEdit, canAdd, onOpen360}){
     <Table cols={[
       {key:'name',label:'Firma'},
       ...(canEdit?[{key:'actions',label:'İşlem',render:r=>(
-        <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
+        <div className="actions" style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:6,alignItems:'start',justifyContent:'start',width:280,minWidth:280,whiteSpace:'nowrap'}}>
           <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)} title="İşyeri bilgilerini düzenle">
             <Pencil size={14} style={{verticalAlign:'middle',marginRight:4}}/>Düzenle
           </button>
