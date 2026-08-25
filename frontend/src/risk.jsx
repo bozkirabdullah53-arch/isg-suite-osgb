@@ -14,12 +14,14 @@ import {
   Route,
   Search,
   ShieldAlert,
+  Sparkles,
   X,
 } from 'lucide-react';
 import {api, downloadFile, uploadFile, authBlobUrl} from './api';
 import {NaceRoadmapPanel, NaceRoadmapSummary} from './risk_nace_roadmap';
 import {createNavigationState, navigationIndex, parseNavigationLocation} from './navigation_history';
 import {isMatchingRiskId, normalizeRiskId} from './risk_detail_navigation';
+import AiAssistantPanel from './ai_assistant_panel';
 import './risk_pro.css';
 
 const LEVEL_COLORS = {
@@ -144,7 +146,7 @@ const EMPTY_DOCUMENT_DRAFT = {
   scope_note: '',
 };
 
-const RISK_TAB_IDS = new Set(['panel', 'risks', 'library', 'dofs', 'nace_roadmap', 'reports', 'departments']);
+const RISK_TAB_IDS = new Set(['panel', 'risks', 'library', 'dofs', 'nace_roadmap', 'reports', 'departments', 'assistant']);
 
 function readRiskViewFromLocation() {
   const navigation = parseNavigationLocation(window.location);
@@ -1446,6 +1448,7 @@ export function RiskPage({user}) {
     {id: 'risks', label: 'Kayıtlar', Icon: AlertTriangle},
     {id: 'library', label: 'Kütüphane', Icon: BookOpen, count: hazardCount || null},
     {id: 'dofs', label: 'Aksiyon', Icon: ClipboardList},
+    {id: 'assistant', label: 'AI Asistan', Icon: Sparkles},
     {id: 'nace_roadmap', label: 'NACE Yol Haritası', Icon: Route},
     {id: 'reports', label: 'Raporlar', Icon: FileText},
     {id: 'departments', label: 'Bölümler', Icon: Building2},
@@ -1776,6 +1779,16 @@ export function RiskPage({user}) {
           loading={naceBusy}
           error={naceErr}
           onRefresh={() => loadNaceRoadmap(effectiveCompanyId)}
+        />
+      )}
+
+      {tab === 'assistant' && !detail && (
+        <AiAssistantPanel
+          user={user}
+          companies={companies}
+          reportCompanyId={reportCompanyId}
+          setReportCompanyId={setReportCompanyId}
+          effectiveCompanyId={effectiveCompanyId}
         />
       )}
 
