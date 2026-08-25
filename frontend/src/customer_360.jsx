@@ -8,14 +8,17 @@ import {
   ClipboardCheck,
   Download,
   FileText,
+  Gavel,
   HardHat,
   HeartPulse,
   Printer,
   RefreshCw,
   ShieldAlert,
+  ShieldCheck,
   Stethoscope,
   Users,
   WalletCards,
+  X,
 } from 'lucide-react';
 import {api, downloadFile} from './api';
 
@@ -98,6 +101,28 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [inspReport, setInspReport] = useState(null);
+  const [inspBusy, setInspBusy] = useState(false);
+  const [inspErr, setInspErr] = useState('');
+  const [inspOpen, setInspOpen] = useState(false);
+
+  async function runInspector() {
+    setInspOpen(true);
+    setInspBusy(true);
+    setInspErr('');
+    setInspReport(null);
+    try {
+      const r = await api('/risks/virtual-inspector', {
+        method: 'POST',
+        body: JSON.stringify({company_id: Number(companyId)}),
+      });
+      setInspReport(r);
+    } catch (e) {
+      setInspErr(e.message || 'Sanal Müfettiş çalıştırılamadı.');
+    } finally {
+      setInspBusy(false);
+    }
+  }
 
   const load = useCallback(async () => {
     if (!companyId) return;
@@ -172,6 +197,9 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
             </button>
             <button type="button" className="mini" disabled={busy} onClick={load}>
               <RefreshCw size={14} style={{verticalAlign: 'middle', marginRight: 4}} />Yenile
+            </button>
+            <button type="button" className="mini" disabled={inspBusy} onClick={runInspector}>
+              <Gavel size={14} style={{verticalAlign: 'middle', marginRight: 4}} />Sanal Müfettiş
             </button>
           </div>
         </div>
@@ -427,6 +455,85 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
             </Panel>
           )}
         </>
+      )}
+
+      {inspOpen && (
+        <div
+          className="modal-bg"
+          onMouseDown={(e) => e.target === e.currentTarget && setInspOpen(false)}
+          style={{position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16}}
+        >
+          <section className="modal" role="dialog" aria-modal="true" style={{maxWidth: 760, width: '100%', maxHeight: '88vh', overflow: 'auto', background: '#fff', borderRadius: 12, padding: 0}}>
+            <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, background: '#fff', zIndex: 1}}>
+              <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                <Gavel size={20} style={{color: '#dc2626'}} />
+                <div>
+                  <h3 style={{margin: 0}}>Sanal Müfettiş — {c?.name || 'İşyeri'}</h3>
+                  <p style={{margin: 0, fontSize: 12, color: '#64748b'}}>6331 sayılı Kanun mevzuat uyum denetimi</p>
+                </div>
+              </div>
+              <button type="button" className="icon" onClick={() => setInspOpen(false)} aria-label="Kapat" style={{border: 'none', background: 'none', cursor: 'pointer', padding: 4}}>
+                <X size={20} />
+              </button>
+            </header>
+            <div style={{padding: '20px'}}>
+              {inspBusy && <p className="loading" style={{textAlign: 'center', padding: 24}}>Denetim yapılıyor…</p>}
+              {inspErr && <p style={{color: '#b91c1c'}}>{inspErr}</p>}
+              {inspReport && (
+                <div style={{display: 'flex', flexDirection: 'column', gap: 16}}>
+                  <div style={{display: 'flex', gap: 14, flexWrap: 'wrap'}}>
+                    <div style={{flex: '0 0 auto', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 22px', textAlign: 'center', minWidth: 130}}>
+                      <div style={{fontSize: 11, color: '#64748b'}}>Uyum skoru</div>
+                      <div style={{fontSize: 38, fontWeight: 800, color: inspReport.compliance_score >= 80 ? '#16a34a' : inspReport.compliance_score >= 60 ? '#ca8a04' : inspReport.compliance_score >= 40 ? '#ea580c' : '#dc2626', lineHeight: 1.1}}>
+                        {inspReport.compliance_score}<span style={{fontSize: 16, color: '#94a3b8'}}>/100</span>
+                      </div>
+                    </div>
+                    <div style={{flex: '1 1 240px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '14px 18px'}}>
+                      <div style={{fontSize: 11, color: '#64748b', marginBottom: 4}}>Tahmini idari para cezası riski</div>
+                      <div style={{fontSize: 18, fontWeight: 700, color: '#0f172a'}}>
+                        {inspReport.penalty_estimate?.min_tl?.toLocaleString('tr-TR')} – {inspReport.penalty_estimate?.max_tl?.toLocaleString('tr-TR')} TL
+                      </div>
+                      <p style={{fontSize: 11, color: '#9ca3af', margin: '4px 0 0'}}>{inspReport.penalty_estimate?.note}</p>
+                    </div>
+                  </div>
+                  <div style={{background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 16px', color: '#92400e', fontSize: 13}}>
+                    <strong style={{display: 'block', marginBottom: 4}}>Özet</strong>
+                    {inspReport.summary}
+                    <div style={{fontSize: 11, color: '#9ca3af', marginTop: 4}}>Denetim: {inspReport.inspection_date} · {inspReport.engine}</div>
+                  </div>
+                  {(inspReport.findings || []).length > 0 ? (
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr><th>Kod</th><th>Önem</th><th>Başlık</th><th>Mevzuat</th><th>Detay</th><th>Aksiyon</th></tr>
+                        </thead>
+                        <tbody>
+                          {inspReport.findings.map((f) => {
+                            const sev = f.severity === 'kritik' ? {bg: '#fee2e2', fg: '#991b1b', label: 'Kritik'} : f.severity === 'orta' ? {bg: '#fef3c7', fg: '#92400e', label: 'Orta'} : {bg: '#e0f2fe', fg: '#1e40af', label: 'Düşük'};
+                            return (
+                              <tr key={f.code}>
+                                <td><strong>{f.code}</strong></td>
+                                <td><span style={{background: sev.bg, color: sev.fg, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700}}>{sev.label}</span></td>
+                                <td>{f.title}</td>
+                                <td>{f.regulation_ref}</td>
+                                <td style={{fontSize: 12, color: '#64748b'}}>{f.detail}</td>
+                                <td style={{fontSize: 12}}>{f.suggested_action}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: 14, color: '#166534'}}>
+                      <ShieldCheck size={18} style={{verticalAlign: 'middle', marginRight: 6}} />Bu işyerinde mevzuat uyum ihlali tespit edilmedi. Tam uyumlu.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
       )}
     </div>
   );
