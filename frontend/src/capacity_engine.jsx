@@ -34,19 +34,38 @@ function percentText(value) {
 }
 
 function CapacityMetric({label, minutes, tone}) {
+  const isUsed = label === 'Kullanılan süre';
+  const accent = tone || (isUsed ? '#b91c1c' : '#166534');
+  const variant = isUsed ? 'used' : 'remaining';
+  const className = 'metric capacity-metric capacity-metric-' + variant;
   if (minutes == null) {
-    return <article className="metric"><span>{label}</span><strong>—</strong></article>;
+    return (
+      <article className={className} style={{'--capacity-accent': accent}}>
+        <div className="capacity-metric-head">
+          <span>{label}</span>
+          <span className="capacity-metric-dot" aria-hidden="true" />
+        </div>
+        <strong>—</strong>
+        <small className="capacity-metric-percent">Kapasite bilgisi yok</small>
+      </article>
+    );
   }
   const percent = capacityPercentValue(minutes);
+  const meterPercent = Math.min(100, Math.max(0, percent));
   return (
-    <article className="metric" style={tone ? {borderColor: tone} : undefined}>
-      <span>{label}</span>
+    <article className={className} style={{'--capacity-accent': accent}}>
+      <div className="capacity-metric-head">
+        <span>{label}</span>
+        <span className="capacity-metric-dot" aria-hidden="true" />
+      </div>
       <strong>{capacityHoursText(minutes)}</strong>
-      <small style={{display: 'block', marginTop: 4, color: tone || '#64748b', fontWeight: 700}}>{percentText(percent)} kapasite</small>
+      <small className="capacity-metric-percent">{percentText(percent)} kapasite</small>
+      <div className="capacity-metric-meter" aria-hidden="true">
+        <span style={{width: meterPercent + '%'}} />
+      </div>
     </article>
   );
 }
-
 function CapacityCell({minutes, tone}) {
   if (minutes == null) return '—';
   const percent = capacityPercentValue(minutes);
@@ -275,10 +294,10 @@ export function CapacityEnginePage({user, onNavigate}) {
                   </span>
                 )},
                 {key: 'capacity_used_minutes', label: 'Kullanılan süre', render: (r) => (
-                  <CapacityCell minutes={r.capacity_used_minutes} tone={r.capacity_overloaded ? '#b91c1c' : undefined} />
+                  <CapacityCell minutes={r.capacity_used_minutes} tone="#b91c1c" />
                 )},
                 {key: 'capacity_remaining_minutes', label: 'Kalan süre', render: (r) => (
-                  <CapacityCell minutes={r.capacity_remaining_minutes} tone={r.capacity_overloaded ? '#b91c1c' : '#166534'} />
+                  <CapacityCell minutes={r.capacity_remaining_minutes} tone="#166534" />
                 )},
                 {key: 'capacity_overloaded', label: 'Durum', render: (r) => r.capacity_overloaded
                   ? <StatusBadge status="critical" />
@@ -349,8 +368,8 @@ export function ProfessionalCapacityPanel({user}) {
       {data.error && <p style={{margin: '10px 0 0', color: '#b45309', fontSize: 13}}>{data.error}</p>}
 
       <div className="cards" style={{margin: '14px 0 16px'}}>
-        <CapacityMetric label="Kullanılan süre" minutes={professional ? usedMinutes : null} tone={professional?.capacity_overloaded ? '#b91c1c' : undefined} />
-        <CapacityMetric label="Kalan süre" minutes={professional ? capacityRemaining : null} tone={professional?.capacity_overloaded ? '#b91c1c' : '#166534'} />
+        <CapacityMetric label="Kullanılan süre" minutes={professional ? usedMinutes : null} tone="#b91c1c" />
+        <CapacityMetric label="Kalan süre" minutes={professional ? capacityRemaining : null} tone="#166534" />
       </div>
 
       <p style={{fontSize: 12, color: '#64748b', margin: '12px 0 0'}}>
