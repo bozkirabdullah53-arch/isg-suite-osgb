@@ -10,6 +10,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import {api, downloadFile} from './api';
+import {ProfessionalCapacityPanel} from './capacity_engine';
 
 const SEV = {
   overdue: {
@@ -210,6 +211,8 @@ export function DutyDashboard({user, summary, onNavigate}) {
       </div>
 
       {boardError && <div className="error" style={{marginBottom: 12}}>{boardError}</div>}
+
+      <ProfessionalCapacityPanel user={user} />
 
       {data?.quick_actions?.length > 0 && (
         <section className="panel" style={{marginBottom: 16}}>

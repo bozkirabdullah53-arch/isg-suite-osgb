@@ -118,6 +118,26 @@ def _seed(client: TestClient) -> tuple[dict, dict[str, str]]:
                 is_active=True,
             )
         )
+        db.add(
+            User(
+                email="kapasite-uzman@example.com",
+                full_name="Kapasite Uzmanı",
+                hashed_password=get_password_hash("TestPass123!"),
+                role=UserRole.SAFETY_SPECIALIST,
+                osgb_id=osgb.id,
+                is_active=True,
+            )
+        )
+        db.add(
+            User(
+                email="kapasite-hekim@example.com",
+                full_name="Kapasite Hekimi",
+                hashed_password=get_password_hash("TestPass123!"),
+                role=UserRole.WORKPLACE_PHYSICIAN,
+                osgb_id=osgb.id,
+                is_active=True,
+            )
+        )
         db.commit()
         seed = {
             "osgb_id": osgb.id,
@@ -138,6 +158,15 @@ def _capacity(client: TestClient, headers: dict[str, str], osgb_id: int) -> dict
     response = client.get(f"/api/v1/osgb/capacity?osgb_id={osgb_id}", headers=headers)
     assert response.status_code == 200, response.text
     return response.json()
+
+
+def _login_headers(client: TestClient, email: str) -> dict[str, str]:
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "TestPass123!"},
+    )
+    assert login.status_code == 200, login.text
+    return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
 def test_employee_and_nace_changes_recalculate_authoritative_minutes(client):
@@ -242,3 +271,65 @@ def test_bulk_employee_import_recalculates_active_population(client):
     capacity = _capacity(client, headers, seed["osgb_id"])
     assert capacity["workplaces"][0]["employee_count"] == 2
     assert capacity["workplaces"][0]["specialist_requirement"]["required_minutes"] == 40
+
+
+def test_personal_capacity_is_role_scoped_and_reports_normal_capacity(client):
+    seed, admin_headers = _seed(client)
+
+    created = client.post(
+        "/api/v1/employees",
+        headers=admin_headers,
+        json={"company_id": seed["company_id"], "full_name": "Kapasite Personeli"},
+    )
+    assert created.status_code == 200, created.text
+
+    physician_assignment = client.post(
+        "/api/v1/osgb/assignments",
+        headers=admin_headers,
+        json={
+            "osgb_id": seed["osgb_id"],
+            "company_id": seed["company_id"],
+            "professional_id": seed["physician_id"],
+            "professional_type": "workplace_physician",
+            "start_date": date.today().isoformat(),
+            "required_minutes_monthly": 9999,
+            "planned_minutes_monthly": 0,
+            "actual_minutes_monthly": 0,
+            "isg_katip_contract_number": "KAPASITE-KATIP-HEK-002",
+        },
+    )
+    assert physician_assignment.status_code == 200, physician_assignment.text
+
+    specialist_headers = _login_headers(client, "kapasite-uzman@example.com")
+    specialist_response = client.get("/api/v1/dashboard/my-capacity", headers=specialist_headers)
+    assert specialist_response.status_code == 200, specialist_response.text
+    specialist = specialist_response.json()
+    assert {row["professional_id"] for row in specialist["professionals"]} == {seed["professional_id"]}
+    assert {row["professional_type"] for row in specialist["firms"]} == {"safety_specialist"}
+    assert specialist["summary"]["required_minutes_total"] == 20
+    assert specialist["summary"]["planned_minutes_total"] == 20
+    assert specialist["summary"]["actual_minutes_total"] == 0
+    assert specialist["summary"]["remaining_minutes_total"] == 20
+    assert specialist["professionals"][0]["capacity_remaining_minutes"] == 11680
+    specialist_requirement = specialist["firms"][0]["service_requirement"]["roles"]["safety_specialist"]
+    assert specialist_requirement["full_time_threshold_employees"] == 500
+
+    physician_headers = _login_headers(client, "kapasite-hekim@example.com")
+    physician_response = client.get("/api/v1/dashboard/my-capacity", headers=physician_headers)
+    assert physician_response.status_code == 200, physician_response.text
+    physician = physician_response.json()
+    assert {row["professional_id"] for row in physician["professionals"]} == {seed["physician_id"]}
+    assert {row["professional_type"] for row in physician["firms"]} == {"workplace_physician"}
+    assert physician["summary"]["required_minutes_total"] == 10
+    assert physician["summary"]["planned_minutes_total"] == 10
+    assert physician["summary"]["remaining_minutes_total"] == 10
+    assert physician["professionals"][0]["capacity_remaining_minutes"] == 11690
+    physician_requirement = physician["firms"][0]["service_requirement"]["roles"]["workplace_physician"]
+    assert physician_requirement["full_time_threshold_employees"] == 1000
+
+    osgb = _capacity(client, admin_headers, seed["osgb_id"])
+    assert {row["professional_id"] for row in osgb["professionals"]} == {
+        seed["professional_id"],
+        seed["physician_id"],
+    }
+    assert osgb["summary"]["normal_capacity_minutes_total"] == 23400

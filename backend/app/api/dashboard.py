@@ -18,7 +18,8 @@ from app.models.entities import (
     User,
     UserRole,
 )
-from app.api.company_access import assigned_company_ids
+from app.api.company_access import assigned_company_ids, find_professional_for_user
+from app.services.capacity_engine import build_capacity_overview
 from app.services.professional_duty import build_my_duty_board, format_duty_report_txt
 
 logger = logging.getLogger(__name__)
@@ -179,6 +180,48 @@ def my_duties(db: Session = Depends(get_db), user: User = Depends(get_current_us
             "email_notifications": {"enabled": False, "planned": True, "note": ""},
             "error": "Sorumluluk paneli yüklenirken hata oluştu. Yenile’ye basın; devam ederse OSGB yönetimine bildirin.",
         }
+
+
+@router.get("/my-capacity")
+def my_capacity(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Uzman/hekim için yalnızca kendi aylık görevlendirme kapasitesi."""
+    allowed_roles = {
+        UserRole.SAFETY_SPECIALIST,
+        UserRole.WORKPLACE_PHYSICIAN,
+    }
+    if user.role not in allowed_roles:
+        raise HTTPException(403, "Bu kapasite görünümü yalnızca iş güvenliği uzmanı ve işyeri hekimi içindir.")
+
+    professional = find_professional_for_user(db, user)
+    expected_type = {
+        UserRole.SAFETY_SPECIALIST: "safety_specialist",
+        UserRole.WORKPLACE_PHYSICIAN: "workplace_physician",
+    }[user.role]
+    # find_professional_for_user mevcut güvenli eşleştirmeyi yapar; ek tip
+    # kontrolü, hatalı/legacy e-posta eşleşmesinde başka rolün verisini
+    # kişisel panele taşımamasını garanti eder.
+    if professional and getattr(professional.professional_type, "value", professional.professional_type) != expected_type:
+        professional = None
+
+    overview = build_capacity_overview(
+        db,
+        osgb_id=professional.osgb_id if professional else user.osgb_id,
+        professional_id=professional.id if professional else 0,
+    )
+    overview["professional"] = (
+        {
+            "professional_id": professional.id,
+            "full_name": professional.full_name,
+            "professional_type": expected_type,
+            "role_label": "İSG Uzmanı" if expected_type == "safety_specialist" else "İşyeri Hekimi",
+            "certificate_class": professional.certificate_class,
+        }
+        if professional
+        else None
+    )
+    if not professional:
+        overview["error"] = "Kullanıcı aktif bir uzman/hekim kaydıyla eşleşmiyor; kişisel süre verisi bulunamadı."
+    return overview
 
 
 @router.get("/my-duties/export.txt")
