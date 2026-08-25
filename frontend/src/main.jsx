@@ -551,8 +551,7 @@ function Login({done,onApply}){
 function Modal({title,close,children}){return <AppModal title={title} close={close}>{children}</AppModal>}
 function Field({label,...p}){return <label className="field"><span>{label}</span><input {...p}/></label>}
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
-function tableColStyle(c,head=false){if(c.sticky!=='right') return undefined;return {position:'sticky',right:0,zIndex:head?3:2,background:head?'#f2f8f8':'#fff',boxShadow:'-8px 0 12px rgba(15,23,42,.08)',minWidth:c.minWidth||300}}
-function Table({cols,rows,empty='Kayıt bulunamadı.'}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.key} style={tableColStyle(c,true)}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key} style={tableColStyle(c)}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
+function Table({cols,rows,empty='Kayıt bulunamadı.'}){return <div className="table-wrap"><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
 
 /** İşyeri kiosk — QR + salt-okunur denetim durumu. Menü yok; müdahale yok. */
 function SiteQrKioskPage({user,onLogout}){
@@ -789,6 +788,18 @@ function Companies({canEdit, canAdd, onOpen360}){
     <SearchBar q={q} setQ={setQ} go={load}/>
     <Table cols={[
       {key:'name',label:'Firma'},
+      ...(canEdit?[{key:'actions',label:'İşlem',render:r=>(
+        <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
+          <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)} title="İşyeri bilgilerini düzenle">
+            <Pencil size={14} style={{verticalAlign:'middle',marginRight:4}}/>Düzenle
+          </button>
+          {r.is_active
+            ? <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'deactivate')}>Pasife Al</button>
+            : <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>Aktifleştir</button>}
+          <button type="button" className="mini secondary" disabled={busy} onClick={()=>resetKioskLogin(r)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>
+          <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'delete')}>Sil</button>
+        </div>
+      )}]:[]),
       {key:'sgk_registry_no',label:'İşyeri Sicil No'},
       {key:'nace_code',label:'NACE Kodu',render:r=>r.nace_code||'—'},
       {key:'authorized_person',label:'İşveren / Vekili'},
@@ -805,18 +816,6 @@ function Companies({canEdit, canAdd, onOpen360}){
         <button type="button" className="mini secondary" disabled={busy||siteQrBusy} onClick={()=>openSiteQr(r)} title="İşyeri QR kodu">
           <QrCode size={14} style={{verticalAlign:'middle',marginRight:4}}/>QR
         </button>
-      )}]:[]),
-      ...(canEdit?[{key:'actions',label:'İşlem',sticky:'right',minWidth:360,render:r=>(
-        <div className="actions" style={{gap:6,flexWrap:'wrap'}}>
-          <button type="button" className="mini secondary" disabled={busy} onClick={()=>openEdit(r)} title="İşyeri bilgilerini düzenle">
-            <Pencil size={14} style={{verticalAlign:'middle',marginRight:4}}/>Düzenle
-          </button>
-          {r.is_active
-            ? <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'deactivate')}>Pasife Al</button>
-            : <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>Aktifleştir</button>}
-          <button type="button" className="mini secondary" disabled={busy} onClick={()=>resetKioskLogin(r)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>
-          <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'delete')}>Sil</button>
-        </div>
       )}]:[]),
     ]} rows={data}/>
     {open&&<Modal title={editing?'İşyeri Bilgilerini Düzenle':'Yeni Firma'} close={()=>{setOpen(false);setEditing(null)}}>
