@@ -333,3 +333,66 @@ def test_personal_capacity_is_role_scoped_and_reports_normal_capacity(client):
         seed["physician_id"],
     }
     assert osgb["summary"]["normal_capacity_minutes_total"] == 23400
+
+
+def test_assignment_cannot_exceed_specialist_monthly_capacity(client):
+    seed, headers = _seed(client)
+
+    employee = client.post(
+        "/api/v1/employees",
+        headers=headers,
+        json={"company_id": seed["company_id"], "full_name": "Kapasite Sınır Çalışanı"},
+    )
+    assert employee.status_code == 200, employee.text
+
+    def create_company(name: str, registry: str) -> int:
+        response = client.post(
+            "/api/v1/companies",
+            headers=headers,
+            json={
+                "name": name,
+                "sgk_registry_no": registry,
+                "hazard_class": "Tehlikeli",
+                "osgb_id": seed["osgb_id"],
+            },
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["id"]
+
+    company_at_limit = create_company("Kapasite Sınır İşyeri", "SGK-KAPASITE-LIMIT")
+    allowed = client.post(
+        "/api/v1/osgb/assignments",
+        headers=headers,
+        json={
+            "osgb_id": seed["osgb_id"],
+            "company_id": company_at_limit,
+            "professional_id": seed["professional_id"],
+            "professional_type": "safety_specialist",
+            "start_date": date.today().isoformat(),
+            "planned_minutes_monthly": 11680,
+            "isg_katip_contract_number": "KAPASITE-LIMIT-001",
+        },
+    )
+    assert allowed.status_code == 200, allowed.text
+
+    over_limit_company = create_company("Kapasite Aşım İşyeri", "SGK-KAPASITE-OVER")
+    rejected = client.post(
+        "/api/v1/osgb/assignments",
+        headers=headers,
+        json={
+            "osgb_id": seed["osgb_id"],
+            "company_id": over_limit_company,
+            "professional_id": seed["professional_id"],
+            "professional_type": "safety_specialist",
+            "start_date": date.today().isoformat(),
+            "planned_minutes_monthly": 1,
+            "isg_katip_contract_number": "KAPASITE-OVER-001",
+        },
+    )
+    assert rejected.status_code == 422, rejected.text
+    assert "kaydedilemez" in rejected.json()["detail"]
+    assert "195 saat" in rejected.json()["detail"]
+
+    assignments = client.get("/api/v1/osgb/assignments", headers=headers)
+    assert assignments.status_code == 200, assignments.text
+    assert {row["company_id"] for row in assignments.json()} == {seed["company_id"], company_at_limit}
