@@ -494,7 +494,7 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
           onMouseDown={(e) => e.target === e.currentTarget && setInspOpen(false)}
           style={{position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16}}
         >
-          <section className="modal" role="dialog" aria-modal="true" style={{maxWidth: 760, width: '100%', maxHeight: '88vh', overflow: 'auto', background: '#fff', borderRadius: 12, padding: 0}}>
+          <section className="modal" role="dialog" aria-modal="true" style={{maxWidth: 760, width: '100%', maxHeight: '88vh', overflow: 'auto', background: '#fff', color: '#1f2937', borderRadius: 12, padding: 0}}>
             <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, background: '#fff', zIndex: 1}}>
               <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
                 <Gavel size={20} style={{color: '#dc2626'}} />
@@ -573,7 +573,7 @@ export function Customer360Page({companyId, onBack, onNavigate}) {
           onMouseDown={(e) => e.target === e.currentTarget && setAiOpen(false)}
           style={{position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16}}
         >
-          <section className="modal" role="dialog" aria-modal="true" style={{maxWidth: 720, width: '100%', maxHeight: '88vh', overflow: 'auto', background: '#fff', borderRadius: 12, padding: 0}}>
+          <section className="modal" role="dialog" aria-modal="true" style={{maxWidth: 720, width: '100%', maxHeight: '88vh', overflow: 'auto', background: '#fff', color: '#1f2937', borderRadius: 12, padding: 0}}>
             <header style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, background: '#fff', zIndex: 1}}>
               <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
                 <Sparkles size={20} style={{color: '#7c3aed'}} />

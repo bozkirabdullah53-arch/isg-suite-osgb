@@ -87,7 +87,7 @@ function AiAssistantTab({user, companies, reportCompanyId, setReportCompanyId, e
   const companyList = useMemo(() => companies || [], [companies]);
 
   return (
-    <div className="risk-pro-root" style={{padding: 0}}>
+    <div className="risk-pro-root" style={{padding: 0, color: '#1f2937'}}>
       {/* ===================== AI ASİSTAN ===================== */}
       <section className="panel" style={{marginBottom: 16}}>
         <div style={{display: 'flex', gap: 10, alignItems: 'center', marginBottom: 6}}>
