@@ -43,6 +43,8 @@ from app.services import ibys_client, katip_client
 from app.services.mevzuat_panel import build_mevzuat_panel
 from app.services.capacity_engine import (
     build_capacity_overview,
+    ensure_professional_capacity,
+    ProfessionalCapacityExceeded,
     sync_assignment_required,
 )
 from pydantic import EmailStr, TypeAdapter, ValidationError
@@ -108,6 +110,29 @@ def _scope_osgb(user: User, osgb_id: int) -> None:
         return
     if user.role != UserRole.GLOBAL_ADMIN and user.osgb_id != osgb_id:
         raise HTTPException(403, "Bu OSGB kaydına erişim yetkiniz yok.")
+
+
+def _enforce_assignment_capacity(
+    db: Session,
+    *,
+    professional_id: int,
+    planned_minutes: int,
+    exclude_assignment_id: int | None = None,
+) -> dict:
+    """Reject only the assignment that would exceed 195 hours/month."""
+    try:
+        return ensure_professional_capacity(
+            db,
+            professional_id=professional_id,
+            planned_minutes=planned_minutes,
+            exclude_assignment_id=exclude_assignment_id,
+        )
+    except ProfessionalCapacityExceeded as exc:
+        # The caller may already have changed a reactivated row or the
+        # workplace OSGB link. Roll back that request only; the application
+        # and other tenants remain available.
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 @router.get("", response_model=list[OsgbResponse])
 def list_osgb(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
@@ -196,7 +221,19 @@ def sync_assignment_required_minutes(
         raise HTTPException(404, "Görevlendirme bulunamadı.")
     if user.role == UserRole.COMPANY_ADMIN and user.osgb_id != obj.osgb_id:
         raise HTTPException(403, "Bu görevlendirmeyi güncelleyemezsiniz.")
-    legal = sync_assignment_required(db, obj)
+    try:
+        legal = sync_assignment_required(db, obj, commit=False)
+        if obj.status == AssignmentStatus.ACTIVE:
+            _enforce_assignment_capacity(
+                db,
+                professional_id=obj.professional_id,
+                planned_minutes=obj.planned_minutes_monthly,
+                exclude_assignment_id=obj.id,
+            )
+        db.commit()
+        db.refresh(obj)
+    except HTTPException:
+        raise
     return {
         "ok": True,
         "assignment_id": assignment_id,
@@ -219,12 +256,36 @@ def sync_all_required_minutes(
     stmt = select(WorkplaceAssignment).where(WorkplaceAssignment.status == AssignmentStatus.ACTIVE)
     if osgb_id:
         stmt = stmt.where(WorkplaceAssignment.osgb_id == osgb_id)
-    rows = list(db.scalars(stmt).all())
+    row_ids = list(db.scalars(stmt.with_only_columns(WorkplaceAssignment.id)).all())
     updated = 0
-    for a in rows:
-        sync_assignment_required(db, a)
-        updated += 1
-    return {"ok": True, "updated": updated, "message": f"{updated} görevlendirme güncellendi."}
+    skipped: list[dict[str, str | int]] = []
+    for assignment_id in row_ids:
+        a = db.get(WorkplaceAssignment, assignment_id)
+        if not a:
+            continue
+        try:
+            sync_assignment_required(db, a, commit=False)
+            _enforce_assignment_capacity(
+                db,
+                professional_id=a.professional_id,
+                planned_minutes=a.planned_minutes_monthly,
+                exclude_assignment_id=a.id,
+            )
+            db.commit()
+            updated += 1
+        except HTTPException as exc:
+            skipped.append(
+                {
+                    "assignment_id": assignment_id,
+                    "reason": str(exc.detail),
+                }
+            )
+    return {
+        "ok": True,
+        "updated": updated,
+        "skipped": skipped,
+        "message": f"{updated} görevlendirme güncellendi; {len(skipped)} kayıt kapasite nedeniyle atlandı.",
+    }
 
 
 @router.post("/oversight/seed-demo")
@@ -785,8 +846,17 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
         existing.status = AssignmentStatus.ACTIVE
         existing.end_date = payload.end_date
         link_user_to_professional(db, professional)
-        sync_assignment_required(db, existing, commit=False)
-        db.commit()
+        try:
+            sync_assignment_required(db, existing, commit=False)
+            _enforce_assignment_capacity(
+                db,
+                professional_id=existing.professional_id,
+                planned_minutes=existing.planned_minutes_monthly,
+                exclude_assignment_id=existing.id,
+            )
+            db.commit()
+        except HTTPException:
+            raise
         try:
             from app.api.company_access import sync_all_assigned_field_roles
             sync_all_assigned_field_roles(db)
@@ -800,7 +870,15 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
     try:
         # The client field is accepted for old clients but is never authoritative.
         sync_assignment_required(db, obj, commit=False)
+        _enforce_assignment_capacity(
+            db,
+            professional_id=obj.professional_id,
+            planned_minutes=obj.planned_minutes_monthly,
+            exclude_assignment_id=obj.id,
+        )
         db.commit()
+    except HTTPException:
+        raise
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -917,8 +995,17 @@ def activate_assignment(
     obj.status = AssignmentStatus.ACTIVE
     if obj.end_date:
         obj.end_date = None
-    sync_assignment_required(db, obj, commit=False)
-    db.commit()
+    try:
+        sync_assignment_required(db, obj, commit=False)
+        _enforce_assignment_capacity(
+            db,
+            professional_id=obj.professional_id,
+            planned_minutes=obj.planned_minutes_monthly,
+            exclude_assignment_id=obj.id,
+        )
+        db.commit()
+    except HTTPException:
+        raise
     db.refresh(obj)
     try:
         from app.api.company_access import sync_all_assigned_field_roles
