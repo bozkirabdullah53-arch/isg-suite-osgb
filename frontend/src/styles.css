@@ -1367,3 +1367,119 @@ header.workspace-header,
     border-bottom: 0;
   }
 }
+
+/* Capacity cards: clear used-vs-remaining hierarchy without changing calculations. */
+.capacity-metric {
+  --capacity-accent: #166534;
+  --capacity-border: #bbf7d0;
+  --capacity-bg: linear-gradient(135deg, #ffffff 0%, #f4fff8 100%);
+  position: relative;
+  isolation: isolate;
+  box-sizing: border-box;
+  min-height: 142px;
+  padding: 20px 22px 18px;
+  gap: 8px;
+  overflow: hidden;
+  border-color: var(--capacity-border);
+  background: var(--capacity-bg);
+  box-shadow: 0 12px 30px rgba(15, 42, 52, .08);
+}
+.capacity-metric::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--capacity-accent);
+  opacity: .95;
+}
+.capacity-metric::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 150px;
+  height: 150px;
+  top: -72px;
+  right: -58px;
+  border-radius: 50%;
+  background: var(--capacity-accent);
+  opacity: .06;
+  pointer-events: none;
+}
+.capacity-metric-used {
+  --capacity-accent: #b91c1c;
+  --capacity-border: #fecaca;
+  --capacity-bg: linear-gradient(135deg, #ffffff 0%, #fff7f7 100%);
+  box-shadow: 0 12px 30px rgba(185, 28, 28, .09);
+}
+.capacity-metric-remaining {
+  --capacity-accent: #166534;
+  --capacity-border: #bbf7d0;
+  --capacity-bg: linear-gradient(135deg, #ffffff 0%, #f4fff8 100%);
+  box-shadow: 0 12px 30px rgba(22, 101, 52, .09);
+}
+.capacity-metric-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.capacity-metric-head > span:first-child {
+  color: #526a73;
+  font-size: 13px;
+  font-weight: 750;
+}
+.capacity-metric-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--capacity-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--capacity-accent) 12%, transparent);
+}
+.capacity-metric > strong {
+  position: relative;
+  z-index: 1;
+  color: var(--capacity-accent);
+  font-size: clamp(24px, 3vw, 30px);
+  line-height: 1.1;
+  letter-spacing: -.02em;
+  white-space: nowrap;
+}
+.capacity-metric-percent {
+  position: relative;
+  z-index: 1;
+  display: block;
+  margin-top: 0;
+  color: var(--capacity-accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+.capacity-metric-meter {
+  position: relative;
+  z-index: 1;
+  height: 7px;
+  margin-top: auto;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef0;
+}
+.capacity-metric-meter > span {
+  display: block;
+  height: 100%;
+  max-width: 100%;
+  border-radius: inherit;
+  background: var(--capacity-accent);
+  opacity: .9;
+  transition: width .25s ease;
+}
+@media (max-width: 620px) {
+  .capacity-metric {
+    min-height: 128px;
+    padding: 16px 17px 15px;
+  }
+  .capacity-metric > strong {
+    font-size: 22px;
+  }
+}
