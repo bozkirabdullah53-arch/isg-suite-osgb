@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.services.ai_hazard_hint import suggest_hazard_from_text
+from app.services.ai_mevzuat import build_report as build_mevzuat_report
 from app.services.virtual_inspector import inspect_company
 
 ASSISTANT_ENGINE = "assistant-v1"
@@ -59,11 +60,20 @@ def suggest(
         except Exception:
             compliance = None
 
+    # 4. Mevzuat uzmanı raporu (kanun + yonetmelik + tedbir + ceza)
+    mevzuat_report = None
+    if hazard.get("matched"):
+        try:
+            mevzuat_report = build_mevzuat_report(text=blob, hazard_hint=hazard)
+        except Exception:
+            mevzuat_report = None
+
     return {
         "engine": ASSISTANT_ENGINE,
         "hazard_hint": hazard,
         "risk_suggestion": risk_suggestion,
         "compliance_preview": compliance,
+        "mevzuat_report": mevzuat_report,
         "next_actions": _next_actions(hazard, risk_suggestion, compliance),
     }
 
