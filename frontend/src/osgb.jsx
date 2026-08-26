@@ -1753,7 +1753,7 @@ export function VisitsPage({user, onNavigate}){
  const overdueQueue=fieldQueue.filter(r=>r.visit_date&&r.visit_date<todayIso);
  const todayQueue=fieldQueue.filter(r=>r.visit_date===todayIso);
  const upcomingQueue=fieldQueue.filter(r=>r.visit_date&&r.visit_date>todayIso).slice(0,6);
- return <P title={isOsgb?'Saha Ziyaretleri (OSGB İzleme)':'Saha'} action={<div className="field-page-actions" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+ return <P title={isOsgb?'Saha Ziyaretleri (OSGB İzleme)':'Saha'} action={<div className="field-page-actions field-desktop-only" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
   {isOsgb&&<button type="button" onClick={openPlan}><Plus/>Planlı Ziyaret</button>}
   {isField&&<button type="button" onClick={openCreate}><Plus/>Defter kaydı</button>}
  </div>}>
