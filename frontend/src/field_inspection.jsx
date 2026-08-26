@@ -435,7 +435,7 @@ export function FieldInspectionPage({user}) {
     }
   }
 
-  async function downloadDraftReport()
+  async function downloadDraftReport() {
     if (!photos.length) {
       setError("PDF raporu için önce fotoğraf ekleyin.");
       return;
