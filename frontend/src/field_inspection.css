@@ -1071,7 +1071,6 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
   flex-wrap: wrap;
   margin-top: 4px;
 }
-
 .field-recent-actions {
   display: flex;
   align-items: center;
@@ -2235,3 +2234,7 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
     font-size: 18px;
   }
 }
+.field-inspection-mode-tabs{display:flex;gap:8px;max-width:1480px;margin:0 auto;padding:14px clamp(13px,3vw,34px) 0;background:transparent}
+.field-inspection-mode-tabs button{padding:9px 13px;border:1px solid #dbe5ec;border-radius:10px;background:#fff;color:#526b78;font-size:12px;font-weight:800}
+.field-inspection-mode-tabs button.is-active{border-color:#0f766e;background:#eefbf8;color:#0f766e}
+@media (max-width:680px){.field-inspection-mode-tabs{overflow-x:auto;white-space:nowrap}}

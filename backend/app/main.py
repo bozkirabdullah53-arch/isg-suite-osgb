@@ -9,7 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.services.personnel_profile_osgb_scope import install_osgb_service_overrides
 install_osgb_service_overrides()
 
-from app.api import auth, branches, companies, dashboard, employees, personnel_profiles, personnel_profile_management, personnel_profile_osgb, personnel_profile_osgb_documents, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, professional_performance_exports, operations, trainings, training_nace, training_completion, training_lifecycle_v2, training_premium_dashboard_v1, training_presentation, training_presentation_editor, training_question_selection_audit, remote_training, self_service, risks, incidents, ppe, sds, drills, emergency_teams, eisa, eisa_orphan_users, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions
+from app.api import auth, branches, companies, dashboard, employees, personnel_profiles, personnel_profile_management, personnel_profile_osgb, personnel_profile_osgb_documents, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, professional_performance_exports, operations, trainings, training_nace, training_completion, training_lifecycle_v2, training_premium_dashboard_v1, training_presentation, training_presentation_editor, training_question_selection_audit, remote_training, self_service, risks, field_inspections, incidents, ppe, sds, drills, emergency_teams, eisa, eisa_orphan_users, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions
 from app.core.rate_limit import SimpleRateLimitMiddleware
 from app.core.request_id import RequestIdMiddleware, install_request_id_logging
 from app.core.tenant_middleware import TenantContextMiddleware
@@ -22,6 +22,7 @@ from app.core.database import Base, SessionLocal, engine
 # ``create_all``. Production remains Alembic-only, so 0088 is still the
 # authoritative schema change there.
 from app.models import remote_training as _remote_training_models  # noqa: F401
+from app.models import field_inspection as _field_inspection_models  # noqa: F401
 from app.core.version import APP_VERSION
 from app.services.seed import seed_admin, seed_demo_osgbs
 from app.services.training_runtime_patches import install_training_runtime_patches
@@ -142,6 +143,11 @@ async def lifespan(_: FastAPI):
         except Exception:
             logger.exception("hazard_seed failed at startup")
         try:
+            from app.services.field_inspection_catalog import seed_field_catalog
+            seed_field_catalog(db)
+        except Exception:
+            logger.exception("field_inspection_catalog seed failed at startup")
+        try:
             from app.api.company_access import sync_all_assigned_field_roles
             sync_all_assigned_field_roles(db)
         except Exception:
@@ -227,6 +233,7 @@ for router in (
     training_question_bank.router,
     training_question_bank.exam_router,
     risks.router,
+    field_inspections.router,
     incidents.router,
     ppe.router,
     sds.router,

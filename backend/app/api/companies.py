@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import delete, inspect, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -75,6 +75,18 @@ from app.models.entities import (
     WorkplaceDepartment,
 )
 from app.models.entities import OsgbOrganization
+from app.models.field_inspection import (
+    FieldHazard,
+    FieldInspection,
+    FieldInspectionAction,
+    FieldInspectionAnnotation,
+    FieldInspectionArea,
+    FieldInspectionEquipment,
+    FieldInspectionFinding,
+    FieldInspectionLegalReference,
+    FieldInspectionPhoto,
+    FieldInspectionSite,
+)
 from app.schemas.company import CompanyCreate, CompanyCreateResponse, CompanyResponse, CompanyUpdate
 from app.services.company_overview import build_company_overview
 from app.services.capacity_engine import sync_company_service_requirements
@@ -123,6 +135,32 @@ def _ids(db: Session, model, company_id: int) -> list[int]:
 
 def _purge_company_data(db: Session, company_id: int) -> None:
     """Firma ve bağlı tüm operasyonel kayıtları kalıcı siler (kullanıcıları ayırır)."""
+    # Görsel saha denetimi bounded context'i: şirket silinirse yeni tabloların
+    # çocukları da FK sırasıyla temizlenir. Bu blok mevcut /risks kayıtlarına
+    # dokunmaz; migration henüz uygulanmamış eski kurulumlarda da mevcut
+    # şirket silme akışını bozmaz.
+    if inspect(db.get_bind()).has_table("field_inspections"):
+        visual_inspection_ids = _ids(db, FieldInspection, company_id)
+        visual_finding_ids = list(
+            db.scalars(
+                select(FieldInspectionFinding.id).where(
+                    FieldInspectionFinding.inspection_id.in_(visual_inspection_ids)
+                )
+            ).all()
+        ) if visual_inspection_ids else []
+        if visual_finding_ids:
+            db.execute(delete(FieldInspectionLegalReference).where(FieldInspectionLegalReference.finding_id.in_(visual_finding_ids)))
+        if visual_inspection_ids:
+            db.execute(delete(FieldInspectionAnnotation).where(FieldInspectionAnnotation.inspection_id.in_(visual_inspection_ids)))
+            db.execute(delete(FieldInspectionAction).where(FieldInspectionAction.inspection_id.in_(visual_inspection_ids)))
+            db.execute(delete(FieldInspectionFinding).where(FieldInspectionFinding.inspection_id.in_(visual_inspection_ids)))
+            db.execute(delete(FieldInspectionPhoto).where(FieldInspectionPhoto.inspection_id.in_(visual_inspection_ids)))
+            db.execute(delete(FieldInspection).where(FieldInspection.id.in_(visual_inspection_ids)))
+        db.execute(delete(FieldInspectionEquipment).where(FieldInspectionEquipment.company_id == company_id))
+        db.execute(delete(FieldInspectionArea).where(FieldInspectionArea.company_id == company_id))
+        db.execute(delete(FieldInspectionSite).where(FieldInspectionSite.company_id == company_id))
+        db.execute(delete(FieldHazard).where(FieldHazard.company_id == company_id))
+
     risk_ids = _ids(db, RiskAssessment, company_id)
     if risk_ids:
         db.execute(delete(RiskMedia).where(RiskMedia.risk_id.in_(risk_ids)))

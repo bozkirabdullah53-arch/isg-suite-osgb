@@ -2258,3 +2258,9 @@ class EyasEvent(Base):
     ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+# Additive visual field-inspection tables are imported after the legacy entity
+# declarations so ``Base.metadata.create_all`` used by local/test setups also
+# sees them. They remain in their own module and do not alter legacy mappings.
+from app.models import field_inspection as _field_inspection_models  # noqa: E402,F401

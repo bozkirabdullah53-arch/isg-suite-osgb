@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, inspect, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.entities import (
@@ -35,6 +35,7 @@ from app.models.entities import (
     WorkplaceAssignment,
     WorkplaceMeasurement,
 )
+from app.models.field_inspection import FieldInspectionAction
 
 
 def rebuild_company_notifications(db: Session, company_id: int) -> int:
@@ -52,6 +53,7 @@ def rebuild_company_notifications(db: Session, company_id: int) -> int:
                         "annual_plan",
                         "annual_eval",
                         "chemical_product",
+                        "field_action",
                     )
                 ),
             ),
@@ -60,6 +62,30 @@ def rebuild_company_notifications(db: Session, company_id: int) -> int:
     today = date.today()
     warning_date = today + timedelta(days=30)
     notifications: list[Notification] = []
+
+    overdue_field_actions = []
+    # The guard preserves the existing notification endpoint while an older
+    # installation is between application deploy and migration deployment.
+    if inspect(db.get_bind()).has_table("field_inspection_actions"):
+        overdue_field_actions = db.scalars(
+            select(FieldInspectionAction).where(
+                FieldInspectionAction.company_id == company_id,
+                FieldInspectionAction.term_date.is_not(None),
+                FieldInspectionAction.term_date < today,
+                FieldInspectionAction.status.not_in(("completed", "cancelled")),
+            )
+        ).all()
+    for item in overdue_field_actions:
+        notifications.append(
+            Notification(
+                company_id=company_id,
+                type=NotificationType.CRITICAL,
+                title="Görsel saha faaliyeti gecikti",
+                message=f"{item.title} faaliyetinin termin tarihi {item.term_date}; uzman/işveren sorumlusu tarafından gözden geçirilmeli.",
+                entity_type="field_action",
+                entity_id=str(item.id),
+            )
+        )
 
     overdue_isg = db.scalars(
         select(IsgRecord).where(

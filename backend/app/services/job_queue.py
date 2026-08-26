@@ -445,15 +445,20 @@ def _enqueue_redis(r, rec: JobRecord, name: str, fn: Callable[..., Any], args: t
         return False
 
 
-def enqueue(name: str, fn: Callable[..., Any], *args, **kwargs) -> JobRecord:
-    """İş kuyruğa alır. Flag kapalıysa hemen çalıştırır."""
+def enqueue(name: str, fn: Callable[..., Any], *args, _force_async: bool = False, **kwargs) -> JobRecord:
+    """İşi kuyruğa alır; yalnızca yeni akışlar için zorunlu async seçeneği vardır.
+
+    Existing callers retain the historical flag-controlled behavior.  A
+    caller that must never hold an HTTP request open can pass ``_force_async``;
+    the job then uses the existing Redis or in-process worker path.
+    """
     register_handler(name, fn)
     job_id = uuid.uuid4().hex
     rec = JobRecord(id=job_id, name=name)
     with _lock:
         _jobs[job_id] = rec
     _persist(rec)
-    if not async_jobs_enabled():
+    if not _force_async and not async_jobs_enabled():
         _run_job(job_id, name, args, kwargs)
         return rec
     _ensure_worker()

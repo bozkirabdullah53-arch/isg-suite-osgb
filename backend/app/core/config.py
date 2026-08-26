@@ -139,6 +139,23 @@ class Settings(BaseSettings):
     vision_api_model: str = "openai/gpt-5.4-mini"
     vision_api_timeout_sec: int = 30
     vision_max_image_mb: int = 10
+    # GPS'li görsel saha denetimi — yeni akış varsayılan olarak açık, dış AI
+    # çağrısı ise ayrıca izin + anahtar + provider bayraklarına bağlıdır.
+    field_inspection_max_upload_mb: int = 15
+    # 0 = otomatik arşivleme yok; pozitif değer yalnızca açıkça planlanan
+    # retention maintenance işinde kullanılır. Onaylı raporlar varsayılan
+    # olarak korunur.
+    field_inspection_retention_days: int = 0
+    field_ai_enabled: bool = False
+    field_ai_force_off: bool = False
+    field_ai_provider: str = "openai_compatible"
+    field_ai_api_url: str = "https://api.openai.com/v1/chat/completions"
+    field_ai_api_key: str | None = None
+    field_ai_model: str = "gpt-4.1-mini"
+    field_ai_model_version: str = "configured"
+    field_ai_prompt_version: str = "field-visual-v1"
+    field_ai_timeout_seconds: int = 60
+    field_ai_data_processing_allowed: bool = False
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 

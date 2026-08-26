@@ -32,6 +32,7 @@ import {
   saveOfflineReference,
 } from "./field_inspection_offline";
 import {buildMobileSyncStatus, isMobileSyncStatusEnabled} from "./mobile_sync_status";
+import {VisualFieldInspectionPage} from "./visual_field_inspection";
 import "./field_inspection.css";
 
 const EMPTY_FORM = {
@@ -214,7 +215,7 @@ function BboxOverlay({imageSrc, annotations}) {
   );
 }
 
-export function FieldInspectionPage({user}) {
+function LegacyFieldInspectionPage({user}) {
   const scope = useMemo(() => scopeFor(user), [user?.id, user?.osgb_id]);
   const [companies, setCompanies] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -1605,6 +1606,20 @@ export function FieldInspectionPage({user}) {
         </aside>
       </div>
     </section>
+  );
+}
+
+export function FieldInspectionPage({user}) {
+  const [view, setView] = useState("visual");
+  if (user?.role !== "safety_specialist") return <LegacyFieldInspectionPage user={user} />;
+  return (
+    <>
+      <nav className="field-inspection-mode-tabs" aria-label="Saha denetimi görünümü">
+        <button type="button" className={view === "visual" ? "is-active" : ""} onClick={() => setView("visual")}>Görsel denetim</button>
+        <button type="button" className={view === "legacy" ? "is-active" : ""} onClick={() => setView("legacy")}>Hızlı bulgu (mevcut)</button>
+      </nav>
+      {view === "visual" ? <VisualFieldInspectionPage user={user} /> : <LegacyFieldInspectionPage user={user} />}
+    </>
   );
 }
 
