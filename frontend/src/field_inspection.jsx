@@ -886,7 +886,7 @@ export function FieldInspectionPage({user}) {
                 const vErr = visionErr[photo.id];
                 const vBusy = visionBusy === photo.id;
                 return (
-                  <figure key={photo.id} style={{position: "relative"}}>
+                  <figure key={photo.id}>
                     <img src={photo.data_url} alt="Saha kanıtı önizleme" />
                     <button type="button" aria-label="Fotoğrafı kaldır" onClick={() => removePhoto(photo.id)}><X size={15} /></button>
                     <button
