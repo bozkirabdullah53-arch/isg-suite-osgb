@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   Clock3,
   Download,
+  FileText,
   ImagePlus,
   Lightbulb,
   MapPin,
@@ -132,8 +133,53 @@ function compressPhoto(file) {
       };
       image.src = String(reader.result || "");
     };
-    reader.readAsDataURL(file);
+      reader.readAsDataURL(file);
   });
+}
+
+// Fotoğraf üzerinde bounding box çizimi (normalize 0-1 koordinat → px)
+const SEV_COLORS = {5: "#991b1b", 4: "#9a3412", 3: "#92400e", 2: "#1e40af", 1: "#475569"};
+const SEV_LABELS = {5: "Kritik", 4: "Yüksek", 3: "Orta", 2: "Düşük", 1: "Çok düşük"};
+
+function BboxOverlay({imageSrc, annotations}) {
+  const imgRef = useRef(null);
+  const [size, setSize] = useState({w: 0, h: 0});
+
+  useEffect(() => {
+    function update() {
+      if (imgRef.current) setSize({w: imgRef.current.clientWidth, h: imgRef.current.clientHeight});
+    }
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  if (!imageSrc) return null;
+  return (
+    <div className="field-bbox-wrap">
+      <img
+        ref={imgRef}
+        src={imageSrc}
+        alt="Saha kanıtı"
+        onLoad={() => { if (imgRef.current) setSize({w: imgRef.current.clientWidth, h: imgRef.current.clientHeight}); }}
+        className="field-bbox-img"
+      />
+      {annotations?.length > 0 && size.w > 0 && annotations.map((a, i) => {
+        const [x, y, w, h] = a.box || [0, 0, 1, 1];
+        const c = SEV_COLORS[a.severity] || "#475569";
+        return (
+          <div key={i} className="field-bbox-rect" style={{
+            left: x * size.w, top: y * size.h, width: w * size.w, height: h * size.h,
+            borderColor: c,
+          }}>
+            <span className="field-bbox-label" style={{background: c}}>
+              {a.label} · {SEV_LABELS[a.severity] || ""} · %{Math.round((a.confidence || 0) * 100)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export function FieldInspectionPage({user}) {
@@ -146,6 +192,7 @@ export function FieldInspectionPage({user}) {
   const [recent, setRecent] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [photos, setPhotos] = useState([]);
+  const [mode, setMode] = useState("ai");  // "ai" | "manual"
   const [visionResults, setVisionResults] = useState({});  // {photoId: analysis}
   const [visionBusy, setVisionBusy] = useState(null);  // photoId analyzing
   const [visionErr, setVisionErr] = useState({});  // {photoId: msg}
@@ -528,6 +575,48 @@ export function FieldInspectionPage({user}) {
     })));
   }
 
+  function applyAnalysisToForm(analysis) {
+    if (!analysis?.hazards?.length) return;
+    // En yüksek şiddetli tehlikeden form alanlarını doldur
+    const top = [...analysis.hazards].sort((a, b) => (b.severity || 0) - (a.severity || 0))[0];
+    // Kategori eşleştir
+    const matchedCat = categories.find((c) => c.name === top.category);
+    // Tutanak metni: tespit + mevzuat + tedbirler
+    const lines = [];
+    lines.push(`TESPİT: ${top.observed || top.note || "Saha gözlemi"}`);
+    lines.push(`TEHLİKE: ${top.category} (şiddet ${top.severity}/5, güven %${Math.round((top.confidence || 0) * 100)})`);
+    if (top.mevzuat) {
+      lines.push(`İLGİLİ MEVZUAT: ${top.mevzuat.kanun || ""} ${top.mevzuat.madde || ""}`.trim());
+      if (top.mevzuat.yonetmelik) lines.push(`  Yönetmelik: ${top.mevzuat.yonetmelik}`);
+      if (top.mevzuat.standart) lines.push(`  Standart: ${top.mevzuat.standart}`);
+      if (top.mevzuat.ceza_riski) lines.push(`  Ceza riski: ${top.mevzuat.ceza_riski.min_tl?.toLocaleString('tr-TR')}–${top.mevzuat.ceza_riski.max_tl?.toLocaleString('tr-TR')} TL`);
+    }
+    // Alınacak tedbirler (tüm tehlikelerin DÖF önerileri)
+    const tedbirler = [];
+    for (const h of analysis.hazards) {
+      for (const d of (h.dof_suggestions || [])) {
+        tedbirler.push(`• ${d.description}`);
+      }
+    }
+    if (tedbirler.length) lines.push(`ALINACAK TEDBİRLER:\n${tedbirler.join("\n")}`);
+    if (top.termin) lines.push(`TERMİN: ${top.termin.term_days} gün (${top.termin.term_date})`);
+
+    setForm((current) => ({
+      ...current,
+      summary: lines.join("\n"),
+      severity: top.severity || current.severity,
+      category_id: matchedCat ? String(matchedCat.id) : current.category_id,
+      action: tedbirler.length ? tedbirler.join("\n") : current.action,
+      term_date: top.termin?.term_date || current.term_date,
+    }));
+    // Kategori seçildiyse tehlike listesini tetiklemek için tekrar ayarla
+    if (matchedCat) {
+      setTimeout(() => updateField("category_id", String(matchedCat.id)), 0);
+    }
+    setMode("manual");
+    setMessage("AI tespitleri forma aktarıldı. Kontrol edip kaydedin.");
+  }
+
   function resetForm() {
     setForm((current) => ({
       ...EMPTY_FORM,
@@ -676,27 +765,38 @@ export function FieldInspectionPage({user}) {
       )}
 
       <div className="field-inspection-layout">
-        <form className="field-card field-form" onSubmit={submit}>
-          <div className="field-card-title">
+        {/* ===== Mod seçici ===== */}
+        <div className="field-mode-picker" role="tablist">
+          <button type="button" role="tab" aria-selected={mode === "ai"} className={`field-mode-card ${mode === "ai" ? "active" : ""}`} onClick={() => setMode("ai")}>
+            <ScanLine size={22} />
             <div>
-              <span className="eyebrow">1 · Kayıt bağlamı</span>
-              <h2>İşyeri ve tehlike</h2>
+              <strong>AI Destekli</strong>
+              <small>Fotoğraf çek, yapay zeka tespit etsin</small>
             </div>
-            <Camera size={22} />
-          </div>
+          </button>
+          <button type="button" role="tab" aria-selected={mode === "manual"} className={`field-mode-card ${mode === "manual" ? "active" : ""}`} onClick={() => setMode("manual")}>
+            <ClipboardCheck size={22} />
+            <div>
+              <strong>Manuel Giriş</strong>
+              <small>Tüm alanları kendin doldur</small>
+            </div>
+          </button>
+        </div>
 
-          <label className="field-control">
-            <span>İşyeri <b>*</b></span>
-            <select value={form.company_id} onChange={(event) => {
-              updateField("company_id", event.target.value);
-              updateField("department_id", "");
-            }} disabled={referenceLoading || busy}>
-              <option value="">İşyeri seçin</option>
-              {companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-            </select>
-          </label>
+        <form className="field-card field-form" onSubmit={submit}>
+          {/* ===== Ortak bağlam bar (her iki modda) ===== */}
+          <div className="field-context-bar">
+            <label className="field-control">
+              <span>İşyeri <b>*</b></span>
+              <select value={form.company_id} onChange={(event) => {
+                updateField("company_id", event.target.value);
+                updateField("department_id", "");
+              }} disabled={referenceLoading || busy}>
+                <option value="">İşyeri seçin</option>
+                {companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
+              </select>
+            </label>
 
-          <div className="field-two-col">
             <label className="field-control">
               <span>Bölüm / saha alanı</span>
               <select value={form.department_id} onChange={(event) => updateField("department_id", event.target.value)} disabled={!form.company_id || busy}>
@@ -704,10 +804,153 @@ export function FieldInspectionPage({user}) {
                 {departments.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
               </select>
             </label>
+
             <label className="field-control">
               <span>Yeni alan adı</span>
               <input value={form.department_name} onChange={(event) => updateField("department_name", event.target.value)} placeholder="Örn. Pres hattı" disabled={Boolean(form.department_id) || busy} />
             </label>
+
+            <label className="field-control">
+              <span>Gözlem konumu</span>
+              <input value={form.location} onChange={(event) => updateField("location", event.target.value)} placeholder="Örn. Üretim alanı, pres önü" maxLength={220} disabled={busy} />
+            </label>
+
+            <div className="field-gps-row">
+              <button type="button" className="mini secondary" onClick={captureGps} disabled={busy}>
+                <MapPinned size={15} /> {gps.lat ? "Konum güncellendi" : "Konum al"}
+              </button>
+              {gps.lat ? <span><MapPin size={14} /> {gps.lat}, {gps.lng} · ±{gps.accuracy} m</span> : <span>Konum isteğe bağlıdır.</span>}
+            </div>
+          </div>
+
+          {/* ===== AI MODU ===== */}
+          {mode === "ai" && (
+            <div className="field-ai-panel">
+              <div className="field-card-title">
+                <div>
+                  <span className="eyebrow"><ScanLine size={16} /> AI ile saha analizi</span>
+                  <h2>Fotoğraf → tespit → tutanak</h2>
+                </div>
+                <Camera size={22} />
+              </div>
+
+              <div className="field-photo-actions" aria-label="Fotoğraf ekleme">
+                <button type="button" className="field-photo-action primary" onClick={() => cameraInputRef.current?.click()} disabled={busy || photos.length >= 5} aria-label="Kamera ile fotoğraf çek">
+                  <Camera size={22} />
+                  <span><strong>Fotoğraf çek</strong><small>Kamerayı aç</small></span>
+                </button>
+                <button type="button" className="field-photo-action" onClick={() => galleryInputRef.current?.click()} disabled={busy || photos.length >= 5} aria-label="Galeriden fotoğraf seç">
+                  <ImagePlus size={22} />
+                  <span><strong>Galeriden seç</strong><small>En fazla {Math.max(0, 5 - photos.length)} fotoğraf</small></span>
+                </button>
+                <input ref={cameraInputRef} className="field-photo-input" type="file" accept="image/*" capture="environment" onChange={handlePhotoSelect} disabled={busy || photos.length >= 5} aria-label="Kamera dosyası" />
+                <input ref={galleryInputRef} className="field-photo-input" type="file" accept="image/*" multiple onChange={handlePhotoSelect} disabled={busy || photos.length >= 5} aria-label="Galeri dosyası" />
+              </div>
+
+              {photos.length > 0 && (
+                <div className="field-photo-grid">
+                  {photos.map((photo) => {
+                    const va = visionResults[photo.id];
+                    const vErr = visionErr[photo.id];
+                    const vBusy = visionBusy === photo.id;
+                    return (
+                      <figure key={photo.id}>
+                        <img src={photo.data_url} alt="Saha kanıtı önizleme" />
+                        <button type="button" aria-label="Fotoğrafı kaldır" onClick={() => removePhoto(photo.id)}><X size={15} /></button>
+                        <button type="button" className="field-photo-analyze-btn" onClick={() => analyzePhotoVision(photo)} disabled={vBusy} aria-label="AI ile fotoğrafı analiz et">
+                          {vBusy ? <RefreshCw size={14} className="spin" /> : <ScanLine size={14} />}
+                          {vBusy ? "Analiz ediliyor…" : "AI Analiz Et"}
+                        </button>
+                        {vErr && <div className="field-photo-analyze-err">{vErr}</div>}
+                        {va && (
+                          <div className="field-vision-result">
+                            {/* Bbox overlay: fotoğraf üzerinde riskli bölgeler */}
+                            <BboxOverlay imageSrc={photo.data_url} annotations={va.bbox_annotations || []} />
+                            <div className="field-vision-summary">
+                              <ScanLine size={13} />
+                              <strong>{va.summary || "Analiz tamam"}</strong>
+                              <span className="field-vision-provider">{va.provider === "api" ? "Vision API" : va.provider === "yolo" ? "YOLO" : "Heuristik"}</span>
+                            </div>
+
+                            {/* Tutanak: mevzuata göre tespitler */}
+                            <div className="field-tutanak">
+                              <div className="field-tutanak-head"><FileText size={14} /> DENETİM TUTANAĞI</div>
+                              {(va.hazards || []).map((h, hi) => (
+                                <div key={hi} className="field-tutanak-item">
+                                  <div className="field-vision-hazard-head">
+                                    <span className={`field-vision-sev sev-${h.severity}`}>{h.severity}/5</span>
+                                    <strong>{h.category}</strong>
+                                    <span className="field-vision-conf">%{Math.round((h.confidence || 0) * 100)}</span>
+                                  </div>
+                                  {(h.observed || h.note) && <p className="field-vision-obs"><strong>Tespit:</strong> {h.observed || h.note}</p>}
+                                  {h.mevzuat && (
+                                    <div className="field-tutanak-mevzuat">
+                                      <ShieldAlert size={12} /> <strong>Mevzuat:</strong> {h.mevzuat.kanun} {h.mevzuat.madde}
+                                      {h.mevzuat.ceza_riski && <span> · Ceza: {h.mevzuat.ceza_riski.min_tl?.toLocaleString('tr-TR')}–{h.mevzuat.ceza_riski.max_tl?.toLocaleString('tr-TR')} TL</span>}
+                                    </div>
+                                  )}
+                                  {h.recommended_ppe?.length > 0 && (
+                                    <div className="field-vision-ppe"><span>KKD:</span> {h.recommended_ppe.join(", ")}</div>
+                                  )}
+                                  {h.termin && <div className="field-vision-termin">Termin: {h.termin.term_days} gün ({h.termin.term_date})</div>}
+                                  {h.dof_suggestions?.length > 0 && (
+                                    <div className="field-tutanak-tedbir">
+                                      <strong>Alınacak tedbirler:</strong>
+                                      <ul>
+                                        {h.dof_suggestions.map((d, di) => (
+                                          <li key={di}>{d.type === "preventive" ? "Önleyici" : "Düzeltici"}: {d.description}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+
+                            <button type="button" className="field-ai-apply field-ai-apply-big" onClick={() => applyAnalysisToForm(va)} disabled={busy}>
+                              <CheckCircle2 size={15} /> Tespitleri kayda aktar
+                            </button>
+                          </div>
+                        )}
+                      </figure>
+                    );
+                  })}
+                </div>
+              )}
+
+              {photos.length === 0 && (
+                <p className="field-muted field-ai-empty">Fotoğraf çekip veya galeriden seçip "AI Analiz Et" ile başlayın. Yapay zeka uygunsuzlukları fotoğraf üzerinde işaretler, mevzuata göre tespitleri tutanak haline getirir ve alınacak tedbirleri yazar.</p>
+              )}
+
+              {tagCatalog.length > 0 && photos.length > 0 && (
+                <div className="field-tags">
+                  <span>Fotoğraf etiketi (tüm fotoğraflara uygulanır)</span>
+                  <div>
+                    {tagCatalog.map((tag) => {
+                      const aiSuggested = aiHint?.hazard_hint?.suggested_photo_tags?.includes(tag.code);
+                      return (
+                        <label key={tag.code} className={aiSuggested ? "field-ai-tag-suggest" : ""}>
+                          <input type="checkbox" checked={selectedPhotoTags.includes(tag.code)} onChange={() => toggleTag(tag.code)} />
+                          {tag.label}
+                          {aiSuggested && <Sparkles size={11} style={{verticalAlign: 'middle', marginLeft: 4, color: '#7c3aed'}} />}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ===== MANUEL MODU ===== */}
+          {mode === "manual" && (
+            <>
+          <div className="field-card-title">
+            <div>
+              <span className="eyebrow">1 · Tehlike seçimi</span>
+              <h2>Kategori ve tehlike</h2>
+            </div>
+            <Camera size={22} />
           </div>
 
           <div className="field-two-col">
@@ -728,18 +971,6 @@ export function FieldInspectionPage({user}) {
                 {hazards.map((row) => <option key={row.id} value={row.id}>{row.code} · {row.name}</option>)}
               </select>
             </label>
-          </div>
-
-          <label className="field-control">
-            <span>Gözlem konumu</span>
-            <input value={form.location} onChange={(event) => updateField("location", event.target.value)} placeholder="Örn. Üretim alanı, pres önü" maxLength={220} disabled={busy} />
-          </label>
-
-          <div className="field-gps-row">
-            <button type="button" className="mini secondary" onClick={captureGps} disabled={busy}>
-              <MapPinned size={15} /> {gps.lat ? "Konum güncellendi" : "Konum al"}
-            </button>
-            {gps.lat ? <span><MapPin size={14} /> {gps.lat}, {gps.lng} · ±{gps.accuracy} m</span> : <span>Konum isteğe bağlıdır.</span>}
           </div>
 
           <div className="field-card-title compact">
@@ -995,6 +1226,8 @@ export function FieldInspectionPage({user}) {
             <Save size={18} /> {busy ? "Hazırlanıyor…" : online ? "Kaydet ve senkronla" : "Çevrimdışı kuyruğa al"}
           </button>
           <p className="field-legal-note">Kayıt; saha gözlemi, risk puanı, fotoğraf kanıtı ve varsa DÖF aksiyonunu tek zincirde tutar. Resmî bildirim entegrasyonu bu akışın parçası değildir.</p>
+            </>
+          )}
         </form>
 
         <aside className="field-side">

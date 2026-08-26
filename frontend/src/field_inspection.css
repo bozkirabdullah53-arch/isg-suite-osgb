@@ -1162,3 +1162,230 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
 .field-vision-dofs li {
   margin-bottom: 3px;
 }
+
+/* ============================================================
+   0.9.247 — Mod seçici + AI panel + Tutanak + Bbox overlay
+   ============================================================ */
+
+/* ---- Mod seçici ---- */
+.field-mode-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.field-mode-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: #fff;
+  border: 2px solid var(--field-border);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background .15s, box-shadow .15s;
+  color: var(--field-muted);
+}
+.field-mode-card > svg {
+  flex-shrink: 0;
+  color: var(--field-muted);
+  transition: color .15s;
+}
+.field-mode-card div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.field-mode-card strong {
+  font-size: 15px;
+  color: var(--field-ink);
+}
+.field-mode-card small {
+  font-size: 12px;
+  color: var(--field-muted);
+  line-height: 1.3;
+}
+.field-mode-card:hover {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+}
+.field-mode-card.active {
+  border-color: var(--field-primary);
+  background: #f0fdfa;
+  box-shadow: 0 1px 8px rgba(15, 118, 110, .12);
+}
+.field-mode-card.active > svg,
+.field-mode-card.active strong {
+  color: var(--field-primary);
+}
+
+/* ---- Ortak bağlam bar ---- */
+.field-context-bar {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 16px;
+  margin-bottom: 18px;
+  background: var(--field-soft);
+  border: 1px solid var(--field-border);
+  border-radius: 12px;
+}
+.field-context-bar .field-gps-row {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+}
+
+/* ---- AI panel ---- */
+.field-ai-panel {
+  padding: 18px 0;
+  border-top: 1px dashed var(--field-border);
+}
+.field-ai-empty {
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.6;
+  background: #f5f3ff;
+  border-radius: 10px;
+  color: #6d28d9;
+}
+
+/* ---- Bbox overlay (fotoğraf üzerinde) ---- */
+.field-bbox-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.field-bbox-img {
+  max-width: 100%;
+  max-height: 420px;
+  border-radius: 8px;
+  display: block;
+}
+.field-bbox-rect {
+  position: absolute;
+  border: 3px solid;
+  border-radius: 4px;
+  box-sizing: border-box;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .6);
+}
+.field-bbox-label {
+  position: absolute;
+  top: -22px;
+  left: 0;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* ---- Tutanak ---- */
+.field-tutanak {
+  margin: 10px 0;
+  padding: 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-left: 4px solid #d97706;
+  border-radius: 8px;
+}
+.field-tutanak-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  color: #92400e;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #fcd34d;
+}
+.field-tutanak-item {
+  padding: 10px 0;
+  border-bottom: 1px dashed #fde68a;
+}
+.field-tutanak-item:last-child {
+  border-bottom: none;
+}
+.field-tutanak-mevzuat {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0;
+  font-size: 12px;
+  color: #92400e;
+}
+.field-tutanak-mevzuat strong {
+  font-weight: 700;
+}
+.field-tutanak-tedbir {
+  margin-top: 8px;
+  font-size: 12px;
+}
+.field-tutanak-tedbir strong {
+  display: block;
+  color: #92400e;
+  margin-bottom: 4px;
+}
+.field-tutanak-tedbir ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #374151;
+}
+.field-tutanak-tedbir li {
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+/* ---- Büyük "kayda aktar" butonu ---- */
+.field-ai-apply-big {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--field-primary);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s, opacity .15s;
+}
+.field-ai-apply-big:hover:not(:disabled) {
+  background: var(--field-primary-dark);
+}
+.field-ai-apply-big:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 620px) {
+  .field-mode-picker {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .field-context-bar {
+    grid-template-columns: 1fr;
+  }
+}
+@media (min-width: 720px) {
+  .field-context-bar {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .field-context-bar .field-gps-row {
+    grid-column: 1 / -1;
+  }
+}
