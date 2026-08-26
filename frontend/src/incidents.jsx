@@ -1,5 +1,5 @@
-import React, {useEffect, useMemo, useState} from 'react';
-import {Download, Plus, Search, X} from 'lucide-react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {Download, Lightbulb, Plus, Search, Sparkles, X} from 'lucide-react';
 import {api, downloadFile} from './api';
 import {assertIncidentForm} from './validation';
 import {AppModal} from './ui_modal';
@@ -155,6 +155,10 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
   });
   const [tab, setTab] = useState('olay');
   const [dlBusy, setDlBusy] = useState(false);
+  const [dofAi, setDofAi] = useState(null);
+  const [dofAiBusy, setDofAiBusy] = useState(false);
+  const dofAiTimer = useRef(null);
+  const dofAiSeq = useRef(0);
 
   useEffect(() => {
     setTypeFilter(defaultType);
@@ -299,6 +303,42 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
     openDetail(detail.id);
     load();
   }
+
+  async function requestDofAi(text) {
+    const seq = ++dofAiSeq.current;
+    setDofAiBusy(true);
+    try {
+      const r = await api('/risks/assistant', {method: 'POST', body: JSON.stringify({text})});
+      if (seq === dofAiSeq.current) setDofAi(r);
+    } catch {
+      /* öneri yardımcıdır */
+    } finally {
+      if (seq === dofAiSeq.current) setDofAiBusy(false);
+    }
+  }
+
+  function applyDofAi() {
+    if (!dofAi) return;
+    const next = {...dofForm};
+    const actions = (dofAi.next_actions || []).join(' ');
+    if (actions && !next.corrective_action) next.corrective_action = actions.slice(0, 1990);
+    if (dofAi.risk_suggestion) {
+      if (!next.preventive_action) {
+        next.preventive_action = `Önerilen skor: O=${dofAi.risk_suggestion.probability_hint}, Ş=${dofAi.risk_suggestion.severity_hint}. Benzer uygunsuzlukların tekrarını önlemek için kontrol mekanizması kurun.`;
+      }
+    }
+    setDofForm(next);
+    setDofAi(null);
+  }
+
+  useEffect(() => {
+    if (dofAiTimer.current) clearTimeout(dofAiTimer.current);
+    const text = String(dofForm.finding || '').trim();
+    if (text.length < 10) { setDofAi(null); return; }
+    dofAiTimer.current = setTimeout(() => void requestDofAi(text), 900);
+    return () => clearTimeout(dofAiTimer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dofForm.finding]);
 
   async function completeDof(dofId) {
     const note = window.prompt('Etkinlik kontrol notu (isteğe bağlı):', '') || null;
@@ -471,6 +511,27 @@ export function IncidentsPage({user, menuKey = 'near_miss'}) {
               {canEdit && (
                 <form className="form-grid" onSubmit={addDof}>
                   <TextArea label="Tespit edilen uygunsuzluk (min. 10 karakter)" required value={dofForm.finding} onChange={(e) => setDofForm({...dofForm, finding: e.target.value})} />
+                  {(dofAiBusy || dofAi) && (
+                    <div className="field-ai-suggest" style={{gridColumn: '1 / -1'}}>
+                      {dofAiBusy && !dofAi && (
+                        <div className="field-ai-suggest-head"><Sparkles size={15} style={{animation: 'field-ai-rot 0.9s linear infinite', color: '#7c3aed'}} /><span>AI aksiyon önerisi hazırlanıyor…</span></div>
+                      )}
+                      {dofAi && (
+                        <>
+                          <div className="field-ai-suggest-head">
+                            <Sparkles size={15} style={{color: '#7c3aed'}} /><strong>AI Aksiyon Önerisi</strong>
+                            {dofAi.hazard_hint?.matched && <span className="field-ai-chip">{dofAi.hazard_hint.suggested_category}</span>}
+                          </div>
+                          {dofAi.next_actions?.length > 0 && (
+                            <ul style={{margin: '4px 0 8px', paddingLeft: 18, fontSize: 13, color: '#374151'}}>
+                              {dofAi.next_actions.map((a, i) => <li key={i}>{a}</li>)}
+                            </ul>
+                          )}
+                          <button type="button" className="field-ai-apply" onClick={applyDofAi}><Lightbulb size={14} /> Öneriyi aksiyon alanlarına uygula</button>
+                        </>
+                      )}
+                    </div>
+                  )}
                   <TextArea label="Kök neden" value={dofForm.root_cause} onChange={(e) => setDofForm({...dofForm, root_cause: e.target.value})} />
                   <TextArea label="Düzeltici faaliyet" required value={dofForm.corrective_action} onChange={(e) => setDofForm({...dofForm, corrective_action: e.target.value})} />
                   <TextArea label="Önleyici faaliyet" required value={dofForm.preventive_action} onChange={(e) => setDofForm({...dofForm, preventive_action: e.target.value})} />

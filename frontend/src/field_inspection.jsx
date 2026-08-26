@@ -6,11 +6,13 @@ import {
   ClipboardCheck,
   Clock3,
   ImagePlus,
+  Lightbulb,
   MapPin,
   MapPinned,
   RefreshCw,
   Save,
   ShieldAlert,
+  Sparkles,
   Wifi,
   WifiOff,
   X,
@@ -154,6 +156,10 @@ export function FieldInspectionPage({user}) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [referenceLoading, setReferenceLoading] = useState(true);
+  const [aiHint, setAiHint] = useState(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const aiTimer = useRef(null);
+  const aiSeq = useRef(0);
 
   const mobileSyncStatusEnabled = isMobileSyncStatusEnabled();
   const pendingCount = pending.length;
@@ -171,6 +177,59 @@ export function FieldInspectionPage({user}) {
   function updateField(name, value) {
     setForm((current) => ({...current, [name]: value}));
   }
+
+  async function requestAiHint(text) {
+    const seq = ++aiSeq.current;
+    setAiBusy(true);
+    try {
+      const body = {text};
+      if (form.company_id) body.company_id = Number(form.company_id);
+      const r = await api("/risks/assistant", {method: "POST", body: JSON.stringify(body)});
+      if (seq === aiSeq.current) setAiHint(r);
+    } catch {
+      /* öneri yardımcıdır; hata formu bozmaz */
+    } finally {
+      if (seq === aiSeq.current) setAiBusy(false);
+    }
+  }
+
+  function applyAiHint() {
+    if (!aiHint) return;
+    const hh = aiHint.hazard_hint;
+    const rs = aiHint.risk_suggestion;
+    const next = {...form};
+    if (hh?.matched) {
+      const cat = categories.find((c) => c.name === hh.suggested_category);
+      if (cat) next.category_id = String(cat.id);
+    }
+    if (rs) {
+      if (rs.probability_hint) next.probability = rs.probability_hint;
+      if (rs.severity_hint) next.severity = rs.severity_hint;
+    }
+    if (aiHint.compliance_preview?.compliance_score != null && aiHint.compliance_preview.compliance_score < 60) {
+      if (!next.action) next.action = "Mevzuat uyum skoru düşük — düzeltici aksiyon planı hazırlayın.";
+    }
+    setForm(next);
+    if (hh?.suggested_photo_tags?.length) {
+      setSelectedPhotoTags((current) => {
+        const merged = new Set([...current, ...hh.suggested_photo_tags]);
+        return Array.from(merged);
+      });
+    }
+    setAiHint(null);
+  }
+
+  useEffect(() => {
+    if (aiTimer.current) clearTimeout(aiTimer.current);
+    const text = String(form.summary || "").trim();
+    if (text.length < 5) {
+      setAiHint(null);
+      return;
+    }
+    aiTimer.current = setTimeout(() => void requestAiHint(text), 900);
+    return () => clearTimeout(aiTimer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.summary]);
 
   function refreshPending() {
     setPending(listOfflineFindings(scope));
@@ -632,6 +691,51 @@ export function FieldInspectionPage({user}) {
             <span>Uygunsuzluk / risk tanımı <b>*</b></span>
             <textarea value={form.summary} onChange={(event) => updateField("summary", event.target.value)} placeholder="Ne gördünüz, hangi çalışanı veya süreci etkiliyor?" rows={4} maxLength={2000} disabled={busy} />
           </label>
+
+          {(aiBusy || aiHint) && (
+            <div className="field-ai-suggest" role="status" aria-live="polite">
+              {aiBusy && !aiHint && (
+                <div className="field-ai-suggest-head">
+                  <Sparkles size={15} className="field-ai-spin" />
+                  <span>AI öneri hazırlanıyor…</span>
+                </div>
+              )}
+              {aiHint && (
+                <>
+                  <div className="field-ai-suggest-head">
+                    <Sparkles size={15} style={{color: "#7c3aed"}} />
+                    <strong>AI Önerisi</strong>
+                    {aiHint.hazard_hint?.matched && (
+                      <span className="field-ai-chip">
+                        {aiHint.hazard_hint.suggested_category} · {Math.round((aiHint.hazard_hint.confidence || 0) * 100)}%
+                      </span>
+                    )}
+                  </div>
+                  {aiHint.hazard_hint?.matched && (
+                    <div className="field-ai-suggest-body">
+                      {aiHint.risk_suggestion && (
+                        <div className="field-ai-suggest-scores">
+                          <span>O={aiHint.risk_suggestion.probability_hint}</span>
+                          <span>Ş={aiHint.risk_suggestion.severity_hint}</span>
+                          <span className="field-ai-suggest-score">{(aiHint.risk_suggestion.probability_hint || 0) * (aiHint.risk_suggestion.severity_hint || 0)}</span>
+                        </div>
+                      )}
+                      {aiHint.hazard_hint.suggested_photo_tags?.length > 0 && (
+                        <div className="field-ai-tags">
+                          {aiHint.hazard_hint.suggested_photo_tags.map((t) => (
+                            <span key={t} className="field-ai-tag">{t}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <button type="button" className="field-ai-apply" onClick={applyAiHint} disabled={busy}>
+                    <Lightbulb size={14} /> Öneriyi forma uygula
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           <label className="field-control">
             <span>Mevcut önlemler</span>
