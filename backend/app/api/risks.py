@@ -2185,6 +2185,63 @@ def _parse_photo_tags(media: RiskMedia) -> list[str]:
     return list(parsed.get("selected") or [])
 
 
+@router.post("/vision-analyze", response_model=VisionAnalysisResponse)
+async def vision_analyze_stateless(
+    file: UploadFile = File(...),
+    activity: str | None = Form(default=None),
+    risk_definition: str | None = Form(default=None),
+    photo_tags: str | None = Form(default=None),
+    note: str | None = Form(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Saha fotoğrafını anında analiz eder (risk kaydı oluşturmadan).
+
+    Saha denetimi sayfasında uzman fotoğraf çeker → bu endpoint'e gönderilir →
+    AI görüntü analiz sonucu (tehlikeler, bbox, mevzuat, DÖF önerileri, termin)
+    döner. Kayıt henüz DB'ye yazılmadığı için risk_id/media_id yoktur; sonuç
+    yalnızca istemciye gösterilir. Uzman, kaydı kaydettikten sonra isterse
+    /media/{id}/analyze ile kalıcı analiz oluşturabilir.
+
+    Feature flag kapalıysa 501; hata durumunda heuristic-fallback döner.
+    photo_tags: JSON dizi ["electrical","fire_hot_work"] veya virgüllü kodlar.
+    """
+    if not vision_analysis_active():
+        raise HTTPException(501, "Saha AI analizi şu anda kapalı (VISION_ANALYSIS_ENABLED).")
+
+    raw = await file.read()
+    max_bytes = settings.vision_max_image_mb * 1024 * 1024
+    if len(raw) > max_bytes:
+        raise HTTPException(413, f"Görüntü {settings.vision_max_image_mb} MB sınırını aşıyor.")
+    if not raw:
+        raise HTTPException(422, "Görüntü boş.")
+
+    tags = parse_form_tags(photo_tags) if photo_tags else []
+
+    result = build_full_analysis(
+        image_bytes=raw,
+        media_text=(note or "").strip(),
+        photo_tags=tags,
+        risk_activity=(activity or "").strip(),
+        risk_definition=(risk_definition or "").strip(),
+    )
+
+    add_audit_log(
+        db,
+        user=user,
+        action="vision_analyze_stateless",
+        entity_type="risk_media",
+        entity_id=None,
+        description=f"Stateless saha fotoğrafı AI analizi: {result.get('provider')} / {result.get('summary', '')[:120]}",
+        module="risk",
+    )
+    db.commit()
+    # DB'ye analiz kaydı yazılmaz (stateless); yalnızca audit log.
+    result["id"] = None
+    result["media_id"] = None
+    return result
+
+
 @router.post("/{risk_id}/media/{media_id}/analyze", response_model=VisionAnalysisResponse)
 def analyze_risk_media(
     risk_id: int,

@@ -1025,3 +1025,137 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
   flex-wrap: wrap;
   margin-top: 4px;
 }
+
+/* ===== 0.9.246 — Saha AI vision analizi (fotoğraf başına inline) ===== */
+.field-photo-grid figure {
+  position: relative;
+}
+.field-photo-analyze-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  justify-content: center;
+  margin-top: 6px;
+  padding: 7px 10px;
+  border: 1px solid #ddd6fe;
+  background: #f5f3ff;
+  color: #6d28d9;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.field-photo-analyze-btn:hover:not(:disabled) {
+  background: #ede9fe;
+}
+.field-photo-analyze-btn:disabled {
+  opacity: .6;
+  cursor: wait;
+}
+.field-photo-analyze-err {
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 8px;
+  font-size: 11px;
+}
+.field-vision-result {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 12px;
+}
+.field-vision-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  color: #4338ca;
+}
+.field-vision-provider {
+  background: #ede9fe;
+  color: #6d28d9;
+  border-radius: 99px;
+  padding: 1px 8px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.field-vision-hazard {
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+.field-vision-hazard-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.field-vision-sev {
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+}
+.field-vision-sev.sev-5 { background: #991b1b; }
+.field-vision-sev.sev-4 { background: #9a3412; }
+.field-vision-sev.sev-3 { background: #92400e; }
+.field-vision-sev.sev-2 { background: #1e40af; }
+.field-vision-sev.sev-1 { background: #475569; }
+.field-vision-conf {
+  margin-left: auto;
+  font-size: 11px;
+  color: #64748b;
+}
+.field-vision-obs {
+  margin: 0 0 4px;
+  color: #475569;
+  line-height: 1.4;
+}
+.field-vision-ppe {
+  font-size: 11px;
+  color: #1e40af;
+  margin-bottom: 4px;
+}
+.field-vision-ppe span {
+  font-weight: 700;
+}
+.field-vision-mevzuat {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: #92400e;
+  margin-bottom: 4px;
+}
+.field-vision-termin {
+  font-size: 11px;
+  color: #166534;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.field-vision-dofs summary {
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563eb;
+}
+.field-vision-dofs ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 11px;
+  color: #374151;
+}
+.field-vision-dofs li {
+  margin-bottom: 3px;
+}

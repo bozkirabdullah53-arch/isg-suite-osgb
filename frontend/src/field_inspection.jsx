@@ -12,6 +12,7 @@ import {
   MapPinned,
   RefreshCw,
   Save,
+  ScanLine,
   ShieldAlert,
   Sparkles,
   Wifi,
@@ -144,6 +145,9 @@ export function FieldInspectionPage({user}) {
   const [recent, setRecent] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [photos, setPhotos] = useState([]);
+  const [visionResults, setVisionResults] = useState({});  // {photoId: analysis}
+  const [visionBusy, setVisionBusy] = useState(null);  // photoId analyzing
+  const [visionErr, setVisionErr] = useState({});  // {photoId: msg}
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
   const [selectedPhotoTags, setSelectedPhotoTags] = useState([]);
@@ -467,6 +471,31 @@ export function FieldInspectionPage({user}) {
 
   function removePhoto(id) {
     setPhotos((current) => current.filter((photo) => photo.id !== id));
+    setVisionResults((current) => { const n = {...current}; delete n[id]; return n; });
+  }
+
+  async function analyzePhotoVision(photo) {
+    if (!photo) return;
+    setVisionBusy(photo.id);
+    setVisionErr((cur) => { const n = {...cur}; delete n[photo.id]; return n; });
+    try {
+      // data_url (base64) → Blob → File
+      const resp = await fetch(photo.data_url);
+      const blob = await resp.blob();
+      const file = new File([blob], photo.name || "saha.jpg", {type: "image/jpeg"});
+      const fd = new FormData();
+      fd.append("file", file);
+      const deptLabel = selectedDepartment?.name || form.department_name || "Saha";
+      fd.append("activity", `Saha denetimi — ${String(form.location || "").trim() || deptLabel}`);
+      fd.append("risk_definition", String(form.summary || "").trim());
+      if (selectedPhotoTags.length) fd.append("photo_tags", JSON.stringify({selected: selectedPhotoTags}));
+      const r = await api("/risks/vision-analyze", {method: "POST", body: fd, timeoutMs: 60000});
+      setVisionResults((cur) => ({...cur, [photo.id]: r}));
+    } catch (ex) {
+      setVisionErr((cur) => ({...cur, [photo.id]: ex.message || "AI analizi başarısız."}));
+    } finally {
+      setVisionBusy(null);
+    }
   }
 
   function toggleTag(code) {
@@ -487,6 +516,8 @@ export function FieldInspectionPage({user}) {
       company_id: current.company_id,
     }));
     setPhotos([]);
+    setVisionResults({});
+    setVisionErr({});
     setSelectedPhotoTags([]);
     setGps({lat: null, lng: null, accuracy: null, captured_at: null});
   }
@@ -850,12 +881,77 @@ export function FieldInspectionPage({user}) {
           </div>
           {photos.length > 0 && (
             <div className="field-photo-grid">
-              {photos.map((photo) => (
-                <figure key={photo.id}>
-                  <img src={photo.data_url} alt="Saha kanıtı önizleme" />
-                  <button type="button" aria-label="Fotoğrafı kaldır" onClick={() => removePhoto(photo.id)}><X size={15} /></button>
-                </figure>
-              ))}
+              {photos.map((photo) => {
+                const va = visionResults[photo.id];
+                const vErr = visionErr[photo.id];
+                const vBusy = visionBusy === photo.id;
+                return (
+                  <figure key={photo.id} style={{position: "relative"}}>
+                    <img src={photo.data_url} alt="Saha kanıtı önizleme" />
+                    <button type="button" aria-label="Fotoğrafı kaldır" onClick={() => removePhoto(photo.id)}><X size={15} /></button>
+                    <button
+                      type="button"
+                      className="field-photo-analyze-btn"
+                      onClick={() => analyzePhotoVision(photo)}
+                      disabled={vBusy}
+                      aria-label="AI ile fotoğrafı analiz et"
+                    >
+                      {vBusy ? <RefreshCw size={14} className="spin" /> : <ScanLine size={14} />}
+                      {vBusy ? "Analiz…" : "AI Analiz Et"}
+                    </button>
+                    {vErr && <div className="field-photo-analyze-err">{vErr}</div>}
+                    {va && (
+                      <div className="field-vision-result">
+                        <div className="field-vision-summary">
+                          <ScanLine size={13} />
+                          <strong>{va.summary || "Analiz tamam"}</strong>
+                          <span className="field-vision-provider">
+                            {va.provider === "api" ? "Vision API" : va.provider === "yolo" ? "YOLO" : "Heuristik"}
+                          </span>
+                        </div>
+                        {(va.hazards || []).map((h, hi) => (
+                          <div key={hi} className="field-vision-hazard">
+                            <div className="field-vision-hazard-head">
+                              <span className={`field-vision-sev sev-${h.severity}`}>{h.severity}/5</span>
+                              <strong>{h.category}</strong>
+                              <span className="field-vision-conf">%{Math.round((h.confidence || 0) * 100)}</span>
+                            </div>
+                            {(h.observed || h.note) && <p className="field-vision-obs">{h.observed || h.note}</p>}
+                            {h.recommended_ppe?.length > 0 && (
+                              <div className="field-vision-ppe">
+                                <span>KKD:</span> {h.recommended_ppe.join(", ")}
+                              </div>
+                            )}
+                            {h.mevzuat && (
+                              <div className="field-vision-mevzuat">
+                                <ShieldAlert size={12} /> {h.mevzuat.kanun} {h.mevzuat.madde}
+                                {h.mevzuat.ceza_riski && (
+                                  <span> · Ceza: {h.mevzuat.ceza_riski.min_tl?.toLocaleString('tr-TR')}–{h.mevzuat.ceza_riski.max_tl?.toLocaleString('tr-TR')} TL</span>
+                                )}
+                              </div>
+                            )}
+                            {h.termin && (
+                              <div className="field-vision-termin">
+                                Termin: {h.termin.term_days} gün ({h.termin.term_date})
+                              </div>
+                            )}
+                            {h.dof_suggestions?.length > 0 && (
+                              <details className="field-vision-dofs">
+                                <summary>{h.dof_suggestions.length} DÖF önerisi</summary>
+                                <ul>
+                                  {h.dof_suggestions.map((d, di) => (
+                                    <li key={di}>{d.type === "preventive" ? "Önleyici" : "Düzeltici"}: {d.description}</li>
+                                  ))}
+                                </ul>
+                              </details>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </figure>
+                );
+              })}
             </div>
           )}
 
