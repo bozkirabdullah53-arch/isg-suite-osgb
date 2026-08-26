@@ -62,7 +62,7 @@ class BboxAnnotation(BaseModel):
 class VisionAnalysisResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int | None = None
-    media_id: int
+    media_id: int | None = None
     engine: str
     provider: str
     analyzed_at: str
