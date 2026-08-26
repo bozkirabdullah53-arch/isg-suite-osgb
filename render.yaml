@@ -128,6 +128,13 @@ services:
         value: "common-basic-ohs,construction-ohs,metal-machine-ohs,battery-production-ohs,food-production-ohs,logistics-warehouse-transport-ohs,chemical-paint-production-ohs,open-mine-quarry-aggregate-ohs,road-asphalt-infrastructure-ohs,office-general-ohs,health-services-ohs,working-at-height-ohs"
       - key: REMOTE_BASIC_OHS_STRICT_POLICY_PILOT_COMPANY_IDS
         value: ""
+      # 0.9.246 — Saha fotoğrafı AI risk analizi. Default heuristic mod
+      # (ücretli API key gerekmez, görüntü içeriği analiz edilmez).
+      # vision_provider=api + vision_api_key ile gerçek görüntü analizi açılır.
+      - key: VISION_ANALYSIS_ENABLED
+        value: "true"
+      - key: VISION_PROVIDER
+        value: "heuristic"
 
   - type: cron
     name: isg-suite-api-warmup
