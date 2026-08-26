@@ -198,6 +198,7 @@ ASSET_MIME_TYPES = {
 # already-created employee exam.
 REMOTE_AUTO_EXAM_PACKS = {
     "common-basic-ohs": "common.json",
+    "emergency-teams-ohs": "emergency-teams-10.json",
     "construction-ohs": "sector-construction.json",
     "metal-machine-ohs": "sector-metal.json",
     "battery-production-ohs": "sector-battery.json",
@@ -215,6 +216,7 @@ REMOTE_AUTO_EXAM_PACKS = {
 # places an unrelated sector question in the package.
 REMOTE_AUTO_EXAM_PACKAGE_SCOPES = {
     "common-basic-ohs": {"*"},
+    "emergency-teams-ohs": {"*"},
     "construction-ohs": {"F"},
     "metal-machine-ohs": {"kaynakli_imalat", "makine_imalat", "metal_isleme_torna_freze"},
     "battery-production-ohs": {"aku_uretimi"},

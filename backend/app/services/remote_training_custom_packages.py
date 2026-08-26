@@ -36,7 +36,7 @@ CUSTOM_PACKAGE_PREFIX = "custom--"
 # introduced; unrelated sector banks are never substituted.
 CUSTOM_SECTOR_BASE_PACKAGE = {
     "common": "common-basic-ohs",
-    "emergency_teams": "common-basic-ohs",
+    "emergency_teams": "emergency-teams-ohs",
     "construction": "construction-ohs",
     "battery": "battery-production-ohs",
     "metal": "metal-machine-ohs",

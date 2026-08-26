@@ -39,6 +39,8 @@ def test_all_requested_remote_sector_categories_are_selectable_and_mapped():
             if sector_code == "health"
             else "battery-production-ohs"
             if sector_code == "battery"
+            else "emergency-teams-ohs"
+            if sector_code == "emergency_teams"
             else "common-basic-ohs"
         )
         assert custom_package_base_code(custom_code) == expected_base

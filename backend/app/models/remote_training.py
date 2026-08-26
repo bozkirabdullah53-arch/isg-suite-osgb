@@ -152,6 +152,7 @@ REMOTE_SECTOR_LABELS = {item[0]: item[1] for item in REMOTE_SECTOR_CATALOG}
 # sector mapping.
 REMOTE_CATALOG_PACKAGE_SECTOR_CODES = {
     "common-basic-ohs": "common",
+    "emergency-teams-ohs": "emergency_teams",
     "construction-ohs": "construction",
     "metal-machine-ohs": "metal",
     "battery-production-ohs": "battery",

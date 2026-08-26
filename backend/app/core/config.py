@@ -118,8 +118,8 @@ class Settings(BaseSettings):
     remote_basic_ohs_strict_policy_enabled: bool = False
     remote_basic_ohs_strict_policy_force_off: bool = False
     # Comma-separated package codes allowed in the strict pilot.  The default
-    # includes the reviewed height and health packages.
-    remote_basic_ohs_strict_policy_package_codes: str = "working-at-height-ohs,health-services-ohs"
+    # includes the reviewed height, health and emergency-team packages.
+    remote_basic_ohs_strict_policy_package_codes: str = "working-at-height-ohs,health-services-ohs,emergency-teams-ohs"
     # Optional company allowlist.  Empty means package-code scope only; when
     # populated, only the listed company ids can publish/assign strict pilots.
     remote_basic_ohs_strict_policy_pilot_company_ids: str = ""

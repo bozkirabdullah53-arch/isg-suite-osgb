@@ -125,7 +125,7 @@ services:
       - key: REMOTE_BASIC_OHS_STRICT_POLICY_FORCE_OFF
         value: "false"
       - key: REMOTE_BASIC_OHS_STRICT_POLICY_PACKAGE_CODES
-        value: "common-basic-ohs,construction-ohs,metal-machine-ohs,battery-production-ohs,food-production-ohs,logistics-warehouse-transport-ohs,chemical-paint-production-ohs,open-mine-quarry-aggregate-ohs,road-asphalt-infrastructure-ohs,office-general-ohs,health-services-ohs,working-at-height-ohs"
+        value: "common-basic-ohs,construction-ohs,metal-machine-ohs,battery-production-ohs,food-production-ohs,logistics-warehouse-transport-ohs,chemical-paint-production-ohs,open-mine-quarry-aggregate-ohs,road-asphalt-infrastructure-ohs,office-general-ohs,health-services-ohs,working-at-height-ohs,emergency-teams-ohs"
       - key: REMOTE_BASIC_OHS_STRICT_POLICY_PILOT_COMPANY_IDS
         value: ""
       # 0.9.246 — Saha fotoğrafı AI risk analizi. Default heuristic mod

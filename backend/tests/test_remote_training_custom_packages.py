@@ -26,6 +26,22 @@ def test_custom_package_code_keeps_selected_sector_and_reviewed_exam_pack():
     )
 
 
+def test_emergency_teams_custom_package_uses_one_shared_ten_question_exam():
+    from app.services.remote_training_custom_packages import (
+        automatic_exam_items_for_package_with_custom,
+        custom_package_base_code,
+    )
+
+    code = "custom--emergency_teams--abc123"
+    assert custom_package_base_code(code) == "emergency-teams-ohs"
+
+    items = automatic_exam_items_for_package_with_custom(code)
+    assert len(items) == 10
+    assert len({item["question_code"] for item in items}) == 10
+    assert len({item["topic_code"] for item in items}) == 10
+    assert all(item["scopes"] == [{"type": "common", "value": "*"}] for item in items)
+
+
 def test_custom_package_unknown_or_unreviewed_sector_fails_closed():
     import pytest
 

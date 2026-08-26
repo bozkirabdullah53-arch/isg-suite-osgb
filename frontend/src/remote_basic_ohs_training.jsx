@@ -41,6 +41,7 @@ const REMOTE_SECTOR_LABELS = {
 };
 const REMOTE_PACKAGE_LABELS = {
   'common-basic-ohs': 'Ortak Temel İSG',
+  'emergency-teams-ohs': 'Acil Durum Ekiplerinin Eğitimleri',
   'construction-ohs': 'İnşaat',
   'metal-machine-ohs': 'Metal-Makine',
   'battery-production-ohs': 'Akü-Batarya',
@@ -55,6 +56,7 @@ const REMOTE_PACKAGE_LABELS = {
 };
 const REMOTE_PACKAGE_SECTOR_CODES = {
   'common-basic-ohs': 'common',
+  'emergency-teams-ohs': 'emergency_teams',
   'construction-ohs': 'construction',
   'metal-machine-ohs': 'metal',
   'battery-production-ohs': 'battery',

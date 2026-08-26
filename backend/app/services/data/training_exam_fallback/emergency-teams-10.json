@@ -1,0 +1,309 @@
+{
+  "items": [
+    {
+      "question_code": "TR-ACIL-EKIP-001",
+      "version": 1,
+      "topic_code": "EKIPLERIN-YAPISI",
+      "topic_label": "Acil durum ekiplerinin yapısı",
+      "question_text": "İşyerlerinde acil durum ekipleri hangi ekiplerden oluşturulur?",
+      "options": [
+        "Söndürme, kurtarma, koruma ve ilk yardım ekipleri",
+        "Üretim, satın alma, kalite ve insan kaynakları ekipleri",
+        "Yalnızca yangın ve güvenlik ekipleri",
+        "Yalnızca ilk yardım ve tahliye ekipleri"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "İşyerlerinde acil durum ekipleri söndürme, kurtarma, koruma ve ilk yardım ekiplerinden oluşturulur.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "ÇSGB – İş Sağlığı ve Güvenliği Genel Müdürlüğü Sıkça Sorulan Sorular",
+          "url": "https://www.csgb.gov.tr/sikca-sorulan-sorular/is-sagligi-ve-guvenligi-genel-mudurlugu/",
+          "reference": "Soru 36: Acil durum ekipleri ve destek elemanı eğitimleri"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ACIL-EKIP-002",
+      "version": 1,
+      "topic_code": "MUDAHALE-GUVENLIGI",
+      "topic_label": "Müdahale sırasında güvenlik",
+      "question_text": "Acil durum müdahalesinde ekip üyesinin ilk önceliği hangisidir?",
+      "options": [
+        "Kendini ve diğer çalışanları yeni bir tehlikeye sokmadan, görevi ve planı doğrultusunda hareket etmek",
+        "Ne olursa olsun tek başına olayın merkezine girmek",
+        "Önce kişisel eşyaları ve belgeleri dışarı çıkarmak",
+        "Profesyonel ekipler gelmeden tüm ekipmanları söküp taşımak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Acil durumda müdahale edilirken ekip üyesi kendisini ve başkalarını tehlikeye atmamalı, eğitimine, görevine ve acil durum planına göre hareket etmelidir.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "AFAD – Yangınlara Karşı Alınması Gereken Önlemler",
+          "url": "https://www.afad.gov.tr/yanginlara-karsi-alinmasi-gereken-onlemler",
+          "reference": "Yangın sırasında kendimizin ve başkalarının tehlikeye atılmaması"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ACIL-EKIP-003",
+      "version": 1,
+      "topic_code": "YANGIN-TUPU-KULLANIMI",
+      "topic_label": "Yangın söndürme cihazının kullanımı",
+      "question_text": "Yangın söndürme tüpü kullanılırken AFAD'ın verdiği temel sıra hangisidir?",
+      "options": [
+        "Pimi çek, ateşin kaynağına yönelt, sık ve süpür",
+        "Tüpü ters çevir, kapağı aç, su dök ve bekle",
+        "Önce alevin üzerine yaklaş, sonra pimi çek ve tüpü bırak",
+        "Pimi çekmeden tüpü sallayıp yangının üzerine tut"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yangın söndürme tüpünün temel kullanım sırası pimi çekmek, ateşin kaynağına yöneltmek, sıkmak ve süpürmektir.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "AFAD – Yangınlara Karşı Alınması Gereken Önlemler",
+          "url": "https://www.afad.gov.tr/yanginlara-karsi-alinmasi-gereken-onlemler",
+          "reference": "Yangın söndürme tüplerinin kullanımı"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ACIL-EKIP-004",
+      "version": 1,
+      "topic_code": "YANGIN-IHBAR-BILGISI",
+      "topic_label": "Yangın ihbarı ve doğru bilgi",
+      "question_text": "Yangın 112'ye bildirilirken hangi bilgi mutlaka açık ve doğru şekilde verilmelidir?",
+      "options": [
+        "Yangının adresi ve mümkünse yangının cinsi",
+        "Yalnızca arayan kişinin adı",
+        "Sadece işyerindeki çalışan sayısı",
+        "Yangın tamamen söndükten sonra olayın özeti"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Yangın ihbarında adres en kısa ve doğru şekilde, mümkünse yangının cinsiyle birlikte bildirilmelidir.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "AFAD – Yangınlara Karşı Alınması Gereken Önlemler",
+          "url": "https://www.afad.gov.tr/yanginlara-karsi-alinmasi-gereken-onlemler",
+          "reference": "Yangının 112'ye bildirilmesi ve adres bilgisinin verilmesi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ACIL-EKIP-005",
+      "version": 1,
+      "topic_code": "KURTARMA-GUVENLI-GIRIS",
+      "topic_label": "Kurtarma ekibinin güvenli müdahalesi",
+      "question_text": "Arama-kurtarma ekibinin tehlikeli ve dumanlı bir alana müdahalesinde doğru yaklaşım hangisidir?",
+      "options": [
+        "Alanı ve ikincil tehlikeleri değerlendirip uygun donanım ve koordinasyon olmadan içeri girmemek",
+        "Her koşulda tek kişi olarak hemen içeri girmek",
+        "Kişisel koruyucu donanım olmadan daha hızlı hareket etmek",
+        "İçerideki kişilere ulaşmak için planı ve iletişimi devre dışı bırakmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Kurtarma ekibi, kurtarma ihtiyacı kadar kendi güvenliğini de gözetir; tehlikeli alana uygun donanım, eğitim ve koordinasyon olmadan girilmez.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "AFAD – Açıklamalı Afet Yönetimi Terimleri Sözlüğü",
+          "url": "https://www.afad.gov.tr/aciklamali-afet-yonetimi-terimleri-sozlugu",
+          "reference": "Arama-kurtarma ve afet müdahalesinde eğitim, görev ve koordinasyon yaklaşımı"
+        },
+        {
+          "title": "ÇSGB – İş Sağlığı ve Güvenliği Genel Müdürlüğü Sıkça Sorulan Sorular",
+          "url": "https://www.csgb.gov.tr/sikca-sorulan-sorular/is-sagligi-ve-guvenligi-genel-mudurlugu/",
+          "reference": "Soru 36: Söndürme, kurtarma ve koruma ekiplerinin özel eğitimi"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ACIL-EKIP-006",
+      "version": 1,
+      "topic_code": "TAHLIYE-TOPLANMA-SAYIM",
+      "topic_label": "Tahliye ve toplanma alanı",
+      "question_text": "Tahliye ve koruma ekibinin toplanma alanındaki temel görevi hangisidir?",
+      "options": [
+        "Çalışanları güvenli alana yönlendirmek, sayımı koordine etmek ve eksik kişileri bildirmek",
+        "Herkesi tekrar binaya göndererek kişisel eşyaları toplatmak",
+        "Toplanma alanında araç trafiğini artırmak",
+        "Olay sona ermeden tahliye kayıtlarını yok etmek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Tahliye sonrasında çalışanların güvenli toplanma alanında düzenli biçimde toplanması, sayımın yapılması ve eksik kişilerin bildirilmesi gerekir.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "AFAD – Toplanma Alanları ve Afet Yönetimi Bilgilendirmeleri",
+          "url": "https://www.afad.gov.tr/aciklamali-afet-yonetimi-terimleri-sozlugu",
+          "reference": "Acil durum sonrası güvenli toplanma ve bilgi alışverişi yaklaşımı"
+        },
+        {
+          "title": "ÇSGB – İş Sağlığı ve Güvenliği Genel Müdürlüğü Sıkça Sorulan Sorular",
+          "url": "https://www.csgb.gov.tr/sikca-sorulan-sorular/is-sagligi-ve-guvenligi-genel-mudurlugu/",
+          "reference": "Acil durum planları ve görevlendirilen ekipler hakkında bilgilendirme"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ACIL-EKIP-007",
+      "version": 1,
+      "topic_code": "ILK-YARDIM-OLAY-YERI",
+      "topic_label": "İlk yardımda olay yeri değerlendirmesi",
+      "question_text": "İlk yardımcı olay yerine ulaştığında ilk olarak ne yapmalıdır?",
+      "options": [
+        "Olay yeri güvenliğini değerlendirip 112'yi aratmalı veya aramalı ve yaralıyı değerlendirmelidir",
+        "Olay yeri güvenliğini kontrol etmeden yaralıyı hemen taşımaya başlamalıdır",
+        "Yaralıya tıbbi tanı koyup ilaç vermelidir",
+        "Yardım çağırmadan önce olayın fotoğraflarını paylaşmalıdır"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "İlk yardımda önce olay yeri güvenliği değerlendirilir; yardım çağrılır ve hasta veya yaralı temel olarak değerlendirilir. İlk yardımcı eğitim sınırları dışına çıkmaz.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Sağlık Bakanlığı – İlk Yardım Eğitim Sunumları",
+          "url": "https://acilafet.saglik.gov.tr/TR-79263/ilk-yardim-egitim-sunumlari.html",
+          "reference": "Genel ilk yardım bilgileri ve hasta/yaralının ilk değerlendirmesi"
+        },
+        {
+          "title": "T.C. Sağlık Bakanlığı – Temel İlkyardım Uygulamaları Eğitim Kitabı",
+          "url": "https://ekutuphane.saglik.gov.tr/Home/GetDocument/294",
+          "reference": "Olay yeri güvenliği, yardım çağırma ve ilk değerlendirme"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ACIL-EKIP-008",
+      "version": 1,
+      "topic_code": "KANAMA-ILK-YARDIM",
+      "topic_label": "Kanamalarda ilk yardım",
+      "question_text": "Şiddetli bir dış kanamada temel ilk yardım uygulaması hangisidir?",
+      "options": [
+        "Temiz bir bez veya malzemeyle kanayan bölgeye doğrudan bası uygulamak ve 112'yi aramak",
+        "Kanayan bölgeyi açık bırakıp yardım çağırmamak",
+        "Yaraya rastgele ilaç veya kimyasal madde dökmek",
+        "Kanamayı durdurmak için yaralıyı yalnız bırakmak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Dış kanamada temel yaklaşım, uygun malzemeyle doğrudan bası uygulamak ve gerekli tıbbi yardımı istemektir.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "T.C. Sağlık Bakanlığı – İlk Yardım Eğitim Sunumları",
+          "url": "https://acilafet.saglik.gov.tr/TR-79263/ilk-yardim-egitim-sunumlari.html",
+          "reference": "Kanamalarda ilk yardım eğitimi"
+        },
+        {
+          "title": "T.C. Sağlık Bakanlığı – Temel İlkyardım Uygulamaları Eğitim Kitabı",
+          "url": "https://ekutuphane.saglik.gov.tr/Home/GetDocument/294",
+          "reference": "Kanama ve tıbbi yardım isteme"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ACIL-EKIP-009",
+      "version": 1,
+      "topic_code": "DUMANLI-ORTAMDA-HAREKET",
+      "topic_label": "Dumanlı ortamda güvenli hareket",
+      "question_text": "Yangın sırasında yoğun duman bulunan bir ortamdan çıkarken doğru davranış hangisidir?",
+      "options": [
+        "Mümkün olduğunca alçalarak veya sürünerek hareket edip güvenli çıkışa yönelmek",
+        "Duman yükseldiği için ayağa kalkıp hızlıca koşmak",
+        "Asansörü kullanarak en kısa sürede aşağı inmek",
+        "Güvenli çıkış yerine eşyaları toplamak için odaya dönmek"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "AFAD, yoğun dumanda dumandan daha az etkilenmek için eğilerek veya sürünerek hareket edilmesini ve güvenli çıkışa yönelinmesini belirtir.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "AFAD – Yangınlara Karşı Alınması Gereken Önlemler",
+          "url": "https://www.afad.gov.tr/yanginlara-karsi-alinmasi-gereken-onlemler",
+          "reference": "Dumandan korunarak hareket etme ve yangın anında yapılması gerekenler"
+        }
+      ]
+    },
+    {
+      "question_code": "TR-ACIL-EKIP-010",
+      "version": 1,
+      "topic_code": "TATBIKAT-VE-ILETISIM",
+      "topic_label": "Tatbikat, iletişim ve iyileştirme",
+      "question_text": "Acil durum tatbikatının ve tatbikat sonrası değerlendirmenin temel amacı hangisidir?",
+      "options": [
+        "Planı, ekip görevlerini, iletişimi ve tahliyeyi test ederek eksikleri düzeltmek",
+        "Yalnızca çalışanların katılımını fotoğraflamak",
+        "Acil durum planını bir daha hiç güncellememek",
+        "Ekiplerin görevlerini tatbikat sırasında değiştirmek ve kayıt tutmamak"
+      ],
+      "correct_option": "A",
+      "answer_explanation": "Tatbikat, acil durum planının ve ekiplerin uygulamadaki yeterliliğini görmek, iletişim ve tahliye eksiklerini belirleyip düzeltmek için yapılır.",
+      "scopes": [
+        {
+          "type": "common",
+          "value": "*"
+        }
+      ],
+      "sources": [
+        {
+          "title": "ÇSGB – İş Sağlığı ve Güvenliği Genel Müdürlüğü Sıkça Sorulan Sorular",
+          "url": "https://www.csgb.gov.tr/sikca-sorulan-sorular/is-sagligi-ve-guvenligi-genel-mudurlugu/",
+          "reference": "Acil durum planları, ekipler ve bilgilendirme yükümlülüğü"
+        },
+        {
+          "title": "AFAD – Açıklamalı Afet Yönetimi Terimleri Sözlüğü",
+          "url": "https://www.afad.gov.tr/aciklamali-afet-yonetimi-terimleri-sozlugu",
+          "reference": "Afet ve acil durum yönetiminde hazırlık, müdahale ve koordinasyon"
+        }
+      ]
+    }
+  ]
+}
