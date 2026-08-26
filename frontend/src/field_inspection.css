@@ -1009,3 +1009,10 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
 .field-ai-apply:disabled { opacity: 0.5; cursor: not-allowed; }
 .field-ai-spin { animation: field-ai-rot 0.9s linear infinite; color: #7c3aed; }
 @keyframes field-ai-rot { to { transform: rotate(360deg); } }
+
+.field-ai-tag-suggest {
+  background: #f5f3ff;
+  border-radius: 6px;
+  padding: 2px 6px;
+  border: 1px solid #ddd6fe;
+}

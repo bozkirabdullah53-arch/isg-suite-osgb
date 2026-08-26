@@ -849,12 +849,16 @@ export function FieldInspectionPage({user}) {
             <div className="field-tags">
               <span>Fotoğraf etiketi (tüm fotoğraflara uygulanır)</span>
               <div>
-                {tagCatalog.map((tag) => (
-                  <label key={tag.code}>
-                    <input type="checkbox" checked={selectedPhotoTags.includes(tag.code)} onChange={() => toggleTag(tag.code)} />
-                    {tag.label}
-                  </label>
-                ))}
+                {tagCatalog.map((tag) => {
+                  const aiSuggested = aiHint?.hazard_hint?.suggested_photo_tags?.includes(tag.code);
+                  return (
+                    <label key={tag.code} className={aiSuggested ? "field-ai-tag-suggest" : ""}>
+                      <input type="checkbox" checked={selectedPhotoTags.includes(tag.code)} onChange={() => toggleTag(tag.code)} />
+                      {tag.label}
+                      {aiSuggested && <Sparkles size={11} style={{verticalAlign: 'middle', marginLeft: 4, color: '#7c3aed'}} />}
+                    </label>
+                  );
+                })}
               </div>
             </div>
           )}
