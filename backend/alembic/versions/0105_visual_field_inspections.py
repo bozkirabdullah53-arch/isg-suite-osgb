@@ -70,7 +70,7 @@ def _enable_rls(bind, table: str, expression: str) -> None:
                 OR ({expression})
               );
           END IF;
-        END
+        END;
         $policy$;
     """))
 
