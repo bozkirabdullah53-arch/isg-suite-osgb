@@ -477,6 +477,7 @@ export function RiskPage({user}) {
     hazard_q: '',
     activity: '',
     risk_definition: '',
+    responsible_employee_id: '',
     affected_people: '',
     affected_group: 'Çalışan',
     existing_measures: '',
@@ -494,6 +495,9 @@ export function RiskPage({user}) {
   const [companies, setCompanies] = useState([]);
   const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [responsibleCandidates, setResponsibleCandidates] = useState([]);
+  const [responsibleCandidatesBusy, setResponsibleCandidatesBusy] = useState(false);
+  const [responsibleCandidatesError, setResponsibleCandidatesError] = useState('');
   const [categories, setCategories] = useState([]);
   const [hazards, setHazards] = useState([]);
   const [rows, setRows] = useState([]);
@@ -583,6 +587,9 @@ export function RiskPage({user}) {
   const hazopMeta = methodMeta?.method_code === 'hazop' ? methodMeta : HAZOP_FALLBACK;
   const documentMethod = docInfo?.method_code || '5x5_l';
   const methodDirty = Boolean(docInfo && docForm.method !== documentMethod);
+  const selectedResponsible = responsibleCandidates.find(
+    (candidate) => String(candidate.id) === String(form.responsible_employee_id),
+  );
 
   function updateHazopField(field, value) {
     setForm((previous) => ({
@@ -792,6 +799,54 @@ export function RiskPage({user}) {
   }, [form.company_id]);
 
   useEffect(() => {
+    if (!open || !form.company_id) {
+      setResponsibleCandidates([]);
+      setResponsibleCandidatesBusy(false);
+      setResponsibleCandidatesError('');
+      return undefined;
+    }
+    let cancelled = false;
+    setResponsibleCandidatesBusy(true);
+    setResponsibleCandidatesError('');
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams({company_id: String(form.company_id)});
+      if (form.branch_id) params.set('branch_id', String(form.branch_id));
+      if (form.department_id) params.set('department_id', String(form.department_id));
+      const departmentName = form.new_department || form.department_name;
+      if (departmentName) params.set('department_name', departmentName);
+      if (form.hazard_id) params.set('hazard_id', String(form.hazard_id));
+      if (form.activity) params.set('activity', form.activity);
+      if (form.risk_definition) params.set('risk_definition', form.risk_definition);
+      api(`/risks/responsible-candidates?${params}`)
+        .then((items) => {
+          if (!cancelled) setResponsibleCandidates(Array.isArray(items) ? items : []);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          setResponsibleCandidates([]);
+          setResponsibleCandidatesError(error.message || 'Sorumlu adayları yüklenemedi.');
+        })
+        .finally(() => {
+          if (!cancelled) setResponsibleCandidatesBusy(false);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    open,
+    form.company_id,
+    form.branch_id,
+    form.department_id,
+    form.department_name,
+    form.new_department,
+    form.hazard_id,
+    form.activity,
+    form.risk_definition,
+  ]);
+
+  useEffect(() => {
     if (!form.category_id) { setHazards([]); return; }
     const params = new URLSearchParams({category_id: String(form.category_id)});
     if (form.hazard_q) params.set('q', form.hazard_q);
@@ -940,6 +995,14 @@ export function RiskPage({user}) {
       setErr('Artık risk için Olasılık, Frekans ve Şiddet değerlerinin üçü de seçilmelidir.');
       return;
     }
+    if (responsibleCandidatesBusy) {
+      setErr('Termin sorumlusu adayları yükleniyor; lütfen kısa bir süre bekleyin.');
+      return;
+    }
+    if (responsibleCandidates.length > 0 && !form.responsible_employee_id) {
+      setErr('Riskin giderilmesinden sorumlu uygun firma personelini seçmelisiniz.');
+      return;
+    }
     const newDep = (form.new_department || '').trim();
     const payload = {
       branch_id: form.branch_id ? Number(form.branch_id) : null,
@@ -947,6 +1010,7 @@ export function RiskPage({user}) {
       method_code: riskMethod,
       activity: form.activity,
       risk_definition: form.risk_definition,
+      responsible_employee_id: form.responsible_employee_id ? Number(form.responsible_employee_id) : null,
       affected_people: form.affected_people || null,
       affected_group: form.affected_group || null,
       existing_measures: form.existing_measures || null,
@@ -1005,6 +1069,8 @@ export function RiskPage({user}) {
     setErr('');
     setSuggestions(null);
     setHazardHint(null);
+    setResponsibleCandidates([]);
+    setResponsibleCandidatesError('');
     setForm({
       ...empty,
       company_id: reportCompanyId || user.company_id || companies[0]?.id || '',
@@ -1053,6 +1119,7 @@ export function RiskPage({user}) {
         hazard_q: '',
         activity: r.activity || '',
         risk_definition: r.risk_definition || '',
+        responsible_employee_id: r.responsible_employee_id ? String(r.responsible_employee_id) : '',
         affected_people: r.affected_people || '',
         affected_group: r.affected_group || 'Çalışan',
         existing_measures: r.existing_measures || '',
@@ -1622,6 +1689,11 @@ export function RiskPage({user}) {
                           {r.term_date}{isOverdueDate(r.term_date) ? ' · gecikti' : ''}
                         </div>
                       ) : null}
+                      {r.responsible_person_name ? (
+                        <div className="risk-priority-meta" style={{marginTop: 3}}>
+                          Sorumlu: {r.responsible_person_name}
+                        </div>
+                      ) : null}
                     </div>
                   </button>
                 )) : (
@@ -1696,6 +1768,7 @@ export function RiskPage({user}) {
                         <th>Faaliyet</th>
                         <th>{showHazopColumns ? 'Skor / HAZOP önceliği' : 'Skor'}</th>
                         <th>Termin</th>
+                        <th>Termin sorumlusu</th>
                         <th>Durum</th>
                       </tr>
                     </thead>
@@ -1716,6 +1789,7 @@ export function RiskPage({user}) {
                             </span>
                           </td>
                           <td>{r.term_date || '—'}</td>
+                          <td>{r.responsible_person_name || '—'}</td>
                           <td>{r.status || 'Açık'}</td>
                         </tr>
                       ))}
@@ -2236,6 +2310,7 @@ export function RiskPage({user}) {
                 <th>{showHazopColumns ? 'Ş / HAZOP sonucu' : 'Ş'}</th>
                 <th>Seviye</th>
                 <th>Termin</th>
+                <th>Termin sorumlusu</th>
                 <th>DÖF</th>
                 <th>Durum</th>
                 <th>İşlem</th>
@@ -2257,6 +2332,7 @@ export function RiskPage({user}) {
                     {r.term_date || '—'}
                     {r.status === 'Açık' && isOverdueDate(r.term_date) && <OverdueBadge />}
                   </td>
+                  <td>{r.responsible_person_name || '—'}</td>
                   <td>{r.dofs?.length || 0}</td>
                   <td>{r.status}</td>
                   <td>
@@ -2369,7 +2445,7 @@ export function RiskPage({user}) {
                 required
                 value={form.company_id}
                 disabled={!!editId}
-                onChange={(e) => setForm({...form, company_id: e.target.value, branch_id: '', department_id: '', new_department: ''})}
+                onChange={(e) => setForm({...form, company_id: e.target.value, branch_id: '', department_id: '', new_department: '', responsible_employee_id: ''})}
               >
                 <option value="">Seçiniz</option>
                 {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -2497,6 +2573,49 @@ export function RiskPage({user}) {
               </Select>
               <TextArea label="Mevcut önlemler" value={form.existing_measures} onChange={(e) => setForm({...form, existing_measures: e.target.value})} />
               <TextArea label="Ek önlemler" value={form.additional_measures} onChange={(e) => setForm({...form, additional_measures: e.target.value})} />
+              <div className="risk-method-note risk-form-span" role="group" aria-label="Termin sorumlusu">
+                <strong>Termin sorumlusu</strong>
+                <span>
+                  Bu kişi, seçilen risk için kontrol tedbirini fiilen uygulayabilecek firma personelidir.
+                  Sistem adayları bölüm, şube, görev ve tehlike bilgisine göre sıralar; son seçim iş güvenliği uzmanına aittir.
+                </span>
+                <Select
+                  label="Sorumlu kişi"
+                  required={responsibleCandidates.length > 0}
+                  value={form.responsible_employee_id}
+                  onChange={(e) => setForm({...form, responsible_employee_id: e.target.value})}
+                >
+                  <option value="">
+                    {responsibleCandidatesBusy ? 'Adaylar yükleniyor…' : 'Uygun sorumluyu seçiniz'}
+                  </option>
+                  {responsibleCandidates.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.recommended ? 'ÖNERİLEN — ' : ''}{candidate.full_name}
+                      {candidate.job_title ? ` — ${candidate.job_title}` : ''}
+                      {candidate.department ? ` / ${candidate.department}` : ''}
+                    </option>
+                  ))}
+                </Select>
+                {!responsibleCandidatesBusy && responsibleCandidates[0] && (
+                  <div style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12, color: '#475569'}}>
+                    <span>
+                      Sistem önerisi: <strong>{responsibleCandidates[0].full_name}</strong>
+                      {responsibleCandidates[0].reasons?.length ? ` — ${responsibleCandidates[0].reasons.join(' · ')}` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => setForm({...form, responsible_employee_id: String(responsibleCandidates[0].id)})}
+                    >
+                      Önerileni seç
+                    </button>
+                  </div>
+                )}
+                {!responsibleCandidatesBusy && !responsibleCandidates.length && !responsibleCandidatesError && (
+                  <small>Bu firmada aktif personel bulunamadı. Sorumlu atamak için önce personel kaydı oluşturun.</small>
+                )}
+                {responsibleCandidatesError && <small style={{color: '#b91c1c'}}>{responsibleCandidatesError}</small>}
+              </div>
               {isFineKinney ? (
                 <>
                   <div className="risk-method-note risk-form-span">
@@ -2698,6 +2817,10 @@ export function RiskPage({user}) {
                       <span>Termin önerisi</span>
                       <strong>{calc?.term_label || '—'}</strong>
                     </div>
+                    <div>
+                      <span>Termin sorumlusu</span>
+                      <strong>{selectedResponsible?.full_name || 'Seçilmedi'}</strong>
+                    </div>
                   </div>
                 ) : (
                   <div className="risk-score-meta">
@@ -2718,6 +2841,10 @@ export function RiskPage({user}) {
                     <div>
                       <span>Termin</span>
                       <strong>{calc?.term_label || '—'}</strong>
+                    </div>
+                    <div>
+                      <span>Termin sorumlusu</span>
+                      <strong>{selectedResponsible?.full_name || 'Seçilmedi'}</strong>
                     </div>
                   </div>
                 )}
@@ -2796,6 +2923,15 @@ export function RiskPage({user}) {
                 <div className="field"><span>Termin</span><strong>{detail.term_date || '—'}</strong></div>
               </>
             )}
+            <div className="field">
+              <span>Termin sorumlusu</span>
+              <strong>{detail.responsible_person_name || 'Atanmadı'}</strong>
+              {(detail.responsible_person_job_title || detail.responsible_person_department) && (
+                <small>
+                  {[detail.responsible_person_job_title, detail.responsible_person_department].filter(Boolean).join(' · ')}
+                </small>
+              )}
+            </div>
             {detail.method_code !== 'hazop' && detail.residual_score != null && (
               <div className="field risk-residual-detail">
                 <span>Artık risk</span>
