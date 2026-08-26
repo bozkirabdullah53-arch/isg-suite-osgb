@@ -120,12 +120,173 @@ def _normalize_photo_bytes(raw: bytes) -> bytes:
         return output.getvalue()
 
 
+def _photo_analysis(media) -> dict | None:
+    """Return the latest analysis attached to a photo, if one exists.
+
+    Draft reports attach ``vision_result`` directly to the in-memory photo
+    dictionary. Persisted risk media expose the same information through the
+    latest RiskMediaAnalysis relationship. Keeping both paths here lets the
+    report renderer work for new drafts and already-saved findings without
+    changing the database model or the existing PDF call sites.
+    """
+    direct = _item_value(media, "vision_result")
+    if isinstance(direct, dict):
+        return direct
+    analyses = _item_value(media, "analyses")
+    for record in list(analyses or []):
+        raw = _item_value(record, "analysis_json")
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, str) and raw.strip():
+            try:
+                parsed = json.loads(raw)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+    return None
+
+
+def _photo_annotations(analysis: dict | None) -> list[dict]:
+    """Normalize AI boxes to safe ``[x, y, width, height]`` values."""
+    if not isinstance(analysis, dict):
+        return []
+    source = analysis.get("bbox_annotations")
+    if not isinstance(source, list) or not source:
+        source = analysis.get("hazards")
+    if not isinstance(source, list):
+        return []
+    annotations = []
+    for item in source[:12]:
+        if not isinstance(item, dict):
+            continue
+        box = item.get("box") if isinstance(item.get("box"), list) else item.get("bbox")
+        if not isinstance(box, list) or len(box) != 4:
+            continue
+        try:
+            x, y, width, height = (float(value) for value in box)
+        except (TypeError, ValueError):
+            continue
+        x = max(0.0, min(1.0, x))
+        y = max(0.0, min(1.0, y))
+        width = max(0.0, min(1.0 - x, width))
+        height = max(0.0, min(1.0 - y, height))
+        if width <= 0.002 or height <= 0.002:
+            continue
+        try:
+            severity = max(1, min(5, int(item.get("severity", 3))))
+        except (TypeError, ValueError):
+            severity = 3
+        annotations.append(
+            {
+                "box": [x, y, width, height],
+                "label": str(item.get("label") or item.get("category") or "Uygunsuzluk")[:100],
+                "severity": severity,
+                "confidence": _confidence_percent(item.get("confidence")),
+            }
+        )
+    return annotations
+
+
+def _annotate_photo_bytes(raw: bytes, analysis: dict | None) -> bytes:
+    """Draw numbered, severity-coloured boxes over AI-detected photo areas."""
+    annotations = _photo_annotations(analysis)
+    if not annotations:
+        return _normalize_photo_bytes(raw)
+
+    from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+    with Image.open(BytesIO(raw)) as source:
+        image = ImageOps.exif_transpose(source).convert("RGB")
+        image.thumbnail((2200, 1800), Image.Resampling.LANCZOS)
+        draw = ImageDraw.Draw(image)
+        width, height = image.size
+        line_width = max(4, round(min(width, height) / 180))
+        font_size = max(18, min(42, round(min(width, height) / 28)))
+        font = None
+        for candidate in (
+            _ASSETS / "DejaVuSans-Bold.ttf",
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+            Path(r"C:\Windows\Fonts\arialbd.ttf"),
+        ):
+            if candidate.exists():
+                try:
+                    font = ImageFont.truetype(str(candidate), font_size)
+                    break
+                except OSError:
+                    continue
+        font = font or ImageFont.load_default()
+        colors_by_severity = {
+            5: "#b91c1c",
+            4: "#dc2626",
+            3: "#ea580c",
+            2: "#ca8a04",
+            1: "#2563eb",
+        }
+
+        for index, annotation in enumerate(annotations, 1):
+            x, y, box_width, box_height = annotation["box"]
+            left = round(x * width)
+            top = round(y * height)
+            right = min(width - 1, round((x + box_width) * width))
+            bottom = min(height - 1, round((y + box_height) * height))
+            color = colors_by_severity[annotation["severity"]]
+            draw.rectangle((left, top, right, bottom), outline=color, width=line_width)
+
+            # Numbered marker makes the table/legend in the PDF unambiguous.
+            radius = max(14, font_size // 2 + 6)
+            marker_left = max(0, min(width - radius * 2, left - radius // 2))
+            marker_top = max(0, min(height - radius * 2, top - radius // 2))
+            draw.ellipse(
+                (marker_left, marker_top, marker_left + radius * 2, marker_top + radius * 2),
+                fill=color,
+                outline="white",
+                width=max(2, line_width // 2),
+            )
+            marker_text = str(index)
+            marker_box = draw.textbbox((0, 0), marker_text, font=font)
+            draw.text(
+                (
+                    marker_left + radius - (marker_box[2] - marker_box[0]) / 2,
+                    marker_top + radius - (marker_box[3] - marker_box[1]) / 2 - marker_box[1],
+                ),
+                marker_text,
+                fill="white",
+                font=font,
+            )
+
+            label = f"{index}. {annotation['label']} · %{annotation['confidence']}"
+            label_box = draw.textbbox((0, 0), label, font=font)
+            padding = max(5, font_size // 5)
+            label_width = label_box[2] - label_box[0] + padding * 2
+            label_height = label_box[3] - label_box[1] + padding * 2
+            label_left = max(0, min(width - label_width, left))
+            label_top = top - label_height - 2
+            if label_top < 0:
+                label_top = min(height - label_height, bottom + 2)
+            draw.rounded_rectangle(
+                (label_left, label_top, label_left + label_width, label_top + label_height),
+                radius=max(3, line_width),
+                fill=color,
+            )
+            draw.text(
+                (label_left + padding, label_top + padding - label_box[1]),
+                label,
+                fill="white",
+                font=font,
+            )
+
+        output = BytesIO()
+        image.save(output, format="JPEG", quality=90, optimize=True)
+        return output.getvalue()
+
+
 def _photo_flowable(media, *, max_width: float = 220, max_height: float = 88 * mm):
     raw = _read_media_bytes(media)
     if not raw:
         return None
     try:
-        normalized = _normalize_photo_bytes(raw)
+        normalized = _annotate_photo_bytes(raw, _photo_analysis(media))
         reader = ImageReader(BytesIO(normalized))
         source_width, source_height = reader.getSize()
         if not source_width or not source_height:
@@ -188,6 +349,12 @@ def _media_caption(media, index: int, caption_style) -> Paragraph:
     if tags:
         labels = ", ".join(str(tag) for tag in list(tags)[:12])
         lines.append(f"Etiket: {escape(labels)}")
+    annotation_count = len(_photo_annotations(_photo_analysis(media)))
+    if annotation_count:
+        lines.append(
+            f"<b>AI işaretleri:</b> {annotation_count} uygunsuzluk alanı "
+            "numaralı kutu ile fotoğraf üzerinde gösterilmiştir."
+        )
     return Paragraph("<br/>".join(lines), caption_style)
 
 
@@ -1068,13 +1235,15 @@ def build_field_inspection_pdf(
     gps_lng: float | None = None,
     gps_accuracy_m: float | None = None,
     photos: list[dict] | None = None,
-    vision_results: list[dict] | None = None,
+    vision_results: list[dict | None] | None = None,
 ) -> bytes:
     """Kayıt öncesi saha formu için fotoğraflı, geçici PDF raporu."""
     from html import escape
 
     photos = list(photos or [])
-    vision_results = [item for item in list(vision_results or []) if isinstance(item, dict)]
+    # Keep the photo index intact; a report may contain an unanalysed photo
+    # between two analysed photos.
+    vision_results = list(vision_results or [])
     styles = getSampleStyleSheet()
     for style in styles.byName.values():
         style.fontName = PDF_FONT
@@ -1203,7 +1372,7 @@ def build_field_inspection_pdf(
         )
     )
 
-    if vision_results:
+    if any(isinstance(item, dict) for item in vision_results):
         elements.append(Paragraph("4. AI FOTOĞRAF ANALİZİ", section))
         elements.append(
             Paragraph(
@@ -1212,6 +1381,8 @@ def build_field_inspection_pdf(
             )
         )
         for index, analysis in enumerate(vision_results, 1):
+            if not isinstance(analysis, dict):
+                continue
             summary_text = safe(analysis.get("summary"), "Analiz özeti yok.", 1200)
             elements.append(Paragraph(f"<b>Fotoğraf {index}:</b> {summary_text}", body))
             hazards = analysis.get("hazards") or []

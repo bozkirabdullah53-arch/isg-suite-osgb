@@ -483,12 +483,20 @@ def _record_field_revisions(
     return next_no
 
 
-def _load_risk(db: Session, risk_id: int) -> RiskAssessment:
+def _load_risk(
+    db: Session,
+    risk_id: int,
+    *,
+    with_media_analyses: bool = False,
+) -> RiskAssessment:
+    media_load = selectinload(RiskAssessment.media_files)
+    if with_media_analyses:
+        media_load = media_load.selectinload(RiskMedia.analyses)
     row = db.scalar(
         select(RiskAssessment)
         .options(
             selectinload(RiskAssessment.dofs),
-            selectinload(RiskAssessment.media_files),
+            media_load,
             selectinload(RiskAssessment.revisions),
         )
         .where(RiskAssessment.id == risk_id)
@@ -1399,7 +1407,7 @@ def _load_company_risks(
         select(RiskAssessment)
         .options(
             selectinload(RiskAssessment.dofs),
-            selectinload(RiskAssessment.media_files),
+            selectinload(RiskAssessment.media_files).selectinload(RiskMedia.analyses),
         )
         .where(RiskAssessment.company_id == effective)
         .order_by(RiskAssessment.risk_score.desc(), RiskAssessment.id.asc())
@@ -1596,17 +1604,23 @@ async def field_inspection_report_pdf(
             }
         )
 
+    # Vision sonuçlarını fotoğraf sırasını bozmadan eşleştir. Böylece PDF'deki
+    # her görsel yalnızca kendisine ait uygunsuzluk kutularını alır.
+    vision_by_photo: list[dict | None] = []
     if isinstance(parsed_vision, list):
-        report_vision = [item for item in parsed_vision if isinstance(item, dict)]
+        vision_by_photo = [
+            item if isinstance(item, dict) else None
+            for item in parsed_vision[:len(report_photos)]
+        ]
     elif isinstance(parsed_vision, dict):
-        report_vision = []
         for meta in metadata[:len(report_photos)]:
-            if isinstance(meta, dict):
-                item = parsed_vision.get(str(meta.get("id")))
-                if isinstance(item, dict):
-                    report_vision.append(item)
-    else:
-        report_vision = []
+            item = parsed_vision.get(str(meta.get("id"))) if isinstance(meta, dict) else None
+            vision_by_photo.append(item if isinstance(item, dict) else None)
+    vision_by_photo.extend([None] * (len(report_photos) - len(vision_by_photo)))
+    for index, analysis in enumerate(vision_by_photo[:len(report_photos)]):
+        if analysis:
+            report_photos[index]["vision_result"] = analysis
+    report_vision = vision_by_photo
 
     pdf = build_field_inspection_pdf(
         company=company,
@@ -1828,7 +1842,7 @@ def risk_record_report_pdf(
     user: User = Depends(get_current_user),
 ):
     """Tek bir saha/risk kaydını bağlı fotoğraf kanıtlarıyla PDF'e çevirir."""
-    row = _load_risk(db, risk_id)
+    row = _load_risk(db, risk_id, with_media_analyses=True)
     ensure_access(db, user, row.company_id)
     company = db.get(Company, row.company_id)
     if not company:
