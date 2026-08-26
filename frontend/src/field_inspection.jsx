@@ -941,14 +941,22 @@ export function FieldInspectionPage({user}) {
 
               {photos.length > 0 && (
                 <div className="field-photo-grid">
-                  {photos.map((photo) => {
+                  {photos.map((photo, photoIndex) => {
                     const va = visionResults[photo.id];
                     const vErr = visionErr[photo.id];
                     const vBusy = visionBusy === photo.id;
                     return (
-                      <figure key={photo.id}>
+                      <figure key={photo.id} className={`field-photo-card${va ? " is-analyzed" : ""}${vErr ? " has-error" : ""}${vBusy ? " is-busy" : ""}`}>
                         <img src={photo.data_url} alt="Saha kanıtı önizleme" />
                         <button type="button" aria-label="Fotoğrafı kaldır" onClick={() => removePhoto(photo.id)}><X size={15} /></button>
+                        <figcaption className="field-photo-caption">
+                          <span className="field-photo-number">{String(photoIndex + 1).padStart(2, "0")}</span>
+                          <span className="field-photo-caption-copy">
+                            <strong>Fotoğraf {photoIndex + 1}</strong>
+                            <small>{vBusy ? "Analiz ediliyor" : va ? "Analiz tamamlandı" : vErr ? "Analiz başarısız" : "Analiz bekliyor"}</small>
+                          </span>
+                          <span className={`field-photo-status ${vBusy ? "pending" : va ? "done" : vErr ? "error" : "idle"}`} aria-label={vBusy ? "Analiz ediliyor" : va ? "Analiz tamamlandı" : vErr ? "Analiz başarısız" : "Analiz bekliyor"} />
+                        </figcaption>
                         <button type="button" className="field-photo-analyze-btn" onClick={() => analyzePhotoVision(photo)} disabled={vBusy} aria-label="AI ile fotoğrafı analiz et">
                           {vBusy ? <RefreshCw size={14} className="spin" /> : <ScanLine size={14} />}
                           {vBusy ? "Analiz ediliyor…" : "AI Analiz Et"}
@@ -1223,14 +1231,22 @@ export function FieldInspectionPage({user}) {
           </div>
           {photos.length > 0 && (
             <div className="field-photo-grid">
-              {photos.map((photo) => {
+              {photos.map((photo, photoIndex) => {
                 const va = visionResults[photo.id];
                 const vErr = visionErr[photo.id];
                 const vBusy = visionBusy === photo.id;
                 return (
-                  <figure key={photo.id}>
+                  <figure key={photo.id} className={`field-photo-card${va ? " is-analyzed" : ""}${vErr ? " has-error" : ""}${vBusy ? " is-busy" : ""}`}>
                     <img src={photo.data_url} alt="Saha kanıtı önizleme" />
                     <button type="button" aria-label="Fotoğrafı kaldır" onClick={() => removePhoto(photo.id)}><X size={15} /></button>
+                    <figcaption className="field-photo-caption">
+                      <span className="field-photo-number">{String(photoIndex + 1).padStart(2, "0")}</span>
+                      <span className="field-photo-caption-copy">
+                        <strong>Fotoğraf {photoIndex + 1}</strong>
+                        <small>{vBusy ? "Analiz ediliyor" : va ? "Analiz tamamlandı" : vErr ? "Analiz başarısız" : "Analiz bekliyor"}</small>
+                      </span>
+                      <span className={`field-photo-status ${vBusy ? "pending" : va ? "done" : vErr ? "error" : "idle"}`} aria-label={vBusy ? "Analiz ediliyor" : va ? "Analiz tamamlandı" : vErr ? "Analiz başarısız" : "Analiz bekliyor"} />
+                    </figcaption>
                     <button
                       type="button"
                       className="field-photo-analyze-btn"
