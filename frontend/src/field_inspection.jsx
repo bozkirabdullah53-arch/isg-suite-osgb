@@ -137,6 +137,27 @@ function compressPhoto(file) {
   });
 }
 
+// Fotoğraf önizlemesi data: URL olarak tutulur. Bunu tekrar fetch() etmek,
+// canlıdaki connect-src 'self' CSP kuralı nedeniyle mobil tarayıcılarda
+// "Failed to fetch" üretebilir. Ağ isteği yapmadan doğrudan File oluştur.
+function dataUrlToFile(dataUrl, filename = "saha-fotografi.jpg") {
+  const value = String(dataUrl || "");
+  const comma = value.indexOf(",");
+  if (!value.startsWith("data:") || comma < 0) {
+    throw new Error("Fotoğraf verisi okunamadı.");
+  }
+
+  const header = value.slice(0, comma);
+  const encoded = value.slice(comma + 1);
+  const mime = header.match(/^data:([^;,]+)/i)?.[1] || "image/jpeg";
+  const binary = atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new File([bytes], filename, {type: mime});
+}
+
 // Fotoğraf üzerinde bounding box çizimi (normalize 0-1 koordinat → px)
 const SEV_COLORS = {5: "#991b1b", 4: "#9a3412", 3: "#92400e", 2: "#1e40af", 1: "#475569"};
 const SEV_LABELS = {5: "Kritik", 4: "Yüksek", 3: "Orta", 2: "Düşük", 1: "Çok düşük"};
@@ -527,10 +548,9 @@ export function FieldInspectionPage({user}) {
     setVisionBusy(photo.id);
     setVisionErr((cur) => { const n = {...cur}; delete n[photo.id]; return n; });
     try {
-      // data_url (base64) → Blob → File
-      const resp = await fetch(photo.data_url);
-      const blob = await resp.blob();
-      const file = new File([blob], photo.name || "saha.jpg", {type: "image/jpeg"});
+      // data_url (base64) → File. Burada fetch(data_url) kullanılmaz;
+      // mobilde CSP connect-src 'self' data: URL'sini engelleyebilir.
+      const file = dataUrlToFile(photo.data_url, photo.name || "saha.jpg");
       const fd = new FormData();
       fd.append("file", file);
       const deptLabel = selectedDepartment?.name || form.department_name || "Saha";
