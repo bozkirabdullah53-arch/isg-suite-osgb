@@ -6,8 +6,9 @@ const STYLE_ID = 'remote-custom-package-bridge-style';
 
 const SUPPORTED_SECTOR_CODES = new Set([
   'common',
+  'emergency_teams',
   'construction',
-  'battery',
+        'battery',
   'metal',
   'logistics',
   'food',
@@ -34,6 +35,7 @@ const SUPPORTED_SECTOR_CODES = new Set([
 
 const FALLBACK_SECTORS = [
   {code: 'common', label: 'Temel Ortak İSG'},
+  {code: 'emergency_teams', label: 'Acil Durum Ekiplerinin Eğitimleri'},
   {code: 'construction', label: 'İnşaat'},
   {code: 'battery', label: 'Akü, Pil ve Enerji Depolama'},
   {code: 'metal', label: 'Metal'},

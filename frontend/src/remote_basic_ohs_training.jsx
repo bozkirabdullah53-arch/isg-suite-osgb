@@ -12,6 +12,7 @@ const REMOTE_TRAINING_DISPLAY_TITLE = 'Temel İş Sağlığı ve Güvenliği Eğ
 const EMPLOYEE_TRAINING_DISPLAY_TITLE = 'Eğitimlerim';
 const REMOTE_SECTOR_LABELS = {
   common: 'Temel Ortak İSG',
+  emergency_teams: 'Acil Durum Ekiplerinin Eğitimleri',
   construction: 'İnşaat',
   battery: 'Akü, Pil ve Enerji Depolama',
   foundry: 'Döküm',

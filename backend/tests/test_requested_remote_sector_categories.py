@@ -3,6 +3,7 @@ from __future__ import annotations
 
 
 REQUESTED_SECTORS = {
+    "emergency_teams": "Acil Durum Ekiplerinin Eğitimleri",
     "health": "Hastaneler ve Sağlık Hizmetleri",
     "education_universities": "Eğitim Kurumları ve Üniversiteler",
     "public_municipalities": "Kamu Kurumları ve Belediyeler",

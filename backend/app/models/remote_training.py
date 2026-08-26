@@ -49,6 +49,11 @@ ASSET_TYPES = ("thumbnail", "subtitle", "supporting_document")
 # scope attached to employee assignments and exam questions.
 REMOTE_SECTOR_CATALOG = (
     ("common", "Temel Ortak İSG", "Tüm sektörlerde ortak temel iş sağlığı ve güvenliği içeriği."),
+    (
+        "emergency_teams",
+        "Acil Durum Ekiplerinin Eğitimleri",
+        "Acil durum destek elemanlarının görevleri, ekipman kullanımı, haberleşme, tahliye, arama-kurtarma ve tatbikat uygulamalarına yönelik dersler.",
+    ),
     ("construction", "İnşaat", "İnşaat işleri ve saha riskleriyle ilgili dersler."),
     (
         "battery",
