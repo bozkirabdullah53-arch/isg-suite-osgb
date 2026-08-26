@@ -48,15 +48,20 @@ def _enable_rls(bind, table: str, expression: str) -> None:
     policy = f"{table}_company_scope"
     op.execute(sa.text(f'ALTER TABLE "{table}" ENABLE ROW LEVEL SECURITY'))
     op.execute(sa.text(f'ALTER TABLE "{table}" FORCE ROW LEVEL SECURITY'))
-    op.execute(sa.text(f"""
-        DO $policy$
-        BEGIN
-          IF NOT EXISTS (
-            SELECT 1 FROM pg_policies
+    policy_exists = bind.execute(
+        sa.text(
+            """
+            SELECT 1
+            FROM pg_policies
             WHERE schemaname = current_schema()
-              AND tablename = '{table}'
-              AND policyname = '{policy}'
-          ) THEN
+              AND tablename = :table_name
+              AND policyname = :policy_name
+            """
+        ),
+        {"table_name": table, "policy_name": policy},
+    ).first()
+    if policy_exists is None:
+        op.execute(sa.text(f"""
             CREATE POLICY "{policy}" ON "{table}"
               FOR ALL
               USING (
@@ -68,11 +73,8 @@ def _enable_rls(bind, table: str, expression: str) -> None:
                 COALESCE(current_setting('app.current_user_id', true), '') = ''
                 OR COALESCE(current_setting('app.rls_bypass', true), '') = '1'
                 OR ({expression})
-              );
-          END IF;
-        END;
-        $policy$;
-    """))
+              )
+        """))
 
 
 def upgrade() -> None:
