@@ -301,7 +301,7 @@ export function FieldInspectionPage({user}) {
           const preferred = cached.companies.find((row) => Number(row.id) === Number(user?.company_id));
           setForm((current) => ({
             ...current,
-            company_id: String(preferred?.id || cached.companies[0].id),
+            company_id: preferred ? String(preferred.id) : "",
           }));
         }
       }
@@ -321,7 +321,7 @@ export function FieldInspectionPage({user}) {
         const preferred = nextCompanies.find((row) => Number(row.id) === Number(user?.company_id));
         setForm((current) => ({
           ...current,
-          company_id: current.company_id || String(preferred?.id || nextCompanies[0]?.id || ""),
+          company_id: current.company_id || (preferred ? String(preferred.id) : ""),
         }));
         const previous = readOfflineReference(scope) || {};
         saveOfflineReference(scope, {
