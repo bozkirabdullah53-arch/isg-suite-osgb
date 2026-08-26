@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   BookOpen,
   Building2,
+  Camera,
   ClipboardList,
   Download,
   FileSpreadsheet,
@@ -22,6 +23,7 @@ import {NaceRoadmapPanel, NaceRoadmapSummary} from './risk_nace_roadmap';
 import {createNavigationState, navigationIndex, parseNavigationLocation} from './navigation_history';
 import {isMatchingRiskId, normalizeRiskId} from './risk_detail_navigation';
 import AiAssistantPanel from './ai_assistant_panel';
+import SahaAiPanel from './ai_vision_panel';
 import './risk_pro.css';
 
 const LEVEL_COLORS = {
@@ -146,7 +148,7 @@ const EMPTY_DOCUMENT_DRAFT = {
   scope_note: '',
 };
 
-const RISK_TAB_IDS = new Set(['panel', 'risks', 'library', 'dofs', 'nace_roadmap', 'reports', 'departments', 'assistant']);
+const RISK_TAB_IDS = new Set(['panel', 'risks', 'library', 'dofs', 'nace_roadmap', 'reports', 'departments', 'assistant', 'saha_ai']);
 
 function readRiskViewFromLocation() {
   const navigation = parseNavigationLocation(window.location);
@@ -1449,6 +1451,7 @@ export function RiskPage({user}) {
     {id: 'library', label: 'Kütüphane', Icon: BookOpen, count: hazardCount || null},
     {id: 'dofs', label: 'Aksiyon', Icon: ClipboardList},
     {id: 'assistant', label: 'AI Asistan', Icon: Sparkles},
+    {id: 'saha_ai', label: 'Saha AI', Icon: Camera},
     {id: 'nace_roadmap', label: 'NACE Yol Haritası', Icon: Route},
     {id: 'reports', label: 'Raporlar', Icon: FileText},
     {id: 'departments', label: 'Bölümler', Icon: Building2},
@@ -1788,6 +1791,15 @@ export function RiskPage({user}) {
           companies={companies}
           reportCompanyId={reportCompanyId}
           setReportCompanyId={setReportCompanyId}
+          effectiveCompanyId={effectiveCompanyId}
+        />
+      )}
+
+      {tab === 'saha_ai' && !detail && (
+        <SahaAiPanel
+          user={user}
+          risks={rows}
+          reportCompanyId={reportCompanyId}
           effectiveCompanyId={effectiveCompanyId}
         />
       )}

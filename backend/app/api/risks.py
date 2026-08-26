@@ -33,6 +33,7 @@ from app.models.entities import (
     RiskAssessment,
     RiskDof,
     RiskMedia,
+    RiskMediaAnalysis,
     RiskRevision,
     TrainingSession,
     User,
@@ -63,8 +64,11 @@ from app.schemas.risk import (
     RiskUpdate,
     VirtualInspectorRequest,
 )
+from app.schemas.vision import VisionAnalysisResponse, DofApplyRequest
 from app.services.ai_assistant import suggest as assistant_suggest
 from app.services.ai_hazard_hint import HINT_ENGINE, suggest_hazard_from_text
+from app.services.ai_vision import build_full_analysis
+from app.core.config import vision_analysis_active
 from app.services.assigned_team import team_names
 from app.services.audit import add_audit_log
 from app.services.hazard_seed import seed_hazard_library
@@ -2151,3 +2155,212 @@ def delete_risk_media(
     db.delete(media)
     db.commit()
     return {"ok": True, "id": media_id}
+
+
+# ---------------------------------------------------------------------------
+# 0.9.246 — Saha fotoğrafı AI risk analizi (feature flag arkasında, additive)
+# ---------------------------------------------------------------------------
+def _load_media(db: Session, risk_id: int, media_id: int) -> RiskMedia:
+    row = _load_risk(db, risk_id)
+    media = next((m for m in (row.media_files or []) if m.id == media_id), None)
+    if not media:
+        raise HTTPException(404, "Medya bulunamadı.")
+    return row, media
+
+
+def _read_media_bytes(media: RiskMedia) -> bytes | None:
+    """Yüklü medya dosyasını bayt olarak okur (görüntü için)."""
+    try:
+        path = (_upload_root() / media.storage_path).resolve()
+        if _upload_root() not in path.parents or not path.exists():
+            return None
+        return path.read_bytes()
+    except Exception:
+        logger.warning("risk media okunamadı media_id=%s", media.id, exc_info=True)
+        return None
+
+
+def _parse_photo_tags(media: RiskMedia) -> list[str]:
+    parsed = parse_tags(getattr(media, "tags_json", None))
+    return list(parsed.get("selected") or [])
+
+
+@router.post("/{risk_id}/media/{media_id}/analyze", response_model=VisionAnalysisResponse)
+def analyze_risk_media(
+    risk_id: int,
+    media_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Saha fotoğrafını yapay zeka ile analiz eder.
+
+    Feature flag (VISION_ANALYSIS_ENABLED) kapalıysa 501 döner ve mevcut manuel
+    etiket/checklist akışı korunur. Açıkken fotoğraf + risk bağlamı analiz
+    edilir; tehlikeler, bbox, ilgili mevzuat, DÖF önerileri ve termin döner.
+
+    Hata durumunda heuristic-fallback döner; mevcut akış asla bozulmaz.
+    """
+    if not vision_analysis_active():
+        raise HTTPException(501, "Saha AI analizi şu anda kapalı (VISION_ANALYSIS_ENABLED).")
+    row, media = _load_media(db, risk_id, media_id)
+    ensure_access(db, user, row.company_id)
+
+    image_bytes = None
+    if getattr(media, "file_type", None) == "photo":
+        image_bytes = _read_media_bytes(media)
+    photo_tags = _parse_photo_tags(media)
+    result = build_full_analysis(
+        image_bytes=image_bytes,
+        media_text=((media.description or "") + " " + (media.original_name or "")).strip(),
+        photo_tags=photo_tags,
+        risk_activity=row.activity,
+        risk_definition=row.risk_definition,
+    )
+
+    record = RiskMediaAnalysis(
+        media_id=media.id,
+        engine=result.get("engine", "vision-v1"),
+        provider=result.get("provider", "heuristic"),
+        analysis_json=json.dumps(result, ensure_ascii=False),
+        summary=result.get("summary"),
+        created_by_id=user.id,
+    )
+    db.add(record)
+    add_audit_log(
+        db,
+        user=user,
+        action="CREATE",
+        entity_type="risk_media_analysis",
+        entity_id=str(media.id),
+        description=f"Saha fotoğrafı AI analizi: {result.get('provider')} / {result.get('summary', '')[:120]}",
+        module="risk",
+    )
+    db.commit()
+    db.refresh(record)
+    result["id"] = record.id
+    result["media_id"] = media.id
+    result["created_at"] = record.created_at
+    return result
+
+
+@router.get("/{risk_id}/media/{media_id}/analysis", response_model=VisionAnalysisResponse)
+def get_risk_media_analysis(
+    risk_id: int,
+    media_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Bir medyanın en son AI analiz sonucunu getirir."""
+    if not vision_analysis_active():
+        raise HTTPException(501, "Saha AI analizi şu anda kapalı (VISION_ANALYSIS_ENABLED).")
+    row, media = _load_media(db, risk_id, media_id)
+    ensure_access(db, user, row.company_id)
+    record = db.scalar(
+        select(RiskMediaAnalysis)
+        .where(RiskMediaAnalysis.media_id == media.id)
+        .order_by(RiskMediaAnalysis.id.desc())
+        .limit(1)
+    )
+    if not record:
+        raise HTTPException(404, "Bu medya için AI analizi bulunmuyor. Önce /analyze çağırın.")
+    try:
+        data = json.loads(record.analysis_json)
+    except json.JSONDecodeError:
+        raise HTTPException(500, "Analiz verisi bozuk.")
+    data["id"] = record.id
+    data["media_id"] = media.id
+    data["engine"] = record.engine
+    data["provider"] = record.provider
+    data["analyzed_at"] = record.analyzed_at.isoformat() if record.analyzed_at else data.get("analyzed_at")
+    data["created_at"] = record.created_at
+    return data
+
+
+@router.post("/{risk_id}/media/{media_id}/analysis/apply-dof", response_model=RiskDofResponse)
+def apply_analysis_dof(
+    risk_id: int,
+    media_id: int,
+    payload: DofApplyRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """AI önerilen bir DÖF'ü gerçek RiskDof kaydına dönüştürür (uzman onayı).
+
+    hazard_index: analiz sonucundaki hazard sırası
+    dof_index: None → o hazard'ın tüm DÖF'leri; belirli → tek DÖF
+    """
+    if not vision_analysis_active():
+        raise HTTPException(501, "Saha AI analizi şu anda kapalı (VISION_ANALYSIS_ENABLED).")
+    row, media = _load_media(db, risk_id, media_id)
+    ensure_access(db, user, row.company_id)
+    record = db.scalar(
+        select(RiskMediaAnalysis)
+        .where(RiskMediaAnalysis.media_id == media.id)
+        .order_by(RiskMediaAnalysis.id.desc())
+        .limit(1)
+    )
+    if not record:
+        raise HTTPException(404, "Önce /analyze ile analiz üretin.")
+    try:
+        data = json.loads(record.analysis_json)
+    except json.JSONDecodeError:
+        raise HTTPException(500, "Analiz verisi bozuk.")
+    hazards = data.get("hazards") or []
+    if payload.hazard_index >= len(hazards):
+        raise HTTPException(422, "hazard_index aşılı.")
+    hazard = hazards[payload.hazard_index]
+    dofs = hazard.get("dof_suggestions") or []
+    if not dofs:
+        raise HTTPException(422, "Bu hazard için DÖF önerisi yok.")
+    indices = [payload.dof_index] if payload.dof_index is not None else list(range(len(dofs)))
+    created: RiskDof | None = None
+    for idx in indices:
+        if idx < 0 or idx >= len(dofs):
+            continue
+        suggestion = dofs[idx]
+        client_ref = f"AI-MEDIA-{media.id}-{payload.hazard_index}-{idx}"
+        existing = db.scalar(
+            select(RiskDof).where(
+                RiskDof.risk_id == row.id,
+                RiskDof.client_reference == client_ref,
+            )
+        )
+        if existing:
+            created = existing
+            continue
+        code = _next_code(db, "DÖF", RiskDof, RiskDof.dof_code)
+        while db.scalar(select(RiskDof).where(RiskDof.dof_code == code)):
+            n = int("".join(ch for ch in code if ch.isdigit()) or "0") + 1
+            code = f"DÖF-{n:04d}"
+        term_date = None
+        raw_date = suggestion.get("term_date")
+        if raw_date:
+            try:
+                term_date = date.fromisoformat(raw_date)
+            except ValueError:
+                term_date = None
+        dof = RiskDof(
+            dof_code=code,
+            risk_id=row.id,
+            client_reference=client_ref,
+            description=suggestion.get("description", ""),
+            term_date=term_date or row.term_date,
+            created_by_id=user.id,
+        )
+        db.add(dof)
+        created = dof
+    db.commit()
+    if created:
+        db.refresh(created)
+    add_audit_log(
+        db,
+        user=user,
+        action="CREATE",
+        entity_type="risk_dof",
+        entity_id=str(created.id) if created else None,
+        description="AI analiz önerisinden DÖF oluşturuldu (uzman onayı).",
+        module="risk",
+    )
+    if created:
+        db.refresh(created)
+    return created

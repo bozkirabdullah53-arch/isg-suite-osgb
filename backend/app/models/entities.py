@@ -1255,6 +1255,32 @@ class RiskMedia(Base):
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     risk: Mapped[RiskAssessment] = relationship(back_populates="media_files")
+    analyses: Mapped[list["RiskMediaAnalysis"]] = relationship(
+        back_populates="media", cascade="all, delete-orphan", order_by="RiskMediaAnalysis.id.desc()"
+    )
+
+
+class RiskMediaAnalysis(Base):
+    """Saha fotoğrafı AI risk analizi sonucu (0.9.246).
+
+    Bir medyaya birden fazla analiz kaydı (yeniden analiz) tutulabilir; en
+    sonuncusu geçerli kabul edilir. Mevcut risk_media tablosuna/mantığına
+    dokunmaz; yalnızca ek bir analiz kaydıdır.
+    """
+    __tablename__ = "risk_media_analyses"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    media_id: Mapped[int] = mapped_column(
+        ForeignKey("risk_media.id", ondelete="CASCADE"), index=True
+    )
+    engine: Mapped[str] = mapped_column(String(40), default="vision-v1")
+    provider: Mapped[str] = mapped_column(String(30), default="heuristic")
+    analyzed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Tam analiz sonucu (hazards + bbox + mevzuat + DÖF + termin) JSON olarak.
+    analysis_json: Mapped[str] = mapped_column(Text)
+    summary: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    media: Mapped[RiskMedia] = relationship(back_populates="analyses")
 
 
 class RiskRevision(Base):

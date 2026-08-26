@@ -62,6 +62,12 @@ def repair_schema() -> None:
 
         PasswordResetToken.__table__.create(bind=engine, checkfirst=True)
 
+    # 0.9.246 — saha fotoğrafı AI analizi tablosu (additive).
+    if "risk_media_analyses" not in tables:
+        from app.models.entities import RiskMediaAnalysis  # noqa: F401
+
+        RiskMediaAnalysis.__table__.create(bind=engine, checkfirst=True)
+
     if "users" in tables:
         cols = _columns("users")
         user_cols: list[tuple[str, str]] = [

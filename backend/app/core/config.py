@@ -127,6 +127,18 @@ class Settings(BaseSettings):
     # çalışan hesabı için; mevcut çalışan/rol/menü akışlarını değiştirmez.
     employee_self_service_enabled: bool = False
     employee_self_service_force_off: bool = False
+    # Saha fotoğrafı → yapay zeka destekli risk analizi (0.9.246).
+    # Tümü default-off; mevcut risk/medya/etiketleme akışı değişmez.
+    # vision_analysis_enabled açıksa /media/analyze endpoint çalışır,
+    # kapalıysa 501 döner ve mevcut manuel checklist akışı korunur.
+    vision_analysis_enabled: bool = False
+    vision_analysis_force_off: bool = False
+    vision_provider: str = "heuristic"  # heuristic | api | yolo
+    vision_api_key: str | None = None
+    vision_api_base_url: str | None = None
+    vision_api_model: str = "gpt-4o"
+    vision_api_timeout_sec: int = 30
+    vision_max_image_mb: int = 10
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
@@ -146,6 +158,17 @@ def employee_self_service_active() -> bool:
     if bool(getattr(settings, "employee_self_service_force_off", False)):
         return False
     return bool(getattr(settings, "employee_self_service_enabled", False))
+
+
+def vision_analysis_active() -> bool:
+    """Saha fotoğrafı AI analizinin fail-closed rollout kapısı.
+
+    FORCE_OFF veya enabled=false durumunda /media/analyze endpoint 501 döner ve
+    mevcut manuel etiket/checklist akışı aynen korunur.
+    """
+    if bool(getattr(settings, "vision_analysis_force_off", False)):
+        return False
+    return bool(getattr(settings, "vision_analysis_enabled", False))
 
 
 def eyas_digital_approval_active() -> bool:
