@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -16,10 +17,20 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import registerFontFamily
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import (
+    Image as ReportLabImage,
+    KeepTogether,
+    PageBreak,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 from reportlab.pdfgen import canvas
 
 from app.services.risk_validity import METHOD_LABEL, document_meta_rows
@@ -32,6 +43,7 @@ PDF_FONT_BOLD = "Helvetica-Bold"
 _ASSETS = Path(__file__).resolve().parent.parent / "assets" / "fonts"
 CREATOR_LINE = "İSG Suite OSGB"
 _IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
+logger = logging.getLogger(__name__)
 
 
 def _upload_root() -> Path:
@@ -63,6 +75,167 @@ def _risk_excel_photo_path(risk) -> str | None:
         if root in candidate.parents and candidate.exists():
             return str(candidate)
     return None
+
+
+def _item_value(item, key: str, default=None):
+    if isinstance(item, dict):
+        return item.get(key, default)
+    return getattr(item, key, default)
+
+
+def _media_is_photo(media) -> bool:
+    file_type = str(_item_value(media, "file_type", "") or "").lower()
+    content_type = str(_item_value(media, "content_type", "") or "").lower()
+    name = str(_item_value(media, "original_name", "") or "")
+    rel = str(_item_value(media, "storage_path", "") or "")
+    return file_type == "photo" or content_type.startswith("image/") or Path(name or rel).suffix.lower() in _IMAGE_EXTS
+
+
+def _read_media_bytes(media) -> bytes | None:
+    """Read an attached image from inline draft bytes or the active object store."""
+    inline = _item_value(media, "inline_bytes")
+    if isinstance(inline, (bytes, bytearray)):
+        return bytes(inline)
+    key = str(_item_value(media, "storage_path", "") or "").replace("\\", "/").strip("/")
+    if not key or ".." in key.split("/"):
+        return None
+    try:
+        from app.services.object_store import get_object_store
+
+        return get_object_store().get_bytes(key)
+    except Exception:
+        logger.warning("Risk raporu fotoğrafı okunamadı: %s", key, exc_info=True)
+        return None
+
+
+def _normalize_photo_bytes(raw: bytes) -> bytes:
+    """Normalize common mobile image formats to a safe, embeddable JPEG."""
+    from PIL import Image, ImageOps
+
+    with Image.open(BytesIO(raw)) as source:
+        image = ImageOps.exif_transpose(source).convert("RGB")
+        image.thumbnail((2200, 1800), Image.Resampling.LANCZOS)
+        output = BytesIO()
+        image.save(output, format="JPEG", quality=88, optimize=True)
+        return output.getvalue()
+
+
+def _photo_flowable(media, *, max_width: float = 220, max_height: float = 88 * mm):
+    raw = _read_media_bytes(media)
+    if not raw:
+        return None
+    try:
+        normalized = _normalize_photo_bytes(raw)
+        reader = ImageReader(BytesIO(normalized))
+        source_width, source_height = reader.getSize()
+        if not source_width or not source_height:
+            return None
+        scale = min(max_width / source_width, max_height / source_height, 1)
+        image = ReportLabImage(
+            BytesIO(normalized),
+            width=max(1, source_width * scale),
+            height=max(1, source_height * scale),
+        )
+        image.hAlign = "CENTER"
+        return image
+    except Exception:
+        logger.warning("Risk raporu fotoğrafı PDF'e gömülemedi", exc_info=True)
+        return None
+
+
+def _fmt_datetime(value) -> str:
+    if not value:
+        return "—"
+    if hasattr(value, "strftime"):
+        return value.strftime("%d.%m.%Y %H:%M")
+    raw = str(value)
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")).strftime("%d.%m.%Y %H:%M")
+    except ValueError:
+        return raw
+
+
+def _confidence_percent(value) -> int:
+    try:
+        return max(0, min(100, round(float(value or 0) * 100)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _media_caption(media, index: int, caption_style) -> Paragraph:
+    from html import escape
+
+    name = escape(str(_item_value(media, "original_name", "") or f"Saha fotoğrafı {index}"))
+    lines = [f"<b>Fotoğraf {index}</b> · {name}"]
+    captured_at = _item_value(media, "captured_at")
+    if captured_at:
+        lines.append(f"Çekim: {escape(_fmt_datetime(captured_at))}")
+    lat = _item_value(media, "gps_lat")
+    lng = _item_value(media, "gps_lng")
+    if lat is not None and lng is not None:
+        accuracy = _item_value(media, "gps_accuracy_m")
+        suffix = f" · ±{accuracy} m" if accuracy is not None else ""
+        lines.append(f"GPS: {escape(str(lat))}, {escape(str(lng))}{suffix}")
+    tags = _item_value(media, "tags")
+    if not tags:
+        raw_tags = _item_value(media, "tags_json")
+        if raw_tags:
+            try:
+                parsed = json.loads(raw_tags) if isinstance(raw_tags, str) else raw_tags
+                tags = parsed.get("selected") if isinstance(parsed, dict) else parsed
+            except (TypeError, ValueError, json.JSONDecodeError):
+                tags = []
+    if tags:
+        labels = ", ".join(str(tag) for tag in list(tags)[:12])
+        lines.append(f"Etiket: {escape(labels)}")
+    return Paragraph("<br/>".join(lines), caption_style)
+
+
+def _photo_evidence_table(media_items, caption_style):
+    photos = [media for media in list(media_items or []) if _media_is_photo(media)]
+    if not photos:
+        return None
+    cells = []
+    for index, media in enumerate(photos, 1):
+        single_photo = len(photos) == 1
+        image = _photo_flowable(
+            media,
+            max_width=440 if single_photo else 220,
+            max_height=120 * mm if single_photo else 88 * mm,
+        )
+        if image is None:
+            cell = [
+                Paragraph(
+                    f"<b>Fotoğraf {index}</b><br/>Fotoğraf dosyası depolamadan okunamadı.",
+                    caption_style,
+                )
+            ]
+        else:
+            cell = [image, Spacer(1, 2 * mm), _media_caption(media, index, caption_style)]
+        cells.append(cell)
+    rows = []
+    for start in range(0, len(cells), 2):
+        row = cells[start:start + 2]
+        if len(row) == 1:
+            row.append("")
+        rows.append(row)
+    table = Table(rows, colWidths=[230, 230], hAlign="LEFT")
+    table.setStyle(
+        TableStyle(
+            [
+                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#e2e8f0")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    if len(cells) % 2 == 1:
+        table.setStyle(TableStyle([("SPAN", (0, len(rows) - 1), (1, len(rows) - 1))]))
+    return table
 
 
 def _register_pdf_fonts() -> None:
@@ -319,6 +492,14 @@ def build_risk_pdf(
     )
     body = ParagraphStyle("RiskBody", parent=styles["Normal"], fontSize=8.5, fontName=PDF_FONT, leading=11, spaceAfter=3)
     cell = ParagraphStyle("RiskCell", parent=styles["Normal"], fontSize=8, fontName=PDF_FONT, leading=10)
+    photo_caption = ParagraphStyle(
+        "RiskPhotoCaption",
+        parent=styles["Normal"],
+        fontSize=7.5,
+        fontName=PDF_FONT,
+        leading=9,
+        textColor=colors.HexColor("#475569"),
+    )
 
     def _person_line(role_key: str, fallback_name: str | None, fallback_title: str) -> str:
         detail = team_details.get(role_key) or {}
@@ -779,6 +960,14 @@ def build_risk_pdf(
             )
             elements.append(dof_table)
 
+        photo_table = _photo_evidence_table(getattr(risk, "media_files", None), photo_caption)
+        if photo_table:
+            elements.append(
+                KeepTogether(
+                    [Spacer(1, 3 * mm), Paragraph("FOTOĞRAF KANITLARI", section), photo_table]
+                )
+            )
+
         elements.append(Spacer(1, 6 * mm))
 
     elements.append(PageBreak())
@@ -854,6 +1043,222 @@ def build_risk_pdf(
         elements,
         canvasmaker=lambda *args, **kwargs: _RiskPdfCanvas(*args, team_line=team_line, **kwargs),
     )
+    buf.seek(0)
+    return buf.read()
+
+
+def build_field_inspection_pdf(
+    *,
+    company,
+    prepared_by: str | None = None,
+    department_name: str | None = None,
+    location: str | None = None,
+    category_name: str | None = None,
+    hazard_code: str | None = None,
+    hazard_name: str | None = None,
+    summary: str | None = None,
+    existing_measures: str | None = None,
+    action: str | None = None,
+    responsible_person: str | None = None,
+    term_date: str | None = None,
+    probability: float | None = None,
+    severity: float | None = None,
+    observed_at=None,
+    gps_lat: float | None = None,
+    gps_lng: float | None = None,
+    gps_accuracy_m: float | None = None,
+    photos: list[dict] | None = None,
+    vision_results: list[dict] | None = None,
+) -> bytes:
+    """Kayıt öncesi saha formu için fotoğraflı, geçici PDF raporu."""
+    from html import escape
+
+    photos = list(photos or [])
+    vision_results = [item for item in list(vision_results or []) if isinstance(item, dict)]
+    styles = getSampleStyleSheet()
+    for style in styles.byName.values():
+        style.fontName = PDF_FONT
+    title = ParagraphStyle(
+        "FieldReportTitle",
+        parent=styles["Title"],
+        fontSize=17,
+        leading=21,
+        fontName=PDF_FONT_BOLD,
+        textColor=colors.HexColor("#0f766e"),
+        alignment=TA_CENTER,
+        spaceAfter=4,
+    )
+    subtitle = ParagraphStyle(
+        "FieldReportSubtitle",
+        parent=styles["Normal"],
+        fontSize=9,
+        leading=12,
+        fontName=PDF_FONT,
+        textColor=colors.HexColor("#475569"),
+        alignment=TA_CENTER,
+        spaceAfter=3,
+    )
+    section = ParagraphStyle(
+        "FieldReportSection",
+        parent=styles["Normal"],
+        fontSize=11,
+        leading=14,
+        fontName=PDF_FONT_BOLD,
+        textColor=colors.HexColor("#0f766e"),
+        spaceBefore=6,
+        spaceAfter=6,
+    )
+    body = ParagraphStyle(
+        "FieldReportBody",
+        parent=styles["Normal"],
+        fontSize=9,
+        leading=12,
+        fontName=PDF_FONT,
+        spaceAfter=4,
+    )
+    small = ParagraphStyle(
+        "FieldReportSmall",
+        parent=styles["Normal"],
+        fontSize=7.5,
+        leading=9,
+        fontName=PDF_FONT,
+        textColor=colors.HexColor("#475569"),
+    )
+    label = ParagraphStyle(
+        "FieldReportLabel",
+        parent=small,
+        fontName=PDF_FONT_BOLD,
+        textColor=colors.HexColor("#0f172a"),
+    )
+
+    def safe(value, fallback="—", limit=2200):
+        text = str(value or "").strip()
+        return escape(text[:limit] if text else fallback)
+
+    gps = "—"
+    if gps_lat is not None and gps_lng is not None:
+        accuracy = f" · ±{gps_accuracy_m} m" if gps_accuracy_m is not None else ""
+        gps = f"{gps_lat}, {gps_lng}{accuracy}"
+    score = "—"
+    if probability is not None and severity is not None:
+        score = f"{_score_text(probability)} × {_score_text(severity)} = {_score_text(float(probability) * float(severity))}"
+
+    info_rows = [
+        [Paragraph("İşyeri", label), Paragraph(safe(getattr(company, "name", None)), body)],
+        [Paragraph("Bölüm / saha alanı", label), Paragraph(safe(department_name), body)],
+        [Paragraph("Gözlem konumu", label), Paragraph(safe(location), body)],
+        [Paragraph("Gözlem tarihi", label), Paragraph(safe(_fmt_datetime(observed_at)), body)],
+        [Paragraph("Hazırlayan", label), Paragraph(safe(prepared_by), body)],
+        [Paragraph("GPS", label), Paragraph(safe(gps), body)],
+        [Paragraph("Risk puanı", label), Paragraph(safe(score), body)],
+        [Paragraph("Kategori / tehlike", label), Paragraph(safe(" · ".join(part for part in [category_name, hazard_code, hazard_name] if part)), body)],
+    ]
+    info_table = Table(info_rows, colWidths=[125, 335], hAlign="LEFT")
+    info_table.setStyle(
+        TableStyle(
+            [
+                ("GRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#cbd5e1")),
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f1f5f9")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+
+    elements: list = [
+        Paragraph("FOTOĞRAFLI SAHA DENETİM RAPORU", title),
+        Paragraph(safe(getattr(company, "name", None)), subtitle),
+        Paragraph(
+            f"Düzenleme: {escape(_fmt_datetime(datetime.now()))} · {CREATOR_LINE}",
+            subtitle,
+        ),
+        Spacer(1, 4 * mm),
+        info_table,
+        Spacer(1, 3 * mm),
+        Paragraph("1. SAHA BULGUSU", section),
+        Paragraph(f"<b>Uygunsuzluk / risk tanımı:</b> {safe(summary)}", body),
+        Paragraph(f"<b>Mevcut önlemler:</b> {safe(existing_measures)}", body),
+        Paragraph("2. DÖF / AKSİYON", section),
+        Paragraph(f"<b>Aksiyon:</b> {safe(action)}", body),
+        Paragraph(f"<b>Sorumlu kişi:</b> {safe(responsible_person)}", body),
+        Paragraph(f"<b>Termin tarihi:</b> {safe(term_date)}", body),
+    ]
+
+    photo_caption = ParagraphStyle(
+        "FieldReportPhotoCaption",
+        parent=small,
+        fontSize=7.5,
+        leading=9,
+    )
+    photo_table = _photo_evidence_table(photos, photo_caption)
+    elements.append(
+        KeepTogether(
+            [
+                Paragraph("3. FOTOĞRAF KANITLARI", section),
+                photo_table or Paragraph("Fotoğraf kanıtı eklenmedi.", body),
+            ]
+        )
+    )
+
+    if vision_results:
+        elements.append(Paragraph("4. AI FOTOĞRAF ANALİZİ", section))
+        elements.append(
+            Paragraph(
+                "AI çıktısı fotoğraf üzerinden ön değerlendirmedir; nihai risk kararı yetkili İSG profesyoneli tarafından kontrol edilmelidir.",
+                body,
+            )
+        )
+        for index, analysis in enumerate(vision_results, 1):
+            summary_text = safe(analysis.get("summary"), "Analiz özeti yok.", 1200)
+            elements.append(Paragraph(f"<b>Fotoğraf {index}:</b> {summary_text}", body))
+            hazards = analysis.get("hazards") or []
+            if not isinstance(hazards, list) or not hazards:
+                continue
+            hazard_rows = [["Tehlike", "Fotoğrafta görülen durum", "Şiddet", "Güven"]]
+            for hazard in hazards[:12]:
+                if not isinstance(hazard, dict):
+                    continue
+                hazard_rows.append(
+                    [
+                        Paragraph(safe(hazard.get("category")), small),
+                        Paragraph(safe(hazard.get("observed") or hazard.get("note")), small),
+                        safe(hazard.get("severity")),
+                        f"%{_confidence_percent(hazard.get('confidence'))}",
+                    ]
+                )
+            if len(hazard_rows) > 1:
+                hazard_table = Table(hazard_rows, colWidths=[105, 245, 50, 60], hAlign="LEFT")
+                hazard_table.setStyle(
+                    TableStyle(
+                        [
+                            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f766e")),
+                            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                            ("FONTNAME", (0, 0), (-1, 0), PDF_FONT_BOLD),
+                            ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+                            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
+                            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                            ("TOPPADDING", (0, 0), (-1, -1), 4),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                        ]
+                    )
+                )
+                elements.append(KeepTogether([hazard_table, Spacer(1, 2 * mm)]))
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=A4,
+        rightMargin=14 * mm,
+        leftMargin=14 * mm,
+        topMargin=16 * mm,
+        bottomMargin=18 * mm,
+    )
+    doc.build(elements, onFirstPage=_add_pdf_footer, onLaterPages=_add_pdf_footer)
     buf.seek(0)
     return buf.read()
 

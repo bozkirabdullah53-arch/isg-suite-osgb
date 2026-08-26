@@ -568,6 +568,43 @@ export async function downloadFile(path, filename, {timeoutMs = 90_000} = {}) {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+export async function downloadFormFile(path, formData, filename, {timeoutMs = 90_000} = {}) {
+  await wakeApi();
+  const token = getAccessToken();
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      method: "POST",
+      headers: token ? {Authorization: `Bearer ${token}`} : {},
+      body: formData,
+      mode: "cors",
+      credentials: fetchCredentials(path),
+      signal: requestSignal(timeoutMs),
+    });
+  } catch (e) {
+    if (isNetworkError(e)) {
+      throw new Error("Sunucuya bağlanılamadı. Birkaç saniye bekleyip tekrar deneyin.");
+    }
+    throw e;
+  }
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+  const blob = await response.blob();
+  if (!blob || blob.size < 1) {
+    throw new Error("PDF boş veya bozuk geldi. Tekrar deneyin.");
+  }
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export async function uploadFile(path, file, extraFields = null, options = {}) {
   await wakeApi();
   const uploadPath = String(path || "");

@@ -79,7 +79,12 @@ from app.services.risk_photo_tags import (
     parse_tags,
     serialize_selected,
 )
-from app.services.risk_reports import build_dof_excel, build_risk_excel, build_risk_pdf
+from app.services.risk_reports import (
+    build_dof_excel,
+    build_field_inspection_pdf,
+    build_risk_excel,
+    build_risk_pdf,
+)
 from app.services.virtual_inspector import inspect_company
 from app.services.risk_nace_roadmap import build_risk_nace_roadmap
 from app.services.training_nace_classification import resolve_exact_nace
@@ -1495,6 +1500,145 @@ def risk_report_pdf(
     )
 
 
+@router.post("/field-report.pdf")
+async def field_inspection_report_pdf(
+    company_id: int = Form(...),
+    department_name: str | None = Form(default=None),
+    location: str | None = Form(default=None),
+    hazard_id: int | None = Form(default=None),
+    summary: str | None = Form(default=None),
+    existing_measures: str | None = Form(default=None),
+    action: str | None = Form(default=None),
+    responsible_person: str | None = Form(default=None),
+    term_date: str | None = Form(default=None),
+    probability: float | None = Form(default=None),
+    severity: float | None = Form(default=None),
+    observed_at: str | None = Form(default=None),
+    gps_lat: float | None = Form(default=None),
+    gps_lng: float | None = Form(default=None),
+    gps_accuracy_m: float | None = Form(default=None),
+    photo_meta: str | None = Form(default=None),
+    vision_results: str | None = Form(default=None),
+    files: list[UploadFile] = File(default=[]),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Saha formundaki henüz kaydedilmemiş fotoğraflardan geçici PDF üretir."""
+    ensure_access(db, user, company_id)
+    company = db.get(Company, company_id)
+    if not company:
+        raise HTTPException(404, "Firma bulunamadı.")
+    if not files:
+        raise HTTPException(422, "PDF raporu için en az bir fotoğraf seçin.")
+    if len(files) > 5:
+        raise HTTPException(422, "Bir raporda en fazla 5 fotoğraf kullanılabilir.")
+
+    def parse_json_field(raw: str | None, label: str):
+        value = (raw or "").strip()
+        if not value:
+            return []
+        if len(value) > 300_000:
+            raise HTTPException(422, f"{label} verisi çok büyük.")
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(422, f"{label} verisi okunamadı.") from exc
+
+    parsed_meta = parse_json_field(photo_meta, "Fotoğraf bilgisi")
+    metadata = parsed_meta if isinstance(parsed_meta, list) else []
+    parsed_vision = parse_json_field(vision_results, "AI analiz bilgisi")
+
+    hazard = None
+    category = None
+    if hazard_id is not None:
+        hazard = db.get(Hazard, hazard_id)
+        if not hazard or not hazard.is_active:
+            raise HTTPException(422, "Tehlike seçimi geçersiz.")
+        category = db.get(HazardCategory, hazard.category_id)
+
+    max_bytes = settings.vision_max_image_mb * 1024 * 1024
+    total_bytes = 0
+    report_photos = []
+    for index, uploaded in enumerate(files):
+        name = uploaded.filename or f"saha-fotografi-{index + 1}.jpg"
+        ext = Path(name).suffix.lower()
+        if ext not in ALLOWED_PHOTO:
+            raise HTTPException(422, "PDF fotoğrafları jpg, png, webp veya gif olmalıdır.")
+        raw = await uploaded.read()
+        if not raw:
+            raise HTTPException(422, f"{name} boş bir dosya.")
+        if len(raw) > max_bytes:
+            raise HTTPException(413, f"{name} {settings.vision_max_image_mb} MB sınırını aşıyor.")
+        total_bytes += len(raw)
+        if total_bytes > max_bytes * 5:
+            raise HTTPException(413, "Fotoğraf toplam boyutu sınırı aşıyor.")
+        try:
+            from PIL import Image
+
+            with Image.open(BytesIO(raw)) as image:
+                image.verify()
+        except Exception as exc:
+            raise HTTPException(422, f"{name} geçerli bir görüntü değil.") from exc
+
+        meta = metadata[index] if index < len(metadata) and isinstance(metadata[index], dict) else {}
+        tags = meta.get("tags") if isinstance(meta.get("tags"), list) else []
+        report_photos.append(
+            {
+                "inline_bytes": raw,
+                "original_name": str(meta.get("name") or name)[:255],
+                "content_type": uploaded.content_type or "image/jpeg",
+                "file_type": "photo",
+                "captured_at": meta.get("captured_at"),
+                "gps_lat": meta.get("gps_lat", gps_lat),
+                "gps_lng": meta.get("gps_lng", gps_lng),
+                "gps_accuracy_m": meta.get("gps_accuracy_m", gps_accuracy_m),
+                "tags": [str(tag)[:60] for tag in tags[:12]],
+            }
+        )
+
+    if isinstance(parsed_vision, list):
+        report_vision = [item for item in parsed_vision if isinstance(item, dict)]
+    elif isinstance(parsed_vision, dict):
+        report_vision = []
+        for meta in metadata[:len(report_photos)]:
+            if isinstance(meta, dict):
+                item = parsed_vision.get(str(meta.get("id")))
+                if isinstance(item, dict):
+                    report_vision.append(item)
+    else:
+        report_vision = []
+
+    pdf = build_field_inspection_pdf(
+        company=company,
+        prepared_by=user.full_name,
+        department_name=department_name,
+        location=location,
+        category_name=category.name if category else None,
+        hazard_code=hazard.code if hazard else None,
+        hazard_name=hazard.name if hazard else None,
+        summary=summary,
+        existing_measures=existing_measures,
+        action=action,
+        responsible_person=responsible_person,
+        term_date=term_date,
+        probability=probability,
+        severity=severity,
+        observed_at=observed_at,
+        gps_lat=gps_lat,
+        gps_lng=gps_lng,
+        gps_accuracy_m=gps_accuracy_m,
+        photos=report_photos,
+        vision_results=report_vision,
+    )
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="saha-denetim-{company.id}.pdf"',
+        },
+    )
+
+
 @router.get("/report.xlsx")
 def risk_report_excel(
     company_id: int | None = None,
@@ -1675,6 +1819,61 @@ def migrate_isg_records(
         "default_hazard_code": hazard.code,
         "preview": preview[:50],
     }
+
+
+@router.get("/{risk_id}/report.pdf")
+def risk_record_report_pdf(
+    risk_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Tek bir saha/risk kaydını bağlı fotoğraf kanıtlarıyla PDF'e çevirir."""
+    row = _load_risk(db, risk_id)
+    ensure_access(db, user, row.company_id)
+    company = db.get(Company, row.company_id)
+    if not company:
+        raise HTTPException(404, "Firma bulunamadı.")
+    hazard = db.get(Hazard, row.hazard_id)
+    if not hazard:
+        raise HTTPException(404, "Tehlike bulunamadı.")
+    branch = db.scalar(select(Branch).where(Branch.company_id == company.id).order_by(Branch.id.asc()))
+    sgk = branch.sgk_registry_no if branch and branch.sgk_registry_no else company.sgk_registry_no
+    ctx = _assessment_context(db, company)
+    nace_code, nace_source = _resolve_company_nace(db, company)
+    nace_roadmap = build_risk_nace_roadmap(
+        company,
+        coverage=_roadmap_coverage(db, company.id, [row]),
+        nace_code_override=nace_code,
+        nace_source=nace_source,
+    )
+    pdf = build_risk_pdf(
+        company=company,
+        risks=[row],
+        hazard_map={hazard.id: hazard},
+        prepared_by=ctx["safety_specialist"] or user.full_name,
+        sgk_no=sgk,
+        workplace_physician=ctx["workplace_physician"],
+        employer_representative=ctx["employer_representative"],
+        employee_representative=ctx["employee_representative"],
+        support_staff=ctx["support_staff"],
+        validity=ctx["validity"],
+        team_details=ctx["team_details"],
+        employee_count=ctx["employee_count"],
+        document_no=ctx["document_no"],
+        revision_no=ctx["revision_no"],
+        revision_reason=ctx["revision_reason"],
+        scope_note=ctx["scope_note"],
+        tax_number=company.tax_number,
+        nace_code=nace_code,
+        nace_roadmap=nace_roadmap,
+    )
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="saha-bulgu-{row.risk_code or row.id}.pdf"',
+        },
+    )
 
 
 @router.get("/{risk_id}", response_model=RiskResponse)

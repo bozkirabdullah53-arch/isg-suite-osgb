@@ -282,3 +282,47 @@ def test_field_inspection_risk_and_dof_are_idempotent(client):
     dof_retry = client.post(f"/api/v1/risks/{row['id']}/dofs", headers=headers, json=dof_payload)
     assert dof_retry.status_code == 200, dof_retry.text
     assert dof_retry.json()["id"] == dof_row["id"]
+
+
+def test_photo_pdf_reports_embed_saved_and_draft_photos(client):
+    token, risk_id = _seed(client)
+    headers = {"Authorization": f"Bearer {token}"}
+    png = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00"
+        b"\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+
+    upload = client.post(
+        f"/api/v1/risks/{risk_id}/media",
+        headers=headers,
+        files={"file": ("saved.png", io.BytesIO(png), "image/png")},
+        data={"captured_at": "2026-08-20T10:15:00+03:00"},
+    )
+    assert upload.status_code == 200, upload.text
+
+    saved_report = client.get(f"/api/v1/risks/{risk_id}/report.pdf", headers=headers)
+    assert saved_report.status_code == 200, saved_report.text
+    assert saved_report.content.startswith(b"%PDF")
+    assert b"/Subtype /Image" in saved_report.content
+
+    risk_body = client.get(f"/api/v1/risks/{risk_id}", headers=headers).json()
+
+    draft_report = client.post(
+        "/api/v1/risks/field-report.pdf",
+        headers=headers,
+        files={"files": ("draft.png", io.BytesIO(png), "image/png")},
+        data={
+            "company_id": str(risk_body["company_id"]),
+            "department_name": "Saha",
+            "location": "Pres önü",
+            "summary": "Fotoğraflı saha bulgusu",
+            "probability": "3",
+            "severity": "4",
+            "photo_meta": '[{"name":"draft.png","tags":["work_at_height"]}]',
+            "vision_results": '[{"summary":"Kontrol gerekli.","hazards":[{"category":"Düşme","observed":"Açık kenar","confidence":"bozuk"}]}]',
+        },
+    )
+    assert draft_report.status_code == 200, draft_report.text
+    assert draft_report.content.startswith(b"%PDF")
+    assert b"/Subtype /Image" in draft_report.content

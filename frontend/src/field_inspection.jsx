@@ -20,7 +20,7 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
-import {api, downloadFile, uploadFile} from "./api";
+import {api, downloadFile, downloadFormFile, uploadFile} from "./api";
 import {getAccessToken} from "./auth_session";
 import {
   enqueueOfflineFinding,
@@ -333,6 +333,78 @@ export function FieldInspectionPage({user}) {
     } finally {
       setDlBusy(null);
     }
+  }
+
+  async function downloadDraftReport() {
+    if (!photos.length) {
+      setError("PDF raporu için önce fotoğraf ekleyin.");
+      return;
+    }
+    if (!online) {
+      setError("Fotoğraflı PDF raporu için internet bağlantısı gerekir.");
+      return;
+    }
+    setDlBusy("draft");
+    setError("");
+    try {
+      const formData = new FormData();
+      formData.append("company_id", String(form.company_id));
+      if (selectedDepartment?.name || form.department_name) formData.append("department_name", selectedDepartment?.name || form.department_name);
+      if (form.location) formData.append("location", form.location);
+      if (form.hazard_id) formData.append("hazard_id", String(form.hazard_id));
+      if (form.summary) formData.append("summary", form.summary);
+      if (form.existing_measures) formData.append("existing_measures", form.existing_measures);
+      if (form.action) formData.append("action", form.action);
+      if (form.responsible_person) formData.append("responsible_person", form.responsible_person);
+      if (form.term_date) formData.append("term_date", form.term_date);
+      formData.append("probability", String(form.probability));
+      formData.append("severity", String(form.severity));
+      formData.append("observed_at", new Date().toISOString());
+      if (gps.lat != null) formData.append("gps_lat", String(gps.lat));
+      if (gps.lng != null) formData.append("gps_lng", String(gps.lng));
+      if (gps.accuracy != null) formData.append("gps_accuracy_m", String(gps.accuracy));
+      formData.append("photo_meta", JSON.stringify(photos.map((photo) => ({
+        id: photo.id,
+        name: photo.name,
+        captured_at: photo.captured_at,
+        gps_lat: photo.gps_lat ?? gps.lat,
+        gps_lng: photo.gps_lng ?? gps.lng,
+        gps_accuracy_m: photo.gps_accuracy_m ?? gps.accuracy,
+        tags: selectedPhotoTags,
+      }))));
+      formData.append("vision_results", JSON.stringify(photos.map((photo) => visionResults[photo.id] || null)));
+      photos.forEach((photo) => {
+        formData.append("files", dataUrlToFile(photo.data_url, photo.name || "saha-fotografi.jpg"), photo.name || "saha-fotografi.jpg");
+      });
+      await downloadFormFile(
+        "/risks/field-report.pdf",
+        formData,
+        `saha-denetim-${selectedCompany?.id || "taslak"}.pdf`,
+        {timeoutMs: 120_000},
+      );
+      setMessage("Fotoğraflı saha PDF raporu indirildi.");
+    } catch (ex) {
+      setError(ex.message || "Fotoğraflı PDF raporu oluşturulamadı.");
+    } finally {
+      setDlBusy(null);
+    }
+  }
+
+  function renderDraftReportAction() {
+    if (!photos.length) return null;
+    return (
+      <div className="field-photo-report-actions">
+        <button
+          type="button"
+          className="field-photo-report-btn"
+          onClick={() => void downloadDraftReport()}
+          disabled={busy || dlBusy === "draft" || !online}
+        >
+          <Download size={16} /> {dlBusy === "draft" ? "PDF hazırlanıyor…" : "Fotoğraflı PDF raporu al"}
+        </button>
+        <small>Seçili fotoğraflar ve mevcut saha bilgileri rapora eklenir.</small>
+      </div>
+    );
   }
 
   async function synchronize() {
@@ -937,6 +1009,7 @@ export function FieldInspectionPage({user}) {
                   })}
                 </div>
               )}
+              {renderDraftReportAction()}
 
               {photos.length === 0 && (
                 <p className="field-muted field-ai-empty">Fotoğraf çekip veya galeriden seçip "AI Analiz Et" ile başlayın. Yapay zeka uygunsuzlukları fotoğraf üzerinde işaretler, mevzuata göre tespitleri tutanak haline getirir ve alınacak tedbirleri yazar.</p>
@@ -1223,6 +1296,7 @@ export function FieldInspectionPage({user}) {
               })}
             </div>
           )}
+          {renderDraftReportAction()}
 
           {tagCatalog.length > 0 && photos.length > 0 && (
             <div className="field-tags">

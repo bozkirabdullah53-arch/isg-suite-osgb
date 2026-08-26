@@ -848,6 +848,49 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
   opacity: .55;
 }
 
+.field-photo-report-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0 2px;
+  padding: 10px 12px;
+  border: 1px solid #99f6e4;
+  border-radius: 10px;
+  background: #f0fdfa;
+}
+
+.field-photo-report-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 8px 13px;
+  border: 1px solid #0f766e;
+  border-radius: 8px;
+  color: #fff;
+  background: #0f766e;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.field-photo-report-btn:hover:not(:disabled) {
+  background: #115e59;
+}
+
+.field-photo-report-btn:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+
+.field-photo-report-actions small {
+  color: #336b70;
+  font-size: 11px;
+}
+
 @media (max-width: 380px) {
   .field-photo-actions {
     grid-template-columns: 1fr;
