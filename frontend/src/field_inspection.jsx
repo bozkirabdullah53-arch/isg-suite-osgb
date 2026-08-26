@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import {api, downloadFile, uploadFile} from "./api";
+import {getAccessToken} from "./auth_session";
 import {
   enqueueOfflineFinding,
   flushOfflineFindings,
@@ -489,12 +490,25 @@ export function FieldInspectionPage({user}) {
       fd.append("activity", `Saha denetimi — ${String(form.location || "").trim() || deptLabel}`);
       fd.append("risk_definition", String(form.summary || "").trim());
       if (selectedPhotoTags.length) fd.append("photo_tags", JSON.stringify({selected: selectedPhotoTags}));
-      const r = await api("/risks/vision-analyze", {method: "POST", body: fd, timeoutMs: 120000, _retries: 1});
+      // api.js retry/refresh karmaşıklığı uzun vision çağrısını bozuyor;
+      // doğrudan fetch ile sade, tek denemelik çağrı.
+      const token = getAccessToken();
+      const apiRes = await fetch("/api/v1/risks/vision-analyze", {
+        method: "POST",
+        body: fd,
+        credentials: "include",
+        headers: token ? {Authorization: `Bearer ${token}`} : {},
+      });
+      if (!apiRes.ok) {
+        const txt = await apiRes.text().catch(() => "");
+        throw new Error(`HTTP ${apiRes.status}: ${txt.slice(0, 200) || apiRes.statusText}`);
+      }
+      const r = await apiRes.json();
       setVisionResults((cur) => ({...cur, [photo.id]: r}));
     } catch (ex) {
       let msg = ex.message || "AI analizi başarısız.";
-      if (/fetch|network|timeout/i.test(msg)) {
-        msg = "AI analizi zaman aşımına uğradı veya sunucuya ulaşılamadı. Backend ısınmışken tekrar deneyin (30-60 sn sürebilir).";
+      if (/fetch|network|timeout|Failed/i.test(msg)) {
+        msg = "Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin ve tekrar deneyin.";
       }
       setVisionErr((cur) => ({...cur, [photo.id]: msg}));
     } finally {
