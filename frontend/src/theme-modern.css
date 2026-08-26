@@ -243,7 +243,7 @@ html[data-ui-theme="modern"] .brand-mark {
 /* ============================================================
    KENAR ÇUBUĞU — koyu cam, parlayan aktif öğe
    ============================================================ */
-html[data-ui-theme="modern"] aside {
+html[data-ui-theme="modern"] .app-shell > aside {
   background: linear-gradient(180deg, rgba(6, 24, 30, .96) 0%, rgba(9, 34, 42, .97) 70%, rgba(10, 38, 46, .97) 100%);
   backdrop-filter: blur(16px);
   border-right: 0;
@@ -726,7 +726,7 @@ html[data-ui-theme="modern"] .theme-toggle:hover svg { transform: rotate(-14deg)
     padding: 12px 14px;
     border-radius: 16px;
   }
-  html[data-ui-theme="modern"] aside {
+  html[data-ui-theme="modern"] .app-shell > aside {
     border-top: 1px solid rgba(255, 255, 255, .09);
     box-shadow: 0 -12px 34px rgba(5, 22, 28, .4);
     background: linear-gradient(180deg, #0f2a32 0%, #0b1f26 100%);

@@ -230,7 +230,7 @@ button, input { font: inherit; }
 .error { color: #b42318; background: #fff1f0; padding: 10px; border-radius: 8px; }
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 250px 1fr; }
-aside {
+.app-shell > aside {
   position: sticky;
   top: 0;
   height: 100vh;
@@ -385,7 +385,7 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 
 @media (max-width: 900px) {
   .app-shell { grid-template-columns: 80px 1fr; }
-  aside { padding: 18px 10px; }
+  .app-shell > aside { padding: 18px 10px; }
   .logo span, nav span, .logout { font-size: 0; }
   .logo { justify-content: center; padding-inline: 0; }
   nav button { justify-content: center; }
@@ -394,7 +394,7 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 
   @media (max-width: 620px) {
   .app-shell { display: block; padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
-  aside {
+  .app-shell > aside {
     position: fixed;
     z-index: 40;
     bottom: 0;
