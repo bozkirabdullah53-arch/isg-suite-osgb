@@ -134,7 +134,14 @@ services:
       - key: VISION_ANALYSIS_ENABLED
         value: "true"
       - key: VISION_PROVIDER
-        value: "heuristic"
+        value: "api"
+      - key: VISION_API_BASE_URL
+        value: "https://api.xkiro.com/v1"
+      - key: VISION_API_MODEL
+        value: "openai/gpt-5.4-mini"
+      # API anahtarı gizli — Render dashboard'da manuel eklenir (sync: false).
+      - key: VISION_API_KEY
+        sync: false
 
   - type: cron
     name: isg-suite-api-warmup
