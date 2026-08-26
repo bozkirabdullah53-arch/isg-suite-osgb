@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Clock3,
+  Download,
   ImagePlus,
   Lightbulb,
   MapPin,
@@ -17,7 +18,7 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
-import {api, uploadFile} from "./api";
+import {api, downloadFile, uploadFile} from "./api";
 import {
   enqueueOfflineFinding,
   flushOfflineFindings,
@@ -156,6 +157,7 @@ export function FieldInspectionPage({user}) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [referenceLoading, setReferenceLoading] = useState(true);
+  const [dlBusy, setDlBusy] = useState(null);
   const [aiHint, setAiHint] = useState(null);
   const [aiBusy, setAiBusy] = useState(false);
   const aiTimer = useRef(null);
@@ -245,6 +247,18 @@ export function FieldInspectionPage({user}) {
       setRecent(rows.filter((row) => row.record_origin === "field_inspection").slice(0, 30));
     } catch {
       // Saha kaydı offline iken son sunucu listesi zorunlu değildir.
+    }
+  }
+
+  async function downloadReport(row) {
+    if (!row?.id) return;
+    setDlBusy(row.id);
+    try {
+      await downloadFile(`/risks/${row.id}/report.pdf`, `saha-bulgu-${row.risk_code || row.id}.pdf`);
+    } catch {
+      setError("Rapor indirilemedi; tekrar deneyin.");
+    } finally {
+      setDlBusy(null);
     }
   }
 
@@ -902,7 +916,12 @@ export function FieldInspectionPage({user}) {
                   <span className={`field-risk-badge ${riskClass(row.risk_level)}`}>{row.risk_level}</span>
                 </div>
                 <p>{row.risk_definition}</p>
-                <small>{row.department_name || "Saha"} · {row.media?.length || 0} fotoğraf · {row.dofs?.length || 0} DÖF</small>
+                <div className="field-recent-meta">
+                  <small>{row.department_name || "Saha"} · {row.media?.length || 0} fotoğraf · {row.dofs?.length || 0} DÖF</small>
+                  <button type="button" className="mini secondary" onClick={() => downloadReport(row)} disabled={dlBusy === row.id}>
+                    <Download size={13} /> {dlBusy === row.id ? "…" : "PDF rapor"}
+                  </button>
+                </div>
               </article>
             )) : <p className="field-muted">Bu işyeri için henüz saha bulgusu yok.</p>}
           </div>
