@@ -26,6 +26,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import re
 from typing import Any
 
 from app.core.config import settings
@@ -165,24 +166,53 @@ def _api_analyze(
 
     b64 = base64.b64encode(image_bytes).decode("ascii")
     prompt = (
-        "Sen bir iş sağlığı ve güvenliği (İSG) uzmanısın. Aşağıdaki saha fotoğrafını "
-        "incele ve görünen risk/tehlikeleri tespit et. Yalnızca JSON döndür.\n\n"
-        "Bağlam (risk kaydı):\n"
+        "Sen kıdemli bir iş sağlığı ve güvenliği (İSG) uzmanı ve denetçisinin. "
+        "Aşağıdaki saha fotoğrafını dikkatlice inceleyip GÖRÜNTÜ İÇERİĞÜNDEN "
+        "risk/tehlikeleri tespit et. Fotoğrafın piksellerini gerçekten analiz et; "
+        "metin/etikete değil, görselde gördüğüne güven.\n\n"
+        "Görselde şunları ara:\n"
+        "- Kişisel koruyucu donanım (KKD) eksikliği: baret, güvenlik gözlüğü, "
+        "eldiven, güvenlik ayakkabısı, maske, yelek — takılı olmayan çalışan var mı?\n"
+        "- Makine/ekipman: koruyucusuz dönen aksam, açık pres, testere, konveyör\n"
+        "- Elektrik: açık kablo, hasarlı pano, topraklama eksikliği, izole edilmemiş hat\n"
+        "- Yüksekte çalışma: iskele, merdiven, korkuluk eksikliği, emniyet kemeri yok\n"
+        "- Kimyasal: dökülme, etiketsiz kap, SDS yok, uygun olmayan depolama\n"
+        "- Yangın/sıcak iş: kaynak, açık alev, yanıcı madde yakınında kıvılcım\n"
+        "- Ergonomi: yanlış kaldırma, tekrarlayan hareket, uygun olmayan tezgah\n"
+        "- Ortam: düzensizlik (5S), kaygan zemin, düşen cisim, düşük aydınlatma\n"
+        "- Kapalı alan, trafik/forklift, biyolojik, gürültü vb. görünen diğer riskler\n\n"
+        "Bağlam (risk kaydından):\n"
         f"- Faaliyet: {risk_activity or 'belirtilmemiş'}\n"
         f"- Risk tanımı: {risk_definition or 'belirtilmemiş'}\n"
         f"- Not: {media_text or 'yok'}\n\n"
-        "JSON şeması:\n"
-        '{"hazards":[{"category":"<tehlike kategorisi, Türkçe>",'
-        '"severity":<1-5>,'
-        '"confidence":<0.0-1.0>,'
-        '"bbox":[<x 0-1>,<y 0-1>,<w 0-1>,<h 0-1>],'
-        '"note":"<kısa açıklama>"}]}\n\n'
-        "Kategorilerden biri: Yüksekte Çalışma Riskleri, Yangın ve Patlama "
-        "Riskleri, Elektrik Riskleri, Kimyasal Riskler, Mekanik Riskler, "
-        "Fiziksel Riskler, Biyolojik Riskler, Ergonomik Riskler, İnşaat ve "
-        "Yapı Riskleri, Nakliye ve Trafik Riskleri, Diğer Riskler.\n"
-        "bbox: görüntüye normalize [x, y, w, h]. Geçersizse [0,0,1,1].\n"
-        "Yalnızca JSON döndür; başka metin yazma."
+        "YALNIZCA aşağıdaki JSON şemasına uyan bir JSON nesnesi döndür; başka "
+        "metin, açıklama veya markdown kod bloğu yazma:\n"
+        "{\n"
+        '  "hazards": [\n'
+        '    {\n'
+        '      "category": "<aşağıdaki listeden biri, Türkçe>",\n'
+        '      "severity": <1-5, 5=en kritik>,\n'
+        '      "confidence": <0.0-1.0>,\n'
+        '      "bbox": [<x 0-1>, <y 0-1>, <w 0-1>, <h 0-1>],\n'
+        '      "observed": "<görselde somut olarak ne gördün, kanıt>",\n'
+        '      "note": "<kısa risk açıklaması>",\n'
+        '      "recommended_ppe": ["<önerilen KKD listesi>"]\n'
+        '    }\n'
+        '  ]\n'
+        "}\n\n"
+        "Kategoriler (birebir bunlardan biri): Yüksekte Çalışma Riskleri, "
+        "Yangın ve Patlama Riskleri, Elektrik Riskleri, Kimyasal Riskler, "
+        "Mekanik Riskler, Fiziksel Riskler, Biyolojik Riskler, Ergonomik "
+        "Riskler, İnşaat ve Yapı Riskleri, Nakliye ve Trafik Riskleri, "
+        "Diğer Riskler.\n\n"
+        "bbox: TEHLİKENİN BULUNDUĞU BÖLGE, görüntüye normalize [x, y, w, h] "
+        "(sol-üst köşe + genişlik/yükseklik, 0-1). Tüm çerçeveyi [0,0,1,1] "
+        "YALNIZCA gerçekten tüm görüntüdeki genel bir risksa kullan. Aksi "
+        "halde tehlikenin olduğu dar bölgeyi ver.\n"
+        "observed: görselde gördüğün somut kanıt (örn. 'sol altta açık elektrik "
+        "panosu', 'çalışanda baret yok').\n"
+        "severity: kanıta göre (KKD eksikliği=3, açık elektrik/kimyasal=4-5, "
+        "yangın kaynağı=5)."
     )
 
     try:
@@ -204,19 +234,21 @@ def _api_analyze(
                                     "type": "image_url",
                                     "image_url": {
                                         "url": f"data:image/jpeg;base64,{b64}",
+                                        "detail": "high",
                                     },
                                 },
                             ],
                         }
                     ],
                     "response_format": {"type": "json_object"},
-                    "max_tokens": 1200,
+                    "max_tokens": 2000,
+                    "temperature": 0.2,
                 },
             )
             resp.raise_for_status()
             data = resp.json()
             content = data["choices"][0]["message"]["content"]
-            parsed = json.loads(content)
+            parsed = _parse_vision_json(content)
             raw_hazards = parsed.get("hazards", [])
             if not isinstance(raw_hazards, list):
                 return None
@@ -227,18 +259,56 @@ def _api_analyze(
                 bbox = h.get("bbox", _FULL_FRAME_BBOX)
                 if not (isinstance(bbox, list) and len(bbox) == 4):
                     bbox = _FULL_FRAME_BBOX
+                try:
+                    bbox_norm = [max(0.0, min(1.0, float(v))) for v in bbox]
+                except (TypeError, ValueError):
+                    bbox_norm = _FULL_FRAME_BBOX
+                observed = str(h.get("observed", "")).strip()
+                note = str(h.get("note", "")).strip()
+                if observed and note:
+                    full_note = f"{observed}. {note}"
+                elif observed:
+                    full_note = observed
+                else:
+                    full_note = note
+                ppe = h.get("recommended_ppe", [])
+                if isinstance(ppe, str):
+                    ppe = [ppe]
+                ppe = [str(p) for p in ppe if p] if isinstance(ppe, list) else []
                 hazards.append({
                     "category": str(h.get("category", "Diğer Riskler")),
                     "severity": max(1, min(5, int(h.get("severity", 3)))),
-                    "confidence": float(h.get("confidence", 0.5)),
-                    "bbox": [float(v) for v in bbox],
+                    "confidence": round(float(h.get("confidence", 0.6)), 2),
+                    "bbox": bbox_norm,
                     "source_tag": None,
-                    "note": str(h.get("note", "")),
+                    "note": full_note,
+                    "recommended_ppe": ppe,
                 })
             return {"hazards": hazards} if hazards else None
     except Exception:
         logger.exception("vision api çağrısı başarısız; heuristic'e düşülüyor")
         return None
+
+
+def _parse_vision_json(content: str) -> dict[str, Any]:
+    """Vision API yanıtından JSON çıkar (markdown fence/önek temizleme)."""
+    if not content:
+        return {}
+    text = content.strip()
+    # Markdown kod bloğu temizle
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+    # JSON dışı metin varsa ilk { ... } bloğunu al
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        text = text[start : end + 1]
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        logger.warning("vision API JSON parse edilemedi: %s", text[:200])
+        return {}
 
 
 def analyze_media(
@@ -442,6 +512,8 @@ def build_full_analysis(
             "confidence": h.get("confidence", 0.0),
             "bbox": h.get("bbox", _FULL_FRAME_BBOX),
             "note": h.get("note", ""),
+            "observed": h.get("observed", ""),
+            "recommended_ppe": h.get("recommended_ppe", []),
             "source_tag": h.get("source_tag"),
             "mevzuat": _slim_mevzuat(mevzuat) if mevzuat else None,
             "termin": termin,

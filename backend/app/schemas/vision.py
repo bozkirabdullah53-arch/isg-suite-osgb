@@ -43,6 +43,8 @@ class VisionHazard(BaseModel):
     confidence: float = 0.0
     bbox: list[float] = []
     note: str | None = None
+    observed: str | None = None
+    recommended_ppe: list[str] = []
     source_tag: str | None = None
     mevzuat: VisionMevzuat | None = None
     termin: VisionTermin | None = None
