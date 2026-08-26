@@ -1,7 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
 
-const customer360Source = readFileSync(new URL('./customer_360.jsx', import.meta.url), 'utf8');
+const customer360Source = readFileSync(join(process.cwd(), 'src/customer_360.jsx'), 'utf8');
 
 describe('customer 360 Turkish UI encoding', () => {
   it('keeps Turkish labels as UTF-8 instead of mojibake', () => {
