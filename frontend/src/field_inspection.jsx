@@ -11,11 +11,13 @@ import {
   Lightbulb,
   MapPin,
   MapPinned,
+  Pencil,
   RefreshCw,
   Save,
   ScanLine,
   ShieldAlert,
   Sparkles,
+  Trash2,
   Wifi,
   WifiOff,
   X,
@@ -95,6 +97,15 @@ function riskClass(level) {
   if (text.includes("yüksek")) return "risk-high";
   if (text.includes("orta")) return "risk-medium";
   return "risk-low";
+}
+
+function dateInputValue(value) {
+  if (!value) return "";
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
 }
 
 function compressPhoto(file) {
@@ -211,6 +222,11 @@ export function FieldInspectionPage({user}) {
   const [hazards, setHazards] = useState([]);
   const [tagCatalog, setTagCatalog] = useState([]);
   const [recent, setRecent] = useState([]);
+  const [editingRiskId, setEditingRiskId] = useState(null);
+  const [editingRiskCode, setEditingRiskCode] = useState("");
+  const [editingRiskStatus, setEditingRiskStatus] = useState("Açık");
+  const [editingDofId, setEditingDofId] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [photos, setPhotos] = useState([]);
   const [mode, setMode] = useState("ai");  // "ai" | "manual"
@@ -296,6 +312,10 @@ export function FieldInspectionPage({user}) {
 
   useEffect(() => {
     if (aiTimer.current) clearTimeout(aiTimer.current);
+    if (editingRiskId) {
+      setAiHint(null);
+      return;
+    }
     const text = String(form.summary || "").trim();
     if (text.length < 5) {
       setAiHint(null);
@@ -304,7 +324,7 @@ export function FieldInspectionPage({user}) {
     aiTimer.current = setTimeout(() => void requestAiHint(text), 900);
     return () => clearTimeout(aiTimer.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.summary]);
+  }, [form.summary, editingRiskId]);
 
   function refreshPending() {
     setPending(listOfflineFindings(scope));
@@ -335,7 +355,87 @@ export function FieldInspectionPage({user}) {
     }
   }
 
-  async function downloadDraftReport() {
+  function beginEditing(row) {
+    if (!row?.id) return;
+    if (photos.length && !(globalThis.confirm?.("Yeni kayıt taslağındaki fotoğraflar temizlenecek. Düzenlemeye geçilsin mi?") ?? true)) {
+      return;
+    }
+    const dof = Array.isArray(row.dofs) && row.dofs.length ? row.dofs[0] : null;
+    const categoryId = row.category_id || categories.find((item) => item.name === row.category_name)?.id || "";
+    setEditingRiskId(Number(row.id));
+    setEditingRiskCode(row.risk_code || "");
+    setEditingRiskStatus(row.status || "Açık");
+    setEditingDofId(dof?.id || null);
+    setForm({
+      ...EMPTY_FORM,
+      company_id: String(row.company_id || ""),
+      department_id: row.department_id ? String(row.department_id) : "",
+      department_name: row.department_name || "",
+      category_id: categoryId ? String(categoryId) : "",
+      hazard_id: row.hazard_id ? String(row.hazard_id) : "",
+      location: row.observation_location || "",
+      summary: row.risk_definition || "",
+      existing_measures: row.existing_measures || "",
+      action: row.additional_measures || dof?.description || "",
+      responsible_person: dof?.responsible_person || "",
+      responsible_department: dof?.responsible_department || "",
+      term_date: dateInputValue(dof?.term_date || row.term_date),
+      probability: Number(row.probability) || 3,
+      severity: Number(row.severity) || 3,
+    });
+    setPhotos([]);
+    setVisionResults({});
+    setVisionErr({});
+    setSelectedPhotoTags([]);
+    setGps({
+      lat: row.gps_lat ?? null,
+      lng: row.gps_lng ?? null,
+      accuracy: row.gps_accuracy_m ?? null,
+      captured_at: row.observed_at || null,
+    });
+    setMode("manual");
+    setError("");
+    setMessage(
+      (row.risk_code || "Saha bulgusu") +
+      " düzenleme modunda. Mevcut fotoğraflar korunur; yeni seçilen fotoğraflar kayda eklenir.",
+    );
+    globalThis.requestAnimationFrame?.(() => {
+      document.querySelector(".field-form")?.scrollIntoView({behavior: "smooth", block: "start"});
+    });
+  }
+
+  function cancelEditing() {
+    resetForm();
+    setMessage("Düzenleme iptal edildi.");
+  }
+
+  async function deleteRecent(row) {
+    if (!row?.id || deleteBusy) return;
+    if (!online) {
+      setError("Kayıt silmek için internet bağlantısı gerekir.");
+      return;
+    }
+    const confirmed = globalThis.confirm?.(
+      (row.risk_code || "Bu saha bulgusu") +
+      " silinsin mi? Bu işlem kaydı ve ona bağlı fotoğraf/DÖF verilerini kaldırır.",
+    ) ?? true;
+    if (!confirmed) return;
+    setDeleteBusy(row.id);
+    setError("");
+    setMessage("");
+    try {
+      await api("/risks/" + row.id, {method: "DELETE"});
+      setRecent((current) => current.filter((item) => Number(item.id) !== Number(row.id)));
+      if (Number(editingRiskId) === Number(row.id)) resetForm();
+      setMessage((row.risk_code || "Saha bulgusu") + " silindi.");
+    } catch (ex) {
+      setError(ex.message || "Saha bulgusu silinemedi.");
+    } finally {
+      setDeleteBusy(null);
+    }
+  }
+
+  async function downloadDraftReport()
     if (!photos.length) {
       setError("PDF raporu için önce fotoğraf ekleyin.");
       return;
@@ -710,6 +810,10 @@ export function FieldInspectionPage({user}) {
   }
 
   function resetForm() {
+    setEditingRiskId(null);
+    setEditingRiskCode("");
+    setEditingRiskStatus("Açık");
+    setEditingDofId(null);
     setForm((current) => ({
       ...EMPTY_FORM,
       company_id: current.company_id,
@@ -732,6 +836,95 @@ export function FieldInspectionPage({user}) {
     if (!hazardId) return setError("Tehlike seçin.");
     if (!form.department_id && !departmentName) return setError("Bölüm veya saha alanı girin.");
     if (String(form.summary || "").trim().length < 3) return setError("Uygunsuzluğu kısa ve açık yazın.");
+
+    if (editingRiskId) {
+      if (!online) return setError("Mevcut kaydı düzenlemek için internet bağlantısı gerekir.");
+      const riskId = Number(editingRiskId);
+      const departmentLabel = selectedDepartment?.name || departmentName || "Saha";
+      const actionText = String(form.action || "").trim();
+      const responsiblePerson = String(form.responsible_person || "").trim() || null;
+      const responsibleDepartment = String(form.responsible_department || "").trim() || null;
+      let riskSaved = false;
+      let uploadedPhotos = 0;
+      setBusy(true);
+      try {
+        const updated = await api("/risks/" + riskId, {
+          method: "PATCH",
+          body: JSON.stringify({
+            department_id: form.department_id ? Number(form.department_id) : null,
+            department_name: departmentName || null,
+            hazard_id: hazardId,
+            observation_location: String(form.location || "").trim() || null,
+            gps_lat: gps.lat,
+            gps_lng: gps.lng,
+            gps_accuracy_m: gps.accuracy,
+            activity: "Saha denetimi — " + (String(form.location || "").trim() || departmentLabel),
+            risk_definition: String(form.summary).trim(),
+            existing_measures: String(form.existing_measures || "").trim() || null,
+            additional_measures: actionText || null,
+            probability: Number(form.probability),
+            severity: Number(form.severity),
+            status: editingRiskStatus || "Açık",
+            change_reason: "Saha bulguları bölümünden düzenlendi",
+          }),
+        });
+        riskSaved = true;
+
+        if (editingDofId && actionText) {
+          await api("/risks/" + riskId + "/dofs/" + editingDofId, {
+            method: "PATCH",
+            body: JSON.stringify({
+              description: actionText,
+              responsible_person: responsiblePerson,
+              responsible_department: responsibleDepartment,
+              term_date: form.term_date || null,
+            }),
+          });
+        } else if (editingDofId && !actionText) {
+          await api("/risks/" + riskId + "/dofs/" + editingDofId, {method: "DELETE"});
+        } else if (actionText) {
+          await api("/risks/" + riskId + "/dofs", {
+            method: "POST",
+            body: JSON.stringify({
+              description: actionText,
+              responsible_person: responsiblePerson,
+              responsible_department: responsibleDepartment,
+              term_date: form.term_date || null,
+              client_reference: "field-edit:" + riskId + ":" + Date.now(),
+            }),
+          });
+        }
+
+        for (const photo of photos) {
+          await uploadFile("/risks/" + riskId + "/media", dataUrlToFile(photo.data_url, photo.name || "saha-fotografi.jpg"), {
+            tags: JSON.stringify(selectedPhotoTags),
+            description: photo.description,
+            client_reference: "field-edit:" + riskId + ":" + photo.id,
+            captured_at: photo.captured_at || undefined,
+            gps_lat: photo.gps_lat ?? gps.lat ?? undefined,
+            gps_lng: photo.gps_lng ?? gps.lng ?? undefined,
+            gps_accuracy_m: photo.gps_accuracy_m ?? gps.accuracy ?? undefined,
+          });
+          uploadedPhotos += 1;
+        }
+
+        await loadRecent(companyId);
+        resetForm();
+        setMessage(
+          (updated?.risk_code || editingRiskCode || "Saha bulgusu") +
+          " güncellendi" +
+          (uploadedPhotos ? "; " + uploadedPhotos + " yeni fotoğraf eklendi." : "."),
+        );
+      } catch (ex) {
+        setError(
+          (riskSaved ? "Bulgu güncellendi ancak ek bilgiler tamamlanamadı: " : "Bulgu güncellenemedi: ") +
+          (ex.message || "Tekrar deneyin."),
+        );
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
 
     const clientReference = makeClientReference();
     const observedAt = new Date().toISOString();
@@ -859,14 +1052,14 @@ export function FieldInspectionPage({user}) {
       <div className="field-inspection-layout">
         {/* ===== Mod seçici ===== */}
         <div className="field-mode-picker" role="tablist">
-          <button type="button" role="tab" aria-selected={mode === "ai"} className={`field-mode-card ${mode === "ai" ? "active" : ""}`} onClick={() => setMode("ai")}>
+          <button type="button" role="tab" aria-selected={mode === "ai"} className={`field-mode-card ${mode === "ai" ? "active" : ""}`} onClick={() => setMode("ai")} disabled={Boolean(editingRiskId)}>
             <ScanLine size={22} />
             <div>
               <strong>AI Destekli</strong>
               <small>Fotoğraf çek, yapay zeka tespit etsin</small>
             </div>
           </button>
-          <button type="button" role="tab" aria-selected={mode === "manual"} className={`field-mode-card ${mode === "manual" ? "active" : ""}`} onClick={() => setMode("manual")}>
+          <button type="button" role="tab" aria-selected={mode === "manual"} className={`field-mode-card ${mode === "manual" ? "active" : ""}`} onClick={() => setMode("manual")} disabled={Boolean(editingRiskId)}>
             <ClipboardCheck size={22} />
             <div>
               <strong>Manuel Giriş</strong>
@@ -876,6 +1069,20 @@ export function FieldInspectionPage({user}) {
         </div>
 
         <form className="field-card field-form" onSubmit={submit}>
+          {editingRiskId && (
+            <div className="field-edit-banner" role="status">
+              <div className="field-edit-banner-copy">
+                <Pencil size={18} />
+                <span>
+                  <strong>{editingRiskCode || "Saha bulgusu"} düzenleniyor</strong>
+                  <small>Mevcut fotoğraflar korunur. Bu formda seçilen yeni fotoğraflar kayda eklenir.</small>
+                </span>
+              </div>
+              <button type="button" className="mini secondary" onClick={cancelEditing} disabled={busy}>
+                <X size={14} /> Vazgeç
+              </button>
+            </div>
+          )}
           {/* ===== Ortak bağlam bar (her iki modda) ===== */}
           <div className="field-context-bar">
             <label className="field-control">
@@ -883,7 +1090,7 @@ export function FieldInspectionPage({user}) {
               <select value={form.company_id} onChange={(event) => {
                 updateField("company_id", event.target.value);
                 updateField("department_id", "");
-              }} disabled={referenceLoading || busy}>
+              }} disabled={referenceLoading || busy || Boolean(editingRiskId)}>
                 <option value="">İşyeri seçin</option>
                 {companies.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
               </select>
@@ -1077,7 +1284,7 @@ export function FieldInspectionPage({user}) {
           <div className="field-card-title compact">
             <div>
               <span className="eyebrow">2 · Bulguyu kaydet</span>
-              <h2>Risk / uygunsuzluk</h2>
+              <h2>{editingRiskId ? "Bulgu düzenleme" : "Risk / uygunsuzluk"}</h2>
             </div>
             <ShieldAlert size={22} />
           </div>
@@ -1333,7 +1540,7 @@ export function FieldInspectionPage({user}) {
           )}
 
           <button type="submit" className="field-submit" disabled={busy || referenceLoading}>
-            <Save size={18} /> {busy ? "Hazırlanıyor…" : online ? "Kaydet ve senkronla" : "Çevrimdışı kuyruğa al"}
+            <Save size={18} /> {busy ? (editingRiskId ? "Güncelleniyor…" : "Hazırlanıyor…") : editingRiskId ? "Değişiklikleri kaydet" : online ? "Kaydet ve senkronla" : "Çevrimdışı kuyruğa al"}
           </button>
           <p className="field-legal-note">Kayıt; saha gözlemi, risk puanı, fotoğraf kanıtı ve varsa DÖF aksiyonunu tek zincirde tutar. Resmî bildirim entegrasyonu bu akışın parçası değildir.</p>
             </>
@@ -1375,9 +1582,17 @@ export function FieldInspectionPage({user}) {
                 <p>{row.risk_definition}</p>
                 <div className="field-recent-meta">
                   <small>{row.department_name || "Saha"} · {row.media?.length || 0} fotoğraf · {row.dofs?.length || 0} DÖF</small>
-                  <button type="button" className="mini secondary" onClick={() => downloadReport(row)} disabled={dlBusy === row.id}>
-                    <Download size={13} /> {dlBusy === row.id ? "…" : "PDF rapor"}
-                  </button>
+                  <div className="field-recent-actions">
+                    <button type="button" className="mini secondary" onClick={() => beginEditing(row)} disabled={busy || Boolean(deleteBusy)}>
+                      <Pencil size={13} /> Düzenle
+                    </button>
+                    <button type="button" className="mini field-recent-delete" onClick={() => void deleteRecent(row)} disabled={busy || deleteBusy === row.id}>
+                      <Trash2 size={13} /> {deleteBusy === row.id ? "Siliniyor…" : "Sil"}
+                    </button>
+                    <button type="button" className="mini secondary" onClick={() => void downloadReport(row)} disabled={dlBusy === row.id || Boolean(deleteBusy)}>
+                      <Download size={13} /> {dlBusy === row.id ? "…" : "PDF rapor"}
+                    </button>
+                  </div>
                 </div>
               </article>
             )) : <p className="field-muted">Bu işyeri için henüz saha bulgusu yok.</p>}

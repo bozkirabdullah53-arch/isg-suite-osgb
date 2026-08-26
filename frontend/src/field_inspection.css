@@ -1072,6 +1072,84 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
   margin-top: 4px;
 }
 
+.field-recent-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.field-recent-actions .mini {
+  min-height: 31px;
+  border-radius: 8px;
+  font-weight: 750;
+}
+
+.field-recent-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #f2b8b5;
+  color: #a52d2d;
+  background: #fff7f6;
+  cursor: pointer;
+}
+
+.field-recent-delete:hover:not(:disabled) {
+  border-color: #d65b54;
+  color: #8f2020;
+  background: #ffeceb;
+}
+
+.field-edit-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  border: 1px solid #b9d8f1;
+  border-radius: 13px;
+  color: #214b70;
+  background: linear-gradient(135deg, #eff7ff, #f7fbff);
+}
+
+.field-edit-banner-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+}
+
+.field-edit-banner-copy > svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #2563a6;
+}
+
+.field-edit-banner-copy span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.field-edit-banner-copy strong {
+  color: #173e63;
+  font-size: 13px;
+}
+
+.field-edit-banner-copy small {
+  color: #58738b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.field-edit-banner .mini {
+  flex: 0 0 auto;
+}
+
 /* ===== 0.9.246 — Saha AI vision analizi (fotoğraf başına inline) ===== */
 .field-photo-grid figure {
   position: relative;
@@ -2111,6 +2189,24 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
 
   .field-side {
     grid-template-columns: 1fr;
+  }
+
+  .field-recent-meta {
+    align-items: flex-start;
+  }
+
+  .field-recent-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .field-edit-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .field-edit-banner .mini {
+    justify-content: center;
   }
 
   .field-help-card {

@@ -147,6 +147,10 @@ class RiskCreate(BaseModel):
 
 class RiskUpdate(BaseModel):
     branch_id: int | None = None
+    observation_location: str | None = Field(default=None, max_length=220)
+    gps_lat: float | None = Field(default=None, ge=-90, le=90)
+    gps_lng: float | None = Field(default=None, ge=-180, le=180)
+    gps_accuracy_m: float | None = Field(default=None, ge=0, le=100000)
     department_id: int | None = None
     department_name: str | None = Field(default=None, max_length=200)
     hazard_id: int | None = None
