@@ -139,6 +139,9 @@ services:
         value: "https://api.xkiro.com/v1"
       - key: VISION_API_MODEL
         value: "openai/gpt-5.4-mini"
+      # Vision sağlayıcısının 30 saniyeyi aşabilen yanıtları için.
+      - key: VISION_API_TIMEOUT_SEC
+        value: "90"
       # API anahtarı gizli — Render dashboard'da manuel eklenir (sync: false).
       - key: VISION_API_KEY
         sync: false
