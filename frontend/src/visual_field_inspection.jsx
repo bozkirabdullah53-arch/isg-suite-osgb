@@ -425,10 +425,10 @@ export function VisualFieldInspectionPage() {
 
   return (
     <section className="visual-field-page">
-      <header className="visual-field-hero">
+      <div className="visual-field-hero">
         <div><span className="visual-eyebrow">Yeni görsel saha denetimi</span><h1>Fotoğrafı kanıta, kanıtı aksiyona dönüştür.</h1><p>GPS, tesis–alan bağlamı ve güvenli fotoğraf türevleri tek denetim zincirinde tutulur.</p></div>
         <div className="visual-hero-badge"><Sparkles size={18} /> AI yalnızca uzman yardımcısıdır</div>
-      </header>
+      </div>
       {(message || error) && <div className={`visual-feedback ${error ? "is-error" : "is-success"}`} role="status">{error || message}</div>}
       <div className="visual-field-layout">
         <main className="visual-field-main">
