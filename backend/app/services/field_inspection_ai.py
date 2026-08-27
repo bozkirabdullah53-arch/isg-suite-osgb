@@ -77,6 +77,21 @@ Katalogdaki başlıkları aynen kullan, katalog dışı mevzuat ekleme.
 """.strip()
 
 
+def _field_ai_api_key() -> str:
+    """Return the new pilot key, with a safe bridge to the legacy vision key.
+
+    The visual field-inspection flow was introduced after the legacy
+    ``VISION_*`` flow.  Keeping the fallback here lets an existing production
+    secret continue to be used without copying or exposing it, while the new
+    FIELD_AI feature flags still remain the only gates for this flow.
+    """
+    return str(
+        getattr(settings, "field_ai_api_key", None)
+        or getattr(settings, "vision_api_key", None)
+        or ""
+    ).strip()
+
+
 def field_ai_is_configured() -> bool:
     if bool(getattr(settings, "field_ai_force_off", False)):
         return False
@@ -85,7 +100,7 @@ def field_ai_is_configured() -> bool:
         provider in {"openai_compatible", "openai"}
         and getattr(settings, "field_ai_enabled", False)
         and getattr(settings, "field_ai_data_processing_allowed", False)
-        and str(getattr(settings, "field_ai_api_key", "") or "").strip()
+        and _field_ai_api_key()
         and str(getattr(settings, "field_ai_api_url", "") or "").strip()
         and str(getattr(settings, "field_ai_model", "") or "").strip()
     )
@@ -290,7 +305,7 @@ def analyze_field_images(*, context: dict[str, Any], photos: list[tuple[Any, byt
         "response_format": {"type": "json_object"},
     }
     headers = {
-        "Authorization": f"Bearer {str(settings.field_ai_api_key).strip()}",
+        "Authorization": f"Bearer {_field_ai_api_key()}",
         "Content-Type": "application/json",
     }
     try:
@@ -481,7 +496,7 @@ def run_visual_field_analysis_job(inspection_id: int) -> dict[str, Any]:
         return {"status": "completed", "inspection_id": inspection.id, "finding_count": len(result.get("findings", []))}
     except FieldAiNotConfigured as exc:
         if inspection:
-            inspection.ai_status = "failed"
+            inspection.ai_status = "not_configured"
             inspection.ai_error = str(exc)[:4000]
             inspection.status = "draft"
             db.commit()
