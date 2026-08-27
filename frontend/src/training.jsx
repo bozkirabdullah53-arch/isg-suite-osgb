@@ -404,13 +404,18 @@ export function TrainingPage({user}) {
   // eğitim atama yetkisi RemoteBasicOhsTrainingPanel içinde ayrı korunur.
   const canEdit = canManagePackage;
   const [remoteEnabled, setRemoteEnabled] = useState(false);
-  const visibleTabs = remoteEnabled ? [...TABS, {id: 'remote', label: 'Uzaktan Eğitim / Belgeler'}] : TABS;
+  // Uzaktan eğitim sekmesi, meta isteği geciktiğinde veya geçici olarak
+  // başarısız olduğunda yetkili İSG Uzmanından kaybolmamalıdır. Panelin kendi
+  // API çağrısı özellik kapalıysa kontrollü uyarı gösterir; klasik eğitim
+  // yetkileri bu görünürlük kararıyla genişletilmez.
+  const remoteTabVisible = remoteEnabled || canOperate;
+  const visibleTabs = remoteTabVisible ? [...TABS, {id: 'remote', label: 'Uzaktan Eğitim / Belgeler'}] : TABS;
   const excelInputRef = useRef(null);
   const logoInputRef = useRef(null);
   const pendingLogoRef = useRef(null);
   const sectorPickerRef = useRef(null);
 
-  const [tab, setTab] = useState('temel');
+  const [tab, setTab] = useState(() => user.role === 'safety_specialist' ? 'remote' : 'temel');
   const [companies, setCompanies] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [sectors, setSectors] = useState([]);
@@ -456,10 +461,10 @@ export function TrainingPage({user}) {
         // Uzaktan eğitim atama yetkisi olan İSG uzmanı, Eğitimler sayfasına
         // girdiğinde doğrudan kendisine atanmış işyerlerinin uzaktan eğitim
         // yönetimini görür. Temel/özel eğitim sekmeleri korunur.
-        if (enabled && user.role === 'safety_specialist') setTab('remote');
+        if ((enabled || canOperate) && user.role === 'safety_specialist') setTab('remote');
       })
       .catch(() => setRemoteEnabled(false));
-  }, [user.role]);
+  }, [canOperate, user.role]);
 
   const companyEmployees = useMemo(
     () =>
