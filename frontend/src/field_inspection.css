@@ -2234,7 +2234,9 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
     font-size: 18px;
   }
 }
-.field-inspection-mode-tabs{display:flex;gap:8px;max-width:1480px;margin:0 auto;padding:14px clamp(13px,3vw,34px) 0;background:transparent}
-.field-inspection-mode-tabs button{padding:9px 13px;border:1px solid #dbe5ec;border-radius:10px;background:#fff;color:#526b78;font-size:12px;font-weight:800}
+.field-inspection-shell .content{padding-top:10px}
+.field-inspection-mode-tabs{display:flex;align-items:center;flex:0 0 auto;gap:8px;max-width:1480px;min-height:0;margin:0 auto;padding:0 clamp(13px,3vw,34px);overflow-x:auto;overflow-y:visible;background:transparent}
+.field-inspection-mode-tabs button{display:inline-flex;align-items:center;justify-content:center;width:auto;flex:0 0 auto;padding:9px 13px;border:1px solid #dbe5ec;border-radius:10px;background:#fff;color:#526b78;font-size:12px;font-weight:800}
 .field-inspection-mode-tabs button.is-active{border-color:#0f766e;background:#eefbf8;color:#0f766e}
+.field-inspection-mode-tabs + .visual-field-page{padding-top:12px}
 @media (max-width:680px){.field-inspection-mode-tabs{overflow-x:auto;white-space:nowrap}}
