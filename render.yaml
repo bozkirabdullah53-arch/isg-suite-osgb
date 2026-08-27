@@ -145,6 +145,33 @@ services:
       # API anahtarı gizli — Render dashboard'da manuel eklenir (sync: false).
       - key: VISION_API_KEY
         sync: false
+      # 0.9.246 — Yeni GPS'li görsel saha denetimi akışı. Bu değişkenler
+      # eski VISION_* akışından ayrıdır; anahtar yoksa backend mevcut
+      # VISION_API_KEY sırrını güvenli geriye dönük uyumluluk köprüsüyle kullanır.
+      - key: FIELD_AI_ENABLED
+        value: "true"
+      - key: FIELD_AI_FORCE_OFF
+        value: "false"
+      - key: FIELD_AI_PROVIDER
+        value: "openai_compatible"
+      - key: FIELD_AI_API_URL
+        value: "https://api.xkiro.com/v1/chat/completions"
+      - key: FIELD_AI_MODEL
+        value: "openai/gpt-5.4-mini"
+      - key: FIELD_AI_MODEL_VERSION
+        value: "configured"
+      - key: FIELD_AI_PROMPT_VERSION
+        value: "field-visual-v1"
+      - key: FIELD_AI_TIMEOUT_SECONDS
+        value: "90"
+      # Görsel saha AI pilotu için dış veri işleme açıkça etkinleştirilmiştir;
+      # gerçek rapor bulgusu yine uzman onayından geçer.
+      - key: FIELD_AI_DATA_PROCESSING_ALLOWED
+        value: "true"
+      # İstenirse yeni ayrı anahtar burada tanımlanabilir. Boş bırakıldığında
+      # backend mevcut VISION_API_KEY değerini kullanır; gerçek sır commit edilmez.
+      - key: FIELD_AI_API_KEY
+        sync: false
 
   - type: cron
     name: isg-suite-api-warmup
