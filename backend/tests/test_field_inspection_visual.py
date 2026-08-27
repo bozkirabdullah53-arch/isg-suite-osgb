@@ -41,7 +41,7 @@ def visual_client(tmp_path, monkeypatch):
     return TestClient(app)
 
 
-def _seed(client: TestClient) -> tuple[dict[str, str], dict[str, int]]:
+def _seed(client: TestClient, *, include_other: bool = True) -> tuple[dict[str, str], dict[str, int]]:
     from app.core.database import SessionLocal
     from app.core.security import get_password_hash
     from app.models.entities import (
@@ -61,8 +61,11 @@ def _seed(client: TestClient) -> tuple[dict[str, str], dict[str, int]]:
         db.add(osgb)
         db.flush()
         company = Company(name="Görsel İşyeri", osgb_id=osgb.id, is_active=True, nace_code="10.10")
-        other = Company(name="Başka İşyeri", osgb_id=osgb.id, is_active=True)
-        db.add_all([company, other])
+        db.add(company)
+        other = None
+        if include_other:
+            other = Company(name="Başka İşyeri", osgb_id=osgb.id, is_active=True)
+            db.add(other)
         db.flush()
         professional = IsgProfessional(osgb_id=osgb.id, full_name="Görsel Uzman", email="visual@test.com", professional_type=ProfessionalType.SAFETY_SPECIALIST, is_active=True)
         db.add(professional)
@@ -72,7 +75,7 @@ def _seed(client: TestClient) -> tuple[dict[str, str], dict[str, int]]:
         employee = Employee(company_id=company.id, full_name="Sorumlu Çalışan", is_active=True)
         db.add_all([user, employee])
         db.commit()
-        ids = {"company_id": company.id, "other_company_id": other.id, "employee_id": employee.id}
+        ids = {"company_id": company.id, "other_company_id": other.id if other else None, "employee_id": employee.id}
 
     login = client.post("/api/v1/auth/login", json={"email": "visual@test.com", "password": "VisualPass123!"})
     assert login.status_code == 200, login.text
@@ -140,6 +143,21 @@ def test_visual_field_end_to_end_and_safe_ai_failure(visual_client):
     xlsx = visual_client.get(f"/api/v1/field-inspections/{inspection_id}/report.xlsx", headers=headers)
     assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF")
     assert xlsx.status_code == 200 and xlsx.content[:2] == b"PK"
+
+
+def test_visual_field_catalog_does_not_auto_select_single_workplace(visual_client):
+    headers, ids = _seed(visual_client, include_other=False)
+    catalog = visual_client.get("/api/v1/field-inspections/catalog", headers=headers)
+    assert catalog.status_code == 200, catalog.text
+    body = catalog.json()
+    assert body["selected_company_id"] is None
+    assert len(body["companies"]) == 1
+    assert body["companies"][0]["id"] == ids["company_id"]
+    assert body["sites"] == []
+    assert body["areas"] == []
+    assert body["equipment"] == []
+    assert body["custom_hazards"] == []
+    assert ids["other_company_id"] is None
 
 
 def test_visual_field_tenant_boundary(visual_client):

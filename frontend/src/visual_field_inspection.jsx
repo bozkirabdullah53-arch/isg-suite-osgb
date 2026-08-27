@@ -145,8 +145,15 @@ export function VisualFieldInspectionPage() {
   async function loadCatalog(nextCompanyId = companyId) {
     const query = nextCompanyId ? `?company_id=${encodeURIComponent(nextCompanyId)}` : "";
     const data = await api(`/field-inspections/catalog${query}`);
-    setCatalog((previous) => ({...previous, ...data}));
-    if (data.selected_company_id && !nextCompanyId) setCompanyId(String(data.selected_company_id));
+    setCatalog((previous) => ({
+      ...previous,
+      ...data,
+      selected_company_id: nextCompanyId ? data.selected_company_id : null,
+      sites: nextCompanyId ? listFrom(data.sites) : [],
+      areas: nextCompanyId ? listFrom(data.areas) : [],
+      equipment: nextCompanyId ? listFrom(data.equipment) : [],
+      custom_hazards: nextCompanyId ? listFrom(data.custom_hazards) : [],
+    }));
     return data;
   }
 
@@ -159,11 +166,7 @@ export function VisualFieldInspectionPage() {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    loadCatalog("").then((data) => {
-      if (!active) return;
-      const preferred = data.selected_company_id || data.companies?.[0]?.id;
-      if (preferred) setCompanyId(String(preferred));
-    }).catch((ex) => active && setError(messageFrom(ex))).finally(() => active && setLoading(false));
+    loadCatalog("").catch((ex) => active && setError(messageFrom(ex))).finally(() => active && setLoading(false));
     return () => { active = false; };
     // Initial load intentionally runs once; company changes use the next effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -206,7 +209,16 @@ export function VisualFieldInspectionPage() {
     clearFeedback();
     setCompanyId(value);
     setCurrent(null);
+    setSiteId("");
+    setAreaId("");
+    setEquipmentId("");
     setSelectedCategories([]);
+    setSelectedHazards([]);
+    setRecent([]);
+    setResponsibles([]);
+    if (!value) {
+      setCatalog((previous) => ({...previous, selected_company_id: null, sites: [], areas: [], equipment: [], custom_hazards: []}));
+    }
   }
 
   async function addNamed(kind) {
@@ -423,6 +435,7 @@ export function VisualFieldInspectionPage() {
             <div className="visual-card-heading"><div><span className="visual-step">01</span><h2>İşyeri ve saha bağlamı</h2></div><ShieldAlert size={21} /></div>
             <label className="visual-control"><span>Yetkili olduğunuz işyeri</span><select value={companyId} onChange={(event) => changeCompany(event.target.value)}><option value="">İşyeri seçin</option>{catalog.companies.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             {company && <div className="visual-company-meta"><strong>{company.name}</strong><span>{company.address || "Adres yok"}</span><span>İşveren: {company.authorized_person || "—"}</span><span>SGK: {company.sgk_registry_no || "—"} · NACE: {company.nace_code || "—"} · {company.hazard_class || "Tehlike sınıfı yok"}</span></div>}
+            {!companyId && <p className="visual-inline-warning">Denetime başlamak için önce işyeri seçin. İşyeri seçilmeden tesis, alan ve ekipman bilgileri gösterilmez.</p>}
             <label className="visual-control"><span>Arama (tesis, alan veya ekipman)</span><input value={locationQuery} onChange={(event) => setLocationQuery(event.target.value)} placeholder="Sahada hızlı bul…" /></label>
             <div className="visual-select-grid">
               <label className="visual-control"><span>Tesis / saha</span><select value={siteId} onChange={(event) => {setSiteId(event.target.value); setAreaId(""); setEquipmentId("");}} disabled={!companyId}><option value="">Seçin</option>{sites.map((item) => <option key={item.id} value={item.id}>{item.name}{item.site_type ? ` · ${item.site_type}` : ""}</option>)}</select><button type="button" className="visual-link-button" onClick={() => addNamed("site")}><Plus size={14} /> Yeni tesis/saha</button></label>

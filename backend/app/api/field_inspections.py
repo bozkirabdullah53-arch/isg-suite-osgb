@@ -447,7 +447,10 @@ def field_catalog(
     if scope is not None:
         company_stmt = company_stmt.where(scope)
     companies = list(db.scalars(company_stmt).all())
-    selected = _company(db, user, company_id) if company_id else (companies[0] if len(companies) == 1 else None)
+    # The first catalog load must not silently choose a workplace.  The caller
+    # must explicitly provide company_id before company-scoped site/area/
+    # equipment data is returned or used for a new inspection.
+    selected = _company(db, user, company_id) if company_id is not None else None
     payload = {
         "companies": [{"id": row.id, "name": row.name, "authorized_person": row.authorized_person, "address": row.address, "sgk_registry_no": row.sgk_registry_no, "nace_code": row.nace_code, "hazard_class": row.hazard_class} for row in companies],
         "selected_company_id": selected.id if selected else None,
