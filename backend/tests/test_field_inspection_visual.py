@@ -116,7 +116,7 @@ def test_visual_field_end_to_end_and_safe_ai_failure(visual_client):
 
     analysis = visual_client.post(f"/api/v1/field-inspections/{inspection_id}/analyze", headers=headers)
     assert analysis.status_code == 200, analysis.text
-    assert analysis.json()["inspection"]["ai_status"] == "failed"
+    assert analysis.json()["inspection"]["ai_status"] == "not_configured"
     assert "Bulgular oluşturulmadı" in analysis.json()["inspection"]["ai_error"]
 
     finding = visual_client.post(f"/api/v1/field-inspections/{inspection_id}/findings", headers=headers, json={"hazard_name": "Açık kablo", "visual_evidence": "Fotoğrafta açık kablo görülüyor.", "nonconformity_description": "Kablo korumasız durumda.", "suggested_priority": "high"})
@@ -164,3 +164,22 @@ def test_visual_field_tenant_boundary(visual_client):
     headers, ids = _seed(visual_client)
     forbidden = visual_client.get(f"/api/v1/field-inspections/catalog?company_id={ids['other_company_id']}", headers=headers)
     assert forbidden.status_code == 403
+
+
+def test_field_ai_uses_legacy_secret_only_behind_new_gates(monkeypatch):
+    from app.core.config import settings
+    from app.services.field_inspection_ai import field_ai_is_configured
+
+    monkeypatch.setattr(settings, "field_ai_enabled", True)
+    monkeypatch.setattr(settings, "field_ai_force_off", False)
+    monkeypatch.setattr(settings, "field_ai_provider", "openai_compatible")
+    monkeypatch.setattr(settings, "field_ai_data_processing_allowed", True)
+    monkeypatch.setattr(settings, "field_ai_api_key", None)
+    monkeypatch.setattr(settings, "field_ai_api_url", "https://example.test/v1/chat/completions")
+    monkeypatch.setattr(settings, "field_ai_model", "vision-test")
+    monkeypatch.setattr(settings, "vision_api_key", "legacy-secret")
+
+    assert field_ai_is_configured() is True
+
+    monkeypatch.setattr(settings, "field_ai_data_processing_allowed", False)
+    assert field_ai_is_configured() is False
