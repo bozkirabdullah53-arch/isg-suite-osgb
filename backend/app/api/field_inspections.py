@@ -804,7 +804,7 @@ def queue_field_analysis(inspection_id: int, db: Session = Depends(get_db), user
     row.status = "in_review"
     db.commit()
     if not field_ai_is_configured():
-        row.ai_status = "failed"
+        row.ai_status = "not_configured"
         row.ai_error = "Görsel AI yapılandırılmamış veya kapalı. Bulgular oluşturulmadı."
         row.status = "draft"
         _audit(db, user, row.company_id, action="field_ai_not_configured", entity_type="field_inspection", entity_id=row.id, description=row.ai_error)
