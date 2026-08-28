@@ -155,6 +155,18 @@ from app.services.remote_training_reports import (
 router = APIRouter(prefix="/trainings/remote", tags=["Uzaktan Temel İSG Eğitimi"])
 logger = logging.getLogger(__name__)
 
+# A new revision is intentionally kept out of the published/current video
+# slot until an OSGB administrator reviews and publishes it.  It still needs
+# to be visible in the administrator's catalog detail so the review workflow
+# can be completed.  Historical unpublished/archived revisions remain hidden.
+CATALOG_PENDING_VIDEO_STATUSES = (
+    "draft",
+    "uploading",
+    "processing",
+    "processing_failed",
+    "ready_for_review",
+)
+
 
 def _remote_training_video_store():
     """Write large remote-training videos to R2 before using local fallback."""
@@ -831,14 +843,22 @@ def _catalog_video_output(video: RemoteTrainingCatalogVideo) -> dict[str, Any]:
 
 
 def _catalog_section_output(
-    db: Session, section: RemoteTrainingCatalogSection
+    db: Session,
+    section: RemoteTrainingCatalogSection,
+    *,
+    include_pending: bool = False,
 ) -> dict[str, Any]:
+    video_visibility = [RemoteTrainingCatalogVideo.is_current.is_(True)]
+    if include_pending:
+        video_visibility.append(
+            RemoteTrainingCatalogVideo.status.in_(CATALOG_PENDING_VIDEO_STATUSES)
+        )
     videos = list(
         db.scalars(
             select(RemoteTrainingCatalogVideo)
             .where(
                 RemoteTrainingCatalogVideo.section_id == section.id,
-                RemoteTrainingCatalogVideo.is_current.is_(True),
+                or_(*video_visibility),
             )
             .order_by(RemoteTrainingCatalogVideo.order_index, RemoteTrainingCatalogVideo.id)
         ).all()
@@ -857,7 +877,11 @@ def _catalog_section_output(
 
 
 def _catalog_package_output(
-    db: Session, package: RemoteTrainingCatalogPackage, *, detail: bool = False
+    db: Session,
+    package: RemoteTrainingCatalogPackage,
+    *,
+    detail: bool = False,
+    include_pending: bool = False,
 ) -> dict[str, Any]:
     sections = list(
         db.scalars(
@@ -919,7 +943,10 @@ def _catalog_package_output(
         "is_shared": package.osgb_id is None,
     }
     if detail:
-        result["sections"] = [_catalog_section_output(db, section) for section in sections]
+        result["sections"] = [
+            _catalog_section_output(db, section, include_pending=include_pending)
+            for section in sections
+        ]
     return result
 
 
@@ -1074,7 +1101,12 @@ def get_catalog_package(
     user: User = Depends(get_current_user),
 ):
     package = _catalog_package_for_manager(db, user, package_id)
-    return _catalog_package_output(db, package, detail=True)
+    return _catalog_package_output(
+        db,
+        package,
+        detail=True,
+        include_pending=is_catalog_content_manager(user),
+    )
 
 
 @router.post("/catalog/packages/{package_id}/fork", status_code=201)

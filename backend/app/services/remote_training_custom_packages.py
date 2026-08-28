@@ -143,8 +143,14 @@ def catalog_package_output_with_custom(
     package: RemoteTrainingCatalogPackage,
     *,
     detail: bool = False,
+    include_pending: bool = False,
 ) -> dict[str, Any]:
-    result = _ORIGINAL_PACKAGE_OUTPUT(db, package, detail=detail)
+    result = _ORIGINAL_PACKAGE_OUTPUT(
+        db,
+        package,
+        detail=detail,
+        include_pending=include_pending,
+    )
     sector_code = custom_package_sector_code(package.code)
     if not sector_code:
         result["is_custom"] = False

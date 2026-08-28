@@ -2245,6 +2245,21 @@ def test_shared_catalog_preview_is_allowed_for_expert_and_old_video_revisions_ar
             storage_key="catalog/shared/gid-01-current.mp4",
         )
         db.add(current_video)
+        pending_revision = RemoteTrainingCatalogVideo(
+            package_id=package.id,
+            section_id=section.id,
+            revision_of_id=current_video.id,
+            title="GID-01_CORE_FULL",
+            revision_no=3,
+            is_current=False,
+            status="ready_for_review",
+            original_file_name="gid-01-yeni.mp4",
+            content_type="video/mp4",
+            file_size_bytes=100,
+            duration_seconds=139,
+            storage_key="catalog/shared/gid-01-pending.mp4",
+        )
+        db.add(pending_revision)
         db.commit()
 
         token = create_catalog_playback_token(user=expert, video=current_video)
@@ -2259,6 +2274,15 @@ def test_shared_catalog_preview_is_allowed_for_expert_and_old_video_revisions_ar
         assert output["published_video_count"] == 1
         assert len(output["sections"][0]["videos"]) == 1
         assert output["sections"][0]["videos"][0]["id"] == current_video.id
+
+        editor_output = _catalog_package_output(
+            db,
+            package,
+            detail=True,
+            include_pending=True,
+        )
+        visible_ids = [row["id"] for row in editor_output["sections"][0]["videos"]]
+        assert visible_ids == [current_video.id, pending_revision.id]
 
 
 def test_manager_can_delete_assignment_and_training_history(remote_client):
