@@ -16,6 +16,7 @@ from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import HTTPException
 import jwt
@@ -1822,9 +1823,29 @@ def response_for_video(video: RemoteTrainingVideo, request: Any | None = None):
     local = store.resolve_local_path(video.storage_key)
     media_type = _video_media_type(video)
     safe_name = Path(video.original_file_name or "video").name
-    safe_name = "".join(char for char in safe_name if char not in {"\r", "\n", '"'}) or "video"
+    safe_name = "".join(
+        char
+        for char in safe_name
+        if char not in {"\r", "\n", '"', "\\"} and ord(char) >= 32
+    ) or "video"
+    # Starlette encodes header values as latin-1. Keep the fallback filename
+    # ASCII-only and carry the original Unicode name via RFC 5987 filename*.
+    ascii_name = (
+        unicodedata.normalize("NFKD", safe_name)
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
+    ascii_name = "".join(
+        char
+        for char in ascii_name
+        if char not in {"\r", "\n", '"', "\\", ";"}
+        and ord(char) >= 32
+    ) or "video"
     range_header = request.headers.get("range") if request is not None else None
-    disposition = f'inline; filename="{safe_name}"'
+    disposition = (
+        f'inline; filename="{ascii_name}"; '
+        f"filename*=UTF-8''{quote(safe_name, safe='')}"
+    )
 
     if local is not None and local.is_file():
         total_size = local.stat().st_size

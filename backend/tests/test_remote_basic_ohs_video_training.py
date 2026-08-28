@@ -2510,7 +2510,7 @@ def test_remote_video_response_streams_bounded_remote_ranges(monkeypatch):
     store = _Remote()
     video = SimpleNamespace(
         storage_key="4/video/lesson.mp4",
-        original_file_name="lesson.mp4",
+        original_file_name="Kamu Hastaneleri İSG Eğitimi.mp4",
         content_type="video/mp4",
     )
     monkeypatch.setattr(service, "get_remote_video_store", lambda: store)
@@ -2521,6 +2521,9 @@ def test_remote_video_response_streams_bounded_remote_ranges(monkeypatch):
         SimpleNamespace(headers={"range": "bytes=10-19"}),
     )
     assert response.status_code == 206
+    disposition = response.headers["content-disposition"]
+    assert 'filename="Kamu Hastaneleri ISG Egitimi.mp4"' in disposition
+    assert "filename*=UTF-8''Kamu%20Hastaneleri%20%C4%B0SG%20E%C4%9Fitimi.mp4" in disposition
     assert response.headers["content-range"] == "bytes 10-19/100"
     assert response.headers["content-length"] == "10"
 
