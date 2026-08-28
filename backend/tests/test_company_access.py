@@ -7,7 +7,7 @@ from fastapi import HTTPException
 
 from app.api import company_access as ca
 from app.core.tenant_context import clear_tenant
-from app.models.entities import UserRole
+from app.models.entities import ProfessionalType, UserRole
 
 
 @pytest.fixture(autouse=True)
@@ -63,3 +63,63 @@ def test_specialist_no_assignment_message(monkeypatch):
         ca.ensure_company_access(db, user, 1)
     assert exc.value.status_code == 403
     assert "atanmış" in exc.value.detail.lower() or "görev" in exc.value.detail.lower()
+
+
+def test_duplicate_professional_names_fail_closed_when_email_does_not_match():
+    """Aynı isimli iki uzman varken ilk DB satırı yetki kaynağı olamaz."""
+    db = MagicMock()
+    db.scalar.return_value = None
+    db.scalars.return_value.all.return_value = [
+        SimpleNamespace(id=11, full_name="Ahmet Yılmaz", professional_type=ProfessionalType.SAFETY_SPECIALIST),
+        SimpleNamespace(id=22, full_name="Ahmet Yılmaz", professional_type=ProfessionalType.SAFETY_SPECIALIST),
+    ]
+    user = SimpleNamespace(
+        role=UserRole.SAFETY_SPECIALIST,
+        company_id=None,
+        osgb_id=7,
+        email="hesap@example.com",
+        full_name="Ahmet Yılmaz",
+    )
+
+    assert ca.find_professional_for_user(db, user) is None
+
+
+def test_unique_legacy_professional_name_match_is_preserved():
+    """Eski kurulumlarda tek isim eşleşmesi geriye dönük uyumluluğu korur."""
+    db = MagicMock()
+    db.scalar.return_value = None
+    expected = SimpleNamespace(
+        id=11,
+        full_name="Ahmet Yılmaz",
+        professional_type=ProfessionalType.SAFETY_SPECIALIST,
+    )
+    db.scalars.return_value.all.return_value = [expected]
+    user = SimpleNamespace(
+        role=UserRole.SAFETY_SPECIALIST,
+        company_id=None,
+        osgb_id=7,
+        email="hesap@example.com",
+        full_name="Ahmet Yılmaz",
+    )
+
+    assert ca.find_professional_for_user(db, user) is expected
+
+
+def test_duplicate_user_names_do_not_auto_link_to_professional():
+    """Startup rol senkronu aynı isimli hesaplardan rastgele birini değiştirmemeli."""
+    db = MagicMock()
+    db.scalar.return_value = None
+    db.scalars.return_value.all.return_value = [
+        SimpleNamespace(id=101, role=UserRole.SAFETY_SPECIALIST, full_name="Ayşe Kaya", is_active=True),
+        SimpleNamespace(id=202, role=UserRole.SAFETY_SPECIALIST, full_name="Ayşe Kaya", is_active=True),
+    ]
+    professional = SimpleNamespace(
+        id=55,
+        is_active=True,
+        email=None,
+        full_name="Ayşe Kaya",
+        osgb_id=9,
+        professional_type=ProfessionalType.SAFETY_SPECIALIST,
+    )
+
+    assert ca.link_user_to_professional(db, professional) is None
