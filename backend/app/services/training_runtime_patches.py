@@ -119,9 +119,6 @@ def _patch_sector_profile_resolution() -> str:
         if not sektor:
             return "genel_uretim"
         raw = sektor.strip()
-        # Stored exact catalog keys remain exact so the training identity is not
-        # destroyed. Legacy raw numeric NACE input keeps the approved historical
-        # content-profile behavior for backward compatibility.
         if raw in training_topics.SEKTOREL_EGITIM_KONULARI:
             return raw
         if raw in training_topics.SEKTOR_PROFIL:
@@ -144,8 +141,6 @@ def _patch_sector_profile_resolution() -> str:
     source_controlled_resolver._source_controlled_sector_resolver_active = True
     training_topics.sektor_kodu_cozumle = source_controlled_resolver
 
-    # Uvicorn/sitecustomize dışı test veya yardımcı başlangıçlarında daha önce
-    # import edilmiş doğrudan fonksiyon referanslarını da aynı davranışa bağla.
     for module_name in (
         "app.services.training_pdfs",
         "app.services.training_question_bank",
@@ -191,8 +186,6 @@ def _patch_question_bank_candidates() -> str:
     """Install approved sector aliases and safe general-production fallback."""
     from app.services import training_question_bank as question_bank
 
-    # FastAPI açık kurulumu sitecustomize sonrasında çalışsa bile yayın
-    # doğrulamasının güncel profil kümesini görmesini sağla.
     question_bank._SECTOR_VALUES = (
         frozenset(question_bank._SECTOR_VALUES)
         | frozenset(question_bank.SEKTOR_PROFIL)
@@ -245,8 +238,6 @@ def _patch_certificate_renderer() -> str:
     )
     from app.services.training_pdf_premium import draw_certificate_page
 
-    # Özel profil yetki/dayanak düzeltmesi uygulama açılışında bir kez yüklenir.
-    # Sözlükler yerinde güncellendiği için schema/API aynı kaynakları görür.
     apply_height_training_profile_2026()
 
     current = training_pdfs._draw_certificate_page
@@ -272,6 +263,9 @@ def install_training_runtime_patches() -> dict[str, Any]:
     from app.services.remote_training_live_video_sync import (
         install_remote_training_live_video_sync,
     )
+    from app.services.remote_training_route_rebind import (
+        install_remote_training_route_rebind,
+    )
     from app.services.remote_training_storage_guard import (
         install_remote_training_storage_guard,
     )
@@ -279,12 +273,20 @@ def install_training_runtime_patches() -> dict[str, Any]:
         install_training_nace_snapshot_hooks,
     )
 
+    storage_status = install_remote_training_storage_guard()
+    live_sync_status = install_remote_training_live_video_sync()
+    # FastAPI compiles its dependant/ASGI handler at registration time. Rebuild
+    # after the endpoint replacement so HTTP traffic cannot keep invoking the
+    # stale publish/delete handler.
+    route_rebind_status = install_remote_training_route_rebind()
+
     return {
         "sector_profiles": _patch_sector_profile_resolution(),
         "topics": _patch_training_topics(),
         "question_candidates": _patch_question_bank_candidates(),
         "premium_certificate": _patch_certificate_renderer(),
         "nace_snapshots": install_training_nace_snapshot_hooks(),
-        "remote_training_storage_guard": install_remote_training_storage_guard(),
-        "remote_training_live_video_sync": install_remote_training_live_video_sync(),
+        "remote_training_storage_guard": storage_status,
+        "remote_training_live_video_sync": live_sync_status,
+        "remote_training_route_rebind": route_rebind_status,
     }
