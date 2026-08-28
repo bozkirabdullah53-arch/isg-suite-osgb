@@ -27,23 +27,45 @@ _probe_reachable: bool | None = None
 _fallback_active = False
 
 
+# Compatibility seams intentionally resolve the underlying module at call time.
+# Existing tests/extensions can monkeypatch these names, while production never
+# freezes a stale factory function during module import.
+def get_object_store():
+    return object_store.get_object_store()
+
+
+def get_remote_object_store():
+    return object_store.get_remote_object_store()
+
+
+def probe_object_storage() -> dict:
+    return object_store.probe_object_storage()
+
+
+def remote_mirror_required() -> bool:
+    return object_store.remote_mirror_required()
+
+
+def remote_object_storage_credentials_ok() -> bool:
+    return object_store.remote_object_storage_credentials_ok()
+
+
 def _backend() -> str:
     return str(getattr(settings, "object_storage_backend", "local") or "local").strip().lower()
 
 
 def _fallback_store():
     backend = _backend()
-    # Resolve through the module at call time. Besides keeping the storage
-    # factory testable, this avoids freezing a pre-rollout store implementation
-    # when runtime configuration or a controlled fallback changes it.
+    # Resolve through a call-time seam. This keeps legacy upload behavior and
+    # controlled test/runtime overrides intact without freezing an import.
     if backend in {"local", "disk", "fs", "dual"}:
-        return object_store.get_object_store()
+        return get_object_store()
     return object_store.LocalObjectStore()
 
 
 def _remote_reachable(*, force_probe: bool = False) -> bool:
     global _probe_checked_at, _probe_reachable
-    if not object_store.remote_object_storage_credentials_ok():
+    if not remote_object_storage_credentials_ok():
         _probe_reachable = False
         _probe_checked_at = time.monotonic()
         return False
@@ -56,7 +78,7 @@ def _remote_reachable(*, force_probe: bool = False) -> bool:
     ):
         return bool(_probe_reachable)
 
-    result = object_store.probe_object_storage()
+    result = probe_object_storage()
     _probe_reachable = result.get("status") == "reachable"
     _probe_checked_at = now
     return bool(_probe_reachable)
@@ -64,7 +86,7 @@ def _remote_reachable(*, force_probe: bool = False) -> bool:
 
 def remote_training_storage_guard_status() -> dict[str, Any]:
     """Return a recon-safe status snapshot without performing network I/O."""
-    credentials = object_store.remote_object_storage_credentials_ok()
+    credentials = remote_object_storage_credentials_ok()
     if not credentials:
         probe_state = "not_configured"
     elif _probe_checked_at <= 0 or _probe_reachable is None:
@@ -73,7 +95,7 @@ def remote_training_storage_guard_status() -> dict[str, Any]:
         probe_state = "reachable" if _probe_reachable else "unreachable"
     return {
         "backend": _backend(),
-        "remote_required": object_store.remote_mirror_required(),
+        "remote_required": remote_mirror_required(),
         "credentials_configured": credentials,
         "probe_state": probe_state,
         "fallback_active": bool(_fallback_active),
@@ -88,24 +110,24 @@ def resilient_remote_training_video_store():
     """
     global _fallback_active
     if bool(getattr(settings, "object_storage_force_local", False)):
-        if object_store.remote_mirror_required():
+        if remote_mirror_required():
             raise RuntimeError("Uzak depolama zorunluyken force-local kullanılamaz.")
         _fallback_active = True
         return _fallback_store()
 
-    if not object_store.remote_object_storage_credentials_ok():
-        if object_store.remote_mirror_required():
+    if not remote_object_storage_credentials_ok():
+        if remote_mirror_required():
             raise RuntimeError("Zorunlu uzak video depolama credential bilgileri eksik.")
         _fallback_active = False
         return _fallback_store()
 
     if _remote_reachable():
-        remote = object_store.get_remote_object_store()
+        remote = get_remote_object_store()
         if remote is not None:
             _fallback_active = False
             return remote
 
-    if object_store.remote_mirror_required():
+    if remote_mirror_required():
         _fallback_active = False
         raise RuntimeError("Zorunlu uzak video depolama şu anda erişilemiyor.")
 
