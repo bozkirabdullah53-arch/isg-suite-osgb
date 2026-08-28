@@ -272,6 +272,9 @@ def install_training_runtime_patches() -> dict[str, Any]:
     from app.services.remote_training_live_video_sync import (
         install_remote_training_live_video_sync,
     )
+    from app.services.remote_training_storage_guard import (
+        install_remote_training_storage_guard,
+    )
     from app.services.training_nace_classification import (
         install_training_nace_snapshot_hooks,
     )
@@ -282,5 +285,6 @@ def install_training_runtime_patches() -> dict[str, Any]:
         "question_candidates": _patch_question_bank_candidates(),
         "premium_certificate": _patch_certificate_renderer(),
         "nace_snapshots": install_training_nace_snapshot_hooks(),
+        "remote_training_storage_guard": install_remote_training_storage_guard(),
         "remote_training_live_video_sync": install_remote_training_live_video_sync(),
     }
