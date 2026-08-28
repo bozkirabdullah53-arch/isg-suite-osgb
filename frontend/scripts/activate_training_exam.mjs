@@ -87,7 +87,21 @@ if (!reorderBridgeText.includes('remote-section-dragend-persist-fallback')) {
     throw new Error('Remote training section dragend block was not found; build stopped to avoid an unsafe partial patch.');
   }
   reorderBridgeText = reorderBridgeText.replace(oldDragEnd, newDragEnd);
-  fs.writeFileSync(reorderBridgePath, reorderBridgeText, 'utf8');
 }
+
+// Yeni bölüm React tarafında oluşturulduktan sonra köprüdeki paket detayı cache'de
+// eski kalabiliyordu. Sonuç: yeni bölüm ekranda görünse bile “Tut ve taşı / Düzenle /
+// Bölümü Sil” kontrolleri gelmiyordu. Oluşturma işleminden sonra detayı iki kez
+// güvenli şekilde yenileyerek yeni bölümü sıralama sistemine dahil et.
+if (!reorderBridgeText.includes('remote-section-create-refresh-fallback')) {
+  const clickMarker = `  const text = clickedButton?.textContent?.trim() || '';\n  if (['Paketi düzenlemeye aç', 'Paketi yayımla', 'Yayından kaldır', 'Arşivle', 'İncelemeye hazır'].includes(text)) {`;
+  const clickReplacement = `  const text = clickedButton?.textContent?.trim() || '';\n  // remote-section-create-refresh-fallback\n  if (text === 'Bölümü oluştur') {\n    [800, 1800].forEach((delay) => {\n      window.setTimeout(() => {\n        selectedDetail = null;\n        scheduleRender(true);\n      }, delay);\n    });\n    return;\n  }\n  if (['Paketi düzenlemeye aç', 'Paketi yayımla', 'Yayından kaldır', 'Arşivle', 'İncelemeye hazır'].includes(text)) {`;
+  if (!reorderBridgeText.includes(clickMarker)) {
+    throw new Error('Remote training section create refresh hook was not found; build stopped to avoid an unsafe partial patch.');
+  }
+  reorderBridgeText = reorderBridgeText.replace(clickMarker, clickReplacement);
+}
+
+fs.writeFileSync(reorderBridgePath, reorderBridgeText, 'utf8');
 
 console.log('Training exam button and remote-training video controls activated.');
