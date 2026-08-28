@@ -72,4 +72,36 @@ if (!remoteText.includes('remote-catalog-processing-poll')) {
 }
 
 fs.writeFileSync(remoteJsxPath, remoteText, 'utf8');
+
+// Katalog bölüm sıralama köprüsünde sürüklenen kart hedefin yerine DOM'da
+// taşındığında drop olayı bazen doğrudan sürüklenen karta düşüyor. Eski kod bu
+// durumda dragend aşamasında değişikliği geri alıyordu. Dragend'de DOM sırası
+// gerçekten değişmişse aynı güvenli PATCH çağrısını çalıştırarak sıralamayı
+// kalıcılaştır; başarılı bir drop zaten state'i temizlediği için iki kez kayıt olmaz.
+const reorderBridgePath = path.resolve('src/remote_training_package_management_bridge.js');
+let reorderBridgeText = fs.readFileSync(reorderBridgePath, 'utf8');
+if (!reorderBridgeText.includes('remote-section-dragend-persist-fallback')) {
+  const oldDragEnd = `    handle.addEventListener('dragend', () => {\n      if (draggingSectionRoot && !dragDropCommitted && dragStartSectionContainer && dragStartSectionOrder) {\n        applySectionOrder(dragStartSectionContainer, dragStartSectionOrder);\n      }\n      clearDragState();\n    });`;
+  const newDragEnd = `    handle.addEventListener('dragend', () => {\n      // remote-section-dragend-persist-fallback\n      const container = dragStartSectionContainer;\n      const previousOrder = dragStartSectionOrder ? [...dragStartSectionOrder] : [];\n      const nextOrder = container ? sectionOrderFromDom(container) : [];\n      const changed = Boolean(\n        draggingSectionRoot\n        && !dragDropCommitted\n        && container\n        && previousOrder.length\n        && nextOrder.length\n        && previousOrder.join(',') !== nextOrder.join(',')\n      );\n      if (changed) {\n        clearDragState();\n        void persistSectionOrder(detail, container, previousOrder, nextOrder);\n        return;\n      }\n      if (draggingSectionRoot && !dragDropCommitted && container && previousOrder.length) {\n        applySectionOrder(container, previousOrder);\n      }\n      clearDragState();\n    });`;
+  if (!reorderBridgeText.includes(oldDragEnd)) {
+    throw new Error('Remote training section dragend block was not found; build stopped to avoid an unsafe partial patch.');
+  }
+  reorderBridgeText = reorderBridgeText.replace(oldDragEnd, newDragEnd);
+}
+
+// Yeni bölüm React tarafında oluşturulduktan sonra köprüdeki paket detayı cache'de
+// eski kalabiliyordu. Sonuç: yeni bölüm ekranda görünse bile “Tut ve taşı / Düzenle /
+// Bölümü Sil” kontrolleri gelmiyordu. Oluşturma işleminden sonra detayı iki kez
+// güvenli şekilde yenileyerek yeni bölümü sıralama sistemine dahil et.
+if (!reorderBridgeText.includes('remote-section-create-refresh-fallback')) {
+  const clickMarker = `  const text = clickedButton?.textContent?.trim() || '';\n  if (['Paketi düzenlemeye aç', 'Paketi yayımla', 'Yayından kaldır', 'Arşivle', 'İncelemeye hazır'].includes(text)) {`;
+  const clickReplacement = `  const text = clickedButton?.textContent?.trim() || '';\n  // remote-section-create-refresh-fallback\n  if (text === 'Bölümü oluştur') {\n    [800, 1800].forEach((delay) => {\n      window.setTimeout(() => {\n        selectedDetail = null;\n        scheduleRender(true);\n      }, delay);\n    });\n    return;\n  }\n  if (['Paketi düzenlemeye aç', 'Paketi yayımla', 'Yayından kaldır', 'Arşivle', 'İncelemeye hazır'].includes(text)) {`;
+  if (!reorderBridgeText.includes(clickMarker)) {
+    throw new Error('Remote training section create refresh hook was not found; build stopped to avoid an unsafe partial patch.');
+  }
+  reorderBridgeText = reorderBridgeText.replace(clickMarker, clickReplacement);
+}
+
+fs.writeFileSync(reorderBridgePath, reorderBridgeText, 'utf8');
+
 console.log('Training exam button and remote-training video controls activated.');
