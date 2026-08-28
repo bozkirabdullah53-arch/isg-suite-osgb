@@ -1,38 +1,619 @@
-import {api,API_URL,uploadFile} from './api';
-const C='/trainings/remote/catalog/packages',S='rt-clean-style',A='data-rt-clean',H='rt-clean-host';
-let rows=[],id=null,detail=null,timer=null,busy=false,forking=null,allowed=null;
-const L={draft:'Taslak',uploading:'Yükleniyor',processing:'İşleniyor',processing_failed:'İşleme başarısız',ready_for_review:'Yayıma hazır',published:'Yayında',unpublished:'Yayında değil',archived:'Arşivlendi'};
-const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-const abs=p=>/^https?:\/\//i.test(String(API_URL||''))?new URL(p,`${API_URL}/`).toString():new URL(p,`${location.origin}${API_URL||'/api/v1'}`).toString();
-function css(){if(document.getElementById(S))return;let x=document.createElement('style');x.id=S;x.textContent=`.${H}>:not([${A}]){display:none!important}.rtc{color:#173b57}.rtc *{box-sizing:border-box}.rtc-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding-bottom:13px;border-bottom:1px solid #e3edf3}.rtc h3{margin:3px 0 4px;font-size:21px}.rtc-k{font-size:11px;font-weight:850;letter-spacing:.08em;color:#0f766e}.rtc-meta,.rtc-note{color:#60798b;font-size:12px}.rtc-meta{display:flex;gap:7px;flex-wrap:wrap}.rtc-actions,.rtc-sec-actions,.rtc-va{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.rtc button{min-height:34px;padding:7px 10px;border:1px solid #bfd0dd;border-radius:8px;background:#fff;color:#173b57;font:inherit;font-size:12px;font-weight:800;cursor:pointer}.rtc button:hover:not(:disabled){border-color:#2696a0}.rtc button:disabled{opacity:.55}.rtc .pri{background:#0f766e;border-color:#0f766e;color:#fff}.rtc .pub{background:#f2fff5;border-color:#9acdad;color:#17643a}.rtc .bad{background:#fff8f7;border-color:#e5aaa5;color:#ad2e25}.rtc-note{margin-top:11px;padding:9px 11px;border:1px solid #cfe3e7;border-radius:9px;background:#f7fcfd;line-height:1.45}.rtc-list{display:grid;gap:10px;margin-top:12px}.rtc-sec{border:1px solid #dbe5ef;border-radius:10px;overflow:hidden;background:#fff}.rtc-sec.drag{opacity:.5}.rtc-sec.over{outline:2px solid #18a3a5;outline-offset:2px}.rtc-sec-head{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 11px;background:#fbfdff;border-bottom:1px solid #edf2f6}.rtc-sec-id{display:flex;gap:8px;align-items:center;min-width:0}.rtc-grab{width:32px;min-width:32px!important;padding:0!important;border-style:dashed!important;color:#0f766e!important;cursor:grab!important}.rtc-sec-name strong,.rtc-v strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rtc-sec-name span,.rtc-v span{display:block;margin-top:2px;color:#6a8090;font-size:11px}.rtc-sec-body{padding:9px 11px 11px}.rtc-upload{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:2px 0 9px;color:#60798b;font-size:12px}.rtc-vlist{display:grid;gap:6px}.rtc-v{display:grid;grid-template-columns:minmax(160px,1fr) auto;gap:9px;align-items:center;padding:8px 9px;border:1px solid #e4edf3;border-radius:8px;background:#f9fbfd}.rtc-va button{min-height:30px;padding:5px 7px;font-size:11px}.rtc-empty{padding:18px;text-align:center;color:#60798b;border:1px dashed #bfd0dd;border-radius:9px}.rtc-pop{position:fixed;inset:0;z-index:10170;display:grid;place-items:center;padding:20px;background:rgba(7,25,39,.58)}.rtc-box{width:min(560px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 22px 65px rgba(7,30,48,.28)}.rtc-box-h{display:flex;justify-content:space-between;gap:10px;padding:15px 17px 11px;border-bottom:1px solid #e6edf3}.rtc-box-h h3{margin:0;font-size:18px}.rtc-close{border:0!important;font-size:22px!important}.rtc-form{padding:15px 17px}.rtc-form label{display:block;margin-bottom:10px;font-size:12px;font-weight:800}.rtc-form input,.rtc-form textarea{display:block;width:100%;margin-top:5px;padding:9px;border:1px solid #bfd0dd;border-radius:8px;font:inherit}.rtc-form textarea{min-height:80px}.rtc-form-a{display:flex;justify-content:flex-end;gap:7px}.rtc-preview{width:min(900px,96vw)}.rtc-preview video{width:100%;max-height:75vh;background:#000;display:block}.rtc-toast{position:fixed;right:20px;bottom:20px;z-index:10190;max-width:min(500px,90vw);padding:11px 13px;border-radius:9px;background:#0f766e;color:#fff;font-size:12px;font-weight:800}.rtc-toast.err{background:#b42318}@media(max-width:820px){.rtc-head,.rtc-v{display:grid}.rtc-actions,.rtc-va,.rtc-sec-actions{justify-content:flex-start}.rtc-sec-head{align-items:flex-start}}`;document.head.appendChild(x)}
-function toast(m,e=false){document.querySelector('.rtc-toast')?.remove();let n=document.createElement('div');n.className='rtc-toast'+(e?' err':'');n.textContent=m;document.body.appendChild(n);setTimeout(()=>n.remove(),e?6000:3800)}
-const root=()=>[...document.querySelectorAll('section')].find(s=>(s.textContent||'').includes('Uzaktan Eğitim Paket Kataloğu')&&(s.textContent||'').includes('Sektör eğitim paketleri'));
-const grid=()=>root()?.querySelector('.remote-training-manager-grid');const host=()=>grid()?.children?.[1];const cards=()=>grid()?.children?.[0]?[...grid().children[0].querySelectorAll('button')].filter(b=>b.querySelector('strong')):[];
-async function ok(){if(allowed!==null)return allowed;try{let u=await api('/auth/me');return allowed=u?.role==='company_admin'&&+u?.osgb_id>0&&!u?.company_id}catch{return allowed=false}}
-async function load(){rows=await api(C);return rows}
-function chosen(){if(id&&rows.some(r=>+r.id===+id))return +id;let bs=cards(),i=bs.findIndex(b=>getComputedStyle(b.parentElement).borderTopColor==='rgb(11, 156, 168)');return id=+(rows[i]?.id||rows[0]?.id||0)}
-async function get(force=false){if(!rows.length||force)await load();let x=chosen();if(!x)return null;if(!force&&detail&&+detail.id===x)return detail;return detail=await api(`${C}/${x}`)}
-function sibling(d){return rows.find(r=>!r.is_shared&&((d.code&&r.code===d.code)||String(r.title||'').trim().toLowerCase()===String(d.title||'').trim().toLowerCase()))}
-async function select(x){await load();id=+x;detail=null;let i=rows.findIndex(r=>+r.id===+x),b=cards()[i];if(b)b.click();await new Promise(r=>setTimeout(r,100))}
-async function editable(d=detail){if(!d)throw Error('Eğitim paketi seçilmedi.');if(!d.is_shared)return d;if(forking)return forking;return forking=(async()=>{await load();let p=sibling(d);if(!p){let o=await api(`${C}/${d.id}/fork`,{method:'POST',_retries:0});p={id:o.id}}await select(p.id);detail=await api(`${C}/${p.id}`);id=+p.id;toast('Düzenleme hazır; değişiklikler yalnız bu OSGB için uygulanacak.');return detail})().finally(()=>forking=null)}
-const sec=(d,s)=>(d.sections||[]).find(x=>x.code===s.code)||(d.sections||[]).find(x=>+x.order_index===+s.order_index);const vid=(s,v)=>(s.videos||[]).find(x=>+x.order_index===+v.order_index&&x.is_current)||(s.videos||[]).find(x=>x.title===v.title);
-async function targets(s,v){let d=await editable(),ss=s?sec(d,s):null,vv=v?vid(ss,v):null;if(s&&!ss)throw Error('Bölüm eşleştirilemedi.');if(v&&!vv)throw Error('Video eşleştirilemedi.');return[d,ss,vv]}
-async function mutate(fn,msg){if(busy)return;busy=true;draw(true);try{let o=await fn();toast(typeof msg==='function'?msg(o):msg);await load();detail=null;await draw(true);return o}catch(e){toast(e?.message||'İşlem tamamlanamadı.',true);throw e}finally{busy=false;draw(true)}}
-function pop(title,body,cls=''){document.querySelector('.rtc-pop')?.remove();let p=document.createElement('div');p.className='rtc-pop';p.innerHTML=`<div class="rtc-box ${cls}"><div class="rtc-box-h"><h3>${esc(title)}</h3><button class="rtc-close">×</button></div><div class="rtc-box-b"></div></div>`;document.body.appendChild(p);p.querySelector('.rtc-box-b').append(body);p.querySelector('.rtc-close').onclick=()=>p.remove();p.onclick=e=>{if(e.target===p)p.remove()};return p}
-function sectionForm(s){let f=document.createElement('form');f.className='rtc-form';f.innerHTML=`<label>Bölüm kodu<input name="code" required maxlength="64"></label><label>Bölüm adı<input name="title" required maxlength="220"></label><label>Açıklama<textarea name="description"></textarea></label><div class="rtc-form-a"><button type="button">Vazgeç</button><button class="pri" type="submit">Kaydet</button></div>`;if(s){f.code.value=s.code||'';f.title.value=s.title||'';f.description.value=s.description||''}let p=pop(s?'Bölümü düzenle':'Yeni bölüm ekle',f);f.querySelector('[type=button]').onclick=()=>p.remove();f.onsubmit=async e=>{e.preventDefault();let code=f.code.value.trim(),title=f.title.value.trim();if(code.length<2||title.length<2)return toast('Bölüm kodu ve adı gereklidir.',true);try{let d=await editable();if(s){let ss=sec(d,s);await api(`/trainings/remote/catalog/sections/${ss.id}`,{method:'PATCH',_retries:0,body:JSON.stringify({code,title,description:f.description.value.trim()||null,is_required:true})})}else await api(`${C}/${d.id}/sections`,{method:'POST',_retries:0,body:JSON.stringify({code,title,description:f.description.value.trim()||null,is_required:true})});id=+d.id;p.remove();toast(s?'Bölüm güncellendi.':'Bölüm eklendi.');await load();detail=null;draw(true)}catch(x){toast(x?.message||'Bölüm kaydedilemedi.',true)}}}
-function pick(cb){let i=document.createElement('input');i.type='file';i.accept='video/mp4,video/webm,video/quicktime,.m4v';i.style.display='none';i.onchange=()=>{let f=i.files?.[0];i.remove();if(f)cb(f)};document.body.append(i);i.click()}
-async function upload(s,file,v=null){return mutate(async()=>{let[d,ss,vv]=await targets(s,v),title=vv?.title||v?.title||file.name.replace(/\.[^.]+$/,'')||'Eğitim videosu',order=vv?.order_index||Math.max(0,...(ss.videos||[]).map(x=>+x.order_index||0))+1;id=+d.id;return uploadFile(`/trainings/remote/catalog/sections/${ss.id}/videos`,file,{title,order_index:+order,is_required:true,...(vv?{revision_of_id:vv.id}:{})})},v?'Yeni sürüm yüklendi. Kontrol edip yayımlayın.':'Video yüklendi. İşleme tamamlanınca yayımlayabilirsiniz.')}
-async function action(s,v,a){return mutate(async()=>{let[d,,vv]=await targets(s,v);id=+d.id;return api(`/trainings/remote/catalog/videos/${vv.id}/${a}`,{method:'POST',_retries:0})},o=>a==='publish'?`Video yayımlandı${+o?.live_synced_program_count?`; ${o.live_synced_program_count} aktif eğitim güncellendi`:''}.`:a==='unpublish'?'Video yayından kaldırıldı.':'İşlem tamamlandı.')}
-async function delVideo(s,v){if(!confirm(`“${v.title}” videosu silinsin mi?\n\nYayımlanmışsa aktif eğitimden kaldırılır; geçmiş kayıt korunur.`))return;return mutate(async()=>{let[d,,vv]=await targets(s,v);id=+d.id;return api(`/trainings/remote/catalog/videos/${vv.id}`,{method:'DELETE',_retries:0})},o=>o?.message||'Video silindi.')}
-async function delSec(s){if(!confirm(`“${s.code} · ${s.title}” bölümü silinsin mi?`))return;return mutate(async()=>{let[d,ss]=await targets(s);id=+d.id;return api(`/trainings/remote/catalog/sections/${ss.id}`,{method:'DELETE',_retries:0})},'Bölüm silindi.')}
-async function preview(v){try{let o=await api(`/trainings/remote/catalog/videos/${v.id}/playback`),w=document.createElement('div');w.className='rtc-preview';w.innerHTML=`<video controls autoplay src="${esc(abs(o.url))}"></video>`;pop(v.title||'Önizleme',w,'rtc-preview')}catch(e){toast(e?.message||'Önizleme açılamadı.',true)}}
-async function packageAction(a){return mutate(async()=>{let d=await editable();id=+d.id;return api(`${C}/${d.id}/${a}`,{method:'POST',_retries:0})},a==='publish'?'Paket yayımlandı.':'Paket durumu güncellendi.')}
-async function reorder(codes){return mutate(async()=>{let d=await editable(),m=new Map((d.sections||[]).map(s=>[s.code,s.id])),ids=codes.map(c=>m.get(c)).filter(Boolean);if(ids.length!==(d.sections||[]).length)throw Error('Bölüm sırası doğrulanamadı.');id=+d.id;return api(`${C}/${d.id}/sections/order`,{method:'PATCH',_retries:0,body:JSON.stringify({section_ids:ids})})},'Bölüm sırası kaydedildi.')}
-function vb(v,dis){let a=[];if(['ready_for_review','published','unpublished'].includes(v.status))a.push(`<button data-va="preview" ${dis}>Önizle</button>`);if(['published','unpublished'].includes(v.status)&&v.is_current)a.push(`<button data-va="replace" title="Videoyu değiştir" ${dis}>Yeni sürüm yükle</button>`);if(v.status==='ready_for_review')a.push(`<button class="pub" data-va="publish" ${dis}>Yayımla</button>`);if(v.status==='published')a.push(`<button data-va="unpublish" ${dis}>Yayından kaldır</button>`);if(v.status==='processing_failed')a.push(`<button data-va="retry-processing" ${dis}>Yeniden işle</button>`);a.push(`<button class="bad" data-va="delete" ${dis}>Sil</button>`);return a.join('')}
-function html(d){let dis=busy?'disabled':'',secs=d.sections||[],pa=d.status==='published'?`<button data-pa="unpublish" ${dis}>Paketi yayından kaldır</button>`:d.status==='archived'?`<button data-pa="restore" ${dis}>Düzenlemeye aç</button>`:`<button class="pub" data-pa="publish" ${dis}>Paketi yayımla</button>`,sh=secs.map(s=>{let vs=s.videos||[],vh=vs.length?vs.map(v=>`<div class="rtc-v" data-v="${v.id}"><div><strong>${esc(v.title)}</strong><span>${esc(L[v.status]||v.status)} · ${v.duration_seconds?Math.round(v.duration_seconds)+' sn':'Süre bekleniyor'} · rev. ${+v.revision_no||1}</span></div><div class="rtc-va">${vb(v,dis)}</div></div>`).join(''):`<div class="rtc-empty">Bu bölümde henüz video yok.</div>`;return `<article class="rtc-sec" data-code="${esc(s.code)}"><header class="rtc-sec-head"><div class="rtc-sec-id"><button class="rtc-grab" title="Tut ve taşı" ${dis}>⋮⋮</button><div class="rtc-sec-name"><strong>${esc(s.code)} · ${esc(s.title)}</strong><span>${vs.length} video</span></div></div><div class="rtc-sec-actions"><button data-sa="edit" ${dis}>Düzenle</button><button class="bad" data-sa="delete" ${dis}>Sil</button></div></header><div class="rtc-sec-body"><div class="rtc-upload"><span>Yeni video ekleyin.</span><button class="pri" data-sa="upload" ${dis}>+ Video yükle</button></div><div class="rtc-vlist">${vh}</div></div></article>`}).join('');return `<div class="rtc" ${A}="1" data-id="${d.id}"><div class="rtc-head"><div><span class="rtc-k">OSGB EĞİTİM İÇERİK YÖNETİMİ</span><h3>${esc(d.title)}</h3><div class="rtc-meta"><span>${esc(L[d.status]||d.status)}</span><span>·</span><span>${secs.length} bölüm</span><span>·</span><span>${+d.video_count||secs.reduce((n,s)=>n+(s.videos?.length||0),0)} video</span></div></div><div class="rtc-actions"><button class="pri" data-top="add" ${d.status==='archived'?'disabled':dis}>+ Bölüm ekle</button>${pa}</div></div><div class="rtc-note"><strong>${d.is_shared?'Hazır paket.':'OSGB paketi.'}</strong> ${d.is_shared?'İlk düzenlemede sistem otomatik olarak yalnız bu OSGB’ye ait güvenli çalışma kopyasını kullanır; ek bir kopyalama adımı görmezsiniz.':'Değişiklikler diğer OSGB’leri etkilemez.'} Bölüm sırası için soldaki ⋮⋮ tutamacını sürükleyin.</div><div class="rtc-list">${sh||'<div class="rtc-empty">Henüz bölüm yok. “Bölüm ekle” ile başlayın.</div>'}</div></div>`}
-function bind(el,d){el.querySelector('[data-top=add]')?.addEventListener('click',()=>sectionForm());el.querySelectorAll('[data-pa]').forEach(b=>b.onclick=()=>packageAction(b.dataset.pa).catch(()=>{}));(d.sections||[]).forEach(s=>{let c=[...el.querySelectorAll('.rtc-sec')].find(x=>x.dataset.code===s.code);if(!c)return;c.querySelector('[data-sa=edit]').onclick=()=>sectionForm(s);c.querySelector('[data-sa=delete]').onclick=()=>delSec(s).catch(()=>{});c.querySelector('[data-sa=upload]').onclick=()=>pick(f=>upload(s,f).catch(()=>{}));(s.videos||[]).forEach(v=>{let r=c.querySelector(`[data-v="${v.id}"]`);r?.querySelectorAll('[data-va]').forEach(b=>b.onclick=()=>{let a=b.dataset.va;if(a==='preview')preview(v);else if(a==='replace')pick(f=>upload(s,f,v).catch(()=>{}));else if(a==='delete')delVideo(s,v).catch(()=>{});else action(s,v,a).catch(()=>{})})})});drag(el)}
-function drag(el){let box=el.querySelector('.rtc-list'),moving=null,start=null;el.querySelectorAll('.rtc-sec').forEach(c=>{let h=c.querySelector('.rtc-grab');h.draggable=!busy;h.ondragstart=e=>{if(busy)return e.preventDefault();moving=c;start=[...box.querySelectorAll('.rtc-sec')].map(x=>x.dataset.code);c.classList.add('drag');e.dataTransfer.effectAllowed='move'};h.ondragend=()=>{c.classList.remove('drag');el.querySelectorAll('.rtc-sec').forEach(x=>x.classList.remove('over'));if(start&&!moving)draw(true);moving=null;start=null};c.ondragover=e=>{if(!moving||moving===c)return;e.preventDefault();el.querySelectorAll('.rtc-sec').forEach(x=>x.classList.remove('over'));c.classList.add('over');let r=c.getBoundingClientRect(),before=e.clientY<r.top+r.height/2;box.insertBefore(moving,before?c:c.nextSibling)};c.ondrop=e=>{if(!moving)return;e.preventDefault();let codes=[...box.querySelectorAll('.rtc-sec')].map(x=>x.dataset.code);moving.classList.remove('drag');moving=null;start=null;reorder(codes).catch(()=>{})}})}
-async function draw(force=false){if(!(await ok()))return;let h=host();if(!h)return;css();try{let d=await get(force);if(!d)return;let old=h.querySelector(`[${A}]`);if(!force&&old&&+old.dataset.id===+d.id)return;h.classList.add(H);old?.remove();let w=document.createElement('div');w.innerHTML=html(d);let el=w.firstElementChild;h.appendChild(el);bind(el,d)}catch(e){toast(e?.message||'İçerik yönetimi yüklenemedi.',true)}}
-function schedule(f=false){clearTimeout(timer);timer=setTimeout(()=>draw(f),f?30:140)}
-document.addEventListener('click',e=>{let b=e.target.closest?.('button');if(!b)return,0;let cs=cards(),i=cs.indexOf(b);if(i>=0){load().then(r=>{id=+r[i]?.id||null;detail=null;schedule(true)});return}if(b.textContent?.trim()==='Paketleri yenile'){rows=[];detail=null;schedule(true)}},true);
-new MutationObserver(()=>schedule()).observe(document.documentElement,{childList:true,subtree:true});addEventListener('hashchange',()=>{rows=[];id=null;detail=null;schedule(true)});addEventListener('isg:auth-lost',()=>{allowed=null;rows=[];id=null;detail=null;document.querySelectorAll('.'+H).forEach(x=>x.classList.remove(H))});schedule(true);
+import {api, API_URL, uploadFile} from './api';
+
+window.__ISG_REMOTE_TRAINING_CLEAN_MANAGER__ = true;
+
+const C = '/trainings/remote/catalog/packages';
+const S = 'rt-clean-style';
+const A = 'data-rt-clean';
+const H = 'rt-clean-host';
+const PACKAGE_ID_ATTR = 'data-remote-catalog-package-id';
+let rows = [];
+let id = null;
+let detail = null;
+let timer = null;
+let pollTimer = null;
+let busy = false;
+let forking = null;
+let allowed = null;
+
+const L = {
+  draft: 'Taslak',
+  uploading: 'Yükleniyor',
+  processing: 'İşleniyor',
+  processing_failed: 'İşleme başarısız',
+  ready_for_review: 'Yayıma hazır',
+  published: 'Yayında',
+  unpublished: 'Yayında değil',
+  archived: 'Arşivlendi',
+};
+
+const esc = (v) => String(v ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;');
+
+const abs = (p) => /^https?:\/\//i.test(String(API_URL || ''))
+  ? new URL(p, `${API_URL}/`).toString()
+  : new URL(p, `${location.origin}${API_URL || '/api/v1'}`).toString();
+
+function css() {
+  if (document.getElementById(S)) return;
+  const x = document.createElement('style');
+  x.id = S;
+  x.textContent = `.${H}>:not([${A}]){display:none!important}.rtc{color:#173b57}.rtc *{box-sizing:border-box}.rtc-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding-bottom:13px;border-bottom:1px solid #e3edf3}.rtc h3{margin:3px 0 4px;font-size:21px}.rtc-k{font-size:11px;font-weight:850;letter-spacing:.08em;color:#0f766e}.rtc-meta,.rtc-note{color:#60798b;font-size:12px}.rtc-meta{display:flex;gap:7px;flex-wrap:wrap}.rtc-actions,.rtc-sec-actions,.rtc-va{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.rtc button{min-height:34px;padding:7px 10px;border:1px solid #bfd0dd;border-radius:8px;background:#fff;color:#173b57;font:inherit;font-size:12px;font-weight:800;cursor:pointer}.rtc button:hover:not(:disabled){border-color:#2696a0}.rtc button:disabled{opacity:.55}.rtc .pri{background:#0f766e;border-color:#0f766e;color:#fff}.rtc .pub{background:#f2fff5;border-color:#9acdad;color:#17643a}.rtc .bad{background:#fff8f7;border-color:#e5aaa5;color:#ad2e25}.rtc-note{margin-top:11px;padding:9px 11px;border:1px solid #cfe3e7;border-radius:9px;background:#f7fcfd;line-height:1.45}.rtc-list{display:grid;gap:10px;margin-top:12px}.rtc-sec{border:1px solid #dbe5ef;border-radius:10px;overflow:hidden;background:#fff}.rtc-sec.drag{opacity:.5}.rtc-sec.over{outline:2px solid #18a3a5;outline-offset:2px}.rtc-sec-head{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 11px;background:#fbfdff;border-bottom:1px solid #edf2f6}.rtc-sec-id{display:flex;gap:8px;align-items:center;min-width:0}.rtc-grab{width:32px;min-width:32px!important;padding:0!important;border-style:dashed!important;color:#0f766e!important;cursor:grab!important}.rtc-sec-name strong,.rtc-v strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rtc-sec-name span,.rtc-v span{display:block;margin-top:2px;color:#6a8090;font-size:11px}.rtc-sec-body{padding:9px 11px 11px}.rtc-upload{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:2px 0 9px;color:#60798b;font-size:12px}.rtc-vlist{display:grid;gap:6px}.rtc-v{display:grid;grid-template-columns:minmax(160px,1fr) auto;gap:9px;align-items:center;padding:8px 9px;border:1px solid #e4edf3;border-radius:8px;background:#f9fbfd}.rtc-va button{min-height:30px;padding:5px 7px;font-size:11px}.rtc-empty{padding:18px;text-align:center;color:#60798b;border:1px dashed #bfd0dd;border-radius:9px}.rtc-pop{position:fixed;inset:0;z-index:10170;display:grid;place-items:center;padding:20px;background:rgba(7,25,39,.58)}.rtc-box{width:min(560px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 22px 65px rgba(7,30,48,.28)}.rtc-box-h{display:flex;justify-content:space-between;gap:10px;padding:15px 17px 11px;border-bottom:1px solid #e6edf3}.rtc-box-h h3{margin:0;font-size:18px}.rtc-close{border:0!important;font-size:22px!important}.rtc-form{padding:15px 17px}.rtc-form label{display:block;margin-bottom:10px;font-size:12px;font-weight:800}.rtc-form input,.rtc-form textarea{display:block;width:100%;margin-top:5px;padding:9px;border:1px solid #bfd0dd;border-radius:8px;font:inherit}.rtc-form textarea{min-height:80px}.rtc-form-a{display:flex;justify-content:flex-end;gap:7px}.rtc-preview{width:min(900px,96vw)}.rtc-preview video{width:100%;max-height:75vh;background:#000;display:block}.rtc-toast{position:fixed;right:20px;bottom:20px;z-index:10190;max-width:min(500px,90vw);padding:11px 13px;border-radius:9px;background:#0f766e;color:#fff;font-size:12px;font-weight:800}.rtc-toast.err{background:#b42318}@media(max-width:820px){.rtc-head,.rtc-v{display:grid}.rtc-actions,.rtc-va,.rtc-sec-actions{justify-content:flex-start}.rtc-sec-head{align-items:flex-start}}`;
+  document.head.appendChild(x);
+}
+
+function toast(message, error = false) {
+  document.querySelector('.rtc-toast')?.remove();
+  const node = document.createElement('div');
+  node.className = `rtc-toast${error ? ' err' : ''}`;
+  node.textContent = message;
+  document.body.appendChild(node);
+  setTimeout(() => node.remove(), error ? 6000 : 3800);
+}
+
+const root = () => [...document.querySelectorAll('section')].find((section) => {
+  const text = section.textContent || '';
+  return text.includes('Uzaktan Eğitim Paket Kataloğu') && text.includes('Sektör eğitim paketleri');
+});
+const grid = () => root()?.querySelector('.remote-training-manager-grid');
+const host = () => grid()?.children?.[1];
+const cards = () => grid()?.children?.[0]
+  ? [...grid().children[0].querySelectorAll('button')].filter((button) => button.querySelector('strong'))
+  : [];
+
+function bindCardIds() {
+  cards().forEach((button, index) => {
+    const packageId = Number(rows[index]?.id || 0);
+    if (packageId > 0) button.setAttribute(PACKAGE_ID_ATTR, String(packageId));
+    else button.removeAttribute(PACKAGE_ID_ATTR);
+  });
+}
+
+async function ok() {
+  if (allowed !== null) return allowed;
+  try {
+    const user = await api('/auth/me');
+    allowed = user?.role === 'company_admin' && Number(user?.osgb_id || 0) > 0 && !user?.company_id;
+    return allowed;
+  } catch {
+    allowed = false;
+    return false;
+  }
+}
+
+async function load() {
+  rows = await api(C);
+  if (!Array.isArray(rows)) rows = [];
+  bindCardIds();
+  return rows;
+}
+
+function visibleDetailTitle() {
+  const h = host();
+  if (!h) return '';
+  return [...h.querySelectorAll('h4')]
+    .map((node) => node.textContent?.trim() || '')
+    .find(Boolean) || '';
+}
+
+function chosen() {
+  if (id && rows.some((row) => Number(row.id) === Number(id))) return Number(id);
+  bindCardIds();
+
+  const pressed = cards().find((button) => button.getAttribute('aria-pressed') === 'true');
+  const pressedId = Number(pressed?.getAttribute(PACKAGE_ID_ATTR) || 0);
+  if (pressedId > 0 && rows.some((row) => Number(row.id) === pressedId)) {
+    id = pressedId;
+    return id;
+  }
+
+  const title = visibleDetailTitle();
+  if (title) {
+    const matches = rows.filter((row) => String(row.title || '').trim() === title);
+    if (matches.length === 1) {
+      id = Number(matches[0].id);
+      return id;
+    }
+  }
+
+  // Preserve the old first-load behavior without inspecting CSS/theme state.
+  id = Number(rows[0]?.id || 0) || null;
+  return id;
+}
+
+async function get(force = false) {
+  if (!rows.length || force) await load();
+  const packageId = chosen();
+  if (!packageId) return null;
+  if (!force && detail && Number(detail.id) === packageId) return detail;
+  detail = await api(`${C}/${packageId}`);
+  return detail;
+}
+
+function sibling(source) {
+  return rows.find((row) => !row.is_shared && (
+    (source.code && row.code === source.code)
+    || String(row.title || '').trim().toLowerCase() === String(source.title || '').trim().toLowerCase()
+  ));
+}
+
+async function select(packageId) {
+  await load();
+  id = Number(packageId);
+  detail = null;
+  const button = cards().find((card) => Number(card.getAttribute(PACKAGE_ID_ATTR) || 0) === id);
+  button?.click();
+}
+
+async function editable(current = detail) {
+  if (!current) throw Error('Eğitim paketi seçilmedi.');
+  if (!current.is_shared) return current;
+  if (forking) return forking;
+  forking = (async () => {
+    await load();
+    let privatePackage = sibling(current);
+    if (!privatePackage) {
+      const created = await api(`${C}/${current.id}/fork`, {method: 'POST', _retries: 0});
+      privatePackage = {id: created.id};
+    }
+    await select(privatePackage.id);
+    detail = await api(`${C}/${privatePackage.id}`);
+    id = Number(privatePackage.id);
+    toast('Düzenleme hazır; değişiklikler yalnız bu OSGB için uygulanacak.');
+    return detail;
+  })().finally(() => { forking = null; });
+  return forking;
+}
+
+function sectionFor(currentDetail, sourceSection) {
+  if (!currentDetail || !sourceSection) return null;
+  const sections = currentDetail.sections || [];
+  const sourceId = Number(sourceSection.id || 0);
+  if (sourceId > 0) {
+    const byId = sections.find((item) => Number(item.id) === sourceId);
+    if (byId) return byId;
+  }
+  const code = String(sourceSection.code || '').trim();
+  if (!code) return null;
+  const matches = sections.filter((item) => String(item.code || '').trim() === code);
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function videoFor(section, sourceVideo) {
+  if (!section || !sourceVideo) return null;
+  const videos = section.videos || [];
+  const sourceId = Number(sourceVideo.id || 0);
+  if (sourceId > 0) {
+    const byId = videos.find((item) => Number(item.id) === sourceId);
+    if (byId) return byId;
+  }
+
+  // A shared package fork receives new database ids. Match the copied video by
+  // immutable-ish revision metadata, never by mutable order_index.
+  const title = String(sourceVideo.title || '').trim();
+  const originalName = String(sourceVideo.original_file_name || '').trim();
+  const revision = Number(sourceVideo.revision_no || 1);
+  const current = Boolean(sourceVideo.is_current);
+  const composite = videos.filter((item) => (
+    String(item.title || '').trim() === title
+    && String(item.original_file_name || '').trim() === originalName
+    && Number(item.revision_no || 1) === revision
+    && Boolean(item.is_current) === current
+  ));
+  if (composite.length === 1) return composite[0];
+
+  const titleMatches = videos.filter((item) => String(item.title || '').trim() === title);
+  return titleMatches.length === 1 ? titleMatches[0] : null;
+}
+
+async function targets(sourceSection, sourceVideo) {
+  const currentDetail = await editable();
+  const section = sourceSection ? sectionFor(currentDetail, sourceSection) : null;
+  const video = sourceVideo ? videoFor(section, sourceVideo) : null;
+  if (sourceSection && !section) throw Error('Bölüm güvenli biçimde eşleştirilemedi.');
+  if (sourceVideo && !video) throw Error('Video güvenli biçimde eşleştirilemedi.');
+  return [currentDetail, section, video];
+}
+
+async function mutate(fn, message) {
+  if (busy) return undefined;
+  busy = true;
+  draw(true);
+  try {
+    const out = await fn();
+    toast(typeof message === 'function' ? message(out) : message);
+    await load();
+    detail = null;
+    await draw(true);
+    return out;
+  } catch (error) {
+    toast(error?.message || 'İşlem tamamlanamadı.', true);
+    throw error;
+  } finally {
+    busy = false;
+    draw(true);
+  }
+}
+
+function pop(title, body, cls = '') {
+  document.querySelector('.rtc-pop')?.remove();
+  const panel = document.createElement('div');
+  panel.className = 'rtc-pop';
+  panel.innerHTML = `<div class="rtc-box ${cls}"><div class="rtc-box-h"><h3>${esc(title)}</h3><button class="rtc-close">×</button></div><div class="rtc-box-b"></div></div>`;
+  document.body.appendChild(panel);
+  panel.querySelector('.rtc-box-b').append(body);
+  panel.querySelector('.rtc-close').onclick = () => panel.remove();
+  panel.onclick = (event) => { if (event.target === panel) panel.remove(); };
+  return panel;
+}
+
+function sectionForm(sourceSection) {
+  const form = document.createElement('form');
+  form.className = 'rtc-form';
+  form.innerHTML = `<label>Bölüm kodu<input name="code" required maxlength="64"></label><label>Bölüm adı<input name="title" required maxlength="220"></label><label>Açıklama<textarea name="description"></textarea></label><div class="rtc-form-a"><button type="button">Vazgeç</button><button class="pri" type="submit">Kaydet</button></div>`;
+  if (sourceSection) {
+    form.code.value = sourceSection.code || '';
+    form.title.value = sourceSection.title || '';
+    form.description.value = sourceSection.description || '';
+  }
+  const panel = pop(sourceSection ? 'Bölümü düzenle' : 'Yeni bölüm ekle', form);
+  form.querySelector('[type=button]').onclick = () => panel.remove();
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const code = form.code.value.trim();
+    const title = form.title.value.trim();
+    if (code.length < 2 || title.length < 2) return toast('Bölüm kodu ve adı gereklidir.', true);
+    try {
+      const current = await editable();
+      if (sourceSection) {
+        const section = sectionFor(current, sourceSection);
+        if (!section) throw Error('Bölüm güvenli biçimde eşleştirilemedi.');
+        await api(`/trainings/remote/catalog/sections/${section.id}`, {
+          method: 'PATCH',
+          _retries: 0,
+          body: JSON.stringify({
+            code,
+            title,
+            description: form.description.value.trim() || null,
+            is_required: true,
+          }),
+        });
+      } else {
+        await api(`${C}/${current.id}/sections`, {
+          method: 'POST',
+          _retries: 0,
+          body: JSON.stringify({
+            code,
+            title,
+            description: form.description.value.trim() || null,
+            is_required: true,
+          }),
+        });
+      }
+      id = Number(current.id);
+      panel.remove();
+      toast(sourceSection ? 'Bölüm güncellendi.' : 'Bölüm eklendi.');
+      await load();
+      detail = null;
+      draw(true);
+    } catch (error) {
+      toast(error?.message || 'Bölüm kaydedilemedi.', true);
+    }
+  };
+}
+
+function pick(callback) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'video/mp4,video/webm,video/quicktime,.m4v';
+  input.style.display = 'none';
+  input.onchange = () => {
+    const file = input.files?.[0];
+    input.remove();
+    if (file) callback(file);
+  };
+  document.body.append(input);
+  input.click();
+}
+
+async function upload(sourceSection, file, sourceVideo = null) {
+  return mutate(async () => {
+    const [current, section, video] = await targets(sourceSection, sourceVideo);
+    const title = video?.title || sourceVideo?.title || file.name.replace(/\.[^.]+$/, '') || 'Eğitim videosu';
+    const order = video?.order_index || Math.max(0, ...(section.videos || []).map((item) => Number(item.order_index) || 0)) + 1;
+    id = Number(current.id);
+    return uploadFile(`/trainings/remote/catalog/sections/${section.id}/videos`, file, {
+      title,
+      order_index: Number(order),
+      is_required: true,
+      ...(video ? {revision_of_id: video.id} : {}),
+    });
+  }, sourceVideo
+    ? 'Yeni sürüm yüklendi. Kontrol edip yayımlayın.'
+    : 'Video yüklendi. İşleme tamamlanınca yayımlayabilirsiniz.');
+}
+
+async function action(sourceSection, sourceVideo, actionName) {
+  return mutate(async () => {
+    const [current, , video] = await targets(sourceSection, sourceVideo);
+    id = Number(current.id);
+    return api(`/trainings/remote/catalog/videos/${video.id}/${actionName}`, {method: 'POST', _retries: 0});
+  }, (out) => actionName === 'publish'
+    ? `Video yayımlandı${Number(out?.live_synced_program_count || 0) ? `; ${out.live_synced_program_count} aktif eğitim güncellendi` : ''}.`
+    : actionName === 'unpublish'
+      ? 'Video yayından kaldırıldı.'
+      : 'İşlem tamamlandı.');
+}
+
+async function delVideo(sourceSection, sourceVideo) {
+  if (!confirm(`“${sourceVideo.title}” videosu silinsin mi?\n\nYayımlanmışsa aktif eğitimden kaldırılır; geçmiş kayıt korunur.`)) return;
+  return mutate(async () => {
+    const [current, , video] = await targets(sourceSection, sourceVideo);
+    id = Number(current.id);
+    return api(`/trainings/remote/catalog/videos/${video.id}`, {method: 'DELETE', _retries: 0});
+  }, (out) => out?.message || 'Video silindi.');
+}
+
+async function delSec(sourceSection) {
+  if (!confirm(`“${sourceSection.code} · ${sourceSection.title}” bölümü silinsin mi?`)) return;
+  return mutate(async () => {
+    const [current, section] = await targets(sourceSection);
+    id = Number(current.id);
+    return api(`/trainings/remote/catalog/sections/${section.id}`, {method: 'DELETE', _retries: 0});
+  }, 'Bölüm silindi.');
+}
+
+async function preview(video) {
+  try {
+    const out = await api(`/trainings/remote/catalog/videos/${video.id}/playback`);
+    const wrapper = document.createElement('div');
+    wrapper.className = 'rtc-preview';
+    wrapper.innerHTML = `<video controls autoplay src="${esc(abs(out.url))}"></video>`;
+    pop(video.title || 'Önizleme', wrapper, 'rtc-preview');
+  } catch (error) {
+    toast(error?.message || 'Önizleme açılamadı.', true);
+  }
+}
+
+async function packageAction(actionName) {
+  return mutate(async () => {
+    const current = await editable();
+    id = Number(current.id);
+    return api(`${C}/${current.id}/${actionName}`, {method: 'POST', _retries: 0});
+  }, actionName === 'publish' ? 'Paket yayımlandı.' : 'Paket durumu güncellendi.');
+}
+
+async function reorder(codes) {
+  return mutate(async () => {
+    const current = await editable();
+    const byCode = new Map((current.sections || []).map((section) => [String(section.code || ''), Number(section.id)]));
+    const sectionIds = codes.map((code) => byCode.get(String(code))).filter(Boolean);
+    if (sectionIds.length !== (current.sections || []).length || new Set(sectionIds).size !== sectionIds.length) {
+      throw Error('Bölüm sırası güvenli biçimde doğrulanamadı.');
+    }
+    id = Number(current.id);
+    return api(`${C}/${current.id}/sections/order`, {
+      method: 'PATCH',
+      _retries: 0,
+      body: JSON.stringify({section_ids: sectionIds}),
+    });
+  }, 'Bölüm sırası kaydedildi.');
+}
+
+function videoButtons(video, disabled) {
+  const actions = [];
+  if (['ready_for_review', 'published', 'unpublished'].includes(video.status)) {
+    actions.push(`<button data-va="preview" ${disabled}>Önizle</button>`);
+  }
+  if (['published', 'unpublished'].includes(video.status) && video.is_current) {
+    actions.push(`<button data-va="replace" title="Videoyu değiştir" ${disabled}>Yeni sürüm yükle</button>`);
+  }
+  if (video.status === 'ready_for_review') actions.push(`<button class="pub" data-va="publish" ${disabled}>Yayımla</button>`);
+  if (video.status === 'published') actions.push(`<button data-va="unpublish" ${disabled}>Yayından kaldır</button>`);
+  if (video.status === 'processing_failed') actions.push(`<button data-va="retry-processing" ${disabled}>Yeniden işle</button>`);
+  actions.push(`<button class="bad" data-va="delete" ${disabled}>Sil</button>`);
+  return actions.join('');
+}
+
+function html(current) {
+  const disabled = busy ? 'disabled' : '';
+  const sections = current.sections || [];
+  const packageActionHtml = current.status === 'published'
+    ? `<button data-pa="unpublish" ${disabled}>Paketi yayından kaldır</button>`
+    : current.status === 'archived'
+      ? `<button data-pa="restore" ${disabled}>Düzenlemeye aç</button>`
+      : `<button class="pub" data-pa="publish" ${disabled}>Paketi yayımla</button>`;
+
+  const sectionHtml = sections.map((section) => {
+    const videos = section.videos || [];
+    const videoHtml = videos.length
+      ? videos.map((video) => `<div class="rtc-v" data-v="${video.id}"><div><strong>${esc(video.title)}</strong><span>${esc(L[video.status] || video.status)} · ${video.duration_seconds ? `${Math.round(video.duration_seconds)} sn` : 'Süre bekleniyor'} · rev. ${Number(video.revision_no) || 1}</span></div><div class="rtc-va">${videoButtons(video, disabled)}</div></div>`).join('')
+      : '<div class="rtc-empty">Bu bölümde henüz video yok.</div>';
+    return `<article class="rtc-sec" data-section-id="${Number(section.id)}" data-code="${esc(section.code)}"><header class="rtc-sec-head"><div class="rtc-sec-id"><button class="rtc-grab" title="Tut ve taşı" ${disabled}>⋮⋮</button><div class="rtc-sec-name"><strong>${esc(section.code)} · ${esc(section.title)}</strong><span>${videos.length} video</span></div></div><div class="rtc-sec-actions"><button data-sa="edit" ${disabled}>Düzenle</button><button class="bad" data-sa="delete" ${disabled}>Sil</button></div></header><div class="rtc-sec-body"><div class="rtc-upload"><span>Yeni video ekleyin.</span><button class="pri" data-sa="upload" ${disabled}>+ Video yükle</button></div><div class="rtc-vlist">${videoHtml}</div></div></article>`;
+  }).join('');
+
+  return `<div class="rtc" ${A}="1" data-id="${current.id}"><div class="rtc-head"><div><span class="rtc-k">OSGB EĞİTİM İÇERİK YÖNETİMİ</span><h3>${esc(current.title)}</h3><div class="rtc-meta"><span>${esc(L[current.status] || current.status)}</span><span>·</span><span>${sections.length} bölüm</span><span>·</span><span>${Number(current.video_count) || sections.reduce((count, section) => count + (section.videos?.length || 0), 0)} video</span></div></div><div class="rtc-actions"><button class="pri" data-top="add" ${current.status === 'archived' ? 'disabled' : disabled}>+ Bölüm ekle</button>${packageActionHtml}</div></div><div class="rtc-note"><strong>${current.is_shared ? 'Hazır paket.' : 'OSGB paketi.'}</strong> ${current.is_shared ? 'İlk düzenlemede sistem otomatik olarak yalnız bu OSGB’ye ait güvenli çalışma kopyasını kullanır; ek bir kopyalama adımı görmezsiniz.' : 'Değişiklikler diğer OSGB’leri etkilemez.'} Bölüm sırası için soldaki ⋮⋮ tutamacını sürükleyin.</div><div class="rtc-list">${sectionHtml || '<div class="rtc-empty">Henüz bölüm yok. “Bölüm ekle” ile başlayın.</div>'}</div></div>`;
+}
+
+function bind(element, current) {
+  element.querySelector('[data-top=add]')?.addEventListener('click', () => sectionForm());
+  element.querySelectorAll('[data-pa]').forEach((button) => {
+    button.onclick = () => packageAction(button.dataset.pa).catch(() => {});
+  });
+
+  (current.sections || []).forEach((section) => {
+    const card = element.querySelector(`.rtc-sec[data-section-id="${Number(section.id)}"]`);
+    if (!card) return;
+    card.querySelector('[data-sa=edit]').onclick = () => sectionForm(section);
+    card.querySelector('[data-sa=delete]').onclick = () => delSec(section).catch(() => {});
+    card.querySelector('[data-sa=upload]').onclick = () => pick((file) => upload(section, file).catch(() => {}));
+    (section.videos || []).forEach((video) => {
+      const row = card.querySelector(`[data-v="${video.id}"]`);
+      row?.querySelectorAll('[data-va]').forEach((button) => {
+        button.onclick = () => {
+          const actionName = button.dataset.va;
+          if (actionName === 'preview') preview(video);
+          else if (actionName === 'replace') pick((file) => upload(section, file, video).catch(() => {}));
+          else if (actionName === 'delete') delVideo(section, video).catch(() => {});
+          else action(section, video, actionName).catch(() => {});
+        };
+      });
+    });
+  });
+  drag(element);
+}
+
+function drag(element) {
+  const box = element.querySelector('.rtc-list');
+  let moving = null;
+  let start = null;
+
+  const codesFromDom = () => [...box.querySelectorAll('.rtc-sec')].map((node) => node.dataset.code);
+  const clear = () => {
+    element.querySelectorAll('.rtc-sec').forEach((node) => node.classList.remove('drag', 'over'));
+  };
+
+  element.querySelectorAll('.rtc-sec').forEach((card) => {
+    const handle = card.querySelector('.rtc-grab');
+    handle.draggable = !busy;
+    handle.ondragstart = (event) => {
+      if (busy) return event.preventDefault();
+      moving = card;
+      start = codesFromDom();
+      card.classList.add('drag');
+      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+    };
+    handle.ondragend = () => {
+      const before = start ? [...start] : [];
+      const after = codesFromDom();
+      const changed = Boolean(moving && before.length && after.length && before.join(',') !== after.join(','));
+      clear();
+      moving = null;
+      start = null;
+      if (changed) reorder(after).catch(() => {});
+    };
+    card.ondragover = (event) => {
+      if (!moving || moving === card) return;
+      event.preventDefault();
+      element.querySelectorAll('.rtc-sec').forEach((node) => node.classList.remove('over'));
+      card.classList.add('over');
+      const rect = card.getBoundingClientRect();
+      const before = event.clientY < rect.top + rect.height / 2;
+      box.insertBefore(moving, before ? card : card.nextSibling);
+    };
+    card.ondrop = (event) => {
+      if (!moving) return;
+      event.preventDefault();
+      const codes = codesFromDom();
+      clear();
+      moving = null;
+      start = null;
+      reorder(codes).catch(() => {});
+    };
+  });
+}
+
+function scheduleProcessingRefresh(current) {
+  clearTimeout(pollTimer);
+  pollTimer = null;
+  const pending = (current.sections || []).some((section) => (
+    section.videos || []
+  ).some((video) => ['uploading', 'processing'].includes(video.status)));
+  if (pending) {
+    pollTimer = setTimeout(() => {
+      detail = null;
+      schedule(true);
+    }, 2500);
+  }
+}
+
+async function draw(force = false) {
+  if (!(await ok())) return;
+  const h = host();
+  if (!h) return;
+  css();
+  try {
+    const current = await get(force);
+    if (!current) return;
+    const old = h.querySelector(`[${A}]`);
+    if (!force && old && Number(old.dataset.id) === Number(current.id)) {
+      scheduleProcessingRefresh(current);
+      return;
+    }
+    h.classList.add(H);
+    old?.remove();
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = html(current);
+    const element = wrapper.firstElementChild;
+    h.appendChild(element);
+    bind(element, current);
+    scheduleProcessingRefresh(current);
+  } catch (error) {
+    toast(error?.message || 'İçerik yönetimi yüklenemedi.', true);
+  }
+}
+
+function schedule(force = false) {
+  clearTimeout(timer);
+  timer = setTimeout(() => draw(force), force ? 30 : 140);
+}
+
+document.addEventListener('click', (event) => {
+  const button = event.target.closest?.('button');
+  if (!button) return;
+
+  const explicitId = Number(button.getAttribute(PACKAGE_ID_ATTR) || 0);
+  if (explicitId > 0) {
+    id = explicitId;
+    detail = null;
+    schedule(true);
+    return;
+  }
+
+  const packageCards = cards();
+  const index = packageCards.indexOf(button);
+  if (index >= 0) {
+    load().then((loadedRows) => {
+      id = Number(loadedRows[index]?.id || 0) || null;
+      detail = null;
+      bindCardIds();
+      schedule(true);
+    });
+    return;
+  }
+
+  if (button.textContent?.trim() === 'Paketleri yenile') {
+    rows = [];
+    detail = null;
+    schedule(true);
+  }
+}, true);
+
+new MutationObserver(() => {
+  bindCardIds();
+  schedule();
+}).observe(document.documentElement, {childList: true, subtree: true});
+
+addEventListener('hashchange', () => {
+  clearTimeout(pollTimer);
+  pollTimer = null;
+  rows = [];
+  id = null;
+  detail = null;
+  schedule(true);
+});
+
+addEventListener('isg:auth-lost', () => {
+  clearTimeout(pollTimer);
+  pollTimer = null;
+  allowed = null;
+  rows = [];
+  id = null;
+  detail = null;
+  document.querySelectorAll(`.${H}`).forEach((node) => node.classList.remove(H));
+});
+
+schedule(true);
