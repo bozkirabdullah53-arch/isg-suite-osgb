@@ -1,7 +1,8 @@
 """Firma erişim kapsamı.
 
 OSGB uzman / hekim / DSP yalnızca kendisine görevlendirilen işyerlerine erişir
-(WorkplaceAssignment). Kullanıcı ↔ profesyonel eşlemesi e-posta (veya ad) ile yapılır.
+(WorkplaceAssignment). Kullanıcı ↔ profesyonel eşlemesinde e-posta önceliklidir;
+eski kayıtlarda ad-soyad yalnızca tek ve benzersiz eşleşme olduğunda kullanılabilir.
 """
 from __future__ import annotations
 
@@ -59,8 +60,32 @@ def _norm_text(value: str | None) -> str:
     return " ".join(s.split())
 
 
+def _unique_professional_name_match(
+    db: Session,
+    stmt,
+    name: str,
+) -> IsgProfessional | None:
+    """Return a legacy name match only when it is unambiguous.
+
+    Authorization must never depend on whichever duplicate happens to be returned
+    first by the database.  This helper deliberately fails closed for 0 or 2+
+    matches so two professionals with the same display name cannot inherit each
+    other's workplace assignments.
+    """
+    matches = [
+        p
+        for p in db.scalars(stmt.order_by(IsgProfessional.id)).all()
+        if _norm_text(p.full_name) == name
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
 def find_professional_by_identity(db: Session, user: User) -> IsgProfessional | None:
-    """E-posta (öncelik) veya ad ile aktif profesyonel; mümkünse kullanıcı OSGB’si ile sınırlı."""
+    """E-posta (öncelik) veya benzersiz ad ile aktif profesyonel.
+
+    Ad-soyad geriye dönük uyumluluk içindir; yalnızca kullanıcının OSGB'si içinde
+    tek bir aktif profesyonelle eşleştiğinde kabul edilir.
+    """
     stmt = select(IsgProfessional).where(IsgProfessional.is_active.is_(True))
     if user.osgb_id:
         stmt = stmt.where(IsgProfessional.osgb_id == user.osgb_id)
@@ -78,17 +103,14 @@ def find_professional_by_identity(db: Session, user: User) -> IsgProfessional | 
     name = _norm_text(user.full_name)
     if not name:
         return None
-    # osgb_id yokken isimle eşleme — çapraz OSGB riski; yalnızca e-posta kabul
+    # osgb_id yokken isimle eşleme çapraz-OSGB riski taşır; yalnız e-posta kabul.
     if not user.osgb_id:
         return None
-    matches = [p for p in db.scalars(stmt.order_by(IsgProfessional.id)).all() if _norm_text(p.full_name) == name]
-    if len(matches) == 1:
-        return matches[0]
-    return None
+    return _unique_professional_name_match(db, stmt, name)
 
 
 def sync_user_from_professional(db: Session, user: User, *, commit: bool = False) -> User:
-    """İSG profesyoneli kaydı varsa kullanıcı rolünü (hekim/uzman/DSP) ve OSGB’yi eşle.
+    """İSG profesyoneli kaydı varsa kullanıcı rolünü (hekim/uzman/DSP) ve OSGB'yi eşle.
 
     Global / firma yöneticisine dokunulmaz. Salt okunur veya yanlış saha rolü düzeltilir.
     """
@@ -116,7 +138,7 @@ def sync_user_from_professional(db: Session, user: User, *, commit: bool = False
 
 
 def link_user_to_professional(db: Session, professional: IsgProfessional) -> User | None:
-    """Profesyonel e-posta veya ad ile kullanıcıyı bulup saha rolünü eşle."""
+    """Profesyonel e-posta veya benzersiz ad ile kullanıcıyı güvenli eşle."""
     if not professional or not professional.is_active:
         return None
     user = None
@@ -130,12 +152,16 @@ def link_user_to_professional(db: Session, professional: IsgProfessional) -> Use
                 User.is_active.is_(True),
                 User.osgb_id == professional.osgb_id,
             )
-            for u in db.scalars(cand_stmt).all():
-                if u.role in (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN):
-                    continue
-                if _norm_text(u.full_name) == pname:
-                    user = u
-                    break
+            matches = [
+                u
+                for u in db.scalars(cand_stmt.order_by(User.id)).all()
+                if u.role not in (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)
+                and _norm_text(u.full_name) == pname
+            ]
+            # Aynı isimli iki kullanıcıdan "ilkini" bağlamak tenant yetkisini
+            # yanlış hesaba taşıyabilir. Yalnız tek eşleşme güvenlidir.
+            if len(matches) == 1:
+                user = matches[0]
     if not user or not user.is_active:
         return None
     if user.role in (UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN):
@@ -174,7 +200,7 @@ def sync_all_assigned_field_roles(db: Session, osgb_id: int | None = None) -> di
 
 
 def find_professional_for_user(db: Session, user: User) -> IsgProfessional | None:
-    """Kullanıcıyı İSG profesyoneli kaydıyla eşle (önce e-posta, sonra ad)."""
+    """Kullanıcıyı İSG profesyoneli kaydıyla eşle (önce e-posta, sonra benzersiz ad)."""
     if user.role not in _OSGB_FIELD_ROLES:
         return find_professional_by_identity(db, user)
     ptype = _ROLE_TO_PRO_TYPE.get(user.role)
@@ -187,17 +213,16 @@ def find_professional_for_user(db: Session, user: User) -> IsgProfessional | Non
     email = (user.email or "").strip().casefold()
     if email:
         by_email = db.scalar(
-            stmt.where(func.lower(IsgProfessional.email) == email).limit(1)
+            stmt.where(func.lower(IsgProfessional.email) == email).order_by(IsgProfessional.id).limit(1)
         )
         if by_email:
             return by_email
 
     name = _norm_text(user.full_name)
-    if name:
-        pros = list(db.scalars(stmt).all())
-        for p in pros:
-            if _norm_text(p.full_name) == name:
-                return p
+    if name and user.osgb_id:
+        matched = _unique_professional_name_match(db, stmt, name)
+        if matched:
+            return matched
     return find_professional_by_identity(db, user)
 
 

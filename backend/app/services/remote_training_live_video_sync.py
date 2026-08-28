@@ -5,10 +5,11 @@ is correct for audit/history, but it also meant an OSGB administrator could
 replace a catalog video while employees with an existing assignment continued
 to see the old copied file.
 
-This additive runtime patch keeps historical rows and progress records, while
-moving the *current* company video pointer to the newly published catalog
-revision. Published-video deletion is implemented as a logical removal so old
-progress/audit evidence is never physically destroyed.
+This additive runtime integration keeps historical rows and progress records,
+while moving the *current* company video pointer to the newly published catalog
+revision. Catalog sections are linked to company snapshot sections by a stable
+source identity; mutable ``order_index`` is never used as identity. Published-
+video deletion is a logical removal so old progress/audit evidence is preserved.
 """
 from __future__ import annotations
 
@@ -35,6 +36,7 @@ from app.models.remote_training import (
     RemoteTrainingSection,
     RemoteTrainingVideo,
 )
+from app.models.remote_training_links import RemoteTrainingCatalogSectionLink
 
 logger = logging.getLogger(__name__)
 _INSTALLED = False
@@ -94,27 +96,173 @@ def _programs_for_catalog_package(
     )
 
 
+def _norm_title(value: str | None) -> str:
+    return " ".join(str(value or "").split()).casefold()
+
+
+def _linked_program_section(
+    db: Session,
+    *,
+    program_id: int,
+    catalog_section_id: int,
+) -> RemoteTrainingSection | None:
+    link = db.scalar(
+        select(RemoteTrainingCatalogSectionLink).where(
+            RemoteTrainingCatalogSectionLink.program_id == program_id,
+            RemoteTrainingCatalogSectionLink.catalog_section_id == catalog_section_id,
+        )
+    )
+    if link is None:
+        return None
+    return db.get(RemoteTrainingSection, link.program_section_id)
+
+
+def _unique_program_section_by_title(
+    db: Session,
+    *,
+    program_id: int,
+    title: str,
+) -> RemoteTrainingSection | None:
+    wanted = _norm_title(title)
+    if not wanted:
+        return None
+    rows = list(
+        db.scalars(
+            select(RemoteTrainingSection)
+            .where(RemoteTrainingSection.program_id == program_id)
+            .order_by(RemoteTrainingSection.id)
+        ).all()
+    )
+    matches = [row for row in rows if _norm_title(row.title) == wanted]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _record_section_link(
+    db: Session,
+    *,
+    program: RemoteTrainingProgram,
+    package: RemoteTrainingCatalogPackage,
+    catalog_section: RemoteTrainingCatalogSection,
+    section: RemoteTrainingSection,
+) -> RemoteTrainingCatalogSectionLink:
+    existing = db.scalar(
+        select(RemoteTrainingCatalogSectionLink).where(
+            RemoteTrainingCatalogSectionLink.program_id == program.id,
+            RemoteTrainingCatalogSectionLink.catalog_section_id == catalog_section.id,
+        )
+    )
+    if existing is not None:
+        if existing.program_section_id != section.id:
+            raise HTTPException(
+                409,
+                "Eğitim bölümünün katalog bağlantısı tutarsız; yanlış videoya dokunulmadı.",
+            )
+        return existing
+
+    occupied = db.scalar(
+        select(RemoteTrainingCatalogSectionLink).where(
+            RemoteTrainingCatalogSectionLink.program_section_id == section.id
+        )
+    )
+    if occupied is not None and occupied.catalog_section_id != catalog_section.id:
+        raise HTTPException(
+            409,
+            "Firma eğitim bölümü başka bir katalog bölümüne bağlı; yanlış videoya dokunulmadı.",
+        )
+
+    link = RemoteTrainingCatalogSectionLink(
+        program_id=program.id,
+        program_section_id=section.id,
+        catalog_package_id=package.id,
+        catalog_section_id=catalog_section.id,
+    )
+    db.add(link)
+    db.flush()
+    return link
+
+
+def ensure_catalog_section_links_for_package(
+    db: Session,
+    package: RemoteTrainingCatalogPackage,
+) -> int:
+    """Snapshot stable links before catalog rename/reorder operations.
+
+    Existing materialized sections were copied with the catalog title. A legacy
+    row is linked only when that title identifies exactly one section in the
+    company program. Ambiguous rows stay unlinked; order_index is intentionally
+    never consulted because it is the mutable field being protected against.
+    """
+    created = 0
+    catalog_sections = list(
+        db.scalars(
+            select(RemoteTrainingCatalogSection)
+            .where(RemoteTrainingCatalogSection.package_id == package.id)
+            .order_by(RemoteTrainingCatalogSection.id)
+        ).all()
+    )
+    for program in _programs_for_catalog_package(db, package.id):
+        for catalog_section in catalog_sections:
+            if _linked_program_section(
+                db,
+                program_id=program.id,
+                catalog_section_id=catalog_section.id,
+            ) is not None:
+                continue
+            section = _unique_program_section_by_title(
+                db,
+                program_id=program.id,
+                title=catalog_section.title,
+            )
+            if section is None:
+                continue
+            _record_section_link(
+                db,
+                program=program,
+                package=package,
+                catalog_section=catalog_section,
+                section=section,
+            )
+            created += 1
+    return created
+
+
 def _program_section_for_catalog_section(
     db: Session,
     program: RemoteTrainingProgram,
     package: RemoteTrainingCatalogPackage,
     catalog_section: RemoteTrainingCatalogSection,
-) -> RemoteTrainingSection:
-    section = db.scalar(
-        select(RemoteTrainingSection).where(
-            RemoteTrainingSection.program_id == program.id,
-            RemoteTrainingSection.order_index == catalog_section.order_index,
-        )
+    *,
+    create_if_missing: bool = True,
+) -> RemoteTrainingSection | None:
+    """Resolve one copied section without ever treating order_index as identity."""
+    section = _linked_program_section(
+        db,
+        program_id=program.id,
+        catalog_section_id=catalog_section.id,
     )
-    if section is None:
-        section = db.scalar(
-            select(RemoteTrainingSection).where(
-                RemoteTrainingSection.program_id == program.id,
-                func.lower(RemoteTrainingSection.title) == catalog_section.title.lower(),
-            )
-        )
     if section is not None:
         return section
+
+    # Backward-compatible upgrade path for programs materialized before the
+    # stable-link table existed. A unique title is safe; an ambiguous title is
+    # not guessed.
+    section = _unique_program_section_by_title(
+        db,
+        program_id=program.id,
+        title=catalog_section.title,
+    )
+    if section is not None:
+        _record_section_link(
+            db,
+            program=program,
+            package=package,
+            catalog_section=catalog_section,
+            section=section,
+        )
+        return section
+
+    if not create_if_missing:
+        return None
 
     next_order = int(
         db.scalar(
@@ -125,7 +273,9 @@ def _program_section_for_catalog_section(
         or 0
     ) + 1
     desired_order = int(catalog_section.order_index or 0)
-    order_index = desired_order if desired_order > next_order - 1 else next_order
+    # Use the catalog order only when it cannot collide with an existing copied
+    # section. Otherwise append; identity is the link row, not this display order.
+    order_index = desired_order if desired_order >= next_order else next_order
     section = RemoteTrainingSection(
         osgb_id=program.osgb_id,
         company_id=program.company_id,
@@ -140,6 +290,13 @@ def _program_section_for_catalog_section(
     )
     db.add(section)
     db.flush()
+    _record_section_link(
+        db,
+        program=program,
+        package=package,
+        catalog_section=catalog_section,
+        section=section,
+    )
     return section
 
 
@@ -178,6 +335,8 @@ def _sync_published_catalog_video(
 
     for program in programs:
         section = _program_section_for_catalog_section(db, program, package, catalog_section)
+        if section is None:  # defensive: create_if_missing=True normally guarantees a section
+            raise HTTPException(409, "Firma eğitim bölümü güvenli biçimde eşleştirilemedi.")
         current_rows = list(
             db.scalars(
                 select(RemoteTrainingVideo).where(
@@ -261,6 +420,8 @@ def _sync_published_catalog_video(
             details={
                 "catalog_video_id": catalog_video.id,
                 "catalog_package_id": package.id,
+                "catalog_section_id": catalog_section.id,
+                "program_section_id": section.id,
                 "revision_no": catalog_video.revision_no,
                 "replaced_video_id": previous.id if previous else None,
             },
@@ -283,13 +444,22 @@ def _deactivate_catalog_video_in_programs(
 
     changed = 0
     for program in _programs_for_catalog_package(db, package.id):
-        section = db.scalar(
-            select(RemoteTrainingSection).where(
-                RemoteTrainingSection.program_id == program.id,
-                RemoteTrainingSection.order_index == catalog_section.order_index,
-            )
+        section = _program_section_for_catalog_section(
+            db,
+            program,
+            package,
+            catalog_section,
+            create_if_missing=False,
         )
         if section is None:
+            # Fail safe: an unresolvable legacy section is never guessed by
+            # mutable order. Leaving a historical current row is safer than
+            # archiving a different lesson.
+            logger.warning(
+                "Catalog video removal skipped unresolved legacy section: program_id=%s catalog_section_id=%s",
+                program.id,
+                catalog_section.id,
+            )
             continue
         rows = list(
             db.scalars(
@@ -321,6 +491,8 @@ def _deactivate_catalog_video_in_programs(
             details={
                 "catalog_video_id": catalog_video.id,
                 "catalog_package_id": package.id,
+                "catalog_section_id": catalog_section.id,
+                "program_section_id": section.id,
             },
         )
         changed += 1
