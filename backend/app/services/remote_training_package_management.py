@@ -45,6 +45,7 @@ class RemoteCatalogSectionMetadataUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=5000)
     is_required: bool | None = None
 
+
 class RemoteCatalogSectionReorder(BaseModel):
     """Complete ordered list of sections for one catalog package."""
 
@@ -102,11 +103,23 @@ def _assert_unique_package_title(
         raise HTTPException(409, "Bu OSGB içinde aynı adla başka bir eğitim paketi bulunuyor.")
 
 
+def _snapshot_stable_section_links(db: Session, package: RemoteTrainingCatalogPackage) -> int:
+    """Freeze catalog↔program identities before mutable metadata/order changes."""
+    from app.services.remote_training_live_video_sync import (
+        ensure_catalog_section_links_for_package,
+    )
+
+    return ensure_catalog_section_links_for_package(db, package)
+
+
 def _cleanup_storage(keys: list[str]) -> bool:
     if not keys:
         return False
     pending = False
-    store = remote_api.get_object_store()
+    # Remote-training videos are written with the remote-first resolver. Cleanup
+    # must use the exact same resolver; otherwise a local backend plus configured
+    # R2 credentials can leave an orphaned remote object behind.
+    store = remote_api._remote_training_video_store()
     for key in keys:
         try:
             store.delete(key)
@@ -217,6 +230,15 @@ def update_catalog_section_metadata(
     if not fields:
         raise HTTPException(422, "Değiştirilecek bölüm bilgisi gönderilmedi.")
 
+    # A title is a legacy discovery hint only. Freeze stable links while the old
+    # copied title still matches, before the catalog title can diverge.
+    if "title" in fields:
+        new_title = _clean_section_title(payload.title)
+        if new_title != section.title:
+            _snapshot_stable_section_links(db, package)
+    else:
+        new_title = None
+
     if "code" in fields:
         code = _clean_section_code(payload.code)
         duplicate = db.scalar(
@@ -229,8 +251,8 @@ def update_catalog_section_metadata(
         if duplicate:
             raise HTTPException(409, "Bu paket içinde aynı bölüm kodu zaten kullanılıyor.")
         section.code = code
-    if "title" in fields:
-        section.title = _clean_section_title(payload.title)
+    if "title" in fields and new_title is not None:
+        section.title = new_title
     if "description" in fields:
         section.description = str(payload.description or "").strip() or None
     if "is_required" in fields and payload.is_required is not None:
@@ -252,7 +274,8 @@ def reorder_catalog_sections(
 
     Section rows have a unique (package_id, order_index) constraint. They are
     moved through a temporary negative range first so PostgreSQL and SQLite
-    both remain safe when two sections exchange positions.
+    both remain safe when two sections exchange positions. Company snapshot
+    identity is frozen before this mutable display order changes.
     """
 
     package = _private_package(db, user, package_id)
@@ -295,6 +318,11 @@ def reorder_catalog_sections(
     current_ids = [int(section.id) for section in sections]
     changed = current_ids != requested_ids
     if changed:
+        # Capture stable links while the old catalog order/title snapshot is
+        # still intact. Live video sync will never infer identity from the new
+        # order numbers.
+        _snapshot_stable_section_links(db, package)
+
         # Avoid transient unique-key collisions while swapping/reordering rows.
         for section in sections:
             section.order_index = -1_000_000_000 - int(section.id)
@@ -411,4 +439,3 @@ def install_remote_training_package_management() -> dict[str, Any]:
         "already_installed": False,
         "routes_added": added,
     }
-
