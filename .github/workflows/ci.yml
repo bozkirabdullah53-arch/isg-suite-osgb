@@ -52,6 +52,8 @@ jobs:
           tests/test_object_storage_remote_required.py
           tests/test_remote_training_video_r2_backfill.py
           tests/test_remote_basic_ohs_video_training.py
+          tests/test_remote_training_package_management.py
+          tests/test_remote_training_live_video_sync.py
           tests/test_system_backfill.py
           tests/test_rate_limit_runtime_fallback.py
           tests/test_health_crypto_inventory.py
@@ -144,6 +146,28 @@ jobs:
           tests/test_training_presentation_generation.py
           tests/test_training_editor_teaching_v3.py
           tests/test_committee_workflow.py
+      - name: Remote training stable-link migration isolation
+        run: |
+          alembic downgrade 0105_visual_field_inspections
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, inspect
+          engine = create_engine(os.environ["DATABASE_URL"])
+          inspector = inspect(engine)
+          assert not inspector.has_table("remote_training_catalog_section_links")
+          for table in (
+              "remote_training_programs",
+              "remote_training_sections",
+              "remote_training_videos",
+              "remote_training_catalog_packages",
+              "remote_training_catalog_sections",
+              "remote_training_catalog_videos",
+          ):
+              assert inspector.has_table(table), table
+          print("OK: stable-link downgrade removed only the additive identity table")
+          PY
+          alembic upgrade head
+          python scripts/ci_postgres_parity.py
       - name: Personnel profile migration downgrade isolation
         run: |
           alembic downgrade 0080_presentation_approvals
