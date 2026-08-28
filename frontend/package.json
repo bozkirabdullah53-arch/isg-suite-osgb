@@ -11,7 +11,7 @@
     "verify:personnel-osgb": "eslint src/personnel_profile_readonly_bridge.js src/personnel_profile_manager_logic.js src/personnel_profile_osgb_scope.test.js src/personnel_profile_manager.jsx src/personnel_profile_manager_bridge.jsx src/personnel_profile_documents.jsx src/personnel_profile_documents_bridge.jsx && vitest run src/personnel_profile_osgb_scope.test.js src/personnel_profile_manager_logic.test.js src/personnel_profile_documents_logic.test.js src/personnel_profile_documents_bridge.test.js",
     "verify:personnel-osgb-e2e": "node scripts/run_personnel_osgb_e2e_gate.mjs",
     "dev": "npm run patch:personnel && vite",
-    "build": "npm run patch:personnel && npm run verify:personnel-osgb && node scripts/apply_training_color_theme.mjs && node scripts/activate_training_exam.mjs && node scripts/activate_training_participant_feedback.mjs && vite build && npm run verify:personnel-osgb-e2e",
+    "build": "npm run patch:personnel && npm run verify:personnel-osgb && node scripts/apply_training_color_theme.mjs && node scripts/activate_training_exam.mjs && node scripts/activate_training_participant_feedback.mjs && node scripts/fix_remote_training_clean_manager.mjs && vite build && npm run verify:personnel-osgb-e2e",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
