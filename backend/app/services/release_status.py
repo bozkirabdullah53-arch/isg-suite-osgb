@@ -15,9 +15,22 @@ def public_health_payload() -> dict:
 
     Sürüm ve environment bilgisi herkese açık endpoint'ten kaldırıldı
     (smoke test B3 bulgusu). Load balancer/warmup yalnızca status'a bakar.
+    Optional R2 degradation is exposed only as a generic status string; the
+    endpoint remains HTTP 200 so a working persistent-disk fallback does not
+    make Render evict an otherwise healthy service.
     """
+    from app.services.remote_training_storage_guard import (
+        remote_training_storage_guard_status,
+    )
+
+    storage = remote_training_storage_guard_status()
+    degraded = bool(
+        storage.get("fallback_active")
+        and storage.get("credentials_configured")
+        and storage.get("probe_state") == "unreachable"
+    )
     return {
-        "status": "ok",
+        "status": "degraded" if degraded else "ok",
         "service": settings.app_name,
     }
 
@@ -36,6 +49,9 @@ def infra_detail_payload() -> dict:
         persistent_disk_label,
         storage_backend_label,
     )
+    from app.services.remote_training_storage_guard import (
+        remote_training_storage_guard_status,
+    )
 
     return {
         "status": "ok",
@@ -45,6 +61,7 @@ def infra_detail_payload() -> dict:
         "object_storage": storage_backend_label(),
         "object_storage_config": "ok" if object_storage_config_ok() else "incomplete",
         "object_storage_probe": "head-bucket-v1",
+        "remote_training_video_storage": remote_training_storage_guard_status(),
         "persistent_disk": persistent_disk_label(),
         "hardening_complete": hardening_complete_label(),
         "infra_cutover_remaining": infra_cutover_remaining(),
@@ -178,6 +195,6 @@ def infra_detail_payload() -> dict:
         "nav_hardening": "allowlist-boundary-mobile",
         "field_access": "assignment-scoped-v2",
         "startup_obs": "no-silent-pass-v4",
-        "public_health": "slim-v1",
+        "public_health": "slim-v2-degraded-aware",
         "git": os.environ.get("RENDER_GIT_COMMIT") or os.environ.get("GIT_COMMIT") or "local",
     }
