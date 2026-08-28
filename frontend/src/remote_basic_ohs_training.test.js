@@ -4,6 +4,7 @@ import {
   employeeAssignmentTimeline,
   formatEmployeeDate,
   protectedPlaybackFallbackFetchOptions,
+  remoteVideoIsUnlocked,
   sortEmployeeAssignments,
 } from './remote_basic_ohs_training.jsx';
 
@@ -44,6 +45,30 @@ describe('employee training assignment overview', () => {
   it('formats assignment dates using Turkish date order', () => {
     expect(formatEmployeeDate('2026-08-14')).toBe('14.08.2026');
     expect(formatEmployeeDate(null)).toBe('Belirlenmedi');
+  });
+});
+
+describe('remote video sequence unlock', () => {
+  it('unlocks the next video after the completion response arrives', () => {
+    const videos = [{id: 1}, {id: 2}, {id: 3}];
+    expect(remoteVideoIsUnlocked(videos, [], videos[1], true)).toBe(false);
+    expect(
+      remoteVideoIsUnlocked(
+        videos,
+        [],
+        videos[1],
+        true,
+        {status: 'completed', video_id: 1},
+      ),
+    ).toBe(true);
+    expect(
+      remoteVideoIsUnlocked(
+        videos,
+        [{video_id: 1, status: 'completed'}],
+        videos[2],
+        true,
+      ),
+    ).toBe(false);
   });
 });
 

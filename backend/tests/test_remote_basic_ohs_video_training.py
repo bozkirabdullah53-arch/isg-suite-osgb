@@ -2477,6 +2477,72 @@ def test_company_certificate_hub_lists_failed_records_exports_and_bulk_deletes(r
         headers=manager_headers,
     ).json() == []
 
+def test_remote_video_response_streams_bounded_remote_ranges(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from app.services import remote_training as service
+
+    class _Remote:
+        def __init__(self):
+            self.range_calls = []
+            self.get_bytes_called = False
+            self.exists_called = False
+
+        def resolve_local_path(self, _key):
+            return None
+
+        def remote_size(self, _key):
+            return 100
+
+        def iter_range(self, key, *, start, end):
+            self.range_calls.append((key, start, end))
+            yield b"x" * (end - start + 1)
+
+        def exists(self, _key):
+            self.exists_called = True
+            return True
+
+        def get_bytes(self, _key):
+            self.get_bytes_called = True
+            raise AssertionError("remote playback must not download the whole object")
+
+    store = _Remote()
+    video = SimpleNamespace(
+        storage_key="4/video/lesson.mp4",
+        original_file_name="lesson.mp4",
+        content_type="video/mp4",
+    )
+    monkeypatch.setattr(service, "get_remote_video_store", lambda: store)
+    monkeypatch.setattr(service, "remote_basic_ohs_direct_object_playback_active", lambda: False)
+
+    response = service.response_for_video(
+        video,
+        SimpleNamespace(headers={"range": "bytes=10-19"}),
+    )
+    assert response.status_code == 206
+    assert response.headers["content-range"] == "bytes 10-19/100"
+    assert response.headers["content-length"] == "10"
+
+    async def read_response_body(response):
+        return b"".join([chunk async for chunk in response.body_iterator])
+
+    assert asyncio.run(read_response_body(response)) == b"x" * 10
+    assert store.range_calls == [("4/video/lesson.mp4", 10, 19)]
+    assert store.get_bytes_called is False
+    assert store.exists_called is False
+
+    full_response = service.response_for_video(
+        video,
+        SimpleNamespace(headers={}),
+    )
+    assert full_response.status_code == 200
+    assert full_response.headers["content-length"] == "100"
+    assert asyncio.run(read_response_body(full_response)) == b"x" * 100
+    assert store.range_calls[-1] == ("4/video/lesson.mp4", 0, 99)
+    assert store.get_bytes_called is False
+
+
 def test_remote_video_range_parser_supports_browser_ranges():
     from fastapi import HTTPException
 

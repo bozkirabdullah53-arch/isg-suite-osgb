@@ -1759,6 +1759,30 @@ def _video_media_type(video: RemoteTrainingVideo) -> str:
     return declared if declared.startswith("video/") else "video/mp4"
 
 
+def _remote_video_size(store: Any, key: str) -> int | None:
+    """Return the remote object size without loading the object body."""
+    size_reader = getattr(store, "remote_size", None)
+    if not callable(size_reader):
+        return None
+    size = size_reader(key)
+    return None if size is None else int(size)
+
+
+def _iter_remote_video_range(store: Any, key: str, start: int, end: int):
+    """Yield a bounded remote byte range without materializing the full video."""
+    iterator = getattr(store, "iter_range", None)
+    if callable(iterator):
+        yield from iterator(key, start=start, end=end)
+        return
+    getter = getattr(store, "get_range", None)
+    if callable(getter):
+        chunk = getter(key, start=start, end=end)
+        if chunk:
+            yield bytes(chunk)
+        return
+    raise RuntimeError("Uzak video deposu parça parça okuma desteği sağlamıyor.")
+
+
 def response_for_video(video: RemoteTrainingVideo, request: Any | None = None):
     """Return a protected inline response with browser-friendly byte ranges."""
     from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
@@ -1798,7 +1822,8 @@ def response_for_video(video: RemoteTrainingVideo, request: Any | None = None):
     local = store.resolve_local_path(video.storage_key)
     media_type = _video_media_type(video)
     safe_name = Path(video.original_file_name or "video").name
-    safe_name = "".join(char for char in safe_name if char not in {"\r", "\n", '"'}) or "video"
+    safe_name = "".join(char for char in safe_name if char not in {"", "
+", '"'}) or "video"
     range_header = request.headers.get("range") if request is not None else None
     disposition = f'inline; filename="{safe_name}"'
 
@@ -1829,6 +1854,31 @@ def response_for_video(video: RemoteTrainingVideo, request: Any | None = None):
             },
         )
 
+    remote_size = _remote_video_size(store, video.storage_key)
+    if remote_size is not None and remote_size >= 0:
+        if remote_size <= 0:
+            raise HTTPException(404, "Video depolamada boş veya geçersiz.")
+        requested_range = _parse_video_range(range_header, remote_size)
+        start, end = requested_range or (0, remote_size - 1)
+        length = end - start + 1
+        headers = {
+            "Content-Disposition": disposition,
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(length),
+        }
+        status_code = 200
+        if requested_range is not None:
+            status_code = 206
+            headers["Content-Range"] = f"bytes {start}-{end}/{remote_size}"
+        return StreamingResponse(
+            _iter_remote_video_range(store, video.storage_key, start, end),
+            status_code=status_code,
+            media_type=media_type,
+            headers=headers,
+        )
+
+    # Compatibility path for stores that cannot report a remote size and for
+    # the R2 cutover case where the object is still present on the old disk.
     if not store.exists(video.storage_key):
         raise HTTPException(404, "Video depolamada bulunamadı.")
     data = store.get_bytes(video.storage_key)

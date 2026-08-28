@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Protocol
+from typing import Iterator, Protocol
 
 from fastapi import HTTPException
 
@@ -28,6 +28,8 @@ def remote_mirror_required() -> bool:
 class ObjectStore(Protocol):
     def put_bytes(self, key: str, content: bytes) -> str: ...
     def get_bytes(self, key: str) -> bytes: ...
+    def remote_size(self, key: str) -> int | None: ...
+    def iter_range(self, key: str, *, start: int, end: int) -> Iterator[bytes]: ...
     def exists(self, key: str) -> bool: ...
     def delete(self, key: str) -> None: ...
     def resolve_local_path(self, key: str) -> Path | None:
@@ -75,6 +77,26 @@ class LocalObjectStore:
         if not path.is_file():
             raise HTTPException(status_code=404, detail="Dosya bulunamadı.")
         return path.read_bytes()
+
+    def remote_size(self, key: str) -> int | None:
+        path = self._path(key)
+        return int(path.stat().st_size) if path.is_file() else None
+
+    def iter_range(self, key: str, *, start: int, end: int) -> Iterator[bytes]:
+        path = self._path(key)
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="Dosya bulunamadı.")
+        first = max(0, int(start))
+        last = max(first, int(end))
+        with path.open("rb") as handle:
+            handle.seek(first)
+            remaining = last - first + 1
+            while remaining > 0:
+                chunk = handle.read(min(1024 * 1024, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+                yield chunk
 
     def exists(self, key: str) -> bool:
         return self._path(key).is_file()
@@ -212,6 +234,29 @@ class S3ObjectStore:
         )
         return bytes(obj["Body"].read())
 
+    def iter_range(self, key: str, *, start: int, end: int) -> Iterator[bytes]:
+        """Stream a bounded byte range directly from R2/S3."""
+        first = max(0, int(start))
+        last = max(first, int(end))
+        obj = self._client.get_object(
+            Bucket=self.bucket,
+            Key=self._full_key(key),
+            Range=f"bytes={first}-{last}",
+        )
+        body = obj["Body"]
+        remaining = last - first + 1
+        try:
+            while remaining > 0:
+                chunk = body.read(min(1024 * 1024, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+                yield bytes(chunk)
+        finally:
+            close = getattr(body, "close", None)
+            if callable(close):
+                close()
+
     def get_bytes(self, key: str) -> bytes:
         try:
             obj = self._client.get_object(Bucket=self.bucket, Key=self._full_key(key))
@@ -298,6 +343,38 @@ class DualObjectStore:
         if self.local.exists(key):
             return self.local.get_bytes(key)
         return self.remote.get_bytes(key)
+
+    def remote_size(self, key: str) -> int | None:
+        local = self.local.resolve_local_path(key)
+        if local is not None and local.is_file():
+            return int(local.stat().st_size)
+        reader = getattr(self.remote, "remote_size", None)
+        if callable(reader):
+            return reader(key)
+        return None
+
+    def iter_range(self, key: str, *, start: int, end: int) -> Iterator[bytes]:
+        local = self.local.resolve_local_path(key)
+        if local is not None and local.is_file():
+            first = max(0, int(start))
+            last = max(first, int(end))
+            with local.open("rb") as handle:
+                handle.seek(first)
+                remaining = last - first + 1
+                while remaining > 0:
+                    chunk = handle.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    yield chunk
+            return
+        iterator = getattr(self.remote, "iter_range", None)
+        if callable(iterator):
+            yield from iterator(key, start=start, end=end)
+            return
+        chunk = self.remote.get_range(key, start=start, end=end)
+        if chunk:
+            yield bytes(chunk)
 
     def exists(self, key: str) -> bool:
         return self.local.exists(key) or self.remote.exists(key)
