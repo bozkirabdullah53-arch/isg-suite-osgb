@@ -6,6 +6,7 @@ const TOOLBAR_ATTR = 'data-remote-package-management-toolbar';
 const SECTION_ACTION_ATTR = 'data-remote-section-management-actions';
 const SECTION_ROOT_ATTR = 'data-remote-catalog-section-root';
 const SECTION_HANDLE_ATTR = 'data-remote-section-drag-handle';
+const PACKAGE_ID_ATTR = 'data-remote-catalog-package-id';
 const DIALOG_ATTR = 'data-remote-package-management-dialog';
 
 let allowed = null;
@@ -21,6 +22,7 @@ let draggingSectionRoot = null;
 let dragStartSectionOrder = null;
 let dragStartSectionContainer = null;
 let dragDropCommitted = false;
+let catalogChangeWatcher = null;
 const boundSectionRoots = new WeakSet();
 
 function ensureStyles() {
@@ -70,6 +72,15 @@ function packageCardButtons(section = catalogSection()) {
   return panel ? [...panel.querySelectorAll('button')].filter((button) => button.querySelector('strong')) : [];
 }
 
+function bindPackageCardIds(rows = packageRows) {
+  const buttons = packageCardButtons();
+  buttons.forEach((button, index) => {
+    const id = Number(rows[index]?.id || 0);
+    if (id > 0) button.setAttribute(PACKAGE_ID_ATTR, String(id));
+    else button.removeAttribute(PACKAGE_ID_ATTR);
+  });
+}
+
 function refreshButton(section = catalogSection()) {
   return section ? [...section.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Paketleri yenile') || null : null;
 }
@@ -96,25 +107,20 @@ async function canManage() {
 }
 
 async function loadPackageRows(force = false) {
-  if (!force && packageRows.length) return packageRows;
+  if (!force && packageRows.length) {
+    bindPackageCardIds(packageRows);
+    return packageRows;
+  }
   if (!packageLoadPromise) {
     packageLoadPromise = api(CATALOG_API, {_retries: 1})
       .then((rows) => {
         packageRows = Array.isArray(rows) ? rows : [];
+        bindPackageCardIds(packageRows);
         return packageRows;
       })
       .finally(() => { packageLoadPromise = null; });
   }
   return packageLoadPromise;
-}
-
-function selectedCardIndex() {
-  const buttons = packageCardButtons();
-  for (let index = 0; index < buttons.length; index += 1) {
-    const row = buttons[index].parentElement;
-    if (row && window.getComputedStyle(row).borderTopColor === 'rgb(11, 156, 168)') return index;
-  }
-  return -1;
 }
 
 function detailHeadingTitle(section = catalogSection()) {
@@ -127,8 +133,18 @@ function detailHeadingTitle(section = catalogSection()) {
 async function resolveSelectedPackageId() {
   const rows = await loadPackageRows();
   if (selectedPackageId && rows.some((row) => Number(row.id) === Number(selectedPackageId))) return selectedPackageId;
-  const index = selectedCardIndex();
-  if (index >= 0 && rows[index]?.id) return (selectedPackageId = Number(rows[index].id));
+
+  // Package cards receive stable ids from the API list. Selection is captured
+  // on click, so theme/CSS colors are never used as application state.
+  const activeCard = packageCardButtons().find((button) => button.getAttribute('aria-pressed') === 'true');
+  const activeId = Number(activeCard?.getAttribute(PACKAGE_ID_ATTR) || 0);
+  if (activeId > 0 && rows.some((row) => Number(row.id) === activeId)) {
+    selectedPackageId = activeId;
+    return selectedPackageId;
+  }
+
+  // Backward-compatible first render fallback: detail title must identify
+  // exactly one API row. Duplicate titles never guess a package.
   const title = detailHeadingTitle();
   const matches = title ? rows.filter((row) => String(row.title || '').trim() === title) : [];
   if (matches.length === 1) return (selectedPackageId = Number(matches[0].id));
@@ -146,6 +162,63 @@ async function resolveSelectedDetail(force = false) {
     selectedDetail = null;
     return null;
   }
+}
+
+function detailSignature(detail) {
+  if (!detail) return '';
+  return JSON.stringify({
+    id: Number(detail.id || 0),
+    status: detail.status || '',
+    revision: Number(detail.revision_no || 0),
+    sections: (detail.sections || []).map((item) => [
+      Number(item.id || 0),
+      Number(item.order_index || 0),
+      String(item.code || ''),
+      String(item.title || ''),
+      (item.videos || []).map((video) => [Number(video.id || 0), video.status || '', Number(video.revision_no || 0)]),
+    ]),
+  });
+}
+
+function stopCatalogChangeWatcher() {
+  if (!catalogChangeWatcher) return;
+  catalogChangeWatcher.observer?.disconnect();
+  if (catalogChangeWatcher.timeout) window.clearTimeout(catalogChangeWatcher.timeout);
+  catalogChangeWatcher = null;
+}
+
+function watchForCatalogDetailChange() {
+  // remote-section-create-refresh-fallback: event-driven replacement for the
+  // old 800/1800 ms blind refresh timers.
+  stopCatalogChangeWatcher();
+  const root = catalogSection();
+  const packageId = Number(selectedPackageId || selectedDetail?.id || 0);
+  if (!root || !packageId) return;
+  const previous = detailSignature(selectedDetail);
+  let checking = false;
+
+  const check = async () => {
+    if (checking || !catalogChangeWatcher) return;
+    checking = true;
+    try {
+      const fresh = await api(`${CATALOG_API}/${packageId}`, {_retries: 0});
+      if (detailSignature(fresh) !== previous) {
+        selectedDetail = fresh;
+        await loadPackageRows(true);
+        stopCatalogChangeWatcher();
+        scheduleRender(true);
+      }
+    } catch (_error) {
+      // The React action may still be in flight. A later DOM mutation retries.
+    } finally {
+      checking = false;
+    }
+  };
+
+  const observer = new MutationObserver(() => { void check(); });
+  observer.observe(root, {childList: true, subtree: true, attributes: true});
+  const timeout = window.setTimeout(stopCatalogChangeWatcher, 10000);
+  catalogChangeWatcher = {observer, timeout};
 }
 
 function closeDialog() {
@@ -171,15 +244,22 @@ function dialogShell(title, note) {
 
 async function refreshCurrentPackage() {
   sectionReorderEnabled = false;
-  selectedDetail = null;
+  const packageId = Number(selectedPackageId || selectedDetail?.id || 0);
   await loadPackageRows(true);
-  refreshButton()?.click();
-  window.setTimeout(() => {
+  if (packageId) {
+    try {
+      selectedDetail = await api(`${CATALOG_API}/${packageId}`, {_retries: 1});
+    } catch (_error) {
+      selectedDetail = null;
+    }
+  } else {
     selectedDetail = null;
-    scheduleRender(true);
-  }, 450);
+  }
+  // Keep the React catalog view synchronized as well; bridge state no longer
+  // waits an arbitrary number of milliseconds for this click to finish.
+  refreshButton()?.click();
+  scheduleRender(true);
 }
-
 
 function sectionRootForItem(sectionRoot, item) {
   const wanted = String(item.code || '') + ' · ' + String(item.title || '');
@@ -293,8 +373,25 @@ function bindSectionReorder(sectionRoot, item, label, detail) {
       }
     });
     handle.addEventListener('dragend', () => {
-      if (draggingSectionRoot && !dragDropCommitted && dragStartSectionContainer && dragStartSectionOrder) {
-        applySectionOrder(dragStartSectionContainer, dragStartSectionOrder);
+      // remote-section-dragend-persist-fallback
+      const container = dragStartSectionContainer;
+      const previousOrder = dragStartSectionOrder ? [...dragStartSectionOrder] : [];
+      const nextOrder = container ? sectionOrderFromDom(container) : [];
+      const changed = Boolean(
+        draggingSectionRoot
+        && !dragDropCommitted
+        && container
+        && previousOrder.length
+        && nextOrder.length
+        && previousOrder.join(',') !== nextOrder.join(',')
+      );
+      if (changed) {
+        clearDragState();
+        void persistSectionOrder(detail, container, previousOrder, nextOrder);
+        return;
+      }
+      if (draggingSectionRoot && !dragDropCommitted && container && previousOrder.length) {
+        applySectionOrder(container, previousOrder);
       }
       clearDragState();
     });
@@ -466,6 +563,7 @@ async function renderControls(forceDetail = false) {
   if (!(await canManage())) return;
   const sectionRoot = catalogSection();
   if (!sectionRoot) return;
+  bindPackageCardIds();
   const detail = await resolveSelectedDetail(forceDetail);
   if (!detail) return;
 
@@ -523,6 +621,14 @@ function scheduleRender(forceDetail = false) {
 
 document.addEventListener('click', (event) => {
   const clickedButton = event.target.closest?.('button');
+  const packageId = Number(clickedButton?.getAttribute(PACKAGE_ID_ATTR) || 0);
+  if (packageId > 0) {
+    selectedPackageId = packageId;
+    selectedDetail = null;
+    scheduleRender(true);
+    return;
+  }
+
   const cards = packageCardButtons();
   const index = clickedButton ? cards.indexOf(clickedButton) : -1;
   if (index >= 0) {
@@ -530,6 +636,7 @@ document.addEventListener('click', (event) => {
       if (rows[index]?.id) {
         selectedPackageId = Number(rows[index].id);
         selectedDetail = null;
+        bindPackageCardIds(rows);
         scheduleRender(true);
       }
     });
@@ -537,18 +644,19 @@ document.addEventListener('click', (event) => {
   }
 
   const text = clickedButton?.textContent?.trim() || '';
-  if (['Paketi düzenlemeye aç', 'Paketi yayımla', 'Yayından kaldır', 'Arşivle', 'İncelemeye hazır'].includes(text)) {
-    window.setTimeout(() => {
-      selectedDetail = null;
-      scheduleRender(true);
-    }, 450);
+  if (text === 'Bölümü oluştur' || ['Paketi düzenlemeye aç', 'Paketi yayımla', 'Yayından kaldır', 'Arşivle', 'İncelemeye hazır'].includes(text)) {
+    watchForCatalogDetailChange();
   }
 }, true);
 
-const observer = new MutationObserver(() => scheduleRender(false));
+const observer = new MutationObserver(() => {
+  bindPackageCardIds();
+  scheduleRender(false);
+});
 observer.observe(document.documentElement, {childList: true, subtree: true});
 
 window.addEventListener('hashchange', () => {
+  stopCatalogChangeWatcher();
   selectedPackageId = null;
   selectedDetail = null;
   packageRows = [];
@@ -557,6 +665,7 @@ window.addEventListener('hashchange', () => {
 });
 
 window.addEventListener('isg:auth-lost', () => {
+  stopCatalogChangeWatcher();
   allowed = null;
   selectedPackageId = null;
   selectedDetail = null;
