@@ -177,6 +177,32 @@ def _patch_side_effects(monkeypatch, sync):
     monkeypatch.setattr(sync.remote_api, "audit", lambda *_a, **_k: None)
 
 
+def test_live_route_rebind_updates_fastapi_dependant_call():
+    from app.services import remote_training_live_video_sync as sync
+    from app.services import remote_training_route_rebind as rebind
+
+    sync.install_remote_training_live_video_sync()
+    rebind.install_remote_training_route_rebind()
+
+    publish_route = next(
+        route
+        for route in sync.remote_api.router.routes
+        if str(getattr(route, "path", "")).endswith("/catalog/videos/{video_id}/publish")
+        and "POST" in (getattr(route, "methods", set()) or set())
+    )
+    delete_route = next(
+        route
+        for route in sync.remote_api.router.routes
+        if str(getattr(route, "path", "")).endswith("/catalog/videos/{video_id}")
+        and "DELETE" in (getattr(route, "methods", set()) or set())
+    )
+
+    assert publish_route.endpoint is sync.publish_catalog_video_live
+    assert publish_route.dependant.call is sync.publish_catalog_video_live
+    assert delete_route.endpoint is sync.delete_catalog_video_live
+    assert delete_route.dependant.call is sync.delete_catalog_video_live
+
+
 def test_reordered_catalog_resolves_company_section_by_stable_identity():
     from app.models.remote_training_links import RemoteTrainingCatalogSectionLink
     from app.services import remote_training_live_video_sync as sync
