@@ -31,6 +31,7 @@ _INSTALLED = False
 _PROBE_TTL_SECONDS = 60.0
 _probe_checked_at = 0.0
 _probe_reachable: bool | None = None
+_fallback_active = False
 
 
 def _backend() -> str:
@@ -68,30 +69,54 @@ def _remote_reachable(*, force_probe: bool = False) -> bool:
     return bool(_probe_reachable)
 
 
+def remote_training_storage_guard_status() -> dict[str, Any]:
+    """Return a recon-safe status snapshot without performing network I/O."""
+    credentials = remote_object_storage_credentials_ok()
+    if not credentials:
+        probe_state = "not_configured"
+    elif _probe_checked_at <= 0 or _probe_reachable is None:
+        probe_state = "unknown"
+    else:
+        probe_state = "reachable" if _probe_reachable else "unreachable"
+    return {
+        "backend": _backend(),
+        "remote_required": remote_mirror_required(),
+        "credentials_configured": credentials,
+        "probe_state": probe_state,
+        "fallback_active": bool(_fallback_active),
+    }
+
+
 def resilient_remote_training_video_store():
     """Return remote storage only when it is currently usable.
 
     Optional remote outage => persistent/local compatibility path.
     Required remote outage => fail closed before accepting a video mutation.
     """
+    global _fallback_active
     if bool(getattr(settings, "object_storage_force_local", False)):
         if remote_mirror_required():
             raise RuntimeError("Uzak depolama zorunluyken force-local kullanılamaz.")
+        _fallback_active = True
         return _fallback_store()
 
     if not remote_object_storage_credentials_ok():
         if remote_mirror_required():
             raise RuntimeError("Zorunlu uzak video depolama credential bilgileri eksik.")
+        _fallback_active = False
         return _fallback_store()
 
     if _remote_reachable():
         remote = get_remote_object_store()
         if remote is not None:
+            _fallback_active = False
             return remote
 
     if remote_mirror_required():
+        _fallback_active = False
         raise RuntimeError("Zorunlu uzak video depolama şu anda erişilemiyor.")
 
+    _fallback_active = True
     logger.warning(
         "Remote-training video store fallback active: backend=%s; remote probe unreachable",
         _backend(),
@@ -114,6 +139,7 @@ def install_remote_training_storage_guard() -> dict[str, Any]:
 
 
 def reset_remote_training_storage_guard_for_tests() -> None:
-    global _probe_checked_at, _probe_reachable
+    global _fallback_active, _probe_checked_at, _probe_reachable
+    _fallback_active = False
     _probe_checked_at = 0.0
     _probe_reachable = None
