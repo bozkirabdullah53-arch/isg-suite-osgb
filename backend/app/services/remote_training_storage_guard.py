@@ -17,14 +17,7 @@ from typing import Any
 
 from app.api import remote_training as remote_api
 from app.core.config import settings
-from app.services.object_store import (
-    LocalObjectStore,
-    get_object_store,
-    get_remote_object_store,
-    probe_object_storage,
-    remote_mirror_required,
-    remote_object_storage_credentials_ok,
-)
+from app.services import object_store
 
 logger = logging.getLogger(__name__)
 _INSTALLED = False
@@ -40,17 +33,17 @@ def _backend() -> str:
 
 def _fallback_store():
     backend = _backend()
-    # local and dual already provide a durable/local compatibility path. A
-    # direct s3/r2 backend has no local fallback, so construct the same safe
-    # upload_dir-backed store used before cutover when remote is optional.
+    # Resolve through the module at call time. Besides keeping the storage
+    # factory testable, this avoids freezing a pre-rollout store implementation
+    # when runtime configuration or a controlled fallback changes it.
     if backend in {"local", "disk", "fs", "dual"}:
-        return get_object_store()
-    return LocalObjectStore()
+        return object_store.get_object_store()
+    return object_store.LocalObjectStore()
 
 
 def _remote_reachable(*, force_probe: bool = False) -> bool:
     global _probe_checked_at, _probe_reachable
-    if not remote_object_storage_credentials_ok():
+    if not object_store.remote_object_storage_credentials_ok():
         _probe_reachable = False
         _probe_checked_at = time.monotonic()
         return False
@@ -63,7 +56,7 @@ def _remote_reachable(*, force_probe: bool = False) -> bool:
     ):
         return bool(_probe_reachable)
 
-    result = probe_object_storage()
+    result = object_store.probe_object_storage()
     _probe_reachable = result.get("status") == "reachable"
     _probe_checked_at = now
     return bool(_probe_reachable)
@@ -71,7 +64,7 @@ def _remote_reachable(*, force_probe: bool = False) -> bool:
 
 def remote_training_storage_guard_status() -> dict[str, Any]:
     """Return a recon-safe status snapshot without performing network I/O."""
-    credentials = remote_object_storage_credentials_ok()
+    credentials = object_store.remote_object_storage_credentials_ok()
     if not credentials:
         probe_state = "not_configured"
     elif _probe_checked_at <= 0 or _probe_reachable is None:
@@ -80,7 +73,7 @@ def remote_training_storage_guard_status() -> dict[str, Any]:
         probe_state = "reachable" if _probe_reachable else "unreachable"
     return {
         "backend": _backend(),
-        "remote_required": remote_mirror_required(),
+        "remote_required": object_store.remote_mirror_required(),
         "credentials_configured": credentials,
         "probe_state": probe_state,
         "fallback_active": bool(_fallback_active),
@@ -95,24 +88,24 @@ def resilient_remote_training_video_store():
     """
     global _fallback_active
     if bool(getattr(settings, "object_storage_force_local", False)):
-        if remote_mirror_required():
+        if object_store.remote_mirror_required():
             raise RuntimeError("Uzak depolama zorunluyken force-local kullanılamaz.")
         _fallback_active = True
         return _fallback_store()
 
-    if not remote_object_storage_credentials_ok():
-        if remote_mirror_required():
+    if not object_store.remote_object_storage_credentials_ok():
+        if object_store.remote_mirror_required():
             raise RuntimeError("Zorunlu uzak video depolama credential bilgileri eksik.")
         _fallback_active = False
         return _fallback_store()
 
     if _remote_reachable():
-        remote = get_remote_object_store()
+        remote = object_store.get_remote_object_store()
         if remote is not None:
             _fallback_active = False
             return remote
 
-    if remote_mirror_required():
+    if object_store.remote_mirror_required():
         _fallback_active = False
         raise RuntimeError("Zorunlu uzak video depolama şu anda erişilemiyor.")
 
