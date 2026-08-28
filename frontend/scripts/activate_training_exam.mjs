@@ -37,4 +37,39 @@ let css = fs.readFileSync(cssPath, 'utf8');
 const cssBlock = `\n.training-pro .education-output-button--exam {\n  background: linear-gradient(135deg, #0f766e 0%, #0b2e4f 100%);\n  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.18);\n}\n.training-pro .education-output-row {\n  grid-template-columns: repeat(3, minmax(0, 1fr));\n}\n`;
 if (!css.includes('.education-output-button--exam')) css += cssBlock;
 fs.writeFileSync(cssPath, css, 'utf8');
-console.log('Training exam button activated.');
+
+// Uzaktan eğitim katalog video yönetimi: yayımlanmış videoyu aktif eğitimden
+// kaldırmaya izin ver ve video işleme tamamlanana kadar katalog kartını otomatik
+// yenile. Backend eski video/progress kayıtlarını tarihçe için korur.
+const remoteJsxPath = path.resolve('src/remote_basic_ohs_training.jsx');
+let remoteText = fs.readFileSync(remoteJsxPath, 'utf8');
+
+remoteText = remoteText.replace(
+  "if (!canEditContent || !selectedPackage || HISTORICAL_VIDEO_STATUSES.includes(video.status)) return;",
+  "if (!canEditContent || !selectedPackage || video.status === 'archived') return;",
+);
+remoteText = remoteText.replace(
+  'if (!window.confirm(`"${video.title}" taslak videosu silinsin mi?`)) return;',
+  "const historical = ['published', 'unpublished'].includes(video.status);\n    if (!window.confirm(historical ? `\"${video.title}\" aktif eğitimden kaldırılsın mı? Eski kayıt ve izleme geçmişi korunacaktır.` : `\"${video.title}\" taslak videosu silinsin mi?`)) return;",
+);
+remoteText = remoteText.replace(
+  "setMessage(out.storage_cleanup_pending ? 'Video silindi; depolama temizliği sıraya alındı.' : 'Taslak video silindi.');",
+  "setMessage(out.historical_record_preserved ? (out.message || 'Video aktif eğitimden kaldırıldı; eski kayıt ve izleme geçmişi korundu.') : out.storage_cleanup_pending ? 'Video silindi; depolama temizliği sıraya alındı.' : 'Taslak video silindi.');",
+);
+remoteText = remoteText.replace(
+  "directContentEdit && !HISTORICAL_VIDEO_STATUSES.includes(video.status)",
+  "directContentEdit && video.status !== 'archived'",
+);
+remoteText = remoteText.replace(
+  '>Taslak videoyu sil</button>',
+  ">{['published', 'unpublished'].includes(video.status) ? 'Videoyu sil' : 'Taslak videoyu sil'}</button>",
+);
+
+if (!remoteText.includes('remote-catalog-processing-poll')) {
+  const pollingMarker = "  useEffect(() => { if (selectedId) loadPackage(selectedId); }, [selectedId]);\n";
+  const pollingBlock = `  useEffect(() => {\n    // remote-catalog-processing-poll\n    const hasPendingVideo = (selectedPackage?.sections || []).some((section) =>\n      (section.videos || []).some((video) => ['uploading', 'processing'].includes(video.status)),\n    );\n    if (!selectedId || !hasPendingVideo) return undefined;\n    const timer = window.setTimeout(() => { void loadPackage(selectedId); }, 2500);\n    return () => window.clearTimeout(timer);\n  }, [selectedId, selectedPackage]);\n`;
+  remoteText = remoteText.replace(pollingMarker, pollingMarker + pollingBlock);
+}
+
+fs.writeFileSync(remoteJsxPath, remoteText, 'utf8');
+console.log('Training exam button and remote-training video controls activated.');
