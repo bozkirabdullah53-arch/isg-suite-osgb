@@ -195,7 +195,7 @@ def ensure_catalog_section_links_for_package(
     created = 0
     catalog_sections = list(
         db.scalars(
-            select(RemTrainingCatalogSection)
+            select(RemoteTrainingCatalogSection)
             .where(RemoteTrainingCatalogSection.package_id == package.id)
             .order_by(RemoteTrainingCatalogSection.id)
         ).all()
@@ -243,6 +243,9 @@ def _program_section_for_catalog_section(
     if section is not None:
         return section
 
+    # Backward-compatible upgrade path for programs materialized before the
+    # stable-link table existed. A unique title is safe; an ambiguous title is
+    # not guessed.
     section = _unique_program_section_by_title(
         db,
         program_id=program.id,
@@ -270,6 +273,8 @@ def _program_section_for_catalog_section(
         or 0
     ) + 1
     desired_order = int(catalog_section.order_index or 0)
+    # Use the catalog order only when it cannot collide with an existing copied
+    # section. Otherwise append; identity is the link row, not this display order.
     order_index = desired_order if desired_order >= next_order else next_order
     section = RemoteTrainingSection(
         osgb_id=program.osgb_id,
@@ -330,7 +335,7 @@ def _sync_published_catalog_video(
 
     for program in programs:
         section = _program_section_for_catalog_section(db, program, package, catalog_section)
-        if section is None:
+        if section is None:  # defensive: create_if_missing=True normally guarantees a section
             raise HTTPException(409, "Firma eğitim bölümü güvenli biçimde eşleştirilemedi.")
         current_rows = list(
             db.scalars(
@@ -447,6 +452,9 @@ def _deactivate_catalog_video_in_programs(
             create_if_missing=False,
         )
         if section is None:
+            # Fail safe: an unresolvable legacy section is never guessed by
+            # mutable order. Leaving a historical current row is safer than
+            # archiving a different lesson.
             logger.warning(
                 "Catalog video removal skipped unresolved legacy section: program_id=%s catalog_section_id=%s",
                 program.id,
