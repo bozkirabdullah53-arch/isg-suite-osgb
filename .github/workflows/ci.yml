@@ -51,6 +51,7 @@ jobs:
           tests/test_object_store.py
           tests/test_object_storage_remote_required.py
           tests/test_remote_training_video_r2_backfill.py
+          tests/test_remote_training_storage_guard.py
           tests/test_remote_basic_ohs_video_training.py
           tests/test_remote_training_package_management.py
           tests/test_remote_training_live_video_sync.py
@@ -167,6 +168,16 @@ jobs:
           print("OK: stable-link downgrade removed only the additive identity table")
           PY
           alembic upgrade head
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, inspect
+          engine = create_engine(os.environ["DATABASE_URL"])
+          inspector = inspect(engine)
+          assert inspector.has_table("remote_training_catalog_section_links")
+          columns = {column["name"] for column in inspector.get_columns("remote_training_catalog_section_links")}
+          assert {"program_id", "program_section_id", "catalog_package_id", "catalog_section_id"}.issubset(columns)
+          print("OK: stable-link migration restored with required identity columns")
+          PY
           python scripts/ci_postgres_parity.py
       - name: Personnel profile migration downgrade isolation
         run: |
