@@ -531,11 +531,31 @@ function EmployeePanel() {
 
   async function continueVideo() {
     const player = playerRef.current;
-    if (!player) return;
+    if (!player || !assignment || !activeVideo) return;
     setError('');
     setMessage('');
-    // The user explicitly requested continuation. Use the stable protected
-    // blob source immediately instead of waiting on the stalled direct stream.
+    const savedPosition = Number(currentProgress?.last_position_seconds || 0);
+
+    // A real tap carries user activation on mobile browsers. Use it first so
+    // a normal pause/resume does not need to download the entire video again.
+    // The previous implementation always switched to a full blob download;
+    // on a 30–50 MB lesson that could leave Android Chrome at 0:00 forever.
+    if (!player.error && Number(player.readyState || 0) >= 1) {
+      if (
+        Number.isFinite(savedPosition)
+        && savedPosition > 0
+        && Math.abs(Number(player.currentTime || 0) - savedPosition) > 3
+      ) {
+        try { player.currentTime = savedPosition; } catch (_err) { /* browser may still be loading metadata */ }
+      }
+      if (await playVideoElement(player)) return;
+    }
+
+    // If the media element lost its connection, request a fresh signed stream
+    // first. This is fast and preserves the browser's native range playback;
+    // the protected blob path remains the final fallback for broken mobile
+    // range/proxy responses.
+    if (await refreshPlaybackUrl({useBlob: false})) return;
     await fallbackToBlob({force: true});
   }
 
@@ -573,6 +593,7 @@ function EmployeePanel() {
     setPlaybackUrl('');
     setVideoPlaying(false);
     setVideoLoading(true);
+    let refreshed = false;
     try {
       const url = useBlob
         ? await playbackBlobUrlFor(activeVideo, assignment.id)
@@ -580,6 +601,7 @@ function EmployeePanel() {
       if (requestVersion === playbackRequestVersion.current) {
         setPlaybackUrl(url);
         setMessage(useBlob ? 'Video alternatif oynatma ile hazırlanıyor.' : 'Video bağlantısı yenilendi.');
+        refreshed = true;
       }
     } catch (err) {
       if (requestVersion === playbackRequestVersion.current) {
@@ -588,6 +610,7 @@ function EmployeePanel() {
     } finally {
       if (requestVersion === playbackRequestVersion.current) setVideoLoading(false);
     }
+    return refreshed;
   }
 
   function handleVideoError(event) {
@@ -1083,7 +1106,12 @@ function EmployeePanel() {
                     }}
                     onError={handleVideoError}
                     onStalled={(event) => {
-                      if (!event.currentTarget.paused || !activeVideo) return;
+                      const media = event.currentTarget;
+                      // A network stall normally fires while the element is
+                      // still marked as playing. The old inverted guard
+                      // ignored exactly that case, leaving the user at the
+                      // saved second with no automatic recovery.
+                      if (!activeVideo || (media.paused && media.readyState >= 2)) return;
                       void fallbackToBlob();
                     }}
                     onPlay={(event) => {
