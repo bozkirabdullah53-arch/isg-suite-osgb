@@ -40,6 +40,9 @@ def _backend() -> str:
 
 def _fallback_store():
     backend = _backend()
+    # local and dual already provide a durable/local compatibility path. A
+    # direct s3/r2 backend has no local fallback, so construct the same safe
+    # upload_dir-backed store used before cutover when remote is optional.
     if backend in {"local", "disk", "fs", "dual"}:
         return get_object_store()
     return LocalObjectStore()

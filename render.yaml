@@ -117,7 +117,7 @@ services:
         value: "false"
       - key: REMOTE_BASIC_OHS_DIRECT_OBJECT_PLAYBACK_TTL_SECONDS
         value: "3600"
-      # Firma ve sektör ataması yöneticinin seçimiyle yapılır.  Otomatik firma
+      # Firma ve sektör ataması yöneticinin seçimiyle yapılır. Otomatik firma
       # ataması yoktur; boş şirket allowlist'i tüm firmaların yöneticinin
       # seçtiği yayımlanmış sektör paketlerini alabilmesini sağlar.
       - key: REMOTE_BASIC_OHS_STRICT_POLICY_ENABLED
@@ -191,7 +191,9 @@ services:
     name: isg-suite-web
     runtime: static
     rootDir: frontend
-    buildCommand: npm ci --no-audit --no-fund && node scripts/apply_training_color_theme.mjs && node scripts/activate_training_exam.mjs && npm run build
+    # package.json owns the single canonical patch/test/build sequence. Do not
+    # run training activation scripts twice here and again inside npm run build.
+    buildCommand: npm ci --no-audit --no-fund && npm run build
     staticPublishPath: dist
     branch: master
     # --- Güvenlik başlıkları (smoke test D2 bulgusu) ---
@@ -215,7 +217,10 @@ services:
         value: camera=(self), microphone=(), geolocation=(self)
       - path: /*
         name: Content-Security-Policy
-        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        # Protected video may redirect to a short-lived R2/S3 HTTPS URL. Media
+        # is permitted over HTTPS while scripts, frames and API connections
+        # remain restricted to their existing origins.
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' https: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     envVars:
       - key: NODE_VERSION
         value: 20.18.0

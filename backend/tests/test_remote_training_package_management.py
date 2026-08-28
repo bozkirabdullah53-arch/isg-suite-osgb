@@ -13,6 +13,7 @@ def _db() -> Session:
     from app.core.database import Base
     from app.models import entities  # noqa: F401
     from app.models import remote_training  # noqa: F401
+    from app.models import remote_training_links  # noqa: F401
 
     engine = create_engine(
         "sqlite://",
@@ -181,7 +182,6 @@ def test_management_route_installer_is_idempotent():
     assert ("/trainings/remote/catalog/packages/{package_id}/sections/order", "PATCH") in routes
 
 
-
 def test_catalog_section_reorder_uses_contiguous_order_and_preserves_snapshot_boundary(monkeypatch):
     from sqlalchemy import select
 
@@ -230,4 +230,3 @@ def test_catalog_section_reorder_uses_contiguous_order_and_preserves_snapshot_bo
     db.refresh(package)
     assert package.revision_no == 2
     assert out["reordered"] is True
-
