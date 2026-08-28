@@ -1823,7 +1823,6 @@ def response_for_video(video: RemoteTrainingVideo, request: Any | None = None):
     media_type = _video_media_type(video)
     safe_name = Path(video.original_file_name or "video").name
     safe_name = "".join(char for char in safe_name if char not in {"\r", "\n", '"'}) or "video"
-", '"'}) or "video"
     range_header = request.headers.get("range") if request is not None else None
     disposition = f'inline; filename="{safe_name}"'
 
