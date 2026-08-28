@@ -11,6 +11,7 @@ from reportlab.pdfgen import canvas
 from app.api.personnel_profile_documents import (
     _TrackedObjectStore,
     _profile_storage_backend_allowed,
+    router as documents_router,
 )
 from app.api.personnel_profile_management import router as management_router
 from app.services.personnel_profile_file_security import prepare_profile_upload
@@ -191,20 +192,30 @@ def test_profile_documents_require_remote_only_object_storage() -> None:
 
 
 def test_specific_document_archive_route_precedes_generic_archive_route() -> None:
-    paths = [
-        path
-        for route in management_router.routes
-        if (path := getattr(route, "path", None)) is not None
-    ]
-    document_path = next(
-        index
-        for index, path in enumerate(paths)
-        if path.endswith("/{profile_id}/documents/{document_key}/archive")
+    # FastAPI >=0.137 preserves included routers lazily instead of flattening
+    # their child APIRoutes into management_router.routes. Verify both the
+    # document route itself and that its included-router wrapper is registered
+    # before the generic archive route, which preserves matching precedence.
+    document_route = next(
+        route
+        for route in documents_router.routes
+        if str(getattr(route, "path", "")).endswith(
+            "/{profile_id}/documents/{document_key}/archive"
+        )
     )
-    generic_path = next(
+    assert document_route is not None
+
+    included_index = next(
         index
-        for index, path in enumerate(paths)
-        if path.endswith("/{profile_id}/{entry_type}/{entry_key}/archive")
+        for index, route in enumerate(management_router.routes)
+        if getattr(route, "original_router", None) is documents_router
+    )
+    generic_index = next(
+        index
+        for index, route in enumerate(management_router.routes)
+        if str(getattr(route, "path", "")).endswith(
+            "/{profile_id}/{entry_type}/{entry_key}/archive"
+        )
     )
 
-    assert document_path < generic_path
+    assert included_index < generic_index
