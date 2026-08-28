@@ -143,7 +143,7 @@ def test_video_response_redirects_to_r2_and_local_fallback_remains(tmp_path, mon
     key = store.put_bytes("4/video/lesson.mp4", b"video-bytes")
     video = SimpleNamespace(
         storage_key=key,
-        original_file_name="Kamu Hastaneleri İSG Eğitimi.mp4",
+        original_file_name="lesson.mp4",
         content_type="video/mp4",
     )
     calls = []
@@ -2510,7 +2510,7 @@ def test_remote_video_response_streams_bounded_remote_ranges(monkeypatch):
     store = _Remote()
     video = SimpleNamespace(
         storage_key="4/video/lesson.mp4",
-        original_file_name="lesson.mp4",
+        original_file_name="Kamu Hastaneleri İSG Eğitimi.mp4",
         content_type="video/mp4",
     )
     monkeypatch.setattr(service, "get_remote_video_store", lambda: store)
