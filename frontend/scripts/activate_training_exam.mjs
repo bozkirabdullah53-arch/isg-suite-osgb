@@ -102,6 +102,18 @@ if (!reorderBridgeText.includes('remote-section-create-refresh-fallback')) {
   reorderBridgeText = reorderBridgeText.replace(clickMarker, clickReplacement);
 }
 
+// Sürükleme başlamadan önce köprü cache'i ile ekrandaki gerçek bölüm sayısını
+// karşılaştır. Eksik kontrol varsa kullanıcıya bozuk sürükleme yaşatmak yerine
+// anında detayı yenile ve işlemi bir sonraki tutuşta temiz şekilde başlat.
+if (!reorderBridgeText.includes('remote-section-dragstart-cache-guard')) {
+  const dragStartMarker = `    handle.addEventListener('dragstart', (event) => {\n      if (!sectionReorderEnabled || sectionReorderSaving) {`;
+  const dragStartReplacement = `    handle.addEventListener('dragstart', (event) => {\n      // remote-section-dragstart-cache-guard\n      const liveRoots = sectionRootsInOrder(root.parentElement);\n      const expectedCount = Array.isArray(detail?.sections) ? detail.sections.length : 0;\n      if (expectedCount && liveRoots.length !== expectedCount) {\n        event.preventDefault();\n        selectedDetail = null;\n        scheduleRender(true);\n        showToast('Bölüm listesi yenilendi. Şimdi tekrar tutup taşıyın.');\n        return;\n      }\n      if (!sectionReorderEnabled || sectionReorderSaving) {`;
+  if (!reorderBridgeText.includes(dragStartMarker)) {
+    throw new Error('Remote training section dragstart block was not found; build stopped to avoid an unsafe partial patch.');
+  }
+  reorderBridgeText = reorderBridgeText.replace(dragStartMarker, dragStartReplacement);
+}
+
 fs.writeFileSync(reorderBridgePath, reorderBridgeText, 'utf8');
 
 console.log('Training exam button and remote-training video controls activated.');
