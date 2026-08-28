@@ -1290,6 +1290,46 @@ def test_remote_catalog_published_package_accepts_additive_video_and_section(rem
     assert deleted.json()["deleted"] is True
     assert store.deleted == [store.puts[1][0]]
 
+    unpublished = remote_client.post(
+        f"/api/v1/trainings/remote/catalog/videos/{row['id']}/unpublish",
+        headers=headers,
+    )
+    assert unpublished.status_code == 200, unpublished.text
+    assert unpublished.json()["status"] == "unpublished"
+
+    revision_upload = remote_client.post(
+        f"/api/v1/trainings/remote/catalog/sections/{section_id}/videos",
+        headers=headers,
+        data={"title": "AKÜ-TEST güncel sürümü", "revision_of_id": str(row["id"])},
+        files={"file": ("aku-test-revision.mp4", valid_mp4, "video/mp4")},
+    )
+    assert revision_upload.status_code == 201, revision_upload.text
+    revision_row = revision_upload.json()
+    assert revision_row["revision_of_id"] == row["id"]
+    assert revision_row["revision_no"] == 2
+    revision_id = revision_row["id"]
+
+    with SessionLocal() as db:
+        catalog_video = db.get(RemoteTrainingCatalogVideo, revision_id)
+        catalog_video.status = "ready_for_review"
+        catalog_video.duration_seconds = 30
+        db.commit()
+
+    published_revision = remote_client.post(
+        f"/api/v1/trainings/remote/catalog/videos/{revision_id}/publish",
+        headers=headers,
+    )
+    assert published_revision.status_code == 200, published_revision.text
+    assert published_revision.json()["status"] == "published"
+
+    with SessionLocal() as db:
+        old = db.get(RemoteTrainingCatalogVideo, row["id"])
+        current = db.get(RemoteTrainingCatalogVideo, revision_id)
+        assert old.status == "unpublished"
+        assert old.is_current is False
+        assert current.status == "published"
+        assert current.is_current is True
+
 
 def test_remote_employee_account_onboarding_mapping(remote_client):
     from app.core.database import SessionLocal
@@ -1661,6 +1701,46 @@ def test_remote_published_video_can_be_revised_without_losing_history(remote_cli
         assert old.storage_key == old_storage_key
         assert old.status == "published"
         assert old.is_current is True
+
+    unpublished = remote_client.post(
+        f"/api/v1/trainings/remote/videos/{published_id}/unpublish",
+        headers=headers,
+    )
+    assert unpublished.status_code == 200, unpublished.text
+    assert unpublished.json()["status"] == "unpublished"
+
+    revision_after_unpublish = remote_client.post(
+        upload_url,
+        headers=headers,
+        data={"title": "Yayından kaldırılmış videonun yeni sürümü", "revision_of_id": str(published_id)},
+        files={"file": ("guncel-2.mp4", valid_mp4, "video/mp4")},
+    )
+    assert revision_after_unpublish.status_code == 201, revision_after_unpublish.text
+    replacement = revision_after_unpublish.json()
+    assert replacement["revision_of_id"] == published_id
+    assert replacement["revision_no"] == 2
+    replacement_id = replacement["id"]
+
+    with SessionLocal() as db:
+        replacement_row = db.get(RemoteTrainingVideo, replacement_id)
+        replacement_row.status = "ready_for_review"
+        replacement_row.duration_seconds = 456
+        db.commit()
+
+    published_replacement = remote_client.post(
+        f"/api/v1/trainings/remote/videos/{replacement_id}/publish",
+        headers=headers,
+    )
+    assert published_replacement.status_code == 200, published_replacement.text
+    assert published_replacement.json()["status"] == "published"
+
+    with SessionLocal() as db:
+        old = db.get(RemoteTrainingVideo, published_id)
+        replacement_row = db.get(RemoteTrainingVideo, replacement_id)
+        assert old.status == "unpublished"
+        assert old.is_current is False
+        assert replacement_row.status == "published"
+        assert replacement_row.is_current is True
 
 
 def test_catalog_program_scope_is_fixed_to_its_package_sector():

@@ -158,7 +158,8 @@ logger = logging.getLogger(__name__)
 # A new revision is intentionally kept out of the published/current video
 # slot until an OSGB administrator reviews and publishes it.  It still needs
 # to be visible in the administrator's catalog detail so the review workflow
-# can be completed.  Historical unpublished/archived revisions remain hidden.
+# can be completed.  Non-current historical unpublished/archived revisions
+# remain hidden.
 CATALOG_PENDING_VIDEO_STATUSES = (
     "draft",
     "uploading",
@@ -166,6 +167,7 @@ CATALOG_PENDING_VIDEO_STATUSES = (
     "processing_failed",
     "ready_for_review",
 )
+REVISIONABLE_VIDEO_STATUSES = ("published", "unpublished")
 
 
 def _remote_training_video_store():
@@ -1776,8 +1778,8 @@ async def upload_catalog_video(
             raise HTTPException(422, "Video revizyonu aynı paket ve bölüm içinde olmalıdır.")
         if not revision_of.is_current:
             raise HTTPException(409, "Yeni sürüm yalnızca bölümün güncel videosundan oluşturulabilir.")
-        if package.status == "published" and revision_of.status != "published":
-            raise HTTPException(409, "Yayımlanmış pakette yalnızca çalışanlara açık video güncellenebilir.")
+        if package.status == "published" and revision_of.status not in REVISIONABLE_VIDEO_STATUSES:
+            raise HTTPException(409, "Yayımlanmış pakette yalnızca güncel çalışan video sürümlendirilebilir.")
         revision_no = revision_of.revision_no + 1
         is_current = False
 
@@ -1925,7 +1927,7 @@ def publish_catalog_video(
                 RemoteTrainingCatalogVideo.section_id == video.section_id,
                 RemoteTrainingCatalogVideo.is_current.is_(True),
                 RemoteTrainingCatalogVideo.id != video.id,
-                RemoteTrainingCatalogVideo.status == "published",
+                RemoteTrainingCatalogVideo.status.in_(REVISIONABLE_VIDEO_STATUSES),
             )
         ).all()
         for old in current:
@@ -2557,8 +2559,8 @@ async def upload_remote_video(
             raise HTTPException(422, "Video revizyonu aynı program ve bölüm içinde olmalıdır.")
         if not revision_of.is_current:
             raise HTTPException(409, "Yeni sürüm yalnızca bölümün güncel videosundan oluşturulabilir.")
-        if program.status == "published" and revision_of.status != "published":
-            raise HTTPException(409, "Yayımlanmış eğitimde yalnızca çalışanlara açık güncel video güncellenebilir.")
+        if program.status == "published" and revision_of.status not in REVISIONABLE_VIDEO_STATUSES:
+            raise HTTPException(409, "Yayımlanmış eğitimde yalnızca güncel çalışan video sürümlendirilebilir.")
         revision_no = revision_of.revision_no + 1
         is_current = False
     key = storage_key(company_id=program.company_id, program_id=program.id, prefix="video", extension=extension)
@@ -2720,7 +2722,7 @@ def publish_remote_video(
                 RemoteTrainingVideo.section_id == video.section_id,
                 RemoteTrainingVideo.is_current.is_(True),
                 RemoteTrainingVideo.id != video.id,
-                RemoteTrainingVideo.status == "published",
+                RemoteTrainingVideo.status.in_(REVISIONABLE_VIDEO_STATUSES),
             )
         ).all()
         for old in current:

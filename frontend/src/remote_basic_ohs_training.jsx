@@ -1307,7 +1307,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
     if (!canEditContent || !selectedPackage || !file) return;
     const uploadSectionId = Number(section.id);
     const uploadVideoId = revisionOf ? Number(revisionOf.id) : null;
-    const defaultTitle = file.name.replace(/\.[^.]+$/, '') || 'Eğitim videosu';
+    const defaultTitle = revisionOf?.title || file.name.replace(/\.[^.]+$/, '') || 'Eğitim videosu';
     const title = (String(titleOverride || '').trim() || uploadTitles[section.id] || defaultTitle).trim();
     const fields = {
       title,
@@ -1574,7 +1574,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
                     : <><strong>OSGB özel hazırlığı:</strong> Bu ortak paket henüz yayımlanmamış. <strong>“Bölüm eklemeye başla”</strong> düğmesi sizin OSGB’nize özel bir taslak kopya oluşturur; ardından bölüm ve videoları ekleyip kendi paketinizi yayıma hazırlayabilirsiniz. Ortak paket ve diğer OSGB’ler etkilenmez.</>
                   : <><strong>Ortak hazır paket:</strong> Bu paket tüm aktif EİSA aboneliği olan OSGB’lerde aynıdır. Uzmanlar içeriği değiştiremez; OSGB yöneticisi kendi kopyasını oluşturup yalnız kendi OSGB’sinde düzenleyebilir.</>}
               </div>}
-              <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#effcfc', color: '#36556d', fontSize: 12}}><strong>Video yükleme:</strong> Her ders bölümünün altındaki tek <strong>Video seç ve yükle</strong> düğmesini kullanın. Yayımlanmış paketlere de yeni video/bölüm ekleyebilirsiniz; mevcut yayımlanmış videoyu değiştirmek için satırdaki <strong>Yeni sürüm yükle</strong> düğmesini kullanın.</div>
+              <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#effcfc', color: '#36556d', fontSize: 12}}><strong>Video yükleme:</strong> Her ders bölümünün altındaki tek <strong>Video seç ve yükle</strong> düğmesini kullanın. Yayımlanmış paketlere de yeni video/bölüm ekleyebilirsiniz; güncel yayımlanmış veya yayından kaldırılmış videoyu değiştirmek için satırdaki <strong>Yeni sürüm yükle</strong> düğmesini kullanın. Eski sürüm tarihçe için korunur; yanlış yüklenen bekleyen taslak <strong>Taslak videoyu sil</strong> ile kaldırılır.</div>
               {directContentEdit && <>
 {selectedPackage.status === 'archived'
                 ? <div style={{marginTop: 14, padding: 12, border: '1px solid #f2c46d', borderRadius: 9, background: '#fff8e8'}}>
@@ -1597,7 +1597,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
                   {(section.videos || []).map((video) => <div key={video.id} style={{marginTop: 8, padding: 10, borderRadius: 8, background: '#f7fafc', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap'}}>
                     <div style={{minWidth: 240, flex: 1}}><strong>{video.title}</strong><div style={{fontSize: 12, color: '#5e7485', marginTop: 3}}>{statusLabel(video.status)} · {video.duration_seconds ? `${video.duration_seconds} sn` : 'süre bekleniyor'} · rev. {video.revision_no}</div>{video.processing_error && <div style={{fontSize: 12, color: '#b42318', marginTop: 3}}>{video.processing_error}</div>}</div>
                     <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
-                      {directContentEdit && video.status === 'published' && video.is_current && selectedPackage.status !== 'archived' && <><input ref={(node) => {uploadInputRefs.current[`revision-${video.id}`] = node;}} id={`remote-catalog-video-revision-${video.id}`} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label={`${video.title} yeni sürüm dosyası`} style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void uploadCatalogVideo(section, file, video);}} /><button type="button" onClick={() => openCatalogVideoPicker(`revision-${video.id}`)} disabled={busy} style={{display: 'inline-flex', alignItems: 'center', minHeight: 42, padding: '10px 14px', color: '#075985', background: busy ? '#d7edf8' : '#e8f6ff', border: '2px solid #72b9d7', borderRadius: 8, fontWeight: 700, cursor: busy ? 'wait' : 'pointer'}}>{uploadingCatalogVideoId === Number(video.id) ? 'Yeni sürüm yükleniyor…' : 'Yeni sürüm yükle'}</button></>}
+                      {directContentEdit && ['published', 'unpublished'].includes(video.status) && video.is_current && selectedPackage.status !== 'archived' && <><input ref={(node) => {uploadInputRefs.current[`revision-${video.id}`] = node;}} id={`remote-catalog-video-revision-${video.id}`} type="file" accept="video/mp4,video/webm,video/quicktime,.m4v" aria-label={`${video.title} yeni sürüm dosyası`} style={{position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0}} onChange={(event) => {const file = event.currentTarget.files?.[0]; event.currentTarget.value = ''; if (file) void uploadCatalogVideo(section, file, video);}} /><button type="button" onClick={() => openCatalogVideoPicker(`revision-${video.id}`)} disabled={busy} style={{display: 'inline-flex', alignItems: 'center', minHeight: 42, padding: '10px 14px', color: '#075985', background: busy ? '#d7edf8' : '#e8f6ff', border: '2px solid #72b9d7', borderRadius: 8, fontWeight: 700, cursor: busy ? 'wait' : 'pointer'}}>{uploadingCatalogVideoId === Number(video.id) ? 'Yeni sürüm yükleniyor…' : 'Yeni sürüm yükle'}</button></>}
                       {directContentEdit && video.status === 'ready_for_review' && <button type="button" onClick={() => videoAction(video, 'publish')} disabled={busy}>Video yayımla</button>}
                       {['ready_for_review', 'published', 'unpublished'].includes(video.status) && <button type="button" onClick={() => previewCatalogVideo(video)} disabled={busy}>Önizle</button>}
                       {directContentEdit && video.status === 'published' && <button type="button" onClick={() => videoAction(video, 'unpublish')} disabled={busy}>Yayından kaldır</button>}
@@ -1939,7 +1939,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     const revisionFields = revisionOf ? {revision_of_id: revisionOf.id} : {};
     setBusy(true); setUploadingSectionId(section.id); setUploadingVideoId(revisionOf?.id || null); setError(''); setMessage(revisionOf ? `"${file.name}" yeni sürüm olarak yükleniyor. Eski video şimdilik çalışanlara açık.` : `"${file.name}" yükleniyor. Lütfen bu sayfayı kapatmayın.`);
     try {
-      await uploadFile(`/trainings/remote/sections/${section.id}/videos`, file, {title: file.name.replace(/\.[^.]+$/, '') || 'Temel İSG video dersi', order_index: revisionOf?.order_index || ((section.videos || []).length + 1), ...revisionFields});
+      await uploadFile(`/trainings/remote/sections/${section.id}/videos`, file, {title: revisionOf?.title || file.name.replace(/\.[^.]+$/, '') || 'Temel İSG video dersi', order_index: revisionOf?.order_index || ((section.videos || []).length + 1), ...revisionFields});
       await loadDetail(program.id); setMessage(revisionOf ? 'Yeni video sürümü yüklendi. Kontrol et; doğruysa yeni sürümün yanındaki Video yayımla düğmesine bas.' : 'Video yüklendi; durum işleniyor veya incelemeye hazır olabilir.');
     } catch (err) { setError(err.message || 'Video yüklenemedi.'); } finally { setBusy(false); setUploadingSectionId(null); setUploadingVideoId(null); }
   }
@@ -2300,7 +2300,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
                         {video.processing_error && <div style={{fontSize: 12, color: '#b42318'}}>{video.processing_error}</div>}
                       </div>
                       <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center'}}>
-                        {video.status === 'published' && video.is_current && program.status !== 'archived' && <>
+                        {['published', 'unpublished'].includes(video.status) && video.is_current && program.status !== 'archived' && <>
                           <input
                             ref={(node) => { uploadInputRefs.current[`revision-${video.id}`] = node; }}
                             id={`remote-video-revision-${video.id}`}
