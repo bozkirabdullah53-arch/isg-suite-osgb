@@ -1,6 +1,6 @@
 """Stable catalog-section identity for materialized remote-training programs.
 
-Revision ID: 0106_remote_catalog_section_links
+Revision ID: 0106_remote_catalog_links
 Revises: 0105_visual_field_inspections
 
 The migration is additive. Existing program/section/video/progress rows are not
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = "0106_remote_catalog_section_links"
+revision: str = "0106_remote_catalog_links"
 down_revision: Union[str, None] = "0105_visual_field_inspections"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
