@@ -99,6 +99,25 @@ def require_training_package_manager(user: User = Depends(get_current_user)) -> 
     return user
 
 
+def assert_training_creation_scope(user: User) -> None:
+    """Uzman, erişebildiği işyerinde klasik eğitim kaydı hazırlayabilir.
+
+    ``create_training`` önce ``ensure_access`` ile şirket kapsamını doğrular.
+    Bu kontrol yalnızca yetkili rolün tanım alanlarıyla yeni kayıt açmasını
+    sağlar; OSGB geneli arşivleme, silme ve logo yönetimi aşağıdaki ayrı
+    package-manager bağımlılıklarında korunur.
+    """
+    if is_training_package_manager(user) or user.role == UserRole.SAFETY_SPECIALIST:
+        return
+    raise HTTPException(
+        status_code=403,
+        detail=(
+            "Klasik eğitim kaydını yalnızca OSGB yöneticisi, global yönetici "
+            "veya görevlendirilmiş İSG uzmanı oluşturabilir."
+        ),
+    )
+
+
 def require_training_operator(user: User = Depends(get_current_user)) -> User:
     if user.role not in OPERATIONAL_ROLES:
         raise HTTPException(status_code=403, detail="Bu eğitim işlemi için yetkiniz yok.")
@@ -607,9 +626,10 @@ def export_trainings_xlsx(
 def create_training(
     payload: TrainingCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_training_package_manager),
+    user: User = Depends(require_training_operator),
 ):
     ensure_access(db, user, payload.company_id)
+    assert_training_creation_scope(user)
     company = db.get(Company, payload.company_id)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")

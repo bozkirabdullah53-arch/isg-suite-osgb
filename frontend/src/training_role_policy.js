@@ -17,3 +17,12 @@ export function canManageTrainingPackage(user) {
     user?.company_id == null
   );
 }
+
+/**
+ * İSG uzmanı atanmış işyerindeki eğitim kaydını hazırlayabilir.
+ * Backend ayrıca şirket erişimini doğrular; bu yardımcı tek başına kapsam
+ * genişletmez ve OSGB geneli arşiv/silme yetkisini değiştirmez.
+ */
+export function canEditTrainingForm(user) {
+  return canManageTrainingPackage(user) || user?.role === 'safety_specialist';
+}

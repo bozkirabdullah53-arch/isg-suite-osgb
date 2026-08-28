@@ -333,6 +333,35 @@ function ErrorText({value}) {
   return value ? <div role="alert" aria-live="assertive" style={{color: '#b42318', margin: '10px 0', fontWeight: 600}}>{value}</div> : null;
 }
 
+function InlineRemoteVideoPreview({preview, onClose}) {
+  if (!preview?.url) return null;
+  return (
+    <div
+      role="region"
+      aria-label={`${preview.title || 'Video'} video önizlemesi`}
+      style={{marginTop: 14, padding: 14, border: '2px solid #2474a8', borderRadius: 12, background: '#f4fbff'}}
+    >
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
+        <strong style={{color: '#123b59'}}>{preview.title || 'Video önizlemesi'}</strong>
+        <button type="button" onClick={onClose}>Önizlemeyi kapat</button>
+      </div>
+      <video
+        key={preview.url}
+        src={preview.url}
+        controls
+        playsInline
+        preload="metadata"
+        style={{display: 'block', width: '100%', maxHeight: 460, marginTop: 10, background: '#102b3d', borderRadius: 10}}
+      >
+        Tarayıcınız video oynatmayı desteklemiyor.
+      </video>
+      <div style={{marginTop: 7, color: '#496174', fontSize: 12}}>
+        Önizleme aynı sayfada açıldı. Oynatma başlamazsa video üzerindeki oynat düğmesine basın.
+      </div>
+    </div>
+  );
+}
+
 function ProgressBadge({assignment}) {
   const summary = assignment?.summary || {};
   return (
@@ -1170,6 +1199,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   const [uploadingCatalogVideoId, setUploadingCatalogVideoId] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [preview, setPreview] = useState(null);
   const uploadInputRefs = useRef({});
   const quickUploadInputRef = useRef(null);
 
@@ -1299,8 +1329,9 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
     setBusy(true); setError('');
     try {
       const out = await api(`/trainings/remote/catalog/videos/${video.id}/playback`);
-      const previewWindow = window.open(apiAbsoluteUrl(out.url), '_blank', 'noopener,noreferrer');
-      if (!previewWindow) setMessage('Önizleme bağlantısı üretildi; tarayıcı açılır pencereyi engelledi.');
+      if (!out?.url) throw new Error('Video önizleme bağlantısı üretilemedi.');
+      setPreview({title: video.title, url: apiAbsoluteUrl(out.url)});
+      setMessage(`"${video.title}" video önizlemesi açıldı.`);
     } catch (err) { setError(err.message || 'Video önizlemesi açılamadı.'); }
     finally { setBusy(false); }
   }
@@ -1506,6 +1537,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
                   {directContentEdit && selectedPackage.status === 'archived' && <button type="button" onClick={() => packageAction('restore')} disabled={busy}>Paketi düzenlemeye aç</button>}
                 </div>
               </div>
+              <InlineRemoteVideoPreview preview={preview} onClose={() => setPreview(null)} />
               <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#f2f9fc', color: '#36556d', fontSize: 12}}><strong>İş akışı:</strong> Bölüm → Video seç ve yükle → İşleme/inceleme → Video yayımla → Firma/işyeri seçip eğitim kutucuğunu işaretle. {packageAutomaticExamReady(selectedPackage) ? `Yayınlanan programa ${packageAutomaticExamCount(selectedPackage)} onaylı final sorusu ve %${selectedPackage.automatic_exam_passing_score || 70} geçme kuralı otomatik eklenir.` : 'Onaylı soru paketi hazır olmadığı için bu paket firma programına hazırlanamaz.'}</div>
               {selectedPackage.is_shared && <div style={{marginTop: 12, padding: 11, borderRadius: 8, background: '#fff8e8', color: '#795500', fontSize: 12}}>
                 {canEditContent && !canEditSharedContent
@@ -1582,6 +1614,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   const [uploadingVideoId, setUploadingVideoId] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [preview, setPreview] = useState(null);
   const [assignmentNotice, setAssignmentNotice] = useState(null);
   const [assignments, setAssignments] = useState([]);
   const [assignmentActionId, setAssignmentActionId] = useState(null);
@@ -1705,8 +1738,10 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
   async function loadDetail(id) {
     if (!id) {
       setAssignments([]);
+      setPreview(null);
       return;
     }
+    setPreview(null);
     const row = await api(`/trainings/remote/programs/${Number(id)}`);
     setProgram(row);
     setSectionTitle('');
@@ -1919,8 +1954,9 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
     setBusy(true); setError('');
     try {
       const out = await api(`/trainings/remote/videos/${video.id}/playback?preview=true`);
-      const previewWindow = window.open(apiAbsoluteUrl(out.url), '_blank', 'noopener,noreferrer');
-      if (!previewWindow) setMessage('Önizleme bağlantısı üretildi; tarayıcı açılır pencereyi engelledi.');
+      if (!out?.url) throw new Error('Video önizleme bağlantısı üretilemedi.');
+      setPreview({title: video.title, url: apiAbsoluteUrl(out.url)});
+      setMessage(`"${video.title}" video önizlemesi açıldı.`);
     } catch (err) { setError(err.message || 'Video önizlemesi açılamadı.'); } finally { setBusy(false); }
   }
 
@@ -2110,6 +2146,7 @@ function ManagerPanel({user, initialCompanyId = '', initialBranchId = '', onComp
           {program ? (
             <>
               <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap'}}><div><h4 style={{margin: 0}}>{localizedTrainingTitle(program.title)}</h4><div style={{fontSize: 12, color: '#5e7485'}}>{program.source_catalog_code ? `Atanan sektör: ${packageSectorLabel(program.source_catalog_code, program.sector_code || program.source_catalog_sector_code)} · ` : ''}{statusLabel(program.status)} · video %{program.completion_threshold_percent} · sınav %{program.passing_score}</div></div><div style={{display: 'flex', gap: 6, flexWrap: 'wrap'}}>{canEditContent && <><button type="button" onClick={() => programAction('ready-for-review')} disabled={busy}>İncelemeye hazır</button><button type="button" onClick={() => programAction('publish')} disabled={busy}>Yayımla</button></>}<button type="button" onClick={showReport} disabled={busy} title="Çalışanların durumunu ve belge PDF çıktısını açar">Belge / Rapor çıktıları</button></div></div>
+              <InlineRemoteVideoPreview preview={preview} onClose={() => setPreview(null)} />
               <div id="remote-training-certificate-output" style={{marginTop: 12, padding: '12px 14px', border: '1px solid #8cc6dc', borderRadius: 10, background: '#f6fcff'}} aria-label="Uzaktan eğitim belge çıktıları">
                 <div style={{display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap'}}>
                   <div>

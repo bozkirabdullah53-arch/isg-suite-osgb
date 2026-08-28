@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {canManageTrainingPackage, canOperateTraining} from './training_role_policy';
+import {canEditTrainingForm, canManageTrainingPackage, canOperateTraining} from './training_role_policy';
 
 describe('classic training role policy', () => {
   it('allows only OSGB-scope managers to manage the package lifecycle', () => {
@@ -14,5 +14,11 @@ describe('classic training role policy', () => {
     expect(canOperateTraining({role: 'safety_specialist', osgb_id: 7})).toBe(true);
     expect(canOperateTraining({role: 'company_admin', company_id: 42})).toBe(true);
     expect(canOperateTraining({role: 'workplace_physician', osgb_id: 7})).toBe(false);
+  });
+
+  it('allows specialists to prepare the classic training form within assigned-company scope', () => {
+    expect(canEditTrainingForm({role: 'safety_specialist', osgb_id: 7, company_id: 42})).toBe(true);
+    expect(canEditTrainingForm({role: 'company_admin', osgb_id: 7})).toBe(true);
+    expect(canEditTrainingForm({role: 'workplace_physician', osgb_id: 7, company_id: 42})).toBe(false);
   });
 });

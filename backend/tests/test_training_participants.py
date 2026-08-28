@@ -238,7 +238,7 @@ def test_completed_training_is_archived_instead_of_deleted(client):
     assert deleted.status_code == 409, deleted.text
 
 
-def test_safety_specialist_can_complete_but_cannot_manage_training_package(client):
+def test_safety_specialist_can_create_and_complete_assigned_training_but_cannot_manage_package(client):
     admin_headers, company_id, employee_ids = _seed(client)
     created = client.post(
         "/api/v1/trainings",
@@ -307,7 +307,10 @@ def test_safety_specialist_can_complete_but_cannot_manage_training_package(clien
         headers=specialist_headers,
         json=_payload(company_id, employee_ids[:1]),
     )
-    assert create_as_specialist.status_code == 403, create_as_specialist.text
+    assert create_as_specialist.status_code == 200, create_as_specialist.text
+    specialist_training = create_as_specialist.json()
+    assert specialist_training["sector"] == "nace_46_83_06"
+    assert specialist_training["hazard_class"] == "Tehlikeli"
 
     completed = client.patch(
         f"/api/v1/trainings/{training_id}",

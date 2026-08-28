@@ -2,7 +2,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Archive, Award, CheckCircle2, ClipboardList, Download, FileSpreadsheet, Search, ShieldCheck, Upload, Users} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
-import {canManageTrainingPackage, canOperateTraining} from './training_role_policy';
+import {canEditTrainingForm, canManageTrainingPackage, canOperateTraining} from './training_role_policy';
 import './training_pro.css';
 
 const HAZARD_HOURS = {'Az Tehlikeli': 8, Tehlikeli: 12, 'Çok Tehlikeli': 16};
@@ -400,9 +400,10 @@ function EducationOutputPanel({
 export function TrainingPage({user}) {
   const canManagePackage = canManageTrainingPackage(user);
   const canOperate = canOperateTraining(user);
-  // Klasik/yüz yüze paket yaşam döngüsü OSGB merkez yöneticisinde; uzaktan
-  // eğitim atama yetkisi RemoteBasicOhsTrainingPanel içinde ayrı korunur.
-  const canEdit = canManagePackage;
+  // İSG uzmanı yalnızca erişebildiği/görevlendirildiği işyeri için eğitim
+  // kaydını hazırlayabilir. OSGB geneli arşiv/silme/logo işlemleri merkez
+  // yöneticisi ve global yönetici sınırında kalır.
+  const canEdit = canEditTrainingForm(user);
   const [remoteEnabled, setRemoteEnabled] = useState(false);
   // Uzaktan eğitim sekmesi, meta isteği geciktiğinde veya geçici olarak
   // başarısız olduğunda yetkili İSG Uzmanından kaybolmamalıdır. Panelin kendi
@@ -864,7 +865,10 @@ export function TrainingPage({user}) {
 
   async function maybeUploadLogo(trainingId) {
     const file = pendingLogoRef.current;
-    if (!file || !trainingId) return;
+    if (!file || !trainingId || !canManagePackage) {
+      pendingLogoRef.current = null;
+      return;
+    }
     try {
       await uploadFile(`/trainings/${trainingId}/logo`, file);
       pendingLogoRef.current = null;
@@ -1339,7 +1343,7 @@ export function TrainingPage({user}) {
   }
 
   async function deleteTraining(row) {
-    if (!canEdit || !row?.id || deleteTrainingId || row.archived_at || row.status !== 'planned') return;
+    if (!canManagePackage || !row?.id || deleteTrainingId || row.archived_at || row.status !== 'planned') return;
     const title = row.title || `#${row.id}`;
     const confirmed = window.confirm(
       `“${title}” eğitim kaydı ve bağlı katılımcı/belge verileri kalıcı olarak silinecek.\n\n` +
@@ -1367,7 +1371,7 @@ export function TrainingPage({user}) {
   }
 
   async function archiveTraining(row) {
-    if (!canEdit || !row?.id || row.archived_at) return;
+    if (!canManagePackage || !row?.id || row.archived_at) return;
     const reason = window.prompt(
       'Arşivleme nedeni (ör. belge üretildi, kayıt düzeltildi):',
       'Eğitim kaydı tarihsel belge ve denetim izi korunarak arşivlendi.',
@@ -1500,7 +1504,7 @@ export function TrainingPage({user}) {
                 className="tp-input"
                 type="file"
                 accept=".png,.jpg,.jpeg,.gif,.webp"
-                disabled={!canEdit}
+                disabled={!canManagePackage}
                 onChange={(e) => {
                   pendingLogoRef.current = e.target.files?.[0] || null;
                 }}
@@ -2595,7 +2599,7 @@ export function TrainingPage({user}) {
               <button type="button" className="btn-outline-premium" style={{width: 'auto', minHeight: 42, padding: '0 16px'}} onClick={() => setDetail(null)}>
                 Listeye dön
               </button>
-              {canEdit && !detail.archived_at && detail.status === 'planned' && (
+              {canManagePackage && !detail.archived_at && detail.status === 'planned' && (
                 <button
                   type="button"
                   className="btn-outline-premium"
@@ -2606,7 +2610,7 @@ export function TrainingPage({user}) {
                   {deleteTrainingId === detail.id ? 'Siliniyor…' : 'Taslak kaydı sil'}
                 </button>
               )}
-              {canEdit && !detail.archived_at && detail.status !== 'planned' && (
+              {canManagePackage && !detail.archived_at && detail.status !== 'planned' && (
                 <button
                   type="button"
                   className="btn-outline-premium"
@@ -2801,7 +2805,7 @@ export function TrainingPage({user}) {
                       >
                         Belgeler
                       </button>
-                      {canEdit && !r.archived_at && r.status !== 'planned' && (
+                      {canManagePackage && !r.archived_at && r.status !== 'planned' && (
                         <button
                           type="button"
                           className="btn-outline-premium"
@@ -2811,7 +2815,7 @@ export function TrainingPage({user}) {
                           <Archive size={14} style={{verticalAlign: -3, marginRight: 4}} /> Arşivle
                         </button>
                       )}
-                      {canEdit && !r.archived_at && r.status === 'planned' && (
+                      {canManagePackage && !r.archived_at && r.status === 'planned' && (
                         <button
                           type="button"
                           className="btn-outline-premium"
@@ -2839,11 +2843,17 @@ export function TrainingPage({user}) {
 
   return (
     <div className="training-pro">
-      {!canManagePackage && tab !== 'remote' && (
+      {!canManagePackage && tab !== 'remote' && user.role !== 'safety_specialist' && (
         <div className="tp-alert warn" style={{marginBottom: 12}}>
           Klasik/yüz yüze eğitim paketini yalnızca OSGB yöneticisi veya global yönetici oluşturabilir,
           değiştirebilir, arşivleyebilir ve silebilir. İSG uzmanı mevcut kaydı tamamlayabilir;
           uzaktan eğitim atama ve rapor yetkileri ayrı akışta korunur.
+        </div>
+      )}
+      {user.role === 'safety_specialist' && tab !== 'remote' && (
+        <div className="tp-alert" style={{marginBottom: 12, background: '#eef6ff', color: '#1e3a5f', border: '1px solid #bfdbfe'}}>
+          NACE ve eğitim kaydı yalnızca size atanmış işyerleri kapsamında açılır. OSGB geneli arşivleme,
+          silme ve firma logosu yönetimi OSGB/global yönetici yetkisindedir.
         </div>
       )}
       {busy && (
