@@ -51,6 +51,7 @@ jobs:
           tests/test_object_store.py
           tests/test_object_storage_remote_required.py
           tests/test_remote_training_video_r2_backfill.py
+          tests/test_remote_basic_ohs_video_training.py
           tests/test_system_backfill.py
           tests/test_rate_limit_runtime_fallback.py
           tests/test_health_crypto_inventory.py

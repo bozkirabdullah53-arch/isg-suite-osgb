@@ -310,6 +310,25 @@ function programVideoRows(program) {
   );
 }
 
+export function remoteVideoIsUnlocked(videos, progress, targetVideo, strictSequence = false, progressOverride = null) {
+  if (!strictSequence) return true;
+  const completedIds = new Set(
+    (Array.isArray(progress) ? progress : [])
+      .filter((row) => row?.status === 'completed')
+      .map((row) => String(row.video_id)),
+  );
+  if (progressOverride?.status === 'completed' && progressOverride.video_id != null) {
+    completedIds.add(String(progressOverride.video_id));
+  }
+  const firstIncompleteIndex = (Array.isArray(videos) ? videos : [])
+    .findIndex((row) => !completedIds.has(String(row.id)));
+  if (firstIncompleteIndex < 0) return true;
+  const index = (Array.isArray(videos) ? videos : [])
+    .findIndex((row) => String(row.id) === String(targetVideo?.id));
+  if (index < 0) return false;
+  return completedIds.has(String(targetVideo?.id)) || index <= firstIncompleteIndex;
+}
+
 function ErrorText({value}) {
   return value ? <div role="alert" aria-live="assertive" style={{color: '#b42318', margin: '10px 0', fontWeight: 600}}>{value}</div> : null;
 }
@@ -703,11 +722,15 @@ function EmployeePanel() {
     return request;
   }
 
-  async function openVideo(video, assignmentOverride = assignment, {skipUnlock = false} = {}) {
+  async function openVideo(video, assignmentOverride = assignment, {skipUnlock = false, flushProgress = true} = {}) {
     const currentAssignment = assignmentOverride || assignment;
     if (!currentAssignment || !video) return;
-    flushProgressOnExit();
-    if (!skipUnlock && !isVideoUnlocked(video)) {
+    let latestProgressResponse = null;
+    if (flushProgress) {
+      flushProgressOnExit();
+      latestProgressResponse = await progressQueue.current.catch(() => null);
+    }
+    if (!skipUnlock && !isVideoUnlocked(video, latestProgressResponse)) {
       setError('Bu ders kilitli. Önce sıradaki önceki videoyu tamamlayın.');
       return;
     }
@@ -787,14 +810,18 @@ function EmployeePanel() {
             const currentIndex = orderedVideos.findIndex((video) => video.id === snapshot.videoId);
             const nextVideo = currentIndex >= 0 ? orderedVideos[currentIndex + 1] : null;
             if (nextVideo) {
-              void playbackUrlFor(nextVideo, snapshot.assignmentId).catch(() => {});
-              setMessage('Video tamamlandı. Sonraki ders hazırlandı.');
+              setMessage('Video tamamlandı. Sonraki ders açılıyor…');
+              void openVideo(
+                nextVideo,
+                assignment,
+                {skipUnlock: true, flushProgress: false},
+              ).catch(() => {});
             }
           }
           if (snapshot.eventType === 'ended' && out.status !== 'completed') {
             setMessage('Video sonu kaydı alındı; son bölümün tamamı henüz doğrulanmadı.');
           }
-          return out;
+          return {...out, video_id: snapshot.videoId};
         } catch (err) {
           if (assignment?.id === snapshot.assignmentId) {
             setError(err.message || 'Video ilerlemesi kaydedilemedi.');
@@ -861,15 +888,14 @@ function EmployeePanel() {
 
   const videos = useMemo(() => programVideoRows(assignment?.program), [assignment]);
   const strictSequence = assignment?.program?.policy_mode === 'strict' && assignment?.program?.sequence_enforced;
-  const firstIncompleteIndex = strictSequence
-    ? videos.findIndex((video) => !assignment?.video_progress?.some((progress) => progress.video_id === video.id && progress.status === 'completed'))
-    : -1;
-  function isVideoUnlocked(video) {
-    if (!strictSequence) return true;
-    const index = videos.findIndex((row) => row.id === video.id);
-    if (firstIncompleteIndex < 0) return true;
-    const completed = assignment?.video_progress?.some((progress) => progress.video_id === video.id && progress.status === 'completed');
-    return completed || index <= firstIncompleteIndex;
+  function isVideoUnlocked(video, progressOverride = null) {
+    return remoteVideoIsUnlocked(
+      videos,
+      assignment?.video_progress,
+      video,
+      strictSequence,
+      progressOverride,
+    );
   }
   const currentProgress = assignment?.video_progress?.find((row) => row.video_id === activeVideo?.id);
   const checkpointQuestions = assignment?.program?.checkpoint_questions || [];
