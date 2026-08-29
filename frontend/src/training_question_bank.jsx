@@ -538,7 +538,7 @@ export function TrainingQuestionBank({user, sectors = []}) {
             {draft.scopes.map((scope, index) => (
               <div className="qb-repeat-row" key={`${index}-${scope.type}`}>
                 <select className="tp-select" value={scope.type} onChange={(e) => patchScope(index, 'type', e.target.value)}>
-                  {Object.entries(SCOPE_LABELS).map(([value, label]) => <option key={value}>{label}</option>)}
+                  {Object.entries(SCOPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
                 {scope.type === 'common' ? (
                   <input className="tp-input" value="Tüm sektörler (*)" readOnly aria-label="Ortak kapsam" />
