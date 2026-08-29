@@ -33,11 +33,38 @@ export function EisaIndividualSubscriptionsPage() {
 
   useEffect(() => { void load(); }, []);
 
+  async function deleteIndividual(row) {
+    const specialistName = String(row.specialist_name || row.osgb_name || '').trim();
+    if (!specialistName || !row.osgb_id) {
+      setMsg('Silme işlemi için uzman kaydı doğrulanamadı.');
+      return;
+    }
+    if (!window.confirm(
+      `“${specialistName}” bireysel aboneliği KALICI silinsin mi?\n\n• Bireysel abonelik listesinden tamamen kaldırılır\n• Uzmanın hesabı ve bu bireysel hesaba bağlı kayıtlar silinir\n• Silmeden önce merkezi yedek alınır (Merkezi Arşiv)\n\nBu işlem geri alınamaz.`,
+    )) return;
+    const typed = window.prompt(`Onay için uzman adını aynen yazın:\n${specialistName}`);
+    if (typed?.trim() !== specialistName) {
+      setMsg('Silme iptal: uzman adı eşleşmedi.');
+      return;
+    }
+    setBusy(true);
+    setMsg('');
+    try {
+      await api(`/eisa/osgb-users/${row.osgb_id}`, { method: 'DELETE' });
+      await load();
+      setMsg(`“${specialistName}” bireysel aboneliği kalıcı silindi.`);
+    } catch (e) {
+      setMsg(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Page title="Bireysel Abonelik" action={<RefreshButton busy={busy} onClick={load} />}>
       <p style={{ marginTop: 0, color: '#64748b' }}>
         Global yönetici tarafından onaylanan bireysel İş Güvenliği Uzmanları burada gösterilir.
-        Bu liste OSGB aboneliklerinden tamamen ayrıdır.
+        Bu liste OSGB aboneliklerinden tamamen ayrıdır. Sil işlemi kalıcıdır; önce merkezi yedek alınır.
       </p>
       <div className="eisa-toolbar">
         <SearchBar value={q} onChange={setQ} placeholder="Uzman adı, e-posta, belge no…" />
@@ -56,6 +83,7 @@ export function EisaIndividualSubscriptionsPage() {
               <th>Kalan gün</th>
               <th>Bitiş</th>
               <th>Hesap</th>
+              <th>İşlem</th>
             </tr>
           </thead>
           <tbody>
@@ -79,9 +107,16 @@ export function EisaIndividualSubscriptionsPage() {
                 <td>{row.days_remaining ?? '—'}</td>
                 <td>{subscriptionEnd(row)}</td>
                 <td>{row.account_active ? 'Aktif' : 'Pasif'}</td>
+                <td>
+                  <div className="actions eisa-row-actions">
+                    <button type="button" className="mini secondary" disabled={busy} onClick={() => deleteIndividual(row)}>
+                      Sil
+                    </button>
+                  </div>
+                </td>
               </tr>
             )) : (
-              <tr><td colSpan={8} className="empty">Onaylanmış bireysel abonelik bulunamadı.</td></tr>
+              <tr><td colSpan={9} className="empty">Onaylanmış bireysel abonelik bulunamadı.</td></tr>
             )}
           </tbody>
         </table>
