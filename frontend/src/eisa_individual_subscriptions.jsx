@@ -35,26 +35,32 @@ export function EisaIndividualSubscriptionsPage() {
 
   async function deleteIndividual(row) {
     const specialistName = String(row.specialist_name || row.osgb_name || '').trim();
-    if (!specialistName || !row.osgb_id) {
+    const osgbId = row.osgb_id;
+    const userId = row.user_id;
+    if (!specialistName || (!osgbId && !userId)) {
       setMsg('Silme işlemi için uzman kaydı doğrulanamadı.');
       return;
     }
     if (!window.confirm(
-      `“${specialistName}” bireysel aboneliği KALICI silinsin mi?\n\n• Bireysel abonelik listesinden tamamen kaldırılır\n• Uzmanın hesabı ve bu bireysel hesaba bağlı kayıtlar silinir\n• Silmeden önce merkezi yedek alınır (Merkezi Arşiv)\n\nBu işlem geri alınamaz.`,
+      `“${specialistName}” bireysel üyeliği kaldırılsın mı?\n\nHesap listeden çıkarılır ve giriş kapanır.`,
     )) return;
-    const typed = window.prompt(`Onay için uzman adını aynen yazın:\n${specialistName}`);
-    if (typed?.trim() !== specialistName) {
-      setMsg('Silme iptal: uzman adı eşleşmedi.');
-      return;
-    }
     setBusy(true);
     setMsg('');
     try {
-      await api(`/eisa/osgb-users/${row.osgb_id}`, { method: 'DELETE' });
+      if (osgbId) {
+        try {
+          await api(`/eisa/osgb-users/${osgbId}`, { method: 'DELETE' });
+        } catch (e) {
+          if (!userId) throw e;
+          await api(`/eisa/individual-subscriptions/${userId}`, { method: 'DELETE' });
+        }
+      } else {
+        await api(`/eisa/individual-subscriptions/${userId}`, { method: 'DELETE' });
+      }
       await load();
-      setMsg(`“${specialistName}” bireysel aboneliği kalıcı silindi.`);
+      setMsg(`“${specialistName}” bireysel üye kaldırıldı.`);
     } catch (e) {
-      setMsg(e.message);
+      setMsg(e.message || 'Üye silinemedi.');
     } finally {
       setBusy(false);
     }
@@ -64,7 +70,7 @@ export function EisaIndividualSubscriptionsPage() {
     <Page title="Bireysel Abonelik" action={<RefreshButton busy={busy} onClick={load} />}>
       <p style={{ marginTop: 0, color: '#64748b' }}>
         Global yönetici tarafından onaylanan bireysel İş Güvenliği Uzmanları burada gösterilir.
-        Bu liste OSGB aboneliklerinden tamamen ayrıdır. Sil işlemi kalıcıdır; önce merkezi yedek alınır.
+        Bu liste OSGB aboneliklerinden tamamen ayrıdır. Sil, bireysel üyeyi listeden kaldırır.
       </p>
       <div className="eisa-toolbar">
         <SearchBar value={q} onChange={setQ} placeholder="Uzman adı, e-posta, belge no…" />

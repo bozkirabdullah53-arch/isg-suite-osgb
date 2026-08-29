@@ -96,7 +96,7 @@ export function SearchBar({ value, onChange, placeholder = 'Ara…' }) {
 
 export function Msg({ text }) {
   if (!text) return null;
-  const ok = /onay|güncell|kayded|gönderildi|aktif/i.test(text);
+  const ok = /onay|güncell|kayded|gönderildi|aktif|arşiv|silindi|kaldır/i.test(text);
   return <p style={{ color: ok ? '#166534' : '#b91c1c' }}>{text}</p>;
 }
 

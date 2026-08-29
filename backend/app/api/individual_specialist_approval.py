@@ -190,6 +190,7 @@ def list_individual_subscriptions(
         row.update(
             {
                 "user_id": user.id,
+                "osgb_id": org.id,
                 "osgb_name": user.full_name,
                 "specialist_name": user.full_name,
                 "specialist_email": user.email,
@@ -215,6 +216,43 @@ def list_individual_subscriptions(
         out.append(row)
     out.sort(key=lambda row: str(row.get("specialist_name") or "").lower())
     return out
+
+
+def _archive_individual(db: Session, user: User, org: OsgbOrganization) -> None:
+    now = datetime.utcnow()
+    user.is_active = False
+    user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
+    org.is_active = False
+    org.archived_at = org.archived_at or now
+    _set_professionals_active(db, org.id, False)
+    sub = _subscription(db, org.id)
+    if sub:
+        sub.status = SubscriptionStatus.SUSPENDED
+        sub.updated_at = now
+
+
+@eisa_router.delete("/individual-subscriptions/{user_id}")
+def delete_individual_subscription(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """Onaylı bireysel üyeyi listeden kaldırır. Fiziksel silme yok; hesap arşivlenir."""
+    user, org = _get_individual(db, -int(user_id))
+    _archive_individual(db, user, org)
+    add_audit_log(
+        db,
+        user=admin,
+        action="individual_specialist_subscription_archived",
+        module="eisa",
+        entity_type="user",
+        entity_id=str(user.id),
+        description=f"Bireysel üye abonelik listesinden kaldırıldı: {user.email}",
+        ip_address=_client_ip(request),
+    )
+    db.commit()
+    return {"ok": True, "id": user_id, "message": "Bireysel üye arşivlendi."}
 
 
 @eisa_router.post("/applications/{application_id}/approve", response_model=OsgbApplicationApproveResponse)
@@ -331,16 +369,7 @@ def delete_application_with_individuals(
     # Bireysel başvurularda fiziksel veri silmeyiz. Kullanıcı/tenant izolasyonunu
     # korumak için satırı arşivleyerek Global listesinden pending filtresinde çıkarırız.
     user, org = _get_individual(db, application_id)
-    now = datetime.utcnow()
-    user.is_active = False
-    user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
-    org.is_active = False
-    org.archived_at = org.archived_at or now
-    _set_professionals_active(db, org.id, False)
-    sub = _subscription(db, org.id)
-    if sub:
-        sub.status = SubscriptionStatus.SUSPENDED
-        sub.updated_at = now
+    _archive_individual(db, user, org)
     add_audit_log(
         db,
         user=admin,
