@@ -11,6 +11,11 @@ function isReadOnlyPage() {
   return READ_ONLY_MARKERS.some((marker) => text.includes(marker));
 }
 
+function clearLoginUsernamePlaceholder() {
+  const input = document.querySelector('.login-card input[autocomplete="username"]');
+  if (input?.hasAttribute('placeholder')) input.removeAttribute('placeholder');
+}
+
 function setDisabled(el, disabled) {
   if (!(el instanceof HTMLElement)) return;
   if (disabled) {
@@ -30,6 +35,7 @@ function setDisabled(el, disabled) {
 }
 
 function applyReadOnlyGuard() {
+  clearLoginUsernamePlaceholder();
   const blocked = isReadOnlyPage();
   document.documentElement.classList.toggle('subscription-readonly', blocked);
 
