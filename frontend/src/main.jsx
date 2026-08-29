@@ -77,6 +77,7 @@ import {
   OsgbApplyPage,
   SpecialistRegisterPage,
 } from './eisa';
+import {EisaIndividualSubscriptionsPage} from './eisa_individual_subscriptions';
 import './styles.css';
 import './theme-modern.css';
 import {useUiTheme} from './theme';
@@ -200,6 +201,7 @@ function mobilePrimaryMenu(menu, role, activeId){
 const menuCatalog={
   eisa_overview:['Genel Bakış',LayoutDashboard],
   eisa_osgb_users:['OSGB Kullanıcıları',Users],
+  eisa_individual_subscriptions:['Bireysel Abonelik',CreditCard],
   eisa_subscriptions:['Abonelik Yönetimi',CreditCard],
   eisa_subscriptions_expiring:['Süresi Yaklaşan Abonelikler',CalendarDays],
   eisa_subscriptions_expired:['Süresi Dolan Abonelikler',AlertTriangle],
@@ -782,7 +784,9 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
   }
   async function act(row,action){
     if(action==='delete'){
-      if(!window.confirm(`“${row.name}” işyerini KALICI olarak silmek istiyor musunuz?\n\nPersonel, eğitim, risk, sağlık ve diğer bağlı kayıtlar da silinir. Bu işlem geri alınamaz.`)) return;
+      if(!window.confirm(`“${row.name}” işyerini KALICI olarak silmek istiyor musunuz?\
+\
+Personel, eğitim, risk, sağlık ve diğer bağlı kayıtlar da silinir. Bu işlem geri alınamaz.`)) return;
     }else{
       const labels={deactivate:'pasife almak',activate:'yeniden aktifleştirmek'};
       if(!window.confirm(`“${row.name}” işyerini ${labels[action]||action} istiyor musunuz?`)) return;
@@ -820,7 +824,9 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
   }
   async function resetKioskLogin(row){
     if(!row?.id) return;
-    if(!window.confirm(`“${row.name}” kiosk şifresi sıfırlansın mı?\n\nEski şifre geçersiz olur. Yeni şifre bir kez gösterilir — işyerine iletin.`)) return;
+    if(!window.confirm(`“${row.name}” kiosk şifresi sıfırlansın mı?\
+\
+Eski şifre geçersiz olur. Yeni şifre bir kez gösterilir — işyerine iletin.`)) return;
     setBusy(true);setErr('');setCopyMsg('');
     try{
       const acc=await api(`/companies/${row.id}/kiosk-login/reset`,{method:'POST'});
@@ -900,7 +906,8 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
         <div className="actions" style={{gap:8,flexWrap:'wrap'}}>
           <button type="button" className="secondary" onClick={async()=>{
             const pw=creds.password||creds.temporary_password||'';
-            const text=`Kullanıcı adı: ${creds.email}\nŞifre: ${pw}`;
+            const text=`Kullanıcı adı: ${creds.email}\
+Şifre: ${pw}`;
             setCopyMsg((await copyText(text))?'E-posta ve şifre kopyalandı.':'Kopyalanamadı.');
           }}>E-posta + şifreyi kopyala</button>
         </div>
@@ -1178,7 +1185,9 @@ function Employees({user}){
       alert('Bu personel seçili işyerine ait değil. İşlem durduruldu.');
       return;
     }
-    if(!window.confirm(`“${row.full_name}” adlı personel silinsin mi?\n\nKayıt güvenli şekilde pasife alınacak ve aktif listeden kaldırılacak.`)) return;
+    if(!window.confirm(`“${row.full_name}” adlı personel silinsin mi?\
+\
+Kayıt güvenli şekilde pasife alınacak ve aktif listeden kaldırılacak.`)) return;
     setBusy(true);
     try{
       await api(`/employees/${row.id}`,{method:'DELETE'});
@@ -1192,7 +1201,9 @@ function Employees({user}){
     if(!requireCompany()) return;
     if(!selectedIds.length){alert('Önce silinecek personelleri seçmelisiniz.');return}
     const companyName=selectedCompany?.name||'seçili işyeri';
-    if(!window.confirm(`${selectedIds.length} personel “${companyName}” işyerinden silinsin mi?\n\nKayıtlar güvenli şekilde pasife alınacak ve aktif listeden kaldırılacak.`)) return;
+    if(!window.confirm(`${selectedIds.length} personel “${companyName}” işyerinden silinsin mi?\
+\
+Kayıtlar güvenli şekilde pasife alınacak ve aktif listeden kaldırılacak.`)) return;
     setBusy(true);
     try{
       const result=await api('/employees/bulk-delete',{
@@ -1209,7 +1220,9 @@ function Employees({user}){
     if(!requireCompany()) return;
     if(!selectedIds.length){alert('Önce kalıcı silinecek personelleri seçmelisiniz.');return}
     const companyName=selectedCompany?.name||'seçili işyeri';
-    if(!window.confirm(`${selectedIds.length} personel “${companyName}” işyerinden KALICI olarak silinsin mi?\n\nAktif ve pasif seçili kayıtlar silinecektir. Bu işlem geri alınamaz. Bağlı sağlık veya eğitim kaydı bulunan personeller veri bütünlüğü için korunacaktır.`)) return;
+    if(!window.confirm(`${selectedIds.length} personel “${companyName}” işyerinden KALICI olarak silinsin mi?\
+\
+Aktif ve pasif seçili kayıtlar silinecektir. Bu işlem geri alınamaz. Bağlı sağlık veya eğitim kaydı bulunan personeller veri bütünlüğü için korunacaktır.`)) return;
     setBusy(true);
     try{
       const result=await api('/employees/bulk-purge',{
@@ -1228,7 +1241,11 @@ function Employees({user}){
     if(!f)return;
     if(!requireCompany())return;
     const companyName=selectedCompany?.name||'seçili işyeri';
-    if(!window.confirm(`“${companyName}” işyerine toplu personel yüklenecek.\n\nDosya: ${f.name}\n\nDevam edilsin mi?`)) return;
+    if(!window.confirm(`“${companyName}” işyerine toplu personel yüklenecek.\
+\
+Dosya: ${f.name}\
+\
+Devam edilsin mi?`)) return;
     setBusy(true);
     try{
       const fd=new FormData();
@@ -1251,7 +1268,10 @@ function Employees({user}){
       if(reactivated) parts.push(`${reactivated} pasif personel yeniden aktifleştirildi`);
       if(errN) parts.push(`${errN} satır TC kimlik çakışması nedeniyle aktarılamadı`);
       if(out.warning) parts.push(out.warning);
-      alert(`“${companyName}” işyeri:\n\n${parts.join('\n')}`);
+      alert(`“${companyName}” işyeri:\
+\
+${parts.join('\
+')}`);
       await loadEmployees();
     }catch(x){alert(x.message||'Yükleme başarısız.')}
     finally{setBusy(false)}
@@ -1367,7 +1387,9 @@ function DocumentsPage({user}){
   useEffect(()=>{load()},[]);
   async function save(e){e.preventDefault();const payload={...form,company_id:Number(form.company_id),branch_id:null,valid_from:form.valid_from||null,valid_until:form.valid_until||null};await api('/documents',{method:'POST',body:JSON.stringify(payload)});setOpen(false);setForm(empty);load()}
   async function deactivate(id){
-    if(!window.confirm('Doküman pasife alınsın mı?\n\nBağlı dosya merkezi arşive kopyalanır; EİSA erişebilir.')) return;
+    if(!window.confirm('Doküman pasife alınsın mı?\
+\
+Bağlı dosya merkezi arşive kopyalanır; EİSA erişebilir.')) return;
     setBusy(true);
     try{
       await api(`/documents/${id}/deactivate`,{method:'PATCH'});
@@ -1516,7 +1538,9 @@ function SecurityPage({user}){
   useEffect(()=>{void loadMfa()},[]);
   async function save(e){e.preventDefault();setMessage('');try{const r=await api('/security/change-password',{method:'POST',body:JSON.stringify(form)});setMessage(r.message);setForm({current_password:'',new_password:''})}catch(err){setMessage(err.message)}}
   async function logoutAllDevices(){
-    if(!window.confirm('Tüm cihazlardaki oturumlar kapatılsın mı?\n\nBu cihaz dahil yeniden giriş yapmanız gerekir.')) return;
+    if(!window.confirm('Tüm cihazlardaki oturumlar kapatılsın mı?\
+\
+Bu cihaz dahil yeniden giriş yapmanız gerekir.')) return;
     setMessage('');
     try{
       const r=await api('/auth/logout-all',{method:'POST'});
@@ -1555,7 +1579,9 @@ function SecurityPage({user}){
     }catch(err){setMessage(err.message)}
   }
   async function createBackup(){
-    if(!window.confirm('Kurum verilerinizin tarihli yedeği alınsın mı?\n\nYedek merkezi arşive kaydedilir; EİSA de erişebilir.')) return;
+    if(!window.confirm('Kurum verilerinizin tarihli yedeği alınsın mı?\
+\
+Yedek merkezi arşive kaydedilir; EİSA de erişebilir.')) return;
     setArchBusy(true);setArchMsg('');
     try{
       await api('/archives/backup',{method:'POST',body:JSON.stringify({})});
@@ -1584,7 +1610,8 @@ function SecurityPage({user}){
         '',
         ...(p.notes||[]),
       ];
-      window.alert(lines.join('\n'));
+      window.alert(lines.join('\
+'));
       setArchMsg('Restore planı gösterildi (yazma yok).');
     }catch(e){setArchMsg(e.message)}
     finally{setArchBusy(false)}
@@ -1801,7 +1828,9 @@ class ErrorBoundary extends React.Component{
       source:'ui_crash',
       title:'Sayfa çökmesi',
       message:String(err?.message||err),
-      stack_trace:[err?.stack,info?.componentStack].filter(Boolean).join('\n\n'),
+      stack_trace:[err?.stack,info?.componentStack].filter(Boolean).join('\
+\
+'),
       page_path:typeof window!=='undefined'?window.location.pathname:null,
     });
   }
@@ -1917,7 +1946,7 @@ function writeModuleToLocation(id,{replace=false,companyId=''}={}){
     if(id==='customer_360' && nextCompany) hashParams.set('company',nextCompany);
     if(preserveRiskView){
       try{
-        const currentHash=new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).toString();
+        const currentHash=new URLSearchParams(String(window.location.hash||'').replace(/^#/,'' )).toString();
         const currentRiskParams=new URLSearchParams(currentHash);
         if(currentRiskParams.get('risk_tab')) hashParams.set('risk_tab',currentRiskParams.get('risk_tab'));
         if(currentRiskParams.get('risk_detail')) hashParams.set('risk_detail',currentRiskParams.get('risk_detail'));
@@ -1967,14 +1996,14 @@ function App(){
   const[mobileMoreOpen,setMobileMoreOpen]=useState(false);
   const navRef=useRef(null);
   const[applyMode,setApplyMode]=useState(()=>{
-    try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')==='osgb'}catch{return false}
+    try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'' )).get('apply')==='osgb'}catch{return false}
   });
   const[specialistApplyMode,setSpecialistApplyMode]=useState(()=>{
-    try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')==='specialist'}catch{return false}
+    try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'' )).get('apply')==='specialist'}catch{return false}
   });
 
   function publicApplyHash(){
-    try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')||''}catch{return ''}
+    try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'' )).get('apply')||''}catch{return ''}
   }
   function writePublicApply(kind,{replace=false}={}){
     try{
@@ -2282,6 +2311,7 @@ function App(){
   const pages={
     eisa_overview:<EisaOverviewPage/>,
     eisa_osgb_users:<EisaOsgbUsersPage/>,
+    eisa_individual_subscriptions:<EisaIndividualSubscriptionsPage/>,
     eisa_subscriptions:<EisaSubscriptionsPage/>,
     eisa_subscriptions_expiring:<EisaExpiringSubscriptionsPage/>,
     eisa_subscriptions_expired:<EisaExpiredSubscriptionsPage/>,
