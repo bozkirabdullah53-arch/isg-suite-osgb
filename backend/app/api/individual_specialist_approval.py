@@ -30,7 +30,7 @@ from app.schemas.auth import RegisterRequest, TokenResponse
 from app.schemas.eisa_platform import OsgbApplicationApproveResponse
 from app.schemas.osgb_subscription import OsgbApplicationReject, OsgbApplicationResponse
 from app.services.audit import add_audit_log
-from app.services.eisa_platform import build_dashboard, resolved_trial_days
+from app.services.eisa_platform import build_dashboard, resolved_trial_days, subscription_response
 
 
 auth_router = APIRouter(prefix="/auth", tags=["Kimlik Doğrulama"])
@@ -167,6 +167,53 @@ def list_applications_with_individuals(
         out.append(row)
 
     out.sort(key=lambda row: row.created_at, reverse=True)
+    return out
+
+
+@eisa_router.get("/individual-subscriptions")
+def list_individual_subscriptions(
+    q: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    """Onaylanmış bireysel İSG uzmanı aboneliklerini OSGB aboneliklerinden ayrı listeler."""
+    needle = (q or "").strip().lower()
+    out: list[dict] = []
+    for user, org in _individual_rows(db):
+        if _status(user, org) != "approved":
+            continue
+        sub = _subscription(db, org.id)
+        if not sub:
+            continue
+        professional = _professional(db, org.id)
+        row = subscription_response(db, sub).model_dump()
+        row.update(
+            {
+                "user_id": user.id,
+                "osgb_name": user.full_name,
+                "specialist_name": user.full_name,
+                "specialist_email": user.email,
+                "specialist_phone": professional.phone if professional else org.phone,
+                "certificate_class": professional.certificate_class if professional else None,
+                "certificate_number": professional.certificate_number if professional else None,
+            }
+        )
+        if needle:
+            hay = " ".join(
+                str(value or "")
+                for value in (
+                    row.get("specialist_name"),
+                    row.get("specialist_email"),
+                    row.get("specialist_phone"),
+                    row.get("certificate_class"),
+                    row.get("certificate_number"),
+                    row.get("package_name"),
+                )
+            ).lower()
+            if needle not in hay:
+                continue
+        out.append(row)
+    out.sort(key=lambda row: str(row.get("specialist_name") or "").lower())
     return out
 
 
