@@ -83,6 +83,7 @@ def _osgb_to_response(obj: OsgbOrganization) -> OsgbResponse:
         phone=(str(obj.phone).strip() if obj.phone else None),
         address=(str(obj.address).strip() if obj.address else None),
         is_active=bool(obj.is_active),
+        is_individual=bool(getattr(obj, "is_individual", False)),
         created_at=obj.created_at,
     )
 
@@ -145,6 +146,8 @@ def list_osgb(db: Session = Depends(get_db), user: User = Depends(get_current_us
         if not oid:
             return []
         stmt = stmt.where(OsgbOrganization.id == oid)
+    else:
+        stmt = stmt.where(OsgbOrganization.is_individual.is_(False))
     return [_osgb_to_response(x) for x in db.scalars(stmt).all()]
 
 @router.post("", response_model=OsgbResponse)

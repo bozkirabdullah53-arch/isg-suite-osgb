@@ -214,7 +214,9 @@ def build_dashboard(db: Session) -> dict:
             OsgbApplication.status == OsgbApplicationStatus.PENDING
         )
     ) or 0
-    osgb_count = db.scalar(select(func.count()).select_from(OsgbOrganization)) or 0
+    osgb_count = db.scalar(
+        select(func.count()).select_from(OsgbOrganization).where(OsgbOrganization.is_individual.is_(False))
+    ) or 0
     subs = list(db.scalars(select(OsgbSubscription)).all())
 
     active_count = 0
@@ -224,6 +226,9 @@ def build_dashboard(db: Session) -> dict:
     suspended_count = 0
 
     for sub in subs:
+        org = db.get(OsgbOrganization, sub.osgb_id)
+        if org is not None and getattr(org, "is_individual", False):
+            continue
         eff = effective_subscription_status(sub, now)
         if eff == SubscriptionStatus.TRIAL:
             trial_count += 1
@@ -314,6 +319,9 @@ def filter_subscriptions(
     subs = list(db.scalars(select(OsgbSubscription).order_by(OsgbSubscription.updated_at.desc())).all())
     out: list[OsgbSubscriptionResponse] = []
     for sub in subs:
+        org = db.get(OsgbOrganization, sub.osgb_id)
+        if org is not None and getattr(org, "is_individual", False):
+            continue
         if filter_type == "expiring" and not is_expiring(sub, window, now):
             continue
         if filter_type == "expired" and not is_expired(sub, now):

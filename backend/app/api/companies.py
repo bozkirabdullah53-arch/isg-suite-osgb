@@ -569,11 +569,19 @@ def create_company_ephemeral_site_qr(
 def create_company(
     payload: CompanyCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)),
 ):
-    reject_company_bound_admin_from_osgb_internal(user)
+    if user.role != UserRole.SAFETY_SPECIALIST:
+        reject_company_bound_admin_from_osgb_internal(user)
     data = payload.model_dump()
-    if user.role == UserRole.COMPANY_ADMIN:
+    if user.role == UserRole.SAFETY_SPECIALIST:
+        from app.models.entities import OsgbOrganization
+
+        org = db.get(OsgbOrganization, user.osgb_id) if user.osgb_id else None
+        if org is None or not getattr(org, "is_individual", False):
+            raise HTTPException(403, "İşyeri ekleme yalnız bireysel uzman çalışma alanına açıktır.")
+        data["osgb_id"] = org.id
+    elif user.role == UserRole.COMPANY_ADMIN:
         if not user.osgb_id:
             raise HTTPException(400, "OSGB kapsamınız tanımlı değil. EİSA yöneticisine başvurun.")
         data["osgb_id"] = user.osgb_id
@@ -627,6 +635,20 @@ def create_company(
         login_account = None
 
     apply_rls_user(db, user)
+    if user.role == UserRole.SAFETY_SPECIALIST:
+        try:
+            from app.core.rls import set_rls_bypass
+            from app.services.individual_specialist import ensure_individual_workplace_assignment
+
+            set_rls_bypass(db, True)
+            ensure_individual_workplace_assignment(db, user, obj)
+            db.commit()
+        except Exception:
+            db.rollback()
+        finally:
+            apply_rls_user(db, user)
+
+    apply_rls_user(db, user)
     return CompanyCreateResponse(
         id=obj.id,
         name=obj.name,
@@ -640,6 +662,18 @@ def create_company(
         osgb_id=obj.osgb_id,
         login_account=login_account,
     )
+
+
+def _assert_individual_company_scope(db: Session, user: User, obj: Company) -> None:
+    from app.models.entities import OsgbOrganization
+
+    if user.role != UserRole.SAFETY_SPECIALIST or not user.osgb_id:
+        raise HTTPException(403, "Bu işlem için yetkiniz yok.")
+    org = db.get(OsgbOrganization, user.osgb_id)
+    if org is None or not getattr(org, "is_individual", False):
+        raise HTTPException(403, "İşyeri yönetimi yalnız bireysel uzman çalışma alanına açıktır.")
+    if obj.osgb_id != user.osgb_id:
+        raise HTTPException(403, "Yalnız kendi çalışma alanınızdaki işyerini yönetebilirsiniz.")
 
 
 def _assert_company_admin_scope(user: User, obj: Company) -> None:
@@ -663,15 +697,18 @@ def update_company(
     company_id: int,
     payload: CompanyUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)),
 ):
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
-    _assert_company_admin_scope(user, obj)
+    if user.role == UserRole.SAFETY_SPECIALIST:
+        _assert_individual_company_scope(db, user, obj)
+    else:
+        _assert_company_admin_scope(user, obj)
     data = payload.model_dump(exclude_unset=True)
-    # OSGB admin başka OSGB'ye taşıyamaz
-    if user.role == UserRole.COMPANY_ADMIN:
+    # OSGB admin / bireysel uzman başka OSGB'ye taşıyamaz
+    if user.role in (UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST):
         data.pop("osgb_id", None)
     next_name = data.get("name", obj.name)
     next_osgb = data.get("osgb_id", obj.osgb_id)
@@ -694,12 +731,15 @@ def update_company(
 def deactivate_company(
     company_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)),
 ):
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
-    _assert_company_admin_scope(user, obj)
+    if user.role == UserRole.SAFETY_SPECIALIST:
+        _assert_individual_company_scope(db, user, obj)
+    else:
+        _assert_company_admin_scope(user, obj)
     obj.is_active = False
     db.commit()
     return {"ok": True, "id": company_id, "is_active": False, "message": "Firma pasife alındı."}
@@ -709,12 +749,15 @@ def deactivate_company(
 def activate_company(
     company_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)),
 ):
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
-    _assert_company_admin_scope(user, obj)
+    if user.role == UserRole.SAFETY_SPECIALIST:
+        _assert_individual_company_scope(db, user, obj)
+    else:
+        _assert_company_admin_scope(user, obj)
     obj.is_active = True
     db.commit()
     return {"ok": True, "id": company_id, "is_active": True, "message": "Firma yeniden aktifleştirildi."}
@@ -724,13 +767,16 @@ def activate_company(
 def delete_company(
     company_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN)),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST)),
 ):
     """Kalıcı sil: bağlı operasyonel kayıtlar da silinir. Pasife alma yapılmaz."""
     obj = db.get(Company, company_id)
     if not obj:
         raise HTTPException(404, "Firma bulunamadı.")
-    _assert_company_admin_scope(user, obj)
+    if user.role == UserRole.SAFETY_SPECIALIST:
+        _assert_individual_company_scope(db, user, obj)
+    else:
+        _assert_company_admin_scope(user, obj)
     name = obj.name
     try:
         _purge_company_data(db, company_id)

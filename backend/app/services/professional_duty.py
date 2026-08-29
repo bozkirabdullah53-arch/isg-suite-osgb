@@ -173,6 +173,27 @@ def build_my_duty_board(db: Session, user: User) -> dict[str, Any]:
         c.id: c
         for c in db.scalars(select(Company).where(Company.id.in_(company_ids))).all()
     } if company_ids else {}
+    try:
+        from app.services.individual_specialist import (
+            ensure_individual_workplace_assignment,
+            is_individual_specialist,
+        )
+
+        if is_individual_specialist(db, user) and companies:
+            from app.core.rls import set_rls_bypass
+
+            set_rls_bypass(db, True)
+            try:
+                changed = False
+                for company in companies.values():
+                    if ensure_individual_workplace_assignment(db, user, company) is not None:
+                        changed = True
+                if changed:
+                    db.commit()
+            finally:
+                set_rls_bypass(db, False)
+    except Exception:
+        logger.warning("individual specialist assignment heal failed", exc_info=True)
 
     alerts: list[dict[str, Any]] = []
     done: list[dict[str, Any]] = []

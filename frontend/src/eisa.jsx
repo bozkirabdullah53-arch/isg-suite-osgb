@@ -2038,3 +2038,127 @@ export function OsgbApplyPage({ onBack }) {
     </main>
   );
 }
+
+export function SpecialistRegisterPage({ onBack, onRegistered }) {
+  const [form, setForm] = useState({
+    full_name: '',
+    email: '',
+    phone: '',
+    certificate_class: 'C',
+    certificate_number: '',
+    password: '',
+    password_confirm: '',
+    contract_accepted: false,
+    personal_data_accepted: false,
+  });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState('');
+  const [legalDoc, setLegalDoc] = useState(null);
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr('');
+    setOk('');
+    if (!form.contract_accepted || !form.personal_data_accepted) {
+      setErr('Sözleşme ve kişisel verilerin korunması onayı zorunludur.');
+      return;
+    }
+    if (form.password !== form.password_confirm) {
+      setErr('Şifreler aynı değil.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await api('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(form),
+      });
+      if (r?.access_token) {
+        onRegistered?.(r);
+        return;
+      }
+      setOk('Başvurunuz alındı. EİSA Global onayından sonra giriş yapabilirsiniz.');
+    } catch (ex) {
+      setErr(ex.message || 'Kayıt gönderilemedi.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="login-shell login-shell--form login-shell--apply">
+      <div className="login-wrap login-wrap--form login-wrap--apply">
+        <div className="login-brand login-brand--apply">
+          <img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo" />
+        </div>
+        <section className="login-card login-card--apply">
+          <h1>İş Güvenliği Uzmanı Bireysel Başvuru</h1>
+          <p>
+            Yalnız iş güvenliği uzmanı fonksiyonları açılır. Çalışma alanınız kilitlidir:
+            başka OSGB veya işyerinin verisini göremezsiniz; başkası da sizin sayfanıza giremez.
+          </p>
+          {ok ? (
+            <div>
+              <p className="success">{ok}</p>
+              <div className="form-actions apply-form-actions">
+                <button type="button" className="secondary" onClick={onBack}>Girişe dön</button>
+              </div>
+            </div>
+          ) : (
+            <form className="form-grid apply-form" onSubmit={submit}>
+              <label className="field"><span>Ad soyad *</span>
+                <input required minLength={2} value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+              </label>
+              <label className="field"><span>E-posta *</span>
+                <input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              </label>
+              <label className="field"><span>Telefon</span>
+                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              </label>
+              <label className="field"><span>Sertifika sınıfı *</span>
+                <select value={form.certificate_class} onChange={(e) => setForm({ ...form, certificate_class: e.target.value })}>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                </select>
+              </label>
+              <label className="field apply-span-2"><span>Sertifika no *</span>
+                <input required minLength={3} value={form.certificate_number} onChange={(e) => setForm({ ...form, certificate_number: e.target.value })} />
+              </label>
+              <label className="field"><span>Şifre *</span>
+                <input type="password" required minLength={10} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+              </label>
+              <label className="field"><span>Şifre tekrar *</span>
+                <input type="password" required minLength={10} value={form.password_confirm} onChange={(e) => setForm({ ...form, password_confirm: e.target.value })} />
+              </label>
+              <div className="apply-legal">
+                <p>Metinleri okuyup onaylayın (Rev: {LEGAL_DOCS_VERSION})</p>
+                <label className="apply-check">
+                  <input type="checkbox" checked={form.contract_accepted} onChange={(e) => setForm({ ...form, contract_accepted: e.target.checked })} />
+                  <span>
+                    <button type="button" className="linkish" onClick={() => setLegalDoc(SERVICE_AGREEMENT)}>Sözleşmeyi</button>
+                    {' '}kabul ediyorum
+                  </span>
+                </label>
+                <label className="apply-check">
+                  <input type="checkbox" checked={form.personal_data_accepted} onChange={(e) => setForm({ ...form, personal_data_accepted: e.target.checked })} />
+                  <span>
+                    <button type="button" className="linkish" onClick={() => setLegalDoc(PRIVACY_NOTICE)}>KVKK</button>
+                    {' '}metnini kabul ediyorum
+                  </span>
+                </label>
+              </div>
+              {err && <div className="error" style={{gridColumn: '1 / -1'}}>{err}</div>}
+              <div className="form-actions apply-form-actions">
+                <button type="button" className="secondary" onClick={onBack}>Geri</button>
+                <button type="submit" disabled={busy}>{busy ? 'Gönderiliyor…' : 'Başvuruyu Gönder'}</button>
+              </div>
+            </form>
+          )}
+        </section>
+      </div>
+      {legalDoc && <LegalDocModal doc={legalDoc} onClose={() => setLegalDoc(null)} />}
+    </main>
+  );
+}

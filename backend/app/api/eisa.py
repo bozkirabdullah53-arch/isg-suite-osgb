@@ -440,7 +440,7 @@ def list_osgb_users(
     db: Session = Depends(get_db),
     _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
 ):
-    stmt = select(OsgbOrganization).order_by(OsgbOrganization.name)
+    stmt = select(OsgbOrganization).where(OsgbOrganization.is_individual.is_(False)).order_by(OsgbOrganization.name)
     if active is True:
         stmt = stmt.where(OsgbOrganization.is_active.is_(True), OsgbOrganization.archived_at.is_(None))
     elif active is False:

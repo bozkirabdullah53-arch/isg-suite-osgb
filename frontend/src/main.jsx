@@ -75,6 +75,7 @@ import {
   EisaSystemSettingsPage,
   EisaErrorReportsPage,
   OsgbApplyPage,
+  SpecialistRegisterPage,
 } from './eisa';
 import './styles.css';
 import './theme-modern.css';
@@ -165,6 +166,11 @@ function modulesForUser(user){
   }
   if(user?.role==='read_only' && EMPLOYEE_SELF_SERVICE_ENABLED){
     return ['employee_self_service','employee_training','security'];
+  }
+  if(user?.is_individual && user?.role==='safety_specialist'){
+    const hide=new Set(['customer_portal']);
+    const base=(roleModules.safety_specialist||[]).filter((k)=>!hide.has(k));
+    return ['companies', ...base];
   }
   return roleModules[user?.role]||[];
 }
@@ -282,7 +288,7 @@ function EisaQuestionBankPage({user}){
   );
 }
 
-function Login({done,onApply}){
+function Login({done,onApply,onSpecialistApply}){
   const resetFromUrl=useMemo(()=>{
     try{return new URLSearchParams(window.location.search).get('sifre-sifirla')}catch{return null}
   },[]);
@@ -570,7 +576,14 @@ function Login({done,onApply}){
             </div>
           )}
           {mode==='login'&&(
-            <p style={{marginTop:10,marginBottom:0,fontSize:12,color:'#64748b'}}>OSGB merkezi misiniz? <button type="button" className="linkish" onClick={onApply}>Başvuru formu</button></p>
+            <div style={{marginTop:14,display:'grid',gap:8}}>
+              <button type="button" className="secondary" onClick={onSpecialistApply} style={{width:'100%',justifyContent:'center'}}>
+                İş Güvenliği Uzmanı Bireysel Başvuru
+              </button>
+              <p style={{margin:0,fontSize:12,color:'#64748b',textAlign:'center'}}>
+                OSGB merkezi misiniz? <button type="button" className="linkish" onClick={onApply}>OSGB başvurusu</button>
+              </p>
+            </div>
           )}
           {mode==='login'&&(
             <div className="login-brand login-brand--card"><img src="/eisa-logo-horizontal.png" alt="EİSA PROGRAMLAMA" className="login-eisa-logo"/></div>
@@ -697,7 +710,7 @@ function SiteQrKioskPage({user,onLogout}){
   );
 }
 
-function Companies({canEdit, canAdd, onOpen360}){
+function Companies({canEdit, canAdd, isIndividual, onOpen360}){
   const[data,setData]=useState([]);
   const[open,setOpen]=useState(false);
   const[editing,setEditing]=useState(null);
@@ -828,7 +841,7 @@ function Companies({canEdit, canAdd, onOpen360}){
           {r.is_active
             ? <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'deactivate')}>Pasife Al</button>
             : <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'activate')}>Aktifleştir</button>}
-          <button type="button" className="mini secondary" disabled={busy} onClick={()=>resetKioskLogin(r)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>
+          {!isIndividual&&<button type="button" className="mini secondary" disabled={busy} onClick={()=>resetKioskLogin(r)} title="Kiosk giriş şifresini yenile">Kiosk şifresi</button>}
           <button type="button" className="mini" disabled={busy} onClick={()=>act(r,'delete')}>Sil</button>
         </div>
       )}]:[]),
@@ -844,7 +857,7 @@ function Companies({canEdit, canAdd, onOpen360}){
           <Eye size={14} style={{verticalAlign:'middle',marginRight:4}}/>360
         </button>
       )}]:[]),
-      ...(canEdit?[{key:'qr',label:'Saha QR',render:r=>(
+      ...((canEdit&&!isIndividual)?[{key:'qr',label:'Saha QR',render:r=>(
         <button type="button" className="mini secondary" disabled={busy||siteQrBusy} onClick={()=>openSiteQr(r)} title="İşyeri QR kodu">
           <QrCode size={14} style={{verticalAlign:'middle',marginRight:4}}/>QR
         </button>
@@ -1953,7 +1966,45 @@ function App(){
   const[c360Id,setC360Id]=useState(null);
   const[mobileMoreOpen,setMobileMoreOpen]=useState(false);
   const navRef=useRef(null);
-  const[applyMode,setApplyMode]=useState(false);
+  const[applyMode,setApplyMode]=useState(()=>{
+    try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')==='osgb'}catch{return false}
+  });
+  const[specialistApplyMode,setSpecialistApplyMode]=useState(()=>{
+    try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')==='specialist'}catch{return false}
+  });
+
+  function publicApplyHash(){
+    try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')||''}catch{return ''}
+  }
+  function writePublicApply(kind,{replace=false}={}){
+    try{
+      const u=new URL(window.location.href);
+      if(kind) u.hash='apply='+kind;
+      else u.hash='';
+      const url=u.pathname+(u.search||'')+(u.hash||'');
+      if(replace) window.history.replaceState({isg_public:kind||''},'',url);
+      else window.history.pushState({isg_public:kind||''},'',url);
+    }catch(_){ /* ignore */ }
+  }
+  function openOsgbApply(){
+    setSpecialistApplyMode(false);
+    setApplyMode(true);
+    writePublicApply('osgb');
+  }
+  function openSpecialistApply(){
+    setApplyMode(false);
+    setSpecialistApplyMode(true);
+    writePublicApply('specialist');
+  }
+  function closePublicApply(){
+    setApplyMode(false);
+    setSpecialistApplyMode(false);
+    if(publicApplyHash()){
+      window.history.back();
+      return;
+    }
+    writePublicApply('',{replace:true});
+  }
   const verifyCode=useMemo(()=>{
     try{return new URLSearchParams(window.location.search).get('egitim-dogrula')}
     catch{return null}
@@ -2160,6 +2211,21 @@ function App(){
     return ()=>window.removeEventListener('popstate',onPop);
   },[user]);
 
+  useEffect(()=>{
+    if(logged) return;
+    function onPublicPop(){
+      const kind=publicApplyHash();
+      setApplyMode(kind==='osgb');
+      setSpecialistApplyMode(kind==='specialist');
+    }
+    window.addEventListener('popstate',onPublicPop);
+    window.addEventListener('hashchange',onPublicPop);
+    return ()=>{
+      window.removeEventListener('popstate',onPublicPop);
+      window.removeEventListener('hashchange',onPublicPop);
+    };
+  },[logged]);
+
   // Aktif menü (ör. Eğitimler) her zaman görünür olsun
   useEffect(()=>{
     if(!active || !navRef.current) return;
@@ -2179,10 +2245,23 @@ function App(){
       />
     );
   }
-  if(applyMode) return <OsgbApplyPage onBack={()=>setApplyMode(false)}/>;
+  if(applyMode) return <OsgbApplyPage onBack={closePublicApply}/>;
+  if(specialistApplyMode) return (
+    <SpecialistRegisterPage
+      onBack={closePublicApply}
+      onRegistered={(body)=>{
+        if(body?.access_token){
+          setAccessToken(body.access_token);
+          setRefreshCookieMode(!!body.refresh_cookie);
+        }
+        closePublicApply();
+        setLogged(true);
+      }}
+    />
+  );
   if(!logged) return (
     <>
-      <Login done={()=>setLogged(true)} onApply={()=>setApplyMode(true)}/>
+      <Login done={()=>setLogged(true)} onApply={openOsgbApply} onSpecialistApply={openSpecialistApply}/>
       <ThemeToggle theme={uiTheme} onToggle={toggleUiTheme} floating/>
     </>
   );
@@ -2234,7 +2313,7 @@ function App(){
     contracts:<ContractsPage user={user}/>,
     finance:<FinancePage user={user}/>,
     dashboard:<Dashboard summary={summary} user={user} onNavigate={goModule}/>,
-    companies:<Companies canEdit={user.role==='global_admin'||user.role==='company_admin'} canAdd={user.role==='global_admin'||(user.role==='company_admin'&&!user.company_id)} onOpen360={user.role==='company_admin'?openCustomer360:undefined}/>,
+    companies:<Companies canEdit={user.role==='global_admin'||user.role==='company_admin'||Boolean(user.is_individual)} canAdd={user.role==='global_admin'||(user.role==='company_admin'&&!user.company_id)||Boolean(user.is_individual)} isIndividual={Boolean(user.is_individual)} onOpen360={user.role==='company_admin'?openCustomer360:undefined}/>,
     branches:<Branches user={user}/>,
     employees:<Employees user={user}/>,
     risk:<RiskPage user={user}/>,

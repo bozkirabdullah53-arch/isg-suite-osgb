@@ -92,10 +92,10 @@ def register(
     response: Response,
     db: Session = Depends(get_db),
 ):
-    """Mobil uygulamadan bireysel İSG uzmanı hesabı oluşturur.
+    """Bireysel İSG uzmanı kaydı.
 
-    Hayalet OSGB / deneme aboneliği ÜRETİLMEZ. Uzman, OSGB görevlendirmesi
-    gelene kadar işyerisiz oturum açabilir (ensure_login_scope uzman istisnası).
+    Kendi kilitli çalışma alanı açılır (is_individual). Gerçek OSGB paneline
+    düşmez. Yalnız uzman fonksiyonları; başka tenant verisine erişemez.
     """
     email = str(payload.email).strip().lower()
     try:
@@ -128,12 +128,22 @@ def register(
     if existing:
         raise HTTPException(409, "Bu e-posta zaten kayıtlı. Giriş yapın veya şifremi unuttum seçeneğini kullanın.")
 
+    from app.services.individual_specialist import provision_individual_workspace
+
+    workspace, _professional, _subscription = provision_individual_workspace(
+        db,
+        full_name=full_name,
+        email=email,
+        phone=payload.phone,
+        certificate_class=payload.certificate_class,
+        certificate_number=certificate_number,
+    )
     user = User(
         email=email,
         full_name=full_name,
         hashed_password=get_password_hash(payload.password),
         role=UserRole.SAFETY_SPECIALIST,
-        osgb_id=None,
+        osgb_id=workspace.id,
         company_id=None,
         is_active=True,
     )
@@ -145,7 +155,7 @@ def register(
         action="self_register",
         entity_type="user",
         entity_id=str(user.id),
-        description="Uzman kaydı — OSGB üretilmedi; OSGB görevlendirmesi bekleniyor.",
+        description="Bireysel uzman çalışma alanı açıldı; gerçek OSGB listesine karışmaz.",
         ip_address=ip,
         module="auth",
     )
@@ -603,6 +613,14 @@ def me(
             logger.exception("auth/me subscription lookup failed user_id=%s", getattr(user, "id", None))
             sub_status = None
             write_ok = True
+    individual = False
+    if user.osgb_id:
+        try:
+            from app.services.individual_specialist import is_individual_specialist
+
+            individual = is_individual_specialist(db, user)
+        except Exception:
+            individual = False
     return CurrentUserResponse(
         id=user.id,
         email=user.email,
@@ -611,6 +629,7 @@ def me(
         role=user.role.value,
         company_id=user.company_id,
         osgb_id=user.osgb_id,
+        is_individual=individual,
         is_eisa=is_eisa,
         subscription_write_allowed=write_ok,
         subscription_status=sub_status,

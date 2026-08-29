@@ -245,6 +245,13 @@ def assigned_company_ids(db: Session, user: User) -> list[int]:
         return _merge_membership_companies(db, user, base)
 
     if user.role in _OSGB_FIELD_ROLES:
+        from app.models.entities import OsgbOrganization
+
+        org = db.get(OsgbOrganization, user.osgb_id) if user.osgb_id else None
+        if org is not None and getattr(org, "is_individual", False):
+            return list(
+                db.scalars(select(Company.id).where(Company.osgb_id == org.id, Company.is_active.is_(True))).all()
+            )
         pro = find_professional_for_user(db, user)
         if pro:
             today = date.today()
