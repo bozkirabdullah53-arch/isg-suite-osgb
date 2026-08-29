@@ -28,6 +28,7 @@ LOGIN_WINDOW_ATTEMPTS = 10
 LOGIN_WINDOW_MINUTES = 10
 RESET_TOKEN_HOURS = 2
 MFA_REQUIRED_ROLES = frozenset({UserRole.GLOBAL_ADMIN, UserRole.COMPANY_ADMIN})
+MFA_SETUP_GRACE_DAYS = 7
 
 # in-memory throttle: key -> list[datetime]
 _login_hits: dict[str, list[datetime]] = {}
@@ -88,6 +89,30 @@ def role_requires_mfa(role: UserRole | str) -> bool:
         except ValueError:
             return False
     return role in MFA_REQUIRED_ROLES
+
+
+def mfa_setup_grace_active(user: User) -> bool:
+    """OSGB COMPANY_ADMIN: MFA kurulumu 7 gün ertelenebilir. Açık MFA / EİSA dokunulmaz."""
+    if getattr(user, "mfa_enabled", False):
+        return False
+    role = user.role
+    if isinstance(role, str):
+        try:
+            role = UserRole(role)
+        except ValueError:
+            return False
+    if role != UserRole.COMPANY_ADMIN:
+        return False
+    if getattr(user, "company_id", None) is not None:
+        return False
+    created = getattr(user, "created_at", None)
+    if created is None:
+        return True
+    now = _utcnow()
+    try:
+        return created >= now - timedelta(days=MFA_SETUP_GRACE_DAYS)
+    except TypeError:
+        return True
 
 
 def throttle_login(email: str, ip: str | None) -> None:

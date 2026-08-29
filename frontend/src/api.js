@@ -12,14 +12,25 @@ const isLocalHost =
   typeof window !== "undefined" &&
   (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
-/** Canlıda same-origin /api/v1 (Render rewrite → API). Cross-origin CORS kırılmalarını önler. */
-export const API_URL =
-  import.meta.env.VITE_API_URL ||
-  (isLocalHost
-    ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
-    : typeof window !== "undefined"
-      ? `${window.location.origin}/api/v1`
-      : "/api/v1");
+function resolveApiUrl() {
+  const envUrl = String(import.meta.env.VITE_API_URL || "").trim();
+  if (typeof window === "undefined") return envUrl || "/api/v1";
+  if (isLocalHost) {
+    return envUrl || `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
+  }
+  const sameOrigin = `${window.location.origin}/api/v1`;
+  if (!envUrl) return sameOrigin;
+  try {
+    const resolved = new URL(envUrl, window.location.origin);
+    if (resolved.origin === window.location.origin) return envUrl.replace(/\/$/, "") || sameOrigin;
+  } catch {
+    /* ignore */
+  }
+  return sameOrigin;
+}
+
+/** Canlıda same-origin /api/v1. Cross-origin VITE_API_URL (isgsuite.com.tr vb.) yok sayılır. */
+export const API_URL = resolveApiUrl();
 
 const API_ROOT = API_URL.replace(/\/api\/v1\/?$/, "") || (typeof window !== "undefined" ? window.location.origin : "");
 
@@ -194,7 +205,11 @@ const FIELD_LABELS_TR = {
   witness_names: 'Şahit isimleri',
   probability: 'Olasılık',
   severity: 'Şiddet',
-  start_date: 'Başlangıç tarihi',
+  start_date: 'İşe giriş / başlangıç tarihi',
+  hire_date: 'İşe giriş tarihi',
+  hazard_id: 'Tehlike',
+  risk_definition: 'Risk tanımı',
+  activity: 'Faaliyet',
   end_date: 'Bitiş tarihi',
   valid_from: 'Geçerlilik başlangıcı',
   valid_until: 'Geçerlilik bitişi',

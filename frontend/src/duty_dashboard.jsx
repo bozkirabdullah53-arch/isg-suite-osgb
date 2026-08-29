@@ -90,7 +90,12 @@ function AlertCard({a, onGo}) {
       </div>
       <div style={{fontSize: 13, color: '#334155'}}>{a.detail}</div>
       {a.legal && <div style={{fontSize: 12, color: '#64748b'}}>{a.legal}</div>}
-      {a.severity !== 'done' && a.module && (
+      {a.severity !== 'done' && a.module === 'assignments' && (
+        <div style={{fontSize: 12, color: '#64748b'}}>
+          OSGB yöneticiniz Görevlendirmeler’den işyeri atamalı. Saha menüsünde bu ekran yoktur.
+        </div>
+      )}
+      {a.severity !== 'done' && a.module && a.module !== 'assignments' && (
         <div>
           <button type="button" className="mini" onClick={() => onGo?.(a.module)}>
             İşleme git → {a.module_label || a.module}

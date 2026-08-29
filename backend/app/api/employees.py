@@ -94,7 +94,7 @@ def create_employee(
 ):
     check_company(db, user, payload.company_id)
     validate_branch(db, payload.company_id, payload.branch_id)
-    values = payload.model_dump()
+    values = payload.model_dump(exclude={"hire_date"})
     values["national_id_masked"] = normalize_national_id(values.get("national_id_masked")) or None
     obj = Employee(**values)
     db.add(obj)
@@ -120,7 +120,7 @@ def update_employee(
         raise HTTPException(404, "Personel bulunamadı.")
     check_company(db, user, obj.company_id)
     validate_branch(db, obj.company_id, payload.branch_id)
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    for k, v in payload.model_dump(exclude_unset=True, exclude={"hire_date"}).items():
         if k == "national_id_masked":
             v = normalize_national_id(v) or None
         setattr(obj, k, v)

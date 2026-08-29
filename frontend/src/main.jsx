@@ -15,7 +15,7 @@ import {createRoot} from 'react-dom/client';
 })();
 
 import {AlertTriangle,ArrowLeft,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,Pencil,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
-import {api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
+import {API_URL, api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
 import {clearAccessToken, clearMfaSetupToken, getAccessToken, getMfaSetupToken, setAccessToken, setMfaSetupToken} from './auth_session';
 import {clearOfflineQueue} from './field_offline';
 import {clearFieldInspectionCache} from './field_inspection_offline';
@@ -528,6 +528,25 @@ function Login({done,onApply}){
               <p style={{fontSize:12,color:'#64748b',margin:'6px 0 0'}}>Gizli anahtarı buraya yapıştırmayın — yalnızca uygulamanın ürettiği kısa kod.</p>
               {err&&<div className="error">{err}</div>}
               <button disabled={busy||!setupInfo}>MFA etkinleştir</button>
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy}
+                style={{marginTop:8,width:'100%',justifyContent:'center'}}
+                onClick={async()=>{
+                  setErr('');setBusy(true);
+                  try{
+                    const tok=mfaToken||localStorage.getItem('isg_mfa_setup_token');
+                    const body=await apiWithBearer(tok,'/auth/mfa/skip-setup',{method:'POST'});
+                    if(!body.access_token){setErr('Erteleme şu an kullanılamıyor. MFA kurulumunu tamamlayın.');return}
+                    localStorage.setItem('isg_token',body.access_token);
+                    setRefreshCookieMode(!!body.refresh_cookie);
+                    done();
+                  }catch(x){setErr(x.message||'MFA erteleme kullanılamıyor.')}
+                  finally{setBusy(false)}
+                }}
+              >Daha sonra (7 gün)</button>
+              <p style={{marginTop:8,fontSize:12,color:'#64748b'}}>OSGB yöneticileri ilk 7 gün MFA’sız girebilir. Süre dolunca Authenticator zorunlu olur. Açık MFA hesapları etkilenmez.</p>
             </form>
           )}
           {mode==='recovery'&&(
@@ -1024,6 +1043,8 @@ function Employees({user}){
     setBranches(b||[]);
     if(user.company_id){
       setSelectedCompanyId(String(user.company_id));
+    }else if(!selectedCompanyId && Array.isArray(c) && c.length===1){
+      setSelectedCompanyId(String(c[0].id));
     }
   }
 
@@ -1187,10 +1208,9 @@ function Employees({user}){
       const fd=new FormData();
       fd.append('file',f);
       const token=getAccessToken();
-      const base=import.meta.env.VITE_API_URL||'http://localhost:8000/api/v1';
       const query=new URLSearchParams({company_id:String(selectedCompanyId)});
       if(selectedBranchId) query.set('branch_id',String(selectedBranchId));
-      const r=await fetch(`${base}/employees/import-excel?${query.toString()}`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd});
+      const r=await fetch(`${API_URL}/employees/import-excel?${query.toString()}`,{method:'POST',headers:{Authorization:`Bearer ${token}`},body:fd});
       const out=await r.json().catch(()=>({}));
       if(!r.ok){
         alert(typeof out.detail==='string'?out.detail:(out.detail||'Yükleme başarısız. Şablonu indirip tekrar deneyin.'));

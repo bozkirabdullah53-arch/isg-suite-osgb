@@ -924,6 +924,14 @@ export function RiskPage({user}) {
       setErr('Tehlike kütüphanesinden bir tehlike seçmelisiniz.');
       return;
     }
+    if (!(form.activity || '').trim()) {
+      setErr('Faaliyet alanı zorunludur.');
+      return;
+    }
+    if (!(form.risk_definition || '').trim()) {
+      setErr('Risk tanımı zorunludur.');
+      return;
+    }
     const riskMethod = form.method_code || docForm.method || '5x5_l';
     const hazopData = {...EMPTY_HAZOP_DATA, ...(form.hazop_data || {})};
     const hazopRequired = ['node', 'design_intent', 'parameter', 'guide_word', 'deviation', 'causes', 'consequences', 'safeguards', 'priority'];
@@ -2210,7 +2218,7 @@ export function RiskPage({user}) {
       {(tab === 'risks' || tab === 'panel') && (
       <section className="panel" style={detail || tab === 'panel' ? {display: 'none'} : undefined}>
         <div style={{marginBottom: 12, padding: '10px 12px', background: '#eef5fb', borderRadius: 10, fontSize: 14}}>
-          Risk kaydı için <strong>tehlike kategorisi → tehlike</strong> seçimi zorunludur.
+          Yeni kayıtta zorunlu: <strong>tehlike (kütüphane)</strong>, <strong>faaliyet</strong>, <strong>risk tanımı</strong>. Varsayılan yöntem 5×5’tir; Fine-Kinney / HAZOP ayrı seçilir.
           İşyeri bölümlerini listeden seçin veya <strong>yeni bölüm</strong> yazarak kaydedin.
           Raporlar sekmesinde seçtiğiniz yönteme ait riskler + DÖF’ler dışa aktarılır; belge künyesi ayrıca korunur.
           {categories.length === 0 && (

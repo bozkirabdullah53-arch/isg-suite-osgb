@@ -55,6 +55,7 @@ class TokenResponse(BaseModel):
     mfa_required: bool = False
     mfa_setup_required: bool = False
     password_change_required: bool = False
+    mfa_setup_deferred: bool = False
     mfa_token: str | None = None
     refresh_cookie: bool = False
     # P1-01: saniye; refresh cookie açıkken kısa access süresi

@@ -139,11 +139,8 @@ def ensure_login_scope(db: Session, user: User) -> User:
         osgb = _active_osgb(db, user.osgb_id)
         if osgb:
             return user
-        raise HTTPException(
-            403,
-            "Bu uzman hesabı aktif bir OSGB veya işyerine bağlı değil. "
-            "Görevlendirme / kurum bağlantısını düzeltin.",
-        )
+        # Self-register: hayalet OSGB yok; OSGB görevlendirmesi beklenir.
+        return user
 
     if user.role in (UserRole.WORKPLACE_PHYSICIAN, UserRole.OTHER_HEALTH_PERSONNEL):
         professional = _professional_for_user(db, user)

@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Download, FileText, HeartPulse, Plus, Printer, RefreshCw, Search, Upload, X} from 'lucide-react';
-import {api, downloadFile, uploadFile} from './api';
+import {API_URL, api, downloadFile, uploadFile} from './api';
 import {getAccessToken} from './auth_session';
 import {AppModal} from './ui_modal';
 import {canLoadHealthAnalysis} from './health_role_policy';
@@ -515,11 +515,7 @@ export function HealthPage({user}) {
   async function openHtmlDocument(row, kind) {
     try {
       const token = getAccessToken();
-      const base = import.meta.env.VITE_API_URL
-        || ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-          ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
-          : 'https://isg-suite-api-1u9t.onrender.com/api/v1');
-      const r = await fetch(`${base}/health-records/${row.id}/${kind}.html`, {
+      const r = await fetch(`${API_URL}/health-records/${row.id}/${kind}.html`, {
         headers: token ? {Authorization: `Bearer ${token}`} : {},
       });
       if (!r.ok) throw new Error(kind === 'fitness' ? 'Uygunluk belgesi açılamadı.' : 'Klinik dosya açılamadı.');

@@ -13,7 +13,17 @@ class EmployeeCreate(BaseModel):
     job_title: str | None = None
     department: str | None = None
     start_date: date | None = None
+    hire_date: date | None = Field(default=None, exclude=True)
     special_status: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def alias_hire_date(cls, data):
+        if not isinstance(data, dict):
+            return data
+        if data.get("start_date") in (None, "") and data.get("hire_date") not in (None, ""):
+            data = {**data, "start_date": data.get("hire_date")}
+        return data
 
     @model_validator(mode="after")
     def sanitize(self):
@@ -33,8 +43,18 @@ class EmployeeUpdate(BaseModel):
     job_title: str | None = None
     department: str | None = None
     start_date: date | None = None
+    hire_date: date | None = Field(default=None, exclude=True)
     special_status: str | None = None
     is_active: bool | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def alias_hire_date(cls, data):
+        if not isinstance(data, dict):
+            return data
+        if data.get("start_date") in (None, "") and data.get("hire_date") not in (None, ""):
+            data = {**data, "start_date": data.get("hire_date")}
+        return data
 
     @model_validator(mode="after")
     def sanitize(self):

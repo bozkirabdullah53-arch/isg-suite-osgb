@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 import jwt
@@ -9,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 import logging
 
-from app.api.deps import get_current_user, get_mfa_challenge_user, oauth2_scheme
+from app.api.deps import get_current_user, get_mfa_challenge_user, get_mfa_setup_user, oauth2_scheme
 from app.core.auth_cookies import (
     REFRESH_COOKIE_NAME,
     access_token_ttl_minutes,
@@ -20,16 +19,7 @@ from app.core.auth_cookies import (
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.security import ALGORITHM, create_access_token, create_refresh_token, get_password_hash, verify_password
-from app.models.entities import (
-    IsgProfessional,
-    OsgbOrganization,
-    OsgbSubscription,
-    OsgbSubscriptionPlan,
-    ProfessionalType,
-    SubscriptionStatus,
-    User,
-    UserRole,
-)
+from app.models.entities import User, UserRole
 from app.schemas.auth import (
     CurrentUserResponse,
     ForgotPasswordRequest,
@@ -48,6 +38,7 @@ from app.services.auth_security import (
     create_purpose_token,
     get_mfa_secret,
     is_locked,
+    mfa_setup_grace_active,
     register_failed_login,
     register_success_login,
     role_requires_mfa,
@@ -103,10 +94,8 @@ def register(
 ):
     """Mobil uygulamadan bireysel İSG uzmanı hesabı oluşturur.
 
-    Yeni hesap, mevcut tenant kapsam modelini bozmamak için otomatik olarak
-    kişisel bir OSGB çalışma alanına ve deneme aboneliğine bağlanır. Böylece
-    uzman kaydı oluşmadan token verilmez ve mevcut ``ensure_login_scope``
-    güvenlik kontrolü devre dışı bırakılmaz.
+    Hayalet OSGB / deneme aboneliği ÜRETİLMEZ. Uzman, OSGB görevlendirmesi
+    gelene kadar işyerisiz oturum açabilir (ensure_login_scope uzman istisnası).
     """
     email = str(payload.email).strip().lower()
     try:
@@ -139,49 +128,16 @@ def register(
     if existing:
         raise HTTPException(409, "Bu e-posta zaten kayıtlı. Giriş yapın veya şifremi unuttum seçeneğini kullanın.")
 
-    from app.services.eisa_platform import resolved_trial_days
-    from app.services.audit import add_audit_log
-
-    now = datetime.utcnow()
-    trial_days = resolved_trial_days(db)
-    workspace = OsgbOrganization(
-        name=f"{full_name} — Bireysel Uzman Çalışma Alanı"[:220],
-        authorization_number=f"MOBIL-{uuid4().hex[:12].upper()}",
-        email=email,
-        phone=(payload.phone or "").strip() or None,
-        responsible_manager=full_name,
-        is_active=True,
-    )
-    db.add(workspace)
-    db.flush()
-
     user = User(
         email=email,
         full_name=full_name,
         hashed_password=get_password_hash(payload.password),
         role=UserRole.SAFETY_SPECIALIST,
-        osgb_id=workspace.id,
+        osgb_id=None,
+        company_id=None,
         is_active=True,
     )
-    professional = IsgProfessional(
-        osgb_id=workspace.id,
-        full_name=full_name,
-        email=email,
-        phone=(payload.phone or "").strip() or None,
-        professional_type=ProfessionalType.SAFETY_SPECIALIST,
-        certificate_class=payload.certificate_class,
-        certificate_number=certificate_number,
-        is_active=True,
-    )
-    subscription = OsgbSubscription(
-        osgb_id=workspace.id,
-        plan=OsgbSubscriptionPlan.STANDARD,
-        status=SubscriptionStatus.TRIAL,
-        trial_ends_at=now + timedelta(days=trial_days),
-        max_users=1,
-        max_workplaces=50,
-    )
-    db.add_all([user, professional, subscription])
+    db.add(user)
     db.flush()
     add_audit_log(
         db,
@@ -189,7 +145,7 @@ def register(
         action="self_register",
         entity_type="user",
         entity_id=str(user.id),
-        description="Mobil uygulamadan bireysel İSG uzmanı hesabı oluşturuldu; kullanım ve KVKK onayları alındı.",
+        description="Uzman kaydı — OSGB üretilmedi; OSGB görevlendirmesi bekleniyor.",
         ip_address=ip,
         module="auth",
     )
@@ -270,6 +226,12 @@ def login(
         )
 
     if role_requires_mfa(user.role) and not mfa_on:
+        if mfa_setup_grace_active(user):
+            register_success_login(db, user, ip=ip)
+            db.commit()
+            body = _issue_access(user, response)
+            body.mfa_setup_deferred = True
+            return body
         register_success_login(db, user, ip=ip)
         db.commit()
         return TokenResponse(
@@ -282,6 +244,28 @@ def login(
     register_success_login(db, user, ip=ip)
     db.commit()
     return _issue_access(user, response)
+
+
+@router.post("/mfa/skip-setup", response_model=TokenResponse)
+def skip_mfa_setup(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_mfa_setup_user),
+):
+    """OSGB yöneticisi MFA kurulumunu 7 gün erteleyebilir. Açık MFA hesapları etkilenmez."""
+    if getattr(user, "mfa_enabled", False):
+        raise HTTPException(400, "MFA zaten açık.")
+    if not mfa_setup_grace_active(user):
+        raise HTTPException(
+            400,
+            "MFA erteleme süresi doldu. Authenticator kurulumunu tamamlayın.",
+        )
+    register_success_login(db, user, ip=_client_ip(request))
+    db.commit()
+    body = _issue_access(user, response)
+    body.mfa_setup_deferred = True
+    return body
 
 
 @router.post("/mfa/restart-setup", response_model=TokenResponse)

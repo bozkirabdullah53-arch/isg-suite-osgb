@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api, downloadFile } from './api';
+import { api, downloadFile, API_URL } from './api';
 import { Check, RefreshCw, Trash2, X } from 'lucide-react';
 import {
   LEGAL_DOCS_VERSION,
@@ -198,8 +198,8 @@ function AdminCredentialsModal({ data, onClose }) {
         <div className="form-grid single">
           <p style={{ marginTop: 0, color: '#64748b' }}>
             {data.temporary_password
-              ? 'Bu geçici şifreyi OSGB yöneticisine güvenli kanaldan iletin. İlk girişten sonra şifresini değiştirmesini isteyin.'
-              : 'Hesap mevcut; şifre değiştirilmedi. Yönetici kendi şifresi veya giriş ekranındaki «Şifremi unuttum» ile devam eder.'}
+              ? 'Bu geçici şifreyi OSGB yöneticisine güvenli kanaldan iletin. İlk 7 gün MFA kurulumu ertelenebilir (girişte «Daha sonra»); sonra Authenticator zorunludur.'
+              : 'Hesap mevcut; şifre değiştirilmedi. Yönetici kendi şifresi veya giriş ekranındaki «Şifremi unuttum» ile devam eder. MFA açıksa Authenticator kodu gerekir.'}
           </p>
           <p><strong>OSGB:</strong> {data.osgb_name}</p>
           <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -219,7 +219,7 @@ function AdminCredentialsModal({ data, onClose }) {
               </p>
               <div className="actions" style={{ gap: 8, flexWrap: 'wrap' }}>
                 <button type="button" className="secondary" onClick={async () => {
-                  const text = `Kullanıcı adı: ${data.email}\nGeçici şifre: ${data.temporary_password}`;
+                  const text = `Kullanıcı adı: ${data.email}\nGeçici şifre: ${data.temporary_password}\n\nİlk 7 gün MFA (Authenticator) ertelenebilir — girişte «Daha sonra». 7 günden sonra zorunlu.`;
                   setCopyMsg((await copyText(text)) ? 'E-posta ve şifre kopyalandı.' : 'Kopyalanamadı.');
                 }}>E-posta + şifreyi kopyala</button>
               </div>
@@ -1896,12 +1896,6 @@ export function EisaSystemSettingsPage() {
   );
 }
 
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
-    : 'https://isg-suite-api-1u9t.onrender.com/api/v1');
-
 export function OsgbApplyPage({ onBack }) {
   const [form, setForm] = useState({
     name: '', authorization_number: '', tax_number: '', responsible_manager: '',
@@ -2015,8 +2009,8 @@ export function OsgbApplyPage({ onBack }) {
                   onChange={(e) => setForm({ ...form, contract_accepted: e.target.checked })}
                 />
                 <span>
-                  <button type="button" className="linkish" onClick={() => setLegalDoc(SERVICE_AGREEMENT)}>Sözleşme</button>
-                  ’ni kabul ediyorum
+                  <button type="button" className="linkish" onClick={() => setLegalDoc(SERVICE_AGREEMENT)}>Sözleşmeyi</button>
+                  {' '}kabul ediyorum
                 </span>
               </label>
               <label className="apply-check">

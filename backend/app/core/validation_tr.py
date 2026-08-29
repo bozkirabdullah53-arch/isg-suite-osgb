@@ -57,7 +57,10 @@ FIELD_LABELS: dict[str, str] = {
     "visit_date": "Ziyaret tarihi",
     "subject": "Konu",
     "notes": "Notlar",
-    "start_date": "Başlangıç tarihi",
+    "start_date": "İşe giriş / başlangıç tarihi",
+    "hire_date": "İşe giriş tarihi",
+    "hazard_id": "Tehlike",
+    "risk_definition": "Risk tanımı",
     "end_date": "Bitiş tarihi",
     "valid_from": "Geçerlilik başlangıcı",
     "valid_until": "Geçerlilik bitişi",
@@ -152,4 +155,8 @@ def register_turkish_validation(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def _tr_validation_handler(_: Request, exc: RequestValidationError):
         detail = format_validation_errors(list(exc.errors()))
-        return JSONResponse(status_code=422, content={"detail": detail})
+        return JSONResponse(
+            status_code=422,
+            content={"detail": detail},
+            media_type="application/json; charset=utf-8",
+        )

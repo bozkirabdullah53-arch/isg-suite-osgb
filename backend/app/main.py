@@ -79,6 +79,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
         })
+        ct = response.headers.get('content-type') or ''
+        if ct.startswith('application/json') and 'charset=' not in ct.lower():
+            response.headers['content-type'] = 'application/json; charset=utf-8'
         return response
 
 
@@ -172,9 +175,9 @@ app = FastAPI(
     title=settings.app_name,
     version=APP_VERSION,
     lifespan=lifespan,
-    docs_url=None if _is_prod else "/docs",
-    redoc_url=None if _is_prod else "/redoc",
-    openapi_url=None if _is_prod else "/openapi.json",
+    docs_url="/api/v1/docs",
+    redoc_url="/api/v1/redoc",
+    openapi_url="/api/v1/openapi.json",
 )
 
 from app.core.validation_tr import register_turkish_validation

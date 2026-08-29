@@ -167,6 +167,33 @@ def test_specialist_login_ok(client):
     assert r.json().get("access_token")
 
 
+def test_specialist_register_does_not_create_osgb(client):
+    r = client.post(
+        "/api/v1/auth/register",
+        json={
+            "full_name": "Ahmet Yilmaz",
+            "email": "yeni.uzman@example.com",
+            "password": "QaTest!2026Idea",
+            "password_confirm": "QaTest!2026Idea",
+            "certificate_class": "C",
+            "certificate_number": "ISG-C-QA-20260829",
+            "contract_accepted": True,
+            "personal_data_accepted": True,
+        },
+    )
+    assert r.status_code in (200, 201), r.text
+    assert r.json().get("access_token")
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {r.json()['access_token']}"})
+    assert me.status_code == 200
+    body = me.json()
+    assert body["role"] == "safety_specialist"
+    assert body["osgb_id"] is None
+    assert body["company_id"] is None
+    orgs = client.get("/api/v1/osgb", headers={"Authorization": f"Bearer {r.json()['access_token']}"})
+    assert orgs.status_code == 200
+    assert orgs.json() == []
+
+
 def test_password_reset_flow(client):
     r = client.post("/api/v1/auth/forgot-password", json={"email": "uzman@example.com"})
     assert r.status_code == 200

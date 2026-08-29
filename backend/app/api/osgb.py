@@ -858,6 +858,10 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
         except HTTPException:
             raise
         try:
+            sync_assignment_required(db, existing)
+        except Exception:
+            logger.warning("assignment reactivate: required minutes sync failed", exc_info=True)
+        try:
             from app.api.company_access import sync_all_assigned_field_roles
             sync_all_assigned_field_roles(db)
         except Exception:
@@ -885,6 +889,10 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db), 
             409,
             "Bu profesyonel bu işyerine aynı görev türüyle zaten atanmış. Mevcut kaydı kontrol edin.",
         ) from None
+    try:
+        sync_assignment_required(db, obj)
+    except Exception:
+        logger.warning("assignment create: required minutes sync failed", exc_info=True)
     try:
         from app.api.company_access import sync_all_assigned_field_roles
         sync_all_assigned_field_roles(db)

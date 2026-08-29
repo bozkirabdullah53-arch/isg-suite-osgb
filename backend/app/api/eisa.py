@@ -342,6 +342,31 @@ def approve(
     )
     db.commit()
     db.refresh(app_row)
+    if admin_account:
+        try:
+            from app.services.email import send_email
+
+            pwd_line = (
+                f"Geçici şifre: {admin_account.temporary_password}\n"
+                if admin_account.temporary_password
+                else "Şifre değiştirilmedi; mevcut şifreniz veya «Şifremi unuttum» ile girin.\n"
+            )
+            send_email(
+                to_email=admin_account.email,
+                subject="İDEA İSG — OSGB hesabınız onaylandı",
+                body=(
+                    f"Merhaba {admin_account.full_name},\n\n"
+                    f"OSGB başvurunuz onaylandı.\n"
+                    f"Giriş: {admin_account.email}\n"
+                    f"{pwd_line}\n"
+                    "İlk 7 gün Authenticator (MFA) kurulumu ertelenebilir; girişte «Daha sonra» "
+                    "ile panele geçebilirsiniz. 7 günden sonra MFA zorunludur. "
+                    "Kurulum: Güvenlik menüsü → MFA.\n\n"
+                    "İDEA İSG"
+                ),
+            )
+        except Exception:
+            logger.warning("OSGB onay e-postası gönderilemedi", exc_info=True)
     return OsgbApplicationApproveResponse(
         application=OsgbApplicationResponse.model_validate(app_row),
         admin_account=admin_account,

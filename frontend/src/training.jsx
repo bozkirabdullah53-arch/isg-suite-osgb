@@ -1,6 +1,6 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Archive, Award, CheckCircle2, ClipboardList, Download, FileSpreadsheet, Search, ShieldCheck, Upload, Users} from 'lucide-react';
-import {api, downloadFile, uploadFile} from './api';
+import {API_URL, api, downloadFile, uploadFile} from './api';
 import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
 import {canEditTrainingForm, canManageTrainingPackage, canOperateTraining} from './training_role_policy';
 import './training_pro.css';
@@ -107,15 +107,7 @@ function calendarDaysInclusive(start, end) {
 }
 
 function apiBaseUrl() {
-  const host =
-    typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  return (
-    import.meta.env.VITE_API_URL ||
-    (host
-      ? `${window.location.protocol}//${window.location.hostname}:8000/api/v1`
-      : 'https://isg-suite-api-1u9t.onrender.com/api/v1')
-  );
+  return API_URL;
 }
 
 let _sectorsMem = null;
