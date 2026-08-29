@@ -229,6 +229,21 @@ export function EmergencyTeamsPage({user}) {
     }
   }
 
+  async function removeTeam(team) {
+    if (!window.confirm(`“${team.name}” ekibi kaldırılsın mı? Üyeler de pasife alınır. Silinenleri Geri Al ile geri getirilebilir.`)) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await api(`/emergency-teams/teams/${team.id}`, {method: 'DELETE'});
+      setMsg('Ekip kaldırıldı. Silinenleri Geri Al ile geri alınabilir.');
+      await loadData();
+    } catch (ex) {
+      setErr(ex.message || 'Ekip silinemedi.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function restoreInactive() {
     if (!companyId) return;
     if (!window.confirm('Bu işyerinde pasife alınan ekipler ve üyeler geri alınsın mı?')) return;
@@ -520,6 +535,9 @@ export function EmergencyTeamsPage({user}) {
                 <div className="actions" style={{marginTop: 10}}>
                   <button type="button" className="secondary mini" onClick={() => openMemberModal(t.id)}>
                     <UserPlus size={13} /> Üye
+                  </button>
+                  <button type="button" className="secondary mini" onClick={() => removeTeam(t)}>
+                    <Trash2 size={13} /> Sil
                   </button>
                 </div>
               )}
