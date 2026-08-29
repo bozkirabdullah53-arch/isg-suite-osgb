@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from uuid import uuid4
 
 from fastapi import HTTPException
-from sqlalchemy import event, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -35,22 +35,6 @@ def is_individual_specialist(db: Session, user: User | None) -> bool:
     return is_individual_org(db.get(OsgbOrganization, user.osgb_id))
 
 
-@event.listens_for(User, "before_insert", propagate=True)
-def require_global_approval_for_individual_specialist(_mapper, connection, target: User) -> None:
-    """Yeni bireysel uzman hesabını Global onayına kadar pasif oluştur.
-
-    Yalnız ``is_individual`` çalışma alanına bağlı İSG uzmanlarını etkiler;
-    normal OSGB kullanıcılarının mevcut oluşturma akışına dokunmaz.
-    """
-    if target.role != UserRole.SAFETY_SPECIALIST or not target.osgb_id:
-        return
-    is_individual = connection.execute(
-        select(OsgbOrganization.is_individual).where(OsgbOrganization.id == target.osgb_id)
-    ).scalar_one_or_none()
-    if bool(is_individual):
-        target.is_active = False
-
-
 def provision_individual_workspace(
     db: Session,
     *,
@@ -60,7 +44,7 @@ def provision_individual_workspace(
     certificate_class: str | None,
     certificate_number: str,
 ) -> tuple[OsgbOrganization, IsgProfessional, OsgbSubscription]:
-    """Create an isolated workspace without relying on a person's name for uniqueness."""
+    """Create an active isolated workspace; individual specialists are auto-approved."""
     now = datetime.utcnow()
     trial_days = resolved_trial_days(db)
     workspace_token = uuid4().hex[:12].upper()
