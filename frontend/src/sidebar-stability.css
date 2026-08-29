@@ -1,0 +1,63 @@
+/* Sidebar stability hotfix — desktop/tablet.
+   Amaç: menüde mouse hover sırasında yatay hareket ve scrollbar kaynaklı görsel kaymayı önlemek.
+   Mobil alt navigasyon davranışına dokunmaz. */
+
+@media (min-width: 901px) {
+  .app-shell {
+    grid-template-columns: 250px minmax(0, 1fr);
+  }
+
+  .app-shell > aside {
+    width: 250px;
+    min-width: 250px;
+    max-width: 250px;
+    overflow: hidden;
+  }
+
+  .workspace {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .nav-desktop {
+    scrollbar-gutter: stable;
+  }
+
+  html[data-ui-theme="modern"] nav button,
+  html[data-ui-theme="modern"] .logout {
+    transition: background .16s ease, color .16s ease;
+  }
+
+  html[data-ui-theme="modern"] nav button:hover,
+  html[data-ui-theme="modern"] nav button.active {
+    transform: none !important;
+  }
+}
+
+/* 621–900 px aralığında mevcut 80 px kompakt menü genişliğini sabit tut. */
+@media (min-width: 621px) and (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 80px minmax(0, 1fr);
+  }
+
+  .app-shell > aside {
+    width: 80px;
+    min-width: 80px;
+    max-width: 80px;
+    overflow: hidden;
+  }
+
+  .workspace {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .nav-desktop {
+    scrollbar-gutter: stable;
+  }
+
+  html[data-ui-theme="modern"] nav button:hover,
+  html[data-ui-theme="modern"] nav button.active {
+    transform: none !important;
+  }
+}
