@@ -1,9 +1,9 @@
-"""Bireysel İSG uzmanı başvurularını İDEA Global onay kuyruğuna bağlar.
+"""Bireysel İSG uzmanlarını EİSA Global görünümüne bağlar.
 
 Mevcut OSGB başvuru API'sini değiştirmeden aynı Global ekranda bireysel uzman
-başvurularını sentetik başvuru satırı olarak gösterir. Negatif başvuru kimliği
-(``-user.id``) yalnız API/UI ayrımı içindir; gerçek veritabanı kimlikleri
-değiştirilmez.
+kayıtlarını sentetik başvuru satırı olarak gösterir. Yeni bireysel uzman kayıtları
+otomatik onaylanır; negatif başvuru kimliği (``-user.id``) yalnız API/UI ayrımı
+içindir, gerçek veritabanı kimlikleri değiştirilmez.
 """
 from __future__ import annotations
 
@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 from app.api import auth as legacy_auth
 from app.api import eisa as legacy_eisa
 from app.api.deps import require_roles
-from app.core.auth_cookies import clear_refresh_cookie
 from app.core.database import get_db
 from app.models.entities import (
     IsgProfessional,
@@ -125,17 +124,8 @@ def register_pending_specialist(
     response: Response,
     db: Session = Depends(get_db),
 ):
-    """Bireysel uzman kaydını oluşturur fakat Global onayından önce token vermez."""
-    body = legacy_auth.register(payload=payload, request=request, response=response, db=db)
-    email = str(payload.email).strip().lower()
-    user = db.scalar(select(User).where(User.email == email).limit(1))
-    org = db.get(OsgbOrganization, user.osgb_id) if user and user.osgb_id else None
-    if user and org and bool(org.is_individual) and user.role == UserRole.SAFETY_SPECIALIST:
-        # before_insert güvenlik kuralı hesabı pasif bırakır. Eski auth.register
-        # token üretse dahi onu tarayıcıya vermeyiz ve refresh cookie'yi temizleriz.
-        clear_refresh_cookie(response)
-        return TokenResponse()
-    return body
+    """Bireysel uzmanı kayıt anında aktif eder ve normal oturum token'ını döndürür."""
+    return legacy_auth.register(payload=payload, request=request, response=response, db=db)
 
 
 @eisa_router.get("/dashboard")
@@ -280,7 +270,7 @@ def approve_application_with_individuals(
 
     sub = _subscription(db, org.id)
     if sub:
-        # Ücretsiz deneme başvuru anında değil, Global onay anında başlar.
+        # Eski sürümden kalmış bekleyen kayıtlar manuel onaylanırsa deneme bu anda yenilenir.
         sub.status = SubscriptionStatus.TRIAL
         sub.trial_ends_at = now + timedelta(days=resolved_trial_days(db))
         sub.updated_at = now
