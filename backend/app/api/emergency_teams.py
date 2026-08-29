@@ -79,7 +79,7 @@ def _upload_root() -> Path:
 # --------------------------------------------------------------------------- #
 # Loaders
 # --------------------------------------------------------------------------- #
-def _load_team(db: Session, team_id: int) -> EmergencyTeam:
+def _load_team(db: Session, team_id: int, *, include_inactive: bool = False) -> EmergencyTeam:
     row = db.scalar(
         select(EmergencyTeam)
         .where(EmergencyTeam.id == team_id)
@@ -89,12 +89,12 @@ def _load_team(db: Session, team_id: int) -> EmergencyTeam:
             selectinload(EmergencyTeam.assignments).selectinload(EmergencyTeamAssignment.employee),
         )
     )
-    if not row or not row.is_active:
+    if not row or (not include_inactive and not row.is_active):
         raise HTTPException(404, "Ekip bulunamadı.")
     return row
 
 
-def _load_assignment(db: Session, assignment_id: int) -> EmergencyTeamAssignment:
+def _load_assignment(db: Session, assignment_id: int, *, include_inactive: bool = False) -> EmergencyTeamAssignment:
     row = db.scalar(
         select(EmergencyTeamAssignment)
         .where(EmergencyTeamAssignment.id == assignment_id)
@@ -104,7 +104,7 @@ def _load_assignment(db: Session, assignment_id: int) -> EmergencyTeamAssignment
             selectinload(EmergencyTeamAssignment.team),
         )
     )
-    if not row or not row.is_active:
+    if not row or (not include_inactive and not row.is_active):
         raise HTTPException(404, "Görevlendirme bulunamadı.")
     return row
 
@@ -446,6 +446,78 @@ def delete_team(
     return {"ok": True, "id": team_id}
 
 
+def _reactivate_team(row: EmergencyTeam, *, restore_members: bool) -> None:
+    now = datetime.utcnow()
+    row.is_active = True
+    row.updated_at = now
+    if restore_members:
+        for a in row.assignments or []:
+            a.is_active = True
+            a.updated_at = now
+
+
+@router.post("/teams/{team_id}/restore", response_model=TeamResponse)
+def restore_team(
+    team_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Pasife alınan ekibi ve üyelerini geri alır. Kayıtlar silinmez."""
+    row = _load_team(db, team_id, include_inactive=True)
+    ensure_company_access(db, user, row.company_id)
+    _reactivate_team(row, restore_members=True)
+    db.commit()
+    return _team_response(_load_team(db, team_id))
+
+
+@router.post("/restore-inactive")
+def restore_inactive(
+    company_id: int = Query(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """İşyerindeki pasif ekipleri ve üyeleri toplu geri alır."""
+    company_id = ensure_company_access(db, user, company_id)
+    now = datetime.utcnow()
+    teams = list(
+        db.scalars(
+            select(EmergencyTeam)
+            .where(EmergencyTeam.company_id == company_id, EmergencyTeam.is_active.is_(False))
+            .options(selectinload(EmergencyTeam.assignments))
+        ).all()
+    )
+    restored_teams = 0
+    restored_members = 0
+    for team in teams:
+        _reactivate_team(team, restore_members=True)
+        restored_teams += 1
+        restored_members += sum(1 for a in (team.assignments or []) if a.is_active)
+    leftover = list(
+        db.scalars(
+            select(EmergencyTeamAssignment).where(
+                EmergencyTeamAssignment.company_id == company_id,
+                EmergencyTeamAssignment.is_active.is_(False),
+            )
+        ).all()
+    )
+    for row in leftover:
+        team = db.get(EmergencyTeam, row.team_id)
+        if team and not team.is_active:
+            team.is_active = True
+            team.updated_at = now
+            restored_teams += 1
+        row.is_active = True
+        row.updated_at = now
+        restored_members += 1
+    db.commit()
+    return {
+        "ok": True,
+        "company_id": company_id,
+        "restored_teams": restored_teams,
+        "restored_members": restored_members,
+    }
+
+
 # --------------------------------------------------------------------------- #
 # Assignments (üyeler / destek elemanları)
 # --------------------------------------------------------------------------- #
@@ -619,6 +691,26 @@ def delete_assignment(
         team.leader_assignment_id = None
     db.commit()
     return {"ok": True, "id": assignment_id}
+
+
+@router.post("/assignments/{assignment_id}/restore", response_model=AssignmentResponse)
+def restore_assignment(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Pasife alınan üyeyi geri alır. Ekip pasifse ekip de açılır."""
+    row = _load_assignment(db, assignment_id, include_inactive=True)
+    ensure_company_access(db, user, row.company_id)
+    now = datetime.utcnow()
+    team = db.get(EmergencyTeam, row.team_id)
+    if team and not team.is_active:
+        team.is_active = True
+        team.updated_at = now
+    row.is_active = True
+    row.updated_at = now
+    db.commit()
+    return _assignment_response(_load_assignment(db, assignment_id))
 
 
 # --------------------------------------------------------------------------- #

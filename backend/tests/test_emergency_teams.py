@@ -233,6 +233,21 @@ def test_create_team_assign_list_soft_delete(client):
     teams = client.get(f"/api/v1/emergency-teams/teams?company_id={seed['company_id']}", headers=headers)
     assert all(t["id"] != team_id for t in teams.json())
 
+    restored = client.post(
+        f"/api/v1/emergency-teams/restore-inactive?company_id={seed['company_id']}",
+        headers=headers,
+    )
+    assert restored.status_code == 200, restored.text
+    body = restored.json()
+    assert body["restored_teams"] >= 1
+    teams2 = client.get(f"/api/v1/emergency-teams/teams?company_id={seed['company_id']}", headers=headers)
+    assert any(t["id"] == team_id for t in teams2.json())
+    listed3 = client.get(
+        f"/api/v1/emergency-teams/assignments?company_id={seed['company_id']}&team_id={team_id}",
+        headers=headers,
+    )
+    assert any(a["id"] == assignment_id for a in listed3.json())
+
 
 def test_cert_status_yellow_after_training(client):
     from datetime import date, timedelta

@@ -5,6 +5,7 @@ import {
   FileText,
   Plus,
   RefreshCw,
+  RotateCcw,
   ShieldAlert,
   Trash2,
   Upload,
@@ -228,15 +229,19 @@ export function EmergencyTeamsPage({user}) {
     }
   }
 
-  async function removeTeam(team) {
-    if (!window.confirm(`“${team.name}” ekibi ve üyeleri pasife alınsın mı?`)) return;
+  async function restoreInactive() {
+    if (!companyId) return;
+    if (!window.confirm('Bu işyerinde pasife alınan ekipler ve üyeler geri alınsın mı?')) return;
     setBusy(true);
+    setErr('');
     try {
-      await api(`/emergency-teams/teams/${team.id}`, {method: 'DELETE'});
-      setMsg('Ekip silindi.');
+      const r = await api(`/emergency-teams/restore-inactive?company_id=${Number(companyId)}`, {method: 'POST'});
+      const teamsN = r?.restored_teams ?? 0;
+      const membersN = r?.restored_members ?? 0;
+      setMsg(`Geri alındı: ${teamsN} ekip, ${membersN} üye.`);
       await loadData();
     } catch (ex) {
-      setErr(ex.message || 'Silinemedi.');
+      setErr(ex.message || 'Geri alınamadı.');
     } finally {
       setBusy(false);
     }
@@ -385,6 +390,11 @@ export function EmergencyTeamsPage({user}) {
               </button>
             </>
           )}
+          {canEdit && companyId && (
+            <button type="button" className="secondary" onClick={restoreInactive} disabled={busy}>
+              <RotateCcw size={16} /> Silinenleri Geri Al
+            </button>
+          )}
           <button type="button" className="secondary" onClick={() => loadData()} disabled={busy}>
             <RefreshCw size={16} /> Yenile
           </button>
@@ -462,9 +472,14 @@ export function EmergencyTeamsPage({user}) {
             oluşturup destek elemanlarını görevlendirebilirsiniz.
           </p>
           {canEdit && (
-            <button type="button" onClick={createDefaultTeams} disabled={busy}>
-              <Plus size={16} /> İlk Acil Durum Ekibini Oluştur
-            </button>
+            <div className="actions" style={{justifyContent: 'center'}}>
+              <button type="button" onClick={createDefaultTeams} disabled={busy}>
+                <Plus size={16} /> İlk Acil Durum Ekibini Oluştur
+              </button>
+              <button type="button" className="secondary" onClick={restoreInactive} disabled={busy}>
+                <RotateCcw size={16} /> Silinenleri Geri Al
+              </button>
+            </div>
           )}
         </section>
       )}
@@ -505,9 +520,6 @@ export function EmergencyTeamsPage({user}) {
                 <div className="actions" style={{marginTop: 10}}>
                   <button type="button" className="secondary mini" onClick={() => openMemberModal(t.id)}>
                     <UserPlus size={13} /> Üye
-                  </button>
-                  <button type="button" className="secondary mini" onClick={() => removeTeam(t)}>
-                    <Trash2 size={13} /> Sil
                   </button>
                 </div>
               )}
