@@ -14,6 +14,9 @@ APPROVED_PRODUCTION_ORIGINS = (
     "https://isg-suite-web-1u9t.onrender.com",
     "https://www.isgsuite.tr",
     "https://isgsuite.tr",
+    "https://www.isgsuite.com.tr",
+    "https://isgsuite.com.tr",
+    "https://idea-isg-web.onrender.com",
 )
 LOCAL_DEVELOPMENT_ORIGINS = (
     "http://localhost:5173",
