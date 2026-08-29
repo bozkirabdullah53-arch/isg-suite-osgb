@@ -32,6 +32,13 @@ import {
   questionToDraft,
   validateQuestionDraft,
 } from './training_question_bank_logic.js';
+import {
+  buildSmartSectorIndex,
+  coveragePagination,
+  smartCoverageSummary,
+  smartReadinessForItem,
+} from './training_question_bank_coverage_logic.js';
+import './training_question_bank_premium.css';
 
 const STATUS_FILTERS = [
   {value: '', label: 'Tümü'},
@@ -43,6 +50,7 @@ const STATUS_FILTERS = [
 
 const OPTION_KEYS = ['A', 'B', 'C', 'D'];
 const HAZARDS = ['Az Tehlikeli', 'Tehlikeli', 'Çok Tehlikeli'];
+const COVERAGE_PAGE_SIZE = 50;
 
 function safeDraft(raw) {
   try {
@@ -70,6 +78,11 @@ function formatDate(value) {
   }
 }
 
+function formatCount(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toLocaleString('tr-TR') : '—';
+}
+
 export function TrainingQuestionBank({user, sectors = []}) {
   const formRef = useRef(null);
   const importInputRef = useRef(null);
@@ -88,6 +101,7 @@ export function TrainingQuestionBank({user, sectors = []}) {
   const [coverageBusy, setCoverageBusy] = useState(false);
   const [coverageFilter, setCoverageFilter] = useState('all');
   const [coverageQuery, setCoverageQuery] = useState('');
+  const [coverageOffset, setCoverageOffset] = useState(0);
 
   useEffect(() => {
     const saved = safeDraft(localStorage.getItem(storageKey));
@@ -121,13 +135,18 @@ export function TrainingQuestionBank({user, sectors = []}) {
     }
   }
 
-  async function loadCoverage(filter = coverageFilter, queryValue = coverageQuery) {
+  async function loadCoverage(filter = coverageFilter, queryValue = coverageQuery, offsetValue = coverageOffset) {
     setCoverageBusy(true);
     try {
-      const params = new URLSearchParams({status: filter, limit: '100'});
+      const params = new URLSearchParams({
+        status: filter,
+        limit: String(COVERAGE_PAGE_SIZE),
+        offset: String(Math.max(0, Number(offsetValue) || 0)),
+      });
       if (queryValue.trim()) params.set('q', queryValue.trim());
       const report = await api(`/question-bank/coverage?${params.toString()}`);
       setCoverage(report || null);
+      setCoverageOffset(Math.max(0, Number(report?.offset ?? offsetValue) || 0));
     } catch (error) {
       setErrors((current) => [...new Set([...current, error.message || 'NACE kapsama raporu alınamadı.'])]);
     } finally {
@@ -137,7 +156,7 @@ export function TrainingQuestionBank({user, sectors = []}) {
 
   useEffect(() => {
     loadQuestions();
-    loadCoverage('all', '');
+    loadCoverage('all', '', 0);
   }, []);
 
   const metrics = useMemo(() => {
@@ -158,6 +177,16 @@ export function TrainingQuestionBank({user, sectors = []}) {
       return haystack.includes(needle);
     });
   }, [questions, query, statusFilter]);
+
+  const smartSectorIndex = useMemo(() => buildSmartSectorIndex(sectors), [sectors]);
+  const smartSummary = useMemo(() => smartCoverageSummary(sectors), [sectors]);
+  const coveragePage = useMemo(() => coveragePagination(coverage, COVERAGE_PAGE_SIZE), [coverage]);
+  const catalogCountsMatch = Number(coverage?.nace_total || 0) > 0
+    && smartSummary.catalogCount === Number(coverage?.nace_total || 0);
+  const smartReadyCount = catalogCountsMatch ? smartSummary.readyCount : null;
+  const smartCoveragePercent = catalogCountsMatch && Number(coverage?.nace_total || 0) > 0
+    ? Math.round((smartSummary.readyCount / Number(coverage.nace_total)) * 100)
+    : 0;
 
   function clearDraft({silent = false} = {}) {
     setDraft(emptyQuestionDraft());
@@ -325,11 +354,11 @@ export function TrainingQuestionBank({user, sectors = []}) {
     <div className="question-bank" aria-label="Eğitim soru bankası yönetimi">
       <section className="qb-hero">
         <div>
-          <div className="hero-chip"><ShieldCheck size={15} /> Kaynaklı ve denetlenebilir içerik</div>
-          <h1>İSG eğitim soru bankası</h1>
+          <div className="hero-chip"><ShieldCheck size={15} /> Denetlenebilir içerik + akıllı soru üretimi</div>
+          <h1>İSG soru bankası ve akıllı sınav motoru</h1>
           <p>
-            Soruları İş Güvenliği Uzmanı hazırlar, yayımlar ve sınavlarda kullanır.
-            Yayımlanan içerik değiştirilemez; düzeltmeler yeni sürüm olarak hazırlanır.
+            Yönetilen sorular editoryal onay akışında korunur. Sınav motoru doğrulanmış NACE ve işe özgü eğitim
+            konularına göre gerekli sektörel soruları otomatik tamamlayabilir.
           </p>
           <div className="qb-hero-actions">
             <button type="button" onClick={downloadImportTemplate}><FileDown size={16} /> JSON şablonu</button>
@@ -357,15 +386,14 @@ export function TrainingQuestionBank({user, sectors = []}) {
         ))}
       </section>
 
-      <section className="panel-card qb-coverage" aria-label="NACE soru kapsamı">
+      <section className="panel-card qb-coverage qb-smart-coverage" aria-label="NACE akıllı soru kapsamı">
         <div className="qb-card-head">
           <div>
-            <div className="section-title">Yayın güvenliği</div>
-            <h2>2.141 NACE yayımlanmış soru havuzu</h2>
+            <div className="section-title">Akıllı sınav motoru</div>
+            <h2>{formatCount(coverage?.nace_total)} NACE için otomatik soru kapsaması</h2>
             <p className="tp-help">
-              Bu matris yalnız EİSA soru bankasında yayımlanmış ve yönetilen soruların NACE kapsamını ölçer.
-              Eğitim bazlı sınav hazırlığı doğrulanmış NACE kaydı üzerinden ayrıca kontrol edilir; “Havuz eksik”
-              bir NACE faaliyetinin sistemde kullanılamadığı veya engellendiği anlamına gelmez.
+              Yönetilen soru bankası ile sınav anındaki exact-NACE üretimi birlikte izlenir. Yönetilen havuz az
+              olduğunda doğrulanmış NACE ve 5 işe özgü konu üzerinden 15 sektörel soru otomatik üretilebilir.
             </p>
           </div>
           <button type="button" className="qb-icon-button" onClick={() => loadCoverage()} disabled={coverageBusy}
@@ -374,18 +402,38 @@ export function TrainingQuestionBank({user, sectors = []}) {
           </button>
         </div>
 
+        <div className="qb-smart-engine" role="status" aria-live="polite">
+          <div className="qb-smart-engine-icon"><ShieldCheck size={23} /></div>
+          <div className="qb-smart-engine-copy">
+            <span className="qb-smart-engine-kicker">Exact-NACE otomatik tamamlama</span>
+            <strong>Soru sayısı düşük diye eğitim akışı durmaz; uygun NACE kaydında akıllı motor devreye girer.</strong>
+            <p>
+              Motor 5 sabit temel soruya ek olarak doğrulanmış NACE ve eğitimde dondurulmuş 5 işyeri konusundan
+              15 işe özgü soru üretir. Editoryal soru bankası ise ayrıca denetlenebilir biçimde büyümeye devam eder.
+            </p>
+          </div>
+          <div className="qb-smart-engine-badges">
+            <span className="qb-smart-badge qb-smart-badge--success"><CheckCircle2 size={14} /> Otomatik motor aktif</span>
+            <span className="qb-smart-badge"><Target size={14} /> 15 işe özgü soru</span>
+          </div>
+        </div>
+
         <div className="qb-coverage-summary">
-          <div><BarChart3 size={20} /><span><strong>{coverage?.nace_total ?? '—'}</strong> Resmi NACE</span></div>
-          <div><BookOpenCheck size={20} /><span><strong>{coverage?.exam_ready_count ?? '—'}</strong> Yönetilen havuzda asgari hazır</span></div>
-          <div><Target size={20} /><span><strong>{coverage?.release_ready_count ?? '—'}</strong> Yönetilen havuzda güçlü</span></div>
-          <div className="is-warning"><AlertTriangle size={20} /><span><strong>{coverage?.blocked_count ?? '—'}</strong> Yayımlanmış havuzu eksik</span></div>
+          <div><BarChart3 size={20} /><span><strong>{formatCount(coverage?.nace_total)}</strong> Resmî NACE</span></div>
+          <div className="is-smart"><ShieldCheck size={20} /><span><strong>{smartReadyCount == null ? '…' : formatCount(smartReadyCount)}</strong> Akıllı üretime hazır</span></div>
+          <div className="is-managed"><BookOpenCheck size={20} /><span><strong>{formatCount(coverage?.published_question_total)}</strong> Yönetilen yayımlanmış soru</span></div>
+          <div className="is-strong"><Target size={20} /><span><strong>{formatCount(coverage?.release_ready_count)}</strong> Güçlü yönetilen havuz</span></div>
         </div>
 
-        <div className="qb-coverage-progress" aria-label="Güçlü yayın ilerlemesi">
-          <span style={{width: `${coverage?.nace_total ? Math.round((coverage.release_ready_count / coverage.nace_total) * 100) : 0}%`}} />
+        <div className="qb-coverage-progress" aria-label="Akıllı soru üretim kapsaması">
+          <span style={{width: `${smartCoveragePercent}%`}} />
         </div>
 
-        <form className="qb-coverage-toolbar" onSubmit={(event) => { event.preventDefault(); loadCoverage(); }}>
+        <form className="qb-coverage-toolbar" onSubmit={(event) => {
+          event.preventDefault();
+          setCoverageOffset(0);
+          loadCoverage(coverageFilter, coverageQuery, 0);
+        }}>
           <div className="qb-search">
             <Search size={17} />
             <input value={coverageQuery} onChange={(event) => setCoverageQuery(event.target.value)}
@@ -394,45 +442,97 @@ export function TrainingQuestionBank({user, sectors = []}) {
           <select className="tp-select" value={coverageFilter} onChange={(event) => {
             const value = event.target.value;
             setCoverageFilter(value);
-            loadCoverage(value, coverageQuery);
+            setCoverageOffset(0);
+            loadCoverage(value, coverageQuery, 0);
           }}>
-            <option value="blocked">Yayımlanmış havuzu eksik</option>
-            <option value="exam_ready">Yönetilen havuzda asgari hazır</option>
-            <option value="release_ready">Yönetilen havuzda güçlü</option>
             <option value="all">Tüm NACE faaliyetleri</option>
+            <option value="blocked">Akıllı motor takviyesi</option>
+            <option value="exam_ready">Yönetilen havuz hazır</option>
+            <option value="release_ready">Güçlü yönetilen havuz</option>
           </select>
           <button type="submit" className="btn-outline-premium" disabled={coverageBusy}>Ara</button>
         </form>
 
         <div className="qb-coverage-table-wrap">
           <table className="qb-coverage-table">
-            <thead><tr><th>NACE / faaliyet</th><th>Profil</th><th>Ortak</th><th>Teknik</th><th>Sektör</th><th>Durum</th></tr></thead>
+            <thead><tr><th>NACE / faaliyet</th><th>Profil</th><th>Yönetilen havuz</th><th>Akıllı motor</th><th>Durum</th></tr></thead>
             <tbody>
               {coverageBusy ? (
-                <tr><td colSpan="6" className="qb-table-empty">Kapsam hesaplanıyor…</td></tr>
+                <tr><td colSpan="5" className="qb-table-empty">Kapsam hesaplanıyor…</td></tr>
               ) : !coverage?.items?.length ? (
-                <tr><td colSpan="6" className="qb-table-empty">Bu filtrede NACE kaydı bulunamadı.</td></tr>
-              ) : coverage.items.map((item) => (
-                <tr key={item.code}>
-                  <td><strong>{item.nace}</strong><span>{item.name}</span><small>{item.hazard}</small></td>
-                  <td>{item.profile}</td>
-                  <td>{item.available?.common ?? 0}</td>
-                  <td>{item.available?.technical ?? 0}</td>
-                  <td>{item.available?.sector ?? 0}</td>
-                  <td>
-                    <span className={item.release_ready ? 'qb-coverage-state is-strong' : item.ready ? 'qb-coverage-state is-minimum' : 'qb-coverage-state is-blocked'}
-                      title={item.release_ready ? 'Yayımlanmış soru havuzu güçlü' : item.ready ? 'Yayımlanmış soru havuzu asgari yeterli' : 'Yayımlanmış soru havuzu henüz asgari eşiğe ulaşmadı'}>
-                      {item.release_ready ? 'Güçlü' : item.ready ? 'Asgari hazır' : 'Havuz eksik'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                <tr><td colSpan="5" className="qb-table-empty">Bu filtrede NACE kaydı bulunamadı.</td></tr>
+              ) : coverage.items.map((item) => {
+                const smart = smartReadinessForItem(item, smartSectorIndex);
+                const stateClass = item.release_ready
+                  ? 'qb-coverage-state is-strong'
+                  : item.ready
+                    ? 'qb-coverage-state is-minimum'
+                    : smart.ready
+                      ? 'qb-coverage-state is-smart'
+                      : 'qb-coverage-state is-review';
+                const stateLabel = item.release_ready
+                  ? 'Güçlü havuz'
+                  : item.ready
+                    ? 'Yönetilen hazır'
+                    : smart.ready
+                      ? 'Akıllı hazır'
+                      : 'İnceleme gerekli';
+                return (
+                  <tr key={item.code}>
+                    <td><strong>{item.nace}</strong><span>{item.name}</span><small>{item.hazard}</small></td>
+                    <td>{item.profile}</td>
+                    <td>
+                      <div className="qb-managed-counts" title="Ortak / Teknik / Sektör yayımlanmış soru sayıları">
+                        <span>O {item.available?.common ?? 0}</span>
+                        <span>T {item.available?.technical ?? 0}</span>
+                        <span>S {item.available?.sector ?? 0}</span>
+                      </div>
+                    </td>
+                    <td>
+                      {smart.ready ? (
+                        <div className="qb-smart-cell">
+                          <span className="qb-smart-cell-icon"><CheckCircle2 size={16} /></span>
+                          <span><strong>{smart.questionCount} işe özgü soru</strong><small>{smart.topicCount} sabit işyeri konusu + NACE</small></span>
+                        </div>
+                      ) : (
+                        <div className="qb-smart-cell is-review">
+                          <span className="qb-smart-cell-icon"><AlertTriangle size={16} /></span>
+                          <span><strong>Konu kontrolü gerekli</strong><small>{smart.topicCount}/5 işyeri konusu hazır</small></span>
+                        </div>
+                      )}
+                    </td>
+                    <td><span className={stateClass}>{stateLabel}</span></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-        {coverage?.items_total > coverage?.items?.length && (
-          <p className="tp-help">İlk {coverage.items.length} kayıt gösteriliyor. Arama alanıyla sonucu daraltabilirsiniz.</p>
+
+        {coverage && (
+          <div className="qb-coverage-pagination" aria-label="NACE sayfalama">
+            <div className="qb-page-info">
+              <strong>Sayfa {coveragePage.currentPage} / {coveragePage.totalPages}</strong>
+              {' · '}{formatCount(coveragePage.total)} kayıt
+              {coveragePage.total > 0 && ` · ${formatCount(coveragePage.offset + 1)}–${formatCount(Math.min(coveragePage.offset + coveragePage.limit, coveragePage.total))}`}
+            </div>
+            <div className="qb-page-actions">
+              <button type="button" className="qb-page-button" disabled={coverageBusy || !coveragePage.hasPrevious}
+                onClick={() => loadCoverage(coverageFilter, coverageQuery, coveragePage.previousOffset)}>
+                Önceki
+              </button>
+              <button type="button" className="qb-page-button" disabled={coverageBusy || !coveragePage.hasNext}
+                onClick={() => loadCoverage(coverageFilter, coverageQuery, coveragePage.nextOffset)}>
+                Sonraki
+              </button>
+            </div>
+          </div>
         )}
+
+        <p className="qb-coverage-footnote">
+          Yönetilen havuz sayıları yalnız onaylanıp yayımlanmış editoryal soruları gösterir. “Akıllı hazır”, NACE kataloğunda
+          5 işe özgü konu bulunduğunu ve exact-NACE motorunun sınav için 15 işe özgü soru üretebildiğini ifade eder.
+        </p>
       </section>
 
       {errors.length > 0 && (
