@@ -34,9 +34,9 @@ export function EisaIndividualSubscriptionsPage() {
   useEffect(() => { void load(); }, []);
 
   return (
-    <Page title="Bireysel Abonelik" action={<RefreshButton busy={busy} onClick={load} />}>
+    <Page title="Bireysel Abonelikler" action={<RefreshButton busy={busy} onClick={load} />}>
       <p style={{ marginTop: 0, color: '#64748b' }}>
-        Global yönetici tarafından onaylanan bireysel İş Güvenliği Uzmanları burada gösterilir.
+        Global yönetici tarafından onaylanan bireysel İş Güvenliği Uzmanları ve abonelik durumları burada gösterilir.
         Bu liste OSGB aboneliklerinden tamamen ayrıdır.
       </p>
       <div className="eisa-toolbar">
