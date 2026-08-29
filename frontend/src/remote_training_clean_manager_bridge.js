@@ -41,7 +41,7 @@ function css() {
   if (document.getElementById(S)) return;
   const x = document.createElement('style');
   x.id = S;
-  x.textContent = `.${H}>:not([${A}]){display:none!important}.rtc{color:#173b57}.rtc *{box-sizing:border-box}.rtc-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding-bottom:13px;border-bottom:1px solid #e3edf3}.rtc h3{margin:3px 0 4px;font-size:21px}.rtc-k{font-size:11px;font-weight:850;letter-spacing:.08em;color:#0f766e}.rtc-meta,.rtc-note{color:#60798b;font-size:12px}.rtc-meta{display:flex;gap:7px;flex-wrap:wrap}.rtc-actions,.rtc-sec-actions,.rtc-va{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.rtc button{min-height:34px;padding:7px 10px;border:1px solid #bfd0dd;border-radius:8px;background:#fff;color:#173b57;font:inherit;font-size:12px;font-weight:800;cursor:pointer}.rtc button:hover:not(:disabled){border-color:#2696a0}.rtc button:disabled{opacity:.55}.rtc .pri{background:#0f766e;border-color:#0f766e;color:#fff}.rtc .pub{background:#f2fff5;border-color:#9acdad;color:#17643a}.rtc .bad{background:#fff8f7;border-color:#e5aaa5;color:#ad2e25}.rtc-note{margin-top:11px;padding:9px 11px;border:1px solid #cfe3e7;border-radius:9px;background:#f7fcfd;line-height:1.45}.rtc-list{display:grid;gap:10px;margin-top:12px}.rtc-sec{border:1px solid #dbe5ef;border-radius:10px;overflow:hidden;background:#fff}.rtc-sec.drag{opacity:.5}.rtc-sec.over{outline:2px solid #18a3a5;outline-offset:2px}.rtc-sec-head{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 11px;background:#fbfdff;border-bottom:1px solid #edf2f6}.rtc-sec-id{display:flex;gap:8px;align-items:center;min-width:0}.rtc-grab{width:32px;min-width:32px!important;padding:0!important;border-style:dashed!important;color:#0f766e!important;cursor:grab!important}.rtc-sec-name strong,.rtc-v strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rtc-sec-name span,.rtc-v span{display:block;margin-top:2px;color:#6a8090;font-size:11px}.rtc-sec-body{padding:9px 11px 11px}.rtc-upload{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:2px 0 9px;color:#60798b;font-size:12px}.rtc-vlist{display:grid;gap:6px}.rtc-v{display:grid;grid-template-columns:minmax(160px,1fr) auto;gap:9px;align-items:center;padding:8px 9px;border:1px solid #e4edf3;border-radius:8px;background:#f9fbfd}.rtc-va button{min-height:30px;padding:5px 7px;font-size:11px}.rtc-empty{padding:18px;text-align:center;color:#60798b;border:1px dashed #bfd0dd;border-radius:9px}.rtc-pop{position:fixed;inset:0;z-index:10170;display:grid;place-items:center;padding:20px;background:rgba(7,25,39,.58)}.rtc-box{width:min(560px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 22px 65px rgba(7,30,48,.28)}.rtc-box-h{display:flex;justify-content:space-between;gap:10px;padding:15px 17px 11px;border-bottom:1px solid #e6edf3}.rtc-box-h h3{margin:0;font-size:18px}.rtc-close{border:0!important;font-size:22px!important}.rtc-form{padding:15px 17px}.rtc-form label{display:block;margin-bottom:10px;font-size:12px;font-weight:800}.rtc-form input,.rtc-form textarea{display:block;width:100%;margin-top:5px;padding:9px;border:1px solid #bfd0dd;border-radius:8px;font:inherit}.rtc-form textarea{min-height:80px}.rtc-form-a{display:flex;justify-content:flex-end;gap:7px}.rtc-preview{width:min(900px,96vw)}.rtc-preview video{width:100%;max-height:75vh;background:#000;display:block}.rtc-toast{position:fixed;right:20px;bottom:20px;z-index:10190;max-width:min(500px,90vw);padding:11px 13px;border-radius:9px;background:#0f766e;color:#fff;font-size:12px;font-weight:800}.rtc-toast.err{background:#b42318}@media(max-width:820px){.rtc-head,.rtc-v{display:grid}.rtc-actions,.rtc-va,.rtc-sec-actions{justify-content:flex-start}.rtc-sec-head{align-items:flex-start}}`;
+  x.textContent = `.${H}>:not([${A}]){display:none!important}.rtc{color:#173b57}.rtc *{box-sizing:border-box}.rtc-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;padding-bottom:13px;border-bottom:1px solid #e3edf3}.rtc h3{margin:3px 0 4px;font-size:21px}.rtc-k{font-size:11px;font-weight:850;letter-spacing:.08em;color:#0f766e}.rtc-meta,.rtc-note{color:#60798b;font-size:12px}.rtc-meta{display:flex;gap:7px;flex-wrap:wrap}.rtc-actions,.rtc-sec-actions,.rtc-va{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.rtc button{min-height:34px;padding:7px 10px;border:1px solid #bfd0dd;border-radius:8px;background:#fff;color:#173b57;font:inherit;font-size:12px;font-weight:800;cursor:pointer}.rtc button:hover:not(:disabled){border-color:#2696a0}.rtc button:disabled{opacity:.55}.rtc .pri{background:#0f766e;border-color:#0f766e;color:#fff}.rtc .pub{background:#f2fff5;border-color:#9acdad;color:#17643a}.rtc .bad{background:#fff8f7;border-color:#e5aaa5;color:#ad2e25}.rtc-note{margin-top:11px;padding:9px 11px;border:1px solid #cfe3e7;border-radius:9px;background:#f7fcfd;line-height:1.45}.rtc-list{display:grid;gap:10px;margin-top:12px}.rtc-sec{border:1px solid #dbe5ef;border-radius:10px;overflow:hidden;background:#fff}.rtc-sec.drag{opacity:.55;box-shadow:0 10px 28px rgba(16,46,66,.18)}.rtc-sec.over{outline:2px solid #18a3a5;outline-offset:2px}.rtc-sec-head{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 11px;background:#fbfdff;border-bottom:1px solid #edf2f6}.rtc-sec-id{display:flex;gap:8px;align-items:center;min-width:0}.rtc-grab{width:32px;min-width:32px!important;padding:0!important;border-style:dashed!important;color:#0f766e!important;cursor:grab!important;touch-action:none;user-select:none;-webkit-user-select:none}.rtc-grab:active{cursor:grabbing!important}.rtc-grab:focus-visible{outline:3px solid #18a3a5;outline-offset:2px}.rtc-sec-name strong,.rtc-v strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rtc-sec-name span,.rtc-v span{display:block;margin-top:2px;color:#6a8090;font-size:11px}.rtc-sec-body{padding:9px 11px 11px}.rtc-upload{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:2px 0 9px;color:#60798b;font-size:12px}.rtc-vlist{display:grid;gap:6px}.rtc-v{display:grid;grid-template-columns:minmax(160px,1fr) auto;gap:9px;align-items:center;padding:8px 9px;border:1px solid #e4edf3;border-radius:8px;background:#f9fbfd}.rtc-va button{min-height:30px;padding:5px 7px;font-size:11px}.rtc-empty{padding:18px;text-align:center;color:#60798b;border:1px dashed #bfd0dd;border-radius:9px}.rtc-pop{position:fixed;inset:0;z-index:10170;display:grid;place-items:center;padding:20px;background:rgba(7,25,39,.58)}.rtc-box{width:min(560px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 22px 65px rgba(7,30,48,.28)}.rtc-box-h{display:flex;justify-content:space-between;gap:10px;padding:15px 17px 11px;border-bottom:1px solid #e6edf3}.rtc-box-h h3{margin:0;font-size:18px}.rtc-close{border:0!important;font-size:22px!important}.rtc-form{padding:15px 17px}.rtc-form label{display:block;margin-bottom:10px;font-size:12px;font-weight:800}.rtc-form input,.rtc-form textarea{display:block;width:100%;margin-top:5px;padding:9px;border:1px solid #bfd0dd;border-radius:8px;font:inherit}.rtc-form textarea{min-height:80px}.rtc-form-a{display:flex;justify-content:flex-end;gap:7px}.rtc-preview{width:min(900px,96vw)}.rtc-preview video{width:100%;max-height:75vh;background:#000;display:block}.rtc-toast{position:fixed;right:20px;bottom:20px;z-index:10190;max-width:min(500px,90vw);padding:11px 13px;border-radius:9px;background:#0f766e;color:#fff;font-size:12px;font-weight:800}.rtc-toast.err{background:#b42318}@media(max-width:820px){.rtc-head,.rtc-v{display:grid}.rtc-actions,.rtc-va,.rtc-sec-actions{justify-content:flex-start}.rtc-sec-head{align-items:flex-start}}`;
   document.head.appendChild(x);
 }
 
@@ -54,10 +54,11 @@ function toast(message, error = false) {
   setTimeout(() => node.remove(), error ? 6000 : 3800);
 }
 
-const root = () => [...document.querySelectorAll('section')].find((section) => {
-  const text = section.textContent || '';
-  return text.includes('Uzaktan Eğitim Paket Kataloğu') && text.includes('Sektör eğitim paketleri');
-});
+const root = () => document.querySelector('section[aria-label="Merkezi uzaktan eğitim paket kataloğu"]')
+  || [...document.querySelectorAll('section')].find((section) => {
+    const text = section.textContent || '';
+    return text.includes('Uzaktan Eğitim Paket Kataloğu') && text.includes('Sektör eğitim paketleri');
+  });
 const grid = () => root()?.querySelector('.remote-training-manager-grid');
 const host = () => grid()?.children?.[1];
 const cards = () => grid()?.children?.[0]
@@ -119,7 +120,6 @@ function chosen() {
     }
   }
 
-  // Preserve the old first-load behavior without inspecting CSS/theme state.
   id = Number(rows[0]?.id || 0) || null;
   return id;
 }
@@ -191,8 +191,6 @@ function videoFor(section, sourceVideo) {
     if (byId) return byId;
   }
 
-  // A shared package fork receives new database ids. Match the copied video by
-  // immutable-ish revision metadata, never by mutable order_index.
   const title = String(sourceVideo.title || '').trim();
   const originalName = String(sourceVideo.original_file_name || '').trim();
   const revision = Number(sourceVideo.revision_no || 1);
@@ -242,7 +240,7 @@ function pop(title, body, cls = '') {
   document.querySelector('.rtc-pop')?.remove();
   const panel = document.createElement('div');
   panel.className = 'rtc-pop';
-  panel.innerHTML = `<div class="rtc-box ${cls}"><div class="rtc-box-h"><h3>${esc(title)}</h3><button class="rtc-close">×</button></div><div class="rtc-box-b"></div></div>`;
+  panel.innerHTML = `<div class="rtc-box ${cls}"><div class="rtc-box-h"><h3>${esc(title)}</h3><button class="rtc-close" type="button">×</button></div><div class="rtc-box-b"></div></div>`;
   document.body.appendChild(panel);
   panel.querySelector('.rtc-box-b').append(body);
   panel.querySelector('.rtc-close').onclick = () => panel.remove();
@@ -406,15 +404,15 @@ async function reorder(codes) {
 function videoButtons(video, disabled) {
   const actions = [];
   if (['ready_for_review', 'published', 'unpublished'].includes(video.status)) {
-    actions.push(`<button data-va="preview" ${disabled}>Önizle</button>`);
+    actions.push(`<button type="button" data-va="preview" ${disabled}>Önizle</button>`);
   }
   if (['published', 'unpublished'].includes(video.status) && video.is_current) {
-    actions.push(`<button data-va="replace" title="Videoyu değiştir" ${disabled}>Yeni sürüm yükle</button>`);
+    actions.push(`<button type="button" data-va="replace" title="Videoyu değiştir" ${disabled}>Yeni sürüm yükle</button>`);
   }
-  if (video.status === 'ready_for_review') actions.push(`<button class="pub" data-va="publish" ${disabled}>Yayımla</button>`);
-  if (video.status === 'published') actions.push(`<button data-va="unpublish" ${disabled}>Yayından kaldır</button>`);
-  if (video.status === 'processing_failed') actions.push(`<button data-va="retry-processing" ${disabled}>Yeniden işle</button>`);
-  actions.push(`<button class="bad" data-va="delete" ${disabled}>Sil</button>`);
+  if (video.status === 'ready_for_review') actions.push(`<button type="button" class="pub" data-va="publish" ${disabled}>Yayımla</button>`);
+  if (video.status === 'published') actions.push(`<button type="button" data-va="unpublish" ${disabled}>Yayından kaldır</button>`);
+  if (video.status === 'processing_failed') actions.push(`<button type="button" data-va="retry-processing" ${disabled}>Yeniden işle</button>`);
+  actions.push(`<button type="button" class="bad" data-va="delete" ${disabled}>Sil</button>`);
   return actions.join('');
 }
 
@@ -422,20 +420,21 @@ function html(current) {
   const disabled = busy ? 'disabled' : '';
   const sections = current.sections || [];
   const packageActionHtml = current.status === 'published'
-    ? `<button data-pa="unpublish" ${disabled}>Paketi yayından kaldır</button>`
+    ? `<button type="button" data-pa="unpublish" ${disabled}>Paketi yayından kaldır</button>`
     : current.status === 'archived'
-      ? `<button data-pa="restore" ${disabled}>Düzenlemeye aç</button>`
-      : `<button class="pub" data-pa="publish" ${disabled}>Paketi yayımla</button>`;
+      ? `<button type="button" data-pa="restore" ${disabled}>Düzenlemeye aç</button>`
+      : `<button type="button" class="pub" data-pa="publish" ${disabled}>Paketi yayımla</button>`;
 
-  const sectionHtml = sections.map((section) => {
+  const sectionHtml = sections.map((section, sectionIndex) => {
     const videos = section.videos || [];
     const videoHtml = videos.length
       ? videos.map((video) => `<div class="rtc-v" data-v="${video.id}"><div><strong>${esc(video.title)}</strong><span>${esc(L[video.status] || video.status)} · ${video.duration_seconds ? `${Math.round(video.duration_seconds)} sn` : 'Süre bekleniyor'} · rev. ${Number(video.revision_no) || 1}</span></div><div class="rtc-va">${videoButtons(video, disabled)}</div></div>`).join('')
       : '<div class="rtc-empty">Bu bölümde henüz video yok.</div>';
-    return `<article class="rtc-sec" data-section-id="${Number(section.id)}" data-code="${esc(section.code)}"><header class="rtc-sec-head"><div class="rtc-sec-id"><button class="rtc-grab" title="Tut ve taşı" ${disabled}>⋮⋮</button><div class="rtc-sec-name"><strong>${esc(section.code)} · ${esc(section.title)}</strong><span>${videos.length} video</span></div></div><div class="rtc-sec-actions"><button data-sa="edit" ${disabled}>Düzenle</button><button class="bad" data-sa="delete" ${disabled}>Sil</button></div></header><div class="rtc-sec-body"><div class="rtc-upload"><span>Yeni video ekleyin.</span><button class="pri" data-sa="upload" ${disabled}>+ Video yükle</button></div><div class="rtc-vlist">${videoHtml}</div></div></article>`;
+    const position = `${sectionIndex + 1}/${sections.length}`;
+    return `<article class="rtc-sec" data-section-id="${Number(section.id)}" data-code="${esc(section.code)}"><header class="rtc-sec-head"><div class="rtc-sec-id"><button type="button" class="rtc-grab" title="Tut ve taşı" aria-label="${esc(section.title)} bölümünü taşı, sıra ${position}" aria-describedby="rtc-reorder-help" ${disabled}>⋮⋮</button><div class="rtc-sec-name"><strong>${esc(section.code)} · ${esc(section.title)}</strong><span>${videos.length} video</span></div></div><div class="rtc-sec-actions"><button type="button" data-sa="edit" ${disabled}>Düzenle</button><button type="button" class="bad" data-sa="delete" ${disabled}>Sil</button></div></header><div class="rtc-sec-body"><div class="rtc-upload"><span>Yeni video ekleyin.</span><button type="button" class="pri" data-sa="upload" ${disabled}>+ Video yükle</button></div><div class="rtc-vlist">${videoHtml}</div></div></article>`;
   }).join('');
 
-  return `<div class="rtc" ${A}="1" data-id="${current.id}"><div class="rtc-head"><div><span class="rtc-k">OSGB EĞİTİM İÇERİK YÖNETİMİ</span><h3>${esc(current.title)}</h3><div class="rtc-meta"><span>${esc(L[current.status] || current.status)}</span><span>·</span><span>${sections.length} bölüm</span><span>·</span><span>${Number(current.video_count) || sections.reduce((count, section) => count + (section.videos?.length || 0), 0)} video</span></div></div><div class="rtc-actions"><button class="pri" data-top="add" ${current.status === 'archived' ? 'disabled' : disabled}>+ Bölüm ekle</button>${packageActionHtml}</div></div><div class="rtc-note"><strong>${current.is_shared ? 'Hazır paket.' : 'OSGB paketi.'}</strong> ${current.is_shared ? 'İlk düzenlemede sistem otomatik olarak yalnız bu OSGB’ye ait güvenli çalışma kopyasını kullanır; ek bir kopyalama adımı görmezsiniz.' : 'Değişiklikler diğer OSGB’leri etkilemez.'} Bölüm sırası için soldaki ⋮⋮ tutamacını sürükleyin.</div><div class="rtc-list">${sectionHtml || '<div class="rtc-empty">Henüz bölüm yok. “Bölüm ekle” ile başlayın.</div>'}</div></div>`;
+  return `<div class="rtc" ${A}="1" data-id="${current.id}"><div class="rtc-head"><div><span class="rtc-k">OSGB EĞİTİM İÇERİK YÖNETİMİ</span><h3>${esc(current.title)}</h3><div class="rtc-meta"><span>${esc(L[current.status] || current.status)}</span><span>·</span><span>${sections.length} bölüm</span><span>·</span><span>${Number(current.video_count) || sections.reduce((count, section) => count + (section.videos?.length || 0), 0)} video</span></div></div><div class="rtc-actions"><button type="button" class="pri" data-top="add" ${current.status === 'archived' ? 'disabled' : disabled}>+ Bölüm ekle</button>${packageActionHtml}</div></div><div class="rtc-note" id="rtc-reorder-help"><strong>${current.is_shared ? 'Hazır paket.' : 'OSGB paketi.'}</strong> ${current.is_shared ? 'İlk düzenlemede sistem otomatik olarak yalnız bu OSGB’ye ait güvenli çalışma kopyasını kullanır; ek bir kopyalama adımı görmezsiniz.' : 'Değişiklikler diğer OSGB’leri etkilemez.'} Bölüm sırası için ⋮⋮ tutamacını fare veya dokunmayla taşıyın; klavyede ↑ ↓ Home End tuşları da kullanılabilir.</div><div class="rtc-list">${sectionHtml || '<div class="rtc-empty">Henüz bölüm yok. “Bölüm ekle” ile başlayın.</div>'}</div></div>`;
 }
 
 function bind(element, current) {
@@ -468,50 +467,117 @@ function bind(element, current) {
 
 function drag(element) {
   const box = element.querySelector('.rtc-list');
+  if (!box) return;
+
   let moving = null;
   let start = null;
+  let pointerId = null;
+  let pointerStartY = null;
+  let pointerDragging = false;
 
-  const codesFromDom = () => [...box.querySelectorAll('.rtc-sec')].map((node) => node.dataset.code);
+  const cardsInOrder = () => [...box.querySelectorAll('.rtc-sec')];
+  const codesFromDom = () => cardsInOrder().map((node) => node.dataset.code);
   const clear = () => {
-    element.querySelectorAll('.rtc-sec').forEach((node) => node.classList.remove('drag', 'over'));
+    cardsInOrder().forEach((node) => node.classList.remove('drag', 'over'));
+  };
+  const restore = (codes) => {
+    if (!Array.isArray(codes) || !codes.length) return;
+    const byCode = new Map(cardsInOrder().map((node) => [String(node.dataset.code), node]));
+    codes.forEach((code) => {
+      const node = byCode.get(String(code));
+      if (node) box.appendChild(node);
+    });
+  };
+  const finish = (persist = true) => {
+    const before = start ? [...start] : [];
+    const after = codesFromDom();
+    const changed = Boolean(moving && before.length && after.length && before.join(',') !== after.join(','));
+    if (!persist && changed) restore(before);
+    clear();
+    moving = null;
+    start = null;
+    pointerId = null;
+    pointerStartY = null;
+    pointerDragging = false;
+    if (persist && changed) reorder(after).catch(() => {});
+  };
+  const moveRelative = (card, direction) => {
+    const ordered = cardsInOrder();
+    const currentIndex = ordered.indexOf(card);
+    if (currentIndex < 0) return false;
+    let nextIndex = currentIndex;
+    if (direction === 'up') nextIndex = Math.max(0, currentIndex - 1);
+    if (direction === 'down') nextIndex = Math.min(ordered.length - 1, currentIndex + 1);
+    if (direction === 'home') nextIndex = 0;
+    if (direction === 'end') nextIndex = ordered.length - 1;
+    if (nextIndex === currentIndex) return false;
+    const target = ordered[nextIndex];
+    if (nextIndex < currentIndex) box.insertBefore(card, target);
+    else box.insertBefore(card, target.nextSibling);
+    return true;
   };
 
-  element.querySelectorAll('.rtc-sec').forEach((card) => {
+  cardsInOrder().forEach((card) => {
     const handle = card.querySelector('.rtc-grab');
-    handle.draggable = !busy;
-    handle.ondragstart = (event) => {
-      if (busy) return event.preventDefault();
+    if (!handle) return;
+    handle.draggable = false;
+
+    handle.onkeydown = (event) => {
+      if (busy) return;
+      const direction = event.key === 'ArrowUp' ? 'up'
+        : event.key === 'ArrowDown' ? 'down'
+          : event.key === 'Home' ? 'home'
+            : event.key === 'End' ? 'end'
+              : null;
+      if (!direction) return;
+      event.preventDefault();
+      const before = codesFromDom();
+      if (!moveRelative(card, direction)) return;
+      const after = codesFromDom();
+      if (before.join(',') !== after.join(',')) {
+        reorder(after).catch(() => restore(before));
+      }
+      handle.focus();
+    };
+
+    handle.onpointerdown = (event) => {
+      if (busy || event.button > 0) return;
       moving = card;
       start = codesFromDom();
-      card.classList.add('drag');
-      if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+      pointerId = event.pointerId;
+      pointerStartY = event.clientY;
+      pointerDragging = false;
+      try { handle.setPointerCapture(pointerId); } catch (_error) { /* browser fallback */ }
     };
-    handle.ondragend = () => {
-      const before = start ? [...start] : [];
-      const after = codesFromDom();
-      const changed = Boolean(moving && before.length && after.length && before.join(',') !== after.join(','));
-      clear();
-      moving = null;
-      start = null;
-      if (changed) reorder(after).catch(() => {});
-    };
-    card.ondragover = (event) => {
-      if (!moving || moving === card) return;
+
+    handle.onpointermove = (event) => {
+      if (!moving || pointerId !== event.pointerId || pointerStartY == null) return;
+      if (!pointerDragging && Math.abs(event.clientY - pointerStartY) < 5) return;
+      pointerDragging = true;
       event.preventDefault();
-      element.querySelectorAll('.rtc-sec').forEach((node) => node.classList.remove('over'));
-      card.classList.add('over');
-      const rect = card.getBoundingClientRect();
+      moving.classList.add('drag');
+      const hovered = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('.rtc-sec');
+      if (!hovered || hovered === moving || !box.contains(hovered)) return;
+      cardsInOrder().forEach((node) => node.classList.remove('over'));
+      hovered.classList.add('over');
+      const rect = hovered.getBoundingClientRect();
       const before = event.clientY < rect.top + rect.height / 2;
-      box.insertBefore(moving, before ? card : card.nextSibling);
+      box.insertBefore(moving, before ? hovered : hovered.nextSibling);
     };
-    card.ondrop = (event) => {
-      if (!moving) return;
-      event.preventDefault();
-      const codes = codesFromDom();
-      clear();
-      moving = null;
-      start = null;
-      reorder(codes).catch(() => {});
+
+    handle.onpointerup = (event) => {
+      if (pointerId !== event.pointerId) return;
+      try { handle.releasePointerCapture(pointerId); } catch (_error) { /* browser fallback */ }
+      finish(pointerDragging);
+    };
+
+    handle.onpointercancel = (event) => {
+      if (pointerId !== event.pointerId) return;
+      finish(false);
+    };
+
+    handle.onlostpointercapture = () => {
+      if (moving && pointerId !== null) finish(pointerDragging);
     };
   });
 }
@@ -531,9 +597,9 @@ function scheduleProcessingRefresh(current) {
 }
 
 async function draw(force = false) {
-  if (!(await ok())) return;
   const h = host();
   if (!h) return;
+  if (!(await ok())) return;
   css();
   try {
     const current = await get(force);
@@ -592,10 +658,14 @@ document.addEventListener('click', (event) => {
   }
 }, true);
 
-new MutationObserver(() => {
-  bindCardIds();
-  schedule();
-}).observe(document.documentElement, {childList: true, subtree: true});
+const appRoot = document.getElementById('root');
+if (appRoot) {
+  new MutationObserver(() => {
+    if (!root()) return;
+    bindCardIds();
+    schedule();
+  }).observe(appRoot, {childList: true, subtree: true});
+}
 
 addEventListener('hashchange', () => {
   clearTimeout(pollTimer);
