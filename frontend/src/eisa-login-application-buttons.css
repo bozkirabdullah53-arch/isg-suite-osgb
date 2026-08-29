@@ -1,0 +1,65 @@
+/* EİSA giriş ekranı — Uzman ve OSGB başvuru aksiyonlarını aynı yeşil tasarım diline getirir.
+   Yalnızca giriş kartındaki iki başvuru aksiyonunu hedefler; yönlendirme ve auth akışına dokunmaz. */
+
+.login-card > div:has(> button.secondary + p button.linkish) {
+  gap: 10px !important;
+}
+
+.login-card > div:has(> button.secondary + p button.linkish) > p {
+  margin: 0 !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  color: transparent !important;
+}
+
+.login-card > div:has(> button.secondary + p button.linkish) > button.secondary,
+.login-card > div:has(> button.secondary + p button.linkish) > p > button.linkish {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  min-height: 44px !important;
+  margin: 0 !important;
+  padding: 11px 14px !important;
+  border: 1px solid #15803d !important;
+  border-radius: 10px !important;
+  background: linear-gradient(135deg, #15803d 0%, #16a34a 100%) !important;
+  color: #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 750 !important;
+  line-height: 1.25 !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  cursor: pointer !important;
+  box-shadow: 0 7px 18px rgba(21, 128, 61, .16) !important;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease !important;
+}
+
+.login-card > div:has(> button.secondary + p button.linkish) > button.secondary:hover,
+.login-card > div:has(> button.secondary + p button.linkish) > p > button.linkish:hover {
+  background: linear-gradient(135deg, #166534 0%, #15803d 100%) !important;
+  border-color: #166534 !important;
+  box-shadow: 0 9px 22px rgba(21, 128, 61, .22) !important;
+  transform: translateY(-1px);
+}
+
+.login-card > div:has(> button.secondary + p button.linkish) > button.secondary:focus-visible,
+.login-card > div:has(> button.secondary + p button.linkish) > p > button.linkish:focus-visible {
+  outline: 3px solid rgba(34, 197, 94, .28) !important;
+  outline-offset: 2px !important;
+}
+
+.login-card > div:has(> button.secondary + p button.linkish) > button.secondary:active,
+.login-card > div:has(> button.secondary + p button.linkish) > p > button.linkish:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 12px rgba(21, 128, 61, .16) !important;
+}
+
+@media (max-width: 420px) {
+  .login-card > div:has(> button.secondary + p button.linkish) > button.secondary,
+  .login-card > div:has(> button.secondary + p button.linkish) > p > button.linkish {
+    min-height: 46px !important;
+    padding-inline: 12px !important;
+    font-size: 12.5px !important;
+  }
+}
