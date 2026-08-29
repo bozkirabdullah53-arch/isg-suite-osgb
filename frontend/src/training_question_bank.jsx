@@ -86,7 +86,7 @@ export function TrainingQuestionBank({user, sectors = []}) {
   const [notice, setNotice] = useState('');
   const [coverage, setCoverage] = useState(null);
   const [coverageBusy, setCoverageBusy] = useState(false);
-  const [coverageFilter, setCoverageFilter] = useState('blocked');
+  const [coverageFilter, setCoverageFilter] = useState('all');
   const [coverageQuery, setCoverageQuery] = useState('');
 
   useEffect(() => {
@@ -137,7 +137,7 @@ export function TrainingQuestionBank({user, sectors = []}) {
 
   useEffect(() => {
     loadQuestions();
-    loadCoverage('blocked', '');
+    loadCoverage('all', '');
   }, []);
 
   const metrics = useMemo(() => {
@@ -361,10 +361,11 @@ export function TrainingQuestionBank({user, sectors = []}) {
         <div className="qb-card-head">
           <div>
             <div className="section-title">Yayın güvenliği</div>
-            <h2>2.141 NACE kapsama matrisi</h2>
+            <h2>2.141 NACE yayımlanmış soru havuzu</h2>
             <p className="tp-help">
-              Katalog 2.141 resmi NACE faaliyeti ve 1 genel yedek kayıttan oluşur. “Güçlü yayın” her soru grubunda
-              en az 15 onaylı soru bulunduğunu gösterir.
+              Bu matris yalnız EİSA soru bankasında yayımlanmış ve yönetilen soruların NACE kapsamını ölçer.
+              Eğitim bazlı sınav hazırlığı doğrulanmış NACE kaydı üzerinden ayrıca kontrol edilir; “Havuz eksik”
+              bir NACE faaliyetinin sistemde kullanılamadığı veya engellendiği anlamına gelmez.
             </p>
           </div>
           <button type="button" className="qb-icon-button" onClick={() => loadCoverage()} disabled={coverageBusy}
@@ -375,9 +376,9 @@ export function TrainingQuestionBank({user, sectors = []}) {
 
         <div className="qb-coverage-summary">
           <div><BarChart3 size={20} /><span><strong>{coverage?.nace_total ?? '—'}</strong> Resmi NACE</span></div>
-          <div><BookOpenCheck size={20} /><span><strong>{coverage?.exam_ready_count ?? '—'}</strong> Asgari sınava hazır</span></div>
-          <div><Target size={20} /><span><strong>{coverage?.release_ready_count ?? '—'}</strong> Güçlü yayına hazır</span></div>
-          <div className="is-warning"><AlertTriangle size={20} /><span><strong>{coverage?.blocked_count ?? '—'}</strong> Eksik kapsam</span></div>
+          <div><BookOpenCheck size={20} /><span><strong>{coverage?.exam_ready_count ?? '—'}</strong> Yönetilen havuzda asgari hazır</span></div>
+          <div><Target size={20} /><span><strong>{coverage?.release_ready_count ?? '—'}</strong> Yönetilen havuzda güçlü</span></div>
+          <div className="is-warning"><AlertTriangle size={20} /><span><strong>{coverage?.blocked_count ?? '—'}</strong> Yayımlanmış havuzu eksik</span></div>
         </div>
 
         <div className="qb-coverage-progress" aria-label="Güçlü yayın ilerlemesi">
@@ -395,9 +396,9 @@ export function TrainingQuestionBank({user, sectors = []}) {
             setCoverageFilter(value);
             loadCoverage(value, coverageQuery);
           }}>
-            <option value="blocked">Eksik kapsamlar</option>
-            <option value="exam_ready">Asgari sınava hazır</option>
-            <option value="release_ready">Güçlü yayına hazır</option>
+            <option value="blocked">Yayımlanmış havuzu eksik</option>
+            <option value="exam_ready">Yönetilen havuzda asgari hazır</option>
+            <option value="release_ready">Yönetilen havuzda güçlü</option>
             <option value="all">Tüm NACE faaliyetleri</option>
           </select>
           <button type="submit" className="btn-outline-premium" disabled={coverageBusy}>Ara</button>
@@ -419,8 +420,9 @@ export function TrainingQuestionBank({user, sectors = []}) {
                   <td>{item.available?.technical ?? 0}</td>
                   <td>{item.available?.sector ?? 0}</td>
                   <td>
-                    <span className={item.release_ready ? 'qb-coverage-state is-strong' : item.ready ? 'qb-coverage-state is-minimum' : 'qb-coverage-state is-blocked'}>
-                      {item.release_ready ? 'Güçlü' : item.ready ? 'Asgari' : 'Bloklu'}
+                    <span className={item.release_ready ? 'qb-coverage-state is-strong' : item.ready ? 'qb-coverage-state is-minimum' : 'qb-coverage-state is-blocked'}
+                      title={item.release_ready ? 'Yayımlanmış soru havuzu güçlü' : item.ready ? 'Yayımlanmış soru havuzu asgari yeterli' : 'Yayımlanmış soru havuzu henüz asgari eşiğe ulaşmadı'}>
+                      {item.release_ready ? 'Güçlü' : item.ready ? 'Asgari hazır' : 'Havuz eksik'}
                     </span>
                   </td>
                 </tr>
