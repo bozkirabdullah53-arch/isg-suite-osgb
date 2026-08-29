@@ -277,4 +277,26 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    pass
+    """Remove IDEA-only tables without touching the EİSA/remote-training core.
+
+    Child tables are removed before their parents.  In particular, work_permits
+    must disappear before the older visual-field-inspection migration tries to
+    drop field_inspections; otherwise PostgreSQL rejects the downgrade because
+    work_permits.field_inspection_id still references that table.
+    """
+    bind = op.get_bind()
+    drop_order = (
+        "work_permit_approvers",
+        "work_permit_controls",
+        "work_permit_employees",
+        "field_mobile_evidence",
+        "visitor_passes",
+        "contractor_documents",
+        "contractor_workers",
+        "work_permits",
+        "contractor_companies",
+    )
+    for table in drop_order:
+        inspector = sa.inspect(bind)
+        if inspector.has_table(table):
+            op.drop_table(table)
