@@ -6,6 +6,10 @@ describe('global administrator module policy', () => {
     expect(GLOBAL_ADMIN_MODULES).toContain('eisa_question_bank');
   });
 
+  it('keeps the question bank as a governed EİSA module identifier', () => {
+    expect(GLOBAL_ADMIN_MODULES.indexOf('eisa_question_bank')).toBeGreaterThan(-1);
+  });
+
   it('does not expose workplace operation modules to the global administrator', () => {
     expect(GLOBAL_ADMIN_MODULES).not.toContain('training');
     expect(GLOBAL_ADMIN_MODULES).not.toContain('employees');

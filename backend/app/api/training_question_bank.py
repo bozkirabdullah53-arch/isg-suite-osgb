@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -42,6 +43,8 @@ from app.services.training_question_bank import (
 
 router = APIRouter(prefix="/question-bank", tags=["Eğitim Soru Bankası"])
 exam_router = APIRouter(prefix="/trainings", tags=["Eğitim Sınavları"])
+_COVERAGE_CACHE: dict = {"at": 0.0, "report": None}
+_COVERAGE_TTL_SEC = 45.0
 # Uzaktan eğitim soru bankasının sahibi ve uygulayıcısı İSG uzmanıdır.
 # Merkez yönetici de mevcut sistem yönetimi için erişimini korur; şirket
 # yöneticisi/diğer roller bu havuza soru yazamaz veya soru yayımlayamaz.
@@ -140,20 +143,103 @@ def _new_question_row(payload: QuestionCreate, *, created_by_id: int) -> Trainin
     return row
 
 
-@router.get("/questions", response_model=list[QuestionResponse])
-def list_questions(
-    status: str | None = Query(default=None, pattern=r"^(draft|in_review|published|retired)$"),
-    topic_code: str | None = None,
-    db: Session = Depends(get_db),
-    _user: User = Depends(require_roles(*MANAGE)),
+def _question_filters(
+    query,
+    *,
+    status: str | None,
+    topic_code: str | None,
+    q: str | None,
 ):
-    query = _question_query()
     if status:
         query = query.where(TrainingQuestion.status == status)
     if topic_code:
         query = query.where(TrainingQuestion.topic_code == topic_code.strip())
-    rows = db.scalars(query.order_by(TrainingQuestion.updated_at.desc())).unique().all()
-    return [_question_out(row) for row in rows]
+    needle = (q or "").strip()
+    if needle:
+        like = f"%{needle.casefold()}%"
+        query = query.where(
+            or_(
+                func.lower(TrainingQuestion.question_code).like(like),
+                func.lower(TrainingQuestion.topic_code).like(like),
+                func.lower(TrainingQuestion.topic_label).like(like),
+                func.lower(TrainingQuestion.question_text).like(like),
+            )
+        )
+    return query
+
+
+def _coverage_report_cached(db: Session) -> dict:
+    now = time.monotonic()
+    cached = _COVERAGE_CACHE.get("report")
+    if cached is not None and now - float(_COVERAGE_CACHE.get("at") or 0) < _COVERAGE_TTL_SEC:
+        return cached
+    report = question_bank_coverage(db)
+    _COVERAGE_CACHE["at"] = now
+    _COVERAGE_CACHE["report"] = report
+    return report
+
+
+def _invalidate_coverage_cache() -> None:
+    _COVERAGE_CACHE["at"] = 0.0
+    _COVERAGE_CACHE["report"] = None
+
+
+def _status_counts(db: Session) -> dict[str, int]:
+    rows = db.execute(
+        select(TrainingQuestion.status, func.count()).group_by(TrainingQuestion.status)
+    ).all()
+    counts = {"draft": 0, "in_review": 0, "published": 0, "retired": 0}
+    for status, total in rows:
+        if status in counts:
+            counts[status] = int(total)
+    return counts
+
+
+@router.get("/questions")
+def list_questions(
+    status: str | None = Query(default=None, pattern=r"^(draft|in_review|published|retired)$"),
+    topic_code: str | None = None,
+    q: str | None = Query(default=None, max_length=120),
+    offset: int = Query(default=0, ge=0),
+    limit: int | None = Query(default=None, ge=1, le=500),
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_roles(*MANAGE)),
+):
+    """limit yoksa eski liste yanıtı (uzaktan eğitim). limit varsa sayfalı nesne."""
+    if limit is None:
+        rows = db.scalars(
+            _question_filters(_question_query(), status=status, topic_code=topic_code, q=q)
+            .order_by(TrainingQuestion.updated_at.desc(), TrainingQuestion.id.desc())
+        ).unique().all()
+        return [_question_out(row) for row in rows]
+    count_query = _question_filters(
+        select(func.count()).select_from(TrainingQuestion),
+        status=status,
+        topic_code=topic_code,
+        q=q,
+    )
+    total = int(db.scalar(count_query) or 0)
+    ids = list(
+        db.scalars(
+            _question_filters(select(TrainingQuestion.id), status=status, topic_code=topic_code, q=q)
+            .order_by(TrainingQuestion.updated_at.desc(), TrainingQuestion.id.desc())
+            .offset(offset)
+            .limit(limit)
+        ).all()
+    )
+    if not ids:
+        rows = []
+    else:
+        loaded = db.scalars(_question_query().where(TrainingQuestion.id.in_(ids))).unique().all()
+        by_id = {row.id: row for row in loaded}
+        rows = [by_id[qid] for qid in ids if qid in by_id]
+    return {
+        "items": [_question_out(row) for row in rows],
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "counts": _status_counts(db),
+    }
 
 
 @router.get("/coverage")
@@ -169,8 +255,8 @@ def coverage_report(
     _user: User = Depends(require_roles(*MANAGE)),
 ):
     """2.141 NACE faaliyetinin gerçek yayımlanmış soru kapsamını raporlar."""
-    report = question_bank_coverage(db)
-    items = report.pop("items")
+    report = dict(_coverage_report_cached(db))
+    items = list(report.pop("items"))
     needle = (q or "").strip().casefold()
     if needle:
         items = [
@@ -324,6 +410,7 @@ def publish_question(
     row.reviewed_at = now
     row.published_at = now
     db.commit()
+    _invalidate_coverage_cache()
     return _question_out(_get_question(db, question_id))
 
 
@@ -339,7 +426,23 @@ def retire_published_question(
     except QuestionBankError as exc:
         raise HTTPException(409, str(exc)) from exc
     db.commit()
+    _invalidate_coverage_cache()
     return _question_out(_get_question(db, question_id))
+
+
+@router.delete("/questions/{question_id}")
+def delete_draft_question(
+    question_id: int,
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_roles(*MANAGE)),
+):
+    """Yalnız taslak veya incelemedeki soruyu siler. Yayımlanmış kayıt korunur."""
+    row = _get_question(db, question_id)
+    if row.status not in {"draft", "in_review"}:
+        raise HTTPException(409, "Yayımlanmış veya kaldırılmış soru silinemez. Kullanımdan kaldırın.")
+    db.delete(row)
+    db.commit()
+    return {"ok": True, "id": question_id}
 
 
 def _training_for_user(db: Session, training_id: int, user: User) -> TrainingSession:

@@ -136,7 +136,7 @@ const roleModules={
     'visits','field_pwa','field_inspection','facility_summary','dashboard','notifications','belge_onay','workplace_status',
     'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler','acil_plan',
     'periyodik_kontrol','ortam_olcum','isg_kurulu',
-    'training','employees','annual_plans','annual_eval_report','specialist_reports','mevzuat','documents','work_permits','contractors','visitors',
+    'training','eisa_question_bank','employees','annual_plans','annual_eval_report','specialist_reports','mevzuat','documents','work_permits','contractors','visitors',
     'customer_portal',
     'security',
   ],

@@ -51,6 +51,7 @@ const STATUS_FILTERS = [
 const OPTION_KEYS = ['A', 'B', 'C', 'D'];
 const HAZARDS = ['Az Tehlikeli', 'Tehlikeli', 'Çok Tehlikeli'];
 const COVERAGE_PAGE_SIZE = 50;
+const QUESTION_PAGE_SIZE = 40;
 
 function safeDraft(raw) {
   try {
@@ -88,6 +89,9 @@ export function TrainingQuestionBank({user, sectors = []}) {
   const importInputRef = useRef(null);
   const storageKey = `isg_training_question_draft_v1_${user?.id || 'admin'}`;
   const [questions, setQuestions] = useState([]);
+  const [questionTotal, setQuestionTotal] = useState(0);
+  const [questionOffset, setQuestionOffset] = useState(0);
+  const [statusCounts, setStatusCounts] = useState({draft: 0, in_review: 0, published: 0, retired: 0});
   const [draft, setDraft] = useState(emptyQuestionDraft);
   const [editingId, setEditingId] = useState(null);
   const [draftLoaded, setDraftLoaded] = useState(false);
@@ -108,7 +112,7 @@ export function TrainingQuestionBank({user, sectors = []}) {
     if (saved) {
       setDraft(saved.draft);
       setEditingId(saved.editingId);
-      setNotice('Tarayıcıda korunan taslağınız geri yüklendi.');
+      setNotice('Tarayıcıda yarım kalan taslak geri yüklendi. İstemiyorsanız Temizle’ye basın.');
     }
     setDraftLoaded(true);
   }, [storageKey]);
@@ -122,12 +126,19 @@ export function TrainingQuestionBank({user, sectors = []}) {
     }
   }, [draft, editingId, draftLoaded, storageKey]);
 
-  async function loadQuestions() {
+  async function loadQuestions({offset = 0, append = false, status = statusFilter, search = query} = {}) {
     setBusy(true);
-    setErrors([]);
+    if (!append) setErrors([]);
     try {
-      const rows = await api('/question-bank/questions');
-      setQuestions(Array.isArray(rows) ? rows : []);
+      const params = new URLSearchParams({limit: String(QUESTION_PAGE_SIZE), offset: String(offset)});
+      if (status) params.set('status', status);
+      if (search.trim()) params.set('q', search.trim());
+      const data = await api(`/question-bank/questions?${params.toString()}`);
+      const rows = Array.isArray(data) ? data : (data?.items || []);
+      setQuestions((current) => (append ? [...current, ...rows] : rows));
+      setQuestionTotal(Array.isArray(data) ? rows.length : Number(data?.total || rows.length));
+      setQuestionOffset(offset + rows.length);
+      if (data?.counts) setStatusCounts((current) => ({...current, ...data.counts}));
     } catch (error) {
       setErrors([error.message || 'Soru bankası alınamadı.']);
     } finally {
@@ -155,28 +166,12 @@ export function TrainingQuestionBank({user, sectors = []}) {
   }
 
   useEffect(() => {
-    loadQuestions();
+    loadQuestions({offset: 0});
     loadCoverage('all', '', 0);
   }, []);
 
-  const metrics = useMemo(() => {
-    const counts = {draft: 0, in_review: 0, published: 0, retired: 0};
-    questions.forEach((row) => {
-      if (Object.hasOwn(counts, row.status)) counts[row.status] += 1;
-    });
-    return counts;
-  }, [questions]);
-
-  const filteredQuestions = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase('tr');
-    return questions.filter((row) => {
-      if (statusFilter && row.status !== statusFilter) return false;
-      if (!needle) return true;
-      const haystack = `${row.question_code || ''} ${row.topic_code || ''} ${row.topic_label || ''} ${row.question_text || ''}`
-        .toLocaleLowerCase('tr');
-      return haystack.includes(needle);
-    });
-  }, [questions, query, statusFilter]);
+  const metrics = statusCounts;
+  const filteredQuestions = questions;
 
   const smartSectorIndex = useMemo(() => buildSmartSectorIndex(sectors), [sectors]);
   const smartSummary = useMemo(() => smartCoverageSummary(sectors), [sectors]);
@@ -271,7 +266,7 @@ export function TrainingQuestionBank({user, sectors = []}) {
         body: JSON.stringify({items}),
       });
       setNotice(`${result.created} soru taslak olarak içe aktarıldı. Hiçbiri otomatik yayımlanmadı.`);
-      await loadQuestions();
+      await loadQuestions({offset: 0});
     } catch (error) {
       setErrors([error.message || 'Soru dosyası içe aktarılamadı. Mevcut sorular değiştirilmedi.']);
     } finally {
@@ -319,7 +314,7 @@ export function TrainingQuestionBank({user, sectors = []}) {
       );
       clearDraft({silent: true});
       setNotice(`${row.question_code} sürüm ${row.version} taslak olarak güvenle kaydedildi.`);
-      await loadQuestions();
+      await loadQuestions({offset: 0});
     } catch (error) {
       setErrors([error.message || 'Soru kaydedilemedi. Girdiğiniz bilgiler silinmedi.']);
     } finally {
@@ -341,10 +336,27 @@ export function TrainingQuestionBank({user, sectors = []}) {
     try {
       const updated = await api(`/question-bank/questions/${row.id}/${action}`, {method: 'POST'});
       setNotice(`${updated.question_code} ${labels[action]}.`);
-      await loadQuestions();
+      await loadQuestions({offset: 0});
       await loadCoverage();
     } catch (error) {
       setErrors([error.message || 'İşlem tamamlanamadı.']);
+    } finally {
+      setActionBusy('');
+    }
+  }
+
+  async function deleteDraft(row) {
+    if (!window.confirm(`“${row.question_code}” taslağı silinsin mi? Bu işlem geri alınamaz.`)) return;
+    setActionBusy(`delete-${row.id}`);
+    setErrors([]);
+    setNotice('');
+    try {
+      await api(`/question-bank/questions/${row.id}`, {method: 'DELETE'});
+      if (editingId === row.id) clearDraft({silent: true});
+      setNotice(`${row.question_code} silindi.`);
+      await loadQuestions({offset: 0});
+    } catch (error) {
+      setErrors([error.message || 'Soru silinemedi.']);
     } finally {
       setActionBusy('');
     }
@@ -719,21 +731,24 @@ export function TrainingQuestionBank({user, sectors = []}) {
               <h2>Sorular ve onay durumu</h2>
               <p className="tp-help">Yalnız yayımlanmış sorular sınav üretiminde kullanılabilir.</p>
             </div>
-            <button type="button" className="qb-icon-button" onClick={loadQuestions} disabled={busy} title="Listeyi yenile">
+            <button type="button" className="qb-icon-button" onClick={() => loadQuestions({offset: 0})} disabled={busy} title="Listeyi yenile">
               <RefreshCw size={18} className={busy ? 'qb-spin' : ''} />
             </button>
           </div>
 
           <div className="qb-toolbar">
-            <div className="qb-search">
+            <form className="qb-search" onSubmit={(event) => { event.preventDefault(); loadQuestions({offset: 0, search: query}); }}>
               <Search size={17} />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Kod, konu veya soru ara" />
-            </div>
+            </form>
             <div className="qb-filters" aria-label="Durum filtresi">
               {STATUS_FILTERS.map((item) => (
                 <button type="button" key={item.value || 'all'}
                   className={statusFilter === item.value ? 'active' : ''}
-                  onClick={() => setStatusFilter(item.value)}>
+                  onClick={() => {
+                    setStatusFilter(item.value);
+                    loadQuestions({offset: 0, status: item.value});
+                  }}>
                   {item.label}
                 </button>
               ))}
@@ -741,7 +756,7 @@ export function TrainingQuestionBank({user, sectors = []}) {
           </div>
 
           <div className="qb-list" aria-live="polite">
-            {busy ? (
+            {busy && questions.length === 0 ? (
               <div className="qb-empty"><RefreshCw size={24} className="qb-spin" /> Sorular yükleniyor…</div>
             ) : filteredQuestions.length === 0 ? (
               <div className="qb-empty"><BookOpenCheck size={30} /> Bu filtrede henüz soru bulunmuyor.</div>
@@ -786,7 +801,12 @@ export function TrainingQuestionBank({user, sectors = []}) {
                   </details>
                   <div className="qb-card-actions">
                     {['draft', 'in_review'].includes(row.status) && (
-                      <button type="button" onClick={() => editQuestion(row)}><Pencil size={15} /> Düzenle</button>
+                      <>
+                        <button type="button" onClick={() => editQuestion(row)}><Pencil size={15} /> Düzenle</button>
+                        <button type="button" disabled={!!actionBusy} onClick={() => deleteDraft(row)}>
+                          <Trash2 size={15} /> {actionBusy === `delete-${row.id}` ? 'Siliniyor…' : 'Sil'}
+                        </button>
+                      </>
                     )}
                     {row.status === 'draft' && (
                       <button type="button" className="primary" disabled={!!actionBusy}
@@ -812,6 +832,14 @@ export function TrainingQuestionBank({user, sectors = []}) {
                 </article>
               );
             })}
+            {questionOffset < questionTotal && (
+              <div className="qb-form-actions">
+                <button type="button" className="btn-outline-premium" disabled={busy}
+                  onClick={() => loadQuestions({offset: questionOffset, append: true})}>
+                  {busy ? 'Yükleniyor…' : `Daha fazla soru (${questionOffset} / ${questionTotal})`}
+                </button>
+              </div>
+            )}
           </div>
         </section>
       </div>
