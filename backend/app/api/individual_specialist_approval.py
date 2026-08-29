@@ -22,6 +22,7 @@ from app.models.entities import (
     IsgProfessional,
     OsgbOrganization,
     OsgbSubscription,
+    OsgbSubscriptionPlan,
     SubscriptionStatus,
     User,
     UserRole,
@@ -118,6 +119,31 @@ def _subscription(db: Session, org_id: int) -> OsgbSubscription | None:
     return db.scalar(select(OsgbSubscription).where(OsgbSubscription.osgb_id == org_id).limit(1))
 
 
+def _ensure_individual_subscription(
+    db: Session,
+    org_id: int,
+    *,
+    trial_start: datetime | None = None,
+) -> tuple[OsgbSubscription, bool]:
+    """Bireysel uzman aboneliğini garanti et; OSGB varsayılan limitlerini kullanma."""
+    existing = _subscription(db, org_id)
+    if existing:
+        return existing, False
+
+    start = trial_start or datetime.utcnow()
+    sub = OsgbSubscription(
+        osgb_id=org_id,
+        plan=OsgbSubscriptionPlan.STANDARD,
+        status=SubscriptionStatus.TRIAL,
+        trial_ends_at=start + timedelta(days=resolved_trial_days(db)),
+        max_users=1,
+        max_workplaces=3,
+    )
+    db.add(sub)
+    db.flush()
+    return sub, True
+
+
 @auth_router.post("/register", response_model=TokenResponse, status_code=201)
 def register_pending_specialist(
     payload: RegisterRequest,
@@ -179,12 +205,16 @@ def list_individual_subscriptions(
     """Onaylanmış bireysel İSG uzmanı aboneliklerini OSGB aboneliklerinden ayrı listeler."""
     needle = (q or "").strip().lower()
     out: list[dict] = []
+    repaired_missing_subscription = False
     for user, org in _individual_rows(db):
         if _status(user, org) != "approved":
             continue
-        sub = _subscription(db, org.id)
-        if not sub:
-            continue
+
+        # Eski/yarım kalmış bireysel kayıtlarda abonelik satırı eksikse uzmanı
+        # listeden gizlemek yerine bireysel limitlerle aboneliği kendiliğinden onar.
+        sub, created = _ensure_individual_subscription(db, org.id)
+        repaired_missing_subscription = repaired_missing_subscription or created
+
         professional = _professional(db, org.id)
         row = subscription_response(db, sub).model_dump()
         row.update(
@@ -213,6 +243,10 @@ def list_individual_subscriptions(
             if needle not in hay:
                 continue
         out.append(row)
+
+    if repaired_missing_subscription:
+        db.commit()
+
     out.sort(key=lambda row: str(row.get("specialist_name") or "").lower())
     return out
 
@@ -231,6 +265,10 @@ def approve_application_with_individuals(
     if org.archived_at is not None:
         raise HTTPException(400, "Bu bireysel uzman başvurusu reddedilmiş. Önce yeni başvuru gerekir.")
     if user.is_active:
+        # Daha önce onaylanmış eski kayıtta abonelik satırı eksik kalmış olabilir.
+        _, created = _ensure_individual_subscription(db, org.id)
+        if created:
+            db.commit()
         return OsgbApplicationApproveResponse(application=_as_application(db, user, org), admin_account=None)
 
     now = datetime.utcnow()
@@ -240,12 +278,13 @@ def approve_application_with_individuals(
     org.archived_at = None
     _set_professionals_active(db, org.id, True)
 
-    sub = _subscription(db, org.id)
-    if sub:
-        # Ücretsiz deneme başvuru anında değil, Global onay anında başlar.
-        sub.status = SubscriptionStatus.TRIAL
-        sub.trial_ends_at = now + timedelta(days=resolved_trial_days(db))
-        sub.updated_at = now
+    sub, _ = _ensure_individual_subscription(db, org.id, trial_start=now)
+    # Ücretsiz deneme başvuru anında değil, Global onay anında başlar.
+    sub.status = SubscriptionStatus.TRIAL
+    sub.trial_ends_at = now + timedelta(days=resolved_trial_days(db))
+    sub.max_users = 1
+    sub.max_workplaces = 3
+    sub.updated_at = now
 
     add_audit_log(
         db,
