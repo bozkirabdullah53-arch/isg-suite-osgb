@@ -9,7 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.services.personnel_profile_osgb_scope import install_osgb_service_overrides
 install_osgb_service_overrides()
 
-from app.api import auth, branches, companies, dashboard, employees, personnel_profiles, personnel_profile_management, personnel_profile_osgb, personnel_profile_osgb_documents, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, professional_performance_exports, operations, trainings, training_nace, training_completion, training_lifecycle_v2, training_premium_dashboard_v1, training_presentation, training_presentation_editor, training_question_selection_audit, remote_training, self_service, risks, field_inspections, incidents, ppe, sds, drills, emergency_teams, eisa, eisa_orphan_users, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions
+from app.api import auth, branches, companies, customer_portal, dashboard, employees, personnel_profiles, personnel_profile_management, personnel_profile_osgb, personnel_profile_osgb_documents, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, professional_performance_exports, operations, trainings, training_nace, training_completion, training_lifecycle_v2, training_premium_dashboard_v1, training_presentation, training_presentation_editor, training_question_selection_audit, remote_training, self_service, risks, field_inspections, work_permits, contractors, visitors, incidents, ppe, sds, drills, emergency_teams, eisa, eisa_orphan_users, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions, field_mobile_phase_e, facility_summary_phase_f
 from app.core.rate_limit import SimpleRateLimitMiddleware
 from app.core.request_id import RequestIdMiddleware, install_request_id_logging
 from app.core.tenant_middleware import TenantContextMiddleware
@@ -23,6 +23,10 @@ from app.core.database import Base, SessionLocal, engine
 # authoritative schema change there.
 from app.models import remote_training as _remote_training_models  # noqa: F401
 from app.models import field_inspection as _field_inspection_models  # noqa: F401
+from app.models import work_permit as _work_permit_models  # noqa: F401
+from app.models import contractor as _contractor_models  # noqa: F401
+from app.models import visitor as _visitor_models  # noqa: F401
+from app.models import premium_field as _premium_field_models  # noqa: F401
 from app.core.version import APP_VERSION
 from app.services.seed import seed_admin, seed_demo_osgbs
 from app.services.training_runtime_patches import install_training_runtime_patches
@@ -237,6 +241,10 @@ for router in (
     training_question_bank.exam_router,
     risks.router,
     field_inspections.router,
+    work_permits.router,
+    field_mobile_phase_e.router,
+    contractors.router,
+    visitors.router,
     incidents.router,
     ppe.router,
     sds.router,
@@ -251,6 +259,8 @@ for router in (
     committee_professional.router,
     compliance_registers.oc_router,
     compliance_registers.da_router,
+    facility_summary_phase_f.router,
+    customer_portal.router,
     esign.router,
     esign_orch.router,
     eyas.router,

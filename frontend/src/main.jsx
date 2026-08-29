@@ -46,6 +46,12 @@ import {Customer360Page, WorkplaceStatusPage} from './customer_360';
 import {CapacityEnginePage} from './capacity_engine';
 import {TrainingPage, TrainingVerifyPage, loadSectorsCatalog} from './training';import {RiskPage} from './risk';import {FieldInspectionPage} from './field_inspection';import {IncidentsPage, CapaPage} from './incidents';import {PpePage} from './ppe';import {AnnualPlansPage} from './annual_plans';import {HealthPage} from './health';
 import {PrescriptionPage} from './prescriptions';
+import {WorkPermitsPage} from './work_permits';
+import {ContractorsPage} from './contractors';
+import {VisitorsPage} from './visitors';
+import {FieldPwaHub} from './field_pwa_hub';
+import {FacilityComplianceSummaryPage} from './facility_compliance_summary';
+import {CustomerPortalPage} from './customer_portal';
 import {TrainingQuestionBank} from './training_question_bank';
 import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
 import {EmployeeSelfServicePage} from './employee_self_service';
@@ -125,22 +131,23 @@ const roleModules={
     'security',
   ],
   safety_specialist:[
-    'visits','field_inspection','dashboard','notifications','belge_onay','workplace_status',
+    'visits','field_pwa','field_inspection','facility_summary','dashboard','notifications','belge_onay','workplace_status',
     'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler','acil_plan',
     'periyodik_kontrol','ortam_olcum','isg_kurulu',
-    'training','eisa_question_bank','employees','annual_plans','annual_eval_report','specialist_reports','mevzuat','documents',
+    'training','employees','annual_plans','annual_eval_report','specialist_reports','mevzuat','documents','work_permits','contractors','visitors',
+    'customer_portal',
     'security',
   ],
   workplace_physician:[
     'visits','belge_onay','eyas_inbox','dashboard','workplace_status',
     'health','prescriptions','employees','ortam_olcum',
-    'annual_plans','annual_eval_report','documents',
+    'training','annual_plans','annual_eval_report','documents',
     'security',
   ],
   other_health_personnel:[
-    'visits','dashboard','workplace_status',
+    'visits','field_pwa','facility_summary','dashboard','workplace_status',
     'health','employees',
-    'annual_plans','documents',
+    'annual_plans','documents','work_permits',
     'security',
   ],
   // Çalışan hesabı yalnızca kendisine atanmış uzaktan eğitimi görür.
@@ -167,9 +174,9 @@ const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
   company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
   workplace_manager:['employer_oversight','employees','ppe','accident'],
-  safety_specialist:['field_inspection','visits','dashboard','risk'],
+  safety_specialist:['field_pwa','field_inspection','visits','dashboard'],
   workplace_physician:['visits','health','prescriptions','employees'],
-  other_health_personnel:['visits','health','employees','documents'],
+  other_health_personnel:['field_pwa','visits','health','employees'],
   read_only:['employee_self_service','employee_training','security'],
 };
 
@@ -208,7 +215,9 @@ const menuCatalog={
   professionals:['İSG Profesyonelleri',Stethoscope],
   assignments:['Görevlendirmeler',BriefcaseBusiness],
   visits:['Saha Takvimi',CalendarDays],
+  field_pwa:['Saha Hızlı İşlem',Activity],
   field_inspection:['Saha Denetimi',ClipboardCheck],
+  facility_summary:['Tesis Uygunluk Özeti',ShieldCheck],
   employer_oversight:['İşyeri Denetim Durumu',ShieldCheck],
   workplace_status:['İşyeri Durum Merkezi',ClipboardCheck],
   site_qr_kiosk:['İşyeri QR',QrCode],
@@ -247,6 +256,10 @@ const menuCatalog={
   subscription:['Abonelik',CreditCard],
   security:['Güvenlik',KeyRound],
   users:['Kullanıcılar',UserCog],
+  work_permits:['Çalışma İzinleri',ClipboardCheck],
+  contractors:['Taşeron Yönetimi',Users],
+  visitors:['Ziyaretçiler',Users],
+  customer_portal:['Müşteri Portalı',LayoutDashboard],
 };
 
 function EisaQuestionBankPage({user}){
@@ -2211,7 +2224,9 @@ function App(){
     professionals:<ProfessionalsPage user={user} onNavigate={goModule}/>,
     assignments:<AssignmentsPage user={user}/>,
     visits:<VisitsPage user={user} onNavigate={goModule}/>,
+    field_pwa:<FieldPwaHub user={user}/>,
     field_inspection:<FieldInspectionPage user={user}/>,
+    facility_summary:<FacilityComplianceSummaryPage user={user}/>,
     employer_oversight:<EmployerOversightPage user={user}/>,
     workplace_status:<WorkplaceStatusPage user={user} onNavigate={goModule}/>,
     site_qr_kiosk:<SiteQrKioskPage user={user} onLogout={logout}/>,
@@ -2255,6 +2270,10 @@ function App(){
     subscription:<SubscriptionPage user={user}/>,
     security:<SecurityPage user={user}/>,
     users:<UserPage user={user}/>,
+    work_permits:<WorkPermitsPage user={user}/>,
+    contractors:<ContractorsPage user={user}/>,
+    visitors:<VisitorsPage user={user}/>,
+    customer_portal:<CustomerPortalPage user={user}/>,
   };
   const mobileRole=isWorkplaceManagerUser(user)?'workplace_manager':user.role;
   const mobilePrimary=mobilePrimaryMenu(menu, mobileRole, active);
