@@ -77,6 +77,7 @@ import {
   OsgbApplyPage,
   SpecialistRegisterPage,
 } from './eisa';
+import {EisaIndividualSubscriptionsPage} from './eisa_individual_subscriptions';
 import './styles.css';
 import './theme-modern.css';
 import {useUiTheme} from './theme';
@@ -200,6 +201,7 @@ function mobilePrimaryMenu(menu, role, activeId){
 const menuCatalog={
   eisa_overview:['Genel Bakış',LayoutDashboard],
   eisa_osgb_users:['OSGB Kullanıcıları',Users],
+  eisa_individual_subscriptions:['Bireysel Abonelik',CreditCard],
   eisa_subscriptions:['Abonelik Yönetimi',CreditCard],
   eisa_subscriptions_expiring:['Süresi Yaklaşan Abonelikler',CalendarDays],
   eisa_subscriptions_expired:['Süresi Dolan Abonelikler',AlertTriangle],
@@ -1917,7 +1919,7 @@ function writeModuleToLocation(id,{replace=false,companyId=''}={}){
     if(id==='customer_360' && nextCompany) hashParams.set('company',nextCompany);
     if(preserveRiskView){
       try{
-        const currentHash=new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).toString();
+        const currentHash=new URLSearchParams(String(window.location.hash||'').replace(/^#/,'' )).toString();
         const currentRiskParams=new URLSearchParams(currentHash);
         if(currentRiskParams.get('risk_tab')) hashParams.set('risk_tab',currentRiskParams.get('risk_tab'));
         if(currentRiskParams.get('risk_detail')) hashParams.set('risk_detail',currentRiskParams.get('risk_detail'));
@@ -2282,6 +2284,7 @@ function App(){
   const pages={
     eisa_overview:<EisaOverviewPage/>,
     eisa_osgb_users:<EisaOsgbUsersPage/>,
+    eisa_individual_subscriptions:<EisaIndividualSubscriptionsPage/>,
     eisa_subscriptions:<EisaSubscriptionsPage/>,
     eisa_subscriptions_expiring:<EisaExpiringSubscriptionsPage/>,
     eisa_subscriptions_expired:<EisaExpiredSubscriptionsPage/>,
