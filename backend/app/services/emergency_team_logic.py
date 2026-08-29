@@ -6,7 +6,7 @@ amaç İSG uzmanına hatırlatma / kontrol listesi sunmaktır.
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -59,21 +59,57 @@ def ensure_system_team_types(db: Session) -> list[EmergencyTeamType]:
 
 
 def ensure_default_teams(db: Session, company_id: int, user_id: int) -> list[EmergencyTeam]:
-    """Firma için hiç ekip yoksa 6 varsayılan ekibi otomatik oluşturur."""
-    count = db.scalar(
-        select(func.count())
-        .select_from(EmergencyTeam)
-        .where(EmergencyTeam.company_id == company_id, EmergencyTeam.is_active.is_(True))
-    ) or 0
-    if count > 0:
-        return []
+    """Firma için 6 varsayılan ekip kartının her zaman aktif kalmasını sağlar.
+
+    Ekip kartı geçmiş bir sürümde yanlışlıkla pasife alınmışsa aynı kaydı ve ona
+    bağlı üyeleri yeniden etkinleştirir. Böylece ekip bölümü silinmez; kullanıcı
+    yalnızca ekip içindeki üye/görevlendirmeleri kaldırabilir.
+    """
     types = ensure_system_team_types(db)
     type_by_code = {t.code: t for t in types}
-    created: list[EmergencyTeam] = []
+    default_type_ids = [t.id for code, _ in DEFAULT_TEAM_TYPES if (t := type_by_code.get(code))]
+
+    existing_teams = list(
+        db.scalars(
+            select(EmergencyTeam).where(
+                EmergencyTeam.company_id == company_id,
+                EmergencyTeam.type_id.in_(default_type_ids),
+            )
+        ).all()
+    ) if default_type_ids else []
+
+    by_type: dict[int, list[EmergencyTeam]] = {}
+    for team in existing_teams:
+        by_type.setdefault(team.type_id, []).append(team)
+
+    now = datetime.utcnow()
+    changed = False
+    ensured: list[EmergencyTeam] = []
+
     for code, name in DEFAULT_TEAM_TYPES:
         t = type_by_code.get(code)
         if not t:
             continue
+
+        candidates = by_type.get(t.id, [])
+        active = next((team for team in candidates if team.is_active), None)
+        if active:
+            ensured.append(active)
+            continue
+
+        if candidates:
+            # Eski sürümde karttan yapılan "Sil" işlemi soft-delete idi. En son
+            # kaydı geri aç ve aynı işlemde pasife alınan üyeleri de geri getir.
+            team = max(candidates, key=lambda row: row.id)
+            team.is_active = True
+            team.updated_at = now
+            for assignment in team.assignments or []:
+                assignment.is_active = True
+                assignment.updated_at = now
+            ensured.append(team)
+            changed = True
+            continue
+
         team = EmergencyTeam(
             company_id=company_id,
             type_id=t.id,
@@ -82,12 +118,15 @@ def ensure_default_teams(db: Session, company_id: int, user_id: int) -> list[Eme
             created_by_id=user_id,
         )
         db.add(team)
-        created.append(team)
-    if created:
+        ensured.append(team)
+        changed = True
+
+    if changed:
         db.commit()
-        for team in created:
-            db.refresh(team)
-    return created
+        for team in ensured:
+            if team.id is not None:
+                db.refresh(team)
+    return ensured
 
 
 # --------------------------------------------------------------------------- #
