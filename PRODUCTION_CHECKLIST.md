@@ -6,7 +6,9 @@
 - [ ] `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` ve `DATABASE_URL` yalnızca ortam değişkenlerinden verilmelidir.
 - [ ] Varsayılan global yönetici şifresi değiştirilmelidir.
 - [ ] Production'da PostgreSQL ve HTTPS kullanılmalıdır; backend SQLite veya HTTP frontend origin'iyle başlamamalıdır.
-- [ ] CORS yalnızca gerçek frontend alan adına açılmalıdır.
+- [ ] CORS yalnızca gerçek frontend alan adına açılmalıdır; production'da localhost olmamalıdır.
+- [ ] HSTS `includeSubDomains; preload` açık olmalıdır.
+- [ ] `/.well-known/security.txt` ve `/robots.txt` yayınlanmalıdır.
 - [ ] SMTP, PostgreSQL, sağlık şifreleme ve yedek şifreleme sırları kaynak koduna yazılmamalıdır.
 - [ ] Render'da `HEALTH_FIELD_ENCRYPTION_ENABLED=true` ve güçlü `HEALTH_FIELD_ENCRYPTION_KEY` tanımlı olmalıdır.
 - [ ] Render'da `BACKUP_RESTORE_ENABLED=true`, `BACKUP_ENCRYPTION_KEY` tanımlı ve geri yükleme dry-run/staging testi tamamlanmış olmalıdır.

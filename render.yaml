@@ -202,7 +202,7 @@ services:
     headers:
       - path: /*
         name: Strict-Transport-Security
-        value: max-age=31536000; includeSubDomains
+        value: max-age=31536000; includeSubDomains; preload
       - path: /*
         name: X-Frame-Options
         value: DENY
@@ -216,11 +216,23 @@ services:
         name: Permissions-Policy
         value: camera=(self), microphone=(), geolocation=(self)
       - path: /*
+        name: Cross-Origin-Opener-Policy
+        value: same-origin-allow-popups
+      - path: /*
+        name: Cross-Origin-Resource-Policy
+        value: same-site
+      - path: /*
+        name: X-Permitted-Cross-Domain-Policies
+        value: none
+      - path: /*
         name: Content-Security-Policy
         # Protected video may redirect to a short-lived R2/S3 HTTPS URL. Media
         # is permitted over HTTPS while scripts, frames and API connections
         # remain restricted to their existing origins.
         value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' https: blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      - path: /manifest.webmanifest
+        name: Content-Type
+        value: application/manifest+json
     envVars:
       - key: NODE_VERSION
         value: 20.18.0
@@ -233,6 +245,15 @@ services:
       - type: rewrite
         source: /health
         destination: https://isg-suite-api-1u9t.onrender.com/health
+      - type: rewrite
+        source: /robots.txt
+        destination: /robots.txt
+      - type: rewrite
+        source: /.well-known/security.txt
+        destination: /.well-known/security.txt
+      - type: rewrite
+        source: /manifest.webmanifest
+        destination: /manifest.webmanifest
       - type: rewrite
         source: /*
         destination: /index.html

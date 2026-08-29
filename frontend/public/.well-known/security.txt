@@ -1,0 +1,6 @@
+Contact: mailto:destek@eisa.com.tr
+Contact: https://www.isgsuite.tr
+Expires: 2027-08-29T00:00:00.000Z
+Preferred-Languages: tr, en
+Canonical: https://www.isgsuite.tr/.well-known/security.txt
+Policy: https://www.isgsuite.tr

@@ -248,3 +248,19 @@ def test_cors_origins_are_trimmed_and_deduplicated():
     )
     assert origins.count("https://www.isgsuite.tr") == 1
     assert "" not in origins
+
+
+def test_security_headers_on_health():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    r = TestClient(app).get("/health")
+    assert r.status_code == 200
+    assert r.json()["status"] == "ok"
+    assert "preload" in r.headers.get("strict-transport-security", "")
+    assert r.headers.get("x-frame-options") == "DENY"
+    assert r.headers.get("x-content-type-options") == "nosniff"
+    assert r.headers.get("cross-origin-opener-policy") == "same-origin-allow-popups"
+    assert r.headers.get("x-permitted-cross-domain-policies") == "none"
+    assert "frame-ancestors 'none'" in r.headers.get("content-security-policy", "")

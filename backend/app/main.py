@@ -80,8 +80,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "X-Frame-Options": "DENY",
             "Referrer-Policy": "strict-origin-when-cross-origin",
             "Permissions-Policy": "camera=(self), microphone=(), geolocation=(self)",
-            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+            "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
+            "Cross-Origin-Resource-Policy": "same-site",
+            "X-Permitted-Cross-Domain-Policies": "none",
+            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
         })
         ct = response.headers.get('content-type') or ''
         if ct.startswith('application/json') and 'charset=' not in ct.lower():
