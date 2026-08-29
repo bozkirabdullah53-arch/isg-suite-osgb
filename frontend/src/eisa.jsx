@@ -2051,8 +2051,6 @@ export function SpecialistRegisterPage({ onBack, onRegistered }) {
     contract_accepted: false,
     personal_data_accepted: false,
   });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [ok, setOk] = useState('');
@@ -2129,16 +2127,10 @@ export function SpecialistRegisterPage({ onBack, onRegistered }) {
                 <input required minLength={3} value={form.certificate_number} onChange={(e) => setForm({ ...form, certificate_number: e.target.value })} />
               </label>
               <label className="field"><span>Şifre *</span>
-                <input type={showPassword ? 'text' : 'password'} required minLength={10} autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-                <button type="button" className="mini secondary" style={{ marginTop: 6, width: 'fit-content', minWidth: 108 }} aria-pressed={showPassword} aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'} onClick={() => setShowPassword((v) => !v)}>
-                  {showPassword ? '🙈 Gizle' : '👁 Göster'}
-                </button>
+                <input type="password" required minLength={10} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
               </label>
               <label className="field"><span>Şifre tekrar *</span>
-                <input type={showPasswordConfirm ? 'text' : 'password'} required minLength={10} autoComplete="new-password" value={form.password_confirm} onChange={(e) => setForm({ ...form, password_confirm: e.target.value })} />
-                <button type="button" className="mini secondary" style={{ marginTop: 6, width: 'fit-content', minWidth: 108 }} aria-pressed={showPasswordConfirm} aria-label={showPasswordConfirm ? 'Şifre tekrarını gizle' : 'Şifre tekrarını göster'} onClick={() => setShowPasswordConfirm((v) => !v)}>
-                  {showPasswordConfirm ? '🙈 Gizle' : '👁 Göster'}
-                </button>
+                <input type="password" required minLength={10} value={form.password_confirm} onChange={(e) => setForm({ ...form, password_confirm: e.target.value })} />
               </label>
               <div className="apply-legal">
                 <p>Metinleri okuyup onaylayın (Rev: {LEGAL_DOCS_VERSION})</p>
