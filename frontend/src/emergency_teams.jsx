@@ -549,37 +549,108 @@ export function EmergencyTeamsPage({user}) {
       {/* Members table + filters */}
       {hasTeams && (
         <section className="panel">
-          <div className="toolbar" style={{gap: 8, flexWrap: 'wrap', marginBottom: 12}}>
-            <input
-              placeholder="Ara: ad, görev, bölüm, sicil…"
-              value={filters.q}
-              onChange={(e) => setFilters({...filters, q: e.target.value})}
-              onKeyDown={(e) => e.key === 'Enter' && reloadMembers()}
-            />
-            <select value={filters.team_id} onChange={(e) => setFilters({...filters, team_id: e.target.value})}>
-              <option value="">Tüm ekipler</option>
-              {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-            <select value={filters.membership} onChange={(e) => setFilters({...filters, membership: e.target.value})}>
-              <option value="">Asıl + Yedek</option>
-              <option value="asil">Asıl</option>
-              <option value="yedek">Yedek</option>
-            </select>
-            <select value={filters.cert_status} onChange={(e) => setFilters({...filters, cert_status: e.target.value})}>
-              <option value="">Tüm belgeler</option>
-              <option value="green">Geçerli</option>
-              <option value="yellow">30 gün içinde</option>
-              <option value="red">Süresi dolmuş</option>
-              <option value="grey">Kayıt yok</option>
-            </select>
-            <input
-              placeholder="Vardiya"
-              style={{maxWidth: 120}}
-              value={filters.shift}
-              onChange={(e) => setFilters({...filters, shift: e.target.value})}
-              onKeyDown={(e) => e.key === 'Enter' && reloadMembers()}
-            />
-            <button type="button" className="secondary mini" onClick={reloadMembers} disabled={busy}>Filtrele</button>
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '16px 18px',
+              border: '1px solid #dce8eb',
+              borderRadius: 16,
+              background: 'linear-gradient(135deg, rgba(248,250,252,.98) 0%, rgba(240,249,250,.96) 100%)',
+              boxShadow: '0 10px 28px rgba(15, 23, 42, .06)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                flexWrap: 'wrap',
+                marginBottom: 13,
+              }}
+            >
+              <div>
+                <div style={{fontSize: 14, fontWeight: 750, color: '#0f2f3a'}}>Üye Filtreleri</div>
+                <div className="muted" style={{fontSize: 12, marginTop: 2}}>
+                  Ekip üyelerini görev, ekip, üyelik, belge durumu ve vardiyaya göre süzün.
+                </div>
+              </div>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  minHeight: 28,
+                  padding: '0 10px',
+                  borderRadius: 999,
+                  background: '#ffffff',
+                  border: '1px solid #d7e5e8',
+                  color: '#47646d',
+                  fontSize: 12,
+                  fontWeight: 650,
+                }}
+              >
+                {members.length} sonuç
+              </span>
+            </div>
+
+            <div className="toolbar" style={{gap: 12, flexWrap: 'wrap', alignItems: 'flex-end'}}>
+              <label className="field" style={{flex: '2 1 290px', minWidth: 240}}>
+                <span>Arama</span>
+                <input
+                  placeholder="Ad, görev, bölüm veya sicil no..."
+                  value={filters.q}
+                  onChange={(e) => setFilters({...filters, q: e.target.value})}
+                  onKeyDown={(e) => e.key === 'Enter' && reloadMembers()}
+                />
+              </label>
+
+              <label className="field" style={{flex: '1 1 175px', minWidth: 155}}>
+                <span>Ekip</span>
+                <select value={filters.team_id} onChange={(e) => setFilters({...filters, team_id: e.target.value})}>
+                  <option value="">Tüm ekipler</option>
+                  {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </label>
+
+              <label className="field" style={{flex: '1 1 155px', minWidth: 145}}>
+                <span>Üyelik</span>
+                <select value={filters.membership} onChange={(e) => setFilters({...filters, membership: e.target.value})}>
+                  <option value="">Asıl + Yedek</option>
+                  <option value="asil">Asıl</option>
+                  <option value="yedek">Yedek</option>
+                </select>
+              </label>
+
+              <label className="field" style={{flex: '1 1 175px', minWidth: 155}}>
+                <span>Belge durumu</span>
+                <select value={filters.cert_status} onChange={(e) => setFilters({...filters, cert_status: e.target.value})}>
+                  <option value="">Tüm belgeler</option>
+                  <option value="green">Geçerli</option>
+                  <option value="yellow">30 gün içinde</option>
+                  <option value="red">Süresi dolmuş</option>
+                  <option value="grey">Kayıt yok</option>
+                </select>
+              </label>
+
+              <label className="field" style={{flex: '0 1 145px', minWidth: 130}}>
+                <span>Vardiya</span>
+                <input
+                  placeholder="Tümü"
+                  value={filters.shift}
+                  onChange={(e) => setFilters({...filters, shift: e.target.value})}
+                  onKeyDown={(e) => e.key === 'Enter' && reloadMembers()}
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={reloadMembers}
+                disabled={busy}
+                style={{minHeight: 44, minWidth: 112, padding: '0 20px', borderRadius: 12, fontWeight: 700}}
+              >
+                Filtrele
+              </button>
+            </div>
           </div>
 
           <div className="table-wrap">
