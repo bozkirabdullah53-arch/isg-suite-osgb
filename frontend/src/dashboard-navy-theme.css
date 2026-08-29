@@ -1,0 +1,40 @@
+/* Dashboard-specific navy/blue palette override.
+   Scope is intentionally narrow so semantic status colours elsewhere stay unchanged. */
+
+/* Duty dashboard hero: replace teal/green gradient with navy -> royal blue. */
+.welcome:has(+ .page-title) {
+  background: linear-gradient(120deg, #08254f 0%, #0b2f6f 58%, #173f97 100%) !important;
+}
+
+/* Professional monthly-capacity panel: remove teal top accent. */
+section.panel:has(.capacity-metric-used) {
+  border-top-color: #1d4ed8 !important;
+}
+
+/* Approved dashboard mockup uses one coherent blue family for both capacity cards. */
+.capacity-metric-used {
+  --capacity-accent: #1d4ed8 !important;
+}
+
+.capacity-metric-remaining {
+  --capacity-accent: #1e40af !important;
+}
+
+/* Keep capacity ornaments/progress treatments visibly blue even if component defaults change. */
+.capacity-metric-used .capacity-metric-dot,
+.capacity-metric-used .capacity-metric-meter > span {
+  background-color: #1d4ed8 !important;
+}
+
+.capacity-metric-remaining .capacity-metric-dot,
+.capacity-metric-remaining .capacity-metric-meter > span {
+  background-color: #1e40af !important;
+}
+
+.capacity-metric-used .capacity-metric-percent {
+  color: #1d4ed8 !important;
+}
+
+.capacity-metric-remaining .capacity-metric-percent {
+  color: #1e40af !important;
+}
