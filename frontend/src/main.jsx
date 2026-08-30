@@ -741,7 +741,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
   const[siteQrEphemeral,setSiteQrEphemeral]=useState(null);
   const[siteQrBusy,setSiteQrBusy]=useState(false);
   const[naceCatalog,setNaceCatalog]=useState([]);
-  const emptyForm={name:'',sgk_registry_no:'',nace_code:'',address:'',phone:'',authorized_person:'',hazard_class:'Az Tehlikeli'};
+  const emptyForm={name:'',sgk_registry_no:'',nace_code:'',address:'',phone:'',authorized_person:'',hazard_class:''};
   const[form,setForm]=useState(emptyForm);
   const naceMatch=findNaceRecord(naceCatalog,form.nace_code);
   useEffect(()=>{
@@ -752,11 +752,12 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
     return()=>{cancelled=true};
   },[]);
   useEffect(()=>{
-    if(!naceMatch?.hazard_class) return;
-    setForm((current)=>current.hazard_class===naceMatch.hazard_class
+    if(!String(form.nace_code||'').trim()) return;
+    const nextHazard=naceMatch?.hazard_class||'';
+    setForm((current)=>current.hazard_class===nextHazard
       ? current
-      : {...current,hazard_class:naceMatch.hazard_class});
-  },[naceMatch?.code,naceMatch?.hazard_class]);
+      : {...current,hazard_class:nextHazard});
+  },[form.nace_code,naceMatch?.code,naceMatch?.hazard_class]);
   function dispatchNaceEvent(name,detail){
     try{window.dispatchEvent(new CustomEvent(name,{detail}))}catch(_){/* ignore */}
   }
@@ -777,7 +778,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
       address:row?.address||'',
       phone:row?.phone||'',
       authorized_person:row?.authorized_person||'',
-      hazard_class:row?.hazard_class||'Az Tehlikeli',
+      hazard_class:row?.hazard_class||'',
     });
     dispatchNaceEvent('isg:company-selected',{companyId:row?.id,company:row});
     setOpen(true);
@@ -794,7 +795,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
     setForm((current)=>({
       ...current,
       nace_code:value,
-      hazard_class:match?.hazard_class||current.hazard_class,
+      hazard_class:match?.hazard_class||'',
     }));
   }
   async function copyText(text){
@@ -817,8 +818,22 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
   };
   useEffect(()=>{void load()},[]);
   async function save(e){
-    e.preventDefault();setBusy(true);setErr('');
-    const payload={...form,sgk_registry_no:(form.sgk_registry_no||'').trim()};
+    e.preventDefault();setErr('');
+    const enteredNace=String(form.nace_code||'').trim();
+    if(enteredNace&&!naceMatch){
+      setErr(naceCatalog.length
+        ? 'Girilen NACE kodu katalogda bulunamadı. Lütfen tam ve geçerli bir NACE kodu girin.'
+        : 'NACE kataloğu henüz yüklenemedi. Lütfen birkaç saniye sonra tekrar deneyin.');
+      return;
+    }
+    setBusy(true);
+    const payload={
+      ...form,
+      // Tehlike sınıfı yalnızca NACE eşleşmesinden gelir. NACE boşsa mevcut
+      // eski kaydın değeri korunur; yeni kayıtta boş bırakılır.
+      hazard_class:naceMatch?.hazard_class||(!enteredNace?(form.hazard_class||null):null),
+      sgk_registry_no:(form.sgk_registry_no||'').trim(),
+    };
     if(!payload.sgk_registry_no){setErr('İşyeri sicil numarası zorunludur.');setBusy(false);return}
     try{
       const isEditing=Boolean(editing?.id);
@@ -926,16 +941,23 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
         {form.nace_code&&(
           <div className={'company-nace-preview '+(naceMatch?'is-resolved':'is-unresolved')} role="status">
             <div><span>Faaliyet tanımı</span><strong>{naceMatch?.name||'Resmî NACE kataloğunda bulunamadı'}</strong></div>
-            <div><span>Tehlike sınıfı</span><strong>{naceMatch?.hazard_class||form.hazard_class||'Belirlenemedi'}</strong></div>
+            <div><span>Tehlike sınıfı</span><strong>{naceMatch?.hazard_class||'Belirlenemedi'}</strong></div>
           </div>
         )}
         <Field label="İşveren / İşveren Vekili" value={form.authorized_person} onChange={e=>setForm({...form,authorized_person:e.target.value})}/>
         <Field label="Telefon" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
         <Field label="Adres" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/>
-        <Select label="Tehlike Sınıfı" value={form.hazard_class} disabled={Boolean(naceMatch)} onChange={e=>setForm({...form,hazard_class:e.target.value})}>
-          <option>Az Tehlikeli</option><option>Tehlikeli</option><option>Çok Tehlikeli</option>
-        </Select>
-        {naceMatch&&<p className="company-nace-auto-note">NACE koduna göre otomatik belirlendi.</p>}
+        <Field
+          label="Tehlike Sınıfı (NACE'den otomatik)"
+          value={naceMatch?.hazard_class||(
+            String(form.nace_code||'').trim() ? 'Belirlenemedi' : (form.hazard_class||'NACE kodu giriniz')
+          )}
+          readOnly
+          tabIndex={-1}
+          aria-readonly="true"
+          className={'nace-hazard-readonly '+(naceMatch?'is-resolved':'is-unresolved')}
+        />
+        {naceMatch&&<p className="company-nace-auto-note">Bu değer tüm NACE kodlarında otomatik belirlenir ve elle değiştirilemez.</p>}
         {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
         <div className="form-actions"><button type="submit" disabled={busy}>{busy?'Kaydediliyor...':(editing?'Güncelle':'Kaydet')}</button></div>
       </form>

@@ -487,6 +487,14 @@ nav button.active {
   color: #52718a;
   font-size: 11px;
 }
+.nace-hazard-readonly {
+  cursor: not-allowed;
+  color: #214d70;
+  background: #f8fbff !important;
+}
+.nace-hazard-readonly.is-unresolved {
+  color: #7a5a20;
+}
 
 .workspace { min-width: 0; }
 header {

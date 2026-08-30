@@ -107,6 +107,31 @@ from app.services.site_verify import (
 router = APIRouter(prefix="/companies", tags=["Firmalar"])
 
 
+def _apply_nace_classification(
+    data: dict, *, existing_nace_code: str | None = None
+) -> None:
+    """Make the stored company hazard class authoritative for its NACE code."""
+    raw = data.get("nace_code") if "nace_code" in data else existing_nace_code
+    raw = str(raw or "").strip()
+    if not raw:
+        # An explicitly cleared NACE must not leave a stale derived class.
+        if "nace_code" in data:
+            data["hazard_class"] = None
+        return
+
+    from app.services.training_nace_classification import resolve_exact_nace
+
+    try:
+        classification = resolve_exact_nace(raw)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="Geçerli ve tam bir NACE kodu girilmelidir; tehlike sınıfı NACE'den belirlenir.",
+        ) from exc
+    data["nace_code"] = classification.nace_code
+    data["hazard_class"] = classification.hazard_class
+
+
 def _default_osgb_id(db: Session) -> int | None:
     return db.scalar(select(OsgbOrganization.id).order_by(OsgbOrganization.id).limit(1))
 
@@ -574,6 +599,7 @@ def create_company(
     if user.role != UserRole.SAFETY_SPECIALIST:
         reject_company_bound_admin_from_osgb_internal(user)
     data = payload.model_dump()
+    _apply_nace_classification(data)
     if user.role == UserRole.SAFETY_SPECIALIST:
         from app.models.entities import OsgbOrganization
 
@@ -707,6 +733,7 @@ def update_company(
     else:
         _assert_company_admin_scope(user, obj)
     data = payload.model_dump(exclude_unset=True)
+    _apply_nace_classification(data, existing_nace_code=obj.nace_code)
     # OSGB admin / bireysel uzman başka OSGB'ye taşıyamaz
     if user.role in (UserRole.COMPANY_ADMIN, UserRole.SAFETY_SPECIALIST):
         data.pop("osgb_id", None)

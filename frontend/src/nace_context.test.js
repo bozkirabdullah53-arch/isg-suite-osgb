@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {
+  augmentNaceCatalog,
   compactNace,
   findNaceRecord,
   isCompanySelector,
@@ -26,6 +27,26 @@ describe('NACE context helpers', () => {
     expect(findNaceRecord(catalog, '46.83.06')?.name).toContain('Metal yapı');
     expect(findNaceRecord(catalog, 'nace_46_83_06')?.nace).toBe('46.83.06');
     expect(findNaceRecord(catalog, '99.99.99')).toBeNull();
+  });
+
+  it('resolves legacy NACE codes without hardcoding the form field to one code', () => {
+    const rows = augmentNaceCatalog([
+      {
+        code: 'nace_41_00_01',
+        nace: '41.00.01',
+        name: 'İkamet amaçlı binaların inşaatı',
+        hazard_class: 'Çok Tehlikeli',
+        topics: ['Yapı işleri', 'Yüksekte çalışma', 'İş ekipmanları', 'Acil durumlar', 'KKD'],
+      },
+    ]);
+    expect(findNaceRecord(rows, '41.20.02')).toMatchObject({
+      nace: '41.20.02',
+      hazard_class: 'Çok Tehlikeli',
+      is_legacy_alias: true,
+      source_nace: '41.00.01',
+    });
+    expect(findNaceRecord(rows, '41.20.99')).toBeNull();
+    expect(findNaceRecord(rows, '41.20.029')).toBeNull();
   });
 
   it('prefers the official catalog hazard class', () => {

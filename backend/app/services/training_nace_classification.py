@@ -200,7 +200,7 @@ def _json(value: Any) -> str:
 def _catalog_indexes() -> tuple[dict[str, dict], dict[str, dict]]:
     by_key: dict[str, dict] = {}
     by_nace: dict[str, dict] = {}
-    for raw in sectors_list_for_api():
+    for raw in sectors_list_for_api(include_legacy_nace_aliases=True):
         row = dict(raw)
         key = str(row.get("code") or "").strip()
         nace = str(row.get("nace") or "").strip()
@@ -234,7 +234,7 @@ def _catalog_hash(snapshot: dict[str, Any]) -> str:
 
 
 def resolve_exact_nace(value: str | None) -> NaceClassification:
-    """Resolve only an exact catalog key or exact official NACE code.
+    """Resolve only an exact catalog key or exact catalog NACE code.
 
     Raises ``ValueError`` instead of falling back to a different sector.
     """
@@ -245,7 +245,7 @@ def resolve_exact_nace(value: str | None) -> NaceClassification:
         row = by_nace.get(raw)
     if row is None:
         raise ValueError(
-            "Geçerli ve tam bir NACE faaliyeti seçilmelidir; genel sektör, alias veya "
+            "Geçerli ve tam bir NACE faaliyeti seçilmelidir; genel sektör veya "
             "ilgili olmayan yedek profil kabul edilmez."
         )
 
