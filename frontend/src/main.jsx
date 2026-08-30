@@ -2646,7 +2646,7 @@ function App(){
     sds:<SdsRegisterPage user={user}/>,
     tatbikat:<DrillsPage user={user}/>,
     acil_ekipler:<EmergencyTeamsPage user={user}/>,
-    acil_plan:<EmergencyPlansPage user={user}/>,
+     acil_plan:<EmergencyPlansPage user={user} onNavigate={goModule}/>,
     periyodik_kontrol:<PeriodicControlsPage user={user}/>,
     ortam_olcum:<WorkplaceMeasurementsPage user={user}/>,
     isg_kurulu:<OhsCommitteePage user={user}/>,

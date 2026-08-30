@@ -161,6 +161,62 @@ def test_overview_seeds_default_teams(client):
     assert "sondurme" in codes and "ilk_yardim" in codes
 
 
+def test_emergency_plan_legend_reports_drill_and_team_readiness(client):
+    from datetime import date
+
+    seed = _seed(client)
+    headers = {"Authorization": f"Bearer {seed['token']}"}
+
+    # Uzman görünümünde varsayılan ekipler oluşur; üye atanmadığı için kadro
+    # hazır kabul edilmemelidir.
+    overview = client.get(
+        f"/api/v1/emergency-teams/overview?company_id={seed['company_id']}",
+        headers=headers,
+    )
+    assert overview.status_code == 200, overview.text
+
+    created = client.post(
+        "/api/v1/emergency-plans",
+        headers=headers,
+        json={
+            "company_id": seed["company_id"],
+            "title": "Acil Durum Planı",
+            "plan_date": date.today().isoformat(),
+            "next_review_date": date.today().isoformat(),
+            "assembly_areas": "Açık otopark",
+            "scenario_summary": "Yangın sonrası tahliye ve toplanma akışı",
+        },
+    )
+    assert created.status_code == 200, created.text
+    plan_id = created.json()["id"]
+
+    missing = client.get(f"/api/v1/emergency-plans/{plan_id}/legend", headers=headers)
+    assert missing.status_code == 200, missing.text
+    missing_body = missing.json()
+    assert missing_body["team_readiness"]["ready"] is False
+    assert missing_body["drill_readiness"]["status"] == "missing"
+    assert "Tamamlanmış tatbikat kaydı bulunmuyor" in missing_body["missing"]
+
+    drill = client.post(
+        "/api/v1/drills",
+        headers=headers,
+        json={
+            "company_id": seed["company_id"],
+            "drill_type": "Yangın",
+            "drill_date": date.today().isoformat(),
+            "status": "yapildi",
+            "scenario": "Yangın alarmı sonrası tahliye",
+        },
+    )
+    assert drill.status_code == 200, drill.text
+
+    current = client.get(f"/api/v1/emergency-plans/{plan_id}/legend", headers=headers)
+    assert current.status_code == 200, current.text
+    current_body = current.json()
+    assert current_body["drill_readiness"]["status"] == "current"
+    assert current_body["drill_readiness"]["latest_date"] == date.today().isoformat()
+
+
 def test_create_team_assign_list_soft_delete(client):
     seed = _seed(client)
     headers = {"Authorization": f"Bearer {seed['token']}"}

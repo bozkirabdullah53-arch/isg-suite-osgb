@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {ClipboardCheck, Download, FileWarning, Map, Plus, RefreshCw, Trash2, Upload, Users} from 'lucide-react';
+import {AlertCircle, ArrowUpRight, CalendarClock, CheckCircle2, ClipboardCheck, Download, FileCheck2, FileWarning, Map, Plus, RefreshCw, ShieldCheck, Trash2, Upload, Users} from 'lucide-react';
 import {
   downloadBase64Pdf,
   probeIsgSigner,
@@ -11,6 +11,7 @@ import {isWorkplaceManagerUser} from './workplace_user_policy';
 import {ESignCenterPage} from './esign_center';
 import {EyasDigitalApprovalPage} from './eyas_digital_approval';
 import {EmergencyKrokiEditor} from './emergency_kroki_editor';
+import {buildEmergencyPlanReadiness} from './emergency_plan_readiness';
 
 /** Belge Onay hub: varsayılan = Eyas (Uzman→Hekim→İşveren). Eski süreç ayrı sekmede. */
 export function BelgeOnayHub({user}) {
@@ -69,7 +70,7 @@ export function BelgeOnayHub({user}) {
         <DocumentApprovalsPage user={user} onStartSequentialApproval={eyasOn ? startEyasFlow : undefined} />
       )}
       {tab === 'orch' && <ESignCenterPage user={user} />}
-    </>
+      </>
   );
 }
 
@@ -252,15 +253,18 @@ export function PeriodicControlsPage({user}) {
           </form>
         </Modal>
       )}
-    </>
+      </>
   );
 }
 
 /** Acil durum planı + kroki */
-export function EmergencyPlansPage({user}) {
+export function EmergencyPlansPage({user, onNavigate}) {
   const canEdit = ['safety_specialist', 'global_admin'].includes(user.role);
   const companies = useCompanies(user);
   const [rows, setRows] = useState([]);
+  const [insights, setInsights] = useState({});
+  const [query, setQuery] = useState('');
+  const [view, setView] = useState('all');
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -279,7 +283,16 @@ export function EmergencyPlansPage({user}) {
   async function load() {
     setBusy(true);
     try {
-      setRows(await api('/emergency-plans'));
+      const nextRows = await api('/emergency-plans');
+      setRows(nextRows);
+      const results = await Promise.all(nextRows.map(async (row) => {
+        try {
+          return [row.id, await api(`/emergency-plans/${row.id}/legend`)];
+        } catch {
+          return [row.id, null];
+        }
+      }));
+      setInsights(Object.fromEntries(results));
     } catch (e) {
       setErr(e.message);
     } finally {
@@ -354,6 +367,27 @@ export function EmergencyPlansPage({user}) {
     }
   }
 
+  function planReadiness(row) {
+    return buildEmergencyPlanReadiness(row, insights[row.id] || {});
+  }
+
+  const filteredRows = rows.filter((row) => {
+    const readiness = planReadiness(row);
+    const haystack = `${row.title} ${row.assembly_areas || ''} ${row.scenario_summary || ''}`.toLocaleLowerCase('tr-TR');
+    const matchesQuery = !query.trim() || haystack.includes(query.trim().toLocaleLowerCase('tr-TR'));
+    const matchesView = view === 'all' || (view === 'attention' && readiness.attention) || (view === 'ready' && !readiness.attention);
+    return matchesQuery && matchesView;
+  });
+
+  const summary = rows.reduce((acc, row) => {
+    const readiness = planReadiness(row);
+    acc.total += 1;
+    acc.attention += readiness.attention ? 1 : 0;
+    acc.ready += readiness.attention ? 0 : 1;
+    acc.overdue += row.review_status === 'overdue' ? 1 : 0;
+    return acc;
+  }, {total: 0, attention: 0, ready: 0, overdue: 0});
+
   if (editPlanId) {
     return (
       <div style={{margin: '0 -8px', width: 'calc(100% + 16px)', maxWidth: 'none'}}>
@@ -372,123 +406,95 @@ export function EmergencyPlansPage({user}) {
   }
 
   return (
-    <>
-      <div className="page-title">
-        <h3><FileWarning size={20} style={{marginRight: 8, verticalAlign: 'middle'}} />Acil Durum Planı</h3>
-        <div className="actions">
-          <button type="button" className="secondary" onClick={() => downloadFile('/emergency-plans/export.xlsx', 'acil-durum-plani.xlsx').catch((e) => setErr(e.message))}><Download size={16} /> Excel</button>
-          <button type="button" className="secondary" onClick={() => void load()}><RefreshCw size={16} /> Yenile</button>
-          {canEdit && <button type="button" onClick={() => setOpen(true)}><Plus size={16} /> Yeni Plan</button>}
+    <div className="emergency-premium-root">
+      <div className="emergency-page-head">
+        <div>
+          <div className="eyebrow"><ShieldCheck size={14} /> OSGB UYUM MERKEZİ / ACİL DURUM</div>
+          <h3>Acil Durum Planları</h3>
+          <p>Her müşteri işyerinin planını, krokisini ve sahada doğrulanması gereken kanıtları tek akışta yönetin.</p>
+        </div>
+        <div className="emergency-head-actions">
+          <button type="button" className="secondary" disabled={busy} onClick={() => downloadFile('/emergency-plans/export.xlsx', 'acil-durum-plani.xlsx').catch((e) => setErr(e.message))}><Download size={16} /> Excel</button>
+          <button type="button" className="secondary" disabled={busy} onClick={() => void load()}><RefreshCw size={16} /> Yenile</button>
+          {canEdit && <button type="button" disabled={busy} onClick={() => setOpen(true)}><Plus size={16} /> Yeni plan oluştur</button>}
         </div>
       </div>
-      <section className="panel">
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0,1.4fr) minmax(220px,0.8fr)',
-          gap: 16,
-          marginBottom: 18,
-          padding: '16px 18px',
-          borderRadius: 14,
-          border: '1px solid #d1e7e3',
-          background: 'linear-gradient(135deg, #f0fdfa 0%, #f8fafc 55%, #fff 100%)',
-        }}>
-          <div>
-            <div style={{fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase', color: '#0f766e', fontWeight: 700, marginBottom: 6}}>
-              Akıllı Acil Durum Krokisi · v2.2 Pro (ISO 7010 / 23601)
-            </div>
-            <div style={{fontSize: 18, fontWeight: 760, color: '#0f172a', marginBottom: 6}}>
-              Acil Durum Kroki Studio
-            </div>
-            <p style={{margin: 0, color: '#475569', fontSize: 14, lineHeight: 1.55, maxWidth: 640}}>
-              Kat planı yükleyin, ofis/atölye şablonu veya akıllı tahliye asistanı kullanın; çizgi kaçış okları, ölçü, hilal ilk yardım ve mevzuat paneliyle duvar posteri üretin.
-            </p>
+
+      <section className="emergency-hero">
+        <div className="emergency-hero-copy">
+          <span className="hero-kicker">KONTROLLÜ HAZIRLIK ALANI</span>
+          <h1>Planı oluşturun.<br /><em>Krokiyi doğrulayın.</em></h1>
+          <p>6331 sayılı Kanun ve İşyerlerinde Acil Durumlar Hakkında Yönetmelik çerçevesinde; plan metni, tahliye krokisi, acil ekip bağlantısı ve revizyon takibini birlikte yönetin.</p>
+          <div className="hero-actions">
+            {canEdit && <button type="button" onClick={() => setOpen(true)}><Plus size={16} /> İlk planı oluştur</button>}
+            {onNavigate && <button type="button" className="hero-ghost" onClick={() => onNavigate('acil_ekipler')}><Users size={16} /> Ekipleri yönet <ArrowUpRight size={15} /></button>}
           </div>
-          <div style={{display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8, fontSize: 13, color: '#334155'}}>
-            <div><strong>A.</strong> Yeni Plan → plan fotoğrafı veya şablon</div>
-            <div><strong>B.</strong> Akıllı tahliye → kontrol skoru</div>
-            <div><strong>C.</strong> PNG poster · kilitle · Eyas onayı</div>
+        </div>
+        <div className="emergency-hero-rail">
+          <div className="hero-rail-label">DOSYA KONTROLÜ</div>
+          <div className="hero-rail-item"><FileCheck2 size={18} /><span>Plan metni ve revizyon</span><strong>01</strong></div>
+          <div className="hero-rail-item"><Map size={18} /><span>Kat krokisi ve kaçış</span><strong>02</strong></div>
+          <div className="hero-rail-item"><Users size={18} /><span>Acil ekip kadrosu</span><strong>03</strong></div>
+          <div className="hero-rail-item"><CalendarClock size={18} /><span>Tatbikat ve gözden geçirme</span><strong>04</strong></div>
+          <small>Hazırlık skoru uzman doğrulamasının yerine geçmez.</small>
+        </div>
+      </section>
+
+      <div className="emergency-stat-grid">
+        <div className="emergency-stat"><span>TOPLAM PLAN</span><strong>{summary.total}</strong><small>Aktif müşteri dosyası</small><FileCheck2 /></div>
+        <div className="emergency-stat stat-warning"><span>AKSİYON BEKLEYEN</span><strong>{summary.attention}</strong><small>{summary.overdue ? `${summary.overdue} gecikmiş gözden geçirme` : 'Eksik kanıt veya kontrol'}</small><AlertCircle /></div>
+        <div className="emergency-stat stat-success"><span>KONTROLE HAZIR</span><strong>{summary.ready}</strong><small>Tüm dijital adımlar tamam</small><CheckCircle2 /></div>
+      </div>
+
+      <section className="emergency-workspace panel">
+        <div className="emergency-workspace-head">
+          <div><span className="section-kicker">MÜŞTERİ DOSYALARI</span><h4>Plan portföyü</h4></div>
+          <div className="emergency-filters">
+            <label className="emergency-search"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Plan veya toplanma alanı ara" /><span>⌕</span></label>
+            <select value={view} onChange={(e) => setView(e.target.value)} aria-label="Plan görünümü">
+              <option value="all">Tüm planlar</option><option value="attention">Aksiyon gerekenler</option><option value="ready">Kontrole hazır</option>
+            </select>
           </div>
         </div>
         {err && <div className="error">{err}</div>}
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Plan</th>
-                <th>Rev</th>
-                <th>Tarihler</th>
-                <th>Toplanma</th>
-                <th>Kroki durumu</th>
-                <th>Durum</th>
-                <th style={{minWidth: 220}}>İşlem</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length ? rows.map((r) => {
-                const krokiReady = !!(r.has_scene || r.kroki_file_name);
-                return (
-                  <tr key={r.id}>
-                    <td>
-                      <div style={{fontWeight: 650}}>{r.title}</div>
-                      <div style={{fontSize: 12, color: '#64748b'}}>{r.floor_count ?? 0} kat</div>
-                    </td>
-                    <td>{r.revision_no}</td>
-                    <td style={{fontSize: 13}}>
-                      <div>Plan: {r.plan_date || '—'}</div>
-                      <div>Gözden geçirme: {r.next_review_date || '—'} {dueBadge(r.review_status)}</div>
-                    </td>
-                    <td>{r.assembly_areas || '—'}</td>
-                    <td>
-                      <div style={{display: 'flex', flexWrap: 'wrap', gap: 6}}>
-                        <span className={`badge ${krokiReady ? 'ok' : 'off'}`}>
-                          {krokiReady ? 'Kroki hazır' : 'Kroki yok'}
-                        </span>
-                        {r.locked_at && <span className="badge off">Kilitli</span>}
-                        {r.kroki_file_name && (
-                          <span style={{fontSize: 12, color: '#64748b'}} title={r.kroki_file_name}>Poster dosyası</span>
-                        )}
-                      </div>
-                    </td>
-                    <td>{r.status}</td>
-                    <td>
-                      <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center'}}>
-                        <button
-                          type="button"
-                          className="mini"
-                          onClick={() => setEditPlanId(r.id)}
-                          style={{display: 'inline-flex', alignItems: 'center', gap: 6}}
-                        >
-                          <Map size={14} /> Kroki Studio
-                        </button>
-                        {canEdit && (
-                          <label className="button secondary mini" style={{cursor: 'pointer'}} title="Hazır PNG/PDF yükle (opsiyonel)">
-                            <Upload size={14} /> Dosya yükle
-                            <input type="file" hidden accept=".png,.jpg,.jpeg,.pdf,.webp" onChange={(e) => { uploadKroki(r, e.target.files?.[0]); e.target.value = ''; }} />
-                          </label>
-                        )}
-                        {canEdit && (
-                          <button type="button" className="mini" disabled={busy} onClick={() => void removePlan(r)}>
-                            <Trash2 size={14} /> Sil
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              }) : (
-                <tr>
-                  <td colSpan={7} className="empty">
-                    Henüz plan yok. Yeni Plan ile kaydı oluşturun; ardından <strong>Kroki Studio</strong> açılır.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="emergency-plan-list">
+          {filteredRows.length ? filteredRows.map((r) => {
+            const readiness = planReadiness(r);
+            const insight = insights[r.id] || {};
+            const company = companies.find((item) => item.id === r.company_id);
+            return (
+              <article className="emergency-plan-card" key={r.id}>
+                <div className="plan-card-main">
+                  <div className="plan-card-icon"><FileWarning size={22} /></div>
+                  <div className="plan-card-title"><div className="plan-card-overline">{company?.name || `İŞYERİ #${r.company_id}`} · REVİZYON {r.revision_no || '00'}</div><h5>{r.title}</h5><p>{r.assembly_areas || 'Toplanma alanı henüz tanımlanmadı'}</p></div>
+                  <div className={`readiness-badge ${readiness.attention ? 'is-warning' : 'is-ready'}`}><span>{readiness.percent}%</span><small>{readiness.attention ? 'Aksiyon gerekli' : 'Kontrole hazır'}</small></div>
+                </div>
+                <div className="plan-card-details">
+                  <div className="plan-meta"><CalendarClock size={15} /><span>Gözden geçirme</span><strong>{r.next_review_date || 'Tarih girilmedi'}</strong>{dueBadge(r.review_status)}</div>
+                  <div className="plan-meta"><Map size={15} /><span>Kroki</span><strong>{r.floor_count || 0} kat / {r.has_scene ? 'hazır' : 'eksik'}</strong></div>
+                  <div className="plan-meta"><Users size={15} /><span>Acil ekip</span><strong>{insight.team_readiness?.ready_count || 0}/{insight.team_readiness?.team_count || 0} ekip hazır</strong></div>
+                  <div className="plan-meta"><CheckCircle2 size={15} /><span>Son tatbikat</span><strong>{insight.drill_readiness?.latest_date || 'Kayıt yok'}</strong>{insight.drill_readiness?.status === 'due' && <span className="status-badge badge-warn">Takip gerekli</span>}</div>
+                </div>
+                <div className="plan-card-footer">
+                  <div className="readiness-progress"><div style={{width: `${readiness.percent}%`}} /></div>
+                  <div className="plan-missing">{readiness.checks.filter((item) => !item.ok).slice(0, 2).map((item) => <span key={item.label}><AlertCircle size={13} /> {item.label}</span>)}{readiness.checks.every((item) => item.ok) && <span className="complete"><CheckCircle2 size={13} /> Dijital kontrol listesi tamam</span>}</div>
+                  <div className="plan-card-actions">
+                    <button type="button" className="mini" onClick={() => setEditPlanId(r.id)}><Map size={14} /> Kroki Studio</button>
+                    {onNavigate && <button type="button" className="mini secondary" onClick={() => onNavigate('acil_ekipler')}><Users size={14} /> Ekipler</button>}
+                    {canEdit && <label className="button secondary mini" style={{cursor: 'pointer'}} title="Hazır PNG/PDF yükle"><Upload size={14} /> Dosya yükle<input type="file" hidden accept=".png,.jpg,.jpeg,.pdf,.webp" onChange={(e) => { uploadKroki(r, e.target.files?.[0]); e.target.value = ''; }} /></label>}
+                    {canEdit && <button type="button" className="mini danger" disabled={busy} onClick={() => void removePlan(r)}><Trash2 size={14} /></button>}
+                  </div>
+                </div>
+              </article>
+            );
+          }) : <div className="emergency-empty"><FileWarning size={34} /><strong>{rows.length ? 'Filtreye uyan plan bulunamadı' : 'Henüz acil durum planı yok'}</strong><span>{rows.length ? 'Arama veya görünüm filtresini değiştirin.' : 'Yeni plan oluşturun; ardından Kroki Studio ile kat bazlı tahliye krokisini hazırlayın.'}</span></div>}
         </div>
       </section>
       {open && (
-        <Modal title="Acil Durum Planı" close={() => setOpen(false)} wide>
-          <form className="form-grid" onSubmit={save}>
+        <Modal title="Yeni acil durum planı" close={() => setOpen(false)} wide>
+          <div className="emergency-modal-intro"><div className="modal-step">01</div><div><strong>Plan kimliğini ve kontrol tarihlerini tanımlayın</strong><span>Kroki ve acil ekip bağlantısını bir sonraki adımda tamamlayabilirsiniz.</span></div></div>
+          <form className="form-grid emergency-plan-form" onSubmit={save}>
+            <div className="form-section-title"><span>PLAN KİMLİĞİ</span><small>Zorunlu alanlar planın izlenebilirliği için gereklidir.</small></div>
             <Field label="Firma" required>
               <select required value={form.company_id} onChange={(e) => setForm({...form, company_id: e.target.value})}>
                 <option value="">Seçiniz</option>
@@ -500,6 +506,7 @@ export function EmergencyPlansPage({user}) {
             <Field
               label="Plan tarihi"
               type="date"
+              required
               min={BIZ_DATE_MIN}
               max={BIZ_DATE_MAX}
               value={form.plan_date}
@@ -508,22 +515,26 @@ export function EmergencyPlansPage({user}) {
             <Field
               label="Gözden geçirme"
               type="date"
+              required
               min={form.plan_date || BIZ_DATE_MIN}
               max={BIZ_DATE_MAX}
               value={form.next_review_date}
               onChange={(e) => setForm({...form, next_review_date: e.target.value})}
             />
-            <Field label="Toplanma alanları" value={form.assembly_areas} onChange={(e) => setForm({...form, assembly_areas: e.target.value})} />
+            <Field label="Toplanma alanları" required value={form.assembly_areas} onChange={(e) => setForm({...form, assembly_areas: e.target.value})} />
+            <div className="form-section-title"><span>ACİL DURUM KAPSAMI</span><small>Senaryoları, tahliye davranışını ve özel notları netleştirin.</small></div>
             <label className="field" style={{gridColumn: '1 / -1'}}>
               <span>Senaryo özeti</span>
-              <textarea rows={4} value={form.scenario_summary} onChange={(e) => setForm({...form, scenario_summary: e.target.value})} />
+              <textarea rows={4} required value={form.scenario_summary} onChange={(e) => setForm({...form, scenario_summary: e.target.value})} placeholder="Yangın, deprem, kimyasal dökülme... Tahliye ve bildirim sırasını kısaca açıklayın." />
             </label>
+            <label className="field" style={{gridColumn: '1 / -1'}}><span>Uzman notu</span><textarea rows={3} value={form.notes} onChange={(e) => setForm({...form, notes: e.target.value})} placeholder="Saha doğrulaması, özel risk veya takip notu" /></label>
+            <div className="legal-callout"><ShieldCheck size={18} /><span><strong>Mevzuat notu</strong> Bu ekran dijital hazırlık ve kanıt takibi sağlar; planın nihai uygunluğu saha incelemesi, yetkili uzman değerlendirmesi ve işveren onayıyla belirlenir.</span></div>
             {err && <div className="error" style={{gridColumn: '1 / -1'}}>{err}</div>}
-            <div className="form-actions" style={{gridColumn: '1 / -1'}}><button type="submit" disabled={busy}>Kaydet</button></div>
+            <div className="form-actions" style={{gridColumn: '1 / -1'}}><button type="button" className="secondary" onClick={() => setOpen(false)}>Vazgeç</button><button type="submit" disabled={busy}>{busy ? 'Kaydediliyor...' : 'Planı oluştur'}</button></div>
           </form>
         </Modal>
       )}
-    </>
+      </div>
   );
 }
 

@@ -20,6 +20,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import (
     DocumentApproval,
+    DrillRecord,
     EmergencyPlan,
     EmergencyPlanFloor,
     EmergencyTeam,
@@ -694,7 +695,35 @@ def plan_legend(
                     "phone": a.phone or None,
                 }
             )
-        team_out.append({"id": t.id, "name": t.name, "members": members})
+        team_out.append({
+            "id": t.id,
+            "name": t.name,
+            "members": members,
+            "member_count": len(members),
+            "min_members": int(t.min_members or 0),
+            "ready": len(members) >= max(int(t.min_members or 0), 1),
+        })
+
+    latest_drill = db.scalar(
+        select(DrillRecord)
+        .where(
+            DrillRecord.company_id == plan.company_id,
+            DrillRecord.is_active.is_(True),
+            DrillRecord.status == "yapildi",
+        )
+        .order_by(DrillRecord.drill_date.desc(), DrillRecord.id.desc())
+        .limit(1)
+    )
+    drill_due = (
+        latest_drill.drill_date + timedelta(days=365)
+        if latest_drill and latest_drill.drill_date
+        else None
+    )
+    drill_status = "missing"
+    if drill_due:
+        drill_status = "due" if drill_due < date.today() else "current"
+
+    team_ready = bool(team_out) and all(item["ready"] for item in team_out)
     missing = []
     if checks["exit"] < 1:
         missing.append("En az bir acil çıkış gerekli")
@@ -702,6 +731,12 @@ def plan_legend(
         missing.append("Toplanma alanı gerekli")
     if checks["extinguisher"] < 1:
         missing.append("Yangın söndürücü önerilir")
+    if not team_ready:
+        missing.append("Acil ekip üyelikleri / asgari kadro kontrol edilmeli")
+    if drill_status == "missing":
+        missing.append("Tamamlanmış tatbikat kaydı bulunmuyor")
+    elif drill_status == "due":
+        missing.append(f"Tatbikat takibi gecikmiş: {drill_due}")
     return {
         "plan_id": plan.id,
         "title": plan.title,
@@ -712,6 +747,17 @@ def plan_legend(
         "checks": checks,
         "missing": missing,
         "teams": team_out,
+        "team_readiness": {
+            "ready": team_ready,
+            "team_count": len(team_out),
+            "ready_count": sum(1 for item in team_out if item["ready"]),
+            "member_count": sum(item["member_count"] for item in team_out),
+        },
+        "drill_readiness": {
+            "status": drill_status,
+            "latest_date": latest_drill.drill_date.isoformat() if latest_drill else None,
+            "due_date": drill_due.isoformat() if drill_due else None,
+        },
         "floors": [{"id": f.id, "name": f.name, "sort_order": f.sort_order} for f in floors],
     }
 
