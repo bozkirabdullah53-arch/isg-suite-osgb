@@ -177,8 +177,8 @@ const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
   company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
   workplace_manager:['employer_oversight','employees','ppe','accident'],
-  safety_specialist:['dashboard','visit_notebook','visit_qr','field_inspection'],
-  workplace_physician:['dashboard','health','prescriptions','visit_notebook'],
+  safety_specialist:['visit_notebook','visit_qr','field_inspection'],
+  workplace_physician:['health','prescriptions','visit_notebook'],
   other_health_personnel:['field_pwa','visits','health','employees'],
   read_only:['employee_self_service','employee_training','security'],
 };
@@ -2278,11 +2278,11 @@ function App(){
     return <SiteQrKioskPage user={user} onLogout={logout}/>;
   }
   const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
+  const hideHomeMenuItem=['safety_specialist','workplace_physician'].includes(user.role);
   const menu=allowed
-    .filter((k)=>menuCatalog[k] && !(fieldRoles.includes(user.role) && (k==='reports' || k==='pro_performance')))
+    .filter((k)=>menuCatalog[k] && !((fieldRoles.includes(user.role) && (k==='reports' || k==='pro_performance')) || (hideHomeMenuItem && k==='dashboard')))
     .map((k)=>{
       const [label, Icon]=menuCatalog[k];
-      if(k==='dashboard' && fieldRoles.includes(user.role)) return [k, 'Ana Sayfa', LayoutDashboard];
       return [k, label, Icon];
     });
   const menuWithSections=menu.map(([id,label,Icon])=>[
