@@ -314,44 +314,33 @@ html[data-ui-theme="modern"] .logout { color: #f1a8a8; }
 html[data-ui-theme="modern"] .logout:hover { background: rgba(248, 113, 113, .15); color: #fecaca; }
 
 html[data-ui-theme="modern"] .global-nace-context {
-  border-color: rgba(96, 165, 250, .34);
+  border-color: rgba(148, 163, 184, .34);
   background:
-    radial-gradient(180px 110px at 100% 0%, rgba(59, 130, 246, .22), transparent 72%),
-    linear-gradient(155deg, rgba(15, 39, 70, .97), rgba(15, 32, 58, .98));
-  color: #dbeafe;
-  box-shadow: 0 16px 34px rgba(15, 23, 42, .24), inset 0 1px 0 rgba(255, 255, 255, .08);
+    radial-gradient(180px 110px at 100% 0%, rgba(100, 116, 139, .18), transparent 72%),
+    linear-gradient(155deg, rgba(26, 47, 75, .98), rgba(16, 35, 60, .98));
+  color: #e5edf7;
+  box-shadow: 0 16px 34px rgba(4, 15, 30, .30), inset 0 1px 0 rgba(255, 255, 255, .07);
   backdrop-filter: blur(16px);
 }
-html[data-ui-theme="modern"] .global-nace-context-kicker { color: #93c5fd; }
+html[data-ui-theme="modern"] .global-nace-context-kicker { color: #a9bdd4; }
 html[data-ui-theme="modern"] .global-nace-context-status {
-  border-color: rgba(147, 197, 253, .35);
-  color: #bfdbfe;
+  border-color: rgba(148, 163, 184, .35);
+  color: #cbd5e1;
 }
-html[data-ui-theme="modern"] .global-nace-context-company { color: #eff6ff; }
-html[data-ui-theme="modern"] .global-nace-context-code { border-bottom-color: rgba(147, 197, 253, .18); }
+html[data-ui-theme="modern"] .global-nace-context-company { color: #f1f5f9; }
+html[data-ui-theme="modern"] .global-nace-context-code { border-bottom-color: rgba(148, 163, 184, .18); }
 html[data-ui-theme="modern"] .global-nace-context-code span,
-html[data-ui-theme="modern"] .global-nace-context-row > span { color: #93aeca; }
+html[data-ui-theme="modern"] .global-nace-context-row > span { color: #9cafc4; }
 html[data-ui-theme="modern"] .global-nace-context-code strong,
-html[data-ui-theme="modern"] .global-nace-context-row strong { color: #dbeafe; }
+html[data-ui-theme="modern"] .global-nace-context-row strong { color: #e1eaf5; }
 html[data-ui-theme="modern"] .global-nace-context-activity p,
-html[data-ui-theme="modern"] .global-nace-context-loading { color: #b5cbe3; }
+html[data-ui-theme="modern"] .global-nace-context-loading { color: #b8c9dc; }
 html[data-ui-theme="modern"] .global-nace-context.is-preview {
-  border-color: rgba(147, 197, 253, .52);
+  border-color: rgba(148, 163, 184, .50);
   background:
-    radial-gradient(180px 110px at 100% 0%, rgba(96, 165, 250, .27), transparent 72%),
-    linear-gradient(155deg, rgba(18, 48, 84, .98), rgba(15, 36, 67, .98));
+    radial-gradient(180px 110px at 100% 0%, rgba(100, 116, 139, .22), transparent 72%),
+    linear-gradient(155deg, rgba(30, 53, 83, .98), rgba(18, 41, 67, .98));
 }
-html[data-ui-theme="modern"] .company-nace-preview {
-  border-color: rgba(96, 165, 250, .34);
-  background: rgba(239, 246, 255, .84);
-}
-html[data-ui-theme="modern"] .company-nace-preview span { color: #52718a; }
-html[data-ui-theme="modern"] .company-nace-preview strong { color: #214d70; }
-html[data-ui-theme="modern"] .company-nace-preview.is-unresolved {
-  border-color: rgba(212, 183, 123, .62);
-  background: rgba(255, 250, 240, .94);
-}
-html[data-ui-theme="modern"] .company-nace-auto-note { color: #52718a; }
 
 /* ============================================================
    ÜST BAR — yüzen cam şerit
