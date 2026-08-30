@@ -565,7 +565,7 @@ function subscriptionEndLabel(row) {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('tr-TR');
 }
 
-export function SimpleSubscriptionList({ title, empty, rows, busy, onOpen }) {
+export function SimpleSubscriptionList({ title, empty, rows, busy, onOpen, rowAction }) {
   return (
     <section className="eisa-sub-list">
       <header className="eisa-sub-list-head">
@@ -578,6 +578,7 @@ export function SimpleSubscriptionList({ title, empty, rows, busy, onOpen }) {
             <tr>
               <th>Abone</th>
               <th>Durum</th>
+              {rowAction && <th className="eisa-action-column">İşlem</th>}
             </tr>
           </thead>
           <tbody>
@@ -596,9 +597,10 @@ export function SimpleSubscriptionList({ title, empty, rows, busy, onOpen }) {
               >
                 <td>{row.display_name || row.specialist_name || row.osgb_name || row.osgb_id}</td>
                 <td><StatusBadge status={row.effective_status || row.status} /></td>
+                {rowAction && <td className="eisa-action-column">{rowAction(row)}</td>}
               </tr>
             )) : (
-              <tr><td colSpan={2} className="empty">{empty}</td></tr>
+              <tr><td colSpan={rowAction ? 3 : 2} className="empty">{empty}</td></tr>
             )}
           </tbody>
         </table>

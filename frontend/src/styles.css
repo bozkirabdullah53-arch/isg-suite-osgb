@@ -1025,6 +1025,9 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 @media (max-width:600px) { .emergency-stat-grid { grid-template-columns:1fr; }.emergency-stat { min-height:100px; }.emergency-workspace-head { padding:18px 16px 14px; }.emergency-plan-list { padding:9px; }.emergency-plan-card { padding:14px; }.plan-card-main { grid-template-columns:36px minmax(0,1fr); }.plan-card-icon { width:36px; height:36px; }.readiness-badge { grid-column:2; justify-self:start; margin-top:2px; }.plan-card-details { grid-template-columns:1fr; gap:9px; }.form-section-title { display:block; }.form-section-title small { display:block; margin-top:4px; }.emergency-hero h1 { font-size:33px; } }
 
 .mini{padding:7px 10px;font-size:12px;border-radius:8px}.mini-select{padding:5px 8px;font-size:12px;border-radius:8px;max-width:140px}.form-grid input[type=number]{width:100%}
+.eisa-action-column { width: 1%; white-space: nowrap; text-align: right; }
+.eisa-inline-delete { border: 1px solid #fecaca !important; color: #b91c1c !important; background: #fff7f7 !important; }
+.eisa-inline-delete:hover { border-color: #ef4444 !important; background: #fee2e2 !important; }
 
 .report-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px}@media(max-width:800px){.report-grid{grid-template-columns:repeat(2,1fr)}}
 .status-badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { api } from './api';
 import { Msg, Page, RefreshButton, SearchBar, SimpleSubscriptionList, SubscriptionDetailModal } from './eisa';
 
@@ -81,6 +82,20 @@ export function EisaIndividualSubscriptionsPage() {
         rows={rows}
         busy={busy}
         onOpen={setDetail}
+        rowAction={(row) => (
+          <button
+            type="button"
+            className="mini danger eisa-inline-delete"
+            disabled={busy}
+            aria-label={`${row.display_name || row.specialist_name || 'Üye'} hesabını kaldır`}
+            onClick={(event) => {
+              event.stopPropagation();
+              void deleteIndividual(row);
+            }}
+          >
+            <Trash2 size={14} /> Sil
+          </button>
+        )}
       />
       <SubscriptionDetailModal
         row={detail}
