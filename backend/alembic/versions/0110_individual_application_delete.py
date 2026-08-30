@@ -1,6 +1,6 @@
 """Add a deletion marker for individual specialist applications.
 
-Revision ID: 0110_individual_application_delete
+Revision ID: 0110_indiv_app_deleted
 Revises: 0109_email_delivery_logs
 """
 from __future__ import annotations
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 
-revision: str = "0110_individual_application_delete"
+revision: str = "0110_indiv_app_deleted"
 down_revision: Union[str, None] = "0109_email_delivery_logs"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
