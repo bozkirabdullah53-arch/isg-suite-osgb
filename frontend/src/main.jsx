@@ -97,6 +97,12 @@ import {
   professionalHomeModule,
   professionalMenuSection,
 } from './professional_navigation';
+import {
+  findNaceRecord,
+  isCompanySelector,
+  isNaceField,
+  naceInfoForCompany,
+} from './nace_context';
 const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 const EMPLOYEE_SELF_SERVICE_ENABLED=selfServiceFeatureEnabled(import.meta.env.VITE_EMPLOYEE_SELF_SERVICE_V1);
 /**
@@ -734,12 +740,31 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
   const[siteQr,setSiteQr]=useState(null);
   const[siteQrEphemeral,setSiteQrEphemeral]=useState(null);
   const[siteQrBusy,setSiteQrBusy]=useState(false);
+  const[naceCatalog,setNaceCatalog]=useState([]);
   const emptyForm={name:'',sgk_registry_no:'',nace_code:'',address:'',phone:'',authorized_person:'',hazard_class:'Az Tehlikeli'};
   const[form,setForm]=useState(emptyForm);
+  const naceMatch=findNaceRecord(naceCatalog,form.nace_code);
+  useEffect(()=>{
+    let cancelled=false;
+    loadSectorsCatalog().then((rows)=>{
+      if(!cancelled&&Array.isArray(rows)) setNaceCatalog(rows);
+    }).catch(()=>{});
+    return()=>{cancelled=true};
+  },[]);
+  useEffect(()=>{
+    if(!naceMatch?.hazard_class) return;
+    setForm((current)=>current.hazard_class===naceMatch.hazard_class
+      ? current
+      : {...current,hazard_class:naceMatch.hazard_class});
+  },[naceMatch?.code,naceMatch?.hazard_class]);
+  function dispatchNaceEvent(name,detail){
+    try{window.dispatchEvent(new CustomEvent(name,{detail}))}catch(_){/* ignore */}
+  }
   function openCreate(){
     setErr('');
     setEditing(null);
     setForm({...emptyForm});
+    dispatchNaceEvent('isg:nace-context-reset',{});
     setOpen(true);
   }
   function openEdit(row){
@@ -754,7 +779,23 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
       authorized_person:row?.authorized_person||'',
       hazard_class:row?.hazard_class||'Az Tehlikeli',
     });
+    dispatchNaceEvent('isg:company-selected',{companyId:row?.id,company:row});
     setOpen(true);
+  }
+  function closeEditor(){
+    setOpen(false);
+    const selected=editing;
+    setEditing(null);
+    if(selected?.id) dispatchNaceEvent('isg:company-selected',{companyId:selected.id,company:selected});
+    else dispatchNaceEvent('isg:nace-context-reset',{});
+  }
+  function changeNaceCode(value){
+    const match=findNaceRecord(naceCatalog,value);
+    setForm((current)=>({
+      ...current,
+      nace_code:value,
+      hazard_class:match?.hazard_class||current.hazard_class,
+    }));
   }
   async function copyText(text){
     const v=String(text||'');
@@ -782,6 +823,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
     try{
       const isEditing=Boolean(editing?.id);
       const saved=await api(isEditing?`/companies/${editing.id}`:'/companies',{method:isEditing?'PUT':'POST',body:JSON.stringify(payload)});
+      dispatchNaceEvent('isg:company-updated',{company:saved});
       setOpen(false);
       setEditing(null);
       setForm({...emptyForm});
@@ -859,10 +901,11 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
       )}]:[]),
       {key:'sgk_registry_no',label:'İşyeri Sicil No'},
       {key:'nace_code',label:'NACE Kodu',render:r=>r.nace_code||'—'},
+      {key:'nace_description',label:'Faaliyet Tanımı',render:r=>naceInfoForCompany(r,naceCatalog).activity||'—'},
       {key:'authorized_person',label:'İşveren / Vekili'},
       {key:'phone',label:'Telefon'},
       {key:'address',label:'Adres'},
-      {key:'hazard_class',label:'Tehlike Sınıfı'},
+      {key:'hazard_class',label:'Tehlike Sınıfı',render:r=>naceInfoForCompany(r,naceCatalog).hazardClass||'—'},
       {key:'is_active',label:'Durum',render:r=><Badge ok={r.is_active}/>},
       ...(onOpen360?[{key:'c360',label:'360',render:r=>(
         <button type="button" className="mini" disabled={busy} onClick={()=>onOpen360(r.id)} title="Müşteri 360">
@@ -875,17 +918,24 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
         </button>
       )}]:[]),
     ]} rows={data} className={canEdit?'companies-table companies-table--editable':'companies-table'}/>
-    {open&&<Modal title={editing?'İşyeri Bilgilerini Düzenle':'Yeni Firma'} close={()=>{setOpen(false);setEditing(null)}}>
+    {open&&<Modal title={editing?'İşyeri Bilgilerini Düzenle':'Yeni Firma'} close={closeEditor}>
       <form className="form-grid" onSubmit={save}>
         <Field label="Firma Adı" required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
         <Field label="İşyeri Sicil No" required value={form.sgk_registry_no} onChange={e=>setForm({...form,sgk_registry_no:e.target.value})}/>
-        <Field label="NACE Kodu" value={form.nace_code} onChange={e=>setForm({...form,nace_code:e.target.value})} placeholder="Örn. 46.83.06"/>
+        <Field label="NACE Kodu" value={form.nace_code} onChange={e=>changeNaceCode(e.target.value)} placeholder="Örn. 46.83.06"/>
+        {form.nace_code&&(
+          <div className={'company-nace-preview '+(naceMatch?'is-resolved':'is-unresolved')} role="status">
+            <div><span>Faaliyet tanımı</span><strong>{naceMatch?.name||'Resmî NACE kataloğunda bulunamadı'}</strong></div>
+            <div><span>Tehlike sınıfı</span><strong>{naceMatch?.hazard_class||form.hazard_class||'Belirlenemedi'}</strong></div>
+          </div>
+        )}
         <Field label="İşveren / İşveren Vekili" value={form.authorized_person} onChange={e=>setForm({...form,authorized_person:e.target.value})}/>
         <Field label="Telefon" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
         <Field label="Adres" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/>
-        <Select label="Tehlike Sınıfı" value={form.hazard_class} onChange={e=>setForm({...form,hazard_class:e.target.value})}>
+        <Select label="Tehlike Sınıfı" value={form.hazard_class} disabled={Boolean(naceMatch)} onChange={e=>setForm({...form,hazard_class:e.target.value})}>
           <option>Az Tehlikeli</option><option>Tehlikeli</option><option>Çok Tehlikeli</option>
         </Select>
+        {naceMatch&&<p className="company-nace-auto-note">NACE koduna göre otomatik belirlendi.</p>}
         {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
         <div className="form-actions"><button type="submit" disabled={busy}>{busy?'Kaydediliyor...':(editing?'Güncelle':'Kaydet')}</button></div>
       </form>
@@ -1907,6 +1957,38 @@ function ThemeToggle({theme,onToggle,floating}){
   );
 }
 
+function GlobalNaceContextCard({companyName,naceCode,activity,hazardClass,preview,loading}){
+  const hasNace=Boolean(String(naceCode||'').trim());
+  const activityText=activity
+    || (hasNace?'Bu NACE kodu resmî katalogda bulunamadı.':'NACE kodu girildiğinde burada görünür.');
+  return (
+    <section
+      className={'global-nace-context'+(preview?' is-preview':'')}
+      aria-label="Seçili işyeri NACE bilgileri"
+      aria-live="polite"
+    >
+      <div className="global-nace-context-head">
+        <span className="global-nace-context-kicker"><Building2 size={14}/> NACE BAĞLAMI</span>
+        <span className="global-nace-context-status">{preview?'Önizleme':'Aktif'}</span>
+      </div>
+      <strong className="global-nace-context-company">{companyName||'İşyeri seçilmedi'}</strong>
+      <div className="global-nace-context-code">
+        <span>NACE KODU</span>
+        <strong>{naceCode||'—'}</strong>
+      </div>
+      <div className="global-nace-context-row">
+        <span>TEHLİKE SINIFI</span>
+        <strong>{hazardClass||'Belirlenemedi'}</strong>
+      </div>
+      <div className="global-nace-context-row global-nace-context-activity">
+        <span>FAALİYET TANIMI</span>
+        <p title={activityText}>{activityText}</p>
+      </div>
+      {loading&&<small className="global-nace-context-loading">NACE kataloğu yükleniyor…</small>}
+    </section>
+  );
+}
+
 /** Menü geçmişi — tarayıcı Geri/İleri uygulamada kalsın */
 function readNavigationFromLocation(){
   try{return parseNavigationLocation(window.location)}
@@ -1980,12 +2062,150 @@ function App(){
   const[c360Id,setC360Id]=useState(null);
   const[mobileMoreOpen,setMobileMoreOpen]=useState(false);
   const navRef=useRef(null);
+  const[naceCatalog,setNaceCatalog]=useState([]);
+  const[contextCompanies,setContextCompanies]=useState([]);
+  const[selectedContextCompanyId,setSelectedContextCompanyId]=useState('');
+  const[naceDraft,setNaceDraft]=useState('');
+  const[naceContextLoading,setNaceContextLoading]=useState(false);
   const[applyMode,setApplyMode]=useState(()=>{
     try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')==='osgb'}catch{return false}
   });
   const[specialistApplyMode,setSpecialistApplyMode]=useState(()=>{
     try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')==='specialist'}catch{return false}
   });
+
+  useEffect(()=>{
+    if(!logged||!user){
+      setNaceCatalog([]);
+      setContextCompanies([]);
+      setSelectedContextCompanyId('');
+      setNaceDraft('');
+      setNaceContextLoading(false);
+      return undefined;
+    }
+    let cancelled=false;
+    setNaceContextLoading(true);
+    Promise.all([
+      api('/companies').catch(()=>[]),
+      loadSectorsCatalog().catch(()=>[]),
+    ]).then(([rows,catalog])=>{
+      if(cancelled) return;
+      const companies=Array.isArray(rows)?rows:[];
+      const sectors=Array.isArray(catalog)?catalog:[];
+      setContextCompanies(companies);
+      setNaceCatalog(sectors);
+      let persisted='';
+      try{persisted=sessionStorage.getItem('isg_selected_company_id')||''}catch(_){/* ignore */}
+      const preferredId=user.company_id
+        ? String(user.company_id)
+        : (persisted||((companies.length===1)?String(companies[0].id):''));
+      const preferred=companies.find((row)=>String(row.id)===preferredId);
+      setSelectedContextCompanyId(preferred?String(preferred.id):'');
+      setNaceDraft('');
+    }).finally(()=>{
+      if(!cancelled) setNaceContextLoading(false);
+    });
+    return()=>{cancelled=true};
+  },[logged,user?.id,user?.company_id]);
+
+  useEffect(()=>{
+    if(!logged) return undefined;
+    function persistCompanyId(id){
+      try{
+        if(id) sessionStorage.setItem('isg_selected_company_id',String(id));
+        else sessionStorage.removeItem('isg_selected_company_id');
+      }catch(_){/* ignore */}
+    }
+    function rememberCompany(company){
+      if(!company?.id) return;
+      setContextCompanies((current)=>{
+        const id=String(company.id);
+        const exists=current.some((row)=>String(row.id)===id);
+        if(exists) return current.map((row)=>String(row.id)===id?{...row,...company}:row);
+        return [...current,company];
+      });
+    }
+    function onCompanySelected(event){
+      const detail=event.detail||{};
+      const company=detail.company||null;
+      const id=detail.companyId??detail.id??company?.id;
+      if(!id){
+        setSelectedContextCompanyId('');
+        setNaceDraft('');
+        persistCompanyId('');
+        return;
+      }
+      rememberCompany(company);
+      setSelectedContextCompanyId(String(id));
+      setNaceDraft('');
+      persistCompanyId(id);
+    }
+    function onCompanyUpdated(event){
+      const company=event.detail?.company||event.detail;
+      if(!company?.id) return;
+      rememberCompany(company);
+      setSelectedContextCompanyId(String(company.id));
+      setNaceDraft('');
+      persistCompanyId(company.id);
+    }
+    function onNaceDraft(event){
+      setNaceDraft(String(event.detail?.value??'').trim());
+    }
+    function onContextReset(){
+      setSelectedContextCompanyId('');
+      setNaceDraft('');
+      persistCompanyId('');
+    }
+    function onFieldEvent(event){
+      const target=event.target;
+      if(isCompanySelector(target)){
+        const id=String(target.value||'');
+        if(!id){
+          onCompanySelected({detail:{}});
+          return;
+        }
+        const company=contextCompanies.find((row)=>String(row.id)===id);
+        onCompanySelected({detail:{companyId:id,company}});
+        return;
+      }
+      if(isNaceField(target)){
+        setNaceDraft(String(target.value||'').trim());
+      }
+    }
+    document.addEventListener('change',onFieldEvent,true);
+    document.addEventListener('input',onFieldEvent,true);
+    window.addEventListener('isg:company-selected',onCompanySelected);
+    window.addEventListener('isg:company-updated',onCompanyUpdated);
+    window.addEventListener('isg:nace-draft',onNaceDraft);
+    window.addEventListener('isg:nace-context-reset',onContextReset);
+    return()=>{
+      document.removeEventListener('change',onFieldEvent,true);
+      document.removeEventListener('input',onFieldEvent,true);
+      window.removeEventListener('isg:company-selected',onCompanySelected);
+      window.removeEventListener('isg:company-updated',onCompanyUpdated);
+      window.removeEventListener('isg:nace-draft',onNaceDraft);
+      window.removeEventListener('isg:nace-context-reset',onContextReset);
+    };
+  },[logged,contextCompanies]);
+
+  useEffect(()=>{
+    setNaceDraft('');
+  },[active]);
+
+  const selectedContextCompany=contextCompanies.find(
+    (row)=>String(row.id)===String(selectedContextCompanyId),
+  )||null;
+  const draftNace=String(naceDraft||'').trim();
+  const draftNaceMatch=findNaceRecord(naceCatalog,draftNace);
+  const selectedNaceInfo=naceInfoForCompany(selectedContextCompany,naceCatalog);
+  const globalNaceContext={
+    companyName:selectedContextCompany?.name||(draftNace?'Yeni / düzenlenen işyeri':''),
+    naceCode:draftNace?(draftNaceMatch?.nace||draftNace):selectedNaceInfo.code,
+    activity:draftNace?(draftNaceMatch?.name||''):selectedNaceInfo.activity,
+    hazardClass:draftNace?(draftNaceMatch?.hazard_class||''):selectedNaceInfo.hazardClass,
+    preview:Boolean(draftNace),
+    loading:naceContextLoading,
+  };
 
   function publicApplyHash(){
     try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')||''}catch{return ''}
@@ -2091,6 +2311,11 @@ function App(){
       setUser(null);
       setSummary(null);
       setActive('');
+      setContextCompanies([]);
+      setSelectedContextCompanyId('');
+      setNaceCatalog([]);
+      setNaceDraft('');
+      try{sessionStorage.removeItem('isg_selected_company_id')}catch(_){/* ignore */}
     }
     window.addEventListener('isg:auth-lost', onAuthLost);
     return ()=>window.removeEventListener('isg:auth-lost', onAuthLost);
@@ -2108,6 +2333,11 @@ function App(){
     setLogged(false);
     setUser(null);
     setActive('');
+    setContextCompanies([]);
+    setSelectedContextCompanyId('');
+    setNaceCatalog([]);
+    setNaceDraft('');
+    try{sessionStorage.removeItem('isg_selected_company_id')}catch(_){/* ignore */}
   }
 
   function goHome(){
@@ -2435,6 +2665,7 @@ function App(){
             <span>{mobileMoreOpen?'Kapat':'Menü'}</span>
           </button>
         </nav>
+        <GlobalNaceContextCard {...globalNaceContext}/>
         <button type="button" className="logout" onClick={logout}>
           <LogOut size={19}/><span>Çıkış</span>
         </button>
