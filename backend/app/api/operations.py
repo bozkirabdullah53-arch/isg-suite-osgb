@@ -25,6 +25,7 @@ from app.schemas.operations import (FinanceCreate, FinanceResponse, FinanceUpdat
                                     VisitCheckStamp, VisitCreate, VisitGpsStamp, VisitPlanCreate, VisitResponse, VisitUpdate)
 from app.services.crm_convert import convert_lead_to_contract
 from app.services.finance_accrual import accrue_month_for_osgb
+from app.services.individual_specialist import is_individual_specialist
 from app.services.visit_calendar import build_visit_calendar
 from app.services.module_kpis import build_module_kpis
 from app.services.site_verify import (
@@ -58,6 +59,14 @@ FIELD_VISIT_ROLES = (
 )
 ALLOWED_NOTEBOOK = {".pdf", ".jpg", ".jpeg", ".png"}
 _FIELD_ROLES = set(FIELD_VISIT_ROLES)
+
+
+def _reject_individual_visit_presence_qr(db: Session, user: User) -> None:
+    if is_individual_specialist(db, user):
+        raise HTTPException(
+            403,
+            "QR ile işyeri giriş/çıkış bireysel uzman hesaplarında kullanılamaz.",
+        )
 
 
 def _apply_gps_stamp(obj: ServiceVisit, lat: float | None, lng: float | None, accuracy: float | None = None):
@@ -606,6 +615,7 @@ def check_in_visit(
     user: User = Depends(require_roles(*FIELD_VISIT_ROLES)),
 ):
     """İşyeri QR ile saha girişi — açık ziyaret oluşturur / süre sayacı başlar."""
+    _reject_individual_visit_presence_qr(db, user)
     company = resolve_company_from_site_code(db, payload.site_verify_code)
     if not company:
         raise HTTPException(400, "QR kodu bu işyeri ile eşleşmiyor veya süresi dolmuş.")
@@ -649,6 +659,7 @@ def check_out_visit(
     user: User = Depends(require_roles(*FIELD_VISIT_ROLES)),
 ):
     """İşyeri QR ile saha çıkışı — süre hesaplanır; defter/imza ayrı kalabilir."""
+    _reject_individual_visit_presence_qr(db, user)
     company = resolve_company_from_site_code(db, payload.site_verify_code)
     if not company:
         raise HTTPException(400, "QR kodu bu işyeri ile eşleşmiyor veya süresi dolmuş.")

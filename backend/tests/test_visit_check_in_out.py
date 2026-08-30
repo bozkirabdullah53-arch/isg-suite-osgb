@@ -202,6 +202,28 @@ def test_check_in_forbidden_without_assignment(client):
     assert r.status_code == 403
 
 
+def test_individual_specialist_check_in_and_out_are_forbidden(client):
+    token, seed, payload = _seed(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    from app.core.database import SessionLocal
+    from app.models.entities import OsgbOrganization
+
+    with SessionLocal() as db:
+        org = db.get(OsgbOrganization, seed["osgb_id"])
+        org.is_individual = True
+        db.commit()
+
+    for endpoint in ("check-in", "check-out"):
+        response = client.post(
+            f"/api/v1/operations/visits/{endpoint}",
+            headers=headers,
+            json={"site_verify_code": payload},
+        )
+        assert response.status_code == 403, response.text
+        assert "bireysel uzman" in response.json()["detail"].lower()
+
+
 def test_ephemeral_reusable_for_check_in_out(client):
     token, seed, _ = _seed(client)
     headers = {"Authorization": f"Bearer {token}"}
