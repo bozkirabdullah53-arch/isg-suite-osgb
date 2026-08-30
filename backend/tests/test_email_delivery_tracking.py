@@ -8,9 +8,18 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_current_user
+from app.api.eisa import _send_platform_email_notification
 from app.api.eisa_emails import router
 from app.core.database import Base, get_db
-from app.models.entities import EmailDeliveryLog, User, UserRole
+from app.models.entities import (
+    EisaNotificationChannel,
+    EisaNotificationDeliveryStatus,
+    EisaNotificationTarget,
+    EisaPlatformNotification,
+    EmailDeliveryLog,
+    User,
+    UserRole,
+)
 from app.services import mailer
 
 
@@ -131,3 +140,37 @@ def test_email_center_is_global_admin_only(monkeypatch):
             current.role = UserRole.SAFETY_SPECIALIST
             forbidden = client.get("/api/v1/eisa/emails/summary")
             assert forbidden.status_code == 403
+
+
+def test_platform_email_without_recipients_is_recorded_as_failed(monkeypatch):
+    SessionLocal = _session_factory()
+    monkeypatch.setattr(mailer.settings, "smtp_host", None)
+    monkeypatch.setattr(mailer.settings, "smtp_from_email", "noreply@isgsuite.tr")
+
+    with SessionLocal() as db:
+        actor = User(
+            id=1,
+            email="global@example.com",
+            full_name="Global",
+            hashed_password="not-used",
+            role=UserRole.GLOBAL_ADMIN,
+        )
+        row = EisaPlatformNotification(
+            channel=EisaNotificationChannel.EMAIL,
+            target_scope=EisaNotificationTarget.ALL_OSGB,
+            title="Duyuru",
+            message="İçerik",
+            created_by_user_id=actor.id,
+        )
+        db.add_all([actor, row])
+        db.flush()
+
+        results = _send_platform_email_notification(db, row=row, user=actor)
+        db.commit()
+
+        assert results[0]["status"] == "no_recipient"
+        assert row.status == EisaNotificationDeliveryStatus.FAILED
+        log = db.scalar(select(EmailDeliveryLog))
+        assert log is not None
+        assert log.status == "failed"
+        assert log.error_code == "no_recipient"

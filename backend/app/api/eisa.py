@@ -1046,8 +1046,9 @@ def _send_platform_email_notification(
         target=row.target_scope,
         target_osgb_id=row.target_osgb_id,
     )
+    results = []
     if not recipients:
-        return [
+        results.append(
             tracked_send_email(
                 to="",
                 subject=row.title,
@@ -1059,24 +1060,24 @@ def _send_platform_email_notification(
                 related_type="eisa_platform_notification",
                 related_id=str(row.id),
             )
-        ]
-    results = []
-    for recipient in recipients:
-        results.append(
-            tracked_send_email(
-                to=recipient["email"],
-                subject=row.title,
-                body=row.message,
-                db=db,
-                event_type="eisa_notification",
-                recipient_name=recipient["name"],
-                user_id=recipient["user_id"],
-                osgb_id=recipient["osgb_id"],
-                triggered_by_user_id=user.id,
-                related_type="eisa_platform_notification",
-                related_id=str(row.id),
-            )
         )
+    else:
+        for recipient in recipients:
+            results.append(
+                tracked_send_email(
+                    to=recipient["email"],
+                    subject=row.title,
+                    body=row.message,
+                    db=db,
+                    event_type="eisa_notification",
+                    recipient_name=recipient["name"],
+                    user_id=recipient["user_id"],
+                    osgb_id=recipient["osgb_id"],
+                    triggered_by_user_id=user.id,
+                    related_type="eisa_platform_notification",
+                    related_id=str(row.id),
+                )
+            )
     successful = sum(1 for result in results if result.get("ok"))
     row.status = (
         EisaNotificationDeliveryStatus.SENT
