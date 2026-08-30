@@ -27,6 +27,7 @@ class OsgbOrganization(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_individual: Mapped[bool] = mapped_column(Boolean, default=False)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    application_deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

@@ -48,6 +48,7 @@ def _individual_rows(db: Session) -> list[tuple[User, OsgbOrganization]]:
             .where(
                 User.role == UserRole.SAFETY_SPECIALIST,
                 OsgbOrganization.is_individual.is_(True),
+                OsgbOrganization.application_deleted_at.is_(None),
             )
             .order_by(User.created_at.desc(), User.id.desc())
         ).all()
@@ -359,6 +360,7 @@ def delete_application_with_individuals(
     # Bireysel başvurularda fiziksel veri silmeyiz. Kullanıcı/tenant izolasyonunu
     # korumak için satırı arşivleyerek Global listesinden pending filtresinde çıkarırız.
     user, org = _get_individual(db, application_id)
+    org.application_deleted_at = org.application_deleted_at or datetime.utcnow()
     _archive_individual(db, user, org)
     add_audit_log(
         db,
