@@ -112,6 +112,7 @@ function apiBaseUrl() {
 
 let _sectorsMem = null;
 let _sectorsMemAt = 0;
+let _sectorsInFlight = null;
 const SECTORS_TTL_MS = 60 * 60 * 1000;
 const SECTORS_CACHE_KEY = 'isg_sectors_v4_nace2026_risk';
 const SECTORS_MIN_COUNT = 500; // eski 177 listesini reddet
@@ -120,6 +121,9 @@ export async function loadSectorsCatalog() {
   if (_sectorsMem && _sectorsMem.length >= SECTORS_MIN_COUNT && Date.now() - _sectorsMemAt < SECTORS_TTL_MS) {
     return _sectorsMem;
   }
+  if (_sectorsInFlight) return _sectorsInFlight;
+
+  _sectorsInFlight = (async()=>{
   try {
     sessionStorage.removeItem('isg_sectors_v1');
     sessionStorage.removeItem('isg_sectors_v2');
@@ -142,29 +146,42 @@ export async function loadSectorsCatalog() {
   const base = apiBaseUrl();
   let data = [];
 
-  // 1) API — önbelleği kırma (eski 177 response kalmasın)
-  try {
-    const r = await fetch(`${base}/trainings/sectors?v=nace2026-risk-v4`, {cache: 'no-store'});
-    if (r.ok) {
-      const json = await r.json();
-      if (Array.isArray(json) && json.length >= SECTORS_MIN_COUNT) data = json;
-    }
-  } catch (_) { /* ignore */ }
-
-  // 2) Auth’lu meta
-  if (data.length < SECTORS_MIN_COUNT) {
+  // API ve statik kopyayı paralel başlat. API cold-start yaparken formun
+  // yazmasını bekletme; API başarılıysa yine resmî sunucu kataloğunu tercih et.
+  const timeoutSignal = (ms) => {
     try {
-      const meta = await api('/trainings/meta');
-      if (meta?.sectors?.length >= SECTORS_MIN_COUNT) data = meta.sectors;
+      if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+        return AbortSignal.timeout(ms);
+      }
     } catch (_) { /* ignore */ }
-  }
+    return undefined;
+  };
+  const apiCatalog = fetch(base + '/trainings/sectors?v=nace2026-risk-v4', {
+    cache: 'no-store',
+    signal: timeoutSignal(8000),
+  }).then(async(r)=>{
+    if(!r.ok) return [];
+    const json=await r.json();
+    return Array.isArray(json)?json:[];
+  }).catch(()=>[]);
+  const localCatalog = fetch('/training-sectors.json?v=nace2026-risk-v4', {
+    cache: 'default',
+    signal: timeoutSignal(8000),
+  }).then(async(r)=>{
+    if(!r.ok) return [];
+    const json=await r.json();
+    if(Array.isArray(json)) return json;
+    return Array.isArray(json?.sectors)?json.sectors:[];
+  }).catch(()=>[]);
+  const [apiRows,localRows]=await Promise.all([apiCatalog,localCatalog]);
+  if(apiRows.length>=SECTORS_MIN_COUNT) data=apiRows;
+  else if(localRows.length>=SECTORS_MIN_COUNT) data=localRows;
 
-  // 3) Statik paket
+  // 2) Auth’lu meta — iki hızlı kaynak da başarısızsa son güvenli seçenek
   if (data.length < SECTORS_MIN_COUNT) {
     try {
-      const local = await fetch('/training-sectors.json?v=nace2026-risk-v4', {cache: 'no-store'}).then((r) => r.json());
-      if (Array.isArray(local) && local.length >= SECTORS_MIN_COUNT) data = local;
-      else if (Array.isArray(local?.sectors) && local.sectors.length >= SECTORS_MIN_COUNT) data = local.sectors;
+      const meta = await api('/trainings/meta',{_retries:0,timeoutMs:8000});
+      if (meta?.sectors?.length >= SECTORS_MIN_COUNT) data = meta.sectors;
     } catch (_) { /* ignore */ }
   }
 
@@ -176,6 +193,8 @@ export async function loadSectorsCatalog() {
     } catch (_) { /* ignore — quota */ }
   }
   return data;
+  })().finally(()=>{_sectorsInFlight=null});
+  return _sectorsInFlight;
 }
 
 function sectorLabel(sectors, code) {
