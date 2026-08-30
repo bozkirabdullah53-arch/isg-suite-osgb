@@ -29,6 +29,25 @@ services:
         generateValue: true
       - key: FRONTEND_ORIGIN
         value: https://www.isgsuite.tr
+      # EİSA Global gelen kutusu — kullanıcı adı ve parola Render Secret olarak eklenir.
+      - key: INBOUND_MAIL_ENABLED
+        value: "true"
+      - key: INBOUND_MAIL_HOST
+        value: imap.mailmatik.com
+      - key: INBOUND_MAIL_PORT
+        value: "993"
+      - key: INBOUND_MAIL_USERNAME
+        value: info@isgsuite.tr
+      - key: INBOUND_MAIL_PASSWORD
+        sync: false
+      - key: INBOUND_MAIL_USE_SSL
+        value: "true"
+      - key: INBOUND_MAIL_FOLDER
+        value: INBOX
+      - key: INBOUND_MAIL_SYNC_LIMIT
+        value: "50"
+      - key: INBOUND_MAIL_TIMEOUT_SEC
+        value: "20"
       - key: UPLOAD_DIR
         value: /var/data/uploads
       - key: BACKUP_DIR
