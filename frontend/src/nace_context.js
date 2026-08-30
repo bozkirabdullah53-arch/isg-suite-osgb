@@ -9,9 +9,29 @@
 export function compactNace(value) {
   return String(value || '')
     .trim()
-    .toLocaleLowerCase('tr-TR')
+    // NACE kimliği yalnızca kod/ASCII anahtarından oluşur. Locale dönüşümü
+    // her tuş vuruşunda binlerce kez çalıştığı için özellikle Chrome'da
+    // yazmayı gereksiz yere yavaşlatıyordu.
+    .toLowerCase()
     .replace(/^nace[_-]?/, '')
     .replace(/[^a-z0-9]/g, '');
+}
+
+const naceIndexCache = new WeakMap();
+
+function naceIndexFor(catalog) {
+  const cached = naceIndexCache.get(catalog);
+  if (cached) return cached;
+
+  const index = new Map();
+  catalog.forEach((item) => {
+    [item?.code, item?.nace].forEach((candidate) => {
+      const key = compactNace(candidate);
+      if (key && !index.has(key)) index.set(key, item);
+    });
+  });
+  naceIndexCache.set(catalog, index);
+  return index;
 }
 
 export function findNaceRecord(catalog, value) {
@@ -22,9 +42,12 @@ export function findNaceRecord(catalog, value) {
   const dotted = raw.match(/\d{2}(?:\.\d{2}){1,2}/)?.[0] || '';
   if (dotted) candidates.add(compactNace(dotted));
 
-  return catalog.find((item) =>
-    [item?.code, item?.nace].some((candidate) => candidates.has(compactNace(candidate))),
-  ) || null;
+  const index = naceIndexFor(catalog);
+  for (const candidate of candidates) {
+    const match = index.get(candidate);
+    if (match) return match;
+  }
+  return null;
 }
 
 export function naceInfoForCompany(company, catalog) {

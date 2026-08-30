@@ -2067,6 +2067,7 @@ function App(){
   const[selectedContextCompanyId,setSelectedContextCompanyId]=useState('');
   const[naceDraft,setNaceDraft]=useState('');
   const[naceContextLoading,setNaceContextLoading]=useState(false);
+  const naceDraftTimerRef=useRef(null);
   const[applyMode,setApplyMode]=useState(()=>{
     try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')==='osgb'}catch{return false}
   });
@@ -2110,6 +2111,23 @@ function App(){
 
   useEffect(()=>{
     if(!logged) return undefined;
+    function cancelPendingNaceDraft(){
+      if(naceDraftTimerRef.current){
+        window.clearTimeout(naceDraftTimerRef.current);
+        naceDraftTimerRef.current=null;
+      }
+    }
+    function queueNaceDraft(value){
+      const next=String(value??'').trim();
+      cancelPendingNaceDraft();
+      // Alanın kendi React state'i karakteri anında gösterir. Global bağlam
+      // kartı ise 90 ms sonra güncellenir; böylece her tuşta tüm uygulamayı
+      // yeniden çizip yazma akışını bloke etmez.
+      naceDraftTimerRef.current=window.setTimeout(()=>{
+        naceDraftTimerRef.current=null;
+        setNaceDraft(next);
+      },90);
+    }
     function persistCompanyId(id){
       try{
         if(id) sessionStorage.setItem('isg_selected_company_id',String(id));
@@ -2127,6 +2145,7 @@ function App(){
     }
     function onCompanySelected(event){
       const detail=event.detail||{};
+      cancelPendingNaceDraft();
       const company=detail.company||null;
       const id=detail.companyId??detail.id??company?.id;
       if(!id){
@@ -2143,15 +2162,17 @@ function App(){
     function onCompanyUpdated(event){
       const company=event.detail?.company||event.detail;
       if(!company?.id) return;
+      cancelPendingNaceDraft();
       rememberCompany(company);
       setSelectedContextCompanyId(String(company.id));
       setNaceDraft('');
       persistCompanyId(company.id);
     }
     function onNaceDraft(event){
-      setNaceDraft(String(event.detail?.value??'').trim());
+      queueNaceDraft(event.detail?.value??'');
     }
     function onContextReset(){
+      cancelPendingNaceDraft();
       setSelectedContextCompanyId('');
       setNaceDraft('');
       persistCompanyId('');
@@ -2169,7 +2190,7 @@ function App(){
         return;
       }
       if(isNaceField(target)){
-        setNaceDraft(String(target.value||'').trim());
+        queueNaceDraft(target.value||'');
       }
     }
     document.addEventListener('change',onFieldEvent,true);
@@ -2179,6 +2200,7 @@ function App(){
     window.addEventListener('isg:nace-draft',onNaceDraft);
     window.addEventListener('isg:nace-context-reset',onContextReset);
     return()=>{
+      cancelPendingNaceDraft();
       document.removeEventListener('change',onFieldEvent,true);
       document.removeEventListener('input',onFieldEvent,true);
       window.removeEventListener('isg:company-selected',onCompanySelected);
@@ -2189,6 +2211,10 @@ function App(){
   },[logged,contextCompanies]);
 
   useEffect(()=>{
+    if(naceDraftTimerRef.current){
+      window.clearTimeout(naceDraftTimerRef.current);
+      naceDraftTimerRef.current=null;
+    }
     setNaceDraft('');
   },[active]);
 
