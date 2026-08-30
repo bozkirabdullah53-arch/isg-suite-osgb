@@ -246,7 +246,7 @@ def _err_detail(data) -> str:
 @router.get("/sectors")
 def list_sectors():
     """Canlı uyumlu sektör listesi (auth zorunlu değil)."""
-    return sectors_list_for_api()
+    return sectors_list_for_api(include_legacy_nace_aliases=True)
 
 
 @router.get("/layout-info")

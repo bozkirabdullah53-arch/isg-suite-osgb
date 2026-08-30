@@ -200,7 +200,7 @@ def _json(value: Any) -> str:
 def _catalog_indexes() -> tuple[dict[str, dict], dict[str, dict]]:
     by_key: dict[str, dict] = {}
     by_nace: dict[str, dict] = {}
-    for raw in sectors_list_for_api():
+    for raw in sectors_list_for_api(include_legacy_nace_aliases=True):
         row = dict(raw)
         key = str(row.get("code") or "").strip()
         nace = str(row.get("nace") or "").strip()

@@ -23,6 +23,7 @@ from app.models.entities import (
 )
 from app.services.special_training_profiles import resolve_special_profile_key
 from app.services.training_topics import (
+    LEGACY_NACE_ALIASES,
     SEKTOR_PROFIL,
     SEKTOREL_EGITIM_KONULARI,
     sektor_kodu_cozumle,
@@ -57,7 +58,10 @@ VALID_HAZARDS = frozenset({"Az Tehlikeli", "Tehlikeli", "Çok Tehlikeli"})
 _NACE_PREFIX_RE = re.compile(r"^\d{2}(?:\.\d{2}){0,2}$")
 _CATALOG = tuple(sectors_list_for_api())
 _NACE_CATALOG = tuple(row for row in _CATALOG if row.get("nace"))
-_NACE_VALUES = frozenset(str(row["nace"]) for row in _NACE_CATALOG)
+_NACE_VALUES = (
+    frozenset(str(row["nace"]) for row in _NACE_CATALOG)
+    | frozenset(LEGACY_NACE_ALIASES)
+)
 _NACE_SECTION_PREFIXES = {"F": ("41", "42", "43")}
 _SECTOR_VALUES = (
     frozenset(SEKTOR_PROFIL)

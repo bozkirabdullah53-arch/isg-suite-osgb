@@ -259,6 +259,54 @@ SEKTOR_TEHLIKE.update({
     for code in PROFIL_KONULARI
 })
 
+# Eski NACE yayımlarında kullanılan kodlar. Güncel katalogdaki 41.00.xx
+# satırlarını değiştirmeden, eski işyeri kayıtlarının da aynı faaliyet ve
+# tehlike sınıfına çözümlenmesini sağlar. Bu harita tek bir kod için özel
+# davranış eklemez; bilinen eski yapı kodlarının tamamı için geriye uyumluluk
+# katmanıdır.
+LEGACY_NACE_ALIASES: dict[str, dict[str, str]] = {
+    "41.20.01": {
+        "current_nace": "41.00.02",
+        "name": "İkamet amaçlı olmayan binaların inşaatı (fabrika, atölye, hastane, okul, otel, işyeri ve benzeri binaların inşaatı)",
+        "hazard_class": "Çok Tehlikeli",
+    },
+    "41.20.02": {
+        "current_nace": "41.00.01",
+        "name": "İkamet amaçlı binaların inşaatı (müstakil konutlar, birden çok ailenin oturduğu binalar, gökdelenler vb.nin inşaatı) (ahşap binaların inşaatı hariç)",
+        "hazard_class": "Çok Tehlikeli",
+    },
+    "41.20.03": {
+        "current_nace": "41.00.05",
+        "name": "Prefabrik binalar için bileşenlerin alanda birleştirilmesi ve kurulması",
+        "hazard_class": "Çok Tehlikeli",
+    },
+    "41.20.04": {
+        "current_nace": "41.00.04",
+        "name": "İkamet amaçlı ahşap binaların inşaatı",
+        "hazard_class": "Çok Tehlikeli",
+    },
+    "41.20.05": {
+        "current_nace": "41.00.03",
+        "name": "Mevcut ikamet amaçlı olan veya ikamet amaçlı olmayan binaların yeniden düzenlenmesi veya yenilenmesi",
+        "hazard_class": "Çok Tehlikeli",
+    },
+}
+LEGACY_NACE_ALIAS_BY_KEY: dict[str, dict[str, str]] = {
+    f"nace_{nace.replace('.', '_')}": {"nace": nace, **meta}
+    for nace, meta in LEGACY_NACE_ALIASES.items()
+}
+
+for _legacy_nace, _legacy_meta in LEGACY_NACE_ALIASES.items():
+    _legacy_key = f"nace_{_legacy_nace.replace('.', '_')}"
+    _current_key = f"nace_{_legacy_meta['current_nace'].replace('.', '_')}"
+    _current_profile = SEKTOR_PROFIL.get(_current_key)
+    if _current_profile:
+        SEKTOR_PROFIL[_legacy_key] = _current_profile
+    _current_topics = SEKTOREL_EGITIM_KONULARI.get(_current_key, [])
+    if _current_topics:
+        SEKTOREL_EGITIM_KONULARI[_legacy_key] = list(_current_topics)
+    SEKTOR_TEHLIKE[_legacy_key] = _legacy_meta["hazard_class"]
+
 
 def tehlike_kurali(tehlike_sinifi: str) -> dict:
     return TEHLIKE_EGITIM_KURALLARI.get(
@@ -268,7 +316,10 @@ def tehlike_kurali(tehlike_sinifi: str) -> dict:
 
 def sektor_adi(sektor_kodu: str | None) -> str:
     code = sektor_kodu or ""
-    return dict(SEKTOR_SECENEKLERI).get(code, PROFIL_ADLARI.get(code, ""))
+    return dict(SEKTOR_SECENEKLERI).get(
+        code,
+        PROFIL_ADLARI.get(code, LEGACY_NACE_ALIAS_BY_KEY.get(code, {}).get("name", "")),
+    )
 
 
 def sektor_kodu_cozumle(sektor: str | None) -> str:
@@ -440,7 +491,7 @@ def katilim_formu_konu_ozeti(tehlike_sinifi: str, sektor: str | None = None) -> 
     )
 
 
-def sectors_list_for_api() -> list[dict]:
+def sectors_list_for_api(*, include_legacy_nace_aliases: bool = False) -> list[dict]:
     path = Path(__file__).resolve().parent / "data" / "nace_sectors.json"
     rows = json.loads(path.read_text(encoding="utf-8"))
     items = []
@@ -460,11 +511,37 @@ def sectors_list_for_api() -> list[dict]:
             "nace": row.get("nace"),
             "topics": topics,
         })
+    if include_legacy_nace_aliases:
+        by_nace = {
+            str(item.get("nace") or "").strip(): item
+            for item in items
+            if item.get("nace")
+        }
+        for legacy_nace, legacy_meta in LEGACY_NACE_ALIASES.items():
+            if legacy_nace in by_nace:
+                continue
+            current = by_nace.get(legacy_meta["current_nace"])
+            if not current:
+                continue
+            alias_key = f"nace_{legacy_nace.replace('.', '_')}"
+            hazard = legacy_meta["hazard_class"]
+            items.append({
+                "code": alias_key,
+                "name": legacy_meta["name"],
+                "label": f"{legacy_nace} / {legacy_meta['name']} / {hazard}",
+                "hazard_class": hazard,
+                "nace": legacy_nace,
+                "topics": list(current.get("topics") or []),
+                "section": current.get("section") or "F",
+                "is_legacy_alias": True,
+                "source_nace": legacy_meta["current_nace"],
+            })
+        items.sort(key=lambda x: str(x.get("label") or x.get("name") or "").casefold())
     return items
 
 
 def meta_payload() -> dict:
     return {
         "hazard_rules": TEHLIKE_EGITIM_KURALLARI,
-        "sectors": sectors_list_for_api(),
+        "sectors": sectors_list_for_api(include_legacy_nace_aliases=True),
     }

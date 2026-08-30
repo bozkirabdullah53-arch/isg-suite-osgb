@@ -189,6 +189,30 @@ const mobilePrimaryByRole={
   read_only:['employee_self_service','employee_training','security'],
 };
 
+// Mobil alt çubukta uzun masaüstü başlıkları anlamını kaybetmeden kısaltılır.
+// Tam açıklama düğmenin title/erişilebilirlik metninde korunur.
+const mobileMenuLabels={
+  eisa_overview:'Genel',
+  eisa_osgb_users:'OSGB',
+  eisa_individual_subscriptions:'Bireysel',
+  eisa_subscriptions:'Abonelik',
+  eisa_payments:'Ödeme',
+  osgb_dashboard:'Ana Panel',
+  employer_oversight:'İşyeri',
+  visits:'Takvim',
+  notifications:'Bildirim',
+  visit_notebook:'Defter',
+  visit_qr:'QR',
+  field_inspection:'Saha',
+  dashboard:'Ana Sayfa',
+  risk:'Risk',
+  health:'Sağlık',
+  prescriptions:'Reçete',
+  employees:'Personel',
+  documents:'Doküman',
+  security:'Güvenlik',
+};
+
 function mobilePrimaryMenu(menu, role, activeId){
   const preferred=(mobilePrimaryByRole[role]||[]).filter((id)=>menu.some((m)=>m[0]===id));
   const ids=[...preferred];
@@ -197,7 +221,9 @@ function mobilePrimaryMenu(menu, role, activeId){
     else ids.push(activeId);
   }
   const set=new Set(ids.slice(0,4));
-  return menu.filter((m)=>set.has(m[0]));
+  return menu
+    .filter((m)=>set.has(m[0]))
+    .map(([id,label,Icon])=>[id,mobileMenuLabels[id]||label,Icon]);
 }
 
 const menuCatalog={
@@ -741,7 +767,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
   const[siteQrEphemeral,setSiteQrEphemeral]=useState(null);
   const[siteQrBusy,setSiteQrBusy]=useState(false);
   const[naceCatalog,setNaceCatalog]=useState([]);
-  const emptyForm={name:'',sgk_registry_no:'',nace_code:'',address:'',phone:'',authorized_person:'',hazard_class:'Az Tehlikeli'};
+  const emptyForm={name:'',sgk_registry_no:'',nace_code:'',address:'',phone:'',authorized_person:'',hazard_class:''};
   const[form,setForm]=useState(emptyForm);
   const naceMatch=findNaceRecord(naceCatalog,form.nace_code);
   useEffect(()=>{
@@ -752,11 +778,12 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
     return()=>{cancelled=true};
   },[]);
   useEffect(()=>{
-    if(!naceMatch?.hazard_class) return;
-    setForm((current)=>current.hazard_class===naceMatch.hazard_class
+    if(!String(form.nace_code||'').trim()) return;
+    const nextHazard=naceMatch?.hazard_class||'';
+    setForm((current)=>current.hazard_class===nextHazard
       ? current
-      : {...current,hazard_class:naceMatch.hazard_class});
-  },[naceMatch?.code,naceMatch?.hazard_class]);
+      : {...current,hazard_class:nextHazard});
+  },[form.nace_code,naceMatch?.code,naceMatch?.hazard_class]);
   function dispatchNaceEvent(name,detail){
     try{window.dispatchEvent(new CustomEvent(name,{detail}))}catch(_){/* ignore */}
   }
@@ -777,7 +804,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
       address:row?.address||'',
       phone:row?.phone||'',
       authorized_person:row?.authorized_person||'',
-      hazard_class:row?.hazard_class||'Az Tehlikeli',
+      hazard_class:row?.hazard_class||'',
     });
     dispatchNaceEvent('isg:company-selected',{companyId:row?.id,company:row});
     setOpen(true);
@@ -794,7 +821,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
     setForm((current)=>({
       ...current,
       nace_code:value,
-      hazard_class:match?.hazard_class||current.hazard_class,
+      hazard_class:match?.hazard_class||'',
     }));
   }
   async function copyText(text){
@@ -817,8 +844,22 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
   };
   useEffect(()=>{void load()},[]);
   async function save(e){
-    e.preventDefault();setBusy(true);setErr('');
-    const payload={...form,sgk_registry_no:(form.sgk_registry_no||'').trim()};
+    e.preventDefault();setErr('');
+    const enteredNace=String(form.nace_code||'').trim();
+    if(enteredNace&&!naceMatch){
+      setErr(naceCatalog.length
+        ? 'Girilen NACE kodu katalogda bulunamadı. Lütfen tam ve geçerli bir NACE kodu girin.'
+        : 'NACE kataloğu henüz yüklenemedi. Lütfen birkaç saniye sonra tekrar deneyin.');
+      return;
+    }
+    setBusy(true);
+    const payload={
+      ...form,
+      // Tehlike sınıfı yalnızca NACE eşleşmesinden gelir. NACE boşsa mevcut
+      // eski kaydın değeri korunur; yeni kayıtta boş bırakılır.
+      hazard_class:naceMatch?.hazard_class||(!enteredNace?(form.hazard_class||null):null),
+      sgk_registry_no:(form.sgk_registry_no||'').trim(),
+    };
     if(!payload.sgk_registry_no){setErr('İşyeri sicil numarası zorunludur.');setBusy(false);return}
     try{
       const isEditing=Boolean(editing?.id);
@@ -926,16 +967,23 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
         {form.nace_code&&(
           <div className={'company-nace-preview '+(naceMatch?'is-resolved':'is-unresolved')} role="status">
             <div><span>Faaliyet tanımı</span><strong>{naceMatch?.name||'Resmî NACE kataloğunda bulunamadı'}</strong></div>
-            <div><span>Tehlike sınıfı</span><strong>{naceMatch?.hazard_class||form.hazard_class||'Belirlenemedi'}</strong></div>
+            <div><span>Tehlike sınıfı</span><strong>{naceMatch?.hazard_class||'Belirlenemedi'}</strong></div>
           </div>
         )}
         <Field label="İşveren / İşveren Vekili" value={form.authorized_person} onChange={e=>setForm({...form,authorized_person:e.target.value})}/>
         <Field label="Telefon" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/>
         <Field label="Adres" value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/>
-        <Select label="Tehlike Sınıfı" value={form.hazard_class} disabled={Boolean(naceMatch)} onChange={e=>setForm({...form,hazard_class:e.target.value})}>
-          <option>Az Tehlikeli</option><option>Tehlikeli</option><option>Çok Tehlikeli</option>
-        </Select>
-        {naceMatch&&<p className="company-nace-auto-note">NACE koduna göre otomatik belirlendi.</p>}
+        <Field
+          label="Tehlike Sınıfı (NACE'den otomatik)"
+          value={naceMatch?.hazard_class||(
+            String(form.nace_code||'').trim() ? 'Belirlenemedi' : (form.hazard_class||'NACE kodu giriniz')
+          )}
+          readOnly
+          tabIndex={-1}
+          aria-readonly="true"
+          className={'nace-hazard-readonly '+(naceMatch?'is-resolved':'is-unresolved')}
+        />
+        {naceMatch&&<p className="company-nace-auto-note">Bu değer tüm NACE kodlarında otomatik belirlenir ve elle değiştirilemez.</p>}
         {err&&<p style={{color:'#b91c1c',gridColumn:'1/-1'}}>{err}</p>}
         <div className="form-actions"><button type="submit" disabled={busy}>{busy?'Kaydediliyor...':(editing?'Güncelle':'Kaydet')}</button></div>
       </form>
@@ -1957,13 +2005,13 @@ function ThemeToggle({theme,onToggle,floating}){
   );
 }
 
-function GlobalNaceContextCard({companyName,naceCode,activity,hazardClass,preview,loading}){
+function GlobalNaceContextCard({companyName,naceCode,activity,hazardClass,preview,loading,className=''}){
   const hasNace=Boolean(String(naceCode||'').trim());
   const activityText=activity
     || (hasNace?'Bu NACE kodu resmî katalogda bulunamadı.':'NACE kodu girildiğinde burada görünür.');
   return (
     <section
-      className={'global-nace-context'+(preview?' is-preview':'')}
+      className={`global-nace-context${preview?' is-preview':''}${className?` ${className}`:''}`}
       aria-label="Seçili işyeri NACE bilgileri"
       aria-live="polite"
     >
@@ -2232,6 +2280,7 @@ function App(){
     preview:Boolean(draftNace),
     loading:naceContextLoading,
   };
+  const hasGlobalNaceContext=Boolean(selectedContextCompanyId||draftNace);
 
   function publicApplyHash(){
     try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')||''}catch{return ''}
@@ -2674,7 +2723,7 @@ function App(){
               aria-current={active===id?'page':undefined}
               className={active===id?'active':''}
               onClick={()=>goModule(id)}
-              title={menuHints[id]||l}
+              title={menuHints[id]||menuCatalog[id]?.[0]||l}
             >
               <I size={22}/><span>{l}</span>
             </button>
@@ -2691,7 +2740,7 @@ function App(){
             <span>{mobileMoreOpen?'Kapat':'Menü'}</span>
           </button>
         </nav>
-        <GlobalNaceContextCard {...globalNaceContext}/>
+        {hasGlobalNaceContext&&<GlobalNaceContextCard {...globalNaceContext} className="global-nace-context-desktop"/>}
         <button type="button" className="logout" onClick={logout}>
           <LogOut size={19}/><span>Çıkış</span>
         </button>
@@ -2731,22 +2780,24 @@ function App(){
             <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':isWorkplaceManagerUser(user)?'Yalnız kendi işyerinizin İSG kayıtları':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
           </div>
           <div className="header-actions">
-            <button type="button" className="header-icon" onClick={goBack} title="Önceki sayfaya dön" aria-label="Önceki sayfaya dön">
-              <ArrowLeft size={18}/>
-            </button>
-            <ThemeToggle theme={uiTheme} onToggle={toggleUiTheme}/>
-            <ReportIssueButton/>
-            <button type="button" className="header-icon" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfa">
-              <LayoutDashboard size={18}/>
-            </button>
-            {allowed.includes('security')&&(
-              <button type="button" className="header-icon" onClick={()=>goModule('security')} title="Şifre değiştir / Güvenlik" aria-label="Şifre değiştir">
-                <KeyRound size={18}/>
+            <div className="header-tools">
+              <button type="button" className="header-icon" onClick={goBack} title="Önceki sayfaya dön" aria-label="Önceki sayfaya dön">
+                <ArrowLeft size={18}/>
               </button>
-            )}
-          <div className="user-chip">
-            <strong>{user.full_name}</strong>
-            <span>{isWorkplaceManagerUser(user)?'İşyeri Yetkilisi':roles[user.role]}</span>
+              <ThemeToggle theme={uiTheme} onToggle={toggleUiTheme}/>
+              <ReportIssueButton/>
+              <button type="button" className="header-icon" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfa">
+                <LayoutDashboard size={18}/>
+              </button>
+              {allowed.includes('security')&&(
+                <button type="button" className="header-icon" onClick={()=>goModule('security')} title="Şifre değiştir / Güvenlik" aria-label="Şifre değiştir">
+                  <KeyRound size={18}/>
+                </button>
+              )}
+            </div>
+            <div className="user-chip">
+              <strong>{user.full_name}</strong>
+              <span>{isWorkplaceManagerUser(user)?'İşyeri Yetkilisi':roles[user.role]}</span>
             </div>
             <button type="button" className="header-icon logout-mobile" onClick={logout} title="Çıkış" aria-label="Çıkış">
               <LogOut size={18}/>
@@ -2754,6 +2805,11 @@ function App(){
           </div>
         </header>
         <main className="content">
+          {hasGlobalNaceContext&&(
+            <div className="mobile-nace-context">
+              <GlobalNaceContextCard {...globalNaceContext} className="global-nace-context-mobile-card"/>
+            </div>
+          )}
           {!user.is_eisa && user.subscription_write_allowed===false && (
             <div className="readonly-banner" role="status">
               Salt okunur mod: abonelik süresi doldu. Veri girişi kapalı — EİSA ile iletişime geçin.

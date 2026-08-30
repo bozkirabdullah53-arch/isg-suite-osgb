@@ -1276,6 +1276,15 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   useEffect(() => { loadPackages(); loadCompanies(); }, []);
   useEffect(() => { loadBranches(); }, [companyId]);
   useEffect(() => { if (selectedId) loadPackage(selectedId); }, [selectedId]);
+  useEffect(() => {
+    // remote-catalog-processing-poll
+    const hasPendingVideo = (selectedPackage?.sections || []).some((section) =>
+      (section.videos || []).some((video) => ['uploading', 'processing'].includes(video.status)),
+    );
+    if (!selectedId || !hasPendingVideo) return undefined;
+    const timer = window.setTimeout(() => { void loadPackage(selectedId); }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [selectedId, selectedPackage]);
 
   async function refresh() {
     await loadPackages();
@@ -1365,13 +1374,14 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
   }
 
   async function deleteCatalogVideo(video) {
-    if (!canEditContent || !selectedPackage || HISTORICAL_VIDEO_STATUSES.includes(video.status)) return;
-    if (!window.confirm(`"${video.title}" taslak videosu silinsin mi?`)) return;
+    if (!canEditContent || !selectedPackage || video.status === 'archived') return;
+    const historical = ['published', 'unpublished'].includes(video.status);
+    if (!window.confirm(historical ? `"${video.title}" aktif eğitimden kaldırılsın mı? Eski kayıt ve izleme geçmişi korunacaktır.` : `"${video.title}" taslak videosu silinsin mi?`)) return;
     setBusy(true); setError(''); setMessage('');
     try {
       const out = await api(`/trainings/remote/catalog/videos/${video.id}`, {method: 'DELETE'});
       await loadPackage(selectedPackage.id); await loadPackages();
-      setMessage(out.storage_cleanup_pending ? 'Video silindi; depolama temizliği sıraya alındı.' : 'Taslak video silindi.');
+      setMessage(out.historical_record_preserved ? (out.message || 'Video aktif eğitimden kaldırıldı; eski kayıt ve izleme geçmişi korundu.') : out.storage_cleanup_pending ? 'Video silindi; depolama temizliği sıraya alındı.' : 'Taslak video silindi.');
     } catch (err) { setError(err.message || 'Video silinemedi.'); }
     finally { setBusy(false); }
   }
@@ -1603,7 +1613,7 @@ function CatalogManagerPanel({companyId = '', branchId = '', onCompanyChange, on
                       {directContentEdit && video.status === 'published' && <button type="button" onClick={() => videoAction(video, 'unpublish')} disabled={busy}>Yayından kaldır</button>}
                       {directContentEdit && ['published', 'unpublished'].includes(video.status) && <button type="button" onClick={() => videoAction(video, 'archive')} disabled={busy}>Arşivle</button>}
                       {directContentEdit && video.status === 'processing_failed' && <button type="button" onClick={() => videoAction(video, 'retry-processing')} disabled={busy}>Yeniden işle</button>}
-                      {directContentEdit && !HISTORICAL_VIDEO_STATUSES.includes(video.status) && <button type="button" onClick={() => deleteCatalogVideo(video)} disabled={busy} style={{color: '#b42318', background: '#fff5f4', border: '1px solid #e39b93'}}>Taslak videoyu sil</button>}
+                      {directContentEdit && video.status !== 'archived' && <button type="button" onClick={() => deleteCatalogVideo(video)} disabled={busy} style={{color: '#b42318', background: '#fff5f4', border: '1px solid #e39b93'}}>{['published', 'unpublished'].includes(video.status) ? 'Videoyu sil' : 'Taslak videoyu sil'}</button>}
                     </div>
                   </div>)}
                 </div>

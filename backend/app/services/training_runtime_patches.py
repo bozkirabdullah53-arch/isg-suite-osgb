@@ -124,6 +124,10 @@ def _patch_sector_profile_resolution() -> str:
         if raw in training_topics.SEKTOR_PROFIL:
             return raw
         nace_code = "nace_" + raw.replace(".", "_")
+        # Legacy NACE aliases must retain their exact catalog identity so the
+        # training snapshot and its topics stay tied to the entered code.
+        if nace_code in getattr(training_topics, "LEGACY_NACE_ALIAS_BY_KEY", {}):
+            return nace_code
         if nace_code in training_topics.SEKTOR_PROFIL:
             return training_topics.SEKTOR_PROFIL[nace_code]
         if nace_code in training_topics.SEKTOREL_EGITIM_KONULARI:

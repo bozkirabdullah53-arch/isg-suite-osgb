@@ -3,6 +3,7 @@ import {Archive, Award, CheckCircle2, ClipboardList, Download, FileSpreadsheet, 
 import {API_URL, api, downloadFile, uploadFile} from './api';
 import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
 import {canEditTrainingForm, canManageTrainingPackage, canOperateTraining} from './training_role_policy';
+import {augmentNaceCatalog, findNaceRecord} from './nace_context';
 import './training_pro.css';
 
 const HAZARD_HOURS = {'Az Tehlikeli': 8, Tehlikeli: 12, 'Çok Tehlikeli': 16};
@@ -136,9 +137,9 @@ export async function loadSectorsCatalog() {
         Array.isArray(parsed.data) &&
         parsed.data.length >= SECTORS_MIN_COUNT
       ) {
-        _sectorsMem = parsed.data;
+        _sectorsMem = augmentNaceCatalog(parsed.data);
         _sectorsMemAt = parsed.at;
-        return parsed.data;
+        return _sectorsMem;
       }
     }
   } catch (_) { /* ignore */ }
@@ -186,6 +187,7 @@ export async function loadSectorsCatalog() {
   }
 
   if (data.length >= SECTORS_MIN_COUNT) {
+    data = augmentNaceCatalog(data);
     _sectorsMem = data;
     _sectorsMemAt = Date.now();
     try {
@@ -202,24 +204,8 @@ function sectorLabel(sectors, code) {
   return s ? (s.label || s.name) : code || '—';
 }
 
-function compactNace(value) {
-  return String(value || '')
-    .trim()
-    .toLocaleLowerCase('tr-TR')
-    .replace(/^nace[_-]?/, '')
-    .replace(/[^a-z0-9]/g, '');
-}
-
 function companyNaceSector(company, catalog) {
-  const raw = String(company?.nace_code || '').trim();
-  if (!raw || !Array.isArray(catalog) || !catalog.length) return null;
-  const dotted = raw.match(/\d{2}\.\d{2}\.\d{2}/)?.[0] || '';
-  const candidates = [raw, dotted].filter(Boolean).map(compactNace);
-  return (
-    catalog.find((item) =>
-      [item?.code, item?.nace].some((value) => candidates.includes(compactNace(value))),
-    ) || null
-  );
+  return findNaceRecord(catalog, company?.nace_code);
 }
 
 function normalizedStampText(value) {

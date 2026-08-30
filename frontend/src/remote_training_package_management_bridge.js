@@ -293,8 +293,25 @@ function bindSectionReorder(sectionRoot, item, label, detail) {
       }
     });
     handle.addEventListener('dragend', () => {
-      if (draggingSectionRoot && !dragDropCommitted && dragStartSectionContainer && dragStartSectionOrder) {
-        applySectionOrder(dragStartSectionContainer, dragStartSectionOrder);
+      // remote-section-dragend-persist-fallback
+      const container = dragStartSectionContainer;
+      const previousOrder = dragStartSectionOrder ? [...dragStartSectionOrder] : [];
+      const nextOrder = container ? sectionOrderFromDom(container) : [];
+      const changed = Boolean(
+        draggingSectionRoot
+        && !dragDropCommitted
+        && container
+        && previousOrder.length
+        && nextOrder.length
+        && previousOrder.join(',') !== nextOrder.join(',')
+      );
+      if (changed) {
+        clearDragState();
+        void persistSectionOrder(detail, container, previousOrder, nextOrder);
+        return;
+      }
+      if (draggingSectionRoot && !dragDropCommitted && container && previousOrder.length) {
+        applySectionOrder(container, previousOrder);
       }
       clearDragState();
     });
@@ -537,6 +554,16 @@ document.addEventListener('click', (event) => {
   }
 
   const text = clickedButton?.textContent?.trim() || '';
+  // remote-section-create-refresh-fallback
+  if (text === 'Bölümü oluştur') {
+    [800, 1800].forEach((delay) => {
+      window.setTimeout(() => {
+        selectedDetail = null;
+        scheduleRender(true);
+      }, delay);
+    });
+    return;
+  }
   if (['Paketi düzenlemeye aç', 'Paketi yayımla', 'Yayından kaldır', 'Arşivle', 'İncelemeye hazır'].includes(text)) {
     window.setTimeout(() => {
       selectedDetail = null;
