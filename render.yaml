@@ -215,6 +215,9 @@ services:
     buildCommand: npm ci --no-audit --no-fund && npm run build
     staticPublishPath: dist
     branch: master
+    # EİSA canlı alan adı: kök alan adı www adresine yönlendirilir.
+    domains:
+      - www.isgsuite.tr
     # --- Güvenlik başlıkları (smoke test D2 bulgusu) ---
     # Render static sites, nginx.conf'u kullanmaz; headers direktifiyle
     # tüm yanıtlara güvenlik başlıkları eklenir.
