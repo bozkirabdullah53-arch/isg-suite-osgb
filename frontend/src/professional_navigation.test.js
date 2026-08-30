@@ -29,6 +29,8 @@ describe('professional navigation', () => {
     for (const role of ['safety_specialist', 'workplace_physician']) {
       const modules = professionalModulesForUser(role, {isIndividual: true});
       expect(modules).not.toContain('visit_qr');
+      expect(modules).not.toContain('belge_onay');
+      expect(modules).not.toContain('eyas_inbox');
       expect(modules).toContain('visit_notebook');
     }
     expect(professionalModulesForUser('safety_specialist', {isIndividual: true})).not.toContain('customer_portal');

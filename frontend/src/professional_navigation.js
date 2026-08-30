@@ -99,6 +99,7 @@ export function professionalModulesForUser(role, {isIndividual = false} = {}) {
   if (!isIndividual) return modules;
   return modules.filter((moduleId) => {
     if (moduleId === 'visit_qr') return false;
+    if (moduleId === 'belge_onay' || moduleId === 'eyas_inbox') return false;
     if (role === 'safety_specialist' && moduleId === 'customer_portal') return false;
     return true;
   });

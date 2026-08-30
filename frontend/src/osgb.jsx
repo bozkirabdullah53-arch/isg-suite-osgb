@@ -1908,7 +1908,7 @@ export function VisitsPage({user, onNavigate, focus=''}){
      </button>
     </div>
 
-    {['safety_specialist','workplace_physician'].includes(user.role) && typeof onNavigate==='function' && (
+    {!Boolean(user.is_individual) && ['safety_specialist','workplace_physician'].includes(user.role) && typeof onNavigate==='function' && (
      <div className="field-step">
       <p className="field-step-label">{canUsePresenceQr?'4':'2'} — Belge onay / imza</p>
       <p style={{margin:'0 0 8px',fontSize:13,color:'#64748b'}}>
