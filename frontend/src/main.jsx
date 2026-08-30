@@ -2008,7 +2008,7 @@ function ThemeToggle({theme,onToggle,floating}){
 function GlobalNaceContextCard({companyName,naceCode,activity,hazardClass,preview,loading,className=''}){
   const hasNace=Boolean(String(naceCode||'').trim());
   const activityText=activity
-    || (hasNace?'Bu NACE kodu resmî katalogda bulunamadı.':'NACE kodu girildiğinde burada görünür.');
+    || (hasNace?'Faaliyet tanımı resmî katalogda bulunamadı.':'Bu işyeri için NACE bilgisi tanımlanmamış.');
   return (
     <section
       className={`global-nace-context${preview?' is-preview':''}${className?` ${className}`:''}`}
@@ -2016,13 +2016,12 @@ function GlobalNaceContextCard({companyName,naceCode,activity,hazardClass,previe
       aria-live="polite"
     >
       <div className="global-nace-context-head">
-        <span className="global-nace-context-kicker"><Building2 size={14}/> NACE BAĞLAMI</span>
-        <span className="global-nace-context-status">{preview?'Önizleme':'Aktif'}</span>
+        <span className="global-nace-context-kicker"><Building2 size={13}/> İŞYERİ NACE BİLGİSİ</span>
       </div>
-      <strong className="global-nace-context-company">{companyName||'İşyeri seçilmedi'}</strong>
+      <strong className="global-nace-context-company">{companyName||'Seçili işyeri'}</strong>
       <div className="global-nace-context-code">
         <span>NACE KODU</span>
-        <strong>{naceCode||'—'}</strong>
+        <strong>{naceCode||'Bilgi yok'}</strong>
       </div>
       <div className="global-nace-context-row">
         <span>TEHLİKE SINIFI</span>
@@ -2280,7 +2279,9 @@ function App(){
     preview:Boolean(draftNace),
     loading:naceContextLoading,
   };
-  const hasGlobalNaceContext=Boolean(selectedContextCompanyId||draftNace);
+  // NACE bağlamı yalnızca gerçek bir firma/işyeri seçimi yapıldıktan sonra
+  // gösterilir. Formda yazılan geçici NACE değeri tek başına kartı açmaz.
+  const hasGlobalNaceContext=Boolean(selectedContextCompany);
 
   function publicApplyHash(){
     try{return new URLSearchParams(String(window.location.hash||'').replace(/^#/,'')).get('apply')||''}catch{return ''}

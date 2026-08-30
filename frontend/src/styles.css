@@ -349,7 +349,7 @@ nav button.active {
 }
 .logout { margin-top: 10px; flex-shrink: 0; color: #9f2d27; }
 
-/* Seçili işyerinin NACE kimliği — sol alt bağlam kartı */
+/* Seçili işyerinin NACE bilgisi — yalnızca firma/işyeri seçilince görünür. */
 .global-nace-context {
   position: relative;
   left: auto;
@@ -358,15 +358,15 @@ nav button.active {
   width: auto;
   max-width: 100%;
   display: grid;
-  gap: 7px;
+  gap: 5px;
   flex: 0 0 auto;
-  margin: 12px 0 0;
-  padding: 12px;
+  margin: auto 0 0;
+  padding: 9px 10px;
   border: 1px solid #21656a;
-  border-radius: 14px;
+  border-radius: 12px;
   background: linear-gradient(155deg, #104751 0%, #0b3038 100%);
   color: #d9fbf6;
-  box-shadow: 0 10px 26px rgba(3, 24, 30, .28), inset 0 1px 0 rgba(255, 255, 255, .06);
+  box-shadow: 0 8px 20px rgba(3, 24, 30, .24), inset 0 1px 0 rgba(255, 255, 255, .06);
   overflow: hidden;
 }
 .global-nace-context-head {
@@ -380,24 +380,16 @@ nav button.active {
   align-items: center;
   gap: 5px;
   color: #7ee8d5;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 850;
   letter-spacing: .08em;
-}
-.global-nace-context-status {
-  padding: 3px 6px;
-  border: 1px solid #397b7c;
-  border-radius: 999px;
-  color: #b5f2e5;
-  font-size: 9px;
-  font-weight: 800;
 }
 .global-nace-context-company {
   display: block;
   min-width: 0;
   overflow: hidden;
   color: #effcf9;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -409,46 +401,54 @@ nav button.active {
   min-width: 0;
 }
 .global-nace-context-code {
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: baseline;
-  gap: 7px;
-  padding-bottom: 5px;
+  gap: 6px;
+  padding-bottom: 4px;
   border-bottom: 1px solid #275b61;
 }
 .global-nace-context-code span,
 .global-nace-context-row > span {
   color: #92b8bb;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 850;
   letter-spacing: .06em;
 }
 .global-nace-context-code strong {
   color: #d2f4ef;
-  font-size: 12px;
+  font-size: 11px;
+  text-align: right;
+}
+.global-nace-context-row {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 6px;
 }
 .global-nace-context-row strong {
   color: #d2f4ef;
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.25;
+  text-align: right;
 }
 .global-nace-context-activity p {
   display: -webkit-box;
   margin: 0;
   overflow: hidden;
   color: #add0cb;
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1.35;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
 }
 .global-nace-context-loading {
   color: #92b8bb;
-  font-size: 10px;
+  font-size: 9px;
 }
 .global-nace-context.is-preview {
   border-color: #56a9a0;
   background: linear-gradient(155deg, #15525a 0%, #0d3b43 100%);
 }
+.global-nace-context-desktop { margin-top: auto; }
 .company-nace-preview {
   display: grid;
   grid-column: 1 / -1;
@@ -732,7 +732,7 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 }
 
 /* NACE context is a desktop sidebar aid; on mobile it is rendered inline
-   only after a workplace or NACE value exists, so it never covers content. */
+   only after a workplace is selected, so it never covers content. */
 .mobile-nace-context { display: none; }
 
 /* Bireysel abonelik: the desktop table remains intact, while mobile uses

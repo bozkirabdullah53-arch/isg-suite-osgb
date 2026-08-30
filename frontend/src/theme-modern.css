@@ -323,10 +323,6 @@ html[data-ui-theme="modern"] .global-nace-context {
   backdrop-filter: blur(16px);
 }
 html[data-ui-theme="modern"] .global-nace-context-kicker { color: #5eead4; }
-html[data-ui-theme="modern"] .global-nace-context-status {
-  border-color: rgba(94, 234, 212, .32);
-  color: #baf7ed;
-}
 html[data-ui-theme="modern"] .global-nace-context-company { color: #effcfb; }
 html[data-ui-theme="modern"] .global-nace-context-code { border-bottom-color: rgba(94, 234, 212, .18); }
 html[data-ui-theme="modern"] .global-nace-context-code span,
