@@ -1,19 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { api } from './api';
-import { Msg, Page, RefreshButton, SearchBar, StatusBadge } from './eisa';
-
-function subscriptionEnd(row) {
-  const value = row?.effective_status === 'trial' ? row?.trial_ends_at : row?.current_period_ends_at;
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('tr-TR');
-}
+import { Msg, Page, RefreshButton, SearchBar, SimpleSubscriptionList, SubscriptionDetailModal } from './eisa';
 
 export function EisaIndividualSubscriptionsPage() {
   const [rows, setRows] = useState([]);
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [detail, setDetail] = useState(null);
 
   const load = async () => {
     setBusy(true);
@@ -22,7 +16,11 @@ export function EisaIndividualSubscriptionsPage() {
       const params = new URLSearchParams();
       if (q.trim()) params.set('q', q.trim());
       const data = await api(`/eisa/individual-subscriptions${params.toString() ? `?${params}` : ''}`);
-      setRows(Array.isArray(data) ? data : []);
+      setRows((Array.isArray(data) ? data : []).map((row) => ({
+        ...row,
+        kind: 'individual',
+        display_name: row.specialist_name || row.osgb_name,
+      })));
     } catch (e) {
       setRows([]);
       setMsg(e.message);
@@ -57,6 +55,7 @@ export function EisaIndividualSubscriptionsPage() {
       } else {
         await api(`/eisa/individual-subscriptions/${userId}`, { method: 'DELETE' });
       }
+      setDetail(null);
       await load();
       setMsg(`“${specialistName}” bireysel üye kaldırıldı.`);
     } catch (e) {
@@ -68,67 +67,27 @@ export function EisaIndividualSubscriptionsPage() {
 
   return (
     <Page title="Bireysel Abonelik" action={<RefreshButton busy={busy} onClick={load} />}>
-      <div className="eisa-individual-subscriptions">
-        <p className="eisa-individual-subscriptions-intro">
-          Global yönetici tarafından onaylanan bireysel İş Güvenliği Uzmanları burada gösterilir.
-          Bu liste OSGB aboneliklerinden tamamen ayrıdır. Sil, bireysel üyeyi listeden kaldırır.
-        </p>
-        <div className="eisa-toolbar">
-          <SearchBar value={q} onChange={setQ} placeholder="Uzman adı, e-posta, belge no…" />
-          <button type="button" disabled={busy} onClick={load}>Ara</button>
-        </div>
-        <Msg text={msg} />
-        <div className="table-wrap eisa-individual-subscriptions-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Uzman</th>
-                <th>Belge</th>
-                <th>İletişim</th>
-                <th>Paket</th>
-                <th>Abonelik</th>
-                <th>Kalan gün</th>
-                <th>Bitiş</th>
-                <th>Hesap</th>
-                <th>İşlem</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length ? rows.map((row) => (
-                <tr key={row.id}>
-                  <td data-label="Uzman">{row.specialist_name || row.osgb_name || '—'}</td>
-                  <td data-label="Belge">
-                    <div className="eisa-cell-stack">
-                      <span>{row.certificate_class || '—'}</span>
-                      <small>{row.certificate_number || '—'}</small>
-                    </div>
-                  </td>
-                  <td data-label="İletişim">
-                    <div className="eisa-cell-stack">
-                      <span>{row.specialist_email || row.contact_email || '—'}</span>
-                      {(row.specialist_phone || row.contact_phone) ? <small>{row.specialist_phone || row.contact_phone}</small> : null}
-                    </div>
-                  </td>
-                  <td data-label="Paket">{row.package_name || row.plan || '—'}</td>
-                  <td data-label="Abonelik"><StatusBadge status={row.effective_status || row.status} /></td>
-                  <td data-label="Kalan gün">{row.days_remaining ?? '—'}</td>
-                  <td data-label="Bitiş">{subscriptionEnd(row)}</td>
-                  <td data-label="Hesap">{row.account_active ? 'Aktif' : 'Pasif'}</td>
-                  <td data-label="İşlem">
-                    <div className="actions eisa-row-actions">
-                      <button type="button" className="mini secondary" disabled={busy} onClick={() => deleteIndividual(row)}>
-                        Sil
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )) : (
-                <tr><td colSpan={9} className="empty">Onaylanmış bireysel abonelik bulunamadı.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+      <p style={{ marginTop: 0, color: '#64748b' }}>
+        Bireysel üyeler listede görünür. Satıra tıklayınca kullanıcı bilgisi açılır.
+      </p>
+      <div className="eisa-toolbar">
+        <SearchBar value={q} onChange={setQ} placeholder="Uzman adı, e-posta, belge no…" />
+        <button type="button" disabled={busy} onClick={load}>Ara</button>
       </div>
+      <Msg text={msg} />
+      <SimpleSubscriptionList
+        title="Bireysel üyeler"
+        empty="Bireysel üye yok."
+        rows={rows}
+        busy={busy}
+        onOpen={setDetail}
+      />
+      <SubscriptionDetailModal
+        row={detail}
+        busy={busy}
+        onClose={() => setDetail(null)}
+        onDelete={deleteIndividual}
+      />
     </Page>
   );
 }

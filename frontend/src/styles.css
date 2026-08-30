@@ -1162,6 +1162,7 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 @media(max-width:620px){.theme-toggle:not(.theme-toggle-floating) span{display:none}.theme-toggle:not(.theme-toggle-floating){width:40px;height:40px;justify-content:center;padding:0;border-radius:10px}}
 
 /* EİSA — OSGB Kullanıcıları: sütun hizası + işlem butonları her zaman görünür */
+.eisa-toolbar,
 .eisa-osgb-users .eisa-toolbar{
   display:flex;
   align-items:flex-end;
@@ -1239,6 +1240,49 @@ html[data-ui-theme="modern"] .eisa-osgb-users td:last-child{
 html[data-ui-theme="modern"] .eisa-osgb-users tbody tr:hover td:last-child{
   background:rgba(240,253,250,.98);
 }
+
+.eisa-sub-lists{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:16px;
+  margin-top:8px;
+}
+.eisa-sub-list{
+  border:1px solid #dbe7ec;
+  border-radius:12px;
+  overflow:hidden;
+  background:#fff;
+}
+.eisa-sub-list-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:12px 14px;
+  background:#f2f8f8;
+  border-bottom:1px solid #dbe7ec;
+}
+.eisa-sub-list-head h4{margin:0;font-size:15px}
+.eisa-sub-list-head span{
+  min-width:28px;
+  height:28px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+  background:#0f766e;
+  color:#fff;
+  font-size:12px;
+  font-weight:700;
+}
+.eisa-sub-list .table-wrap{margin:0}
+.eisa-sub-list table{min-width:0!important;width:100%}
+.eisa-sub-row{cursor:pointer}
+.eisa-sub-row:hover td{background:#f0fdfa}
+.eisa-sub-detail{display:grid;gap:10px;margin:0 0 16px}
+.eisa-sub-detail > div{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:start}
+.eisa-sub-detail dt{margin:0;color:#64748b;font-size:12px;font-weight:700}
+.eisa-sub-detail dd{margin:0;font-weight:650}
 
 /* —— Global modal overlay: sticky header üstünde, kesilmesin —— */
 .modal-bg{

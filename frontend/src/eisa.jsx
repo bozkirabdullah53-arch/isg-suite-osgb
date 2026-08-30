@@ -416,6 +416,7 @@ export function EisaOsgbUsersPage() {
     try {
       const path = shouldActivate ? 'activate' : 'deactivate';
       await api(`/eisa/osgb-users/${row.id}/${path}`, { method: 'PATCH' });
+      setDetail(null);
       await load();
       setMsg(shouldActivate ? 'OSGB aktifleştirildi.' : 'OSGB pasife alındı.');
     } catch (e) {
@@ -437,6 +438,7 @@ export function EisaOsgbUsersPage() {
     setBusy(true);
     try {
       await api(`/eisa/osgb-users/${row.id}`, { method: 'DELETE' });
+      setDetail(null);
       await load();
       setMsg(`“${row.name}” kalıcı silindi.`);
     } catch (e) {
@@ -479,78 +481,59 @@ export function EisaOsgbUsersPage() {
     }
   }
 
+  const [detail, setDetail] = useState(null);
+
   return (
     <Page title="OSGB Kullanıcıları" action={<RefreshButton busy={busy} onClick={load} />}>
-      <div className="eisa-osgb-users">
       <p style={{ marginTop: 0, color: '#64748b' }}>
-        Pasife Al geçici olarak dondurur. Sil, OSGB’yi listeden kalıcı kaldırır (önce merkezi yedek alınır).
-        Yönetici hesabı başvuru onayında veya «Yönetici Oluştur» ile oluşur. Şifre yalnızca hesap sahibi tarafından (Güvenlik menüsü / şifremi unuttum) değiştirilir.
+        Üyeler listede görünür. Satıra tıklayınca kullanıcı bilgisi açılır.
+        Pasife Al geçici dondurur; Sil kalıcı kaldırır (önce merkezi yedek).
       </p>
       <div className="eisa-toolbar">
         <SearchBar value={q} onChange={setQ} placeholder="OSGB adı, e-posta, yetki no…" />
         <button type="button" disabled={busy} onClick={load}>Ara</button>
       </div>
       <Msg text={msg} />
-      <div className="table-wrap">
-        <table>
-          <colgroup>
-            <col style={{ width: '18%' }} />
-            <col style={{ width: '13%' }} />
-            <col style={{ width: '15%' }} />
-            <col style={{ width: '9%' }} />
-            <col style={{ width: '9%' }} />
-            <col style={{ width: '16%' }} />
-            <col style={{ width: '7%' }} />
-            <col style={{ width: '150px' }} />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>OSGB</th>
-              <th>Yetkili</th>
-              <th>İletişim</th>
-              <th>Paket</th>
-              <th>Abonelik</th>
-              <th>Yönetici</th>
-              <th>Hesap</th>
-              <th>İşlem</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td title={r.name}>{r.name}</td>
-                <td title={r.responsible_manager || ''}>{r.responsible_manager || '—'}</td>
-                <td>
-                  <div className="eisa-cell-stack">
-                    <span title={r.contact_email || ''}>{r.contact_email || '—'}</span>
-                    {r.contact_phone ? <small>{r.contact_phone}</small> : null}
-                  </div>
-                </td>
-                <td>{r.package_name || '—'}</td>
-                <td><StatusBadge status={r.effective_status || r.subscription_status} /></td>
-                <td title={r.admin_email || ''}>{r.admin_email || '—'}</td>
-                <td>{r.is_active ? 'Aktif' : 'Pasif'}</td>
-                <td>
-                  <div className="actions eisa-row-actions">
-                    {!r.has_admin_user ? (
-                      <button type="button" className="mini secondary" disabled={busy} onClick={() => provisionAdmin(r)}>
-                        Yönetici Oluştur
-                      </button>
-                    ) : null}
-                    <button type="button" className="mini secondary" disabled={busy} onClick={() => toggleActive(r)}>
-                      {osgbNeedsActivation(r) ? 'Aktife Al' : 'Pasife Al'}
-                    </button>
-                    <button type="button" className="mini secondary" disabled={busy} onClick={() => deleteOsgb(r)}>
-                      Sil
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      </div>
+      <SimpleSubscriptionList
+        title="OSGB üyeleri"
+        empty="OSGB üyesi yok."
+        rows={rows.map((row) => ({
+          ...row,
+          kind: 'osgb_user',
+          display_name: row.name,
+          effective_status: row.is_active ? (row.effective_status || row.subscription_status || 'active') : 'suspended',
+        }))}
+        busy={busy}
+        onOpen={setDetail}
+      />
+      {detail && (
+        <AppModal title="OSGB üyesi" close={() => setDetail(null)}>
+          <dl className="eisa-sub-detail">
+            <div><dt>OSGB</dt><dd>{detail.name || '—'}</dd></div>
+            <div><dt>Yetkili</dt><dd>{detail.responsible_manager || '—'}</dd></div>
+            <div><dt>E-posta</dt><dd>{detail.contact_email || '—'}</dd></div>
+            <div><dt>Telefon</dt><dd>{detail.contact_phone || '—'}</dd></div>
+            <div><dt>Paket</dt><dd>{detail.package_name || '—'}</dd></div>
+            <div><dt>Abonelik</dt><dd><StatusBadge status={detail.effective_status || detail.subscription_status} /></dd></div>
+            <div><dt>Yönetici</dt><dd>{detail.admin_email || '—'}</dd></div>
+            <div><dt>Hesap</dt><dd>{detail.is_active ? 'Aktif' : 'Pasif'}</dd></div>
+          </dl>
+          <div className="form-actions" style={{ flexWrap: 'wrap' }}>
+            <button type="button" className="secondary" onClick={() => setDetail(null)}>Kapat</button>
+            {!detail.has_admin_user ? (
+              <button type="button" className="secondary" disabled={busy} onClick={() => { setDetail(null); provisionAdmin(detail); }}>
+                Yönetici Oluştur
+              </button>
+            ) : null}
+            <button type="button" className="secondary" disabled={busy} onClick={() => toggleActive(detail)}>
+              {osgbNeedsActivation(detail) ? 'Aktife Al' : 'Pasife Al'}
+            </button>
+            <button type="button" className="secondary" disabled={busy} onClick={() => deleteOsgb(detail)}>
+              Sil
+            </button>
+          </div>
+        </AppModal>
+      )}
       {provision && (
         <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && setProvision(null)}>
           <section className="modal">
@@ -575,45 +558,92 @@ export function EisaOsgbUsersPage() {
   );
 }
 
-function SubscriptionTable({ rows, busy, onEdit, onDelete }) {
+function subscriptionEndLabel(row) {
+  const value = row?.effective_status === 'trial' ? row?.trial_ends_at : row?.current_period_ends_at;
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('tr-TR');
+}
+
+export function SimpleSubscriptionList({ title, empty, rows, busy, onOpen }) {
   return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>OSGB</th>
-            <th>Paket</th>
-            <th>Durum</th>
-            <th>Etkin</th>
-            <th>Kalan gün</th>
-            <th>Son ödeme</th>
-            <th>Yazma</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length ? rows.map((s) => (
-            <tr key={s.id}>
-              <td>{s.osgb_name || s.osgb_id}</td>
-              <td>{s.package_name || s.plan}</td>
-              <td><StatusBadge status={s.status} /></td>
-              <td><StatusBadge status={s.effective_status} /></td>
-              <td>{s.days_remaining ?? '—'}</td>
-              <td>{s.last_payment_date ? new Date(s.last_payment_date).toLocaleDateString('tr-TR') : '—'}</td>
-              <td>{s.write_allowed ? 'Açık' : 'Salt okunur'}</td>
-              <td>
-                <div className="actions">
-                  <button type="button" className="secondary" disabled={busy} onClick={() => onEdit(s)}>Düzenle</button>
-                  <button type="button" className="secondary" disabled={busy} onClick={() => onDelete(s)}>Sil</button>
-                </div>
-              </td>
+    <section className="eisa-sub-list">
+      <header className="eisa-sub-list-head">
+        <h4>{title}</h4>
+        <span>{rows.length}</span>
+      </header>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Abone</th>
+              <th>Durum</th>
             </tr>
-          )) : (
-            <tr><td colSpan={8} className="empty">Kayıt bulunamadı.</td></tr>
-          )}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {rows.length ? rows.map((row) => (
+              <tr
+                key={`${row.kind || 'osgb'}-${row.id || row.osgb_id || row.user_id}`}
+                className="eisa-sub-row"
+                tabIndex={0}
+                onClick={() => !busy && onOpen(row)}
+                onKeyDown={(event) => {
+                  if (!busy && (event.key === 'Enter' || event.key === ' ')) {
+                    event.preventDefault();
+                    onOpen(row);
+                  }
+                }}
+              >
+                <td>{row.display_name || row.specialist_name || row.osgb_name || row.osgb_id}</td>
+                <td><StatusBadge status={row.effective_status || row.status} /></td>
+              </tr>
+            )) : (
+              <tr><td colSpan={2} className="empty">{empty}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+export function SubscriptionDetailModal({ row, busy, onClose, onEdit, onDelete }) {
+  if (!row) return null;
+  const individual = row.kind === 'individual';
+  const name = row.display_name || row.specialist_name || row.osgb_name || '—';
+  return (
+    <AppModal title={individual ? 'Bireysel üye' : 'OSGB abonesi'} close={onClose}>
+      <dl className="eisa-sub-detail">
+        <div><dt>Tür</dt><dd>{individual ? 'Bireysel' : 'OSGB'}</dd></div>
+        <div><dt>{individual ? 'Uzman' : 'OSGB'}</dt><dd>{name}</dd></div>
+        {individual ? (
+          <>
+            <div><dt>E-posta</dt><dd>{row.specialist_email || row.contact_email || '—'}</dd></div>
+            <div><dt>Telefon</dt><dd>{row.specialist_phone || row.contact_phone || '—'}</dd></div>
+            <div><dt>Belge</dt><dd>{[row.certificate_class, row.certificate_number].filter(Boolean).join(' · ') || '—'}</dd></div>
+          </>
+        ) : (
+          <>
+            <div><dt>Yetkili</dt><dd>{row.responsible_manager || '—'}</dd></div>
+            <div><dt>E-posta</dt><dd>{row.contact_email || '—'}</dd></div>
+            <div><dt>Telefon</dt><dd>{row.contact_phone || '—'}</dd></div>
+          </>
+        )}
+        <div><dt>Paket</dt><dd>{row.package_name || row.plan || '—'}</dd></div>
+        <div><dt>Abonelik</dt><dd><StatusBadge status={row.effective_status || row.status} /></dd></div>
+        <div><dt>Kalan gün</dt><dd>{row.days_remaining ?? '—'}</dd></div>
+        <div><dt>Bitiş</dt><dd>{subscriptionEndLabel(row)}</dd></div>
+        {!individual && <div><dt>Yazma</dt><dd>{row.write_allowed ? 'Açık' : 'Salt okunur'}</dd></div>}
+        {individual && <div><dt>Hesap</dt><dd>{row.account_active ? 'Aktif' : 'Pasif'}</dd></div>}
+      </dl>
+      <div className="form-actions">
+        <button type="button" className="secondary" onClick={onClose}>Kapat</button>
+        {!individual && (
+          <button type="button" className="secondary" disabled={busy} onClick={() => onEdit(row)}>Düzenle</button>
+        )}
+        <button type="button" className="secondary" disabled={busy} onClick={() => onDelete(row)}>Sil</button>
+      </div>
+    </AppModal>
   );
 }
 
@@ -751,42 +781,56 @@ function useSubscriptions(filter) {
     }
   }
 
-  return { rows, packages, q, setQ, busy, msg, edit, setEdit, load, saveSub, openEdit, deleteOsgb };
+  return { rows, packages, q, setQ, busy, setBusy, msg, setMsg, edit, setEdit, load, saveSub, openEdit, deleteOsgb };
+}
+
+function OsgbSubscriptionListPage({ title, filter }) {
+  const s = useSubscriptions(filter);
+  const [detail, setDetail] = useState(null);
+  const rows = (s.rows || []).map((row) => ({
+    ...row,
+    kind: 'osgb',
+    display_name: row.osgb_name || `OSGB #${row.osgb_id}`,
+  }));
+  return (
+    <Page title={title} action={<RefreshButton busy={s.busy} onClick={s.load} />}>
+      <p style={{ marginTop: 0, color: '#64748b' }}>
+        OSGB aboneleri listede görünür. Satıra tıklayınca kullanıcı bilgisi açılır.
+      </p>
+      <div className="eisa-toolbar" style={{ marginBottom: 14 }}>
+        <SearchBar value={s.q} onChange={s.setQ} placeholder="OSGB adı, e-posta…" />
+        <button type="button" disabled={s.busy} onClick={s.load}>Ara</button>
+      </div>
+      <Msg text={s.msg} />
+      <SimpleSubscriptionList
+        title="OSGB aboneleri"
+        empty="OSGB aboneliği yok."
+        rows={rows}
+        busy={s.busy}
+        onOpen={setDetail}
+      />
+      <SubscriptionDetailModal
+        row={detail}
+        busy={s.busy}
+        onClose={() => setDetail(null)}
+        onEdit={(row) => { setDetail(null); s.openEdit(row); }}
+        onDelete={async (row) => { await s.deleteOsgb(row); setDetail(null); }}
+      />
+      <SubscriptionEditModal edit={s.edit} setEdit={s.setEdit} busy={s.busy} packages={s.packages} onSave={s.saveSub} />
+    </Page>
+  );
 }
 
 export function EisaSubscriptionsPage() {
-  const s = useSubscriptions('all');
-  return (
-    <Page title="Abonelik Yönetimi" action={<RefreshButton busy={s.busy} onClick={s.load} />}>
-      <SearchBar value={s.q} onChange={s.setQ} />
-      <button type="button" disabled={s.busy} onClick={s.load} style={{ marginBottom: 12 }}>Ara</button>
-      <Msg text={s.msg} />
-      <SubscriptionTable rows={s.rows} busy={s.busy} onEdit={s.openEdit} onDelete={s.deleteOsgb} />
-      <SubscriptionEditModal edit={s.edit} setEdit={s.setEdit} busy={s.busy} packages={s.packages} onSave={s.saveSub} />
-    </Page>
-  );
+  return <OsgbSubscriptionListPage title="Abonelik Yönetimi" filter="all" />;
 }
 
 export function EisaExpiringSubscriptionsPage() {
-  const s = useSubscriptions('expiring');
-  return (
-    <Page title="Süresi Yaklaşan Abonelikler" action={<RefreshButton busy={s.busy} onClick={s.load} />}>
-      <Msg text={s.msg} />
-      <SubscriptionTable rows={s.rows} busy={s.busy} onEdit={s.openEdit} onDelete={s.deleteOsgb} />
-      <SubscriptionEditModal edit={s.edit} setEdit={s.setEdit} busy={s.busy} packages={s.packages} onSave={s.saveSub} />
-    </Page>
-  );
+  return <OsgbSubscriptionListPage title="Süresi Yaklaşan Abonelikler" filter="expiring" />;
 }
 
 export function EisaExpiredSubscriptionsPage() {
-  const s = useSubscriptions('expired');
-  return (
-    <Page title="Süresi Dolan Abonelikler" action={<RefreshButton busy={s.busy} onClick={s.load} />}>
-      <Msg text={s.msg} />
-      <SubscriptionTable rows={s.rows} busy={s.busy} onEdit={s.openEdit} onDelete={s.deleteOsgb} />
-      <SubscriptionEditModal edit={s.edit} setEdit={s.setEdit} busy={s.busy} packages={s.packages} onSave={s.saveSub} />
-    </Page>
-  );
+  return <OsgbSubscriptionListPage title="Süresi Dolan Abonelikler" filter="expired" />;
 }
 
 export function EisaPaymentsPage() {
