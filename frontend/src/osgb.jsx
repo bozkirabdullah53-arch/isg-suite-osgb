@@ -5,6 +5,7 @@ import {enqueueOfflineComplete,flushOfflineCompletes,listOfflineCompletes,remove
 import {SiteQrCameraModal} from './field_qr_scan';
 import {AppModal} from './ui_modal';
 import {capacityHoursText,capacityPercentText,capacityPercentValue} from './capacity_engine';
+import {canUseVisitCheckInOutQr} from './visit_qr_policy';
 
 const ptypes={safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli'};
 const stages={new:'Yeni',contacted:'Görüşüldü',proposal:'Teklif',negotiation:'Müzakere',won:'Kazanıldı',lost:'Kaybedildi'};
@@ -1361,6 +1362,8 @@ export function AssignmentsPage({user}){
 export function VisitsPage({user, onNavigate}){
  const isField=['safety_specialist','workplace_physician','other_health_personnel'].includes(user.role);
  const isOsgb=['global_admin','company_admin'].includes(user.role);
+ const canUsePresenceQr=canUseVisitCheckInOutQr(user);
+ const showPresenceColumns=isOsgb||canUsePresenceQr;
  const canEdit=isField||isOsgb;
  const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]);
  const[cal,setCal]=useState(null),[month,setMonth]=useState(()=>new Date().toISOString().slice(0,7)),[selectedDay,setSelectedDay]=useState('');
@@ -1461,7 +1464,7 @@ export function VisitsPage({user, onNavigate}){
   const todayPresence=[...rows]
    .filter(r=>r.checked_in_at&&r.visit_date===today)
    .sort((a,b)=>(b.id||0)-(a.id||0))[0];
-  const pick=open||todayPresence;
+  const pick=canUsePresenceQr?(open||todayPresence):null;
   setForm(f=>({
    ...emptyForm,
    osgb_id:f.osgb_id||osgbId(user,orgs)||'',
@@ -1499,7 +1502,7 @@ export function VisitsPage({user, onNavigate}){
    if(!form.company_id) throw new Error('İşyeri seçiniz.');
    if(!form.visit_date) throw new Error('Tarih zorunlu.');
    if(!editing&&!notebookFile) throw new Error('Tespit öneri defteri dosyası zorunlu (pdf/jpg/png).');
-   const presence=findPresenceVisit(form.company_id);
+   const presence=canUsePresenceQr?findPresenceVisit(form.company_id):null;
    const presenceOk=!!(presence&&(presence.checked_in_at||presence.site_verified_at));
    const qrRaw=opts.siteCode!=null?opts.siteCode:(siteVerifyRef.current||siteVerifyInput);
    // Giriş/çıkış zaten QR ile yapıldıysa yeniden okutma
@@ -1665,7 +1668,12 @@ export function VisitsPage({user, onNavigate}){
   }catch(ex){setErr(ex.message||'Plan kaydedilemedi.')}
   finally{setBusy(false)}
  }
-  async function scanPresence(mode,rawCode){
+ async function scanPresence(mode,rawCode){
+  if(!canUsePresenceQr){
+   setKioskMsg('');
+   setErr('QR ile işyeri giriş/çıkış bireysel uzman hesaplarında kullanılamaz.');
+   return;
+  }
   setErr('');setKioskMsg('');setBusy(true);
   try{
    const code=parseSiteInput(rawCode!=null?rawCode:kioskQrInput);
@@ -1689,6 +1697,10 @@ export function VisitsPage({user, onNavigate}){
   finally{setBusy(false)}
  }
  function openCameraScan(mode){
+  if((mode==='in'||mode==='out')&&!canUsePresenceQr){
+   setErr('QR ile işyeri giriş/çıkış bireysel uzman hesaplarında kullanılamaz.');
+   return;
+  }
   setErr('');
   scanModeRef.current=mode;
   setScanMode(mode);
@@ -1698,6 +1710,10 @@ export function VisitsPage({user, onNavigate}){
   const code=String(raw||'').trim();
   const mode=scanModeRef.current||scanMode;
   setScanOpen(false);
+  if((mode==='in'||mode==='out')&&!canUsePresenceQr){
+   setErr('QR ile işyeri giriş/çıkış bireysel uzman hesaplarında kullanılamaz.');
+   return;
+  }
   if(mode==='visit'){
     setSiteQr(code);
     if(pendingVisitSaveRef.current){
@@ -1746,10 +1762,10 @@ export function VisitsPage({user, onNavigate}){
   });
  const padStart=calDays.length?((calDays[0].weekday+6)%7):0;
  const todayIso=new Date().toISOString().slice(0,10);
- const openOnSite=isField?rows.filter(r=>r.checked_in_at&&!r.checked_out_at):[];
- const presenceForForm=isField&&form.company_id?findPresenceVisit(form.company_id):null;
+ const openOnSite=canUsePresenceQr?rows.filter(r=>r.checked_in_at&&!r.checked_out_at):[];
+ const presenceForForm=canUsePresenceQr&&form.company_id?findPresenceVisit(form.company_id):null;
  const presenceOkUi=!!(presenceForForm&&(presenceForForm.checked_in_at||presenceForForm.site_verified_at));
- const fieldQueue=isField?rows.filter(r=>r.status!=='completed'&&!(r.checked_in_at&&!r.checked_out_at)).sort((a,b)=>String(a.visit_date).localeCompare(String(b.visit_date))):[];
+ const fieldQueue=isField?rows.filter(r=>r.status!=='completed'&&(!canUsePresenceQr||!(r.checked_in_at&&!r.checked_out_at))).sort((a,b)=>String(a.visit_date).localeCompare(String(b.visit_date))):[];
  const overdueQueue=fieldQueue.filter(r=>r.visit_date&&r.visit_date<todayIso);
  const todayQueue=fieldQueue.filter(r=>r.visit_date===todayIso);
  const upcomingQueue=fieldQueue.filter(r=>r.visit_date&&r.visit_date>todayIso).slice(0,6);
@@ -1762,7 +1778,7 @@ export function VisitsPage({user, onNavigate}){
     {kioskMsg&&<p className="field-ok-msg">{kioskMsg}</p>}
     {err&&!open&&!verifyOpen&&<p className="field-err-msg">{err}</p>}
 
-    {openOnSite.length>0&&(
+    {canUsePresenceQr&&openOnSite.length>0&&(
      <div className="field-on-site">
       {openOnSite.map(r=>{
        const name=companies.find(x=>x.id===r.company_id)?.name||`İşyeri #${r.company_id}`;
@@ -1779,23 +1795,29 @@ export function VisitsPage({user, onNavigate}){
      </div>
     )}
 
-    <div className="field-step">
-     <p className="field-step-label">1 — İşyerine girince</p>
-     <button type="button" className="field-big-btn" disabled={busy} onClick={()=>openCameraScan('in')}>
-      <Camera size={28}/> Giriş QR okut
-     </button>
-    </div>
+    {canUsePresenceQr&&(
+     <>
+      <div className="field-step">
+       <p className="field-step-label">1 — İşyerine girince</p>
+       <button type="button" className="field-big-btn" disabled={busy} onClick={()=>openCameraScan('in')}>
+        <Camera size={28}/> Giriş QR okut
+       </button>
+      </div>
+
+      <div className="field-step">
+       <p className="field-step-label">2 — İşyerinden çıkınca</p>
+       <button type="button" className="field-big-btn field-big-btn-out" disabled={busy} onClick={()=>openCameraScan('out')}>
+        <ScanLine size={28}/> Çıkış QR okut
+       </button>
+      </div>
+     </>
+    )}
 
     <div className="field-step">
-     <p className="field-step-label">2 — İşyerinden çıkınca</p>
-     <button type="button" className="field-big-btn field-big-btn-out" disabled={busy} onClick={()=>openCameraScan('out')}>
-      <ScanLine size={28}/> Çıkış QR okut
-     </button>
-    </div>
-
-    <div className="field-step">
-     <p className="field-step-label">3 — Defter yükle</p>
-     <p style={{margin:'0 0 8px',fontSize:13,color:'#64748b'}}>Giriş/çıkış yaptıysanız QR yeniden istenmez; yalnızca defter dosyası yeter.</p>
+     <p className="field-step-label">{canUsePresenceQr?'3':'1'} — Defter yükle</p>
+     <p style={{margin:'0 0 8px',fontSize:13,color:'#64748b'}}>
+      {canUsePresenceQr?'Giriş/çıkış yaptıysanız QR yeniden istenmez; yalnızca defter dosyası yeter.':'Tespit ve öneri defteri kaydını işyerine ekleyin.'}
+     </p>
      <button type="button" className="field-big-btn field-big-btn-note" disabled={busy} onClick={openCreate}>
       <Plus size={28}/> Defter yükle
      </button>
@@ -1803,7 +1825,7 @@ export function VisitsPage({user, onNavigate}){
 
     {['safety_specialist','workplace_physician'].includes(user.role) && typeof onNavigate==='function' && (
      <div className="field-step">
-      <p className="field-step-label">4 — Belge onay / imza</p>
+      <p className="field-step-label">{canUsePresenceQr?'4':'2'} — Belge onay / imza</p>
       <p style={{margin:'0 0 8px',fontSize:13,color:'#64748b'}}>
        Bu işyerinin risk / eğitim belgelerini sırayla onaylayın: Uzman → Hekim → İşveren/vekil.
       </p>
@@ -1830,22 +1852,26 @@ export function VisitsPage({user, onNavigate}){
      </div>
     )}
 
-    <button
-     type="button"
-     className="linkish field-paste-toggle"
-     onClick={()=>setShowPaste(v=>!v)}
-     title="Kamera çalışıyorsa gerek yok. Sadece kamera açılamazsa QR kodunu buraya yapıştırıp giriş/çıkış yapın."
-    >
-     {showPaste?'Yapıştır alanını gizle':'Kamera yoksa kod yapıştır'}
-    </button>
-    {showPaste&&(
-     <div className="field-paste-box">
-      <input value={kioskQrInput} onChange={e=>setKioskQrInput(e.target.value)} placeholder="Kodu buraya yapıştırın" autoComplete="off"/>
-      <div className="field-paste-actions">
-       <button type="button" disabled={busy||!kioskQrInput} onClick={()=>scanPresence('in')}>Giriş yap</button>
-       <button type="button" className="secondary" disabled={busy||!kioskQrInput} onClick={()=>scanPresence('out')}>Çıkış yap</button>
-      </div>
-     </div>
+    {canUsePresenceQr&&(
+     <>
+      <button
+       type="button"
+       className="linkish field-paste-toggle"
+       onClick={()=>setShowPaste(v=>!v)}
+       title="Kamera çalışıyorsa gerek yok. Sadece kamera açılamazsa QR kodunu buraya yapıştırıp giriş/çıkış yapın."
+      >
+       {showPaste?'Yapıştır alanını gizle':'Kamera yoksa kod yapıştır'}
+      </button>
+      {showPaste&&(
+       <div className="field-paste-box">
+        <input value={kioskQrInput} onChange={e=>setKioskQrInput(e.target.value)} placeholder="Kodu buraya yapıştırın" autoComplete="off"/>
+        <div className="field-paste-actions">
+         <button type="button" disabled={busy||!kioskQrInput} onClick={()=>scanPresence('in')}>Giriş yap</button>
+         <button type="button" className="secondary" disabled={busy||!kioskQrInput} onClick={()=>scanPresence('out')}>Çıkış yap</button>
+        </div>
+       </div>
+      )}
+     </>
     )}
 
     {offlineQueue.length>0&&(
@@ -2006,11 +2032,13 @@ export function VisitsPage({user, onNavigate}){
    {k:'company_id',l:'İşyeri',f:r=>companies.find(x=>x.id===r.company_id)?.name||r.company_id},
    ...(!isField?[{k:'professional_id',l:'Profesyonel',f:r=>pros.find(x=>x.id===r.professional_id)?.full_name||r.professional_id}]:[]),
    {k:'subject',l:'Konu'},
-   {k:'checked_in_at',l:'Giriş',f:r=>fmtVisitClock(r.checked_in_at,r.start_time)},
-   {k:'checked_out_at',l:'Çıkış',f:r=>fmtVisitClock(r.checked_out_at,r.end_time)},
+   ...(showPresenceColumns?[
+    {k:'checked_in_at',l:'Giriş',f:r=>fmtVisitClock(r.checked_in_at,r.start_time)},
+    {k:'checked_out_at',l:'Çıkış',f:r=>fmtVisitClock(r.checked_out_at,r.end_time)},
+   ]:[]),
    {k:'notebook_file_name',l:'Tespit Defteri',f:r=>r.notebook_file_name?<button type="button" className="mini" onClick={()=>downloadNotebook(r)}>{r.notebook_file_name}</button>:'—'},
    {k:'duration_minutes',l:'Süre (dk.)'},
-   {k:'status',l:'Durum',f:r=>r.checked_in_at&&!r.checked_out_at?'Sahada':r.status},
+   {k:'status',l:'Durum',f:r=>showPresenceColumns&&r.checked_in_at&&!r.checked_out_at?'Sahada':r.status},
    {k:'gps',l:'GPS',f:r=>fmtGps(r)},
    {k:'site',l:'QR',f:r=>r.site_verified_at?'✓':'—'},
    {k:'sig',l:'İmza',f:r=>r.signature_captured_at?'✓':'—'},
