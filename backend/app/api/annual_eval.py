@@ -60,7 +60,7 @@ from app.services.annual_eval_logic import (
 )
 from app.services.annual_eval_reports import build_eval_pdf, build_eval_xlsx
 from app.services.audit import add_audit_log
-from app.services.mailer import send_email, smtp_configured
+from app.services.mailer import send_email
 
 router = APIRouter(prefix="/annual-evals", tags=["Yıllık Plan Değerlendirme"])
 EDIT_ROLES = (UserRole.GLOBAL_ADMIN, UserRole.SAFETY_SPECIALIST)
@@ -289,9 +289,17 @@ def _create_revision_snapshot(
     return row
 
 
-def _email_company_roles(db: Session, company_id: int, roles: tuple[UserRole, ...], subject: str, body: str) -> list[dict]:
-    if not smtp_configured():
-        return [{"ok": False, "status": "smtp_not_configured"}]
+def _email_company_roles(
+    db: Session,
+    company_id: int,
+    roles: tuple[UserRole, ...],
+    subject: str,
+    body: str,
+    *,
+    triggered_by_user_id: int | None = None,
+    related_id: int | str | None = None,
+    event_type: str = "annual_evaluation",
+) -> list[dict]:
     users = list(
         db.scalars(
             select(User).where(
@@ -301,7 +309,25 @@ def _email_company_roles(db: Session, company_id: int, roles: tuple[UserRole, ..
             )
         ).all()
     )
-    return [send_email(to=u.email, subject=subject, body=body) for u in users if u.email]
+    company = db.get(Company, company_id)
+    osgb_id = company.osgb_id if company else None
+    return [
+        send_email(
+            to=u.email,
+            subject=subject,
+            body=body,
+            db=db,
+            event_type=event_type,
+            recipient_name=u.full_name,
+            user_id=u.id,
+            osgb_id=osgb_id,
+            triggered_by_user_id=triggered_by_user_id,
+            related_type="annual_plan_evaluation",
+            related_id=str(related_id) if related_id is not None else None,
+        )
+        for u in users
+        if u.email
+    ]
 
 
 @router.post("/start", response_model=EvalOverviewResponse)
@@ -1160,7 +1186,21 @@ def workflow(
     mail_result = []
     if action in mail_map:
         roles, subject, body = mail_map[action]
-        mail_result = _email_company_roles(db, ev.company_id, roles, subject, body)
+        mail_result = _email_company_roles(
+            db,
+            ev.company_id,
+            roles,
+            subject,
+            body,
+            triggered_by_user_id=user.id,
+            related_id=ev.id,
+            event_type=f"annual_evaluation_{action}",
+        )
+        # The workflow state was committed before outbound delivery so that an
+        # SMTP failure cannot undo the business action. Persist delivery logs in
+        # their own follow-up commit.
+        if mail_result:
+            db.commit()
     out = {"id": ev.id, "report_status": ev.report_status, "email": mail_result}
     if revision_payload:
         out["revision"] = revision_payload

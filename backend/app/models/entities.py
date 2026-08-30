@@ -751,6 +751,36 @@ class EisaPlatformNotification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
+class EmailDeliveryLog(Base):
+    """E-posta teslimat denemesi — içerik/token saklamadan izlenebilirlik sağlar."""
+
+    __tablename__ = "email_delivery_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(80), default="generic", index=True)
+    provider: Mapped[str] = mapped_column(String(40), default="smtp", index=True)
+    recipient_email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    recipient_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    subject: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(32), default="queued", index=True)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=1)
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    osgb_id: Mapped[int | None] = mapped_column(
+        ForeignKey("osgb_organizations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    triggered_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    related_type: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    related_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+
+
 class EisaPlatformSetting(Base):
     __tablename__ = "eisa_platform_settings"
 
