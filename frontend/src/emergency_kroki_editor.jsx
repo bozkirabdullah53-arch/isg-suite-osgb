@@ -560,7 +560,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
     setRightTab('asistan');
   }
 
-  function drawSignOnCanvas(ctx, o, ox, oy) {
+  function drawSignOnCanvas(ctx, o, yOffset = 0) {
     const meta = SYMBOL_BY_TYPE[o.type] || {color: '#334155', label: o.type, signClass: 'info', short: '?'};
     if (o.type === 'wall' || o.type === 'route' || o.type === 'measure') {
       ctx.strokeStyle = o.type === 'route' ? (o.color || '#15803d') : o.type === 'measure' ? '#2563eb' : (o.color || '#0f172a');
@@ -570,8 +570,8 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
       else if (o.type === 'measure') ctx.setLineDash([8, 5]);
       else ctx.setLineDash([]);
       ctx.beginPath();
-      ctx.moveTo(o.x1, o.y1 + oy);
-      ctx.lineTo(o.x2, o.y2 + oy);
+      ctx.moveTo(o.x1, o.y1 + yOffset);
+      ctx.lineTo(o.x2, o.y2 + yOffset);
       ctx.stroke();
       ctx.setLineDash([]);
       if (o.type === 'measure') {
@@ -579,7 +579,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
         ctx.fillStyle = '#1d4ed8';
         ctx.font = 'bold 13px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(`${meters.toFixed(2)} m`, (o.x1 + o.x2) / 2, (o.y1 + o.y2) / 2 + oy - 8);
+        ctx.fillText(`${meters.toFixed(2)} m`, (o.x1 + o.x2) / 2, (o.y1 + o.y2) / 2 + yOffset - 8);
       }
       return;
     }
@@ -587,20 +587,20 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
       ctx.fillStyle = 'rgba(248,250,252,0.85)';
       ctx.strokeStyle = o.color || '#334155';
       ctx.lineWidth = 2;
-      ctx.fillRect(o.x, o.y + oy, o.w, o.h);
-      ctx.strokeRect(o.x, o.y + oy, o.w, o.h);
+      ctx.fillRect(o.x, o.y + yOffset, o.w, o.h);
+      ctx.strokeRect(o.x, o.y + yOffset, o.w, o.h);
       ctx.fillStyle = '#1e293b';
       ctx.font = 'bold 14px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(o.label || 'Mahal', o.x + o.w / 2, o.y + oy + o.h / 2);
+      ctx.fillText(o.label || 'Mahal', o.x + o.w / 2, o.y + yOffset + o.h / 2);
       return;
     }
     if (o.type === 'text') {
       ctx.fillStyle = '#0f172a';
       ctx.font = '600 16px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(o.label || 'Metin', o.x, o.y + oy);
+      ctx.fillText(o.label || 'Metin', o.x, o.y + yOffset);
       return;
     }
     const bg = meta.signClass === 'fire' ? '#b91c1c'
@@ -609,7 +609,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
     const rw = o.w || 48;
     const rh = o.h || 48;
     const x = o.x;
-    const y = o.y + oy;
+    const y = o.y + yOffset;
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(((o.rotation || 0) * Math.PI) / 180);
