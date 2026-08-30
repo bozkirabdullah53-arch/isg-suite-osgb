@@ -91,6 +91,12 @@ import {
   isWorkplaceManagerUser,
   WORKPLACE_MANAGER_MODULES,
 } from './workplace_user_policy';
+import {
+  PROFESSIONAL_MENU_MODULES,
+  professionalModulesForUser,
+  professionalHomeModule,
+  professionalMenuSection,
+} from './professional_navigation';
 const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 const EMPLOYEE_SELF_SERVICE_ENABLED=selfServiceFeatureEnabled(import.meta.env.VITE_EMPLOYEE_SELF_SERVICE_V1);
 /**
@@ -132,20 +138,8 @@ const roleModules={
     'subscription',
     'security',
   ],
-  safety_specialist:[
-    'visits','field_pwa','field_inspection','facility_summary','dashboard','notifications','belge_onay','workplace_status',
-    'risk','near_miss','accident','capa','ppe','sds','tatbikat','acil_ekipler','acil_plan',
-    'periyodik_kontrol','ortam_olcum','isg_kurulu',
-    'training','eisa_question_bank','employees','annual_plans','annual_eval_report','specialist_reports','mevzuat','documents','work_permits','contractors','visitors',
-    'customer_portal',
-    'security',
-  ],
-  workplace_physician:[
-    'visits','belge_onay','eyas_inbox','dashboard','workplace_status',
-    'health','prescriptions','employees','ortam_olcum',
-    'training','annual_plans','annual_eval_report','documents',
-    'security',
-  ],
+  safety_specialist:PROFESSIONAL_MENU_MODULES.safety_specialist,
+  workplace_physician:PROFESSIONAL_MENU_MODULES.workplace_physician,
   other_health_personnel:[
     'visits','field_pwa','facility_summary','dashboard','workplace_status',
     'health','employees',
@@ -169,9 +163,11 @@ function modulesForUser(user){
     return ['employee_self_service','employee_training','security'];
   }
   if(user?.is_individual && user?.role==='safety_specialist'){
-    const hide=new Set(['customer_portal']);
-    const base=(roleModules.safety_specialist||[]).filter((k)=>!hide.has(k));
+    const base=professionalModulesForUser('safety_specialist',{isIndividual:true});
     return ['companies', ...base];
+  }
+  if(user?.is_individual && user?.role==='workplace_physician'){
+    return professionalModulesForUser('workplace_physician',{isIndividual:true});
   }
   return roleModules[user?.role]||[];
 }
@@ -181,8 +177,8 @@ const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
   company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
   workplace_manager:['employer_oversight','employees','ppe','accident'],
-  safety_specialist:['field_pwa','field_inspection','visits','dashboard'],
-  workplace_physician:['visits','health','prescriptions','employees'],
+  safety_specialist:['visit_notebook','visit_qr','field_inspection'],
+  workplace_physician:['health','prescriptions','visit_notebook'],
   other_health_personnel:['field_pwa','visits','health','employees'],
   read_only:['employee_self_service','employee_training','security'],
 };
@@ -223,6 +219,8 @@ const menuCatalog={
   professionals:['İSG Profesyonelleri',Stethoscope],
   assignments:['Görevlendirmeler',BriefcaseBusiness],
   visits:['Saha Takvimi',CalendarDays],
+  visit_notebook:['Defter Yükle',Upload],
+  visit_qr:['QR Okut',QrCode],
   field_pwa:['Saha Hızlı İşlem',Activity],
   field_inspection:['Saha Denetimi',ClipboardCheck],
   facility_summary:['Tesis Uygunluk Özeti',ShieldCheck],
@@ -268,6 +266,18 @@ const menuCatalog={
   contractors:['Taşeron Yönetimi',Users],
   visitors:['Ziyaretçiler',Users],
   customer_portal:['Müşteri Portalı',LayoutDashboard],
+};
+
+const menuHints={
+  dashboard:'Günlük görev ve durum özeti',
+  visit_notebook:'Tespit ve öneri defterini yükle',
+  visit_qr:'İşyeri giriş ve çıkış QR işlemleri',
+  field_inspection:'Fotoğraflı saha denetimi',
+  risk:'Risk değerlendirmesi ve risk kayıtları',
+  capa:'Düzeltici ve önleyici faaliyetler',
+  health:'İşyeri hekimliği sağlık kayıtları',
+  prescriptions:'e-Reçete kayıtları',
+  employees:'İşyeri çalışan kayıtları',
 };
 
 function EisaQuestionBankPage({user}){
@@ -1946,11 +1956,13 @@ function writeModuleToLocation(id,{replace=false,companyId=''}={}){
 
 function homeModuleForUser(user){
   const allowed=modulesForUser(user);
-  const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
+  const professionalHome=professionalHomeModule(user?.role,allowed);
+  if(professionalHome) return professionalHome;
   if(allowed.includes('eisa_overview')) return 'eisa_overview';
   if(allowed.includes('eisa')) return 'eisa';
   if(allowed.includes('osgb_dashboard')) return 'osgb_dashboard';
-  if(fieldRoles.includes(user?.role) && allowed.includes('visits')) return 'visits';
+  // Diğer sağlık personelinin mevcut açılış akışını değiştirme.
+  if(user?.role==='other_health_personnel' && allowed.includes('visits')) return 'visits';
   if(allowed.includes('dashboard')) return 'dashboard';
   return allowed[0]||'';
 }
@@ -2139,7 +2151,6 @@ function App(){
         setUser(u);
         setSummary(s);
         const allowed=modulesForUser(u);
-        const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
         const locationNavigation=readNavigationFromLocation();
         const fromUrl=locationNavigation.module;
         const locationCompanyId=Number(locationNavigation.companyId);
@@ -2147,21 +2158,14 @@ function App(){
           && fromUrl==='customer_360'
           && Number.isFinite(locationCompanyId)
           && locationCompanyId>0;
+        // Kökten açılışta önceki session sayfasını değil, rolün ana sayfasını aç.
+        // Paylaşılan/derin bağlantılar (ör. eğitim doğrulama veya customer_360)
+        // açıkça istenmişse geriye dönük uyumluluk için korunur.
         let next='';
         if(verifyCode && allowed.includes('training')) next='training';
         else if(validCustomerRoute) next=fromUrl;
         else if(fromUrl && allowed.includes(fromUrl)) next=fromUrl;
-        else if(active && ((active==='customer_360' && !isWorkplaceManagerUser(u)) || allowed.includes(active))) next=active;
-        else {
-          try{
-            const saved=sessionStorage.getItem('isg_active');
-            if(saved && ((saved==='customer_360' && !isWorkplaceManagerUser(u)) || allowed.includes(saved))) next=saved;
-          }catch(_){ /* ignore */ }
-        }
-        if(!next){
-          if(fieldRoles.includes(u.role) && allowed.includes('visits')) next='visits';
-          else next=allowed[0]||'';
-        }
+        else next=homeModuleForUser(u);
         setActive(next);
         if(next==='customer_360' && validCustomerRoute) setC360Id(locationCompanyId);
         else if(next!=='customer_360') setC360Id(null);
@@ -2274,13 +2278,20 @@ function App(){
     return <SiteQrKioskPage user={user} onLogout={logout}/>;
   }
   const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
+  const hideHomeMenuItem=['safety_specialist','workplace_physician'].includes(user.role);
   const menu=allowed
-    .filter((k)=>menuCatalog[k] && !(fieldRoles.includes(user.role) && (k==='reports' || k==='pro_performance')))
+    .filter((k)=>menuCatalog[k] && !((fieldRoles.includes(user.role) && (k==='reports' || k==='pro_performance')) || (hideHomeMenuItem && k==='dashboard')))
     .map((k)=>{
       const [label, Icon]=menuCatalog[k];
-      if(k==='dashboard' && fieldRoles.includes(user.role)) return [k, 'Ana Sayfa', LayoutDashboard];
       return [k, label, Icon];
     });
+  const menuWithSections=menu.map(([id,label,Icon])=>[
+    id,
+    label,
+    Icon,
+    professionalMenuSection(user.role,id),
+  ]);
+  const homeId=homeModuleForUser(user);
   const pages={
     eisa_overview:<EisaOverviewPage/>,
     eisa_osgb_users:<EisaOsgbUsersPage/>,
@@ -2306,6 +2317,8 @@ function App(){
     professionals:<ProfessionalsPage user={user} onNavigate={goModule}/>,
     assignments:<AssignmentsPage user={user}/>,
     visits:<VisitsPage user={user} onNavigate={goModule}/>,
+    visit_notebook:<VisitsPage user={user} onNavigate={goModule} focus="notebook"/>,
+    visit_qr:<VisitsPage user={user} onNavigate={goModule} focus="qr"/>,
     field_pwa:<FieldPwaHub user={user}/>,
     field_inspection:<FieldInspectionPage user={user}/>,
     facility_summary:<FacilityComplianceSummaryPage user={user}/>,
@@ -2362,26 +2375,38 @@ function App(){
   return (
     <div className={`app-shell${mobileMoreOpen?' mobile-nav-open':''}${active==='field_inspection'?' field-inspection-shell':''}`}>
       <aside>
-        <button type="button" className="logo" onClick={goHome} title="Ana sayfa" aria-label="Ana sayfaya dön">
+        <button
+          type="button"
+          className={`logo${active===homeId?' is-home-active':''}`}
+          onClick={goHome}
+          title="EİSA ana sayfa"
+          aria-label="EİSA ana sayfaya dön"
+          aria-current={active===homeId?'page':undefined}
+        >
           <img
             src="/eisa-logo-icon.png"
-            alt="EİSA PROGRAMLAMA"
+            alt="EİSA ana sayfa"
             className="sidebar-logo eisa-logo-icon"
           />
           <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':isWorkplaceManagerUser(user)?'İşyeri Paneli':'İSG Suite OSGB'}</span>
         </button>
         <nav className="nav-desktop" ref={navRef}>
-          {menu.map(([id,l,I])=>(
-            <button
-              key={id}
-              type="button"
-              data-nav={id}
-              aria-current={active===id?'page':undefined}
-              className={active===id?'active':''}
-              onClick={()=>goModule(id)}
-            >
-              <I size={20}/><span>{l}</span>
-            </button>
+          {menuWithSections.map(([id,l,I,section],index)=>(
+            <React.Fragment key={id}>
+              {section && (index===0||section!==menuWithSections[index-1][3])&&(
+                <div className="nav-section-label">{section}</div>
+              )}
+              <button
+                type="button"
+                data-nav={id}
+                aria-current={active===id?'page':undefined}
+                className={active===id?'active':''}
+                onClick={()=>goModule(id)}
+                title={menuHints[id]||l}
+              >
+                <I size={20}/><span>{l}</span>
+              </button>
+            </React.Fragment>
           ))}
         </nav>
         <nav className="nav-mobile-primary" aria-label="Ana menü">
@@ -2393,7 +2418,7 @@ function App(){
               aria-current={active===id?'page':undefined}
               className={active===id?'active':''}
               onClick={()=>goModule(id)}
-              title={l}
+              title={menuHints[id]||l}
             >
               <I size={22}/><span>{l}</span>
             </button>
@@ -2423,15 +2448,20 @@ function App(){
               <button type="button" className="mini secondary" onClick={()=>setMobileMoreOpen(false)}>Kapat</button>
             </div>
             <div className="mobile-nav-sheet-grid">
-              {menu.map(([id,l,I])=>(
-                <button
-                  key={id}
-                  type="button"
-                  className={active===id?'active':''}
-                  onClick={()=>goModule(id)}
-                >
-                  <I size={22}/><span>{l}</span>
-                </button>
+              {menuWithSections.map(([id,l,I,section],index)=>(
+                <React.Fragment key={id}>
+                  {section && (index===0||section!==menuWithSections[index-1][3])&&(
+                    <div className="mobile-nav-section-label">{section}</div>
+                  )}
+                  <button
+                    type="button"
+                    className={active===id?'active':''}
+                    onClick={()=>goModule(id)}
+                    title={menuHints[id]||l}
+                  >
+                    <I size={22}/><span>{l}</span>
+                  </button>
+                </React.Fragment>
               ))}
             </div>
           </div>

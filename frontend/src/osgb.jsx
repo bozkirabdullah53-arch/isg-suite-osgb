@@ -1359,10 +1359,12 @@ export function AssignmentsPage({user}){
  </P>
 }
 
-export function VisitsPage({user, onNavigate}){
+export function VisitsPage({user, onNavigate, focus=''}){
  const isField=['safety_specialist','workplace_physician','other_health_personnel'].includes(user.role);
  const isOsgb=['global_admin','company_admin'].includes(user.role);
  const canUsePresenceQr=canUseVisitCheckInOutQr(user);
+ const isFocusedAction=focus==='notebook'||focus==='qr';
+ const focusTitle=focus==='notebook'?'Defter Yükle':'QR İşlemleri';
  const showPresenceColumns=isOsgb||canUsePresenceQr;
  const canEdit=isField||isOsgb;
  const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]);
@@ -1769,11 +1771,94 @@ export function VisitsPage({user, onNavigate}){
  const overdueQueue=fieldQueue.filter(r=>r.visit_date&&r.visit_date<todayIso);
  const todayQueue=fieldQueue.filter(r=>r.visit_date===todayIso);
  const upcomingQueue=fieldQueue.filter(r=>r.visit_date&&r.visit_date>todayIso).slice(0,6);
- return <P title={isOsgb?'Saha Ziyaretleri (OSGB İzleme)':'Saha'} action={<div className="field-page-actions field-desktop-only" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+ function renderFocusedAction(){
+  if(!isField||!isFocusedAction) return null;
+  if(focus==='notebook'){
+   return (
+    <section className="panel field-focus-panel" aria-labelledby="field-focus-notebook-title">
+     <div className="field-focus-header">
+      <div className="field-focus-icon"><FileCheck2 size={24}/></div>
+      <div>
+       <p className="field-focus-kicker">Günlük iş akışı · 01</p>
+       <h3 id="field-focus-notebook-title">Tespit ve öneri defterini yükleyin</h3>
+       <p>İşyeri seçin, defter dosyasını ekleyin ve kaydı tek adımda tamamlayın. Giriş/çıkış QR doğrulaması daha önce yapıldıysa yeniden istenmez.</p>
+      </div>
+     </div>
+     <div className="field-focus-actions">
+      <button type="button" className="field-focus-primary" disabled={busy} onClick={openCreate}>
+       <FileCheck2 size={20}/> Defter yüklemeye başla
+      </button>
+      <button type="button" className="secondary" onClick={()=>onNavigate?.('visits')}>
+       Saha takvimine git
+      </button>
+     </div>
+     <p className="field-focus-note">Desteklenen dosyalar: PDF, JPG ve PNG. Yüklenen defter, ilgili saha ziyareti kaydına bağlanır.</p>
+    </section>
+   );
+  }
+  return (
+   <section className="panel field-focus-panel" aria-labelledby="field-focus-qr-title">
+    <div className="field-focus-header">
+     <div className="field-focus-icon field-focus-icon--qr"><ScanLine size={24}/></div>
+     <div>
+      <p className="field-focus-kicker">Günlük iş akışı · 02</p>
+      <h3 id="field-focus-qr-title">İşyeri QR işlemleri</h3>
+      <p>İşyerine girişte ve işyerinden çıkışta QR kodu okutun. Konum bilgisi varsa kayda eklenir; tamamlanan ziyaret daha sonra defter kaydıyla eşleştirilebilir.</p>
+     </div>
+    </div>
+    {canUsePresenceQr?(
+     <>
+      {openOnSite.length>0&&(
+       <div className="field-focus-status">
+        <strong>Şu an açık saha ziyareti var</strong>
+        {openOnSite.map(r=><span key={r.id}>{companies.find(x=>x.id===r.company_id)?.name||`İşyeri #${r.company_id}`} · giriş {fmtVisitClock(r.checked_in_at,r.start_time)}</span>)}
+       </div>
+      )}
+      <div className="field-focus-actions field-focus-actions--two">
+       <button type="button" className="field-focus-primary" disabled={busy} onClick={()=>openCameraScan('in')}>
+        <Camera size={20}/> Giriş QR okut
+       </button>
+       <button type="button" className="field-big-btn-out" disabled={busy} onClick={()=>openCameraScan('out')}>
+        <ScanLine size={20}/> Çıkış QR okut
+       </button>
+      </div>
+      <button type="button" className="linkish field-paste-toggle" onClick={()=>setShowPaste(v=>!v)}>
+       {showPaste?'Kamera yoksa kod alanını gizle':'Kamera yoksa QR kodunu yapıştır'}
+      </button>
+      {showPaste&&(
+       <div className="field-paste-box">
+        <input value={kioskQrInput} onChange={e=>setKioskQrInput(e.target.value)} placeholder="İşyeri QR metnini yapıştırın" autoComplete="off"/>
+        <div className="field-paste-actions">
+         <button type="button" disabled={busy||!kioskQrInput} onClick={()=>scanPresence('in')}>Giriş yap</button>
+         <button type="button" className="secondary" disabled={busy||!kioskQrInput} onClick={()=>scanPresence('out')}>Çıkış yap</button>
+        </div>
+       </div>
+      )}
+     </>
+    ):(
+     <div className="field-focus-restricted">
+      <strong>Bu işlem bireysel uzman hesabında kullanılmaz.</strong>
+      <span>QR giriş/çıkış yalnızca OSGB’ye bağlı saha profesyoneli hesabında açılır. Defter kaydı için ayrı menüden devam edebilirsiniz.</span>
+     </div>
+    )}
+    <button type="button" className="secondary field-focus-secondary" onClick={()=>onNavigate?.('visits')}>
+     Saha takvimine git
+    </button>
+   </section>
+  );
+ }
+ return <P title={isFocusedAction?focusTitle:(isOsgb?'Saha Ziyaretleri (OSGB İzleme)':'Saha')} action={<div className="field-page-actions field-desktop-only" style={{display:'flex',gap:8,flexWrap:'wrap'}}>
   {isOsgb&&<button type="button" onClick={openPlan}><Plus/>Planlı Ziyaret</button>}
-  {isField&&<button type="button" onClick={openCreate}><Plus/>Defter kaydı</button>}
+  {isField&&!isFocusedAction&&<button type="button" onClick={openCreate}><Plus/>Defter kaydı</button>}
  </div>}>
-  {isField&&(
+  {isField&&isFocusedAction&&(
+   <>
+    {kioskMsg&&<p className="field-ok-msg">{kioskMsg}</p>}
+    {err&&!open&&!verifyOpen&&<p className="field-err-msg">{err}</p>}
+    {renderFocusedAction()}
+   </>
+  )}
+  {isField&&!isFocusedAction&&(
    <section className="panel field-portal field-simple">
     {kioskMsg&&<p className="field-ok-msg">{kioskMsg}</p>}
     {err&&!open&&!verifyOpen&&<p className="field-err-msg">{err}</p>}
@@ -1823,7 +1908,7 @@ export function VisitsPage({user, onNavigate}){
      </button>
     </div>
 
-    {['safety_specialist','workplace_physician'].includes(user.role) && typeof onNavigate==='function' && (
+    {!Boolean(user.is_individual) && ['safety_specialist','workplace_physician'].includes(user.role) && typeof onNavigate==='function' && (
      <div className="field-step">
       <p className="field-step-label">{canUsePresenceQr?'4':'2'} — Belge onay / imza</p>
       <p style={{margin:'0 0 8px',fontSize:13,color:'#64748b'}}>
