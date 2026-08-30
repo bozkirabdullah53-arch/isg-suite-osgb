@@ -11,6 +11,7 @@ export const GLOBAL_ADMIN_MODULES = Object.freeze([
   'eisa_question_bank',
   'eisa_error_reports',
   'eisa_notifications',
+  'eisa_emails',
   'eisa_reports',
   'eisa_archives',
   'eisa_audit_logs',

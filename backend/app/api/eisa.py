@@ -78,6 +78,7 @@ from app.services.osgb_subscription import (
     approve_application,
     get_or_create_subscription,
 )
+from app.services.mailer import send_email as tracked_send_email
 
 from app.services.osgb_admin import find_osgb_admin, provision_osgb_admin
 
@@ -364,9 +365,21 @@ def approve(
                     "Kurulum: Güvenlik menüsü → MFA.\n\n"
                     "İDEA İSG"
                 ),
+                db=db,
+                event_type="osgb_account_approved",
+                recipient_name=admin_account.full_name,
+                user_id=admin_account.user_id,
+                osgb_id=osgb.id,
+                triggered_by_user_id=user.id,
+                related_type="osgb_application",
+                related_id=str(application_id),
             )
         except Exception:
             logger.warning("OSGB onay e-postası gönderilemedi", exc_info=True)
+        finally:
+            # Onay işlemi yukarıda zaten commit edildi; e-posta denemesi için
+            # oluşturulan izleme satırını ayrı olarak kalıcılaştır.
+            db.commit()
     return OsgbApplicationApproveResponse(
         application=OsgbApplicationResponse.model_validate(app_row),
         admin_account=admin_account,
@@ -968,6 +981,113 @@ def list_notifications(
     return out
 
 
+def _platform_email_recipients(
+    db: Session,
+    *,
+    target: EisaNotificationTarget,
+    target_osgb_id: int | None,
+) -> list[dict]:
+    """Resolve only active OSGB administrators/contact addresses, deduplicated."""
+    recipients: list[dict] = []
+    seen: set[str] = set()
+
+    user_stmt = select(User).where(
+        User.is_active.is_(True),
+        User.role == UserRole.COMPANY_ADMIN,
+        User.company_id.is_(None),
+        User.osgb_id.is_not(None),
+    )
+    if target == EisaNotificationTarget.SELECTED_OSGB:
+        user_stmt = user_stmt.where(User.osgb_id == target_osgb_id)
+    for account in db.scalars(user_stmt.order_by(User.id)).all():
+        email = (account.email or "").strip().casefold()
+        if not email or email in seen:
+            continue
+        seen.add(email)
+        recipients.append(
+            {
+                "email": account.email.strip(),
+                "name": account.full_name,
+                "user_id": account.id,
+                "osgb_id": account.osgb_id,
+            }
+        )
+
+    org_stmt = select(OsgbOrganization).where(
+        OsgbOrganization.is_active.is_(True),
+        OsgbOrganization.is_individual.is_(False),
+    )
+    if target == EisaNotificationTarget.SELECTED_OSGB:
+        org_stmt = org_stmt.where(OsgbOrganization.id == target_osgb_id)
+    for org in db.scalars(org_stmt.order_by(OsgbOrganization.id)).all():
+        email = (org.email or "").strip().casefold()
+        if not email or email in seen:
+            continue
+        seen.add(email)
+        recipients.append(
+            {
+                "email": org.email.strip(),
+                "name": org.responsible_manager or org.name,
+                "user_id": None,
+                "osgb_id": org.id,
+            }
+        )
+    return recipients
+
+
+def _send_platform_email_notification(
+    db: Session,
+    *,
+    row: EisaPlatformNotification,
+    user: User,
+) -> list[dict]:
+    recipients = _platform_email_recipients(
+        db,
+        target=row.target_scope,
+        target_osgb_id=row.target_osgb_id,
+    )
+    results = []
+    if not recipients:
+        results.append(
+            tracked_send_email(
+                to="",
+                subject=row.title,
+                body=row.message,
+                db=db,
+                event_type="eisa_notification",
+                osgb_id=row.target_osgb_id,
+                triggered_by_user_id=user.id,
+                related_type="eisa_platform_notification",
+                related_id=str(row.id),
+            )
+        )
+    else:
+        for recipient in recipients:
+            results.append(
+                tracked_send_email(
+                    to=recipient["email"],
+                    subject=row.title,
+                    body=row.message,
+                    db=db,
+                    event_type="eisa_notification",
+                    recipient_name=recipient["name"],
+                    user_id=recipient["user_id"],
+                    osgb_id=recipient["osgb_id"],
+                    triggered_by_user_id=user.id,
+                    related_type="eisa_platform_notification",
+                    related_id=str(row.id),
+                )
+            )
+    successful = sum(1 for result in results if result.get("ok"))
+    row.status = (
+        EisaNotificationDeliveryStatus.SENT
+        if successful
+        else EisaNotificationDeliveryStatus.FAILED
+    )
+    row.sent_at = datetime.utcnow() if successful else None
+    return results
+
+
 @router.post("/notifications", response_model=EisaNotificationResponse)
 def create_notification(
     payload: EisaNotificationCreate,
@@ -990,18 +1110,29 @@ def create_notification(
         target_osgb_id=payload.target_osgb_id,
         title=payload.title.strip(),
         message=payload.message.strip(),
-        status=EisaNotificationDeliveryStatus.SENT,
-        sent_at=datetime.utcnow(),
+        status=(
+            EisaNotificationDeliveryStatus.QUEUED
+            if channel == EisaNotificationChannel.EMAIL
+            else EisaNotificationDeliveryStatus.SENT
+        ),
+        sent_at=None if channel == EisaNotificationChannel.EMAIL else datetime.utcnow(),
         created_by_user_id=user.id,
     )
     db.add(row)
+    db.flush()
+    if channel == EisaNotificationChannel.EMAIL:
+        _send_platform_email_notification(db, row=row, user=user)
     add_audit_log(
         db,
         user=user,
         action="notification_sent",
         module="eisa",
         entity_type="eisa_notification",
-        description=f"Bildirim gönderildi: {row.title}",
+        description=(
+            f"E-posta bildirimi işlendi: {row.title}"
+            if channel == EisaNotificationChannel.EMAIL
+            else f"Bildirim gönderildi: {row.title}"
+        ),
         ip_address=_client_ip(request),
     )
     db.commit()
@@ -1033,8 +1164,11 @@ def resend_notification(
     row = db.get(EisaPlatformNotification, notification_id)
     if not row:
         raise HTTPException(404, "Bildirim bulunamadı.")
-    row.status = EisaNotificationDeliveryStatus.SENT
-    row.sent_at = datetime.utcnow()
+    if row.channel == EisaNotificationChannel.EMAIL:
+        _send_platform_email_notification(db, row=row, user=user)
+    else:
+        row.status = EisaNotificationDeliveryStatus.SENT
+        row.sent_at = datetime.utcnow()
     add_audit_log(
         db,
         user=user,
@@ -1042,7 +1176,11 @@ def resend_notification(
         module="eisa",
         entity_type="eisa_notification",
         entity_id=str(notification_id),
-        description=f"Bildirim yeniden gönderildi: {row.title}",
+        description=(
+            f"E-posta bildirimi yeniden işlendi: {row.title}"
+            if row.channel == EisaNotificationChannel.EMAIL
+            else f"Bildirim yeniden gönderildi: {row.title}"
+        ),
         ip_address=_client_ip(request),
     )
     db.commit()

@@ -4,6 +4,7 @@ import {GLOBAL_ADMIN_MODULES} from './app_module_policy.js';
 describe('global administrator module policy', () => {
   it('exposes the governed question bank as a standalone EİSA module', () => {
     expect(GLOBAL_ADMIN_MODULES).toContain('eisa_question_bank');
+    expect(GLOBAL_ADMIN_MODULES).toContain('eisa_emails');
   });
 
   it('keeps the question bank as a governed EİSA module identifier', () => {

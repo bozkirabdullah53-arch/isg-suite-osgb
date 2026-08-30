@@ -14,7 +14,7 @@ import {createRoot} from 'react-dom/client';
   }catch{ /* ignore */ }
 })();
 
-import {AlertTriangle,ArrowLeft,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,Pencil,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
+import {AlertTriangle,ArrowLeft,BarChart3,Beaker,Bell,BookOpen,Building2,BriefcaseBusiness,CalendarDays,ClipboardCheck,Contrast,CreditCard,Download,Eye,FileText,Gauge,GitBranch,GraduationCap,HardHat,HeartPulse,Mail,Pill,KeyRound,LayoutDashboard,LogOut,Menu,Plus,Pencil,QrCode,RefreshCw,Search,ShieldAlert,ShieldCheck,Sparkles,Stethoscope,Upload,UserCog,Users,WalletCards,X,Activity} from 'lucide-react';
 import {API_URL, api, apiWithBearer, downloadFile, reportClientError, setRefreshCookieMode, wakeApi} from './api';
 import {clearAccessToken, clearMfaSetupToken, getAccessToken, getMfaSetupToken, setAccessToken, setMfaSetupToken} from './auth_session';
 import {clearOfflineQueue} from './field_offline';
@@ -78,6 +78,7 @@ import {
   SpecialistRegisterPage,
 } from './eisa';
 import {EisaIndividualSubscriptionsPage} from './eisa_individual_subscriptions';
+import {EisaEmailCenterPage} from './eisa_email_center';
 import './styles.css';
 import './theme-modern.css';
 import {useUiTheme} from './theme';
@@ -197,6 +198,7 @@ const mobileMenuLabels={
   eisa_individual_subscriptions:'Bireysel',
   eisa_subscriptions:'Abonelik',
   eisa_payments:'Ödeme',
+  eisa_emails:'E-posta',
   osgb_dashboard:'Ana Panel',
   employer_oversight:'İşyeri',
   visits:'Takvim',
@@ -238,6 +240,7 @@ const menuCatalog={
   eisa_question_bank:['İSG Soru Bankası',BookOpen],
   eisa_error_reports:['Hata Raporları',AlertTriangle],
   eisa_notifications:['Bilgilendirmeler',Bell],
+  eisa_emails:['E-posta Merkezi',Mail],
   eisa_reports:['Raporlar',BarChart3],
   eisa_archives:['Merkezi Arşiv',Download],
   eisa_audit_logs:['İşlem Kayıtları',FileText],
@@ -2609,6 +2612,7 @@ function App(){
     eisa_packages:<EisaPackagesPage/>,
     eisa_error_reports:<EisaErrorReportsPage/>,
     eisa_notifications:<EisaNotificationsPage/>,
+    eisa_emails:<EisaEmailCenterPage/>,
     eisa_reports:<EisaReportsPage/>,
     eisa_archives:<EisaArchivesPage/>,
     eisa_audit_logs:<EisaAuditLogsPage/>,

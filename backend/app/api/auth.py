@@ -528,7 +528,7 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Sessio
     user = db.scalar(select(User).where(func.lower(User.email) == email))
     if user and user.is_active:
         raw = create_password_reset(db, user)
-        send_reset_email(user.email, raw)
+        send_reset_email(user.email, raw, db=db, user=user)
         add_audit_log(
             db,
             user=user,

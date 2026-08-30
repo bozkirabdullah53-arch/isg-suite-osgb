@@ -5,9 +5,7 @@ import hashlib
 import json
 import logging
 import secrets
-import smtplib
 from datetime import datetime, timedelta
-from email.message import EmailMessage
 from typing import Any
 
 from cryptography.fernet import Fernet
@@ -19,6 +17,7 @@ from app.core.config import settings
 from app.core.security import ALGORITHM, get_password_hash, verify_password
 from app.models.entities import PasswordResetToken, User, UserRole
 from app.services.audit import add_audit_log
+from app.services.mailer import send_email, smtp_configured
 
 logger = logging.getLogger(__name__)
 
@@ -224,36 +223,40 @@ def consume_password_reset(db: Session, raw_token: str, new_password: str) -> Us
     return user
 
 
-def send_reset_email(to_email: str, raw_token: str) -> bool:
+def send_reset_email(
+    to_email: str,
+    raw_token: str,
+    *,
+    db: Session | None = None,
+    user: User | None = None,
+) -> bool:
     link = f"{settings.frontend_origin.rstrip('/')}/?sifre-sifirla={raw_token}"
-    if not settings.smtp_host:
+    result = send_email(
+        to=to_email,
+        subject="İSG Suite — Şifre sıfırlama",
+        body=(
+            "Şifrenizi sıfırlamak için bağlantıya tıklayın (2 saat geçerli):\n\n"
+            f"{link}\n\n"
+            "Bu isteği siz yapmadıysanız bu e-postayı yok sayın.\n"
+        ),
+        db=db,
+        event_type="password_reset",
+        recipient_name=user.full_name if user else None,
+        user_id=user.id if user else None,
+        osgb_id=user.osgb_id if user else None,
+        related_type="password_reset_token",
+    )
+    if not smtp_configured():
         env = (settings.environment or "").strip().lower()
         if env in ("production", "prod", "live"):
             logger.warning("SMTP yok; parola sıfırlama e-postası gönderilemedi (%s)", to_email)
             return False
         logger.info("DEV password reset token for %s: %s", to_email, raw_token)
         logger.info("DEV reset link: %s", link)
+        # Development'ta mevcut test/yerel akışı koru; gerçek gönderim olmadığı
+        # için log satırı failed/smtp_not_configured olarak kalır.
         return True
-    msg = EmailMessage()
-    msg["Subject"] = "İSG Suite — Şifre sıfırlama"
-    msg["From"] = settings.smtp_from_email
-    msg["To"] = to_email
-    msg.set_content(
-        "Şifrenizi sıfırlamak için bağlantıya tıklayın (2 saat geçerli):\n\n"
-        f"{link}\n\n"
-        "Bu isteği siz yapmadıysanız bu e-postayı yok sayın.\n"
-    )
-    try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as smtp:
-            if settings.smtp_use_tls:
-                smtp.starttls()
-            if settings.smtp_username:
-                smtp.login(settings.smtp_username, settings.smtp_password or "")
-            smtp.send_message(msg)
-        return True
-    except Exception:
-        logger.exception("SMTP send failed")
-        return False
+    return bool(result.get("ok"))
 
 
 def generate_recovery_codes(n: int = 8) -> tuple[list[str], str]:
