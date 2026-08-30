@@ -257,6 +257,7 @@ button, input { font: inherit; }
 }
 .logo:hover { opacity: 0.88; }
 .logo:focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; border-radius: 8px; }
+.logo.is-home-active { box-shadow: inset 0 -2px 0 #0f766e; }
 .sidebar-logo { width: 100%; max-width: 180px; height: auto; pointer-events: none; }
 .sidebar-logo.eisa-logo-icon {
   width: 72px;
@@ -325,6 +326,26 @@ nav button.active {
   color: #0f766e;
   font-weight: 700;
   box-shadow: inset 3px 0 0 #0f766e;
+}
+.nav-section-label,
+.mobile-nav-section-label {
+  color: #84969d;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.nav-section-label {
+  margin: 12px 7px 2px;
+  padding-top: 9px;
+  border-top: 1px solid #edf3f4;
+}
+.nav-section-label:first-child { margin-top: 2px; }
+.mobile-nav-section-label {
+  grid-column: 1 / -1;
+  margin: 8px 2px 0;
+  padding: 4px 2px;
 }
 .logout { margin-top: 10px; flex-shrink: 0; color: #9f2d27; }
 
@@ -606,10 +627,116 @@ header p { margin: 4px 0 0; color: #6c7f87; }
 .field-more{margin-top:4px;border:1px solid #e2e8f0;border-radius:10px;padding:8px 10px;background:#f8fafc}
 .field-more summary{cursor:pointer;font-size:13px;font-weight:700;color:#475569}
 .field-visit-form{padding-top:4px}
+.field-focus-panel {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 20px;
+  border-color: #bfdbfe;
+  background: linear-gradient(145deg, #f8fbff, #eff6ff);
+}
+.field-focus-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.field-focus-icon {
+  display: grid;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 14px;
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.field-focus-icon--qr {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+.field-focus-kicker {
+  margin: 0 0 4px;
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.field-focus-header h3 {
+  margin: 0 0 6px;
+  color: #17324d;
+  font-size: 19px;
+}
+.field-focus-header p:not(.field-focus-kicker) {
+  margin: 0;
+  color: #526a7f;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.field-focus-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.field-focus-actions button {
+  min-height: 52px;
+  justify-content: center;
+}
+.field-focus-primary {
+  background: #1d4ed8 !important;
+  color: #fff !important;
+}
+.field-focus-actions--two .field-big-btn-out {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  border-radius: 14px !important;
+  padding: 14px 16px !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+}
+.field-focus-status,
+.field-focus-restricted {
+  display: grid;
+  gap: 4px;
+  padding: 11px 13px;
+  border: 1px solid #c7d2fe;
+  border-radius: 11px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.field-focus-status strong,
+.field-focus-restricted strong { font-size: 14px; }
+.field-focus-status span { color: #4f46e5; }
+.field-focus-restricted {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+}
+.field-focus-secondary { justify-self: start; }
+.field-focus-note {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
 @media(max-width:900px){
   .field-desktop-only{display:none!important}
   .field-page-actions{width:100%}
   .field-page-actions button{width:100%;min-height:48px;justify-content:center}
+}
+@media(max-width:620px){
+  .field-focus-panel { padding: 15px; }
+  .field-focus-header { gap: 10px; }
+  .field-focus-icon { flex-basis: 42px; width: 42px; height: 42px; border-radius: 12px; }
+  .field-focus-header h3 { font-size: 17px; }
+  .field-focus-actions { grid-template-columns: 1fr; }
+  .field-focus-secondary { justify-self: stretch; }
 }
 @media print{
   .app-shell>aside,.app-shell>section>header,.page-title .actions,.no-print,.logout{display:none!important}
