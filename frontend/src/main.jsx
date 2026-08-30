@@ -1356,7 +1356,7 @@ function Employees({user}){
     <p style={{margin:'0 0 12px',fontSize:13,color:'#475569'}}>
       {isWorkplaceManager
         ? 'Bu ekranda yalnız kendi işyerinizin personeli görünür; yeni işe girenleri Personel Ekle ile tek tek kaydedebilirsiniz.'
-        : 'Her Excel dosyası yalnızca yukarıda seçilen işyerine aktarılır. İşyerini değiştirdiğinizde liste de otomatik olarak o işyerinin personeline geçer. Şablon sütunları: Adı Soyadı, TC Kimlik, Görevi, İşe Giriş Tarihi, Engelli/Hükümlü Durumu.'}
+        : 'Şablon İndir → Personel sayfasındaki tabloyu doldurun → Excel Yükle. Sütunlar: Adı Soyadı (zorunlu), TC Kimlik No, Görevi, İşe Giriş Tarihi, Engelli/Hükümlü. Başlık satırını silmeyin; örnek kişiler Ornek sayfasındadır ve yüklenmez. Dosya yalnızca seçili işyerine aktarılır.'}
     </p>
     <SearchBar q={q} setQ={setQ} go={()=>loadEmployees(selectedCompanyId,q)}/>
     <Table cols={[
