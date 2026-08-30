@@ -1,4 +1,4 @@
-/** İSG acil durum kroki sembol kataloğu — TR / TS EN ISO 7010 & 23601 uyumlu etiketler. */
+/** İSG acil durum kroki sembol kataloğu — TR / TS EN ISO 7010 & 23601 referansları. */
 
 export const KROKI_SYMBOLS = [
   {type: 'room', label: 'Mahal / Oda', group: 'Çizim', signClass: 'layout', color: '#334155', short: 'ODA'},

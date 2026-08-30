@@ -5,17 +5,17 @@ export const MEVZUAT_BLOCKS = [
     id: 'kanun',
     title: '6331 sayılı İSG Kanunu',
     articles: [
-      {ref: 'Madde 11', text: 'İşverenin acil durum planı hazırlama, tahliye ve müdahale yükümlülüğü.'},
-      {ref: 'Madde 12', text: 'Çalışanların acil durumlara ilişkin bilgilendirilmesi ve tatbikat.'},
+      {ref: 'Madde 11', text: 'Acil durum planı, ekipler ve destek elemanları için işveren yükümlülükleri.'},
+      {ref: 'Madde 12', text: 'Ciddi ve yakın tehlike halinde çalışanların tahliyesi ve güvenli alana yönlendirilmesi.'},
     ],
   },
   {
     id: 'acil_yonetmelik',
     title: 'İşyerlerinde Acil Durumlar Hakkında Yönetmelik',
     articles: [
-      {ref: 'Md. 7–9', text: 'Acil durum planının hazırlanması, içeriği, gözden geçirme ve güncelleme.'},
-      {ref: 'Md. 10–11', text: 'Acil durum ekipleri, görev dağılımı ve toplanma alanları.'},
-      {ref: 'Md. 12', text: 'Tahliye ve tatbikatların planlanması / uygulanması.'},
+      {ref: 'Md. 5–8', text: 'Senaryoların belirlenmesi, önleyici tedbirler ve acil durum planının hazırlanması.'},
+      {ref: 'Md. 10–12', text: 'Müdahale / tahliye, ekipler, planın asgari içeriği ve görünür biçimde bulundurulması.'},
+      {ref: 'Md. 13–15', text: 'Tatbikat, planın yenilenmesi ve çalışanların bilgilendirilmesi.'},
     ],
   },
   {
@@ -30,8 +30,8 @@ export const MEVZUAT_BLOCKS = [
     id: 'standart',
     title: 'İşaret / kroki standartları (TR uygulaması)',
     articles: [
-      {ref: 'TS EN ISO 7010', text: 'Güvenlik işaretleri: renk, şekil ve piktogram (çıkış, yangın, ilk yardım).'},
-      {ref: 'TS EN ISO 23601', text: 'Acil durum tahliye planı krokilerinde sembol ve lejant düzeni.'},
+      {ref: 'TS EN ISO 7010', text: 'Kullanılan işaretlerin renk, şekil ve piktogram referansı.'},
+      {ref: 'TS EN ISO 23601', text: 'Kroki düzeni için referans; nihai işaret ve plan saha koşullarında doğrulanmalıdır.'},
     ],
   },
 ];

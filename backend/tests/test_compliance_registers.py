@@ -68,3 +68,62 @@ def test_kroki_symbol_catalog_meta():
     assert meta["engine"] == "emergency-kroki-v2.2"
     assert "exit" in meta["symbols"]
     assert "extinguisher" in meta["symbols"]
+
+
+def test_emergency_readiness_separates_required_fields_from_legal_opinion():
+    from app.services.emergency_plan_compliance import calculate_plan_readiness
+
+    plan = SimpleNamespace(plan_date=date(2026, 1, 1), next_review_date=date(2030, 1, 1))
+    company = SimpleNamespace(name="Örnek İşyeri", address="Adres", authorized_person="İşveren", hazard_class="az_tehlikeli")
+    floor = SimpleNamespace(
+        id=1,
+        name="Zemin",
+        background_storage_path=None,
+        scene_json=(
+            '{"objects":['
+            '{"type":"room"},{"type":"exit"},{"type":"route"},'
+            '{"type":"assembly"},{"type":"firstaid"},{"type":"extinguisher"}'
+            ']}'
+        ),
+    )
+    details = {
+        "emergency_types": ["yangin"],
+        "preventive_measures": "Yanıcı malzemeler kontrollü depolanır ve alarm sistemi izlenir.",
+        "measurement_evaluation": "Mevcut ortam ölçümleri ve risk değerlendirmesi incelenmiştir.",
+        "equipment_inventory": "Yangın tüpleri, ilk yardım çantası ve gerekli KKD listelenmiştir.",
+        "response_methods": "İhbar, ilk müdahale, tahliye, toplanma ve yoklama sırası uygulanır.",
+        "special_risk_mode": "not_applicable",
+        "energy_controls_mode": "not_applicable",
+        "external_contacts": [
+            {"name": "İtfaiye", "phone": "110", "note": "Yerel irtibat"},
+        ],
+        "special_groups": "Refakat planı saha sorumlusu tarafından yürütülür.",
+        "visitors_included": True,
+        "temporary_workers_included": True,
+        "approval_status": "secure_esign",
+        "posted_confirmed": True,
+        "employees_informed": True,
+        "last_drill_date": date.today().isoformat(),
+    }
+    result = calculate_plan_readiness(
+        plan,
+        company,
+        details,
+        [floor],
+        {"team_codes": ["sondurme", "kurtarma", "koruma", "ilk_yardim"], "empty_team_codes": []},
+    )
+
+    assert result["pct"] == 100
+    assert result["status"] == "ready"
+    assert result["version"] == "emergency-plan-compliance-v1"
+
+
+def test_emergency_support_staff_thresholds_follow_hazard_class():
+    from app.services.emergency_plan_compliance import support_team_required_count
+
+    assert support_team_required_count(9, "az tehlikeli") == 1
+    assert support_team_required_count(50, "az tehlikeli") == 1
+    assert support_team_required_count(51, "az tehlikeli") == 2
+    assert support_team_required_count(31, "çok tehlikeli") == 2
+    assert support_team_required_count(41, "tehlikeli") == 2
+    assert support_team_required_count(41, "") is None

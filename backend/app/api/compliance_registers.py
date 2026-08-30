@@ -19,12 +19,15 @@ from app.api.deps import get_current_user, require_roles, require_roles_or_workp
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import (
+    Company,
     DocumentApproval,
     DrillRecord,
+    Employee,
     EmergencyPlan,
     EmergencyPlanFloor,
     EmergencyTeam,
     EmergencyTeamAssignment,
+    EmergencyTeamType,
     OhsCommitteeMeeting,
     OhsCommitteeMember,
     PeriodicControl,
@@ -52,6 +55,16 @@ from app.schemas.compliance import (
     PeriodicControlResponse,
     PeriodicControlUpdate,
 )
+from app.services.emergency_plan_compliance import (
+    EMERGENCY_SCENARIOS,
+    MANDATORY_TEAM_CODES,
+    calculate_plan_readiness,
+    normalize_plan_details,
+    parse_plan_details,
+    support_team_required_count,
+    support_team_threshold,
+)
+from app.services.emergency_plan_pdf import build_emergency_plan_pdf
 from app.services.upload_gateway import persist_relative
 from app.services.upload_security import assert_safe_upload
 
@@ -251,7 +264,120 @@ def _safe_upload_path(rel: str) -> Path:
     return path
 
 
-def _ep_enrich(db: Session, row: EmergencyPlan) -> EmergencyPlanResponse:
+def _ep_team_summary(db: Session, company_id: int) -> dict:
+    """Ekip modülündeki zorunlu türleri tek kontrol özeti haline getirir."""
+    company = db.get(Company, company_id)
+    employee_count = int(db.scalar(
+        select(func.count())
+        .select_from(Employee)
+        .where(Employee.company_id == company_id, Employee.is_active.is_(True))
+    ) or 0)
+    support_threshold = support_team_threshold(getattr(company, "hazard_class", None))
+    required_support_members = support_team_required_count(
+        employee_count,
+        getattr(company, "hazard_class", None),
+    )
+    team_rows = db.execute(
+        select(EmergencyTeam, EmergencyTeamType)
+        .join(EmergencyTeamType, EmergencyTeam.type_id == EmergencyTeamType.id)
+        .where(EmergencyTeam.company_id == company_id, EmergencyTeam.is_active.is_(True))
+        .order_by(EmergencyTeam.id)
+    ).all()
+    assignment_counts = dict(
+        db.execute(
+            select(EmergencyTeamAssignment.team_id, func.count(EmergencyTeamAssignment.id))
+            .where(
+                EmergencyTeamAssignment.company_id == company_id,
+                EmergencyTeamAssignment.is_active.is_(True),
+            )
+            .group_by(EmergencyTeamAssignment.team_id)
+        ).all()
+    )
+    type_codes: set[str] = set()
+    empty_codes: set[str] = set()
+    under_minimum_codes: set[str] = set()
+    teams: list[dict] = []
+    total_members = 0
+    for team, team_type in team_rows:
+        code = str(team_type.code or "")
+        members = int(assignment_counts.get(team.id, 0) or 0)
+        if code:
+            type_codes.add(code)
+            if code in MANDATORY_TEAM_CODES and members == 0:
+                empty_codes.add(code)
+            if (
+                code in {"sondurme", "kurtarma", "koruma"}
+                and required_support_members is not None
+                and members < required_support_members
+            ):
+                under_minimum_codes.add(code)
+        total_members += members
+        teams.append(
+            {
+                "id": team.id,
+                "code": code,
+                "name": team.name,
+                "members": members,
+                "min_members": int(team.min_members or team_type.min_members or 0),
+            }
+        )
+    return {
+        "team_codes": sorted(type_codes),
+        "empty_team_codes": sorted(empty_codes),
+        "under_minimum_codes": sorted(under_minimum_codes),
+        "employee_count": employee_count,
+        "support_threshold": support_threshold,
+        "required_support_members": required_support_members,
+        "capacity_check_known": required_support_members is not None,
+        "teams": teams,
+        "team_count": len(teams),
+        "member_count": total_members,
+    }
+
+
+def _ep_drill_summary(db: Session, company_id: int) -> dict:
+    """Plan kartına son tamamlanmış tatbikatı bağlar; ayrı tatbikat modülü tek kaynaktır."""
+    row = db.scalar(
+        select(DrillRecord)
+        .where(
+            DrillRecord.company_id == company_id,
+            DrillRecord.is_active.is_(True),
+            DrillRecord.status == "yapildi",
+            DrillRecord.drill_date <= date.today(),
+        )
+        .order_by(DrillRecord.drill_date.desc(), DrillRecord.id.desc())
+        .limit(1)
+    )
+    if not row:
+        return {"has_record": False, "last_date": None, "drill_type": None, "record_id": None}
+    return {
+        "has_record": True,
+        "last_date": row.drill_date.isoformat() if row.drill_date else None,
+        "drill_type": row.drill_type,
+        "record_id": row.id,
+    }
+
+
+def _ep_role_title(user: User | None) -> str | None:
+    role = getattr(user, "role", None)
+    code = getattr(role, "value", role)
+    return {
+        "global_admin": "Sistem yöneticisi",
+        "safety_specialist": "İş güvenliği uzmanı",
+        "workplace_physician": "İşyeri hekimi",
+        "other_health_personnel": "Diğer sağlık personeli",
+        "company_admin": "İşyeri yöneticisi",
+    }.get(str(code or ""), str(code or "") or None)
+
+
+def _ep_enrich(
+    db: Session,
+    row: EmergencyPlan,
+    *,
+    company: Company | None = None,
+    team_summary: dict | None = None,
+    drill_summary: dict | None = None,
+) -> EmergencyPlanResponse:
     item = EmergencyPlanResponse.model_validate(row)
     item.review_status = _due_status(row.next_review_date)
     floors = list(
@@ -264,6 +390,25 @@ def _ep_enrich(db: Session, row: EmergencyPlan) -> EmergencyPlanResponse:
         (f.scene_json and f.scene_json not in ("", EMPTY_SCENE)) or f.background_storage_path
         for f in floors
     ) or bool(row.kroki_storage_path)
+    company = company or db.get(Company, row.company_id)
+    team_summary = team_summary if team_summary is not None else _ep_team_summary(db, row.company_id)
+    drill_summary = drill_summary if drill_summary is not None else _ep_drill_summary(db, row.company_id)
+    details = parse_plan_details(row.plan_details_json)
+    item.details = details
+    item.company_name = getattr(company, "name", None)
+    item.company_address = getattr(company, "address", None)
+    item.employer_name = getattr(company, "authorized_person", None)
+    creator = db.get(User, row.created_by_id)
+    item.prepared_by_name = getattr(creator, "full_name", None)
+    item.prepared_by_title = _ep_role_title(creator)
+    item.compliance = calculate_plan_readiness(
+        row,
+        company,
+        details,
+        floors,
+        team_summary,
+        drill_summary,
+    )
     return item
 
 
@@ -310,7 +455,16 @@ def _parse_scene(raw: str | None) -> dict:
 def ep_meta(user: User = Depends(get_current_user)):
     return {
         "engine": "emergency-kroki-v2.2",
-        "note": "Kat bazlı kroki + akıllı tahliye asistanı; ekipler ve tatbikat ile birlikte.",
+        "compliance_engine": "emergency-plan-compliance-v1",
+        "note": "Kat bazlı kroki + mevzuat odaklı hazırlık kontrolü; ekipler ve tatbikat ile birlikte.",
+        "scenarios": list(EMERGENCY_SCENARIOS),
+        "requirements": [
+            {"id": "workplace_identity", "reference": "Md. 12/1-a", "label": "İşyeri künyesi"},
+            {"id": "emergency_scenarios", "reference": "Md. 5, 7, 8", "label": "Acil durum senaryoları"},
+            {"id": "emergency_teams", "reference": "Md. 11", "label": "Acil durum ekipleri"},
+            {"id": "evacuation_map", "reference": "Md. 10, 12", "label": "Tahliye krokisi"},
+            {"id": "drill_review", "reference": "Md. 13, 14", "label": "Tatbikat ve yenileme"},
+        ],
         "symbols": [
             "exit", "door_exit", "stairs", "assembly", "extinguisher", "hose", "alarm",
             "firstaid", "aed", "electric", "youarehere", "route", "wall", "room",
@@ -335,7 +489,23 @@ def list_ep(
     if q:
         like = f"%{q.strip()}%"
         stmt = stmt.where(or_(EmergencyPlan.title.ilike(like), EmergencyPlan.assembly_areas.ilike(like)))
-    return [_ep_enrich(db, r) for r in db.scalars(stmt.limit(500)).all()]
+    rows = db.scalars(stmt.limit(500)).all()
+    company_cache: dict[int, Company | None] = {}
+    team_cache: dict[int, dict] = {}
+    drill_cache: dict[int, dict] = {}
+    result = []
+    for row in rows:
+        company_cache.setdefault(row.company_id, db.get(Company, row.company_id))
+        team_cache.setdefault(row.company_id, _ep_team_summary(db, row.company_id))
+        drill_cache.setdefault(row.company_id, _ep_drill_summary(db, row.company_id))
+        result.append(_ep_enrich(
+            db,
+            row,
+            company=company_cache[row.company_id],
+            team_summary=team_cache[row.company_id],
+            drill_summary=drill_cache[row.company_id],
+        ))
+    return result
 
 
 @ep_router.post("", response_model=EmergencyPlanResponse)
@@ -345,7 +515,13 @@ def create_ep(
     user: User = Depends(require_roles(*EDIT)),
 ):
     ensure_company_access(db, user, payload.company_id)
-    row = EmergencyPlan(**payload.model_dump(), created_by_id=user.id)
+    details = normalize_plan_details(payload.details)
+    data = payload.model_dump(exclude={"details"})
+    row = EmergencyPlan(
+        **data,
+        plan_details_json=json.dumps(details, ensure_ascii=False, separators=(",", ":")),
+        created_by_id=user.id,
+    )
     db.add(row)
     db.flush()
     db.add(
@@ -371,7 +547,10 @@ def export_ep(
     user: User = Depends(require_roles(*VIEW)),
 ):
     rows = list_ep(company_id=company_id, q=None, db=db, user=user)
-    data = [["Başlık", "Rev", "Plan Tarihi", "Gözden Geçirme", "Toplanma Alanları", "Kroki", "Kat", "Durum", "Özet"]]
+    data = [[
+        "Başlık", "Rev", "Plan Tarihi", "Gözden Geçirme", "Toplanma Alanları", "Kroki",
+        "Kat", "Durum", "Özet", "İşyeri", "Hazırlık",
+    ]]
     for r in rows:
         data.append([
             r.title,
@@ -383,6 +562,8 @@ def export_ep(
             r.floor_count,
             r.status,
             (r.scenario_summary or "")[:200],
+            r.company_name or "",
+            f"%{(r.compliance or {}).get('pct', 0)} · {(r.compliance or {}).get('label', 'İnceleme')}",
         ])
     stamp = datetime.now().strftime("%Y%m%d")
     return _xlsx(data, "Acil Plan", f"acil-durum-plani-{stamp}.xlsx")
@@ -398,7 +579,11 @@ def update_ep(
     row = _get_plan(db, item_id, user)
     if row.locked_at:
         raise HTTPException(409, "Plan kilitli; kroki düzenlenemez.")
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    if "details" in data:
+        details = normalize_plan_details(data.pop("details"))
+        row.plan_details_json = json.dumps(details, ensure_ascii=False, separators=(",", ":"))
+    for k, v in data.items():
         setattr(row, k, v)
     row.updated_at = datetime.utcnow()
     db.commit()
@@ -635,6 +820,53 @@ async def export_poster(
     return await upload_kroki(item_id=item_id, file=file, db=db, user=user)
 
 
+@ep_router.get("/{item_id}/export.pdf")
+def export_emergency_plan_pdf(
+    item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*VIEW)),
+):
+    """Plan künyesi, tedbirler, ekip özeti ve kontrol listesini PDF'e taşır."""
+    plan = _get_plan(db, item_id, user)
+    company = db.get(Company, plan.company_id)
+    floors = list(
+        db.scalars(
+            select(EmergencyPlanFloor)
+            .where(EmergencyPlanFloor.plan_id == plan.id)
+            .order_by(EmergencyPlanFloor.sort_order, EmergencyPlanFloor.id)
+        ).all()
+    )
+    team_summary = _ep_team_summary(db, plan.company_id)
+    drill_summary = _ep_drill_summary(db, plan.company_id)
+    readiness = calculate_plan_readiness(
+        plan,
+        company,
+        parse_plan_details(plan.plan_details_json),
+        floors,
+        team_summary,
+        drill_summary,
+    )
+    creator = db.get(User, plan.created_by_id)
+    pdf = build_emergency_plan_pdf(
+        plan=plan,
+        company=company,
+        details=parse_plan_details(plan.plan_details_json),
+        floors=floors,
+        readiness=readiness,
+        teams=team_summary.get("teams") or [],
+        prepared_by={
+            "name": getattr(creator, "full_name", None),
+            "title": _ep_role_title(creator),
+        },
+    )
+    safe_id = f"{plan.id}"
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="acil-durum-plani-{safe_id}.pdf"'},
+    )
+
+
 @ep_router.get("/{item_id}/legend")
 def plan_legend(
     item_id: int,
@@ -651,7 +883,14 @@ def plan_legend(
         ).all()
     )
     symbol_counts: dict[str, int] = {}
-    checks = {"exit": 0, "assembly": 0, "extinguisher": 0}
+    checks = {
+        "exit": 0,
+        "assembly": 0,
+        "extinguisher": 0,
+        "route": 0,
+        "firstaid": 0,
+        "fire_equipment": 0,
+    }
     for fl in floors:
         scene = _parse_scene(fl.scene_json)
         for obj in scene.get("objects") or []:
@@ -665,6 +904,8 @@ def plan_legend(
                 checks["exit"] += 1
             elif t.startswith("extinguisher"):
                 checks["extinguisher"] += 1
+            if t in ("extinguisher", "hose", "alarm"):
+                checks["fire_equipment"] += 1
     teams = list(
         db.scalars(
             select(EmergencyTeam)
@@ -727,6 +968,8 @@ def plan_legend(
     missing = []
     if checks["exit"] < 1:
         missing.append("En az bir acil çıkış gerekli")
+    if checks["route"] < 1:
+        missing.append("Kaçış yönü gösterilmeli")
     if checks["assembly"] < 1:
         missing.append("Toplanma alanı gerekli")
     if checks["extinguisher"] < 1:
@@ -737,6 +980,21 @@ def plan_legend(
         missing.append("Tamamlanmış tatbikat kaydı bulunmuyor")
     elif drill_status == "due":
         missing.append(f"Tatbikat takibi gecikmiş: {drill_due}")
+    if checks["firstaid"] < 1:
+        missing.append("İlk yardım noktası gösterilmeli")
+    if checks["fire_equipment"] < 1:
+        missing.append("Yangınla mücadele ekipmanı gösterilmeli")
+    company = db.get(Company, plan.company_id)
+    team_summary = _ep_team_summary(db, plan.company_id)
+    drill_summary = _ep_drill_summary(db, plan.company_id)
+    compliance = calculate_plan_readiness(
+        plan,
+        company,
+        parse_plan_details(plan.plan_details_json),
+        floors,
+        team_summary,
+        drill_summary,
+    )
     return {
         "plan_id": plan.id,
         "title": plan.title,
@@ -746,6 +1004,8 @@ def plan_legend(
         "symbol_counts": symbol_counts,
         "checks": checks,
         "missing": missing,
+        "compliance": compliance,
+        "team_summary": team_summary,
         "teams": team_out,
         "team_readiness": {
             "ready": team_ready,

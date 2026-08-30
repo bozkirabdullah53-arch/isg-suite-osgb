@@ -81,6 +81,7 @@ import {EisaIndividualSubscriptionsPage} from './eisa_individual_subscriptions';
 import {EisaEmailCenterPage} from './eisa_email_center';
 import './styles.css';
 import './theme-modern.css';
+import './emergency_plan_premium.css';
 import {useUiTheme} from './theme';
 import {
   createNavigationState,

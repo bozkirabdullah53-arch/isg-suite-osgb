@@ -13,6 +13,10 @@ import {EyasDigitalApprovalPage} from './eyas_digital_approval';
 import {EmergencyKrokiEditor} from './emergency_kroki_editor';
 import {buildEmergencyPlanReadiness} from './emergency_plan_readiness';
 
+// Acil durum modülü premium çalışma alanında ayrı tutulur; bu dosyanın diğer
+// uyum sicilleriyle geriye dönük import sözleşmesi korunur.
+export {EmergencyPlansPage} from './emergency_plans_premium';
+
 /** Belge Onay hub: varsayılan = Eyas (Uzman→Hekim→İşveren). Eski süreç ayrı sekmede. */
 export function BelgeOnayHub({user}) {
   const [tab, setTab] = useState('eyas');
@@ -258,7 +262,8 @@ export function PeriodicControlsPage({user}) {
 }
 
 /** Acil durum planı + kroki */
-export function EmergencyPlansPage({user, onNavigate}) {
+/* LegacyEmergencyPlansPage was superseded by emergency_plans_premium.jsx.
+function LegacyEmergencyPlansPage({user, onNavigate}) {
   const canEdit = ['safety_specialist', 'global_admin'].includes(user.role);
   const companies = useCompanies(user);
   const [rows, setRows] = useState([]);
@@ -419,7 +424,6 @@ export function EmergencyPlansPage({user, onNavigate}) {
           {canEdit && <button type="button" disabled={busy} onClick={() => setOpen(true)}><Plus size={16} /> Yeni plan oluştur</button>}
         </div>
       </div>
-
       <section className="emergency-hero">
         <div className="emergency-hero-copy">
           <span className="hero-kicker">KONTROLLÜ HAZIRLIK ALANI</span>
@@ -537,6 +541,8 @@ export function EmergencyPlansPage({user, onNavigate}) {
       </div>
   );
 }
+
+*/
 
 /** Ortam ölçüm defteri */
 export function WorkplaceMeasurementsPage({user}) {

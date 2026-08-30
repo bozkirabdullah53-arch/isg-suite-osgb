@@ -89,16 +89,16 @@ export function buildWorkshopTemplate() {
 
 export function runValidation(objects, meta = {}) {
   const count = (t) => objects.filter((o) => o.type === t).length;
+  const fireEquipment = count('extinguisher') + count('hose') + count('alarm');
   const checks = [
-    {ok: count('exit') + count('door_exit') > 0, pass: 'En az bir acil çıkış tanımlı.', fail: 'Acil çıkış yok.', w: 20},
-    {ok: count('route') > 0, pass: 'Kaçış yönü gösterilmiş.', fail: 'Kaçış oku eklenmemiş.', w: 15},
-    {ok: count('extinguisher') > 0, pass: 'Yangın söndürücü var.', fail: 'Yangın söndürücü yok.', w: 15},
-    {ok: count('firstaid') > 0, pass: 'İlk yardım noktası var.', fail: 'İlk yardım noktası yok.', w: 10},
-    {ok: count('assembly') > 0, pass: 'Toplanma alanı var.', fail: 'Toplanma alanı yok.', w: 15},
-    {ok: count('youarehere') > 0, pass: '«Siz buradasınız» işareti var.', fail: '«Siz buradasınız» yok.', w: 10},
-    {ok: count('wall') + count('room') > 0 || meta.hasBackground, pass: 'Plan geometrisi veya arka plan var.', fail: 'Duvar/oda veya plan görseli yok.', w: 10},
+    {ok: count('exit') + count('door_exit') > 0, pass: 'En az bir acil çıkış tanımlı.', fail: 'Acil çıkış eklenmemiş.', w: 20},
     {ok: count('north') > 0, pass: 'Kuzey yönü belirtilmiş.', fail: 'Kuzey oku eklenmemiş.', w: 5, soft: true},
-    {ok: count('youarehere') <= 1, pass: 'Tek «Siz buradasınız» noktası.', fail: 'Birden fazla «Siz buradasınız» var.', w: 5, soft: true},
+    {ok: count('route') > 0, pass: 'Kaçış yönü gösterilmiş.', fail: 'Kaçış oku eklenmemiş.', w: 18},
+    {ok: count('assembly') > 0, pass: 'Toplanma alanı var.', fail: 'Toplanma alanı eklenmemiş.', w: 15},
+    {ok: fireEquipment > 0, pass: 'Yangınla mücadele ekipmanı var.', fail: 'Yangınla mücadele ekipmanı eklenmemiş.', w: 15},
+    {ok: count('firstaid') > 0, pass: 'İlk yardım noktası var.', fail: 'İlk yardım noktası eklenmemiş.', w: 12},
+    {ok: count('wall') + count('room') > 0 || meta.hasBackground, pass: 'Plan geometrisi veya arka plan var.', fail: 'Duvar/oda veya plan görseli eklenmemiş.', w: 10},
+    {ok: count('youarehere') > 0, pass: '«Siz buradasınız» işareti var.', fail: '«Siz buradasınız» işareti eklenmemiş.', w: 5, soft: true},
   ];
   let score = 0;
   let max = 0;
@@ -108,7 +108,7 @@ export function runValidation(objects, meta = {}) {
     return {...c, status: c.ok ? 'ok' : (c.soft ? 'warn' : 'error')};
   });
   const pct = max ? Math.round((score / max) * 100) : 0;
-  return {items, pct, score, max};
+  return {items, pct, score, max, scope: 'kroki_gorsel_kontrolu'};
 }
 
 /**

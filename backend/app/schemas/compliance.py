@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -70,6 +71,7 @@ class EmergencyPlanCreate(BaseModel):
     document_id: int | None = None
     status: str = Field(default="Aktif", max_length=40)
     notes: str | None = None
+    details: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def _dates_ok(self):
@@ -89,6 +91,7 @@ class EmergencyPlanUpdate(BaseModel):
     status: str | None = None
     notes: str | None = None
     is_active: bool | None = None
+    details: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def _dates_ok(self):
@@ -110,6 +113,13 @@ class EmergencyPlanResponse(EmergencyPlanCreate):
     review_status: str = "unset"
     floor_count: int = 0
     has_scene: bool = False
+    details: dict[str, Any] = Field(default_factory=dict)
+    company_name: str | None = None
+    company_address: str | None = None
+    employer_name: str | None = None
+    prepared_by_name: str | None = None
+    prepared_by_title: str | None = None
+    compliance: dict[str, Any] = Field(default_factory=dict)
 
 
 class EmergencyFloorCreate(BaseModel):

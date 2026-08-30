@@ -2021,6 +2021,9 @@ class EmergencyPlan(Base):
     next_review_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     assembly_areas: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     scenario_summary: Mapped[str | None] = mapped_column(String(4000), nullable=True)
+    # Mevzuat kapsamındaki risk, tedbir, müdahale ve iletişim alanları. Eski
+    # kayıtların geriye dönük çalışması için tek JSON alanında versiyonlanır.
+    plan_details_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     kroki_file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     kroki_storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     document_id: Mapped[int | None] = mapped_column(ForeignKey("document_records.id"), nullable=True)

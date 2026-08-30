@@ -654,7 +654,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
       ctx.fillText(plan?.title || 'Acil Durum Krokisi', 24, 36);
       ctx.font = '14px sans-serif';
       ctx.fillStyle = '#475569';
-      ctx.fillText(`Rev ${plan?.revision_no || '00'} · ${floor.name} · TS EN ISO 7010 / 23601 uyumlu işaretler`, 24, 58);
+      ctx.fillText(`Rev ${plan?.revision_no || '00'} · ${floor.name} · ISO 7010 / 23601 referanslı işaretler`, 24, 58);
 
       if (bgUrl) {
         await new Promise((resolve) => {
@@ -693,7 +693,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
       ctx.fillStyle = '#334155';
       ctx.font = '11px sans-serif';
       const lines = [
-        '6331 İSG K. md. 11–12 · İşyerlerinde Acil Durumlar Hakkında Yönetmelik md. 7–12',
+        '6331 İSG K. md. 11–12 · İşyerlerinde Acil Durumlar Hakkında Yönetmelik md. 5–15',
         'İşyeri Bina ve Eklentileri Yönetmeliği (kaçış yolu / işaretleme)',
         'İşaretler: TS EN ISO 7010 · Kroki düzeni: TS EN ISO 23601',
       ];
@@ -728,7 +728,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
         <button type="button" className="mini secondary" onClick={onClose}><ArrowLeft size={14} /> Plan listesi</button>
         <div style={{minWidth: 180}}>
           <div style={{fontSize: 11, letterSpacing: '.05em', textTransform: 'uppercase', color: '#0f766e', fontWeight: 700}}>
-            Kroki Studio · v2.2 Pro
+            Kroki Studio · görsel kalite kontrolü
           </div>
           <div style={{fontSize: 16, fontWeight: 750, color: '#0f172a'}}>{plan?.title || 'Acil durum krokisi'}</div>
           <div style={{fontSize: 12, color: '#64748b'}}>Revizyon {plan?.revision_no || '—'} · {floor?.name || 'Kat'}</div>
@@ -1188,10 +1188,10 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
             const v = runValidation(scene.objects || [], {hasBackground: !!bgUrl});
             return (
               <div>
-                <div style={{fontWeight: 700, fontSize: 13, marginBottom: 8}}>Akıllı kontrol</div>
+                <div style={{fontWeight: 700, fontSize: 13, marginBottom: 8}}>Kroki kalite kontrolü</div>
                 <div style={{marginBottom: 10}}>
                   <div style={{display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4}}>
-                    <span>Uyum skoru</span>
+                    <span>Görsel kontrol skoru</span>
                     <strong>{v.pct}%</strong>
                   </div>
                   <div style={{height: 8, borderRadius: 99, background: '#e2e8f0', overflow: 'hidden'}}>
@@ -1209,7 +1209,7 @@ export function EmergencyKrokiEditor({planId, user, onClose}) {
                   ))}
                 </ul>
                 <p style={{fontSize: 11, color: '#94a3b8', marginTop: 10}}>
-                  Bu kontrol profesyonel onayın yerine geçmez; saha doğrulaması gerekir.
+                  Bu panel yalnızca kroki görselini kontrol eder; planın mevzuat hazırlığı karttan ayrıca değerlendirilir.
                 </p>
               </div>
             );
