@@ -20,6 +20,16 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from_email: str = "noreply@example.com"
     smtp_use_tls: bool = True
+    # EİSA Global gelen kutusu — yalnızca açıkça yapılandırılırsa IMAP okur.
+    inbound_mail_enabled: bool = False
+    inbound_mail_host: str = "imap.mailmatik.com"
+    inbound_mail_port: int = 993
+    inbound_mail_username: str | None = None
+    inbound_mail_password: str | None = None
+    inbound_mail_use_ssl: bool = True
+    inbound_mail_folder: str = "INBOX"
+    inbound_mail_sync_limit: int = 50
+    inbound_mail_timeout_sec: int = 20
     backup_dir: str = "./backups"
     backup_encryption_key: str | None = None
     # Production enable_backup_crypto_for_production secret_key kullanır; acil kapatma:

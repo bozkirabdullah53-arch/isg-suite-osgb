@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Mail, Search } from 'lucide-react';
+import { Inbox, Mail, Search } from 'lucide-react';
 import { api } from './api';
 import { AppModal } from './ui_modal';
 import { MetricGrid, Msg, Page, RefreshButton, StatusBadge } from './eisa';
+import { EisaInboxPanel } from './eisa_inbox';
 
 const EVENT_LABELS = {
   password_reset: 'Şifre sıfırlama',
@@ -58,6 +59,8 @@ export function EisaEmailCenterPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [detail, setDetail] = useState(null);
+  const [section, setSection] = useState('sent');
+  const [inboxRefreshToken, setInboxRefreshToken] = useState(0);
 
   async function load(page = 1, nextFilters = applied) {
     setBusy(true);
@@ -101,11 +104,19 @@ export function EisaEmailCenterPage() {
       title="E-posta Merkezi"
       action={(
         <div className="actions">
-          <RefreshButton busy={busy} onClick={() => load(data.page)} />
+          <RefreshButton busy={busy} onClick={() => section === 'sent' ? load(data.page) : setInboxRefreshToken((value) => value + 1)} />
         </div>
       )}
     >
       <Msg text={msg} />
+      <div className="actions" style={{ marginBottom: 18 }} role="tablist" aria-label="E-posta bölümleri">
+        <button type="button" className={section === 'sent' ? '' : 'secondary'} onClick={() => setSection('sent')} role="tab" aria-selected={section === 'sent'}>
+          <Mail size={16} /> Gönderilenler
+        </button>
+        <button type="button" className={section === 'inbox' ? '' : 'secondary'} onClick={() => setSection('inbox')} role="tab" aria-selected={section === 'inbox'}>
+          <Inbox size={16} /> Gelen Kutusu {summary?.inbox_unread ? `(${summary.inbox_unread})` : ''}
+        </button>
+      </div>
       {summary && (
         <>
           <MetricGrid items={[
@@ -140,6 +151,9 @@ export function EisaEmailCenterPage() {
         </>
       )}
 
+      {section === 'inbox' && <EisaInboxPanel active refreshToken={inboxRefreshToken} />}
+
+      {section === 'sent' && <>
       <form className="form-grid" onSubmit={submit} style={{ marginBottom: 18 }}>
         <label className="field" style={{ minWidth: 220 }}>
           <span>Arama</span>
@@ -234,6 +248,7 @@ export function EisaEmailCenterPage() {
           </div>
         </AppModal>
       )}
+      </>}
     </Page>
   );
 }

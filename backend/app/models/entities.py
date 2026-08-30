@@ -782,6 +782,28 @@ class EmailDeliveryLog(Base):
     sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
 
 
+class EmailInboxMessage(Base):
+    """Global gelen kutusu kaydı — IMAP UID ile idempotent senkronlanır."""
+
+    __tablename__ = "email_inbox_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    mailbox: Mapped[str] = mapped_column(String(160), default="INBOX", index=True)
+    imap_uid: Mapped[int] = mapped_column(Integer, index=True)
+    message_id: Mapped[str | None] = mapped_column(String(500), nullable=True, index=True)
+    sender_email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    sender_name: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    recipients: Mapped[str | None] = mapped_column(String(2000), nullable=True)
+    subject: Mapped[str] = mapped_column(String(500), default="")
+    body_text: Mapped[str] = mapped_column(Text, default="")
+    has_attachments: Mapped[bool] = mapped_column(Boolean, default=False)
+    attachment_count: Mapped[int] = mapped_column(Integer, default=0)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    received_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    synced_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class EisaPlatformSetting(Base):
     __tablename__ = "eisa_platform_settings"
 
