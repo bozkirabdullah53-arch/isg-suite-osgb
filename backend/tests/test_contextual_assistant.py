@@ -79,6 +79,15 @@ def test_managed_disabled_does_not_fall_back_to_legacy_external_ai(monkeypatch):
     assert assistant._provider_config() is None
 
 
+def test_missing_managed_config_does_not_use_a_second_contextual_provider(monkeypatch):
+    monkeypatch.setattr(settings, "contextual_assistant_api_key", "legacy-key")
+    monkeypatch.setattr(settings, "contextual_assistant_api_url", "https://legacy.example/v1")
+    monkeypatch.setattr(settings, "contextual_assistant_model", "legacy-model")
+    monkeypatch.setattr(assistant, "SessionLocal", lambda: DummySession())
+    monkeypatch.setattr(assistant, "managed_config", lambda db: None)
+    assert assistant._provider_config() is None
+
+
 def test_force_off_isolated(monkeypatch):
     monkeypatch.setattr(settings, "contextual_assistant_force_off", True)
     assert contextual_assistant_active() is False

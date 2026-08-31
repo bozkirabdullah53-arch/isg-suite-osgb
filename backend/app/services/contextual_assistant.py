@@ -96,10 +96,9 @@ def answer(*, question: str, raw_context: dict[str, Any], user) -> dict[str, Any
 def _provider_config() -> dict[str, Any] | None:
     """Resolve the assistant provider, preferring the Global AI panel.
 
-    Once a Global Admin has saved managed AI settings, those settings are the
-    single source of truth for both vision analysis and the contextual assistant.
-    A managed local/disabled selection intentionally does not fall back to a
-    different external assistant key.
+    The Global Admin AI panel is the single source of truth. A local or disabled
+    selection intentionally leaves the contextual assistant in verified-help
+    mode instead of silently switching to another provider.
     """
     try:
         with SessionLocal() as db:
@@ -110,8 +109,6 @@ def _provider_config() -> dict[str, Any] | None:
 
     if managed is not None:
         if not bool(managed.get("enabled")):
-            return None
-        if bool(getattr(settings, "vision_analysis_force_off", False)):
             return None
         if str(managed.get("provider") or "") in {"heuristic", "yolo"}:
             return None
@@ -129,19 +126,10 @@ def _provider_config() -> dict[str, Any] | None:
             "timeout_sec": int(managed.get("timeout_sec") or 30),
         }
 
-    api_key = getattr(settings, "contextual_assistant_api_key", None)
-    api_url = getattr(settings, "contextual_assistant_api_url", None)
-    model = getattr(settings, "contextual_assistant_model", "")
-    if not api_key or not api_url or not model:
-        return None
-    return {
-        "source": "environment",
-        "provider": "legacy_contextual",
-        "api_key": str(api_key),
-        "api_url": str(api_url),
-        "model": str(model),
-        "timeout_sec": int(getattr(settings, "contextual_assistant_timeout_seconds", 30) or 30),
-    }
+    # The Global AI panel is the sole provider source. Do not silently use a
+    # second contextual key, otherwise administrators cannot predict which
+    # model receives assistant requests.
+    return None
 
 
 def _ask_provider(question: str, context: dict[str, Any], verified_message: str) -> str | None:
