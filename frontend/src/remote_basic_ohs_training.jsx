@@ -2585,6 +2585,15 @@ function RemoteCertificateHub() {
     }
   }
 
+  function selectCompany(event) {
+    const value = String(event.currentTarget.value || '');
+    setCompanyId(value);
+    setBranchId('');
+    setRows([]);
+    setError('');
+    setMessage('');
+  }
+
   useEffect(() => {
     loadCompanies().catch(() => {});
   }, []);
@@ -2731,7 +2740,7 @@ function RemoteCertificateHub() {
       </div>
 
       <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 14, padding: 10, borderRadius: 10, background: '#f7fbfd'}}>
-        <select value={companyId} onChange={(event) => { setCompanyId(event.target.value); setBranchId(''); }} aria-label="Belge firması">
+        <select value={companyId} onChange={selectCompany} aria-label="Belge firması">
           <option value="">Firma seçin</option>
           {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
         </select>
