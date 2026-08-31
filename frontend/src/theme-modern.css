@@ -338,6 +338,12 @@ html[data-ui-theme="modern"] .global-nace-context.is-preview {
     linear-gradient(155deg, rgba(19, 78, 84, .98), rgba(9, 45, 53, .98));
 }
 
+/* Keep the selected-workplace card at the bottom without hiding navigation. */
+html[data-ui-theme="modern"] .global-nace-context-desktop {
+  margin-top: 10px;
+  flex: 0 0 auto;
+}
+
 /* ============================================================
    ÜST BAR — yüzen cam şerit
    ============================================================ */

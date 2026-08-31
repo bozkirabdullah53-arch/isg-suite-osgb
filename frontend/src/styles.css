@@ -448,7 +448,7 @@ nav button.active {
   border-color: #56a9a0;
   background: linear-gradient(155deg, #15525a 0%, #0d3b43 100%);
 }
-.global-nace-context-desktop { margin-top: auto; }
+.global-nace-context-desktop { margin-top: 10px; flex: 0 0 auto; }
 .global-nace-context-desktop[hidden],
 .mobile-nace-context[hidden] { display: none !important; }
 .company-nace-preview {
