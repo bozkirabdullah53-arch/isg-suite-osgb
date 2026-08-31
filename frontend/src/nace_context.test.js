@@ -6,6 +6,8 @@ import {
   isCompanySelector,
   isNaceField,
   naceInfoForCompany,
+  persistSelectedCompanyId,
+  readPersistedCompanyId,
 } from './nace_context';
 
 const catalog = [
@@ -63,5 +65,17 @@ describe('NACE context helpers', () => {
     document.body.innerHTML = '<label><span>İşyeri</span><select aria-label="İşyeri"><option value="1">A</option></select></label><label><span>NACE Kodu</span><input placeholder="NACE kodu" /></label>';
     expect(isCompanySelector(document.querySelector('select'))).toBe(true);
     expect(isNaceField(document.querySelector('input'))).toBe(true);
+  });
+
+  it('does not treat a random select as a company selector', () => {
+    document.body.innerHTML = '<label><span>Durum</span><select><option value="open">Açık</option></select></label>';
+    expect(isCompanySelector(document.querySelector('select'))).toBe(false);
+  });
+
+  it('persists the selected workplace id for employee and training screens', () => {
+    persistSelectedCompanyId('42');
+    expect(readPersistedCompanyId()).toBe('42');
+    persistSelectedCompanyId('');
+    expect(readPersistedCompanyId()).toBe('');
   });
 });

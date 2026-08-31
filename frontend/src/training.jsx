@@ -3,7 +3,7 @@ import {Archive, Award, CheckCircle2, ClipboardList, Download, FileSpreadsheet, 
 import {API_URL, api, downloadFile, uploadFile} from './api';
 import {RemoteBasicOhsTrainingPanel} from './remote_basic_ohs_training';
 import {canEditTrainingForm, canManageTrainingPackage, canOperateTraining} from './training_role_policy';
-import {augmentNaceCatalog, findNaceRecord} from './nace_context';
+import {augmentNaceCatalog, findNaceRecord, persistSelectedCompanyId, readPersistedCompanyId} from './nace_context';
 import './training_pro.css';
 
 const HAZARD_HOURS = {'Az Tehlikeli': 8, Tehlikeli: 12, 'Çok Tehlikeli': 16};
@@ -214,7 +214,7 @@ function normalizedStampText(value) {
 
 function emptyForm(user) {
   return {
-    company_id: user.company_id || '',
+    company_id: user.company_id || readPersistedCompanyId() || '',
     title: 'Temel İş Sağlığı ve Güvenliği Eğitimi',
     training_type: 'İlk Defa',
     delivery_method: 'Yüz yüze',
@@ -613,6 +613,8 @@ export function TrainingPage({user}) {
 
   function defaultCompanyId(list = companies) {
     if (user.company_id) return String(user.company_id);
+    const persisted = readPersistedCompanyId();
+    if (persisted && list.some((company) => String(company.id) === persisted)) return persisted;
     if (list.length === 1) return String(list[0].id);
     return '';
   }
@@ -632,6 +634,7 @@ export function TrainingPage({user}) {
     setEmpDept('');
     setSectorQuery('');
     setSectorPickerOpen(false);
+    persistSelectedCompanyId(cid);
     setForm((current) => ({
       ...current,
       company_id: cid,
@@ -745,7 +748,8 @@ export function TrainingPage({user}) {
     try {
       const preferredCid =
         form.company_id ||
-        (user.company_id ? String(user.company_id) : '');
+        (user.company_id ? String(user.company_id) : '') ||
+        readPersistedCompanyId();
 
       // Önce hafif istekler: firma + eğitim listesi + (önbellekli) sektör
       const [c, t, sec] = await Promise.all([

@@ -170,6 +170,24 @@ export function isCompanySelector(element) {
   );
 }
 
+export function readPersistedCompanyId() {
+  try {
+    return String(sessionStorage.getItem('isg_selected_company_id') || '');
+  } catch {
+    return '';
+  }
+}
+
+export function persistSelectedCompanyId(id) {
+  try {
+    const value = String(id || '');
+    if (value) sessionStorage.setItem('isg_selected_company_id', value);
+    else sessionStorage.removeItem('isg_selected_company_id');
+  } catch {
+    /* ignore */
+  }
+}
+
 export function isNaceField(element) {
   if (!element || !['input', 'textarea'].includes(String(element.tagName || '').toLowerCase())) {
     return false;

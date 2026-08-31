@@ -104,6 +104,8 @@ import {
   isCompanySelector,
   isNaceField,
   naceInfoForCompany,
+  persistSelectedCompanyId,
+  readPersistedCompanyId,
 } from './nace_context';
 const roles={global_admin:'EİSA Yönetici',company_admin:'OSGB Yöneticisi',safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli',read_only:'Salt Okunur'};
 const EMPLOYEE_SELF_SERVICE_ENABLED=selfServiceFeatureEnabled(import.meta.env.VITE_EMPLOYEE_SELF_SERVICE_V1);
@@ -1162,7 +1164,9 @@ function Employees({user}){
   const[companies,setCompanies]=useState([]);
   const[branches,setBranches]=useState([]);
   const[data,setData]=useState([]);
-  const[selectedCompanyId,setSelectedCompanyId]=useState(user.company_id?String(user.company_id):'');
+  const[selectedCompanyId,setSelectedCompanyId]=useState(
+    user.company_id?String(user.company_id):(readPersistedCompanyId()||'')
+  );
   const[selectedBranchId,setSelectedBranchId]=useState('');
   const[selectedIds,setSelectedIds]=useState([]);
   const[open,setOpen]=useState(false);
@@ -1181,11 +1185,15 @@ function Employees({user}){
     const[c,b]=await Promise.all([api('/companies'),api('/branches')]);
     setCompanies(c||[]);
     setBranches(b||[]);
-    if(user.company_id){
-      setSelectedCompanyId(String(user.company_id));
-    }else if(!selectedCompanyId && Array.isArray(c) && c.length===1){
-      setSelectedCompanyId(String(c[0].id));
-    }
+    const rows=Array.isArray(c)?c:[];
+    setSelectedCompanyId((current)=>{
+      if(user.company_id) return String(user.company_id);
+      if(current && rows.some((row)=>String(row.id)===String(current))) return String(current);
+      const persisted=readPersistedCompanyId();
+      if(persisted && rows.some((row)=>String(row.id)===persisted)) return persisted;
+      if(rows.length===1) return String(rows[0].id);
+      return current||'';
+    });
   }
 
   async function loadEmployees(companyId=selectedCompanyId,search=q){
@@ -1204,6 +1212,7 @@ function Employees({user}){
     const nextValue=String(value||'');
     const selected=companies.find(c=>String(c.id)===nextValue);
     setSelectedCompanyId(nextValue);
+    persistSelectedCompanyId(nextValue);
     setSelectedBranchId('');
     setSelectedIds([]);
     setQ('');
@@ -2149,8 +2158,7 @@ function App(){
       const sectors=Array.isArray(catalog)?catalog:[];
       setContextCompanies(companies);
       setNaceCatalog(sectors);
-      let persisted='';
-      try{persisted=sessionStorage.getItem('isg_selected_company_id')||''}catch(_){/* ignore */}
+      const persisted=readPersistedCompanyId();
       const preferredId=user.company_id
         ? String(user.company_id)
         : (persisted||((companies.length===1)?String(companies[0].id):''));
@@ -2183,10 +2191,7 @@ function App(){
       },90);
     }
     function persistCompanyId(id){
-      try{
-        if(id) sessionStorage.setItem('isg_selected_company_id',String(id));
-        else sessionStorage.removeItem('isg_selected_company_id');
-      }catch(_){/* ignore */}
+      persistSelectedCompanyId(id);
     }
     function rememberCompany(company){
       if(!company?.id) return;
@@ -2231,35 +2236,30 @@ function App(){
       setNaceDraft('');
       persistCompanyId('');
     }
-    function onFieldEvent(event){
+    function onCompanyFieldChange(event){
       const target=event.target;
-      if(isCompanySelector(target)){
-        const id=String(target.value||'');
-        if(!id){
-          window.setTimeout(()=>onCompanySelected({detail:{}}),0);
-          return;
-        }
-        const company=contextCompanies.find((row)=>String(row.id)===id);
-        // Let the component's React onChange handler commit its controlled
-        // value first. Updating the global context during capture can replace
-        // the select before the browser finishes the native change event.
-        window.setTimeout(()=>onCompanySelected({detail:{companyId:id,company}}),0);
+      if(!isCompanySelector(target)) return;
+      const id=String(target.value||'');
+      if(!id){
+        window.setTimeout(()=>onCompanySelected({detail:{}}),0);
         return;
       }
-      if(isNaceField(target)){
-        queueNaceDraft(target.value||'');
-      }
+      const company=contextCompanies.find((row)=>String(row.id)===id);
+      window.setTimeout(()=>onCompanySelected({detail:{companyId:id,company}}),0);
     }
-    document.addEventListener('change',onFieldEvent,true);
-    document.addEventListener('input',onFieldEvent,true);
+    function onNaceInput(event){
+      if(isNaceField(event.target)) queueNaceDraft(event.target.value||'');
+    }
+    document.addEventListener('change',onCompanyFieldChange,true);
+    document.addEventListener('input',onNaceInput,true);
     window.addEventListener('isg:company-selected',onCompanySelected);
     window.addEventListener('isg:company-updated',onCompanyUpdated);
     window.addEventListener('isg:nace-draft',onNaceDraft);
     window.addEventListener('isg:nace-context-reset',onContextReset);
     return()=>{
       cancelPendingNaceDraft();
-      document.removeEventListener('change',onFieldEvent,true);
-      document.removeEventListener('input',onFieldEvent,true);
+      document.removeEventListener('change',onCompanyFieldChange,true);
+      document.removeEventListener('input',onNaceInput,true);
       window.removeEventListener('isg:company-selected',onCompanySelected);
       window.removeEventListener('isg:company-updated',onCompanyUpdated);
       window.removeEventListener('isg:nace-draft',onNaceDraft);
@@ -2752,7 +2752,9 @@ function App(){
             <span>{mobileMoreOpen?'Kapat':'Menü'}</span>
           </button>
         </nav>
-        {hasGlobalNaceContext&&<GlobalNaceContextCard {...globalNaceContext} className="global-nace-context-desktop"/>}
+        <div className="global-nace-context-desktop" hidden={!hasGlobalNaceContext}>
+          <GlobalNaceContextCard {...globalNaceContext} className="global-nace-context-desktop-card"/>
+        </div>
         <button type="button" className="logout" onClick={logout}>
           <LogOut size={19}/><span>Çıkış</span>
         </button>
@@ -2817,11 +2819,9 @@ function App(){
           </div>
         </header>
         <main className="content">
-          {hasGlobalNaceContext&&(
-            <div className="mobile-nace-context">
-              <GlobalNaceContextCard {...globalNaceContext} className="global-nace-context-mobile-card"/>
-            </div>
-          )}
+          <div className="mobile-nace-context" hidden={!hasGlobalNaceContext}>
+            <GlobalNaceContextCard {...globalNaceContext} className="global-nace-context-mobile-card"/>
+          </div>
           {!user.is_eisa && user.subscription_write_allowed===false && (
             <div className="readonly-banner" role="status">
               Salt okunur mod: abonelik süresi doldu. Veri girişi kapalı — EİSA ile iletişime geçin.

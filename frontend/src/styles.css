@@ -449,6 +449,8 @@ nav button.active {
   background: linear-gradient(155deg, #15525a 0%, #0d3b43 100%);
 }
 .global-nace-context-desktop { margin-top: auto; }
+.global-nace-context-desktop[hidden],
+.mobile-nace-context[hidden] { display: none !important; }
 .company-nace-preview {
   display: grid;
   grid-column: 1 / -1;
