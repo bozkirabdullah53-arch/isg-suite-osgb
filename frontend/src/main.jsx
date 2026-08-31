@@ -1201,13 +1201,16 @@ function Employees({user}){
   useEffect(()=>{void loadEmployees(selectedCompanyId,'')},[selectedCompanyId]);
 
   function chooseCompany(value){
-    setSelectedCompanyId(value);
+    const nextValue=String(value||'');
+    const selected=companies.find(c=>String(c.id)===nextValue);
+    setSelectedCompanyId(nextValue);
     setSelectedBranchId('');
     setSelectedIds([]);
     setQ('');
     setData([]);
     setOpen(false);
     setEditingRow(null);
+    if(selected) window.dispatchEvent(new CustomEvent('isg:company-selected',{detail:{companyId:nextValue,company:selected}}));
   }
 
   function requireCompany(){
@@ -1386,7 +1389,7 @@ function Employees({user}){
     <button disabled={busy||!selectedCompanyId} onClick={openCreate}><Plus/>Personel Ekle</button>
   </div>}>
     <div className="form-grid" style={{gridTemplateColumns:'minmax(280px,1fr) minmax(220px,.7fr)',marginBottom:14}}>
-      <Select label="İşyeri Seç (zorunlu)" required value={selectedCompanyId} onChange={e=>chooseCompany(e.target.value)}>
+      <Select label="İşyeri Seç (zorunlu)" required value={selectedCompanyId} onChange={e=>chooseCompany(e.currentTarget.value)}>
         <option value="">Personel işlemi yapılacak işyerini seçiniz</option>
         {companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
       </Select>
@@ -2233,11 +2236,14 @@ function App(){
       if(isCompanySelector(target)){
         const id=String(target.value||'');
         if(!id){
-          onCompanySelected({detail:{}});
+          window.setTimeout(()=>onCompanySelected({detail:{}}),0);
           return;
         }
         const company=contextCompanies.find((row)=>String(row.id)===id);
-        onCompanySelected({detail:{companyId:id,company}});
+        // Let the component's React onChange handler commit its controlled
+        // value first. Updating the global context during capture can replace
+        // the select before the browser finishes the native change event.
+        window.setTimeout(()=>onCompanySelected({detail:{companyId:id,company}}),0);
         return;
       }
       if(isNaceField(target)){

@@ -2587,11 +2587,13 @@ function RemoteCertificateHub() {
 
   function selectCompany(event) {
     const value = String(event.currentTarget.value || '');
+    const selected = companies.find((company) => String(company.id) === value);
     setCompanyId(value);
     setBranchId('');
     setRows([]);
     setError('');
     setMessage('');
+    if (selected) window.dispatchEvent(new CustomEvent('isg:company-selected', {detail: {companyId: value, company: selected}}));
   }
 
   useEffect(() => {
