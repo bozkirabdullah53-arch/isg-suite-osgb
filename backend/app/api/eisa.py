@@ -1,6 +1,8 @@
 """EİSA — platform üst yönetimi: OSGB başvuru, abonelik, finans, paket, bildirim."""
 from datetime import datetime, timedelta
 import logging
+from pathlib import Path
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -347,23 +349,42 @@ def approve(
         try:
             from app.services.email import send_email
 
+            guide_path = Path(__file__).resolve().parents[1] / "assets" / "authenticator-kurulum.svg"
+            guide_attachment = None
+            if guide_path.is_file():
+                guide_attachment = [{
+                    "content": guide_path.read_bytes(),
+                    "filename": "authenticator-kurulum-rehberi.svg",
+                    "maintype": "image",
+                    "subtype": "svg+xml",
+                }]
+
             pwd_line = (
                 f"Geçici şifre: {admin_account.temporary_password}\n"
                 if admin_account.temporary_password
-                else "Şifre değiştirilmedi; mevcut şifreniz veya «Şifremi unuttum» ile girin.\n"
+                else "Bu hesap daha önce vardı; mevcut şifrenizi kullanın veya giriş ekranındaki «Şifremi unuttum» seçeneğini kullanın.\n"
             )
             send_email(
                 to_email=admin_account.email,
-                subject="İDEA İSG — OSGB hesabınız onaylandı",
+                subject="İSG Suite OSGB — hesabınız onaylandı",
                 body=(
                     f"Merhaba {admin_account.full_name},\n\n"
-                    f"OSGB başvurunuz onaylandı.\n"
-                    f"Giriş: {admin_account.email}\n"
+                    f"{app_row.name} OSGB başvurunuz onaylandı.\n\n"
+                    "Giriş bilgileri\n"
+                    "---------------\n"
+                    "Giriş adresi: https://www.isgsuite.tr\n"
+                    f"Kullanıcı adı: {admin_account.email}\n"
                     f"{pwd_line}\n"
-                    "İlk 7 gün Authenticator (MFA) kurulumu ertelenebilir; girişte «Daha sonra» "
-                    "ile panele geçebilirsiniz. 7 günden sonra MFA zorunludur. "
-                    "Kurulum: Güvenlik menüsü → MFA.\n\n"
-                    "İDEA İSG"
+                    "Authenticator kurulumu ve kullanımı\n"
+                    "-----------------------------------\n"
+                    "1. Telefonunuza Google Authenticator veya Microsoft Authenticator uygulamasını yükleyin.\n"
+                    "2. İSG Suite'e giriş yaptıktan sonra Güvenlik menüsünü açın.\n"
+                    "3. MFA / Authenticator kurulumu düğmesine basın.\n"
+                    "4. Ekrandaki QR kodu Authenticator uygulamasıyla okutun.\n"
+                    "5. Uygulamanın ürettiği 6 haneli kodu siteye girip kurulumu tamamlayın.\n"
+                    "6. Sonraki girişlerde uygulamadaki güncel 6 haneli kodu kullanın.\n\n"
+                    "Güvenlik: Geçici şifrenizi ilk girişten sonra değiştirin. Authenticator kodunu kimseyle paylaşmayın.\n\n"
+                    "İSG Suite OSGB"
                 ),
                 db=db,
                 event_type="osgb_account_approved",
@@ -373,6 +394,7 @@ def approve(
                 triggered_by_user_id=user.id,
                 related_type="osgb_application",
                 related_id=str(application_id),
+                attachments=guide_attachment,
             )
         except Exception:
             logger.warning("OSGB onay e-postası gönderilemedi", exc_info=True)

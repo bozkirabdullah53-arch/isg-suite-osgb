@@ -88,6 +88,7 @@ def send_email(
     triggered_by_user_id: int | None = None,
     related_type: str | None = None,
     related_id: str | None = None,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     to = (to or "").strip()
     subject = (subject or "").strip()
@@ -134,6 +135,13 @@ def send_email(
     msg["From"] = settings.smtp_from_email
     msg["To"] = to
     msg.set_content(body)
+    for attachment in attachments or []:
+        content = attachment.get("content")
+        filename = str(attachment.get("filename") or "ek-dosya")
+        maintype = str(attachment.get("maintype") or "application")
+        subtype = str(attachment.get("subtype") or "octet-stream")
+        if isinstance(content, bytes):
+            msg.add_attachment(content, maintype=maintype, subtype=subtype, filename=filename)
     try:
         server_class = smtplib.SMTP_SSL if settings.smtp_use_ssl else smtplib.SMTP
         with server_class(settings.smtp_host, settings.smtp_port, timeout=20) as server:

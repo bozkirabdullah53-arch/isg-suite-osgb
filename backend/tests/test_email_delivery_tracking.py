@@ -78,7 +78,28 @@ def test_mailer_records_successful_delivery(monkeypatch):
         assert row is not None
         assert row.status == "sent"
         assert row.sent_at is not None
-        assert row.error_message is None
+    assert row.error_message is None
+
+
+def test_mailer_adds_binary_attachments(monkeypatch):
+    monkeypatch.setattr(mailer.settings, "smtp_host", "smtp.example.com")
+    monkeypatch.setattr(mailer.settings, "smtp_from_email", "noreply@isgsuite.tr")
+    sent = []
+
+    class _AttachmentSmtp(_FakeSmtp):
+        def send_message(self, message):
+            sent.append(message)
+
+    monkeypatch.setattr(mailer.smtplib, "SMTP", _AttachmentSmtp)
+    result = mailer.send_email(
+        to="admin@example.com",
+        subject="Deneme",
+        body="İçerik",
+        attachments=[{"content": b"<svg/>", "filename": "rehber.svg", "maintype": "image", "subtype": "svg+xml"}],
+    )
+
+    assert result["ok"] is True
+    assert any(part.get_filename() == "rehber.svg" for part in sent[0].walk())
 
 
 def test_mailer_records_missing_smtp_as_failed(monkeypatch):

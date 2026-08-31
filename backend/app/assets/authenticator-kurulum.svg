@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">Authenticator kurulum rehberi</title>
+  <desc id="desc">İSG Suite için Authenticator uygulaması kurulum adımları.</desc>
+  <rect width="1200" height="760" rx="28" fill="#f4fbfa"/>
+  <rect x="34" y="34" width="1132" height="692" rx="24" fill="#fff" stroke="#0f766e" stroke-width="4"/>
+  <text x="78" y="110" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#123b46">AUTHENTICATOR NASIL KURULUR?</text>
+  <text x="80" y="155" font-family="Arial, sans-serif" font-size="26" fill="#168579">İSG Suite OSGB hesabınızı 4 adımda koruyun.</text>
+  <g font-family="Arial, sans-serif" fill="#123b46">
+    <circle cx="130" cy="260" r="42" fill="#0f9f8f"/><text x="116" y="275" font-size="42" font-weight="700" fill="#fff">1</text>
+    <text x="205" y="250" font-size="28" font-weight="700">Uygulamayı indirin</text>
+    <text x="205" y="292" font-size="23">Google Authenticator veya</text><text x="205" y="326" font-size="23">Microsoft Authenticator.</text>
+    <circle cx="640" cy="260" r="42" fill="#0f9f8f"/><text x="626" y="275" font-size="42" font-weight="700" fill="#fff">2</text>
+    <text x="715" y="250" font-size="28" font-weight="700">İSG Suite'e giriş yapın</text>
+    <text x="715" y="292" font-size="23">Güvenlik menüsünü açıp</text><text x="715" y="326" font-size="23">MFA kurulumunu başlatın.</text>
+    <circle cx="130" cy="460" r="42" fill="#0f9f8f"/><text x="116" y="475" font-size="42" font-weight="700" fill="#fff">3</text>
+    <text x="205" y="450" font-size="28" font-weight="700">QR kodu okutun</text>
+    <text x="205" y="492" font-size="23">Telefon kamerasıyla sitedeki</text><text x="205" y="526" font-size="23">QR kodu Authenticator'a okutun.</text>
+    <circle cx="640" cy="460" r="42" fill="#0f9f8f"/><text x="626" y="475" font-size="42" font-weight="700" fill="#fff">4</text>
+    <text x="715" y="450" font-size="28" font-weight="700">Kodu doğrulayın</text>
+    <text x="715" y="492" font-size="23">Uygulamadaki 6 haneli kodu</text><text x="715" y="526" font-size="23">İSG Suite ekranına girin.</text>
+  </g>
+  <rect x="80" y="605" width="1040" height="74" rx="18" fill="#e8f8f4"/>
+  <text x="112" y="650" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#126b60">Kod yaklaşık 30 saniyede değişir. Kodu ve geçici şifrenizi paylaşmayın.</text>
+</svg>
