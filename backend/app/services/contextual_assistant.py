@@ -7,7 +7,9 @@ from typing import Any
 import httpx
 
 from app.core.config import contextual_assistant_active, settings
+from app.core.database import SessionLocal
 from app.core.request_id import current_request_id
+from app.services.ai_gateway_config import managed_config
 
 logger = logging.getLogger(__name__)
 UNAVAILABLE_MESSAGE = "Asistan geçici olarak kullanılamıyor. Uygulamayı normal şekilde kullanmaya devam edebilirsiniz."
@@ -91,16 +93,65 @@ def answer(*, question: str, raw_context: dict[str, Any], user) -> dict[str, Any
     return {"message": message, "source": source, "domain": "app", "actions": actions[:2]}
 
 
-def _ask_provider(question: str, context: dict[str, Any], verified_message: str) -> str | None:
-    if not contextual_assistant_active() or getattr(settings, "contextual_assistant_force_off", False):
+def _provider_config() -> dict[str, Any] | None:
+    """Resolve the assistant provider, preferring the Global AI panel.
+
+    Once a Global Admin has saved managed AI settings, those settings are the
+    single source of truth for both vision analysis and the contextual assistant.
+    A managed local/disabled selection intentionally does not fall back to a
+    different external assistant key.
+    """
+    try:
+        with SessionLocal() as db:
+            managed = managed_config(db)
+    except Exception:
+        logger.warning("contextual assistant could not read managed AI settings", exc_info=True)
         return None
+
+    if managed is not None:
+        if not bool(managed.get("enabled")):
+            return None
+        if bool(getattr(settings, "vision_analysis_force_off", False)):
+            return None
+        if str(managed.get("provider") or "") in {"heuristic", "yolo"}:
+            return None
+        api_key = managed.get("api_key")
+        api_url = managed.get("base_url")
+        model = managed.get("model")
+        if not api_key or not api_url or not model:
+            return None
+        return {
+            "source": "global_panel",
+            "provider": str(managed.get("provider") or "custom_openai"),
+            "api_key": str(api_key),
+            "api_url": str(api_url),
+            "model": str(model),
+            "timeout_sec": int(managed.get("timeout_sec") or 30),
+        }
+
     api_key = getattr(settings, "contextual_assistant_api_key", None)
     api_url = getattr(settings, "contextual_assistant_api_url", None)
     model = getattr(settings, "contextual_assistant_model", "")
     if not api_key or not api_url or not model:
         return None
+    return {
+        "source": "environment",
+        "provider": "legacy_contextual",
+        "api_key": str(api_key),
+        "api_url": str(api_url),
+        "model": str(model),
+        "timeout_sec": int(getattr(settings, "contextual_assistant_timeout_seconds", 30) or 30),
+    }
+
+
+def _ask_provider(question: str, context: dict[str, Any], verified_message: str) -> str | None:
+    if not contextual_assistant_active() or getattr(settings, "contextual_assistant_force_off", False):
+        return None
+    provider = _provider_config()
+    if not provider:
+        return None
     payload = {
-        "model": model,
+        "model": provider["model"],
         "messages": [
             {"role": "system", "content": "Sen İSG Suite OSGB uygulamasının sayfa farkındalıklı yardımcısısın. Yalnızca verilen doğrulanmış özet ve bağlama göre Türkçe, kısa ve pratik cevap ver. Buton, modül, yetki veya başarı uydurma. Kayıt silme, form gönderme veya kritik işlem yapma. Kişisel, kimlik veya tıbbi veri isteme."},
             {"role": "user", "content": f"Doğrulanmış uygulama özeti: {verified_message}\nHassas veri içermeyen bağlam: {context}\nSoru: {question}"},
@@ -109,11 +160,15 @@ def _ask_provider(question: str, context: dict[str, Any], verified_message: str)
         "max_tokens": 500,
     }
     try:
-        with httpx.Client(timeout=min(max(int(getattr(settings, "contextual_assistant_timeout_seconds", 30)), 5), 45)) as client:
-            response = client.post(f"{str(api_url).removesuffix('/chat/completions').rstrip('/')}/chat/completions", headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}, json=payload)
+        timeout = min(max(int(provider.get("timeout_sec") or 30), 5), 120)
+        with httpx.Client(timeout=timeout) as client:
+            response = client.post(f"{str(provider['api_url']).removesuffix('/chat/completions').rstrip('/')}/chat/completions", headers={"Authorization": f"Bearer {provider['api_key']}", "Content-Type": "application/json"}, json=payload)
             response.raise_for_status()
             content = response.json().get("choices", [{}])[0].get("message", {}).get("content")
-            return str(content).strip()[:4000] if content else None
+            if content:
+                logger.info("contextual assistant used provider request_id=%s source=%s provider=%s model=%s", current_request_id(), provider["source"], provider["provider"], provider["model"])
+                return str(content).strip()[:4000]
+            return None
     except httpx.TimeoutException:
         logger.warning("contextual assistant provider timeout request_id=%s page_id=%s", current_request_id(), context["currentPage"]["id"])
     except (httpx.HTTPError, ValueError, TypeError, KeyError, IndexError):
