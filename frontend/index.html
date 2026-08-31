@@ -15,9 +15,96 @@
     <link rel="stylesheet" href="/src/eisa-login-application-buttons.css" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#0b2854" />
+    <style>
+      .global-contact-help {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 9999;
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        min-height: 42px;
+        padding: 9px 13px;
+        border: 1px solid rgba(15, 118, 110, .22);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, .96);
+        color: #0f5f5a;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, .12);
+        font-family: Manrope, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.2;
+        text-decoration: none;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+      }
+      .global-contact-help:hover {
+        transform: translateY(-1px);
+        border-color: rgba(15, 118, 110, .45);
+        box-shadow: 0 13px 32px rgba(15, 23, 42, .16);
+      }
+      .global-contact-help:focus-visible {
+        outline: 3px solid rgba(20, 184, 166, .28);
+        outline-offset: 3px;
+      }
+      .global-contact-help svg {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 18px;
+        stroke: currentColor;
+      }
+      .global-contact-help__text {
+        display: grid;
+        gap: 1px;
+      }
+      .global-contact-help__label {
+        color: #134e4a;
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .global-contact-help__mail {
+        color: #0f766e;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      @media (max-width: 768px) {
+        .global-contact-help {
+          right: 10px;
+          bottom: 82px;
+          min-height: 38px;
+          padding: 8px 10px;
+          border-radius: 12px;
+        }
+        .global-contact-help__mail {
+          display: none;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .global-contact-help {
+          transition: none;
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <a
+      class="global-contact-help"
+      href="mailto:info@isgsuite.tr?subject=ISG%20Suite%20-%20Iletisim%20%2F%20Yardim"
+      title="İletişim / Yardım için info@isgsuite.tr adresine e-posta gönder"
+      aria-label="İletişim ve yardım için info@isgsuite.tr adresine e-posta gönder"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+        <path d="m3 7 9 6 9-6"></path>
+      </svg>
+      <span class="global-contact-help__text">
+        <span class="global-contact-help__label">İletişim / Yardım</span>
+        <span class="global-contact-help__mail">info@isgsuite.tr</span>
+      </span>
+    </a>
     <script type="module" src="/src/main.jsx"></script>
     <script type="module" src="/src/password_visibility_bridge.js"></script>
     <script type="module" src="/src/training_completion_bridge.js"></script>
