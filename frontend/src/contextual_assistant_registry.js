@@ -3,8 +3,7 @@ function truthy(value) { return String(value || '').trim().toLowerCase() === 'tr
 
 export function assistantFeatureEnabled(env = import.meta.env) {
   if (truthy(env?.VITE_CONTEXTUAL_ASSISTANT_FORCE_OFF)) return false;
-  if (env?.VITE_CONTEXTUAL_ASSISTANT_ENABLED === undefined || env?.VITE_CONTEXTUAL_ASSISTANT_ENABLED === '') return true;
-  return truthy(env.VITE_CONTEXTUAL_ASSISTANT_ENABLED);
+  return true;
 }
 
 const PAGES = {

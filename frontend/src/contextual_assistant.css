@@ -1,4 +1,5 @@
 .contextual-assistant-launcher{bottom:86px;z-index:10001}
+.contextual-assistant-launcher{display:grid!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;transform:none;isolation:isolate}
 .contextual-assistant-backdrop{z-index:10002}
 .contextual-assistant-panel{z-index:10003}
 body:has(.contextual-assistant-panel) .global-contact-help{visibility:hidden;pointer-events:none}
