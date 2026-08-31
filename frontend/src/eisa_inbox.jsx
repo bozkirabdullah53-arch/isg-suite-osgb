@@ -123,7 +123,12 @@ export function EisaInboxPanel({ active, refreshToken = 0 }) {
     setBusy(true);
     try {
       const token = getAccessToken();
-      const response = await fetch(`${API_URL}${attachment.url}`, {
+      const attachmentUrl = /^https?:\/\//i.test(attachment.url || '')
+        ? attachment.url
+        : attachment.url?.startsWith('/api/')
+          ? `${window.location.origin}${attachment.url}`
+          : `${API_URL}/${String(attachment.url || '').replace(/^\//, '')}`;
+      const response = await fetch(attachmentUrl, {
         credentials: 'include',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
