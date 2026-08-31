@@ -2554,19 +2554,26 @@ function RemoteCertificateHub() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  async function load() {
-    setBusy(true);
-    setError('');
+  async function loadCompanies() {
     try {
       const companyRows = await api('/companies');
       setCompanies(Array.isArray(companyRows) ? companyRows : []);
-      if (!companyId) {
+    } catch (err) {
+      setError(err.message || 'Firma listesi alınamadı.');
+    }
+  }
+
+  async function load(companyOverride = companyId, branchOverride = branchId) {
+    setBusy(true);
+    setError('');
+    try {
+      if (!companyOverride) {
         setRows([]);
         return;
       }
       const params = new URLSearchParams();
-      params.set('company_id', companyId);
-      if (branchId) params.set('branch_id', branchId);
+      params.set('company_id', companyOverride);
+      if (branchOverride) params.set('branch_id', branchOverride);
       // Status and search are applied after grouping so one employee never
       // appears as two partial certificate rows.
       const documentRows = await api('/trainings/remote/certificates?' + params.toString());
@@ -2577,6 +2584,10 @@ function RemoteCertificateHub() {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    loadCompanies().catch(() => {});
+  }, []);
 
   useEffect(() => {
     load().catch(() => {});
@@ -2720,7 +2731,7 @@ function RemoteCertificateHub() {
       </div>
 
       <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 14, padding: 10, borderRadius: 10, background: '#f7fbfd'}}>
-        <select value={companyId} onChange={(event) => setCompanyId(event.target.value)} aria-label="Belge firması">
+        <select value={companyId} onChange={(event) => { setCompanyId(event.target.value); setBranchId(''); }} aria-label="Belge firması">
           <option value="">Firma seçin</option>
           {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
         </select>
