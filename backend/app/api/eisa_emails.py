@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -11,10 +12,16 @@ from app.api.deps import require_roles
 from app.core.database import get_db
 from app.models.entities import EmailDeliveryLog, EmailInboxMessage, User, UserRole
 from app.services.inbound_mail import inbound_mail_status, sync_inbox
-from app.services.mailer import email_provider_name, smtp_configured
+from app.services.mailer import email_provider_name, send_email, smtp_configured
 
 
 router = APIRouter(prefix="/eisa/emails", tags=["EİSA E-posta"])
+
+
+class EmailSendRequest(BaseModel):
+    recipient_email: EmailStr
+    subject: str = Field(min_length=1, max_length=255)
+    body: str = Field(min_length=1, max_length=100_000)
 
 
 def _filters(
@@ -152,6 +159,30 @@ def list_email_deliveries(
         "page_size": page_size,
         "pages": (total + page_size - 1) // page_size if total else 0,
     }
+
+
+@router.post("/send")
+def send_platform_email(
+    payload: EmailSendRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    result = send_email(
+        to=str(payload.recipient_email),
+        subject=payload.subject,
+        body=payload.body,
+        db=db,
+        event_type="generic",
+        triggered_by_user_id=user.id,
+        related_type="global_mail_compose",
+    )
+    db.commit()
+    if not result.get("ok"):
+        raise HTTPException(
+            status_code=502,
+            detail=result.get("error_message") or result.get("error") or "E-posta gönderilemedi.",
+        )
+    return result
 
 
 @router.post("/inbox/sync")

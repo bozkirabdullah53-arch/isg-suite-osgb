@@ -29,6 +29,20 @@ services:
         generateValue: true
       - key: FRONTEND_ORIGIN
         value: https://www.isgsuite.tr
+      - key: SMTP_HOST
+        value: mail.isgsuite.tr
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        value: info@isgsuite.tr
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        value: info@isgsuite.tr
+      - key: SMTP_USE_TLS
+        value: "true"
+      - key: SMTP_USE_SSL
+        value: "false"
       # EİSA Global gelen kutusu — kullanıcı adı ve parola Render Secret olarak eklenir.
       - key: INBOUND_MAIL_ENABLED
         value: "true"

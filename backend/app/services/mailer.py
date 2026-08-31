@@ -135,8 +135,9 @@ def send_email(
     msg["To"] = to
     msg.set_content(body)
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as server:
-            if settings.smtp_use_tls:
+        server_class = smtplib.SMTP_SSL if settings.smtp_use_ssl else smtplib.SMTP
+        with server_class(settings.smtp_host, settings.smtp_port, timeout=20) as server:
+            if settings.smtp_use_tls and not settings.smtp_use_ssl:
                 server.starttls()
             if settings.smtp_username:
                 server.login(settings.smtp_username, settings.smtp_password or "")

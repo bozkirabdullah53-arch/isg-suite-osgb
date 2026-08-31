@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Inbox, Mail, Search } from 'lucide-react';
+import { Inbox, Mail, Search, Send } from 'lucide-react';
 import { api } from './api';
 import { AppModal } from './ui_modal';
 import { MetricGrid, Msg, Page, RefreshButton, StatusBadge } from './eisa';
@@ -61,6 +61,8 @@ export function EisaEmailCenterPage() {
   const [detail, setDetail] = useState(null);
   const [section, setSection] = useState('sent');
   const [inboxRefreshToken, setInboxRefreshToken] = useState(0);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [compose, setCompose] = useState({ recipient_email: '', subject: '', body: '' });
 
   async function load(page = 1, nextFilters = applied) {
     setBusy(true);
@@ -99,6 +101,25 @@ export function EisaEmailCenterPage() {
     void load(1, next);
   }
 
+  async function sendComposed(event) {
+    event.preventDefault();
+    setBusy(true);
+    setMsg('');
+    try {
+      await api('/eisa/emails/send', {
+        method: 'POST',
+        body: JSON.stringify(compose),
+      });
+      setCompose({ recipient_email: '', subject: '', body: '' });
+      setComposeOpen(false);
+      setMsg('E-posta gönderildi.');
+      await load(data.page);
+    } catch (error) {
+      setMsg(error.message);
+      setBusy(false);
+    }
+  }
+
   return (
     <Page
       title="E-posta Merkezi"
@@ -110,7 +131,7 @@ export function EisaEmailCenterPage() {
     >
       <Msg text={msg} />
       <div className="actions" style={{ marginBottom: 18 }} role="tablist" aria-label="E-posta bölümleri">
-        <button type="button" className={section === 'sent' ? '' : 'secondary'} onClick={() => setSection('sent')} role="tab" aria-selected={section === 'sent'}>
+        <button type="button" className={section === 'sent' ? '' : 'secondary'} onClick={() => { setSection('sent'); setComposeOpen(false); }} role="tab" aria-selected={section === 'sent'}>
           <Mail size={16} /> Gönderilenler
         </button>
         <button type="button" className={section === 'inbox' ? '' : 'secondary'} onClick={() => setSection('inbox')} role="tab" aria-selected={section === 'inbox'}>
@@ -154,6 +175,29 @@ export function EisaEmailCenterPage() {
       {section === 'inbox' && <EisaInboxPanel active refreshToken={inboxRefreshToken} />}
 
       {section === 'sent' && <>
+      <div className="actions" style={{ justifyContent: 'flex-end', marginBottom: 18 }}>
+        <button type="button" onClick={() => setComposeOpen((value) => !value)} disabled={busy}>
+          <Send size={16} /> {composeOpen ? 'Yeni E-postayı Kapat' : 'Yeni E-posta'}
+        </button>
+      </div>
+      {composeOpen && (
+        <form className="panel form-grid" onSubmit={sendComposed} style={{ marginBottom: 18 }}>
+          <h3 style={{ margin: 0 }}>Yeni E-posta</h3>
+          <label className="field"><span>Alıcı</span>
+            <input type="email" required value={compose.recipient_email} onChange={(event) => setCompose({ ...compose, recipient_email: event.target.value })} placeholder="alici@ornek.com" />
+          </label>
+          <label className="field"><span>Konu</span>
+            <input required maxLength={255} value={compose.subject} onChange={(event) => setCompose({ ...compose, subject: event.target.value })} />
+          </label>
+          <label className="field"><span>Mesaj</span>
+            <textarea required rows={8} value={compose.body} onChange={(event) => setCompose({ ...compose, body: event.target.value })} />
+          </label>
+          <div className="form-actions">
+            <button type="submit" disabled={busy}><Send size={16} /> Gönder</button>
+            <button type="button" className="secondary" onClick={() => setComposeOpen(false)} disabled={busy}>Vazgeç</button>
+          </div>
+        </form>
+      )}
       <form className="form-grid" onSubmit={submit} style={{ marginBottom: 18 }}>
         <label className="field" style={{ minWidth: 220 }}>
           <span>Arama</span>

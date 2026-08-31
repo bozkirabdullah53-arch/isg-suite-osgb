@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     inbound_mail_folder: str = "INBOX"
     inbound_mail_sync_limit: int = 50
     inbound_mail_timeout_sec: int = 20
+    smtp_use_ssl: bool = False
     backup_dir: str = "./backups"
     backup_encryption_key: str | None = None
     # Production enable_backup_crypto_for_production secret_key kullanır; acil kapatma:
