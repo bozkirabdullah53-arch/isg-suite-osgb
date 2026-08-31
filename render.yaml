@@ -40,7 +40,7 @@ services:
       - key: SMTP_FROM_EMAIL
         value: info@isgsuite.tr
       - key: SMTP_USE_TLS
-        value: "true"
+        value: "false"
       - key: SMTP_USE_SSL
         value: "false"
       # EİSA Global gelen kutusu — kullanıcı adı ve parola Render Secret olarak eklenir.
