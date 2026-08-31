@@ -168,11 +168,26 @@ class Settings(BaseSettings):
     field_ai_prompt_version: str = "field-visual-v1"
     field_ai_timeout_seconds: int = 60
     field_ai_data_processing_allowed: bool = False
+    # Contextual in-app OHS assistant. External provider settings are optional;
+    # verified local guidance continues to work without an AI key.
+    contextual_assistant_enabled: bool = True
+    contextual_assistant_force_off: bool = False
+    contextual_assistant_api_url: str | None = None
+    contextual_assistant_api_key: str | None = None
+    contextual_assistant_model: str = ""
+    contextual_assistant_timeout_seconds: int = 30
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
 
 settings = Settings()
+
+
+def contextual_assistant_active() -> bool:
+    """Fail-closed rollout switch for the optional assistant overlay."""
+    if bool(getattr(settings, "contextual_assistant_force_off", False)):
+        return False
+    return bool(getattr(settings, "contextual_assistant_enabled", True))
 
 
 def remote_basic_ohs_direct_object_playback_active() -> bool:

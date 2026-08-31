@@ -82,6 +82,7 @@ import {EisaEmailCenterPage} from './eisa_email_center';
 import './styles.css';
 import './theme-modern.css';
 import './emergency_plan_premium.css';
+import {ContextualAssistant} from './contextual_assistant';
 import {useUiTheme} from './theme';
 import {
   createNavigationState,
@@ -1392,16 +1393,18 @@ function Employees({user}){
   return <Page title="Personel Yönetimi" action={<div className="actions">
     <button type="button" className="secondary" disabled={busy||!selectedCompanyId} onClick={exportEmployees}><Download/>Excel Rapor</button>
     {!isWorkplaceManager&&<button type="button" className="secondary" disabled={busy} onClick={()=>downloadFile('/employees/import-template.xlsx','personel-aktarim-sablonu.xlsx')}><Download/>Şablon İndir</button>}
-    {!isWorkplaceManager&&<label className="button secondary" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>}
+     {!isWorkplaceManager&&<label className="button secondary" data-ai-action="employee.import_excel" style={{opacity:(busy||!selectedCompanyId)?0.55:1,pointerEvents:(busy||!selectedCompanyId)?'none':'auto'}}><Upload/>Excel Yükle<input type="file" accept=".xlsx" hidden disabled={busy||!selectedCompanyId} onChange={upload}/></label>}
     {!isWorkplaceManager&&<button type="button" className="secondary" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={deleteSelected}>Seçilenleri Pasife Al ({selectedIds.length})</button>}
     {!isWorkplaceManager&&<button type="button" className="danger" disabled={busy||!selectedCompanyId||!selectedIds.length} onClick={purgeSelected}>Seçilenleri Kalıcı Sil ({selectedIds.length})</button>}
-    <button disabled={busy||!selectedCompanyId} onClick={openCreate}><Plus/>Personel Ekle</button>
+     <button data-ai-action="employee.create" disabled={busy||!selectedCompanyId} onClick={openCreate}><Plus/>Personel Ekle</button>
   </div>}>
     <div className="form-grid" style={{gridTemplateColumns:'minmax(280px,1fr) minmax(220px,.7fr)',marginBottom:14}}>
+      <div data-ai-action="employee.company_select">
       <Select label="İşyeri Seç (zorunlu)" required value={selectedCompanyId} onChange={e=>chooseCompany(e.currentTarget.value)}>
         <option value="">Personel işlemi yapılacak işyerini seçiniz</option>
         {companies.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
       </Select>
+      </div>
       <Select label="Şube (isteğe bağlı)" value={selectedBranchId} disabled={!selectedCompanyId} onChange={e=>setSelectedBranchId(e.target.value)}>
         <option value="">Tüm işyeri / şube seçilmedi</option>
         {selectedBranches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
@@ -2716,6 +2719,7 @@ function App(){
               <button
                 type="button"
                 data-nav={id}
+                data-ai-action={`navigation.${id}`}
                 aria-current={active===id?'page':undefined}
                 className={active===id?'active':''}
                 onClick={()=>goModule(id)}
@@ -2732,6 +2736,7 @@ function App(){
               key={id}
               type="button"
               data-nav={id}
+               data-ai-action={`navigation.${id}`}
               aria-current={active===id?'page':undefined}
               className={active===id?'active':''}
               onClick={()=>goModule(id)}
@@ -2840,6 +2845,7 @@ function App(){
           </ErrorBoundary>
         </main>
       </section>
+      <ContextualAssistant active={active} user={user} allowedModules={allowed} onNavigate={goModule}/>
     </div>
   );
 }

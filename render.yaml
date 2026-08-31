@@ -207,6 +207,18 @@ services:
       # backend mevcut VISION_API_KEY değerini kullanır; gerçek sır commit edilmez.
       - key: FIELD_AI_API_KEY
         sync: false
+      - key: CONTEXTUAL_ASSISTANT_ENABLED
+        value: "true"
+      - key: CONTEXTUAL_ASSISTANT_FORCE_OFF
+        value: "false"
+      - key: CONTEXTUAL_ASSISTANT_API_URL
+        sync: false
+      - key: CONTEXTUAL_ASSISTANT_API_KEY
+        sync: false
+      - key: CONTEXTUAL_ASSISTANT_MODEL
+        sync: false
+      - key: CONTEXTUAL_ASSISTANT_TIMEOUT_SECONDS
+        value: "30"
 
   - type: cron
     name: isg-suite-api-warmup

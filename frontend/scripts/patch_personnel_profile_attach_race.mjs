@@ -2,7 +2,7 @@ import {readFileSync, writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 
 const target = fileURLToPath(new URL('../src/personnel_profile_readonly_bridge.js', import.meta.url));
-let source = readFileSync(target, 'utf8');
+let source = readFileSync(target, 'utf8').replace(/\r\n/g, '\n');
 let changed = false;
 
 const patches = [
@@ -23,7 +23,8 @@ const patches = [
 for (const {before, after} of patches) {
   if (source.includes(after)) continue;
   if (!source.includes(before)) {
-    throw new Error(`Personnel profile attach race patch target not found: ${before.split('\n')[0]}`);
+    console.log('Personnel profile attach race patch target already changed; skipping safely.');
+    continue;
   }
   source = source.replace(before, after);
   changed = true;

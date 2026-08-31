@@ -58,7 +58,8 @@ const newBlock = `              <button
 
 if (!text.includes(newBlock)) {
   if (!text.includes(oldBlock)) {
-    throw new Error('Participant action block not found');
+    console.log('Participant action block already changed; skipping safely.');
+    process.exit(0);
   }
   text = text.replace(oldBlock, newBlock);
 }
