@@ -1,6 +1,6 @@
 import enum
 from datetime import date, datetime
-from sqlalchemy import Boolean, CheckConstraint, DDL, Date, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, event
+from sqlalchemy import Boolean, CheckConstraint, DDL, Date, DateTime, Enum, Float, ForeignKey, Integer, LargeBinary, Numeric, String, Text, UniqueConstraint, event
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
@@ -803,6 +803,29 @@ class EmailInboxMessage(Base):
     received_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     synced_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    attachments: Mapped[list["EmailInboxAttachment"]] = relationship(
+        "EmailInboxAttachment",
+        back_populates="message",
+        cascade="all, delete-orphan",
+    )
+
+
+class EmailInboxAttachment(Base):
+    """Gelen kutusu eki; yetkili kullanıcıya yalnızca ilişkili mesajdan sunulur."""
+
+    __tablename__ = "email_inbox_attachments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    message_id: Mapped[int] = mapped_column(
+        ForeignKey("email_inbox_messages.id", ondelete="CASCADE"), index=True
+    )
+    filename: Mapped[str] = mapped_column(String(255), default="ek-dosya")
+    content_type: Mapped[str] = mapped_column(String(160), default="application/octet-stream")
+    content_id: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    size_bytes: Mapped[int] = mapped_column(Integer, default=0)
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    message: Mapped["EmailInboxMessage"] = relationship("EmailInboxMessage", back_populates="attachments")
 
 
 class EisaPlatformSetting(Base):

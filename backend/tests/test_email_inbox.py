@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base
-from app.models.entities import EmailInboxMessage
+from app.models.entities import EmailInboxAttachment, EmailInboxMessage
 from app.services import inbound_mail
 
 
@@ -29,6 +29,16 @@ def _raw_message(subject: str = "Deneme gelen posta") -> bytes:
     message["Subject"] = subject
     message["Message-ID"] = "<test-message@example.com>"
     message.set_content("Gelen e-postanın güvenli metin içeriği.")
+    return message.as_bytes()
+
+
+def _raw_message_with_image() -> bytes:
+    message = EmailMessage()
+    message["From"] = "Abdullah <abdullah@example.com>"
+    message["To"] = "info@isgsuite.tr"
+    message["Subject"] = "Görselli mesaj"
+    message.set_content("Afiş ektedir.")
+    message.add_attachment(b"fake-png", maintype="image", subtype="png", filename="afis.png")
     return message.as_bytes()
 
 
@@ -70,6 +80,10 @@ class _FlakyImap(_FakeImap):
         type(self).attempts += 1
         if type(self).attempts == 1:
             raise EOFError("transient server EOF")
+
+
+class _ImageImap(_FakeImap):
+    raw = _raw_message_with_image()
 
 
 def test_inbound_mail_sync_is_idempotent_and_keeps_body_as_text(monkeypatch):
@@ -149,3 +163,24 @@ def test_deleted_inbox_message_is_not_restored_by_sync(monkeypatch):
         assert result["new_count"] == 0
         assert row.deleted_at is not None
         assert db.scalar(select(EmailInboxMessage).where(EmailInboxMessage.deleted_at.is_(None))) is None
+
+
+def test_inbox_sync_persists_image_attachment(monkeypatch):
+    SessionLocal = _session_factory()
+    monkeypatch.setattr(inbound_mail.settings, "inbound_mail_enabled", True)
+    monkeypatch.setattr(inbound_mail.settings, "inbound_mail_host", "imap.example.com")
+    monkeypatch.setattr(inbound_mail.settings, "inbound_mail_username", "info@isgsuite.tr")
+    monkeypatch.setattr(inbound_mail.settings, "inbound_mail_password", "secret")
+    monkeypatch.setattr(inbound_mail.imaplib, "IMAP4_SSL", _ImageImap)
+
+    with SessionLocal() as db:
+        result = inbound_mail.sync_inbox(db)
+        row = db.scalar(select(EmailInboxMessage))
+        attachment = db.scalar(select(EmailInboxAttachment))
+
+        assert result["new_count"] == 1
+        assert row is not None
+        assert row.has_attachments is True
+        assert attachment is not None
+        assert attachment.filename == "afis.png"
+        assert attachment.content == b"fake-png"

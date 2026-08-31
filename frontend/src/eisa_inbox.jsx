@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Inbox, Search, Trash2 } from 'lucide-react';
-import { api } from './api';
+import { API_URL, api } from './api';
+import { getAccessToken } from './auth_session';
 import { AppModal } from './ui_modal';
 import { Msg, RefreshButton } from './eisa';
 
@@ -111,6 +112,34 @@ export function EisaInboxPanel({ active, refreshToken = 0 }) {
         }));
       }
     } catch (error) {
+      setMsg(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openAttachment(attachment) {
+    const popup = window.open('', '_blank', 'noopener,noreferrer');
+    setBusy(true);
+    try {
+      const token = getAccessToken();
+      const response = await fetch(`${API_URL}${attachment.url}`, {
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error('Ek dosya açılamadı.');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      if (popup) popup.location.href = url;
+      else {
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = attachment.filename || 'ek-dosya';
+        anchor.click();
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      popup?.close();
       setMsg(error.message);
     } finally {
       setBusy(false);
@@ -237,11 +266,29 @@ export function EisaInboxPanel({ active, refreshToken = 0 }) {
             <p><strong>Alıcı:</strong> {detail.recipients || '—'}</p>
             <p><strong>Tarih:</strong> {dateLabel(detail.received_at || detail.synced_at)}</p>
             <p><strong>Ek:</strong> {detail.has_attachments ? `${detail.attachment_count} adet` : 'Yok'}</p>
+            {detail.attachments?.length ? (
+              <div>
+                <strong>Ek dosyalar:</strong>
+                <div className="actions" style={{ marginTop: 8, flexWrap: 'wrap' }}>
+                  {detail.attachments.map((attachment) => (
+                    <button
+                      key={attachment.id}
+                      type="button"
+                      className="secondary mini"
+                      onClick={() => void openAttachment(attachment)}
+                      disabled={busy}
+                    >
+                      {attachment.filename} ({Math.ceil((attachment.size_bytes || 0) / 1024)} KB)
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: '55vh', overflowY: 'auto', padding: 14, borderRadius: 10, background: '#f8fafc' }}>
               {detail.body_text || 'Bu e-postada okunabilir metin bulunamadı.'}
             </div>
             <p className="muted" style={{ marginBottom: 0 }}>
-              Güvenlik için HTML içeriği ve ek dosyalar bu ilk sürümde çalıştırılmaz; yalnızca güvenli metin görünür.
+              Güvenlik için HTML içeriği çalıştırılmaz; ekler yetkili oturum üzerinden açılır.
             </p>
             <div className="form-actions">
               <button type="button" className="secondary" disabled={busy} onClick={() => void deleteMessages([detail.id])}>

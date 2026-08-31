@@ -1,4 +1,4 @@
-"""IMAP gelen kutusu senkronizasyonu.
+"""IMAP/POP3 gelen kutusu senkronizasyonu.
 
 Bu servis yalnızca açıkça etkinleştirildiğinde çalışır. Mesajlar IMAP UID ile
 idempotent biçimde alınır; uzak sunucudaki mesajlar okunmuş olarak işaretlenmez
@@ -23,11 +23,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.entities import EmailInboxMessage
+from app.models.entities import EmailInboxAttachment, EmailInboxMessage
 
 logger = logging.getLogger(__name__)
 
 _MAX_BODY_CHARS = 200_000
+_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
 
 class _VisibleTextParser(HTMLParser):
@@ -94,27 +95,38 @@ def _html_to_text(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def _body_and_attachments(message) -> tuple[str, int]:
+def _body_and_attachments(message) -> tuple[str, list[dict[str, object]]]:
     plain: list[str] = []
     html: list[str] = []
-    attachment_count = 0
+    attachments: list[dict[str, object]] = []
     parts = message.walk() if message.is_multipart() else [message]
     for part in parts:
         if part.is_multipart():
             continue
         disposition = (part.get_content_disposition() or "").casefold()
-        if disposition == "attachment":
-            attachment_count += 1
-            continue
         content_type = (part.get_content_type() or "").casefold()
-        if content_type == "text/plain":
+        if content_type == "text/plain" and disposition != "attachment":
             plain.append(_decode_payload(part))
-        elif content_type == "text/html":
+        elif content_type == "text/html" and disposition != "attachment":
             html.append(_decode_payload(part))
+        elif content_type.startswith("image/") or disposition == "attachment":
+            payload = part.get_payload(decode=True)
+            if not isinstance(payload, bytes) or not payload or len(payload) > _MAX_ATTACHMENT_BYTES:
+                continue
+            filename = part.get_filename() or ""
+            if not filename:
+                extension = content_type.split("/", 1)[-1].replace("jpeg", "jpg")
+                filename = f"ek-{len(attachments) + 1}.{extension or 'bin'}"
+            attachments.append({
+                "filename": _decode_value(filename, limit=255),
+                "content_type": content_type[:160] or "application/octet-stream",
+                "content_id": _decode_value(part.get("Content-ID"), limit=500) or None,
+                "content": payload,
+            })
     body = "\n\n".join(item.strip() for item in plain if item.strip())
     if not body:
         body = _html_to_text("\n".join(html))
-    return body[:_MAX_BODY_CHARS], attachment_count
+    return body[:_MAX_BODY_CHARS], attachments
 
 
 def _received_at(message) -> datetime | None:
@@ -139,7 +151,7 @@ def _message_payload(raw: bytes, *, uid: int, mailbox: str) -> dict[str, object]
         for name, address in recipient_pairs
         if address
     )[:2000]
-    body_text, attachment_count = _body_and_attachments(message)
+    body_text, attachments = _body_and_attachments(message)
     return {
         "mailbox": mailbox,
         "imap_uid": uid,
@@ -149,9 +161,10 @@ def _message_payload(raw: bytes, *, uid: int, mailbox: str) -> dict[str, object]
         "recipients": recipients or None,
         "subject": _decode_value(message.get("subject"), limit=500),
         "body_text": body_text,
-        "has_attachments": attachment_count > 0,
-        "attachment_count": attachment_count,
+        "has_attachments": bool(attachments),
+        "attachment_count": len(attachments),
         "received_at": _received_at(message),
+        "attachments": attachments,
     }
 
 
@@ -238,7 +251,14 @@ def _sync_pop3_inbox(db: Session, result: dict[str, object], mailbox: str) -> di
             _, lines, _ = client.retr(number)
             raw = b"\n".join(lines)
             if raw:
-                db.add(EmailInboxMessage(**_message_payload(raw, uid=uid, mailbox=mailbox)))
+                payload = _message_payload(raw, uid=uid, mailbox=mailbox)
+                attachments = payload.pop("attachments", [])
+                message_row = EmailInboxMessage(**payload)
+                db.add(message_row)
+                db.flush()
+                for attachment in attachments:
+                    content = attachment.pop("content")
+                    db.add(EmailInboxAttachment(message=message_row, content=content, size_bytes=len(content), **attachment))
                 result["new_count"] = int(result["new_count"]) + 1
         db.commit()
         return result
@@ -309,7 +329,14 @@ def sync_inbox(db: Session) -> dict[str, object]:
             )
             if not raw:
                 continue
-            db.add(EmailInboxMessage(**_message_payload(raw, uid=uid, mailbox=mailbox)))
+            payload = _message_payload(raw, uid=uid, mailbox=mailbox)
+            attachments = payload.pop("attachments", [])
+            message_row = EmailInboxMessage(**payload)
+            db.add(message_row)
+            db.flush()
+            for attachment in attachments:
+                content = attachment.pop("content")
+                db.add(EmailInboxAttachment(message=message_row, content=content, size_bytes=len(content), **attachment))
             result["new_count"] = int(result["new_count"]) + 1
         db.commit()
     except Exception as exc:  # noqa: BLE001 — gelen kutusu API'yi düşürmemeli

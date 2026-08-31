@@ -4,13 +4,15 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
+from sqlalchemy.orm import joinedload
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_roles
 from app.core.database import get_db
-from app.models.entities import EmailDeliveryLog, EmailInboxMessage, User, UserRole
+from app.models.entities import EmailDeliveryLog, EmailInboxAttachment, EmailInboxMessage, User, UserRole
 from app.services.inbound_mail import inbound_mail_status, sync_inbox
 from app.services.mailer import email_provider_name, send_email, smtp_configured
 
@@ -82,6 +84,7 @@ def _row_payload(row: EmailDeliveryLog) -> dict:
 
 
 def _inbox_payload(row: EmailInboxMessage, *, include_body: bool = True) -> dict:
+    attachments = list(row.attachments or [])
     payload = {
         "id": row.id,
         "mailbox": row.mailbox,
@@ -96,6 +99,16 @@ def _inbox_payload(row: EmailInboxMessage, *, include_body: bool = True) -> dict
         "is_read": row.is_read,
         "received_at": row.received_at,
         "synced_at": row.synced_at,
+        "attachments": [
+            {
+                "id": item.id,
+                "filename": item.filename,
+                "content_type": item.content_type,
+                "size_bytes": item.size_bytes,
+                "url": f"/api/v1/eisa/emails/inbox/{row.id}/attachments/{item.id}",
+            }
+            for item in attachments
+        ],
     }
     if include_body:
         payload["body_text"] = row.body_text
@@ -256,10 +269,40 @@ def get_email_inbox_message(
     db: Session = Depends(get_db),
     _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
 ):
-    row = db.get(EmailInboxMessage, message_id)
+    row = db.execute(
+        select(EmailInboxMessage)
+        .options(joinedload(EmailInboxMessage.attachments))
+        .where(EmailInboxMessage.id == message_id)
+    ).unique().scalar_one_or_none()
     if not row or row.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Gelen e-posta bulunamadı.")
     return _inbox_payload(row)
+
+
+@router.get("/inbox/{message_id}/attachments/{attachment_id}")
+def get_email_inbox_attachment(
+    message_id: int,
+    attachment_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    row = db.scalar(
+        select(EmailInboxAttachment).where(
+            EmailInboxAttachment.id == attachment_id,
+            EmailInboxAttachment.message_id == message_id,
+        )
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="E-posta eki bulunamadı.")
+    safe_filename = row.filename.replace('"', "'").replace("\r", "").replace("\n", "")
+    return Response(
+        content=row.content,
+        media_type=row.content_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{safe_filename}"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.delete("/inbox/{message_id}")
