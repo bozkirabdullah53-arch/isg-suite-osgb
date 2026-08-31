@@ -1,40 +1,49 @@
-/* Dashboard-specific navy/blue palette override.
-   Scope is intentionally narrow so semantic status colours elsewhere stay unchanged. */
+/* Dashboard-specific OSGB palette. Scope is intentionally narrow. */
 
-/* Duty dashboard hero: replace teal/green gradient with navy -> royal blue. */
+/* Duty dashboard hero follows the product's light surface + teal identity. */
 .welcome:has(+ .page-title) {
-  background: linear-gradient(120deg, #08254f 0%, #0b2f6f 58%, #173f97 100%) !important;
+  background: linear-gradient(120deg, #0b6970 0%, #0f8f86 58%, #16a39a 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 18px 44px rgba(15, 118, 110, .2) !important;
 }
+
+.welcome:has(+ .page-title) h3,
+.welcome:has(+ .page-title) p,
+.welcome:has(+ .page-title) svg { color: #ffffff !important; }
 
 /* Professional monthly-capacity panel: remove teal top accent. */
 section.panel:has(.capacity-metric-used) {
   border-top-color: #1d4ed8 !important;
 }
 
-/* Approved dashboard mockup uses one coherent blue family for both capacity cards. */
+/* Used time is a warning/consumption signal; remaining time is available capacity. */
 .capacity-metric-used {
-  --capacity-accent: #1d4ed8 !important;
+  --capacity-accent: #b91c1c !important;
+  --capacity-border: #fecaca !important;
+  --capacity-bg: linear-gradient(135deg, #ffffff 0%, #fff7f7 100%) !important;
 }
 
 .capacity-metric-remaining {
-  --capacity-accent: #1e40af !important;
+  --capacity-accent: #166534 !important;
+  --capacity-border: #bbf7d0 !important;
+  --capacity-bg: linear-gradient(135deg, #ffffff 0%, #f4fff8 100%) !important;
 }
 
-/* Keep capacity ornaments/progress treatments visibly blue even if component defaults change. */
+/* Keep the whole signal, including the progress treatment, semantically colored. */
 .capacity-metric-used .capacity-metric-dot,
 .capacity-metric-used .capacity-metric-meter > span {
-  background-color: #1d4ed8 !important;
+  background-color: #b91c1c !important;
 }
 
 .capacity-metric-remaining .capacity-metric-dot,
 .capacity-metric-remaining .capacity-metric-meter > span {
-  background-color: #1e40af !important;
+  background-color: #166534 !important;
 }
 
 .capacity-metric-used .capacity-metric-percent {
-  color: #1d4ed8 !important;
+  color: #b91c1c !important;
 }
 
 .capacity-metric-remaining .capacity-metric-percent {
-  color: #1e40af !important;
+  color: #166534 !important;
 }
