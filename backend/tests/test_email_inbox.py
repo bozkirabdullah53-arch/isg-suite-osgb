@@ -63,6 +63,15 @@ class _FakeImap:
         return "BYE", [b"logged out"]
 
 
+class _FlakyImap(_FakeImap):
+    attempts = 0
+
+    def __init__(self, *_args, **_kwargs):
+        type(self).attempts += 1
+        if type(self).attempts == 1:
+            raise EOFError("transient server EOF")
+
+
 def test_inbound_mail_sync_is_idempotent_and_keeps_body_as_text(monkeypatch):
     SessionLocal = _session_factory()
     monkeypatch.setattr(inbound_mail.settings, "inbound_mail_enabled", True)
@@ -98,3 +107,20 @@ def test_inbound_mail_is_fail_closed_without_secret(monkeypatch):
         assert result["connected"] is False
         assert result["new_count"] == 0
         assert result["error"]
+
+
+def test_inbound_mail_retries_transient_connection_eof(monkeypatch):
+    SessionLocal = _session_factory()
+    _FlakyImap.attempts = 0
+    monkeypatch.setattr(inbound_mail.settings, "inbound_mail_enabled", True)
+    monkeypatch.setattr(inbound_mail.settings, "inbound_mail_host", "imap.example.com")
+    monkeypatch.setattr(inbound_mail.settings, "inbound_mail_username", "info@isgsuite.tr")
+    monkeypatch.setattr(inbound_mail.settings, "inbound_mail_password", "secret")
+    monkeypatch.setattr(inbound_mail.imaplib, "IMAP4_SSL", _FlakyImap)
+
+    with SessionLocal() as db:
+        result = inbound_mail.sync_inbox(db)
+
+        assert result["connected"] is True
+        assert result["new_count"] == 1
+        assert _FlakyImap.attempts == 2

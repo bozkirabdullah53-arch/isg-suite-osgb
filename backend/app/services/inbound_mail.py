@@ -15,6 +15,7 @@ from html.parser import HTMLParser
 import imaplib
 import logging
 import re
+import time
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -150,6 +151,39 @@ def _message_payload(raw: bytes, *, uid: int, mailbox: str) -> dict[str, object]
     }
 
 
+def _connect_imap_with_retry():
+    """Connect and authenticate despite transient MailEnable EOF responses."""
+    last_error: Exception | None = None
+    for attempt in range(3):
+        client = None
+        try:
+            if settings.inbound_mail_use_ssl:
+                client = imaplib.IMAP4_SSL(
+                    settings.inbound_mail_host,
+                    int(settings.inbound_mail_port),
+                    timeout=int(settings.inbound_mail_timeout_sec),
+                )
+            else:
+                client = imaplib.IMAP4(
+                    settings.inbound_mail_host,
+                    int(settings.inbound_mail_port),
+                    timeout=int(settings.inbound_mail_timeout_sec),
+                )
+                client.starttls()
+            client.login(settings.inbound_mail_username, settings.inbound_mail_password)
+            return client
+        except (OSError, EOFError, imaplib.IMAP4.error) as exc:
+            last_error = exc
+            if client is not None:
+                try:
+                    client.logout()
+                except Exception:  # noqa: BLE001 — retry cleanup
+                    pass
+            if attempt < 2:
+                time.sleep(0.75 * (attempt + 1))
+    raise RuntimeError("IMAP sunucusuna bağlanılamadı.") from last_error
+
+
 def sync_inbox(db: Session) -> dict[str, object]:
     """Fetch recent INBOX messages and persist only messages not seen before."""
     status = inbound_mail_status()
@@ -167,20 +201,7 @@ def sync_inbox(db: Session) -> dict[str, object]:
     mailbox = (settings.inbound_mail_folder or "INBOX").strip() or "INBOX"
     client = None
     try:
-        if settings.inbound_mail_use_ssl:
-            client = imaplib.IMAP4_SSL(
-                settings.inbound_mail_host,
-                int(settings.inbound_mail_port),
-                timeout=int(settings.inbound_mail_timeout_sec),
-            )
-        else:
-            client = imaplib.IMAP4(
-                settings.inbound_mail_host,
-                int(settings.inbound_mail_port),
-                timeout=int(settings.inbound_mail_timeout_sec),
-            )
-            client.starttls()
-        client.login(settings.inbound_mail_username, settings.inbound_mail_password)
+        client = _connect_imap_with_retry()
         code, _ = client.select(mailbox, readonly=True)
         if code != "OK":
             raise RuntimeError("Gelen kutusu açılamadı.")
