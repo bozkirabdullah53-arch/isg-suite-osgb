@@ -288,6 +288,10 @@ services:
         value: 20.18.0
       - key: VITE_API_URL
         value: /api/v1
+      - key: VITE_CONTEXTUAL_ASSISTANT_ENABLED
+        value: "true"
+      - key: VITE_CONTEXTUAL_ASSISTANT_FORCE_OFF
+        value: "false"
     routes:
       - type: rewrite
         source: /api/*

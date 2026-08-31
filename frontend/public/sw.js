@@ -1,4 +1,4 @@
-const CACHE = "isg-suite-v8";
+const CACHE = "isg-suite-v9-assistant";
 // "/" cache'leme — eski index.html / eski bundle'a kilitlenmeyi önler
 const CORE = [
   "/manifest.webmanifest",
