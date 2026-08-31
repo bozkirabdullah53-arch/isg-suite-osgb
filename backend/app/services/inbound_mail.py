@@ -14,6 +14,8 @@ from email.utils import getaddresses, parsedate_to_datetime
 from html.parser import HTMLParser
 import imaplib
 import logging
+import hashlib
+import poplib
 import re
 import time
 
@@ -48,12 +50,14 @@ def inbound_mail_configured() -> bool:
 
 
 def inbound_mail_status() -> dict[str, object]:
+    protocol = (settings.inbound_mail_protocol or "imap").strip().lower()
     return {
         "enabled": bool(getattr(settings, "inbound_mail_enabled", False)),
         "configured": inbound_mail_configured(),
         "host": (settings.inbound_mail_host or "").strip() or None,
         "port": int(settings.inbound_mail_port),
         "folder": (settings.inbound_mail_folder or "INBOX").strip() or "INBOX",
+        "protocol": protocol,
     }
 
 
@@ -184,6 +188,67 @@ def _connect_imap_with_retry():
     raise RuntimeError("IMAP sunucusuna bağlanılamadı.") from last_error
 
 
+def _connect_pop3_with_retry():
+    """Connect and authenticate to POP3 after transient MailEnable failures."""
+    last_error: Exception | None = None
+    for attempt in range(3):
+        client = None
+        try:
+            if settings.inbound_mail_use_ssl:
+                client = poplib.POP3_SSL(settings.inbound_mail_host, int(settings.inbound_mail_port), timeout=int(settings.inbound_mail_timeout_sec))
+            else:
+                client = poplib.POP3(settings.inbound_mail_host, int(settings.inbound_mail_port), timeout=int(settings.inbound_mail_timeout_sec))
+            client.user(settings.inbound_mail_username)
+            client.pass_(settings.inbound_mail_password)
+            return client
+        except (OSError, EOFError, poplib.error_proto) as exc:
+            last_error = exc
+            if client is not None:
+                try:
+                    client.quit()
+                except Exception:  # noqa: BLE001
+                    pass
+            if attempt < 2:
+                time.sleep(0.75 * (attempt + 1))
+    raise RuntimeError("POP3 sunucusuna bağlanılamadı.") from last_error
+
+
+def _pop3_uid_number(uidl: bytes) -> int:
+    return int(hashlib.sha256(uidl).hexdigest()[:7], 16)
+
+
+def _sync_pop3_inbox(db: Session, result: dict[str, object], mailbox: str) -> dict[str, object]:
+    client = None
+    try:
+        client = _connect_pop3_with_retry()
+        _, uidl_rows, _ = client.uidl()
+        limit = max(1, min(int(settings.inbound_mail_sync_limit or 50), 100))
+        entries = []
+        for row in uidl_rows[-limit:]:
+            number_raw, uidl = row.split(maxsplit=1)
+            entries.append((int(number_raw), _pop3_uid_number(uidl)))
+        result["checked_count"] = len(entries)
+        result["connected"] = True
+        for number, uid in reversed(entries):
+            existing = db.scalar(select(EmailInboxMessage).where(EmailInboxMessage.mailbox == mailbox, EmailInboxMessage.imap_uid == uid))
+            if existing is not None:
+                existing.synced_at = datetime.utcnow()
+                continue
+            _, lines, _ = client.retr(number)
+            raw = b"\n".join(lines)
+            if raw:
+                db.add(EmailInboxMessage(**_message_payload(raw, uid=uid, mailbox=mailbox)))
+                result["new_count"] = int(result["new_count"]) + 1
+        db.commit()
+        return result
+    finally:
+        if client is not None:
+            try:
+                client.quit()
+            except (OSError, poplib.error_proto):
+                pass
+
+
 def sync_inbox(db: Session) -> dict[str, object]:
     """Fetch recent INBOX messages and persist only messages not seen before."""
     status = inbound_mail_status()
@@ -199,6 +264,14 @@ def sync_inbox(db: Session) -> dict[str, object]:
         return result
 
     mailbox = (settings.inbound_mail_folder or "INBOX").strip() or "INBOX"
+    if (settings.inbound_mail_protocol or "imap").strip().lower() == "pop3":
+        try:
+            return _sync_pop3_inbox(db, result, mailbox)
+        except Exception as exc:  # noqa: BLE001
+            db.rollback()
+            result["error"] = f"{type(exc).__name__}: {str(exc)[:220]}"
+            logger.warning("POP3 gelen kutusu senkronizasyonu başarısız: %s", exc)
+            return result
     client = None
     try:
         client = _connect_imap_with_retry()

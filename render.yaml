@@ -47,15 +47,17 @@ services:
       - key: INBOUND_MAIL_ENABLED
         value: "true"
       - key: INBOUND_MAIL_HOST
-        value: imap.mailmatik.com
+        value: pop3.isgsuite.tr
       - key: INBOUND_MAIL_PORT
-        value: "993"
+        value: "110"
       - key: INBOUND_MAIL_USERNAME
         value: info@isgsuite.tr
       - key: INBOUND_MAIL_PASSWORD
         sync: false
       - key: INBOUND_MAIL_USE_SSL
-        value: "true"
+        value: "false"
+      - key: INBOUND_MAIL_PROTOCOL
+        value: pop3
       - key: INBOUND_MAIL_FOLDER
         value: INBOX
       - key: INBOUND_MAIL_SYNC_LIMIT
