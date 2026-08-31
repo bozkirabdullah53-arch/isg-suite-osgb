@@ -232,7 +232,8 @@ def _sync_pop3_inbox(db: Session, result: dict[str, object], mailbox: str) -> di
         for number, uid in reversed(entries):
             existing = db.scalar(select(EmailInboxMessage).where(EmailInboxMessage.mailbox == mailbox, EmailInboxMessage.imap_uid == uid))
             if existing is not None:
-                existing.synced_at = datetime.utcnow()
+                if existing.deleted_at is None:
+                    existing.synced_at = datetime.utcnow()
                 continue
             _, lines, _ = client.retr(number)
             raw = b"\n".join(lines)
@@ -295,7 +296,8 @@ def sync_inbox(db: Session) -> dict[str, object]:
                 )
             )
             if existing is not None:
-                existing.synced_at = datetime.utcnow()
+                if existing.deleted_at is None:
+                    existing.synced_at = datetime.utcnow()
                 continue
             code, fetched = client.uid("fetch", str(uid), "(BODY.PEEK[])")
             if code != "OK":

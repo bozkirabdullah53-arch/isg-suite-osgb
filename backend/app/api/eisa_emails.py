@@ -24,6 +24,14 @@ class EmailSendRequest(BaseModel):
     body: str = Field(min_length=1, max_length=100_000)
 
 
+class InboxBulkDeleteRequest(BaseModel):
+    ids: list[int] = Field(min_length=1, max_length=200)
+
+
+def _visible_inbox():
+    return EmailInboxMessage.deleted_at.is_(None)
+
+
 def _filters(
     *,
     q: str | None = None,
@@ -112,12 +120,14 @@ def email_summary(
         "provider": email_provider_name(),
         "smtp_configured": smtp_configured(),
         "inbound": inbound_mail_status(),
-        "inbox_total": int(db.scalar(select(func.count()).select_from(EmailInboxMessage)) or 0),
+        "inbox_total": int(
+            db.scalar(select(func.count()).select_from(EmailInboxMessage).where(_visible_inbox())) or 0
+        ),
         "inbox_unread": int(
             db.scalar(
                 select(func.count())
                 .select_from(EmailInboxMessage)
-                .where(EmailInboxMessage.is_read.is_(False))
+                .where(_visible_inbox(), EmailInboxMessage.is_read.is_(False))
             )
             or 0
         ),
@@ -203,7 +213,7 @@ def list_email_inbox(
     db: Session = Depends(get_db),
     _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
 ):
-    conditions = []
+    conditions = [_visible_inbox()]
     needle = (q or "").strip().casefold()
     if needle:
         pattern = f"%{needle}%"
@@ -247,9 +257,47 @@ def get_email_inbox_message(
     _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
 ):
     row = db.get(EmailInboxMessage, message_id)
-    if not row:
+    if not row or row.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Gelen e-posta bulunamadı.")
     return _inbox_payload(row)
+
+
+@router.delete("/inbox/{message_id}")
+def delete_email_inbox_message(
+    message_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    row = db.get(EmailInboxMessage, message_id)
+    if not row or row.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Gelen e-posta bulunamadı.")
+    row.deleted_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True, "deleted": 1, "ids": [row.id]}
+
+
+@router.post("/inbox/delete")
+def delete_email_inbox_messages(
+    payload: InboxBulkDeleteRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
+):
+    ids = sorted({int(item) for item in payload.ids if int(item) > 0})
+    if not ids:
+        raise HTTPException(status_code=422, detail="Silinecek e-posta seçilmedi.")
+    rows = list(
+        db.scalars(
+            select(EmailInboxMessage).where(
+                EmailInboxMessage.id.in_(ids),
+                _visible_inbox(),
+            )
+        ).all()
+    )
+    now = datetime.utcnow()
+    for row in rows:
+        row.deleted_at = now
+    db.commit()
+    return {"ok": True, "deleted": len(rows), "ids": [row.id for row in rows]}
 
 
 @router.patch("/inbox/{message_id}/read")
@@ -260,7 +308,7 @@ def mark_email_inbox_message_read(
     _: User = Depends(require_roles(UserRole.GLOBAL_ADMIN)),
 ):
     row = db.get(EmailInboxMessage, message_id)
-    if not row:
+    if not row or row.deleted_at is not None:
         raise HTTPException(status_code=404, detail="Gelen e-posta bulunamadı.")
     row.is_read = is_read
     db.commit()

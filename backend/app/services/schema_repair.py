@@ -657,3 +657,9 @@ def repair_schema() -> None:
                 )
             )
 
+    if "email_inbox_messages" in _tables():
+        cols = _columns("email_inbox_messages")
+        if "deleted_at" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE email_inbox_messages ADD COLUMN deleted_at TIMESTAMP NULL"))
+

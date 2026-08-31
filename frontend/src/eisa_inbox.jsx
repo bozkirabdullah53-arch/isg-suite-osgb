@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Inbox, Search } from 'lucide-react';
+import { Inbox, Search, Trash2 } from 'lucide-react';
 import { api } from './api';
 import { AppModal } from './ui_modal';
 import { Msg, RefreshButton } from './eisa';
@@ -24,6 +24,7 @@ export function EisaInboxPanel({ active, refreshToken = 0 }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [detail, setDetail] = useState(null);
+  const [selected, setSelected] = useState([]);
 
   async function load(page = 1, nextFilters = applied) {
     setBusy(true);
@@ -39,6 +40,7 @@ export function EisaInboxPanel({ active, refreshToken = 0 }) {
       ]);
       setSummary(nextSummary);
       setData(nextData);
+      setSelected((current) => current.filter((id) => nextData.items.some((item) => item.id === id)));
       if (sync?.error) setMsg(sync.error);
     } catch (error) {
       setMsg(error.message);
@@ -63,6 +65,37 @@ export function EisaInboxPanel({ active, refreshToken = 0 }) {
     setFilters(next);
     setApplied(next);
     void load(1, next);
+  }
+
+  function toggleSelected(id) {
+    setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function toggleAll() {
+    const ids = data.items.map((item) => item.id);
+    setSelected((current) => current.length === ids.length ? [] : ids);
+  }
+
+  async function deleteMessages(ids) {
+    const unique = [...new Set(ids)];
+    if (!unique.length) return;
+    const label = unique.length === 1 ? 'Bu e-posta silinsin mi?' : `${unique.length} e-posta silinsin mi?`;
+    if (!window.confirm(`${label}\n\nListeden kalkar; senkron tekrar getirmez.`)) return;
+    setBusy(true);
+    setMsg('');
+    try {
+      const result = unique.length === 1
+        ? await api(`/eisa/emails/inbox/${unique[0]}`, { method: 'DELETE' })
+        : await api('/eisa/emails/inbox/delete', { method: 'POST', body: JSON.stringify({ ids: unique }) });
+      setDetail((current) => (current && unique.includes(current.id) ? null : current));
+      setSelected((current) => current.filter((id) => !unique.includes(id)));
+      await load(data.page);
+      setMsg(`${result.deleted || unique.length} e-posta silindi.`);
+    } catch (error) {
+      setMsg(error.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function openMessage(row) {
@@ -128,6 +161,9 @@ export function EisaInboxPanel({ active, refreshToken = 0 }) {
         <div className="form-actions" style={{ alignSelf: 'end', display: 'flex', gap: 8 }}>
           <button type="submit" disabled={busy}><Search size={16} /> Filtrele</button>
           <button type="button" className="secondary" disabled={busy} onClick={resetFilters}>Temizle</button>
+          <button type="button" className="secondary" disabled={busy || !selected.length} onClick={() => void deleteMessages(selected)}>
+            <Trash2 size={16} /> Seçilenleri sil{selected.length ? ` (${selected.length})` : ''}
+          </button>
         </div>
       </form>
 
@@ -135,6 +171,14 @@ export function EisaInboxPanel({ active, refreshToken = 0 }) {
         <table>
           <thead>
             <tr>
+              <th>
+                <input
+                  type="checkbox"
+                  aria-label="Sayfadaki tüm e-postaları seç"
+                  checked={Boolean(data.items.length) && selected.length === data.items.length}
+                  onChange={toggleAll}
+                />
+              </th>
               <th>Durum</th>
               <th>Tarih</th>
               <th>Gönderen</th>
@@ -146,6 +190,14 @@ export function EisaInboxPanel({ active, refreshToken = 0 }) {
           <tbody>
             {data.items.length ? data.items.map((row) => (
               <tr key={row.id}>
+                <td>
+                  <input
+                    type="checkbox"
+                    aria-label={`${row.subject || 'E-posta'} seç`}
+                    checked={selected.includes(row.id)}
+                    onChange={() => toggleSelected(row.id)}
+                  />
+                </td>
                 <td>{row.is_read ? 'Okundu' : <strong>Yeni</strong>}</td>
                 <td>{dateLabel(row.received_at || row.synced_at)}</td>
                 <td>
@@ -154,10 +206,17 @@ export function EisaInboxPanel({ active, refreshToken = 0 }) {
                 </td>
                 <td>{row.subject || '(Konu yok)'}</td>
                 <td>{row.has_attachments ? `${row.attachment_count} ek` : '—'}</td>
-                <td><button type="button" className="secondary mini" onClick={() => void openMessage(row)}>Aç</button></td>
+                <td>
+                  <div className="actions">
+                    <button type="button" className="secondary mini" onClick={() => void openMessage(row)}>Aç</button>
+                    <button type="button" className="secondary mini" disabled={busy} onClick={() => void deleteMessages([row.id])}>
+                      <Trash2 size={14} /> Sil
+                    </button>
+                  </div>
+                </td>
               </tr>
             )) : (
-              <tr><td colSpan={6} className="empty">Gelen e-posta bulunamadı.</td></tr>
+              <tr><td colSpan={7} className="empty">Gelen e-posta bulunamadı.</td></tr>
             )}
           </tbody>
         </table>
@@ -184,6 +243,11 @@ export function EisaInboxPanel({ active, refreshToken = 0 }) {
             <p className="muted" style={{ marginBottom: 0 }}>
               Güvenlik için HTML içeriği ve ek dosyalar bu ilk sürümde çalıştırılmaz; yalnızca güvenli metin görünür.
             </p>
+            <div className="form-actions">
+              <button type="button" className="secondary" disabled={busy} onClick={() => void deleteMessages([detail.id])}>
+                <Trash2 size={16} /> Bu e-postayı sil
+              </button>
+            </div>
           </div>
         </AppModal>
       )}

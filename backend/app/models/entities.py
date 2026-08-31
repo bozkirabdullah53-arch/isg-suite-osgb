@@ -799,6 +799,7 @@ class EmailInboxMessage(Base):
     has_attachments: Mapped[bool] = mapped_column(Boolean, default=False)
     attachment_count: Mapped[int] = mapped_column(Integer, default=0)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     received_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     synced_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

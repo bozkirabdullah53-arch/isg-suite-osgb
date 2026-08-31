@@ -17,6 +17,7 @@ from app.models.entities import (
     EisaNotificationTarget,
     EisaPlatformNotification,
     EmailDeliveryLog,
+    EmailInboxMessage,
     User,
     UserRole,
 )
@@ -160,6 +161,70 @@ def test_email_center_is_global_admin_only(monkeypatch):
 
             current.role = UserRole.SAFETY_SPECIALIST
             forbidden = client.get("/api/v1/eisa/emails/summary")
+            assert forbidden.status_code == 403
+
+
+def test_inbox_single_and_bulk_delete_hide_messages():
+    SessionLocal = _session_factory()
+    with SessionLocal() as db:
+        first = EmailInboxMessage(
+            mailbox="INBOX",
+            imap_uid=11,
+            sender_email="a@example.com",
+            subject="Birinci",
+            body_text="A",
+        )
+        second = EmailInboxMessage(
+            mailbox="INBOX",
+            imap_uid=12,
+            sender_email="b@example.com",
+            subject="Ikinci",
+            body_text="B",
+        )
+        third = EmailInboxMessage(
+            mailbox="INBOX",
+            imap_uid=13,
+            sender_email="c@example.com",
+            subject="Ucuncu",
+            body_text="C",
+        )
+        db.add_all([first, second, third])
+        db.commit()
+        first_id, second_id, third_id = first.id, second.id, third.id
+
+        app = FastAPI()
+        app.include_router(router, prefix="/api/v1")
+
+        def override_db():
+            yield db
+
+        current = User(id=1, email="global@example.com", full_name="Global", role=UserRole.GLOBAL_ADMIN)
+        app.dependency_overrides[get_db] = override_db
+        app.dependency_overrides[get_current_user] = lambda: current
+
+        with TestClient(app) as client:
+            listed = client.get("/api/v1/eisa/emails/inbox")
+            assert listed.status_code == 200
+            assert listed.json()["total"] == 3
+
+            single = client.delete(f"/api/v1/eisa/emails/inbox/{first_id}")
+            assert single.status_code == 200
+            assert single.json()["deleted"] == 1
+
+            bulk = client.post("/api/v1/eisa/emails/inbox/delete", json={"ids": [second_id, third_id]})
+            assert bulk.status_code == 200
+            assert bulk.json()["deleted"] == 2
+
+            remaining = client.get("/api/v1/eisa/emails/inbox")
+            assert remaining.status_code == 200
+            assert remaining.json()["total"] == 0
+            assert remaining.json()["items"] == []
+
+            missing = client.get(f"/api/v1/eisa/emails/inbox/{first_id}")
+            assert missing.status_code == 404
+
+            current.role = UserRole.SAFETY_SPECIALIST
+            forbidden = client.delete(f"/api/v1/eisa/emails/inbox/{first_id}")
             assert forbidden.status_code == 403
 
 

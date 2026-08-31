@@ -124,3 +124,28 @@ def test_inbound_mail_retries_transient_connection_eof(monkeypatch):
         assert result["connected"] is True
         assert result["new_count"] == 1
         assert _FlakyImap.attempts == 2
+
+
+def test_deleted_inbox_message_is_not_restored_by_sync(monkeypatch):
+    from datetime import datetime
+
+    SessionLocal = _session_factory()
+    monkeypatch.setattr(inbound_mail.settings, "inbound_mail_enabled", True)
+    monkeypatch.setattr(inbound_mail.settings, "inbound_mail_host", "imap.example.com")
+    monkeypatch.setattr(inbound_mail.settings, "inbound_mail_username", "info@isgsuite.tr")
+    monkeypatch.setattr(inbound_mail.settings, "inbound_mail_password", "secret")
+    monkeypatch.setattr(inbound_mail.imaplib, "IMAP4_SSL", _FakeImap)
+
+    with SessionLocal() as db:
+        inbound_mail.sync_inbox(db)
+        row = db.scalar(select(EmailInboxMessage))
+        assert row is not None
+        row.deleted_at = datetime.utcnow()
+        db.commit()
+
+        result = inbound_mail.sync_inbox(db)
+        db.refresh(row)
+
+        assert result["new_count"] == 0
+        assert row.deleted_at is not None
+        assert db.scalar(select(EmailInboxMessage).where(EmailInboxMessage.deleted_at.is_(None))) is None
