@@ -39,6 +39,10 @@ class VisionDofSuggestion(BaseModel):
 
 class VisionHazard(BaseModel):
     category: str
+    hazard_key: str | None = None
+    hazard_code: str | None = None
+    hazard_name: str | None = None
+    detail_category: str | None = None
     severity: int
     confidence: float = 0.0
     bbox: list[float] = []

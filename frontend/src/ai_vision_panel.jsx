@@ -18,8 +18,22 @@ function sevColor(s) {
   return SEV_STYLE[s]?.fg || '#475569';
 }
 
-function formatTL(n) {
-  return (n ?? 0).toLocaleString('tr-TR');
+function formatPenalty(value) {
+  if (!value) return '';
+  if (value.display) return String(value.display);
+  const min = Number(value.min_tl);
+  const max = Number(value.max_tl);
+  if (Number.isFinite(min) && Number.isFinite(max)) {
+    return min.toLocaleString('tr-TR') + ' – ' + max.toLocaleString('tr-TR') + ' TL';
+  }
+  return 'İhlal niteliği ve güncel idari para cezası tarife doğrulaması bekliyor.';
+}
+
+function visionProviderLabel(provider) {
+  if (provider === 'api') return 'Vision API';
+  if (provider === 'yolo') return 'YOLO';
+  if (provider === 'unavailable') return 'Görsel AI kullanılamıyor';
+  return 'Heuristik';
 }
 
 // Fotoğraf üzerinde bounding box çizimi (normalize 0-1 koordinat → px)
@@ -281,7 +295,7 @@ function SahaAiTab({user, risks, reportCompanyId, effectiveCompanyId}) {
                   background: '#ede9fe', color: '#6d28d9', borderRadius: 99, padding: '2px 8px',
                   fontSize: 11, fontWeight: 700,
                 }}>
-                  {analysis.provider === 'api' ? 'Vision API' : analysis.provider === 'yolo' ? 'YOLO' : 'Heuristik'}
+                  {visionProviderLabel(analysis.provider)}
                 </span>
               </div>
               <p style={{margin: 0, fontSize: 13, color: '#374151'}}>{analysis.summary}</p>
@@ -302,7 +316,9 @@ function SahaAiTab({user, risks, reportCompanyId, effectiveCompanyId}) {
                       background: st.bg, color: st.fg, borderRadius: 8, padding: '4px 10px',
                       fontSize: 12, fontWeight: 700,
                     }}>{sevLabel(sev)}</span>
-                    <strong style={{fontSize: 15}}>{h.category}</strong>
+                    <strong style={{fontSize: 15}}>{h.hazard_name || h.category}</strong>
+                    {h.detail_category && <span style={{fontSize: 12, color: '#64748b'}}>· {h.detail_category}</span>}
+                    {h.hazard_code && <span style={{fontSize: 11, color: '#94a3b8'}}>· {h.hazard_code}</span>}
                     <span style={{fontSize: 12, color: '#64748b'}}>
                       Güven: %{Math.round((h.confidence || 0) * 100)}
                     </span>
@@ -328,7 +344,7 @@ function SahaAiTab({user, risks, reportCompanyId, effectiveCompanyId}) {
                       <div style={{fontSize: 11, color: '#9ca3af', marginBottom: 6}}>Standart: {h.mevzuat.standart}</div>
                       {h.mevzuat.ceza_riski && (
                         <div style={{fontSize: 12, color: '#991b1b'}}>
-                          Ceza riski: {formatTL(h.mevzuat.ceza_riski.min_tl)} – {formatTL(h.mevzuat.ceza_riski.max_tl)} TL
+                          Ceza değerlendirmesi: {formatPenalty(h.mevzuat.ceza_riski)}
                         </div>
                       )}
                     </div>

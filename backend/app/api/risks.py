@@ -2420,7 +2420,7 @@ async def vision_analyze_stateless(
     yalnızca istemciye gösterilir. Uzman, kaydı kaydettikten sonra isterse
     /media/{id}/analyze ile kalıcı analiz oluşturabilir.
 
-    Feature flag kapalıysa 501; hata durumunda heuristic-fallback döner.
+    Feature flag kapalıysa 501; API hatasında sahte görsel bulgu üretilmez.
     photo_tags: JSON dizi ["electrical","fire_hot_work"] veya virgüllü kodlar.
     """
     if not vision_analysis_active():
@@ -2472,7 +2472,8 @@ def analyze_risk_media(
     etiket/checklist akışı korunur. Açıkken fotoğraf + risk bağlamı analiz
     edilir; tehlikeler, bbox, ilgili mevzuat, DÖF önerileri ve termin döner.
 
-    Hata durumunda heuristic-fallback döner; mevcut akış asla bozulmaz.
+    Hata durumunda boş ve kullanılabilir-değil sonucu döner; mevcut manuel akış
+    asla bozulmaz.
     """
     if not vision_analysis_active():
         raise HTTPException(501, "Saha AI analizi şu anda kapalı (VISION_ANALYSIS_ENABLED).")

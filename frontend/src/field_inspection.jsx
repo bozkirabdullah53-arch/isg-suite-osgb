@@ -57,6 +57,24 @@ function numberOrNull(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function formatVisionPenalty(value) {
+  if (!value) return "";
+  if (value.display) return String(value.display);
+  const min = Number(value.min_tl);
+  const max = Number(value.max_tl);
+  if (Number.isFinite(min) && Number.isFinite(max)) {
+    return `${min.toLocaleString("tr-TR")}–${max.toLocaleString("tr-TR")} TL`;
+  }
+  return "İhlal niteliği ve güncel idari para cezası tarife doğrulaması bekliyor.";
+}
+
+function visionProviderLabel(provider) {
+  if (provider === "api") return "Vision API";
+  if (provider === "yolo") return "YOLO";
+  if (provider === "unavailable") return "Görsel AI kullanılamıyor";
+  return "Heuristik";
+}
+
 function makeClientReference() {
   try {
     if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -250,6 +268,7 @@ function LegacyFieldInspectionPage({user}) {
   const [dlBusy, setDlBusy] = useState(null);
   const [aiHint, setAiHint] = useState(null);
   const [aiBusy, setAiBusy] = useState(false);
+  const [pendingVisionHazardCode, setPendingVisionHazardCode] = useState("");
   const aiTimer = useRef(null);
   const aiSeq = useRef(0);
 
@@ -625,14 +644,22 @@ function LegacyFieldInspectionPage({user}) {
       return;
     }
     let active = true;
+    function adoptHazards(rows) {
+      setHazards(rows);
+      if (!pendingVisionHazardCode) return;
+      const match = rows.find((row) => String(row.code || "").toUpperCase() === String(pendingVisionHazardCode).toUpperCase());
+      if (!match) return;
+      setForm((current) => ({...current, hazard_id: String(match.id)}));
+      setPendingVisionHazardCode("");
+    }
     async function loadHazards() {
       const cached = readOfflineReference(scope);
       const cachedRows = cached?.hazards_by_category?.[String(categoryId)];
-      if (Array.isArray(cachedRows)) setHazards(cachedRows);
+      if (Array.isArray(cachedRows)) adoptHazards(cachedRows);
       try {
         const rows = listFrom(await api(`/risks/hazards?category_id=${categoryId}`));
         if (!active) return;
-        setHazards(rows);
+        adoptHazards(rows);
         const previous = readOfflineReference(scope) || {};
         saveOfflineReference(scope, {
           ...previous,
@@ -649,7 +676,7 @@ function LegacyFieldInspectionPage({user}) {
     return () => {
       active = false;
     };
-  }, [form.category_id, scope.user_id, scope.osgb_id]);
+  }, [form.category_id, pendingVisionHazardCode, scope.user_id, scope.osgb_id]);
 
   useEffect(() => {
     const onOnline = () => {
@@ -774,21 +801,28 @@ function LegacyFieldInspectionPage({user}) {
     const top = [...analysis.hazards].sort((a, b) => (b.severity || 0) - (a.severity || 0))[0];
     // Kategori eşleştir
     const matchedCat = categories.find((c) => c.name === top.category);
+    const matchedHazard = hazards.find((row) => top.hazard_code && String(row.code || "").toUpperCase() === String(top.hazard_code).toUpperCase());
+    setPendingVisionHazardCode(top.hazard_code || "");
     // Tutanak metni: tespit + mevzuat + tedbirler
     const lines = [];
     lines.push(`TESPİT: ${top.observed || top.note || "Saha gözlemi"}`);
-    lines.push(`TEHLİKE: ${top.category} (şiddet ${top.severity}/5, güven %${Math.round((top.confidence || 0) * 100)})`);
+    lines.push(`TEHLİKE: ${top.hazard_name || top.category}${top.detail_category ? ` [${top.detail_category}]` : ""} (şiddet ${top.severity}/5, güven %${Math.round((top.confidence || 0) * 100)})`);
     if (top.mevzuat) {
       lines.push(`İLGİLİ MEVZUAT: ${top.mevzuat.kanun || ""} ${top.mevzuat.madde || ""}`.trim());
       if (top.mevzuat.yonetmelik) lines.push(`  Yönetmelik: ${top.mevzuat.yonetmelik}`);
       if (top.mevzuat.standart) lines.push(`  Standart: ${top.mevzuat.standart}`);
-      if (top.mevzuat.ceza_riski) lines.push(`  Ceza riski: ${top.mevzuat.ceza_riski.min_tl?.toLocaleString('tr-TR')}–${top.mevzuat.ceza_riski.max_tl?.toLocaleString('tr-TR')} TL`);
+      const penaltyText = formatVisionPenalty(top.mevzuat.ceza_riski);
+      if (penaltyText) lines.push(`  Ceza değerlendirmesi: ${penaltyText}`);
     }
     // Alınacak tedbirler (tüm tehlikelerin DÖF önerileri)
     const tedbirler = [];
+    const seenDofs = new Set();
     for (const h of analysis.hazards) {
       for (const d of (h.dof_suggestions || [])) {
-        tedbirler.push(`• ${d.description}`);
+        const description = String(d.description || "").trim();
+        if (!description || seenDofs.has(description)) continue;
+        seenDofs.add(description);
+        tedbirler.push(`• ${description}`);
       }
     }
     if (tedbirler.length) lines.push(`ALINACAK TEDBİRLER:\n${tedbirler.join("\n")}`);
@@ -799,6 +833,7 @@ function LegacyFieldInspectionPage({user}) {
       summary: lines.join("\n"),
       severity: top.severity || current.severity,
       category_id: matchedCat ? String(matchedCat.id) : current.category_id,
+      hazard_id: matchedHazard ? String(matchedHazard.id) : matchedCat && String(matchedCat.id) !== String(current.category_id) ? "" : current.hazard_id,
       action: tedbirler.length ? tedbirler.join("\n") : current.action,
       term_date: top.termin?.term_date || current.term_date,
     }));
@@ -823,6 +858,7 @@ function LegacyFieldInspectionPage({user}) {
     setVisionResults({});
     setVisionErr({});
     setSelectedPhotoTags([]);
+    setPendingVisionHazardCode("");
     setGps({lat: null, lng: null, accuracy: null, captured_at: null});
   }
 
@@ -1177,7 +1213,7 @@ function LegacyFieldInspectionPage({user}) {
                             <div className="field-vision-summary">
                               <ScanLine size={13} />
                               <strong>{va.summary || "Analiz tamam"}</strong>
-                              <span className="field-vision-provider">{va.provider === "api" ? "Vision API" : va.provider === "yolo" ? "YOLO" : "Heuristik"}</span>
+                              <span className="field-vision-provider">{visionProviderLabel(va.provider)}</span>
                             </div>
 
                             {/* Tutanak: mevzuata göre tespitler */}
@@ -1187,14 +1223,16 @@ function LegacyFieldInspectionPage({user}) {
                                 <div key={hi} className="field-tutanak-item">
                                   <div className="field-vision-hazard-head">
                                     <span className={`field-vision-sev sev-${h.severity}`}>{h.severity}/5</span>
-                                    <strong>{h.category}</strong>
+                                    <strong>{h.hazard_name || h.category}</strong>
+                                    {h.detail_category && <small> · {h.detail_category}</small>}
+                                    {h.hazard_code && <small> · {h.hazard_code}</small>}
                                     <span className="field-vision-conf">%{Math.round((h.confidence || 0) * 100)}</span>
                                   </div>
                                   {(h.observed || h.note) && <p className="field-vision-obs"><strong>Tespit:</strong> {h.observed || h.note}</p>}
                                   {h.mevzuat && (
                                     <div className="field-tutanak-mevzuat">
                                       <ShieldAlert size={12} /> <strong>Mevzuat:</strong> {h.mevzuat.kanun} {h.mevzuat.madde}
-                                      {h.mevzuat.ceza_riski && <span> · Ceza: {h.mevzuat.ceza_riski.min_tl?.toLocaleString('tr-TR')}–{h.mevzuat.ceza_riski.max_tl?.toLocaleString('tr-TR')} TL</span>}
+                                      {h.mevzuat.ceza_riski && <span> · Ceza: {formatVisionPenalty(h.mevzuat.ceza_riski)}</span>}
                                     </div>
                                   )}
                                   {h.recommended_ppe?.length > 0 && (
@@ -1268,6 +1306,7 @@ function LegacyFieldInspectionPage({user}) {
               <select value={form.category_id} onChange={(event) => {
                 updateField("category_id", event.target.value);
                 updateField("hazard_id", "");
+                setPendingVisionHazardCode("");
               }} disabled={busy}>
                 <option value="">Kategori seçin</option>
                 {categories.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
@@ -1472,14 +1511,16 @@ function LegacyFieldInspectionPage({user}) {
                           <ScanLine size={13} />
                           <strong>{va.summary || "Analiz tamam"}</strong>
                           <span className="field-vision-provider">
-                            {va.provider === "api" ? "Vision API" : va.provider === "yolo" ? "YOLO" : "Heuristik"}
+                            {visionProviderLabel(va.provider)}
                           </span>
                         </div>
                         {(va.hazards || []).map((h, hi) => (
                           <div key={hi} className="field-vision-hazard">
                             <div className="field-vision-hazard-head">
                               <span className={`field-vision-sev sev-${h.severity}`}>{h.severity}/5</span>
-                              <strong>{h.category}</strong>
+                              <strong>{h.hazard_name || h.category}</strong>
+                              {h.detail_category && <small> · {h.detail_category}</small>}
+                              {h.hazard_code && <small> · {h.hazard_code}</small>}
                               <span className="field-vision-conf">%{Math.round((h.confidence || 0) * 100)}</span>
                             </div>
                             {(h.observed || h.note) && <p className="field-vision-obs">{h.observed || h.note}</p>}
@@ -1492,7 +1533,7 @@ function LegacyFieldInspectionPage({user}) {
                               <div className="field-vision-mevzuat">
                                 <ShieldAlert size={12} /> {h.mevzuat.kanun} {h.mevzuat.madde}
                                 {h.mevzuat.ceza_riski && (
-                                  <span> · Ceza: {h.mevzuat.ceza_riski.min_tl?.toLocaleString('tr-TR')}–{h.mevzuat.ceza_riski.max_tl?.toLocaleString('tr-TR')} TL</span>
+                                  <span> · Ceza: {formatVisionPenalty(h.mevzuat.ceza_riski)}</span>
                                 )}
                               </div>
                             )}

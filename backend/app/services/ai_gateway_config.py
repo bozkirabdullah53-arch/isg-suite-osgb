@@ -4,7 +4,7 @@ The extension is additive and fail-safe:
 - until a global admin saves a managed configuration, legacy environment settings stay active;
 - VISION_ANALYSIS_FORCE_OFF is never changed here;
 - API keys are encrypted at rest and are never returned to the browser;
-- the existing ai_vision fallback remains authoritative on provider failures.
+- API provider failures are fail-closed; heuristic mode is explicit.
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ PROVIDER_CATALOG: dict[str, dict[str, Any]] = {
         "base_url": "",
         "default_model": "",
         "requires_api_key": False,
-        "description": "Dış servise veri göndermez; mevcut heuristik fallback kullanılır.",
+        "description": "Dış servise veri göndermez; yalnızca metin ve seçili etiketlerden öneri üretir.",
     },
     "yolo": {
         "label": "Yerel YOLO nesne tespiti",
@@ -56,7 +56,7 @@ PROVIDER_CATALOG: dict[str, dict[str, Any]] = {
     "openai": {
         "label": "OpenAI",
         "base_url": "https://api.openai.com/v1",
-        "default_model": "gpt-4o",
+        "default_model": "openai/gpt-5.4-mini",
         "requires_api_key": True,
         "description": "OpenAI Chat Completions uyumlu görsel analiz.",
     },

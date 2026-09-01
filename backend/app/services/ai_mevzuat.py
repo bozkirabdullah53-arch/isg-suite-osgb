@@ -287,6 +287,134 @@ _KNOWLEDGE: dict[str, dict[str, Any]] = {
 }
 
 
+_VISUAL_HAZARD_PROFILES: dict[str, dict[str, Any]] = {
+    "stair_obstruction": {
+        "category": "Mekanik Riskler",
+        "hazard_code": "MEK-008",
+        "hazard_name": "Merdiven ve geçiş alanında malzeme engeli",
+        "detail_category": "Merdivenler",
+        "mevzuat": {
+            "kanun": "6331 sayılı İSG Kanunu",
+            "madde": "md.4 ve md.10 (aday dayanak; uzman doğrulaması gerekli)",
+            "yonetmelik": "İşyeri Bina ve Eklentilerinde Alınacak Sağlık ve Güvenlik Önlemlerine İlişkin Yönetmelik; İş Sağlığı ve Güvenliği Risk Değerlendirmesi Yönetmeliği",
+            "standart": "Uygulanabilir işyeri standardı ve yerel düzenleme uzman tarafından doğrulanmalı",
+        },
+        "tedbirler": [
+            "Merdiven basamakları ve sahanlıktaki kova, poşet, kutu ve diğer malzemeleri kaldırın; geçiş yüzeyini tamamen açık bırakın.",
+            "Malzemeleri merdiven ve geçiş dışında tanımlı, güvenli depolama alanına alın.",
+            "Merdiven ve sahanlığın açıklığını, takılma ve düşme riskini yerinde kontrol edin.",
+        ],
+        "onleyici_faaliyet": [
+            "Merdiven ve geçiş alanı düzen/temizlik kontrolünü günlük veya vardiya saha kontrol listesine ekleyin.",
+            "Geçici malzeme bırakılmasını önleyen depolama ve sorumluluk kuralı belirleyin.",
+            "Düzeltme sonrası aynı açıdan kontrol fotoğrafı alın ve uzman doğrulamasıyla kapatın.",
+        ],
+        "ceza_riski": {
+            "min_tl": None,
+            "max_tl": None,
+            "display": "İhlal niteliği ve güncel idari para cezası tarife doğrulaması bekliyor.",
+            "status": "needs_expert_review",
+            "basis": "Merdiven/geçiş alanının malzeme ile engellenmesi",
+        },
+    },
+    "housekeeping_obstruction": {
+        "category": "Mekanik Riskler",
+        "hazard_code": "MEK-008",
+        "hazard_name": "Sahanlık ve geçiş alanında düzensizlik",
+        "detail_category": "Genel işyeri düzeni ve temizlik",
+        "mevzuat": {
+            "kanun": "6331 sayılı İSG Kanunu",
+            "madde": "md.4 ve md.10 (aday dayanak; uzman doğrulaması gerekli)",
+            "yonetmelik": "İşyeri Bina ve Eklentilerinde Alınacak Sağlık ve Güvenlik Önlemlerine İlişkin Yönetmelik; İş Sağlığı ve Güvenliği Risk Değerlendirmesi Yönetmeliği",
+            "standart": "Uygulanabilir işyeri standardı ve yerel düzenleme uzman tarafından doğrulanmalı",
+        },
+        "tedbirler": [
+            "Sahanlık ve geçiş alanındaki kova, bidon, kutu, poşet ve diğer dağınık malzemeleri kaldırın.",
+            "Geçiş yolunu açık ve temiz tutun; malzemeleri belirlenmiş depolama alanına taşıyın.",
+            "Alanı yerinde kontrol ederek takılma, kayma ve düşmeye neden olabilecek engelleri giderin.",
+        ],
+        "onleyici_faaliyet": [
+            "Genel işyeri düzeni ve temizlik kontrolünü saha denetim planına ekleyin.",
+            "Malzeme bırakma, toplama ve sorumluluk adımlarını yazılı işyeri kuralına bağlayın.",
+            "Düzeltme sonrası kontrol fotoğrafı alın ve uzman doğrulamasıyla kapatın.",
+        ],
+        "ceza_riski": {
+            "min_tl": None,
+            "max_tl": None,
+            "display": "İhlal niteliği ve güncel idari para cezası tarife doğrulaması bekliyor.",
+            "status": "needs_expert_review",
+            "basis": "Sahanlık/geçiş alanında düzen ve açıklık eksikliği",
+        },
+    },
+}
+
+
+def get_visual_hazard_profile(hazard_key: str | None) -> dict[str, Any] | None:
+    """Görsel bulgu için yalnızca kanıtlanmış, dar kapsamlı profil döndürür."""
+    key = str(hazard_key or "").strip()
+    profile = _VISUAL_HAZARD_PROFILES.get(key)
+    if not profile:
+        return None
+
+    return {
+        **profile,
+        "mevzuat": dict(profile["mevzuat"]),
+        "tedbirler": list(profile["tedbirler"]),
+        "onleyici_faaliyet": list(profile["onleyici_faaliyet"]),
+        "ceza_riski": dict(profile["ceza_riski"]),
+    }
+
+
+def build_visual_report(
+    *,
+    hazard_key: str,
+    text: str | None = None,
+    confidence: float | int | None = None,
+) -> dict[str, Any] | None:
+    """Görsel tehlike kimliğini ilgili mevzuat ve aksiyonlarla eşleştirir.
+
+    Bu paket, geniş kategori mevzuat listesini görsel bulguya otomatik olarak
+    kopyalamaz. Fotoğrafta desteklenen tehlikeye özgü tedbir ve DÖF üretir;
+    ceza tutarını da uzman doğrulaması olmadan sayısallaştırmaz.
+    """
+    profile = get_visual_hazard_profile(hazard_key)
+    if not profile:
+        return None
+
+    try:
+        confidence_value = max(0.0, min(1.0, float(confidence or 0)))
+    except (TypeError, ValueError):
+        confidence_value = 0.0
+
+    observation = (text or "").strip() or profile["hazard_name"]
+    penalty = profile["ceza_riski"]
+    report_lines = [
+        f"TESPİT: {observation}",
+        f"TEHLİKE: {profile['hazard_name']}",
+        f"MEVZUAT: {profile['mevzuat']['kanun']}; {profile['mevzuat']['yonetmelik']}",
+        "TEDBİRLER: " + " | ".join(profile["tedbirler"]),
+        "ÖNLEYİCİ FAALİYETLER: " + " | ".join(profile["onleyici_faaliyet"]),
+        f"CEZA DEĞERLENDİRMESİ: {penalty['display']}",
+    ]
+
+    return {
+        "engine": MEVZUAT_ENGINE,
+        "category": profile["category"],
+        "hazard_key": hazard_key,
+        "hazard_code": profile["hazard_code"],
+        "hazard_name": profile["hazard_name"],
+        "detail_category": profile["detail_category"],
+        "matched": True,
+        "confidence": confidence_value,
+        "mevzuat": profile["mevzuat"],
+        "tedbirler": profile["tedbirler"],
+        "onleyici_faaliyet": profile["onleyici_faaliyet"],
+        "ceza_riski": penalty,
+        "source": "ai_vision_visual_hazard",
+        "report_text": "\n".join(report_lines),
+    }
+
+
 def get_mevzuat_for_category(category_name: str) -> dict[str, Any] | None:
     """Kategori adı → mevzuat bilgisi (kanun, yonetmelik, standart, tedbirler, onleyici)."""
     return _KNOWLEDGE.get(category_name)
