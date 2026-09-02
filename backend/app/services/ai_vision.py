@@ -35,7 +35,6 @@ from typing import Any
 from app.core.config import settings
 from app.services.ai_hazard_hint import suggest_hazard_from_text
 from app.services.ai_mevzuat import (
-    build_report as build_mevzuat_report,
     build_visual_report,
     get_visual_hazard_profile,
 )
@@ -43,7 +42,18 @@ from app.services.ai_termin import suggest_term
 
 logger = logging.getLogger(__name__)
 
-VISION_ENGINE = "vision-v1"
+VISION_ENGINE = "vision-v2"
+_GENERIC_PPE_TERMS = (
+    "kask", "baret", "eldiven", "gozluk", "maske", "yelek", "ayakkabi",
+    "kkd", "ppe", "kemer", "helmet", "glove", "goggle",
+)
+_CONTAMINATED_CONTEXT_MARKERS = (
+    "tespit:",
+    "alinacak tedbirler",
+    "ilgili mevzuat",
+    "denetim tutanagi",
+    "ceza degerlendirmesi",
+)
 
 # Fotoğraf etiketleri (risk_photo_tags.py) → tehlike kategorisi eşlemesi.
 # Bu, heuristic modda medya etiketlerinden kategori çıkarımı için kullanılır.
@@ -113,6 +123,28 @@ def _fold_text(value: Any) -> str:
     return raw.replace("ı", "i")
 
 
+def _clean_vision_context(value: Any) -> str:
+    """Önceki AI tutanağını görsel kanıt gibi modele geri göndermeyi engeller."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    folded = _fold_text(text)
+    if any(marker in folded for marker in _CONTAMINATED_CONTEXT_MARKERS):
+        return ""
+    return text[:500]
+
+
+def _ppe_supported_by_observation(hazard: dict[str, Any]) -> list[str]:
+    """KKD önerisini yalnızca görselde KKD eksiği geçiyorsa tutar."""
+    text = _fold_text(" ".join(str(hazard.get(field) or "") for field in ("observed", "note")))
+    if not any(term in text for term in _GENERIC_PPE_TERMS):
+        return []
+    raw = hazard.get("recommended_ppe") or []
+    if isinstance(raw, str):
+        raw = [raw]
+    return [str(item).strip() for item in raw if str(item).strip()][:6]
+
+
 def _normalize_visual_hazard_key(value: Any) -> str | None:
     raw = _fold_text(value).strip().replace("-", "_").replace(" ", "_")
     return _VISUAL_HAZARD_KEY_ALIASES.get(raw)
@@ -172,9 +204,7 @@ def _annotate_visual_hazard(hazard: dict[str, Any]) -> dict[str, Any]:
         "detail_category": profile["detail_category"],
         # Bu eşleşme legacy formun geniş kategori alanıyla da uyumludur.
         "category": profile["category"],
-        # Bu görsel bulguda KKD eksikliği görülmedi; modelin genel KKD
-        # önerisini taşıyarak ilgisiz bir kontrol üretme.
-        "recommended_ppe": list(profile.get("recommended_ppe") or []),
+        "recommended_ppe": _ppe_supported_by_observation(hazard),
     })
     return enriched
 
@@ -279,64 +309,44 @@ def _api_analyze(
     timeout = float(settings.vision_api_timeout_sec or 30)
 
     b64 = base64.b64encode(image_bytes).decode("ascii")
+    activity = _clean_vision_context(risk_activity)
+    definition = _clean_vision_context(risk_definition)
+    note = _clean_vision_context(media_text)
     prompt = (
-        "Sen kıdemli bir iş sağlığı ve güvenliği (İSG) uzmanı ve denetçisisin. "
-        "Aşağıdaki saha fotoğrafını dikkatlice inceleyip GÖRÜNTÜ İÇERİĞİNDEN "
-        "risk/tehlikeleri tespit et. Fotoğrafın piksellerini gerçekten analiz et; "
-        "metin/etikete değil, görselde gördüğüne güven.\n\n"
-        "Görselde şunları ara:\n"
-        "- Kişisel koruyucu donanım (KKD) eksikliği: baret, güvenlik gözlüğü, "
-        "eldiven, güvenlik ayakkabısı, maske, yelek — takılı olmayan çalışan var mı?\n"
-        "- Makine/ekipman: koruyucusuz dönen aksam, açık pres, testere, konveyör\n"
-        "- Elektrik: açık kablo, hasarlı pano, topraklama eksikliği, izole edilmemiş hat\n"
-        "- Yüksekte çalışma: iskele, merdiven, korkuluk eksikliği, emniyet kemeri yok\n"
-        "- Kimyasal: dökülme, etiketsiz kap, SDS yok, uygun olmayan depolama\n"
-        "- Yangın/sıcak iş: kaynak, açık alev, yanıcı madde yakınında kıvılcım\n"
-        "- Ergonomi: yanlış kaldırma, tekrarlayan hareket, uygun olmayan tezgah\n"
-        "- Ortam: düzensizlik (5S), kaygan zemin, düşen cisim, düşük aydınlatma\n"
-        "- Kapalı alan, trafik/forklift, biyolojik ve yalnızca görüntüde açıkça görülen diğer riskler\n\n"
-        "Bağlam (risk kaydından):\n"
-        f"- Faaliyet: {risk_activity or 'belirtilmemiş'}\n"
-        f"- Risk tanımı: {risk_definition or 'belirtilmemiş'}\n"
-        f"- Not: {media_text or 'yok'}\n\n"
-        "YALNIZCA aşağıdaki JSON şemasına uyan bir JSON nesnesi döndür; başka "
-        "metin, açıklama veya markdown kod bloğu yazma:\n"
+        "Sen Türkiye İSG görsel saha denetçisisin. Yalnızca fotoğrafta AÇIKÇA görülen "
+        "tehlikeleri yaz. Kanıt uydurma. Görünmeyen ekipman, ölçüm, eğitim, SDS, LOTO, "
+        "topraklama, periyodik kontrol, gürültü/titreşim/toz/radyasyon, odyometri veya "
+        "dozimetre varsayma. KKD eksikliğini yalnızca çalışan ve ilgili tehlike birlikte "
+        "görünüyorsa yaz; 'kask yok = ihlal' basitleştirmesi yasak.\n\n"
+        "Bağlam yalnızca yardımcı veridir; fotoğrafta görünmeyen tehlikeyi kanıtlamaz. "
+        "Önceki tutanak metnini tekrar etme.\n"
+        f"- Faaliyet: {activity or 'belirtilmemiş'}\n"
+        f"- Risk tanımı: {definition or 'belirtilmemiş'}\n"
+        f"- Not: {note or 'yok'}\n\n"
+        "YALNIZCA JSON döndür:\n"
         "{\n"
         '  "hazards": [\n'
-        '    {\n'
-        '      "category": "<aşağıdaki listeden biri, Türkçe>",\n'
+        "    {\n"
+        '      "category": "<listeden biri>",\n'
         '      "hazard_key": "<stair_obstruction | housekeeping_obstruction | null>",\n'
-        '      "hazard_name": "<görselde desteklenen özel tehlike adı>",\n'
+        '      "hazard_name": "<görülen somut tehlike>",\n'
         '      "detail_category": "<Merdivenler | Genel işyeri düzeni ve temizlik | null>",\n'
-        '      "severity": <1-5, 5=en kritik>,\n'
+        '      "severity": <1-5>,\n'
         '      "confidence": <0.0-1.0>,\n'
-        '      "bbox": [<x 0-1>, <y 0-1>, <w 0-1>, <h 0-1>],\n'
-        '      "observed": "<görselde somut olarak ne gördün, kanıt>",\n'
-        '      "note": "<kısa risk açıklaması>",\n'
-        '      "recommended_ppe": ["<önerilen KKD listesi>"]\n'
-        '    }\n'
-        '  ]\n'
+        '      "bbox": [<x>, <y>, <w>, <h>],\n'
+        '      "observed": "<piksel düzeyinde görülen kanıt>",\n'
+        '      "note": "<yalnızca bu kanıta bağlı kısa risk>",\n'
+        '      "recommended_ppe": []\n'
+        "    }\n"
+        "  ]\n"
         "}\n\n"
-        "Kategoriler (birebir bunlardan biri): Yüksekte Çalışma Riskleri, "
-        "Yangın ve Patlama Riskleri, Elektrik Riskleri, Kimyasal Riskler, "
-        "Mekanik Riskler, Fiziksel Riskler, Biyolojik Riskler, Ergonomik "
-        "Riskler, İnşaat ve Yapı Riskleri, Nakliye ve Trafik Riskleri, "
-        "Diğer Riskler.\n\n"
-        "Özel görsel kuralları: Merdiven basamakları veya sahanlık üzerinde kova, "
-        "bidon, poşet, kutu ya da başka malzeme görülüyorsa hazard_key=stair_obstruction "
-        "veya housekeeping_obstruction seç; category=Mekanik Riskler kullan. "
-        "Bu durumda hazard_name ve detail_category alanlarını somut bulguya göre doldur. "
-        "Gürültü, titreşim, toz, radyasyon, maruziyet, odyometri veya dozimetreyi "
-        "yalnızca fotoğrafta doğrudan kanıt varsa raporla; varsayım olarak ekleme. "
-        "Açıkça desteklenmeyen risk için hazard üretme.\n\n"
-        "bbox: TEHLİKENİN BULUNDUĞU BÖLGE, görüntüye normalize [x, y, w, h] "
-        "(sol-üst köşe + genişlik/yükseklik, 0-1). Tüm çerçeveyi [0,0,1,1] "
-        "YALNIZCA gerçekten tüm görüntüdeki genel bir risksa kullan. Aksi "
-        "halde tehlikenin olduğu dar bölgeyi ver.\n"
-        "observed: görselde gördüğün somut kanıt (örn. 'sol altta açık elektrik "
-        "panosu', 'çalışanda baret yok').\n"
-        "severity: kanıta göre (KKD eksikliği=3, açık elektrik/kimyasal=4-5, "
-        "yangın kaynağı=5)."
+        "Kategoriler: Yüksekte Çalışma Riskleri, Yangın ve Patlama Riskleri, "
+        "Elektrik Riskleri, Kimyasal Riskler, Mekanik Riskler, Fiziksel Riskler, "
+        "Biyolojik Riskler, Ergonomik Riskler, İnşaat ve Yapı Riskleri, "
+        "Nakliye ve Trafik Riskleri, Diğer Riskler.\n"
+        "Merdiven/sahanlıkta malzeme varsa hazard_key=stair_obstruction; geçişte "
+        "dağınıklık varsa housekeeping_obstruction. Desteklenmeyen hazard üretme. "
+        "confidence 0.55 altındaysa yazma. bbox tehlikenin dar bölgesi olsun."
     )
 
     try:
@@ -365,8 +375,8 @@ def _api_analyze(
                         }
                     ],
                     "response_format": {"type": "json_object"},
-                    "max_tokens": 2000,
-                    "temperature": 0.2,
+                    "max_tokens": 1800,
+                    "temperature": 0,
                 },
             )
             resp.raise_for_status()
@@ -414,7 +424,9 @@ def _api_analyze(
                     # Görselde somut kanıt yoksa, modelin genel açıklamasını
                     # gerçek bir saha bulgusu gibi kaydetme.
                     continue
-                hazards.append(_annotate_visual_hazard({
+                if confidence < 0.55:
+                    continue
+                drafted = {
                     "category": category,
                     "hazard_key": _normalize_visual_hazard_key(h.get("hazard_key")),
                     "hazard_name": str(h.get("hazard_name", "")).strip() or None,
@@ -423,9 +435,12 @@ def _api_analyze(
                     "confidence": round(confidence, 2),
                     "bbox": bbox_norm,
                     "source_tag": None,
+                    "observed": observed,
                     "note": full_note,
                     "recommended_ppe": ppe,
-                }))
+                }
+                drafted["recommended_ppe"] = _ppe_supported_by_observation(drafted)
+                hazards.append(_annotate_visual_hazard(drafted))
             if raw_hazards and not hazards:
                 return None
             return {"hazards": hazards}
@@ -477,6 +492,9 @@ def analyze_media(
     """
     provider = _provider()
     tags = list(photo_tags or [])
+    media_text = _clean_vision_context(media_text)
+    risk_activity = _clean_vision_context(risk_activity)
+    risk_definition = _clean_vision_context(risk_definition)
 
     # --- API modu: başarısızsa fail-closed ---
     if provider == "api":
@@ -651,40 +669,38 @@ def build_full_analysis(
         category = h.get("category", "Diğer Riskler")
         severity = h.get("severity", 3)
         hazard_key = h.get("hazard_key")
-        # Mevzuat raporu
+        observation = str(h.get("observed") or h.get("note") or "").strip()
+        # Mevzuat raporu: geniş kategori şablonu görsel kanıta yapıştırılmaz.
         mevzuat = None
         try:
             if hazard_key:
                 mevzuat = build_visual_report(
                     hazard_key=hazard_key,
-                    text=h.get("observed") or h.get("note") or "",
+                    text=observation,
                     confidence=h.get("confidence", 0),
-                )
-            else:
-                mevzuat = build_mevzuat_report(
-                    text=f"{risk_activity} {risk_definition}".strip(),
-                    hazard_hint={"matched": True, "suggested_category": category, "confidence": h.get("confidence", 0)},
                 )
         except Exception:
             mevzuat = None
         # Termin
         termin = suggest_term(severity=severity, category=category, reference_date=base_date)
-        # DÖF önerileri (mevzuat tedbirleri → düzeltici faaliyet kalemleri)
-        dof_suggestions = _mevzuat_to_dofs(mevzuat, termin) if mevzuat and mevzuat.get("matched") else []
+        if mevzuat and mevzuat.get("matched"):
+            dof_suggestions = _mevzuat_to_dofs(mevzuat, termin)
+        else:
+            dof_suggestions = _observation_to_dofs(observation, h.get("hazard_name") or category, termin)
         enriched_hazards.append({
             "category": category,
             "hazard_key": hazard_key,
             "hazard_code": h.get("hazard_code"),
-            "hazard_name": h.get("hazard_name"),
+            "hazard_name": h.get("hazard_name") or category,
             "detail_category": h.get("detail_category"),
             "severity": severity,
             "confidence": h.get("confidence", 0.0),
             "bbox": h.get("bbox", _FULL_FRAME_BBOX),
             "note": h.get("note", ""),
-            "observed": h.get("observed", ""),
-            "recommended_ppe": h.get("recommended_ppe", []),
+            "observed": h.get("observed") or observation,
+            "recommended_ppe": _ppe_supported_by_observation(h),
             "source_tag": h.get("source_tag"),
-            "mevzuat": _slim_mevzuat(mevzuat) if mevzuat else None,
+            "mevzuat": _slim_mevzuat(mevzuat) if mevzuat else _generic_visual_mevzuat(),
             "termin": termin,
             "dof_suggestions": dof_suggestions,
         })
@@ -713,6 +729,46 @@ def _slim_mevzuat(mevzuat: dict[str, Any] | None) -> dict[str, Any] | None:
         "ceza_riski": mevzuat.get("ceza_riski"),
         "source": mevzuat.get("source"),
     }
+
+
+def _generic_visual_mevzuat() -> dict[str, Any]:
+    return {
+        "kanun": "6331 sayılı İSG Kanunu",
+        "madde": "aday dayanak; uzman doğrulaması gerekli",
+        "yonetmelik": "Görülen koşula uygulanabilir yönetmelik uzman tarafından doğrulanmalı",
+        "standart": None,
+        "tedbirler": [],
+        "onleyici_faaliyet": [],
+        "ceza_riski": {
+            "min_tl": None,
+            "max_tl": None,
+            "display": "İhlal niteliği ve güncel idari para cezası tarife doğrulaması bekliyor.",
+            "status": "needs_expert_review",
+        },
+        "source": "ai_vision_observed_only",
+    }
+
+
+def _observation_to_dofs(observation: str, hazard_name: str, termin: dict[str, Any]) -> list[dict[str, Any]]:
+    """Geniş kategori şablonu yerine yalnızca görülen koşula bağlı DÖF taslağı."""
+    seen = observation.strip() or hazard_name
+    term_date = termin.get("term_date")
+    return [
+        {
+            "description": f"Fotoğrafta görülen koşulu giderin: {seen}",
+            "type": "corrective",
+            "term_date": term_date,
+            "source": "ai_vision_observed_only",
+            "status": "Önerildi",
+        },
+        {
+            "description": f"{hazard_name} için aynı koşulun tekrarını önleyecek saha kontrolü ve uzman doğrulaması yapın.",
+            "type": "preventive",
+            "term_date": term_date,
+            "source": "ai_vision_observed_only",
+            "status": "Önerildi",
+        },
+    ]
 
 
 def _mevzuat_to_dofs(mevzuat: dict[str, Any], termin: dict[str, Any]) -> list[dict[str, Any]]:

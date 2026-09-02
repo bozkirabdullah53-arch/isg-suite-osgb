@@ -755,7 +755,10 @@ function LegacyFieldInspectionPage({user}) {
       fd.append("file", file);
       const deptLabel = selectedDepartment?.name || form.department_name || "Saha";
       fd.append("activity", `Saha denetimi — ${String(form.location || "").trim() || deptLabel}`);
-      fd.append("risk_definition", String(form.summary || "").trim());
+      const summary = String(form.summary || "").trim();
+      if (summary && !/tespit|alinacak tedbir|alınacak tedbir|ilgili mevzuat/i.test(summary)) {
+        fd.append("risk_definition", summary.slice(0, 400));
+      }
       if (selectedPhotoTags.length) fd.append("photo_tags", JSON.stringify({selected: selectedPhotoTags}));
       // api.js retry/refresh karmaşıklığı uzun vision çağrısını bozuyor;
       // doğrudan fetch ile sade, tek denemelik çağrı.

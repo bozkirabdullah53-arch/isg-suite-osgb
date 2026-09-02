@@ -132,3 +132,54 @@ def test_full_analysis_keeps_automatic_mevzuat_dof_and_term(monkeypatch):
     assert "geçiş" in dof_text
     for unrelated in ("gürültü", "titreşim", "radyasyon", "odyometri", "dozimetre"):
         assert unrelated not in dof_text
+
+
+def test_generic_visual_hazard_does_not_dump_category_template(monkeypatch):
+    from app.services import ai_vision
+
+    monkeypatch.setattr(
+        ai_vision,
+        "analyze_media",
+        lambda **_kwargs: {
+            "provider": "api",
+            "hazards": [
+                {
+                    "category": "Elektrik Riskleri",
+                    "severity": 4,
+                    "confidence": 0.9,
+                    "bbox": [0.1, 0.2, 0.3, 0.4],
+                    "observed": "Pano kapağı açık; iletken uçlar görünüyor.",
+                    "note": "Temas riski.",
+                    "recommended_ppe": ["baret", "yelek", "eldiven"],
+                }
+            ],
+            "bbox_annotations": [],
+            "note": "Görüntü, vision API ile analiz edildi.",
+        },
+    )
+
+    result = ai_vision.build_full_analysis(image_bytes=b"panel-photo", reference_date=date(2026, 9, 1))
+    hazard = result["hazards"][0]
+    assert hazard["recommended_ppe"] == []
+    assert hazard["mevzuat"]["source"] == "ai_vision_observed_only"
+    dof_text = " ".join(item["description"] for item in hazard["dof_suggestions"]).casefold()
+    assert "pano kapağı açık" in dof_text
+    for unrelated in ("gürültü", "odyometri", "paratoner", "kaçak akım", "topraklama ölçümü", "baret"):
+        assert unrelated not in dof_text
+
+
+def test_previous_tutanak_text_is_not_sent_as_visual_context():
+    from app.services.ai_vision import _clean_vision_context, _ppe_supported_by_observation
+
+    leftover = "TESPİT: Merdiven üzerinde kova.\nİLGİLİ MEVZUAT: 6331\nALINACAK TEDBİRLER: gürültü ölçümü"
+    assert _clean_vision_context(leftover) == ""
+    assert _clean_vision_context("Depo sevkiyat alanı") == "Depo sevkiyat alanı"
+    assert _ppe_supported_by_observation({
+        "observed": "Pano kapağı açık; iletken uçlar görünüyor.",
+        "note": "Temas riski.",
+        "recommended_ppe": ["baret", "yelek"],
+    }) == []
+    assert _ppe_supported_by_observation({
+        "observed": "Çalışanın baretı yok; baş hizasında asılı yük var.",
+        "recommended_ppe": ["baret"],
+    }) == ["baret"]
