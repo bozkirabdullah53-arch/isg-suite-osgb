@@ -210,3 +210,20 @@ def test_inspection_protocol_has_turkish_overlays_and_no_invented_articles():
     assert protocol["actions"][0]["hierarchy"] == "Mühendislik Kontrolü"
     assert protocol["risk_matrix"][0]["score"] == 12 or protocol["risk_matrix"][0]["score"] >= 8
     assert len(protocol["signatures"]) == 3
+
+
+def test_visible_hazard_is_kept_without_bbox():
+    from app.services.ai_vision import _normalize_provider_hazards
+
+    hazards = _normalize_provider_hazards([
+        {
+            "category": "Elektrik Riskleri",
+            "hazard_name": "Açık elektrik panosu",
+            "observed": "Pano kapağı açık; iletken uçlar görünüyor.",
+            "severity": 4,
+            "confidence": 0.4,
+        }
+    ])
+    assert len(hazards) == 1
+    assert hazards[0]["observed"].startswith("Pano kapağı açık")
+    assert hazards[0]["bbox"] == [0.08, 0.08, 0.84, 0.84]

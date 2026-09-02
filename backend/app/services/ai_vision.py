@@ -421,6 +421,58 @@ def _normalize_bbox(raw: Any) -> list[float] | None:
     return [round(x, 4), round(y, 4), round(width, 4), round(height, 4)]
 
 
+def _normalize_provider_hazards(raw_hazards: list[Any]) -> list[dict[str, Any]]:
+    """Provider JSON'unu kanıtlı, kullanılabilir hazard listesine çevirir."""
+    hazards: list[dict[str, Any]] = []
+    for h in raw_hazards:
+        if not isinstance(h, dict):
+            continue
+        observed = str(h.get("observed") or h.get("note") or h.get("hazard_name") or "").strip()
+        note = str(h.get("note", "")).strip()
+        if observed and note and observed != note:
+            full_note = f"{observed}. {note}"
+        else:
+            full_note = observed or note
+        if not observed:
+            continue
+        bbox_norm = _normalize_bbox(h.get("bbox") or h.get("bounding_box"))
+        if bbox_norm is None:
+            bbox_norm = [0.08, 0.08, 0.84, 0.84]
+        ppe = h.get("recommended_ppe", [])
+        if isinstance(ppe, str):
+            ppe = [ppe]
+        ppe = [str(p) for p in ppe if p] if isinstance(ppe, list) else []
+        category = str(h.get("category", "Diğer Riskler")).strip()
+        if category not in _VISION_CATEGORIES:
+            category = "Diğer Riskler"
+        try:
+            severity = max(1, min(5, int(float(h.get("severity", 3)))))
+        except (TypeError, ValueError):
+            severity = 3
+        try:
+            confidence = max(0.0, min(1.0, float(h.get("confidence", 0.7))))
+        except (TypeError, ValueError):
+            confidence = 0.7
+        if confidence < 0.30:
+            continue
+        drafted = {
+            "category": category,
+            "hazard_key": _normalize_visual_hazard_key(h.get("hazard_key")),
+            "hazard_name": str(h.get("hazard_name", "")).strip() or observed[:220],
+            "detail_category": str(h.get("detail_category", "")).strip() or None,
+            "severity": severity,
+            "confidence": round(confidence, 2),
+            "bbox": bbox_norm,
+            "source_tag": None,
+            "observed": observed,
+            "note": full_note,
+            "recommended_ppe": ppe,
+        }
+        drafted["recommended_ppe"] = _ppe_supported_by_observation(drafted)
+        hazards.append(_annotate_visual_hazard(drafted))
+    return hazards
+
+
 def _provider() -> str:
     raw = (settings.vision_provider or "heuristic").strip().lower()
     if raw not in ("heuristic", "api", "yolo"):
@@ -506,13 +558,17 @@ def _api_analyze(
     definition = _clean_vision_context(risk_definition)
     note = _clean_vision_context(media_text)
     prompt = (
-        "Sen Türkiye İSG görsel saha denetçisisin. Yalnızca fotoğrafta AÇIKÇA görülen "
-        "tehlikeleri yaz. Kanıt uydurma. Görünmeyen ekipman, ölçüm, eğitim, SDS, LOTO, "
-        "topraklama, periyodik kontrol, gürültü/titreşim/toz/radyasyon, odyometri veya "
-        "dozimetre varsayma. KKD eksikliğini yalnızca çalışan ve ilgili tehlike birlikte "
-        "görünüyorsa yaz; 'kask yok = ihlal' basitleştirmesi yasak.\n\n"
-        "Bağlam yalnızca yardımcı veridir; fotoğrafta görünmeyen tehlikeyi kanıtlamaz. "
-        "Önceki tutanak metnini tekrar etme.\n"
+        "Sen Türkiye İSG görsel saha denetçisisin. Fotoğrafı sol-üst, orta, sağ-alt "
+        "dahil tüm bölgelerde tara. Görünen her maddi İSG kusurunu yaz.\n\n"
+        "ARA: korumasız kenar/korkuluk, merdiven/geçişteki malzeme, açık kablo/pano, "
+        "koruyucusuz makine, askıda yük, çalışan-tehlike arayüzü, KKD eksiği (yalnızca "
+        "çalışan ve tehlike birlikte görünüyorsa), kaygan/dağınık zemin, yangın yükü, "
+        "etiketsiz kap, forklift-yaya çatışması, demir donatı, iskele eksiği.\n\n"
+        "UYDURMA: ölçüm (dB/lux/ppm), SDS/LOTO/topraklama/eğitim yokluğu, gürültü/"
+        "titreşim/radyasyon/odyometri, görünmeyen ekipman. 'Kask yok=ihlal' yasak.\n\n"
+        "Boş hazards YALNIZCA fotoğrafta maddi İSG kusuru gerçekten yoksa. Görünen "
+        "kusuru belirsizlik bahanesiyle atlama. Belirsizliği note alanına yaz.\n\n"
+        "Bağlam yardımcı veridir; fotoğrafta görünmeyeni kanıtlamaz.\n"
         f"- Faaliyet: {activity or 'belirtilmemiş'}\n"
         f"- Risk tanımı: {definition or 'belirtilmemiş'}\n"
         f"- Not: {note or 'yok'}\n\n"
@@ -527,7 +583,7 @@ def _api_analyze(
         '      "severity": <1-5>,\n'
         '      "confidence": <0.0-1.0>,\n'
         '      "bbox": [<x>, <y>, <w>, <h>],\n'
-        '      "observed": "<piksel düzeyinde görülen kanıt>",\n'
+        '      "observed": "<fotoğrafta görülen somut kanıt>",\n'
         '      "note": "<yalnızca bu kanıta bağlı kısa risk>",\n'
         '      "recommended_ppe": []\n'
         "    }\n"
@@ -538,8 +594,8 @@ def _api_analyze(
         "Biyolojik Riskler, Ergonomik Riskler, İnşaat ve Yapı Riskleri, "
         "Nakliye ve Trafik Riskleri, Diğer Riskler.\n"
         "Merdiven/sahanlıkta malzeme varsa hazard_key=stair_obstruction; geçişte "
-        "dağınıklık varsa housekeeping_obstruction. Desteklenmeyen hazard üretme. "
-        "confidence 0.55 altındaysa yazma. bbox tehlikenin dar bölgesi olsun."
+        "dağınıklık varsa housekeeping_obstruction. bbox tehlikenin bölgesi olsun; "
+        "emin değilsen yaklaşık kutu ver, boş bırakma."
     )
 
     try:
@@ -568,7 +624,7 @@ def _api_analyze(
                         }
                     ],
                     "response_format": {"type": "json_object"},
-                    "max_tokens": 1800,
+                    "max_tokens": 2500,
                     "temperature": 0,
                 },
             )
@@ -581,62 +637,7 @@ def _api_analyze(
             raw_hazards = parsed.get("hazards", [])
             if not isinstance(raw_hazards, list):
                 return None
-            hazards = []
-            for h in raw_hazards:
-                if not isinstance(h, dict):
-                    continue
-                bbox_norm = _normalize_bbox(h.get("bbox"))
-                # Bölgesi olmayan veya geçersiz kutu, görsel kanıtı
-                # güvenilir biçimde gösteremediği için bulguya alınmaz.
-                if bbox_norm is None:
-                    continue
-                observed = str(h.get("observed", "")).strip()
-                note = str(h.get("note", "")).strip()
-                if observed and note:
-                    full_note = f"{observed}. {note}"
-                elif observed:
-                    full_note = observed
-                else:
-                    full_note = note
-                ppe = h.get("recommended_ppe", [])
-                if isinstance(ppe, str):
-                    ppe = [ppe]
-                ppe = [str(p) for p in ppe if p] if isinstance(ppe, list) else []
-                category = str(h.get("category", "Diğer Riskler")).strip()
-                if category not in _VISION_CATEGORIES:
-                    category = "Diğer Riskler"
-                try:
-                    severity = max(1, min(5, int(float(h.get("severity", 3)))))
-                except (TypeError, ValueError):
-                    severity = 3
-                try:
-                    confidence = max(0.0, min(1.0, float(h.get("confidence", 0.6))))
-                except (TypeError, ValueError):
-                    confidence = 0.0
-                if not observed:
-                    # Görselde somut kanıt yoksa, modelin genel açıklamasını
-                    # gerçek bir saha bulgusu gibi kaydetme.
-                    continue
-                if confidence < 0.55:
-                    continue
-                drafted = {
-                    "category": category,
-                    "hazard_key": _normalize_visual_hazard_key(h.get("hazard_key")),
-                    "hazard_name": str(h.get("hazard_name", "")).strip() or None,
-                    "detail_category": str(h.get("detail_category", "")).strip() or None,
-                    "severity": severity,
-                    "confidence": round(confidence, 2),
-                    "bbox": bbox_norm,
-                    "source_tag": None,
-                    "observed": observed,
-                    "note": full_note,
-                    "recommended_ppe": ppe,
-                }
-                drafted["recommended_ppe"] = _ppe_supported_by_observation(drafted)
-                hazards.append(_annotate_visual_hazard(drafted))
-            if raw_hazards and not hazards:
-                return None
-            return {"hazards": hazards}
+            return {"hazards": _normalize_provider_hazards(raw_hazards)}
     except Exception:
         logger.exception("vision api çağrısı başarısız")
         return None

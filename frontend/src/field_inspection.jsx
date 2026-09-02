@@ -135,7 +135,7 @@ function compressPhoto(file) {
       const image = new Image();
       image.onerror = () => reject(new Error("Fotoğraf biçimi desteklenmiyor."));
       image.onload = () => {
-        const maxEdge = 1280;
+        const maxEdge = 1920;
         const scale = Math.min(1, maxEdge / Math.max(image.naturalWidth || 1, image.naturalHeight || 1));
         const canvas = document.createElement("canvas");
         canvas.width = Math.max(1, Math.round((image.naturalWidth || 1) * scale));
@@ -146,7 +146,7 @@ function compressPhoto(file) {
           return;
         }
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
         resolve({
           id: makeClientReference(),
           name: String(file.name || "saha-fotografi.jpg").replace(/\.[^.]+$/, "") + ".jpg",
