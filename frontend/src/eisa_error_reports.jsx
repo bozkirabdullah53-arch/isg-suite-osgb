@@ -95,7 +95,7 @@ export function EisaErrorReportsPage() {
       action={<RefreshButton busy={busy} onClick={load} />}
     >
       <Msg text={msg} />
-      <p style={{ marginTop: 0, color: '#64748b' }}>
+      <p className="error-reports-intro" style={{ marginTop: 0 }}>
         Kullanıcıların yaşadığı sayfa/API hataları ve manuel sorun bildirimleri. Durum güncelleyip iç not / yanıt bırakabilirsiniz.
       </p>
       <div className="actions error-reports-filter-bar">
