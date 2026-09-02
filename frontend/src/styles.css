@@ -2114,3 +2114,330 @@ header.workspace-header,
     font-size: 22px;
   }
 }
+
+/* Hata raporu modalı — mobil taşma ve sabit yardımcı çakışmalarını önler. */
+body.modal-open .global-contact-help,
+body.modal-open .contextual-assistant-launcher,
+body.modal-open .contextual-assistant-panel,
+body.modal-open .contextual-assistant-backdrop {
+  display: none !important;
+}
+
+.modal-bg.error-report-modal {
+  z-index: 400;
+  align-items: center;
+  padding: clamp(8px, 2.5vw, 24px);
+  overflow: hidden;
+}
+
+.modal-bg.error-report-modal > .modal {
+  display: flex;
+  flex-direction: column;
+  width: min(720px, 100%);
+  max-width: 100%;
+  max-height: min(92vh, 800px);
+  max-height: min(92dvh, 800px);
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.modal-bg.error-report-modal > .modal > header {
+  position: relative;
+  top: auto;
+  z-index: 2;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 64px;
+  padding: 16px 22px;
+  box-sizing: border-box;
+  border-bottom: 1px solid rgba(148, 163, 184, .28);
+}
+
+.modal-bg.error-report-modal > .modal > header h3 {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: clamp(18px, 3vw, 22px);
+  line-height: 1.2;
+}
+
+.modal-bg.error-report-modal > .modal > header .icon {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 6px !important;
+}
+
+.modal-bg.error-report-modal .error-report-modal__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-bg.error-report-modal .error-report-modal__summary {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px 22px 16px;
+  color: #18344d;
+}
+
+.modal-bg.error-report-modal .error-report-modal__summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.modal-bg.error-report-modal .error-report-modal__meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(148, 163, 184, .28);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, .72);
+}
+
+.modal-bg.error-report-modal .error-report-modal__meta--wide {
+  grid-column: 1 / -1;
+}
+
+.modal-bg.error-report-modal .error-report-modal__meta > span,
+.modal-bg.error-report-modal .error-report-modal__request > span,
+.modal-bg.error-report-modal .error-report-modal__message > span {
+  color: #58708b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.modal-bg.error-report-modal .error-report-modal__meta strong {
+  min-width: 0;
+  color: #173d5c;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.modal-bg.error-report-modal .error-report-modal__meta small {
+  min-width: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.modal-bg.error-report-modal .error-report-modal__value--wrap,
+.modal-bg.error-report-modal .error-report-modal__message p {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.modal-bg.error-report-modal .error-report-modal__request {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, .28);
+  border-radius: 12px;
+  background: rgba(239, 246, 255, .7);
+}
+
+.modal-bg.error-report-modal .error-report-modal__request code {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: #17456a;
+  font: 600 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.modal-bg.error-report-modal .error-report-modal__message {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 0 2px;
+}
+
+.modal-bg.error-report-modal .error-report-modal__message p {
+  margin: 0;
+  color: #29465b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.modal-bg.error-report-modal .error-report-modal__technical {
+  min-width: 0;
+  border: 1px solid rgba(148, 163, 184, .28);
+  border-radius: 12px;
+  background: rgba(241, 245, 249, .75);
+}
+
+.modal-bg.error-report-modal .error-report-modal__technical summary {
+  padding: 11px 12px;
+  color: #315873;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.modal-bg.error-report-modal .error-report-modal__technical pre {
+  max-width: 100%;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: #e2e8f0;
+  background: #0f172a;
+  font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.modal-bg.error-report-modal .error-report-modal__form {
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+  min-width: 0;
+  margin: 0;
+  padding: 16px 22px 20px;
+  border-top: 1px solid rgba(148, 163, 184, .28);
+}
+
+.modal-bg.error-report-modal .error-report-modal__form .field {
+  min-width: 0;
+}
+
+.modal-bg.error-report-modal .error-report-modal__status-field {
+  grid-column: 1 / -1;
+}
+
+.modal-bg.error-report-modal .error-report-modal__form .field input,
+.modal-bg.error-report-modal .error-report-modal__form .field select,
+.modal-bg.error-report-modal .error-report-modal__form .field textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.modal-bg.error-report-modal .error-report-modal__form .field textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.modal-bg.error-report-modal .error-report-modal__actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  margin: 0 -2px -2px;
+  padding: 12px 2px 2px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, .96) 28%);
+}
+
+.modal-bg.error-report-modal .error-report-modal__actions button {
+  min-width: 104px;
+  min-height: 44px;
+}
+
+@media (max-width: 620px) {
+  .modal-bg.error-report-modal {
+    align-items: flex-end;
+    padding: 0 0 env(safe-area-inset-bottom, 0px);
+  }
+
+  .modal-bg.error-report-modal > .modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 94vh;
+    max-height: min(94dvh, 760px);
+    border-radius: 22px 22px 0 0;
+  }
+
+  .modal-bg.error-report-modal > .modal > header {
+    min-height: 60px;
+    padding: 13px 16px;
+  }
+
+  .modal-bg.error-report-modal .error-report-modal__summary {
+    gap: 12px;
+    padding: 15px 16px 14px;
+  }
+
+  .modal-bg.error-report-modal .error-report-modal__summary-grid {
+    gap: 8px;
+  }
+
+  .modal-bg.error-report-modal .error-report-modal__meta {
+    padding: 10px;
+  }
+
+  .modal-bg.error-report-modal .error-report-modal__request {
+    grid-template-columns: 1fr;
+    gap: 5px;
+    padding: 11px;
+  }
+
+  .modal-bg.error-report-modal .error-report-modal__form {
+    grid-template-columns: 1fr;
+    gap: 11px;
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .modal-bg.error-report-modal .error-report-modal__status-field,
+  .modal-bg.error-report-modal .error-report-modal__actions {
+    grid-column: auto;
+  }
+
+  .modal-bg.error-report-modal .error-report-modal__actions {
+    justify-content: stretch;
+    margin-inline: 0;
+    padding-inline: 0;
+  }
+
+  .modal-bg.error-report-modal .error-report-modal__actions button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .modal-bg.error-report-modal .error-report-modal__summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-bg.error-report-modal .error-report-modal__meta--wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 360px) {
+  .modal-bg.error-report-modal .error-report-modal__actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-bg.error-report-modal .error-report-modal__actions button {
+    width: 100%;
+  }
+}
+
