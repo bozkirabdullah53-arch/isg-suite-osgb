@@ -2441,3 +2441,351 @@ body.error-report-modal-open .contextual-assistant-backdrop {
   }
 }
 
+
+
+/* Hata raporları listesi — mobil kart görünümü ve yardımcı çakışma koruması. */
+body.error-reports-page-open .global-contact-help,
+body.error-reports-page-open .contextual-assistant-launcher,
+body.error-reports-page-open .contextual-assistant-panel,
+body.error-reports-page-open .contextual-assistant-backdrop {
+  display: none !important;
+}
+
+/* Bu sayfada yüzen üst bar içeriğin üstünü kapatmasın. */
+.workspace:has(.error-reports-page-title) > header {
+  position: relative !important;
+  top: auto !important;
+  z-index: 1 !important;
+  overflow: visible;
+}
+
+html[data-ui-theme="modern"] .workspace:has(.error-reports-page-title) > header {
+  top: auto !important;
+  margin: 12px 22px 0;
+}
+
+.error-reports-intro {
+  max-width: 860px;
+  margin: 0 0 18px;
+  color: #58708b;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.panel:has(.error-reports-table) {
+  min-width: 0;
+  overflow: visible;
+}
+
+.panel:has(.error-reports-table) .error-reports-filter-bar {
+  display: grid !important;
+  gap: 14px;
+  align-items: stretch;
+  margin: 0 0 18px !important;
+  min-width: 0;
+}
+
+.panel:has(.error-reports-table) .error-reports-status-filters {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.panel:has(.error-reports-table) .error-reports-status-filters button {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.panel:has(.error-reports-table) .error-reports-query-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, .78fr) minmax(240px, 1.22fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.panel:has(.error-reports-table) .error-reports-query-filters select,
+.panel:has(.error-reports-table) .error-reports-query-filters input {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #cbdde1;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .82);
+  color: #173042;
+}
+
+.panel:has(.error-reports-table) .error-reports-query-filters button {
+  min-width: 112px;
+  min-height: 46px;
+  justify-content: center;
+}
+
+.panel:has(.error-reports-table) .error-reports-table {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+}
+
+.panel:has(.error-reports-table) .error-reports-table table {
+  width: 100%;
+  min-width: 0 !important;
+  table-layout: fixed;
+}
+
+.panel:has(.error-reports-table) .error-reports-table th,
+.panel:has(.error-reports-table) .error-reports-table td {
+  min-width: 0;
+  padding: 12px 10px;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.4;
+}
+
+.panel:has(.error-reports-table) .error-reports-table th:nth-child(1),
+.panel:has(.error-reports-table) .error-reports-table td:nth-child(1) { width: 13%; }
+.panel:has(.error-reports-table) .error-reports-table th:nth-child(2),
+.panel:has(.error-reports-table) .error-reports-table td:nth-child(2) { width: 10%; }
+.panel:has(.error-reports-table) .error-reports-table th:nth-child(3),
+.panel:has(.error-reports-table) .error-reports-table td:nth-child(3) { width: 19%; }
+.panel:has(.error-reports-table) .error-reports-table th:nth-child(4),
+.panel:has(.error-reports-table) .error-reports-table td:nth-child(4) { width: 10%; }
+.panel:has(.error-reports-table) .error-reports-table th:nth-child(5),
+.panel:has(.error-reports-table) .error-reports-table td:nth-child(5) { width: 12%; }
+.panel:has(.error-reports-table) .error-reports-table th:nth-child(6),
+.panel:has(.error-reports-table) .error-reports-table td:nth-child(6) { width: 15%; }
+.panel:has(.error-reports-table) .error-reports-table th:nth-child(7),
+.panel:has(.error-reports-table) .error-reports-table td:nth-child(7) { width: 6%; text-align: center; }
+.panel:has(.error-reports-table) .error-reports-table th:nth-child(8),
+.panel:has(.error-reports-table) .error-reports-table td:nth-child(8) { width: 7%; }
+.panel:has(.error-reports-table) .error-reports-table th:nth-child(9),
+.panel:has(.error-reports-table) .error-reports-table td:nth-child(9) { width: 8%; }
+
+.error-reports-table__primary,
+.error-reports-table__secondary,
+.error-reports-table__http {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.error-reports-table__primary {
+  color: #173d5c;
+  font-weight: 700;
+}
+
+.error-reports-table__secondary {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.error-reports-table__http {
+  display: block;
+  color: #315873;
+  font: 600 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.error-reports-table__action-cell {
+  text-align: right;
+}
+
+.error-reports-table__action-cell button {
+  width: 100%;
+  min-width: 82px;
+  min-height: 40px;
+  justify-content: center;
+}
+
+.error-report-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.error-report-status--open {
+  color: #0f5f5a;
+  background: #d5f5ef;
+}
+.error-report-status--investigating {
+  color: #8a5a05;
+  background: #fff0c7;
+}
+.error-report-status--resolved {
+  color: #166534;
+  background: #dcfce7;
+}
+.error-report-status--ignored {
+  color: #64748b;
+  background: #eef2f5;
+}
+
+@media (max-width: 1100px) {
+  html[data-ui-theme="modern"] .workspace:has(.error-reports-page-title) > header,
+  .workspace:has(.error-reports-page-title) > header {
+    margin: 10px 12px 0;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-status-filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .panel:has(.error-reports-table) .error-reports-query-filters {
+    grid-template-columns: minmax(180px, .8fr) minmax(220px, 1.2fr) auto;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table {
+    overflow: visible !important;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table table {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+    table-layout: auto;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table tbody tr {
+    display: block;
+    min-width: 0;
+    padding: 9px 13px;
+    border: 1px solid #dce8ee;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, .9);
+    box-shadow: 0 8px 22px rgba(15, 42, 52, .07);
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table tbody td {
+    display: grid;
+    grid-template-columns: minmax(88px, 31%) minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+    min-width: 0;
+    padding: 9px 0;
+    border-bottom: 1px solid #edf2f3;
+    text-align: left;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table tbody td::before {
+    content: attr(data-label);
+    color: #64748b;
+    font-size: 10px;
+    font-weight: 850;
+    line-height: 1.35;
+    text-transform: uppercase;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table tbody td:last-child {
+    border-bottom: 0;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table tbody td.empty {
+    display: block;
+    padding: 28px 8px;
+    border-bottom: 0;
+    text-align: center;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table tbody td.empty::before {
+    display: none;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table tbody td[data-label="İşlem"] {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table tbody td[data-label="İşlem"]::before {
+    display: block;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table .error-reports-table__action-cell button {
+    min-height: 42px;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-table .error-report-status {
+    justify-self: start;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-query-filters {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-query-filters button {
+    width: 100%;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-status-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-status-filters button {
+    min-height: 44px;
+    padding: 9px 7px;
+    font-size: 12px;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-status-filters button:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .error-reports-intro {
+    margin-bottom: 14px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  html[data-ui-theme="modern"] .workspace:has(.error-reports-page-title) > header {
+    margin: 8px 10px 0;
+    padding: 12px 14px;
+  }
+}
+
+@media (max-width: 380px) {
+  .panel:has(.error-reports-table) .error-reports-status-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .panel:has(.error-reports-table) .error-reports-status-filters button:last-child {
+    grid-column: auto;
+  }
+}
