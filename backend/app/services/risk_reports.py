@@ -177,12 +177,15 @@ def _photo_annotations(analysis: dict | None) -> list[dict]:
             severity = max(1, min(5, int(item.get("severity", 3))))
         except (TypeError, ValueError):
             severity = 3
+        raw_label = str(item.get("label") or item.get("overlay_label") or item.get("hazard_name") or item.get("category") or "Uygunsuzluk")
+        overlay_label = " · ".join(part.strip() for part in raw_label.replace("\n", " · ").split(" · ") if part.strip())[:160]
         annotations.append(
             {
                 "box": [x, y, width, height],
-                "label": str(item.get("label") or item.get("category") or "Uygunsuzluk")[:100],
+                "label": overlay_label,
                 "severity": severity,
                 "confidence": _confidence_percent(item.get("confidence")),
+                "color": str(item.get("color") or item.get("overlay_color") or ""),
             }
         )
     return annotations
@@ -230,7 +233,7 @@ def _annotate_photo_bytes(raw: bytes, analysis: dict | None) -> bytes:
             top = round(y * height)
             right = min(width - 1, round((x + box_width) * width))
             bottom = min(height - 1, round((y + box_height) * height))
-            color = colors_by_severity[annotation["severity"]]
+            color = annotation.get("color") if str(annotation.get("color") or "").startswith("#") else colors_by_severity[annotation["severity"]]
             draw.rectangle((left, top, right, bottom), outline=color, width=line_width)
 
             # Numbered marker makes the table/legend in the PDF unambiguous.
@@ -1419,6 +1422,83 @@ def build_field_inspection_pdf(
                     )
                 )
                 elements.append(KeepTogether([hazard_table, Spacer(1, 2 * mm)]))
+
+        protocol = next((item.get("protocol") for item in vision_results if isinstance(item, dict) and isinstance(item.get("protocol"), dict)), None)
+        if protocol:
+            elements.append(Paragraph("5. SAHA İSG DENETİM VE RİSK ANALİZ TUTANAĞI", section))
+            elements.append(Paragraph(safe(protocol.get("disclaimer"), "Bu tutanak fotoğraf kanıtına dayalı AI taslağıdır; yasal durdurma emri değildir.", 800), body))
+            header_rows = [
+                [Paragraph("Belge adı", label), Paragraph(safe(protocol.get("title"), "SAHA İSG DENETİM VE RİSK ANALİZ TUTANAĞI"), body)],
+                [Paragraph("Proje / saha", label), Paragraph(safe(protocol.get("site_name") or department_name or getattr(company, "name", None)), body)],
+                [Paragraph("Denetim tarihi", label), Paragraph(safe(protocol.get("inspected_at") or _fmt_datetime(observed_at)), body)],
+                [Paragraph("Denetçi", label), Paragraph(safe(protocol.get("auditor") or prepared_by), body)],
+            ]
+            header_table = Table(header_rows, colWidths=[125, 335], hAlign="LEFT")
+            header_table.setStyle(TableStyle([
+                ("GRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#cbd5e1")),
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f8fafc")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]))
+            elements.extend([header_table, Spacer(1, 3 * mm)])
+
+            def protocol_table(title_text: str, headers: list[str], rows: list[list], widths: list[int]):
+                data = [[Paragraph(h, label) for h in headers]]
+                data.extend(rows)
+                table = Table(data, colWidths=widths, hAlign="LEFT")
+                table.setStyle(TableStyle([
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0f4c5c")),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                    ("FONTNAME", (0, 0), (-1, 0), PDF_FONT_BOLD),
+                    ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#cbd5e1")),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 5),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ]))
+                return [Paragraph(title_text, section), table, Spacer(1, 2 * mm)]
+
+            defect_rows = [
+                [safe(row.get("no")), Paragraph(safe(row.get("defect")), small), Paragraph(safe(row.get("hazard")), small)]
+                for row in (protocol.get("defects") or [])[:20] if isinstance(row, dict)
+            ] or [["—", Paragraph("Fotoğraftan teyit edilen kusur yok.", small), Paragraph("—", small)]]
+            elements.extend(protocol_table("Tablo 1 — Kusur ve tehlike listesi", ["No", "Tespit edilen kusur ve emniyetsiz durum", "Risk ve tehlike tanımı"], defect_rows, [30, 250, 180]))
+            legal_rows = [
+                [safe(row.get("no")), Paragraph(safe(row.get("instrument")), small)]
+                for row in (protocol.get("legal") or [])[:20] if isinstance(row, dict)
+            ] or [["—", Paragraph("Uygulanabilir mevzuat başlığı uzman doğrulaması gerektirir.", small)]]
+            elements.extend(protocol_table("Tablo 2 — Mevzuat uygunluğu", ["No", "İlgili mevzuat / kanun / yönetmelik"], legal_rows, [30, 430]))
+            action_rows = [
+                [safe(row.get("no")), Paragraph(safe(row.get("action")), small), Paragraph(safe(row.get("hierarchy")), small), Paragraph(safe(row.get("responsible_term")), small)]
+                for row in (protocol.get("actions") or [])[:20] if isinstance(row, dict)
+            ] or [["—", Paragraph("DÖF taslağı yok.", small), Paragraph("—", small), Paragraph("—", small)]]
+            elements.extend(protocol_table("Tablo 3 — Düzeltici ve önleyici faaliyetler", ["No", "DÖF / kontrol tedbiri", "Önlem hiyerarşisi", "Sorumlu / termin"], action_rows, [30, 210, 110, 110]))
+            matrix_rows = [
+                [Paragraph(safe(row.get("hazard")), small), safe(row.get("probability")), safe(row.get("severity")), safe(row.get("score")), Paragraph(safe(row.get("level")), small)]
+                for row in (protocol.get("risk_matrix") or [])[:20] if isinstance(row, dict)
+            ] or [["—", "—", "—", "—", Paragraph("Görsel 5x5 taslağı üretilemedi.", small)]]
+            elements.extend(protocol_table("Tablo 4 — 5x5 risk matrisi (görsel taslak)", ["Tehlike / risk", "Olasılık", "Şiddet", "Skor", "Seviye"], matrix_rows, [170, 60, 60, 50, 120]))
+            elements.append(Paragraph("Görsel 5x5, maruziyet sıklığı doğrulanmadan resmi risk değerlendirmesi yerine geçmez.", body))
+            elements.append(Paragraph("6. RESMİ ONAY VE İMZA BLOKU", section))
+            sign_rows = [[
+                Paragraph("<b>Tespit Eden</b><br/>İSG Uzmanı / Denetçi<br/><br/>Adı Soyadı: ________<br/>Sertifika No: ________<br/>Tarih: __/__/2026<br/>İmza: ________", small),
+                Paragraph("<b>Tebliğ Alan</b><br/>Saha Sorumlusu / Şantiye Şefi<br/><br/>Adı Soyadı: ________<br/>Görevi: ________<br/>Tarih: __/__/2026<br/>İmza: ________", small),
+                Paragraph("<b>İşveren / Vekili</b><br/>İşveren / Proje Müdürü<br/><br/>Adı Soyadı: ________<br/>Görevi: ________<br/>Tarih: __/__/2026<br/>İmza: ________", small),
+            ]]
+            sign_table = Table(sign_rows, colWidths=[153, 154, 153], hAlign="LEFT")
+            sign_table.setStyle(TableStyle([
+                ("GRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#94a3b8")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]))
+            elements.append(sign_table)
 
     buf = BytesIO()
     doc = SimpleDocTemplate(

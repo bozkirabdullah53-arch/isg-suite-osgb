@@ -217,14 +217,14 @@ function BboxOverlay({imageSrc, annotations}) {
       />
       {annotations?.length > 0 && size.w > 0 && annotations.map((a, i) => {
         const [x, y, w, h] = a.box || [0, 0, 1, 1];
-        const c = SEV_COLORS[a.severity] || "#475569";
+        const c = a.color || SEV_COLORS[a.severity] || "#475569";
         return (
           <div key={i} className="field-bbox-rect" style={{
             left: x * size.w, top: y * size.h, width: w * size.w, height: h * size.h,
             borderColor: c,
           }}>
             <span className="field-bbox-label" style={{background: c}}>
-              {a.label} · {SEV_LABELS[a.severity] || ""} · %{Math.round((a.confidence || 0) * 100)}
+              {a.label}
             </span>
           </div>
         );
@@ -1221,7 +1221,8 @@ function LegacyFieldInspectionPage({user}) {
 
                             {/* Tutanak: mevzuata göre tespitler */}
                             <div className="field-tutanak">
-                              <div className="field-tutanak-head"><FileText size={14} /> DENETİM TUTANAĞI</div>
+                              <div className="field-tutanak-head"><FileText size={14} /> {va.protocol?.title || "SAHA İSG DENETİM VE RİSK ANALİZ TUTANAĞI"}</div>
+                              {va.protocol?.disclaimer && <p className="field-vision-obs">{va.protocol.disclaimer}</p>}
                               {(va.hazards || []).map((h, hi) => (
                                 <div key={hi} className="field-tutanak-item">
                                   <div className="field-vision-hazard-head">
@@ -1254,6 +1255,26 @@ function LegacyFieldInspectionPage({user}) {
                                   )}
                                 </div>
                               ))}
+                              {va.protocol?.legal?.length > 0 && (
+                                <div className="field-tutanak-tedbir">
+                                  <strong>Mevzuat uygunluğu</strong>
+                                  <ul>
+                                    {va.protocol.legal.map((row, index) => (
+                                      <li key={index}>{row.no}. {row.instrument}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              {va.protocol?.risk_matrix?.length > 0 && (
+                                <div className="field-tutanak-tedbir">
+                                  <strong>5x5 görsel taslak</strong>
+                                  <ul>
+                                    {va.protocol.risk_matrix.map((row, index) => (
+                                      <li key={index}>{row.hazard}: {row.probability}×{row.severity}={row.score} · {row.level}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
                             </div>
 
                             <button type="button" className="field-ai-apply field-ai-apply-big" onClick={() => applyAnalysisToForm(va)} disabled={busy}>

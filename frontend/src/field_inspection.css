@@ -1398,11 +1398,13 @@ html[data-ui-theme="modern"] .field-inspection-page .field-card:hover {
   top: -22px;
   left: 0;
   color: #fff;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 3px 8px;
   border-radius: 4px;
-  white-space: nowrap;
+  white-space: pre-line;
+  line-height: 1.25;
+  max-width: 260px;
 }
 
 /* ---- Tutanak ---- */

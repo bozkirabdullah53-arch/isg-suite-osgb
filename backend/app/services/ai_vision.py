@@ -54,6 +54,39 @@ _CONTAMINATED_CONTEXT_MARKERS = (
     "denetim tutanagi",
     "ceza degerlendirmesi",
 )
+_OVERLAY_COLORS = {
+    "critical": "#b91c1c",
+    "ppe": "#15803d",
+    "structural": "#ea580c",
+}
+_CATEGORY_LEGAL_INSTRUMENTS = {
+    "Yüksekte Çalışma Riskleri": (
+        "6331 sayılı İş Sağlığı ve Güvenliği Kanunu; "
+        "Yapı İşlerinde İş Sağlığı ve Güvenliği Yönetmeliği"
+    ),
+    "İnşaat ve Yapı Riskleri": (
+        "6331 sayılı İş Sağlığı ve Güvenliği Kanunu; "
+        "Yapı İşlerinde İş Sağlığı ve Güvenliği Yönetmeliği"
+    ),
+    "Mekanik Riskler": (
+        "6331 sayılı İş Sağlığı ve Güvenliği Kanunu; "
+        "İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliği"
+    ),
+    "Elektrik Riskleri": (
+        "6331 sayılı İş Sağlığı ve Güvenliği Kanunu; "
+        "İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliği"
+    ),
+    "Kimyasal Riskler": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+    "Yangın ve Patlama Riskleri": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+    "Nakliye ve Trafik Riskleri": (
+        "6331 sayılı İş Sağlığı ve Güvenliği Kanunu; "
+        "İş Ekipmanlarının Kullanımında Sağlık ve Güvenlik Şartları Yönetmeliği"
+    ),
+    "Fiziksel Riskler": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+    "Ergonomik Riskler": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+    "Biyolojik Riskler": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+    "Diğer Riskler": "6331 sayılı İş Sağlığı ve Güvenliği Kanunu",
+}
 
 # Fotoğraf etiketleri (risk_photo_tags.py) → tehlike kategorisi eşlemesi.
 # Bu, heuristic modda medya etiketlerinden kategori çıkarımı için kullanılır.
@@ -143,6 +176,166 @@ def _ppe_supported_by_observation(hazard: dict[str, Any]) -> list[str]:
     if isinstance(raw, str):
         raw = [raw]
     return [str(item).strip() for item in raw if str(item).strip()][:6]
+
+
+def _short_tr(value: Any, limit: int = 90) -> str:
+    text = re.sub(r"\s+", " ", str(value or "").strip())
+    return text[:limit] if text else "Görsel kanıt"
+
+
+def _overlay_kind(hazard: dict[str, Any]) -> str:
+    text = _fold_text(" ".join(str(hazard.get(field) or "") for field in ("observed", "note", "hazard_name", "category")))
+    try:
+        severity = int(hazard.get("severity") or 3)
+    except (TypeError, ValueError):
+        severity = 3
+    ppe_present = any(term in text for term in ("takili", "mevcut", "uygun kkd", "baret tak", "yelek giy"))
+    ppe_missing = any(term in text for term in ("yok", "eksik", "takili degil", "kullanmiyor"))
+    if ppe_present and not ppe_missing and severity <= 2:
+        return "ppe"
+    critical_terms = (
+        "dusme", "korkuluk", "kenar", "iskele", "emniyet kemeri", "askida", "yuk altinda",
+        "acik kablo", "pano acik", "enerji", "demir donati", "rebar", "gocuk",
+    )
+    if severity >= 4 or any(term in text for term in critical_terms):
+        return "critical"
+    return "structural"
+
+
+def _hierarchy_level(kind: str, hazard: dict[str, Any]) -> str:
+    text = _fold_text(" ".join(str(hazard.get(field) or "") for field in ("observed", "note", "hazard_name")))
+    if kind == "ppe" or any(term in text for term in _GENERIC_PPE_TERMS):
+        return "KKD Kullanımı"
+    if kind == "critical":
+        return "Mühendislik Kontrolü"
+    return "İdari Kontrol"
+
+
+def _visual_probability(hazard: dict[str, Any]) -> int:
+    text = _fold_text(" ".join(str(hazard.get(field) or "") for field in ("observed", "note")))
+    if any(term in text for term in ("calisan", "kisi", "yaya", "operatör", "operator", "person")):
+        return 4
+    try:
+        severity = int(hazard.get("severity") or 3)
+    except (TypeError, ValueError):
+        severity = 3
+    return 4 if severity >= 5 else 3
+
+
+def _risk_level(score: int) -> str:
+    if score >= 20:
+        return "Çok Yüksek / Acil Durdurma"
+    if score >= 15:
+        return "Yüksek"
+    if score >= 8:
+        return "Orta"
+    return "Düşük"
+
+
+def _legal_instrument(hazard: dict[str, Any]) -> str:
+    key = str(hazard.get("hazard_key") or "")
+    if key in {"stair_obstruction", "housekeeping_obstruction"}:
+        instrument = (
+            "6331 sayılı İş Sağlığı ve Güvenliği Kanunu; "
+            "İşyeri Bina ve Eklentilerinde Alınacak Sağlık ve Güvenlik Önlemlerine İlişkin Yönetmelik"
+        )
+    else:
+        category = str(hazard.get("category") or "Diğer Riskler")
+        instrument = _CATEGORY_LEGAL_INSTRUMENTS.get(category, _CATEGORY_LEGAL_INSTRUMENTS["Diğer Riskler"])
+    text = _fold_text(" ".join(str(hazard.get(field) or "") for field in ("observed", "note", "hazard_name")))
+    if any(term in text for term in _GENERIC_PPE_TERMS):
+        instrument = (
+            f"{instrument}; "
+            "Kişisel Koruyucu Donanımların İşyerlerinde Kullanılması Hakkında Yönetmelik"
+        )
+    return f"{instrument}. Madde/fıkra numarası uzman doğrulaması gerektirir."
+
+
+def _decorate_overlay(hazard: dict[str, Any]) -> dict[str, Any]:
+    kind = _overlay_kind(hazard)
+    observed = _short_tr(hazard.get("observed") or hazard.get("note"))
+    name = _short_tr(hazard.get("hazard_name") or hazard.get("category"), 70)
+    if kind == "ppe":
+        overlay_label = f"KKD: {name}"
+    elif kind == "critical":
+        overlay_label = f"KRİTİK: {name}\nKUSUR: {observed}\nTEHLİKE: {name}"
+    else:
+        overlay_label = f"KUSUR: {observed}\nTEHLİKE: {name}"
+    probability = _visual_probability(hazard)
+    try:
+        severity = max(1, min(5, int(hazard.get("severity") or 3)))
+    except (TypeError, ValueError):
+        severity = 3
+    score = probability * severity
+    enriched = dict(hazard)
+    enriched.update({
+        "overlay_kind": kind,
+        "overlay_color": _OVERLAY_COLORS[kind],
+        "overlay_label": overlay_label[:220],
+        "hierarchy_level": _hierarchy_level(kind, hazard),
+        "probability": probability,
+        "risk_score": score,
+        "risk_level": _risk_level(score),
+        "legal_basis": _legal_instrument(hazard),
+    })
+    return enriched
+
+
+def build_inspection_protocol(
+    hazards: list[dict[str, Any]],
+    *,
+    site_name: str | None = None,
+    location: str | None = None,
+    prepared_by: str | None = None,
+    inspected_at: str | None = None,
+) -> dict[str, Any]:
+    """Resmi saha tutanak taslağı; madde numarası uydurmaz."""
+    defects: list[dict[str, Any]] = []
+    legal_rows: list[dict[str, Any]] = []
+    actions: list[dict[str, Any]] = []
+    matrix: list[dict[str, Any]] = []
+    for index, hazard in enumerate(hazards, start=1):
+        item = _decorate_overlay(hazard)
+        defects.append({
+            "no": index,
+            "defect": item.get("observed") or item.get("note") or item.get("hazard_name"),
+            "hazard": item.get("hazard_name") or item.get("category"),
+        })
+        legal_rows.append({
+            "no": index,
+            "instrument": item.get("legal_basis"),
+        })
+        dof = (item.get("dof_suggestions") or [{}])[0]
+        actions.append({
+            "no": index,
+            "action": dof.get("description") or f"Fotoğrafta görülen koşulu giderin: {item.get('observed') or item.get('hazard_name')}",
+            "hierarchy": item.get("hierarchy_level"),
+            "responsible_term": "İşveren / saha sorumlusu · " + str((item.get("termin") or {}).get("term_date") or "uzman teyidi"),
+        })
+        matrix.append({
+            "hazard": item.get("hazard_name") or item.get("category"),
+            "probability": item.get("probability"),
+            "severity": item.get("severity"),
+            "score": item.get("risk_score"),
+            "level": item.get("risk_level"),
+            "note": "Görsel taslak 5x5; maruziyet sıklığı uzman saha doğrulaması gerektirir.",
+        })
+    return {
+        "title": "SAHA İSG DENETİM VE RİSK ANALİZ TUTANAĞI",
+        "site_name": site_name or "Saha / işyeri",
+        "inspected_at": inspected_at,
+        "auditor": prepared_by or "İSG Uzmanı / Denetçi",
+        "disclaimer": "Bu tutanak fotoğraf kanıtına dayalı AI taslağıdır; yasal durdurma emri değildir. Madde numaraları uzman doğrulaması olmadan kesinleşmez.",
+        "defects": defects,
+        "legal": legal_rows,
+        "actions": actions,
+        "risk_matrix": matrix,
+        "signatures": [
+            {"role": "Tespit Eden", "title": "İSG Uzmanı / Denetçi"},
+            {"role": "Tebliğ Alan", "title": "Saha Sorumlusu / Şantiye Şefi"},
+            {"role": "İşveren / Vekili", "title": "İşveren / Proje Müdürü"},
+        ],
+    }
 
 
 def _normalize_visual_hazard_key(value: Any) -> str | None:
@@ -625,15 +818,18 @@ def _to_bbox_annotations(hazards: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Hazard listesi → frontend çizimi için bbox annotation listesi."""
     annotations = []
     for h in hazards:
-        bbox = h.get("bbox", _FULL_FRAME_BBOX)
+        item = _decorate_overlay(h)
+        bbox = item.get("bbox", _FULL_FRAME_BBOX)
         if not (isinstance(bbox, list) and len(bbox) == 4):
             bbox = _FULL_FRAME_BBOX
         annotations.append({
-            "label": h.get("hazard_name") or h.get("category", "Risk"),
-            "severity": h.get("severity", 3),
-            "confidence": h.get("confidence", 0.0),
+            "label": item.get("overlay_label") or item.get("hazard_name") or item.get("category", "Risk"),
+            "severity": item.get("severity", 3),
+            "confidence": item.get("confidence", 0.0),
             "box": [float(v) for v in bbox],
-            "note": h.get("note", ""),
+            "note": item.get("note", ""),
+            "kind": item.get("overlay_kind"),
+            "color": item.get("overlay_color"),
         })
     return annotations
 
@@ -704,13 +900,21 @@ def build_full_analysis(
             "termin": termin,
             "dof_suggestions": dof_suggestions,
         })
+        enriched_hazards[-1] = _decorate_overlay(enriched_hazards[-1])
 
+    protocol = build_inspection_protocol(
+        enriched_hazards,
+        site_name=risk_activity or None,
+        location=media_text or None,
+        inspected_at=base_date.isoformat(),
+    )
     return {
         "engine": VISION_ENGINE,
         "provider": vision.get("provider", "heuristic"),
         "analyzed_at": base_date.isoformat(),
         "hazards": enriched_hazards,
-        "bbox_annotations": vision.get("bbox_annotations", []),
+        "bbox_annotations": _to_bbox_annotations(enriched_hazards),
+        "protocol": protocol,
         "summary": _build_summary(enriched_hazards),
         "note": vision.get("note", ""),
     }

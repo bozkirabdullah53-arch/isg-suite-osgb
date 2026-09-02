@@ -37,6 +37,16 @@ class VisionDofSuggestion(BaseModel):
     status: str | None = None
 
 
+class BboxAnnotation(BaseModel):
+    label: str
+    severity: int
+    confidence: float = 0.0
+    box: list[float] = []
+    note: str | None = None
+    kind: str | None = None
+    color: str | None = None
+
+
 class VisionHazard(BaseModel):
     category: str
     hazard_key: str | None = None
@@ -53,14 +63,27 @@ class VisionHazard(BaseModel):
     mevzuat: VisionMevzuat | None = None
     termin: VisionTermin | None = None
     dof_suggestions: list[VisionDofSuggestion] = []
+    overlay_kind: str | None = None
+    overlay_color: str | None = None
+    overlay_label: str | None = None
+    hierarchy_level: str | None = None
+    probability: int | None = None
+    risk_score: int | None = None
+    risk_level: str | None = None
+    legal_basis: str | None = None
 
 
-class BboxAnnotation(BaseModel):
-    label: str
-    severity: int
-    confidence: float = 0.0
-    box: list[float] = []
-    note: str | None = None
+class VisionProtocol(BaseModel):
+    title: str | None = None
+    site_name: str | None = None
+    inspected_at: str | None = None
+    auditor: str | None = None
+    disclaimer: str | None = None
+    defects: list[dict[str, Any]] = []
+    legal: list[dict[str, Any]] = []
+    actions: list[dict[str, Any]] = []
+    risk_matrix: list[dict[str, Any]] = []
+    signatures: list[dict[str, Any]] = []
 
 
 class VisionAnalysisResponse(BaseModel):
@@ -72,6 +95,7 @@ class VisionAnalysisResponse(BaseModel):
     analyzed_at: str
     hazards: list[VisionHazard] = []
     bbox_annotations: list[BboxAnnotation] = []
+    protocol: VisionProtocol | None = None
     summary: str | None = None
     note: str | None = None
     created_at: datetime | None = None

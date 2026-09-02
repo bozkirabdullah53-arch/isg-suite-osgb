@@ -183,3 +183,30 @@ def test_previous_tutanak_text_is_not_sent_as_visual_context():
         "observed": "Çalışanın baretı yok; baş hizasında asılı yük var.",
         "recommended_ppe": ["baret"],
     }) == ["baret"]
+
+
+def test_inspection_protocol_has_turkish_overlays_and_no_invented_articles():
+    from app.services.ai_vision import build_inspection_protocol, _decorate_overlay
+
+    hazard = _decorate_overlay({
+        "category": "Mekanik Riskler",
+        "hazard_key": "stair_obstruction",
+        "hazard_name": "Merdiven ve geçiş alanında malzeme engeli",
+        "severity": 4,
+        "observed": "Merdiven basamakları üzerinde kova ve poşet bırakılmış.",
+        "note": "Geçişi daraltan takılma ve düşme tehlikesi.",
+        "dof_suggestions": [{"description": "Merdiven üzerindeki malzemeleri kaldırın.", "type": "corrective"}],
+        "termin": {"term_date": "2026-09-08"},
+    })
+    assert hazard["overlay_kind"] == "critical"
+    assert hazard["overlay_label"].startswith("KRİTİK:")
+    assert "KUSUR:" in hazard["overlay_label"]
+    protocol = build_inspection_protocol([hazard], site_name="Pres önü", inspected_at="2026-09-02")
+    assert protocol["title"] == "SAHA İSG DENETİM VE RİSK ANALİZ TUTANAĞI"
+    assert protocol["defects"]
+    assert protocol["legal"]
+    assert "md." not in protocol["legal"][0]["instrument"].casefold()
+    assert "madde/fıkra" in protocol["legal"][0]["instrument"].casefold()
+    assert protocol["actions"][0]["hierarchy"] == "Mühendislik Kontrolü"
+    assert protocol["risk_matrix"][0]["score"] == 12 or protocol["risk_matrix"][0]["score"] >= 8
+    assert len(protocol["signatures"]) == 3
