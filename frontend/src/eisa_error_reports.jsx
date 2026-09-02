@@ -24,6 +24,12 @@ export function EisaErrorReportsPage() {
   const [detail, setDetail] = useState(null);
   const [edit, setEdit] = useState({ status: 'open', admin_note: '', admin_reply: '' });
 
+  useEffect(() => {
+    if (!detail || typeof document === 'undefined') return undefined;
+    document.body.classList.add('error-report-modal-open');
+    return () => document.body.classList.remove('error-report-modal-open');
+  }, [detail]);
+
   const load = async () => {
     setBusy(true);
     setMsg('');
