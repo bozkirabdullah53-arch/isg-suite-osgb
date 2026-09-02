@@ -25,6 +25,12 @@ export function EisaErrorReportsPage() {
   const [edit, setEdit] = useState({ status: 'open', admin_note: '', admin_reply: '' });
 
   useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    document.body.classList.add('error-reports-page-open');
+    return () => document.body.classList.remove('error-reports-page-open');
+  }, []);
+
+  useEffect(() => {
     if (!detail || typeof document === 'undefined') return undefined;
     document.body.classList.add('error-report-modal-open');
     return () => document.body.classList.remove('error-report-modal-open');
@@ -85,46 +91,54 @@ export function EisaErrorReportsPage() {
 
   return (
     <Page
-      title="Hata Raporları"
+      title={<span className="error-reports-page-title">Hata Raporları</span>}
       action={<RefreshButton busy={busy} onClick={load} />}
     >
       <Msg text={msg} />
-      <p style={{ marginTop: 0, color: '#64748b' }}>
+      <p className="error-reports-intro" style={{ marginTop: 0 }}>
         Kullanıcıların yaşadığı sayfa/API hataları ve manuel sorun bildirimleri. Durum güncelleyip iç not / yanıt bırakabilirsiniz.
       </p>
-      <div className="actions" style={{ marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-        {[
-          ['open', 'Açık'],
-          ['investigating', 'İnceleniyor'],
-          ['resolved', 'Çözüldü'],
-          ['ignored', 'Yok sayıldı'],
-          ['', 'Tümü'],
-        ].map(([value, label]) => (
-          <button
-            key={value || 'all'}
-            type="button"
-            className={status === value ? '' : 'secondary'}
-            onClick={() => setStatus(value)}
+      <div className="actions error-reports-filter-bar">
+        <div className="error-reports-status-filters" role="group" aria-label="Durum filtresi">
+          {[
+            ['open', 'Açık'],
+            ['investigating', 'İnceleniyor'],
+            ['resolved', 'Çözüldü'],
+            ['ignored', 'Yok sayıldı'],
+            ['', 'Tümü'],
+          ].map(([value, label]) => (
+            <button
+              key={value || 'all'}
+              type="button"
+              className={status === value ? '' : 'secondary'}
+              onClick={() => setStatus(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="error-reports-query-filters">
+          <select
+            aria-label="Kaynak filtresi"
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
           >
-            {label}
-          </button>
-        ))}
-        <select value={source} onChange={(e) => setSource(e.target.value)} style={{ minWidth: 160 }}>
-          <option value="">Tüm kaynaklar</option>
-          <option value="ui_crash">Sayfa çökmesi</option>
-          <option value="api_error">API hatası</option>
-          <option value="user_report">Kullanıcı bildirimi</option>
-        </select>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Ara…"
-          style={{ minWidth: 180 }}
-        />
-        <button type="button" className="secondary" onClick={load}>Filtrele</button>
+            <option value="">Tüm kaynaklar</option>
+            <option value="ui_crash">Sayfa çökmesi</option>
+            <option value="api_error">API hatası</option>
+            <option value="user_report">Kullanıcı bildirimi</option>
+          </select>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Ara…"
+            aria-label="Hata raporlarında ara"
+          />
+          <button type="button" className="secondary" onClick={load}>Filtrele</button>
+        </div>
       </div>
-      <div className="table-wrap">
-        <table>
+      <div className="table-wrap error-reports-table">
+        <table aria-label="Hata raporları listesi">
           <thead>
             <tr>
               <th>Tarih</th>
@@ -140,21 +154,29 @@ export function EisaErrorReportsPage() {
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td colSpan={9} style={{ color: '#64748b' }}>Kayıt yok.</td></tr>
+              <tr><td colSpan={9} className="empty">Kayıt yok.</td></tr>
             ) : rows.map((r) => (
               <tr key={r.id}>
-                <td>{r.created_at ? new Date(r.created_at).toLocaleString('tr-TR') : '—'}</td>
-                <td>{sourceLabels[r.source] || r.source}</td>
-                <td>
-                  <div>{r.user_email || '—'}</div>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>{r.user_role || ''}</div>
+                <td data-label="Tarih">{r.created_at ? new Date(r.created_at).toLocaleString('tr-TR') : '—'}</td>
+                <td data-label="Kaynak">{sourceLabels[r.source] || r.source || '—'}</td>
+                <td data-label="Kullanıcı">
+                  <div className="error-reports-table__primary">{r.user_email || '—'}</div>
+                  <div className="error-reports-table__secondary">{r.user_role || ''}</div>
                 </td>
-                <td>{r.osgb_name || (r.osgb_id ? `#${r.osgb_id}` : '—')}</td>
-                <td>{r.title}</td>
-                <td>{r.http_status ? `${r.http_status} ${r.http_path || ''}` : (r.http_path || '—')}</td>
-                <td>{r.occurrence_count || 1}</td>
-                <td>{statusLabelsMap[r.status] || r.status}</td>
-                <td>
+                <td data-label="OSGB">{r.osgb_name || (r.osgb_id ? '#' + r.osgb_id : '—')}</td>
+                <td data-label="Başlık">{r.title || '—'}</td>
+                <td data-label="HTTP">
+                  <span className="error-reports-table__http">
+                    {r.http_status ? [r.http_status, r.http_path].filter(Boolean).join(' ') : (r.http_path || '—')}
+                  </span>
+                </td>
+                <td data-label="Adet">{r.occurrence_count || 1}</td>
+                <td data-label="Durum">
+                  <span className={'error-report-status error-report-status--' + (r.status || 'open')}>
+                    {statusLabelsMap[r.status] || r.status || '—'}
+                  </span>
+                </td>
+                <td data-label="İşlem" className="error-reports-table__action-cell">
                   <button type="button" className="secondary" onClick={() => openDetail(r)}>Detay</button>
                 </td>
               </tr>
