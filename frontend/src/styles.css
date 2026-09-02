@@ -2116,10 +2116,10 @@ header.workspace-header,
 }
 
 /* Hata raporu modalı — mobil taşma ve sabit yardımcı çakışmalarını önler. */
-body.modal-open .global-contact-help,
-body.modal-open .contextual-assistant-launcher,
-body.modal-open .contextual-assistant-panel,
-body.modal-open .contextual-assistant-backdrop {
+body.error-report-modal-open .global-contact-help,
+body.error-report-modal-open .contextual-assistant-launcher,
+body.error-report-modal-open .contextual-assistant-panel,
+body.error-report-modal-open .contextual-assistant-backdrop {
   display: none !important;
 }
 
