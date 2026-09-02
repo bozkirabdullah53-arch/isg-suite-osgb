@@ -16,7 +16,8 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
-from app.services.field_inspection_catalog import FIELD_HAZARD_CATEGORIES, legal_entry
+from app.services.field_inspection_ai_prompt import FIELD_AI_PROMPT_VERSION, build_field_ai_system_prompt
+from app.services.field_inspection_catalog import FIELD_HAZARD_CATEGORIES, FIELD_LEGAL_CATALOG, legal_entry
 
 logger = logging.getLogger(__name__)
 
@@ -29,52 +30,19 @@ class FieldAiProviderError(RuntimeError):
     """Provider çağrısı veya çıktısı beklenen sözleşmeye uymadı."""
 
 
-FIELD_AI_SYSTEM_PROMPT = """
-Sen bir iş güvenliği uzmanına yardımcı olan görsel kanıt asistanısın. Yalnızca
-fotoğrafta açıkça görülen, makul biçimde desteklenen unsurları yaz. Fotoğrafta
-görünmeyen bir ekipman, ölçüm, kişi davranışı, mevzuat maddesi veya tehlikeyi
-varsayma. Belirsizliği açıkça belirt. Nihai risk seviyesi, hukuki karar ve
-uygunsuzluk onayı verme; tüm bulgular uzman onayı bekleyen taslaktır.
+FIELD_AI_SYSTEM_PROMPT = build_field_ai_system_prompt(
+    hazard_categories=FIELD_HAZARD_CATEGORIES,
+    legal_catalog=tuple(str(item["name"]) for item in FIELD_LEGAL_CATALOG),
+)
 
-Yanıt yalnızca JSON olsun:
-{
-  "general_assessment": "...",
-  "warning": "...",
-  "findings": [
-    {
-      "photo_index": 0,
-      "hazard_name": "...",
-      "category_name": "katalogdaki tam ad veya null",
-      "visual_evidence": "fotoğrafta görülen kanıt",
-      "nonconformity_description": "uzman kontrolüne sunulan açıklama",
-      "possible_cause": "...",
-      "possible_harm": "...",
-      "possible_accident_or_disease": "...",
-      "suggested_priority": "low|medium|high|critical",
-      "priority_reason": "...",
-      "confidence": 0.0,
-      "uncertainty_note": "...",
-      "urgent_action": "...",
-      "corrective_action": "...",
-      "preventive_action": "...",
-      "engineering_control": "...",
-      "administrative_control": "...",
-      "training_need": "...",
-      "required_ppe": "...",
-      "suggested_responsible_role": "...",
-      "suggested_term_date": "YYYY-MM-DD veya null",
-      "bbox": {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0},
-      "legal_references": [
-        {"regulation_name": "başlık", "article": null, "paragraph": null, "relation_explanation": "..."}
-      ]
-    }
-  ]
+_CONFIDENCE_LABELS = {
+    "very_high": 0.92,
+    "high": 0.78,
+    "medium": 0.55,
+    "low": 0.28,
 }
-
-Madde numarası uydurma: article ve paragraph alanlarını yalnızca kesin
-doğrulanmış bir kaynağın açıkça verdiği durumda doldur; aksi hâlde null.
-Katalogdaki başlıkları aynen kullan, katalog dışı mevzuat ekleme.
-""".strip()
+_CONFIRMED_EVIDENCE_CLASSES = {"directly_observed", "strongly_supported"}
+_PRIORITY_COLORS = {"critical": "#7f1d1d", "high": "#b91c1c", "medium": "#d97706", "low": "#64748b"}
 
 
 def _field_ai_api_key() -> str:
@@ -143,6 +111,125 @@ def _parse_date(value: Any) -> str | None:
         return None
 
 
+def _photo_index(value: Any, *, photo_count: int) -> int:
+    try:
+        index = int(value)
+    except (TypeError, ValueError):
+        index = 0
+    return max(0, min(max(photo_count - 1, 0), index))
+
+
+def _confidence(item: dict[str, Any]) -> float | None:
+    numeric = _number(item.get("confidence"))
+    if numeric is not None:
+        return max(0.0, min(1.0, numeric))
+    label = str(item.get("confidence_label") or "").strip().lower().replace(" ", "_")
+    mapped = _CONFIDENCE_LABELS.get(label)
+    return mapped
+
+
+def _evidence_class(value: Any) -> str | None:
+    raw = str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+    aliases = {
+        "a": "directly_observed",
+        "directlyobserved": "directly_observed",
+        "b": "strongly_supported",
+        "stronglysupported": "strongly_supported",
+        "c": "possible_requires_verification",
+        "possible": "possible_requires_verification",
+        "requires_verification": "possible_requires_verification",
+        "d": "not_assessable",
+        "notassessable": "not_assessable",
+        "e": "no_visible_nonconformity",
+        "no_visible_nonconformity_identified": "no_visible_nonconformity",
+    }
+    normalized = aliases.get(raw, raw)
+    if normalized in {
+        "directly_observed",
+        "strongly_supported",
+        "possible_requires_verification",
+        "not_assessable",
+        "no_visible_nonconformity",
+    }:
+        return normalized
+    return None
+
+
+def _priority(value: Any, default: str = "medium") -> str:
+    priority = str(value or default).strip().lower()
+    return priority if priority in {"low", "medium", "high", "critical"} else default
+
+
+def _annotation_label(item: dict[str, Any], *, finding_no: int | None = None) -> str:
+    hazard = _text(item.get("hazard_name") or item.get("title"), 50) or "Bulgu"
+    code = _text(item.get("annotation_label") or item.get("finding_code"), 40)
+    if finding_no is not None:
+        body = code or hazard
+        if body.startswith(f"#{finding_no}"):
+            return body[:80]
+        return f"#{finding_no} {body}"[:80]
+    return (code or f"OHS {hazard}")[:80]
+
+
+def _legal_references(item: dict[str, Any], warnings: list[str]) -> list[dict[str, Any]]:
+    references: list[dict[str, Any]] = []
+    for reference in item.get("legal_references") or item.get("legal_refs") or []:
+        if not isinstance(reference, dict):
+            continue
+        name = _text(reference.get("regulation_name") or reference.get("name"), 300)
+        entry = legal_entry(name)
+        if not entry:
+            warnings.append("AI çıktısındaki katalog dışı mevzuat atfı saklanmadı.")
+            continue
+        references.append({
+            "regulation_name": name,
+            "article": None,
+            "paragraph": None,
+            "source_url": entry.get("source_url"),
+            "source_version": entry.get("version") or "resmî kaynak uzman kontrolü",
+            "relation_explanation": _text(reference.get("relation_explanation") or reference.get("explanation"), 2000),
+            "verification_status": "needs_expert_review",
+        })
+    return references
+
+
+def _verification_items(raw: Any, *, photo_count: int) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    items: list[dict[str, Any]] = []
+    for index, item in enumerate(raw[:30], start=1):
+        if not isinstance(item, dict):
+            continue
+        reason = _text(item.get("reason") or item.get("what_cannot_be_verified") or item.get("description"), 2000)
+        if not reason:
+            continue
+        items.append({
+            "verification_id": _text(item.get("verification_id"), 20) or f"VER-{index:03d}",
+            "reason": reason,
+            "what_cannot_be_verified": _text(item.get("what_cannot_be_verified"), 2000),
+            "required_check": _text(item.get("required_check") or item.get("required_field_document_check"), 2000),
+            "priority": _priority(item.get("priority"), "medium"),
+            "photo_index": _photo_index(item.get("photo_index", 0), photo_count=photo_count),
+        })
+    return items
+
+
+def _critical_alerts_to_findings(raw: Any, *, photo_count: int) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    converted: list[dict[str, Any]] = []
+    for item in raw[:10]:
+        if not isinstance(item, dict):
+            continue
+        copy = dict(item)
+        copy.setdefault("suggested_priority", "critical")
+        copy.setdefault("evidence_class", "directly_observed")
+        copy.setdefault("finding_code", copy.get("finding_id") or "CRIT")
+        copy["photo_index"] = _photo_index(copy.get("photo_index", 0), photo_count=photo_count)
+        converted.append(copy)
+    return converted
+
+
 def _parse_provider_json(payload: dict[str, Any]) -> Any:
     choices = payload.get("choices")
     if not isinstance(choices, list) or not choices:
@@ -170,93 +257,120 @@ def _normalize(raw: Any, *, photo_count: int) -> dict[str, Any]:
     findings_raw = raw.get("findings")
     if not isinstance(findings_raw, list):
         findings_raw = []
+    findings_raw = list(findings_raw) + _critical_alerts_to_findings(raw.get("critical_alerts"), photo_count=photo_count)
     findings: list[dict[str, Any]] = []
     warnings: list[str] = []
-    seen: set[tuple[str, str]] = set()
+    seen: set[tuple[str, str, int]] = set()
     for item in findings_raw[:60]:
         if not isinstance(item, dict):
             continue
-        evidence = _text(item.get("visual_evidence") or item.get("evidence"), 4000)
-        nonconformity = _text(item.get("nonconformity_description") or item.get("description"), 4000)
+        evidence = _text(item.get("visual_evidence") or item.get("observed_condition") or item.get("evidence"), 4000)
+        nonconformity = _text(
+            item.get("nonconformity_description")
+            or item.get("observed_condition")
+            or item.get("description"),
+            4000,
+        )
         hazard_name = _text(item.get("hazard_name") or item.get("title"), 220)
         # Kanıt ve açıklama yoksa provider'ın tahmini sonuç olarak saklanmaz.
         if not evidence or not nonconformity or not hazard_name:
+            continue
+        evidence_class = _evidence_class(item.get("evidence_class"))
+        if evidence_class and evidence_class not in _CONFIRMED_EVIDENCE_CLASSES:
+            warnings.append("Doğrulama gerektiren veya yetersiz kanıtlı AI taslağı confirmed bulgu olarak saklanmadı.")
+            continue
+        confidence = _confidence(item)
+        if confidence is not None and confidence < 0.45:
+            warnings.append("Düşük güvenli AI taslağı confirmed bulgu olarak saklanmadı; uzman doğrulaması gerekir.")
             continue
         box = _bbox(item.get("bbox") or item.get("bounding_box"))
         if box is None:
             warnings.append("AI çıktısındaki bulgu geçerli bir işaret koordinatı içermedi; taslak saklanmadı.")
             continue
-        try:
-            photo_index = int(item.get("photo_index", 0))
-        except (TypeError, ValueError):
-            photo_index = 0
-        photo_index = max(0, min(max(photo_count - 1, 0), photo_index))
+        photo_index = _photo_index(item.get("photo_index", 0), photo_count=photo_count)
         category = _text(item.get("category_name") or item.get("category"), 180)
         if category not in FIELD_HAZARD_CATEGORIES:
             category = None
-        priority = str(item.get("suggested_priority") or item.get("priority") or "medium").strip().lower()
-        if priority not in {"low", "medium", "high", "critical"}:
-            priority = "medium"
-        confidence = _number(item.get("confidence"))
-        if confidence is not None:
-            confidence = max(0.0, min(1.0, confidence))
-        key = (hazard_name.casefold(), evidence.casefold())
+        priority = _priority(item.get("suggested_priority") or item.get("priority") or item.get("visual_priority"))
+        key = (hazard_name.casefold(), evidence.casefold(), photo_index)
         if key in seen:
             continue
         seen.add(key)
-        references: list[dict[str, Any]] = []
-        for reference in item.get("legal_references") or item.get("legal_refs") or []:
-            if not isinstance(reference, dict):
-                continue
-            name = _text(reference.get("regulation_name") or reference.get("name"), 300)
-            entry = legal_entry(name)
-            if not entry:
-                warnings.append("AI çıktısındaki katalog dışı mevzuat atfı saklanmadı.")
-                continue
-            # Provider madde numarasını hiçbir durumda otomatik doğrulanmış
-            # kabul etmiyoruz. Uzman daha sonra ayrı inceleme ile doldurabilir.
-            references.append({
-                "regulation_name": name,
-                "article": None,
-                "paragraph": None,
-                "source_url": entry.get("source_url"),
-                "source_version": entry.get("version") or "resmî kaynak uzman kontrolü",
-                "relation_explanation": _text(reference.get("relation_explanation") or reference.get("explanation"), 2000),
-                "verification_status": "needs_expert_review",
-            })
+        harm = _text(item.get("possible_harm") or item.get("potential_consequence") or item.get("harm"), 3000)
+        cause = _text(item.get("possible_cause") or item.get("hazard_mechanism") or item.get("cause"), 3000)
+        urgent = _text(item.get("urgent_action") or item.get("immediate_temporary_control"), 3000)
+        corrective = _text(item.get("corrective_action") or item.get("permanent_corrective_action"), 3000)
+        uncertainty = _text(item.get("uncertainty_note") or item.get("uncertainty") or item.get("location_in_image"), 2000)
+        if evidence_class:
+            class_note = "Doğrudan gözlenen görsel kanıt." if evidence_class == "directly_observed" else "Güçlü görsel destek; saha teyidi önerilir."
+            uncertainty = " ".join(part for part in (class_note, uncertainty) if part)[:2000]
         findings.append({
             "photo_index": photo_index,
             "hazard_name": hazard_name,
             "category_name": category,
             "visual_evidence": evidence,
             "nonconformity_description": nonconformity,
-            "possible_cause": _text(item.get("possible_cause") or item.get("cause"), 3000),
-            "possible_harm": _text(item.get("possible_harm") or item.get("harm"), 3000),
+            "possible_cause": cause,
+            "possible_harm": harm,
             "possible_accident_or_disease": _text(item.get("possible_accident_or_disease") or item.get("accident"), 3000),
             "suggested_priority": priority,
             "priority_reason": _text(item.get("priority_reason"), 2000),
             "confidence": confidence,
-            "uncertainty_note": _text(item.get("uncertainty_note") or item.get("uncertainty"), 2000),
-            "urgent_action": _text(item.get("urgent_action"), 3000),
-            "corrective_action": _text(item.get("corrective_action"), 3000),
+            "uncertainty_note": uncertainty,
+            "urgent_action": urgent,
+            "corrective_action": corrective,
             "preventive_action": _text(item.get("preventive_action"), 3000),
             "engineering_control": _text(item.get("engineering_control"), 3000),
             "administrative_control": _text(item.get("administrative_control"), 3000),
             "training_need": _text(item.get("training_need"), 2000),
             "required_ppe": _text(item.get("required_ppe"), 2000),
-            "suggested_responsible_role": _text(item.get("suggested_responsible_role"), 180),
+            "suggested_responsible_role": _text(item.get("suggested_responsible_role") or item.get("responsible_role"), 180),
             "suggested_term_date": _parse_date(item.get("suggested_term_date")),
+            "annotation_label": _annotation_label(item),
             "bbox": box,
-            "legal_references": references,
+            "legal_references": _legal_references(item, warnings),
         })
-    warning = _text(raw.get("warning"), 3000)
-    if warnings:
-        warning = " ".join(item for item in [warning, *dict.fromkeys(warnings)] if item)
+    warning_parts = [
+        _text(raw.get("warning"), 3000),
+        _text(raw.get("limitations"), 2000),
+        *_text_list(raw.get("verification_items"), photo_count=photo_count),
+        *dict.fromkeys(warnings),
+    ]
+    warning = " ".join(part for part in warning_parts if part)[:4000] or None
+    assessment = _compose_general_assessment(raw)
     return {
-        "general_assessment": _text(raw.get("general_assessment") or raw.get("summary"), 5000),
+        "general_assessment": assessment,
         "warning": warning,
         "findings": findings,
     }
+
+
+def _text_list(raw: Any, *, photo_count: int) -> list[str]:
+    notes: list[str] = []
+    for item in _verification_items(raw, photo_count=photo_count):
+        bits = [item.get("verification_id"), item.get("reason"), item.get("required_check")]
+        notes.append("Doğrulama: " + " — ".join(part for part in bits if part))
+    return notes
+
+
+def _compose_general_assessment(raw: dict[str, Any]) -> str | None:
+    parts = [
+        _text(raw.get("general_assessment") or raw.get("summary"), 3500),
+        _text(raw.get("scene_inventory"), 1500),
+    ]
+    quality = _text(raw.get("image_quality"), 40)
+    status = _text(raw.get("overall_visual_safety_status"), 80)
+    if quality:
+        parts.append(f"Görüntü kalitesi: {quality}.")
+    if status:
+        parts.append(f"Görsel güvenlik durumu (taslak): {status}.")
+    positives = raw.get("positive_observations")
+    if isinstance(positives, list):
+        clean = [text for text in (_text(item, 240) for item in positives[:8]) if text]
+        if clean:
+            parts.append("Olumlu gözlemler: " + "; ".join(clean) + ".")
+    combined = " ".join(part for part in parts if part)
+    return combined[:5000] if combined else None
 
 
 def analyze_field_images(*, context: dict[str, Any], photos: list[tuple[Any, bytes]]) -> dict[str, Any]:
@@ -285,7 +399,10 @@ def analyze_field_images(*, context: dict[str, Any], photos: list[tuple[Any, byt
         "type": "text",
         "text": (
             "Aşağıdaki bağlamı yalnızca yardımcı veri olarak kullan; görsel kanıtı aşma. "
-            "Seçili kategoriler diğer görünür tehlikeleri dışlamaz. BAĞLAM:\n" + json.dumps(descriptions, ensure_ascii=False)
+            "Bağlam fotoğrafta görünmeyen tehlikeyi kanıtlamaz. Seçili kategoriler diğer görünür tehlikeleri dışlamaz. "
+            "Madde/fıkra numarası, ölçüm değeri ve hukuki ihlal kararı üretme. "
+            "Yalnızca doğrudan gözlenen veya güçlü desteklenen, bbox'lu bulguları findings'e koy. "
+            "COUNTRY=Türkiye. BAĞLAM:\n" + json.dumps(descriptions, ensure_ascii=False)
         ),
     }]
     for index, (photo, data) in enumerate(photos):
@@ -458,7 +575,7 @@ def run_visual_field_analysis_job(inspection_id: int) -> dict[str, Any]:
                 source="ai",
                 ai_model_name=str(getattr(settings, "field_ai_model", "") or "")[:120],
                 ai_model_version=str(getattr(settings, "field_ai_model_version", "") or "")[:80],
-                ai_prompt_version=str(getattr(settings, "field_ai_prompt_version", "") or "")[:40],
+                ai_prompt_version=str(getattr(settings, "field_ai_prompt_version", None) or FIELD_AI_PROMPT_VERSION)[:40],
                 created_by_id=inspection.created_by_id,
             )
             db.add(finding)
@@ -470,7 +587,8 @@ def run_visual_field_analysis_job(inspection_id: int) -> dict[str, Any]:
                 annotation = FieldInspectionAnnotation(
                     inspection_id=inspection.id, photo_id=photo.id, finding_id=finding.id,
                     shape_type="rectangle", x=box["x"], y=box["y"], width=box["width"], height=box["height"],
-                    label=f"#{finding.finding_no}", color="#b91c1c" if finding.suggested_priority in {"high", "critical"} else "#d97706",
+                    label=_annotation_label(item, finding_no=finding.finding_no)[:80],
+                    color=_PRIORITY_COLORS.get(finding.suggested_priority, "#d97706"),
                     source="ai", created_by_id=inspection.created_by_id,
                 )
                 db.add(annotation)
@@ -487,7 +605,7 @@ def run_visual_field_analysis_job(inspection_id: int) -> dict[str, Any]:
         inspection.ai_analysis_at = datetime.utcnow()
         inspection.ai_model_name = str(getattr(settings, "field_ai_model", "") or "")[:120]
         inspection.ai_model_version = str(getattr(settings, "field_ai_model_version", "") or "")[:80]
-        inspection.ai_prompt_version = str(getattr(settings, "field_ai_prompt_version", "") or "")[:40]
+        inspection.ai_prompt_version = str(getattr(settings, "field_ai_prompt_version", None) or FIELD_AI_PROMPT_VERSION)[:40]
         inspection.ai_general_assessment = result.get("general_assessment")
         inspection.ai_warning = result.get("warning")
         inspection.status = "in_review"

@@ -183,3 +183,86 @@ def test_field_ai_uses_legacy_secret_only_behind_new_gates(monkeypatch):
 
     monkeypatch.setattr(settings, "field_ai_data_processing_allowed", False)
     assert field_ai_is_configured() is False
+
+
+def test_field_ai_master_prompt_keeps_json_contract_and_forbids_legal_invention():
+    from app.services.field_inspection_ai import FIELD_AI_SYSTEM_PROMPT, _normalize
+    from app.services.field_inspection_ai_prompt import FIELD_AI_PROMPT_VERSION
+    from app.services.field_inspection_catalog import FIELD_HAZARD_CATEGORIES, FIELD_LEGAL_CATALOG
+
+    assert FIELD_AI_PROMPT_VERSION == "field-visual-v2"
+    assert "Yanıt YALNIZCA geçerli JSON nesnesi olsun" in FIELD_AI_SYSTEM_PROMPT
+    assert '"findings"' in FIELD_AI_SYSTEM_PROMPT
+    assert "Madde/fıkra alanlarını HER ZAMAN null bırak" in FIELD_AI_SYSTEM_PROMPT
+    assert "6331 sayılı İş Sağlığı ve Güvenliği Kanunu" in FIELD_AI_SYSTEM_PROMPT
+    assert FIELD_HAZARD_CATEGORIES[0] in FIELD_AI_SYSTEM_PROMPT
+    assert FIELD_LEGAL_CATALOG[0]["name"] in FIELD_AI_SYSTEM_PROMPT
+    assert "Yasal durdurma emri veremezsin" in FIELD_AI_SYSTEM_PROMPT
+
+    confirmed = _normalize({
+        "general_assessment": "Kenar koruması görünmüyor.",
+        "image_quality": "good",
+        "findings": [{
+            "photo_index": 0,
+            "hazard_name": "Korumasız döşeme kenarı",
+            "category_name": "Korkuluklar ve kenar koruma",
+            "visual_evidence": "Fotoğrafta açık döşeme kenarı görülüyor.",
+            "nonconformity_description": "Yükseltilmiş kenarda kollektif koruma görünmüyor.",
+            "evidence_class": "directly_observed",
+            "confidence": 0.9,
+            "suggested_priority": "high",
+            "bbox": {"x": 0.1, "y": 0.2, "width": 0.3, "height": 0.25},
+            "legal_references": [{
+                "regulation_name": "Yapı İşlerinde İş Sağlığı ve Güvenliği Yönetmeliği",
+                "article": "17.4",
+                "paragraph": "a",
+                "relation_explanation": "Kenar koruması",
+            }],
+        }],
+        "critical_alerts": [{
+            "photo_index": 0,
+            "hazard_name": "Askıda yük altında kişi",
+            "visual_evidence": "Çalışan askıdaki yükün altında duruyor.",
+            "nonconformity_description": "Line-of-fire maruziyeti görünüyor.",
+            "bbox": {"x": 0.4, "y": 0.4, "width": 0.2, "height": 0.2},
+        }],
+        "verification_items": [{
+            "verification_id": "VER-001",
+            "reason": "Periyodik kontrol etiketi okunamıyor.",
+            "required_check": "Belgesel periyodik kontrol kaydı",
+        }],
+    }, photo_count=1)
+    assert len(confirmed["findings"]) == 2
+    assert confirmed["findings"][0]["legal_references"][0]["article"] is None
+    assert confirmed["findings"][0]["legal_references"][0]["paragraph"] is None
+    assert confirmed["findings"][0]["legal_references"][0]["verification_status"] == "needs_expert_review"
+    assert confirmed["findings"][1]["suggested_priority"] == "critical"
+    assert "VER-001" in (confirmed["warning"] or "")
+    assert "Görüntü kalitesi: good." in (confirmed["general_assessment"] or "")
+
+    dropped = _normalize({
+        "findings": [{
+            "photo_index": 0,
+            "hazard_name": "Olası topraklama eksikliği",
+            "visual_evidence": "Topraklama iletkeni bu açıdan görünmüyor.",
+            "nonconformity_description": "Makine topraklanmamış olabilir.",
+            "evidence_class": "possible_requires_verification",
+            "confidence": 0.8,
+            "bbox": {"x": 0.1, "y": 0.1, "width": 0.2, "height": 0.2},
+        }],
+    }, photo_count=1)
+    assert dropped["findings"] == []
+    assert "Doğrulama gerektiren" in (dropped["warning"] or "")
+
+    legacy = _normalize({
+        "summary": "Açık kablo.",
+        "findings": [{
+            "photo_index": 0,
+            "hazard_name": "Açık kablo",
+            "visual_evidence": "Fotoğrafta açık kablo görülüyor.",
+            "nonconformity_description": "Kablo korumasız durumda.",
+            "bbox": {"x": 0.2, "y": 0.2, "width": 0.3, "height": 0.3},
+        }],
+    }, photo_count=1)
+    assert len(legacy["findings"]) == 1
+    assert legacy["findings"][0]["hazard_name"] == "Açık kablo"

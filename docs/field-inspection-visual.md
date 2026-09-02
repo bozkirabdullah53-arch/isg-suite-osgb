@@ -26,6 +26,12 @@ Anahtar veya veri işleme izni yoksa analiz isteği başarısız durumunu açık
 kaydeder; hiçbir varsayımsal bulgu üretilmez. Provider çıktısı `ai_draft`
 durumunda kalır ve uzman kabul/reddetmeden denetim onaylanamaz.
 
+Görsel analiz sistem promptu (`FIELD_AI_PROMPT_VERSION=field-visual-v2`)
+Türkiye İSG görsel denetim disiplinini kullanır: geniş tarama, dar sonuç,
+madde/ölçüm uydurmama, kanıt sınıfı kapısı ve kontrol hiyerarşisine dayalı
+CAPA taslağı. Model çıktısı mevcut JSON sözleşmesine normalize edilir;
+doğrulanmamış madde numarası saklanmaz.
+
 ## Fotoğraf ve GPS
 
 Orijinal, analiz, işaretlenmiş ve önizleme nesneleri ayrı depolama anahtarları

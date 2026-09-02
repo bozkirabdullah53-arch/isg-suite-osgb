@@ -165,7 +165,7 @@ class Settings(BaseSettings):
     field_ai_api_key: str | None = None
     field_ai_model: str = "openai/gpt-5.4-mini"
     field_ai_model_version: str = "configured"
-    field_ai_prompt_version: str = "field-visual-v1"
+    field_ai_prompt_version: str = "field-visual-v2"
     field_ai_timeout_seconds: int = 60
     field_ai_data_processing_allowed: bool = False
     # Contextual in-app OHS assistant. External provider settings are optional;

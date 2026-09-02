@@ -196,7 +196,7 @@ services:
       - key: FIELD_AI_MODEL_VERSION
         value: "configured"
       - key: FIELD_AI_PROMPT_VERSION
-        value: "field-visual-v1"
+        value: "field-visual-v2"
       - key: FIELD_AI_TIMEOUT_SECONDS
         value: "90"
       # Görsel saha AI pilotu için dış veri işleme açıkça etkinleştirilmiştir;
