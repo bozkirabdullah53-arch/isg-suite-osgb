@@ -29,22 +29,58 @@ function setDisabled(el, disabled) {
   }
 }
 
-/** Replace legacy third-party QR image URLs with same-origin API rendering. */
+/** Convert the legacy third-party QR URL to our same-origin renderer. */
+function rewriteQrSrc(value) {
+  const src = String(value || '');
+  if (!src) return src;
+  try {
+    const url = new URL(src, window.location.href);
+    if (url.hostname !== 'api.qrserver.com') return src;
+    const data = url.searchParams.get('data');
+    if (!data) return src;
+    const local = new URL('/api/v1/companies/qr-render', window.location.origin);
+    local.searchParams.set('data', data);
+    return local.toString();
+  } catch {
+    return src;
+  }
+}
+
+/**
+ * React normally assigns <img src> through the DOM property. Rewrite QR-server
+ * URLs at assignment time so the browser never needs to fetch the third-party
+ * URL. MutationObserver remains as a fallback.
+ */
+(function installQrRewriteHooks() {
+  try {
+    const imageProto = HTMLImageElement.prototype;
+    const srcDescriptor = Object.getOwnPropertyDescriptor(imageProto, 'src');
+    if (srcDescriptor?.set && srcDescriptor.get) {
+      Object.defineProperty(imageProto, 'src', {
+        configurable: srcDescriptor.configurable,
+        enumerable: srcDescriptor.enumerable,
+        get() { return srcDescriptor.get.call(this); },
+        set(value) { srcDescriptor.set.call(this, rewriteQrSrc(value)); },
+      });
+    }
+    const originalSetAttribute = imageProto.setAttribute;
+    imageProto.setAttribute = function setAttribute(name, value) {
+      if (String(name).toLowerCase() === 'src') {
+        return originalSetAttribute.call(this, name, rewriteQrSrc(value));
+      }
+      return originalSetAttribute.call(this, name, value);
+    };
+  } catch {
+    // Fallback observer below remains active.
+  }
+})();
+
 function normalizeQrImage(el) {
   if (!(el instanceof HTMLImageElement)) return;
   const src = String(el.getAttribute('src') || el.src || '');
-  if (!src) return;
-  try {
-    const url = new URL(src, window.location.href);
-    if (url.hostname !== 'api.qrserver.com') return;
-    const data = url.searchParams.get('data');
-    if (!data) return;
-    const local = new URL('/api/v1/companies/qr-render', window.location.origin);
-    local.searchParams.set('data', data);
-    const localSrc = local.toString();
-    if (el.src !== localSrc) el.src = localSrc;
-  } catch {
-    // Ignore malformed/non-QR image URLs.
+  const localSrc = rewriteQrSrc(src);
+  if (localSrc && localSrc !== src) {
+    try { el.setAttribute('src', localSrc); } catch { el.src = localSrc; }
   }
 }
 
@@ -55,20 +91,17 @@ function normalizeExistingQrImages(root = document) {
 function applyReadOnlyGuard() {
   const blocked = isReadOnlyPage();
   document.documentElement.classList.toggle('subscription-readonly', blocked);
-
   document.querySelectorAll('button').forEach((button) => {
     const label = (button.innerText || button.textContent || '').trim().replace(/\s+/g, ' ');
     if (WRITE_BUTTON_RE.test(label) || /\b(Ekle|Kaydet|Sil|Gönder|Yükle)\b/i.test(label)) {
       setDisabled(button, blocked);
     }
   });
-
   document.querySelectorAll('.modal, [role="dialog"]').forEach((modal) => {
     const warning = modal.innerText || '';
     if (!blocked && !READ_ONLY_MARKERS.some((marker) => warning.includes(marker))) return;
     modal.querySelectorAll('input, select, textarea, button[type="submit"]').forEach((el) => setDisabled(el, true));
   });
-
   normalizeExistingQrImages();
 }
 
@@ -90,7 +123,6 @@ new MutationObserver(scheduleGuard).observe(document.documentElement, {
   characterData: true,
 });
 
-// React may set image src after the DOM mutation callback; watch src attributes too.
 new MutationObserver((mutations) => {
   for (const mutation of mutations) {
     if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
