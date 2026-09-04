@@ -6,6 +6,7 @@ import {SiteQrCameraModal} from './field_qr_scan';
 import {AppModal} from './ui_modal';
 import {capacityHoursText,capacityPercentText,capacityPercentValue} from './capacity_engine';
 import {canUseVisitCheckInOutQr} from './visit_qr_policy';
+import {effectiveAssignmentStatus} from './assignment_status';
 
 const ptypes={safety_specialist:'İş Güvenliği Uzmanı',workplace_physician:'İşyeri Hekimi',other_health_personnel:'Diğer Sağlık Personeli'};
 const stages={new:'Yeni',contacted:'Görüşüldü',proposal:'Teklif',negotiation:'Müzakere',won:'Kazanıldı',lost:'Kaybedildi'};
@@ -1102,11 +1103,11 @@ export function AssignmentsPage({user}){
  const isGlobal=user.role==='global_admin';
  const[orgs,setOrgs]=useState([]),[companies,setCompanies]=useState([]),[pros,setPros]=useState([]),[rows,setRows]=useState([]),[capacityData,setCapacityData]=useState(null);
  const[open,setOpen]=useState(false),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
- const[statusFilter,setStatusFilter]=useState('active'); // active | suspended | ended | all
+ const[statusFilter,setStatusFilter]=useState('active');
  const[contractFile,setContractFile]=useState(null);
  const[katipPrep,setKatipPrep]=useState(null);
  const[form,setForm]=useState({osgb_id:'',company_id:'',professional_id:'',professional_type:'safety_specialist',start_date:'',end_date:'',required_minutes_monthly:0,planned_minutes_monthly:0,actual_minutes_monthly:0,isg_katip_contract_number:''});
- const statusLabel={active:'Aktif',suspended:'Askıda',ended:'Sonlandı'};
+ const statusLabel={active:'Aktif',planned:'Planlandı',expired:'Süresi Doldu',suspended:'Askıda',ended:'Sonlandı'};
  const loadKatipPrep=async(oid)=>{
   try{
    const q=oid?`?osgb_id=${oid}`:'';
@@ -1144,7 +1145,7 @@ export function AssignmentsPage({user}){
  });
  const filtered=rows.filter(r=>{
   if(statusFilter==='all') return true;
-  return (r.status||'active')===statusFilter;
+  return effectiveAssignmentStatus(r)===statusFilter;
  });
  const selectedProfessional=pros.find(x=>x.id===Number(form.professional_id));
  const selectedCapacity=capacityData?.professionals?.find(x=>x.professional_id===Number(form.professional_id));
@@ -1280,6 +1281,8 @@ export function AssignmentsPage({user}){
     <span>Durum filtresi</span>
     <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} disabled={busy}>
      <option value="active">Aktif</option>
+     <option value="planned">Planlandı</option>
+     <option value="expired">Süresi Doldu</option>
      <option value="suspended">Askıda</option>
      <option value="ended">Sonlandı</option>
      <option value="all">Tümü</option>
@@ -1296,7 +1299,7 @@ export function AssignmentsPage({user}){
    {k:'start_date',l:'Başlangıç'},
    {k:'end_date',l:'Bitiş',f:r=>r.end_date||'—'},
    {k:'required_minutes_monthly',l:'Otomatik zorunlu dk.',f:r=>`${Number(r.required_minutes_monthly)||0} dk/ay`},
-   {k:'status',l:'Durum',f:r=><span className={`badge ${r.status==='active'?'ok':'off'}`}>{statusLabel[r.status]||r.status}</span>},
+   {k:'status',l:'Durum',f:r=>{const status=effectiveAssignmentStatus(r);return <span className={`badge ${status==='active'?'ok':'off'}`}>{statusLabel[status]||status}</span>}},
    {k:'actions',l:'İşlem',f:r=>(
     <div className="actions assignments-actions">
      {r.status==='active'&&<>

@@ -64,6 +64,12 @@ function applyFilter(table,filter){
   const rows=Array.from(table.querySelectorAll('tbody tr'));
   let visible=0;
   for(const row of rows){
+    const isEmployeeRow=Boolean(row.querySelector('td[data-label="Ad Soyad"]'));
+    if(!isEmployeeRow){
+      row.hidden=false;
+      row.style.display='';
+      continue;
+    }
     const status=rowStatus(row);
     const show=filter==='all'||(filter==='active'&&status!=='inactive')||(filter==='inactive'&&status==='inactive');
     row.hidden=!show;
@@ -202,12 +208,16 @@ observer.observe(document.documentElement,{childList:true,subtree:true,character
 window.addEventListener('hashchange',scheduleSync);
 scheduleSync();
 
+export function disposePersonnelBulkDeleteBridge(){
+  observer?.disconnect();
+  observer=null;
+  window.removeEventListener('hashchange',scheduleSync);
+  if(timer) window.clearTimeout(timer);
+  timer=null;
+  document.querySelectorAll(`[${TOOLBAR_ATTR}]`).forEach((node)=>node.remove());
+  document.getElementById('personnel-bulk-delete-bridge-style')?.remove();
+}
+
 if(import.meta.hot){
-  import.meta.hot.dispose(()=>{
-    observer?.disconnect();
-    window.removeEventListener('hashchange',scheduleSync);
-    if(timer) window.clearTimeout(timer);
-    document.querySelectorAll(`[${TOOLBAR_ATTR}]`).forEach((node)=>node.remove());
-    document.getElementById('personnel-bulk-delete-bridge-style')?.remove();
-  });
+  import.meta.hot.dispose(disposePersonnelBulkDeleteBridge);
 }
