@@ -22,15 +22,16 @@ describe('workplace user policy', () => {
     expect(isWorkplaceKioskUser({...manager, email: 'isyeri.42@kiosk.isgsuite.tr'})).toBe(true);
   });
 
-  it('exposes only the explicitly approved workplace modules', () => {
+  it('exposes the approved workplace operational modules in the intended order', () => {
     expect(WORKPLACE_MANAGER_MODULES).toEqual([
       'employer_oversight',
-      'eyas_inbox',
       'employees',
       'ppe',
-      'periyodik_kontrol',
-      'ortam_olcum',
       'sds',
+      'periyodik_kontrol',
+      'personnel_training_records',
+      'eyas_inbox',
+      'ortam_olcum',
       'accident',
       'near_miss',
       'security',
