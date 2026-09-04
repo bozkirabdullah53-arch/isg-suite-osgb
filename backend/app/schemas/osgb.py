@@ -109,6 +109,7 @@ class ProfessionalUpdate(BaseModel):
             )
         return self
 
+
 class ProfessionalResponse(BaseModel):
     id: int
     osgb_id: int
@@ -136,6 +137,7 @@ class ProfessionalLoginAccount(BaseModel):
 class ProfessionalCreateResponse(ProfessionalResponse):
     login_account: ProfessionalLoginAccount | None = None
 
+
 class AssignmentCreate(BaseModel):
     osgb_id: int
     company_id: int
@@ -154,13 +156,31 @@ class AssignmentCreate(BaseModel):
             raise ValueError("Görevlendirme bitiş tarihi başlangıç tarihinden önce olamaz.")
         return self
 
-class AssignmentResponse(AssignmentCreate):
+
+class AssignmentResponse(BaseModel):
+    """Database response schema.
+
+    Keep input validation on AssignmentCreate, but do not re-run input-only
+    date validation while serializing existing database rows. This prevents a
+    legacy invalid row from turning a read/list endpoint into HTTP 500.
+    """
+    osgb_id: int
+    company_id: int
+    professional_id: int
+    professional_type: ProfessionalType
+    start_date: date
+    end_date: date | None = None
+    required_minutes_monthly: int = Field(default=0, ge=0)
+    planned_minutes_monthly: int = Field(default=0, ge=0)
+    actual_minutes_monthly: int = Field(default=0, ge=0)
+    isg_katip_contract_number: str | None = None
     id: int
     status: AssignmentStatus
     created_at: datetime
     contract_file_name: str | None = None
     contract_content_type: str | None = None
     model_config = ConfigDict(from_attributes=True)
+
 
 class ContractCreate(BaseModel):
     osgb_id: int
@@ -169,6 +189,7 @@ class ContractCreate(BaseModel):
     start_date: date
     end_date: date | None = None
     monthly_fee: int | None = None
+
 
 class ContractUpdate(BaseModel):
     status: str | None = None
@@ -182,6 +203,7 @@ class ContractUpdate(BaseModel):
             if self.status not in allowed:
                 raise ValueError("Geçersiz sözleşme durumu.")
         return self
+
 
 class ContractResponse(ContractCreate):
     id: int
