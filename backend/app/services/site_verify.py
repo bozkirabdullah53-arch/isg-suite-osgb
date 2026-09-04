@@ -33,11 +33,7 @@ def build_ephemeral_qr_payload(company_id: int, token: str) -> str:
 
 
 def render_qr_png(payload: str) -> bytes:
-    """Return a self-contained PNG for a QR payload.
-
-    QR rendering is deliberately performed by the API so the UI does not
-    depend on an external QR image provider or third-party network request.
-    """
+    """Return a self-contained PNG for a QR payload."""
     text = str(payload or "").strip()
     if not text:
         raise ValueError("QR içeriği boş olamaz.")
@@ -205,5 +201,27 @@ def consume_ephemeral_token(db: Session, company_id: int, raw: str | None) -> bo
     if not row:
         return False
     row.used_at = datetime.utcnow()
-    db.add(row)
     return True
+
+
+def resolve_company_from_site_code(db: Session, raw: str | None):
+    """QR'dan Company bulur. Kalıcı veya aktif ephemeral kabul eder (consume yok)."""
+    from app.models.entities import Company
+
+    text = (raw or "").strip()
+    if not text:
+        return None
+
+    eph_cid, eph_token = parse_ephemeral(text)
+    if eph_token and eph_cid is not None:
+        company = db.get(Company, eph_cid)
+        if company and validate_ephemeral_token(db, company.id, text):
+            return company
+
+    perm_cid, perm_code = parse_permanent(text)
+    if perm_cid is not None and perm_code:
+        company = db.get(Company, perm_cid)
+        if company and codes_match(company.site_verify_code, text):
+            return company
+
+    return None
