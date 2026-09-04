@@ -6,4 +6,41 @@
   .companies-table tbody td {
     width: 100% !important;
   }
+
+  /* OSGB Ana Panel KPI table: keep all columns inside the phone viewport.
+     Scoped to the dashboard's cards + table sequence so other tables remain unchanged. */
+  .osgb-cards + .table-wrap {
+    overflow-x: hidden;
+    min-width: 0;
+  }
+
+  .osgb-cards + .table-wrap table {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    table-layout: fixed;
+  }
+
+  .osgb-cards + .table-wrap th,
+  .osgb-cards + .table-wrap td {
+    min-width: 0;
+    padding: 9px 6px;
+    font-size: 11px;
+    line-height: 1.3;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  .osgb-cards + .table-wrap th:first-child,
+  .osgb-cards + .table-wrap td:first-child {
+    width: 46%;
+    text-align: left;
+  }
+
+  .osgb-cards + .table-wrap th:not(:first-child),
+  .osgb-cards + .table-wrap td:not(:first-child) {
+    width: 13.5%;
+    text-align: center;
+  }
 }
