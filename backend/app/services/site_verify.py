@@ -4,7 +4,9 @@ from __future__ import annotations
 import re
 import secrets
 from datetime import datetime, timedelta
+from io import BytesIO
 
+import qrcode
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
@@ -28,6 +30,29 @@ def build_qr_payload(company_id: int, code: str) -> str:
 
 def build_ephemeral_qr_payload(company_id: int, token: str) -> str:
     return f"{QR_TEMP_PREFIX}{company_id}:{token}"
+
+
+def render_qr_png(payload: str) -> bytes:
+    """Return a self-contained PNG for a QR payload.
+
+    QR rendering is deliberately performed by the API so the UI does not
+    depend on an external QR image provider or third-party network request.
+    """
+    text = str(payload or "").strip()
+    if not text:
+        raise ValueError("QR içeriği boş olamaz.")
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(text)
+    qr.make(fit=True)
+    image = qr.make_image(fill_color="black", back_color="white")
+    buf = BytesIO()
+    image.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def parse_site_code(raw: str) -> str:
@@ -180,27 +205,5 @@ def consume_ephemeral_token(db: Session, company_id: int, raw: str | None) -> bo
     if not row:
         return False
     row.used_at = datetime.utcnow()
+    db.add(row)
     return True
-
-
-def resolve_company_from_site_code(db: Session, raw: str | None):
-    """QR'dan Company bulur. Kalıcı veya aktif ephemeral kabul eder (consume yok)."""
-    from app.models.entities import Company
-
-    text = (raw or "").strip()
-    if not text:
-        return None
-
-    eph_cid, eph_token = parse_ephemeral(text)
-    if eph_token and eph_cid is not None:
-        company = db.get(Company, eph_cid)
-        if company and validate_ephemeral_token(db, company.id, text):
-            return company
-
-    perm_cid, perm_code = parse_permanent(text)
-    if perm_cid is not None and perm_code:
-        company = db.get(Company, perm_cid)
-        if company and codes_match(company.site_verify_code, text):
-            return company
-
-    return None
