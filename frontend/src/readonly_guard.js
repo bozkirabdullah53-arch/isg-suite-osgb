@@ -29,84 +29,6 @@ function setDisabled(el, disabled) {
   }
 }
 
-/**
- * Render legacy QR-server images through the ISG Suite API itself.
- * The QR endpoint is deliberately public and only receives the encoded payload;
- * using same-origin keeps the image request on the same API path used by the app.
- */
-const QR_API_ORIGIN = (() => {
-  try {
-    return window.location.origin;
-  } catch {
-    return 'https://isg-suite-api-1u9t.onrender.com';
-  }
-})();
-
-function rewriteQrSrc(value) {
-  const src = String(value || '');
-  if (!src) return src;
-  try {
-    const url = new URL(src, window.location.href);
-    if (url.hostname !== 'api.qrserver.com') return src;
-    const data = url.searchParams.get('data');
-    if (!data) return src;
-    const local = new URL('/api/v1/companies/qr-render', QR_API_ORIGIN);
-    local.searchParams.set('data', data);
-    return local.toString();
-  } catch {
-    return src;
-  }
-}
-
-/**
- * React may assign img.src as a DOM property. Rewrite it before the browser
- * starts the network request so the third-party QR service is never contacted.
- */
-(function installQrSrcHook() {
-  try {
-    const proto = HTMLImageElement.prototype;
-    const descriptor = Object.getOwnPropertyDescriptor(proto, 'src');
-    if (descriptor?.set && descriptor?.get) {
-      Object.defineProperty(proto, 'src', {
-        configurable: descriptor.configurable,
-        enumerable: descriptor.enumerable,
-        get() {
-          return descriptor.get.call(this);
-        },
-        set(value) {
-          descriptor.set.call(this, rewriteQrSrc(value));
-        },
-      });
-    }
-
-    const originalSetAttribute = proto.setAttribute;
-    proto.setAttribute = function setAttribute(name, value) {
-      if (String(name).toLowerCase() === 'src') {
-        return originalSetAttribute.call(this, name, rewriteQrSrc(value));
-      }
-      return originalSetAttribute.call(this, name, value);
-    };
-  } catch {
-    // DOM observer below remains as a fallback.
-  }
-})();
-
-function normalizeQrImage(el) {
-  if (!(el instanceof HTMLImageElement)) return;
-  const current = String(el.getAttribute('src') || el.src || '');
-  const rewritten = rewriteQrSrc(current);
-  if (!rewritten || rewritten === current) return;
-  try {
-    el.setAttribute('src', rewritten);
-  } catch {
-    el.src = rewritten;
-  }
-}
-
-function normalizeExistingQrImages(root = document) {
-  root.querySelectorAll?.('img').forEach(normalizeQrImage);
-}
-
 function applyReadOnlyGuard() {
   const blocked = isReadOnlyPage();
   document.documentElement.classList.toggle('subscription-readonly', blocked);
@@ -123,8 +45,6 @@ function applyReadOnlyGuard() {
     if (!blocked && !READ_ONLY_MARKERS.some((marker) => warning.includes(marker))) return;
     modal.querySelectorAll('input, select, textarea, button[type="submit"]').forEach((el) => setDisabled(el, true));
   });
-
-  normalizeExistingQrImages();
 }
 
 let scheduled = false;
@@ -144,14 +64,6 @@ new MutationObserver(scheduleGuard).observe(document.documentElement, {
   subtree: true,
   characterData: true,
 });
-
-const qrRescanTimer = window.setInterval(() => normalizeExistingQrImages(), 300);
-window.setTimeout(() => window.clearInterval(qrRescanTimer), 15000);
-
-document.addEventListener('error', (event) => {
-  const target = event.target;
-  if (target instanceof HTMLImageElement) normalizeQrImage(target);
-}, true);
 
 document.addEventListener('submit', (event) => {
   if (!isReadOnlyPage()) return;
