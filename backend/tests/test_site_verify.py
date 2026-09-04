@@ -17,6 +17,18 @@ def test_codes_match_fail_closed_when_company_code_missing():
     assert codes_match("ABC123", build_qr_payload(9, "ABC123")) is True
 
 
+def test_qr_renderer_is_public_and_returns_png(client: TestClient):
+    response = client.get(
+        "/api/v1/companies/qr-render",
+        params={"data": "ISGSUITE:WPTEMP:9:TESTTOKEN"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.headers["cache-control"] == "no-store"
+    assert response.content.startswith(b"\x89PNG\r\n\x1a\n")
+
+
 def test_ensure_company_site_verify_code_backfills(tmp_path):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker

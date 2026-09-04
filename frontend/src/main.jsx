@@ -735,7 +735,7 @@ function SiteQrKioskPage({user,onLogout}){
                   width={320}
                   height={320}
                   style={{display:'block',width:Math.min(320,typeof window!=='undefined'?window.innerWidth-80:320),height:'auto'}}
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(payload)}`}
+                  src={`/api/v1/companies/qr-render?data=${encodeURIComponent(payload)}`}
                 />
               ):(
                 <div style={{width:280,height:280,display:'grid',placeItems:'center',color:'#64748b'}}>{busy?'Yükleniyor…':'QR yok'}</div>
@@ -1032,7 +1032,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
       <div className="form-grid single">
         <p style={{marginTop:0,color:'#64748b'}}>Kalıcı QR — işyerine asılır. Saha personeli ziyaret tamamlarken okutur.</p>
         <div style={{textAlign:'center'}}>
-          <img alt="İşyeri QR" width={220} height={220} src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(siteQr.qr_payload)}`}/>
+          <img alt="İşyeri QR" width={220} height={220} src={`/api/v1/companies/qr-render?data=${encodeURIComponent(siteQr.qr_payload)}`}/>
         </div>
         <p><strong>Kod:</strong> <code>{siteQr.site_verify_code}</code></p>
         <p style={{wordBreak:'break-all',fontSize:13,color:'#475569'}}><strong>Payload:</strong> {siteQr.qr_payload}</p>
@@ -1045,7 +1045,7 @@ function Companies({canEdit, canAdd, isIndividual, onOpen360}){
           <hr style={{border:'none',borderTop:'1px solid #e2e8f0',margin:'8px 0'}}/>
           <p style={{marginTop:0,color:'#64748b'}}>Geçici QR — süresi dolunca veya bir kez kullanılınca geçersiz olur. Kalıcı QR değişmez.</p>
           <div style={{textAlign:'center'}}>
-            <img alt="Geçici işyeri QR" width={220} height={220} src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(siteQrEphemeral.qr_payload)}`}/>
+            <img alt="Geçici işyeri QR" width={220} height={220} src={`/api/v1/companies/qr-render?data=${encodeURIComponent(siteQrEphemeral.qr_payload)}`}/>
           </div>
           <p><strong>Bitiş:</strong> <code>{siteQrEphemeral.expires_at}</code> ({siteQrEphemeral.ttl_minutes} dk, tek kullanımlık)</p>
           <p style={{wordBreak:'break-all',fontSize:13,color:'#475569'}}><strong>Payload:</strong> {siteQrEphemeral.qr_payload}</p>

@@ -1,4 +1,4 @@
-const CACHE = "isg-suite-v12-qr-proxy";
+const CACHE = "isg-suite-v13";
 // "/" cache'leme — eski index.html / eski bundle'a kilitlenmeyi önler
 const CORE = [
   "/manifest.webmanifest",
@@ -6,9 +6,6 @@ const CORE = [
   "/icons/icon-192.png",
   "/icons/icon-512.png",
 ];
-
-const QR_SERVER_HOST = "api.qrserver.com";
-const QR_API_ORIGIN = "https://isg-suite-api-1u9t.onrender.com";
 
 function isCacheableAsset(request) {
   if (request.method !== "GET") return false;
@@ -31,22 +28,6 @@ function isCacheableAsset(request) {
   );
 }
 
-function qrProxyRequest(requestUrl) {
-  try {
-    const url = new URL(requestUrl);
-    if (url.hostname.toLowerCase() !== QR_SERVER_HOST) return null;
-    if (!/\/v1\/create-qr-code\//i.test(url.pathname)) return null;
-    const data = url.searchParams.get("data");
-    if (!data) return null;
-
-    const target = new URL("/api/v1/companies/qr-render", QR_API_ORIGIN);
-    target.searchParams.set("data", data);
-    return target.toString();
-  } catch {
-    return null;
-  }
-}
-
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(CORE)));
   self.skipWaiting();
@@ -63,21 +44,6 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
-
-  const qrTarget = qrProxyRequest(event.request.url);
-  if (qrTarget) {
-    // The QR request is normally a cross-origin <img> request (no-cors).
-    // Fetch the first-party API image with the same safe, credential-free mode.
-    event.respondWith(
-      fetch(qrTarget, {
-        method: "GET",
-        mode: "no-cors",
-        credentials: "omit",
-        cache: "no-store",
-      })
-    );
-    return;
-  }
 
   const url = new URL(event.request.url);
   // Cross-origin (Render API vb.): SW'ye hiç dokunma — CORS/credentials bozulmasın
