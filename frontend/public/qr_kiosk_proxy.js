@@ -1,45 +1,8 @@
-/* QR kiosk compatibility shim. Fetch QR PNG with the current auth session.
- * If the kiosk access token is missing/expired, refresh the existing cookie session once. */
+/* QR kiosk compatibility shim. Intercept only legacy QR-server image URLs and fetch the PNG through the public API origin. */
 (() => {
   const QR_SERVER_HOST = 'api.qrserver.com';
+  const QR_API_ORIGIN = 'https://isg-suite-api-1u9t.onrender.com';
   const API_QR_PATH = '/api/v1/companies/qr-render';
-  const REFRESH_PATH = '/api/v1/auth/refresh';
-
-  function readToken() {
-    try {
-      return (sessionStorage.getItem('isg_token') || localStorage.getItem('isg_token') || '').trim();
-    } catch {
-      return '';
-    }
-  }
-
-  function rememberToken(value) {
-    const token = String(value || '').trim();
-    if (!token) return;
-    try {
-      sessionStorage.setItem('isg_token', token);
-      localStorage.removeItem('isg_token');
-    } catch {
-      // Never block the kiosk if storage is unavailable.
-    }
-  }
-
-  async function refreshToken() {
-    try {
-      const response = await fetch(REFRESH_PATH, {
-        method: 'POST',
-        credentials: 'include',
-        cache: 'no-store',
-      });
-      if (!response.ok) return '';
-      const body = await response.json().catch(() => ({}));
-      const token = String(body?.access_token || '').trim();
-      if (token) rememberToken(token);
-      return token;
-    } catch {
-      return '';
-    }
-  }
 
   function isLegacy(value) {
     try {
@@ -52,51 +15,39 @@
     }
   }
 
-  async function fetchQr(endpoint, bearer) {
-    const headers = bearer ? { Authorization: `Bearer ${bearer}` } : {};
-    return fetch(endpoint.toString(), {
-      method: 'GET',
-      credentials: 'include',
-      headers,
-      cache: 'no-store',
-    });
-  }
-
   async function loadQr(value, img) {
     const source = new URL(String(value), window.location.href);
     const data = source.searchParams.get('data');
     if (!data) return;
 
-    const endpoint = new URL(API_QR_PATH, window.location.origin);
+    const endpoint = new URL(API_QR_PATH, QR_API_ORIGIN);
     endpoint.searchParams.set('data', data);
 
-    let bearer = readToken();
-    let response = await fetchQr(endpoint, bearer);
+    try {
+      // The QR render endpoint is public and validates the short-lived payload.
+      // Deliberately omit credentials/auth headers to avoid the isgsuite.tr edge
+      // auth/redirect path and make this a simple cross-origin GET.
+      const response = await fetch(endpoint.toString(), {
+        method: 'GET',
+        mode: 'cors',
+        credentials: 'omit',
+        cache: 'no-store',
+      });
+      if (!response.ok) throw new Error(`QR renderer HTTP ${response.status}`);
 
-    if (response.status === 401) {
-      const refreshed = await refreshToken();
-      if (refreshed) {
-        bearer = refreshed;
-        response = await fetchQr(endpoint, bearer);
+      const blob = await response.blob();
+      if (!blob.type.toLowerCase().startsWith('image/')) {
+        throw new Error(`QR renderer content-type ${blob.type || 'unknown'}`);
       }
-    }
 
-    if (!response.ok) {
-      try { img.dataset.qrLoadError = `QR renderer HTTP ${response.status}`; } catch { /* ignore */ }
-      return;
+      const objectUrl = URL.createObjectURL(blob);
+      const setter = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src')?.set;
+      if (setter) setter.call(img, objectUrl);
+      else img.setAttribute('src', objectUrl);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    } catch (error) {
+      try { img.dataset.qrLoadError = String(error?.message || error || 'unknown'); } catch { /* ignore */ }
     }
-
-    const blob = await response.blob();
-    if (!blob.type.toLowerCase().startsWith('image/')) {
-      try { img.dataset.qrLoadError = `QR renderer content-type ${blob.type || 'unknown'}`; } catch { /* ignore */ }
-      return;
-    }
-
-    const objectUrl = URL.createObjectURL(blob);
-    const setter = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src')?.set;
-    if (setter) setter.call(img, objectUrl);
-    else img.setAttribute('src', objectUrl);
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
   }
 
   try {
