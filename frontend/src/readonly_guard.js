@@ -29,6 +29,29 @@ function setDisabled(el, disabled) {
   }
 }
 
+/** Replace legacy third-party QR image URLs with same-origin API rendering. */
+function normalizeQrImage(el) {
+  if (!(el instanceof HTMLImageElement)) return;
+  const src = String(el.getAttribute('src') || el.src || '');
+  if (!src) return;
+  try {
+    const url = new URL(src, window.location.href);
+    if (url.hostname !== 'api.qrserver.com') return;
+    const data = url.searchParams.get('data');
+    if (!data) return;
+    const local = new URL('/api/v1/companies/qr-render', window.location.origin);
+    local.searchParams.set('data', data);
+    const localSrc = local.toString();
+    if (el.src !== localSrc) el.src = localSrc;
+  } catch {
+    // Ignore malformed/non-QR image URLs.
+  }
+}
+
+function normalizeExistingQrImages(root = document) {
+  root.querySelectorAll?.('img').forEach(normalizeQrImage);
+}
+
 function applyReadOnlyGuard() {
   const blocked = isReadOnlyPage();
   document.documentElement.classList.toggle('subscription-readonly', blocked);
@@ -45,6 +68,8 @@ function applyReadOnlyGuard() {
     if (!blocked && !READ_ONLY_MARKERS.some((marker) => warning.includes(marker))) return;
     modal.querySelectorAll('input, select, textarea, button[type="submit"]').forEach((el) => setDisabled(el, true));
   });
+
+  normalizeExistingQrImages();
 }
 
 let scheduled = false;
@@ -63,6 +88,19 @@ new MutationObserver(scheduleGuard).observe(document.documentElement, {
   childList: true,
   subtree: true,
   characterData: true,
+});
+
+// React may set image src after the DOM mutation callback; watch src attributes too.
+new MutationObserver((mutations) => {
+  for (const mutation of mutations) {
+    if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
+      normalizeQrImage(mutation.target);
+    }
+  }
+}).observe(document.documentElement, {
+  attributes: true,
+  attributeFilter: ['src'],
+  subtree: true,
 });
 
 document.addEventListener('submit', (event) => {
