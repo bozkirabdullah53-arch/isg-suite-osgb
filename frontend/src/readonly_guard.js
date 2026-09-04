@@ -60,6 +60,39 @@ function rewriteQrSrc(value) {
   }
 }
 
+/**
+ * React may assign img.src as a DOM property. Rewrite it before the browser
+ * starts the network request so the third-party QR service is never contacted.
+ */
+(function installQrSrcHook() {
+  try {
+    const proto = HTMLImageElement.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(proto, 'src');
+    if (descriptor?.set && descriptor?.get) {
+      Object.defineProperty(proto, 'src', {
+        configurable: descriptor.configurable,
+        enumerable: descriptor.enumerable,
+        get() {
+          return descriptor.get.call(this);
+        },
+        set(value) {
+          descriptor.set.call(this, rewriteQrSrc(value));
+        },
+      });
+    }
+
+    const originalSetAttribute = proto.setAttribute;
+    proto.setAttribute = function setAttribute(name, value) {
+      if (String(name).toLowerCase() === 'src') {
+        return originalSetAttribute.call(this, name, rewriteQrSrc(value));
+      }
+      return originalSetAttribute.call(this, name, value);
+    };
+  } catch {
+    // DOM observer below remains as a fallback.
+  }
+})();
+
 function normalizeQrImage(el) {
   if (!(el instanceof HTMLImageElement)) return;
   const current = String(el.getAttribute('src') || el.src || '');
@@ -114,8 +147,6 @@ new MutationObserver(scheduleGuard).observe(document.documentElement, {
   characterData: true,
 });
 
-// React may update the image src after the mutation callback. Re-scan briefly
-// and also handle the native image error event as a final fallback.
 const qrRescanTimer = window.setInterval(() => normalizeExistingQrImages(), 300);
 window.setTimeout(() => window.clearInterval(qrRescanTimer), 15000);
 
