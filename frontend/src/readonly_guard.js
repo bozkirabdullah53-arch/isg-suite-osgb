@@ -32,16 +32,14 @@ function setDisabled(el, disabled) {
 /**
  * Render legacy QR-server images through the ISG Suite API itself.
  * The QR endpoint is deliberately public and only receives the encoded payload;
- * using the direct API origin avoids dependence on the static-site proxy.
+ * using same-origin keeps the image request on the same API path used by the app.
  */
 const QR_API_ORIGIN = (() => {
   try {
-    const host = String(window.location.hostname || '').toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1') return window.location.origin;
+    return window.location.origin;
   } catch {
-    /* ignore */
+    return 'https://isg-suite-api-1u9t.onrender.com';
   }
-  return 'https://isg-suite-api-1u9t.onrender.com';
 })();
 
 function rewriteQrSrc(value) {
