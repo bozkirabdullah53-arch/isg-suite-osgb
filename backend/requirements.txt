@@ -21,7 +21,7 @@ aiofiles==24.1.0
 alembic==1.16.4
 pytest==9.0.3
 httpx==0.28.1
-pypdf==6.15.0
+pypdf==6.16.1
 pyotp==2.9.0
 qrcode==8.0
 holidays==0.80
