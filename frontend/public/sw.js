@@ -1,4 +1,4 @@
-const CACHE = "isg-suite-v10-assistant-visible";
+const CACHE = "isg-suite-v11-qr-fix";
 // "/" cache'leme — eski index.html / eski bundle'a kilitlenmeyi önler
 const CORE = [
   "/manifest.webmanifest",
