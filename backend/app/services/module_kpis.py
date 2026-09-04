@@ -142,8 +142,6 @@ def build_module_kpis(db: Session, osgb_id: int) -> dict:
         t_issues = training_by_company.get(cid, 0)
         h_issues = health_by_company.get(cid, 0)
         total = r_issues + t_issues + h_issues
-        if total <= 0:
-            continue
         top_companies.append(
             {
                 "company_id": cid,
@@ -155,7 +153,6 @@ def build_module_kpis(db: Session, osgb_id: int) -> dict:
             }
         )
     top_companies.sort(key=lambda x: (-x["total_issues"], x["company_name"]))
-    top_companies = top_companies[:10]
 
     alerts: list[dict] = []
     if overdue_dofs:
