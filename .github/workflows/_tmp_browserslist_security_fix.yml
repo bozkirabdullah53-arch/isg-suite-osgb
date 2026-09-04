@@ -34,3 +34,4 @@ jobs:
           git diff --cached --quiet && { echo 'No lockfile changes'; exit 0; }
           git commit -m 'fix: patch browserslist security vulnerability'
           git push
+# Trigger lockfile regeneration on the feature branch.
