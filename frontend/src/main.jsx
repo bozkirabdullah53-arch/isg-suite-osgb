@@ -23,6 +23,7 @@ import {LoginPasswordInput, PasswordField} from './password_field';
 import {LoginShowcase} from './login_showcase';
 import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';
 import {EmployerOversightPage, EmployerOversightPanel} from './employer_oversight';
+import {WorkplaceTrainingRecordsPage} from './workplace_training_records';
 import {OsgbOversightPage} from './osgb_oversight';
 import {LegalAcceptancesPanel} from './legal_acceptances';
 import {MembershipsPanel} from './memberships_panel';
@@ -289,6 +290,7 @@ const menuCatalog={
   eyas_inbox:['Onay Kutum (Hekim/İşveren)',FileText],
   training:['Eğitimler',GraduationCap],
   employee_training:['Çalışan Eğitimleri',GraduationCap],
+  personnel_training_records:['Personel Eğitim & Belgeleme',FileText],
   employee_self_service:['Çalışan Panelim',ShieldCheck],
   health:['Sağlık',HeartPulse],
   prescriptions:['e-Reçete',Pill],
@@ -2670,6 +2672,7 @@ function App(){
     // atanmış video + kontrol soruları + final sınavı panelini görür.
     training:<TrainingPage user={user}/>,
     employee_training:<RemoteBasicOhsTrainingPanel user={user}/>,
+    personnel_training_records:<WorkplaceTrainingRecordsPage user={user}/>,
     employee_self_service:<EmployeeSelfServicePage user={user} onOpenTraining={(assignmentId)=>{
       rememberEmployeeTrainingAssignment(assignmentId);
       goModule('employee_training');

@@ -9,7 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.services.personnel_profile_osgb_scope import install_osgb_service_overrides
 install_osgb_service_overrides()
 
-from app.api import auth, branches, companies, customer_portal, dashboard, employees, personnel_profiles, personnel_profile_management, personnel_profile_osgb, personnel_profile_osgb_documents, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, professional_performance_exports, operations, trainings, training_nace, training_completion, training_lifecycle_v2, training_premium_dashboard_v1, training_presentation, training_presentation_editor, training_question_selection_audit, remote_training, self_service, risks, field_inspections, work_permits, contractors, visitors, incidents, ppe, sds, drills, emergency_teams, eisa, eisa_emails, individual_specialist_approval, eisa_orphan_users, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions, field_mobile_phase_e, facility_summary_phase_f, contextual_assistant
+from app.api import auth, branches, companies, customer_portal, dashboard, employees, personnel_profiles, personnel_profile_management, personnel_profile_osgb, personnel_profile_osgb_documents, users, isg_records, health, documents, annual_plans, annual_eval, reports, security, files, exports, subscriptions, notifications, system, osgb, professional_performance_exports, operations, trainings, training_nace, training_completion, training_lifecycle_v2, training_premium_dashboard_v1, training_presentation, training_presentation_editor, training_question_selection_audit, remote_training, self_service, risks, field_inspections, work_permits, contractors, visitors, incidents, ppe, sds, drills, emergency_teams, eisa, eisa_emails, individual_specialist_approval, eisa_orphan_users, osgb_applications, archives, legal, memberships, compliance_registers, committee_professional, esign, esign_orch, eyas, training_question_bank, prescriptions, field_mobile_phase_e, facility_summary_phase_f, contextual_assistant, workplace_training_records
 from app.core.rate_limit import SimpleRateLimitMiddleware
 from app.core.request_id import RequestIdMiddleware, install_request_id_logging
 from app.core.tenant_middleware import TenantContextMiddleware
@@ -271,6 +271,7 @@ for router in (
     esign_orch.router,
     eyas.router,
     contextual_assistant.router,
+    workplace_training_records.router,
 ):
     app.include_router(router, prefix="/api/v1")
 

@@ -20,6 +20,7 @@ export const WORKPLACE_MANAGER_MODULES = Object.freeze([
   'employer_oversight',
   'eyas_inbox',
   'employees',
+  'personnel_training_records',
   'ppe',
   'periyodik_kontrol',
   'ortam_olcum',
