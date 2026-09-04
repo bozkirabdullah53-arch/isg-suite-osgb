@@ -16,15 +16,23 @@ export function isWorkplaceManagerUser(user) {
     && !isWorkplaceKioskUser(user);
 }
 
+/**
+ * İşyeri kullanıcısının günlük operasyon menüsü.
+ * Sıra özellikle şu iş akışını öne çıkarır: personel → KKD → PKD → periyodik
+ * kontrol → eğitim katılımı/belgelendirme.
+ *
+ * Mevcut modüller yeniden yazılmaz; yalnızca zaten çalışan modüller işyeri
+ * hesabına tenant kapsamı içinde görünür hale getirilir.
+ */
 export const WORKPLACE_MANAGER_MODULES = Object.freeze([
   'employer_oversight',
-  'eyas_inbox',
   'employees',
-  'personnel_training_records',
   'ppe',
-  'periyodik_kontrol',
-  'ortam_olcum',
   'sds',
+  'periyodik_kontrol',
+  'personnel_training_records',
+  'eyas_inbox',
+  'ortam_olcum',
   'accident',
   'near_miss',
   'security',
