@@ -1,89 +1,67 @@
-/* QR kiosk compatibility shim. Intercept only legacy QR-server image URLs and fetch the PNG through the public API origin. */
+/* QR kiosk compatibility shim. Only rewrite workplace QR image URLs; leave all other app images untouched. */
 (() => {
   const QR_SERVER_HOST = 'api.qrserver.com';
   const QR_API_ORIGIN = 'https://isg-suite-api-1u9t.onrender.com';
   const API_QR_PATH = '/api/v1/companies/qr-render';
 
-  function isLegacy(value) {
+  function workplaceQrUrl(value) {
     try {
       const u = new URL(String(value ?? ''), window.location.href);
-      return u.hostname.toLowerCase() === QR_SERVER_HOST
-        && /^\/v1\/create-qr-code\/?$/i.test(u.pathname)
-        && !!u.searchParams.get('data');
+      if (
+        u.hostname.toLowerCase() !== QR_SERVER_HOST
+        || !/^\/v1\/create-qr-code\/?$/i.test(u.pathname)
+      ) return null;
+      const data = u.searchParams.get('data') || '';
+      // Only touch QR payloads owned by the ISG Suite workplace QR flow.
+      if (!/^ISGSUITE:WP(?:TEMP)?:/i.test(data)) return null;
+      const endpoint = new URL(API_QR_PATH, QR_API_ORIGIN);
+      endpoint.searchParams.set('data', data);
+      return endpoint.toString();
     } catch {
-      return false;
+      return null;
     }
   }
 
-  async function loadQr(value, img) {
-    const source = new URL(String(value), window.location.href);
-    const data = source.searchParams.get('data');
-    if (!data) return;
-
-    const endpoint = new URL(API_QR_PATH, QR_API_ORIGIN);
-    endpoint.searchParams.set('data', data);
-
+  function rewriteImage(img) {
     try {
-      // The QR render endpoint is public and validates the short-lived payload.
-      // Deliberately omit credentials/auth headers to avoid the isgsuite.tr edge
-      // auth/redirect path and make this a simple cross-origin GET.
-      const response = await fetch(endpoint.toString(), {
-        method: 'GET',
-        mode: 'cors',
-        credentials: 'omit',
-        cache: 'no-store',
-      });
-      if (!response.ok) throw new Error(`QR renderer HTTP ${response.status}`);
+      const current = img?.getAttribute('src');
+      const replacement = workplaceQrUrl(current);
+      if (!replacement || current === replacement) return;
+      img.setAttribute('src', replacement);
+    } catch {
+      /* Never block application boot. */
+    }
+  }
 
-      const blob = await response.blob();
-      if (!blob.type.toLowerCase().startsWith('image/')) {
-        throw new Error(`QR renderer content-type ${blob.type || 'unknown'}`);
-      }
-
-      const objectUrl = URL.createObjectURL(blob);
-      const setter = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src')?.set;
-      if (setter) setter.call(img, objectUrl);
-      else img.setAttribute('src', objectUrl);
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
-    } catch (error) {
-      try { img.dataset.qrLoadError = String(error?.message || error || 'unknown'); } catch { /* ignore */ }
+  function scan(root) {
+    try {
+      if (root instanceof HTMLImageElement) rewriteImage(root);
+      const images = root?.querySelectorAll?.('img[src]') || [];
+      images.forEach(rewriteImage);
+    } catch {
+      /* ignore */
     }
   }
 
   try {
-    const proto = HTMLImageElement.prototype;
-    const descriptor = Object.getOwnPropertyDescriptor(proto, 'src');
-    const handled = new WeakSet();
-
-    if (descriptor?.get && descriptor?.set) {
-      Object.defineProperty(proto, 'src', {
-        configurable: descriptor.configurable,
-        enumerable: descriptor.enumerable,
-        get() { return descriptor.get.call(this); },
-        set(value) {
-          if (isLegacy(value)) {
-            if (!handled.has(this)) {
-              handled.add(this);
-              void loadQr(value, this);
-            }
-            return;
-          }
-          descriptor.set.call(this, value);
-        },
-      });
-    }
-
-    const originalSetAttribute = proto.setAttribute;
-    proto.setAttribute = function(name, value) {
-      if (String(name).toLowerCase() === 'src' && isLegacy(value)) {
-        if (!handled.has(this)) {
-          handled.add(this);
-          void loadQr(value, this);
+    scan(document);
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
+          rewriteImage(mutation.target);
+          continue;
         }
-        return;
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType === Node.ELEMENT_NODE) scan(node);
+        }
       }
-      return originalSetAttribute.call(this, name, value);
-    };
+    });
+    observer.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['src'],
+    });
   } catch {
     /* Never block application boot. */
   }
