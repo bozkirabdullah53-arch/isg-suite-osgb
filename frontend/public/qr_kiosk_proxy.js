@@ -6,7 +6,14 @@
  */
 (() => {
   const QR_SERVER_HOST = 'api.qrserver.com';
-  const QR_API_ORIGIN = window.location.origin;
+  // main.jsx canonicalizes apex -> www after scripts load. Resolve the QR
+  // endpoint to the same canonical host immediately, avoiding an image
+  // request that first redirects from isgsuite.tr to www.isgsuite.tr.
+  const currentHost = String(window.location.hostname || '').toLowerCase();
+  const QR_API_ORIGIN =
+    currentHost === 'isgsuite.tr'
+      ? 'https://www.isgsuite.tr'
+      : window.location.origin;
 
   function rewriteQrUrl(value) {
     const raw = String(value ?? '');
