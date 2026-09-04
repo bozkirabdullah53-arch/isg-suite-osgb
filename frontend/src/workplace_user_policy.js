@@ -18,19 +18,20 @@ export function isWorkplaceManagerUser(user) {
 
 /**
  * İşyeri kullanıcısının günlük operasyon menüsü.
- * Sıra özellikle şu iş akışını öne çıkarır: personel → KKD → PKD → periyodik
- * kontrol → eğitim katılımı/belgelendirme.
+ * Zorunlu ana menü sırası:
+ * personel → KKD → PKD / SDS → periyodik kontrol → eğitim katılım & belgelendirme.
  *
  * Mevcut modüller yeniden yazılmaz; yalnızca zaten çalışan modüller işyeri
  * hesabına tenant kapsamı içinde görünür hale getirilir.
  */
 export const WORKPLACE_MANAGER_MODULES = Object.freeze([
-  'employer_oversight',
   'employees',
   'ppe',
   'sds',
   'periyodik_kontrol',
   'personnel_training_records',
+  // Mevcut işyeri operasyon modülleri korunur.
+  'employer_oversight',
   'eyas_inbox',
   'ortam_olcum',
   'accident',
