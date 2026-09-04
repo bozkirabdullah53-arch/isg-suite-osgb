@@ -102,6 +102,7 @@ from app.services.site_verify import (
     create_ephemeral_session,
     ensure_company_site_verify_code,
     generate_site_verify_code,
+    render_qr_png,
 )
 
 router = APIRouter(prefix="/companies", tags=["Firmalar"])
@@ -514,6 +515,23 @@ def reset_company_kiosk_login(
         "created": created,
         "message": "Kiosk şifresi yenilendi. Eski şifre artık geçersiz. İşyerine yeni şifreyi iletin.",
     }
+
+
+@router.get("/qr-render")
+def render_company_qr(data: str = Query(..., min_length=1, max_length=2048)):
+    """QR görselini uygulama içinde üret; üçüncü taraf QR servisine bağımlılığı kaldır."""
+    try:
+        image = render_qr_png(data)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return Response(
+        content=image,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.get("/{company_id}/site-qr")
