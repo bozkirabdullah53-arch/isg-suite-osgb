@@ -18,20 +18,23 @@ export function isWorkplaceManagerUser(user) {
 
 /**
  * İşyeri kullanıcısının günlük operasyon menüsü.
- * Zorunlu ana menü sırası:
- * personel → KKD → PKD / SDS → periyodik kontrol → eğitim katılım & belgelendirme.
  *
  * Mevcut modüller yeniden yazılmaz; yalnızca zaten çalışan modüller işyeri
  * hesabına tenant kapsamı içinde görünür hale getirilir.
+ *
+ * `documents` özellikle ayrı tutulur: İşyeri, mevcut Dokümanlar API'si üzerinden
+ * yalnız kendi company_id kapsamındaki risk/PKD, eğitim, sağlık ve diğer
+ * işyeri belgelerini görüntüleyip indirebilir. OSGB yönetim modülleri açılmaz.
  */
 export const WORKPLACE_MANAGER_MODULES = Object.freeze([
+  'employer_oversight',
   'employees',
   'ppe',
   'sds',
   'periyodik_kontrol',
   'personnel_training_records',
+  'documents',
   // Mevcut işyeri operasyon modülleri korunur.
-  'employer_oversight',
   'eyas_inbox',
   'ortam_olcum',
   'accident',
