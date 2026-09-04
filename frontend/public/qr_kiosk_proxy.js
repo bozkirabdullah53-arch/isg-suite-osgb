@@ -1,64 +1,70 @@
-/*
- * QR kiosk compatibility shim.
- * The kiosk UI historically renders QR images with api.qrserver.com URLs.
- * Keep the existing React component unchanged, but redirect only those QR
- * image URLs to our own API before the browser starts the image request.
- */
+/* QR kiosk compatibility shim. Intercept only legacy QR-server image URLs and fetch the PNG through the authenticated API session. */
 (() => {
   const QR_SERVER_HOST = 'api.qrserver.com';
-  // main.jsx canonicalizes apex -> www after scripts load. Resolve the QR
-  // endpoint to the same canonical host immediately, avoiding an image
-  // request that first redirects from isgsuite.tr to www.isgsuite.tr.
-  const currentHost = String(window.location.hostname || '').toLowerCase();
-  const QR_API_ORIGIN =
-    currentHost === 'isgsuite.tr'
-      ? 'https://www.isgsuite.tr'
-      : window.location.origin;
+  const API_QR_PATH = '/api/v1/companies/qr-render';
 
-  function rewriteQrUrl(value) {
-    const raw = String(value ?? '');
-    if (!raw) return raw;
+  function token() {
+    try { return (sessionStorage.getItem('isg_token') || localStorage.getItem('isg_token') || '').trim(); }
+    catch { return ''; }
+  }
+
+  function isLegacy(value) {
     try {
-      const url = new URL(raw, window.location.href);
-      if (url.hostname.toLowerCase() !== QR_SERVER_HOST) return raw;
-      if (!/^\/v1\/create-qr-code\/?$/i.test(url.pathname)) return raw;
+      const u = new URL(String(value ?? ''), window.location.href);
+      return u.hostname.toLowerCase() === QR_SERVER_HOST && /^\/v1\/create-qr-code\/?$/i.test(u.pathname) && !!u.searchParams.get('data');
+    } catch { return false; }
+  }
 
-      const data = url.searchParams.get('data');
-      if (!data) return raw;
-
-      const target = new URL('/api/v1/companies/qr-render', QR_API_ORIGIN);
-      target.searchParams.set('data', data);
-      return target.toString();
-    } catch {
-      return raw;
+  async function loadQr(value, img) {
+    const source = new URL(String(value), window.location.href);
+    const data = source.searchParams.get('data');
+    if (!data) return;
+    const endpoint = new URL(API_QR_PATH, window.location.origin);
+    endpoint.searchParams.set('data', data);
+    const headers = {};
+    const bearer = token();
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    try {
+      const response = await fetch(endpoint.toString(), { method: 'GET', credentials: 'include', headers, cache: 'no-store' });
+      if (!response.ok) throw new Error(`QR renderer HTTP ${response.status}`);
+      const blob = await response.blob();
+      if (!blob.type.toLowerCase().startsWith('image/')) throw new Error(`QR renderer content-type ${blob.type || 'unknown'}`);
+      const objectUrl = URL.createObjectURL(blob);
+      const setter = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src')?.set;
+      if (setter) setter.call(img, objectUrl); else img.setAttribute('src', objectUrl);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    } catch (error) {
+      try { img.dataset.qrLoadError = String(error?.message || error || 'unknown'); } catch { /* ignore */ }
     }
   }
 
   try {
     const proto = HTMLImageElement.prototype;
-    const srcDescriptor = Object.getOwnPropertyDescriptor(proto, 'src');
-
-    if (srcDescriptor?.get && srcDescriptor?.set) {
+    const descriptor = Object.getOwnPropertyDescriptor(proto, 'src');
+    const handled = new WeakSet();
+    if (descriptor?.get && descriptor?.set) {
       Object.defineProperty(proto, 'src', {
-        configurable: srcDescriptor.configurable,
-        enumerable: srcDescriptor.enumerable,
-        get() {
-          return srcDescriptor.get.call(this);
-        },
+        configurable: descriptor.configurable,
+        enumerable: descriptor.enumerable,
+        get() { return descriptor.get.call(this); },
         set(value) {
-          srcDescriptor.set.call(this, rewriteQrUrl(value));
+          if (isLegacy(value)) {
+            if (!handled.has(this)) { handled.add(this); void loadQr(value, this); }
+            return;
+          }
+          descriptor.set.call(this, value);
         },
       });
     }
-
     const originalSetAttribute = proto.setAttribute;
-    proto.setAttribute = function patchedSetAttribute(name, value) {
-      if (String(name).toLowerCase() === 'src') {
-        return originalSetAttribute.call(this, name, rewriteQrUrl(value));
+    proto.setAttribute = function(name, value) {
+      if (String(name).toLowerCase() === 'src' && isLegacy(value)) {
+        if (!handled.has(this)) { handled.add(this); void loadQr(value, this); }
+        return;
       }
       return originalSetAttribute.call(this, name, value);
     };
   } catch {
-    // Do not interfere with application boot if the browser exposes a readonly DOM API.
+    /* Never block application boot. */
   }
 })();
