@@ -25,7 +25,6 @@ from app.models.entities import (
     TrainingParticipant,
     TrainingSession,
     User,
-    UserRole,
 )
 from app.services.training_pdfs import build_certificates_pdf
 
@@ -77,11 +76,18 @@ def list_personnel_training_records(
 
     emp_ids = [e.id for e in employees]
 
-    # Bu personellerin eğitim katılım kayıtları (eğitim bilgileriyle birlikte)
+    # Personel aynı tenant'ta olsa bile bozuk/eski bir TrainingParticipant kaydı
+    # başka firmaya ait TrainingSession'a işaret edebilir. Bu JOIN ikinci tenant
+    # sınırını doğrudan SQL sorgusuna koyar; yalnız Employee.company_id filtresine
+    # güvenilmez.
     tp_stmt = (
         select(TrainingParticipant)
+        .join(TrainingSession, TrainingParticipant.training_id == TrainingSession.id)
         .options(selectinload(TrainingParticipant.training))
-        .where(TrainingParticipant.employee_id.in_(emp_ids))
+        .where(
+            TrainingParticipant.employee_id.in_(emp_ids),
+            TrainingSession.company_id == company_id,
+        )
         .order_by(TrainingParticipant.id.desc())
     )
     participants = db.scalars(tp_stmt).all()
@@ -91,7 +97,7 @@ def list_personnel_training_records(
     emp_trainings: dict[int, list[dict]] = defaultdict(list)
     for p in participants:
         t = p.training
-        if t is None:
+        if t is None or t.company_id != company_id:
             continue
         emp_trainings[p.employee_id].append({
             "training_id": t.id,
@@ -147,9 +153,12 @@ def download_employee_certificates_pdf(
         row = db.scalar(
             select(TrainingSession)
             .options(selectinload(TrainingSession.participants))
-            .where(TrainingSession.id == training_id)
+            .where(
+                TrainingSession.id == training_id,
+                TrainingSession.company_id == company_id,
+            )
         )
-        if not row or row.company_id != company_id:
+        if not row:
             raise HTTPException(404, "Eğitim kaydı bulunamadı.")
 
         # Bu personel bu eğitime katılmış mı?
@@ -180,11 +189,15 @@ def download_employee_certificates_pdf(
         )
 
     else:
-        # Tüm eğitimler — her eğitim için ayrı sertifika üretip birleştir
+        # Tüm eğitimler — yalnız aynı tenant'a ait TrainingSession kayıtları.
         tp_stmt = (
             select(TrainingParticipant)
+            .join(TrainingSession, TrainingParticipant.training_id == TrainingSession.id)
             .options(selectinload(TrainingParticipant.training))
-            .where(TrainingParticipant.employee_id == employee_id)
+            .where(
+                TrainingParticipant.employee_id == employee_id,
+                TrainingSession.company_id == company_id,
+            )
             .order_by(TrainingParticipant.id.desc())
         )
         participants = db.scalars(tp_stmt).all()
@@ -198,7 +211,7 @@ def download_employee_certificates_pdf(
         all_pdf_bytes = b""
         for p in participants:
             t = p.training
-            if t is None:
+            if t is None or t.company_id != company_id:
                 continue
             # Katılımcıyı bu eğitim için filtrele
             try:
