@@ -30,6 +30,7 @@ describe('workplace user policy', () => {
       'sds',
       'periyodik_kontrol',
       'personnel_training_records',
+      'documents',
       'eyas_inbox',
       'ortam_olcum',
       'accident',
