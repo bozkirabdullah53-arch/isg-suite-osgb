@@ -12,7 +12,6 @@
         || !/^\/v1\/create-qr-code\/?$/i.test(u.pathname)
       ) return null;
       const data = u.searchParams.get('data') || '';
-      // Only touch QR payloads owned by the ISG Suite workplace QR flow.
       if (!/^ISGSUITE:WP(?:TEMP)?:/i.test(data)) return null;
       const endpoint = new URL(API_QR_PATH, QR_API_ORIGIN);
       endpoint.searchParams.set('data', data);
