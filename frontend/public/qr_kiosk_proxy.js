@@ -6,7 +6,7 @@
  */
 (() => {
   const QR_SERVER_HOST = 'api.qrserver.com';
-  const QR_API_ORIGIN = 'https://isg-suite-api-1u9t.onrender.com';
+  const QR_API_ORIGIN = window.location.origin;
 
   function rewriteQrUrl(value) {
     const raw = String(value ?? '');
