@@ -1,9 +1,10 @@
 /**
- * ``company_admin`` iki farklı hesabı temsil eder:
+ * ``company_admin`` iki farklı kullanım alanını temsil eder:
  * - company_id yoksa OSGB yöneticisi
  * - company_id varsa tek işyerine bağlı işyeri yetkilisi
  *
- * QR kiosk hesabı operasyonel panel değildir ve bu yetkilerden özellikle hariçtir.
+ * Mevcut QR hesabı da kendi şirketine bağlı işyeri hesabıdır. Bu nedenle QR
+ * erişimi korunurken aynı hesap işyeri operasyon paneline de erişebilir.
  */
 export function isWorkplaceKioskUser(user) {
   if (user?.role !== 'company_admin' || !user.company_id) return false;
@@ -12,8 +13,7 @@ export function isWorkplaceKioskUser(user) {
 
 export function isWorkplaceManagerUser(user) {
   return user?.role === 'company_admin'
-    && Number(user.company_id) > 0
-    && !isWorkplaceKioskUser(user);
+    && Number(user.company_id) > 0;
 }
 
 /**
@@ -22,9 +22,8 @@ export function isWorkplaceManagerUser(user) {
  * Mevcut modüller yeniden yazılmaz; yalnızca zaten çalışan modüller işyeri
  * hesabına tenant kapsamı içinde görünür hale getirilir.
  *
- * `documents` özellikle ayrı tutulur: İşyeri, mevcut Dokümanlar API'si üzerinden
- * yalnız kendi company_id kapsamındaki risk/PKD, eğitim, sağlık ve diğer
- * işyeri belgelerini görüntüleyip indirebilir. OSGB yönetim modülleri açılmaz.
+ * Görüntüleme amaçlı modüller de aynı mevcut sayfaları kullanır; işlem
+ * yetkileri ilgili mevcut rol kontrolleri tarafından belirlenir.
  */
 export const WORKPLACE_MANAGER_MODULES = Object.freeze([
   'employer_oversight',
@@ -34,10 +33,9 @@ export const WORKPLACE_MANAGER_MODULES = Object.freeze([
   'periyodik_kontrol',
   'personnel_training_records',
   'documents',
-  // Mevcut işyeri operasyon modülleri korunur.
   'eyas_inbox',
   'ortam_olcum',
   'accident',
   'near_miss',
-  'security',
+  'health',
 ]);
