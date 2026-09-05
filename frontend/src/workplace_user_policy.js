@@ -22,9 +22,6 @@ export function isWorkplaceManagerUser(user) {
  *
  * Mevcut modüller yeniden yazılmaz; yalnızca zaten çalışan modüller işyeri
  * hesabına tenant kapsamı içinde görünür hale getirilir.
- *
- * Görüntüleme amaçlı modüller de aynı mevcut sayfaları kullanır; işlem
- * yetkileri ilgili mevcut rol kontrolleri tarafından belirlenir.
  */
 export const WORKPLACE_MANAGER_MODULES = Object.freeze([
   'employer_oversight',
@@ -39,5 +36,32 @@ export const WORKPLACE_MANAGER_MODULES = Object.freeze([
   'accident',
   'near_miss',
   'health',
+  // Nihai operasyon listesine ek bir modül değildir; mevcut QR erişiminin
+  // geriye dönük korunması için aynı hesapta tutulur.
   'site_qr_kiosk',
 ]);
+
+/** İşyeri hesabında yalnız görüntülenebilen modüller. */
+export const WORKPLACE_MANAGER_READONLY_MODULES = Object.freeze([
+  'employer_oversight',
+  'personnel_training_records',
+  'documents',
+  'health',
+]);
+
+/** İşyeri hesabında veri girişi / işlem yapılabilen modüller. */
+export const WORKPLACE_MANAGER_EDITABLE_MODULES = Object.freeze([
+  'employees',
+  'ppe',
+  'sds',
+  'periyodik_kontrol',
+  'eyas_inbox',
+  'ortam_olcum',
+  'accident',
+  'near_miss',
+]);
+
+export function isWorkplaceModuleReadOnly(user, moduleId) {
+  return isWorkplaceManagerUser(user)
+    && WORKPLACE_MANAGER_READONLY_MODULES.includes(String(moduleId || ''));
+}
