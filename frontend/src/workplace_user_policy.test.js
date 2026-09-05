@@ -3,7 +3,10 @@ import {describe, expect, it} from 'vitest';
 import {
   isWorkplaceKioskUser,
   isWorkplaceManagerUser,
+  isWorkplaceModuleReadOnly,
+  WORKPLACE_MANAGER_EDITABLE_MODULES,
   WORKPLACE_MANAGER_MODULES,
+  WORKPLACE_MANAGER_READONLY_MODULES,
 } from './workplace_user_policy';
 
 describe('workplace user policy', () => {
@@ -46,5 +49,30 @@ describe('workplace user policy', () => {
     expect(WORKPLACE_MANAGER_MODULES).not.toContain('finance');
     expect(WORKPLACE_MANAGER_MODULES).not.toContain('training');
     expect(WORKPLACE_MANAGER_MODULES).not.toContain('security');
+  });
+
+  it('locks the four requested workplace modules to view-only', () => {
+    expect(WORKPLACE_MANAGER_READONLY_MODULES).toEqual([
+      'employer_oversight',
+      'personnel_training_records',
+      'documents',
+      'health',
+    ]);
+    expect(WORKPLACE_MANAGER_EDITABLE_MODULES).toEqual([
+      'employees',
+      'ppe',
+      'sds',
+      'periyodik_kontrol',
+      'eyas_inbox',
+      'ortam_olcum',
+      'accident',
+      'near_miss',
+    ]);
+    for (const moduleId of WORKPLACE_MANAGER_READONLY_MODULES) {
+      expect(isWorkplaceModuleReadOnly(manager, moduleId)).toBe(true);
+    }
+    for (const moduleId of WORKPLACE_MANAGER_EDITABLE_MODULES) {
+      expect(isWorkplaceModuleReadOnly(manager, moduleId)).toBe(false);
+    }
   });
 });

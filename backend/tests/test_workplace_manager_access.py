@@ -169,7 +169,7 @@ def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_workplace_manager_account_excludes_osgb_admin_and_qr_kiosk():
+def test_workplace_manager_account_includes_existing_qr_account_but_not_osgb_admin():
     from app.api.deps import is_workplace_manager_account
     from app.models.entities import UserRole
 
@@ -191,14 +191,15 @@ def test_workplace_manager_account_excludes_osgb_admin_and_qr_kiosk():
 
     assert is_workplace_manager_account(manager) is True
     assert is_workplace_manager_account(osgb_admin) is False
-    assert is_workplace_manager_account(kiosk) is False
+    assert is_workplace_manager_account(kiosk) is True
 
 
-def test_workplace_manager_can_write_target_modules_only_in_own_company(workplace_client):
+@pytest.mark.parametrize("account_key", ["manager_email", "kiosk_email"])
+def test_workplace_manager_can_write_target_modules_only_in_own_company(workplace_client, account_key):
     client, seed = workplace_client
     own = seed["own_company_id"]
     foreign = seed["foreign_company_id"]
-    token = _token(client, seed["manager_email"], seed["password"])
+    token = _token(client, seed[account_key], seed["password"])
     headers = _headers(token)
     global_token = _token(client, seed["global_admin_email"], seed["password"])
     global_headers = _headers(global_token)
@@ -430,6 +431,22 @@ def test_workplace_manager_can_write_target_modules_only_in_own_company(workplac
         assert listed.status_code == 200, listed.text
         assert {row["company_id"] for row in listed.json()} <= {own}
 
+    # Salt-okunur modüller: GET çalışır, mutasyon backend'de reddedilir.
+    documents = client.get("/api/v1/documents", headers=headers)
+    assert documents.status_code == 200, documents.text
+    assert client.post(
+        "/api/v1/documents",
+        headers=headers,
+        json={"company_id": own, "category": "general", "title": "Salt Okunur Belge"},
+    ).status_code == 403
+
+    health_cards = client.get("/api/v1/workplace/health-cards", headers=headers)
+    assert health_cards.status_code == 200, health_cards.text
+    assert health_cards.json()["company_id"] == own
+    assert {row["employee_id"] for row in health_cards.json()["personnel"]} <= {
+        seed["own_employee_id"], created_employee.json()["id"]
+    }
+
 
 def test_workplace_manager_direct_api_scope_stays_inside_own_workplace(workplace_client):
     client, seed = workplace_client
@@ -537,14 +554,10 @@ def test_rls_admin_flag_excludes_workplace_manager_and_kiosk():
     assert _has_osgb_admin_rls_privilege(workplace_manager) is False
 
 
-@pytest.mark.parametrize("account_key", ["osgb_admin_email", "kiosk_email"])
-def test_non_workplace_manager_company_admins_do_not_gain_new_register_access(
-    workplace_client,
-    account_key,
-):
+def test_osgb_admin_does_not_gain_workplace_register_access(workplace_client):
     client, seed = workplace_client
     own = seed["own_company_id"]
-    token = _token(client, seed[account_key], seed["password"])
+    token = _token(client, seed["osgb_admin_email"], seed["password"])
     headers = _headers(token)
 
     assert client.get("/api/v1/sds", headers=headers).status_code == 403
