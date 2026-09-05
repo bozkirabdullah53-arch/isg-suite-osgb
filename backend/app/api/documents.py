@@ -10,7 +10,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.api.company_access import company_ids_for_query, ensure_company_access
-from app.api.deps import get_current_user, require_roles
+from app.api.deps import get_current_user, is_workplace_manager_account, require_roles
 from app.core.database import get_db
 from app.models.entities import Company, DocumentRecord, User, UserRole
 from app.schemas.document import DocumentCreate, DocumentResponse
@@ -28,6 +28,18 @@ EDIT_ROLES = (
 
 def ensure_access(db: Session, user: User, company_id: int) -> None:
     ensure_company_access(db, user, company_id)
+
+
+def require_document_editor(
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+) -> User:
+    """OSGB/profesyonel editörleri kabul eder, işyeri hesabını salt-okunur tutar."""
+    if is_workplace_manager_account(user):
+        raise HTTPException(
+            status_code=403,
+            detail="Dokümanlar işyeri hesabında sadece görüntülenebilir.",
+        )
+    return user
 
 
 @router.get("/export.xlsx")
@@ -136,7 +148,7 @@ def list_documents(
 def create_document(
     payload: DocumentCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_document_editor),
 ):
     ensure_access(db, user, payload.company_id)
     record = DocumentRecord(**payload.model_dump(), created_by_id=user.id)
@@ -150,7 +162,7 @@ def create_document(
 def deactivate_document(
     document_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT_ROLES)),
+    user: User = Depends(require_document_editor),
 ):
     """Dokümanı pasife alır; bağlı dosya merkezi arşive kopyalanır (EİSA erişimi)."""
     from pathlib import Path
