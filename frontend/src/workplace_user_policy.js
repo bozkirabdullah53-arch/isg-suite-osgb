@@ -7,8 +7,9 @@
  * erişimi korunurken aynı hesap işyeri operasyon paneline de erişebilir.
  */
 export function isWorkplaceKioskUser(user) {
-  if (user?.role !== 'company_admin' || !user.company_id) return false;
-  return String(user.email || '').toLowerCase().endsWith('@kiosk.isgsuite.tr');
+  // QR hesabı artık ayrı bir kullanıcı tipi gibi yönlendirilmez; mevcut
+  // işyeri hesabı operasyon paneline de girebilir ve QR modülü menüden açılır.
+  return false;
 }
 
 export function isWorkplaceManagerUser(user) {
@@ -38,4 +39,5 @@ export const WORKPLACE_MANAGER_MODULES = Object.freeze([
   'accident',
   'near_miss',
   'health',
+  'site_qr_kiosk',
 ]);
