@@ -139,6 +139,14 @@ function isNetworkError(e) {
   );
 }
 
+function isSafeReadMethod(method) {
+  return method === "GET" || method === "HEAD";
+}
+
+function isTransientGatewayStatus(status) {
+  return status === 502 || status === 503 || status === 504;
+}
+
 let _wakeInFlight = null;
 let _lastWakeOkAt = 0;
 
@@ -340,10 +348,10 @@ export function reportClientError(payload = {}) {
 
 /** Geçici / MFA token ile çağrı (saklanan access token kullanılmaz). */
 export async function apiWithBearer(bearerToken, path, options = {}) {
-  const retries = options._retries ?? 4;
   const { _retries, timeoutMs: optionTimeoutMs, headers: optHeaders, ...fetchOpts } = options;
   const requestTimeoutMs = Number(optionTimeoutMs) > 0 ? Number(optionTimeoutMs) : 25_000;
   const method = (fetchOpts.method || "GET").toUpperCase();
+  const retries = isSafeReadMethod(method) ? (options._retries ?? 4) : 0;
   const headers = {
     ...(optHeaders || {}),
     Authorization: `Bearer ${bearerToken}`,
@@ -367,6 +375,7 @@ export async function apiWithBearer(bearerToken, path, options = {}) {
         signal: fetchOpts.signal || requestSignal(requestTimeoutMs),
       });
       if (!response.ok) {
+        if (isTransientGatewayStatus(response.status) && attempt < retries) continue;
         const err = new Error(await parseError(response));
         err.httpStatus = response.status;
         throw err;
@@ -381,6 +390,7 @@ export async function apiWithBearer(bearerToken, path, options = {}) {
       }
     } catch (e) {
       lastErr = e;
+      if (fetchOpts.signal?.aborted) throw e;
       if (!isNetworkError(e) || attempt === retries) {
         if (isNetworkError(e)) {
           throw new Error(
@@ -402,9 +412,10 @@ export async function apiWithBearer(bearerToken, path, options = {}) {
 export async function api(path, options = {}) {
   // API yakın zamanda uyandıysa gereksiz 4× retry yapma (sayfa “dakikalarca” bekler)
   const warm = Date.now() - _lastWakeOkAt < 60_000;
-  const retries = options._retries ?? (warm ? 1 : 3);
   const { _retries, _didRefresh, _didProactiveRefresh, timeoutMs: optionTimeoutMs, headers: optHeaders, ...fetchOpts } = options;
   const requestTimeoutMs = Number(optionTimeoutMs) > 0 ? Number(optionTimeoutMs) : 25_000;
+  const method = (fetchOpts.method || "GET").toUpperCase();
+  const retries = isSafeReadMethod(method) ? (options._retries ?? (warm ? 1 : 3)) : 0;
 
   // Access JWT süresi dolmak üzereyse önce refresh dene (bayrak yoksa da)
   if (!_didProactiveRefresh && !_didRefresh && accessTokenExpiresSoon() && getAccessToken()) {
@@ -418,7 +429,6 @@ export async function api(path, options = {}) {
   }
 
   const token = getAccessToken();
-  const method = (fetchOpts.method || "GET").toUpperCase();
   const headers = {...(optHeaders || {})};
   if (token) headers.Authorization = `Bearer ${token}`;
   // GET'te Content-Type gönderme (gereksiz preflight / proxy sorunlarını azaltır)
@@ -450,6 +460,7 @@ export async function api(path, options = {}) {
       });
       if (!response.ok) {
         lastStatus = response.status;
+        if (isTransientGatewayStatus(response.status) && attempt < retries) continue;
         if (!_didRefresh && canAttemptTokenRefresh(path, response.status)) {
           const ok = await tryRefreshAccessToken();
           if (ok) {
@@ -475,6 +486,7 @@ export async function api(path, options = {}) {
       }
     } catch (e) {
       lastErr = e;
+      if (fetchOpts.signal?.aborted) throw e;
       if (!isNetworkError(e) || attempt === retries) {
         if (isNetworkError(e)) {
           reportClientError({
