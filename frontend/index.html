@@ -86,6 +86,10 @@
           transition: none;
         }
       }
+
+      /* Kullanıcı oluşturma modalı: Firma seçimi Rol'den önce gelsin. */
+      section.modal:has(form.form-grid > .password-field:nth-child(3)) form.form-grid > .field:nth-child(4) { order: 5; }
+      section.modal:has(form.form-grid > .password-field:nth-child(3)) form.form-grid > .field:nth-child(5) { order: 4; }
     </style>
   </head>
   <body>
