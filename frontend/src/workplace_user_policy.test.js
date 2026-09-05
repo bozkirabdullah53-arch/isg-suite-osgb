@@ -14,14 +14,12 @@ describe('workplace user policy', () => {
     email: 'ik.yetkilisi@example.com',
   };
 
-  it('treats the existing QR workplace account as the same workplace account', () => {
+  it('separates a workplace manager from the OSGB administrator and QR kiosk', () => {
     expect(isWorkplaceManagerUser(manager)).toBe(true);
     expect(isWorkplaceManagerUser({...manager, company_id: null})).toBe(false);
     expect(isWorkplaceManagerUser({...manager, role: 'safety_specialist'})).toBe(false);
-
-    const kiosk = {...manager, email: 'isyeri.42@kiosk.isgsuite.tr'};
-    expect(isWorkplaceManagerUser(kiosk)).toBe(true);
-    expect(isWorkplaceKioskUser(kiosk)).toBe(false);
+    expect(isWorkplaceManagerUser({...manager, email: 'isyeri.42@kiosk.isgsuite.tr'})).toBe(false);
+    expect(isWorkplaceKioskUser({...manager, email: 'isyeri.42@kiosk.isgsuite.tr'})).toBe(true);
   });
 
   it('exposes the approved workplace operational modules in the intended order', () => {

@@ -45,7 +45,6 @@ def _user_from_token(token: str, db: Session, *, allowed_purposes: set[str]) -> 
     if tv != user_tv:
         raise credentials_error
 
-    # P1-03: istek boyunca TenantContext (osgb/firma kapsamı)
     if purpose == "access":
         bind_user_tenant(user)
         apply_rls_user(db, user)
@@ -57,7 +56,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 
 def get_mfa_challenge_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
-    # Setup token ile /auth/mfa/verify üzerinden access JWT alınamaz (MFA bypass kapatıldı).
     return _user_from_token(token, db, allowed_purposes={"mfa_challenge"})
 
 
@@ -74,21 +72,19 @@ def require_roles(*roles: UserRole):
 
 
 def is_workplace_manager_account(user: User) -> bool:
-    """Tek işyerine bağlı company_admin hesabı; QR hesabı da aynı işyeri kapsamındadır."""
-    return user.role == UserRole.COMPANY_ADMIN and bool(user.company_id)
+    """Tek işyerine bağlı company_admin hesabı; QR kiosk hesabı ayrı tutulur."""
+    email = str(getattr(user, "email", "") or "").strip().lower()
+    return (
+        user.role == UserRole.COMPANY_ADMIN
+        and bool(user.company_id)
+        and not email.endswith("@kiosk.isgsuite.tr")
+    )
 
 
 def reject_company_bound_admin_from_osgb_internal(
     user: User = Depends(get_current_user),
 ) -> User:
-    """Tek işyerine bağlı ``company_admin`` hesabını OSGB-içi API'lerden çıkarır.
-
-    Tarihsel olarak OSGB yöneticisi ve işyeri hesabı aynı ``company_admin``
-    rolünü kullanır. ``company_id`` bulunan hesaplar OSGB operasyonu, finansı
-    veya profesyonel havuzu gibi kurum geneli endpointlere doğrudan URL ile
-    erişmemelidir. Endpointlerin mevcut rol kontrolleri ayrıca çalışmaya devam
-    eder; bu bağımlılık yalnızca kapsamı daraltır.
-    """
+    """Tek işyerine bağlı ``company_admin`` hesabını OSGB-içi API'lerden çıkarır."""
     if user.role == UserRole.COMPANY_ADMIN and user.company_id is not None:
         raise HTTPException(
             status_code=403,
@@ -98,13 +94,11 @@ def reject_company_bound_admin_from_osgb_internal(
 
 
 def require_roles_or_workplace_manager(*roles: UserRole):
-    """Mevcut rollere ek olarak yalnız tek işyerine bağlı hesabı kabul eder.
+    """Mevcut rollere ek olarak yalnız normal işyeri yetkilisini kabul eder.
 
-    ``company_admin`` rolünü doğrudan listeye eklemek OSGB yöneticilerine de saha
-    yazma yetkisi verir. Bu bağımlılık yalnızca company_id bulunan hesapları
-    kabul eder; RLS ve endpoint şirket kapsamı kontrolleri aynen çalışır.
+    QR kiosk hesabı ayrı bir güvenlik sınırı olarak tutulur ve bu bağımlılıkla
+    işyeri operasyon yetkisi kazanmaz.
     """
-
     def dependency(user: User = Depends(get_current_user)) -> User:
         if user.role not in roles and not is_workplace_manager_account(user):
             raise HTTPException(status_code=403, detail="Bu işlem için yetkiniz yok.")

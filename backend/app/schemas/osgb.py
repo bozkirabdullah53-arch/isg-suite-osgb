@@ -160,9 +160,10 @@ class AssignmentCreate(BaseModel):
 class AssignmentResponse(BaseModel):
     """Database response schema.
 
-    Keep input validation on AssignmentCreate, but do not re-run input-only
-    date validation while serializing existing database rows. This prevents a
-    legacy invalid row from turning a read/list endpoint into HTTP 500.
+    Input-only validation stays on AssignmentCreate. Existing database rows
+    can contain legacy values that were valid under older rules; serializing
+    those rows must not turn a read endpoint into HTTP 500. Response fields
+    therefore describe stored data without enforcing current write-time rules.
     """
     osgb_id: int
     company_id: int
@@ -170,9 +171,9 @@ class AssignmentResponse(BaseModel):
     professional_type: ProfessionalType
     start_date: date
     end_date: date | None = None
-    required_minutes_monthly: int = Field(default=0, ge=0)
-    planned_minutes_monthly: int = Field(default=0, ge=0)
-    actual_minutes_monthly: int = Field(default=0, ge=0)
+    required_minutes_monthly: int = 0
+    planned_minutes_monthly: int = 0
+    actual_minutes_monthly: int = 0
     isg_katip_contract_number: str | None = None
     id: int
     status: AssignmentStatus

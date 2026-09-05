@@ -2,30 +2,19 @@
  * ``company_admin`` iki farklı kullanım alanını temsil eder:
  * - company_id yoksa OSGB yöneticisi
  * - company_id varsa tek işyerine bağlı işyeri yetkilisi
- *
- * Mevcut QR hesabı da kendi şirketine bağlı işyeri hesabıdır. Bu nedenle QR
- * erişimi korunurken aynı hesap işyeri operasyon paneline de erişebilir.
  */
 export function isWorkplaceKioskUser(user) {
-  // QR hesabı artık ayrı bir kullanıcı tipi gibi yönlendirilmez; mevcut
-  // işyeri hesabı operasyon paneline de girebilir ve QR modülü menüden açılır.
-  return false;
+  return user?.role === 'company_admin'
+    && Number(user.company_id) > 0
+    && String(user.email || '').toLowerCase().endsWith('@kiosk.isgsuite.tr');
 }
 
 export function isWorkplaceManagerUser(user) {
   return user?.role === 'company_admin'
-    && Number(user.company_id) > 0;
+    && Number(user.company_id) > 0
+    && !isWorkplaceKioskUser(user);
 }
 
-/**
- * İşyeri kullanıcısının günlük operasyon menüsü.
- *
- * Mevcut modüller yeniden yazılmaz; yalnızca zaten çalışan modüller işyeri
- * hesabına tenant kapsamı içinde görünür hale getirilir.
- *
- * Görüntüleme amaçlı modüller de aynı mevcut sayfaları kullanır; işlem
- * yetkileri ilgili mevcut rol kontrolleri tarafından belirlenir.
- */
 export const WORKPLACE_MANAGER_MODULES = Object.freeze([
   'employer_oversight',
   'employees',
