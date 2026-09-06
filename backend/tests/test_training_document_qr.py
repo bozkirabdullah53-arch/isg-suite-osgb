@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 def _db():
     from app.core.database import Base
     from app.models import entities  # noqa: F401
+    from app.models import remote_training  # noqa: F401
 
     engine = create_engine(
         "sqlite://",
@@ -164,6 +165,43 @@ def test_public_verify_supports_training_and_participant_codes():
 
         invalid = verify_training("unknown-qr-001", db)
         assert invalid.valid is False
+
+
+def test_public_verify_supports_gated_remote_certificate(monkeypatch):
+    from app.api.trainings import verify_training
+    from app.core.config import settings
+    from app.models.remote_training import RemoteTrainingCertificate
+
+    engine = _db()
+    with Session(engine) as db:
+        _training, first, _second = _seed_training(db)
+        remote = RemoteTrainingCertificate(
+            company_id=first.company_id,
+            program_id=1,
+            assignment_id=1,
+            employee_id=first.id,
+            employee_name_snapshot=first.full_name,
+            company_name_snapshot="QR Test Firma",
+            training_name="Uzaktan QR Eğitimi",
+            training_duration_seconds=5400,
+            training_date=date(2026, 9, 2),
+            hazard_class_snapshot="Az Tehlikeli",
+            instructor_name_snapshot="Uzaktan Eğitici",
+            certificate_number="ROHS-TEST-0001",
+            verification_code="REMOTE-TEST-CERTIFICATE",
+        )
+        db.add(remote)
+        db.commit()
+
+        monkeypatch.setattr(settings, "remote_basic_ohs_training_enabled", True)
+        monkeypatch.setattr(settings, "remote_basic_ohs_training_force_off", False)
+
+        result = verify_training(remote.certificate_number, db)
+        assert result.valid is True
+        assert result.title == "Uzaktan QR Eğitimi"
+        assert result.participant_name == first.full_name
+        assert result.certificate_number == remote.certificate_number
+        assert result.participant_count == 1
 
 
 def test_certificate_pdf_prefers_participant_code_and_falls_back_to_training_code(monkeypatch):
