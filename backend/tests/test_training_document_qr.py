@@ -167,7 +167,7 @@ def test_public_verify_supports_training_and_participant_codes():
         assert invalid.valid is False
 
 
-def test_public_verify_supports_gated_remote_certificate(monkeypatch):
+def test_public_verify_supports_issued_remote_certificate_when_pilot_is_disabled(monkeypatch):
     from app.api.trainings import verify_training
     from app.core.config import settings
     from app.models.remote_training import RemoteTrainingCertificate
@@ -193,8 +193,10 @@ def test_public_verify_supports_gated_remote_certificate(monkeypatch):
         db.add(remote)
         db.commit()
 
-        monkeypatch.setattr(settings, "remote_basic_ohs_training_enabled", True)
-        monkeypatch.setattr(settings, "remote_basic_ohs_training_force_off", False)
+        # Public verification is for already-issued documents; disabling the
+        # creation pilot must not invalidate an existing QR/certificate.
+        monkeypatch.setattr(settings, "remote_basic_ohs_training_enabled", False)
+        monkeypatch.setattr(settings, "remote_basic_ohs_training_force_off", True)
 
         result = verify_training(remote.certificate_number, db)
         assert result.valid is True
@@ -202,6 +204,10 @@ def test_public_verify_supports_gated_remote_certificate(monkeypatch):
         assert result.participant_name == first.full_name
         assert result.certificate_number == remote.certificate_number
         assert result.participant_count == 1
+
+        verification_result = verify_training(remote.verification_code, db)
+        assert verification_result.valid is True
+        assert verification_result.certificate_number == remote.certificate_number
 
 
 def test_certificate_pdf_prefers_participant_code_and_falls_back_to_training_code(monkeypatch):

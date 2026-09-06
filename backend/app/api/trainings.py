@@ -305,10 +305,11 @@ def verify_training(code: str, db: Session = Depends(get_db)):
                 .where(TrainingSession.id == matched_participant.training_id)
             )
 
-    # Remote certificates live in their additive table. Keep their existing
-    # feature flag boundary: a disabled pilot must not become publicly
-    # discoverable through the shared verifier.
-    if not row and remote_basic_ohs_training_active():
+    # Remote certificates are issued documents, so their public
+    # verification must remain available even when new remote-training
+    # issuance is disabled by its pilot flag. The flag still gates the
+    # creation/management flows; it must not invalidate an already-issued QR.
+    if not row:
         remote_certificate = db.scalar(
             select(RemoteTrainingCertificate).where(
                 or_(
