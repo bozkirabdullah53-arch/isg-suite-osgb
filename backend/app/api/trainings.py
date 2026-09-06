@@ -274,25 +274,50 @@ def training_meta(user: User = Depends(get_current_user)):
 
 @router.get("/verify/{code}", response_model=TrainingVerifyResponse, response_model_exclude_none=True)
 def verify_training(code: str, db: Session = Depends(get_db)):
-    """Kamuya açık belge doğrulama — bakanlık / işveren kontrolü için."""
+    """Kamuya açık, salt-okunur belge doğrulama.
+
+    The original training-level verification code remains supported.  A
+    participant certificate number is also accepted so each printed
+    certificate can open the matching person's public verification view.
+    """
     clean = (code or "").strip().upper()
     if not clean or len(clean) < 8:
         return TrainingVerifyResponse(
             valid=False, verification_code=clean or "", message="Geçersiz doğrulama kodu."
         )
+
+    matched_participant = None
     row = db.scalar(
         select(TrainingSession)
         .options(selectinload(TrainingSession.participants))
         .where(TrainingSession.verification_code == clean)
     )
     if not row:
+        matched_participant = db.scalar(
+            select(TrainingParticipant)
+            .where(TrainingParticipant.certificate_number == clean)
+        )
+        if matched_participant:
+            row = db.scalar(
+                select(TrainingSession)
+                .options(selectinload(TrainingSession.participants))
+                .where(TrainingSession.id == matched_participant.training_id)
+            )
+
+    if not row:
         return TrainingVerifyResponse(
             valid=False, verification_code=clean, message="Bu kodla eşleşen eğitim belgesi bulunamadı."
         )
+
     company = db.get(Company, row.company_id)
     emp_map = _employees_map(db, row)
+    selected = (
+        [p for p in row.participants if p.id == matched_participant.id]
+        if matched_participant
+        else list(row.participants)
+    )
     participants = []
-    for p in row.participants:
+    for p in selected:
         e = emp_map.get(p.employee_id)
         participants.append(
             {
@@ -300,6 +325,9 @@ def verify_training(code: str, db: Session = Depends(get_db)):
                 "certificate_number": p.certificate_number,
             }
         )
+
+    participant_name = participants[0]["full_name"] if matched_participant and participants else None
+    certificate_number = participants[0]["certificate_number"] if matched_participant and participants else None
     return TrainingVerifyResponse(
         valid=True,
         verification_code=clean,
@@ -314,6 +342,8 @@ def verify_training(code: str, db: Session = Depends(get_db)):
         employer_representative=row.employer_representative,
         participant_count=len(participants),
         participants=participants,
+        certificate_number=certificate_number,
+        participant_name=participant_name,
         message="Belge doğrulandı.",
     )
 
