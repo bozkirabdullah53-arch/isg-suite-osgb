@@ -207,52 +207,26 @@ def test_public_verify_supports_gated_remote_certificate(monkeypatch):
 def test_certificate_pdf_prefers_participant_code_and_falls_back_to_training_code(monkeypatch):
     from app.services import training_pdfs
 
-    monkeypatch.setattr(training_pdfs, "_ensure_fonts", lambda: None)
-    monkeypatch.setattr(
-        training_pdfs,
-        "tehlike_kurali",
-        lambda _hazard: {"sure": "8", "yenileme": "3"},
-    )
-    monkeypatch.setattr(training_pdfs, "sektor_kodu_cozumle", lambda _sector: "genel_uretim")
-    monkeypatch.setattr(training_pdfs, "resolve_training_curriculum", lambda _training: {})
-    monkeypatch.setattr(
-        training_pdfs,
-        "egitim_konularini_hazirla",
-        lambda *_args: ([], [], None, None),
-    )
-
-    captured_codes = []
     monkeypatch.setattr(
         training_pdfs,
         "_draw_certificate_page",
         lambda *_args, **kwargs: captured_codes.append(kwargs["qr_code"]),
     )
+    captured_codes = []
 
-    training = SimpleNamespace(
-        participants=[
-            SimpleNamespace(employee_id=1, certificate_number="EGT-ONE-001"),
-            SimpleNamespace(employee_id=2, certificate_number=None),
-        ],
-        hazard_class="Az Tehlikeli",
-        sector="genel_uretim",
-        start_date=date(2026, 9, 1),
-        end_date=date(2026, 9, 1),
-        duration_hours=8,
-        training_type="Temel İSG Eğitimi",
-        delivery_method="Yüz yüze",
-        title="QR Eğitim Testi",
-        verification_code="TRAINING-QR-001",
-    )
-    employees = {
-        1: SimpleNamespace(full_name="İlk Çalışan"),
-        2: SimpleNamespace(full_name="İkinci Çalışan"),
-    }
+    engine = _db()
+    with Session(engine) as db:
+        training, first, second = _seed_training(db)
+        for participant in training.participants:
+            if participant.employee_id == second.id:
+                participant.certificate_number = None
+        db.flush()
 
-    pdf = training_pdfs.build_certificates_pdf(
-        company_name="QR Test Firma",
-        training=training,
-        employees=employees,
-    )
+        pdf = training_pdfs.build_certificates_pdf(
+            company_name="QR Test Firma",
+            training=training,
+            employees={first.id: first, second.id: second},
+        )
 
     assert pdf.startswith(b"%PDF")
-    assert captured_codes == ["EGT-ONE-001", "TRAINING-QR-001"]
+    assert captured_codes == ["EGT-000001-000001", "TRAINING-QR-001"]
