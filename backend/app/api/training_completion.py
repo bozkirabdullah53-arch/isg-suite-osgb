@@ -5,7 +5,7 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, model_validator
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.company_access import ensure_company_access
@@ -21,6 +21,7 @@ from app.models.entities import (
     User,
     UserRole,
 )
+from app.models.remote_training import RemoteTrainingCertificate
 from app.schemas.training import TrainingVerifyResponse
 from app.services.training_completion import (
     completion_preflight,
@@ -219,7 +220,8 @@ def finalize_training(
 
 
 # Registered before the legacy verify route. Pre-cutover and legacy records keep
-# their previous public verification behavior.
+# their previous public verification behavior, while participant and remote
+# certificate numbers are accepted for QR links emitted by current documents.
 @router.get(
     "/verify/{code}",
     response_model=TrainingVerifyResponse,
@@ -233,12 +235,61 @@ def verify_completed_training(code: str, db: Session = Depends(get_db)):
             verification_code=clean or "",
             message="Geçersiz doğrulama kodu.",
         )
+
+    matched_participant = None
     training = db.scalar(
         select(TrainingSession)
         .options(selectinload(TrainingSession.participants))
         .where(TrainingSession.verification_code == clean)
     )
     if training is None:
+        matched_participant = db.scalar(
+            select(TrainingParticipant)
+            .where(TrainingParticipant.certificate_number == clean)
+        )
+        if matched_participant:
+            training = db.scalar(
+                select(TrainingSession)
+                .options(selectinload(TrainingSession.participants))
+                .where(TrainingSession.id == matched_participant.training_id)
+            )
+
+    if training is None:
+        remote_certificate = db.scalar(
+            select(RemoteTrainingCertificate).where(
+                or_(
+                    RemoteTrainingCertificate.certificate_number == clean,
+                    RemoteTrainingCertificate.verification_code == clean,
+                )
+            )
+        )
+        if remote_certificate:
+            duration_hours = max(
+                1,
+                (int(remote_certificate.training_duration_seconds or 0) + 2699) // 2700,
+            )
+            participant = {
+                "full_name": remote_certificate.employee_name_snapshot,
+                "certificate_number": remote_certificate.certificate_number,
+            }
+            return TrainingVerifyResponse(
+                valid=True,
+                verification_code=clean,
+                title=remote_certificate.training_name,
+                company_name=remote_certificate.company_name_snapshot,
+                start_date=remote_certificate.training_date,
+                end_date=remote_certificate.training_date,
+                hazard_class=remote_certificate.hazard_class_snapshot,
+                duration_hours=duration_hours,
+                instructor_name=remote_certificate.instructor_name_snapshot,
+                workplace_physician=remote_certificate.workplace_physician_snapshot,
+                employer_representative=remote_certificate.employer_representative_snapshot,
+                participant_count=1,
+                participants=[participant],
+                certificate_number=remote_certificate.certificate_number,
+                participant_name=remote_certificate.employee_name_snapshot,
+                message="Belge doğrulandı.",
+            )
         return TrainingVerifyResponse(
             valid=False,
             verification_code=clean,
@@ -266,6 +317,16 @@ def verify_completed_training(code: str, db: Session = Depends(get_db)):
         visible = list(training.participants)
         valid = True
 
+    if matched_participant:
+        visible = [p for p in visible if p.id == matched_participant.id]
+        if not visible:
+            return TrainingVerifyResponse(
+                valid=False,
+                verification_code=clean,
+                title=training.title,
+                message="Eğitim kaydı mevcut ancak bu katılımcı için doğrulanmış belge bulunmuyor.",
+            )
+
     employee_ids = [p.employee_id for p in visible]
     employees = {
         row.id: row
@@ -283,6 +344,8 @@ def verify_completed_training(code: str, db: Session = Depends(get_db)):
         for p in visible
     ]
     company = db.get(Company, training.company_id)
+    participant_name = participants[0]["full_name"] if matched_participant and participants else None
+    certificate_number = participants[0]["certificate_number"] if matched_participant and participants else None
     return TrainingVerifyResponse(
         valid=valid,
         verification_code=clean,
@@ -297,5 +360,7 @@ def verify_completed_training(code: str, db: Session = Depends(get_db)):
         employer_representative=training.employer_representative,
         participant_count=len(participants),
         participants=participants,
+        certificate_number=certificate_number,
+        participant_name=participant_name,
         message="Belge doğrulandı." if valid else "Belge doğrulanamadı.",
     )
