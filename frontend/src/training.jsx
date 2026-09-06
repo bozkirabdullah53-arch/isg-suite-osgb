@@ -2929,8 +2929,8 @@ export function TrainingVerifyPage({code, onClose}) {
   }, [code]);
 
   return (
-    <main className="login-shell">
-      <section className="login-card" style={{maxWidth: 520, textAlign: 'left'}}>
+    <main className="login-shell training-verify-shell">
+      <section className="login-card training-verify-card" style={{maxWidth: 520, textAlign: 'left'}}>
         <div className="brand-mark" style={{marginBottom: 8}}><ShieldCheck size={34} /></div>
         <h1 style={{fontSize: 22}}>Eğitim Belgesi Doğrulama</h1>
         <p style={{marginBottom: 16, color: '#64748b'}}>
@@ -2944,8 +2944,13 @@ export function TrainingVerifyPage({code, onClose}) {
             placeholder="Örn. A1B2C3D4E5F6G7H8"
           />
         </label>
-        <div style={{display: 'flex', gap: 8, marginTop: 12}}>
+        <div className="training-verify-actions" style={{display: 'flex', gap: 8, marginTop: 12}}>
           <button type="button" onClick={() => run()}>Doğrula</button>
+          {data?.valid && (
+            <button type="button" className="secondary" onClick={() => window.print()}>
+              Belgeyi Yazdır
+            </button>
+          )}
           {onClose && (
             <button type="button" className="secondary" onClick={onClose}>Kapat</button>
           )}
@@ -2953,6 +2958,7 @@ export function TrainingVerifyPage({code, onClose}) {
         {err && <div className="error" style={{marginTop: 12}}>{err}</div>}
         {data && (
           <div
+            className="training-verify-result"
             style={{
               marginTop: 16,
               padding: 14,
@@ -2979,7 +2985,16 @@ export function TrainingVerifyPage({code, onClose}) {
                 {data.employer_representative && (
                   <li><strong>İşveren:</strong> {data.employer_representative}</li>
                 )}
-                <li><strong>Katılımcı:</strong> {data.participant_count}</li>
+                {data.participant_name ? (
+                  <>
+                    <li><strong>Katılımcı:</strong> {data.participant_name}</li>
+                    {data.certificate_number && (
+                      <li><strong>Belge kodu:</strong> {data.certificate_number}</li>
+                    )}
+                  </>
+                ) : (
+                  <li><strong>Katılımcı sayısı:</strong> {data.participant_count}</li>
+                )}
               </ul>
             )}
           </div>
