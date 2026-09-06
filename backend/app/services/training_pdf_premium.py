@@ -79,7 +79,7 @@ def _split_topic_columns(sol, sag):
 
 def draw_certificate_page(
     c, w, h, *, company_name, training, employee, belge_no, bugun,
-    egitim_tarihi, kural, sektor, sol, sag, curriculum=None, tp=None
+    egitim_tarihi, kural, sektor, sol, sag, curriculum=None, qr_code=None, tp=None
 ):
     """Render the premium certificate while preserving all supplied content."""
     if tp is None:
@@ -157,8 +157,20 @@ def draw_certificate_page(
     c.setFont(tp._FONT_B, 8.5)
     c.drawCentredString(w / 2 + 6 * mm, h - 21 * mm, _fit(tp, c, company_name or "", 145 * mm, tp._FONT_B, 8.5))
 
-    for idx, kind in enumerate(("helmet", "shield", "warning", "clipboard")):
+    qr_code = qr_code or getattr(training, "verification_code", None)
+    icon_kinds = ("helmet", "shield") if qr_code else ("helmet", "shield", "warning", "clipboard")
+    for idx, kind in enumerate(icon_kinds):
         _draw_header_icon(c, w - (42 - idx * 10) * mm, h - 22.5 * mm, kind)
+    if qr_code:
+        draw_qr = getattr(tp, "draw_training_qr", None)
+        if callable(draw_qr):
+            draw_qr(
+                c,
+                qr_code,
+                x=w - 22 * mm,
+                y=h - 25 * mm,
+                size=15 * mm,
+            )
 
     # Metadata strip.
     strip_y = header_y - 12.5 * mm

@@ -251,7 +251,7 @@ def _topic_columns(topics: list[dict], column_count: int = 4) -> list[list[dict]
 
 def draw_height_certificate_page(
     c, w, h, *, company_name, training, employee, belge_no, bugun,
-    egitim_tarihi, kural, sektor, sol, sag, curriculum=None, tp=None
+    egitim_tarihi, kural, sektor, sol, sag, curriculum=None, qr_code=None, tp=None
 ):
     """Yüksekte çalışma özel eğitimi için izole premium katılım/başarı belgesi."""
     if tp is None:
@@ -263,6 +263,7 @@ def draw_height_certificate_page(
 
     apply_height_training_profile_2026()
     profile = curriculum.get("profile") or SPECIAL_TRAINING_PROFILES["yuksekte_calisma"]
+    qr_code = qr_code or getattr(training, "verification_code", None)
 
     instructor = str(getattr(training, "instructor_name", "") or "").strip()
     instructor_title = str(getattr(training, "instructor_qualification", "") or "").strip()
@@ -356,12 +357,25 @@ def draw_height_certificate_page(
         ("Doğrulama", str(getattr(training, "verification_code", "") or "—")),
     ]
     meta_w = (w - 13.2 * mm) / len(meta)
+    draw_qr = getattr(tp, "draw_training_qr", None)
     for i, (label, value) in enumerate(meta):
         x = 6.6 * mm + i * meta_w
         if i:
             c.setStrokeColorRGB(*LINE)
             c.setLineWidth(0.35)
             c.line(x, strip_y + 2 * mm, x, strip_y + 11.5 * mm)
+        if i == len(meta) - 1 and qr_code and callable(draw_qr):
+            c.setFillColorRGB(*MUTED)
+            c.setFont(tp._FONT_B, 5.2)
+            c.drawCentredString(x + meta_w / 2, strip_y + 11.4 * mm, label)
+            draw_qr(
+                c,
+                qr_code,
+                x=x + meta_w / 2 - 4 * mm,
+                y=strip_y + 1.5 * mm,
+                size=8 * mm,
+            )
+            continue
         c.setFillColorRGB(*MUTED)
         c.setFont(tp._FONT_B, 5.2)
         c.drawCentredString(x + meta_w / 2, strip_y + 8.2 * mm, label)

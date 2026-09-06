@@ -65,6 +65,7 @@ jobs:
           tests/test_training_question_selection_v2.py
           tests/test_training_question_selection_smoke_script.py
           tests/test_training_completion.py
+          tests/test_training_document_qr.py
           tests/test_training_strict_cutover.py
           tests/test_training_rules.py
           tests/test_training_presentation_readiness.py

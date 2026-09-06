@@ -44,3 +44,51 @@
     text-align: center;
   }
 }
+
+
+/* Public training verification pages remain clean when a user prints a QR
+   result from a phone or desktop browser. */
+@media print {
+  body {
+    background: #fff !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .training-verify-shell,
+  .training-verify-shell * {
+    visibility: visible !important;
+  }
+
+  .training-verify-shell {
+    position: absolute !important;
+    inset: 0 !important;
+    display: block !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .training-verify-card {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+
+  .training-verify-actions,
+  .training-verify-card input,
+  .training-verify-card label {
+    display: none !important;
+  }
+
+  .training-verify-result {
+    margin-top: 0 !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #fff !important;
+    color: #111827 !important;
+  }
+}

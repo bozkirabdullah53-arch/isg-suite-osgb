@@ -277,4 +277,7 @@ class TrainingVerifyResponse(BaseModel):
     employer_representative: str | None = None
     participant_count: int = 0
     participants: list[dict] | None = None
+    # Participant-specific QR codes expose only the matched participant.
+    certificate_number: str | None = None
+    participant_name: str | None = None
     message: str | None = None
