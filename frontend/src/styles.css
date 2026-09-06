@@ -275,4 +275,30 @@
     max-height: none !important;
     overflow: visible !important;
   }
+
+  /* login-shell supplies a fixed viewport height for normal screens.
+     Remove that inherited height only for the print document. */
+  .training-verify-shell {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+    padding: 0 !important;
+  }
+
+  .training-verify-shell > .training-verify-card {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .training-verify-print-certificate {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    page-break-after: avoid !important;
+    break-after: avoid-page !important;
+  }
 }
