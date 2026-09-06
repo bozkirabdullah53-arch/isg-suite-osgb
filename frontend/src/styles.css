@@ -92,3 +92,153 @@
     color: #111827 !important;
   }
 }
+
+
+/* Doğrulama sonucunun yazdırılabilir belge görünümü. */
+.training-verify-print-certificate {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    width: 100% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .training-verify-shell {
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .training-verify-card {
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 0 !important;
+  }
+
+  .training-verify-result {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: #fff !important;
+  }
+
+  .training-verify-result > strong,
+  .training-verify-result > p,
+  .training-verify-result > ul {
+    display: none !important;
+  }
+
+  .training-verify-print-certificate {
+    display: block !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 18mm 16mm !important;
+    border: 1.5px solid #0b3558 !important;
+    border-top: 12px solid #0b3558 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    color: #0b3558 !important;
+    background: #fff !important;
+  }
+
+  .training-verify-print-brand {
+    color: #087b67;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-align: center;
+    font-size: 12px;
+  }
+
+  .training-verify-print-kicker {
+    margin-top: 10mm;
+    text-align: center;
+    color: #64748b;
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+
+  .training-verify-print-certificate h2 {
+    margin: 5mm 0 3mm;
+    text-align: center;
+    color: #0b3558;
+    font-size: 22px;
+  }
+
+  .training-verify-print-message {
+    margin: 0 0 10mm;
+    text-align: center;
+    color: #475569;
+    font-size: 12px;
+  }
+
+  .training-verify-print-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border-top: 1px solid #cbd5e1;
+    border-left: 1px solid #cbd5e1;
+  }
+
+  .training-verify-print-grid > div {
+    min-height: 18mm;
+    padding: 4mm;
+    border-right: 1px solid #cbd5e1;
+    border-bottom: 1px solid #cbd5e1;
+  }
+
+  .training-verify-print-grid span,
+  .training-verify-print-code span {
+    display: block;
+    margin-bottom: 2mm;
+    color: #64748b;
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+
+  .training-verify-print-grid strong,
+  .training-verify-print-code strong {
+    display: block;
+    color: #0f172a;
+    font-size: 12px;
+  }
+
+  .training-verify-print-code {
+    margin-top: 10mm;
+    padding: 5mm;
+    text-align: center;
+    border: 1px dashed #0b3558;
+  }
+
+  .training-verify-print-valid {
+    margin-top: 10mm;
+    padding: 4mm;
+    text-align: center;
+    color: #087b67;
+    border: 1px solid #087b67;
+    font-weight: 800;
+    letter-spacing: 1px;
+  }
+
+  .training-verify-print-footer {
+    margin: 10mm 0 0;
+    text-align: center;
+    color: #64748b;
+    font-size: 9px;
+  }
+}
