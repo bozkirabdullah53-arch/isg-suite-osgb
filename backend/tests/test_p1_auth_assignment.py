@@ -210,3 +210,77 @@ def test_assignment_ended_allows_reassign(tmp_path):
         with pytest.raises(IntegrityError):
             db.commit()
         db.rollback()
+
+
+@pytest.mark.parametrize("legacy_minutes", [0, -1])
+def test_assignment_list_and_end_preserve_legacy_rows(client, legacy_minutes):
+    """A persisted row must not fail serialization after end has committed."""
+    from datetime import date, timedelta
+    from app.core.database import SessionLocal
+
+    with SessionLocal() as db:
+        osgb = OsgbOrganization(name="Legacy Assignment OSGB", is_active=True)
+        db.add(osgb)
+        db.flush()
+        company = Company(name="Legacy Assignment Company", osgb_id=osgb.id, is_active=True)
+        professional = IsgProfessional(
+            osgb_id=osgb.id, full_name="Legacy Professional",
+            professional_type=ProfessionalType.SAFETY_SPECIALIST, is_active=True,
+        )
+        admin = User(
+            email="legacy-assignment@example.com", full_name="Assignment Admin",
+            hashed_password="unused", role=UserRole.GLOBAL_ADMIN, is_active=True,
+            token_version=0,
+        )
+        db.add_all([company, professional, admin])
+        db.flush()
+        row = WorkplaceAssignment(
+            osgb_id=osgb.id, company_id=company.id, professional_id=professional.id,
+            professional_type=professional.professional_type,
+            start_date=date.today() + timedelta(days=10), end_date=date.today(),
+            required_minutes_monthly=legacy_minutes,
+            planned_minutes_monthly=legacy_minutes,
+            actual_minutes_monthly=legacy_minutes,
+            status=AssignmentStatus.ACTIVE,
+        )
+        db.add(row)
+        db.commit()
+        assignment_id = row.id
+        token = create_access_token(str(admin.id), token_version=0)
+        create_payload = {
+            "osgb_id": osgb.id, "company_id": company.id,
+            "professional_id": professional.id,
+            "professional_type": professional.professional_type.value,
+            "start_date": row.start_date.isoformat(),
+            "end_date": row.end_date.isoformat(),
+            "isg_katip_contract_number": "LEGACY-REGRESSION-001",
+        }
+
+    headers = {"Authorization": f"Bearer {token}"}
+    listed = client.get("/api/v1/osgb/assignments", headers=headers)
+    assert listed.status_code == 200, listed.text
+    assert [item["id"] for item in listed.json()] == [assignment_id]
+    ended = client.patch(f"/api/v1/osgb/assignments/{assignment_id}/end", headers=headers)
+    assert ended.status_code == 200, ended.text
+    assert ended.json()["status"] == "ended"
+    assert ended.json()["end_date"] == date.today().isoformat()
+    for field in ("required_minutes_monthly", "planned_minutes_monthly", "actual_minutes_monthly"):
+        assert listed.json()[0][field] == legacy_minutes
+        assert ended.json()[field] == legacy_minutes
+
+    with SessionLocal() as db:
+        persisted = db.get(WorkplaceAssignment, assignment_id)
+        assert persisted.status == AssignmentStatus.ENDED
+        assert persisted.start_date.isoformat() == create_payload["start_date"]
+        assert persisted.actual_minutes_monthly == legacy_minutes
+
+    # New inputs retain strict validation even when legacy output is readable.
+    invalid_dates = client.post("/api/v1/osgb/assignments", headers=headers, json=create_payload)
+    assert invalid_dates.status_code == 422, invalid_dates.text
+    create_payload["end_date"] = None
+    for field in ("required_minutes_monthly", "planned_minutes_monthly", "actual_minutes_monthly"):
+        invalid_minutes = client.post(
+            "/api/v1/osgb/assignments", headers=headers,
+            json={**create_payload, field: -1},
+        )
+        assert invalid_minutes.status_code == 422, invalid_minutes.text

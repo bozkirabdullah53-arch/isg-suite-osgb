@@ -88,10 +88,18 @@ async function tryRefreshAccessToken() {
         credentials: "include",
         mode: "cors",
         cache: "no-store",
+        signal: requestSignal(),
       });
       if (!response.ok) {
-        setRefreshCookieMode(false);
-        return false;
+        if ([401, 403, 404].includes(response.status)) {
+          setRefreshCookieMode(false);
+          return false;
+        }
+        // A gateway outage is not a rejected session. Do not turn an original
+        // 401 into logout, or replay this rotating refresh-cookie POST.
+        const err = new Error(await parseError(response));
+        err.httpStatus = response.status;
+        throw err;
       }
       const body = await response.json().catch(() => ({}));
       if (body?.access_token) {
@@ -100,7 +108,11 @@ async function tryRefreshAccessToken() {
         return true;
       }
       return false;
-    })().finally(() => {
+    })().catch((err) => {
+      err.httpPath = "/auth/refresh";
+      err.httpMethod = "POST";
+      throw err;
+    }).finally(() => {
       _refreshInFlight = null;
     });
   }
@@ -147,6 +159,16 @@ function isTransientGatewayStatus(status) {
   return status === 502 || status === 503 || status === 504;
 }
 
+function canRetryRequest(error, method, signal) {
+  if (signal?.aborted || error?.httpPath === "/auth/refresh") return false;
+  // Preserve the existing network retry policy. Only reads may additionally
+  // retry a gateway response: writes may already have committed upstream.
+  return isNetworkError(error) || (
+    (method === "GET" || method === "HEAD") &&
+    [502, 503, 504].includes(error?.httpStatus)
+  );
+}
+
 let _wakeInFlight = null;
 let _lastWakeOkAt = 0;
 
@@ -168,6 +190,7 @@ export async function wakeApi() {
           cache: "no-store",
           mode: "cors",
           credentials: "omit",
+          signal: requestSignal(Math.min(5000, Math.max(1, deadline - Date.now()))),
         });
         if (response.ok) {
           _lastWakeOkAt = Date.now();
@@ -391,7 +414,7 @@ export async function apiWithBearer(bearerToken, path, options = {}) {
     } catch (e) {
       lastErr = e;
       if (fetchOpts.signal?.aborted) throw e;
-      if (!isNetworkError(e) || attempt === retries) {
+      if (!canRetryRequest(e, method, fetchOpts.signal) || attempt === retries) {
         if (isNetworkError(e)) {
           throw new Error(
             "Sunucuya bağlanılamadı. API uyanıyor olabilir — 10–20 sn bekleyip tekrar deneyin.",
@@ -487,14 +510,14 @@ export async function api(path, options = {}) {
     } catch (e) {
       lastErr = e;
       if (fetchOpts.signal?.aborted) throw e;
-      if (!isNetworkError(e) || attempt === retries) {
+      if (!canRetryRequest(e, method, fetchOpts.signal) || attempt === retries) {
         if (isNetworkError(e)) {
           reportClientError({
             source: "api_error",
             title: "Ağ bağlantı hatası",
             message: String(e?.message || e),
-            http_method: method,
-            http_path: path,
+            http_method: e?.httpMethod || method,
+            http_path: e?.httpPath || path,
           });
           const detail = String(e?.message || e || "").slice(0, 120);
           throw new Error(
@@ -509,8 +532,8 @@ export async function api(path, options = {}) {
             source: "api_error",
             title: `API hatası HTTP ${status}`,
             message: String(e?.message || e),
-            http_method: method,
-            http_path: path,
+            http_method: e?.httpMethod || method,
+            http_path: e?.httpPath || path,
             http_status: status,
           });
         }
