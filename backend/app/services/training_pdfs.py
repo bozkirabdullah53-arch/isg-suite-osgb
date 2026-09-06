@@ -14,6 +14,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 
 from app.core.config import settings
+from app.services.training_document_qr import draw_training_qr
 from app.services.special_training_profiles import (
     resolve_training_curriculum,
     resolve_training_document_titles,
@@ -462,6 +463,16 @@ def _draw_attendance_page(
     c.drawRightString(w - mr, h - 16 * mm, f"Düzenleme: {bugun}")
     c.drawRightString(w - mr, h - 20 * mm, f"Sayfa: {page_no}/{total_pages}")
 
+    # The attendance QR points to the training-level public verification page.
+    # Keep it in the header so it never consumes table/signature space.
+    draw_training_qr(
+        c,
+        getattr(training, "verification_code", None),
+        x=(31 if has_logo else 10) * mm,
+        y=h - 26 * mm,
+        size=16 * mm,
+    )
+
     # Info grid — the identity block is deliberately wider for official NACE
     # text and uses the same selected workplace data as the training record.
     egitici = _compose_educator_text(training, physician_name)
@@ -712,6 +723,9 @@ def build_certificates_pdf(*, company_name: str, training, employees: dict) -> b
         e = employees.get(p.employee_id)
         # PRO belge no: ISG-GGAAYYYY-001 (üretim tarihi + sıra)
         belge_no = f"ISG-{bugun_kod}-{i:03d}"
+        # Prefer the participant-specific certificate code. Legacy records
+        # without one fall back to the training-level verification code.
+        qr_code = getattr(p, "certificate_number", None) or getattr(training, "verification_code", None)
         _draw_certificate_page(
             c, w, h,
             company_name=company_name,
@@ -725,6 +739,7 @@ def build_certificates_pdf(*, company_name: str, training, employees: dict) -> b
             sol=sol,
             sag=sag,
             curriculum=curriculum,
+            qr_code=qr_code,
         )
         c.showPage()
     c.save()
@@ -752,7 +767,7 @@ def certificate_meta_parts(training, *, kural: dict, curriculum: dict | None = N
 
 
 def _draw_certificate_page(
-    c, w, h, *, company_name, training, employee, belge_no, bugun, egitim_tarihi, kural, sektor, sol, sag, curriculum=None
+    c, w, h, *, company_name, training, employee, belge_no, bugun, egitim_tarihi, kural, sektor, sol, sag, curriculum=None, qr_code=None
 ):
     curriculum = curriculum or {}
     profile_key = str(curriculum.get("profile_key") or resolve_training_document_titles(training).get("profile_key") or "")
@@ -796,9 +811,19 @@ def _draw_certificate_page(
     )
     title_size = 9 if len(cert_title) > 48 else 11
     c.setFont(_FONT_B, title_size)
-    c.drawCentredString(w / 2, h - 12 * mm, _fit(c, cert_title, w - 40 * mm, _FONT_B, title_size))
+    # Reserve the right side of the header for the QR without changing the
+    # existing certificate body layout.
+    header_text_width = w - 56 * mm
+    c.drawCentredString(w / 2, h - 12 * mm, _fit(c, cert_title, header_text_width, _FONT_B, title_size))
     c.setFont(_FONT_B, 9)
-    c.drawCentredString(w / 2, h - 19 * mm, company_name or "")
+    c.drawCentredString(w / 2, h - 19 * mm, _fit(c, company_name or "", header_text_width, _FONT_B, 9))
+    draw_training_qr(
+        c,
+        qr_code or getattr(training, "verification_code", None),
+        x=w - mr - 18 * mm,
+        y=h - 25 * mm,
+        size=18 * mm,
+    )
 
     # Referans — PRO: Belge No / Tarih + Süre│Tehlike Sınıfı│Tür│Şekil│Doğrulama
     c.setFillColorRGB(0.4, 0.4, 0.4)
