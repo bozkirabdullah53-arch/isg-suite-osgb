@@ -242,3 +242,37 @@
     font-size: 9px;
   }
 }
+
+
+/* Print-only cleanup: keep the public verification document on one page. */
+@media print {
+  html,
+  body,
+  #root {
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  #root {
+    display: block !important;
+  }
+
+  #root > *:not(.training-verify-shell) {
+    display: none !important;
+  }
+
+  .training-verify-shell > .training-verify-card > .brand-mark,
+  .training-verify-shell > .training-verify-card > h1,
+  .training-verify-shell > .training-verify-card > p {
+    display: none !important;
+  }
+
+  .training-verify-shell,
+  .training-verify-card,
+  .training-verify-result,
+  .training-verify-print-certificate {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
