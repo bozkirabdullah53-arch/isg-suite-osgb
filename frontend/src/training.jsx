@@ -2997,6 +2997,30 @@ export function TrainingVerifyPage({code, onClose}) {
                 )}
               </ul>
             )}
+            {data.valid && (
+              <div className="training-verify-print-certificate" aria-label="Yazdırılabilir eğitim belgesi">
+                <div className="training-verify-print-brand">İSG SUİTE</div>
+                <div className="training-verify-print-kicker">KAMUYA AÇIK BELGE DOĞRULAMA</div>
+                <h2>EĞİTİM BELGESİ DOĞRULAMA</h2>
+                <p className="training-verify-print-message">Bu belge, aşağıdaki eğitim kaydının doğrulandığını gösterir.</p>
+                <div className="training-verify-print-grid">
+                  <div><span>Firma</span><strong>{data.company_name || '—'}</strong></div>
+                  <div><span>Eğitim</span><strong>{data.title || '—'}</strong></div>
+                  <div><span>Katılımcı</span><strong>{data.participant_name || ((data.participant_count || 0) + ' kişi')}</strong></div>
+                  <div><span>Eğitim tarihi</span><strong>{formatTrainingDates(data)}</strong></div>
+                  <div><span>Süre / tehlike sınıfı</span><strong>{data.duration_hours || '—'} saat · {data.hazard_class || '—'}</strong></div>
+                  <div><span>Eğitici</span><strong>{data.instructor_name || '—'}</strong></div>
+                  {data.workplace_physician && <div><span>İşyeri hekimi</span><strong>{data.workplace_physician}</strong></div>}
+                  {data.employer_representative && <div><span>İşveren</span><strong>{data.employer_representative}</strong></div>}
+                </div>
+                <div className="training-verify-print-code">
+                  <span>Doğrulama kodu</span>
+                  <strong>{data.certificate_number || data.verification_code}</strong>
+                </div>
+                <div className="training-verify-print-valid">✓ BELGE DOĞRULANDI</div>
+                <p className="training-verify-print-footer">Bu çıktı, isgsuite.tr üzerindeki kamuya açık doğrulama sonucuna dayanır.</p>
+              </div>
+            )}
           </div>
         )}
       </section>
