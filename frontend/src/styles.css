@@ -302,3 +302,26 @@
     break-after: avoid-page !important;
   }
 }
+
+
+/* Member list pagination: keep long EİSA lists compact on phones and desktop. */
+.eisa-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 8px 2px;
+}
+
+.eisa-pagination span {
+  color: #475569;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .eisa-pagination button {
+    min-width: 96px;
+  }
+}
