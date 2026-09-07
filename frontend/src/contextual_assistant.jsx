@@ -37,6 +37,34 @@ export function spokenReply(result) {
   return String(result?.message || '').trim();
 }
 
+export function isCoarsePointer(scope = typeof window === 'undefined' ? null : window) {
+  return Boolean(scope?.matchMedia?.('(pointer: coarse)').matches);
+}
+
+export function autoActionDelayMs({fromVoice = false, coarsePointer = false} = {}) {
+  if (coarsePointer) return 650;
+  return fromVoice ? 1200 : 350;
+}
+
+export function pickTurkishVoice(voices = []) {
+  return (Array.isArray(voices) ? voices : []).find((voice) => String(voice?.lang || '').toLowerCase().startsWith('tr')) || null;
+}
+
+export function unlockSpeechSynthesis(scope = typeof window === 'undefined' ? null : window) {
+  const synthesis = scope?.speechSynthesis;
+  if (!synthesis || typeof scope.SpeechSynthesisUtterance !== 'function') return false;
+  try {
+    const utterance = new scope.SpeechSynthesisUtterance(' ');
+    utterance.volume = 0;
+    utterance.rate = 1;
+    utterance.lang = 'tr-TR';
+    synthesis.speak(utterance);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function Panel({active, user, allowedModules, onNavigate}) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -55,6 +83,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
   const voiceTimerRef = useRef(null);
   const voiceCancelledRef = useRef(false);
   const pendingSpeechRef = useRef(null);
+  const speechUnlockedRef = useRef(false);
   const listRef = useRef(null);
   const lastPageRef = useRef(active);
   const page = useMemo(() => getAssistantPageDefinition(active), [active]);
@@ -142,15 +171,22 @@ function Panel({active, user, allowedModules, onNavigate}) {
     }
   }
 
-  function closePanel() {
+  function closePanel({cancelSpeech = true} = {}) {
     abortRef.current?.abort();
-    pendingSpeechRef.current = null;
     stopVoiceCapture({cancel: true});
-    window.speechSynthesis?.cancel?.();
+    if (cancelSpeech) {
+      pendingSpeechRef.current = null;
+      window.speechSynthesis?.cancel?.();
+    }
     setOpen(false);
     setBusy(false);
     setListening(false);
     setCharacterState('idle');
+  }
+
+  function unlockVoiceOutput() {
+    if (speechUnlockedRef.current || typeof window === 'undefined') return;
+    speechUnlockedRef.current = unlockSpeechSynthesis(window);
   }
 
   function speak(text, {onEnd, force = false} = {}) {
@@ -165,6 +201,8 @@ function Panel({active, user, allowedModules, onNavigate}) {
     const utterance = new SpeechSynthesisUtterance(String(text));
     utterance.lang = 'tr-TR';
     utterance.rate = 0.95;
+    const turkishVoice = pickTurkishVoice(window.speechSynthesis.getVoices?.() || []);
+    if (turkishVoice) utterance.voice = turkishVoice;
     utterance.onstart = () => setCharacterState('speaking');
     const complete = () => {
       if (pendingSpeechRef.current !== token) return;
@@ -189,6 +227,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
       return;
     }
 
+    unlockVoiceOutput();
     voiceCancelledRef.current = false;
     setError('');
     const Recognition = browserSpeechRecognition(window);
@@ -312,7 +351,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
       setCharacterState('listening');
       voiceTimerRef.current = window.setTimeout(() => {
         if (recorderRef.current === recorder && recorder.state === 'recording') recorder.stop();
-      }, 30000);
+      }, isCoarsePointer(window) ? 8000 : 30000);
     } catch (exception) {
       stream?.getTracks?.().forEach((track) => track.stop());
       clearVoiceResources();
@@ -351,10 +390,12 @@ function Panel({active, user, allowedModules, onNavigate}) {
       const autoAction = firstAutoAction(result?.actions, allowedModules);
       setMessages((current) => [...current, {role: 'assistant', text: responseText, source: result?.source, actions: result?.actions || []}]);
       setCharacterState('speaking');
-      speak(speechText, {
-        force: fromVoice,
-        onEnd: autoAction ? () => runAction(autoAction) : undefined,
-      });
+      speak(speechText, {force: fromVoice});
+      if (autoAction) {
+        window.setTimeout(() => {
+          runAction(autoAction, {auto: true});
+        }, autoActionDelayMs({fromVoice, coarsePointer: isCoarsePointer(window)}));
+      }
     } catch (exception) {
       if (exception?.name !== 'AbortError') {
         setError('Asistan geçici olarak kullanılamıyor. Uygulamayı normal şekilde kullanmaya devam edebilirsiniz.');
@@ -366,26 +407,30 @@ function Panel({active, user, allowedModules, onNavigate}) {
     }
   }
 
-  function runAction(action) {
+  function runAction(action, {auto = false} = {}) {
+    let moved = false;
     if (action?.type === 'show') {
       if (action.moduleId && action.moduleId !== active && allowedModules.includes(action.moduleId)) {
         onNavigate?.(action.moduleId);
         window.setTimeout(() => highlightTarget(action.targetId), 450);
         setCharacterState('success');
-        return;
+        moved = true;
+      } else if (!highlightTarget(action.targetId)) {
+        setError('Bu hedef mevcut sayfada şu anda görünür değil.');
+      } else {
+        setCharacterState('pointing');
+        moved = true;
       }
-      if (!highlightTarget(action.targetId)) setError('Bu hedef mevcut sayfada şu anda görünür değil.');
-      else setCharacterState('pointing');
-      return;
-    }
-    if (action?.type === 'navigate' && allowedModules.includes(action.moduleId)) {
+    } else if (action?.type === 'navigate' && allowedModules.includes(action.moduleId)) {
       onNavigate?.(action.moduleId);
       setCharacterState('success');
+      moved = true;
     }
+    if (moved && (auto || isCoarsePointer(window))) closePanel({cancelSpeech: false});
   }
 
   return <>
-    <button type="button" className="contextual-assistant-launcher" onClick={openPanel} aria-label="İSG Asistanını aç" aria-expanded={open}>
+    <button type="button" className="contextual-assistant-launcher" onClick={() => { unlockVoiceOutput(); openPanel(); }} aria-label="İSG Asistanını aç" aria-expanded={open}>
       <OhsCharacter state="idle" compact />
       <span className="contextual-assistant-launcher__badge"><Sparkles size={12} /></span>
     </button>
@@ -418,7 +463,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
             <button type="submit" aria-label="Soruyu gönder" disabled={busy || listening || !input.trim()}>{busy ? <Loader2 className="contextual-assistant-spin" size={18} /> : <Send size={18} />}</button>
           </div>
         </form>
-        <footer className="contextual-assistant-footnote">{voiceInputSupported ? 'İsteğinizi teyit eder ve yetkiniz olan sayfayı açar.' : 'Bu cihazda mikrofon kullanılamıyor; yazılı asistan kullanılabilir.'} Sunucu kaydı kullanılırsa ses saklanmaz.</footer>
+        <footer className="contextual-assistant-footnote">{voiceInputSupported ? (listening ? 'Dinliyorum. Bitince mikrofonu tekrar dokunun veya kaydın otomatik durmasını bekleyin.' : 'İsteğinizi teyit eder ve yetkiniz olan sayfayı açar.') : 'Bu cihazda mikrofon kullanılamıyor; yazılı asistan kullanılabilir.'} Sunucu kaydı kullanılırsa ses saklanmaz.</footer>
       </aside>
     </>}
   </>;
