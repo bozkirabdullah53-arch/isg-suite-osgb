@@ -92,3 +92,13 @@
 @keyframes contextual-assistant-spin { to { transform: rotate(360deg); } }
 @media (max-width: 620px) { .contextual-assistant-launcher { right: 16px !important; bottom: 140px !important; width: 54px !important; height: 54px !important; border-radius: 18px !important; } .contextual-assistant-panel { inset: auto 0 0 0 !important; width: 100% !important; max-width: 100% !important; height: min(94dvh, 760px) !important; border-radius: 22px 22px 0 0 !important; } .contextual-assistant-message--user { margin-left: 8% !important; } }
 @media (prefers-reduced-motion: reduce) { .contextual-assistant-launcher, .contextual-assistant-spin, .ai-assistant-target-highlight { animation: none !important; transition: none !important; } }
+
+
+.contextual-assistant-voice-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.contextual-assistant-voice-button,
+.contextual-assistant-voice-actions > button[type="submit"] { display: grid !important; width: 38px !important; height: 42px !important; flex: 0 0 38px !important; place-items: center !important; padding: 0 !important; border: 1px solid #c9dce7 !important; border-radius: 12px !important; color: #0b2a5b !important; background: #f8fbfd !important; cursor: pointer !important; }
+.contextual-assistant-voice-actions > button[type="submit"] { width: 42px !important; flex-basis: 42px !important; border-color: #0b2a5b !important; color: #fff !important; background: #0b2a5b !important; }
+.contextual-assistant-voice-button.is-active { border-color: #0e7490 !important; color: #fff !important; background: #0e7490 !important; }
+.contextual-assistant-voice-button:disabled,
+.contextual-assistant-voice-actions > button[type="submit"]:disabled { opacity: .45 !important; cursor: not-allowed !important; }
+@media (max-width: 620px) { .contextual-assistant-voice-actions { gap: 4px; } .contextual-assistant-voice-button, .contextual-assistant-voice-actions > button[type="submit"] { width: 36px !important; flex-basis: 36px !important; } }
