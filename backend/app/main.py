@@ -79,7 +79,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "X-Content-Type-Options": "nosniff",
             "X-Frame-Options": "DENY",
             "Referrer-Policy": "strict-origin-when-cross-origin",
-            "Permissions-Policy": "camera=(self), microphone=(), geolocation=(self)",
+            "Permissions-Policy": "camera=(self), microphone=(self), geolocation=(self)",
             "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
             "Cross-Origin-Opener-Policy": "same-origin-allow-popups",
             "Cross-Origin-Resource-Policy": "same-site",
