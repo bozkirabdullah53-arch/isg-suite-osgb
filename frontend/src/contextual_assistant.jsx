@@ -1,6 +1,6 @@
 import React, {Component, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
-import {ArrowRight, ChevronRight, CircleHelp, Compass, Loader2, MessageCircle, Send, ShieldCheck, Sparkles, Target, X} from 'lucide-react';
+import {ArrowRight, ChevronRight, CircleHelp, Compass, Loader2, MessageCircle, Mic, Send, ShieldCheck, Sparkles, Target, Volume2, VolumeX, X} from 'lucide-react';
 import {api} from './api';
 import {assistantFeatureEnabled, getAssistantPageContext, getAssistantPageDefinition} from './contextual_assistant_registry';
 import './contextual_assistant.css';
@@ -11,17 +11,204 @@ function actionLabel(action) { return action?.label || (action?.type === 'naviga
 class AssistantErrorBoundary extends Component { constructor(props) { super(props); this.state = {failed: false}; } static getDerivedStateFromError() { return {failed: true}; } render() { return this.state.failed ? null : this.props.children; } }
 
 function Panel({active, user, allowedModules, onNavigate}) {
-  const [open, setOpen] = useState(false); const [input, setInput] = useState(''); const [messages, setMessages] = useState([]); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [characterState, setCharacterState] = useState('idle'); const abortRef = useRef(null); const listRef = useRef(null); const lastPageRef = useRef(active); const page = useMemo(() => getAssistantPageDefinition(active), [active]);
-  useEffect(() => { if (!open) return undefined; const timer = window.setTimeout(() => setCharacterState('idle'), 850); setCharacterState('pointing'); return () => window.clearTimeout(timer); }, [active, open]);
-  useEffect(() => { if (!open || lastPageRef.current === active) return; lastPageRef.current = active; setMessages((current) => [...current, {role: 'assistant', text: `Sayfa değişti: artık ${page.title} ekranındasınız. Önceki yanıtlar önceki sayfanın bağlamındaydı.`}]); }, [active, open, page.title]);
-  useEffect(() => { listRef.current?.scrollTo({top: listRef.current.scrollHeight, behavior: 'smooth'}); }, [messages, busy]);
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [characterState, setCharacterState] = useState('idle');
+  const [voiceOutput, setVoiceOutput] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [voiceInputSupported, setVoiceInputSupported] = useState(false);
+  const abortRef = useRef(null);
+  const recognitionRef = useRef(null);
+  const listRef = useRef(null);
+  const lastPageRef = useRef(active);
+  const page = useMemo(() => getAssistantPageDefinition(active), [active]);
+
+  useEffect(() => {
+    const Recognition = typeof window !== 'undefined'
+      ? (window.SpeechRecognition || window.webkitSpeechRecognition)
+      : null;
+    setVoiceInputSupported(Boolean(Recognition));
+    return () => {
+      recognitionRef.current?.abort?.();
+      window.speechSynthesis?.cancel?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const timer = window.setTimeout(() => setCharacterState('idle'), 850);
+    setCharacterState('pointing');
+    return () => window.clearTimeout(timer);
+  }, [active, open]);
+
+  useEffect(() => {
+    if (!open || lastPageRef.current === active) return;
+    lastPageRef.current = active;
+    setMessages((current) => [...current, {role: 'assistant', text: `Sayfa değişti: artık ${page.title} ekranındasınız. Önceki yanıtlar önceki sayfanın bağlamındaydı.`}]);
+  }, [active, open, page.title]);
+
+  useEffect(() => {
+    listRef.current?.scrollTo({top: listRef.current.scrollHeight, behavior: 'smooth'});
+  }, [messages, busy]);
+
   useEffect(() => () => abortRef.current?.abort(), []);
+
   if (!assistantFeatureEnabled() || !user || !active) return null;
-  function openPanel() { setOpen(true); setError(''); setMessages((current) => current.length ? current : [{role: 'assistant', text: `Merhaba, ${page.title} sayfasındasınız. ${page.purpose} Bu ekranda ne yapmak istediğinizi yazın; mevcut sayfaya göre yönlendireyim.`}]); }
-  function closePanel() { abortRef.current?.abort(); setOpen(false); setBusy(false); setCharacterState('idle'); }
-  async function sendQuestion(question = input) { const text = String(question || '').trim(); if (!text || busy) return; setInput(''); setError(''); setMessages((current) => [...current, {role: 'user', text}]); setBusy(true); setCharacterState('thinking'); const controller = new AbortController(); abortRef.current = controller; try { const result = await api('/assistant/contextual', {method: 'POST', body: JSON.stringify({question: text, context: getAssistantPageContext(active, user, allowedModules)}), timeoutMs: 30000, _retries: 0, signal: controller.signal}); setMessages((current) => [...current, {role: 'assistant', text: result?.message || 'Bu işlem için doğrulanmış bir açıklama bulunamadı.', source: result?.source, actions: result?.actions || []}]); setCharacterState('speaking'); } catch (exception) { if (exception?.name !== 'AbortError') { setError('Asistan geçici olarak kullanılamıyor. Uygulamayı normal şekilde kullanmaya devam edebilirsiniz.'); setCharacterState('warning'); } } finally { abortRef.current = null; setBusy(false); } }
-  function runAction(action) { if (action?.type === 'show') { if (!highlightTarget(action.targetId)) setError('Bu hedef mevcut sayfada şu anda görünür değil.'); else setCharacterState('pointing'); return; } if (action?.type === 'navigate' && allowedModules.includes(action.moduleId)) { onNavigate?.(action.moduleId); setCharacterState('success'); } }
-  return <><button type="button" className="contextual-assistant-launcher" onClick={openPanel} aria-label="İSG Asistanını aç" aria-expanded={open}><OhsCharacter state="idle" compact /><span className="contextual-assistant-launcher__badge"><Sparkles size={12} /></span></button>{open && <><button type="button" className="contextual-assistant-backdrop" onClick={closePanel} aria-label="İSG Asistanını kapat" /><aside className="contextual-assistant-panel" role="dialog" aria-modal="true" aria-labelledby="contextual-assistant-title"><header className="contextual-assistant-head"><div className="contextual-assistant-head__identity"><OhsCharacter state={characterState} compact /><div><span className="contextual-assistant-eyebrow"><ShieldCheck size={13} /> İSG rehberliği</span><h2 id="contextual-assistant-title">İSG Asistanı</h2><p>Doğrulanmış uygulama yardımı</p></div></div><button type="button" className="contextual-assistant-close" onClick={closePanel} aria-label="İSG Asistanını kapat"><X size={19} /></button></header><div className="contextual-assistant-context" role="status"><Compass size={16} /><span>Şu an: <strong>{page.title}</strong><small>{page.purpose}</small></span></div><div className="contextual-assistant-messages" ref={listRef} aria-live="polite">{messages.map((message, index) => <article key={`${message.role}-${index}`} className={`contextual-assistant-message contextual-assistant-message--${message.role}`}><div className="contextual-assistant-message__icon">{message.role === 'assistant' ? <Sparkles size={14} /> : <MessageCircle size={14} />}</div><div><p>{message.text}</p>{message.source && <small className="contextual-assistant-source">{message.source === 'ai' ? 'AI + uygulama bağlamı' : 'Doğrulanmış uygulama bilgisi'}</small>}{message.actions?.length > 0 && <div className="contextual-assistant-actions">{message.actions.map((action, actionIndex) => <button type="button" key={`${action.type}-${actionIndex}`} onClick={() => runAction(action)}><Target size={14} />{actionLabel(action)}<ChevronRight size={13} /></button>)}</div>}</div></article>)}{busy && <div className="contextual-assistant-thinking"><OhsCharacter state="thinking" compact /><span>Sayfayı ve izinlerinizi kontrol ediyorum<Loader2 size={14} /></span></div>}</div><div className="contextual-assistant-suggestions"><span><CircleHelp size={14} /> Önerilen sorular</span><div>{page.suggestions.slice(0, 3).map((question) => <button type="button" key={question} onClick={() => void sendQuestion(question)} disabled={busy}>{question}<ArrowRight size={13} /></button>)}</div></div>{error && <div className="contextual-assistant-error" role="alert">{error}</div>}<form className="contextual-assistant-composer" onSubmit={(event) => { event.preventDefault(); void sendQuestion(); }}><label htmlFor="contextual-assistant-input" className="sr-only">İSG Asistanına soru yazın</label><textarea id="contextual-assistant-input" value={input} onChange={(event) => { setInput(event.target.value); setCharacterState(event.target.value ? 'listening' : 'idle'); }} placeholder="Bu sayfada ne yapmak istiyorsunuz?" rows={2} maxLength={2000} disabled={busy} /><button type="submit" aria-label="Soruyu gönder" disabled={busy || !input.trim()}>{busy ? <Loader2 className="contextual-assistant-spin" size={18} /> : <Send size={18} />}</button></form><footer className="contextual-assistant-footnote">Kişisel ve sağlık verileri asistan bağlamına gönderilmez.</footer></aside></>}</>;
+
+  function openPanel() {
+    setOpen(true);
+    setError('');
+    setMessages((current) => current.length ? current : [{role: 'assistant', text: `Merhaba, ${page.title} sayfasındasınız. ${page.purpose} Bu ekranda ne yapmak istediğinizi yazın; mevcut sayfaya göre yönlendireyim.`}]);
+  }
+
+  function closePanel() {
+    abortRef.current?.abort();
+    recognitionRef.current?.abort?.();
+    window.speechSynthesis?.cancel?.();
+    setOpen(false);
+    setBusy(false);
+    setListening(false);
+    setCharacterState('idle');
+  }
+
+  function speak(text) {
+    if (!voiceOutput || typeof window === 'undefined' || !window.speechSynthesis || !text) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(String(text));
+    utterance.lang = 'tr-TR';
+    utterance.rate = 0.95;
+    utterance.onstart = () => setCharacterState('speaking');
+    utterance.onend = () => setCharacterState('idle');
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function toggleListening() {
+    if (!voiceInputSupported || typeof window === 'undefined') {
+      setError('Bu tarayıcı sesli soru özelliğini desteklemiyor. Sorunuzu yazabilirsiniz.');
+      return;
+    }
+    if (listening) {
+      recognitionRef.current?.stop?.();
+      return;
+    }
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new Recognition();
+    recognition.lang = 'tr-TR';
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.onstart = () => {
+      setListening(true);
+      setError('');
+      setCharacterState('listening');
+    };
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+      if (transcript) setInput(transcript);
+    };
+    recognition.onerror = () => {
+      setError('Sesli soru alınamadı. Mikrofon iznini kontrol edin veya sorunuzu yazın.');
+      setListening(false);
+      setCharacterState('warning');
+    };
+    recognition.onend = () => {
+      setListening(false);
+      setCharacterState('idle');
+    };
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+    } catch {
+      setListening(false);
+      setError('Mikrofon başlatılamadı. Sorunuzu yazabilirsiniz.');
+    }
+  }
+
+  async function sendQuestion(question = input) {
+    const text = String(question || '').trim();
+    if (!text || busy) return;
+    setInput('');
+    setError('');
+    setMessages((current) => [...current, {role: 'user', text}]);
+    setBusy(true);
+    setCharacterState('thinking');
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      const result = await api('/assistant/contextual', {
+        method: 'POST',
+        body: JSON.stringify({question: text, context: getAssistantPageContext(active, user, allowedModules)}),
+        timeoutMs: 30000,
+        _retries: 0,
+        signal: controller.signal,
+      });
+      const responseText = result?.message || 'Bu işlem için doğrulanmış bir açıklama bulunamadı.';
+      setMessages((current) => [...current, {role: 'assistant', text: responseText, source: result?.source, actions: result?.actions || []}]);
+      setCharacterState('speaking');
+      speak(responseText);
+    } catch (exception) {
+      if (exception?.name !== 'AbortError') {
+        setError('Asistan geçici olarak kullanılamıyor. Uygulamayı normal şekilde kullanmaya devam edebilirsiniz.');
+        setCharacterState('warning');
+      }
+    } finally {
+      abortRef.current = null;
+      setBusy(false);
+    }
+  }
+
+  function runAction(action) {
+    if (action?.type === 'show') {
+      if (!highlightTarget(action.targetId)) setError('Bu hedef mevcut sayfada şu anda görünür değil.');
+      else setCharacterState('pointing');
+      return;
+    }
+    if (action?.type === 'navigate' && allowedModules.includes(action.moduleId)) {
+      onNavigate?.(action.moduleId);
+      setCharacterState('success');
+    }
+  }
+
+  return <>
+    <button type="button" className="contextual-assistant-launcher" onClick={openPanel} aria-label="İSG Asistanını aç" aria-expanded={open}>
+      <OhsCharacter state="idle" compact />
+      <span className="contextual-assistant-launcher__badge"><Sparkles size={12} /></span>
+    </button>
+    {open && <>
+      <button type="button" className="contextual-assistant-backdrop" onClick={closePanel} aria-label="İSG Asistanını kapat" />
+      <aside className="contextual-assistant-panel" role="dialog" aria-modal="true" aria-labelledby="contextual-assistant-title">
+        <header className="contextual-assistant-head">
+          <div className="contextual-assistant-head__identity">
+            <OhsCharacter state={characterState} compact />
+            <div><span className="contextual-assistant-eyebrow"><ShieldCheck size={13} /> İSG rehberliği</span><h2 id="contextual-assistant-title">İSG Asistanı</h2><p>Doğrulanmış uygulama yardımı</p></div>
+          </div>
+          <button type="button" className="contextual-assistant-close" onClick={closePanel} aria-label="İSG Asistanını kapat"><X size={19} /></button>
+        </header>
+        <div className="contextual-assistant-context" role="status"><Compass size={16} /><span>Şu an: <strong>{page.title}</strong><small>{page.purpose}</small></span></div>
+        <div className="contextual-assistant-messages" ref={listRef} aria-live="polite">
+          {messages.map((message, index) => <article key={`${message.role}-${index}`} className={`contextual-assistant-message contextual-assistant-message--${message.role}`}>
+            <div className="contextual-assistant-message__icon">{message.role === 'assistant' ? <Sparkles size={14} /> : <MessageCircle size={14} />}</div>
+            <div><p>{message.text}</p>{message.source && <small className="contextual-assistant-source">{message.source === 'ai' ? 'AI + uygulama bağlamı' : 'Doğrulanmış uygulama bilgisi'}</small>}{message.actions?.length > 0 && <div className="contextual-assistant-actions">{message.actions.map((action, actionIndex) => <button type="button" key={`${action.type}-${actionIndex}`} onClick={() => runAction(action)}><Target size={14} />{actionLabel(action)}<ChevronRight size={13} /></button>)}</div>}</div>
+          </article>)}
+          {busy && <div className="contextual-assistant-thinking"><OhsCharacter state="thinking" compact /><span>Sayfayı ve izinlerinizi kontrol ediyorum<Loader2 size={14} /></span></div>}
+        </div>
+        <div className="contextual-assistant-suggestions"><span><CircleHelp size={14} /> Önerilen sorular</span><div>{page.suggestions.slice(0, 3).map((question) => <button type="button" key={question} onClick={() => void sendQuestion(question)} disabled={busy}>{question}<ArrowRight size={13} /></button>)}</div></div>
+        {error && <div className="contextual-assistant-error" role="alert">{error}</div>}
+        <form className="contextual-assistant-composer" onSubmit={(event) => { event.preventDefault(); void sendQuestion(); }}>
+          <label htmlFor="contextual-assistant-input" className="sr-only">İSG Asistanına soru yazın</label>
+          <textarea id="contextual-assistant-input" value={input} onChange={(event) => { setInput(event.target.value); setCharacterState(event.target.value ? 'listening' : 'idle'); }} placeholder="Bu sayfada ne yapmak istiyorsunuz?" rows={2} maxLength={2000} disabled={busy} />
+          <div className="contextual-assistant-voice-actions">
+            <button type="button" className={`contextual-assistant-voice-button${listening ? ' is-active' : ''}`} onClick={toggleListening} disabled={busy} aria-label={listening ? 'Sesli soru dinleniyor' : 'Sesli soru sor'} title={voiceInputSupported ? 'Sesli soru sor' : 'Tarayıcı sesli soruyu desteklemiyor'}><Mic size={17} /></button>
+            <button type="button" className={`contextual-assistant-voice-button${voiceOutput ? ' is-active' : ''}`} onClick={() => { setVoiceOutput((current) => !current); if (voiceOutput) window.speechSynthesis?.cancel?.(); }} aria-label={voiceOutput ? 'Sesli yanıtı kapat' : 'Sesli yanıtı aç'} title="Sesli yanıtı aç/kapat">{voiceOutput ? <Volume2 size={17} /> : <VolumeX size={17} />}</button>
+            <button type="submit" aria-label="Soruyu gönder" disabled={busy || !input.trim()}>{busy ? <Loader2 className="contextual-assistant-spin" size={18} /> : <Send size={18} />}</button>
+          </div>
+        </form>
+        <footer className="contextual-assistant-footnote">{voiceInputSupported ? 'Mikrofon ve sesli yanıt isteğe bağlıdır.' : 'Bu tarayıcıda mikrofon desteği yok; yazılı asistan kullanılabilir.'} Kişisel ve sağlık verileri asistan bağlamına gönderilmez.</footer>
+      </aside>
+    </>}
+  </>;
 }
 export function ContextualAssistant(props) {
   const assistant = <AssistantErrorBoundary><Panel {...props} /></AssistantErrorBoundary>;
