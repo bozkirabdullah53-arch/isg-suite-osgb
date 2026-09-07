@@ -6,7 +6,7 @@ from typing import Any
 
 import httpx
 
-from app.core.config import contextual_assistant_active, settings
+from app.core.config import contextual_assistant_active, contextual_assistant_transcription_active, settings
 from app.core.database import SessionLocal
 from app.core.request_id import current_request_id
 from app.services.ai_gateway_config import managed_config
@@ -177,7 +177,7 @@ def _transcription_config() -> dict[str, Any] | None:
     user starts recording, and only to an explicitly configured OpenAI-compatible
     provider. No audio is written to disk or to the application database.
     """
-    if not contextual_assistant_active() or bool(
+    if not contextual_assistant_transcription_active() or bool(
         getattr(settings, "contextual_assistant_force_off", False)
     ):
         return None
