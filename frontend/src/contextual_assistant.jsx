@@ -130,6 +130,10 @@ function Panel({active, user, allowedModules, onNavigate}) {
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({audio: true});
+      if (voiceCancelledRef.current) {
+        stream.getTracks?.().forEach((track) => track.stop());
+        return;
+      }
       const mimeType = [
         'audio/webm;codecs=opus',
         'audio/webm',
@@ -145,6 +149,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
         if (event.data?.size) audioChunksRef.current.push(event.data);
       };
       recorder.onerror = () => {
+        voiceCancelledRef.current = true;
         clearVoiceResources();
         setListening(false);
         setCharacterState('warning');
@@ -190,6 +195,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
         if (recorderRef.current === recorder && recorder.state === 'recording') recorder.stop();
       }, 30000);
     } catch (exception) {
+      stream?.getTracks?.().forEach((track) => track.stop());
       clearVoiceResources();
       setListening(false);
       setCharacterState('warning');
