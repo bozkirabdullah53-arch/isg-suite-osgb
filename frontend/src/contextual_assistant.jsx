@@ -73,6 +73,46 @@ export function isTranscriptionUnavailable(message) {
   return /sesli soru servisi|kullanılamıyor|transcri/i.test(String(message || ''));
 }
 
+export function collapseRepeatedPhrase(text) {
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return '';
+  const collapsed = [];
+  for (const word of words) {
+    const previous = collapsed[collapsed.length - 1];
+    if (previous && previous.localeCompare(word, 'tr', {sensitivity: 'accent'}) === 0) continue;
+    collapsed.push(word);
+  }
+  if (collapsed.length >= 2 && collapsed.length % 2 === 0) {
+    const half = collapsed.length / 2;
+    const first = collapsed.slice(0, half).join(' ');
+    const second = collapsed.slice(half).join(' ');
+    if (first.localeCompare(second, 'tr', {sensitivity: 'accent'}) === 0) return first;
+  }
+  return collapsed.join(' ');
+}
+
+export function normalizeVoiceCommand(text) {
+  return collapseRepeatedPhrase(text).toLocaleLowerCase('tr-TR').replace(/[^\p{L}\p{N}\s]+/gu, ' ').replace(/\s+/g, ' ').trim();
+}
+
+export function isSameVoiceCommand(left, right) {
+  const a = normalizeVoiceCommand(left);
+  const b = normalizeVoiceCommand(right);
+  if (!a || !b) return false;
+  return a === b || a.startsWith(b) || b.startsWith(a);
+}
+
+export function finalSpeechTranscript(event) {
+  const results = event?.results || [];
+  if (!results.length) return '';
+  let text = '';
+  for (let index = 0; index < results.length; index += 1) {
+    if (results[index]?.isFinal) text += ` ${String(results[index]?.[0]?.transcript || '')}`;
+  }
+  if (!text.trim()) text = String(results[results.length - 1]?.[0]?.transcript || '');
+  return collapseRepeatedPhrase(text);
+}
+
 function Panel({active, user, allowedModules, onNavigate}) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -92,6 +132,8 @@ function Panel({active, user, allowedModules, onNavigate}) {
   const voiceCancelledRef = useRef(false);
   const pendingSpeechRef = useRef(null);
   const speechUnlockedRef = useRef(false);
+  const sendingRef = useRef(false);
+  const lastVoiceTextRef = useRef('');
   const listRef = useRef(null);
   const lastPageRef = useRef(active);
   const page = useMemo(() => getAssistantPageDefinition(active), [active]);
@@ -249,43 +291,36 @@ function Panel({active, user, allowedModules, onNavigate}) {
     let completed = false;
     let failed = false;
     let stopping = false;
+    let best = '';
     recognition.lang = 'tr-TR';
-    recognition.interimResults = true;
+    recognition.interimResults = false;
     recognition.continuous = false;
-    recognition.maxAlternatives = 3;
+    recognition.maxAlternatives = 1;
     recognitionRef.current = recognition;
     recognition.onstart = () => {
       setListening(true);
       setCharacterState('listening');
     };
     recognition.onresult = (event) => {
-      let transcript = '';
-      const results = event.results || [];
-      for (let index = 0; index < results.length; index += 1) {
-        const result = results[index];
-        if (result?.isFinal) transcript += String(result?.[0]?.transcript || '');
-      }
-      transcript = transcript.trim() || String(results?.[0]?.[0]?.transcript || '').trim();
+      const transcript = finalSpeechTranscript(event);
       if (!transcript || voiceCancelledRef.current) return;
-      completed = true;
-      recognitionRef.current = null;
-      setListening(false);
-      setInput('');
-      void sendQuestion(transcript, {fromVoice: true});
+      if (!best || transcript.length >= best.length || isSameVoiceCommand(best, transcript) && transcript.length > best.length) best = transcript;
+      else if (!isSameVoiceCommand(best, transcript) && transcript.length > best.length) best = transcript;
     };
     recognition.onerror = (event) => {
       const code = String(event?.error || '');
-      if (voiceCancelledRef.current) {
+      if (voiceCancelledRef.current || completed) {
         failed = true;
         recognitionRef.current = null;
         setListening(false);
         return;
       }
-      if (code === 'no-speech' && retry < 2) {
+      if (code === 'no-speech' && retry < 1 && !best) {
         recognitionRef.current = null;
-        window.setTimeout(() => startBrowserRecognition({retry: retry + 1}), 120);
+        window.setTimeout(() => startBrowserRecognition({retry: retry + 1}), 180);
         return;
       }
+      if (best) return;
       failed = true;
       recognitionRef.current = null;
       setListening(false);
@@ -298,15 +333,17 @@ function Panel({active, user, allowedModules, onNavigate}) {
     };
     recognition.onend = () => {
       if (recognitionRef.current === recognition) recognitionRef.current = null;
-      if (completed || failed || stopping || voiceCancelledRef.current) {
-        if (!completed) setListening(false);
+      setListening(false);
+      if (voiceCancelledRef.current || completed || failed) return;
+      if (best) {
+        completed = true;
+        void sendQuestion(best, {fromVoice: true});
         return;
       }
-      if (retry < 2) {
+      if (retry < 1) {
         startBrowserRecognition({retry: retry + 1});
         return;
       }
-      setListening(false);
       setCharacterState('warning');
       setError('Ses algılanamadı. Mikrofon düğmesine basıp tekrar konuşun.');
     };
@@ -376,7 +413,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
             timeoutMs: 60000,
             _retries: 0,
           });
-          const transcript = String(result?.text || '').trim();
+          const transcript = collapseRepeatedPhrase(result?.text || '');
           if (!transcript) throw new Error('Ses çözümlenemedi. Sorunuzu yazabilirsiniz.');
           setInput('');
           setError('');
@@ -411,12 +448,19 @@ function Panel({active, user, allowedModules, onNavigate}) {
   }
 
   async function sendQuestion(question = input, options = {}) {
-    const text = String(question || '').trim();
-    if (!text || busy) return;
     const fromVoice = Boolean(options.fromVoice);
+    const text = fromVoice ? collapseRepeatedPhrase(question) : String(question || '').trim();
+    if (!text || sendingRef.current) return;
+    if (fromVoice && isSameVoiceCommand(lastVoiceTextRef.current, text)) return;
+    sendingRef.current = true;
+    if (fromVoice) lastVoiceTextRef.current = text;
     setInput('');
     setError('');
-    setMessages((current) => [...current, {role: 'user', text}]);
+    setMessages((current) => {
+      const previous = current[current.length - 1];
+      if (previous?.role === 'user' && previous.text.localeCompare(text, 'tr', {sensitivity: 'accent'}) === 0) return current;
+      return [...current, {role: 'user', text}];
+    });
     setBusy(true);
     setCharacterState('thinking');
     const controller = new AbortController();
@@ -447,6 +491,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
       }
     } finally {
       abortRef.current = null;
+      sendingRef.current = false;
       setBusy(false);
     }
   }
