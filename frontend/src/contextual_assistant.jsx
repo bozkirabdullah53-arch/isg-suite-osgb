@@ -66,10 +66,11 @@ export function unlockSpeechSynthesis(scope = typeof window === 'undefined' ? nu
 }
 
 export function shouldUseBrowserSpeech(scope = typeof window === 'undefined' ? null : window) {
-  if (!browserSpeechRecognition(scope)) return false;
-  if (isCoarsePointer(scope)) return false;
-  const userAgent = String(scope?.navigator?.userAgent || '');
-  return !/Android|iPhone|iPad|iPod|Mobile|SamsungBrowser/i.test(userAgent);
+  return Boolean(browserSpeechRecognition(scope));
+}
+
+export function isTranscriptionUnavailable(message) {
+  return /sesli soru servisi|kullanılamıyor|transcri/i.test(String(message || ''));
 }
 
 function Panel({active, user, allowedModules, onNavigate}) {
@@ -237,61 +238,93 @@ function Panel({active, user, allowedModules, onNavigate}) {
     unlockVoiceOutput();
     voiceCancelledRef.current = false;
     setError('');
-    const Recognition = shouldUseBrowserSpeech(window) ? browserSpeechRecognition(window) : null;
-    if (Recognition) {
-      const recognition = new Recognition();
-      let completed = false;
-      let failed = false;
-      let stopping = false;
-      recognition.lang = 'tr-TR';
-      recognition.interimResults = false;
-      recognition.continuous = false;
-      recognitionRef.current = recognition;
-      recognition.onstart = () => {
-        setListening(true);
-        setCharacterState('listening');
-      };
-      recognition.onresult = (event) => {
-        const transcript = String(event.results?.[0]?.[0]?.transcript || '').trim();
-        if (!transcript || voiceCancelledRef.current) return;
-        completed = true;
-        recognitionRef.current = null;
-        setListening(false);
-        setInput('');
-        void sendQuestion(transcript, {fromVoice: true});
-      };
-      recognition.onerror = (event) => {
+    if (startBrowserRecognition()) return;
+    await startServerRecording();
+  }
+
+  function startBrowserRecognition({retry = 0} = {}) {
+    const Recognition = browserSpeechRecognition(window);
+    if (!Recognition) return false;
+    const recognition = new Recognition();
+    let completed = false;
+    let failed = false;
+    let stopping = false;
+    recognition.lang = 'tr-TR';
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 3;
+    recognitionRef.current = recognition;
+    recognition.onstart = () => {
+      setListening(true);
+      setCharacterState('listening');
+    };
+    recognition.onresult = (event) => {
+      let transcript = '';
+      const results = event.results || [];
+      for (let index = 0; index < results.length; index += 1) {
+        const result = results[index];
+        if (result?.isFinal) transcript += String(result?.[0]?.transcript || '');
+      }
+      transcript = transcript.trim() || String(results?.[0]?.[0]?.transcript || '').trim();
+      if (!transcript || voiceCancelledRef.current) return;
+      completed = true;
+      recognitionRef.current = null;
+      setListening(false);
+      setInput('');
+      void sendQuestion(transcript, {fromVoice: true});
+    };
+    recognition.onerror = (event) => {
+      const code = String(event?.error || '');
+      if (voiceCancelledRef.current) {
         failed = true;
         recognitionRef.current = null;
         setListening(false);
-        if (voiceCancelledRef.current) return;
-        setCharacterState('warning');
-        setError(speechRecognitionErrorMessage(event?.error));
-      };
-      recognition.onend = () => {
-        if (recognitionRef.current === recognition) recognitionRef.current = null;
-        setListening(false);
-        if (!completed && !failed && !stopping && !voiceCancelledRef.current) {
-          setCharacterState('warning');
-          setError('Ses algılanamadı. Mikrofona daha yakın konuşup tekrar deneyin.');
-        }
-      };
-      const stop = recognition.stop.bind(recognition);
-      recognition.stop = () => {
-        stopping = true;
-        stop();
-      };
-      try {
-        recognition.start();
-      } catch {
-        recognitionRef.current = null;
-        setListening(false);
-        setCharacterState('warning');
-        setError('Mikrofon başlatılamadı. Sorunuzu yazabilirsiniz.');
+        return;
       }
-      return;
+      if (code === 'no-speech' && retry < 2) {
+        recognitionRef.current = null;
+        window.setTimeout(() => startBrowserRecognition({retry: retry + 1}), 120);
+        return;
+      }
+      failed = true;
+      recognitionRef.current = null;
+      setListening(false);
+      if ((code === 'network' || code === 'service-not-allowed') && navigator.mediaDevices?.getUserMedia && window.MediaRecorder) {
+        void startServerRecording();
+        return;
+      }
+      setCharacterState('warning');
+      setError(speechRecognitionErrorMessage(code));
+    };
+    recognition.onend = () => {
+      if (recognitionRef.current === recognition) recognitionRef.current = null;
+      if (completed || failed || stopping || voiceCancelledRef.current) {
+        if (!completed) setListening(false);
+        return;
+      }
+      if (retry < 2) {
+        startBrowserRecognition({retry: retry + 1});
+        return;
+      }
+      setListening(false);
+      setCharacterState('warning');
+      setError('Ses algılanamadı. Mikrofon düğmesine basıp tekrar konuşun.');
+    };
+    const stop = recognition.stop.bind(recognition);
+    recognition.stop = () => {
+      stopping = true;
+      stop();
+    };
+    try {
+      recognition.start();
+      return true;
+    } catch {
+      recognitionRef.current = null;
+      return false;
     }
+  }
 
+  async function startServerRecording() {
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({audio: true});
@@ -349,7 +382,11 @@ function Panel({active, user, allowedModules, onNavigate}) {
           setError('');
           void sendQuestion(transcript, {fromVoice: true});
         } catch (exception) {
-          setError(String(exception?.message || 'Sesli soru alınamadı. Sorunuzu yazabilirsiniz.'));
+          const message = String(exception?.message || '');
+          if (isTranscriptionUnavailable(message) && startBrowserRecognition()) return;
+          setError(isTranscriptionUnavailable(message)
+            ? 'Sesli soru servisi hazır değil. Mikrofon düğmesine basıp tekrar konuşun veya sorunuzu yazın.'
+            : (message || 'Sesli soru alınamadı. Sorunuzu yazabilirsiniz.'));
           setCharacterState('warning');
         }
       };
