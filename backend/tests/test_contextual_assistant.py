@@ -38,6 +38,52 @@ def test_verified_answer_has_no_provider_dependency(monkeypatch):
     assert "Personel" in result["message"]
 
 
+@pytest.mark.parametrize(
+    ("question", "expected_module"),
+    [
+        ("Eğitim sayfasına nasıl gideceğim?", "training"),
+        ("Eğitimlere git", "training"),
+        ("Beni personel yönetimine yönlendir", "employees"),
+        ("Saha takvimini aç", "visits"),
+        ("Dokümanlar nerede?", "documents"),
+    ],
+)
+def test_navigation_questions_return_allowed_module_actions(monkeypatch, question, expected_module):
+    monkeypatch.setattr(settings, "contextual_assistant_enabled", True)
+    monkeypatch.setattr(settings, "contextual_assistant_force_off", False)
+    monkeypatch.setattr(assistant, "SessionLocal", lambda: DummySession())
+    monkeypatch.setattr(assistant, "managed_config", lambda db: None)
+    context = {
+        "currentPage": {"id": "risk", "module": "risk", "title": "Risk Analizi", "purpose": "Riskleri yönetir."},
+        "user": {"accessibleModules": ["training", "employees", "visits", "documents", "risk"]},
+    }
+
+    result = answer(question=question, raw_context=context, user=user("safety_specialist"))
+
+    assert result["actions"] == [
+        {
+            "type": "navigate",
+            "moduleId": expected_module,
+            "label": result["actions"][0]["label"],
+        }
+    ]
+
+
+def test_navigation_does_not_expose_unauthorized_module(monkeypatch):
+    monkeypatch.setattr(settings, "contextual_assistant_enabled", True)
+    monkeypatch.setattr(settings, "contextual_assistant_force_off", False)
+    monkeypatch.setattr(assistant, "SessionLocal", lambda: DummySession())
+    monkeypatch.setattr(assistant, "managed_config", lambda db: None)
+
+    result = answer(
+        question="Risk analizine git",
+        raw_context={"user": {"accessibleModules": ["security"]}},
+        user=user("read_only"),
+    )
+
+    assert result["actions"] == []
+
+
 def test_managed_ai_panel_is_assistant_source_of_truth(monkeypatch):
     monkeypatch.setattr(settings, "vision_analysis_force_off", False)
     monkeypatch.setattr(settings, "contextual_assistant_api_key", "legacy-key")
