@@ -108,8 +108,16 @@ function Panel({active, user, allowedModules, onNavigate}) {
       const transcript = event.results?.[0]?.[0]?.transcript?.trim();
       if (transcript) setInput(transcript);
     };
-    recognition.onerror = () => {
-      setError('Sesli soru alınamadı. Mikrofon iznini kontrol edin veya sorunuzu yazın.');
+    recognition.onerror = (event) => {
+      const code = event?.error;
+      const message = code === 'not-allowed' || code === 'service-not-allowed'
+        ? 'Mikrofon izni verilmedi veya bu tarayıcı sesli tanımayı desteklemiyor. Adres çubuğundaki kilit simgesinden mikrofona izin verin; olmazsa Chrome ile deneyin.'
+        : code === 'audio-capture'
+          ? 'Mikrofon başka bir uygulama tarafından kullanılıyor. Mikrofonu serbest bırakıp tekrar deneyin.'
+          : code === 'network'
+            ? 'Ses tanıma servisine ulaşılamadı. İnternet bağlantınızı kontrol edin veya sorunuzu yazın.'
+            : 'Sesli soru alınamadı. Sorunuzu yazabilirsiniz.';
+      setError(message);
       setListening(false);
       setCharacterState('warning');
     };
@@ -200,12 +208,12 @@ function Panel({active, user, allowedModules, onNavigate}) {
           <label htmlFor="contextual-assistant-input" className="sr-only">İSG Asistanına soru yazın</label>
           <textarea id="contextual-assistant-input" value={input} onChange={(event) => { setInput(event.target.value); setCharacterState(event.target.value ? 'listening' : 'idle'); }} placeholder="Bu sayfada ne yapmak istiyorsunuz?" rows={2} maxLength={2000} disabled={busy} />
           <div className="contextual-assistant-voice-actions">
-            <button type="button" className={`contextual-assistant-voice-button${listening ? ' is-active' : ''}`} onClick={toggleListening} disabled={busy} aria-label={listening ? 'Sesli soru dinleniyor' : 'Sesli soru sor'} title={voiceInputSupported ? 'Sesli soru sor' : 'Tarayıcı sesli soruyu desteklemiyor'}><Mic size={17} /></button>
+            <button type="button" className={`contextual-assistant-voice-button${listening ? ' is-active' : ''}`} onClick={toggleListening} disabled={busy || !voiceInputSupported} aria-label={listening ? 'Sesli soru dinleniyor' : 'Sesli soru sor'} title={voiceInputSupported ? 'Sesli soru sor' : 'Bu tarayıcı sesli soruyu desteklemiyor; sorunuzu yazabilirsiniz'}><Mic size={17} /></button>
             <button type="button" className={`contextual-assistant-voice-button${voiceOutput ? ' is-active' : ''}`} onClick={() => { setVoiceOutput((current) => !current); if (voiceOutput) window.speechSynthesis?.cancel?.(); }} aria-label={voiceOutput ? 'Sesli yanıtı kapat' : 'Sesli yanıtı aç'} title="Sesli yanıtı aç/kapat">{voiceOutput ? <Volume2 size={17} /> : <VolumeX size={17} />}</button>
             <button type="submit" aria-label="Soruyu gönder" disabled={busy || !input.trim()}>{busy ? <Loader2 className="contextual-assistant-spin" size={18} /> : <Send size={18} />}</button>
           </div>
         </form>
-        <footer className="contextual-assistant-footnote">{voiceInputSupported ? 'Mikrofon ve sesli yanıt isteğe bağlıdır.' : 'Bu tarayıcıda mikrofon desteği yok; yazılı asistan kullanılabilir.'} Kişisel ve sağlık verileri asistan bağlamına gönderilmez.</footer>
+        <footer className="contextual-assistant-footnote">{voiceInputSupported ? 'Mikrofon ve sesli yanıt isteğe bağlıdır.' : 'Bu tarayıcıda mikrofon desteği yok; yazılı asistan kullanılabilir. Adres çubuğundan mikrofon izni gerekebilir.'} Kişisel ve sağlık verileri asistan bağlamına gönderilmez.</footer>
       </aside>
     </>}
   </>;
