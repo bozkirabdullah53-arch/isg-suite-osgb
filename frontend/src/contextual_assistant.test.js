@@ -2,7 +2,7 @@
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {autoActionDelayMs, browserSpeechRecognition, firstAutoAction, highlightTarget, isCoarsePointer, pickTurkishVoice, speechRecognitionErrorMessage, spokenReply, unlockSpeechSynthesis} from './contextual_assistant.jsx';
+import {autoActionDelayMs, browserSpeechRecognition, firstAutoAction, highlightTarget, isCoarsePointer, pickTurkishVoice, shouldUseBrowserSpeech, speechRecognitionErrorMessage, spokenReply, unlockSpeechSynthesis} from './contextual_assistant.jsx';
 
 describe('contextual assistant target guidance', () => {
   it('highlights a target without clicking it', () => {
@@ -59,5 +59,19 @@ describe('contextual assistant target guidance', () => {
     expect(unlockSpeechSynthesis({speechSynthesis: synthesis, SpeechSynthesisUtterance: function Utterance(text) { this.text = text; }})).toBe(true);
     expect(spoken[0].volume).toBe(0);
     expect(pickTurkishVoice([{lang: 'en-US'}, {lang: 'tr-TR', name: 'Filiz'}])?.name).toBe('Filiz');
+  });
+
+  it('skips flaky browser speech recognition on phones', () => {
+    class Recognition {}
+    expect(shouldUseBrowserSpeech({
+      SpeechRecognition: Recognition,
+      matchMedia: () => ({matches: true}),
+      navigator: {userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-S918B) SamsungBrowser/27.0'},
+    })).toBe(false);
+    expect(shouldUseBrowserSpeech({
+      webkitSpeechRecognition: Recognition,
+      matchMedia: () => ({matches: false}),
+      navigator: {userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/128.0.0.0'},
+    })).toBe(true);
   });
 });
