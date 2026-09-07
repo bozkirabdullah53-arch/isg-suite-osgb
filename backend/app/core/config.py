@@ -176,6 +176,11 @@ class Settings(BaseSettings):
     contextual_assistant_api_key: str | None = None
     contextual_assistant_model: str = ""
     contextual_assistant_timeout_seconds: int = 30
+    # Sesli soru girişi ayrı bir kill-switch ile yönetilir; yazılı asistanı etkilemez.
+    contextual_assistant_transcription_enabled: bool = True
+    contextual_assistant_transcription_force_off: bool = False
+    contextual_assistant_transcription_model: str = "whisper-1"
+    contextual_assistant_transcription_max_mb: int = 5
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
@@ -188,6 +193,15 @@ def contextual_assistant_active() -> bool:
     if bool(getattr(settings, "contextual_assistant_force_off", False)):
         return False
     return bool(getattr(settings, "contextual_assistant_enabled", True))
+
+
+def contextual_assistant_transcription_active() -> bool:
+    """Optional server-side voice input gate; text assistant remains independent."""
+    if not contextual_assistant_active():
+        return False
+    if bool(getattr(settings, "contextual_assistant_transcription_force_off", False)):
+        return False
+    return bool(getattr(settings, "contextual_assistant_transcription_enabled", True))
 
 
 def remote_basic_ohs_direct_object_playback_active() -> bool:
