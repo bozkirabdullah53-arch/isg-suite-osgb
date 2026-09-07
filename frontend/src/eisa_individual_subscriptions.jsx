@@ -69,6 +69,9 @@ export function EisaIndividualSubscriptionsPage() {
     }
   }
 
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  const visibleRows = rows.slice((page - 1) * pageSize, page * pageSize);
+
   return (
     <Page title="Bireysel Abonelik" action={<RefreshButton busy={busy} onClick={load} />}>
       <p style={{ marginTop: 0, color: '#64748b' }}>
