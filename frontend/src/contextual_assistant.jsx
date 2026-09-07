@@ -85,7 +85,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
     window.speechSynthesis.speak(utterance);
   }
 
-  function toggleListening() {
+  async function toggleListening() {
     if (!voiceInputSupported || typeof window === 'undefined') {
       setError('Bu tarayıcı sesli soru özelliğini desteklemiyor. Sorunuzu yazabilirsiniz.');
       return;
@@ -94,6 +94,21 @@ function Panel({active, user, allowedModules, onNavigate}) {
       recognitionRef.current?.stop?.();
       return;
     }
+
+    // SpeechRecognition browsers often require an explicit microphone grant first.
+    // The stream is immediately stopped; no audio is uploaded or stored by the app.
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+        stream.getTracks().forEach((track) => track.stop());
+      } catch {
+        setError('Mikrofon izni verilmedi. Adres çubuğundaki kilit simgesinden Mikrofonu İzin ver yapıp tekrar deneyin.');
+        setListening(false);
+        setCharacterState('warning');
+        return;
+      }
+    }
+
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new Recognition();
     recognition.lang = 'tr-TR';
