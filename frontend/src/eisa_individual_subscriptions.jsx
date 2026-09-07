@@ -9,6 +9,8 @@ export function EisaIndividualSubscriptionsPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [detail, setDetail] = useState(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
 
   const load = async () => {
     setBusy(true);
@@ -22,6 +24,7 @@ export function EisaIndividualSubscriptionsPage() {
         kind: 'individual',
         display_name: row.specialist_name || row.osgb_name,
       })));
+      setPage(1);
     } catch (e) {
       setRows([]);
       setMsg(e.message);
@@ -79,7 +82,11 @@ export function EisaIndividualSubscriptionsPage() {
       <SimpleSubscriptionList
         title="Bireysel üyeler"
         empty="Bireysel üye yok."
-        rows={rows}
+        rows={visibleRows}
+        totalCount={rows.length}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={(nextPage) => setPage(Math.min(Math.max(1, nextPage), pageCount))}
         busy={busy}
         onOpen={setDetail}
         rowAction={(row) => (
