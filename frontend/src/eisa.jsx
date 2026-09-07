@@ -565,12 +565,26 @@ function subscriptionEndLabel(row) {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('tr-TR');
 }
 
-export function SimpleSubscriptionList({ title, empty, rows, busy, onOpen, rowAction }) {
+export function SimpleSubscriptionList({
+  title,
+  empty,
+  rows,
+  busy,
+  onOpen,
+  rowAction,
+  totalCount = rows.length,
+  page = 1,
+  pageSize = rows.length || 1,
+  onPageChange,
+}) {
+  const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
+  const showPagination = pageCount > 1 && typeof onPageChange === 'function';
+
   return (
     <section className="eisa-sub-list">
       <header className="eisa-sub-list-head">
         <h4>{title}</h4>
-        <span>{rows.length}</span>
+        <span>{totalCount}</span>
       </header>
       <div className="table-wrap">
         <table>
@@ -605,6 +619,17 @@ export function SimpleSubscriptionList({ title, empty, rows, busy, onOpen, rowAc
           </tbody>
         </table>
       </div>
+      {showPagination && (
+        <nav className="eisa-pagination" aria-label={`${title} sayfalama`}>
+          <button type="button" className="secondary" disabled={busy || page <= 1} onClick={() => onPageChange(page - 1)}>
+            Önceki
+          </button>
+          <span>Sayfa {page} / {pageCount}</span>
+          <button type="button" className="secondary" disabled={busy || page >= pageCount} onClick={() => onPageChange(page + 1)}>
+            Sonraki
+          </button>
+        </nav>
+      )}
     </section>
   );
 }
