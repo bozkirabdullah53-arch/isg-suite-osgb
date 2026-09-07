@@ -65,8 +65,11 @@ def test_navigation_questions_return_allowed_module_actions(monkeypatch, questio
             "type": "navigate",
             "moduleId": expected_module,
             "label": result["actions"][0]["label"],
+            "autoExecute": True,
         }
     ]
+    assert result["spoken"].startswith("Anladım.")
+    assert "açıyorum" in result["spoken"]
 
 
 def test_navigation_does_not_expose_unauthorized_module(monkeypatch):

@@ -2,7 +2,7 @@
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {browserSpeechRecognition, highlightTarget, speechRecognitionErrorMessage} from './contextual_assistant.jsx';
+import {browserSpeechRecognition, firstAutoAction, highlightTarget, speechRecognitionErrorMessage, spokenReply} from './contextual_assistant.jsx';
 
 describe('contextual assistant target guidance', () => {
   it('highlights a target without clicking it', () => {
@@ -29,5 +29,21 @@ describe('contextual assistant target guidance', () => {
     expect(speechRecognitionErrorMessage('not-allowed')).toContain('Mikrofon izni');
     expect(speechRecognitionErrorMessage('no-speech')).toContain('Ses algılanamadı');
     expect(speechRecognitionErrorMessage('network')).toContain('İnternet bağlantınızı');
+  });
+
+  it('auto-opens only allowed navigation actions', () => {
+    const action = firstAutoAction(
+      [{type: 'navigate', moduleId: 'training', autoExecute: true, label: 'Eğitimlere git'}],
+      ['training', 'employees'],
+    );
+    expect(action?.moduleId).toBe('training');
+    expect(firstAutoAction(
+      [{type: 'navigate', moduleId: 'finance', autoExecute: true}],
+      ['training'],
+    )).toBeNull();
+  });
+
+  it('prefers the short spoken confirmation', () => {
+    expect(spokenReply({spoken: 'Anladım. Eğitimler sayfasını açıyorum.', message: 'Uzun açıklama'})).toBe('Anladım. Eğitimler sayfasını açıyorum.');
   });
 });

@@ -22,6 +22,21 @@ export function speechRecognitionErrorMessage(code) {
   return 'Sesli soru alınamadı. Sorunuzu yazabilirsiniz.';
 }
 
+export function firstAutoAction(actions, allowedModules = []) {
+  return (Array.isArray(actions) ? actions : []).find((action) => {
+    if (!action?.autoExecute) return false;
+    if (action.type === 'show' && action.targetId) return true;
+    if (action.type === 'navigate' && action.moduleId && allowedModules.includes(action.moduleId)) return true;
+    return false;
+  }) || null;
+}
+
+export function spokenReply(result) {
+  const spoken = String(result?.spoken || '').trim();
+  if (spoken) return spoken;
+  return String(result?.message || '').trim();
+}
+
 function Panel({active, user, allowedModules, onNavigate}) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -29,7 +44,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [characterState, setCharacterState] = useState('idle');
-  const [voiceOutput, setVoiceOutput] = useState(false);
+  const [voiceOutput, setVoiceOutput] = useState(true);
   const [listening, setListening] = useState(false);
   const [voiceInputSupported, setVoiceInputSupported] = useState(false);
   const abortRef = useRef(null);
@@ -39,6 +54,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
   const audioChunksRef = useRef([]);
   const voiceTimerRef = useRef(null);
   const voiceCancelledRef = useRef(false);
+  const pendingSpeechRef = useRef(null);
   const listRef = useRef(null);
   const lastPageRef = useRef(active);
   const page = useMemo(() => getAssistantPageDefinition(active), [active]);
@@ -128,6 +144,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
 
   function closePanel() {
     abortRef.current?.abort();
+    pendingSpeechRef.current = null;
     stopVoiceCapture({cancel: true});
     window.speechSynthesis?.cancel?.();
     setOpen(false);
@@ -136,14 +153,29 @@ function Panel({active, user, allowedModules, onNavigate}) {
     setCharacterState('idle');
   }
 
-  function speak(text) {
-    if (!voiceOutput || typeof window === 'undefined' || !window.speechSynthesis || !text) return;
+  function speak(text, {onEnd, force = false} = {}) {
+    const finish = () => { onEnd?.(); };
+    if ((!voiceOutput && !force) || typeof window === 'undefined' || !window.speechSynthesis || !text) {
+      finish();
+      return;
+    }
     window.speechSynthesis.cancel();
+    const token = {};
+    pendingSpeechRef.current = token;
     const utterance = new SpeechSynthesisUtterance(String(text));
     utterance.lang = 'tr-TR';
     utterance.rate = 0.95;
     utterance.onstart = () => setCharacterState('speaking');
-    utterance.onend = () => setCharacterState('idle');
+    const complete = () => {
+      if (pendingSpeechRef.current !== token) return;
+      pendingSpeechRef.current = null;
+      window.clearTimeout(watchdog);
+      setCharacterState('idle');
+      finish();
+    };
+    const watchdog = window.setTimeout(complete, Math.min(7000, Math.max(1600, String(text).length * 70)));
+    utterance.onend = complete;
+    utterance.onerror = complete;
     window.speechSynthesis.speak(utterance);
   }
 
@@ -180,7 +212,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
         recognitionRef.current = null;
         setListening(false);
         setInput('');
-        void sendQuestion(transcript);
+        void sendQuestion(transcript, {fromVoice: true});
       };
       recognition.onerror = (event) => {
         failed = true;
@@ -269,7 +301,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
           if (!transcript) throw new Error('Ses çözümlenemedi. Sorunuzu yazabilirsiniz.');
           setInput('');
           setError('');
-          void sendQuestion(transcript);
+          void sendQuestion(transcript, {fromVoice: true});
         } catch (exception) {
           setError(String(exception?.message || 'Sesli soru alınamadı. Sorunuzu yazabilirsiniz.'));
           setCharacterState('warning');
@@ -295,9 +327,10 @@ function Panel({active, user, allowedModules, onNavigate}) {
     }
   }
 
-  async function sendQuestion(question = input) {
+  async function sendQuestion(question = input, options = {}) {
     const text = String(question || '').trim();
     if (!text || busy) return;
+    const fromVoice = Boolean(options.fromVoice);
     setInput('');
     setError('');
     setMessages((current) => [...current, {role: 'user', text}]);
@@ -314,9 +347,14 @@ function Panel({active, user, allowedModules, onNavigate}) {
         signal: controller.signal,
       });
       const responseText = result?.message || 'Bu işlem için doğrulanmış bir açıklama bulunamadı.';
+      const speechText = spokenReply(result) || responseText;
+      const autoAction = firstAutoAction(result?.actions, allowedModules);
       setMessages((current) => [...current, {role: 'assistant', text: responseText, source: result?.source, actions: result?.actions || []}]);
       setCharacterState('speaking');
-      speak(responseText);
+      speak(speechText, {
+        force: fromVoice,
+        onEnd: autoAction ? () => runAction(autoAction) : undefined,
+      });
     } catch (exception) {
       if (exception?.name !== 'AbortError') {
         setError('Asistan geçici olarak kullanılamıyor. Uygulamayı normal şekilde kullanmaya devam edebilirsiniz.');
@@ -330,6 +368,12 @@ function Panel({active, user, allowedModules, onNavigate}) {
 
   function runAction(action) {
     if (action?.type === 'show') {
+      if (action.moduleId && action.moduleId !== active && allowedModules.includes(action.moduleId)) {
+        onNavigate?.(action.moduleId);
+        window.setTimeout(() => highlightTarget(action.targetId), 450);
+        setCharacterState('success');
+        return;
+      }
       if (!highlightTarget(action.targetId)) setError('Bu hedef mevcut sayfada şu anda görünür değil.');
       else setCharacterState('pointing');
       return;
@@ -374,7 +418,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
             <button type="submit" aria-label="Soruyu gönder" disabled={busy || listening || !input.trim()}>{busy ? <Loader2 className="contextual-assistant-spin" size={18} /> : <Send size={18} />}</button>
           </div>
         </form>
-        <footer className="contextual-assistant-footnote">{voiceInputSupported ? 'Konuşmanız algılandığında soru otomatik gönderilir.' : 'Bu cihazda mikrofon kullanılamıyor; yazılı asistan kullanılabilir.'} Sunucu kaydı kullanılırsa ses saklanmaz.</footer>
+        <footer className="contextual-assistant-footnote">{voiceInputSupported ? 'İsteğinizi teyit eder ve yetkiniz olan sayfayı açar.' : 'Bu cihazda mikrofon kullanılamıyor; yazılı asistan kullanılabilir.'} Sunucu kaydı kullanılırsa ses saklanmaz.</footer>
       </aside>
     </>}
   </>;
