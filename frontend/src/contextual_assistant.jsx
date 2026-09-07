@@ -10,6 +10,18 @@ function OhsCharacter({state = 'idle', compact = false}) { return <div className
 function actionLabel(action) { return action?.label || (action?.type === 'navigate' ? 'Beni oraya götür' : 'Bana göster'); }
 class AssistantErrorBoundary extends Component { constructor(props) { super(props); this.state = {failed: false}; } static getDerivedStateFromError() { return {failed: true}; } render() { return this.state.failed ? null : this.props.children; } }
 
+export function browserSpeechRecognition(scope = typeof window === 'undefined' ? null : window) {
+  return scope?.SpeechRecognition || scope?.webkitSpeechRecognition || null;
+}
+
+export function speechRecognitionErrorMessage(code) {
+  if (code === 'not-allowed' || code === 'service-not-allowed') return 'Mikrofon izni verilmedi. Adres çubuğundaki kilit simgesinden bu site için mikrofona izin verin.';
+  if (code === 'audio-capture') return 'Mikrofon bulunamadı veya başka bir uygulama tarafından kullanılıyor.';
+  if (code === 'network') return 'Tarayıcının ses tanıma servisine ulaşılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
+  if (code === 'no-speech') return 'Ses algılanamadı. Mikrofona daha yakın konuşup tekrar deneyin.';
+  return 'Sesli soru alınamadı. Sorunuzu yazabilirsiniz.';
+}
+
 function Panel({active, user, allowedModules, onNavigate}) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -21,6 +33,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
   const [listening, setListening] = useState(false);
   const [voiceInputSupported, setVoiceInputSupported] = useState(false);
   const abortRef = useRef(null);
+  const recognitionRef = useRef(null);
   const recorderRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -33,10 +46,18 @@ function Panel({active, user, allowedModules, onNavigate}) {
   useEffect(() => {
     const supported = typeof window !== 'undefined'
       && typeof navigator !== 'undefined'
-      && Boolean(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
+      && Boolean(browserSpeechRecognition(window) || (navigator.mediaDevices?.getUserMedia && window.MediaRecorder));
     setVoiceInputSupported(supported);
     return () => {
       voiceCancelledRef.current = true;
+      const recognition = recognitionRef.current;
+      recognitionRef.current = null;
+      if (recognition) {
+        recognition.onresult = null;
+        recognition.onerror = null;
+        recognition.onend = null;
+        try { recognition.abort(); } catch { /* ignore */ }
+      }
       const recorder = recorderRef.current;
       if (recorder && recorder.state !== 'inactive') {
         try { recorder.stop(); } catch { /* ignore */ }
@@ -86,6 +107,17 @@ function Panel({active, user, allowedModules, onNavigate}) {
 
   function stopVoiceCapture({cancel = false} = {}) {
     if (cancel) voiceCancelledRef.current = true;
+    const recognition = recognitionRef.current;
+    if (recognition) {
+      if (cancel) {
+        recognition.onresult = null;
+        recognition.onerror = null;
+        recognition.onend = null;
+        recognitionRef.current = null;
+      }
+      try { cancel ? recognition.abort() : recognition.stop(); } catch { recognitionRef.current = null; }
+      return;
+    }
     const recorder = recorderRef.current;
     if (recorder && recorder.state !== 'inactive') {
       try { recorder.stop(); } catch { clearVoiceResources(); }
@@ -127,6 +159,61 @@ function Panel({active, user, allowedModules, onNavigate}) {
 
     voiceCancelledRef.current = false;
     setError('');
+    const Recognition = browserSpeechRecognition(window);
+    if (Recognition) {
+      const recognition = new Recognition();
+      let completed = false;
+      let failed = false;
+      let stopping = false;
+      recognition.lang = 'tr-TR';
+      recognition.interimResults = false;
+      recognition.continuous = false;
+      recognitionRef.current = recognition;
+      recognition.onstart = () => {
+        setListening(true);
+        setCharacterState('listening');
+      };
+      recognition.onresult = (event) => {
+        const transcript = String(event.results?.[0]?.[0]?.transcript || '').trim();
+        if (!transcript || voiceCancelledRef.current) return;
+        completed = true;
+        recognitionRef.current = null;
+        setListening(false);
+        setInput('');
+        void sendQuestion(transcript);
+      };
+      recognition.onerror = (event) => {
+        failed = true;
+        recognitionRef.current = null;
+        setListening(false);
+        if (voiceCancelledRef.current) return;
+        setCharacterState('warning');
+        setError(speechRecognitionErrorMessage(event?.error));
+      };
+      recognition.onend = () => {
+        if (recognitionRef.current === recognition) recognitionRef.current = null;
+        setListening(false);
+        if (!completed && !failed && !stopping && !voiceCancelledRef.current) {
+          setCharacterState('warning');
+          setError('Ses algılanamadı. Mikrofona daha yakın konuşup tekrar deneyin.');
+        }
+      };
+      const stop = recognition.stop.bind(recognition);
+      recognition.stop = () => {
+        stopping = true;
+        stop();
+      };
+      try {
+        recognition.start();
+      } catch {
+        recognitionRef.current = null;
+        setListening(false);
+        setCharacterState('warning');
+        setError('Mikrofon başlatılamadı. Sorunuzu yazabilirsiniz.');
+      }
+      return;
+    }
+
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({audio: true});
@@ -180,9 +267,9 @@ function Panel({active, user, allowedModules, onNavigate}) {
           });
           const transcript = String(result?.text || '').trim();
           if (!transcript) throw new Error('Ses çözümlenemedi. Sorunuzu yazabilirsiniz.');
-          setInput((current) => `${current ? `${current} ` : ''}${transcript}`.slice(0, 2000));
+          setInput('');
           setError('');
-          setCharacterState('idle');
+          void sendQuestion(transcript);
         } catch (exception) {
           setError(String(exception?.message || 'Sesli soru alınamadı. Sorunuzu yazabilirsiniz.'));
           setCharacterState('warning');
@@ -287,7 +374,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
             <button type="submit" aria-label="Soruyu gönder" disabled={busy || listening || !input.trim()}>{busy ? <Loader2 className="contextual-assistant-spin" size={18} /> : <Send size={18} />}</button>
           </div>
         </form>
-        <footer className="contextual-assistant-footnote">{voiceInputSupported ? 'Sesli soru isteğe bağlıdır; kayıt metne çevrilmeden gönderilmez.' : 'Bu cihazda mikrofon kaydı kullanılamıyor; yazılı asistan kullanılabilir.'} Kayıt uygulama sunucusunda saklanmaz.</footer>
+        <footer className="contextual-assistant-footnote">{voiceInputSupported ? 'Konuşmanız algılandığında soru otomatik gönderilir.' : 'Bu cihazda mikrofon kullanılamıyor; yazılı asistan kullanılabilir.'} Sunucu kaydı kullanılırsa ses saklanmaz.</footer>
       </aside>
     </>}
   </>;
