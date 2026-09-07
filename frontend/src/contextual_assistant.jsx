@@ -95,20 +95,8 @@ function Panel({active, user, allowedModules, onNavigate}) {
       return;
     }
 
-    // SpeechRecognition browsers often require an explicit microphone grant first.
-    // The stream is immediately stopped; no audio is uploaded or stored by the app.
-    if (navigator.mediaDevices?.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({audio: true});
-        stream.getTracks().forEach((track) => track.stop());
-      } catch {
-        setError('Mikrofon izni verilmedi. Adres çubuğundaki kilit simgesinden Mikrofonu İzin ver yapıp tekrar deneyin.');
-        setListening(false);
-        setCharacterState('warning');
-        return;
-      }
-    }
-
+    // Start directly from the click handler so Chrome/Safari retain user activation.
+    // The browser's SpeechRecognition API handles its own microphone permission.
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new Recognition();
     recognition.lang = 'tr-TR';
