@@ -53,6 +53,27 @@ MODULE_DESTINATIONS = (
     (("taşeron", "taseron"), "contractors", "Taşeron Yönetimine git"),
     (("ziyaretçi", "ziyaretci"), "visitors", "Ziyaretçilere git"),
 )
+MODULE_TITLES = {
+    "remote_training": "Uzaktan Eğitim / Belgeler",
+    "risk": "Risk Analizi",
+    "near_miss": "Ramak Kala",
+    "accident": "İş Kazaları",
+    "capa": "DÖF",
+    "field_inspection": "Saha Denetimi",
+    "visits": "Saha Takvimi",
+    "employees": "Personel Yönetimi",
+    "training": "Eğitimler",
+    "companies": "İşyerleri",
+    "health": "Sağlık",
+    "documents": "Dokümanlar",
+    "reports": "Raporlar",
+    "notifications": "Bildirimler",
+    "ppe": "KKD Takip",
+    "annual_plans": "Yıllık Plan",
+    "work_permits": "Çalışma İzinleri",
+    "contractors": "Taşeron Yönetimi",
+    "visitors": "Ziyaretçiler",
+}
 NAVIGATION_WORDS = re.compile(r"\b(git|gidelim|götür|gotur|aç|ac|yönlendir|yonlendir|göster|goster|nerede|nereden|nasıl|nasil|geç|gec)\b")
 
 def _role(user) -> str:
@@ -78,7 +99,30 @@ def sanitize_context(raw: dict[str, Any] | None, user) -> dict[str, Any]:
 def _action(context, module: str, label: str, target: str | None = None):
     if module not in context["user"]["accessibleModules"]:
         return None
-    return {"type": "show", "targetId": target, "label": label} if target else {"type": "navigate", "moduleId": module, "label": label}
+    if target:
+        return {
+            "type": "show",
+            "targetId": target,
+            "moduleId": module,
+            "label": label,
+            "autoExecute": True,
+        }
+    return {
+        "type": "navigate",
+        "moduleId": module,
+        "label": label,
+        "autoExecute": True,
+    }
+
+
+def _confirmation(action: dict, detail: str | None = None) -> tuple[str, str]:
+    title = MODULE_TITLES.get(str(action.get("moduleId") or ""), "ilgili sayfa")
+    if action.get("type") == "show":
+        spoken = f"Anladım. {action.get('label') or title} alanını gösteriyorum."
+    else:
+        spoken = f"Anladım. {title} sayfasını açıyorum."
+    message = spoken if not detail else f"{spoken}\n\n{detail}"
+    return message, spoken
 
 def _module_navigation_action(context, question: str):
     if not NAVIGATION_WORDS.search(question):
@@ -100,39 +144,57 @@ def answer(*, question: str, raw_context: dict[str, Any], user) -> dict[str, Any
     labels = [CAPABILITY_LABELS[item] for item in context["capabilities"] if item in CAPABILITY_LABELS][:6]
     message = f"{page['title']} sayfasındasınız. {page['purpose']}\n\n"
     message += ", ".join(labels) if labels else "Bu ekran için doğrulanmış ek işlem tanımı bulunmuyor."
+    spoken = None
     actions = []
     if "excel" in q or "içe aktar" in q or "yükle" in q:
         action = _action(context, "employees", "Excel ile Yükle alanını göster", "employee.import_excel")
-        if action: message = "Personel sayfasında önce işyerini seçin. Sonra şablonu doldurup Excel Yükle kontrolünden aktarımı başlatın."; actions.append(action)
+        if action:
+            message, spoken = _confirmation(action, "Personel sayfasında önce işyerini seçin. Sonra şablonu doldurup Excel Yükle kontrolünden aktarımı başlatın.")
+            actions.append(action)
     elif "personel" in q and "ekle" in q:
         action = _action(context, "employees", "Personel Ekle alanını göster", "employee.create")
-        if action: message = "Önce işyerini seçin. Ardından Personel Ekle ile Ad Soyad alanını doldurup Kaydet işlemini siz onaylayın."; actions.append(action)
+        if action:
+            message, spoken = _confirmation(action, "Önce işyerini seçin. Ardından Personel Ekle ile Ad Soyad alanını doldurup Kaydet işlemini siz onaylayın.")
+            actions.append(action)
     elif "eğitim" in q and ("ata" in q or "atama" in q):
         action = _action(context, "training", "Eğitimler modülüne git")
-        if action: message = "Eğitimler modülünde işyerini ve katılımcıları seçin, bilgileri kontrol edin ve atamayı siz onaylayın."; actions.append(action)
+        if action:
+            message, spoken = _confirmation(action, "Eğitimler modülünde işyerini ve katılımcıları seçin, bilgileri kontrol edin ve atamayı siz onaylayın.")
+            actions.append(action)
     elif "sınav" in q or "soru" in q:
         action = _action(context, "training", "Sınav alanını göster", "training.generate_exam")
-        if action: message = "Sınav seçeneği eğitim kaydı oluşturulduktan sonra kullanılabilir."; actions.append(action)
+        if action:
+            message, spoken = _confirmation(action, "Sınav seçeneği eğitim kaydı oluşturulduktan sonra kullanılabilir.")
+            actions.append(action)
     elif "risk" in q:
         action = _action(context, "risk", "Risk Analizine git")
-        if action: message = "Risk Analizi modülünde işyerini seçip Yeni Risk ile değerlendirmeyi başlatabilirsiniz."; actions.append(action)
+        if action:
+            message, spoken = _confirmation(action, "Risk Analizi modülünde işyerini seçip Yeni Risk ile değerlendirmeyi başlatabilirsiniz.")
+            actions.append(action)
     elif "döf" in q or "düzeltici" in q:
         action = _action(context, "capa", "DÖF modülüne git")
-        if action: message = "DÖF modülünde konu, kaynak, açıklama, sorumlu ve termin bilgilerini kontrol edin."; actions.append(action)
+        if action:
+            message, spoken = _confirmation(action, "DÖF modülünde konu, kaynak, açıklama, sorumlu ve termin bilgilerini kontrol edin.")
+            actions.append(action)
     if not actions:
         navigation_action = _module_navigation_action(context, q)
         if navigation_action:
             actions.append(navigation_action)
-            message = "İlgili modülü açmak için aşağıdaki yönlendirme düğmesini kullanabilirsiniz."
+            message, spoken = _confirmation(navigation_action)
         elif "sil" in q or "yetki" in q or "eriş" in q:
             message = "Bu işlem mevcut rolünüz için açık değil. Asistan yetki veremez ve gizli menüleri göstermez."
-    message += "\n\nAsistan kayıt silmez, form göndermez ve resmi işlemi sizin yerinize tamamlamaz."
-    provider_message = _ask_provider(question, context, message)
+    if not actions:
+        message += "\n\nAsistan kayıt silmez, form göndermez ve resmi işlemi sizin yerinize tamamlamaz."
+    provider_message = None if actions else _ask_provider(question, context, message)
     source = "ai" if provider_message else "verified"
     if provider_message:
         message = provider_message
+        spoken = provider_message
     logger.info("contextual assistant request request_id=%s user_id=%s page_id=%s source=%s", current_request_id(), getattr(user, "id", None), page["id"], source)
-    return {"message": message, "source": source, "domain": "app", "actions": actions[:2]}
+    payload = {"message": message, "source": source, "domain": "app", "actions": actions[:2]}
+    if spoken:
+        payload["spoken"] = spoken[:500]
+    return payload
 
 
 def _provider_config() -> dict[str, Any] | None:
