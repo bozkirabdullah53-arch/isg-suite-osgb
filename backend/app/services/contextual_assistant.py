@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -31,6 +32,28 @@ ROLE_MODULES = {
 WORKPLACE_MANAGER_MODULES = {"employer_oversight", "eyas_inbox", "employees", "ppe", "periyodik_kontrol", "ortam_olcum", "sds", "accident", "near_miss", "security"}
 CAPABILITY_MODULES = {"dashboard.open_risk": "risk", "dashboard.open_companies": "companies", "dashboard.open_employees": "employees", "dashboard.open_training": "training", "employee.create": "employees", "employee.import_excel": "employees", "employee.edit": "employees", "employee.training.assign": "training", "company.create": "companies", "company.edit": "companies", "company.select": "companies", "company.open_status": "workplace_status", "training.create": "training", "training.assign": "training", "exam.generate": "training", "training.remote": "remote_training", "risk.create": "risk", "risk.review": "risk", "risk.open": "risk", "risk.report": "risk", "corrective_action.create": "capa", "corrective_action.complete": "capa", "near_miss.create": "near_miss", "accident.create": "accident", "accident.review": "accident", "reports.open": "reports", "visit.view": "visits", "field_inspection.open": "field_inspection", "field_inspection.create": "field_inspection", "field_inspection.add_photo": "field_inspection", "medical_exam.view": "health", "health.record.view": "health", "document.create": "documents", "document.view": "documents", "employee.report": "employees"}
 CAPABILITY_LABELS = {"employee.create": "Personel Ekle", "employee.import_excel": "Excel ile Yükle", "employee.edit": "Personeli Düzenle", "employee.training.assign": "Eğitim Ata", "company.create": "İşyeri Ekle", "training.create": "Eğitim Oluştur", "training.assign": "Çalışanlara Ata", "exam.generate": "Sınav Oluştur", "training.remote": "Uzaktan Eğitim", "risk.create": "Risk Kaydı Oluştur", "corrective_action.create": "DÖF Oluştur", "near_miss.create": "Ramak Kala Kaydı Aç", "accident.create": "Kaza Kaydı Aç", "field_inspection.create": "Denetim Başlat"}
+MODULE_DESTINATIONS = (
+    (("uzaktan eğitim", "uzaktan egitim"), "remote_training", "Uzaktan Eğitim / Belgelere git"),
+    (("risk analizi", "risk değerlendirme", "risk degerlendirme", "risk"), "risk", "Risk Analizine git"),
+    (("ramak kala",), "near_miss", "Ramak Kala modülüne git"),
+    (("iş kazası", "is kazasi", "kaza"), "accident", "İş Kazalarına git"),
+    (("döf", "dof", "düzeltici", "duzeltici"), "capa", "DÖF modülüne git"),
+    (("saha denetimi", "denetim"), "field_inspection", "Saha Denetimine git"),
+    (("saha takvimi", "takvim", "ziyaret"), "visits", "Saha Takvimine git"),
+    (("personel", "çalışan", "calisan"), "employees", "Personel Yönetimine git"),
+    (("eğitim", "egitim"), "training", "Eğitimlere git"),
+    (("işyeri", "isyeri", "firma"), "companies", "İşyerlerine git"),
+    (("sağlık", "saglik", "muayene"), "health", "Sağlık modülüne git"),
+    (("doküman", "dokuman", "belge"), "documents", "Dokümanlara git"),
+    (("rapor",), "reports", "Raporlara git"),
+    (("bildirim",), "notifications", "Bildirimlere git"),
+    (("kkd",), "ppe", "KKD Takibe git"),
+    (("yıllık plan", "yillik plan"), "annual_plans", "Yıllık Plana git"),
+    (("çalışma izni", "calisma izni"), "work_permits", "Çalışma İzinlerine git"),
+    (("taşeron", "taseron"), "contractors", "Taşeron Yönetimine git"),
+    (("ziyaretçi", "ziyaretci"), "visitors", "Ziyaretçilere git"),
+)
+NAVIGATION_WORDS = re.compile(r"\b(git|gidelim|götür|gotur|aç|ac|yönlendir|yonlendir|göster|goster|nerede|nereden|nasıl|nasil|geç|gec)\b")
 
 def _role(user) -> str:
     return str(getattr(getattr(user, "role", None), "value", getattr(user, "role", "unknown")) or "unknown")
@@ -56,6 +79,14 @@ def _action(context, module: str, label: str, target: str | None = None):
     if module not in context["user"]["accessibleModules"]:
         return None
     return {"type": "show", "targetId": target, "label": label} if target else {"type": "navigate", "moduleId": module, "label": label}
+
+def _module_navigation_action(context, question: str):
+    if not NAVIGATION_WORDS.search(question):
+        return None
+    for aliases, module, label in MODULE_DESTINATIONS:
+        if any(alias in question for alias in aliases):
+            return _action(context, module, label)
+    return None
 
 def answer(*, question: str, raw_context: dict[str, Any], user) -> dict[str, Any]:
     if not contextual_assistant_active():
@@ -88,8 +119,13 @@ def answer(*, question: str, raw_context: dict[str, Any], user) -> dict[str, Any
     elif "döf" in q or "düzeltici" in q:
         action = _action(context, "capa", "DÖF modülüne git")
         if action: message = "DÖF modülünde konu, kaynak, açıklama, sorumlu ve termin bilgilerini kontrol edin."; actions.append(action)
-    elif "sil" in q or "yetki" in q or "eriş" in q:
-        message = "Bu işlem mevcut rolünüz için açık değil. Asistan yetki veremez ve gizli menüleri göstermez."
+    if not actions:
+        navigation_action = _module_navigation_action(context, q)
+        if navigation_action:
+            actions.append(navigation_action)
+            message = "İlgili modülü açmak için aşağıdaki yönlendirme düğmesini kullanabilirsiniz."
+        elif "sil" in q or "yetki" in q or "eriş" in q:
+            message = "Bu işlem mevcut rolünüz için açık değil. Asistan yetki veremez ve gizli menüleri göstermez."
     message += "\n\nAsistan kayıt silmez, form göndermez ve resmi işlemi sizin yerinize tamamlamaz."
     provider_message = _ask_provider(question, context, message)
     source = "ai" if provider_message else "verified"
