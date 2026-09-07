@@ -2,7 +2,7 @@
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {autoActionDelayMs, browserSpeechRecognition, firstAutoAction, highlightTarget, isCoarsePointer, isTranscriptionUnavailable, pickTurkishVoice, shouldUseBrowserSpeech, speechRecognitionErrorMessage, spokenReply, unlockSpeechSynthesis} from './contextual_assistant.jsx';
+import {autoActionDelayMs, browserSpeechRecognition, collapseRepeatedPhrase, finalSpeechTranscript, firstAutoAction, highlightTarget, isCoarsePointer, isSameVoiceCommand, isTranscriptionUnavailable, pickTurkishVoice, shouldUseBrowserSpeech, speechRecognitionErrorMessage, spokenReply, unlockSpeechSynthesis} from './contextual_assistant.jsx';
 
 describe('contextual assistant target guidance', () => {
   it('highlights a target without clicking it', () => {
@@ -73,5 +73,16 @@ describe('contextual assistant target guidance', () => {
       navigator: {userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-S918B) SamsungBrowser/27.0'},
     })).toBe(false);
     expect(isTranscriptionUnavailable('Sesli soru servisi şu anda kullanılamıyor; sorunuzu yazabilirsiniz.')).toBe(true);
+  });
+
+  it('collapses repeated voice fragments into one command', () => {
+    expect(collapseRepeatedPhrase('Eğitim Eğitim Eğitim Eğitim sayfası')).toBe('Eğitim sayfası');
+    expect(isSameVoiceCommand('Eğitim', 'Eğitim sayfası')).toBe(true);
+    expect(finalSpeechTranscript({
+      results: [
+        {isFinal: true, 0: {transcript: 'Eğitim'}},
+        {isFinal: true, 0: {transcript: 'Eğitim sayfası'}},
+      ],
+    })).toBe('Eğitim sayfası');
   });
 });
