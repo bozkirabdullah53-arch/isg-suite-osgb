@@ -65,6 +65,13 @@ export function unlockSpeechSynthesis(scope = typeof window === 'undefined' ? nu
   }
 }
 
+export function shouldUseBrowserSpeech(scope = typeof window === 'undefined' ? null : window) {
+  if (!browserSpeechRecognition(scope)) return false;
+  if (isCoarsePointer(scope)) return false;
+  const userAgent = String(scope?.navigator?.userAgent || '');
+  return !/Android|iPhone|iPad|iPod|Mobile|SamsungBrowser/i.test(userAgent);
+}
+
 function Panel({active, user, allowedModules, onNavigate}) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -230,7 +237,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
     unlockVoiceOutput();
     voiceCancelledRef.current = false;
     setError('');
-    const Recognition = browserSpeechRecognition(window);
+    const Recognition = shouldUseBrowserSpeech(window) ? browserSpeechRecognition(window) : null;
     if (Recognition) {
       const recognition = new Recognition();
       let completed = false;
@@ -351,7 +358,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
       setCharacterState('listening');
       voiceTimerRef.current = window.setTimeout(() => {
         if (recorderRef.current === recorder && recorder.state === 'recording') recorder.stop();
-      }, isCoarsePointer(window) ? 8000 : 30000);
+      }, isCoarsePointer(window) ? 12000 : 30000);
     } catch (exception) {
       stream?.getTracks?.().forEach((track) => track.stop());
       clearVoiceResources();
@@ -463,7 +470,7 @@ function Panel({active, user, allowedModules, onNavigate}) {
             <button type="submit" aria-label="Soruyu gönder" disabled={busy || listening || !input.trim()}>{busy ? <Loader2 className="contextual-assistant-spin" size={18} /> : <Send size={18} />}</button>
           </div>
         </form>
-        <footer className="contextual-assistant-footnote">{voiceInputSupported ? (listening ? 'Dinliyorum. Bitince mikrofonu tekrar dokunun veya kaydın otomatik durmasını bekleyin.' : 'İsteğinizi teyit eder ve yetkiniz olan sayfayı açar.') : 'Bu cihazda mikrofon kullanılamıyor; yazılı asistan kullanılabilir.'} Sunucu kaydı kullanılırsa ses saklanmaz.</footer>
+        <footer className="contextual-assistant-footnote">{voiceInputSupported ? (listening ? 'Dinliyorum. Bitince mikrofon düğmesine tekrar dokunun.' : 'Mikrofonu açıp söyleyin; asistan teyit eder ve yetkiniz olan sayfayı açar.') : 'Bu cihazda mikrofon kullanılamıyor; yazılı asistan kullanılabilir.'} Sunucu kaydı kullanılırsa ses saklanmaz.</footer>
       </aside>
     </>}
   </>;

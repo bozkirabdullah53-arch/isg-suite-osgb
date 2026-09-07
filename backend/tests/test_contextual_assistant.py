@@ -46,6 +46,10 @@ def test_verified_answer_has_no_provider_dependency(monkeypatch):
         ("Beni personel yönetimine yönlendir", "employees"),
         ("Saha takvimini aç", "visits"),
         ("Dokümanlar nerede?", "documents"),
+        ("Ramak kala", "near_miss"),
+        ("Ramak kalayı aç", "near_miss"),
+        ("KKD", "ppe"),
+        ("KKD takip", "ppe"),
     ],
 )
 def test_navigation_questions_return_allowed_module_actions(monkeypatch, question, expected_module):
@@ -55,7 +59,7 @@ def test_navigation_questions_return_allowed_module_actions(monkeypatch, questio
     monkeypatch.setattr(assistant, "managed_config", lambda db: None)
     context = {
         "currentPage": {"id": "risk", "module": "risk", "title": "Risk Analizi", "purpose": "Riskleri yönetir."},
-        "user": {"accessibleModules": ["training", "employees", "visits", "documents", "risk"]},
+        "user": {"accessibleModules": ["training", "employees", "visits", "documents", "risk", "near_miss", "ppe"]},
     }
 
     result = answer(question=question, raw_context=context, user=user("safety_specialist"))

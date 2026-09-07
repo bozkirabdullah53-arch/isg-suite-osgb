@@ -34,25 +34,39 @@ CAPABILITY_MODULES = {"dashboard.open_risk": "risk", "dashboard.open_companies":
 CAPABILITY_LABELS = {"employee.create": "Personel Ekle", "employee.import_excel": "Excel ile Yükle", "employee.edit": "Personeli Düzenle", "employee.training.assign": "Eğitim Ata", "company.create": "İşyeri Ekle", "training.create": "Eğitim Oluştur", "training.assign": "Çalışanlara Ata", "exam.generate": "Sınav Oluştur", "training.remote": "Uzaktan Eğitim", "risk.create": "Risk Kaydı Oluştur", "corrective_action.create": "DÖF Oluştur", "near_miss.create": "Ramak Kala Kaydı Aç", "accident.create": "Kaza Kaydı Aç", "field_inspection.create": "Denetim Başlat"}
 MODULE_DESTINATIONS = (
     (("uzaktan eğitim", "uzaktan egitim"), "remote_training", "Uzaktan Eğitim / Belgelere git"),
-    (("risk analizi", "risk değerlendirme", "risk degerlendirme", "risk"), "risk", "Risk Analizine git"),
-    (("ramak kala",), "near_miss", "Ramak Kala modülüne git"),
-    (("iş kazası", "is kazasi", "kaza"), "accident", "İş Kazalarına git"),
+    (("ramak kala", "ramakkala", "ramakkalayi", "ramak kalayi"), "near_miss", "Ramak Kala modülüne git"),
+    (("kişisel koruyucu", "kisisel koruyucu", "kkd takip", "k k d", "ka ka de", "kkd", "ppe"), "ppe", "KKD Takibe git"),
+    (("iş kazası", "is kazasi", "kaza kaydi", "kaza"), "accident", "İş Kazalarına git"),
+    (("saha denetimi", "saha denetim"), "field_inspection", "Saha Denetimine git"),
+    (("saha takvimi",), "visits", "Saha Takvimine git"),
+    (("risk analizi", "risk değerlendirme", "risk degerlendirme"), "risk", "Risk Analizine git"),
     (("döf", "dof", "düzeltici", "duzeltici"), "capa", "DÖF modülüne git"),
-    (("saha denetimi", "denetim"), "field_inspection", "Saha Denetimine git"),
-    (("saha takvimi", "takvim", "ziyaret"), "visits", "Saha Takvimine git"),
+    (("yıllık plan", "yillik plan"), "annual_plans", "Yıllık Plana git"),
+    (("çalışma izni", "calisma izni"), "work_permits", "Çalışma İzinlerine git"),
+    (("ziyaretçi", "ziyaretci"), "visitors", "Ziyaretçilere git"),
+    (("taşeron", "taseron"), "contractors", "Taşeron Yönetimine git"),
     (("personel", "çalışan", "calisan"), "employees", "Personel Yönetimine git"),
     (("eğitim", "egitim"), "training", "Eğitimlere git"),
     (("işyeri", "isyeri", "firma"), "companies", "İşyerlerine git"),
     (("sağlık", "saglik", "muayene"), "health", "Sağlık modülüne git"),
-    (("doküman", "dokuman", "belge"), "documents", "Dokümanlara git"),
-    (("rapor",), "reports", "Raporlara git"),
+    (("doküman", "dokuman"), "documents", "Dokümanlara git"),
     (("bildirim",), "notifications", "Bildirimlere git"),
-    (("kkd",), "ppe", "KKD Takibe git"),
-    (("yıllık plan", "yillik plan"), "annual_plans", "Yıllık Plana git"),
-    (("çalışma izni", "calisma izni"), "work_permits", "Çalışma İzinlerine git"),
-    (("taşeron", "taseron"), "contractors", "Taşeron Yönetimine git"),
-    (("ziyaretçi", "ziyaretci"), "visitors", "Ziyaretçilere git"),
+    (("takvim", "ziyaret"), "visits", "Saha Takvimine git"),
+    (("denetim",), "field_inspection", "Saha Denetimine git"),
+    (("risk",), "risk", "Risk Analizine git"),
+    (("rapor",), "reports", "Raporlara git"),
+    (("belge",), "documents", "Dokümanlara git"),
 )
+DIRECT_ALIASES = {
+    "ramak kala", "ramakkala", "ramakkalayi", "ramak kalayi",
+    "kkd", "k k d", "ka ka de", "kkd takip", "kisisel koruyucu", "kişisel koruyucu", "ppe",
+    "is kazasi", "iş kazası", "saha denetimi", "saha takvimi", "uzaktan egitim", "uzaktan eğitim",
+    "yillik plan", "yıllık plan", "calisma izni", "çalışma izni", "dof", "döf",
+}
+_FOLD_TABLE = str.maketrans({
+    "ı": "i", "ğ": "g", "ü": "u", "ş": "s", "ö": "o", "ç": "c",
+    "'": " ", "’": " ", "-": " ",
+})
 MODULE_TITLES = {
     "remote_training": "Uzaktan Eğitim / Belgeler",
     "risk": "Risk Analizi",
@@ -124,11 +138,34 @@ def _confirmation(action: dict, detail: str | None = None) -> tuple[str, str]:
     message = spoken if not detail else f"{spoken}\n\n{detail}"
     return message, spoken
 
+def _folded(text: str) -> str:
+    value = str(text or "").casefold().translate(_FOLD_TABLE)
+    return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", value)).strip()
+
+
+def _alias_hit(text: str, alias: str) -> bool:
+    folded_alias = _folded(alias)
+    if not folded_alias:
+        return False
+    compact_text = text.replace(" ", "")
+    compact_alias = folded_alias.replace(" ", "")
+    if folded_alias in text or compact_alias in compact_text:
+        return True
+    return any(compact_alias + suffix in compact_text for suffix in ("yi", "ya", "ye", "i", "e", "a"))
+
+
 def _module_navigation_action(context, question: str):
-    if not NAVIGATION_WORDS.search(question):
-        return None
-    for aliases, module, label in MODULE_DESTINATIONS:
-        if any(alias in question for alias in aliases):
+    folded = _folded(question)
+    wants_page = bool(NAVIGATION_WORDS.search(question) or NAVIGATION_WORDS.search(folded))
+    ranked = sorted(
+        ((alias, module, label) for aliases, module, label in MODULE_DESTINATIONS for alias in aliases),
+        key=lambda item: len(_folded(item[0]).replace(" ", "")),
+        reverse=True,
+    )
+    for alias, module, label in ranked:
+        if not _alias_hit(folded, alias):
+            continue
+        if wants_page or _folded(alias) in {_folded(item) for item in DIRECT_ALIASES}:
             return _action(context, module, label)
     return None
 
