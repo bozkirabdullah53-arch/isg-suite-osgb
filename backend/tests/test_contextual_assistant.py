@@ -50,6 +50,27 @@ def test_verified_answer_has_no_provider_dependency(monkeypatch):
         ("Ramak kalayı aç", "near_miss"),
         ("KKD", "ppe"),
         ("KKD takip", "ppe"),
+        ("Ana panel", "dashboard"),
+        ("Acil durum ekipleri", "acil_ekipler"),
+        ("Acil durum planı", "acil_plan"),
+        ("Yıllık değerlendirme raporu", "annual_eval_report"),
+        ("Yıllık plan", "annual_plans"),
+        ("Belge onay", "belge_onay"),
+        ("Alt işverenler", "contractors"),
+        ("Müşteri portalı", "customer_portal"),
+        ("Tesis özeti", "facility_summary"),
+        ("Saha PWA", "field_pwa"),
+        ("İSG Kurulu", "isg_kurulu"),
+        ("Mevzuat", "mevzuat"),
+        ("Ortam ölçüm", "ortam_olcum"),
+        ("Periyodik kontrol", "periyodik_kontrol"),
+        ("SDS", "sds"),
+        ("Uzman raporları", "specialist_reports"),
+        ("Tatbikat", "tatbikat"),
+        ("Ziyaret defteri", "visit_notebook"),
+        ("Ziyaret QR", "visit_qr"),
+        ("İşyeri durumu", "workplace_status"),
+        ("Güvenlik", "security"),
     ],
 )
 def test_navigation_questions_return_allowed_module_actions(monkeypatch, question, expected_module):
@@ -59,7 +80,14 @@ def test_navigation_questions_return_allowed_module_actions(monkeypatch, questio
     monkeypatch.setattr(assistant, "managed_config", lambda db: None)
     context = {
         "currentPage": {"id": "risk", "module": "risk", "title": "Risk Analizi", "purpose": "Riskleri yönetir."},
-        "user": {"accessibleModules": ["training", "employees", "visits", "documents", "risk", "near_miss", "ppe"]},
+        "user": {"accessibleModules": [
+            "training", "employees", "visits", "documents", "risk", "near_miss", "ppe",
+            "dashboard", "acil_ekipler", "acil_plan", "annual_eval_report", "annual_plans",
+            "belge_onay", "contractors", "customer_portal", "facility_summary", "field_pwa",
+            "isg_kurulu", "mevzuat", "ortam_olcum", "periyodik_kontrol", "sds",
+            "specialist_reports", "tatbikat", "visit_notebook", "visit_qr", "workplace_status",
+            "security",
+        ]},
     }
 
     result = answer(question=question, raw_context=context, user=user("safety_specialist"))
