@@ -1,6 +1,6 @@
 import React, {Component, useEffect, useMemo, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
-import {ArrowRight, ChevronRight, CircleHelp, Compass, Loader2, MessageCircle, Mic, Send, ShieldCheck, Sparkles, Target, Volume2, VolumeX, X} from 'lucide-react';
+import {ArrowRight, ChevronRight, CircleHelp, Compass, Loader2, MessageCircle, Mic, Send, ShieldCheck, Sparkles, Square, Target, Volume2, VolumeX, X} from 'lucide-react';
 import {api} from './api';
 import {assistantFeatureEnabled, getAssistantPageContext, getAssistantPageDefinition} from './contextual_assistant_registry';
 import './contextual_assistant.css';
@@ -21,18 +21,29 @@ function Panel({active, user, allowedModules, onNavigate}) {
   const [listening, setListening] = useState(false);
   const [voiceInputSupported, setVoiceInputSupported] = useState(false);
   const abortRef = useRef(null);
-  const recognitionRef = useRef(null);
+  const recorderRef = useRef(null);
+  const mediaStreamRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const voiceTimerRef = useRef(null);
+  const voiceCancelledRef = useRef(false);
   const listRef = useRef(null);
   const lastPageRef = useRef(active);
   const page = useMemo(() => getAssistantPageDefinition(active), [active]);
 
   useEffect(() => {
-    const Recognition = typeof window !== 'undefined'
-      ? (window.SpeechRecognition || window.webkitSpeechRecognition)
-      : null;
-    setVoiceInputSupported(Boolean(Recognition));
+    const supported = typeof window !== 'undefined'
+      && typeof navigator !== 'undefined'
+      && Boolean(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
+    setVoiceInputSupported(supported);
     return () => {
-      recognitionRef.current?.abort?.();
+      voiceCancelledRef.current = true;
+      const recorder = recorderRef.current;
+      if (recorder && recorder.state !== 'inactive') {
+        try { recorder.stop(); } catch { /* ignore */ }
+      }
+      if (voiceTimerRef.current) window.clearTimeout(voiceTimerRef.current);
+      mediaStreamRef.current?.getTracks?.().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
       window.speechSynthesis?.cancel?.();
     };
   }, []);
@@ -64,9 +75,28 @@ function Panel({active, user, allowedModules, onNavigate}) {
     setMessages((current) => current.length ? current : [{role: 'assistant', text: `Merhaba, ${page.title} sayfasındasınız. ${page.purpose} Bu ekranda ne yapmak istediğinizi yazın; mevcut sayfaya göre yönlendireyim.`}]);
   }
 
+  function clearVoiceResources() {
+    if (voiceTimerRef.current) window.clearTimeout(voiceTimerRef.current);
+    voiceTimerRef.current = null;
+    mediaStreamRef.current?.getTracks?.().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+    recorderRef.current = null;
+    audioChunksRef.current = [];
+  }
+
+  function stopVoiceCapture({cancel = false} = {}) {
+    if (cancel) voiceCancelledRef.current = true;
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      try { recorder.stop(); } catch { clearVoiceResources(); }
+    } else {
+      clearVoiceResources();
+    }
+  }
+
   function closePanel() {
     abortRef.current?.abort();
-    recognitionRef.current?.abort?.();
+    stopVoiceCapture({cancel: true});
     window.speechSynthesis?.cancel?.();
     setOpen(false);
     setBusy(false);
@@ -86,54 +116,95 @@ function Panel({active, user, allowedModules, onNavigate}) {
   }
 
   async function toggleListening() {
-    if (!voiceInputSupported || typeof window === 'undefined') {
-      setError('Bu tarayıcı sesli soru özelliğini desteklemiyor. Sorunuzu yazabilirsiniz.');
+    if (!voiceInputSupported || typeof window === 'undefined' || typeof navigator === 'undefined') {
+      setError('Bu cihazda sesli soru alınamıyor. Sorunuzu yazabilirsiniz.');
       return;
     }
     if (listening) {
-      recognitionRef.current?.stop?.();
+      stopVoiceCapture();
       return;
     }
 
-    // Start directly from the click handler so Chrome/Safari retain user activation.
-    // The browser's SpeechRecognition API handles its own microphone permission.
-    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new Recognition();
-    recognition.lang = 'tr-TR';
-    recognition.interimResults = false;
-    recognition.continuous = false;
-    recognition.onstart = () => {
+    voiceCancelledRef.current = false;
+    setError('');
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({audio: true});
+      if (voiceCancelledRef.current) {
+        stream.getTracks?.().forEach((track) => track.stop());
+        return;
+      }
+      const mimeType = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/ogg',
+      ].find((type) => !window.MediaRecorder.isTypeSupported || window.MediaRecorder.isTypeSupported(type));
+      const recorder = new window.MediaRecorder(stream, mimeType ? {mimeType} : undefined);
+      const recordedType = mimeType || recorder.mimeType || 'audio/webm';
+      mediaStreamRef.current = stream;
+      audioChunksRef.current = [];
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) audioChunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        voiceCancelledRef.current = true;
+        clearVoiceResources();
+        setListening(false);
+        setCharacterState('warning');
+        setError('Mikrofon kaydı alınamadı. Sorunuzu yazabilirsiniz.');
+      };
+      recorder.onstop = async () => {
+        const blob = new Blob(audioChunksRef.current, {type: recorder.mimeType || recordedType});
+        const cancelled = voiceCancelledRef.current;
+        clearVoiceResources();
+        setListening(false);
+        if (cancelled) return;
+        if (!blob.size) {
+          setCharacterState('warning');
+          setError('Ses kaydı boş geldi. Daha sonra tekrar deneyin veya sorunuzu yazın.');
+          return;
+        }
+
+        setCharacterState('thinking');
+        const extension = recordedType.includes('ogg') ? 'ogg' : recordedType.includes('mp4') ? 'm4a' : 'webm';
+        const formData = new FormData();
+        formData.append('file', blob, `voice.${extension}`);
+        try {
+          const result = await api('/assistant/transcribe', {
+            method: 'POST',
+            body: formData,
+            timeoutMs: 60000,
+            _retries: 0,
+          });
+          const transcript = String(result?.text || '').trim();
+          if (!transcript) throw new Error('Ses çözümlenemedi. Sorunuzu yazabilirsiniz.');
+          setInput((current) => `${current ? `${current} ` : ''}${transcript}`.slice(0, 2000));
+          setError('');
+          setCharacterState('idle');
+        } catch (exception) {
+          setError(String(exception?.message || 'Sesli soru alınamadı. Sorunuzu yazabilirsiniz.'));
+          setCharacterState('warning');
+        }
+      };
+      recorder.start(250);
       setListening(true);
-      setError('');
       setCharacterState('listening');
-    };
-    recognition.onresult = (event) => {
-      const transcript = event.results?.[0]?.[0]?.transcript?.trim();
-      if (transcript) setInput(transcript);
-    };
-    recognition.onerror = (event) => {
-      const code = event?.error;
-      const message = code === 'not-allowed' || code === 'service-not-allowed'
-        ? 'Mikrofon izni verilmedi veya bu tarayıcı sesli tanımayı desteklemiyor. Adres çubuğundaki kilit simgesinden mikrofona izin verin; olmazsa Chrome ile deneyin.'
-        : code === 'audio-capture'
-          ? 'Mikrofon başka bir uygulama tarafından kullanılıyor. Mikrofonu serbest bırakıp tekrar deneyin.'
-          : code === 'network'
-            ? 'Ses tanıma servisine ulaşılamadı. İnternet bağlantınızı kontrol edin veya sorunuzu yazın.'
-            : 'Sesli soru alınamadı. Sorunuzu yazabilirsiniz.';
-      setError(message);
+      voiceTimerRef.current = window.setTimeout(() => {
+        if (recorderRef.current === recorder && recorder.state === 'recording') recorder.stop();
+      }, 30000);
+    } catch (exception) {
+      stream?.getTracks?.().forEach((track) => track.stop());
+      clearVoiceResources();
       setListening(false);
       setCharacterState('warning');
-    };
-    recognition.onend = () => {
-      setListening(false);
-      setCharacterState('idle');
-    };
-    recognitionRef.current = recognition;
-    try {
-      recognition.start();
-    } catch {
-      setListening(false);
-      setError('Mikrofon başlatılamadı. Sorunuzu yazabilirsiniz.');
+      const code = String(exception?.name || '');
+      setError(code === 'NotAllowedError'
+        ? 'Mikrofon izni verilmedi. Adres çubuğundaki kilit simgesinden bu site için mikrofona izin verin.'
+        : code === 'NotFoundError'
+          ? 'Mikrofon bulunamadı. Cihaz mikrofonunu kontrol edip tekrar deneyin.'
+          : 'Mikrofon başlatılamadı. Sorunuzu yazabilirsiniz.');
     }
   }
 
@@ -209,14 +280,14 @@ function Panel({active, user, allowedModules, onNavigate}) {
         {error && <div className="contextual-assistant-error" role="alert">{error}</div>}
         <form className="contextual-assistant-composer" onSubmit={(event) => { event.preventDefault(); void sendQuestion(); }}>
           <label htmlFor="contextual-assistant-input" className="sr-only">İSG Asistanına soru yazın</label>
-          <textarea id="contextual-assistant-input" value={input} onChange={(event) => { setInput(event.target.value); setCharacterState(event.target.value ? 'listening' : 'idle'); }} placeholder="Bu sayfada ne yapmak istiyorsunuz?" rows={2} maxLength={2000} disabled={busy} />
+          <textarea id="contextual-assistant-input" value={input} onChange={(event) => { setInput(event.target.value); setCharacterState(event.target.value ? 'listening' : 'idle'); }} placeholder="Bu sayfada ne yapmak istiyorsunuz?" rows={2} maxLength={2000} disabled={busy || listening} />
           <div className="contextual-assistant-voice-actions">
-            <button type="button" className={`contextual-assistant-voice-button${listening ? ' is-active' : ''}`} onClick={toggleListening} disabled={busy || !voiceInputSupported} aria-label={listening ? 'Sesli soru dinleniyor' : 'Sesli soru sor'} title={voiceInputSupported ? 'Sesli soru sor' : 'Bu tarayıcı sesli soruyu desteklemiyor; sorunuzu yazabilirsiniz'}><Mic size={17} /></button>
+            <button type="button" className={`contextual-assistant-voice-button${listening ? ' is-active' : ''}`} onClick={() => void toggleListening()} disabled={busy || !voiceInputSupported} aria-label={listening ? 'Sesli soru kaydı durdur' : 'Sesli soru kaydı başlat'} title={voiceInputSupported ? (listening ? 'Kaydı durdur' : 'Sesli soru sor') : 'Bu cihazda mikrofon kaydı desteklenmiyor'}>{listening ? <Square size={17} /> : <Mic size={17} />}</button>
             <button type="button" className={`contextual-assistant-voice-button${voiceOutput ? ' is-active' : ''}`} onClick={() => { setVoiceOutput((current) => !current); if (voiceOutput) window.speechSynthesis?.cancel?.(); }} aria-label={voiceOutput ? 'Sesli yanıtı kapat' : 'Sesli yanıtı aç'} title="Sesli yanıtı aç/kapat">{voiceOutput ? <Volume2 size={17} /> : <VolumeX size={17} />}</button>
-            <button type="submit" aria-label="Soruyu gönder" disabled={busy || !input.trim()}>{busy ? <Loader2 className="contextual-assistant-spin" size={18} /> : <Send size={18} />}</button>
+            <button type="submit" aria-label="Soruyu gönder" disabled={busy || listening || !input.trim()}>{busy ? <Loader2 className="contextual-assistant-spin" size={18} /> : <Send size={18} />}</button>
           </div>
         </form>
-        <footer className="contextual-assistant-footnote">{voiceInputSupported ? 'Mikrofon ve sesli yanıt isteğe bağlıdır.' : 'Bu tarayıcıda mikrofon desteği yok; yazılı asistan kullanılabilir. Adres çubuğundan mikrofon izni gerekebilir.'} Kişisel ve sağlık verileri asistan bağlamına gönderilmez.</footer>
+        <footer className="contextual-assistant-footnote">{voiceInputSupported ? 'Sesli soru isteğe bağlıdır; kayıt metne çevrilmeden gönderilmez.' : 'Bu cihazda mikrofon kaydı kullanılamıyor; yazılı asistan kullanılabilir.'} Kayıt uygulama sunucusunda saklanmaz.</footer>
       </aside>
     </>}
   </>;

@@ -6,13 +6,19 @@ from typing import Any
 
 import httpx
 
-from app.core.config import contextual_assistant_active, settings
+from app.core.config import contextual_assistant_active, contextual_assistant_transcription_active, settings
 from app.core.database import SessionLocal
 from app.core.request_id import current_request_id
 from app.services.ai_gateway_config import managed_config
 
 logger = logging.getLogger(__name__)
 UNAVAILABLE_MESSAGE = "Asistan geçici olarak kullanılamıyor. Uygulamayı normal şekilde kullanmaya devam edebilirsiniz."
+TRANSCRIPTION_UNAVAILABLE_MESSAGE = "Sesli soru servisi şu anda kullanılamıyor; sorunuzu yazabilirsiniz."
+
+
+class TranscriptionUnavailableError(RuntimeError):
+    """Provider/rollout is unavailable; never expose provider details to the client."""
+
 
 ROLE_MODULES = {
     "global_admin": {"eisa_overview", "eisa_osgb_users", "eisa_individual_subscriptions", "eisa_subscriptions", "eisa_payments", "eisa_packages", "eisa_question_bank", "eisa_error_reports", "eisa_notifications", "eisa_emails", "eisa_reports", "eisa_archives", "eisa_audit_logs", "eisa_system_settings", "security"},
@@ -162,3 +168,90 @@ def _ask_provider(question: str, context: dict[str, Any], verified_message: str)
     except (httpx.HTTPError, ValueError, TypeError, KeyError, IndexError):
         logger.warning("contextual assistant provider failure request_id=%s page_id=%s", current_request_id(), context["currentPage"]["id"], exc_info=True)
     return None
+
+
+def _transcription_config() -> dict[str, Any] | None:
+    """Resolve server-side speech-to-text from the same managed AI provider.
+
+    Voice input is intentionally fail-closed: it only sends audio after the
+    user starts recording, and only to an explicitly configured OpenAI-compatible
+    provider. No audio is written to disk or to the application database.
+    """
+    if not contextual_assistant_transcription_active() or bool(
+        getattr(settings, "contextual_assistant_force_off", False)
+    ):
+        return None
+    provider = _provider_config()
+    if not provider or provider.get("provider") not in {"openai", "custom_openai"}:
+        return None
+    api_key = str(provider.get("api_key") or "").strip()
+    api_url = str(provider.get("api_url") or "").strip()
+    if not api_key or not api_url:
+        return None
+    model = str(
+        getattr(settings, "contextual_assistant_transcription_model", "whisper-1")
+        or "whisper-1"
+    ).strip()
+    if not model or len(model) > 160 or any(ch.isspace() for ch in model):
+        return None
+    return {
+        "provider": str(provider.get("provider") or "custom_openai"),
+        "api_key": api_key,
+        "api_url": api_url,
+        "model": model,
+        "timeout_sec": int(provider.get("timeout_sec") or 30),
+    }
+
+
+def transcribe_audio(
+    *,
+    audio_bytes: bytes,
+    filename: str,
+    content_type: str,
+) -> str:
+    """Transcribe one short in-memory recording and immediately discard it."""
+    provider = _transcription_config()
+    if not provider or not audio_bytes:
+        raise TranscriptionUnavailableError(TRANSCRIPTION_UNAVAILABLE_MESSAGE)
+
+    base_url = str(provider["api_url"]).rstrip("/")
+    for suffix in ("/chat/completions", "/responses"):
+        if base_url.endswith(suffix):
+            base_url = base_url[: -len(suffix)].rstrip("/")
+            break
+    endpoint = f"{base_url}/audio/transcriptions"
+    timeout = min(max(int(provider.get("timeout_sec") or 30), 10), 120)
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            response = client.post(
+                endpoint,
+                headers={"Authorization": f"Bearer {provider['api_key']}"},
+                files={
+                    "file": (
+                        filename or "voice.webm",
+                        audio_bytes,
+                        content_type or "application/octet-stream",
+                    )
+                },
+                data={
+                    "model": provider["model"],
+                    "language": "tr",
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+        transcript = payload.get("text") if isinstance(payload, dict) else None
+        transcript = str(transcript or "").strip()
+        if not transcript:
+            raise ValueError("Transcription response did not contain text.")
+        return transcript[:2000]
+    except (httpx.HTTPError, ValueError, TypeError, KeyError, AttributeError) as exc:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        logger.warning(
+            "contextual assistant transcription provider failure request_id=%s provider=%s status=%s",
+            current_request_id(),
+            provider["provider"],
+            status,
+            exc_info=True,
+        )
+        raise TranscriptionUnavailableError(TRANSCRIPTION_UNAVAILABLE_MESSAGE) from exc

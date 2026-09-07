@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from app.core.config import contextual_assistant_active, settings
 from app.services import contextual_assistant as assistant
 from app.services.contextual_assistant import answer, sanitize_context
@@ -92,3 +94,90 @@ def test_force_off_isolated(monkeypatch):
     monkeypatch.setattr(settings, "contextual_assistant_force_off", True)
     assert contextual_assistant_active() is False
     assert answer(question="Yardım", raw_context={}, user=user())["source"] == "disabled"
+
+
+def test_transcription_fails_closed_without_managed_provider(monkeypatch):
+    monkeypatch.setattr(settings, "contextual_assistant_transcription_enabled", True)
+    monkeypatch.setattr(settings, "contextual_assistant_transcription_force_off", False)
+    monkeypatch.setattr(assistant, "_provider_config", lambda: None)
+    with pytest.raises(assistant.TranscriptionUnavailableError):
+        assistant.transcribe_audio(
+            audio_bytes=b"audio",
+            filename="voice.webm",
+            content_type="audio/webm",
+        )
+
+
+def test_transcription_uses_openai_compatible_provider(monkeypatch):
+    monkeypatch.setattr(settings, "contextual_assistant_transcription_enabled", True)
+    monkeypatch.setattr(settings, "contextual_assistant_transcription_force_off", False)
+    monkeypatch.setattr(
+        assistant,
+        "_provider_config",
+        lambda: {
+            "provider": "custom_openai",
+            "api_url": "https://speech.example/v1/chat/completions",
+            "api_key": "provider-secret",
+            "timeout_sec": 30,
+        },
+    )
+    calls = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"text": "  Merhaba, sesli soru.  "}
+
+    class FakeClient:
+        def __init__(self, timeout):
+            calls["timeout"] = timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, endpoint, **kwargs):
+            calls["endpoint"] = endpoint
+            calls["headers"] = kwargs["headers"]
+            calls["files"] = kwargs["files"]
+            calls["data"] = kwargs["data"]
+            return FakeResponse()
+
+    monkeypatch.setattr(assistant.httpx, "Client", FakeClient)
+    result = assistant.transcribe_audio(
+        audio_bytes=b"audio",
+        filename="voice.webm",
+        content_type="audio/webm",
+    )
+
+    assert result == "Merhaba, sesli soru."
+    assert calls["endpoint"] == "https://speech.example/v1/audio/transcriptions"
+    assert calls["headers"] == {"Authorization": "Bearer provider-secret"}
+    assert calls["files"]["file"][0] == "voice.webm"
+    assert calls["files"]["file"][1] == b"audio"
+    assert calls["data"] == {"model": "whisper-1", "language": "tr"}
+
+
+def test_transcription_does_not_send_to_non_compatible_provider(monkeypatch):
+    monkeypatch.setattr(settings, "contextual_assistant_transcription_enabled", True)
+    monkeypatch.setattr(settings, "contextual_assistant_transcription_force_off", False)
+    monkeypatch.setattr(
+        assistant,
+        "_provider_config",
+        lambda: {
+            "provider": "gemini",
+            "api_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+            "api_key": "provider-secret",
+            "timeout_sec": 30,
+        },
+    )
+    with pytest.raises(assistant.TranscriptionUnavailableError):
+        assistant.transcribe_audio(
+            audio_bytes=b"audio",
+            filename="voice.webm",
+            content_type="audio/webm",
+        )

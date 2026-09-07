@@ -219,6 +219,16 @@ services:
         sync: false
       - key: CONTEXTUAL_ASSISTANT_TIMEOUT_SECONDS
         value: "30"
+      # Sesli soru girişi yalnızca kullanıcı mikrofon düğmesine basınca etkinleşir.
+      # Kayıt sunucuda tutulmaz; provider yoksa yazılı asistan çalışmaya devam eder.
+      - key: CONTEXTUAL_ASSISTANT_TRANSCRIPTION_ENABLED
+        value: "true"
+      - key: CONTEXTUAL_ASSISTANT_TRANSCRIPTION_FORCE_OFF
+        value: "false"
+      - key: CONTEXTUAL_ASSISTANT_TRANSCRIPTION_MODEL
+        value: "whisper-1"
+      - key: CONTEXTUAL_ASSISTANT_TRANSCRIPTION_MAX_MB
+        value: "5"
 
   - type: cron
     name: isg-suite-api-warmup
@@ -264,7 +274,7 @@ services:
         value: strict-origin-when-cross-origin
       - path: /*
         name: Permissions-Policy
-        value: camera=(self), microphone=(), geolocation=(self)
+        value: camera=(self), microphone=(self), geolocation=(self)
       - path: /*
         name: Cross-Origin-Opener-Policy
         value: same-origin-allow-popups
