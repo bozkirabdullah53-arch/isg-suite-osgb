@@ -1,0 +1,45 @@
+name: Natural Turkish Promo Final V2
+
+on:
+  push:
+    branches:
+      - 'tmp/promo-tr-voice-20260909'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ffmpeg
+        run: sudo apt-get install -y ffmpeg
+      - name: Download approved previous premium video
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 34378527293 -n isg-suite-turkce-isg-telaffuz-final
+          mv ISG_Suite_Uzaktan_Egitim_60sn_Turkce_ISG_Telaffuz_Duzeltildi.mp4 base.mp4
+      - name: Download approved natural Turkish voice
+        run: |
+          curl -L --fail -o v1.mp3 'https://cdn.creativeclaw.co/u/38badd12/audio/7e74f17d-e7bb-44c3-b94d-30a7e941fa76.mp3'
+          curl -L --fail -o v2.mp3 'https://cdn.creativeclaw.co/u/38badd12/audio/dc872337-7fc5-4e7c-a4fe-d5fcba34e4f4.mp3'
+          curl -L --fail -o v3.mp3 'https://cdn.creativeclaw.co/u/38badd12/audio/162e2e39-295c-4b60-9e54-3f82fa70c8b2.mp3'
+          printf "file '%s'\nfile '%s'\nfile '%s'\n" "$PWD/v1.mp3" "$PWD/v2.mp3" "$PWD/v3.mp3" > voices.txt
+          ffmpeg -y -hide_banner -loglevel error -f concat -safe 0 -i voices.txt -ar 48000 -ac 2 voice_raw.wav
+          DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 voice_raw.wav)
+          FACTOR=$(python - <<PY
+          d=float('${DUR}')
+          target=58.3
+          print(max(0.72,min(1.25,d/target)))
+          PY
+          )
+          ffmpeg -y -hide_banner -loglevel error -i voice_raw.wav -af "atempo=${FACTOR},adelay=500|500,apad=pad_dur=60,atrim=0:60,highpass=f=70,lowpass=f=10000,acompressor=threshold=-20dB:ratio=2.4:attack=12:release=160:makeup=2,alimiter=limit=0.94" -ar 48000 -ac 2 voice_final.wav
+      - name: Replace narration on premium video
+        run: |
+          ffmpeg -y -hide_banner -loglevel error -i base.mp4 -i voice_final.wav -filter_complex "[1:a]volume=1.05[a]" -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k -t 60 -movflags +faststart ISG_Suite_Uzaktan_Egitim_60sn_Natural_Turkce_Final.mp4
+          ffprobe -v error -show_entries format=duration,size -of json ISG_Suite_Uzaktan_Egitim_60sn_Natural_Turkce_Final.mp4
+      - name: Upload MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: isg-suite-natural-turkce-final-mp4
+          path: ISG_Suite_Uzaktan_Egitim_60sn_Natural_Turkce_Final.mp4
+          retention-days: 1
