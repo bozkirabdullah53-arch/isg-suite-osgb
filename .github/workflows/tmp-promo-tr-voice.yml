@@ -1,0 +1,61 @@
+name: Temporary Turkish Promo Render
+
+on:
+  push:
+    branches:
+      - 'tmp/promo-tr-voice-20260909'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install renderer dependency
+        run: python -m pip install --quiet pillow
+      - name: Render visual scenes
+        run: python tools/tmp_render_promo_tr.py
+      - name: Download Turkish voice segments
+        run: |
+          curl -L --fail --retry 3 -o voice1.mp3 'https://storage.googleapis.com/adm--audio-playback--7d--public/mcp-preview/64e6acbc-564e-4729-8d34-4366f009692b.mp3'
+          curl -L --fail --retry 3 -o voice2.mp3 'https://storage.googleapis.com/adm--audio-playback--7d--public/mcp-preview/bbe9d695-9277-4038-ae58-d9156b5de3f8.mp3'
+          curl -L --fail --retry 3 -o voice3.mp3 'https://storage.googleapis.com/adm--audio-playback--7d--public/mcp-preview/1fc13cc7-528f-41dd-92d7-a8bceeb44b6d.mp3'
+          printf "file '%s'\nfile '%s'\nfile '%s'\n" "$PWD/voice1.mp3" "$PWD/voice2.mp3" "$PWD/voice3.mp3" > voices.txt
+          ffmpeg -y -hide_banner -loglevel error -f concat -safe 0 -i voices.txt -ar 48000 -ac 2 voice_raw.wav
+      - name: Fit narration naturally to 60 seconds
+        run: |
+          DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 voice_raw.wav)
+          FACTOR=$(python - <<PY
+          d=float('${DUR}')
+          target=58.3
+          print(max(0.72,min(1.25,d/target)))
+          PY
+          )
+          echo "Raw duration=${DUR}s atempo=${FACTOR}"
+          ffmpeg -y -hide_banner -loglevel error -i voice_raw.wav -af "atempo=${FACTOR},adelay=500|500,apad=pad_dur=60,atrim=0:60,highpass=f=70,lowpass=f=10000,acompressor=threshold=-20dB:ratio=2.4:attack=12:release=160:makeup=2,alimiter=limit=0.94" -ar 48000 -ac 2 voice_final.wav
+      - name: Build 12 synchronized video scenes
+        run: |
+          mkdir -p clips
+          for i in $(seq -w 1 12); do
+            ffmpeg -y -hide_banner -loglevel error -loop 1 -framerate 24 -i "promo_render/scene_${i}.png" -t 5 -vf "scale=1120:1991,zoompan=z='min(zoom+0.00035,1.035)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=120:s=1080x1920:fps=24,fade=t=in:st=0:d=0.15,fade=t=out:st=4.85:d=0.15" -an -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p "clips/clip_${i}.mp4"
+          done
+          rm -f concat.txt
+          for i in $(seq -w 1 12); do echo "file '$PWD/clips/clip_${i}.mp4'" >> concat.txt; done
+          ffmpeg -y -hide_banner -loglevel error -f concat -safe 0 -i concat.txt -c copy silent_60.mp4
+      - name: Add subtle premium music bed and Turkish narration
+        run: |
+          ffmpeg -y -hide_banner -loglevel error \
+            -f lavfi -i "sine=frequency=110:sample_rate=48000:duration=60" \
+            -f lavfi -i "sine=frequency=164.81:sample_rate=48000:duration=60" \
+            -f lavfi -i "anoisesrc=color=pink:amplitude=0.002:sample_rate=48000:duration=60" \
+            -filter_complex "[0:a]volume=0.020[a0];[1:a]volume=0.012[a1];[2:a]lowpass=f=1800,volume=0.25[a2];[a0][a1][a2]amix=inputs=3:normalize=0,afade=t=in:st=0:d=1,afade=t=out:st=58.5:d=1.5[m]" \
+            -map "[m]" -ar 48000 -ac 2 music.wav
+          ffmpeg -y -hide_banner -loglevel error -i silent_60.mp4 -i voice_final.wav -i music.wav \
+            -filter_complex "[1:a]volume=1.05[v];[2:a]volume=0.45[m];[v][m]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[a]" \
+            -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k -t 60 -movflags +faststart ISG_Suite_Uzaktan_Egitim_60sn_Turkce_Duzeltilmis.mp4
+          ffprobe -v error -show_entries format=duration,size -of json ISG_Suite_Uzaktan_Egitim_60sn_Turkce_Duzeltilmis.mp4
+      - name: Upload final MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: isg-suite-turkce-promo-final
+          path: ISG_Suite_Uzaktan_Egitim_60sn_Turkce_Duzeltilmis.mp4
+          retention-days: 1
