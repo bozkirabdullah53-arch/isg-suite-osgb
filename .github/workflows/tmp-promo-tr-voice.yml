@@ -19,9 +19,9 @@ jobs:
         run: python tools/tmp_render_promo_tr.py
       - name: Download Turkish voice segments
         run: |
-          curl -L --fail --retry 3 -o voice1.mp3 'https://storage.googleapis.com/adm--audio-playback--7d--public/mcp-preview/64e6acbc-564e-4729-8d34-4366f009692b.mp3'
-          curl -L --fail --retry 3 -o voice2.mp3 'https://storage.googleapis.com/adm--audio-playback--7d--public/mcp-preview/bbe9d695-9277-4038-ae58-d9156b5de3f8.mp3'
-          curl -L --fail --retry 3 -o voice3.mp3 'https://storage.googleapis.com/adm--audio-playback--7d--public/mcp-preview/1fc13cc7-528f-41dd-92d7-a8bceeb44b6d.mp3'
+          curl -L --fail --retry 3 -o voice1.mp3 'https://storage.googleapis.com/adm--audio-playback--7d--public/mcp-preview/8a4f833f-e759-4945-933e-7be91c71ba63.mp3'
+          curl -L --fail --retry 3 -o voice2.mp3 'https://storage.googleapis.com/adm--audio-playback--7d--public/mcp-preview/0038a449-10eb-47ab-a105-e4e4e9859422.mp3'
+          curl -L --fail --retry 3 -o voice3.mp3 'https://storage.googleapis.com/adm--audio-playback--7d--public/mcp-preview/b100af89-df0e-4e46-ad87-f178ed80ffe6.mp3'
           printf "file '%s'\nfile '%s'\nfile '%s'\n" "$PWD/voice1.mp3" "$PWD/voice2.mp3" "$PWD/voice3.mp3" > voices.txt
           ffmpeg -y -hide_banner -loglevel error -f concat -safe 0 -i voices.txt -ar 48000 -ac 2 voice_raw.wav
       - name: Fit narration naturally to 60 seconds
@@ -54,11 +54,11 @@ jobs:
             -map "[m]" -ar 48000 -ac 2 music.wav
           ffmpeg -y -hide_banner -loglevel error -i silent_60.mp4 -i voice_final.wav -i music.wav \
             -filter_complex "[1:a]volume=1.05[v];[2:a]volume=0.45[m];[v][m]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[a]" \
-            -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k -t 60 -movflags +faststart ISG_Suite_Uzaktan_Egitim_60sn_Turkce_Duzeltilmis.mp4
-          ffprobe -v error -show_entries format=duration,size -of json ISG_Suite_Uzaktan_Egitim_60sn_Turkce_Duzeltilmis.mp4
+            -map 0:v -map "[a]" -c:v copy -c:a aac -b:a 192k -t 60 -movflags +faststart ISG_Suite_Uzaktan_Egitim_60sn_Turkce_ISG_Telaffuz_Duzeltildi.mp4
+          ffprobe -v error -show_entries format=duration,size -of json ISG_Suite_Uzaktan_Egitim_60sn_Turkce_ISG_Telaffuz_Duzeltildi.mp4
       - name: Upload final MP4
         uses: actions/upload-artifact@v4
         with:
-          name: isg-suite-turkce-promo-final
-          path: ISG_Suite_Uzaktan_Egitim_60sn_Turkce_Duzeltilmis.mp4
+          name: isg-suite-turkce-isg-telaffuz-final
+          path: ISG_Suite_Uzaktan_Egitim_60sn_Turkce_ISG_Telaffuz_Duzeltildi.mp4
           retention-days: 1
