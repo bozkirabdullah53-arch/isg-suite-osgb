@@ -23,7 +23,6 @@ import {
   X,
 } from "lucide-react";
 import {api, downloadFile, downloadFormFile, uploadFile} from "./api";
-import {getAccessToken} from "./auth_session";
 import {
   enqueueOfflineFinding,
   flushOfflineFindings,
@@ -760,24 +759,41 @@ function LegacyFieldInspectionPage({user}) {
         fd.append("risk_definition", summary.slice(0, 400));
       }
       if (selectedPhotoTags.length) fd.append("photo_tags", JSON.stringify({selected: selectedPhotoTags}));
-      // api.js retry/refresh karmaşıklığı uzun vision çağrısını bozuyor;
-      // doğrudan fetch ile sade, tek denemelik çağrı.
-      const token = getAccessToken();
-      const apiRes = await fetch("/api/v1/risks/vision-analyze", {
+      // Vision sağlayıcısı 30+ saniye sürebildiği için çağrıyı HTTP isteği
+      // içinde açık tutmuyoruz. Backend mevcut async iş kuyruğunda çalıştırır;
+      // burada yalnız kısa kuyruklama + durum sorguları yapılır.
+      const queued = await api("/risks/vision-analyze-async", {
         method: "POST",
         body: fd,
-        credentials: "include",
-        headers: token ? {Authorization: `Bearer ${token}`} : {},
+        timeoutMs: 20_000,
       });
-      if (!apiRes.ok) {
-        const txt = await apiRes.text().catch(() => "");
-        throw new Error(`HTTP ${apiRes.status}: ${txt.slice(0, 200) || apiRes.statusText}`);
+      const jobId = String(queued?.job_id || "").trim();
+      if (!jobId) throw new Error("AI analiz işi başlatılamadı.");
+
+      let result = null;
+      for (let attempt = 0; attempt < 80; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        const status = await api(`/risks/vision-analyze-async/${encodeURIComponent(jobId)}`, {
+          timeoutMs: 15_000,
+          _retries: 1,
+        });
+        if (status?.status === "done") {
+          result = status.result;
+          break;
+        }
+        if (status?.status === "failed") {
+          throw new Error(status.error || "AI analiz servisi yanıt veremedi.");
+        }
       }
-      const r = await apiRes.json();
-      setVisionResults((cur) => ({...cur, [photo.id]: r}));
+      if (!result) {
+        throw new Error("AI analizi beklenenden uzun sürdü. Fotoğraf korundu; lütfen tekrar deneyin.");
+      }
+      setVisionResults((cur) => ({...cur, [photo.id]: result}));
     } catch (ex) {
       let msg = ex.message || "AI analizi başarısız.";
-      if (/fetch|network|timeout|Failed/i.test(msg)) {
+      if (/HTTP\s*50[234]|<!doctype|<html|bad gateway|gateway timeout/i.test(msg)) {
+        msg = "AI analiz servisi geçici olarak yanıt veremedi. Fotoğrafınız korundu; lütfen tekrar deneyin.";
+      } else if (/fetch|network|timeout|Failed|bağlanılamadı/i.test(msg)) {
         msg = "Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edin ve tekrar deneyin.";
       }
       setVisionErr((cur) => ({...cur, [photo.id]: msg}));
