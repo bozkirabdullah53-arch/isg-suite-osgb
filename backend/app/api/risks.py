@@ -68,6 +68,7 @@ from app.schemas.vision import VisionAnalysisResponse, DofApplyRequest
 from app.services.ai_assistant import suggest as assistant_suggest
 from app.services.ai_hazard_hint import HINT_ENGINE, suggest_hazard_from_text
 from app.services.ai_vision import build_full_analysis
+from app.services.job_queue import JobStatus, enqueue, get_job
 from app.core.config import vision_analysis_active
 from app.services.assigned_team import team_names
 from app.services.audit import add_audit_log
@@ -2400,6 +2401,123 @@ def _read_media_bytes(media: RiskMedia) -> bytes | None:
 def _parse_photo_tags(media: RiskMedia) -> list[str]:
     parsed = parse_tags(getattr(media, "tags_json", None))
     return list(parsed.get("selected") or [])
+
+
+def _run_stateless_vision_analysis_job(
+    temp_path: str,
+    *,
+    media_text: str = "",
+    photo_tags: list[str] | None = None,
+    risk_activity: str = "",
+    risk_definition: str = "",
+) -> dict:
+    """Run stateless vision analysis outside the HTTP request lifecycle.
+
+    The static-site API rewrite has a shorter gateway wait window than the
+    configured vision-provider timeout. Moving the slow provider call to the
+    existing job queue keeps the browser request short and prevents gateway
+    502 responses while preserving the same analysis payload.
+    """
+    path = Path(temp_path)
+    try:
+        raw = path.read_bytes()
+        return build_full_analysis(
+            image_bytes=raw,
+            media_text=media_text,
+            photo_tags=list(photo_tags or []),
+            risk_activity=risk_activity,
+            risk_definition=risk_definition,
+        )
+    finally:
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:
+            logger.warning("vision geçici dosyası silinemedi: %s", path, exc_info=True)
+
+
+@router.post("/vision-analyze-async", status_code=202)
+async def queue_vision_analyze_stateless(
+    file: UploadFile = File(...),
+    activity: str | None = Form(default=None),
+    risk_definition: str | None = Form(default=None),
+    photo_tags: str | None = Form(default=None),
+    note: str | None = Form(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Queue stateless photo analysis so long provider calls cannot hit proxy timeouts."""
+    if not vision_analysis_active():
+        raise HTTPException(501, "Saha AI analizi şu anda kapalı (VISION_ANALYSIS_ENABLED).")
+
+    raw = await file.read()
+    max_bytes = settings.vision_max_image_mb * 1024 * 1024
+    if len(raw) > max_bytes:
+        raise HTTPException(413, f"Görüntü {settings.vision_max_image_mb} MB sınırını aşıyor.")
+    if not raw:
+        raise HTTPException(422, "Görüntü boş.")
+
+    tags = parse_form_tags(photo_tags) if photo_tags else []
+    temp_dir = _upload_root() / "_vision_jobs"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    suffix = Path(file.filename or "saha.jpg").suffix.lower()
+    if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
+        suffix = ".jpg"
+    temp_path = temp_dir / f"{uuid.uuid4().hex}{suffix}"
+    temp_path.write_bytes(raw)
+
+    job_name = f"risk_vision_stateless:{user.id}"
+    try:
+        job = enqueue(
+            job_name,
+            _run_stateless_vision_analysis_job,
+            str(temp_path),
+            media_text=(note or "").strip(),
+            photo_tags=tags,
+            risk_activity=(activity or "").strip(),
+            risk_definition=(risk_definition or "").strip(),
+            _force_async=True,
+        )
+    except Exception as exc:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except Exception:
+            logger.warning("vision geçici dosyası temizlenemedi: %s", temp_path, exc_info=True)
+        raise HTTPException(503, "AI analiz işi kuyruğa alınamadı. Lütfen tekrar deneyin.") from exc
+
+    add_audit_log(
+        db,
+        user=user,
+        action="vision_analyze_stateless_queued",
+        entity_type="risk_media",
+        entity_id=None,
+        description=f"Stateless saha fotoğrafı AI analizi kuyruğa alındı: {job.id}",
+        module="risk",
+    )
+    db.commit()
+    return {"job_id": job.id, "status": getattr(job.status, "value", str(job.status))}
+
+
+@router.get("/vision-analyze-async/{job_id}")
+def vision_analyze_stateless_status(
+    job_id: str,
+    user: User = Depends(require_roles(*EDIT_ROLES)),
+):
+    """Return only the current user's queued stateless vision result."""
+    job = get_job(job_id)
+    expected_name = f"risk_vision_stateless:{user.id}"
+    if not job or job.name != expected_name:
+        raise HTTPException(404, "AI analiz işi bulunamadı.")
+
+    status = getattr(job.status, "value", str(job.status))
+    if job.status == JobStatus.FAILED:
+        return {
+            "job_id": job.id,
+            "status": status,
+            "error": "AI analiz servisi yanıt veremedi. Fotoğraf korundu; lütfen tekrar deneyin.",
+        }
+    if job.status == JobStatus.DONE:
+        return {"job_id": job.id, "status": status, "result": job.result}
+    return {"job_id": job.id, "status": status}
 
 
 @router.post("/vision-analyze", response_model=VisionAnalysisResponse)
