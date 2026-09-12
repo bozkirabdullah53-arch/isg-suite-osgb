@@ -1515,7 +1515,7 @@ def risk_report_pdf(
 
 @router.post("/field-report.pdf")
 async def field_inspection_report_pdf(
-    company_id: int = Form(...),
+    company_id: int | None = Form(default=None),
     department_name: str | None = Form(default=None),
     location: str | None = Form(default=None),
     hazard_id: int | None = Form(default=None),
@@ -1537,8 +1537,9 @@ async def field_inspection_report_pdf(
     user: User = Depends(require_roles(*EDIT_ROLES)),
 ):
     """Saha formundaki henüz kaydedilmemiş fotoğraflardan geçici PDF üretir."""
-    ensure_access(db, user, company_id)
-    company = db.get(Company, company_id)
+    resolved_company_id = effective_company_id(db, user, company_id)
+    ensure_access(db, user, resolved_company_id)
+    company = db.get(Company, resolved_company_id)
     if not company:
         raise HTTPException(404, "Firma bulunamadı.")
     if not files:
