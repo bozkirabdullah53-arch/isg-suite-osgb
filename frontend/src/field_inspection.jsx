@@ -467,7 +467,8 @@ function LegacyFieldInspectionPage({user}) {
     setError("");
     try {
       const formData = new FormData();
-      formData.append("company_id", String(form.company_id));
+      const reportCompanyId = Number(form.company_id || selectedCompany?.id || user?.company_id || 0);
+      if (reportCompanyId > 0) formData.append("company_id", String(reportCompanyId));
       if (selectedDepartment?.name || form.department_name) formData.append("department_name", selectedDepartment?.name || form.department_name);
       if (form.location) formData.append("location", form.location);
       if (form.hazard_id) formData.append("hazard_id", String(form.hazard_id));
