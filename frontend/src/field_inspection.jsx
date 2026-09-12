@@ -463,12 +463,28 @@ function LegacyFieldInspectionPage({user}) {
       setError("Fotoğraflı PDF raporu için internet bağlantısı gerekir.");
       return;
     }
+
+    let reportCompanyId = Number(form.company_id || selectedCompany?.id || user?.company_id || 0);
+    if (!reportCompanyId && companies.length === 1) {
+      reportCompanyId = Number(companies[0]?.id || 0);
+      if (reportCompanyId) {
+        setForm((current) => ({...current, company_id: String(reportCompanyId)}));
+      }
+    }
+    if (!reportCompanyId) {
+      setError("PDF raporu için önce İşyeri seçin.");
+      setMessage("");
+      globalThis.requestAnimationFrame?.(() => {
+        document.querySelector(".field-context-bar")?.scrollIntoView({behavior: "smooth", block: "start"});
+      });
+      return;
+    }
+
     setDlBusy("draft");
     setError("");
     try {
       const formData = new FormData();
-      const reportCompanyId = Number(form.company_id || selectedCompany?.id || user?.company_id || 0);
-      if (reportCompanyId > 0) formData.append("company_id", String(reportCompanyId));
+      formData.append("company_id", String(reportCompanyId));
       if (selectedDepartment?.name || form.department_name) formData.append("department_name", selectedDepartment?.name || form.department_name);
       if (form.location) formData.append("location", form.location);
       if (form.hazard_id) formData.append("hazard_id", String(form.hazard_id));
@@ -522,7 +538,11 @@ function LegacyFieldInspectionPage({user}) {
         >
           <Download size={16} /> {dlBusy === "draft" ? "PDF hazırlanıyor…" : "Fotoğraflı PDF raporu al"}
         </button>
-        <small>Seçili fotoğraflar ve mevcut saha bilgileri rapora eklenir.</small>
+        <small>
+          {!form.company_id && companies.length > 1
+            ? "PDF için önce yukarıdaki İşyeri alanından işyeri seçin."
+            : "Seçili fotoğraflar ve mevcut saha bilgileri rapora eklenir."}
+        </small>
       </div>
     );
   }
