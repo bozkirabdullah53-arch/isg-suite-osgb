@@ -1,0 +1,247 @@
+name: Vision Sol daily quota implementation
+
+on:
+  push:
+    branches:
+      - feature/vision-sol-daily-quota
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/vision-sol-daily-quota
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: RED - prove quota test fails before implementation
+        id: red
+        working-directory: backend
+        shell: bash
+        run: |
+          set +e
+          pytest -q tests/test_vision_daily_quota.py
+          code=$?
+          set -e
+          if [ "$code" -eq 0 ]; then
+            echo "Expected RED test to fail before implementation, but it passed."
+            exit 1
+          fi
+          echo "RED confirmed: quota behavior is not implemented yet."
+
+      - name: Apply minimal implementation
+        shell: python
+        run: |
+          from pathlib import Path
+
+          quota_service = '''from __future__ import annotations
+
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+from fastapi import HTTPException
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.models.entities import AuditLog, User
+from app.services.audit import add_audit_log
+
+_TURKEY_TZ = ZoneInfo("Europe/Istanbul")
+_QUOTA_ACTION = "vision_ai_quota_consumed"
+
+
+def turkey_day_utc_window(now: datetime | None = None) -> tuple[datetime, datetime]:
+    """Return the current Turkey calendar-day boundaries as naive UTC datetimes."""
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    local = current.astimezone(_TURKEY_TZ)
+    local_start = local.replace(hour=0, minute=0, second=0, microsecond=0)
+    local_end = local_start.replace(day=local_start.day) + __import__("datetime").timedelta(days=1)
+    start_utc = local_start.astimezone(timezone.utc).replace(tzinfo=None)
+    end_utc = local_end.astimezone(timezone.utc).replace(tzinfo=None)
+    return start_utc, end_utc
+
+
+def ensure_daily_vision_quota(used: int, *, limit: int) -> None:
+    """Raise before any paid provider call once the configured daily cap is reached."""
+    if limit <= 0:
+        return
+    if int(used or 0) >= limit:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Günlük {limit} AI fotoğraf analizi hakkınızı kullandınız. "
+                "Yeni hak Türkiye saatiyle gece yarısında açılır."
+            ),
+        )
+
+
+def consume_daily_vision_quota(
+    db: Session,
+    user: User,
+    *,
+    now: datetime | None = None,
+) -> dict[str, int]:
+    """Atomically reserve one paid vision slot for this user and Turkey day.
+
+    The user row is locked on PostgreSQL so concurrent requests cannot all pass
+    the count check. The audit reservation stays in the caller transaction: if
+    enqueueing fails before commit, a rollback releases the slot automatically.
+    """
+    limit = max(0, int(getattr(settings, "vision_daily_limit_per_user", 2) or 0))
+    if limit <= 0:
+        return {"limit": 0, "used": 0, "remaining": 0}
+
+    db.execute(select(User.id).where(User.id == user.id).with_for_update()).scalar_one()
+    start_utc, end_utc = turkey_day_utc_window(now)
+    used = int(
+        db.scalar(
+            select(func.count())
+            .select_from(AuditLog)
+            .where(
+                AuditLog.user_id == user.id,
+                AuditLog.action == _QUOTA_ACTION,
+                AuditLog.created_at >= start_utc,
+                AuditLog.created_at < end_utc,
+            )
+        )
+        or 0
+    )
+    ensure_daily_vision_quota(used, limit=limit)
+
+    add_audit_log(
+        db,
+        user=user,
+        action=_QUOTA_ACTION,
+        entity_type="risk_media",
+        entity_id=None,
+        description=f"AI fotoğraf analiz kotası kullanıldı ({used + 1}/{limit}).",
+        module="risk",
+    )
+    db.flush()
+    return {"limit": limit, "used": used + 1, "remaining": max(0, limit - used - 1)}
+'''
+          quota_service = quota_service.replace(
+              'from datetime import datetime, timezone\n',
+              'from datetime import datetime, timedelta, timezone\n',
+          ).replace(
+              'local_end = local_start.replace(day=local_start.day) + __import__("datetime").timedelta(days=1)',
+              'local_end = local_start + timedelta(days=1)',
+          )
+          Path('backend/app/services/vision_quota.py').write_text(quota_service, encoding='utf-8')
+
+          config = Path('backend/app/core/config.py')
+          text = config.read_text(encoding='utf-8')
+          text = text.replace('vision_api_model: str = "openai/gpt-5.4-mini"', 'vision_api_model: str = "openai/gpt-5.6-sol"')
+          text = text.replace('vision_max_image_mb: int = 10', 'vision_max_image_mb: int = 10\n    # Kullanıcı başına Türkiye takvim gününde ücretli AI fotoğraf analiz kotası. 0 = sınırsız.\n    vision_daily_limit_per_user: int = 2')
+          text = text.replace('field_ai_model: str = "openai/gpt-5.4-mini"', 'field_ai_model: str = "openai/gpt-5.6-sol"')
+          config.write_text(text, encoding='utf-8')
+
+          render = Path('render.yaml')
+          text = render.read_text(encoding='utf-8')
+          text = text.replace('value: "openai/gpt-5.4-mini"', 'value: "openai/gpt-5.6-sol"')
+          needle = '      - key: VISION_API_TIMEOUT_SEC\n        value: "90"\n'
+          replacement = needle + '      - key: VISION_DAILY_LIMIT_PER_USER\n        value: "2"\n'
+          if 'VISION_DAILY_LIMIT_PER_USER' not in text:
+              if needle not in text:
+                  raise SystemExit('render quota insertion point not found')
+              text = text.replace(needle, replacement, 1)
+          render.write_text(text, encoding='utf-8')
+
+          risks = Path('backend/app/api/risks.py')
+          text = risks.read_text(encoding='utf-8')
+          import_needle = 'from app.services.upload_security import assert_safe_upload\n'
+          if 'from app.services.vision_quota import consume_daily_vision_quota' not in text:
+              text = text.replace(import_needle, import_needle + 'from app.services.vision_quota import consume_daily_vision_quota\n', 1)
+
+          async_flag = '''    if not vision_analysis_active():
+        raise HTTPException(501, "Saha AI analizi şu anda kapalı (VISION_ANALYSIS_ENABLED).")
+
+    raw = await file.read()
+'''
+          async_quota = '''    if not vision_analysis_active():
+        raise HTTPException(501, "Saha AI analizi şu anda kapalı (VISION_ANALYSIS_ENABLED).")
+
+    quota = consume_daily_vision_quota(db, user)
+    raw = await file.read()
+'''
+          if text.count(async_flag) < 2:
+              raise SystemExit('stateless vision insertion points not found')
+          text = text.replace(async_flag, async_quota, 1)
+
+          enqueue_except = '''    except Exception as exc:
+        try:
+            temp_path.unlink(missing_ok=True)
+'''
+          enqueue_except_new = '''    except Exception as exc:
+        db.rollback()
+        try:
+            temp_path.unlink(missing_ok=True)
+'''
+          if enqueue_except not in text:
+              raise SystemExit('enqueue exception insertion point not found')
+          text = text.replace(enqueue_except, enqueue_except_new, 1)
+
+          async_return = '''    db.commit()
+    return {"job_id": job.id, "status": getattr(job.status, "value", str(job.status))}
+'''
+          async_return_new = '''    db.commit()
+    return {
+        "job_id": job.id,
+        "status": getattr(job.status, "value", str(job.status)),
+        "daily_ai_quota": quota,
+    }
+'''
+          if async_return not in text:
+              raise SystemExit('async return insertion point not found')
+          text = text.replace(async_return, async_return_new, 1)
+
+          # Synchronous stateless endpoint: replace the second identical feature-flag block.
+          if async_flag not in text:
+              raise SystemExit('sync stateless insertion point not found')
+          text = text.replace(async_flag, async_quota, 1)
+
+          persisted = '''    row, media = _load_media(db, risk_id, media_id)
+    ensure_access(db, user, row.company_id)
+
+    image_bytes = None
+'''
+          persisted_new = '''    row, media = _load_media(db, risk_id, media_id)
+    ensure_access(db, user, row.company_id)
+    consume_daily_vision_quota(db, user)
+
+    image_bytes = None
+'''
+          if persisted not in text:
+              raise SystemExit('persisted analyze insertion point not found')
+          text = text.replace(persisted, persisted_new, 1)
+          risks.write_text(text, encoding='utf-8')
+
+      - name: GREEN - run focused regression tests
+        working-directory: backend
+        run: pytest -q tests/test_vision_daily_quota.py tests/test_ai_vision.py tests/test_ai_gateway_config.py
+
+      - name: Remove one-shot implementation workflow
+        run: rm .github/workflows/vision-sol-daily-quota-implementation.yml
+
+      - name: Commit tested implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/app/services/vision_quota.py backend/app/core/config.py backend/app/api/risks.py backend/tests/test_vision_daily_quota.py render.yaml .github/workflows/vision-sol-daily-quota-implementation.yml
+          git commit -m "feat: cap vision AI usage and upgrade model"
+          git push origin HEAD:feature/vision-sol-daily-quota
