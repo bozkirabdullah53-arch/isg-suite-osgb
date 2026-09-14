@@ -159,6 +159,13 @@ function isTransientGatewayStatus(status) {
   return status === 502 || status === 503 || status === 504;
 }
 
+function isTransientRemoteProgressGateway(method, path, status) {
+  if (method !== "POST" || !isTransientGatewayStatus(status)) return false;
+  return /^\/trainings\/remote\/assignments\/\d+\/videos\/\d+\/progress(?:\?|$)/.test(
+    String(path || ""),
+  );
+}
+
 function canRetryRequest(error, method, signal) {
   if (signal?.aborted || error?.httpPath === "/auth/refresh") return false;
   // Preserve the existing network retry policy. Only reads may additionally
@@ -527,7 +534,7 @@ export async function api(path, options = {}) {
           );
         }
         const status = e?.httpStatus ?? lastStatus;
-        if (status >= 500) {
+        if (status >= 500 && !isTransientRemoteProgressGateway(method, path, status)) {
           reportClientError({
             source: "api_error",
             title: `API hatası HTTP ${status}`,

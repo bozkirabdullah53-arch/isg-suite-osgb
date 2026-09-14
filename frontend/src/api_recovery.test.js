@@ -77,6 +77,15 @@ describe('API temporary outage recovery', () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/health'))).toBe(false);
   });
 
+  it.each([502, 503, 504])('does not report transient remote video progress HTTP %s as an EISA incident', async (status) => {
+    const path = '/trainings/remote/assignments/185/videos/345/progress';
+    const fetchMock = vi.fn(async () => jsonResponse({}, status));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(api(path, {method: 'POST'})).rejects.toMatchObject({httpStatus: status});
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith(path))).toHaveLength(1);
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/eisa/error-reports'))).toHaveLength(0);
+  });
+
   it('reports a persistent gateway error once after exhausting the read retry budget', async () => {
     const fetchMock = vi.fn(async (url) => (
       String(url).endsWith('/health') ? jsonResponse({status: 'ok'}) : jsonResponse({}, 502)
