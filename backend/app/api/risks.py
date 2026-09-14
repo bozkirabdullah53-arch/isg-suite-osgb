@@ -105,6 +105,7 @@ from app.services.risk_suggestions import get_suggestions
 from app.services.risk_validity import build_validity, document_meta_rows
 from app.services.upload_gateway import delete_relative, persist_relative
 from app.services.upload_security import assert_safe_upload
+from app.services.vision_quota import consume_daily_vision_quota
 
 router = APIRouter(prefix="/risks", tags=["Risk Değerlendirme"])
 # OSGB company_admin menüde risk yok; yazma da saha uzmanı + global admin.
@@ -2450,6 +2451,7 @@ async def queue_vision_analyze_stateless(
     if not vision_analysis_active():
         raise HTTPException(501, "Saha AI analizi şu anda kapalı (VISION_ANALYSIS_ENABLED).")
 
+    quota = consume_daily_vision_quota(db, user)
     raw = await file.read()
     max_bytes = settings.vision_max_image_mb * 1024 * 1024
     if len(raw) > max_bytes:
@@ -2479,6 +2481,7 @@ async def queue_vision_analyze_stateless(
             _force_async=True,
         )
     except Exception as exc:
+        db.rollback()
         try:
             temp_path.unlink(missing_ok=True)
         except Exception:
@@ -2495,7 +2498,11 @@ async def queue_vision_analyze_stateless(
         module="risk",
     )
     db.commit()
-    return {"job_id": job.id, "status": getattr(job.status, "value", str(job.status))}
+    return {
+        "job_id": job.id,
+        "status": getattr(job.status, "value", str(job.status)),
+        "daily_ai_quota": quota,
+    }
 
 
 @router.get("/vision-analyze-async/{job_id}")
@@ -2545,6 +2552,7 @@ async def vision_analyze_stateless(
     if not vision_analysis_active():
         raise HTTPException(501, "Saha AI analizi şu anda kapalı (VISION_ANALYSIS_ENABLED).")
 
+    quota = consume_daily_vision_quota(db, user)
     raw = await file.read()
     max_bytes = settings.vision_max_image_mb * 1024 * 1024
     if len(raw) > max_bytes:
@@ -2598,6 +2606,7 @@ def analyze_risk_media(
         raise HTTPException(501, "Saha AI analizi şu anda kapalı (VISION_ANALYSIS_ENABLED).")
     row, media = _load_media(db, risk_id, media_id)
     ensure_access(db, user, row.company_id)
+    consume_daily_vision_quota(db, user)
 
     image_bytes = None
     if getattr(media, "file_type", None) == "photo":
