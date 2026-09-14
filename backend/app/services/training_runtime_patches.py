@@ -235,6 +235,7 @@ def _patch_question_bank_candidates() -> str:
 
 def _patch_certificate_renderer() -> str:
     from app.services import training_pdfs
+    from app.services.special_training_profiles import SPECIAL_TRAINING_PROFILES
     from app.services.training_height_2026 import (
         apply_height_training_profile_2026,
         draw_height_certificate_page,
@@ -243,6 +244,7 @@ def _patch_certificate_renderer() -> str:
     from app.services.training_pdf_premium import draw_certificate_page
 
     apply_height_training_profile_2026()
+    SPECIAL_TRAINING_PROFILES.get("yuksekte_calisma", {}).pop("instructor_legal_note", None)
 
     current = training_pdfs._draw_certificate_page
     if getattr(current, "_premium_renderer_active", False):
