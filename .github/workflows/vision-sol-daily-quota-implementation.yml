@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feature/vision-sol-daily-quota
+  pull_request:
+    branches:
+      - master
 
 permissions:
   contents: write
@@ -46,6 +49,7 @@ jobs:
         run: pytest -q tests/test_vision_daily_quota.py tests/test_ai_vision.py tests/test_ai_gateway_config.py
 
       - name: Commit implementation
+        if: github.event_name == 'push'
         run: |
           rm -f tools/apply_vision_quota_upgrade.py .github/workflows/vision-sol-daily-quota-implementation.yml
           git config user.name "github-actions[bot]"
