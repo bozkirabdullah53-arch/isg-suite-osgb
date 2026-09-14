@@ -45,7 +45,6 @@
   }
 }
 
-
 /* Public training verification pages remain clean when a user prints a QR
    result from a phone or desktop browser. */
 @media print {
@@ -92,7 +91,6 @@
     color: #111827 !important;
   }
 }
-
 
 /* Doğrulama sonucunun yazdırılabilir belge görünümü. */
 .training-verify-print-certificate {
@@ -243,7 +241,6 @@
   }
 }
 
-
 /* Print-only cleanup: keep the public verification document on one page. */
 @media print {
   html,
@@ -303,7 +300,6 @@
   }
 }
 
-
 /* Member list pagination: keep long EİSA lists compact on phones and desktop. */
 .eisa-pagination {
   display: flex;
@@ -323,5 +319,23 @@
 @media (max-width: 760px) {
   .eisa-pagination button {
     min-width: 96px;
+  }
+}
+
+/* İşyeri Görevlendirmeleri: mobile card cells must fill the card.
+   Desktop nth-child percentage widths are intentionally neutralized only here. */
+@media (max-width: 760px) {
+  .assignments-table tbody td {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .assignments-table tbody td::before,
+  .assignments-table tbody td > * {
+    min-width: 0;
+  }
+
+  .assignments-table tbody td:not([data-label="İşlem"]) {
+    grid-template-columns: minmax(88px, 32%) minmax(0, 1fr);
   }
 }
