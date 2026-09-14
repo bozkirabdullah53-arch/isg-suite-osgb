@@ -59,7 +59,11 @@ def test_remote_certificate_uses_current_employee_identity_and_program_logo(tmp_
     from app.models.remote_training import RemoteTrainingProgram
     from app.services import remote_training as service
     from app.services import training_pdfs
+    from app.services.remote_training_document_extension import (
+        install_remote_training_document_extension,
+    )
 
+    install_remote_training_document_extension()
     engine = _engine()
     with Session(engine) as db:
         osgb = OsgbOrganization(name="Belge Test OSGB", is_active=True)
