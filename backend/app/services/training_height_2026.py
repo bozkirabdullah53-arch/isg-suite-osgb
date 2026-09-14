@@ -530,15 +530,6 @@ def draw_height_certificate_page(
     for idx, line in enumerate(legal_lines):
         c.drawString(ml + 25 * mm, 19.7 * mm - idx * 2.45 * mm, line)
 
-    c.setFillColorRGB(*NAVY)
-    c.setFont(tp._FONT_B, 4.8)
-    c.drawString(ml, 11.7 * mm, "Eğitici Uygunluğu:")
-    c.setFillColorRGB(*MUTED)
-    c.setFont(tp._FONT, 4.45)
-    note_lines = _wrap(tp, c, HEIGHT_INSTRUCTOR_NOTE, uw - 31 * mm, tp._FONT, 4.45, 2)
-    for idx, line in enumerate(note_lines):
-        c.drawString(ml + 29 * mm, 11.7 * mm - idx * 2.35 * mm, line)
-
     c.setFont(tp._FONT, 4.3)
     c.drawString(ml, 6.6 * mm, _fit(tp, c, HEIGHT_DISCLAIMER, uw - 30 * mm, tp._FONT, 4.3))
     c.setFillColorRGB(*NAVY)
