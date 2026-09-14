@@ -426,7 +426,7 @@ def draw_height_certificate_page(
     signers = [("Eğitici (Yönetmelik m.10)", instructor, instructor_title, TEAL)]
     if additional_instructor and height_instructor_is_authorized(additional_title, training):
         signers.append(("Eğitici (Yönetmelik m.10)", additional_instructor, additional_title, TEAL))
-    signers.append(("İşveren / İşveren Vekili", employer, "İşveren / İşveren Vekili", NAVY))
+    signers.append(("İşveren / İşveren Vekili", "", "", NAVY))
 
     gap = 6 * mm
     box_w = (uw - gap * (len(signers) - 1)) / len(signers)
