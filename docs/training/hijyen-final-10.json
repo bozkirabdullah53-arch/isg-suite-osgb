@@ -1,0 +1,194 @@
+{
+  "title": "Yiyecek ve İçecek İşletmelerinde Hijyen – 10 Soruluk Final Sınavı",
+  "language": "tr-TR",
+  "question_count": 10,
+  "status": "awaiting_target_program_verification",
+  "source_filename": "Hijyen_Egitimi_Soru_Verisi.json",
+  "source_sha256": "4e81f0130bd3e2e1596d93c858390619c635bef33632e03f23f740a3f8e9e20d",
+  "source_question_numbers": [
+    2,
+    3,
+    5,
+    7,
+    9,
+    11,
+    17,
+    18,
+    20,
+    29
+  ],
+  "target_program_id": null,
+  "integration_note": "Bu dosya mevcut taslak programın final sorusu düzenleme isteğiyle uyumlu içerik hazırlar. Tek başına yükleyici değildir ve çalışma zamanına bağlı değildir. Canlı hijyen programının kimliği ve durumu doğrulandıktan sonra uygun mevcut yönetim akışı kullanılmalıdır. Yayımlanmış veya atanmış eğitimlerin soruları, ilerleme kayıtları ve sınav geçmişi değiştirilmez. Mevcut geçme puanı, süre ve deneme sınırı korunur.",
+  "questions": [
+    {
+      "order_index": 1,
+      "source_question_id": "HIJ-Q002",
+      "lesson_title": "Hijyen Nedir?",
+      "objective": "Temizlik ve dezenfeksiyonu doğru sırada uygulama",
+      "payload": {
+        "question_text": "Gıda hazırlama tezgâhında kir ve yemek artıkları vardır. Talimata göre dezenfeksiyon da yapılacaksa hangi işlem sırası uygundur?",
+        "options": {
+          "A": "Dezenfektanı kirin üzerine uygulamak, ardından yüzeyi kuru bezle silmek.",
+          "B": "Yemek artıklarını almak, yüzeyi suyla çalkalamak ve işlemi bitirmek.",
+          "C": "Dezenfektanla deterjanı birleştirerek iki işlemi tek uygulamada tamamlamak.",
+          "D": "Kiri uzaklaştırıp temizlemek, ardından talimata uygun dezenfeksiyon yapmak."
+        },
+        "correct_option": "D",
+        "explanation": "Dezenfeksiyondan önce uygun temizlik yapılır. Dezenfektanın dozu, temas süresi ve gerekiyorsa durulama adımı ürün talimatına göre uygulanır."
+      }
+    },
+    {
+      "order_index": 2,
+      "source_question_id": "HIJ-Q003",
+      "lesson_title": "Mikroorganizmalar ve Bulaşma Yolları",
+      "objective": "Çapraz bulaşma yolunu tanıma",
+      "payload": {
+        "question_text": "Çiğ tavuk kesilen tahta yalnızca suyla çalkalanıp pişirilmeyecek salata için kullanılıyor. Bu işlem hangi tehlikeyi doğrudan oluşturur?",
+        "options": {
+          "A": "Çiğ üründeki etkenlerin tahta üzerinden salataya taşınması.",
+          "B": "Salatanın soğutucuda bekleme süresinin kendiliğinden uzaması.",
+          "C": "Salatanın içine temizlik kimyasalı kalıntısının karışması.",
+          "D": "Salatanın sunulduğu tabağın sıcaklığının değişmesi."
+        },
+        "correct_option": "A",
+        "explanation": "Tahta, çiğ ürün ile doğrudan tüketilecek salata arasında taşıyıcı olur. Çiğ ve hazır ürünler ayrılmalı, ekipman ve eller gereken biçimde temizlenmelidir."
+      }
+    },
+    {
+      "order_index": 3,
+      "source_question_id": "HIJ-Q005",
+      "lesson_title": "Kişisel Hijyen",
+      "objective": "Hastalık belirtisinde güvenli bildirim yapma",
+      "payload": {
+        "question_text": "Vardiya başında kusma ve ishal yaşadığını fark eden bir gıda çalışanı öncelikle ne yapmalıdır?",
+        "options": {
+          "A": "Temiz eldiven takıp yalnızca pişmiş ürünlerin servisine geçmelidir.",
+          "B": "Gıdayla çalışmaya başlamadan durumu sorumlu kişiye bildirmelidir.",
+          "C": "Belirtiler azalıncaya kadar çalışıp vardiya sonunda bilgi vermelidir.",
+          "D": "Kendisini daha iyi hissederse bildirim yapmadan görevine dönmelidir."
+        },
+        "correct_option": "B",
+        "explanation": "Gıda güvenliğini etkileyebilecek belirtiler erkenden bildirilir. Çalışma ve işe dönüş kararı işletme prosedürüne ve gerektiğinde sağlık değerlendirmesine dayanır."
+      }
+    },
+    {
+      "order_index": 4,
+      "source_question_id": "HIJ-Q007",
+      "lesson_title": "El Temizliği",
+      "objective": "El yıkamadaki en az yirmi saniyenin hangi aşama olduğunu bilme",
+      "payload": {
+        "question_text": "Eğitimde el yıkama için belirtilen “en az 20 saniye” hangi aşamaya aittir?",
+        "options": {
+          "A": "Ellerin temiz, akan suyla ilk kez ıslatılmasına.",
+          "B": "Yıkamanın ardından ellerin kâğıt havluyla kurutulmasına.",
+          "C": "Islatma, sabunlama, durulama ve kurutmanın toplamına.",
+          "D": "Sabunlu ellerin bütün yüzeyleriyle birlikte ovalanmasına."
+        },
+        "correct_option": "D",
+        "explanation": "En az 20 saniye, sabunla ovalama aşaması içindir. Islatma, durulama ve kurutma ayrıca gerçekleştirilir; parmak araları ve uçları da ovalanır."
+      }
+    },
+    {
+      "order_index": 5,
+      "source_question_id": "HIJ-Q009",
+      "lesson_title": "Yiyecek İçecek Yerlerinde Alınması Gereken Önlemler",
+      "objective": "Malzeme kabulünde şüpheli ürünü yönetme",
+      "payload": {
+        "question_text": "Teslim edilen soğuk üründe ambalaj sızıntısı görülüyor ve taşıma koşulları belirsiz. Mutfakta ürüne ihtiyaç var. Hangi karar uygundur?",
+        "options": {
+          "A": "Şüpheli ürünü diğerlerinden ayırıp değerlendirme için sorumluya bildirmek.",
+          "B": "Ürünü hemen soğutucuya koyup ilk hazırlanacak yemek için kullanmak.",
+          "C": "Sızdıran ambalajı değiştirip teslimatın kalanıyla birlikte kabul etmek.",
+          "D": "Ürünün kokusunu kontrol edip normal görünüyorsa kullanıma almak."
+        },
+        "correct_option": "A",
+        "explanation": "İhtiyaç duyulması şüpheli bir ürünü güvenli yapmaz. Ürün diğerlerinden ayrılır; ambalaj ve teslim koşulları değerlendirilerek sorumlu kişi karar verir."
+      }
+    },
+    {
+      "order_index": 6,
+      "source_question_id": "HIJ-Q011",
+      "lesson_title": "Mutfak Pişirme ve Servis Alanları - Yiyecek İçecek Sektöründe",
+      "objective": "Pişirme yeterliliğini uygun ölçümle değerlendirme",
+      "payload": {
+        "question_text": "Bir yiyeceğin dışı kızarmış, ancak iç kısmının yeterli pişip pişmediği belirsiz. Uygun kontrol hangisidir?",
+        "options": {
+          "A": "Dış yüzeyin rengini daha önce pişen ürünlerle karşılaştırmak.",
+          "B": "Temiz gıda termometresiyle ölçüp ürünün doğrulanmış hedefiyle karşılaştırmak.",
+          "C": "Kabın dış yüzeyine dokunup yeterince sıcak olduğunu değerlendirmek.",
+          "D": "Üründen küçük bir parça tadarak pişmenin yeterli olduğuna karar vermek."
+        },
+        "correct_option": "B",
+        "explanation": "Gereken ölçüm uygun ve temiz bir gıda termometresiyle yapılır. Ölçüm noktası ve hedef değer, ürünün doğrulanmış pişirme talimatından alınır."
+      }
+    },
+    {
+      "order_index": 7,
+      "source_question_id": "HIJ-Q017",
+      "lesson_title": "Gıda Güvenliği",
+      "objective": "Malzeme değişiminde alerjen bilgisini doğrulama",
+      "payload": {
+        "question_text": "Bir sosun hazırlanmasında kullanılan malzemenin markası değişti. Müşteri sosun belirli bir alerjeni içerip içermediğini soruyor. Ne yapılmalıdır?",
+        "options": {
+          "A": "Sosun adı değişmediği için eski alerjen bilgisi aktarılmalıdır.",
+          "B": "Sosun görünüşü aynıysa önceki reçete bilgisi yeterli sayılmalıdır.",
+          "C": "Malzeme az kullanılıyorsa alerjen içermediği söylenmelidir.",
+          "D": "Güncel içerikler ve hazırlıktaki çapraz temas olasılığı doğrulanmalıdır."
+        },
+        "correct_option": "D",
+        "explanation": "Marka veya reçete değişince eski bilgi otomatik olarak geçerli kabul edilmez. İçerik ve hazırlık koşulları kontrol edilir; yalnızca doğrulanmış bilgi paylaşılır."
+      }
+    },
+    {
+      "order_index": 8,
+      "source_question_id": "HIJ-Q018",
+      "lesson_title": "Yiyecek İçecek Sektöründe Tuvalet ve Temel Temizlik İlkeleri",
+      "objective": "Tuvalet ekipmanını gıda alanlarından ayrı tutma",
+      "payload": {
+        "question_text": "Tuvalet temizliğinde kullanılan bez temiz görünüyor. Bu bezin gıda hazırlama tezgâhında kullanılması konusunda doğru karar hangisidir?",
+        "options": {
+          "A": "Bezin kuru tarafını kullanmak yeterli bir ayrım sağlar.",
+          "B": "Tuvalete ayrılmış bez bu alanda kalır; mutfak için ayrılmış araç kullanılır.",
+          "C": "Bezin üzerindeki görünür kalıntıları almak kullanıma yeterlidir.",
+          "D": "Mutfak temizliği günün son işi olacaksa aynı bez kullanılabilir."
+        },
+        "correct_option": "B",
+        "explanation": "Tuvalete ayrılan temizlik araçları gıda hazırlama alanına taşınmaz. Görünüş, bezin taşıyabileceği etkenleri göstermeyebilir."
+      }
+    },
+    {
+      "order_index": 9,
+      "source_question_id": "HIJ-Q020",
+      "lesson_title": "Yiyecek İçecek Sektöründe Tuvalet ve Temel Temizlik İlkeleri",
+      "objective": "Temizlik kimyasallarını karıştırma riskini tanıma",
+      "payload": {
+        "question_text": "Bir çalışan daha güçlü temizlik için çamaşır suyuna asitli bir temizleyici eklemeyi öneriyor. Hangi yanıt uygundur?",
+        "options": {
+          "A": "Miktarlar eşitse ürünler aynı kap içinde birlikte kullanılabilir.",
+          "B": "Karışım önce suyla seyreltilirse iki ürün birlikte kullanılabilir.",
+          "C": "Ürünler karıştırılmaz; tehlikeli gaz oluşturabileceklerinden kendi talimatları izlenir.",
+          "D": "Pencereler açılırsa karışım kısa süreli temizlikte kullanılabilir."
+        },
+        "correct_option": "C",
+        "explanation": "Çamaşır suyu ile asitli veya amonyak içeren ürünlerin karışması tehlikeli gazlar oluşturabilir. Temizlik ürünleri kendi talimatlarına uygun kullanılır."
+      }
+    },
+    {
+      "order_index": 10,
+      "source_question_id": "HIJ-Q029",
+      "lesson_title": "Atık Yönetimi",
+      "objective": "Kullanılmış kızartma yağını uygun biçimde toplama",
+      "payload": {
+        "question_text": "Kullanılmış kızartma yağı güvenli işlem koşuluna ulaştıktan sonra nasıl yönetilmelidir?",
+        "options": {
+          "A": "Suyla seyreltilip lavaboya kontrollü biçimde boşaltılmalıdır.",
+          "B": "Gıda artıklarının bulunduğu torbaya azar azar aktarılmalıdır.",
+          "C": "Kapalı, tanımlı kapta ayrı toplanarak uygun teslim kanalına verilmelidir.",
+          "D": "Diğer atıklarla karıştırılıp genel atık kabında biriktirilmelidir."
+        },
+        "correct_option": "C",
+        "explanation": "Kullanılmış yağ lavaboya, tuvalete veya doğaya dökülmez. Uygun kapta ayrı toplanır, su ve başka atıklarla karıştırılmaz; uygun toplama ve teslim yöntemi izlenir."
+      }
+    }
+  ]
+}
