@@ -1,30 +1,53 @@
 import React, {useEffect, useState} from 'react';
-import {Beaker, Download, Plus, RefreshCw, Tag, Upload} from 'lucide-react';
+import {
+  Beaker,
+  Building2,
+  CalendarClock,
+  Download,
+  FileCheck2,
+  Hash,
+  Plus,
+  RefreshCw,
+  Save,
+  ShieldCheck,
+  Tag,
+  Upload,
+} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
 import {isWorkplaceAccountUser} from './workplace_user_policy';
+import './sds_register.css';
 
-function Modal({title, close, children}) {
+function Modal({title, close, children, className = ''}) {
   return (
-    <AppModal title={title} close={close}>
+    <AppModal title={title} close={close} className={className}>
       {children}
     </AppModal>
   );
 }
 
-function Field({label, children, ...rest}) {
+function Field({label, children, className = '', hint = '', icon: Icon, requiredLabel = false, ...rest}) {
+  const required = requiredLabel || !!rest.required;
   if (children) {
     return (
-      <label className="field">
-        <span>{label}</span>
+      <label className={`field sds-modern-field${className ? ` ${className}` : ''}`}>
+        <span className="sds-modern-field-label">
+          {Icon ? <Icon size={15} aria-hidden="true" /> : null}
+          <span>{label}{required ? <b aria-hidden="true">*</b> : null}</span>
+        </span>
         {children}
+        {hint ? <small className="sds-field-hint">{hint}</small> : null}
       </label>
     );
   }
   return (
-    <label className="field">
-      <span>{label}</span>
+    <label className={`field sds-modern-field${className ? ` ${className}` : ''}`}>
+      <span className="sds-modern-field-label">
+        {Icon ? <Icon size={15} aria-hidden="true" /> : null}
+        <span>{label}{required ? <b aria-hidden="true">*</b> : null}</span>
+      </span>
       <input {...rest} />
+      {hint ? <small className="sds-field-hint">{hint}</small> : null}
     </label>
   );
 }
@@ -302,53 +325,101 @@ export function SdsRegisterPage({user}) {
       </div>
 
       {open && (
-        <Modal title="Yeni Kimyasal Ürün" close={() => setOpen(false)}>
-          <form className="form-grid" onSubmit={save}>
-            <Field label="Firma">
-              <select
+        <Modal
+          className="sds-product-modal"
+          title={(
+            <span className="sds-modal-heading">
+              <span className="sds-modal-heading-icon" aria-hidden="true"><Beaker size={22} /></span>
+              <span>
+                <strong>Yeni Kimyasal Ürün</strong>
+                <small>SDS siciline güvenli ve izlenebilir ürün kaydı</small>
+              </span>
+            </span>
+          )}
+          close={() => setOpen(false)}
+        >
+          <form className="sds-product-form" onSubmit={save}>
+            <div className="sds-modal-intro">
+              <span className="sds-modal-intro-icon" aria-hidden="true"><ShieldCheck size={21} /></span>
+              <span className="sds-modal-intro-copy">
+                <strong>Ürün ve takip bilgileri</strong>
+                <small>Kimyasalı tanımlayın; SDS durumu ve gözden geçirme tarihini kaydedin.</small>
+              </span>
+              <span className="sds-required-note"><b>*</b> Zorunlu alan</span>
+            </div>
+
+            <div className="sds-product-grid">
+              <Field label="Firma" icon={Building2} requiredLabel>
+                <select
+                  required
+                  value={form.company_id}
+                  onChange={(e) => setForm({...form, company_id: e.target.value})}
+                >
+                  <option value="">Seçiniz</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field
+                label="Ürün adı"
+                icon={Beaker}
                 required
-                value={form.company_id}
-                onChange={(e) => setForm({...form, company_id: e.target.value})}
-              >
-                <option value="">Seçiniz</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field
-              label="Ürün adı"
-              required
-              value={form.product_name}
-              onChange={(e) => setForm({...form, product_name: e.target.value})}
-            />
-            <Field
-              label="CAS (isteğe bağlı)"
-              placeholder="örn. 67-64-1"
-              value={form.cas_number}
-              onChange={(e) => setForm({...form, cas_number: e.target.value})}
-            />
-            <Field
-              label="Sonraki gözden geçirme"
-              type="date"
-              value={form.next_review_date}
-              onChange={(e) => setForm({...form, next_review_date: e.target.value})}
-            />
-            <label className="field" style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
-              <input
-                type="checkbox"
-                checked={!!form.has_sds_file}
-                onChange={(e) => setForm({...form, has_sds_file: e.target.checked})}
+                placeholder="Örn. Aseton"
+                value={form.product_name}
+                onChange={(e) => setForm({...form, product_name: e.target.value})}
               />
-              <span>SDS dosyası mevcut (bayrak)</span>
-            </label>
-            <Field
-              label="Not"
-              value={form.notes}
-              onChange={(e) => setForm({...form, notes: e.target.value})}
-            />
-            <div className="form-actions">
-              <button type="submit" disabled={busy}>Kaydet</button>
+              <Field
+                label="CAS (isteğe bağlı)"
+                icon={Hash}
+                placeholder="Örn. 67-64-1"
+                value={form.cas_number}
+                onChange={(e) => setForm({...form, cas_number: e.target.value})}
+              />
+              <Field
+                label="Sonraki gözden geçirme"
+                icon={CalendarClock}
+                type="date"
+                value={form.next_review_date}
+                onChange={(e) => setForm({...form, next_review_date: e.target.value})}
+              />
+              <label className={`sds-file-card${form.has_sds_file ? ' is-active' : ''}`}>
+                <input
+                  className="sds-toggle-input"
+                  type="checkbox"
+                  checked={!!form.has_sds_file}
+                  onChange={(e) => setForm({...form, has_sds_file: e.target.checked})}
+                />
+                <span className="sds-file-card-icon" aria-hidden="true"><FileCheck2 size={21} /></span>
+                <span className="sds-file-card-copy">
+                  <strong>SDS dosyası mevcut</strong>
+                  <small>Güvenlik bilgi formu hazırsa bu seçeneği etkinleştirin.</small>
+                </span>
+                <span className="sds-toggle-ui" aria-hidden="true"><span /></span>
+              </label>
+              <Field label="Not" className="sds-notes-field">
+                <textarea
+                  rows={3}
+                  placeholder="Ürün, kullanım alanı veya takip süreciyle ilgili kısa not ekleyin…"
+                  value={form.notes}
+                  onChange={(e) => setForm({...form, notes: e.target.value})}
+                />
+              </Field>
+            </div>
+
+            <div className="sds-product-actions">
+              <button
+                type="button"
+                className="sds-cancel-button"
+                disabled={busy}
+                onClick={() => setOpen(false)}
+              >
+                Vazgeç
+              </button>
+              <button type="submit" className="sds-save-button" disabled={busy}>
+                <Save size={17} aria-hidden="true" />
+                {busy ? 'Kaydediliyor…' : 'Ürünü Kaydet'}
+              </button>
             </div>
           </form>
         </Modal>
