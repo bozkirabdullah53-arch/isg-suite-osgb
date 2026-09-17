@@ -4,6 +4,7 @@ import {api, downloadFile} from './api';
 import {
   certificateKindLabel,
   completedSelfServiceTraining,
+  filterSelfServiceCertificates,
   formatSelfServiceDate,
   rememberEmployeeTrainingAssignment,
   normalizeSelfServicePayload,
@@ -38,6 +39,8 @@ export function EmployeeSelfServicePage({onOpenTraining}) {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
   const [downloadingId, setDownloadingId] = useState('');
+  const [certificateQuery, setCertificateQuery] = useState('');
+  const [certificateFilter, setCertificateFilter] = useState('all');
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -91,6 +94,9 @@ export function EmployeeSelfServicePage({onOpenTraining}) {
   const data = summary || normalizeSelfServicePayload({});
   const totalTraining = totalSelfServiceTraining(data);
   const completedTraining = completedSelfServiceTraining(data);
+  const visibleCertificates = filterSelfServiceCertificates(
+    data.certificates.items, certificateQuery, certificateFilter,
+  );
 
   return (
     <div className="employee-self-service-page">
@@ -125,6 +131,65 @@ export function EmployeeSelfServicePage({onOpenTraining}) {
       </div>
 
       <div className="ess-content-grid">
+        <section className="ess-card ess-certificates-card" aria-labelledby="ess-certificates-title">
+          <div className="ess-card-title"><Award size={20}/><h2 id="ess-certificates-title">Katılım Belgelerim</h2></div>
+          <p className="ess-certificate-help">
+            Yalnızca size ait belgeler burada listelenir. Yüz yüze eğitimde eğitim tamamlanıp katılımınız
+            doğrulandığında; uzaktan eğitimde videoları tamamlayıp sınavı geçtiğinizde belgenizi indirebilirsiniz.
+          </p>
+          <div className="ess-certificate-toolbar">
+            <label>
+              <span>Belge ara</span>
+              <input type="search" value={certificateQuery} placeholder="Eğitim adı veya belge numarası"
+                onChange={(event) => setCertificateQuery(event.target.value)}/>
+            </label>
+            <label>
+              <span>Belge durumu</span>
+              <select value={certificateFilter} onChange={(event) => setCertificateFilter(event.target.value)}>
+                <option value="all">Tüm belgeler ({data.certificates.total})</option>
+                <option value="ready">İndirilebilir ({data.certificates.downloadable})</option>
+                <option value="pending">Hazırlanıyor ({data.certificates.total - data.certificates.downloadable})</option>
+              </select>
+            </label>
+          </div>
+          {visibleCertificates.length ? (
+            <div className="ess-list">
+              {visibleCertificates.map((item) => (
+                <div className="ess-list-row ess-training-row" key={item.id}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <small>
+                      {certificateKindLabel(item.kind)}
+                      {item.certificate_number ? ` · ${item.certificate_number}` : ''}
+                      {item.issue_date ? ` · ${formatSelfServiceDate(item.issue_date)}` : ''}
+                    </small>
+                    {!item.downloadable && <small className="ess-certificate-reason">
+                      {item.block_reason || 'Belge henüz hazır değil'}
+                    </small>}
+                  </div>
+                  <div className="ess-training-actions">
+                    {item.downloadable ? (
+                      <button
+                        type="button"
+                        className="ess-button ess-button-small"
+                        disabled={Boolean(downloadingId)}
+                        aria-label={`${item.title} katılım belgesini indir`}
+                        onClick={() => void downloadCertificate(item)}
+                      >
+                        <Download size={14}/> {downloadingId === item.id ? 'İndiriliyor…' : 'Belgeyi indir'}
+                      </button>
+                    ) : (
+                      <span className="ess-badge pending">Hazırlanıyor</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <Empty>{data.certificates.items.length
+            ? 'Aramanıza uygun belge bulunamadı.'
+            : 'Henüz katılım belgeniz yok. Eğitim tamamlandığında belgeniz burada görünecektir.'}</Empty>}
+        </section>
+
         <section className="ess-card">
           <div className="ess-card-title"><ClipboardList size={20}/><h2>Eğitimlerim</h2></div>
           {data.training.remote.available && data.training.remote.assignments.length > 0 && (
@@ -163,42 +228,6 @@ export function EmployeeSelfServicePage({onOpenTraining}) {
           {!data.training.remote.assignments.length && !data.training.classroom.history.length && (
             <Empty>Henüz size atanmış eğitim kaydı yok.</Empty>
           )}
-        </section>
-
-        <section className="ess-card">
-          <div className="ess-card-title"><Award size={20}/><h2>Katılım belgelerim</h2></div>
-          {data.certificates.items.length ? (
-            <div className="ess-list">
-              {data.certificates.items.map((item) => (
-                <div className="ess-list-row ess-training-row" key={item.id}>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <small>
-                      {certificateKindLabel(item.kind)}
-                      {item.certificate_number ? ` · ${item.certificate_number}` : ''}
-                      {item.issue_date ? ` · ${formatSelfServiceDate(item.issue_date)}` : ''}
-                    </small>
-                  </div>
-                  <div className="ess-training-actions">
-                    {item.downloadable ? (
-                      <button
-                        type="button"
-                        className="ess-button ess-button-small"
-                        disabled={downloadingId === item.id}
-                        onClick={() => void downloadCertificate(item)}
-                      >
-                        <Download size={14}/> {downloadingId === item.id ? 'İndiriliyor…' : 'Belgeyi indir'}
-                      </button>
-                    ) : (
-                      <span className="ess-badge pending" title={item.block_reason || ''}>
-                        {item.block_reason || 'Belge henüz hazır değil'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : <Empty>Henüz katılım belgesi kaydı yok.</Empty>}
         </section>
 
         <section className="ess-card">
