@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 from fastapi import HTTPException
@@ -20,13 +20,24 @@ from app.models.entities import (
     Notification,
     NotificationType,
     OsgbOrganization,
+    TrainingParticipant,
+    TrainingSession,
+    TrainingStatus,
     User,
     UserRole,
 )
-from app.models.remote_training import RemoteTrainingEmployeeAccess
+from app.models.remote_training import (
+    RemoteTrainingAssignment,
+    RemoteTrainingEmployeeAccess,
+    RemoteTrainingProgram,
+)
 from app.api.self_service import (
     _assert_self_service_user,
+    _own_classroom_certificate,
+    _own_remote_certificate,
     _resolve_employee_scope,
+    build_own_classroom_certificate_pdf,
+    build_own_remote_certificate_pdf,
     build_self_service_payload,
 )
 
@@ -190,3 +201,138 @@ def test_self_service_notifications_are_direct_and_hide_annual_plan(db: Session)
     payload = _notification_summary(db, user.id, company.id)
     assert [row["title"] for row in payload["items"]] == ["Eğitiminiz devam ediyor"]
     assert payload["unread"] == 1
+
+
+def test_self_service_lists_and_downloads_only_own_certificates(db: Session, monkeypatch):
+    osgb, company, _other_company, employee, user, _mapping = _seed(db)
+    other_employee = Employee(
+        company_id=company.id,
+        full_name="Ali Kaya",
+        job_title="Operatör",
+        is_active=True,
+    )
+    db.add(other_employee)
+    db.flush()
+    monkeypatch.setattr(settings, "employee_self_service_enabled", True)
+    monkeypatch.setattr(settings, "employee_self_service_force_off", False)
+    monkeypatch.setattr(settings, "remote_basic_ohs_training_enabled", True)
+    monkeypatch.setattr(settings, "remote_basic_ohs_training_force_off", False)
+
+    own_training = TrainingSession(
+        company_id=company.id,
+        title="Temel İSG Eğitimi",
+        start_date=date(2026, 3, 10),
+        end_date=date(2026, 3, 10),
+        hazard_class="Tehlikeli",
+        instructor_name="İSG Uzmanı",
+        status=TrainingStatus.COMPLETED,
+        created_by_id=user.id,
+    )
+    other_training = TrainingSession(
+        company_id=company.id,
+        title="Yüksekte Çalışma",
+        start_date=date(2026, 4, 1),
+        end_date=date(2026, 4, 1),
+        hazard_class="Tehlikeli",
+        instructor_name="İSG Uzmanı",
+        status=TrainingStatus.COMPLETED,
+        created_by_id=user.id,
+    )
+    db.add_all([own_training, other_training])
+    db.flush()
+    db.add_all(
+        [
+            TrainingParticipant(
+                training_id=own_training.id,
+                employee_id=employee.id,
+                attended=True,
+                successful=True,
+                certificate_number="EGT-OWN-001",
+            ),
+            TrainingParticipant(
+                training_id=other_training.id,
+                employee_id=other_employee.id,
+                attended=True,
+                successful=True,
+                certificate_number="EGT-OTHER-001",
+            ),
+        ]
+    )
+    program = RemoteTrainingProgram(
+        osgb_id=osgb.id,
+        company_id=company.id,
+        title="Uzaktan Temel İSG",
+        status="published",
+        total_duration_seconds=3600,
+    )
+    db.add(program)
+    db.flush()
+    assignment = RemoteTrainingAssignment(
+        osgb_id=osgb.id,
+        company_id=company.id,
+        program_id=program.id,
+        employee_id=employee.id,
+        employee_name_snapshot=employee.full_name,
+        workplace_name_snapshot="Merkez İşyeri",
+        sgk_registration_number_snapshot="SGK-1",
+        nace_code_snapshot="46.83.06",
+        nace_description_snapshot="Toptan ticaret",
+        hazard_class_snapshot="Tehlikeli",
+        status="completed",
+        completed_at=datetime(2026, 5, 1, 10, 0, 0),
+    )
+    pending_assignment = RemoteTrainingAssignment(
+        osgb_id=osgb.id,
+        company_id=company.id,
+        program_id=program.id,
+        employee_id=other_employee.id,
+        employee_name_snapshot=other_employee.full_name,
+        workplace_name_snapshot="Merkez İşyeri",
+        sgk_registration_number_snapshot="SGK-1",
+        nace_code_snapshot="46.83.06",
+        nace_description_snapshot="Toptan ticaret",
+        hazard_class_snapshot="Tehlikeli",
+        status="in_progress",
+    )
+    db.add_all([assignment, pending_assignment])
+    db.flush()
+
+    payload = build_self_service_payload(
+        db,
+        user=user,
+        company=company,
+        employee=employee,
+        branch=None,
+    )
+    certificates = payload["certificates"]["items"]
+    assert payload["capabilities"]["can_download_own_certificates"] is True
+    assert {row["id"] for row in certificates} == {f"classroom-{own_training.id}", f"remote-{assignment.id}"}
+    assert all(row["downloadable"] for row in certificates)
+    assert all(row["source_id"] != other_training.id for row in certificates)
+
+    classroom_pdf, classroom_name = build_own_classroom_certificate_pdf(
+        db,
+        company=company,
+        employee=employee,
+        training_id=own_training.id,
+    )
+    assert classroom_pdf.startswith(b"%PDF")
+    assert classroom_pdf.count(b"/Type /Page\n") == 1
+    assert b"Ali Kaya" not in classroom_pdf
+    assert classroom_name.endswith("EGT-OWN-001.pdf")
+
+    with pytest.raises(HTTPException) as other_exc:
+        _own_classroom_certificate(db, employee, other_training.id)
+    assert other_exc.value.status_code == 403
+
+    remote_pdf, remote_name = build_own_remote_certificate_pdf(
+        db,
+        employee=employee,
+        assignment_id=assignment.id,
+    )
+    assert remote_pdf.startswith(b"%PDF")
+    assert "ROHS-" in remote_name
+
+    with pytest.raises(HTTPException) as pending_exc:
+        _own_remote_certificate(db, employee, pending_assignment.id)
+    assert pending_exc.value.status_code == 404

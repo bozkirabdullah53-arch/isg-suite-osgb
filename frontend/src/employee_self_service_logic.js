@@ -65,6 +65,9 @@ export function normalizeSelfServicePayload(payload) {
     ? source.notifications
     : {};
   const health = source.health && typeof source.health === 'object' ? source.health : {};
+  const certificates = source.certificates && typeof source.certificates === 'object'
+    ? source.certificates
+    : {};
   const notificationItems = (Array.isArray(notifications.items) ? notifications.items : [])
     .filter(isEmployeeNotificationVisible);
 
@@ -92,6 +95,11 @@ export function normalizeSelfServicePayload(payload) {
         assignments: Array.isArray(remote.assignments) ? remote.assignments : [],
       },
     },
+    certificates: {
+      total: Number(certificates.total || 0),
+      downloadable: Number(certificates.downloadable || 0),
+      items: Array.isArray(certificates.items) ? certificates.items : [],
+    },
     ppe: {
       total: Number(ppe.total || 0),
       items: Array.isArray(ppe.items) ? ppe.items : [],
@@ -117,4 +125,14 @@ export function totalSelfServiceTraining(summary) {
 export function completedSelfServiceTraining(summary) {
   return Number(summary?.training?.classroom?.completed || 0)
     + Number(summary?.training?.remote?.completed || 0);
+}
+
+export function certificateKindLabel(kind) {
+  return kind === 'remote' ? 'Uzaktan eğitim' : 'Yüz yüze eğitim';
+}
+
+export function selfServiceCertificateFilename(item) {
+  const number = String(item?.certificate_number || '').trim().replace(/[^\w.-]+/g, '-');
+  if (number) return `egitim-katilim-belgesi-${number}.pdf`;
+  return `egitim-katilim-belgesi-${item?.kind || 'kayit'}-${item?.source_id || 'belge'}.pdf`;
 }

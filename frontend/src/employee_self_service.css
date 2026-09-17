@@ -373,6 +373,13 @@
   .ess-training-actions {
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .ess-training-actions .ess-badge {
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
   }
 
   .ess-badge {

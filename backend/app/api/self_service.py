@@ -3,16 +3,20 @@
 Bu uç mevcut çalışan, kullanıcı ve eğitim tablolarına ek kayıt yazmaz. Hesap
 ile çalışan arasındaki ilişki yalnızca açık ``RemoteTrainingEmployeeAccess``
 eşleştirmesinden okunur; ad-soyad tahmini veya çapraz firma araması yapılmaz.
-İBYS ve MEDULA/e-Reçete kapsamı bu modülün dışındadır.
+İBYS ve MEDULA/e-Reçete kapsamı bu modülün dışındadır. Katılım belgesi
+indirmesi yalnız eşleşen çalışanın kendi kayıtlarını üretir; yönetici toplu
+PDF uçları değişmez.
 """
 from __future__ import annotations
 
 from datetime import date, datetime
+from io import BytesIO
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import and_, or_, select
-from sqlalchemy.orm import Session
+from fastapi.responses import StreamingResponse
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.company_access import ensure_company_access
 from app.api.deps import get_current_user
@@ -27,16 +31,25 @@ from app.models.entities import (
     PpeAssignment,
     TrainingParticipant,
     TrainingSession,
+    TrainingStatus,
     User,
     UserRole,
 )
 from app.models.remote_training import (
     RemoteTrainingAssignment,
+    RemoteTrainingCertificate,
     RemoteTrainingEmployeeAccess,
     RemoteTrainingProgram,
 )
 from app.services.health_audit import append_health_access
-from app.services.remote_training import strict_policy_active
+from app.services.remote_training import (
+    build_certificate_pdf,
+    ensure_certificate,
+    strict_policy_active,
+)
+from app.services import training_pdfs
+from app.services.special_training_profiles import resolve_special_profile_key
+from app.services.training_completion import _compliant_certificate_pdf, completion_preflight
 
 router = APIRouter(prefix="/self-service", tags=["Çalışan Self Servis"])
 
@@ -183,6 +196,304 @@ def _remote_training_summary(db: Session, company_id: int, employee_id: int) -> 
         "completed": sum(1 for row in visible if row["status"] == "completed"),
         "assignments": visible,
     }
+
+
+def _classroom_certificate_state(
+    db: Session,
+    session: TrainingSession,
+    participant: TrainingParticipant,
+) -> dict[str, Any]:
+    """Decide whether this employee may download their own classroom document."""
+    if session.status == TrainingStatus.CANCELLED:
+        return {
+            "downloadable": False,
+            "block_reason": "İptal edilmiş eğitim için katılım belgesi üretilemez.",
+        }
+    if resolve_special_profile_key(session):
+        if not session.attendance_verified:
+            return {
+                "downloadable": False,
+                "block_reason": "Özel eğitim katılımı doğrulanmadan belge üretilemez.",
+            }
+        if not session.success_verified:
+            return {
+                "downloadable": False,
+                "block_reason": "Özel eğitim değerlendirmesi doğrulanmadan belge üretilemez.",
+            }
+    preflight = completion_preflight(db, session)
+    row = next(
+        (item for item in preflight["participants"] if item["participant_id"] == participant.id),
+        None,
+    )
+    if preflight.get("strict_enforced"):
+        blockers = list(preflight.get("training_blockers") or [])
+        if row and not row.get("eligible"):
+            blockers.extend(row.get("reasons") or [])
+        if blockers or not (row and row.get("eligible")):
+            return {
+                "downloadable": False,
+                "block_reason": "; ".join(blockers) or "Katılım belgesi henüz oluşmadı.",
+            }
+        return {"downloadable": True, "block_reason": None}
+    if session.status != TrainingStatus.COMPLETED and not participant.attended and participant.successful is not True:
+        return {
+            "downloadable": False,
+            "block_reason": "Eğitim tamamlandıktan sonra katılım belgesi indirilebilir.",
+        }
+    return {"downloadable": True, "block_reason": None}
+
+
+def _remote_snapshot_ready(assignment: RemoteTrainingAssignment) -> bool:
+    return all(
+        (
+            assignment.employee_name_snapshot,
+            assignment.workplace_name_snapshot,
+            assignment.sgk_registration_number_snapshot,
+            assignment.nace_code_snapshot,
+            assignment.nace_description_snapshot,
+            assignment.hazard_class_snapshot,
+        )
+    )
+
+
+def _remote_certificate_state(
+    assignment: RemoteTrainingAssignment,
+    certificate: RemoteTrainingCertificate | None,
+) -> dict[str, Any]:
+    if assignment.status == "revoked" and certificate is None:
+        return {
+            "downloadable": False,
+            "block_reason": "Atama kaldırıldı; bu kayıt için oluşturulmuş belge bulunmuyor.",
+        }
+    if assignment.status != "completed" and certificate is None:
+        return {
+            "downloadable": False,
+            "block_reason": "Video ve final sınavı tamamlanmadan katılım belgesi alınamaz.",
+        }
+    if certificate is None and not _remote_snapshot_ready(assignment):
+        return {
+            "downloadable": False,
+            "block_reason": "Belge için tarihsel işyeri bilgileri eksik.",
+        }
+    return {"downloadable": True, "block_reason": None}
+
+
+def _classroom_certificate_items(
+    db: Session,
+    company_id: int,
+    employee_id: int,
+) -> list[dict[str, Any]]:
+    rows = db.execute(
+        select(TrainingSession, TrainingParticipant)
+        .join(TrainingParticipant, TrainingParticipant.training_id == TrainingSession.id)
+        .where(
+            TrainingSession.company_id == company_id,
+            TrainingParticipant.employee_id == employee_id,
+        )
+        .order_by(TrainingSession.start_date.desc(), TrainingSession.id.desc())
+        .limit(100)
+    ).all()
+    items: list[dict[str, Any]] = []
+    for session, participant in rows:
+        state = _classroom_certificate_state(db, session, participant)
+        items.append(
+            {
+                "id": f"classroom-{session.id}",
+                "kind": "classroom",
+                "source_id": session.id,
+                "title": session.title,
+                "training_type": session.training_type,
+                "start_date": _iso(session.start_date),
+                "issue_date": _iso(session.end_date or session.start_date),
+                "certificate_number": participant.certificate_number,
+                "downloadable": state["downloadable"],
+                "block_reason": state["block_reason"],
+                "download_path": f"/self-service/certificates/classroom/{session.id}.pdf",
+            }
+        )
+    return items
+
+
+def _remote_certificate_items(
+    db: Session,
+    company_id: int,
+    employee_id: int,
+) -> list[dict[str, Any]]:
+    if not remote_basic_ohs_training_active():
+        return []
+    assignments = db.scalars(
+        select(RemoteTrainingAssignment)
+        .where(
+            RemoteTrainingAssignment.company_id == company_id,
+            RemoteTrainingAssignment.employee_id == employee_id,
+        )
+        .order_by(RemoteTrainingAssignment.completed_at.desc(), RemoteTrainingAssignment.id.desc())
+        .limit(100)
+    ).all()
+    if not assignments:
+        return []
+    program_ids = {int(row.program_id) for row in assignments}
+    programs = {
+        program.id: program
+        for program in db.scalars(
+            select(RemoteTrainingProgram).where(RemoteTrainingProgram.id.in_(program_ids))
+        ).all()
+    }
+    certificates = {
+        certificate.assignment_id: certificate
+        for certificate in db.scalars(
+            select(RemoteTrainingCertificate).where(
+                RemoteTrainingCertificate.assignment_id.in_([row.id for row in assignments])
+            )
+        ).all()
+    }
+    items: list[dict[str, Any]] = []
+    for assignment in assignments:
+        program = programs.get(assignment.program_id)
+        if not program:
+            continue
+        if assignment.status != "revoked" and program.status != "published":
+            continue
+        if (
+            assignment.status != "revoked"
+            and str(getattr(program, "policy_mode", "legacy") or "legacy").lower() == "strict"
+            and not strict_policy_active(program)
+        ):
+            continue
+        certificate = certificates.get(assignment.id)
+        state = _remote_certificate_state(assignment, certificate)
+        items.append(
+            {
+                "id": f"remote-{assignment.id}",
+                "kind": "remote",
+                "source_id": assignment.id,
+                "title": program.title,
+                "training_type": "Uzaktan Eğitim",
+                "start_date": _iso(assignment.assigned_at),
+                "issue_date": _iso(
+                    certificate.issue_date
+                    if certificate
+                    else assignment.completed_at
+                ),
+                "certificate_number": certificate.certificate_number if certificate else None,
+                "downloadable": state["downloadable"],
+                "block_reason": state["block_reason"],
+                "download_path": f"/self-service/certificates/remote/{assignment.id}.pdf",
+            }
+        )
+    return items
+
+
+def _certificate_summary(db: Session, company_id: int, employee_id: int) -> dict[str, Any]:
+    items = _classroom_certificate_items(db, company_id, employee_id) + _remote_certificate_items(
+        db, company_id, employee_id
+    )
+    items.sort(
+        key=lambda row: (
+            str(row.get("issue_date") or row.get("start_date") or ""),
+            int(row.get("source_id") or 0),
+        ),
+        reverse=True,
+    )
+    downloadable = [row for row in items if row["downloadable"]]
+    return {
+        "total": len(items),
+        "downloadable": len(downloadable),
+        "items": items,
+    }
+
+
+def _pdf_response(data: bytes, filename: str) -> StreamingResponse:
+    return StreamingResponse(
+        BytesIO(data),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _own_classroom_certificate(
+    db: Session,
+    employee: Employee,
+    training_id: int,
+) -> tuple[TrainingSession, TrainingParticipant]:
+    session = db.scalar(
+        select(TrainingSession)
+        .options(selectinload(TrainingSession.participants))
+        .where(
+            TrainingSession.id == training_id,
+            TrainingSession.company_id == employee.company_id,
+        )
+    )
+    if not session:
+        raise HTTPException(404, "Eğitim kaydı bulunamadı.")
+    participant = next(
+        (row for row in session.participants if row.employee_id == employee.id),
+        None,
+    )
+    if participant is None:
+        raise HTTPException(403, "Bu eğitim belgesi sizin katılım kaydınıza ait değil.")
+    state = _classroom_certificate_state(db, session, participant)
+    if not state["downloadable"]:
+        raise HTTPException(409, state["block_reason"] or "Katılım belgesi henüz indirilemez.")
+    return session, participant
+
+
+def _own_remote_certificate(
+    db: Session,
+    employee: Employee,
+    assignment_id: int,
+) -> tuple[RemoteTrainingAssignment, RemoteTrainingCertificate]:
+    assignment = db.scalar(
+        select(RemoteTrainingAssignment).where(
+            RemoteTrainingAssignment.id == assignment_id,
+            RemoteTrainingAssignment.company_id == employee.company_id,
+            RemoteTrainingAssignment.employee_id == employee.id,
+        )
+    )
+    if not assignment:
+        raise HTTPException(404, "Uzaktan eğitim belgesi bulunamadı.")
+    existing = db.scalar(
+        select(RemoteTrainingCertificate).where(
+            RemoteTrainingCertificate.assignment_id == assignment.id
+        )
+    )
+    state = _remote_certificate_state(assignment, existing)
+    if not state["downloadable"]:
+        raise HTTPException(409, state["block_reason"] or "Katılım belgesi henüz indirilemez.")
+    certificate = ensure_certificate(db, assignment)
+    if not certificate:
+        raise HTTPException(409, "Katılım belgesi henüz oluşturulamadı.")
+    return assignment, certificate
+
+
+def build_own_classroom_certificate_pdf(
+    db: Session,
+    *,
+    company: Company,
+    employee: Employee,
+    training_id: int,
+) -> tuple[bytes, str]:
+    session, participant = _own_classroom_certificate(db, employee, training_id)
+    data = _compliant_certificate_pdf(
+        training_pdfs,
+        company_name=company.name,
+        training=session,
+        employees={employee.id: employee},
+        participants=[participant],
+    )
+    number = participant.certificate_number or f"EGT-{session.id:06d}-{employee.id:06d}"
+    return data, f"egitim-katilim-belgesi-{number}.pdf"
+
+
+def build_own_remote_certificate_pdf(
+    db: Session,
+    *,
+    employee: Employee,
+    assignment_id: int,
+) -> tuple[bytes, str]:
+    _assignment, certificate = _own_remote_certificate(db, employee, assignment_id)
+    data = build_certificate_pdf(db, certificate)
+    return data, f"egitim-katilim-belgesi-{certificate.certificate_number}.pdf"
 
 
 def _ppe_summary(db: Session, company_id: int, employee_id: int) -> dict[str, Any]:
@@ -337,6 +648,7 @@ def build_self_service_payload(
             "classroom": _legacy_training_summary(db, company.id, employee.id),
             "remote": _remote_training_summary(db, company.id, employee.id),
         },
+        "certificates": _certificate_summary(db, company.id, employee.id),
         "ppe": _ppe_summary(db, company.id, employee.id),
         "notifications": _notification_summary(db, user.id, company.id),
         "health": _health_summary(
@@ -357,6 +669,7 @@ def build_self_service_payload(
             "can_read": True,
             "can_write": False,
             "can_upload": False,
+            "can_download_own_certificates": True,
         },
     }
 
@@ -381,3 +694,47 @@ def get_my_self_service(
     # health schedule read; it does not alter business records.
     db.commit()
     return payload
+
+
+@router.get("/certificates")
+def list_my_certificates(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _assert_self_service_user(user)
+    _, company, employee, _branch = _resolve_employee_scope(db, user)
+    return _certificate_summary(db, company.id, employee.id)
+
+
+@router.get("/certificates/classroom/{training_id}.pdf")
+def download_my_classroom_certificate(
+    training_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _assert_self_service_user(user)
+    _, company, employee, _branch = _resolve_employee_scope(db, user)
+    data, filename = build_own_classroom_certificate_pdf(
+        db,
+        company=company,
+        employee=employee,
+        training_id=training_id,
+    )
+    return _pdf_response(data, filename)
+
+
+@router.get("/certificates/remote/{assignment_id}.pdf")
+def download_my_remote_certificate(
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    _assert_self_service_user(user)
+    _, company, employee, _branch = _resolve_employee_scope(db, user)
+    data, filename = build_own_remote_certificate_pdf(
+        db,
+        employee=employee,
+        assignment_id=assignment_id,
+    )
+    db.commit()
+    return _pdf_response(data, filename)

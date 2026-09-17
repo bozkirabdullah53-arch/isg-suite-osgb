@@ -1,11 +1,13 @@
 import React, {useCallback, useEffect, useState} from 'react';
-import {Bell, CheckCircle2, ClipboardList, HardHat, HeartPulse, RefreshCw, ShieldCheck} from 'lucide-react';
-import {api} from './api';
+import {Award, Bell, CheckCircle2, ClipboardList, Download, HardHat, HeartPulse, RefreshCw, ShieldCheck} from 'lucide-react';
+import {api, downloadFile} from './api';
 import {
+  certificateKindLabel,
   completedSelfServiceTraining,
   formatSelfServiceDate,
   rememberEmployeeTrainingAssignment,
   normalizeSelfServicePayload,
+  selfServiceCertificateFilename,
   totalSelfServiceTraining,
 } from './employee_self_service_logic';
 import './employee_self_service.css';
@@ -35,6 +37,7 @@ export function EmployeeSelfServicePage({onOpenTraining}) {
   const [summary, setSummary] = useState(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
+  const [downloadingId, setDownloadingId] = useState('');
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -54,6 +57,19 @@ export function EmployeeSelfServicePage({onOpenTraining}) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const downloadCertificate = useCallback(async (item) => {
+    if (!item?.downloadable || !item.download_path) return;
+    setDownloadingId(item.id);
+    setError('');
+    try {
+      await downloadFile(item.download_path, selfServiceCertificateFilename(item));
+    } catch (err) {
+      setError(String(err?.message || 'Katılım belgesi indirilemedi.'));
+    } finally {
+      setDownloadingId('');
+    }
+  }, []);
 
   if (busy && !summary) {
     return <div className="employee-self-service-page"><div className="ess-state">Panel yükleniyor…</div></div>;
@@ -104,7 +120,7 @@ export function EmployeeSelfServicePage({onOpenTraining}) {
       <div className="ess-stat-grid">
         <div className="ess-stat-card"><ClipboardList size={22}/><span>Eğitim kaydı</span><strong>{totalTraining}</strong></div>
         <div className="ess-stat-card"><CheckCircle2 size={22}/><span>Tamamlanan</span><strong>{completedTraining}</strong></div>
-        <div className="ess-stat-card"><HardHat size={22}/><span>KKD kaydı</span><strong>{data.ppe.total}</strong></div>
+        <div className="ess-stat-card"><Award size={22}/><span>İndirilebilir belge</span><strong>{data.certificates.downloadable}</strong></div>
         <div className="ess-stat-card"><Bell size={22}/><span>Okunmamış bildirim</span><strong>{data.notifications.unread}</strong></div>
       </div>
 
@@ -147,6 +163,42 @@ export function EmployeeSelfServicePage({onOpenTraining}) {
           {!data.training.remote.assignments.length && !data.training.classroom.history.length && (
             <Empty>Henüz size atanmış eğitim kaydı yok.</Empty>
           )}
+        </section>
+
+        <section className="ess-card">
+          <div className="ess-card-title"><Award size={20}/><h2>Katılım belgelerim</h2></div>
+          {data.certificates.items.length ? (
+            <div className="ess-list">
+              {data.certificates.items.map((item) => (
+                <div className="ess-list-row ess-training-row" key={item.id}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <small>
+                      {certificateKindLabel(item.kind)}
+                      {item.certificate_number ? ` · ${item.certificate_number}` : ''}
+                      {item.issue_date ? ` · ${formatSelfServiceDate(item.issue_date)}` : ''}
+                    </small>
+                  </div>
+                  <div className="ess-training-actions">
+                    {item.downloadable ? (
+                      <button
+                        type="button"
+                        className="ess-button ess-button-small"
+                        disabled={downloadingId === item.id}
+                        onClick={() => void downloadCertificate(item)}
+                      >
+                        <Download size={14}/> {downloadingId === item.id ? 'İndiriliyor…' : 'Belgeyi indir'}
+                      </button>
+                    ) : (
+                      <span className="ess-badge pending" title={item.block_reason || ''}>
+                        {item.block_reason || 'Belge henüz hazır değil'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <Empty>Henüz katılım belgesi kaydı yok.</Empty>}
         </section>
 
         <section className="ess-card">

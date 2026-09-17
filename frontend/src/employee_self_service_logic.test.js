@@ -1,10 +1,12 @@
 import {describe, expect, it} from 'vitest';
 
 import {
+  certificateKindLabel,
   completedSelfServiceTraining,
   formatSelfServiceDate,
   isEmployeeNotificationVisible,
   normalizeSelfServicePayload,
+  selfServiceCertificateFilename,
   selfServiceFeatureEnabled,
   totalSelfServiceTraining,
 } from './employee_self_service_logic';
@@ -29,6 +31,11 @@ describe('employee self-service payload', () => {
         classroom: {total: 2, completed: 1, history: [{id: 1}]},
         remote: {available: true, total: 1, completed: 1, assignments: [{id: 3}]},
       },
+      certificates: {
+        total: 2,
+        downloadable: 1,
+        items: [{id: 'classroom-1', kind: 'classroom', downloadable: true}],
+      },
       ppe: {total: 1, items: [{id: 7}]},
       notifications: {unread: 2, items: []},
       health: {
@@ -44,6 +51,17 @@ describe('employee self-service payload', () => {
     expect(completedSelfServiceTraining(summary)).toBe(2);
     expect(summary.health.detailsIncluded).toBe(false);
     expect(formatSelfServiceDate(summary.health.nextExaminationDate)).toContain('2027');
+    expect(summary.certificates.downloadable).toBe(1);
+    expect(summary.certificates.items).toHaveLength(1);
+  });
+
+  it('names the employee certificate download from the stored number', () => {
+    expect(certificateKindLabel('remote')).toBe('Uzaktan eğitim');
+    expect(selfServiceCertificateFilename({
+      certificate_number: 'EGT-000001-000002',
+      kind: 'classroom',
+      source_id: 9,
+    })).toBe('egitim-katilim-belgesi-EGT-000001-000002.pdf');
   });
 
   it('hides annual-plan management notifications from the employee view', () => {

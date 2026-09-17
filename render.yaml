@@ -229,6 +229,10 @@ services:
         value: "whisper-1"
       - key: CONTEXTUAL_ASSISTANT_TRANSCRIPTION_MAX_MB
         value: "5"
+      - key: EMPLOYEE_SELF_SERVICE_ENABLED
+        value: "true"
+      - key: EMPLOYEE_SELF_SERVICE_FORCE_OFF
+        value: "false"
 
   - type: cron
     name: isg-suite-api-warmup
@@ -302,6 +306,8 @@ services:
         value: "true"
       - key: VITE_CONTEXTUAL_ASSISTANT_FORCE_OFF
         value: "false"
+      - key: VITE_EMPLOYEE_SELF_SERVICE_V1
+        value: "true"
     routes:
       - type: rewrite
         source: /api/*
