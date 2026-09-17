@@ -1,0 +1,20 @@
+.workplace-home { display: grid; gap: 16px; }
+.workplace-home-heading { display: flex; justify-content: space-between; align-items: center; gap: 24px; border-top: 4px solid #0f766e; }
+.workplace-home-eyebrow { color: #0f766e; font-size: 11px; font-weight: 800; letter-spacing: .1em; }
+.workplace-home-heading h3 { margin: 8px 0; font-size: 24px; line-height: 1.3; }
+.workplace-home-heading p { margin: 0; color: #64748b; max-width: 650px; line-height: 1.6; }
+.workplace-home-actions { display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0; }
+.workplace-home-status { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.workplace-home-status p { margin: 0; color: #64748b; font-size: 13px; }
+.workplace-home-error { padding: 14px 16px; border: 1px solid #f5cda0; border-radius: 12px; color: #854d0e; background: #fffbeb; line-height: 1.6; }
+.workplace-module-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.workplace-module-card { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 22px; min-width: 0; text-align: left; color: #163943; background: #fff; border: 1px solid #dce8e8; border-radius: 14px; box-shadow: 0 3px 12px rgba(15,65,75,.04); cursor: pointer; font: inherit; transition: border-color .15s, box-shadow .15s; }
+.workplace-module-card:hover { background: #f6fbfa; border-color: #0f766e; box-shadow: 0 5px 16px rgba(15,65,75,.09); }
+.workplace-module-card:focus-visible { outline: 3px solid #0f766e; outline-offset: 3px; }
+.workplace-module-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: #eaf5f2; color: #0f766e; }
+.workplace-module-title { font-size: 17px; font-weight: 800; }
+.workplace-module-hint { color: #64748b; font-size: 13px; font-weight: 400; line-height: 1.6; flex: 1; }
+.workplace-module-footer { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 6px; padding-top: 12px; border-top: 1px solid #e9efef; color: #0f766e; font-size: 12px; font-weight: 700; }
+@media (max-width: 1180px) { .workplace-home-heading { align-items: flex-start; flex-direction: column; gap: 16px; } }
+@media (max-width: 960px) { .workplace-module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .workplace-module-grid { grid-template-columns: 1fr; } .workplace-home-heading h3 { font-size: 20px; } .workplace-home-status { align-items: flex-start; } .workplace-home-status button { flex-shrink: 0; } }

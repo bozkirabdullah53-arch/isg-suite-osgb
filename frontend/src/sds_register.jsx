@@ -2,7 +2,7 @@ import React, {useEffect, useState} from 'react';
 import {Beaker, Download, Plus, RefreshCw, Tag, Upload} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
-import {isWorkplaceManagerUser} from './workplace_user_policy';
+import {isWorkplaceAccountUser} from './workplace_user_policy';
 
 function Modal({title, close, children}) {
   return (
@@ -48,7 +48,7 @@ const empty = {
 export function SdsRegisterPage({user}) {
   const canEdit = user.role === 'safety_specialist'
     || user.role === 'global_admin'
-    || isWorkplaceManagerUser(user);
+    || isWorkplaceAccountUser(user);
   const [companies, setCompanies] = useState([]);
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);

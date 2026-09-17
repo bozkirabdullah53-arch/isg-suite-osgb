@@ -1,7 +1,7 @@
 """İşyeri yetkilisi modülleri ve tek-işyeri izolasyonu regresyon testleri."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -17,7 +17,7 @@ def workplace_client(tmp_path, monkeypatch):
     monkeypatch.setenv("SECRET_KEY", "workplace-test-secret-key-at-least-32-chars")
     monkeypatch.setattr("app.api.auth.role_requires_mfa", lambda _role: False)
 
-    from sqlalchemy import create_engine
+    from sqlalchemy import create_engine, inspect
     from sqlalchemy.orm import sessionmaker
 
     import app.core.database as dbmod
@@ -32,6 +32,112 @@ def workplace_client(tmp_path, monkeypatch):
     dbmod.engine = engine
     dbmod.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     ent.Base.metadata.create_all(bind=engine)
+    with engine.begin() as connection:
+        inspector = inspect(connection)
+        member_columns = {
+            "employee_id": "INTEGER",
+            "user_id": "INTEGER",
+            "branch_id": "INTEGER",
+            "identity_key": "VARCHAR(220)",
+            "source_type": "VARCHAR(40)",
+            "source_ref": "VARCHAR(120)",
+            "job_title_snapshot": "VARCHAR(160)",
+            "professional_role_snapshot": "VARCHAR(160)",
+            "email_snapshot": "VARCHAR(255)",
+            "is_mandatory": "BOOLEAN NOT NULL DEFAULT 0",
+            "removed_at": "DATETIME",
+            "removed_by_id": "INTEGER",
+            "removal_reason_code": "VARCHAR(60)",
+            "removal_reason_text": "VARCHAR(1000)",
+            "removal_document_version": "INTEGER",
+        }
+        meeting_columns = {
+            "title": "VARCHAR(220)",
+            "meeting_no": "VARCHAR(60)",
+            "document_no": "VARCHAR(80)",
+            "revision_no": "VARCHAR(30) NOT NULL DEFAULT '00'",
+            "status": "VARCHAR(40) NOT NULL DEFAULT 'draft'",
+            "signature_status": "VARCHAR(40) NOT NULL DEFAULT 'not_signed'",
+            "start_time": "VARCHAR(10)",
+            "end_time": "VARCHAR(10)",
+            "location": "VARCHAR(220)",
+            "meeting_type": "VARCHAR(60)",
+            "member_snapshot_json": "TEXT",
+            "agenda_json": "TEXT",
+            "decisions_json": "TEXT",
+            "approval_reference": "VARCHAR(160)",
+            "pdf_sha256": "VARCHAR(64)",
+            "pdf_generated_at": "DATETIME",
+            "approval_workflow_id": "INTEGER",
+            "approval_status": "VARCHAR(50) NOT NULL DEFAULT 'draft'",
+            "approval_current_step": "INTEGER",
+            "document_version": "INTEGER NOT NULL DEFAULT 1",
+            "approval_submitted_at": "DATETIME",
+            "approval_completed_at": "DATETIME",
+            "approval_invalidated_at": "DATETIME",
+            "updated_at": "DATETIME",
+        }
+        for table, columns in (
+            ("ohs_committee_members", member_columns),
+            ("ohs_committee_meetings", meeting_columns),
+        ):
+            existing = {column["name"] for column in inspector.get_columns(table)}
+            for name, definition in columns.items():
+                if name not in existing:
+                    connection.exec_driver_sql(
+                        f'ALTER TABLE "{table}" ADD COLUMN "{name}" {definition}'
+                    )
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE ohs_committee_signature_steps (
+                id INTEGER PRIMARY KEY,
+                meeting_id INTEGER NOT NULL,
+                company_id INTEGER NOT NULL,
+                document_version INTEGER NOT NULL,
+                step_order INTEGER NOT NULL,
+                signer_user_id INTEGER NOT NULL,
+                role_label VARCHAR(120) NOT NULL,
+                status VARCHAR(40) NOT NULL DEFAULT 'pending',
+                esign_request_id INTEGER,
+                esign_artifact_id INTEGER,
+                signed_at DATETIME,
+                invalidated_at DATETIME,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (meeting_id, document_version, step_order)
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            "CREATE INDEX ix_committee_signature_company_status "
+            "ON ohs_committee_signature_steps(company_id, status)"
+        )
+        connection.exec_driver_sql(
+            "CREATE INDEX ix_committee_signature_signer_status "
+            "ON ohs_committee_signature_steps(signer_user_id, status)"
+        )
+        connection.exec_driver_sql(
+            """
+            CREATE TABLE ohs_committee_meeting_versions (
+                id INTEGER PRIMARY KEY,
+                meeting_id INTEGER NOT NULL,
+                company_id INTEGER NOT NULL,
+                document_version INTEGER NOT NULL,
+                meeting_snapshot_json TEXT NOT NULL,
+                member_snapshot_json TEXT,
+                approval_workflow_id INTEGER,
+                final_signature_artifact_id INTEGER,
+                pdf_sha256 VARCHAR(64),
+                archive_reason VARCHAR(120) NOT NULL DEFAULT 'material_change',
+                created_by_id INTEGER,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (meeting_id, document_version)
+            )
+            """
+        )
+        connection.exec_driver_sql(
+            "CREATE INDEX ix_committee_meeting_versions_company "
+            "ON ohs_committee_meeting_versions(company_id, meeting_id)"
+        )
 
     from app.core.security import get_password_hash
     from app.models.entities import (
@@ -148,6 +254,7 @@ def workplace_client(tmp_path, monkeypatch):
             "own_archive_id": own_archive.id,
             "foreign_archive_id": foreign_archive.id,
             "manager_email": manager.email,
+            "manager_id": manager.id,
             "osgb_admin_email": osgb_admin.email,
             "global_admin_email": global_admin.email,
             "kiosk_email": kiosk.email,
@@ -167,6 +274,68 @@ def _token(client: TestClient, email: str, password: str) -> str:
 
 def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def test_workplace_summary_counts_all_rows_and_both_dof_sources(workplace_client):
+    from app.core.database import SessionLocal
+    from app.models.entities import (
+        Hazard, HazardCategory, IncidentDof, IncidentEvent, PpeAssignment,
+        RiskAssessment, RiskDof,
+    )
+
+    client, seed = workplace_client
+    with SessionLocal() as db:
+        ppe_fields = dict(
+            company_id=seed['own_company_id'], employee_id=seed['own_employee_id'],
+            created_by_id=seed['manager_id'], delivery_date=date.today(),
+            category='Baş Koruyucular', item_type='Baret',
+        )
+        db.add_all([PpeAssignment(**ppe_fields) for _ in range(501)])
+        db.add(PpeAssignment(**ppe_fields, deleted_at=datetime.utcnow()))
+        db.add(PpeAssignment(**{
+            **ppe_fields, 'company_id': seed['foreign_company_id'],
+            'employee_id': seed['foreign_employee_id'],
+        }))
+        category = HazardCategory(name='Özet testi')
+        db.add(category)
+        db.flush()
+        hazard = Hazard(category_id=category.id, code='SUMMARY', name='Kayma')
+        db.add(hazard)
+        db.flush()
+        for scope, dof_count in [('own', 2), ('foreign', 3)]:
+            risk = RiskAssessment(
+                risk_code=f'R-{scope}', company_id=seed[f'{scope}_company_id'],
+                hazard_id=hazard.id, activity='Üretim', risk_definition='Kayma tehlikesi',
+                probability=2, severity=2, risk_score=4, risk_level='Düşük',
+                created_by_id=seed['manager_id'],
+            )
+            incident = IncidentEvent(
+                form_no=f'I-{scope}', company_id=seed[f'{scope}_company_id'],
+                event_type='ramak_kala', event_date=date.today(),
+                short_summary='Kayma olayı', created_by_id=seed['manager_id'],
+            )
+            db.add_all([risk, incident])
+            db.flush()
+            db.add_all([RiskDof(
+                risk_id=risk.id, dof_code=f'D-{scope}-{number}', description='Zemini düzeltin',
+                created_by_id=seed['manager_id'],
+            ) for number in range(dof_count)])
+            db.add(IncidentDof(
+                incident_id=incident.id, dof_no=f'ID-{scope}', finding='Kaygan zemin',
+                created_by_id=seed['manager_id'],
+            ))
+        db.commit()
+
+    for account in ['manager_email', 'kiosk_email']:
+        headers = _headers(_token(client, seed[account], seed['password']))
+        response = client.get('/api/v1/workplace-portal/summary', headers=headers)
+        assert response.status_code == 200, response.text
+        assert response.json()['counts'] == {
+            'employees': 1, 'ppe': 501, 'sds': 0, 'periodic': 0, 'measurements': 0,
+            'nearMiss': 1, 'accidents': 0, 'capa': 3,
+        }
+    headers = _headers(_token(client, seed['osgb_admin_email'], seed['password']))
+    assert client.get('/api/v1/workplace-portal/summary', headers=headers).status_code == 403
 
 
 def test_workplace_manager_can_manage_own_committee_without_eyas_assignment(monkeypatch):
@@ -223,11 +392,12 @@ def test_workplace_manager_account_excludes_osgb_admin_and_qr_kiosk():
     assert is_workplace_manager_account(kiosk) is False
 
 
-def test_workplace_manager_can_write_target_modules_only_in_own_company(workplace_client):
+@pytest.mark.parametrize("account_key", ["manager_email", "kiosk_email"])
+def test_workplace_manager_can_write_target_modules_only_in_own_company(workplace_client, account_key):
     client, seed = workplace_client
     own = seed["own_company_id"]
     foreign = seed["foreign_company_id"]
-    token = _token(client, seed["manager_email"], seed["password"])
+    token = _token(client, seed[account_key], seed["password"])
     headers = _headers(token)
     global_token = _token(client, seed["global_admin_email"], seed["password"])
     global_headers = _headers(global_token)
@@ -447,6 +617,31 @@ def test_workplace_manager_can_write_target_modules_only_in_own_company(workplac
         json={**incident_payload, "company_id": foreign},
     ).status_code == 403
 
+    accident = client.post("/api/v1/incidents", headers=headers, json={
+        **incident_payload, "company_id": own, "event_type": "is_kazasi",
+    })
+    assert accident.status_code == 200, accident.text
+    dof_payload = {
+        "finding": "Raf üzerindeki malzemeler güvenli biçimde sabitlenmelidir.",
+        "corrective_action": "Raflara koruyucu bariyer takılacak ve malzemeler sabitlenecek.",
+        "responsible_person": "İşyeri Yetkilisi",
+        "preventive_action": "Raflar düzenli kontrol edilecek ve çalışanlara eğitim verilecek.",
+        "term_date": date.today().isoformat(),
+    }
+    dof = client.post(f"/api/v1/incidents/{incident.json()['id']}/dofs", headers=headers, json=dof_payload)
+    assert dof.status_code == 200, dof.text
+    assert client.post(f"/api/v1/incidents/{foreign_incident.json()['id']}/dofs", headers=headers, json={
+        **dof_payload, "finding": "Başka işyerine yetkisiz işlem denemesi yapılmaktadır.",
+    }).status_code == 403
+    summary = client.get("/api/v1/workplace-portal/summary", headers=headers)
+    assert summary.status_code == 200, summary.text
+    assert summary.json()["company_id"] == own
+    assert summary.json()["counts"]["employees"] == 2
+    assert summary.json()["counts"]["capa"] == 1
+    assert summary.json()["counts"]["nearMiss"] == 1
+    assert summary.json()["counts"]["accidents"] == 1
+    assert client.get("/api/v1/workplace-portal/summary", headers=headers, params={"company_id": foreign}).status_code == 403
+
     oversight = client.get(f"/api/v1/companies/{own}/employer-oversight", headers=headers)
     assert oversight.status_code == 200, oversight.text
     assert client.get(f"/api/v1/companies/{own}/overview", headers=headers).status_code == 403
@@ -461,6 +656,15 @@ def test_workplace_manager_can_write_target_modules_only_in_own_company(workplac
 
     committee_meta = client.get("/api/v1/ohs-committee/meta", headers=headers)
     assert committee_meta.status_code == 200, committee_meta.text
+    candidates = client.get("/api/v1/ohs-committee/candidates", headers=headers, params={"company_id": own})
+    assert candidates.status_code == 200, candidates.text
+    meeting = client.post("/api/v1/ohs-committee/meetings/validated", headers=headers, json={
+        "company_id": own, "meeting_date": date.today().isoformat(), "title": "İşyeri kurul toplantısı",
+    })
+    assert meeting.status_code == 201, meeting.text
+    assert client.post("/api/v1/ohs-committee/meetings/validated", headers=headers, json={
+        "company_id": foreign, "meeting_date": date.today().isoformat(),
+    }).status_code == 403
     assert client.get(
         "/api/v1/ohs-committee/candidates",
         headers=headers,
@@ -576,8 +780,8 @@ def test_rls_admin_flag_excludes_workplace_manager_and_kiosk():
     assert _has_osgb_admin_rls_privilege(workplace_manager) is False
 
 
-@pytest.mark.parametrize("account_key", ["osgb_admin_email", "kiosk_email"])
-def test_non_workplace_manager_company_admins_do_not_gain_new_register_access(
+@pytest.mark.parametrize("account_key", ["osgb_admin_email"])
+def test_osgb_admin_does_not_gain_workplace_only_register_access(
     workplace_client,
     account_key,
 ):

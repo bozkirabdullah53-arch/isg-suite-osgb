@@ -30,6 +30,7 @@ ROLE_MODULES = {
     "read_only": {"employee_self_service", "employee_training", "security"},
 }
 WORKPLACE_MANAGER_MODULES = {"workplace_home", "employer_oversight", "eyas_inbox", "employees", "ppe", "periyodik_kontrol", "ortam_olcum", "sds", "accident", "near_miss", "capa", "isg_kurulu", "personnel_training_records", "documents", "health", "site_qr_kiosk"}
+WORKPLACE_KIOSK_MODULES = {"workplace_home", "employer_oversight", "employees", "ppe", "sds", "periyodik_kontrol", "ortam_olcum", "near_miss", "accident", "capa", "isg_kurulu", "site_qr_kiosk"}
 CAPABILITY_MODULES = {"dashboard.open_risk": "risk", "dashboard.open_companies": "companies", "dashboard.open_employees": "employees", "dashboard.open_training": "training", "employee.create": "employees", "employee.import_excel": "employees", "employee.edit": "employees", "employee.training.assign": "training", "company.create": "companies", "company.edit": "companies", "company.select": "companies", "company.open_status": "workplace_status", "training.create": "training", "training.assign": "training", "exam.generate": "training", "training.remote": "remote_training", "risk.create": "risk", "risk.review": "risk", "risk.open": "risk", "risk.report": "risk", "corrective_action.create": "capa", "corrective_action.complete": "capa", "near_miss.create": "near_miss", "accident.create": "accident", "accident.review": "accident", "reports.open": "reports", "visit.view": "visits", "field_inspection.open": "field_inspection", "field_inspection.create": "field_inspection", "field_inspection.add_photo": "field_inspection", "medical_exam.view": "health", "health.record.view": "health", "document.create": "documents", "document.view": "documents", "employee.report": "employees"}
 CAPABILITY_LABELS = {"employee.create": "Personel Ekle", "employee.import_excel": "Excel ile Yükle", "employee.edit": "Personeli Düzenle", "employee.training.assign": "Eğitim Ata", "company.create": "İşyeri Ekle", "training.create": "Eğitim Oluştur", "training.assign": "Çalışanlara Ata", "exam.generate": "Sınav Oluştur", "training.remote": "Uzaktan Eğitim", "risk.create": "Risk Kaydı Oluştur", "corrective_action.create": "DÖF Oluştur", "near_miss.create": "Ramak Kala Kaydı Aç", "accident.create": "Kaza Kaydı Aç", "field_inspection.create": "Denetim Başlat"}
 MODULE_DESTINATIONS = (
@@ -159,7 +160,11 @@ def _role(user) -> str:
     return str(getattr(getattr(user, "role", None), "value", getattr(user, "role", "unknown")) or "unknown")
 
 def _modules(user) -> set[str]:
-    return WORKPLACE_MANAGER_MODULES if _role(user) == "company_admin" and getattr(user, "company_id", None) else ROLE_MODULES.get(_role(user), set())
+    if _role(user) == "company_admin" and getattr(user, "company_id", None):
+        if str(getattr(user, "email", "") or "").lower().endswith("@kiosk.isgsuite.tr"):
+            return WORKPLACE_KIOSK_MODULES
+        return WORKPLACE_MANAGER_MODULES
+    return ROLE_MODULES.get(_role(user), set())
 
 def sanitize_context(raw: dict[str, Any] | None, user) -> dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
