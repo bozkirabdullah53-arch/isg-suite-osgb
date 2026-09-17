@@ -23,6 +23,7 @@ import {LoginPasswordInput, PasswordField} from './password_field';
 import {LoginShowcase} from './login_showcase';
 import {OsgbDashboard,ProfessionalsPage,AssignmentsPage,VisitsPage,CrmPage,ContractsPage,FinancePage} from './osgb';
 import {EmployerOversightPage, EmployerOversightPanel} from './employer_oversight';
+import {WorkplaceHomePage} from './workplace_home';
 import {WorkplaceTrainingRecordsPage} from './workplace_training_records';
 import {OsgbOversightPage} from './osgb_oversight';
 import {LegalAcceptancesPanel} from './legal_acceptances';
@@ -190,7 +191,7 @@ function modulesForUser(user){
 const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
   company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
-  workplace_manager:['employer_oversight','employees','ppe','isg_kurulu'],
+  workplace_manager:['workplace_home','employees','ppe','isg_kurulu'],
   safety_specialist:['visit_notebook','visit_qr','field_inspection'],
   workplace_physician:['health','prescriptions','visit_notebook'],
   other_health_personnel:['field_pwa','visits','health','employees'],
@@ -266,6 +267,7 @@ const menuCatalog={
   field_pwa:['Saha Hızlı İşlem',Activity],
   field_inspection:['Saha Denetimi',ClipboardCheck],
   facility_summary:['Tesis Uygunluk Özeti',ShieldCheck],
+  workplace_home:['İşyeri Ana Panel',LayoutDashboard],
   employer_oversight:['İşyeri Denetim Durumu',ShieldCheck],
   workplace_status:['İşyeri Durum Merkezi',ClipboardCheck],
   site_qr_kiosk:['İşyeri QR',QrCode],
@@ -2112,6 +2114,7 @@ function homeModuleForUser(user){
   if(professionalHome) return professionalHome;
   if(allowed.includes('eisa_overview')) return 'eisa_overview';
   if(allowed.includes('eisa')) return 'eisa';
+  if(allowed.includes('workplace_home')) return 'workplace_home';
   if(allowed.includes('osgb_dashboard')) return 'osgb_dashboard';
   // Diğer sağlık personelinin mevcut açılış akışını değiştirme.
   if(user?.role==='other_health_personnel' && allowed.includes('visits')) return 'visits';
@@ -2487,6 +2490,15 @@ function App(){
         let next='';
         if(verifyCode && allowed.includes('training')) next='training';
         else if(validCustomerRoute) next=fromUrl;
+        else if(isWorkplaceManagerUser(u)){
+          let migrated=false;
+          try{migrated=sessionStorage.getItem('isg_workplace_home_v1')==='1'}catch(_){ /* ignore */ }
+          if(!migrated){
+            try{sessionStorage.setItem('isg_workplace_home_v1','1')}catch(_){ /* ignore */ }
+            next=homeModuleForUser(u);
+          }else if(fromUrl && allowed.includes(fromUrl)) next=fromUrl;
+          else next=homeModuleForUser(u);
+        }
         else if(fromUrl && allowed.includes(fromUrl)) next=fromUrl;
         else next=homeModuleForUser(u);
         setActive(next);
@@ -2646,6 +2658,7 @@ function App(){
     field_pwa:<FieldPwaHub user={user}/>,
     field_inspection:<FieldInspectionPage user={user}/>,
     facility_summary:<FacilityComplianceSummaryPage user={user}/>,
+    workplace_home:<WorkplaceHomePage user={user} onNavigate={goModule}/>,
     employer_oversight:<EmployerOversightPage user={user}/>,
     workplace_status:<WorkplaceStatusPage user={user} onNavigate={goModule}/>,
     site_qr_kiosk:<SiteQrKioskPage user={user} onLogout={logout}/>,

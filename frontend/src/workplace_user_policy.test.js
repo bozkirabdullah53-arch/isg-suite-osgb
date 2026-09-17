@@ -25,6 +25,7 @@ describe('workplace user policy', () => {
 
   it('exposes the approved workplace operational modules in the intended order', () => {
     expect(WORKPLACE_MANAGER_MODULES).toEqual([
+      'workplace_home',
       'employer_oversight',
       'employees',
       'ppe',
@@ -47,8 +48,10 @@ describe('workplace user policy', () => {
     expect(WORKPLACE_MANAGER_MODULES).not.toContain('finance');
     expect(WORKPLACE_MANAGER_MODULES).not.toContain('training');
     expect(WORKPLACE_MANAGER_MODULES).not.toContain('security');
+    expect(WORKPLACE_MANAGER_MODULES[0]).toBe('workplace_home');
     expect(workplaceMenuSection(manager, 'ppe')).toBe('İSG Kayıtları');
     expect(workplaceMenuSection(manager, 'employees')).toBe('Personel');
+    expect(workplaceMenuSection(manager, 'workplace_home')).toBe('İşyeri Özeti');
     expect(workplaceMenuSection({...manager, company_id: null}, 'ppe')).toBe('');
   });
 });

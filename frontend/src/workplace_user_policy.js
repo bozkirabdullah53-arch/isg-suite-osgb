@@ -16,6 +16,7 @@ export function isWorkplaceManagerUser(user) {
 }
 
 export const WORKPLACE_MANAGER_MODULES = Object.freeze([
+  'workplace_home',
   'employer_oversight',
   'employees',
   'ppe',
@@ -34,7 +35,7 @@ export const WORKPLACE_MANAGER_MODULES = Object.freeze([
 ]);
 
 export const WORKPLACE_MENU_SECTIONS = Object.freeze([
-  {label: 'İşyeri Özeti', items: ['employer_oversight']},
+  {label: 'İşyeri Özeti', items: ['workplace_home', 'employer_oversight']},
   {label: 'Personel', items: ['employees', 'personnel_training_records']},
   {
     label: 'İSG Kayıtları',
