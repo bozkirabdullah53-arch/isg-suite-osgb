@@ -93,10 +93,9 @@ import {
   parseNavigationLocation,
 } from './navigation_history';
 import {
-  isWorkplaceKioskUser,
-  isWorkplaceManagerUser,
+  isWorkplaceAccountUser,
   workplaceMenuSection,
-  WORKPLACE_MANAGER_MODULES,
+  workplaceModulesForUser,
 } from './workplace_user_policy';
 import {
   PROFESSIONAL_MENU_MODULES,
@@ -166,14 +165,10 @@ const roleModules={
   read_only:['employee_training','security'],
 };
 
-/** OSGB, işyeri yetkilisi ve QR kiosk menüleri birbirine karışmaz. */
+/** İşyeri/QR hesaplarının menüsü yalnız bağlı oldukları işyerine yöneliktir. */
 function modulesForUser(user){
-  if(isWorkplaceKioskUser(user)){
-    return ['site_qr_kiosk'];
-  }
-  if(isWorkplaceManagerUser(user)){
-    return [...WORKPLACE_MANAGER_MODULES];
-  }
+  const workplaceModules=workplaceModulesForUser(user);
+  if(workplaceModules) return workplaceModules;
   if(user?.role==='read_only' && EMPLOYEE_SELF_SERVICE_ENABLED){
     return ['employee_self_service','employee_training','security'];
   }
@@ -655,8 +650,8 @@ function Field({label,...p}){return <label className="field"><span>{label}</span
 function Select({label,children,...p}){return <label className="field"><span>{label}</span><select {...p}>{children}</select></label>}
 function Table({cols,rows,empty='Kayıt bulunamadı.',className=''}){return <div className={'table-wrap '+className}><table><thead><tr>{cols.map(c=><th key={c.key}>{c.label}</th>)}</tr></thead><tbody>{rows.length?rows.map((r,i)=><tr key={r.id??i}>{cols.map(c=><td key={c.key} data-label={c.label}>{c.render?c.render(r):String(r[c.key]??'—')}</td>)}</tr>):<tr><td colSpan={cols.length} className="empty">{empty}</td></tr>}</tbody></table></div>}
 
-/** İşyeri kiosk — QR + salt-okunur denetim durumu. Menü yok; müdahale yok. */
-function SiteQrKioskPage({user,onLogout}){
+/** İşyeri QR ve denetim akışı; ortak menü içinde de aynı QR yaşam döngüsünü kullanır. */
+function SiteQrKioskPage({user,onLogout,embedded=false}){
   const companyId=user?.company_id;
   const[tab,setTab]=useState('qr');
   const[info,setInfo]=useState(null);
@@ -707,7 +702,7 @@ function SiteQrKioskPage({user,onLogout}){
   const title=info?.company_name||user?.full_name||'İşyeri';
 
   return (
-    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',padding:'20px 24px 32px',background:'linear-gradient(160deg,#0f766e 0%,#134e4a 45%,#0f172a 100%)',color:'#f8fafc'}}>
+    <div style={{minHeight:embedded?'auto':'100vh',borderRadius:embedded?16:0,display:'flex',flexDirection:'column',alignItems:'center',padding:'20px 24px 32px',background:'linear-gradient(160deg,#0f766e 0%,#134e4a 45%,#0f172a 100%)',color:'#f8fafc'}}>
       <div style={{textAlign:'center',maxWidth:720,width:'100%'}}>
         <p style={{margin:0,opacity:.85,fontSize:14,letterSpacing:'.04em',textTransform:'uppercase'}}>İşyeri paneli</p>
         <h1 style={{margin:'8px 0 4px',fontSize:28,fontWeight:700}}>{title}</h1>
@@ -732,17 +727,17 @@ function SiteQrKioskPage({user,onLogout}){
 
         {tab==='qr'&&(
           <>
-            <div style={{background:'#fff',borderRadius:16,padding:20,display:'inline-block',boxShadow:'0 20px 50px rgba(0,0,0,.35)'}}>
+            <div style={{background:'#fff',borderRadius:16,padding:20,display:'inline-block',maxWidth:'100%',boxSizing:'border-box',boxShadow:'0 20px 50px rgba(0,0,0,.35)'}}>
               {payload?(
                 <img
                   alt="İşyeri QR"
                   width={320}
                   height={320}
-                  style={{display:'block',width:Math.min(320,typeof window!=='undefined'?window.innerWidth-80:320),height:'auto'}}
+                  style={{display:'block',width:'100%',maxWidth:320,height:'auto'}}
                   src={`/api/v1/companies/qr-render?data=${encodeURIComponent(payload)}`}
                 />
               ):(
-                <div style={{width:280,height:280,display:'grid',placeItems:'center',color:'#64748b'}}>{busy?'Yükleniyor…':'QR yok'}</div>
+                <div style={{width:280,maxWidth:'100%',height:280,display:'grid',placeItems:'center',color:'#64748b'}}>{busy?'Yükleniyor…':'QR yok'}</div>
               )}
             </div>
             <p style={{margin:'18px 0 6px',fontSize:18,fontWeight:600}}>
@@ -1167,7 +1162,7 @@ function UserPage({user}){
   </Page>
 }
 function Employees({user}){
-  const isWorkplaceManager=isWorkplaceManagerUser(user);
+  const isWorkplaceManager=isWorkplaceAccountUser(user);
   const[companies,setCompanies]=useState([]);
   const[branches,setBranches]=useState([]);
   const[data,setData]=useState([]);
@@ -2356,7 +2351,7 @@ function App(){
       window.scrollTo({top:0,left:0,behavior:'auto'});
     }
     if(id!=='customer_360') setC360Id(null);
-    if(id==='customer_360' && isWorkplaceManagerUser(user)){
+    if(id==='customer_360' && isWorkplaceAccountUser(user)){
       const home=homeModuleForUser(user);
       if(home){
         setActive(home);
@@ -2386,7 +2381,7 @@ function App(){
   }
 
   function openCustomer360(companyId){
-    if(isWorkplaceManagerUser(user)) return;
+    if(isWorkplaceAccountUser(user)) return;
     const nextCompanyId=Number(companyId);
     if(!Number.isFinite(nextCompanyId) || nextCompanyId<=0) return;
     setC360Id(nextCompanyId);
@@ -2480,7 +2475,7 @@ function App(){
         const locationNavigation=readNavigationFromLocation();
         const fromUrl=locationNavigation.module;
         const locationCompanyId=Number(locationNavigation.companyId);
-        const validCustomerRoute=!isWorkplaceManagerUser(u)
+        const validCustomerRoute=!isWorkplaceAccountUser(u)
           && fromUrl==='customer_360'
           && Number.isFinite(locationCompanyId)
           && locationCompanyId>0;
@@ -2490,15 +2485,6 @@ function App(){
         let next='';
         if(verifyCode && allowed.includes('training')) next='training';
         else if(validCustomerRoute) next=fromUrl;
-        else if(isWorkplaceManagerUser(u)){
-          let migrated=false;
-          try{migrated=sessionStorage.getItem('isg_workplace_home_v1')==='1'}catch(_){ /* ignore */ }
-          if(!migrated){
-            try{sessionStorage.setItem('isg_workplace_home_v1','1')}catch(_){ /* ignore */ }
-            next=homeModuleForUser(u);
-          }else if(fromUrl && allowed.includes(fromUrl)) next=fromUrl;
-          else next=homeModuleForUser(u);
-        }
         else if(fromUrl && allowed.includes(fromUrl)) next=fromUrl;
         else next=homeModuleForUser(u);
         setActive(next);
@@ -2528,7 +2514,7 @@ function App(){
       const id=locationNavigation.module;
       const allowed=modulesForUser(user);
       const customerId=Number(locationNavigation.companyId);
-      if(id==='customer_360' && !isWorkplaceManagerUser(user) && Number.isFinite(customerId) && customerId>0){
+      if(id==='customer_360' && !isWorkplaceAccountUser(user) && Number.isFinite(customerId) && customerId>0){
         setActive(id);
         setC360Id(customerId);
         try{sessionStorage.setItem('isg_active',id)}catch(_){ /* ignore */ }
@@ -2608,10 +2594,6 @@ function App(){
   );
   if(!user) return <div className="loading">Sistem yükleniyor...</div>;
   const allowed=modulesForUser(user);
-  const isWorkplaceKiosk=isWorkplaceKioskUser(user);
-  if(isWorkplaceKiosk){
-    return <SiteQrKioskPage user={user} onLogout={logout}/>;
-  }
   const fieldRoles=['safety_specialist','workplace_physician','other_health_personnel'];
   const hideHomeMenuItem=['safety_specialist','workplace_physician'].includes(user.role);
   const menu=allowed
@@ -2661,7 +2643,7 @@ function App(){
     workplace_home:<WorkplaceHomePage user={user} onNavigate={goModule}/>,
     employer_oversight:<EmployerOversightPage user={user}/>,
     workplace_status:<WorkplaceStatusPage user={user} onNavigate={goModule}/>,
-    site_qr_kiosk:<SiteQrKioskPage user={user} onLogout={logout}/>,
+    site_qr_kiosk:<SiteQrKioskPage user={user} onLogout={logout} embedded/>,
     crm:<CrmPage user={user} onNavigate={goModule}/>,
     contracts:<ContractsPage user={user}/>,
     finance:<FinancePage user={user}/>,
@@ -2708,7 +2690,7 @@ function App(){
     visitors:<VisitorsPage user={user}/>,
     customer_portal:<CustomerPortalPage user={user}/>,
   };
-  const mobileRole=isWorkplaceManagerUser(user)?'workplace_manager':user.role;
+  const mobileRole=isWorkplaceAccountUser(user)?'workplace_manager':user.role;
   const mobilePrimary=mobilePrimaryMenu(menu, mobileRole, active);
   return (
     <div className={`app-shell${mobileMoreOpen?' mobile-nav-open':''}${active==='field_inspection'?' field-inspection-shell':''}`}>
@@ -2726,7 +2708,7 @@ function App(){
             alt="EİSA ana sayfa"
             className="sidebar-logo eisa-logo-icon"
           />
-          <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':isWorkplaceManagerUser(user)?'İşyeri Paneli':'İSG Suite OSGB'}</span>
+          <span className="logo-caption">{user.role==='global_admin'?'EİSA Platform':isWorkplaceAccountUser(user)?'İşyeri Paneli':'İSG Suite OSGB'}</span>
         </button>
         <nav className="nav-desktop" ref={navRef}>
           {menuWithSections.map(([id,l,I,section],index)=>(
@@ -2813,8 +2795,8 @@ function App(){
       <section className="workspace">
         <header>
           <div>
-            <h2>{user.role==='global_admin'?'EİSA Platform':isWorkplaceManagerUser(user)?'İşyeri Yönetim Paneli':'İSG Suite OSGB'}</h2>
-            <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':isWorkplaceManagerUser(user)?'Yalnız kendi işyerinizin İSG kayıtları':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
+            <h2>{user.role==='global_admin'?'EİSA Platform':isWorkplaceAccountUser(user)?'İşyeri Yönetim Paneli':'İSG Suite OSGB'}</h2>
+            <p>{user.role==='global_admin'?'OSGB abonelik ve platform yönetimi':isWorkplaceAccountUser(user)?'Yalnız kendi işyerinizin İSG kayıtları':'OSGB Operasyon ve İş Sağlığı Güvenliği Yönetimi'}</p>
           </div>
           <div className="header-actions">
             <div className="header-tools">
@@ -2834,7 +2816,7 @@ function App(){
             </div>
             <div className="user-chip">
               <strong>{user.full_name}</strong>
-              <span>{isWorkplaceManagerUser(user)?'İşyeri Yetkilisi':roles[user.role]}</span>
+              <span>{isWorkplaceAccountUser(user)?'İşyeri Yetkilisi':roles[user.role]}</span>
             </div>
             <button type="button" className="header-icon logout-mobile" onClick={logout} title="Çıkış" aria-label="Çıkış">
               <LogOut size={18}/>
@@ -2851,7 +2833,7 @@ function App(){
             </div>
           )}
           <ErrorBoundary key={active==='customer_360'?`c360-${c360Id}`:(active||'none')} onHome={goHome}>
-            {active==='customer_360' && c360Id && !isWorkplaceManagerUser(user) ? (
+            {active==='customer_360' && c360Id && !isWorkplaceAccountUser(user) ? (
               <Customer360Page companyId={c360Id} onBack={closeCustomer360} onNavigate={goModule} user={user}/>
             ) : pages[active] || (
               <section className="panel">

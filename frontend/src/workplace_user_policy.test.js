@@ -2,7 +2,9 @@ import {describe, expect, it} from 'vitest';
 
 import {
   isWorkplaceKioskUser,
+  isWorkplaceAccountUser,
   isWorkplaceManagerUser,
+  workplaceModulesForUser,
   workplaceMenuSection,
   WORKPLACE_MANAGER_MODULES,
 } from './workplace_user_policy';
@@ -53,5 +55,23 @@ describe('workplace user policy', () => {
     expect(workplaceMenuSection(manager, 'employees')).toBe('Personel');
     expect(workplaceMenuSection(manager, 'workplace_home')).toBe('İşyeri Özeti');
     expect(workplaceMenuSection({...manager, company_id: null}, 'ppe')).toBe('');
+  });
+
+  it('opens the requested operations for the existing workplace QR password', () => {
+    const kiosk = {...manager, email: 'isyeri.42@kiosk.isgsuite.tr'};
+    expect(isWorkplaceAccountUser(kiosk)).toBe(true);
+    const modules = workplaceModulesForUser(kiosk);
+    for (const id of ['employees', 'ppe', 'sds', 'periyodik_kontrol', 'ortam_olcum', 'near_miss', 'accident', 'capa', 'isg_kurulu', 'site_qr_kiosk']) {
+      expect(modules).toContain(id);
+      expect(workplaceMenuSection(kiosk, id)).not.toBe('');
+    }
+    expect(modules[0]).toBe('workplace_home');
+    for (const id of ['companies', 'users', 'finance', 'contracts', 'health', 'documents', 'training']) {
+      expect(modules).not.toContain(id);
+    }
+    expect(workplaceModulesForUser({...manager, company_id: null})).toBe(null);
+    expect(workplaceModulesForUser({...manager, role: 'safety_specialist'})).toBe(null);
+    expect(workplaceModulesForUser({...manager, role: 'read_only'})).toBe(null);
+    expect(workplaceModulesForUser(manager)).toEqual(WORKPLACE_MANAGER_MODULES);
   });
 });

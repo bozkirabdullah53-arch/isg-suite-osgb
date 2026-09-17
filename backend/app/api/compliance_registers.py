@@ -15,7 +15,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.company_access import company_ids_for_query, ensure_company_access
-from app.api.deps import get_current_user, require_roles, require_roles_or_workplace_manager
+from app.api.deps import get_current_user, require_roles, require_roles_or_workplace_operations
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.entities import (
@@ -155,7 +155,7 @@ def list_pc(
     q: str | None = Query(None, max_length=100),
     category: str | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles_or_workplace_manager(*VIEW)),
+    user: User = Depends(require_roles_or_workplace_operations(*VIEW)),
 ):
     stmt = select(PeriodicControl).where(PeriodicControl.is_active.is_(True)).order_by(PeriodicControl.id.desc())
     ids = company_ids_for_query(db, user, company_id)
@@ -186,7 +186,7 @@ def list_pc(
 def export_pc(
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles_or_workplace_manager(*VIEW)),
+    user: User = Depends(require_roles_or_workplace_operations(*VIEW)),
 ):
     rows = list_pc(company_id=company_id, q=None, category=None, db=db, user=user)
     cat = {c["code"]: c["label"] for c in PERIODIC_CATEGORIES}
@@ -213,7 +213,7 @@ def export_pc(
 def create_pc(
     payload: PeriodicControlCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles_or_workplace_manager(*EDIT)),
+    user: User = Depends(require_roles_or_workplace_operations(*EDIT)),
 ):
     ensure_company_access(db, user, payload.company_id)
     if payload.category not in {c["code"] for c in PERIODIC_CATEGORIES}:
@@ -232,7 +232,7 @@ def update_pc(
     item_id: int,
     payload: PeriodicControlUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles_or_workplace_manager(*EDIT)),
+    user: User = Depends(require_roles_or_workplace_operations(*EDIT)),
 ):
     row = db.get(PeriodicControl, item_id)
     if not row:
@@ -1037,7 +1037,7 @@ def list_wm(
     q: str | None = Query(None, max_length=100),
     measurement_type: str | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles_or_workplace_manager(*PHYS_VIEW)),
+    user: User = Depends(require_roles_or_workplace_operations(*PHYS_VIEW)),
 ):
     stmt = (
         select(WorkplaceMeasurement)
@@ -1072,7 +1072,7 @@ def list_wm(
 def create_wm(
     payload: MeasurementCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles_or_workplace_manager(*EDIT)),
+    user: User = Depends(require_roles_or_workplace_operations(*EDIT)),
 ):
     ensure_company_access(db, user, payload.company_id)
     if payload.measurement_type not in {t["code"] for t in MEASUREMENT_TYPES}:
@@ -1091,7 +1091,7 @@ def update_wm(
     item_id: int,
     payload: MeasurementUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles_or_workplace_manager(*EDIT)),
+    user: User = Depends(require_roles_or_workplace_operations(*EDIT)),
 ):
     row = db.get(WorkplaceMeasurement, item_id)
     if not row:
@@ -1111,7 +1111,7 @@ def update_wm(
 def export_wm(
     company_id: int | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles_or_workplace_manager(*PHYS_VIEW)),
+    user: User = Depends(require_roles_or_workplace_operations(*PHYS_VIEW)),
 ):
     rows = list_wm(company_id=company_id, q=None, measurement_type=None, db=db, user=user)
     types = {t["code"]: t["label"] for t in MEASUREMENT_TYPES}

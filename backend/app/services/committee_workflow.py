@@ -15,7 +15,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.api.company_access import company_ids_for_query, ensure_company_access
-from app.api.deps import is_workplace_manager_account
+from app.api.deps import is_workplace_operations_account
 from app.models.entities import (
     Company,
     EyasStep,
@@ -138,7 +138,7 @@ def can_manage_company(db: Session, user: User, company_id: int) -> bool:
     role = role_value(user)
     if role == "global_admin":
         return True
-    if is_workplace_manager_account(user) and int(user.company_id or 0) == int(company_id):
+    if is_workplace_operations_account(user) and int(user.company_id or 0) == int(company_id):
         return True
     participants = assigned_participants(db, company_id)
     if role == "safety_specialist":

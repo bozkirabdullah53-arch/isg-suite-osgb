@@ -71,12 +71,16 @@ def require_roles(*roles: UserRole):
     return dependency
 
 
+def is_workplace_operations_account(user: User) -> bool:
+    """İşyeri şifresi/QR hesabı dahil, yalnız tek işyerine bağlı yönetici."""
+    return user.role == UserRole.COMPANY_ADMIN and bool(user.company_id)
+
+
 def is_workplace_manager_account(user: User) -> bool:
     """Tek işyerine bağlı company_admin hesabı; QR kiosk hesabı ayrı tutulur."""
     email = str(getattr(user, "email", "") or "").strip().lower()
     return (
-        user.role == UserRole.COMPANY_ADMIN
-        and bool(user.company_id)
+        is_workplace_operations_account(user)
         and not email.endswith("@kiosk.isgsuite.tr")
     )
 
@@ -101,6 +105,20 @@ def require_roles_or_workplace_manager(*roles: UserRole):
     """
     def dependency(user: User = Depends(get_current_user)) -> User:
         if user.role not in roles and not is_workplace_manager_account(user):
+            raise HTTPException(status_code=403, detail="Bu işlem için yetkiniz yok.")
+        return user
+
+    return dependency
+
+
+def require_roles_or_workplace_operations(*roles: UserRole):
+    """İstenen operasyonlarda işyeri/QR hesabını kabul eder.
+
+    Her uç ayrıca kendi kayıt/firma kapsamını ensure_company_access ile doğrular.
+    Normal yetkili hesabına özgü diğer modüllerin bağımlılığı değiştirilmez.
+    """
+    def dependency(user: User = Depends(get_current_user)) -> User:
+        if user.role not in roles and not is_workplace_operations_account(user):
             raise HTTPException(status_code=403, detail="Bu işlem için yetkiniz yok.")
         return user
 
