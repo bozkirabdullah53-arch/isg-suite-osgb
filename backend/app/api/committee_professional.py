@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.api.company_access import ensure_company_access
-from app.api.deps import require_roles
+from app.api.deps import require_roles, require_roles_or_workplace_manager
 from app.core.database import get_db
 from app.models.entities import Company, Employee, EyasStep, User, UserRole
 from app.services.assigned_team import assigned_team
@@ -474,7 +474,7 @@ def remove_committee_member_compat(
 def create_validated_meeting(
     payload: MeetingValidatedCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*EDIT)),
+    user: User = Depends(require_roles_or_workplace_manager(*EDIT)),
 ):
     assert_can_manage(db, user, payload.company_id)
     missing = _missing_mandatory(db, payload.company_id)

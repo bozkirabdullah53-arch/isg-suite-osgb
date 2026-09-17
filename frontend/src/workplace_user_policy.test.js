@@ -3,6 +3,7 @@ import {describe, expect, it} from 'vitest';
 import {
   isWorkplaceKioskUser,
   isWorkplaceManagerUser,
+  workplaceMenuSection,
   WORKPLACE_MANAGER_MODULES,
 } from './workplace_user_policy';
 
@@ -29,12 +30,14 @@ describe('workplace user policy', () => {
       'ppe',
       'sds',
       'periyodik_kontrol',
+      'ortam_olcum',
+      'near_miss',
+      'accident',
+      'capa',
+      'isg_kurulu',
       'personnel_training_records',
       'documents',
       'eyas_inbox',
-      'ortam_olcum',
-      'accident',
-      'near_miss',
       'health',
       'site_qr_kiosk',
     ]);
@@ -44,5 +47,8 @@ describe('workplace user policy', () => {
     expect(WORKPLACE_MANAGER_MODULES).not.toContain('finance');
     expect(WORKPLACE_MANAGER_MODULES).not.toContain('training');
     expect(WORKPLACE_MANAGER_MODULES).not.toContain('security');
+    expect(workplaceMenuSection(manager, 'ppe')).toBe('İSG Kayıtları');
+    expect(workplaceMenuSection(manager, 'employees')).toBe('Personel');
+    expect(workplaceMenuSection({...manager, company_id: null}, 'ppe')).toBe('');
   });
 });

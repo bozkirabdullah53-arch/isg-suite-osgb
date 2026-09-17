@@ -84,6 +84,7 @@ import './styles.css';
 import './theme-modern.css';
 import './emergency_plan_premium.css';
 import {ContextualAssistant} from './contextual_assistant';
+import {PwaShortcutPrompt} from './pwa_shortcut_prompt';
 import {useUiTheme} from './theme';
 import {
   createNavigationState,
@@ -93,6 +94,7 @@ import {
 import {
   isWorkplaceKioskUser,
   isWorkplaceManagerUser,
+  workplaceMenuSection,
   WORKPLACE_MANAGER_MODULES,
 } from './workplace_user_policy';
 import {
@@ -188,7 +190,7 @@ function modulesForUser(user){
 const mobilePrimaryByRole={
   global_admin:['eisa_overview','eisa_osgb_users','eisa_subscriptions','eisa_payments'],
   company_admin:['osgb_dashboard','employer_oversight','visits','notifications'],
-  workplace_manager:['employer_oversight','employees','ppe','accident'],
+  workplace_manager:['employer_oversight','employees','ppe','isg_kurulu'],
   safety_specialist:['visit_notebook','visit_qr','field_inspection'],
   workplace_physician:['health','prescriptions','visit_notebook'],
   other_health_personnel:['field_pwa','visits','health','employees'],
@@ -2610,7 +2612,7 @@ function App(){
     id,
     label,
     Icon,
-    professionalMenuSection(user.role,id),
+    professionalMenuSection(user.role,id) || workplaceMenuSection(user,id),
   ]);
   const homeId=homeModuleForUser(user);
   const pages={
@@ -2852,7 +2854,12 @@ function App(){
     </div>
   );
 }
-createRoot(document.getElementById('root')).render(<App/>);
+createRoot(document.getElementById('root')).render(
+  <>
+    <App/>
+    <PwaShortcutPrompt/>
+  </>
+);
 
 
 if ("serviceWorker" in navigator && import.meta.env.PROD) {

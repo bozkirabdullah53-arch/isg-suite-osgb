@@ -169,6 +169,35 @@ def _headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def test_workplace_manager_can_manage_own_committee_without_eyas_assignment(monkeypatch):
+    from app.models.entities import UserRole
+    from app.services import committee_workflow
+
+    manager = SimpleNamespace(
+        role=UserRole.COMPANY_ADMIN,
+        company_id=42,
+        email="ik@example.com",
+        id=9,
+    )
+    foreign_manager = SimpleNamespace(
+        role=UserRole.COMPANY_ADMIN,
+        company_id=99,
+        email="baska@example.com",
+        id=10,
+    )
+    osgb_admin = SimpleNamespace(
+        role=UserRole.COMPANY_ADMIN,
+        company_id=None,
+        email="admin@example.com",
+        id=11,
+    )
+    monkeypatch.setattr(committee_workflow, "assigned_participants", lambda *_args, **_kwargs: [])
+
+    assert committee_workflow.can_manage_company(SimpleNamespace(), manager, 42) is True
+    assert committee_workflow.can_manage_company(SimpleNamespace(), foreign_manager, 42) is False
+    assert committee_workflow.can_manage_company(SimpleNamespace(), osgb_admin, 42) is False
+
+
 def test_workplace_manager_account_excludes_osgb_admin_and_qr_kiosk():
     from app.api.deps import is_workplace_manager_account
     from app.models.entities import UserRole
@@ -429,6 +458,16 @@ def test_workplace_manager_can_write_target_modules_only_in_own_company(workplac
         listed = client.get(path, headers=headers)
         assert listed.status_code == 200, listed.text
         assert {row["company_id"] for row in listed.json()} <= {own}
+
+    committee_meta = client.get("/api/v1/ohs-committee/meta", headers=headers)
+    assert committee_meta.status_code == 200, committee_meta.text
+    assert client.get(
+        "/api/v1/ohs-committee/candidates",
+        headers=headers,
+        params={"company_id": foreign},
+    ).status_code == 403
+    capa_board = client.get("/api/v1/incidents/capa-board.xlsx", headers=headers)
+    assert capa_board.status_code == 200, capa_board.text
 
 
 def test_workplace_manager_direct_api_scope_stays_inside_own_workplace(workplace_client):

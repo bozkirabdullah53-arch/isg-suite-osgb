@@ -1,0 +1,56 @@
+.pwa-shortcut-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: grid;
+  place-items: end center;
+  padding: 16px 12px 28px;
+  background: rgba(8, 28, 36, .42);
+}
+
+.pwa-shortcut-card {
+  width: min(420px, 100%);
+  padding: 18px 16px 14px;
+  border: 1px solid #d8e9eb;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(15, 65, 75, .18);
+  color: #102f3a;
+}
+
+.pwa-shortcut-card h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.pwa-shortcut-card p {
+  margin: 0 0 14px;
+  color: #49656e;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.pwa-shortcut-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.pwa-shortcut-actions button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 11px;
+  padding: 10px 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pwa-shortcut-actions .pwa-no {
+  background: #eef4f5;
+  color: #3d5a63;
+}
+
+.pwa-shortcut-actions .pwa-yes {
+  background: #0f766e;
+  color: #fff;
+}
