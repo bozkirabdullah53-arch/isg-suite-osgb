@@ -32,6 +32,8 @@ from app.models.remote_training import (
     RemoteTrainingProgram,
 )
 from app.api.self_service import (
+    _classroom_certificate_items,
+    _remote_certificate_items,
     _assert_self_service_user,
     _own_classroom_certificate,
     _own_remote_certificate,
@@ -336,3 +338,84 @@ def test_self_service_lists_and_downloads_only_own_certificates(db: Session, mon
     with pytest.raises(HTTPException) as pending_exc:
         _own_remote_certificate(db, employee, pending_assignment.id)
     assert pending_exc.value.status_code == 404
+
+
+def test_self_service_lists_all_historical_classroom_certificates(db: Session):
+    _osgb, company, _other_company, employee, user, _mapping = _seed(db)
+    sessions = [
+        TrainingSession(
+            company_id=company.id,
+            title=f"Geçmiş İSG Eğitimi {index}",
+            start_date=date(2020 + (index % 6), 1, 1),
+            end_date=date(2020 + (index % 6), 1, 1),
+            hazard_class="Tehlikeli",
+            instructor_name="İSG Uzmanı",
+            status=TrainingStatus.COMPLETED,
+            created_by_id=user.id,
+        )
+        for index in range(105)
+    ]
+    db.add_all(sessions)
+    db.flush()
+    db.add_all(
+        [
+            TrainingParticipant(
+                training_id=session.id,
+                employee_id=employee.id,
+                attended=True,
+                successful=True,
+                certificate_number=f"EGT-HISTORY-{index:03d}",
+            )
+            for index, session in enumerate(sessions)
+        ]
+    )
+    db.flush()
+
+    certificates = _classroom_certificate_items(db, company.id, employee.id)
+
+    assert len(certificates) == 105
+    assert {row["certificate_number"] for row in certificates} == {
+        f"EGT-HISTORY-{index:03d}" for index in range(105)
+    }
+
+
+def test_self_service_lists_all_historical_remote_certificates(db: Session, monkeypatch):
+    osgb, company, _other_company, employee, _user, _mapping = _seed(db)
+    monkeypatch.setattr(settings, "remote_basic_ohs_training_enabled", True)
+    monkeypatch.setattr(settings, "remote_basic_ohs_training_force_off", False)
+    programs = [
+        RemoteTrainingProgram(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            title=f"Uzaktan Temel İSG {index}",
+            status="published",
+            total_duration_seconds=3600,
+        )
+        for index in range(105)
+    ]
+    db.add_all(programs)
+    db.flush()
+    assignments = [
+        RemoteTrainingAssignment(
+            osgb_id=osgb.id,
+            company_id=company.id,
+            program_id=program.id,
+            employee_id=employee.id,
+            employee_name_snapshot=employee.full_name,
+            workplace_name_snapshot=company.name,
+            sgk_registration_number_snapshot="SGK-1",
+            nace_code_snapshot="46.83.06",
+            nace_description_snapshot="Toptan ticaret",
+            hazard_class_snapshot="Tehlikeli",
+            status="completed",
+            completed_at=datetime(2020 + (index % 6), 1, 1, 10, 0, 0),
+        )
+        for index, program in enumerate(programs)
+    ]
+    db.add_all(assignments)
+    db.flush()
+
+    certificates = _remote_certificate_items(db, company.id, employee.id)
+
+    assert len(certificates) == 105
+    assert {row["source_id"] for row in certificates} == {row.id for row in assignments}
