@@ -9,9 +9,11 @@ const modules = [
   ['isg_kurulu', /İSG Kurulu/],
 ];
 
-async function setup(page, {email = 'isyeri.42@kiosk.isgsuite.tr', summaryError = false} = {}) {
+async function setup(page, {email = 'isyeri.42@kiosk.isgsuite.tr', summaryError = false, employees = []} = {}) {
   const errors = [];
   let qrRequests = 0;
+  let employeeRows = [...employees];
+  const bulkPurgePayloads = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.addInitScript(() => {
     const payload = btoa(JSON.stringify({sub: '9', exp: Math.floor(Date.now() / 1000) + 3600}));
@@ -36,6 +38,19 @@ async function setup(page, {email = 'isyeri.42@kiosk.isgsuite.tr', summaryError 
       summaryError ? {detail: 'Özet servisine ulaşılamıyor.'} : {company_id: company.id, company_name: company.name, counts},
       summaryError ? 500 : 200);
     if (path === '/companies') return json(route, [company]);
+    if (path === '/employees/bulk-purge' && request.method() === 'POST') {
+      const payload = request.postDataJSON();
+      bulkPurgePayloads.push(payload);
+      const selectedIds = new Set(payload.employee_ids || []);
+      employeeRows = employeeRows.filter((employee) => !selectedIds.has(employee.id));
+      return json(route, {
+        message: `${selectedIds.size} personel kalıcı olarak silindi.`,
+        deleted: selectedIds.size,
+        linked_skipped: 0,
+        requested: selectedIds.size,
+      });
+    }
+    if (path === '/employees') return json(route, employeeRows);
     if (path === '/companies/42/site-qr/ephemeral') {
       qrRequests += 1;
       return json(route, {
@@ -54,7 +69,11 @@ async function setup(page, {email = 'isyeri.42@kiosk.isgsuite.tr', summaryError 
     if (path.endsWith('/due-summary')) return json(route, {total: 0, overdue: 0, due_soon: 0});
     return json(route, []);
   });
-  return {errors, qrRequests: () => qrRequests};
+  return {
+    errors,
+    qrRequests: () => qrRequests,
+    bulkPurgePayloads: () => bulkPurgePayloads,
+  };
 }
 
 for (const email of ['isyeri.42@kiosk.isgsuite.tr', 'yetkili@example.com']) {
@@ -111,6 +130,42 @@ test('workplace password account can open the requested register forms', async (
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', {name: /Kapat|Vazgeç|İptal/}).first().click();
   }
+  expect(state.errors).toEqual([]);
+});
+
+test('workplace password account can select and delete its own personnel', async ({page}) => {
+  const state = await setup(page, {
+    employees: [
+      {
+        id: 101,
+        company_id: company.id,
+        branch_id: null,
+        full_name: 'Ayşe Örnek',
+        national_id_masked: null,
+        job_title: 'Üretim Personeli',
+        department: 'Üretim',
+        start_date: '2026-09-01',
+        special_status: null,
+        is_active: true,
+      },
+    ],
+  });
+  page.on('dialog', (dialog) => dialog.accept());
+
+  await page.goto('/#m=employees');
+  const employeeCheckbox = page.getByRole('checkbox', {name: 'Ayşe Örnek personelini seç'});
+  await expect(employeeCheckbox).toBeVisible();
+
+  await page.getByRole('button', {name: 'Görünenlerin Tümünü Seç'}).click();
+  await expect(employeeCheckbox).toBeChecked();
+
+  const purgeButton = page.getByRole('button', {name: 'Seçilenleri Kalıcı Sil (1)'}).last();
+  await expect(purgeButton).toBeEnabled();
+  await purgeButton.click();
+
+  await expect.poll(() => state.bulkPurgePayloads().length).toBe(1);
+  expect(state.bulkPurgePayloads()[0]).toEqual({employee_ids: [101], company_id: company.id});
+  await expect(page.getByText('Ayşe Örnek')).toHaveCount(0);
   expect(state.errors).toEqual([]);
 });
 
