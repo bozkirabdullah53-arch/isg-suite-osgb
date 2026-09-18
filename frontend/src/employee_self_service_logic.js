@@ -131,6 +131,17 @@ export function certificateKindLabel(kind) {
   return kind === 'remote' ? 'Uzaktan eğitim' : 'Yüz yüze eğitim';
 }
 
+export function filterSelfServiceCertificates(items, query = '', status = 'all') {
+  const search = String(query).trim().toLocaleLowerCase('tr-TR');
+  return (Array.isArray(items) ? items : []).filter((item) => {
+    if (status === 'ready' && !item.downloadable) return false;
+    if (status === 'pending' && item.downloadable) return false;
+    const text = [item.title, item.certificate_number, certificateKindLabel(item.kind)]
+      .join(' ').toLocaleLowerCase('tr-TR');
+    return !search || text.includes(search);
+  });
+}
+
 export function selfServiceCertificateFilename(item) {
   const number = String(item?.certificate_number || '').trim().replace(/[^\w.-]+/g, '-');
   if (number) return `egitim-katilim-belgesi-${number}.pdf`;

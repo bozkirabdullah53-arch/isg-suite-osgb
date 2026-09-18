@@ -3,6 +3,7 @@ import {describe, expect, it} from 'vitest';
 import {
   certificateKindLabel,
   completedSelfServiceTraining,
+  filterSelfServiceCertificates,
   formatSelfServiceDate,
   isEmployeeNotificationVisible,
   normalizeSelfServicePayload,
@@ -62,6 +63,18 @@ describe('employee self-service payload', () => {
       kind: 'classroom',
       source_id: 9,
     })).toBe('egitim-katilim-belgesi-EGT-000001-000002.pdf');
+  });
+
+  it('searches all documents with Turkish text and filters readiness', () => {
+    const documents = [
+      {title: 'İLK YARDIM', kind: 'classroom', certificate_number: 'EGT-42', downloadable: true},
+      {title: 'Hijyen Eğitimi', kind: 'remote', downloadable: false},
+    ];
+    expect(filterSelfServiceCertificates(documents, 'ilk yardım')).toEqual([documents[0]]);
+    expect(filterSelfServiceCertificates(documents, 'egt-42', 'ready')).toEqual([documents[0]]);
+    expect(filterSelfServiceCertificates(documents, 'uzaktan', 'pending')).toEqual([documents[1]]);
+    expect(filterSelfServiceCertificates(documents, 'ilk', 'pending')).toEqual([]);
+    expect(filterSelfServiceCertificates(documents)).toHaveLength(2);
   });
 
   it('hides annual-plan management notifications from the employee view', () => {

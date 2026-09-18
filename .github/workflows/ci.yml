@@ -83,6 +83,7 @@ jobs:
           tests/test_pro_performance_export.py
           tests/test_committee_professional.py
           tests/test_company_access.py
+          tests/test_employee_self_service.py
           tests/test_workplace_manager_access.py
           tests/test_personnel_profile_readonly.py
           tests/test_personnel_profile_core.py

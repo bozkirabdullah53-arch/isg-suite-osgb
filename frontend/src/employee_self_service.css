@@ -159,6 +159,59 @@
   font-size: 18px;
 }
 
+.ess-certificates-card {
+  grid-column: 1 / -1;
+}
+
+.ess-certificate-help {
+  margin: 0 0 14px;
+  color: #49656e;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ess-certificate-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ess-certificate-toolbar label {
+  display: grid;
+  flex: 1 1 220px;
+  min-width: 0;
+  gap: 5px;
+  color: #49656e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ess-certificate-toolbar input,
+.ess-certificate-toolbar select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #cadfe1;
+  border-radius: 10px;
+  background: #fff;
+  color: #102f3a;
+  font: inherit;
+}
+
+.ess-certificates-card .ess-list-row strong,
+.ess-certificates-card .ess-list-row small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ess-certificates-card .ess-certificate-reason {
+  margin-top: 4px;
+  color: #755719;
+  line-height: 1.5;
+}
+
 .ess-list {
   display: grid;
   gap: 9px;

@@ -1231,7 +1231,10 @@ def _latest_checkpoint_answer(
     )
 
 
-def recalculate_assignment(db: Session, assignment: RemoteTrainingAssignment) -> dict[str, Any]:
+def recalculate_assignment(
+    db: Session, assignment: RemoteTrainingAssignment, *, persist: bool = True
+) -> dict[str, Any]:
+    """Check recorded progress; ``persist=False`` leaves historical rows untouched."""
     program = load_program(db, assignment.program_id)
     sector_codes = assignment_sector_codes(db, assignment)
     required_videos = _current_required_videos(db, program.id, sector_codes)
@@ -1272,18 +1275,22 @@ def recalculate_assignment(db: Session, assignment: RemoteTrainingAssignment) ->
     exam_complete = not program.requires_final_exam or exam is not None
     required_complete = bool(required_videos) and all(video_complete.values())
     complete = required_complete and checkpoint_complete and exam_complete
-    now = datetime.utcnow()
+    status = assignment.status
+    completed_at = assignment.completed_at
     if assignment.status == "revoked":
         # Kaldırılmış atamanın ilerleme/sınav geçmişi rapor ve denetim için
         # korunur; ancak aktif çalışan akışında tamamlanmış sayılmaz.
         complete = False
     elif complete:
-        assignment.status = "completed"
-        assignment.completed_at = assignment.completed_at or now
+        status = "completed"
+        completed_at = completed_at or datetime.utcnow()
     elif assignment.status not in {"expired", "failed"}:
         started = any((row.status != "not_started") for row in progress_rows)
-        assignment.status = "in_progress" if started else "not_started"
-        assignment.completed_at = None
+        status = "in_progress" if started else "not_started"
+        completed_at = None
+    if persist:
+        assignment.status = status
+        assignment.completed_at = completed_at
     return {
         "sector_codes": sorted(sector_codes) if sector_codes is not None else None,
         "sector_scope_mode": "scoped" if sector_codes is not None else "legacy",
@@ -1295,7 +1302,7 @@ def recalculate_assignment(db: Session, assignment: RemoteTrainingAssignment) ->
         "exam_required": bool(program.requires_final_exam),
         "exam_passed": bool(exam_complete),
         "complete": complete,
-        "status": assignment.status,
+        "status": status,
         "exam_score": exam.score if exam else None,
     }
 

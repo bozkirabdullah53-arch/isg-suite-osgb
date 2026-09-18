@@ -45,6 +45,7 @@ from app.services.health_audit import append_health_access
 from app.services.remote_training import (
     build_certificate_pdf,
     ensure_certificate,
+    recalculate_assignment,
     strict_policy_active,
 )
 from app.services import training_pdfs
@@ -209,12 +210,22 @@ def _classroom_certificate_state(
             "downloadable": False,
             "block_reason": "İptal edilmiş eğitim için katılım belgesi üretilemez.",
         }
+    if session.status != TrainingStatus.COMPLETED:
+        return {
+            "downloadable": False,
+            "block_reason": "Eğitim tamamlandıktan sonra katılım belgesi indirilebilir.",
+        }
+    if (session.end_date or session.start_date) > date.today():
+        return {
+            "downloadable": False,
+            "block_reason": "Eğitim bitiş tarihi henüz gelmedi.",
+        }
+    if not participant.attended or not session.attendance_verified:
+        return {
+            "downloadable": False,
+            "block_reason": "Eğitime katılımınız yetkili tarafından doğrulanmadı.",
+        }
     if resolve_special_profile_key(session):
-        if not session.attendance_verified:
-            return {
-                "downloadable": False,
-                "block_reason": "Özel eğitim katılımı doğrulanmadan belge üretilemez.",
-            }
         if not session.success_verified:
             return {
                 "downloadable": False,
@@ -235,11 +246,6 @@ def _classroom_certificate_state(
                 "block_reason": "; ".join(blockers) or "Katılım belgesi henüz oluşmadı.",
             }
         return {"downloadable": True, "block_reason": None}
-    if session.status != TrainingStatus.COMPLETED and not participant.attended and participant.successful is not True:
-        return {
-            "downloadable": False,
-            "block_reason": "Eğitim tamamlandıktan sonra katılım belgesi indirilebilir.",
-        }
     return {"downloadable": True, "block_reason": None}
 
 
@@ -257,20 +263,45 @@ def _remote_snapshot_ready(assignment: RemoteTrainingAssignment) -> bool:
 
 
 def _remote_certificate_state(
+    db: Session,
     assignment: RemoteTrainingAssignment,
     certificate: RemoteTrainingCertificate | None,
 ) -> dict[str, Any]:
-    if assignment.status == "revoked" and certificate is None:
+    if certificate is not None:
+        # Issued documents remain available when a program is archived or an
+        # assignment is revoked. Never expose a mismatched historical snapshot.
+        matches = (
+            certificate.assignment_id == assignment.id
+            and certificate.company_id == assignment.company_id
+            and certificate.employee_id == assignment.employee_id
+            and certificate.program_id == assignment.program_id
+        )
+        return {
+            "downloadable": matches,
+            "block_reason": None if matches else "Belge kaydı çalışan hesabıyla eşleşmiyor.",
+        }
+    if assignment.status == "revoked":
         return {
             "downloadable": False,
             "block_reason": "Atama kaldırıldı; bu kayıt için oluşturulmuş belge bulunmuyor.",
         }
-    if assignment.status != "completed" and certificate is None:
+    program = db.get(RemoteTrainingProgram, assignment.program_id)
+    if (
+        not program
+        or program.company_id != assignment.company_id
+        or program.status != "published"
+        or (program.policy_mode == "strict" and not strict_policy_active(program))
+    ):
+        return {"downloadable": False, "block_reason": "Eğitim şu anda erişime açık değil."}
+    # A stale "completed" status alone is not evidence of video/exam completion.
+    # Listing must never rewrite progress or create a certificate.
+    progress = recalculate_assignment(db, assignment, persist=False)
+    if not progress["complete"] or progress["exam_score"] is None:
         return {
             "downloadable": False,
-            "block_reason": "Video ve final sınavı tamamlanmadan katılım belgesi alınamaz.",
+            "block_reason": "Videolar tamamlanıp final sınavında başarılı olunmadan katılım belgesi alınamaz.",
         }
-    if certificate is None and not _remote_snapshot_ready(assignment):
+    if not _remote_snapshot_ready(assignment):
         return {
             "downloadable": False,
             "block_reason": "Belge için tarihsel işyeri bilgileri eksik.",
@@ -286,12 +317,12 @@ def _classroom_certificate_items(
     rows = db.execute(
         select(TrainingSession, TrainingParticipant)
         .join(TrainingParticipant, TrainingParticipant.training_id == TrainingSession.id)
+        .options(selectinload(TrainingSession.participants))
         .where(
             TrainingSession.company_id == company_id,
             TrainingParticipant.employee_id == employee_id,
         )
         .order_by(TrainingSession.start_date.desc(), TrainingSession.id.desc())
-        .limit(100)
     ).all()
     items: list[dict[str, Any]] = []
     for session, participant in rows:
@@ -304,11 +335,13 @@ def _classroom_certificate_items(
                 "title": session.title,
                 "training_type": session.training_type,
                 "start_date": _iso(session.start_date),
-                "issue_date": _iso(session.end_date or session.start_date),
-                "certificate_number": participant.certificate_number,
+                "issue_date": _iso(session.end_date or session.start_date) if state["downloadable"] else None,
+                "certificate_number": participant.certificate_number or (
+                    f"EGT-{session.id:06d}-{employee_id:06d}" if state["downloadable"] else None
+                ),
                 "downloadable": state["downloadable"],
                 "block_reason": state["block_reason"],
-                "download_path": f"/self-service/certificates/classroom/{session.id}.pdf",
+                "download_path": f"/self-service/certificates/classroom/{session.id}.pdf" if state["downloadable"] else None,
             }
         )
     return items
@@ -328,7 +361,6 @@ def _remote_certificate_items(
             RemoteTrainingAssignment.employee_id == employee_id,
         )
         .order_by(RemoteTrainingAssignment.completed_at.desc(), RemoteTrainingAssignment.id.desc())
-        .limit(100)
     ).all()
     if not assignments:
         return []
@@ -350,24 +382,27 @@ def _remote_certificate_items(
     items: list[dict[str, Any]] = []
     for assignment in assignments:
         program = programs.get(assignment.program_id)
-        if not program:
+        if not program or program.company_id != company_id:
             continue
-        if assignment.status != "revoked" and program.status != "published":
+        certificate = certificates.get(assignment.id)
+        if certificate is None and assignment.status != "revoked" and program.status != "published":
             continue
         if (
-            assignment.status != "revoked"
+            certificate is None
+            and assignment.status != "revoked"
             and str(getattr(program, "policy_mode", "legacy") or "legacy").lower() == "strict"
             and not strict_policy_active(program)
         ):
             continue
-        certificate = certificates.get(assignment.id)
-        state = _remote_certificate_state(assignment, certificate)
+        state = _remote_certificate_state(db, assignment, certificate)
+        if certificate is not None and not state["downloadable"]:
+            continue
         items.append(
             {
                 "id": f"remote-{assignment.id}",
                 "kind": "remote",
                 "source_id": assignment.id,
-                "title": program.title,
+                "title": certificate.training_name if certificate else program.title,
                 "training_type": "Uzaktan Eğitim",
                 "start_date": _iso(assignment.assigned_at),
                 "issue_date": _iso(
@@ -378,7 +413,7 @@ def _remote_certificate_items(
                 "certificate_number": certificate.certificate_number if certificate else None,
                 "downloadable": state["downloadable"],
                 "block_reason": state["block_reason"],
-                "download_path": f"/self-service/certificates/remote/{assignment.id}.pdf",
+                "download_path": f"/self-service/certificates/remote/{assignment.id}.pdf" if state["downloadable"] else None,
             }
         )
     return items
@@ -407,7 +442,11 @@ def _pdf_response(data: bytes, filename: str) -> StreamingResponse:
     return StreamingResponse(
         BytesIO(data),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 
@@ -443,6 +482,8 @@ def _own_remote_certificate(
     employee: Employee,
     assignment_id: int,
 ) -> tuple[RemoteTrainingAssignment, RemoteTrainingCertificate]:
+    if not remote_basic_ohs_training_active():
+        raise HTTPException(404, "Uzaktan eğitim modülü etkin değil.")
     assignment = db.scalar(
         select(RemoteTrainingAssignment).where(
             RemoteTrainingAssignment.id == assignment_id,
@@ -457,10 +498,10 @@ def _own_remote_certificate(
             RemoteTrainingCertificate.assignment_id == assignment.id
         )
     )
-    state = _remote_certificate_state(assignment, existing)
+    state = _remote_certificate_state(db, assignment, existing)
     if not state["downloadable"]:
         raise HTTPException(409, state["block_reason"] or "Katılım belgesi henüz indirilemez.")
-    certificate = ensure_certificate(db, assignment)
+    certificate = existing or ensure_certificate(db, assignment)
     if not certificate:
         raise HTTPException(409, "Katılım belgesi henüz oluşturulamadı.")
     return assignment, certificate
