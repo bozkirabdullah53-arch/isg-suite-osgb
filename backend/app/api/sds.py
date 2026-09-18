@@ -15,6 +15,7 @@ from app.api.company_access import company_ids_for_query, ensure_company_access
 from app.api.deps import get_current_user, require_roles_or_workplace_operations
 from app.core.database import get_db
 from app.models.entities import (
+    Branch,
     ChemicalProduct,
     Company,
     DocumentCategory,
@@ -87,6 +88,15 @@ def _to_response(row: ChemicalProduct) -> ChemicalProductResponse:
 
 def _ensure_edit(db: Session, user: User, company_id: int) -> None:
     ensure_company_access(db, user, company_id)
+
+
+def _validated_branch(db: Session, company_id: int, branch_id: int | None) -> Branch | None:
+    if branch_id is None:
+        return None
+    branch = db.get(Branch, branch_id)
+    if not branch or not branch.is_active or int(branch.company_id) != int(company_id):
+        raise HTTPException(400, "Seçilen şube bu firmaya ait değil veya aktif değil.")
+    return branch
 
 
 @router.get("/meta")
@@ -266,10 +276,11 @@ def create_product(
     user: User = Depends(require_roles_or_workplace_operations(*EDIT_ROLES)),
 ):
     _ensure_edit(db, user, payload.company_id)
+    branch = _validated_branch(db, payload.company_id, payload.branch_id)
     now = datetime.utcnow()
     row = ChemicalProduct(
         company_id=payload.company_id,
-        branch_id=payload.branch_id,
+        branch_id=branch.id if branch else None,
         product_name=payload.product_name,
         cas_number=payload.cas_number,
         has_sds_file=payload.has_sds_file,
