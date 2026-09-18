@@ -1,30 +1,54 @@
-import React, {useEffect, useState} from 'react';
-import {Beaker, Download, Plus, RefreshCw, Tag, Upload} from 'lucide-react';
+import React, {useEffect, useMemo, useState} from 'react';
+import {
+  Beaker,
+  Building2,
+  CalendarClock,
+  Download,
+  FileCheck2,
+  Hash,
+  MapPin,
+  Plus,
+  RefreshCw,
+  Save,
+  ShieldCheck,
+  Tag,
+  Upload,
+} from 'lucide-react';
 import {api, downloadFile, uploadFile} from './api';
 import {AppModal} from './ui_modal';
 import {isWorkplaceAccountUser} from './workplace_user_policy';
+import './sds_register.css';
 
-function Modal({title, close, children}) {
+function Modal({title, close, children, className = ''}) {
   return (
-    <AppModal title={title} close={close}>
+    <AppModal title={title} close={close} className={className}>
       {children}
     </AppModal>
   );
 }
 
-function Field({label, children, ...rest}) {
+function Field({label, children, className = '', hint = '', icon: Icon, requiredLabel = false, ...rest}) {
+  const required = requiredLabel || !!rest.required;
   if (children) {
     return (
-      <label className="field">
-        <span>{label}</span>
+      <label className={`field sds-modern-field${className ? ` ${className}` : ''}`}>
+        <span className="sds-modern-field-label">
+          {Icon ? <Icon size={15} aria-hidden="true" /> : null}
+          <span>{label}{required ? <b aria-hidden="true">*</b> : null}</span>
+        </span>
         {children}
+        {hint ? <small className="sds-field-hint">{hint}</small> : null}
       </label>
     );
   }
   return (
-    <label className="field">
-      <span>{label}</span>
+    <label className={`field sds-modern-field${className ? ` ${className}` : ''}`}>
+      <span className="sds-modern-field-label">
+        {Icon ? <Icon size={15} aria-hidden="true" /> : null}
+        <span>{label}{required ? <b aria-hidden="true">*</b> : null}</span>
+      </span>
       <input {...rest} />
+      {hint ? <small className="sds-field-hint">{hint}</small> : null}
     </label>
   );
 }
@@ -38,6 +62,7 @@ function reviewBadge(status) {
 
 const empty = {
   company_id: '',
+  branch_id: '',
   product_name: '',
   cas_number: '',
   has_sds_file: false,
@@ -46,10 +71,12 @@ const empty = {
 };
 
 export function SdsRegisterPage({user}) {
+  const workplaceAccount = isWorkplaceAccountUser(user);
   const canEdit = user.role === 'safety_specialist'
     || user.role === 'global_admin'
-    || isWorkplaceAccountUser(user);
+    || workplaceAccount;
   const [companies, setCompanies] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState(null);
   const [catalog, setCatalog] = useState([]);
@@ -61,19 +88,29 @@ export function SdsRegisterPage({user}) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
+  const workplaceBranches = useMemo(() => (
+    workplaceAccount ? branches.filter((branch) => (
+      branch.is_active !== false
+      && String(branch.company_id) === String(user.company_id)
+    )) : []
+  ), [branches, user.company_id, workplaceAccount]);
 
   async function load(nextQ = q) {
     setBusy(true);
     setErr('');
     try {
       const qs = nextQ.trim() ? `?q=${encodeURIComponent(nextQ.trim())}` : '';
-      const [c, r, s, meta] = await Promise.all([
-        api('/companies'),
+      const [c, b, r, s, meta] = await Promise.all([
+        workplaceAccount ? Promise.resolve([]) : api('/companies'),
+        workplaceAccount
+          ? api(`/branches?company_id=${Number(user.company_id)}`)
+          : Promise.resolve([]),
         api(`/sds${qs}`),
         api('/sds/due-summary'),
         api('/sds/meta'),
       ]);
-      setCompanies(c);
+      setCompanies(Array.isArray(c) ? c : []);
+      setBranches(Array.isArray(b) ? b : []);
       setRows(r);
       setSummary(s);
       setCatalog(meta?.ghs_pictograms || []);
@@ -89,6 +126,25 @@ export function SdsRegisterPage({user}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!workplaceAccount) return;
+    setForm((current) => {
+      const companyId = String(user.company_id || '');
+      const currentBranchIsValid = workplaceBranches.some(
+        (branch) => String(branch.id) === String(current.branch_id),
+      );
+      const branchId = currentBranchIsValid
+        ? String(current.branch_id)
+        : workplaceBranches.length === 1
+          ? String(workplaceBranches[0].id)
+          : '';
+      if (String(current.company_id) === companyId && String(current.branch_id) === branchId) {
+        return current;
+      }
+      return {...current, company_id: companyId, branch_id: branchId};
+    });
+  }, [user.company_id, workplaceAccount, workplaceBranches]);
+
   async function save(e) {
     e.preventDefault();
     setErr('');
@@ -97,7 +153,8 @@ export function SdsRegisterPage({user}) {
       await api('/sds', {
         method: 'POST',
         body: JSON.stringify({
-          company_id: Number(form.company_id),
+          company_id: Number(workplaceAccount ? user.company_id : form.company_id),
+          branch_id: form.branch_id ? Number(form.branch_id) : null,
           product_name: form.product_name,
           cas_number: form.cas_number || null,
           has_sds_file: !!form.has_sds_file,
@@ -106,7 +163,11 @@ export function SdsRegisterPage({user}) {
         }),
       });
       setOpen(false);
-      setForm({...empty, company_id: user.company_id || form.company_id || ''});
+      setForm({
+        ...empty,
+        company_id: workplaceAccount ? String(user.company_id) : form.company_id || '',
+        branch_id: workplaceAccount ? form.branch_id : '',
+      });
       setMsg('Kimyasal ürün eklendi.');
       await load();
     } catch (ex) {
@@ -302,53 +363,130 @@ export function SdsRegisterPage({user}) {
       </div>
 
       {open && (
-        <Modal title="Yeni Kimyasal Ürün" close={() => setOpen(false)}>
-          <form className="form-grid" onSubmit={save}>
-            <Field label="Firma">
-              <select
+        <Modal
+          className="sds-product-modal"
+          title={(
+            <span className="sds-modal-heading">
+              <span className="sds-modal-heading-icon" aria-hidden="true"><Beaker size={22} /></span>
+              <span>
+                <strong>Yeni Kimyasal Ürün</strong>
+                <small>SDS siciline güvenli ve izlenebilir ürün kaydı</small>
+              </span>
+            </span>
+          )}
+          close={() => setOpen(false)}
+        >
+          <form className="sds-product-form" onSubmit={save}>
+            <div className="sds-modal-intro">
+              <span className="sds-modal-intro-icon" aria-hidden="true"><ShieldCheck size={21} /></span>
+              <span className="sds-modal-intro-copy">
+                <strong>Ürün ve takip bilgileri</strong>
+                <small>Kimyasalı tanımlayın; SDS durumu ve gözden geçirme tarihini kaydedin.</small>
+              </span>
+              <span className="sds-required-note"><b>*</b> Zorunlu alan</span>
+            </div>
+
+            <div className="sds-product-grid">
+              {workplaceAccount ? (
+                <Field
+                  label="Şube"
+                  icon={MapPin}
+                  requiredLabel
+                  hint={workplaceBranches.length
+                    ? 'Kimyasal ürün seçtiğiniz şubeye kaydedilecektir.'
+                    : 'Bu işyerine tanımlanmış aktif şube bulunamadı.'}
+                >
+                  <select
+                    required
+                    disabled={workplaceBranches.length === 0}
+                    value={form.branch_id}
+                    onChange={(e) => setForm({...form, branch_id: e.target.value})}
+                  >
+                    <option value="">
+                      {workplaceBranches.length ? 'Şube seçiniz' : 'Tanımlı şube bulunamadı'}
+                    </option>
+                    {workplaceBranches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>{branch.name}</option>
+                    ))}
+                  </select>
+                </Field>
+              ) : (
+                <Field label="Firma" icon={Building2} requiredLabel>
+                  <select
+                    required
+                    value={form.company_id}
+                    onChange={(e) => setForm({...form, company_id: e.target.value})}
+                  >
+                    <option value="">Seçiniz</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </Field>
+              )}
+              <Field
+                label="Ürün adı"
+                icon={Beaker}
                 required
-                value={form.company_id}
-                onChange={(e) => setForm({...form, company_id: e.target.value})}
-              >
-                <option value="">Seçiniz</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field
-              label="Ürün adı"
-              required
-              value={form.product_name}
-              onChange={(e) => setForm({...form, product_name: e.target.value})}
-            />
-            <Field
-              label="CAS (isteğe bağlı)"
-              placeholder="örn. 67-64-1"
-              value={form.cas_number}
-              onChange={(e) => setForm({...form, cas_number: e.target.value})}
-            />
-            <Field
-              label="Sonraki gözden geçirme"
-              type="date"
-              value={form.next_review_date}
-              onChange={(e) => setForm({...form, next_review_date: e.target.value})}
-            />
-            <label className="field" style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
-              <input
-                type="checkbox"
-                checked={!!form.has_sds_file}
-                onChange={(e) => setForm({...form, has_sds_file: e.target.checked})}
+                placeholder="Örn. Aseton"
+                value={form.product_name}
+                onChange={(e) => setForm({...form, product_name: e.target.value})}
               />
-              <span>SDS dosyası mevcut (bayrak)</span>
-            </label>
-            <Field
-              label="Not"
-              value={form.notes}
-              onChange={(e) => setForm({...form, notes: e.target.value})}
-            />
-            <div className="form-actions">
-              <button type="submit" disabled={busy}>Kaydet</button>
+              <Field
+                label="CAS (isteğe bağlı)"
+                icon={Hash}
+                placeholder="Örn. 67-64-1"
+                value={form.cas_number}
+                onChange={(e) => setForm({...form, cas_number: e.target.value})}
+              />
+              <Field
+                label="Sonraki gözden geçirme"
+                icon={CalendarClock}
+                type="date"
+                value={form.next_review_date}
+                onChange={(e) => setForm({...form, next_review_date: e.target.value})}
+              />
+              <label className={`sds-file-card${form.has_sds_file ? ' is-active' : ''}`}>
+                <input
+                  className="sds-toggle-input"
+                  type="checkbox"
+                  checked={!!form.has_sds_file}
+                  onChange={(e) => setForm({...form, has_sds_file: e.target.checked})}
+                />
+                <span className="sds-file-card-icon" aria-hidden="true"><FileCheck2 size={21} /></span>
+                <span className="sds-file-card-copy">
+                  <strong>SDS dosyası mevcut</strong>
+                  <small>Güvenlik bilgi formu hazırsa bu seçeneği etkinleştirin.</small>
+                </span>
+                <span className="sds-toggle-ui" aria-hidden="true"><span /></span>
+              </label>
+              <Field label="Not" className="sds-notes-field">
+                <textarea
+                  rows={3}
+                  placeholder="Ürün, kullanım alanı veya takip süreciyle ilgili kısa not ekleyin…"
+                  value={form.notes}
+                  onChange={(e) => setForm({...form, notes: e.target.value})}
+                />
+              </Field>
+            </div>
+
+            <div className="sds-product-actions">
+              <button
+                type="button"
+                className="sds-cancel-button"
+                disabled={busy}
+                onClick={() => setOpen(false)}
+              >
+                Vazgeç
+              </button>
+              <button
+                type="submit"
+                className="sds-save-button"
+                disabled={busy || (workplaceAccount && !form.branch_id)}
+              >
+                <Save size={17} aria-hidden="true" />
+                {busy ? 'Kaydediliyor…' : 'Ürünü Kaydet'}
+              </button>
             </div>
           </form>
         </Modal>
